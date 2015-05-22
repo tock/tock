@@ -6,6 +6,7 @@
 extern crate core;
 
 pub mod gpio;
+pub mod timer;
 
 pub trait Controller {
     type Params;

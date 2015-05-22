@@ -72,6 +72,7 @@ macro_rules! enable_reference_decrement {
     });
 }
 
+pub mod ast;
 pub mod nvic;
 pub mod pm;
 pub mod gpio;
