@@ -21,9 +21,6 @@ include Common.mk
 # External dependencies (Rust libcore)
 include extern/Makefile.mk
 
-# Platform specific code (e.g. boot sequence)
-include platform/Makefile.mk
-
 # Tock
 include src/Makefile.mk
 
