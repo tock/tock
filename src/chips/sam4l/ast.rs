@@ -1,8 +1,11 @@
 use core::prelude::*;
 use core::intrinsics;
+use common::shared::Shared;
 use super::nvic;
 use hil::Controller;
 use hil::timer::{Timer, TimerReceiver};
+
+pub static mut INTERRUPT : bool = false;
 
 #[repr(C, packed)]
 #[allow(missing_copy_implementations)]
@@ -54,22 +57,22 @@ impl Controller for Ast {
     type Config = &'static mut TimerReceiver;
 
     fn new(_: ()) -> Ast {
-        Ast {addr: AST_BASE as *mut AstRegisters, receiver: None}
+        Ast { addr: AST_BASE as *mut AstRegisters, receiver: None }
     }
     
     fn configure(&mut self, receiver: &'static mut TimerReceiver) {
         self.receiver = Some(receiver);
+
+        // These should probably be parameters to `configure`
+        self.select_clock(Clock::ClockRCSys);
+        self.set_prescalar(0);
+
+        self.clear_alarm();
     }
 
 }
 
 impl Ast {
-    pub fn setup(&mut self) {
-        self.select_clock(Clock::ClockRCSys);
-        self.set_prescalar(0);
-        self.clear_alarm();
-    }
-
     pub fn clock_busy(&self) -> bool {
         unsafe {
             intrinsics::volatile_load(&(*self.addr).sr) & (1 << 28) != 0
@@ -237,5 +240,12 @@ impl Timer for Ast {
         }
         self.enable();
     }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn AST_ALARM_Handler() {
+    volatile!(INTERRUPT = true);
+    nvic::disable(nvic::NvicIdx::ASTALARM);
 }
 

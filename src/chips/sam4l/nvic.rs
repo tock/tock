@@ -2,11 +2,13 @@ use core::intrinsics;
 
 #[repr(C, packed)]
 struct Nvic {
-    iser: [u32; 28]
+    iser: [u32; 7],
+    _reserved1: [u32; 25],
+    icer: [u32; 7]
 }
 
 #[repr(C)]
-#[derive(Copy)]
+#[derive(Copy,Clone)]
 pub enum NvicIdx {
     HFLASHC,
     PDCA0,
@@ -95,5 +97,12 @@ pub fn enable(signal: NvicIdx) {
     let interrupt = signal as usize;
 
     volatile!(nvic.iser[interrupt / 32] = 1 << (interrupt & 31));
+}
+
+pub fn disable(signal: NvicIdx) {
+    let nvic : &mut Nvic = unsafe { intrinsics::transmute(BASE_ADDRESS) };
+    let interrupt = signal as usize;
+
+    volatile!(nvic.icer[interrupt / 32] = 1 << (interrupt & 31));
 }
 

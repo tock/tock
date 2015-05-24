@@ -51,31 +51,26 @@ const PBB_MASK_OFFSET: u32 = 0x2C;
 
 static mut PM: *mut PmRegisters = PM_BASE as *mut PmRegisters;
 
-#[derive(Copy)]
 pub enum MainClock {
     RCSYS, OSC0, PLL, DFLL, RC80M, RCFAST, RC1M
 }
 
-#[derive(Copy)]
 pub enum Clock {
     HSB(HSBClock),
     PBA(PBAClock),
     PBB(PBBClock),
 }
 
-#[derive(Copy)]
 pub enum HSBClock {
     PDCA, FLASHCALW, FLASHCALWP, USBC, CRCCU, APBA, APBB, APBC, APBD, AESA
 }
 
-#[derive(Copy)]
 pub enum PBAClock {
     IISC, SPI, TC0, TC1, TWIM0, TWIS0, TWIM1, TWIS1,
     USART0, USART1, USART2, USART3, ADCIFE, DACC, ACIFC, GLOC, ABSACB,
     TRNG, PARC, CATB, NULL, TWIM2, TWIM3, LCDCA
 }
 
-#[derive(Copy)]
 pub enum PBBClock {
     FLASHCALW, HRAMC1, HMATRIX, PDCA, CRCCU, USBC, PEVC
 }

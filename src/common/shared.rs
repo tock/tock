@@ -13,7 +13,7 @@ impl<T> Shared<T> {
         }
     }
 
-    pub fn borrow_mut(&self) -> &mut T {
+    pub unsafe fn borrow_mut(&self) -> &mut T {
         unsafe { &mut *self.value.get() }
     }
 }
