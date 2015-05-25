@@ -9,9 +9,7 @@ pub mod gpio;
 pub mod timer;
 
 pub trait Controller {
-    type Params;
     type Config;
 
-    fn new(Self::Params) -> Self;
     fn configure(&mut self, Self::Config);
 }

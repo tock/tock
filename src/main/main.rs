@@ -9,12 +9,12 @@ extern crate platform;
 
 #[no_mangle]
 pub extern fn main() {
-    let chip = unsafe {
+    let platform = unsafe {
         platform::init()
     };
     loop {
         unsafe {
-            chip.service_pending_interrupts();
+            platform.service_pending_interrupts();
         };
         support::wfi();
     }

@@ -7,27 +7,33 @@ extern crate core;
 extern crate common;
 extern crate hil;
 
+pub fn volatile_load<T>(item: &T) -> T {
+    unsafe {
+        core::intrinsics::volatile_load(item)
+    }
+}
+
+pub fn volatile_store<T>(item: &mut T, val: T) {
+    unsafe {
+        core::intrinsics::volatile_store(item, val)
+    }
+}
+
 macro_rules! volatile {
     ($item:expr) => ({
-        use core::intrinsics::volatile_load;
-        unsafe { volatile_load(&$item) }
+        ::volatile_load(&$item)
     });
 
     ($item:ident = $value:expr) => ({
-        use core::intrinsics::volatile_store;
-        unsafe { volatile_store(&mut $item, $value); }
+        ::volatile_store(&mut $item, $value)
     });
 
     ($item:ident |= $value:expr) => ({
-        use core::intrinsics::volatile_load;
-        use core::intrinsics::volatile_store;
-        unsafe { volatile_store(&mut $item, volatile_load(&$item) | $value); }
+        ::volatile_store(&mut $item, ::volatile_load(&$item) | $value)
     });
 
     ($item:ident &= $value:expr) => ({
-        use core::intrinsics::volatile_load;
-        use core::intrinsics::volatile_store;
-        unsafe { volatile_store(&mut $item, volatile_load(&$item) & $value); }
+        ::volatile_store(&mut $item, ::volatile_load(&$item) & $value)
     });
 }
 
@@ -36,8 +42,6 @@ pub mod nvic;
 pub mod pm;
 pub mod gpio;
 
-use core::prelude::*;
-
 pub struct Sam4l {
     pub ast: ast::Ast,
     pub led: gpio::GPIOPin
@@ -45,10 +49,9 @@ pub struct Sam4l {
 
 impl Sam4l {
     pub fn new() -> Sam4l {
-        use hil::Controller;
         Sam4l {
-            ast: Controller::new(()),
-            led: Controller::new(gpio::Location::GPIOPin74),
+            ast: ast::Ast::new(),
+            led: gpio::GPIOPin::new(gpio::Pin::PC10),
         }
     }
 

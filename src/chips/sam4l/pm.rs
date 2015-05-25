@@ -75,11 +75,11 @@ pub enum PBBClock {
     FLASHCALW, HRAMC1, HMATRIX, PDCA, CRCCU, USBC, PEVC
 }
 
-fn unlock(register_offset: u32) {
+unsafe fn unlock(register_offset: u32) {
     volatile!((*PM).unlock = 0xAA000000 | register_offset);
 }
 
-pub fn select_main_clock(clock: MainClock) {
+pub unsafe fn select_main_clock(clock: MainClock) {
     volatile!((*PM).mcctrl = clock as u32);
 }
 
@@ -91,7 +91,7 @@ macro_rules! mask_clock {
     });
 }
 
-pub fn enable_clock(clock: Clock) {
+pub unsafe fn enable_clock(clock: Clock) {
     match clock {
         Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
         Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
@@ -99,10 +99,11 @@ pub fn enable_clock(clock: Clock) {
     }
 }
 
-pub fn disable_clock(clock: Clock) {
+pub unsafe fn disable_clock(clock: Clock) {
     match clock {
         Clock::HSB(v) => mask_clock!(HSB: hsbmask | !(1 << (v as u32))),
         Clock::PBA(v) => mask_clock!(PBA: pbamask | !(1 << (v as u32))),
         Clock::PBB(v) => mask_clock!(PBB: pbbmask | !(1 << (v as u32))),
     }
 }
+

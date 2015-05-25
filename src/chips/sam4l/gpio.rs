@@ -64,35 +64,21 @@ const BASE_ADDRESS: usize = 0x400E1000;
 const SIZE: usize = 0x200;
 
 #[derive(Copy,Clone)]
-pub enum GPIOPort {
-    GPIO0,
-    GPIO1,
-    GPIO2
-}
+pub enum Pin {
+    PA00, PA01, PA02, PA03, PA04, PA05, PA06, PA07,
+    PA08, PA09, PA10, PA11, PA12, PA13, PA14, PA15,
+    PA16, PA17, PA18, PA19, PA20, PA21, PA22, PA23,
+    PA24, PA25, PA26, PA27, PA28, PA29, PA30, PA31,
 
-#[derive(Copy,Clone)]
-pub enum Location {
-    GPIOPin0, GPIOPin1, GPIOPin2, GPIOPin3, GPIOPin4, GPIOPin5, GPIOPin6,
-    GPIOPin7, GPIOPin8, GPIOPin9, GPIOPin10, GPIOPin11, GPIOPin12, GPIOPin13,
-    GPIOPin14, GPIOPin15, GPIOPin16, GPIOPin17, GPIOPin18, GPIOPin19, GPIOPin20,
-    GPIOPin21, GPIOPin22, GPIOPin23, GPIOPin24, GPIOPin25, GPIOPin26, GPIOPin27,
-    GPIOPin28, GPIOPin29, GPIOPin30, GPIOPin31, GPIOPin32, GPIOPin33, GPIOPin34,
-    GPIOPin35, GPIOPin36, GPIOPin37, GPIOPin38, GPIOPin39, GPIOPin40, GPIOPin41,
-    GPIOPin42, GPIOPin43, GPIOPin44, GPIOPin45, GPIOPin46, GPIOPin47, GPIOPin48,
-    GPIOPin49, GPIOPin50, GPIOPin51, GPIOPin52, GPIOPin53, GPIOPin54, GPIOPin55,
-    GPIOPin56, GPIOPin57, GPIOPin58, GPIOPin59, GPIOPin60, GPIOPin61, GPIOPin62,
-    GPIOPin63, GPIOPin64, GPIOPin65, GPIOPin66, GPIOPin67, GPIOPin68, GPIOPin69,
-    GPIOPin70, GPIOPin71, GPIOPin72, GPIOPin73, GPIOPin74, GPIOPin75, GPIOPin76,
-    GPIOPin77, GPIOPin78, GPIOPin79, GPIOPin80, GPIOPin81, GPIOPin82, GPIOPin83,
-    GPIOPin84, GPIOPin85, GPIOPin86, GPIOPin87, GPIOPin88, GPIOPin89, GPIOPin90,
-    GPIOPin91, GPIOPin92, GPIOPin93, GPIOPin94, GPIOPin95
-}
+    PB00, PB01, PB02, PB03, PB04, PB05, PB06, PB07,
+    PB08, PB09, PB10, PB11, PB12, PB13, PB14, PB15,
+    PB16, PB17, PB18, PB19, PB20, PB21, PB22, PB23,
+    PB24, PB25, PB26, PB27, PB28, PB29, PB30, PB31,
 
-#[derive(Copy,Clone)]
-pub struct GPIOPinParams {
-    pub location: Location,
-    pub port: GPIOPort,
-    pub function: Option<PeripheralFunction>
+    PC00, PC01, PC02, PC03, PC04, PC05, PC06, PC07,
+    PC08, PC09, PC10, PC11, PC12, PC13, PC14, PC15,
+    PC16, PC17, PC18, PC19, PC20, PC21, PC22, PC23,
+    PC24, PC25, PC26, PC27, PC28, PC29, PC30, PC31,
 }
 
 pub struct GPIOPin {
@@ -100,18 +86,17 @@ pub struct GPIOPin {
     pin_mask: u32
 }
 
-macro_rules! port_register_fn {
-    ($name:ident, $reg:ident, $option:ident) => (
-        fn $name(&mut self) {
-            volatile!(self.port.$reg.$option = self.pin_mask);
-        }
-    );
-}
-
-// Note: Perhaps the 'new' function should return Result<T> to do simple init
-// checks as soon as possible. Here, for example, we chould check that 'pin' is
-// valid and panic before continuing to boot.
 impl GPIOPin {
+    pub fn new(pin: Pin) -> GPIOPin {
+        let address = BASE_ADDRESS + ((pin as usize) / 32) * SIZE;
+        let pin_number = ((pin as usize) % 32) as u8;
+
+        GPIOPin {
+            port: unsafe { intrinsics::transmute(address) },
+            pin_mask: 1 << (pin_number as u32)
+        }
+    }
+
     pub fn select_peripheral(&mut self, function: PeripheralFunction) {
         let f = function as u32;
         let (bit0, bit1, bit2) = (f & 0b1, (f & 0b10) >> 1, (f & 0b100) >> 2);
@@ -150,18 +135,7 @@ impl GPIOPin {
 }
 
 impl hil::Controller for GPIOPin {
-    type Params = Location;
     type Config = Option<PeripheralFunction>;
-
-    fn new(pin: Location) -> GPIOPin {
-        let address = BASE_ADDRESS + ((pin as usize) / 32) * SIZE;
-        let pin_number = ((pin as usize) % 32) as u8;
-
-        GPIOPin {
-            port: unsafe { intrinsics::transmute(address) },
-            pin_mask: 1 << (pin_number as u32)
-        }
-    }
 
 
     fn configure(&mut self, config: Option<PeripheralFunction>) {
@@ -182,7 +156,15 @@ impl hil::gpio::GPIOPin for GPIOPin {
         (volatile!(self.port.pvr.val) & self.pin_mask) > 0
     }
 
-    port_register_fn!(toggle, ovr, toggle);
-    port_register_fn!(set, ovr, set);
-    port_register_fn!(clear, ovr, clear);
+    fn toggle(&mut self) {
+        volatile!(self.port.ovr.toggle = self.pin_mask);
+    }
+
+    fn set(&mut self) {
+        volatile!(self.port.ovr.set = self.pin_mask);
+    }
+
+    fn clear(&mut self) {
+        volatile!(self.port.ovr.clear = self.pin_mask);
+    }
 }
