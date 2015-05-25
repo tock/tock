@@ -7,3 +7,4 @@ extern crate core;
 extern crate hil;
 
 pub mod blink;
+pub mod console;

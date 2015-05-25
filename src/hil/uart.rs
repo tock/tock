@@ -29,3 +29,4 @@ pub trait UART {
 pub trait Reader {
     fn read_done(&mut self, byte: u8);
 }
+

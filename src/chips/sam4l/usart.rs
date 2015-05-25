@@ -1,9 +1,12 @@
 use core::prelude::*;
 use core::intrinsics;
 use hil::{uart, Controller};
+use hil::uart::Parity;
 
 use nvic;
 use pm::{self, Clock, PBAClock};
+
+pub static mut USART3_INTERRUPT : bool = false;
 
 #[repr(C, packed)]
 struct UsartRegisters {
@@ -47,11 +50,30 @@ pub struct USART {
     nvic: nvic::NvicIdx,
 }
 
-impl Controller for USART {
-    type Config = Option<&'static mut uart::Reader>;
+pub struct USARTParams {
+    pub client: &'static mut uart::Reader,
+    pub baud_rate: u32,
+    pub data_bits: u8,
+    pub parity: Parity
+}
 
-    fn configure(&mut self, client: Option<&'static mut uart::Reader>) {
-        self.client = client;
+impl Controller for USART {
+    type Config = USARTParams;
+
+    fn configure(&mut self, params: USARTParams) {
+        self.client = Some(params.client);
+        let chrl = ((params.data_bits - 1) & 0x3) as u32;
+        let mode = 0 /* mode */
+            | 0 << 4 /*USCLKS*/
+            | chrl << 6 /* Character Length */
+            | (params.parity as u32) << 9 /* Parity */
+            | 0 << 12; /* Number of stop bits = 1 */;
+
+        self.enable_clock();
+        self.set_baud_rate(params.baud_rate);
+        self.set_mode(mode);
+        volatile!(self.regs.ttgr = 4);
+        self.enable_rx_interrupts();
     }
 }
 
@@ -87,11 +109,7 @@ impl USART {
         volatile!(self.regs.brgr = cd);
     }
 
-    // This can be made safe by having a struct represent the mode register,
-    // with enums when there are choices and not just numbers, and passing the
-    // struct to this function. As is, it's too easy to make a mistake.
-    unsafe fn set_mode(&mut self, mode: u32) {
-        #![allow(unused_unsafe)]
+    fn set_mode(&mut self, mode: u32) {
         volatile!(self.regs.mr = mode);
     }
 
@@ -121,9 +139,15 @@ impl USART {
         }
     }
 
+    #[inline(never)]
     pub fn enable_rx_interrupts(&mut self) {
         self.enable_nvic();
         volatile!(self.regs.ier = 1 as u32);
+    }
+
+    pub fn enable_tx_interrupts(&mut self) {
+        self.enable_nvic();
+        volatile!(self.regs.ier = 2 as u32);
     }
 
     pub fn disable_rx_interrupts(&mut self) {
@@ -131,7 +155,7 @@ impl USART {
         volatile!(self.regs.idr = 1 as u32);
     }
 
-    pub fn interrupt_fired(&mut self) {
+    pub fn handle_interrupt(&mut self) {
         if self.rx_ready() {
             let c = volatile!(self.regs.rhr) as u8;
             match self.client {
@@ -158,7 +182,7 @@ impl uart::UART for USART {
 
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
-        unsafe { self.set_mode(mode); }
+        self.set_mode(mode);
         volatile!(self.regs.ttgr = 4);
     }
 
@@ -190,5 +214,12 @@ impl uart::UART for USART {
         volatile!(self.regs.cr = 1 << 7);
     }
 
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn USART3_Handler() {
+    volatile!(USART3_INTERRUPT = true);
+    nvic::disable(nvic::NvicIdx::USART3);
 }
 

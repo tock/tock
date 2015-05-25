@@ -1,5 +1,6 @@
 use core::fmt::Arguments;
 use core::intrinsics::*;
+use core::ops::FnOnce;
 
 #[cfg(not(test))]
 #[inline(always)]
@@ -23,6 +24,16 @@ pub fn wfi() {
 #[cfg(test)]
 /// WFI instruction (mock)
 pub fn wfi() {
+}
+
+pub unsafe fn atomic<F>(f: F) where F: FnOnce() {
+    // Set PRIMASK
+    asm!("cpsid i" :::: "volatile");
+
+    f();
+
+    // Unset PRIMASK
+    asm!("cpsie i" :::: "volatile");
 }
 
 #[cfg(not(test))]

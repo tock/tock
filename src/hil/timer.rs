@@ -1,5 +1,3 @@
-use core::prelude::*;
-
 pub trait Timer {
     fn now(&self) -> u32;
     fn set_alarm(&mut self, u32);
