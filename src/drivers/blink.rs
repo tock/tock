@@ -28,8 +28,8 @@ impl TimerReceiver for Blink {
         use hil::gpio::GPIOPin;
         use hil::timer::Timer;
 
-        self.led.toggle();
         let now = self.timer.now();
+        self.led.toggle();
         self.timer.set_alarm(now + 32768);
     }
 }
