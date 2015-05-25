@@ -92,15 +92,15 @@ pub enum NvicIdx {
 
 pub const BASE_ADDRESS : usize = 0xe000e100;
 
-pub fn enable(signal: NvicIdx) {
-    let nvic : &mut Nvic = unsafe { intrinsics::transmute(BASE_ADDRESS) };
+pub unsafe fn enable(signal: NvicIdx) {
+    let nvic : &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
     volatile!(nvic.iser[interrupt / 32] = 1 << (interrupt & 31));
 }
 
-pub fn disable(signal: NvicIdx) {
-    let nvic : &mut Nvic = unsafe { intrinsics::transmute(BASE_ADDRESS) };
+pub unsafe fn disable(signal: NvicIdx) {
+    let nvic : &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
     volatile!(nvic.icer[interrupt / 32] = 1 << (interrupt & 31));

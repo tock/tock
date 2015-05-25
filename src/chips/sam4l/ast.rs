@@ -149,8 +149,8 @@ impl Ast {
     }
 
     pub fn enable_alarm_irq(&mut self) {
-        nvic::enable(nvic::NvicIdx::ASTALARM);
         unsafe {
+            nvic::enable(nvic::NvicIdx::ASTALARM);
             intrinsics::volatile_store(&mut (*self.regs).ier, 1 << 8);
         }
     }
@@ -162,8 +162,8 @@ impl Ast {
     }
 
     pub fn enable_ovf_irq(&mut self) {
-        nvic::enable(nvic::NvicIdx::ASTOVF);
         unsafe {
+            nvic::enable(nvic::NvicIdx::ASTOVF);
             intrinsics::volatile_store(&mut (*self.regs).ier, 1);
         }
     }
@@ -175,8 +175,8 @@ impl Ast {
     }
 
     pub fn enable_periodic_irq(&mut self) {
-        nvic::enable(nvic::NvicIdx::ASTPER);
         unsafe {
+            nvic::enable(nvic::NvicIdx::ASTPER);
             intrinsics::volatile_store(&mut (*self.regs).ier, 1 << 16);
         }
     }

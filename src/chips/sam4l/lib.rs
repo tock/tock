@@ -41,6 +41,7 @@ pub mod ast;
 pub mod nvic;
 pub mod pm;
 pub mod gpio;
+pub mod usart;
 
 pub struct Sam4l {
     pub ast: ast::Ast,
