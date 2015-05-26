@@ -4,7 +4,12 @@ use core::intrinsics;
 struct Nvic {
     iser: [u32; 7],
     _reserved1: [u32; 25],
-    icer: [u32; 7]
+    icer: [u32; 7],
+    _reserved2: [u32; 25],
+    ispr: [u32; 7],
+    _reserved3: [u32; 25],
+    icpr: [u32; 7]
+
 }
 
 #[repr(C)]
@@ -104,5 +109,12 @@ pub unsafe fn disable(signal: NvicIdx) {
     let interrupt = signal as usize;
 
     volatile!(nvic.icer[interrupt / 32] = 1 << (interrupt & 31));
+}
+
+pub unsafe fn clear_pending(signal: NvicIdx) {
+    let nvic : &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
+    let interrupt = signal as usize;
+
+    volatile!(nvic.icpr[interrupt / 32] = 1 << (interrupt & 31));
 }
 

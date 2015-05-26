@@ -94,6 +94,7 @@ impl Ast {
         while self.busy() {}
         unsafe {
             intrinsics::volatile_store(&mut (*self.regs).scr, 1 << 8);
+            nvic::clear_pending(nvic::NvicIdx::ASTALARM);
         }
     }
 
@@ -233,12 +234,12 @@ impl Timer for Ast {
 
     fn set_alarm(&mut self, tics: u32) {
         self.disable();
-        self.clear_alarm();
-        self.enable_alarm_irq();
         while self.busy() {}
         unsafe {
             intrinsics::volatile_store(&mut (*self.regs).ar0, tics);
         }
+        self.clear_alarm();
+        self.enable_alarm_irq();
         self.enable();
     }
 }

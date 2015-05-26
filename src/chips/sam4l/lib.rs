@@ -71,14 +71,14 @@ impl Sam4l {
     pub unsafe fn service_pending_interrupts(&mut self) {
         use core::intrinsics::atomic_xchg;
 
-        if atomic_xchg(&mut usart::USART3_INTERRUPT, false) {
-            self.usarts[3].handle_interrupt();
-            nvic::enable(nvic::NvicIdx::USART3);
-        }
-
         if atomic_xchg(&mut ast::INTERRUPT, false) {
             self.ast.handle_interrupt();
             nvic::enable(nvic::NvicIdx::ASTALARM);
+        }
+
+        if atomic_xchg(&mut usart::USART3_INTERRUPT, false) {
+            self.usarts[3].handle_interrupt();
+            nvic::enable(nvic::NvicIdx::USART3);
         }
 
     }
@@ -87,7 +87,7 @@ impl Sam4l {
         use core::intrinsics::volatile_load;
         unsafe {
             volatile_load(&usart::USART3_INTERRUPT)
-                //|| volatile_load(&ast::INTERRUPT)
+                || volatile_load(&ast::INTERRUPT)
         }
     }
 }
