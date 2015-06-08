@@ -17,23 +17,24 @@ pub fn nop() {
 #[cfg(not(test))]
 #[inline(always)]
 /// WFI instruction
-pub fn wfi() {
-    unsafe { asm!("wfi" :::: "volatile"); }
+pub unsafe fn wfi() {
+    asm!("wfi" :::: "volatile");
 }
 
 #[cfg(test)]
 /// WFI instruction (mock)
-pub fn wfi() {
+pub unsafe fn wfi() {
 }
 
-pub unsafe fn atomic<F>(f: F) where F: FnOnce() {
+pub unsafe fn atomic<F,R>(f: F) -> R where F: FnOnce() -> R {
     // Set PRIMASK
     asm!("cpsid i" :::: "volatile");
 
-    f();
+    let res = f();
 
     // Unset PRIMASK
     asm!("cpsie i" :::: "volatile");
+    return res;
 }
 
 #[cfg(not(test))]

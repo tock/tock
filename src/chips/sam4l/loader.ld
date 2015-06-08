@@ -112,14 +112,6 @@ SECTIONS
         _erelocate = .;
     } > ram
 
-  /* This section is an array of pointers to app init functions. */
-  /* .apps ALIGN(0x4) : */
-  /* { */
-  /*     _sapps = .; */
-  /*     *(.app.*) */
-  /*     _eapps = .; */
-  /* } > ram */
-
     /* .bss section which is used for uninitialized data */
     .bss (NOLOAD) :
     {

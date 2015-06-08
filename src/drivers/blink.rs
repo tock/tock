@@ -1,3 +1,4 @@
+use hil::Driver;
 use hil::timer::{Timer, TimerReceiver};
 use hil::gpio::GPIOPin;
 
@@ -20,6 +21,16 @@ impl Blink {
 
         let now = self.timer.now();
         self.timer.set_alarm(now + 32768);
+    }
+}
+
+impl Driver for Blink {
+    fn subscribe(&mut self, _: usize, _: usize) -> isize {
+        -1
+    }
+
+    fn command(&mut self, _: usize, _: usize) -> isize {
+        -1
     }
 }
 

@@ -6,6 +6,8 @@ RUSTC_FLAGS += -g -C no-stack-check
 CFLAGS += -g -O3 -std=gnu99 -mcpu=cortex-m4 -mthumb -nostdlib
 LDFLAGS += -Tsrc/chips/sam4l/loader.ld
 
+ARCH = cortex-m4
+
 $(BUILD_DIR)/libsam4l.rlib: $(call rwildcard,src/chips/sam4l,*.rs) $(BUILD_DIR)/libcore.rlib $(BUILD_DIR)/libhil.rlib $(BUILD_DIR)/libcommon.rlib
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) src/chips/sam4l/lib.rs

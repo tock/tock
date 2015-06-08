@@ -19,7 +19,38 @@ pub static mut BLINK : Option<drivers::blink::Blink> = None;
 pub static mut CONSOLE :
     Option<drivers::console::Console<sam4l::usart::USART>> = None;
 
-pub unsafe fn init() -> &'static mut sam4l::Sam4l {
+pub struct Firestorm(&'static mut sam4l::Sam4l);
+
+impl Firestorm {
+    pub unsafe fn service_pending_interrupts(&mut self) {
+        match self {
+            &mut Firestorm(ref mut c) => c.service_pending_interrupts()
+        }
+    }
+
+    pub fn has_pending_interrupts(&mut self) -> bool {
+        match self {
+            &mut Firestorm(ref mut c) => c.has_pending_interrupts()
+        }
+    }
+
+    pub fn with_driver<F, R>(&mut self, driver_num: usize, mut f: F) -> R where
+            F: FnMut(Option<&mut hil::Driver>) -> R {
+
+        match driver_num {
+            0 => {
+                match unsafe { BLINK.as_mut() } {
+                    None => f(None),
+                    Some(driver) => f(Some(driver))
+                }
+            },
+            _ => f(None)
+        }
+    }
+
+}
+
+pub unsafe fn init() -> Firestorm {
     CHIP = Some(sam4l::Sam4l::new());
     let chip = CHIP.as_mut().unwrap();
     chip.led.configure(None);
@@ -50,6 +81,6 @@ pub unsafe fn init() -> &'static mut sam4l::Sam4l {
 
     blink.initialize();
     console.initialize();
-    chip
+    Firestorm(chip)
 }
 

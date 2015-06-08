@@ -6,6 +6,8 @@
 #![no_std]
 
 extern crate core;
+extern crate support;
 
 pub mod shared;
+pub mod ring_buffer;
 

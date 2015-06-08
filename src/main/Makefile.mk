@@ -5,9 +5,6 @@ CORE_SOURCES=$(call rwildcard,src/main/,*.rs)
 MAIN_DEPS=$(BUILD_DIR)/libcore.rlib $(BUILD_DIR)/libsupport.rlib $(CORE_SOURCES)
 MAIN_DEPS+=$(BUILD_DIR)/libplatform.rlib
 
-foo:
-	@echo $(CORE_SOURCES)
-
 $(BUILD_DIR)/main.o: $(MAIN_DEPS)
 	@echo "Building $@"
 	$(RUSTC) $(RUSTC_FLAGS) -C lto --emit obj -o $@ src/main/main.rs
