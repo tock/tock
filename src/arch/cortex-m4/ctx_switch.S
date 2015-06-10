@@ -21,7 +21,6 @@ to_kernel:
   movt LR, #0xFFFF
   bx lr
 
-
 .thumb_func
 /* r0 is start address and r1 is top of user stack */
 switch_to_user:
@@ -31,4 +30,5 @@ switch_to_user:
     push {r4-r11}
     svc 0xff
     pop {r4-r11}
+    bx lr
 
