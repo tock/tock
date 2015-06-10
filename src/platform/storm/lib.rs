@@ -44,6 +44,12 @@ impl Firestorm {
                     Some(driver) => f(Some(driver))
                 }
             },
+            1 => {
+                match unsafe { CONSOLE.as_mut() } {
+                    None => f(None),
+                    Some(driver) => f(Some(driver))
+                }
+            },
             _ => f(None)
         }
     }
