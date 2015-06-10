@@ -43,17 +43,11 @@ pub extern fn main() {
         }
         match process.svc_number() {
             Some(syscall::WAIT) => {
-                platform.with_driver(1, |console| {
-                    console.map(|c| c. command(0, 'w' as usize));
-                });
                 process.state = process::State::Waiting;
                 process.pop_syscall_stack();
                 // TODO(alevy): iterate `process` to next available app
             },
             Some(syscall::SUBSCRIBE) => {
-                platform.with_driver(1, |console| {
-                    console.map(|c| c. command(0, 's' as usize));
-                });
                 let res = platform.with_driver(process.r0(), |driver| {
                     match driver {
                         Some(d) => d.subscribe(process.r1(),
@@ -64,9 +58,6 @@ pub extern fn main() {
                 process.set_r0(res);
             },
             Some(syscall::COMMAND) => {
-                platform.with_driver(1, |console| {
-                    console.map(|c| c. command(0, 'c' as usize));
-                });
                 let res = platform.with_driver(process.r0(), |driver| {
                     match driver {
                         Some(d) => d.command(process.r1(),
