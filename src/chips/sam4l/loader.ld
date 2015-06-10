@@ -47,6 +47,9 @@ SECTIONS
         *(.rodata .rodata* .gnu.linkonce.r.*)
         *(.ARM.extab* .gnu.linkonce.armextab.*)
 
+        KEEP (*(.syscalls))
+
+
         . = ALIGN(4);
         KEEP(*(.init))
         . = ALIGN(4);
