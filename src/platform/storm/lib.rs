@@ -48,13 +48,9 @@ pub unsafe fn init() -> &'static mut Firestorm {
     CHIP = Some(sam4l::Sam4l::new());
     let chip = CHIP.as_mut().unwrap();
 
-    let usart3 = &mut chip.usarts[3];
-    chip.pb09.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    chip.pb10.configure(Some(sam4l::gpio::PeripheralFunction::A));
-
     FIRESTORM = Some(Firestorm {
         chip: chip,
-        console: drivers::console::Console::new(usart3),
+        console: drivers::console::Console::new(&mut chip.usarts[3]),
         gpio: drivers::gpio::GPIO::new(
             [ &mut chip.pc10, &mut chip.pc19, &mut chip.pc13
             , &mut chip.pa09, &mut chip.pa17, &mut chip.pc20
@@ -63,18 +59,19 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa12, &mut chip.pc09])
     });
 
-    let firestorm = FIRESTORM.as_mut().unwrap();
+    let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
 
-    usart3.configure(sam4l::usart::USARTParams {
+    chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
         baud_rate: 115200,
         data_bits: 8,
         parity: hil::uart::Parity::None
     });
 
+    chip.pb09.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    chip.pb10.configure(Some(sam4l::gpio::PeripheralFunction::A));
 
     firestorm.console.initialize();
-
     firestorm
 }
 
