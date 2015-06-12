@@ -17,12 +17,21 @@ fn wait() {
     }
 }
 
-pub fn app1_init() {
-    command(1, 0, 'c' as usize);
-    command(1, 0, 'm' as usize);
-    loop {
-        command(1, 0, 'd' as usize);
-        //wait();
+pub mod app1 {
+    use super::{wait,command};
+
+    pub fn _start() {
+        init();
+        loop {
+            wait();
+        }
+    }
+
+    fn init() {
+        command(0, 0, '>' as usize);
+        command(0, 0, ' ' as usize);
+        command(1, 0, 0);
+        command(1, 2, 0);
     }
 }
 

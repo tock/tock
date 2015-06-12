@@ -4,6 +4,7 @@ use hil::uart::{UART, Reader};
 
 pub struct Console<U: UART + 'static> {
     uart: &'static mut U,
+    readline_callback: Option<usize>,
     buf: [u8; 40],
     i: usize
 }
@@ -12,6 +13,7 @@ impl<U: UART> Console<U> {
     pub fn new(uart: &'static mut U) -> Console<U> {
         Console {
             uart: uart,
+            readline_callback: None,
             buf: [0; 40],
             i: 0
         }
@@ -38,13 +40,17 @@ impl<U: UART> Console<U> {
 }
 
 impl<U: UART> Driver for Console<U> {
-    fn subscribe(&mut self, _: usize, _: usize) -> isize {
-        -1
+    fn subscribe(&mut self, subscribe_num: usize, callback: usize) -> isize {
+        match subscribe_num {
+            0 /* read line */ =>
+                { self.readline_callback = Some(callback); 0 },
+            _ => -1
+        }
     }
 
     fn command(&mut self, cmd_num: usize, arg1: usize) -> isize {
         match cmd_num {
-            0 => { self.uart.send_byte(arg1 as u8); 1 }
+            0 /* putc */ => { self.uart.send_byte(arg1 as u8); 1 }
             _ => -1
         }
     }

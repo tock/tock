@@ -6,5 +6,9 @@
 extern crate core;
 extern crate hil;
 
-pub mod blink;
+mod std {
+   pub use core::*; 
+}
+
+pub mod gpio;
 pub mod console;

@@ -15,78 +15,66 @@ use hil::Controller;
 
 pub static mut CHIP : Option<sam4l::Sam4l> = None;
 
-pub static mut BLINK : Option<drivers::blink::Blink> = None;
-pub static mut CONSOLE :
-    Option<drivers::console::Console<sam4l::usart::USART>> = None;
+pub static mut FIRESTORM : Option<Firestorm> = None;
 
-pub struct Firestorm(&'static mut sam4l::Sam4l);
+pub struct Firestorm {
+    chip: &'static mut sam4l::Sam4l,
+    console: drivers::console::Console<sam4l::usart::USART>,
+    gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>
+}
 
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
-        match self {
-            &mut Firestorm(ref mut c) => c.service_pending_interrupts()
-        }
+        self.chip.service_pending_interrupts()
     }
 
     pub fn has_pending_interrupts(&mut self) -> bool {
-        match self {
-            &mut Firestorm(ref mut c) => c.has_pending_interrupts()
-        }
+        self.chip.has_pending_interrupts()
     }
 
     pub fn with_driver<F, R>(&mut self, driver_num: usize, mut f: F) -> R where
             F: FnMut(Option<&mut hil::Driver>) -> R {
 
-        match driver_num {
-            0 => {
-                match unsafe { BLINK.as_mut() } {
-                    None => f(None),
-                    Some(driver) => f(Some(driver))
-                }
-            },
-            1 => {
-                match unsafe { CONSOLE.as_mut() } {
-                    None => f(None),
-                    Some(driver) => f(Some(driver))
-                }
-            },
-            _ => f(None)
-        }
+        f(match driver_num {
+            0 => Some(&mut self.console),
+            1 => Some(&mut self.gpio),
+            _ => None
+        })
     }
 
 }
 
-pub unsafe fn init() -> Firestorm {
+pub unsafe fn init() -> &'static mut Firestorm {
     CHIP = Some(sam4l::Sam4l::new());
     let chip = CHIP.as_mut().unwrap();
-    chip.led.configure(None);
 
-    let led = &mut chip.led;
-    let ast = &mut chip.ast;
     let usart3 = &mut chip.usarts[3];
     chip.pb09.configure(Some(sam4l::gpio::PeripheralFunction::A));
     chip.pb10.configure(Some(sam4l::gpio::PeripheralFunction::A));
 
-    BLINK = Some(drivers::blink::Blink::new(
-                ast,
-                led));
-    let blink = BLINK.as_mut().unwrap();
+    FIRESTORM = Some(Firestorm {
+        chip: chip,
+        console: drivers::console::Console::new(usart3),
+        gpio: drivers::gpio::GPIO::new(
+            [ &mut chip.pc10, &mut chip.pc19, &mut chip.pc13
+            , &mut chip.pa09, &mut chip.pa17, &mut chip.pc20
+            , &mut chip.pa19, &mut chip.pa14, &mut chip.pa16
+            , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
+            , &mut chip.pa12, &mut chip.pc09])
+    });
 
-    CONSOLE = Some(drivers::console::Console::new(usart3));
-    let console = CONSOLE.as_mut().unwrap();
+    let firestorm = FIRESTORM.as_mut().unwrap();
 
-    ast.configure(blink);
-    led.configure(None);
     usart3.configure(sam4l::usart::USARTParams {
-        client: console,
+        client: &mut firestorm.console,
         baud_rate: 115200,
         data_bits: 8,
         parity: hil::uart::Parity::None
     });
 
 
-    blink.initialize();
-    console.initialize();
-    Firestorm(chip)
+    firestorm.console.initialize();
+
+    firestorm
 }
 
