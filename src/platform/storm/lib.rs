@@ -10,9 +10,10 @@ extern crate hil;
 extern crate sam4l;
 
 use core::prelude::*;
-
+use hil::adc::AdcInternal;
 use hil::Controller;
 
+pub static mut ADC  : Option<sam4l::adc::Adc> = None;
 pub static mut CHIP : Option<sam4l::Sam4l> = None;
 
 pub static mut BLINK : Option<drivers::blink::Blink> = None;
@@ -47,9 +48,13 @@ pub unsafe fn init() -> &'static mut sam4l::Sam4l {
         parity: hil::uart::Parity::None
     });
 
+    ADC = Some(sam4l::adc::Adc::new());
+    let adc = ADC.as_mut().unwrap();
 
     blink.initialize();
     console.initialize();
+    adc.initialize();
+    
     chip
 }
 

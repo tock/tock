@@ -58,7 +58,7 @@ impl Adc {
 }
 
 impl adc::AdcInternal for Adc {
-    fn init(&mut self) -> bool {
+    fn initialize(&mut self) -> bool {
         if !self.enabled {
             self.enabled = true;
             unsafe {pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));}
@@ -119,8 +119,12 @@ impl adc::AdcInternal for Adc {
         // Disable further interrupts
         volatile!(self.registers.idr = 1);
         match self.request {
-            Some(ref mut request) => {request.callback.read_done(5)}
+            Some(ref mut request) => {
+                let val = volatile!(self.registers.lcv) & 0xffff;         
+                request.callback.read_done(val as u16);
+            }
             None => {}
+
         }
         self.request = None;
     }

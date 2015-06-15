@@ -14,7 +14,7 @@ pub struct Request {
 }
 
 pub trait AdcInternal {
-    fn init(&mut self) -> bool;
+    fn initialize(&mut self) -> bool;
     fn sample(&mut self, &'static mut Request) -> bool;
     fn handle_interrupt(&mut self);
 }
