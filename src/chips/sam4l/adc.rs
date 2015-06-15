@@ -106,7 +106,7 @@ impl adc::AdcInternal for Adc {
                                   1       << 7  | // GCOMP
                                   0       << 4  | // GAIN
                                   0       << 2  | // BIPOLAR
-                                  1));*/
+                                  1               // HWLA ));*/
             // Enable end of conversion interrupt
             volatile!(self.registers.ier = 1);
             // Initiate conversion
@@ -120,6 +120,8 @@ impl adc::AdcInternal for Adc {
         volatile!(self.registers.idr = 1);
         match self.request {
             Some(ref mut request) => {
+                // Because HWLA is set to 1, most significant bit is
+                // of reading is left justified to bit 15r
                 let val = volatile!(self.registers.lcv) & 0xffff;         
                 request.callback.read_done(val as u16);
             }
