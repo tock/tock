@@ -8,6 +8,7 @@ extern crate core;
 pub mod gpio;
 pub mod timer;
 pub mod uart;
+pub mod adc;
 
 pub trait Controller {
     type Config;
