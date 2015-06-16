@@ -15,3 +15,9 @@ pub trait Controller {
 
     fn configure(&mut self, Self::Config);
 }
+
+pub trait Driver {
+    fn subscribe(&mut self, r1: usize, r2: usize) -> isize;
+    fn command(&mut self, r1: usize, r2: usize) -> isize;
+}
+

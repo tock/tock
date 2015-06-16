@@ -9,7 +9,7 @@ $(BUILD_DIR)/libplatform.rlib: $(call rwildcard,src/platform/storm,*.rs) $(BUILD
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) src/platform/storm/lib.rs
 
-$(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/main.o
+$(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o
 	@echo "Linking $@"
 	@$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -ffreestanding -lgcc -lc
 

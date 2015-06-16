@@ -47,6 +47,9 @@ SECTIONS
         *(.rodata .rodata* .gnu.linkonce.r.*)
         *(.ARM.extab* .gnu.linkonce.armextab.*)
 
+        KEEP (*(.syscalls))
+
+
         . = ALIGN(4);
         KEEP(*(.init))
         . = ALIGN(4);
@@ -111,14 +114,6 @@ SECTIONS
         . = ALIGN(4);
         _erelocate = .;
     } > ram
-
-  /* This section is an array of pointers to app init functions. */
-  /* .apps ALIGN(0x4) : */
-  /* { */
-  /*     _sapps = .; */
-  /*     *(.app.*) */
-  /*     _eapps = .; */
-  /* } > ram */
 
     /* .bss section which is used for uninitialized data */
     .bss (NOLOAD) :
