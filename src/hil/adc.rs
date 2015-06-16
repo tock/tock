@@ -4,13 +4,9 @@
  *   Date: 6/10/15
 */
 
-pub trait Callback {
+pub trait Request {
   fn read_done(&mut self, val: u16);
-}
-
-pub struct Request {
-  pub channel: u8,
-  pub callback: &'static mut Callback
+  fn channel(&mut self) -> u8;
 }
 
 pub trait AdcInternal {

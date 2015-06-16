@@ -78,7 +78,7 @@ impl adc::AdcInternal for Adc {
     }
     
     fn sample(&mut self, request: &'static mut adc::Request) -> bool {
-        if self.enabled || request.channel > 14 {
+        if self.enabled || request.channel() > 14 {
             return false;
         } else {
             self.enabled = true;
@@ -95,7 +95,7 @@ impl adc::AdcInternal for Adc {
             // the same most significant bit but for 8 bit samples the lower
             // 8 bits are zero and for 12 bits the lower 4 bits are zero.
 
-            let mut channel:usize = request.channel as usize;
+            let mut channel:usize = request.channel() as usize;
             channel = channel << 16;
             volatile!(self.registers.seqcfg = 0x00708081 | channel);
 /*                    00708081 =  7      << 20 | // MUXNEG
@@ -123,7 +123,7 @@ impl adc::AdcInternal for Adc {
                 // Because HWLA is set to 1, most significant bit is
                 // of reading is left justified to bit 15r
                 let val = volatile!(self.registers.lcv) & 0xffff;         
-                request.callback.read_done(val as u16);
+                request.read_done(val as u16);
             }
             None => {}
 
