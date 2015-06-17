@@ -14,9 +14,9 @@ $(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main
 	@$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -ffreestanding -lgcc -lc
 
 $(BUILD_DIR)/%.sdb: $(BUILD_DIR)/%.elf
-	@echo "SDB pack cut out due to errors -pal"
-#	@echo "Packing SDB..."
-#	$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
+#	@echo "SDB pack cut out due to errors -pal"
+	@echo "Packing SDB..."
+	$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
 
 all: $(BUILD_DIR)/main.sdb
 
