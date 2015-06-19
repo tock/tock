@@ -12,5 +12,5 @@ pub trait Request {
 pub trait AdcInternal {
     fn initialize(&mut self) -> bool;
     fn sample(&mut self, &'static mut Request) -> bool;
-    fn handle_interrupt(&mut self);
+//    fn handle_interrupt(&mut self);
 }

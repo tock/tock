@@ -21,7 +21,9 @@ pub struct TestRequest {
 }
 
 impl hil::adc::Request for TestRequest {
-  fn read_done(&mut self, val: u16) {}
+  fn read_done(&mut self, val: u16) {
+    // Do something with this reading!
+  }
   fn channel(&mut self) -> u8 {
     self.chan
   }
@@ -92,8 +94,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
     let adc = ADC.as_mut().unwrap();
     adc.initialize();
     REQ.chan = 1;
-    let req = &mut REQ;
-    adc.sample(req);
+    adc.sample(&mut REQ);
 
     firestorm.console.initialize();
     firestorm

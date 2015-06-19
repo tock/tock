@@ -47,6 +47,7 @@ pub mod adc;
 pub struct Sam4l {
     pub ast: ast::Ast,
     pub usarts: [usart::USART; 4],
+    pub adc: adc::Adc,
     pub pa00: gpio::GPIOPin, pub pa01: gpio::GPIOPin, pub pa02: gpio::GPIOPin,
     pub pa03: gpio::GPIOPin, pub pa04: gpio::GPIOPin, pub pa05: gpio::GPIOPin,
     pub pa06: gpio::GPIOPin, pub pa07: gpio::GPIOPin, pub pa08: gpio::GPIOPin,
@@ -94,6 +95,7 @@ impl Sam4l {
                 usart::USART::new(usart::Location::USART2),
                 usart::USART::new(usart::Location::USART3),
             ],
+            adc: adc::Adc::new(),
             pa00: gpio::GPIOPin::new(gpio::Pin::PA00),
             pa01: gpio::GPIOPin::new(gpio::Pin::PA01),
             pa02: gpio::GPIOPin::new(gpio::Pin::PA02),
@@ -197,7 +199,8 @@ impl Sam4l {
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use core::intrinsics::atomic_xchg;
-
+        // This should be implemented as a lock-free queue
+        // of handler identifiers -pal
         if atomic_xchg(&mut ast::INTERRUPT, false) {
             self.ast.handle_interrupt();
             nvic::enable(nvic::NvicIdx::ASTALARM);
@@ -206,6 +209,11 @@ impl Sam4l {
         if atomic_xchg(&mut usart::USART3_INTERRUPT, false) {
             self.usarts[3].handle_interrupt();
             nvic::enable(nvic::NvicIdx::USART3);
+        }
+
+        if atomic_xchg(&mut adc::ADC_INTERRUPT, false) {
+            self.adc.handle_interrupt();
+            nvic::enable(nvic::NvicIdx::ADCIFE);
         }
 
     }

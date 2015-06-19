@@ -1,5 +1,6 @@
 use core::prelude::*;
 use core::intrinsics;
+use nvic;
 use hil::{adc};
 use pm::{self, Clock, PBAClock};
 
@@ -39,6 +40,7 @@ pub struct AdcRegisters { // From page 1005 of SAM4L manual
 
 // Page 59 of SAM4L data sheet
 pub const BASE_ADDRESS: usize = 0x40038000;
+pub static mut ADC_INTERRUPT : bool = false;
 
 pub struct Adc {
   registers: &'static mut AdcRegisters,
@@ -55,6 +57,23 @@ impl Adc {
             request: None
         }
     }
+    #[inline(never)]
+    pub fn handle_interrupt(&mut self) {
+        // Disable further interrupts
+        volatile!(self.registers.idr = 1);
+        match self.request.take() {
+            Some(ref mut request) => {
+                // Because HWLA is set to 1, most significant bit is
+                // of reading is left justified to bit 15r
+                let val = volatile!(self.registers.lcv) & 0xffff;         
+                request.read_done(val as u16);
+            }
+            None => {}
+
+        }
+//        self.request = None;
+    }
+
 }
 
 impl adc::AdcInternal for Adc {
@@ -114,20 +133,11 @@ impl adc::AdcInternal for Adc {
             return true;
         }
     }
-    
-    fn handle_interrupt(&mut self) {
-        // Disable further interrupts
-        volatile!(self.registers.idr = 1);
-        match self.request.take() {
-            Some(ref mut request) => {
-                // Because HWLA is set to 1, most significant bit is
-                // of reading is left justified to bit 15r
-                let val = volatile!(self.registers.lcv) & 0xffff;         
-                request.read_done(val as u16);
-            }
-            None => {}
+}
 
-        }
-//        self.request = None;
-    }
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn ADC_Handler() {
+    volatile!(ADC_INTERRUPT = true);
+    nvic::disable(nvic::NvicIdx::ADCIFE);
 }
