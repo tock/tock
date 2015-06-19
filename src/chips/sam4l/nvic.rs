@@ -92,7 +92,8 @@ pub enum NvicIdx {
     CATB,
     TWIM2,
     TWIM3,
-    LCDCA
+    LCDCA,
+    INVALID
 }
 
 pub const BASE_ADDRESS : usize = 0xe000e100;

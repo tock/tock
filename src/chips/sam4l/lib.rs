@@ -43,6 +43,7 @@ pub mod pm;
 pub mod gpio;
 pub mod usart;
 pub mod adc;
+pub mod queue;
 
 pub struct Sam4l {
     pub ast: ast::Ast,

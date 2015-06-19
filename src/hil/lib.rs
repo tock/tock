@@ -9,6 +9,7 @@ pub mod gpio;
 pub mod timer;
 pub mod uart;
 pub mod adc;
+pub mod queue;
 
 pub trait Controller {
     type Config;
