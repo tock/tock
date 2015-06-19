@@ -15,25 +15,22 @@ use hil::Controller;
 
 pub static mut ADC  : Option<sam4l::adc::Adc> = None;
 pub static mut CHIP : Option<sam4l::Sam4l> = None;
-pub static mut REQ : Option<TestRequest> = None;
 
 pub struct TestRequest {
   chan: u8
 }
 
-impl TestRequest {
-  fn new(c: u8) -> TestRequest {
-    TestRequest {
-      chan: c
-    }
-  }
-}
 impl hil::adc::Request for TestRequest {
   fn read_done(&mut self, val: u16) {}
   fn channel(&mut self) -> u8 {
     self.chan
   }
 }
+
+pub static mut REQ: TestRequest = TestRequest {
+  chan: 0
+};
+
 
 pub static mut FIRESTORM : Option<Firestorm> = None;
 
@@ -81,8 +78,6 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
 
-    REQ = Some(TestRequest::new(0));
-
     chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
         baud_rate: 115200,
@@ -95,9 +90,10 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     ADC = Some(sam4l::adc::Adc::new());
     let adc = ADC.as_mut().unwrap();
-    let rreq = REQ.as_mut().unwrap();
     adc.initialize();
-    adc.sample(rreq);
+    REQ.chan = 1;
+    let req = &mut REQ;
+    adc.sample(req);
 
     firestorm.console.initialize();
     firestorm

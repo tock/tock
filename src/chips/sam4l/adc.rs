@@ -78,7 +78,7 @@ impl adc::AdcInternal for Adc {
     }
     
     fn sample(&mut self, request: &'static mut adc::Request) -> bool {
-        if self.enabled || request.channel() > 14 {
+        if !self.enabled || request.channel() > 14 {
             return false;
         } else {
             self.enabled = true;
@@ -118,7 +118,7 @@ impl adc::AdcInternal for Adc {
     fn handle_interrupt(&mut self) {
         // Disable further interrupts
         volatile!(self.registers.idr = 1);
-        match self.request {
+        match self.request.take() {
             Some(ref mut request) => {
                 // Because HWLA is set to 1, most significant bit is
                 // of reading is left justified to bit 15r
@@ -128,6 +128,6 @@ impl adc::AdcInternal for Adc {
             None => {}
 
         }
-        self.request = None;
+//        self.request = None;
     }
 }
