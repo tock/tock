@@ -46,6 +46,7 @@ pub mod adc;
 pub mod queue;
 
 pub struct Sam4l {
+    pub queue: queue::InterruptQueue,
     pub ast: ast::Ast,
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
@@ -89,6 +90,7 @@ impl Sam4l {
     pub fn new() -> Sam4l {
 
         Sam4l {
+            queue: queue::InterruptQueue::new(),
             ast: ast::Ast::new(),
             usarts: [
                 usart::USART::new(usart::Location::USART0),
