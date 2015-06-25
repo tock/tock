@@ -283,5 +283,7 @@ void __aeabi_memset(void* dest, size_t count, int value) {
   memset(dest, value, count);
 }
 
-extern void __aeabi_memcpy(void* dest, void* src, unsigned int n);
+extern void __aeabi_memcpy(void* dest, void* src, unsigned int n) {
+  memcpy(dest, src, n);
+}
 
