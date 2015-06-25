@@ -1,6 +1,4 @@
 use core::prelude::*;
-use core::intrinsics;
-
 use queue;
 use ast;
 use adc;

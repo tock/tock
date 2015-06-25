@@ -7,8 +7,6 @@ extern crate core;
 extern crate common;
 extern crate hil;
 
-use core::prelude::*;
-
 pub fn volatile_load<T>(item: &T) -> T {
     unsafe {
         core::intrinsics::volatile_load(item)

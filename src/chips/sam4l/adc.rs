@@ -141,6 +141,5 @@ impl adc::AdcInternal for Adc {
 pub unsafe extern fn ADC_Handler() {
     let chip = chip::CHIP.as_mut().unwrap();
     let q = &mut chip.queue as &mut queue::Queue<nvic::NvicIdx>;
-
     q.enqueue(nvic::NvicIdx::ADCIFE); 
 }

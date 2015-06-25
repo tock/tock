@@ -3,6 +3,8 @@ use core::intrinsics;
 use nvic;
 use hil::Controller;
 use hil::timer::{Timer, TimerReceiver};
+use chip;
+use hil::queue;
 
 pub static mut INTERRUPT : bool = false;
 
@@ -247,7 +249,8 @@ impl Timer for Ast {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn AST_ALARM_Handler() {
-    volatile!(INTERRUPT = true);
-    nvic::disable(nvic::NvicIdx::ASTALARM);
+    let chip = chip::CHIP.as_mut().unwrap();
+    let q = &mut chip.queue as &mut queue::Queue<nvic::NvicIdx>;
+    q.enqueue(nvic::NvicIdx::ASTALARM);
 }
 
