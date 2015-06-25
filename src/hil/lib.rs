@@ -10,6 +10,7 @@ pub mod timer;
 pub mod uart;
 pub mod adc;
 pub mod queue;
+pub mod led;
 
 pub trait Controller {
     type Config;
