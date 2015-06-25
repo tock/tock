@@ -201,24 +201,18 @@ impl Sam4l {
     }
 
     pub unsafe fn service_pending_interrupts(&mut self) {
-        use core::intrinsics::atomic_xchg;
-        // This should be implemented as a lock-free queue
-        // of handler identifiers -pal
-        if atomic_xchg(&mut ast::INTERRUPT, false) {
-            self.ast.handle_interrupt();
-            nvic::enable(nvic::NvicIdx::ASTALARM);
+        use nvic::NvicIdx;
+        let q = &mut self.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
+        if q.has_elements() {
+           let interrupt = q.dequeue();
+           match interrupt {
+             NvicIdx::ASTALARM => self.ast.handle_interrupt(),
+             NvicIdx::USART3   => self.usarts[3].handle_interrupt(),
+             NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
+             _ => {}
+           }
+           nvic::enable(interrupt);
         }
-
-        if atomic_xchg(&mut usart::USART3_INTERRUPT, false) {
-            self.usarts[3].handle_interrupt();
-            nvic::enable(nvic::NvicIdx::USART3);
-        }
-
-        if atomic_xchg(&mut adc::ADC_INTERRUPT, false) {
-            self.adc.handle_interrupt();
-            nvic::enable(nvic::NvicIdx::ADCIFE);
-        }
-
     }
 
     pub fn has_pending_interrupts(&mut self) -> bool {
