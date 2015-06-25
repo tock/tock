@@ -1,8 +1,9 @@
 use core::prelude::*;
 use core::intrinsics;
 use nvic;
-use hil::{adc};
+use hil::{adc,queue};
 use pm::{self, Clock, PBAClock};
+use chip;
 
 /* This is a first cut at an implementation of the SAM4L ADC.
    It only allows a single sample at a time, and has three known bugs,
@@ -138,6 +139,8 @@ impl adc::AdcInternal for Adc {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn ADC_Handler() {
-    volatile!(ADC_INTERRUPT = true);
-    nvic::disable(nvic::NvicIdx::ADCIFE);
+    let chip = chip::CHIP.as_mut().unwrap();
+    let q = &mut chip.queue as &mut queue::Queue<nvic::NvicIdx>;
+
+    q.enqueue(nvic::NvicIdx::ADCIFE); 
 }
