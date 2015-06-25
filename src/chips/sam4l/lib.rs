@@ -216,11 +216,8 @@ impl Sam4l {
     }
 
     pub fn has_pending_interrupts(&mut self) -> bool {
-        use core::intrinsics::volatile_load;
-        unsafe {
-            volatile_load(&usart::USART3_INTERRUPT)
-                || volatile_load(&ast::INTERRUPT)
-        }
+        let q = &mut self.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
+        q.has_elements()
     }
 }
 
