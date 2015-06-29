@@ -1,11 +1,11 @@
 use hil;
 
 pub struct LedHigh {
-  pin: &'static mut hil::gpio::GPIOPin
+  pub pin: &'static mut hil::gpio::GPIOPin
 }
 
 pub struct LedLow {
-  pin: &'static mut hil::gpio::GPIOPin
+  pub pin: &'static mut hil::gpio::GPIOPin
 }
 
 impl LedHigh {

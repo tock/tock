@@ -14,7 +14,9 @@ use hil::adc::AdcInternal;
 use hil::Controller;
 use sam4l::*;
 
-pub static mut ADC  : Option<adc::Adc> = None;
+pub static mut ADC: Option<adc::Adc> = None;
+pub static mut LED: Option<common::led::LedHigh> = None;
+pub static mut PINC10: sam4l::gpio::GPIOPin = sam4l::gpio::GPIOPin {pin: sam4l::gpio::Pin::PC10};
 
 pub struct TestRequest {
   chan: u8
@@ -39,7 +41,8 @@ pub static mut FIRESTORM : Option<Firestorm> = None;
 pub struct Firestorm {
     chip: &'static mut chip::Sam4l,
     console: drivers::console::Console<usart::USART>,
-    gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>
+    gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
+    led: &'static mut hil::led::Led
 }
 
 impl Firestorm {
@@ -66,7 +69,8 @@ impl Firestorm {
 pub unsafe fn init() -> &'static mut Firestorm {
     chip::CHIP = Some(chip::Sam4l::new());
     let chip = chip::CHIP.as_mut().unwrap();
-
+    LED = Some(common::led::LedHigh {pin: &mut PINC10}) ;
+    
     FIRESTORM = Some(Firestorm {
         chip: chip,
         console: drivers::console::Console::new(&mut chip.usarts[3]),
@@ -75,7 +79,8 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa09, &mut chip.pa17, &mut chip.pc20
             , &mut chip.pa19, &mut chip.pa14, &mut chip.pa16
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
-            , &mut chip.pa12, &mut chip.pc09])
+            , &mut chip.pa12, &mut chip.pc09]),
+        led: LED.as_mut().unwrap()
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -89,7 +94,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     chip.pb09.configure(Some(sam4l::gpio::PeripheralFunction::A));
     chip.pb10.configure(Some(sam4l::gpio::PeripheralFunction::A));
-
+    
     ADC = Some(sam4l::adc::Adc::new());
     let adc = ADC.as_mut().unwrap();
     adc.initialize();

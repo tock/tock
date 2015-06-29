@@ -3,7 +3,6 @@ use core::intrinsics;
 use hil;
 
 #[repr(C, packed)]
-#[derive(Copy,Clone)]
 struct Register {
     val: u32,
     set: u32,
@@ -12,14 +11,12 @@ struct Register {
 }
 
 #[repr(C, packed)]
-#[derive(Copy,Clone)]
 struct RegisterRO {
     val: u32,
     reserved: [u32; 3]
 }
 
 #[repr(C, packed)]
-#[derive(Copy,Clone)]
 struct RegisterRC {
     val: u32,
     reserved0: u32,
@@ -28,7 +25,6 @@ struct RegisterRC {
 }
 
 #[repr(C, packed)]
-#[derive(Copy,Clone)]
 struct GPIOPortRegisters {
     gper: Register,
     pmr0: Register,
@@ -86,64 +82,55 @@ pub enum Pin {
 }
 
 pub struct GPIOPin {
-    pub pin: Pin
-//    port: &'static mut GPIOPortRegisters,
-//    pin_mask: u32
+    port: &'static mut GPIOPortRegisters,
+    pin_mask: u32
 }
 
 impl GPIOPin {
-    pub fn new(p: Pin) -> GPIOPin {
-         
-//        let address = BASE_ADDRESS + ((pin as usize) / 32) * SIZE;
-//        let pin_number = ((pin as usize) % 32) as u8;
+    pub fn new(pin: Pin) -> GPIOPin {
+        let address = BASE_ADDRESS + ((pin as usize) / 32) * SIZE;
+        let pin_number = ((pin as usize) % 32) as u8;
 
         GPIOPin {
-            pin: p
-//            port: unsafe { intrinsics::transmute(address) },
-//            pin_mask: 1 << (pin_number as u32)
+            port: unsafe { intrinsics::transmute(address) },
+            pin_mask: 1 << (pin_number as u32)
         }
     }
 
     pub fn select_peripheral(&mut self, function: PeripheralFunction) {
         let f = function as u32;
         let (bit0, bit1, bit2) = (f & 0b1, (f & 0b10) >> 1, (f & 0b100) >> 2);
-        let address = BASE_ADDRESS + ((self.pin as usize) / 32) * SIZE;
-        let port: &mut GPIOPortRegisters = unsafe {intrinsics::transmute(address)};
-        let pin_mask = 1 << (self.pin as u32);
 
         // clear GPIO enable for pin
-        volatile!(port.gper.clear = pin_mask);
-   
+        volatile!(self.port.gper.clear = self.pin_mask);
+
         // Set PMR0-2 according to passed in peripheral
 
         // bradjc: This code doesn't look great, but actually works.
         if bit0 == 0 {
-            volatile!(port.pmr0.clear = pin_mask);
+            volatile!(self.port.pmr0.clear = self.pin_mask);
         } else {
-            volatile!(port.pmr0.set = pin_mask);
+            volatile!(self.port.pmr0.set = 1 << self.pin_mask);
         }
         if bit1 == 0 {
-            volatile!(port.pmr1.clear = pin_mask);
+            volatile!(self.port.pmr1.clear = 1 << self.pin_mask);
         } else {
-            volatile!(port.pmr1.set = pin_mask);
+            volatile!(self.port.pmr1.set = 1 << self.pin_mask);
         }
         if bit2 == 0 {
-            volatile!(port.pmr2.clear = pin_mask);
+            volatile!(self.port.pmr2.clear = 1 << self.pin_mask);
         } else {
-            volatile!(port.pmr2.set = pin_mask);
+            volatile!(self.port.pmr2.set = 1 << self.pin_mask);
         }
         // bradjc: These register assigns erase previous settings and don't
         //         work.
-        // volatile!(port.pmr0.val = bit0 self.pin_mask);
-        // volatile!(port.pmr1.val = bit1 self.pin_mask);
-        // volatile!(port.pmr2.val = bit2 self.pin_mask);
+        // volatile!(self.port.pmr0.val = bit0 << self.pin_mask);
+        // volatile!(self.port.pmr1.val = bit1 << self.pin_mask);
+        // volatile!(self.port.pmr2.val = bit2 << self.pin_mask);
     }
 
     pub fn set_ster(&mut self) {
-        let address = BASE_ADDRESS + ((self.pin as usize) / 32) * SIZE;
-        let port: &mut GPIOPortRegisters = unsafe {intrinsics::transmute(address)};
-        let pin_mask = 1 << (self.pin as u32);
-        volatile!(port.ster.set = pin_mask);
+        volatile!(self.port.ster.set = self.pin_mask);
     }
 }
 
@@ -160,39 +147,24 @@ impl hil::Controller for GPIOPin {
 
 impl hil::gpio::GPIOPin for GPIOPin {
     fn enable_output(&mut self) {
-        let address = BASE_ADDRESS + ((self.pin as usize) / 32) * SIZE;
-        let port: &mut GPIOPortRegisters = unsafe {intrinsics::transmute(address)};
-        let pin_mask = 1 << (self.pin as u32);
-        volatile!(port.gper.set = pin_mask);
-        volatile!(port.oder.set = pin_mask);
-        volatile!(port.ster.clear = pin_mask);
+        volatile!(self.port.gper.set = self.pin_mask);
+        volatile!(self.port.oder.set = self.pin_mask);
+        volatile!(self.port.ster.clear = self.pin_mask);
     }
 
     fn read(&self) -> bool {
-        let address = BASE_ADDRESS + ((self.pin as usize) / 32) * SIZE;
-        let port: &mut GPIOPortRegisters = unsafe {intrinsics::transmute(address)};
-        let pin_mask = 1 << (self.pin as u32);
-        (volatile!(port.pvr.val) & pin_mask) > 0
+        (volatile!(self.port.pvr.val) & self.pin_mask) > 0
     }
 
     fn toggle(&mut self) {
-        let address = BASE_ADDRESS + ((self.pin as usize) / 32) * SIZE;
-        let port: &mut GPIOPortRegisters = unsafe {intrinsics::transmute(address)};
-        let pin_mask = 1 << (self.pin as u32);
-        volatile!(port.ovr.toggle = pin_mask);
+        volatile!(self.port.ovr.toggle = self.pin_mask);
     }
 
     fn set(&mut self) {
-        let address = BASE_ADDRESS + ((self.pin as usize) / 32) * SIZE;
-        let port: &mut GPIOPortRegisters = unsafe {intrinsics::transmute(address)};
-        let pin_mask = 1 << (self.pin as u32);
-        volatile!(port.ovr.set = pin_mask);
+        volatile!(self.port.ovr.set = self.pin_mask);
     }
 
     fn clear(&mut self) {
-        let address = BASE_ADDRESS + ((self.pin as usize) / 32) * SIZE;
-        let port: &mut GPIOPortRegisters = unsafe {intrinsics::transmute(address)};
-        let pin_mask = 1 << (self.pin as u32);
-        volatile!(port.ovr.clear = pin_mask);
+        volatile!(self.port.ovr.clear = self.pin_mask);
     }
 }
