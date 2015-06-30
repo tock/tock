@@ -18,11 +18,14 @@ impl AdcMux {
 impl adc::ImplRequest for AdcMux {
    fn read_done(&mut self, val: u16) {
       if self.request.is_some() {
-//        self.request = self.request.as_mut().unwrap().next;
+          let mut current: Option<&'static mut adc::Request> = self.request.take();
+          let mut req    = current.as_mut().unwrap();
+          let mut next   = req.next.take();
+          self.request = next;
       }
 
       if self.request.is_some() {
-     //        self.start_request();
+          //self.start_request();
       }
    }
    fn channel(&self) -> u8 {
