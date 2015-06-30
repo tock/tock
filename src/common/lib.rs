@@ -12,3 +12,4 @@ extern crate hil;
 pub mod shared;
 pub mod ring_buffer;
 pub mod led;
+pub mod adc;
