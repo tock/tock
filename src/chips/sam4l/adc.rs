@@ -46,7 +46,7 @@ pub static mut ADC_INTERRUPT : bool = false;
 pub struct Adc {
   registers: &'static mut AdcRegisters,
   enabled: bool,
-  request: Option<&'static mut adc::Request>
+  request: Option<&'static mut adc::ImplRequest>
 }
 
 impl Adc {
@@ -77,7 +77,7 @@ impl Adc {
 
 }
 
-impl adc::AdcInternal for Adc {
+impl adc::AdcImpl for Adc {
     fn initialize(&mut self) -> bool {
         if !self.enabled {
             self.enabled = true;
@@ -97,7 +97,7 @@ impl adc::AdcInternal for Adc {
         return true;
     }
     
-    fn sample(&mut self, request: &'static mut adc::Request) -> bool {
+    fn sample(&mut self, request: &'static mut adc::ImplRequest) -> bool {
         if !self.enabled || request.channel() > 14 {
             return false;
         } else {

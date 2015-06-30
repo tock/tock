@@ -4,13 +4,24 @@
  *   Date: 6/10/15
 */
 
-pub trait Request {
-  fn read_done(&mut self, val: u16);
-  fn channel(&mut self) -> u8;
+use core::prelude::*;
+
+pub struct Request {
+  pub callback: &'static FnMut(u16),
+  pub next: Option<&'static mut Request>,
+  pub chan: u8
 }
 
-pub trait AdcInternal {
+pub trait Adc {
+  fn sample(&mut self, chan: u8, &'static FnMut(u16), &'static mut Request);
+}
+
+pub trait ImplRequest {
+  fn read_done(&mut self, val: u16);
+  fn channel(&self) -> u8;
+}
+
+pub trait AdcImpl {
     fn initialize(&mut self) -> bool;
-    fn sample(&mut self, &'static mut Request) -> bool;
-//    fn handle_interrupt(&mut self);
+    fn sample(&mut self, &'static mut ImplRequest) -> bool;
 }

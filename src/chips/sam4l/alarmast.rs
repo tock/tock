@@ -1,10 +1,7 @@
 use core::prelude::*;
 use core::intrinsics;
 use nvic;
-use hil::Controller;
-use hil::timer::{Timer, TimerReceiver};
-use chip;
-use hil::queue;
+use hil::alarm::{Alarm, Request};
 
 pub static mut INTERRUPT : bool = false;
 
@@ -41,7 +38,7 @@ pub const AST_BASE: isize = 0x400F0800;
 #[allow(missing_copy_implementations)]
 pub struct Ast {
     regs: &'static mut AstRegisters,
-    receiver: Option<&'static mut TimerReceiver>
+    callback: Option<&'static mut Request>
 }
 
 #[repr(usize)]
@@ -53,26 +50,11 @@ pub enum Clock {
     Clock1K = 4
 }
 
-impl Controller for Ast {
-    type Config = &'static mut TimerReceiver;
-    
-    fn configure(&mut self, receiver: &'static mut TimerReceiver) {
-        self.receiver = Some(receiver);
-
-        // These should probably be parameters to `configure`
-        self.select_clock(Clock::ClockRCSys);
-        self.set_prescalar(0);
-
-        self.clear_alarm();
-    }
-
-}
-
 impl Ast {
     pub fn new() -> Ast {
         Ast {
             regs: unsafe { intrinsics::transmute(AST_BASE)},
-            receiver: None
+            callback: None
         }
     }
 
@@ -215,14 +197,14 @@ impl Ast {
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
-        self.receiver.as_mut().map(|r| {
-            r.alarm_fired();
+        self.callback.as_mut().map(|r| {
+            r.fired();
         });
     }
 
 }
 
-impl Timer for Ast {
+impl Alarm for Ast {
     fn now(&self) -> u32 {
         unsafe {
             intrinsics::volatile_load(&(*self.regs).cv)
@@ -234,9 +216,10 @@ impl Timer for Ast {
         self.clear_alarm();
     }
 
-    fn set_alarm(&mut self, tics: u32) {
+    fn set_alarm(&mut self, tics: u32, req: &'static mut Request) {
         self.disable();
         while self.busy() {}
+        self.callback = Some(req);
         unsafe {
             intrinsics::volatile_store(&mut (*self.regs).ar0, tics);
         }

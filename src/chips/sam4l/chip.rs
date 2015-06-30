@@ -1,6 +1,6 @@
 use core::prelude::*;
 use queue;
-use ast;
+use alarmast;
 use adc;
 use gpio;
 use nvic;
@@ -12,7 +12,7 @@ pub static mut CHIP : Option<Sam4l> = None;
 
 pub struct Sam4l {
     pub queue: queue::InterruptQueue,
-    pub ast: ast::Ast,
+    pub ast: alarmast::Ast,
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
     pub pa00: gpio::GPIOPin, pub pa01: gpio::GPIOPin, pub pa02: gpio::GPIOPin,
@@ -56,7 +56,7 @@ impl Sam4l {
 
         Sam4l {
             queue: queue::InterruptQueue::new(),
-            ast: ast::Ast::new(),
+            ast: alarmast::Ast::new(),
             usarts: [
                 usart::USART::new(usart::Location::USART0),
                 usart::USART::new(usart::Location::USART1),

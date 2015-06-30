@@ -10,7 +10,7 @@ extern crate hil;
 extern crate sam4l;
 
 use core::prelude::*;
-use hil::adc::AdcInternal;
+use hil::adc::AdcImpl;
 use hil::Controller;
 use sam4l::*;
 
@@ -22,11 +22,11 @@ pub struct TestRequest {
   chan: u8
 }
 
-impl hil::adc::Request for TestRequest {
+impl hil::adc::ImplRequest for TestRequest {
   fn read_done(&mut self, val: u16) {
     // Do something with this reading!
   }
-  fn channel(&mut self) -> u8 {
+  fn channel(&self) -> u8 {
     self.chan
   }
 }

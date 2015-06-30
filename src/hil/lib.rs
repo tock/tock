@@ -11,6 +11,7 @@ pub mod uart;
 pub mod adc;
 pub mod queue;
 pub mod led;
+pub mod alarm;
 
 pub trait Controller {
     type Config;
