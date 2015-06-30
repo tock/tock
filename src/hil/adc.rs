@@ -17,7 +17,7 @@ pub trait Adc {
 }
 
 pub trait ImplRequest {
-  fn read_done(&mut self, val: u16);
+  fn read_done(&'static mut self, val: u16);
   fn channel(&self) -> u8;
 }
 

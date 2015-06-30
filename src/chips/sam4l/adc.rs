@@ -62,17 +62,12 @@ impl Adc {
     pub fn handle_interrupt(&mut self) {
         // Disable further interrupts
         volatile!(self.registers.idr = 1);
-        match self.request.take() {
-            Some(ref mut request) => {
-                // Because HWLA is set to 1, most significant bit is
-                // of reading is left justified to bit 15r
-                let val = volatile!(self.registers.lcv) & 0xffff;         
-                request.read_done(val as u16);
-            }
-            None => {}
-
+        if self.request.is_some() {
+          let opt: Option<&'static mut adc::ImplRequest> = self.request.take();
+          let req = opt.unwrap();
+          let val = volatile!(self.registers.lcv) & 0xffff;
+          req.read_done(val as u16);
         }
-//        self.request = None;
     }
 
 }
