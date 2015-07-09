@@ -4,7 +4,11 @@ use core::prelude::*;
 use core::raw;
 
 use common::ring_buffer::RingBuffer;
-use syscall;
+
+#[allow(improper_ctypes)]
+extern {
+    pub fn switch_to_user(user_stack: *mut u8) -> *mut u8;
+}
 
 /// Size of each processes's memory region in bytes
 pub const PROC_MEMORY_SIZE : usize = 2048;
@@ -113,7 +117,7 @@ impl<'a> Process<'a> {
         if self.cur_stack < (&mut self.exposed_memory[0] as *mut u8) {
             breakpoint();
         }
-        let psp = syscall::switch_to_user(self.cur_stack);
+        let psp = switch_to_user(self.cur_stack);
         self.cur_stack = psp;
     }
 

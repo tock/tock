@@ -1,5 +1,5 @@
 use core::prelude::*;
-use hil::Driver;
+use hil::{Driver, Callback};
 use hil::gpio::GPIOPin;
 
 pub struct GPIO<S: AsMut<[&'static mut GPIOPin]>> {
@@ -15,7 +15,7 @@ impl<S: AsMut<[&'static mut GPIOPin]>> GPIO<S> {
 }
 
 impl<S: AsMut<[&'static mut GPIOPin]>> Driver for GPIO<S> {
-    fn subscribe(&mut self, _: usize, _: usize) -> isize {
+    fn subscribe(&mut self, _: usize, _: Callback) -> isize {
         -1
     }
 

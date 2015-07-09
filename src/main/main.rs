@@ -6,17 +6,18 @@ extern crate core;
 extern crate common;
 extern crate support;
 extern crate hil;
+extern crate process;
 extern crate platform;
 
 mod apps;
 
-pub mod process;
 pub mod syscall;
 
 #[no_mangle]
 pub extern fn main() {
     use core::prelude::*;
     use process::Process;
+    use common::shared::Shared;
 
     let mut platform = unsafe {
         platform::init()
@@ -24,13 +25,14 @@ pub extern fn main() {
 
     let app1 = unsafe { Process::create(apps::app1::_start).unwrap() };
 
-    let mut processes = [app1];
+    let mut processes = [Shared::new(app1)];
 
     loop {
         unsafe {
             platform.service_pending_interrupts();
 
-            'sched: for process in processes.iter_mut() {
+            'sched: for process_s in processes.iter_mut() {
+                let process = process_s.borrow_mut();
                 'process: loop {
                     match process.state {
                         process::State::Running => {
@@ -53,10 +55,18 @@ pub extern fn main() {
                             break 'process;
                         },
                         Some(syscall::SUBSCRIBE) => {
-                            let res = platform.with_driver(process.r0(), |driver| {
+                            let driver_num = process.r0();
+                            let subdriver_num = process.r1();
+                            let callback_ptr = process.r2() as *mut ();
+
+                            let res = platform.with_driver(driver_num, |driver| {
+                                let callback = hil::Callback {
+                                    process_ptr: process_s.borrow_mut() as *mut Process as *mut (),
+                                    fn_ptr: callback_ptr
+                                };
                                 match driver {
-                                    Some(d) => d.subscribe(process.r1(),
-                                                                process.r2()),
+                                    Some(d) => d.subscribe(subdriver_num,
+                                                           callback),
                                     None => -1
                                 }
                             });

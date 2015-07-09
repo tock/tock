@@ -4,6 +4,7 @@
 #![no_std]
 
 extern crate core;
+extern crate process;
 
 pub mod gpio;
 pub mod timer;
@@ -13,6 +14,8 @@ pub mod queue;
 pub mod led;
 pub mod alarm;
 
+pub use process::Callback;
+
 pub trait Controller {
     type Config;
 
@@ -20,7 +23,7 @@ pub trait Controller {
 }
 
 pub trait Driver {
-    fn subscribe(&mut self, r1: usize, r2: usize) -> isize;
+    fn subscribe(&mut self, subscribe_type: usize, callback: Callback) -> isize;
     fn command(&mut self, r1: usize, r2: usize) -> isize;
 }
 

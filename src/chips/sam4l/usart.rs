@@ -120,14 +120,6 @@ impl USART {
         }
     }
 
-    pub fn rx_ready(&self) -> bool {
-        volatile!(self.regs.csr) & 0b1 != 0
-    }
-
-    pub fn tx_ready(&self) -> bool {
-        volatile!(self.regs.csr) & 0b10 != 0
-    }
-
     fn enable_nvic(&self) {
         unsafe {
             nvic::enable(self.nvic);
@@ -157,6 +149,7 @@ impl USART {
     }
 
     pub fn handle_interrupt(&mut self) {
+        use hil::uart::UART;
         if self.rx_ready() {
             let c = volatile!(self.regs.rhr) as u8;
             match self.client {
@@ -191,6 +184,15 @@ impl uart::UART for USART {
         while !self.tx_ready() {}
         volatile!(self.regs.thr = byte as u32);
     }
+
+    fn rx_ready(&self) -> bool {
+        volatile!(self.regs.csr) & 0b1 != 0
+    }
+
+    fn tx_ready(&self) -> bool {
+        volatile!(self.regs.csr) & 0b10 != 0
+    }
+
 
     fn read_byte(&self) -> u8 {
         while !self.rx_ready() {}
