@@ -8,7 +8,7 @@ use hil;
 use usart;
 
 pub static mut CHIP : Option<Sam4l> = None;
-
+pub static mut icounter: usize = 0;
 
 pub struct Sam4l {
     pub queue: queue::InterruptQueue,
@@ -167,8 +167,15 @@ impl Sam4l {
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx;
+        let l = &mut self.pa19 as &mut hil::gpio::GPIOPin;
+        icounter = icounter + 1;
+        if icounter % 1000000 == 0 {
+           l.clear();
+        } else if icounter % 1000000 == 500000 {
+           l.set();
+        }
         let q = &mut self.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
-        if q.has_elements() {
+        while q.has_elements() {
            let interrupt = q.dequeue();
            match interrupt {
              NvicIdx::ASTALARM => self.ast.handle_interrupt(),

@@ -13,10 +13,12 @@ use core::prelude::*;
 use hil::adc::AdcImpl;
 use hil::Controller;
 use sam4l::*;
+use hil::adc::AdcMux;
 
 pub static mut ADC: Option<adc::Adc> = None;
-pub static mut LED: Option<common::led::LedHigh> = None;
+pub static mut LED: Option<hil::led::LedHigh> = None;
 pub static mut PINC10: sam4l::gpio::GPIOPin = sam4l::gpio::GPIOPin {pin: sam4l::gpio::Pin::PC10};
+pub static mut ADCM: Option<AdcMux> = None;
 
 pub struct TestRequest {
   chan: u8
@@ -24,7 +26,10 @@ pub struct TestRequest {
 
 impl hil::adc::ImplRequest for TestRequest {
   fn read_done(&mut self, val: u16) {
-    // Do something with this reading!
+    unsafe {
+      let mut oput = &mut FIRESTORM.as_mut().unwrap().chip.pa19 as  &mut hil::gpio::GPIOPin;
+      oput.set();
+    }
   }
   fn channel(&self) -> u8 {
     self.chan
@@ -35,6 +40,13 @@ pub static mut REQ: TestRequest = TestRequest {
   chan: 0
 };
 
+pub struct MuxRequest;
+
+impl hil::adc::Request for MuxRequest {
+  fn read_done(&'static mut self, val: u16, req: &'static mut hil::adc::Request) {
+  }
+}
+pub static mut MREQ: MuxRequest = MuxRequest;
 
 pub static mut FIRESTORM : Option<Firestorm> = None;
 
@@ -66,10 +78,12 @@ impl Firestorm {
 
 }
 
+pub static MREQI: Option<&'static mut hil::adc::RequestInternal> = None;
+
 pub unsafe fn init() -> &'static mut Firestorm {
     chip::CHIP = Some(chip::Sam4l::new());
     let chip = chip::CHIP.as_mut().unwrap();
-    LED = Some(common::led::LedHigh {pin: &mut PINC10}) ;
+    LED = Some(hil::led::LedHigh {pin: &mut PINC10}) ;
     
     FIRESTORM = Some(Firestorm {
         chip: chip,
@@ -101,6 +115,14 @@ pub unsafe fn init() -> &'static mut Firestorm {
     REQ.chan = 1;
     adc.sample(&mut REQ);
 
+//    let chip = chip::CHIP.as_mut().unwrap();
+    let q = &mut chip.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
+    q.enqueue(nvic::NvicIdx::ADCIFE); 
+
+    FIRESTORM.as_mut().unwrap().led.init();
+
+    let mut oput = &mut chip.pa19 as  &mut hil::gpio::GPIOPin;
+    oput.enable_output();
     firestorm.console.initialize();
     firestorm
 }

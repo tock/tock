@@ -7,7 +7,6 @@
 
 extern crate core;
 extern crate support;
-extern crate hil;
 
 pub mod shared;
 pub mod ring_buffer;
