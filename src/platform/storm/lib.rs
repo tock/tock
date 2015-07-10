@@ -27,8 +27,6 @@ pub struct TestRequest {
 impl hil::adc::ImplRequest for TestRequest {
   fn read_done(&mut self, val: u16) {
     unsafe {
-      let mut oput = &mut FIRESTORM.as_mut().unwrap().chip.pa19 as  &mut hil::gpio::GPIOPin;
-      oput.set();
     }
   }
   fn channel(&self) -> u8 {
@@ -120,9 +118,6 @@ pub unsafe fn init() -> &'static mut Firestorm {
     q.enqueue(nvic::NvicIdx::ADCIFE); 
 
     FIRESTORM.as_mut().unwrap().led.init();
-
-    let mut oput = &mut chip.pa19 as  &mut hil::gpio::GPIOPin;
-    oput.enable_output();
     firestorm.console.initialize();
     firestorm
 }
