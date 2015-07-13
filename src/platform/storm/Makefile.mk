@@ -23,5 +23,5 @@ all: $(BUILD_DIR)/main.sdb
 .PHONY: program
 
 program: $(BUILD_DIR)/main.sdb
-	sload flash $(BUILD_DIR)/main.sdb
+	$(SLOAD) flash $(BUILD_DIR)/main.sdb
 
