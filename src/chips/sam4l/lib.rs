@@ -38,6 +38,7 @@ macro_rules! volatile {
 }
 
 pub mod ast;
+pub mod i2c;
 pub mod nvic;
 pub mod pm;
 pub mod gpio;
@@ -48,6 +49,7 @@ pub struct Sam4l {
     pub ast: ast::Ast,
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
+    pub i2c: [i2c::I2CDevice; 4],
     pub pa00: gpio::GPIOPin, pub pa01: gpio::GPIOPin, pub pa02: gpio::GPIOPin,
     pub pa03: gpio::GPIOPin, pub pa04: gpio::GPIOPin, pub pa05: gpio::GPIOPin,
     pub pa06: gpio::GPIOPin, pub pa07: gpio::GPIOPin, pub pa08: gpio::GPIOPin,
@@ -93,9 +95,15 @@ impl Sam4l {
                 usart::USART::new(usart::Location::USART0),
                 usart::USART::new(usart::Location::USART1),
                 usart::USART::new(usart::Location::USART2),
-                usart::USART::new(usart::Location::USART3),
+                usart::USART::new(usart::Location::USART3)
             ],
             adc: adc::Adc::new(),
+            i2c: [
+                i2c::I2CDevice::new(i2c::Location::I2C00, i2c::Speed::Fast400k),
+                i2c::I2CDevice::new(i2c::Location::I2C01, i2c::Speed::Fast400k),
+                i2c::I2CDevice::new(i2c::Location::I2C02, i2c::Speed::Fast400k),
+                i2c::I2CDevice::new(i2c::Location::I2C03, i2c::Speed::Fast400k)
+            ],
             pa00: gpio::GPIOPin::new(gpio::Pin::PA00),
             pa01: gpio::GPIOPin::new(gpio::Pin::PA01),
             pa02: gpio::GPIOPin::new(gpio::Pin::PA02),
