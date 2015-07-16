@@ -14,7 +14,7 @@ pub trait Adc {
   fn sample(&'static mut self,
             chan: u8,
             request: &'static mut Request,
-            internal: &'static mut Self::RequestInternal);
+            internal: &'static mut RequestInternal);
 }
 
 pub struct RequestInternal {
