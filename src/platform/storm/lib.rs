@@ -115,14 +115,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
     REQ.chan = 1;
 //    adc.sample(&mut REQ);
 
-//    let chip = chip::CHIP.as_mut().unwrap();
-    let q = &mut chip.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
-//    q.enqueue(nvic::NvicIdx::ADCIFE); 
-
     FIRESTORM.as_mut().unwrap().led.init();
-
-    let mut oput = &mut chip.pa19 as  &mut hil::gpio::GPIOPin;
-    oput.enable_output();
     firestorm.console.initialize();
     firestorm
 }
