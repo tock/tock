@@ -103,6 +103,8 @@ r##"You may issue the following commands
 
     fn readc(c: char) {
         unsafe { // referencing static variables
+            enable_pin(0);
+            toggle_pin(0);
             match c {
                 '\n' => {
                     match str::from_utf8(&buf[0..i]) {

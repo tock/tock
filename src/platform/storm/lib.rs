@@ -113,11 +113,11 @@ pub unsafe fn init() -> &'static mut Firestorm {
     let adc = ADC.as_mut().unwrap();
     adc.initialize();
     REQ.chan = 1;
-    adc.sample(&mut REQ);
+//    adc.sample(&mut REQ);
 
 //    let chip = chip::CHIP.as_mut().unwrap();
     let q = &mut chip.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
-    q.enqueue(nvic::NvicIdx::ADCIFE); 
+//    q.enqueue(nvic::NvicIdx::ADCIFE); 
 
     FIRESTORM.as_mut().unwrap().led.init();
 

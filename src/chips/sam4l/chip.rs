@@ -37,18 +37,19 @@ pub struct Sam4l {
     pub pb21: gpio::GPIOPin, pub pb22: gpio::GPIOPin, pub pb23: gpio::GPIOPin,
     pub pb24: gpio::GPIOPin, pub pb25: gpio::GPIOPin, pub pb26: gpio::GPIOPin,
     pub pb27: gpio::GPIOPin, pub pb28: gpio::GPIOPin, pub pb29: gpio::GPIOPin,
-    pub pb30: gpio::GPIOPin, pub pb31: gpio::GPIOPin, pub pc00: gpio::GPIOPin,
-    pub pc01: gpio::GPIOPin, pub pc02: gpio::GPIOPin, pub pc03: gpio::GPIOPin,
-    pub pc04: gpio::GPIOPin, pub pc05: gpio::GPIOPin, pub pc06: gpio::GPIOPin,
-    pub pc07: gpio::GPIOPin, pub pc08: gpio::GPIOPin, pub pc09: gpio::GPIOPin,
-    pub pc10: gpio::GPIOPin, pub pc11: gpio::GPIOPin, pub pc12: gpio::GPIOPin,
-    pub pc13: gpio::GPIOPin, pub pc14: gpio::GPIOPin, pub pc15: gpio::GPIOPin,
-    pub pc16: gpio::GPIOPin, pub pc17: gpio::GPIOPin, pub pc18: gpio::GPIOPin,
-    pub pc19: gpio::GPIOPin, pub pc20: gpio::GPIOPin, pub pc21: gpio::GPIOPin,
-    pub pc22: gpio::GPIOPin, pub pc23: gpio::GPIOPin, pub pc24: gpio::GPIOPin,
-    pub pc25: gpio::GPIOPin, pub pc26: gpio::GPIOPin, pub pc27: gpio::GPIOPin,
-    pub pc28: gpio::GPIOPin, pub pc29: gpio::GPIOPin, pub pc30: gpio::GPIOPin,
-    pub pc31: gpio::GPIOPin
+    pub pb30: gpio::GPIOPin, pub pb31: gpio::GPIOPin,
+
+    pub pc00: gpio::GPIOPin, pub pc01: gpio::GPIOPin, pub pc02: gpio::GPIOPin,
+    pub pc03: gpio::GPIOPin, pub pc04: gpio::GPIOPin, pub pc05: gpio::GPIOPin,
+    pub pc06: gpio::GPIOPin, pub pc07: gpio::GPIOPin, pub pc08: gpio::GPIOPin,
+    pub pc09: gpio::GPIOPin, pub pc10: gpio::GPIOPin, pub pc11: gpio::GPIOPin,
+    pub pc12: gpio::GPIOPin, pub pc13: gpio::GPIOPin, pub pc14: gpio::GPIOPin,
+    pub pc15: gpio::GPIOPin, pub pc16: gpio::GPIOPin, pub pc17: gpio::GPIOPin,
+    pub pc18: gpio::GPIOPin, pub pc19: gpio::GPIOPin, pub pc20: gpio::GPIOPin,
+    pub pc21: gpio::GPIOPin, pub pc22: gpio::GPIOPin, pub pc23: gpio::GPIOPin,
+    pub pc24: gpio::GPIOPin, pub pc25: gpio::GPIOPin, pub pc26: gpio::GPIOPin,
+    pub pc27: gpio::GPIOPin, pub pc28: gpio::GPIOPin, pub pc29: gpio::GPIOPin,
+    pub pc30: gpio::GPIOPin, pub pc31: gpio::GPIOPin
 }
 
 impl Sam4l {
@@ -167,15 +168,21 @@ impl Sam4l {
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx;
-        let l = &mut self.pa19 as &mut hil::gpio::GPIOPin;
-        icounter = icounter + 1;
-        if icounter % 1000000 == 0 {
-           l.clear();
-        } else if icounter % 1000000 == 500000 {
-           l.set();
-        }
         let q = &mut self.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
+        let l = &mut self.pc10 as &mut hil::gpio::GPIOPin;
+        l.enable_output();
+
+        static mut s: usize = 0;
+        s = s + 1;
+        if s % 100000 == 0 {
+          l.toggle();   
+        }
+
         while q.has_elements() {
+           s = s + 10;
+           if s % 100000 == 0 {
+              l.toggle();   
+           }
            let interrupt = q.dequeue();
            match interrupt {
              NvicIdx::ASTALARM => self.ast.handle_interrupt(),
