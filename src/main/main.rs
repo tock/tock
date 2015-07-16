@@ -89,7 +89,7 @@ pub extern fn main() {
 
             support::atomic(|| {
                 if !platform.has_pending_interrupts() {
-//                    support::wfi();
+                    support::wfi();
                 }
             })
         };

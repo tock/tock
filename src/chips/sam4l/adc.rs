@@ -141,6 +141,7 @@ impl adc::AdcImpl for Adc {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn ADC_Handler() {
+    nvic::disable(nvic::NvicIdx::ADCIFE);
     let chip = chip::CHIP.as_mut().unwrap();
     let q = &mut chip.queue as &mut queue::Queue<nvic::NvicIdx>;
     q.enqueue(nvic::NvicIdx::ADCIFE); 

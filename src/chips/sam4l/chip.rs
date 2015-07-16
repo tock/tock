@@ -168,18 +168,8 @@ impl Sam4l {
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx;
-        let l = &mut self.pa19 as &mut hil::gpio::GPIOPin;
-        l.enable_output();
         let q = &mut self.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
-        icounter = icounter + 1;
-        if (icounter % 50000) == 0 {
-            l.toggle();
-        }
         while q.has_elements() {
-           icounter = icounter + 1;
-           if (icounter % 50000) == 0 {
-               l.toggle();
-           }
            let interrupt = q.dequeue();
            match interrupt {
              NvicIdx::ASTALARM => self.ast.handle_interrupt(),
