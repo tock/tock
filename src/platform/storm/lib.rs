@@ -52,7 +52,7 @@ pub struct Firestorm {
     chip: &'static mut chip::Sam4l,
     console: drivers::console::Console<usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
-    led: &'static mut hil::led::Led
+    led: &'static mut hil::led::Led,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>
 }
 

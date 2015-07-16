@@ -2,6 +2,7 @@
 #![crate_type = "rlib"]
 #![feature(asm,core,concat_idents,no_std)]
 #![no_std]
+#[allow(dead_code)]
 
 extern crate core;
 extern crate common;
@@ -36,6 +37,9 @@ macro_rules! volatile {
         ::volatile_store(&mut $item, ::volatile_load(&$item) & $value)
     });
 }
+
+#[allow(dead_code)]
+#[allow(dead_code)]
 
 
 mod ast;

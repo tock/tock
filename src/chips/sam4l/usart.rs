@@ -58,6 +58,7 @@ pub struct USARTParams {
     pub parity: Parity
 }
 
+#[allow(dead_code)]
 impl Controller for USART {
     type Config = USARTParams;
 
@@ -221,6 +222,7 @@ impl uart::UART for USART {
 
 #[no_mangle]
 #[allow(non_snake_case)]
+#[allow(dead_code)]
 pub unsafe extern fn USART3_Handler() {
     nvic::disable(nvic::NvicIdx::USART3);
     let chip = chip::CHIP.as_mut().unwrap();

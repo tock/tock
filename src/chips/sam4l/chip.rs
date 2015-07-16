@@ -9,6 +9,7 @@ use nvic;
 
 pub static mut CHIP : Option<Sam4l> = None;
 
+#[allow(dead_code)]
 pub struct Sam4l {
     pub queue: queue::InterruptQueue,
     pub ast: ast::Ast,
@@ -51,6 +52,7 @@ pub struct Sam4l {
     pub pc30: gpio::GPIOPin, pub pc31: gpio::GPIOPin
 }
 
+#[allow(dead_code)]
 impl Sam4l {
     pub fn new() -> Sam4l {
 
