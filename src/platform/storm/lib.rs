@@ -53,6 +53,7 @@ pub struct Firestorm {
     console: drivers::console::Console<usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     led: &'static mut hil::led::Led
+    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>
 }
 
 impl Firestorm {
@@ -70,6 +71,7 @@ impl Firestorm {
         f(match driver_num {
             0 => Some(&mut self.console),
             1 => Some(&mut self.gpio),
+            2 => Some(&mut self.tmp006),
             _ => None
         })
     }
@@ -93,6 +95,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         led: LED.as_mut().unwrap()
+        tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -106,7 +109,9 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     chip.pb09.configure(Some(sam4l::gpio::PeripheralFunction::A));
     chip.pb10.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    
+    chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::E));
+    chip.pa22.configure(Some(sam4l::gpio::PeripheralFunction::E));
+
     ADC = Some(sam4l::adc::Adc::new());
     let adc = ADC.as_mut().unwrap();
     adc.initialize();

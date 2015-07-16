@@ -120,17 +120,17 @@ impl GPIOPin {
         if bit0 == 0 {
             volatile!(port.pmr0.clear = pin_mask);
         } else {
-            volatile!(port.pmr0.set = pin_mask);
+            volatile!(self.port.pmr0.set = self.pin_mask);
         }
         if bit1 == 0 {
-            volatile!(port.pmr1.clear = pin_mask);
+            volatile!(self.port.pmr1.clear = self.pin_mask);
         } else {
-            volatile!(port.pmr1.set = pin_mask);
+            volatile!(self.port.pmr1.set = self.pin_mask);
         }
         if bit2 == 0 {
-            volatile!(port.pmr2.clear = pin_mask);
+            volatile!(self.port.pmr2.clear = self.pin_mask);
         } else {
-            volatile!(port.pmr2.set = pin_mask);
+            volatile!(self.port.pmr2.set = self.pin_mask);
         }
         // bradjc: These register assigns erase previous settings and don't
         //         work.

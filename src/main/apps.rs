@@ -23,6 +23,18 @@ fn wait() {
     }
 }
 
+mod tmp006 {
+    use super::{command, subscribe};
+
+    pub fn enable_tmp006() {
+        command(2, 0, 0);
+    }
+
+    pub fn subscribe_temperature(f: fn(i16)) {
+        subscribe(2, 0, f as usize);
+    }
+}
+
 mod console {
     use core::prelude::*;
     use super::{command, subscribe};
@@ -67,6 +79,7 @@ pub mod app1 {
     use super::wait;
     use super::console::*;
     use super::gpio::*;
+    use super::tmp006::*;
     use core::str;
     use core::prelude::*;
 
@@ -98,7 +111,17 @@ r##"You may issue the following commands
     fn init() {
         puts(WELCOME_MESSAGE);
         subscribe_read(readc);
+        subscribe_temperature(tmp_available);
+        enable_tmp006();
         puts(PROMPT);
+    }
+
+    fn tmp_available(mut tmp: i16) {
+        tmp = tmp / 32;
+        puts("temperature read: ");
+        putc((('0' as i16) + (tmp / 10)) as u8 as char);
+        putc((('0' as i16) + (tmp % 10)) as u8 as char);
+        puts("\r\n");
     }
 
     fn readc(c: char) {
