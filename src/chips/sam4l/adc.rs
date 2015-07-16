@@ -1,3 +1,10 @@
+/* chips::sam4l::adc -- Single-request implementation of ADC conversion
+ * for the SAM4L CortexM4 microcontroller.
+ *
+ * Author: Philip Levis <pal@cs.stanford.edu>
+ * Date: 7/16/15
+ */
+
 use core::prelude::*;
 use core::intrinsics;
 use nvic;

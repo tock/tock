@@ -1,8 +1,8 @@
-/* Simplest attempt at an ADC interface.
+/* hil::adc  - Simplest attempt at an ADC interface.
  *
  *   Author: Philip Levis <pal@cs.stanford.edu>
  *   Date: 6/10/15
-*/
+ */
 
 use core::prelude::*;
 
@@ -14,7 +14,7 @@ pub trait Adc {
   fn sample(&'static mut self,
             chan: u8,
             request: &'static mut Request,
-            internal: &'static mut RequestInternal);
+            internal: &'static mut Self::RequestInternal);
 }
 
 pub struct RequestInternal {

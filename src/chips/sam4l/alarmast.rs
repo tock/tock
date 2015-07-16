@@ -1,9 +1,14 @@
+/* chips::sam4l::ast -- Implementation of a single hardware timer.
+ *
+ * Author: Amit Levy <alevy@stanford.edu>
+ * Author: Philip Levis <pal@cs.stanford.edu>
+ * Date: 7/16/15
+ */
+
 use core::prelude::*;
 use core::intrinsics;
 use nvic;
 use hil::alarm::{Alarm, Request};
-
-pub static mut INTERRUPT : bool = false;
 
 #[repr(C, packed)]
 #[allow(missing_copy_implementations)]
@@ -229,11 +234,12 @@ impl Alarm for Ast {
     }
 }
 
-//#[no_mangle]
-//#[allow(non_snake_case)]
-//pub unsafe extern fn AST_ALARM_Handler() {
-//    let chip = chip::CHIP.as_mut().unwrap();
-//    let q = &mut chip.queue as &mut queue::Queue<nvic::NvicIdx>;
-//    q.enqueue(nvic::NvicIdx::ASTALARM);
-//}
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn AST_ALARM_Handler() {
+    nvic::disable(nvic::NvicIdx::ASTALARM);
+    let chip = chip::CHIP.as_mut().unwrap();
+    let q = &mut chip.queue as &mut queue::Queue<nvic::NvicIdx>;
+    q.enqueue(nvic::NvicIdx::ASTALARM);
+}
 
