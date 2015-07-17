@@ -24,8 +24,8 @@ pub extern fn main() {
 
     let app1 = unsafe { Process::create(apps::app1::_start).unwrap() };
 
-    let mut processes: [Shared<Process>;0] = [];
-//    let mut processes = [Shared::new(app1)];
+//    let mut processes: [Shared<Process>;0] = [];
+    let mut processes = [Shared::new(app1)];
 
     loop {
         unsafe {

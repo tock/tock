@@ -24,11 +24,9 @@ pub struct TestRequest {
   chan: u8
 }
 
+#[allow(unused_variables)]
 impl hil::adc::ImplRequest for TestRequest {
-  fn read_done(&mut self, val: u16) {
-    unsafe {
-    }
-  }
+  fn read_done(&mut self, val: u16) {}
   fn channel(&self) -> u8 {
     self.chan
   }
@@ -40,6 +38,7 @@ pub static mut REQ: TestRequest = TestRequest {
 
 pub struct MuxRequest;
 
+#[allow(unused_variables)]
 impl hil::adc::Request for MuxRequest {
   fn read_done(&'static mut self, val: u16, req: &'static mut hil::adc::Request) {
   }
