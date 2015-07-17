@@ -38,15 +38,12 @@ macro_rules! volatile {
     });
 }
 
-#[allow(dead_code)]
-#[allow(dead_code)]
-
-
-mod ast;
-mod adc;
-mod gpio;
-mod nvic;
-mod usart;
-mod pm;
-mod chip;
-mod queue;
+pub mod ast;
+pub mod adc;
+pub mod gpio;
+pub mod nvic;
+pub mod usart;
+pub mod pm;
+pub mod chip;
+pub mod queue;
+pub mod i2c;

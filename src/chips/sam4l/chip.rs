@@ -6,15 +6,16 @@ use adc;
 use usart;
 use hil;
 use nvic;
+use i2c;
 
 pub static mut CHIP : Option<Sam4l> = None;
 
-#[allow(dead_code)]
 pub struct Sam4l {
     pub queue: queue::InterruptQueue,
     pub ast: ast::Ast,
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
+    pub i2c: [i2c::I2CDevice; 4],
     pub pa00: gpio::GPIOPin, pub pa01: gpio::GPIOPin, pub pa02: gpio::GPIOPin,
     pub pa03: gpio::GPIOPin, pub pa04: gpio::GPIOPin, pub pa05: gpio::GPIOPin,
     pub pa06: gpio::GPIOPin, pub pa07: gpio::GPIOPin, pub pa08: gpio::GPIOPin,
@@ -52,7 +53,6 @@ pub struct Sam4l {
     pub pc30: gpio::GPIOPin, pub pc31: gpio::GPIOPin
 }
 
-#[allow(dead_code)]
 impl Sam4l {
     pub fn new() -> Sam4l {
 
@@ -66,6 +66,11 @@ impl Sam4l {
                 usart::USART::new(usart::Location::USART3),
             ],
             adc: adc::Adc::new(),
+            i2c: [
+                i2c::I2CDevice::new(i2c::Location::I2C00, i2c::Speed::Standard100k),
+                i2c::I2CDevice::new(i2c::Location::I2C01, i2c::Speed::Standard100k),
+                i2c::I2CDevice::new(i2c::Location::I2C02, i2c::Speed::Standard100k),
+                i2c::I2CDevice::new(i2c::Location::I2C03, i2c::Speed::Standard100k),       ],
             pa00: gpio::GPIOPin::new(gpio::Pin::PA00),
             pa01: gpio::GPIOPin::new(gpio::Pin::PA01),
             pa02: gpio::GPIOPin::new(gpio::Pin::PA02),

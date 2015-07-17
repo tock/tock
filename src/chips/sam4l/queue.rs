@@ -4,14 +4,12 @@ use core::intrinsics::volatile_load;
 
 pub const IQ_SIZE: usize = 100;
 
-#[allow(dead_code)]
 pub struct InterruptQueue {
   ring: [nvic::NvicIdx; IQ_SIZE],
   head: usize,
   tail: usize
 }
 
-#[allow(dead_code)]
 impl InterruptQueue {
   pub fn new() -> InterruptQueue {
     InterruptQueue {
@@ -22,7 +20,6 @@ impl InterruptQueue {
   }
 }
 
-#[allow(dead_code)]
 impl queue::Queue<nvic::NvicIdx> for InterruptQueue {
   fn has_elements(&self) -> bool {
     unsafe {

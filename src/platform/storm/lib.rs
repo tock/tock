@@ -94,7 +94,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa19, &mut chip.pa14, &mut chip.pa16
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
-        led: LED.as_mut().unwrap()
+        led: LED.as_mut().unwrap(),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
     });
 
