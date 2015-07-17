@@ -15,15 +15,29 @@ pub trait Timer {
   fn now(&self) -> u32; 
   fn cancel(&mut self, &'static mut Request);
   fn oneshot(&mut self, interval: u32, &'static mut Request);
-  fn periodic(&mut self, interval: u32, &'static mut Request);
+  fn repeat(&mut self, interval: u32, &'static mut Request);
 }
 
 pub struct RequestInternal {
   pub next: Option<&'static mut RequestInternal>,
   pub is_active: bool,
+  pub is_repeat: bool,
   pub when: u32,
   pub interval: u32,
   pub callback: Option<&'static mut Request>
+}
+
+impl RequestInternal {
+  pub fn new(request: &'static mut Request) -> RequestInternal {
+    RequestInternal {
+      next:      None,
+      is_active: false,
+      is_repeat: false,
+      when:      0,
+      interval:  0,
+      callback:  Some(request)
+    }
+  }
 }
 
 /* common::timer -- Software timers (Timer trait), sitting on top of a
@@ -65,5 +79,14 @@ impl TimerMux {
 }
 
 impl alarm::Request for TimerMux {
-  fn fired(&mut self) {}
+  fn fired(&mut self) {
+    if self.request.is_none() {return;}
+
+    let mut ropt = self.request.take();
+    let request: &'static mut RequestInternal = ropt.unwrap();
+
+    if request.is_repeat {
+      let t = self as &'static mut Timer;
+    }
+  }
 }
