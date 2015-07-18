@@ -59,7 +59,7 @@ impl TimerMux {
     }
   }
  
-  fn start_request(&'static mut self) {
+  fn start_request(&mut self) {
     if self.request.is_none() {return;}
 
     let aopt: Option<&'static mut alarm::Alarm> = self.internal.take();
@@ -68,7 +68,7 @@ impl TimerMux {
     let request: &'static mut RequestInternal = ropt.unwrap();
     let when = request.when;
 
-    alarm.set_alarm(when, self as &'static mut alarm::Request);
+//    alarm.set_alarm(when, self as &'static mut alarm::Request);
     self.internal = Some(alarm);
     self.request = Some(request);
 
@@ -76,7 +76,7 @@ impl TimerMux {
 
   // Returns whether hardware clock has to be recalculated (inserted
   // timer is now first timer)
-  fn insert(&'static mut self, request: &'static mut RequestInternal) -> bool {
+  fn insert(&mut self, request: &'static mut RequestInternal) -> bool {
     if request.next.is_some() { // Already on a list, this is an error!
       false
     }
@@ -88,7 +88,7 @@ impl TimerMux {
       let mut done = false;
       let mut copt = &mut self.request;
       while !done {
-        let mut mycopt = copt.take();
+        let mycopt = copt.take();
         let mut curr = mycopt.unwrap();
         // 'request' is earlier than current element, insert here by making
         // the current Option point to 'request' and have 'request''s next
@@ -110,10 +110,9 @@ impl TimerMux {
              done = true;
            } else {
              let mut nopt = &mut curr.next;
-             let mut mynopt = nopt.take();
+             let mynopt = nopt.take();
              *copt = Some(curr);
              copt = nopt;
-             mycopt = mynopt;
            }
 
         }
@@ -124,7 +123,7 @@ impl TimerMux {
 
   // Returns whether hardware clock has to be recalculated (removed first
   // timer)
-  fn remove(&'static mut self, request: &'static mut RequestInternal) -> bool {
+  fn remove(&mut self, request: &'static mut RequestInternal) -> bool {
     if self.request.is_none() {return false;}
     
     let mut done = false;
