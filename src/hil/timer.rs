@@ -9,7 +9,7 @@ use core::prelude::*;
 use alarm;
 
 pub trait Request {
-  fn read_done(&'static mut self, now: u32);
+  fn fired(&'static mut self, now: u32);
 }
 
 pub trait Timer {
@@ -68,7 +68,9 @@ impl TimerMux {
     let request: &'static mut RequestInternal = ropt.unwrap();
     let when = request.when;
 
-//    alarm.set_alarm(when, self as &'static mut alarm::Request);
+    //let mut me = self as &'static mut alarm::Request;
+    //alarm.set_alarm(when, me);// as &mut alarm::Request);
+
     self.internal = Some(alarm);
     self.request = Some(request);
 
