@@ -60,6 +60,7 @@ impl AdcMux {
   }
 }
 
+#[allow(unused_variables)]
 impl ImplRequest for AdcMux {
    fn read_done(&'static mut self, val: u16) {
       if self.request.is_some() {
@@ -80,7 +81,7 @@ impl ImplRequest for AdcMux {
       }
    }
 }
-
+#[allow(unused_variables)]
 impl Adc for AdcMux {
   fn sample(&'static mut self,
             chan: u8,
