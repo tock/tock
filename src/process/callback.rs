@@ -7,11 +7,18 @@ pub struct Callback {
     // to unsafely cast these to `Process` and `fn()`, respectively. Even these
     // types, however, leak some information about the calling application that
     // we probably shouldn't leak.
-    pub process_ptr: *mut (),
-    pub fn_ptr: *mut ()
+    process_ptr: *mut (),
+    fn_ptr: *mut ()
 }
 
 impl Callback {
+    pub unsafe fn new(process: &mut Process<'static>, fn_ptr: *mut ()) -> Callback {
+        Callback {
+            process_ptr: process as *mut Process<'static> as *mut (),
+            fn_ptr: fn_ptr
+        }
+    }
+
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) {
         unsafe {
             let process : &mut Process = transmute(self.process_ptr);

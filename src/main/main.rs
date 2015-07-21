@@ -60,10 +60,9 @@ pub extern fn main() {
                             let callback_ptr = process.r2() as *mut ();
 
                             let res = platform.with_driver(driver_num, |driver| {
-                                let callback = hil::Callback {
-                                    process_ptr: process_s.borrow_mut() as *mut Process as *mut (),
-                                    fn_ptr: callback_ptr
-                                };
+                                let callback =
+                                    hil::Callback::new(process_s.borrow_mut(),
+                                                       callback_ptr);
                                 match driver {
                                     Some(d) => d.subscribe(subdriver_num,
                                                            callback),
