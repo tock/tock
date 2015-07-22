@@ -204,9 +204,9 @@ impl Ast {
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
-        self.callback.as_mut().map(|r| {
-            r.fired();
-        });
+        let opt = self.callback.take();
+        let copt: &'static mut Request = opt.unwrap();
+        copt.fired();
     }
 
 }
@@ -218,12 +218,12 @@ impl Alarm for Ast {
         }
     }
 
-    fn disable_alarm(&mut self) {
+    fn disable_alarm(&'static mut self) {
         self.disable();
         self.clear_alarm();
     }
 
-    fn set_alarm(&mut self, tics: u32, req: &'static mut Request) {
+    fn set_alarm(&'static mut self, tics: u32, req: &'static mut Request) {
         self.disable();
         while self.busy() {}
         self.callback = Some(req);

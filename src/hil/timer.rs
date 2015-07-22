@@ -9,14 +9,14 @@ use core::prelude::*;
 use alarm;
 
 pub trait Request {
-  fn fired(&'static mut self, now: u32);
+  fn fired(&'static mut self, &'static mut RequestInternal, now: u32);
 }
 
 pub trait Timer {
-  fn now(&self) -> u32; 
-  fn cancel(&mut self, &'static mut RequestInternal);
-  fn oneshot(&mut self, interval: u32, &'static mut RequestInternal);
-  fn repeat(&mut self, interval: u32, &'static mut RequestInternal);
+  fn now(&'static self) -> u32; 
+  fn cancel(&'static mut self, &'static mut RequestInternal);
+  fn oneshot(&'static mut self, interval: u32, &'static mut RequestInternal);
+  fn repeat(&'static mut self, interval: u32, &'static mut RequestInternal);
   
 }
 
@@ -59,7 +59,7 @@ impl TimerMux {
     }
   }
  
-  fn start_request(&mut self) {
+  fn start_request(&'static mut self) {
     if self.request.is_none() {return;}
 
     let aopt: Option<&'static mut alarm::Alarm> = self.internal.take();
@@ -69,7 +69,7 @@ impl TimerMux {
     let when = request.when;
 
     //let mut me = self as &'static mut alarm::Request;
-    //alarm.set_alarm(when, me);// as &mut alarm::Request);
+    alarm.set_alarm(when, self);// as &mut alarm::Request);
 
     self.internal = Some(alarm);
     self.request = Some(request);
@@ -78,7 +78,7 @@ impl TimerMux {
 
   // Returns whether hardware clock has to be recalculated (inserted
   // timer is now first timer)
-  fn insert(&mut self, request: &'static mut RequestInternal) -> bool {
+  fn insert(&'static mut self, request: &'static mut RequestInternal) -> bool {
     if request.next.is_some() { // Already on a list, this is an error!
       false
     }
@@ -125,7 +125,7 @@ impl TimerMux {
 
   // Returns whether hardware clock has to be recalculated (removed first
   // timer)
-  fn remove(&mut self, request: &'static mut RequestInternal) -> bool {
+  fn remove(&'static mut self, request: &'static mut RequestInternal) -> bool {
     if self.request.is_none() {return false;}
     
     let mut done = false;
@@ -154,32 +154,41 @@ impl TimerMux {
 
 #[allow(dead_code,unused_variables)]
 impl alarm::Request for TimerMux {
-  fn fired(&mut self) {
+  fn fired(&'static mut self) {
     if self.request.is_none() {return;}
+    let riopt = self.request.take();
+    let internal: &'static mut RequestInternal = riopt.unwrap();
+    self.request = Some(internal);
 
-    let ropt = self.request.take();
-    let request: &'static mut RequestInternal = ropt.unwrap();
+    self.remove(internal);
 
-    if request.is_repeat {
-    //  let t = self as &mut Timer;
+    let ropt = internal.callback.take();
+    let request: &'static mut Request = ropt.unwrap();
+    internal.callback = Some(request);
+
+    if internal.is_repeat {
+      internal.when = internal.when + internal.interval;
+      self.insert(internal);
     }
-  }
 
+    request.fired(internal, self.now());
+  }
 }
 
 #[allow(dead_code)]
 impl Timer for TimerMux {
-  fn now(&self) -> u32 {
+  fn now(&'static self) -> u32 {
     0 as u32
   }
-  fn cancel(&mut self, request: &'static mut RequestInternal) {
+
+  fn cancel(&'static mut self, request: &'static mut RequestInternal) {
     if !request.is_active {return;}
 
     request.is_active = false;
     self.remove(request);
   }
 
-  fn oneshot(&mut self, interval: u32, request: &'static mut RequestInternal) {
+  fn oneshot(&'static mut self, interval: u32, request: &'static mut RequestInternal) {
     request.interval = interval;
     request.is_active = true;
     request.when = self.now() + interval;
@@ -187,7 +196,7 @@ impl Timer for TimerMux {
     self.insert(request);
   }
 
-  fn repeat(&mut self, interval: u32, request: &'static mut RequestInternal) {
+  fn repeat(&'static mut self, interval: u32, request: &'static mut RequestInternal) {
     request.interval = interval;
     request.is_active = true;
     request.when = self.now() + interval;
