@@ -16,7 +16,7 @@ use pm;
 // Section 27.9 of the datasheet
 #[repr(C, packed)]
 #[allow(dead_code)]
-struct I2CRegisters {
+struct Registers {
     control:                         usize,
     clock_waveform_generator:        usize,
     smbus_timing:                    usize,
@@ -68,7 +68,7 @@ pub struct I2CParams {
 // This is instantiated when an I2C device is created by the device tree.
 // This represents an abstraction of the peripheral hardware.
 pub struct I2CDevice {
-    registers: &'static mut I2CRegisters,  // Pointer to the I2C registers in memory
+    registers: &'static mut Registers,  // Pointer to the I2C registers in memory
     bus_speed: Speed,
     clock: ::pm::Clock
 }
