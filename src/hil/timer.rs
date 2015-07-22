@@ -3,7 +3,7 @@
  * Author: Philip Levis <pal@cs.stanford.edu>
  * Date: 7/16/15
  */
-#[allow(dead_code)]
+#![allow(dead_code)]
 
 use core::prelude::*;
 use alarm;
@@ -20,7 +20,6 @@ pub trait Timer {
 
 }
 
-#[allow(dead_code)]
 pub struct TimerRequest {
   pub next: Option<&'static mut TimerRequest>,
   pub is_active: bool,
@@ -30,7 +29,6 @@ pub struct TimerRequest {
   pub callback: Option<&'static mut TimerCB>
 }
 
-#[allow(dead_code)]
 impl TimerRequest {
   pub fn new(cb: &'static mut TimerCB) -> TimerRequest {
     TimerRequest {
@@ -44,13 +42,11 @@ impl TimerRequest {
   }
 }
 
-#[allow(dead_code)]
 pub struct TimerMux {
   request: Option<&'static mut TimerRequest>,
   internal: Option<&'static mut alarm::Alarm>
 }
 
-#[allow(dead_code,unused_variables)]
 impl TimerMux {
   pub fn new(internal: &'static mut alarm::Alarm) -> TimerMux {
     TimerMux {
@@ -112,7 +108,6 @@ impl TimerMux {
              done = true;
            } else {
              let mut nopt = &mut curr.next;
-             let mynopt = nopt.take();
              *copt = Some(curr);
              copt = nopt;
            }
@@ -134,7 +129,9 @@ impl TimerMux {
     while !done {
       let mycopt = copt.take();
       let mut curr = mycopt.unwrap();
-      if false {
+      let cptr: *const TimerRequest = curr;
+      let rptr: *const TimerRequest = request;
+      if cptr == rptr {
         *copt = curr.next.take();
         done = true;
       } else if curr.next.is_none() {
@@ -152,7 +149,6 @@ impl TimerMux {
   }
 }
 
-#[allow(dead_code,unused_variables)]
 impl alarm::Request for TimerMux {
   fn fired(&'static mut self) {
     if self.request.is_none() {return;}
@@ -175,7 +171,6 @@ impl alarm::Request for TimerMux {
   }
 }
 
-#[allow(dead_code)]
 impl Timer for TimerMux {
   fn now(&'static self) -> u32 {
     0 as u32
