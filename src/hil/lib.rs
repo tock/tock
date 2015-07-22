@@ -12,7 +12,7 @@ pub mod timer;
 pub mod uart;
 pub mod adc;
 
-pub use process::Callback;
+pub use process::{Callback, AppPtr};
 
 pub trait Controller {
     type Config;

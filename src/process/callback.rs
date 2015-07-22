@@ -1,4 +1,7 @@
-use core::intrinsics::transmute;
+use core::prelude::*;
+use core::ptr::{Unique,copy_nonoverlapping};
+use core::mem::transmute;
+use core::mem;
 use process;
 use process::Process;
 use common::Queue;
@@ -31,4 +34,52 @@ impl Callback {
             });
         }
     }
+
+    pub fn allocate<T>(&mut self, val: T) -> Option<AppPtr<T>> {
+        unsafe {
+            let process : &mut Process = transmute(self.process_ptr);
+            let size = mem::size_of_val(&val);
+            process.alloc(size).map(|buf| {
+                let mut dest = &mut buf[0] as *mut u8 as *mut T;
+                copy_nonoverlapping(&val, dest, 1);
+                AppPtr {
+                    ptr: Unique::new(&mut dest),
+                    process: self.process_ptr
+                }
+            })
+        }
+    }
 }
+
+pub struct AppPtr<T> {
+    ptr: Unique<*mut T>,
+    process: *mut ()
+}
+
+impl<T> ::core::ops::Deref for AppPtr<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe {
+            &***self.ptr
+        }
+    }
+}
+
+impl<T> ::core::ops::DerefMut for AppPtr<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe {
+            &mut ***self.ptr
+        }
+    }
+}
+
+impl<T> Drop for AppPtr<T> {
+    fn drop(&mut self) {
+        unsafe {
+            let process : &mut Process = transmute(self.process);
+            process.free(*self.ptr);
+        }
+    }
+}
+

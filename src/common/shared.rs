@@ -18,3 +18,21 @@ impl<T> Shared<T> {
     }
 }
 
+impl<T> ::core::ops::Deref for Shared<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe {
+            &*self.value.get()
+        }
+    }
+}
+
+impl<T> ::core::ops::DerefMut for Shared<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe {
+            &mut *self.value.get()
+        }
+    }
+}
+

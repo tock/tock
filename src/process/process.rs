@@ -33,16 +33,14 @@ pub struct Callback {
 
 pub struct Process<'a> {
     /// The process's memory.
-    pub memory: &'static mut [u8],
+    memory: &'a mut [u8],
 
-    /// The process's memory exposed to the process (the rest is reserved for the
-    /// kernel, drivers, etc).
-    pub exposed_memory: &'a mut [u8],
+    exposed_memory_start: *mut u8,
 
     /// The offset in `memory` to use for the process stack.
-    pub cur_stack: *mut u8,
+    cur_stack: *mut u8,
 
-    pub wait_pc: usize,
+    wait_pc: usize,
 
     pub state: State,
 
@@ -73,9 +71,12 @@ impl<'a> Process<'a> {
                 pc: init_fn as usize, r0: 0, r1: 0, r2:0
             });
 
+            let exposed_memory_start =
+                    &mut memory[callback_len * callback_size] as *mut u8;
+
             Some(Process {
                 memory: memory,
-                exposed_memory: &mut memory[callback_len * callback_size..],
+                exposed_memory_start: exposed_memory_start,
                 cur_stack: stack_bottom as *mut u8,
                 wait_pc: 0,
                 state: State::Waiting,
@@ -83,6 +84,26 @@ impl<'a> Process<'a> {
             })
         }
     }
+
+    pub unsafe fn alloc(&mut self, size: usize) -> Option<&mut [u8]> {
+        use core::raw::Slice;
+
+        let mem_len = self.memory.len();
+        let end_mem = &mut self.memory[mem_len - 1] as *mut u8;
+        let new_start = self.exposed_memory_start.offset(size as isize);
+        if new_start >= end_mem {
+            None
+        } else {
+            let buf = Slice {
+                data: self.exposed_memory_start,
+                len: size
+            };
+            self.exposed_memory_start = new_start;
+            Some(mem::transmute(buf))
+        }
+    }
+
+    pub unsafe fn free<T>(&mut self, _: *mut T) {}
 
     pub fn pop_syscall_stack(&mut self) {
         let pspr = self.cur_stack as *const usize;
@@ -114,7 +135,7 @@ impl<'a> Process<'a> {
 
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
-        if self.cur_stack < (&mut self.exposed_memory[0] as *mut u8) {
+        if self.cur_stack < self.exposed_memory_start {
             breakpoint();
         }
         let psp = switch_to_user(self.cur_stack);
