@@ -9,8 +9,8 @@ BUILD_DIR ?= build
 # the `platform` directory.
 PLATFORM ?= storm
 
-# Dummy all. The real one is in platform-specific Makelfes.
-all:
+# Dummy all. The real one is in platform-specific Makefiles.
+all:	$(BUILD_DIR)
 
 $(BUILD_DIR):
 	@mkdir -p $@

@@ -53,7 +53,7 @@ impl<I: I2C> Driver for TMP006<I> {
 
                 // Now read the sensor reading
                 self.i2c.read_sync(0x40, &mut buf[0..2]);
-                let sensor_voltage = (((buf[0] as u16) << 8) | buf[1] as u16) as i16;
+                //let sensor_voltage = (((buf[0] as u16) << 8) | buf[1] as u16) as i16;
 
                 // Now move the register pointer to the die temp register
                 buf[0] = Registers::LocalTemperature as u8;
