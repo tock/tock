@@ -1,10 +1,12 @@
 use core::prelude::*;
-use hil::{Driver,Callback};
+use hil::{Driver,Callback,AppPtr};
 use hil::uart::{UART, Reader};
 
 pub struct Console<U: UART + 'static> {
     uart: &'static mut U,
     read_callback: Option<Callback>,
+    read_buffer: Option<AppPtr<[u8; 40]>>,
+    read_idx: usize
 }
 
 impl<U: UART> Console<U> {
@@ -12,6 +14,8 @@ impl<U: UART> Console<U> {
         Console {
             uart: uart,
             read_callback: None,
+            read_buffer: None,
+            read_idx: 0
         }
     }
 
@@ -34,10 +38,13 @@ impl<U: UART> Console<U> {
 }
 
 impl<U: UART> Driver for Console<U> {
-    fn subscribe(&mut self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&mut self, subscribe_num: usize, mut callback: Callback) -> isize {
         match subscribe_num {
-            0 /* read line */ =>
-                { self.read_callback = Some(callback); 0 },
+            0 /* read line */ => {
+                self.read_buffer = callback.allocate([0; 40]);
+                self.read_callback = Some(callback);
+                0
+            },
             _ => -1
         }
     }
@@ -52,9 +59,30 @@ impl<U: UART> Driver for Console<U> {
 
 impl<U: UART> Reader for Console<U> {
     fn read_done(&mut self, c: u8) {
-        self.read_callback.as_mut().map(|cb| {
-              cb.schedule(c as usize, 0, 0);
-        });
+        match c as char {
+            '\r' => {},
+            '\n' => {
+                self.read_callback.take().as_mut().map(|cb| {
+                    use core::ops::DerefMut;
+
+                    self.read_buffer.take().as_mut().map(|buf| {
+                        cb.schedule(buf.deref_mut() as *mut [u8; 40] as usize,
+                                    self.read_idx, 0);
+                    });
+                });
+                self.read_idx = 0;
+            },
+            _ => {
+                let idx = self.read_idx;
+                self.read_buffer = self.read_buffer.take().map(|mut buf| {
+                    if idx < 40 {
+                        buf[idx] = c;
+                    }
+                    self.read_idx += 1;
+                    buf
+                });
+            }
+        }
     }
 }
 

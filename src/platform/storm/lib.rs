@@ -10,7 +10,6 @@ extern crate hil;
 extern crate sam4l;
 
 use core::prelude::*;
-use hil::adc::AdcInternal;
 use hil::Controller;
 
 pub struct Firestorm {
@@ -18,10 +17,6 @@ pub struct Firestorm {
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>
-}
-
-impl Drop for Firestorm {
-    fn drop(&mut self) {}
 }
 
 impl Firestorm {
@@ -46,7 +41,7 @@ impl Firestorm {
 
 }
 
-static mut FIRESTORM_BUF : [u8; 140] = [0; 140];
+static mut FIRESTORM_BUF : [u8; 152] = [0; 152];
 static mut CHIP_BUF : [u8; 924] = [0; 924];
 
 pub unsafe fn init<'a>() -> &'a mut Firestorm {

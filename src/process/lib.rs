@@ -5,6 +5,7 @@
 
 extern crate core;
 extern crate common;
+extern crate support;
 
 pub mod process;
 pub mod callback;

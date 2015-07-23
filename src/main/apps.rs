@@ -49,7 +49,7 @@ mod console {
         }
     }
 
-    pub fn subscribe_read(f: fn(char)) {
+    pub fn subscribe_read_line(f: fn(*mut u8, usize)) {
         subscribe(0, 0, f as usize);
     }
 
@@ -83,9 +83,6 @@ pub mod app1 {
     use core::str;
     use core::prelude::*;
 
-    static mut buf : [u8; 1024] = [0; 1024];
-    static mut i : usize = 0;
-
     const WELCOME_MESSAGE: &'static str =
       "Welcome to Tock! Type \"help\" for a list of commands\r\n";
 
@@ -110,7 +107,7 @@ r##"You may issue the following commands
 
     fn init() {
         puts(WELCOME_MESSAGE);
-        subscribe_read(readc);
+        subscribe_read_line(line_read);
         subscribe_temperature(tmp_available);
         enable_tmp006();
         puts(PROMPT);
@@ -124,28 +121,16 @@ r##"You may issue the following commands
         puts("\r\n");
     }
 
-    fn readc(c: char) {
-        unsafe { // referencing static variables
-            match c {
-                '\n' => {
-                    match str::from_utf8(&buf[0..i]) {
-                        Ok(cmd) => {
-                          parse_command(cmd);
-                        },
-                        Err(_) => puts("Invalid UTF8 sequence")
-                    }
-                    i = 0;
-                    puts(PROMPT);
-                },
-                '\r' => {},
-                _ => {
-                    if i < buf.len() {
-                        buf[i] = c as u8;
-                        i += 1;
-                    }
-                }
-            }
+    fn line_read(b: *mut u8, len: usize) {
+        let buffer = ::core::raw::Slice { data: b, len: len };
+        let line = unsafe { str::from_utf8(::core::mem::transmute(buffer)) };
+        match line {
+            Ok(cmd) => {
+              parse_command(cmd);
+            },
+            Err(_) => puts("Invalid UTF8 sequence")
         }
+        puts(PROMPT);
     }
 
     fn parse_command(line: &str) {
@@ -204,7 +189,6 @@ r##"You may issue the following commands
             },
             _ => {}
         }
-
     }
 }
 
