@@ -49,7 +49,7 @@ mod console {
         }
     }
 
-    pub fn subscribe_read_line(f: fn(*mut u8, usize)) {
+    pub fn subscribe_read_line(f: fn(usize, *mut u8)) {
         subscribe(0, 0, f as usize);
     }
 
@@ -108,8 +108,8 @@ r##"You may issue the following commands
     fn init() {
         puts(WELCOME_MESSAGE);
         subscribe_read_line(line_read);
-        subscribe_temperature(tmp_available);
-        enable_tmp006();
+        //subscribe_temperature(tmp_available);
+        //enable_tmp006();
         puts(PROMPT);
     }
 
@@ -121,12 +121,13 @@ r##"You may issue the following commands
         puts("\r\n");
     }
 
-    fn line_read(b: *mut u8, len: usize) {
+    fn line_read(len: usize, b: *mut u8) {
         let buffer = ::core::raw::Slice { data: b, len: len };
         let line = unsafe { str::from_utf8(::core::mem::transmute(buffer)) };
         match line {
             Ok(cmd) => {
-              parse_command(cmd);
+                putc(unsafe { *b as char });
+                parse_command(cmd);
             },
             Err(_) => puts("Invalid UTF8 sequence")
         }

@@ -62,25 +62,24 @@ impl<U: UART> Reader for Console<U> {
         match c as char {
             '\r' => {},
             '\n' => {
-                self.read_callback.take().as_mut().map(|cb| {
-                    use core::ops::DerefMut;
-
-                    self.read_buffer.take().as_mut().map(|buf| {
-                        cb.schedule(buf.deref_mut() as *mut [u8; 40] as usize,
-                                    self.read_idx, 0);
+                let idx = self.read_idx;
+                self.read_buffer = self.read_buffer.take().map(|buf| {
+                    use ::core::raw::Repr;
+                    self.read_callback.as_mut().map(|cb| {
+                        cb.schedule(idx, (buf.repr().data as usize), 0);
                     });
+                    buf
                 });
                 self.read_idx = 0;
             },
             _ => {
-                let idx = self.read_idx;
-                self.read_buffer = self.read_buffer.take().map(|mut buf| {
-                    if idx < 40 {
-                        buf[idx] = c;
-                    }
+                if self.read_idx < 40 {
+                    self.read_buffer = self.read_buffer.take().map(|mut buf| {
+                        buf[self.read_idx] = c;
+                        buf
+                    });
                     self.read_idx += 1;
-                    buf
-                });
+                }
             }
         }
     }
