@@ -16,9 +16,10 @@ use sam4l::*;
 use hil::adc::AdcMux;
 
 pub static mut ADC: Option<adc::Adc> = None;
-pub static mut LED: Option<hil::led::LedHigh> = None;
 pub static mut PINC10: sam4l::gpio::GPIOPin = sam4l::gpio::GPIOPin {pin: sam4l::gpio::Pin::PC10};
 pub static mut ADCM: Option<AdcMux> = None;
+pub static mut LED: Option<hil::led::LedHigh> = None;
+
 
 pub struct TestRequest {
   chan: u8
@@ -52,7 +53,8 @@ pub struct Firestorm {
     console: drivers::console::Console<usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     led: &'static mut hil::led::Led,
-    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>
+    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
+    timer: hil::timer::TimerMux
 }
 
 impl Firestorm {
@@ -79,11 +81,27 @@ impl Firestorm {
 
 pub static MREQI: Option<&'static mut hil::adc::RequestInternal> = None;
 
+pub struct TestTimer {
+  led: &'static mut hil::led::Led
+}
+
+impl hil::timer::TimerCB for TestTimer {
+  fn fired(&'static mut self,
+           request: &'static mut hil::timer::TimerRequest,
+           now: u32) {
+    self.led.toggle();
+  }
+}
+pub static mut TIMER_REQUEST: Option<hil::timer::TimerRequest> = None;
+
+static mut TESTTIMER: Option<TestTimer> = None;
+
 pub unsafe fn init() -> &'static mut Firestorm {
     chip::CHIP = Some(chip::Sam4l::new());
     let chip = chip::CHIP.as_mut().unwrap();
-    LED = Some(hil::led::LedHigh {pin: &mut PINC10}) ;
-    
+    LED = Some(hil::led::LedHigh {pin: &mut PINC10});
+    let led = LED.as_mut().unwrap();
+
     FIRESTORM = Some(Firestorm {
         chip: chip,
         console: drivers::console::Console::new(&mut chip.usarts[3]),
@@ -93,8 +111,9 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa19, &mut chip.pa14, &mut chip.pa16
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
-        led: LED.as_mut().unwrap(),
+        led: led,
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
+        timer: hil::timer::TimerMux::new(&mut chip.ast)
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -119,6 +138,13 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     FIRESTORM.as_mut().unwrap().led.init();
     firestorm.console.initialize();
+
+    TESTTIMER = Some(TestTimer {led: led});
+    TIMER_REQUEST = Some(hil::timer::TimerRequest::new(TESTTIMER.as_mut().unwrap()));
+    let mytimer = &mut (FIRESTORM.as_mut().unwrap().timer) as &'static mut hil::timer::Timer;
+    let myrequest = TIMER_REQUEST.as_mut().unwrap() as &'static mut hil::timer::TimerRequest;
+    mytimer.repeat(1000, myrequest);
+
     firestorm
 }
 
