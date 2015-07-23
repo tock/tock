@@ -72,6 +72,22 @@ impl TimerMux {
 
   }
 
+  fn add(&'static mut self, request: &'static mut TimerRequest) -> bool {
+    let changed = self.insert(request);
+    if changed {
+      self.start_request();
+    }
+    changed
+  }
+
+  fn remove(&'static mut self, request: &'static mut TimerRequest) -> bool {
+    let changed = self.delete(request);
+    if changed {
+      self.start_request();
+    }
+    changed
+  }
+
   // Returns whether hardware clock has to be recalculated (inserted
   // timer is now first timer)
   fn insert(&'static mut self, request: &'static mut TimerRequest) -> bool {
@@ -120,7 +136,7 @@ impl TimerMux {
 
   // Returns whether hardware clock has to be recalculated (removed first
   // timer)
-  fn remove(&'static mut self, request: &'static mut TimerRequest) -> bool {
+  fn delete(&'static mut self, request: &'static mut TimerRequest) -> bool {
     if self.request.is_none() {return false;}
 
     let mut done = false;
@@ -152,22 +168,25 @@ impl TimerMux {
 impl alarm::Request for TimerMux {
   fn fired(&'static mut self) {
     if self.request.is_none() {return;}
-    let riopt = self.request.take();
-    let internal: &'static mut TimerRequest = riopt.unwrap();
-    self.request = Some(internal);
+    let ropt = self.request.take();
+    let request: &'static mut TimerRequest = ropt.unwrap();
+    self.request = request.next.take();
 
-    self.remove(internal);
-
-    let cbopt = internal.callback.take();
+    // Note this implementation is inefficient: if the repeat timer
+    // would be at the head of the queue again, we recalculate the
+    // timer, then re-insert so recalculate a second time.
+    // A better implementation would check this and conditionally
+    // remove/insert. -pal 7/22/15
+    let cbopt = request.callback.take();
     let cb: &'static mut TimerCB = cbopt.unwrap();
-    internal.callback = Some(cb);
+    request.callback = Some(cb);
 
-    if internal.is_repeat {
-      internal.when = internal.when + internal.interval;
-      self.insert(internal);
+    if request.is_repeat {
+      request.when = request.when + request.interval;
+      self.add(request); 
     }
 
-    cb.fired(internal, self.now());
+    cb.fired(request, self.now());
   }
 }
 
@@ -188,7 +207,7 @@ impl Timer for TimerMux {
     request.is_active = true;
     request.when = self.now() + interval;
     request.is_repeat = false;
-    self.insert(request);
+    self.add(request);
   }
 
   fn repeat(&'static mut self, interval: u32, request: &'static mut TimerRequest) {
@@ -196,6 +215,6 @@ impl Timer for TimerMux {
     request.is_active = true;
     request.when = self.now() + interval;
     request.is_repeat = true;
-    self.insert(request);
+    self.add(request);
   }
 }
