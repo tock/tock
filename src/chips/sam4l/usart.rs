@@ -224,8 +224,8 @@ pub unsafe extern fn USART3_Handler() {
     use common::Queue;
 
     nvic::disable(nvic::NvicIdx::USART3);
-    chip::CHIP.as_mut().map(|chip| {
-        chip.queue.enqueue(nvic::NvicIdx::USART3)
+    chip::INTERRUPT_QUEUE.as_mut().map(|q| {
+        q.enqueue(nvic::NvicIdx::USART3)
     });
 }
 

@@ -251,8 +251,8 @@ pub unsafe extern fn AST_ALARM_Handler() {
     use common::Queue;
 
     nvic::disable(nvic::NvicIdx::ASTALARM);
-    chip::CHIP.as_mut().map(|chip| {
-        chip.queue.enqueue(nvic::NvicIdx::ASTALARM)
+    chip::INTERRUPT_QUEUE.as_mut().map(|q| {
+        q.enqueue(nvic::NvicIdx::ASTALARM)
     });
 }
 
