@@ -43,6 +43,7 @@ impl<U: UART> Driver for Console<U> {
             0 /* read line */ => {
                 self.read_buffer = callback.allocate([0; 40]);
                 self.read_callback = Some(callback);
+                self.read_idx = 0;
                 0
             },
             _ => -1
@@ -73,10 +74,10 @@ impl<U: UART> Reader for Console<U> {
                 self.read_idx = 0;
             },
             _ => {
-                if self.read_idx < 40 {
-                    self.read_buffer = self.read_buffer.take().map(|mut buf| {
-                        buf[self.read_idx] = c;
-                        buf
+                let idx = self.read_idx;
+                if idx < 40 && self.read_buffer.is_some() {
+                    self.read_buffer.as_mut().map(|buf| {
+                        buf[idx] = c;
                     });
                     self.read_idx += 1;
                 }

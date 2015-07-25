@@ -108,8 +108,8 @@ r##"You may issue the following commands
     fn init() {
         puts(WELCOME_MESSAGE);
         subscribe_read_line(line_read);
-        //subscribe_temperature(tmp_available);
-        //enable_tmp006();
+        subscribe_temperature(tmp_available);
+        enable_tmp006();
         puts(PROMPT);
     }
 
@@ -126,7 +126,6 @@ r##"You may issue the following commands
         let line = unsafe { str::from_utf8(::core::mem::transmute(buffer)) };
         match line {
             Ok(cmd) => {
-                putc(unsafe { *b as char });
                 parse_command(cmd);
             },
             Err(_) => puts("Invalid UTF8 sequence")
