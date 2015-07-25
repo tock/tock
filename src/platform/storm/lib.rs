@@ -82,6 +82,7 @@ impl Firestorm {
 pub static MREQI: Option<&'static mut hil::adc::RequestInternal> = None;
 
 pub struct TestTimer {
+  firestorm: &'static mut Firestorm,
   led: &'static mut hil::led::Led
 }
 
@@ -90,6 +91,7 @@ impl hil::timer::TimerCB for TestTimer {
            request: &'static mut hil::timer::TimerRequest,
            now: u32) {
     self.led.toggle();
+    self.firestorm.console.putstr("tick\n");
   }
 }
 pub static mut TIMER_REQUEST: Option<hil::timer::TimerRequest> = None;
@@ -139,7 +141,8 @@ pub unsafe fn init() -> &'static mut Firestorm {
     FIRESTORM.as_mut().unwrap().led.init();
     firestorm.console.initialize();
 
-    TESTTIMER = Some(TestTimer {led: led});
+    TESTTIMER = Some(TestTimer {firestorm: FIRESTORM.as_mut().unwrap(),
+                                led: led});
     TIMER_REQUEST = Some(hil::timer::TimerRequest::new(TESTTIMER.as_mut().unwrap()));
     let mytimer = &mut (FIRESTORM.as_mut().unwrap().timer) as &'static mut hil::timer::Timer;
     let myrequest = TIMER_REQUEST.as_mut().unwrap() as &'static mut hil::timer::TimerRequest;
