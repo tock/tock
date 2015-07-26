@@ -15,38 +15,72 @@ use hil::Controller;
 use sam4l::*;
 use hil::adc::AdcMux;
 
-pub static mut ADC: Option<adc::Adc> = None;
-pub static mut PINC10: sam4l::gpio::GPIOPin = sam4l::gpio::GPIOPin {pin: sam4l::gpio::Pin::PC10};
-pub static mut ADCM: Option<AdcMux> = None;
-pub static mut LED: Option<hil::led::LedHigh> = None;
-
-
-pub struct TestRequest {
-  chan: u8
+pub struct TestTimer {
+  firestorm: &'static mut Firestorm,
+  led: &'static mut hil::led::Led
 }
 
-#[allow(unused_variables)]
-impl hil::adc::ImplRequest for TestRequest {
+impl hil::timer::TimerCB for TestTimer {
+  fn fired(&'static mut self,
+           request: &'static mut hil::timer::TimerRequest,
+           now: u32) {
+    self.led.toggle();
+    self.firestorm.console.putstr("tick\n");
+  }
+}
+
+pub struct TestAdcRequest {
+  chan: u8
+}
+impl hil::adc::ImplRequest for TestAdcRequest {
   fn read_done(&mut self, val: u16) {}
   fn channel(&self) -> u8 {
     self.chan
   }
 }
 
-pub static mut REQ: TestRequest = TestRequest {
-  chan: 0
-};
-
-pub struct MuxRequest;
-
-#[allow(unused_variables)]
-impl hil::adc::Request for MuxRequest {
+pub struct TestAdcMuxRequest;
+impl hil::adc::Request for TestAdcMuxRequest {
   fn read_done(&'static mut self, val: u16, req: &'static mut hil::adc::Request) {
   }
 }
-pub static mut MREQ: MuxRequest = MuxRequest;
 
+pub struct TestAlarmRequest {
+  val: u8
+}
+impl hil::alarm::Request for TestAlarmRequest {
+  fn fired(&'static mut self) {
+    unsafe {
+    let mut ast: &'static mut hil::alarm::Alarm = &mut FIRESTORM.as_mut().unwrap().chip.ast;
+    FIRESTORM.as_mut().unwrap().led.toggle();
+    let time = ast.now();
+    let val = time % 10;
+    let digit = match val {
+       0 => "0 ",
+       1 => "1 ",	
+         2 => "2 ",
+	 3 => "3 ",
+	 4 => "4 ",
+	 5 => "5 ",
+	 6 => "6 ",
+	 7 => "7 ",
+	 8 => "8 ",
+	 9 => "9 ",
+	 _ => "? "
+      };
+    FIRESTORM.as_mut().unwrap().console.putstr(digit);
+    ast.set_alarm(time + 16000, self);
+  }
+  }
+}
+
+pub static mut PINC10: sam4l::gpio::GPIOPin = sam4l::gpio::GPIOPin {pin: sam4l::gpio::Pin::PC10};
+pub static mut LED: Option<hil::led::LedHigh> = None;
+pub static mut TIMER_REQUEST: Option<hil::timer::TimerRequest> = None;
+pub static MREQI: Option<&'static mut hil::adc::RequestInternal> = None;
+pub static mut TESTTIMER: Option<TestTimer> = None;
 pub static mut FIRESTORM : Option<Firestorm> = None;
+pub static mut ALARMREQ: TestAlarmRequest = TestAlarmRequest{val:0};
 
 pub struct Firestorm {
     chip: &'static mut chip::Sam4l,
@@ -79,31 +113,16 @@ impl Firestorm {
 
 }
 
-pub static MREQI: Option<&'static mut hil::adc::RequestInternal> = None;
-
-pub struct TestTimer {
-  firestorm: &'static mut Firestorm,
-  led: &'static mut hil::led::Led
-}
-
-impl hil::timer::TimerCB for TestTimer {
-  fn fired(&'static mut self,
-           request: &'static mut hil::timer::TimerRequest,
-           now: u32) {
-    self.led.toggle();
-    self.firestorm.console.putstr("tick\n");
-  }
-}
-pub static mut TIMER_REQUEST: Option<hil::timer::TimerRequest> = None;
-
-static mut TESTTIMER: Option<TestTimer> = None;
-
 pub unsafe fn init() -> &'static mut Firestorm {
     chip::CHIP = Some(chip::Sam4l::new());
     let chip = chip::CHIP.as_mut().unwrap();
     LED = Some(hil::led::LedHigh {pin: &mut PINC10});
-    let led = LED.as_mut().unwrap();
-
+    let mut led = LED.as_mut().unwrap() as &mut hil::led::Led;
+    let mut ast: &'static mut hil::alarm::Alarm  = &mut chip.ast;
+    led.init();
+    chip.ast.select_clock(sam4l::ast::Clock::ClockRCSys);
+    chip.ast.set_prescalar(0);
+    chip.ast.clear_alarm();
     FIRESTORM = Some(Firestorm {
         chip: chip,
         console: drivers::console::Console::new(&mut chip.usarts[3]),
@@ -132,12 +151,6 @@ pub unsafe fn init() -> &'static mut Firestorm {
     chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::E));
     chip.pa22.configure(Some(sam4l::gpio::PeripheralFunction::E));
 
-    ADC = Some(sam4l::adc::Adc::new());
-    let adc = ADC.as_mut().unwrap();
-    adc.initialize();
-    REQ.chan = 1;
-//    adc.sample(&mut REQ);
-
     FIRESTORM.as_mut().unwrap().led.init();
     firestorm.console.initialize();
 
@@ -146,8 +159,14 @@ pub unsafe fn init() -> &'static mut Firestorm {
     TIMER_REQUEST = Some(hil::timer::TimerRequest::new(TESTTIMER.as_mut().unwrap()));
     let mytimer = &mut (FIRESTORM.as_mut().unwrap().timer) as &'static mut hil::timer::Timer;
     let myrequest = TIMER_REQUEST.as_mut().unwrap() as &'static mut hil::timer::TimerRequest;
-    mytimer.repeat(1000, myrequest);
 
+
+    // Make sure CLK_AST is enabled in the power manager
+    // Internal clock must be active, enabled through SCIF
+    // RCSYS always enabled
+    chip.ast.enable();
+    //mytimer.repeat(1000, myrequest);
+    ast.set_alarm(ast.now() + 1000, &mut ALARMREQ);
     firestorm
 }
 

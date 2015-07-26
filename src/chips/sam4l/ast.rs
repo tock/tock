@@ -102,13 +102,14 @@ impl Ast {
     pub fn select_clock(&mut self, clock: Clock) {
         unsafe {
           // Disable clock by setting first bit to zero
-          let enb = intrinsics::volatile_load(&(*self.regs).clock) ^ 1;
+          while self.clock_busy() {}
+          let enb = intrinsics::volatile_load(&(*self.regs).clock) & !1;
           intrinsics::volatile_store(&mut (*self.regs).clock, enb);
           while self.clock_busy() {}
 
           // Select clock
           intrinsics::volatile_store(&mut (*self.regs).clock, (clock as u32) << 8);
-          while self.clock_busy() {}
+	  while self.clock_busy() {}
 
           // Re-enable clock
           let enb = intrinsics::volatile_load(&(*self.regs).clock) | 1;
