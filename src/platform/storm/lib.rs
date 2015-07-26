@@ -15,6 +15,33 @@ use hil::Controller;
 use sam4l::*;
 use hil::adc::AdcMux;
 
+pub fn print_val(firestorm: &'static mut Firestorm, val: u32) {
+  firestorm.console.putstr("0x");
+  for x in 0..8 {
+    let hdigit = (val >> ((7-x) * 4)) & 0xf;
+    let char = match hdigit {
+      0  => "0",
+      1  => "1",	
+      2  => "2",	
+      3  => "3",
+      4  => "4",
+      5  => "5",
+      6  => "6",	
+      7  => "7",	
+      8  => "8",
+      9  => "9",
+      10 => "A",
+      11 => "B",	
+      12 => "C",	
+      13 => "D",
+      14 => "E",
+      15 => "F",
+      _  => "?",
+    };
+    firestorm.console.putstr(char);
+  }
+}
+
 pub struct TestTimer {
   firestorm: &'static mut Firestorm,
   led: &'static mut hil::led::Led
@@ -24,8 +51,10 @@ impl hil::timer::TimerCB for TestTimer {
   fn fired(&'static mut self,
            request: &'static mut hil::timer::TimerRequest,
            now: u32) {
-    self.led.toggle();
-    self.firestorm.console.putstr("tick\n");
+    self.firestorm.led.toggle();  
+    self.firestorm.console.putstr("tick: ");
+    print_val(self.firestorm, now);
+    self.firestorm.console.putstr("\n");
   }
 }
 
@@ -58,14 +87,14 @@ impl hil::alarm::Request for TestAlarmRequest {
     let digit = match val {
        0 => "0 ",
        1 => "1 ",	
-         2 => "2 ",
-	 3 => "3 ",
-	 4 => "4 ",
-	 5 => "5 ",
-	 6 => "6 ",
-	 7 => "7 ",
-	 8 => "8 ",
-	 9 => "9 ",
+       2 => "2 ",
+       3 => "3 ",
+       4 => "4 ",
+       5 => "5 ",
+       6 => "6 ",
+       7 => "7 ",
+       8 => "8 ",
+       9 => "9 ",
 	 _ => "? "
       };
     FIRESTORM.as_mut().unwrap().console.putstr(digit);
@@ -165,8 +194,8 @@ pub unsafe fn init() -> &'static mut Firestorm {
     // Internal clock must be active, enabled through SCIF
     // RCSYS always enabled
     chip.ast.enable();
-    //mytimer.repeat(1000, myrequest);
-    ast.set_alarm(ast.now() + 1000, &mut ALARMREQ);
+    mytimer.repeat(8192 + 4096 + 2048 + 256 + 128 + 16, myrequest);
+    //ast.set_alarm(ast.now() + 1000, &mut ALARMREQ);
     firestorm
 }
 

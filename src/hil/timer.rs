@@ -13,7 +13,7 @@ pub trait TimerCB {
 }
 
 pub trait Timer {
-  fn now(&'static self) -> u32;
+  fn now(&'static mut self) -> u32;
   fn cancel(&'static mut self, &'static mut TimerRequest);
   fn oneshot(&'static mut self, interval: u32, &'static mut TimerRequest);
   fn repeat(&'static mut self, interval: u32, &'static mut TimerRequest);
@@ -191,8 +191,11 @@ impl alarm::Request for TimerMux {
 }
 
 impl Timer for TimerMux {
-  fn now(&'static self) -> u32 {
-    0 as u32
+  fn now(&'static mut self) -> u32 {
+     let mut alarm = self.internal.as_mut().unwrap();
+     let val = alarm.now();
+     self.internal = Some(*alarm);
+     val
   }
 
   fn cancel(&'static mut self, request: &'static mut TimerRequest) {
