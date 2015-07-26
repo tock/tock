@@ -54,7 +54,13 @@ impl hil::timer::TimerCB for TestTimer {
     self.firestorm.led.toggle();  
     self.firestorm.console.putstr("tick: ");
     print_val(self.firestorm, now);
+    self.firestorm.console.putstr(" -> ");
+    print_val(self.firestorm, now + 2048);	
     self.firestorm.console.putstr("\n");
+    unsafe {
+//      let mytimer = &mut (FIRESTORM.as_mut().unwrap().timer) as &'static mut hil::timer::Timer;
+      //      mytimer.oneshot(2048, request);
+      }
   }
 }
 
@@ -194,7 +200,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
     // Internal clock must be active, enabled through SCIF
     // RCSYS always enabled
     chip.ast.enable();
-    mytimer.repeat(8192 + 4096 + 2048 + 256 + 128 + 16, myrequest);
+    mytimer.repeat(2048, myrequest);
     //ast.set_alarm(ast.now() + 1000, &mut ALARMREQ);
     firestorm
 }

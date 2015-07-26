@@ -183,7 +183,10 @@ impl alarm::Request for TimerMux {
 
     if request.is_repeat {
       request.when = request.when + request.interval;
+      let until = request.when - self.now();
       self.add(request); 
+    } else {
+      request.is_active = false;
     }
 
     cb.fired(request, self.now());
