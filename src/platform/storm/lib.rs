@@ -41,7 +41,7 @@ impl Firestorm {
 
 }
 
-static mut FIRESTORM_BUF : [u8; 148] = [0; 148];
+static mut FIRESTORM_BUF : [u8; 152] = [0; 152];
 static mut CHIP_BUF : [u8; 924] = [0; 924];
 
 pub unsafe fn init<'a>() -> &'a mut Firestorm {

@@ -6,6 +6,7 @@
 .section .syscalls
 
 .global __wait
+.global __allow
 .global __subscribe
 .global __command
 
@@ -14,6 +15,13 @@ __wait:
     push {r4-r11,lr}
     svc 0
     pop {r4-r11,lr}
+    bx lr
+
+.thumb_func
+__allow:
+    push {r4-r11}
+    svc 3
+    pop {r4-r11}
     bx lr
 
 .thumb_func
