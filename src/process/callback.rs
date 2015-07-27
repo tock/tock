@@ -2,11 +2,11 @@ use core::prelude::*;
 use core::mem::transmute;
 use core::mem;
 use core::nonzero::NonZero;
-use core::ops::{Deref,DerefMut};
-use core::ptr::{Unique,copy_nonoverlapping};
+use core::ptr::copy_nonoverlapping;
 use process;
 use process::Process;
 use common::Queue;
+use mem::AppPtr;
 
 pub struct Callback {
     // We want more expressive types for this. For now, the kernel is expected
@@ -46,47 +46,6 @@ impl Callback {
                 copy_nonoverlapping(&val, dest, 1);
                 AppPtr::new(dest, self.process_ptr)
             })
-        }
-    }
-}
-
-pub struct AppPtr<T> {
-    ptr: Unique<T>,
-    process: *mut ()
-}
-
-impl<T> AppPtr<T> {
-    pub unsafe fn new(ptr: *mut T, process: *mut ()) -> AppPtr<T> {
-        AppPtr {
-            ptr: Unique::new(ptr),
-            process: process
-        }
-    }
-}
-
-impl<T> Deref for AppPtr<T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        unsafe {
-            self.ptr.get()
-        }
-    }
-}
-
-impl<T> DerefMut for AppPtr<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        unsafe {
-            self.ptr.get_mut()
-        }
-    }
-}
-
-impl<T> Drop for AppPtr<T> {
-    fn drop(&mut self) {
-        unsafe {
-            let process : &mut Process = transmute(self.process);
-            process.free(self.ptr.get_mut());
         }
     }
 }

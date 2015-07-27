@@ -7,9 +7,11 @@ extern crate core;
 extern crate common;
 extern crate support;
 
-pub mod process;
 pub mod callback;
+pub mod mem;
+pub mod process;
 
+pub use callback::Callback;
+pub use mem::{AppSlice, AppPtr};
 pub use process::{Process,State};
-pub use callback::{AppPtr, Callback};
 

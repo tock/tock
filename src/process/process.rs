@@ -48,7 +48,7 @@ pub struct Process<'a> {
 }
 
 impl<'a> Process<'a> {
-    pub unsafe fn create(init_fn: fn()) -> Option<Process<'a>> {
+    pub unsafe fn create(init_fn: fn(*mut u8, usize)) -> Option<Process<'a>> {
         let cur_idx = atomic_xadd(&mut FREE_MEMORY_IDX, 1);
         if cur_idx > MEMORIES.len() {
             atomic_xsub(&mut FREE_MEMORY_IDX, 1);
@@ -86,7 +86,14 @@ impl<'a> Process<'a> {
     }
 
     pub fn in_exposed_bounds(&self, start_addr: *const u8, size: usize) -> bool {
-        false
+        /* Won't work until app is passed it's memory to allocate within
+         * unsafe {
+            start_addr >= self.exposed_memory_start &&
+                (start_addr.offset(size as isize))
+                    <=
+                (&self.memory[self.memory.len()])
+        }*/
+        true
     }
 
     pub unsafe fn alloc(&mut self, size: usize) -> Option<&mut [u8]> {
