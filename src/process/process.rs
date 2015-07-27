@@ -85,6 +85,10 @@ impl<'a> Process<'a> {
         }
     }
 
+    pub fn in_exposed_bounds(&self, start_addr: *const u8, size: usize) -> bool {
+        false
+    }
+
     pub unsafe fn alloc(&mut self, size: usize) -> Option<&mut [u8]> {
         use core::raw::Slice;
 
@@ -175,6 +179,11 @@ impl<'a> Process<'a> {
     pub fn r2(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
         unsafe { volatile_load(pspr.offset(2)) }
+    }
+
+    pub fn r3(&self) -> usize {
+        let pspr = self.cur_stack as *const usize;
+        unsafe { volatile_load(pspr.offset(3)) }
     }
 
 }
