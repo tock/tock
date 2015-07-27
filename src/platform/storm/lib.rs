@@ -2,7 +2,7 @@
 #![crate_type = "rlib"]
 #![no_std]
 #![feature(core,no_std)]
-
+#![allow(unused_variables,dead_code)]
 extern crate core;
 extern crate common;
 extern crate drivers;
@@ -13,7 +13,6 @@ use core::prelude::*;
 use hil::adc::AdcImpl;
 use hil::Controller;
 use sam4l::*;
-use hil::adc::AdcMux;
 
 pub fn print_val(firestorm: &'static mut Firestorm, val: u32) {
   firestorm.console.putstr("0x");
@@ -55,12 +54,12 @@ impl hil::timer::TimerCB for TestTimer {
     self.firestorm.console.putstr("tick: ");
     print_val(self.firestorm, now);
     self.firestorm.console.putstr(" -> ");
-    print_val(self.firestorm, now + 2048);	
+    print_val(self.firestorm, now + INTERVAL);	
     self.firestorm.console.putstr("\n");
-    unsafe {
-//      let mytimer = &mut (FIRESTORM.as_mut().unwrap().timer) as &'static mut hil::timer::Timer;
-      //      mytimer.oneshot(2048, request);
-      }
+/*    unsafe {
+      let mytimer = &mut (FIRESTORM.as_mut().unwrap().timer) as &'static mut hil::timer::Timer;
+      mytimer.oneshot(2048, request);
+      } */
   }
 }
 
@@ -86,7 +85,7 @@ pub struct TestAlarmRequest {
 impl hil::alarm::Request for TestAlarmRequest {
   fn fired(&'static mut self) {
     unsafe {
-    let mut ast: &'static mut hil::alarm::Alarm = &mut FIRESTORM.as_mut().unwrap().chip.ast;
+    let ast: &'static mut hil::alarm::Alarm = &mut FIRESTORM.as_mut().unwrap().chip.ast;
     FIRESTORM.as_mut().unwrap().led.toggle();
     let time = ast.now();
     let val = time % 10;
@@ -116,6 +115,7 @@ pub static MREQI: Option<&'static mut hil::adc::RequestInternal> = None;
 pub static mut TESTTIMER: Option<TestTimer> = None;
 pub static mut FIRESTORM : Option<Firestorm> = None;
 pub static mut ALARMREQ: TestAlarmRequest = TestAlarmRequest{val:0};
+pub const INTERVAL: u32 = 2048;
 
 pub struct Firestorm {
     chip: &'static mut chip::Sam4l,
@@ -153,7 +153,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
     let chip = chip::CHIP.as_mut().unwrap();
     LED = Some(hil::led::LedHigh {pin: &mut PINC10});
     let mut led = LED.as_mut().unwrap() as &mut hil::led::Led;
-    let mut ast: &'static mut hil::alarm::Alarm  = &mut chip.ast;
+    let ast: &'static mut hil::alarm::Alarm  = &mut chip.ast;
     led.init();
     chip.ast.select_clock(sam4l::ast::Clock::ClockRCSys);
     chip.ast.set_prescalar(0);
@@ -200,7 +200,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
     // Internal clock must be active, enabled through SCIF
     // RCSYS always enabled
     chip.ast.enable();
-    mytimer.repeat(2048, myrequest);
+    mytimer.repeat(INTERVAL, myrequest);
     //ast.set_alarm(ast.now() + 1000, &mut ALARMREQ);
     firestorm
 }

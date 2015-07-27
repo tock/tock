@@ -182,20 +182,27 @@ impl alarm::Request for TimerMux {
     request.callback = Some(cb);
 
     if request.is_repeat {
-      request.when = request.when + request.interval;
-      let until = request.when - self.now();
-      self.add(request); 
+      let future = request.when + request.interval;
+      let delay = future - self.now();
+      if delay <= request.interval {
+        request.when = future;
+      } else { 
+        // > interval means now() is later than future.
+        // Timer fired so late that it has passed the next
+        // firing; set the next firing to be interval in the future
+        request.when = self.now() + request.interval;
+      }
+      self.add(request);
     } else {
       request.is_active = false;
     }
-
     cb.fired(request, self.now());
   }
 }
 
 impl Timer for TimerMux {
   fn now(&'static mut self) -> u32 {
-     let mut alarm = self.internal.as_mut().unwrap();
+     let alarm = self.internal.as_mut().unwrap();
      let val = alarm.now();
      self.internal = Some(*alarm);
      val
