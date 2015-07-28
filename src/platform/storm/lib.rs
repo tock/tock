@@ -50,8 +50,11 @@ impl hil::timer::TimerCB for TestTimer {
   fn fired(&'static mut self,
            request: &'static mut hil::timer::TimerRequest,
            now: u32) {
-    self.firestorm.led.toggle();  
-    self.firestorm.console.putstr("tick: ");
+    self.firestorm.led.toggle();
+    self.firestorm.console.putstr("tick - ");
+    self.firestorm.console.putstr("when: ");
+    print_val(self.firestorm, request.when);
+    self.firestorm.console.putstr(" now: ");
     print_val(self.firestorm, now);
     self.firestorm.console.putstr(" -> ");
     print_val(self.firestorm, now + INTERVAL);	
@@ -115,7 +118,7 @@ pub static MREQI: Option<&'static mut hil::adc::RequestInternal> = None;
 pub static mut TESTTIMER: Option<TestTimer> = None;
 pub static mut FIRESTORM : Option<Firestorm> = None;
 pub static mut ALARMREQ: TestAlarmRequest = TestAlarmRequest{val:0};
-pub const INTERVAL: u32 = 2048;
+pub const INTERVAL: u32 = 4096;
 
 pub struct Firestorm {
     chip: &'static mut chip::Sam4l,
