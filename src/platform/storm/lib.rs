@@ -41,12 +41,10 @@ impl Firestorm {
 
 }
 
-static mut FIRESTORM_BUF : [u8; 152] = [0; 152];
-static mut CHIP_BUF : [u8; 924] = [0; 924];
-
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
 
+    static mut CHIP_BUF : [u8; 924] = [0; 924];
     // Just test that CHIP_BUF is correct size
     // (will throw compiler error if too large or small)
     let _ : sam4l::chip::Sam4l = mem::transmute(CHIP_BUF);
@@ -55,6 +53,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     *chip = sam4l::chip::Sam4l::new();
     sam4l::chip::INTERRUPT_QUEUE = Some(&mut chip.queue);
 
+    static mut FIRESTORM_BUF : [u8; 152] = [0; 152];
     // Just test that FIRESTORM_BUF is correct size
     // (will throw compiler error if too large or small)
     let _ : Firestorm = mem::transmute(FIRESTORM_BUF);
