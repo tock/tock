@@ -67,12 +67,17 @@ impl<'a> Process<'a> {
             let callback_size = mem::size_of::<Option<Callback>>();
 
             let mut callbacks = RingBuffer::new(callback_buf);
-            callbacks.enqueue(Callback {
-                pc: init_fn as usize, r0: 0, r1: 0, r2:0
-            });
 
             let exposed_memory_start =
                     &mut memory[callback_len * callback_size] as *mut u8;
+
+            let exposed_mem_len = memory.len() - callback_len * callback_size;
+            callbacks.enqueue(Callback {
+                pc: init_fn as usize,
+                r0: exposed_memory_start as usize,
+                r1: exposed_mem_len,
+                r2: 0
+            });
 
             Some(Process {
                 memory: memory,

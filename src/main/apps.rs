@@ -106,19 +106,22 @@ r##"You may issue the following commands
 
     const PROMPT: &'static str = "tock%> ";
 
+    static mut BUF : *mut u8 = 0 as *mut u8;
+
     pub fn _start(mem_start: *mut u8, mem_size: usize) {
+        unsafe {
+            BUF = mem_start;
+        }
         init();
         loop {
             wait();
         }
     }
 
-    static mut BUF : [u8; 40] = [0; 40];
-
     fn init() {
         puts(WELCOME_MESSAGE);
         unsafe {
-            subscribe_read_line(&mut BUF[0], BUF.len(), line_read);
+            subscribe_read_line(BUF, 40, line_read);
         }
         subscribe_temperature(tmp_available);
         enable_tmp006();
