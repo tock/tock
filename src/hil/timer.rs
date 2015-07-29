@@ -62,9 +62,14 @@ impl TimerMux {
     let alarm: &'static mut alarm::Alarm = aopt.unwrap();
     let ropt = self.request.take();
     let request: &'static mut TimerRequest = ropt.unwrap();
-    let when = request.when;
+    let mut when = request.when;
 
-    //let mut me = self as &'static mut alarm::Request;
+    let curr = alarm.now();
+    let delay = request.when - curr;
+    if delay > (0x80000000) {
+      when = curr + 10;
+      request.when = when;
+    }
     alarm.set_alarm(when, self);// as &mut alarm::Request);
 
     self.internal = Some(alarm);
@@ -183,27 +188,12 @@ impl alarm::Request for TimerMux {
     request.callback = Some(cb);
 
     if request.is_repeat {
-      let mut future = request.when + request.interval;
-      let delay = future - curr;
-      // If delay is only 1, we might miss the tick; increase by 1
-      if delay < 2 {
-        future = curr + 2;
-      }
-      if delay <= request.interval {
-        request.when = future;
-      } else { 
-        // > interval means now() is later than future.
-        // Timer fired so late that it has passed the next
-        // firing; set the next firing to be interval in the future
-	// This seems to happen when the default app boots, probably
-	// an artifact of non-preemptive handlers. Regardless, the timer
-	// should be robust to this.
-        request.when = curr + request.interval;
-      }
+      request.when = request.when + request.interval;
       self.add(request);
     } else {
       request.is_active = false;
     }
+    self.start_request();
     cb.fired(request, curr);
   }
 }
