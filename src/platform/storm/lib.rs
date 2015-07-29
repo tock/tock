@@ -16,8 +16,8 @@ use sam4l::*;
 
 pub fn print_val(firestorm: &'static mut Firestorm, val: u32) {
   firestorm.console.putstr("0x");
-  for x in 0..8 {
-    let hdigit = (val >> ((7-x) * 4)) & 0xf;
+  for x in 0..4 {
+    let hdigit = (val >> ((3-x) * 4)) & 0xf;
     let char = match hdigit {
       0  => "0",
       1  => "1",	
@@ -43,7 +43,8 @@ pub fn print_val(firestorm: &'static mut Firestorm, val: u32) {
 
 pub struct TestTimer {
   firestorm: &'static mut Firestorm,
-  led: &'static mut hil::led::Led
+  led: &'static mut hil::led::Led,
+  id: u32
 }
 
 impl hil::timer::TimerCB for TestTimer {
@@ -51,18 +52,18 @@ impl hil::timer::TimerCB for TestTimer {
            request: &'static mut hil::timer::TimerRequest,
            now: u32) {
     self.firestorm.led.toggle();
-    self.firestorm.console.putstr("tick - ");
-    self.firestorm.console.putstr("when: ");
-    print_val(self.firestorm, request.when);
-    self.firestorm.console.putstr(" now: ");
+    self.firestorm.console.putstr("tick #");
+    print_val(self.firestorm, self.id);
+    self.firestorm.console.putstr("\n   now: ");
     print_val(self.firestorm, now);
-    self.firestorm.console.putstr(" -> ");
-    print_val(self.firestorm, now + INTERVAL);	
+    self.firestorm.console.putstr("\n  last: ");
+    print_val(self.firestorm, request.last);
+    self.firestorm.console.putstr("\n  when: ");
+    print_val(self.firestorm, request.when);
+    self.firestorm.console.putstr("\n  next: ");
+    let alarm = &mut self.firestorm.chip.ast as &'static mut hil::alarm::Alarm;
+    print_val(self.firestorm, alarm.get_alarm());
     self.firestorm.console.putstr("\n");
-/*    unsafe {
-      let mytimer = &mut (FIRESTORM.as_mut().unwrap().timer) as &'static mut hil::timer::Timer;
-      mytimer.oneshot(2048, request);
-      } */
   }
 }
 
@@ -83,7 +84,7 @@ impl hil::adc::Request for TestAdcMuxRequest {
 }
 
 pub struct TestAlarmRequest {
-  val: u8
+  val: u32
 }
 impl hil::alarm::Request for TestAlarmRequest {
   fn fired(&'static mut self) {
@@ -113,12 +114,14 @@ impl hil::alarm::Request for TestAlarmRequest {
 
 pub static mut PINC10: sam4l::gpio::GPIOPin = sam4l::gpio::GPIOPin {pin: sam4l::gpio::Pin::PC10};
 pub static mut LED: Option<hil::led::LedHigh> = None;
-pub static mut TIMER_REQUEST: Option<hil::timer::TimerRequest> = None;
+pub static mut TIMER_REQUESTA: Option<hil::timer::TimerRequest> = None;
+pub static mut TIMER_REQUESTB: Option<hil::timer::TimerRequest> = None;
 pub static MREQI: Option<&'static mut hil::adc::RequestInternal> = None;
-pub static mut TESTTIMER: Option<TestTimer> = None;
+pub static mut TESTTIMERA: Option<TestTimer> = None;
+pub static mut TESTTIMERB: Option<TestTimer> = None;
 pub static mut FIRESTORM : Option<Firestorm> = None;
 pub static mut ALARMREQ: TestAlarmRequest = TestAlarmRequest{val:0};
-pub const INTERVAL: u32 = 4096;
+pub const INTERVAL: u32 = 1024;
 
 pub struct Firestorm {
     chip: &'static mut chip::Sam4l,
@@ -192,19 +195,27 @@ pub unsafe fn init() -> &'static mut Firestorm {
     FIRESTORM.as_mut().unwrap().led.init();
     firestorm.console.initialize();
 
-    TESTTIMER = Some(TestTimer {firestorm: FIRESTORM.as_mut().unwrap(),
-                                led: led});
-    TIMER_REQUEST = Some(hil::timer::TimerRequest::new(TESTTIMER.as_mut().unwrap()));
+    TESTTIMERA = Some(TestTimer {firestorm: FIRESTORM.as_mut().unwrap(),
+                                 led: led,
+	  			 id: 0x00000001});
+    TESTTIMERB = Some(TestTimer {firestorm: FIRESTORM.as_mut().unwrap(),
+                                 led: led,
+	  			 id: 0x00000002});
+    TIMER_REQUESTA = Some(hil::timer::TimerRequest::new(TESTTIMERA.as_mut().unwrap()));
+    TIMER_REQUESTB = Some(hil::timer::TimerRequest::new(TESTTIMERB.as_mut().unwrap()));
     let mytimer = &mut (FIRESTORM.as_mut().unwrap().timer) as &'static mut hil::timer::Timer;
-    let myrequest = TIMER_REQUEST.as_mut().unwrap() as &'static mut hil::timer::TimerRequest;
+    let myrequesta = TIMER_REQUESTA.as_mut().unwrap();
+    let trequesta = myrequesta as &'static mut hil::timer::TimerRequest;
+    let myrequestb = TIMER_REQUESTB.as_mut().unwrap();
+    let trequestb = myrequestb as &'static mut hil::timer::TimerRequest;
 
 
     // Make sure CLK_AST is enabled in the power manager
     // Internal clock must be active, enabled through SCIF
     // RCSYS always enabled
     chip.ast.enable();
-    mytimer.repeat(INTERVAL, myrequest);
-    //ast.set_alarm(ast.now() + 1000, &mut ALARMREQ);
+//    mytimer.repeat(INTERVAL, trequesta);
+//    mytimer.repeat(INTERVAL * 2, trequestb);
     firestorm
 }
 

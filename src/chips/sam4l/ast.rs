@@ -235,6 +235,12 @@ impl Alarm for Ast {
         self.enable_alarm_irq();
         self.enable();
     }
+
+    fn get_alarm(&'static mut self) -> u32 {
+        unsafe { 
+            intrinsics::volatile_load(&(*self.regs).ar0)
+        }
+    }
 }
 
 #[no_mangle]

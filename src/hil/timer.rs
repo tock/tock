@@ -26,6 +26,7 @@ pub struct TimerRequest {
   pub is_repeat: bool,
   pub when: u32,
   pub interval: u32,
+  pub last: u32,
   pub callback: Option<&'static mut TimerCB>
 }
 
@@ -37,6 +38,7 @@ impl TimerRequest {
       is_repeat: false,
       when:      0,
       interval:  0,
+      last:      0,
       callback:  Some(cb)
     }
   }
@@ -53,28 +55,6 @@ impl TimerMux {
       request: None,
       internal: Some(internal)
     }
-  }
-
-  fn start_request(&'static mut self) {
-    if self.request.is_none() {return;}
-
-    let aopt: Option<&'static mut alarm::Alarm> = self.internal.take();
-    let alarm: &'static mut alarm::Alarm = aopt.unwrap();
-    let ropt = self.request.take();
-    let request: &'static mut TimerRequest = ropt.unwrap();
-    let mut when = request.when;
-
-    let curr = alarm.now();
-    let delay = request.when - curr;
-    if delay > (0x80000000) {
-      when = curr + 10;
-      request.when = when;
-    }
-    alarm.set_alarm(when, self);// as &mut alarm::Request);
-
-    self.internal = Some(alarm);
-    self.request = Some(request);
-
   }
 
   fn add(&'static mut self, request: &'static mut TimerRequest) -> bool {
@@ -168,6 +148,29 @@ impl TimerMux {
     }
     first
   }
+
+  fn start_request(&'static mut self) {
+    if self.request.is_none() {return;}
+
+    let aopt: Option<&'static mut alarm::Alarm> = self.internal.take();
+    let alarm: &'static mut alarm::Alarm = aopt.unwrap();
+    let ropt = self.request.take();
+    let request: &'static mut TimerRequest = ropt.unwrap();
+    let mut when = request.when;
+
+    let curr = alarm.now();
+    let delay = request.when - curr;
+    if delay > (0x80000000) {
+      when = (curr + 5) | 1;
+      request.when = when;
+    }
+    alarm.set_alarm(when, self);// as &mut alarm::Request);
+
+    self.internal = Some(alarm);
+    self.request = Some(request);
+
+  }
+
 }
 
 impl alarm::Request for TimerMux {
@@ -176,25 +179,32 @@ impl alarm::Request for TimerMux {
     let curr = self.now();
     let ropt = self.request.take();
     let request: &'static mut TimerRequest = ropt.unwrap();
-    self.request = request.next.take();
+    // The timer did not fire early
+    if (request.when - curr) < 20 {
+      self.request = request.next.take();
 
-    // Note this implementation is inefficient: if the repeat timer
-    // would be at the head of the queue again, we recalculate the
-    // timer, then re-insert so recalculate a second time.
-    // A better implementation would check this and conditionally
-    // remove/insert. -pal 7/22/15
-    let cbopt = request.callback.take();
-    let cb: &'static mut TimerCB = cbopt.unwrap();
-    request.callback = Some(cb);
-
-    if request.is_repeat {
-      request.when = request.when + request.interval;
-      self.add(request);
-    } else {
-      request.is_active = false;
+      // Note this implementation is inefficient: if the repeat timer
+      // would be at the head of the queue again, we recalculate the
+      // timer, then re-insert so recalculate a second time.
+      // A better implementation would check this and conditionally
+      // remove/insert. -pal 7/22/15
+      let cbopt = request.callback.take();
+      let cb: &'static mut TimerCB = cbopt.unwrap();
+      request.callback = Some(cb);
+      if request.is_repeat {
+        request.last = request.when;
+        request.when = request.when + request.interval;
+        self.add(request);
+      } else {
+        request.is_active = false;
+      }
+      self.start_request();
+      cb.fired(request, curr);
+    } else { // Timer fired early?!?!? Not sure why this happens,
+            // But it does -pal 7/28/15
+      self.request = Some(request);
+      self.start_request();
     }
-    self.start_request();
-    cb.fired(request, curr);
   }
 }
 
@@ -217,6 +227,7 @@ impl Timer for TimerMux {
     request.interval = interval;
     request.is_active = true;
     request.when = self.now() + interval;
+    request.last = request.when;
     request.is_repeat = false;
     self.add(request);
   }
@@ -225,6 +236,7 @@ impl Timer for TimerMux {
     request.interval = interval;
     request.is_active = true;
     request.when = self.now() + interval;
+    request.last = request.when;
     request.is_repeat = true;
     self.add(request);
   }
