@@ -2,8 +2,10 @@
 # Makefile.
 RUSTC ?= rustc
 RUSTC_FLAGS += -L$(BUILD_DIR) # Common regardless of platform
-OBJCOPY ?= arm-none-eabi-objcopy
-CC = arm-none-eabi-gcc
+TOOLCHAIN = arm-none-eabi-
+OBJCOPY ?= $(TOOLCHAIN)objcopy
+CC = $(TOOLCHAIN)gcc
+LD = $(TOOLCHAIN)ld
 
 UNAME = $(shell uname)
 ifeq ($(UNAME),Linux)
