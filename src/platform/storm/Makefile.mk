@@ -11,7 +11,7 @@ $(BUILD_DIR)/libplatform.rlib: $(call rwildcard,src/platform/storm,*.rs) $(BUILD
 
 $(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o
 	@echo "Linking $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -ffreestanding -lgcc -lc
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -ffreestanding -lgcc -lc
 
 $(BUILD_DIR)/%.sdb: $(BUILD_DIR)/%.elf
 #	@echo "SDB pack cut out due to errors -pal"
