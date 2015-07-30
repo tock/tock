@@ -8,7 +8,7 @@
 use core::prelude::*;
 use core::intrinsics;
 use nvic;
-use hil::{adc,queue};
+use hil::adc;
 use pm::{self, Clock, PBAClock};
 use chip;
 
@@ -141,8 +141,10 @@ impl adc::AdcImpl for Adc {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn ADC_Handler() {
+    use common::Queue;
+
     nvic::disable(nvic::NvicIdx::ADCIFE);
-    let chip = chip::CHIP.as_mut().unwrap();
-    let q = &mut chip.queue as &mut queue::Queue<nvic::NvicIdx>;
-    q.enqueue(nvic::NvicIdx::ADCIFE); 
+    chip::CHIP.as_mut().map(|chip| {
+        chip.queue.enqueue(nvic::NvicIdx::ADCIFE)
+    });
 }

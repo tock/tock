@@ -10,7 +10,6 @@ use core::intrinsics;
 use nvic;
 use hil::alarm::{Alarm, Request};
 use chip;
-use hil::queue;
 
 #[repr(C, packed)]
 #[allow(missing_copy_implementations)]
@@ -246,9 +245,11 @@ impl Alarm for Ast {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn AST_ALARM_Handler() {
+    use common::Queue;
+
     nvic::disable(nvic::NvicIdx::ASTALARM);
-    let chip = chip::CHIP.as_mut().unwrap();
-    let q = &mut chip.queue as &mut queue::Queue<nvic::NvicIdx>;
-    q.enqueue(nvic::NvicIdx::ASTALARM);
+    chip::CHIP.as_mut().map(|chip| {
+        chip.queue.enqueue(nvic::NvicIdx::ASTALARM)
+    });
 }
 

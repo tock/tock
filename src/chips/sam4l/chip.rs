@@ -1,17 +1,20 @@
 use core::prelude::*;
-use queue;
+use common::{RingBuffer,Queue};
 use ast;
 use gpio;
 use adc;
-use usart;
-use hil;
-use nvic;
 use i2c;
+use nvic;
+use usart;
 
 pub static mut CHIP : Option<Sam4l> = None;
 
+const IQ_SIZE: usize = 100;
+static mut INTERRUPT_QUEUE : [nvic::NvicIdx; IQ_SIZE] =
+    [nvic::NvicIdx::HFLASHC; IQ_SIZE];
+
 pub struct Sam4l {
-    pub queue: queue::InterruptQueue,
+    pub queue: RingBuffer<'static, nvic::NvicIdx>,
     pub ast: ast::Ast,
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
@@ -57,8 +60,14 @@ impl Sam4l {
     pub fn new() -> Sam4l {
 
         Sam4l {
-            queue: queue::InterruptQueue::new(),
+            queue: RingBuffer::new(unsafe { &mut INTERRUPT_QUEUE }),
             ast: ast::Ast::new(),
+            i2c: [
+                i2c::I2CDevice::new(i2c::Location::I2C00, i2c::Speed::Fast400k),
+                i2c::I2CDevice::new(i2c::Location::I2C01, i2c::Speed::Fast400k),
+                i2c::I2CDevice::new(i2c::Location::I2C02, i2c::Speed::Fast400k),
+                i2c::I2CDevice::new(i2c::Location::I2C03, i2c::Speed::Fast400k)
+            ],
             usarts: [
                 usart::USART::new(usart::Location::USART0),
                 usart::USART::new(usart::Location::USART1),
@@ -66,11 +75,6 @@ impl Sam4l {
                 usart::USART::new(usart::Location::USART3),
             ],
             adc: adc::Adc::new(),
-            i2c: [
-                i2c::I2CDevice::new(i2c::Location::I2C00, i2c::Speed::Standard100k),
-                i2c::I2CDevice::new(i2c::Location::I2C01, i2c::Speed::Standard100k),
-                i2c::I2CDevice::new(i2c::Location::I2C02, i2c::Speed::Standard100k),
-                i2c::I2CDevice::new(i2c::Location::I2C03, i2c::Speed::Standard100k),       ],
             pa00: gpio::GPIOPin::new(gpio::Pin::PA00),
             pa01: gpio::GPIOPin::new(gpio::Pin::PA01),
             pa02: gpio::GPIOPin::new(gpio::Pin::PA02),
@@ -174,22 +178,19 @@ impl Sam4l {
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx;
-        let q = &mut self.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
-        while q.has_elements() {
-           let interrupt = q.dequeue();
-           match interrupt {
-             NvicIdx::ASTALARM => self.ast.handle_interrupt(),
-             NvicIdx::USART3   => self.usarts[3].handle_interrupt(),
-             NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
-             _ => {}
-           }
-           nvic::enable(interrupt);
-        }
+        self.queue.dequeue().map(|interrupt| {
+            match interrupt {
+                NvicIdx::ASTALARM => self.ast.handle_interrupt(),
+                NvicIdx::USART3   => self.usarts[3].handle_interrupt(),
+                NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
+                _ => {}
+            }
+            nvic::enable(interrupt);
+       });
     }
 
     pub fn has_pending_interrupts(&mut self) -> bool {
-        let q = &mut self.queue as &mut hil::queue::Queue<nvic::NvicIdx>;
-        q.has_elements()
+        self.queue.has_elements()
     }
 }
 

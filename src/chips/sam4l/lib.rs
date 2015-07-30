@@ -45,5 +45,4 @@ pub mod nvic;
 pub mod usart;
 pub mod pm;
 pub mod chip;
-pub mod queue;
 pub mod i2c;
