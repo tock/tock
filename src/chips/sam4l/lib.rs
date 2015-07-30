@@ -39,6 +39,7 @@ macro_rules! volatile {
 
 pub mod chip;
 pub mod ast;
+pub mod i2c;
 pub mod nvic;
 pub mod pm;
 pub mod gpio;

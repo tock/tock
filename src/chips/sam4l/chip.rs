@@ -3,6 +3,7 @@ use queue;
 use ast;
 use adc;
 use gpio;
+use i2c;
 use nvic;
 use hil;
 use usart;
@@ -15,6 +16,7 @@ pub struct Sam4l {
     pub ast: ast::Ast,
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
+    pub i2c: [i2c::I2CDevice; 4],
     pub pa00: gpio::GPIOPin, pub pa01: gpio::GPIOPin, pub pa02: gpio::GPIOPin,
     pub pa03: gpio::GPIOPin, pub pa04: gpio::GPIOPin, pub pa05: gpio::GPIOPin,
     pub pa06: gpio::GPIOPin, pub pa07: gpio::GPIOPin, pub pa08: gpio::GPIOPin,
@@ -57,6 +59,12 @@ impl Sam4l {
         Sam4l {
             queue: queue::InterruptQueue::new(),
             ast: ast::Ast::new(),
+            i2c: [
+                i2c::I2CDevice::new(i2c::Location::I2C00, i2c::Speed::Fast400k),
+                i2c::I2CDevice::new(i2c::Location::I2C01, i2c::Speed::Fast400k),
+                i2c::I2CDevice::new(i2c::Location::I2C02, i2c::Speed::Fast400k),
+                i2c::I2CDevice::new(i2c::Location::I2C03, i2c::Speed::Fast400k)
+            ],
             usarts: [
                 usart::USART::new(usart::Location::USART0),
                 usart::USART::new(usart::Location::USART1),

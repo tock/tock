@@ -12,3 +12,4 @@ mod std {
 
 pub mod gpio;
 pub mod console;
+pub mod tmp006;

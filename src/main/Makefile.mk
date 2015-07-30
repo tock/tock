@@ -3,7 +3,7 @@
 
 CORE_SOURCES=$(call rwildcard,src/main/,*.rs)
 MAIN_DEPS=$(BUILD_DIR)/libcore.rlib $(BUILD_DIR)/libsupport.rlib $(CORE_SOURCES)
-MAIN_DEPS+=$(BUILD_DIR)/libplatform.rlib
+MAIN_DEPS+=$(BUILD_DIR)/libplatform.rlib $(BUILD_DIR)/libprocess.rlib
 
 $(BUILD_DIR)/main.o: $(MAIN_DEPS)
 	@echo "Building $@"

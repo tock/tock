@@ -20,6 +20,8 @@ pub trait UART {
     fn init(&mut self, params: UARTParams);
     fn send_byte(&mut self, byte: u8);
     fn read_byte(&self) -> u8;
+    fn rx_ready(&self) -> bool;
+    fn tx_ready(&self) -> bool;
     fn enable_rx(&mut self);
     fn disable_rx(&mut self);
     fn enable_tx(&mut self);
