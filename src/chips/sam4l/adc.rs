@@ -139,7 +139,7 @@ impl adc::AdcInternal for Adc {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn ADC_Handler() {
-    use hil::queue::Queue;
+    use common::Queue;
 
     nvic::disable(nvic::NvicIdx::ADCIFE);
     chip::CHIP.as_mut().map(|chip| {

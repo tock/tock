@@ -11,7 +11,6 @@ pub mod i2c;
 pub mod timer;
 pub mod uart;
 pub mod adc;
-pub mod queue;
 
 pub use process::Callback;
 

@@ -3,7 +3,7 @@ use core::mem;
 use core::prelude::*;
 use core::raw;
 
-use common::ring_buffer::RingBuffer;
+use common::{RingBuffer, Queue};
 
 #[allow(improper_ctypes)]
 extern {

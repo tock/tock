@@ -221,7 +221,7 @@ impl uart::UART for USART {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn USART3_Handler() {
-    use hil::queue::Queue;
+    use common::Queue;
 
     nvic::disable(nvic::NvicIdx::USART3);
     chip::CHIP.as_mut().map(|chip| {

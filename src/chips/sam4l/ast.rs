@@ -248,7 +248,7 @@ impl Timer for Ast {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn AST_ALARM_Handler() {
-    use hil::queue::Queue;
+    use common::Queue;
 
     nvic::disable(nvic::NvicIdx::ASTALARM);
     chip::CHIP.as_mut().map(|chip| {
