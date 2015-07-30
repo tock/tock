@@ -177,14 +177,14 @@ impl Sam4l {
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx;
-       self.queue.dequeue().map(|interrupt| {
-           match interrupt {
-             NvicIdx::ASTALARM => self.ast.handle_interrupt(),
-             NvicIdx::USART3   => self.usarts[3].handle_interrupt(),
-             NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
-             _ => {}
-           }
-           nvic::enable(interrupt);
+        self.queue.dequeue().map(|interrupt| {
+            match interrupt {
+                NvicIdx::ASTALARM => self.ast.handle_interrupt(),
+                NvicIdx::USART3   => self.usarts[3].handle_interrupt(),
+                NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
+                _ => {}
+            }
+            nvic::enable(interrupt);
        });
     }
 
