@@ -95,6 +95,12 @@ pub enum NvicIdx {
     LCDCA
 }
 
+impl ::core::default::Default for NvicIdx {
+    fn default() -> NvicIdx {
+        NvicIdx::HFLASHC
+    }
+}
+
 pub const BASE_ADDRESS : usize = 0xe000e100;
 
 pub unsafe fn enable(signal: NvicIdx) {

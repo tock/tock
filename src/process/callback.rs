@@ -1,6 +1,7 @@
 use core::intrinsics::transmute;
 use process;
 use process::Process;
+use common::Queue;
 
 pub struct Callback {
     // We want more expressive types for this. For now, the kernel is expected

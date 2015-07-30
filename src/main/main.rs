@@ -17,7 +17,7 @@ pub mod syscall;
 pub extern fn main() {
     use core::prelude::*;
     use process::Process;
-    use common::shared::Shared;
+    use common::{Shared,Queue};
 
     let mut platform = unsafe {
         platform::init()

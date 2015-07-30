@@ -12,9 +12,9 @@ extern crate sam4l;
 use core::prelude::*;
 use hil::adc::AdcInternal;
 use hil::Controller;
+use sam4l::*;
 
-pub static mut ADC  : Option<sam4l::adc::Adc> = None;
-pub static mut CHIP : Option<sam4l::Sam4l> = None;
+pub static mut ADC  : Option<adc::Adc> = None;
 
 pub struct TestRequest {
   chan: u8
@@ -37,7 +37,7 @@ pub static mut REQ: TestRequest = TestRequest {
 pub static mut FIRESTORM : Option<Firestorm> = None;
 
 pub struct Firestorm {
-    chip: &'static mut sam4l::Sam4l,
+    chip: &'static mut chip::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>
@@ -66,8 +66,8 @@ impl Firestorm {
 }
 
 pub unsafe fn init() -> &'static mut Firestorm {
-    CHIP = Some(sam4l::Sam4l::new());
-    let chip = CHIP.as_mut().unwrap();
+    chip::CHIP = Some(chip::Sam4l::new());
+    let chip = chip::CHIP.as_mut().unwrap();
 
     FIRESTORM = Some(Firestorm {
         chip: chip,
