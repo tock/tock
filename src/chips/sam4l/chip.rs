@@ -10,9 +10,12 @@ use usart;
 
 pub static mut CHIP : Option<Sam4l> = None;
 
+const IQ_SIZE: usize = 100;
+static mut INTERRUPT_QUEUE : [nvic::NvicIdx; IQ_SIZE] =
+    [nvic::NvicIdx::HFLASHC; IQ_SIZE];
 
 pub struct Sam4l {
-    pub queue: queue::InterruptQueue,
+    pub queue: queue::RingBuffer<'static, nvic::NvicIdx>,
     pub ast: ast::Ast,
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
@@ -57,7 +60,7 @@ impl Sam4l {
     pub fn new() -> Sam4l {
 
         Sam4l {
-            queue: queue::InterruptQueue::new(),
+            queue: queue::RingBuffer::new(unsafe { &mut INTERRUPT_QUEUE }),
             ast: ast::Ast::new(),
             i2c: [
                 i2c::I2CDevice::new(i2c::Location::I2C00, i2c::Speed::Fast400k),

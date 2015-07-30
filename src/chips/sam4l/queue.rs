@@ -1,29 +1,24 @@
-use hil::{queue};
-use nvic;
+use core::prelude::*;
 use core::intrinsics::volatile_load;
+use hil::queue;
 
-pub const IQ_SIZE: usize = 100;
-
-#[allow(dead_code)]
-pub struct InterruptQueue {
-  ring: [nvic::NvicIdx; IQ_SIZE],
+pub struct RingBuffer<'a, T: 'a> {
+  ring: &'a mut [T],
   head: usize,
   tail: usize
 }
 
-#[allow(dead_code)]
-impl InterruptQueue {
-  pub fn new() -> InterruptQueue {
-    InterruptQueue {
-      head: 0,
-      tail: 0,
-      ring: [nvic::NvicIdx::INVALID; IQ_SIZE]
+impl<'a, T: Copy> RingBuffer<'a, T> {
+    pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
+        RingBuffer {
+          head: 0,
+          tail: 0,
+          ring: ring
+        }
     }
-  }
 }
 
-#[allow(dead_code)]
-impl queue::Queue<nvic::NvicIdx> for InterruptQueue {
+impl<'a, T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
   fn has_elements(&self) -> bool {
     unsafe {
       let head = volatile_load(&self.head);
@@ -34,28 +29,28 @@ impl queue::Queue<nvic::NvicIdx> for InterruptQueue {
 
   fn is_full(&self) -> bool {
     unsafe {
-      volatile_load(&self.head) == ((volatile_load(&self.tail) + 1) % IQ_SIZE)
+      volatile_load(&self.head) == ((volatile_load(&self.tail) + 1) % self.ring.len())
     }
   }
 
-  fn enqueue(&mut self, val: nvic::NvicIdx) -> bool {
+  fn enqueue(&mut self, val: T) -> bool {
     unsafe {
       let head = volatile_load(&self.head);
-      if ((self.tail + 1) % IQ_SIZE) == head {
+      if ((self.tail + 1) % self.ring.len()) == head {
         // Incrementing tail will overwrite head
         return false;
       } else {
         self.ring[self.tail] = val;
-        self.tail = (self.tail + 1) % IQ_SIZE;
+        self.tail = (self.tail + 1) % self.ring.len();
         return true;
       }
     }
   }
 
-  fn dequeue(&mut self) -> nvic::NvicIdx {
-    let val: nvic::NvicIdx = self.ring[self.head];
+  fn dequeue(&mut self) -> T {
+    let val = self.ring[self.head];
     if self.has_elements() {
-      self.head = (self.head + 1) % IQ_SIZE;
+      self.head = (self.head + 1) % self.ring.len();
     }
     val
   }
