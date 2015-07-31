@@ -1,5 +1,22 @@
 /* hil::timer -- Traits and structures for software timers.
  *
+ * Support for virtualized software timers on top of a single hardware 
+ * alarm (counter interrupt). Currently traits do not specify the time 
+ * units of the timers; a future version will. 
+ *
+ * The four relevant types are:
+ *   - Timer: the trait that provides virtualized timers
+ *   - TimerMux: the struct that implements Timer on top of Alarm
+ *   - TimerRequest: the structure a caller must pass in when requesting
+ *                   a timer
+ *   - TimerCB: the trait which has the callback for when the timer fires
+ *
+ * The TimerRequest structure contains a reference to a TimerCB. So
+ * to invoke a timer, an application defines a structure that implements
+ * TimerCB, creates a TimerRequest whose callback field is the TimerCB
+ * (either through new() or initialization), then passes TimerRequest to
+ * calls to Timer.
+ *
  * Author: Philip Levis <pal@cs.stanford.edu>
  * Date: 7/16/15
  */
@@ -7,6 +24,12 @@
 
 use core::prelude::*;
 use alarm;
+
+// If a timer is late (was supposed to fire in the past), LATE_DELAY
+// specifies how far in the future to fire it. This number needs to be
+// > 1 in case the counter ticks between reading it and setting the
+// overflow value. Set it to 5 just to be safe.
+const LATE_DELAY: u32 = 5;
 
 pub trait TimerCB {
   fn fired(&'static mut self, &'static mut TimerRequest, now: u32);
@@ -26,7 +49,6 @@ pub struct TimerRequest {
   pub is_repeat: bool,
   pub when: u32,
   pub interval: u32,
-  pub last: u32,
   pub callback: Option<&'static mut TimerCB>
 }
 
@@ -38,7 +60,6 @@ impl TimerRequest {
       is_repeat: false,
       when:      0,
       interval:  0,
-      last:      0,
       callback:  Some(cb)
     }
   }
@@ -56,7 +77,19 @@ impl TimerMux {
       internal: Some(internal)
     }
   }
+  /*
+   * There are two pairs of functions for manipulating the ordered
+   * linked list of outstanding timers
+   *
+   *  insert/delete: operate on list, inserting or deleting an entry
+   *  add/remove: operate on list, and reconfigure underlying hardware
+   *              alarm if first element of list changes
+   *
+   * add/remove are wrappers around insert/delete.
+   */
 
+  /* Insert a TimerRequest into the linked list, reconfiguring the
+   * hardware alarm if it is inserted as the first element. */
   fn add(&'static mut self, request: &'static mut TimerRequest) -> bool {
     let changed = self.insert(request);
     if changed {
@@ -65,6 +98,8 @@ impl TimerMux {
     changed
   }
 
+  /* Remove a TimerRequest into the linked list, reconfiguring the
+   * hardware alarm if it was the first element. */
   fn remove(&'static mut self, request: &'static mut TimerRequest) -> bool {
     let changed = self.delete(request);
     if changed {
@@ -73,8 +108,8 @@ impl TimerMux {
     changed
   }
 
-  // Returns whether hardware clock has to be recalculated (inserted
-  // timer is now first timer)
+  /* Insert a TimerRequest into the linked list. Returns whether hardware 
+   * clock has to be recalculated (inserted timer is now first timer) */
   fn insert(&'static mut self, request: &'static mut TimerRequest) -> bool {
     if request.next.is_some() { // Already on a list, this is an error!
       false
@@ -119,8 +154,8 @@ impl TimerMux {
     }
   }
 
-  // Returns whether hardware clock has to be recalculated (removed first
-  // timer)
+  /* Delete a TimerRequest from the linked list. Returns whether hardware 
+   * clock has to be recalculated (removed first timer) */
   fn delete(&'static mut self, request: &'static mut TimerRequest) -> bool {
     if self.request.is_none() {return false;}
 
@@ -149,6 +184,11 @@ impl TimerMux {
     first
   }
 
+  /* Schedule the hardware alarm based on the first TimerRequest.
+     Assumes that timers are at most 2^31 in the future. If the
+     duration until a timer is > 2^31, assumes this means the
+     timer has passed (is late) and so fires immediately (in LATE_DELAY
+     ticks). */
   fn start_request(&'static mut self) {
     if self.request.is_none() {return;}
 
@@ -161,19 +201,22 @@ impl TimerMux {
     let curr = alarm.now();
     let delay = request.when - curr;
     if delay > (0x80000000) {
-      when = (curr + 5) | 1;
+      when = curr + LATE_DELAY;
       request.when = when;
     }
-    alarm.set_alarm(when, self);// as &mut alarm::Request);
+    alarm.set_alarm(when, self);
 
     self.internal = Some(alarm);
     self.request = Some(request);
-
   }
 
 }
 
 impl alarm::Request for TimerMux {
+
+  // The hardware alarm fired. If its firing matches the expected
+  // firing time, invoke the next software timer and schedule the
+  // following one.
   fn fired(&'static mut self) {
     if self.request.is_none() {return;}
     let curr = self.now();
@@ -192,7 +235,6 @@ impl alarm::Request for TimerMux {
       let cb: &'static mut TimerCB = cbopt.unwrap();
       request.callback = Some(cb);
       if request.is_repeat {
-        request.last = request.when;
         request.when = request.when + request.interval;
         self.add(request);
       } else {
@@ -200,7 +242,7 @@ impl alarm::Request for TimerMux {
       }
       self.start_request();
       cb.fired(request, curr);
-    } else { // Timer fired early?!?!? Not sure why this happens,
+    } else { // Timer fired early. Not sure why this happens,
             // But it does -pal 7/28/15
       self.request = Some(request);
       self.start_request();
@@ -227,7 +269,6 @@ impl Timer for TimerMux {
     request.interval = interval;
     request.is_active = true;
     request.when = self.now() + interval;
-    request.last = request.when;
     request.is_repeat = false;
     self.add(request);
   }
@@ -236,7 +277,6 @@ impl Timer for TimerMux {
     request.interval = interval;
     request.is_active = true;
     request.when = self.now() + interval;
-    request.last = request.when;
     request.is_repeat = true;
     self.add(request);
   }

@@ -1,3 +1,9 @@
+/**
+ * alarm.rs - Trait for a hardware timer based on a counter. Assumes 32 bits.
+ *
+ * Author: Amit Levy <alevy@stanford.edu>
+ * Date: 7/15/15
+ */ 
 pub trait Request {
     fn fired(&'static mut self);
 }
