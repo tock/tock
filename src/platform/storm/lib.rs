@@ -11,9 +11,33 @@ extern crate sam4l;
 
 use core::prelude::*;
 use hil::Controller;
+use hil::timer::*;
+use hil::led::*;
 use sam4l::*;
 
 pub static mut FIRESTORM : Option<Firestorm> = None;
+pub static mut TIMER: TimerRequest = TimerRequest {
+    next: None,
+    is_active: false,
+    is_repeat: false,
+    when: 0,
+    interval: 0,
+    callback: None
+};
+pub static mut TIMERCB: Option<TestTimer> = None;
+
+pub struct TestTimer {
+    led: &'static mut hil::led::Led
+}
+
+#[allow(unused_variables)]
+impl TimerCB for TestTimer {
+    fn fired(&'static mut self, 
+             request: &'static mut TimerRequest, 
+             now: u32) {
+        self.led.toggle();
+    }
+}
 
 #[allow(dead_code)]
 pub struct Firestorm {
@@ -21,8 +45,8 @@ pub struct Firestorm {
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
-    timer: hil::timer::TimerMux,
-    led: hil::led::LedHigh
+    timer: TimerMux,
+    led: LedHigh
 }
 
 impl Firestorm {
@@ -66,8 +90,11 @@ pub unsafe fn init() -> &'static mut Firestorm {
         timer: hil::timer::TimerMux::new(&mut chip.ast),
         led: hil::led::LedHigh::new(&mut chip.pc10)
     });
-
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
+    TIMERCB = Some(TestTimer {led: &mut firestorm.led });
+    TIMER = TimerRequest::new(TIMERCB.as_mut().unwrap());
+
+    firestorm.led.init();
 
     chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
@@ -83,6 +110,9 @@ pub unsafe fn init() -> &'static mut Firestorm {
     chip.pa22.configure(Some(sam4l::gpio::PeripheralFunction::E));
 
     firestorm.console.initialize();
+
+    firestorm.timer.repeat(32768, &mut TIMER);
+
     firestorm
 }
 
