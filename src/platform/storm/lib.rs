@@ -15,6 +15,7 @@ use sam4l::*;
 
 pub static mut FIRESTORM : Option<Firestorm> = None;
 
+#[allow(dead_code)]
 pub struct Firestorm {
     chip: &'static mut chip::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
@@ -42,12 +43,14 @@ impl Firestorm {
             _ => None
         })
     }
-
 }
 
 pub unsafe fn init() -> &'static mut Firestorm {
     chip::CHIP = Some(chip::Sam4l::new());
     let chip = chip::CHIP.as_mut().unwrap();
+    chip.ast.select_clock(sam4l::ast::Clock::ClockRCSys);
+    chip.ast.set_prescalar(0);
+    chip.ast.clear_alarm();
 
     FIRESTORM = Some(Firestorm {
         chip: chip,
