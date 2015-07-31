@@ -22,6 +22,7 @@ pub struct Firestorm {
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
     timer: hil::timer::TimerMux,
+    led: hil::led::LedHigh
 }
 
 impl Firestorm {
@@ -62,7 +63,8 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
-        timer: hil::timer::TimerMux::new(&mut chip.ast)
+        timer: hil::timer::TimerMux::new(&mut chip.ast),
+        led: hil::led::LedHigh::new(&mut chip.pc10)
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
