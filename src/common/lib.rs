@@ -10,6 +10,8 @@ extern crate support;
 
 pub mod shared;
 pub mod ring_buffer;
+pub mod led;
+pub mod adc;
 pub mod queue;
 
 pub use queue::Queue;

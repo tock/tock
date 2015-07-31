@@ -1,8 +1,8 @@
 use core::prelude::*;
 use common::{RingBuffer,Queue};
 use ast;
-use adc;
 use gpio;
+use adc;
 use i2c;
 use nvic;
 use usart;
@@ -41,18 +41,19 @@ pub struct Sam4l {
     pub pb21: gpio::GPIOPin, pub pb22: gpio::GPIOPin, pub pb23: gpio::GPIOPin,
     pub pb24: gpio::GPIOPin, pub pb25: gpio::GPIOPin, pub pb26: gpio::GPIOPin,
     pub pb27: gpio::GPIOPin, pub pb28: gpio::GPIOPin, pub pb29: gpio::GPIOPin,
-    pub pb30: gpio::GPIOPin, pub pb31: gpio::GPIOPin, pub pc00: gpio::GPIOPin,
-    pub pc01: gpio::GPIOPin, pub pc02: gpio::GPIOPin, pub pc03: gpio::GPIOPin,
-    pub pc04: gpio::GPIOPin, pub pc05: gpio::GPIOPin, pub pc06: gpio::GPIOPin,
-    pub pc07: gpio::GPIOPin, pub pc08: gpio::GPIOPin, pub pc09: gpio::GPIOPin,
-    pub pc10: gpio::GPIOPin, pub pc11: gpio::GPIOPin, pub pc12: gpio::GPIOPin,
-    pub pc13: gpio::GPIOPin, pub pc14: gpio::GPIOPin, pub pc15: gpio::GPIOPin,
-    pub pc16: gpio::GPIOPin, pub pc17: gpio::GPIOPin, pub pc18: gpio::GPIOPin,
-    pub pc19: gpio::GPIOPin, pub pc20: gpio::GPIOPin, pub pc21: gpio::GPIOPin,
-    pub pc22: gpio::GPIOPin, pub pc23: gpio::GPIOPin, pub pc24: gpio::GPIOPin,
-    pub pc25: gpio::GPIOPin, pub pc26: gpio::GPIOPin, pub pc27: gpio::GPIOPin,
-    pub pc28: gpio::GPIOPin, pub pc29: gpio::GPIOPin, pub pc30: gpio::GPIOPin,
-    pub pc31: gpio::GPIOPin
+    pub pb30: gpio::GPIOPin, pub pb31: gpio::GPIOPin,
+
+    pub pc00: gpio::GPIOPin, pub pc01: gpio::GPIOPin, pub pc02: gpio::GPIOPin,
+    pub pc03: gpio::GPIOPin, pub pc04: gpio::GPIOPin, pub pc05: gpio::GPIOPin,
+    pub pc06: gpio::GPIOPin, pub pc07: gpio::GPIOPin, pub pc08: gpio::GPIOPin,
+    pub pc09: gpio::GPIOPin, pub pc10: gpio::GPIOPin, pub pc11: gpio::GPIOPin,
+    pub pc12: gpio::GPIOPin, pub pc13: gpio::GPIOPin, pub pc14: gpio::GPIOPin,
+    pub pc15: gpio::GPIOPin, pub pc16: gpio::GPIOPin, pub pc17: gpio::GPIOPin,
+    pub pc18: gpio::GPIOPin, pub pc19: gpio::GPIOPin, pub pc20: gpio::GPIOPin,
+    pub pc21: gpio::GPIOPin, pub pc22: gpio::GPIOPin, pub pc23: gpio::GPIOPin,
+    pub pc24: gpio::GPIOPin, pub pc25: gpio::GPIOPin, pub pc26: gpio::GPIOPin,
+    pub pc27: gpio::GPIOPin, pub pc28: gpio::GPIOPin, pub pc29: gpio::GPIOPin,
+    pub pc30: gpio::GPIOPin, pub pc31: gpio::GPIOPin
 }
 
 impl Sam4l {

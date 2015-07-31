@@ -12,7 +12,6 @@ extern crate platform;
 mod apps;
 
 pub mod syscall;
-
 #[no_mangle]
 pub extern fn main() {
     use core::prelude::*;
@@ -25,12 +24,13 @@ pub extern fn main() {
 
     let app1 = unsafe { Process::create(apps::app1::_start).unwrap() };
 
+//    let mut processes: [Shared<Process>;0] = [];
     let mut processes = [Shared::new(app1)];
 
     loop {
         unsafe {
             platform.service_pending_interrupts();
-
+  
             'sched: for process_s in processes.iter_mut() {
                 let process = process_s.borrow_mut();
                 'process: loop {

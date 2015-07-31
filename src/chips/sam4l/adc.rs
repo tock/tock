@@ -1,3 +1,10 @@
+/* chips::sam4l::adc -- Single-request implementation of ADC conversion
+ * for the SAM4L CortexM4 microcontroller.
+ *
+ * Author: Philip Levis <pal@cs.stanford.edu>
+ * Date: 7/16/15
+ */
+
 use core::prelude::*;
 use core::intrinsics;
 use nvic;
@@ -46,7 +53,7 @@ pub static mut ADC_INTERRUPT : bool = false;
 pub struct Adc {
   registers: &'static mut AdcRegisters,
   enabled: bool,
-  request: Option<&'static mut adc::Request>
+  request: Option<&'static mut adc::ImplRequest>
 }
 
 impl Adc {
@@ -62,22 +69,17 @@ impl Adc {
     pub fn handle_interrupt(&mut self) {
         // Disable further interrupts
         volatile!(self.registers.idr = 1);
-        match self.request.take() {
-            Some(ref mut request) => {
-                // Because HWLA is set to 1, most significant bit is
-                // of reading is left justified to bit 15r
-                let val = volatile!(self.registers.lcv) & 0xffff;         
-                request.read_done(val as u16);
-            }
-            None => {}
-
+        if self.request.is_some() {
+          let opt: Option<&'static mut adc::ImplRequest> = self.request.take();
+          let req = opt.unwrap();
+          let val = volatile!(self.registers.lcv) & 0xffff;
+          req.read_done(val as u16);
         }
-//        self.request = None;
     }
 
 }
 
-impl adc::AdcInternal for Adc {
+impl adc::AdcImpl for Adc {
     fn initialize(&mut self) -> bool {
         if !self.enabled {
             self.enabled = true;
@@ -97,7 +99,7 @@ impl adc::AdcInternal for Adc {
         return true;
     }
     
-    fn sample(&mut self, request: &'static mut adc::Request) -> bool {
+    fn sample(&mut self, request: &'static mut adc::ImplRequest) -> bool {
         if !self.enabled || request.channel() > 14 {
             return false;
         } else {

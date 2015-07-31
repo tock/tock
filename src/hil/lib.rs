@@ -11,6 +11,8 @@ pub mod i2c;
 pub mod timer;
 pub mod uart;
 pub mod adc;
+pub mod led;
+pub mod alarm;
 
 pub use process::Callback;
 

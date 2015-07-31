@@ -2,6 +2,7 @@
 #![crate_type = "rlib"]
 #![feature(asm,core,concat_idents,no_std)]
 #![no_std]
+#[allow(dead_code)]
 
 extern crate core;
 extern crate common;
@@ -37,11 +38,11 @@ macro_rules! volatile {
     });
 }
 
-pub mod chip;
 pub mod ast;
-pub mod i2c;
-pub mod nvic;
-pub mod pm;
-pub mod gpio;
-pub mod usart;
 pub mod adc;
+pub mod gpio;
+pub mod nvic;
+pub mod usart;
+pub mod pm;
+pub mod chip;
+pub mod i2c;
