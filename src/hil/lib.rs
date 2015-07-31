@@ -6,6 +6,7 @@
 extern crate core;
 extern crate process;
 
+pub mod alarm;
 pub mod gpio;
 pub mod i2c;
 pub mod timer;
