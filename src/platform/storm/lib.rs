@@ -10,29 +10,8 @@ extern crate hil;
 extern crate sam4l;
 
 use core::prelude::*;
-use hil::adc::AdcInternal;
 use hil::Controller;
 use sam4l::*;
-
-pub static mut ADC  : Option<adc::Adc> = None;
-
-pub struct TestRequest {
-  chan: u8
-}
-
-impl hil::adc::Request for TestRequest {
-  fn read_done(&mut self, val: u16) {
-    // Do something with this reading!
-  }
-  fn channel(&mut self) -> u8 {
-    self.chan
-  }
-}
-
-pub static mut REQ: TestRequest = TestRequest {
-  chan: 0
-};
-
 
 pub static mut FIRESTORM : Option<Firestorm> = None;
 
@@ -40,7 +19,8 @@ pub struct Firestorm {
     chip: &'static mut chip::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
-    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>
+    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
+    timer: hil::timer::TimerMux,
 }
 
 impl Firestorm {
@@ -79,6 +59,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
+        timer: hil::timer::TimerMux::new(&mut chip.ast)
     });
 
     let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
@@ -95,12 +76,6 @@ pub unsafe fn init() -> &'static mut Firestorm {
 
     chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::E));
     chip.pa22.configure(Some(sam4l::gpio::PeripheralFunction::E));
-
-    ADC = Some(sam4l::adc::Adc::new());
-    let adc = ADC.as_mut().unwrap();
-    adc.initialize();
-    REQ.chan = 1;
-    adc.sample(&mut REQ);
 
     firestorm.console.initialize();
     firestorm
