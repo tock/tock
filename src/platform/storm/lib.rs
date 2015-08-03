@@ -70,19 +70,25 @@ impl Firestorm {
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
 
+    static mut CHIP_BUF : [u8; 2048] = [0; 2048];
+    /* TODO(alevy): replace above line with this. Currently, over allocating to make development
+     * easier, but should be obviated when `size_of` at compile time hits.
     static mut CHIP_BUF : [u8; 924] = [0; 924];
     // Just test that CHIP_BUF is correct size
     // (will throw compiler error if too large or small)
-    let _ : sam4l::chip::Sam4l = mem::transmute(CHIP_BUF);
+    let _ : sam4l::chip::Sam4l = mem::transmute(CHIP_BUF);*/
 
     let chip : &'static mut sam4l::chip::Sam4l = mem::transmute(&mut CHIP_BUF);
     *chip = sam4l::chip::Sam4l::new();
     sam4l::chip::INTERRUPT_QUEUE = Some(&mut chip.queue);
 
+    static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
+    /* TODO(alevy): replace above line with this. Currently, over allocating to make development
+     * easier, but should be obviated when `size_of` at compile time hits.
     static mut FIRESTORM_BUF : [u8; 172] = [0; 172];
     // Just test that FIRESTORM_BUF is correct size
     // (will throw compiler error if too large or small)
-    let _ : Firestorm = mem::transmute(FIRESTORM_BUF);
+    let _ : Firestorm = mem::transmute(FIRESTORM_BUF);*/
 
     chip.ast.select_clock(sam4l::ast::Clock::ClockRCSys);
     chip.ast.set_prescalar(0);
