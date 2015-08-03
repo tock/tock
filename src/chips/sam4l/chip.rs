@@ -7,12 +7,6 @@ use i2c;
 use nvic;
 use usart;
 
-pub static mut CHIP : Option<Sam4l> = None;
-
-const IQ_SIZE: usize = 100;
-static mut INTERRUPT_QUEUE : [nvic::NvicIdx; IQ_SIZE] =
-    [nvic::NvicIdx::HFLASHC; IQ_SIZE];
-
 pub struct Sam4l {
     pub queue: RingBuffer<'static, nvic::NvicIdx>,
     pub ast: ast::Ast,
@@ -55,11 +49,17 @@ pub struct Sam4l {
     pub pc31: gpio::GPIOPin
 }
 
+const IQ_SIZE: usize = 100;
+static mut IQ_BUF : [nvic::NvicIdx; IQ_SIZE] =
+    [nvic::NvicIdx::HFLASHC; IQ_SIZE];
+pub static mut INTERRUPT_QUEUE : Option<&'static mut RingBuffer<'static, nvic::NvicIdx>> = None;
+
+
 impl Sam4l {
     pub fn new() -> Sam4l {
 
         Sam4l {
-            queue: RingBuffer::new(unsafe { &mut INTERRUPT_QUEUE }),
+            queue: RingBuffer::new(unsafe { &mut IQ_BUF }),
             ast: ast::Ast::new(),
             i2c: [
                 i2c::I2CDevice::new(i2c::Location::I2C00, i2c::Speed::Fast400k),
