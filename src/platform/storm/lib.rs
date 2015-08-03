@@ -16,21 +16,54 @@ use sam4l::*;
 
 pub static mut ADC  : Option<adc::Adc> = None;
 
+pub fn print_val(firestorm: &'static mut Firestorm, val: u32) {
+     firestorm.console.putstr("0x");
+     for x in 0..4 {
+          let hdigit = (val >> ((3-x) * 4)) & 0xf;
+          let char = match hdigit {
+              0  => "0",
+              1  => "1",        
+              2  => "2",        
+              3  => "3",
+              4  => "4",
+              5  => "5",
+              6  => "6",        
+              7  => "7",        
+              8  => "8",
+              9  => "9",
+              10 => "A",
+              11 => "B",        
+              12 => "C",        
+              13 => "D",
+              14 => "E",
+              15 => "F",
+              _  => "?",
+          };
+          firestorm.console.putstr(char);
+     }
+}
+
 pub struct TestRequest {
-  chan: u8
+    val: u32
 }
 
 impl hil::adc::Request for TestRequest {
-  fn read_done(&mut self, val: u16) {
-    // Do something with this reading!
-  }
-  fn channel(&mut self) -> u8 {
-    self.chan
+  fn sample_done(&'static mut self, val: u16) {
+      unsafe {
+        let fs: &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
+        fs.console.putstr("ADC reading: ");
+        print_val(fs, val as u32);
+        fs.console.putstr("\n");
+        let adc = ADC.as_mut().unwrap();
+        adc.sample(1, self);
+        let led: &'static mut hil::gpio::GPIOPin = &mut fs.chip.pc10;
+        led.toggle();
+      }
   }
 }
 
 pub static mut REQ: TestRequest = TestRequest {
-  chan: 0
+    val: 0
 };
 
 
@@ -96,13 +129,21 @@ pub unsafe fn init() -> &'static mut Firestorm {
     chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::E));
     chip.pa22.configure(Some(sam4l::gpio::PeripheralFunction::E));
 
+    // LED pin is an output
+    let led: &'static mut hil::gpio::GPIOPin = &mut chip.pc10;
+    led.enable_output();
+
+    firestorm.console.initialize();
+    led.toggle();
+    // Configure pin to be ADC (channel 1)
+    chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::A));
     ADC = Some(sam4l::adc::Adc::new());
     let adc = ADC.as_mut().unwrap();
     adc.initialize();
-    REQ.chan = 1;
-    adc.sample(&mut REQ);
+    adc.sample(1, &mut REQ);
 
-    firestorm.console.initialize();
+
+    firestorm.console.putstr("Booting.\n");
     firestorm
 }
 

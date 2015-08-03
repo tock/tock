@@ -1,7 +1,7 @@
 use core::prelude::*;
 use core::intrinsics;
 use nvic;
-use hil::adc;
+use hil::adc::{Request, AdcInternal};
 use pm::{self, Clock, PBAClock};
 use chip;
 
@@ -41,12 +41,12 @@ pub struct AdcRegisters { // From page 1005 of SAM4L manual
 
 // Page 59 of SAM4L data sheet
 pub const BASE_ADDRESS: usize = 0x40038000;
-pub static mut ADC_INTERRUPT : bool = false;
 
 pub struct Adc {
   registers: &'static mut AdcRegisters,
   enabled: bool,
-  request: Option<&'static mut adc::Request>
+  channel: u8,
+  request: Option<&'static mut Request>
 }
 
 impl Adc {
@@ -55,6 +55,7 @@ impl Adc {
         Adc {
             registers: unsafe { intrinsics::transmute(address) },
             enabled: false,
+            channel: 0,
             request: None
         }
     }
@@ -62,23 +63,16 @@ impl Adc {
     pub fn handle_interrupt(&mut self) {
         // Disable further interrupts
         volatile!(self.registers.idr = 1);
-        match self.request.take() {
-            Some(ref mut request) => {
-                // Because HWLA is set to 1, most significant bit is
-                // of reading is left justified to bit 15r
-                let val = volatile!(self.registers.lcv) & 0xffff;         
-                request.read_done(val as u16);
-            }
-            None => {}
-
-        }
-//        self.request = None;
+        let opt = self.request.take();
+        let copt: &'static mut Request = opt.unwrap();
+        let val = volatile!(self.registers.lcv) & 0xffff;
+        copt.sample_done(val as u16);
     }
 
 }
 
-impl adc::AdcInternal for Adc {
-    fn initialize(&mut self) -> bool {
+impl AdcInternal for Adc {
+    fn initialize(&'static mut self) -> bool {
         if !self.enabled {
             self.enabled = true;
             unsafe {pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));}
@@ -97,13 +91,13 @@ impl adc::AdcInternal for Adc {
         return true;
     }
     
-    fn sample(&mut self, request: &'static mut adc::Request) -> bool {
-        if !self.enabled || request.channel() > 14 {
+    fn sample(&'static mut self, channel: u8, request: &'static mut Request) -> bool {
+        if !self.enabled || self.request.is_some() || channel > 14 {
             return false;
         } else {
             self.enabled = true;
             self.request = Some(request);
- 
+            self.channel = channel; 
             // This configuration sets the ADC to use Pad Ground as the
             // negative input, and the ADC channel as the positive. Since
             // this is a single-ended sample, the bipolar bit is set to zero.
@@ -115,9 +109,8 @@ impl adc::AdcInternal for Adc {
             // the same most significant bit but for 8 bit samples the lower
             // 8 bits are zero and for 12 bits the lower 4 bits are zero.
 
-            let mut channel:usize = request.channel() as usize;
-            channel = channel << 16;
-            volatile!(self.registers.seqcfg = 0x00708081 | channel);
+            let chan_field: usize = (self.channel as usize) << 16;
+            volatile!(self.registers.seqcfg = 0x00708081 | chan_field);
 /*                    00708081 =  7      << 20 | // MUXNEG
                                   channel << 16 | // MUXPOS
                                   2       << 14 | // Internal
