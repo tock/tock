@@ -218,12 +218,12 @@ impl Alarm for Ast {
         }
     }
 
-    fn disable_alarm(&'static mut self) {
+    fn disable_alarm(&mut self) {
         self.disable();
         self.clear_alarm();
     }
 
-    fn set_alarm(&'static mut self, tics: u32, req: &'static mut Request) {
+    fn set_alarm(&mut self, tics: u32, req: &'static mut Request) {
         self.disable();
         while self.busy() {}
         self.callback = Some(req);
@@ -235,7 +235,7 @@ impl Alarm for Ast {
         self.enable();
     }
 
-    fn get_alarm(&'static mut self) -> u32 {
+    fn get_alarm(&mut self) -> u32 {
         unsafe { 
             intrinsics::volatile_load(&(*self.regs).ar0)
         }
