@@ -1,6 +1,6 @@
 /* chips::sam4l::ast -- Implementation of a single hardware timer.
  *
- * Author: Amit Levy <alevy@stanford.edu>
+ * Author: Amit Levy <levya@cs.stanford.edu>
  * Author: Philip Levis <pal@cs.stanford.edu>
  * Date: 7/16/15
  */
