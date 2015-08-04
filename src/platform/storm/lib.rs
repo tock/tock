@@ -25,7 +25,7 @@ pub static mut TIMER: TimerRequest = TimerRequest {
 pub static mut TIMERCB: Option<TestTimer> = None;
 
 pub struct TestTimer {
-    led: &'static mut hil::led::Led
+    firestorm: &'static mut Firestorm
 }
 
 #[allow(unused_variables)]
@@ -33,7 +33,8 @@ impl TimerCB for TestTimer {
     fn fired(&'static mut self,
              request: &'static mut TimerRequest,
              now: u32) {
-        self.led.toggle();
+        self.firestorm.led.toggle();
+        self.firestorm.console.putstr("Timer fired!\n");
     }
 }
 
@@ -156,7 +157,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         led: hil::led::LedHigh::new(&mut chip.pc10)
     };
 
-    TIMERCB = Some(TestTimer {led: &mut firestorm.led });
+    TIMERCB = Some(TestTimer {firestorm: firestorm});
     TIMER = TimerRequest::new(TIMERCB.as_mut().unwrap());
 
     firestorm.led.init();
@@ -176,16 +177,20 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     firestorm.console.initialize();
 
-    // firestorm.timer.repeat(32768, &mut TIMER);
+    firestorm.timer.repeat(32768, &mut TIMER);
 
     // Configure pin to be ADC (channel 1)
     chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::A));
+/*
+    chip.scif.general_clock_enable(sam4l::scif::GenericClock::GCLK10,
+                                   sam4l::scif::ClockSource::RCSYS);
     ADC = Some(sam4l::adc::Adc::new());
     let adc = ADC.as_mut().unwrap() as &'static mut hil::adc::AdcInternal;
     adc.initialize();
     REQ = Some(TestRequest { firestorm: firestorm});
     let req = REQ.as_mut().unwrap() as &'static mut hil::adc::Request;
     adc.sample(1, req);
+    */
     firestorm.console.putstr("Booted. Requested ADC.\n");
     firestorm.led.on();
     firestorm
