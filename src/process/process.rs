@@ -90,15 +90,16 @@ impl<'a> Process<'a> {
         }
     }
 
-    pub fn in_exposed_bounds(&self, start_addr: *const u8, size: usize) -> bool {
-        /* Won't work until app is passed it's memory to allocate within
-         * unsafe {
-            start_addr >= self.exposed_memory_start &&
-                (start_addr.offset(size as isize))
-                    <=
-                (&self.memory[self.memory.len()])
-        }*/
-        true
+    pub fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize)
+            -> bool {
+        use core::raw::Repr;
+
+        let buf_end_addr = ((buf_start_addr as usize) + size) as *const u8;
+
+        let mem = self.memory.repr();
+        let mem_end = ((mem.data as usize) + mem.len) as *const u8;
+
+        buf_start_addr >= self.exposed_memory_start && buf_end_addr <= mem_end
     }
 
     pub unsafe fn alloc(&mut self, size: usize) -> Option<&mut [u8]> {
