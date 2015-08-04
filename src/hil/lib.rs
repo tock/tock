@@ -14,7 +14,7 @@ pub mod timer;
 pub mod uart;
 pub mod adc;
 
-pub use process::{Callback, AppSlice, AppPtr};
+pub use process::{Callback, AppSlice, Shared};
 
 pub trait Controller {
     type Config;
@@ -27,7 +27,7 @@ pub trait Driver {
     fn command(&mut self, cmd_type: usize, r2: usize) -> isize;
 
     #[allow(unused)]
-    fn allow(&mut self, allow_type: usize, slice: AppSlice<u8>) -> isize {
+    fn allow(&mut self, allow_type: usize, slice: AppSlice<Shared, u8>) -> isize {
         -1
     }
 }

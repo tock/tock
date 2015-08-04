@@ -1,25 +1,31 @@
 use core::prelude::*;
 use core::mem;
+use core::marker::PhantomData;
 use core::ops::{Deref,DerefMut};
 use core::ptr::Unique;
 use core::raw::Slice;
 use process::Process;
 
-pub struct AppPtr<T> {
+pub struct Private;
+pub struct Shared;
+
+pub struct AppPtr<L, T> {
     ptr: Unique<T>,
-    process: *mut ()
+    process: *mut (),
+    _phantom: PhantomData<L>
 }
 
-impl<T> AppPtr<T> {
-    pub unsafe fn new(ptr: *mut T, process: *mut ()) -> AppPtr<T> {
+impl<L, T> AppPtr<L, T> {
+    pub unsafe fn new(ptr: *mut T, process: *mut ()) -> AppPtr<L, T> {
         AppPtr {
             ptr: Unique::new(ptr),
-            process: process
+            process: process,
+            _phantom: PhantomData
         }
     }
 }
 
-impl<T> Deref for AppPtr<T> {
+impl<L, T> Deref for AppPtr<L, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -29,7 +35,7 @@ impl<T> Deref for AppPtr<T> {
     }
 }
 
-impl<T> DerefMut for AppPtr<T> {
+impl<L, T> DerefMut for AppPtr<L, T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe {
             self.ptr.get_mut()
@@ -37,7 +43,7 @@ impl<T> DerefMut for AppPtr<T> {
     }
 }
 
-impl<T> Drop for AppPtr<T> {
+impl<L, T> Drop for AppPtr<L, T> {
     fn drop(&mut self) {
         unsafe {
             let process : &mut Process = mem::transmute(self.process);
@@ -46,14 +52,14 @@ impl<T> Drop for AppPtr<T> {
     }
 }
 
-pub struct AppSlice<T> {
-    ptr: AppPtr<T>,
+pub struct AppSlice<L, T> {
+    ptr: AppPtr<L, T>,
     len: usize
 }
 
-impl<T> AppSlice<T> {
+impl<L, T> AppSlice<L, T> {
     pub unsafe fn new(ptr: *mut T, len: usize, process_ptr: *mut ())
-            -> AppSlice<T> {
+            -> AppSlice<L, T> {
         AppSlice {
             ptr: AppPtr::new(ptr, process_ptr),
             len: len
@@ -65,7 +71,7 @@ impl<T> AppSlice<T> {
     }
 }
 
-impl<T> AsRef<[T]> for AppSlice<T> {
+impl<L, T> AsRef<[T]> for AppSlice<L, T> {
     fn as_ref(&self) -> &[T] {
         unsafe {
             mem::transmute(Slice{
@@ -76,7 +82,7 @@ impl<T> AsRef<[T]> for AppSlice<T> {
     }
 }
 
-impl<T> AsMut<[T]> for AppSlice<T> {
+impl<L, T> AsMut<[T]> for AppSlice<L, T> {
     fn as_mut(&mut self) -> &mut [T] {
         unsafe {
             mem::transmute(Slice{

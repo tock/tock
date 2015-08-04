@@ -6,7 +6,7 @@ use core::ptr::copy_nonoverlapping;
 use process;
 use process::Process;
 use common::Queue;
-use mem::AppPtr;
+use mem::{AppPtr, Private};
 
 pub struct Callback {
     // We want more expressive types for this. For now, the kernel is expected
@@ -37,7 +37,7 @@ impl Callback {
         }
     }
 
-    pub fn allocate<T>(&mut self, val: T) -> Option<AppPtr<T>> {
+    pub fn allocate<T>(&mut self, val: T) -> Option<AppPtr<Private, T>> {
         unsafe {
             let process : &mut Process = transmute(self.process_ptr);
             let size = mem::size_of_val(&val);

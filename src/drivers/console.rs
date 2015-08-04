@@ -1,11 +1,11 @@
 use core::prelude::*;
-use hil::{Driver,Callback,AppSlice};
+use hil::{Driver,Callback,AppSlice,Shared};
 use hil::uart::{UART, Reader};
 
 pub struct Console<U: UART + 'static> {
     uart: &'static mut U,
     read_callback: Option<Callback>,
-    read_buffer: Option<AppSlice<u8>>,
+    read_buffer: Option<AppSlice<Shared, u8>>,
     read_idx: usize
 }
 
@@ -38,7 +38,7 @@ impl<U: UART> Console<U> {
 }
 
 impl<U: UART> Driver for Console<U> {
-    fn allow(&mut self, allow_num: usize, slice: AppSlice<u8>) -> isize {
+    fn allow(&mut self, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
         match allow_num {
             0 => {
                 self.read_buffer = Some(slice);
