@@ -56,9 +56,14 @@ mod console {
         }
     }
 
-    pub fn subscribe_read_line(buf: *mut u8, len: usize, f: fn(usize, *mut u8)) {
-        allow(0, 0, buf as *mut (), len);
-        subscribe(0, 0, f as usize);
+    pub fn subscribe_read_line(buf: *mut u8, len: usize,
+                               f: fn(usize, *mut u8)) -> isize {
+        let res =  allow(0, 0, buf as *mut (), len);
+        if res < 0 {
+            res
+        } else {
+            subscribe(0, 0, f as usize)
+        }
     }
 
 }
@@ -121,7 +126,10 @@ r##"You may issue the following commands
     fn init() {
         puts(WELCOME_MESSAGE);
         unsafe {
-            subscribe_read_line(BUF, 40, line_read);
+            if subscribe_read_line(BUF, 40, line_read) < 0 {
+                puts("Failed to subscribe to read");
+                return
+            }
         }
         subscribe_temperature(tmp_available);
         enable_tmp006();
@@ -160,8 +168,12 @@ r##"You may issue the following commands
                 puts(HELP_MESSAGE);
             },
             Some("echo") => {
-                unsafe {
-                    puts(line.slice_unchecked(5, line.len()));
+                words.next().map(|word| {
+                    puts(word);
+                });
+                for w in words {
+                    putc(' ');
+                    puts(w);
                 }
                 puts("\r\n");
             },
