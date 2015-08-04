@@ -24,24 +24,37 @@ pub static mut TIMER: TimerRequest = TimerRequest {
 };
 pub static mut TIMERCB: Option<TestTimer> = None;
 
+pub struct TestTimer {
+    led: &'static mut hil::led::Led
+}
+
+#[allow(unused_variables)]
+impl TimerCB for TestTimer {
+    fn fired(&'static mut self,
+             request: &'static mut TimerRequest,
+             now: u32) {
+        self.led.toggle();
+    }
+}
+
 pub fn print_val(firestorm: &'static mut Firestorm, val: u32) {
      firestorm.console.putstr("0x");
      for x in 0..4 {
           let hdigit = (val >> ((3-x) * 4)) & 0xf;
           let char = match hdigit {
               0  => "0",
-              1  => "1",        
-              2  => "2",        
+              1  => "1",
+              2  => "2",
               3  => "3",
               4  => "4",
               5  => "5",
-              6  => "6",        
-              7  => "7",        
+              6  => "6",
+              7  => "7",
               8  => "8",
               9  => "9",
               10 => "A",
-              11 => "B",        
-              12 => "C",        
+              11 => "B",
+              12 => "C",
               13 => "D",
               14 => "E",
               15 => "F",
@@ -51,19 +64,24 @@ pub fn print_val(firestorm: &'static mut Firestorm, val: u32) {
      }
 }
 
-pub static mut FIRESTORM: Option<Firestorm> = None;
+pub static mut ADC: Option<sam4l::adc::Adc> = None;
+pub static mut REQ: Option<TestRequest> = None;
 
-pub struct TestTimer {
-    led: &'static mut hil::led::Led
+pub struct TestRequest {
+    firestorm: &'static mut Firestorm
 }
 
-#[allow(unused_variables)]
-impl TimerCB for TestTimer {
-    fn fired(&'static mut self, 
-             request: &'static mut TimerRequest, 
-             now: u32) {
-        self.led.toggle();
-    }
+impl hil::adc::Request for TestRequest {
+  fn sample_done(&'static mut self, val: u16) {
+      unsafe {
+        self.firestorm.console.putstr("ADC reading: ");
+        print_val(self.firestorm, val as u32);
+        self.firestorm.console.putstr("\n");
+        let adc = ADC.as_mut().unwrap() as &'static mut hil::adc::AdcInternal;
+        adc.sample(1, self);
+        self.firestorm.led.toggle();
+      }
+  }
 }
 
 pub struct Firestorm {
@@ -156,20 +174,19 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::E));
     chip.pa22.configure(Some(sam4l::gpio::PeripheralFunction::E));
 
-    // LED pin is an output
-    let led: &'static mut hil::gpio::GPIOPin = &mut chip.pc10;
-    led.enable_output();
-
     firestorm.console.initialize();
-    led.toggle();
+
+    // firestorm.timer.repeat(32768, &mut TIMER);
+
     // Configure pin to be ADC (channel 1)
-
-
-    firestorm.console.putstr("Booting.\n");
-    firestorm.console.initialize();
-
-    firestorm.timer.repeat(32768, &mut TIMER);
-
+    chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    ADC = Some(sam4l::adc::Adc::new());
+    let adc = ADC.as_mut().unwrap() as &'static mut hil::adc::AdcInternal;
+    adc.initialize();
+    REQ = Some(TestRequest { firestorm: firestorm});
+    let req = REQ.as_mut().unwrap() as &'static mut hil::adc::Request;
+    adc.sample(1, req);
+    firestorm.console.putstr("Booted. Requested ADC.\n");
+    firestorm.led.on();
     firestorm
 }
-
