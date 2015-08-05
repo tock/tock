@@ -1,3 +1,35 @@
+/* adc.rs -- Implementation of SAM4L ADCIFE.
+ *
+ * This is a bare-bones implementation of the SAM4L ADC. It is bare-bones
+ * because it provides little flexibility on how samples are taken. Currently,
+ * all samples
+ *   - are 12 bits
+ *   - use the ground pad as the negative reference
+ *   - use a 1V positive reference
+ *   - are hardware left justified (16 bits wide, bottom 4 bits empty)
+ *
+ * NOTE: The pin labels/assignments on the Firestorm schematic are
+ * incorrect. The mappings should be
+ *   AD5 -> ADCIFE channel 6
+ *   AD4 -> ADCIFE channel 5
+ *   AD3 -> ADCIFE channel 4
+ *   AD2 -> ADCIFE channel 3
+ *   AD1 -> ADCIFE channel 2
+ *   AD0 -> ADCIFE channel 1
+ *
+ * but in reality they are
+ *   AD5 -> ADCIFE channel 1
+ *   AD4 -> ADCIFE channel 2
+ *   AD3 -> ADCIFE channel 3
+ *   AD2 -> ADCIFE channel 4
+ *   AD1 -> ADCIFE channel 5
+ *   AD0 -> ADCIFE channel 6
+ *
+ *
+ *
+ * Author: Philip Levis <pal@cs.stanford.edu>
+ * Date: August 5, 2015
+ */
 use core::prelude::*;
 use core::intrinsics;
 use nvic;
@@ -8,16 +40,6 @@ use scif;
 use gpio;
 use hil;
 
-/* This is a first cut at an implementation of the SAM4L ADC.
-   It only allows a single sample at a time, and has three known bugs,
-   all serious:
-     1) It has not yet been tested (I have no hardware)
-     2) Interrupts are not hooked up yet
-     3) You cannot request a sample in a callback.
-
-    I've added it mostly as an example of how we might implement
-    these services.
-*/
 
 #[repr(C, packed)]
 #[allow(dead_code,missing_copy_implementations)]
@@ -66,9 +88,13 @@ impl Adc {
     pub fn handle_interrupt(&mut self) {
         let mut val:u16 = 0;
         unsafe {
-            //Clear interrupt
-            intrinsics::volatile_store(&mut (*self.registers).scr,  0xffffffff);
-            intrinsics::volatile_store(&mut (*self.registers).idr,  0xffffffff);
+            // Clear SEOC interrupt
+            intrinsics::volatile_store(&mut (*self.registers).scr,  0x0000001);
+            // Disable SEOC interrupt
+            intrinsics::volatile_store(&mut (*self.registers).idr,  0x00000001);
+            // Read the value from the LCV register.
+            // Note that since samples are left-justified (HWLA mode)
+            // the sample is 16 bits wide
             val = (intrinsics::volatile_load(&(*self.registers).lcv) & 0xffff) as u16;
         }
         if self.request.is_none() {return;}
@@ -84,19 +110,30 @@ impl AdcInternal for Adc {
         if !self.enabled {
             self.enabled = true;
             unsafe {
+                // This logic is from 38.6.1 "Initializing the ADCIFE" of
+                // the SAM4L data sheet
+                // 1. Start the clocks
                 pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
                 nvic::enable(nvic::NvicIdx::ADCIFE);
                 scif::generic_clock_enable(scif::GenericClock::GCLK10,
                                            scif::ClockSource::RCSYS);
+                // 2. Insert a fixed delay
                 for i in 1..10000 {
                     let x = intrinsics::volatile_load(&(*self.registers).cr);
                 }
+
+                // 3, Enable the ADC
                 let mut cr:usize = intrinsics::volatile_load(&(*self.registers).cr);
                 cr |= (1 << 8);
                 intrinsics::volatile_store(&mut (*self.registers).cr, cr);
+
+                // 4. Wait until ADC ready
                 while intrinsics::volatile_load(&(*self.registers).sr) & (1 << 24) == 0 {}
+                // 5. Turn on bandgap and reference buffer
                 let cr2:usize = (1 << 10) | (1 << 8) | (1 << 4);
                 intrinsics::volatile_store(&mut (*self.registers).cr, cr2);
+
+                // 6. Configure the ADCIFE
                 // Setting all 0s in the configuration register sets
                 //   - the clock divider to be 4,
                 //   - the source to be the Generic clock,

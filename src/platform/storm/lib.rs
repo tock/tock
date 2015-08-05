@@ -14,6 +14,11 @@ use hil::Controller;
 use hil::timer::*;
 use hil::led::*;
 
+/* This version of the Storm lib starts a 0.5Hz timer that
+ * samples ADCIFE port 6 (AD0 on the Firestorm) and ouputs
+ * the value to the serial port console. -pal
+ */
+
 pub static mut TIMER: TimerRequest = TimerRequest {
     next: None,
     is_active: false,
@@ -22,18 +27,24 @@ pub static mut TIMER: TimerRequest = TimerRequest {
     interval: 0,
     callback: None
 };
-pub static mut TIMERCB: Option<TestTimer> = None;
+pub static mut APP: Option<TestApp> = None;
 
-pub struct TestTimer {
+pub struct TestApp {
     firestorm: &'static mut Firestorm
 }
 
 #[allow(unused_variables)]
-impl TimerCB for TestTimer {
+impl TimerCB for TestApp {
     fn fired(&'static mut self,
              request: &'static mut TimerRequest,
              now: u32) {
         self.firestorm.console.putstr("Timer fired!\n");
+        let adc = &mut self.firestorm.chip.adc as &'static mut hil::adc::AdcInternal;
+        if adc.sample(6, self) {
+            self.firestorm.console.putstr(" - Requested ADC.\n");
+        } else {
+            self.firestorm.console.putstr(" - ADC request failed.\n");
+        }
     }
 }
 
@@ -64,22 +75,17 @@ pub fn print_val(firestorm: &'static mut Firestorm, val: u32) {
      }
 }
 
-pub static mut ADC: Option<sam4l::adc::Adc> = None;
-pub static mut REQ: Option<TestRequest> = None;
-
 pub struct TestRequest {
     firestorm: &'static mut Firestorm
 }
 
-impl hil::adc::Request for TestRequest {
+impl hil::adc::Request for TestApp {
   fn sample_done(&'static mut self, val: u16) {
       unsafe {
         self.firestorm.console.putstr("ADC reading: ");
         print_val(self.firestorm, val as u32);
         self.firestorm.console.putstr("\n");
-        let adc = &mut self.firestorm.chip.adc as &'static mut hil::adc::AdcInternal;
-        adc.sample(1, self);
-        self.firestorm.led.on();
+        self.firestorm.led.toggle();
       }
   }
 }
@@ -156,8 +162,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         led: hil::led::LedHigh::new(&mut chip.pc10)
     };
 
-    TIMERCB = Some(TestTimer {firestorm: firestorm});
-    TIMER = TimerRequest::new(TIMERCB.as_mut().unwrap());
+    APP = Some(TestApp {firestorm: firestorm});
+    TIMER = TimerRequest::new(APP.as_mut().unwrap());
 
     firestorm.led.init();
 
@@ -180,15 +186,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     // Configure pin to be ADC (channel 1)
     chip.pa05.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    chip.pb05.configure(Some(sam4l::gpio::PeripheralFunction::A));
 
     let adc = &mut chip.adc as &'static mut hil::adc::AdcInternal;
     adc.initialize();
-    REQ = Some(TestRequest { firestorm: firestorm});
-    let req = REQ.as_mut().unwrap() as &'static mut hil::adc::Request;
-    if adc.sample(1, req) {
-        firestorm.console.putstr("Booted. Requested ADC.\n");
-    } else {
-        firestorm.console.putstr("Booted. ADC request failed.\n");
-    }
     firestorm
 }
