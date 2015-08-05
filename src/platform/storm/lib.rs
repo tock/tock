@@ -33,7 +33,6 @@ impl TimerCB for TestTimer {
     fn fired(&'static mut self,
              request: &'static mut TimerRequest,
              now: u32) {
-        self.firestorm.led.toggle();
         self.firestorm.console.putstr("Timer fired!\n");
     }
 }
@@ -78,9 +77,9 @@ impl hil::adc::Request for TestRequest {
         self.firestorm.console.putstr("ADC reading: ");
         print_val(self.firestorm, val as u32);
         self.firestorm.console.putstr("\n");
-        let adc = ADC.as_mut().unwrap() as &'static mut hil::adc::AdcInternal;
+        let adc = &mut self.firestorm.chip.adc as &'static mut hil::adc::AdcInternal;
         adc.sample(1, self);
-        self.firestorm.led.toggle();
+        self.firestorm.led.on();
       }
   }
 }
@@ -177,21 +176,19 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     firestorm.console.initialize();
 
-    firestorm.timer.repeat(32768, &mut TIMER);
+    firestorm.timer.repeat(65536, &mut TIMER);
 
     // Configure pin to be ADC (channel 1)
-    chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::A));
-/*
-    chip.scif.general_clock_enable(sam4l::scif::GenericClock::GCLK10,
-                                   sam4l::scif::ClockSource::RCSYS);
-    ADC = Some(sam4l::adc::Adc::new());
-    let adc = ADC.as_mut().unwrap() as &'static mut hil::adc::AdcInternal;
+    chip.pa05.configure(Some(sam4l::gpio::PeripheralFunction::A));
+
+    let adc = &mut chip.adc as &'static mut hil::adc::AdcInternal;
     adc.initialize();
     REQ = Some(TestRequest { firestorm: firestorm});
     let req = REQ.as_mut().unwrap() as &'static mut hil::adc::Request;
-    adc.sample(1, req);
-    */
-    firestorm.console.putstr("Booted. Requested ADC.\n");
-    firestorm.led.on();
+    if adc.sample(1, req) {
+        firestorm.console.putstr("Booted. Requested ADC.\n");
+    } else {
+        firestorm.console.putstr("Booted. ADC request failed.\n");
+    }
     firestorm
 }
