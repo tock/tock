@@ -100,7 +100,7 @@ impl Adc {
         if self.request.is_none() {return;}
         let opt = self.request.take();
         let copt: &'static mut Request = opt.unwrap();
-        copt.sample_done(val);
+        copt.sample_done(val, copt);
     }
 
 }

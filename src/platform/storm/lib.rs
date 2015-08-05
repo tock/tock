@@ -75,18 +75,13 @@ pub fn print_val(firestorm: &'static mut Firestorm, val: u32) {
      }
 }
 
-pub struct TestRequest {
-    firestorm: &'static mut Firestorm
-}
-
 impl hil::adc::Request for TestApp {
-  fn sample_done(&'static mut self, val: u16) {
-      unsafe {
-        self.firestorm.console.putstr("ADC reading: ");
-        print_val(self.firestorm, val as u32);
-        self.firestorm.console.putstr("\n");
-        self.firestorm.led.toggle();
-      }
+#[allow(unused_variables)]
+  fn sample_done(&'static mut self, val: u16, request: &'static mut hil::adc::Request) {
+    self.firestorm.console.putstr("ADC reading: ");
+    print_val(self.firestorm, val as u32);
+    self.firestorm.console.putstr("\n");
+    self.firestorm.led.toggle();
   }
 }
 

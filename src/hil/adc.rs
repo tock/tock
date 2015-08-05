@@ -5,7 +5,7 @@
 */
 
 pub trait Request {
-  fn sample_done(&'static mut self, val: u16);
+  fn sample_done(&'static mut self, val: u16, request: &'static mut Request);
 }
 
 pub trait AdcInternal {
