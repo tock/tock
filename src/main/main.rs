@@ -1,8 +1,7 @@
-#![feature(core,core_str_ext,core_slice_ext,core_prelude,const_fn,no_std)]
+#![feature(core_str_ext,core_slice_ext,const_fn,no_std)]
 #![no_main]
 #![no_std]
 
-extern crate core;
 extern crate common;
 extern crate support;
 extern crate hil;
@@ -15,7 +14,6 @@ pub mod syscall;
 
 #[no_mangle]
 pub extern fn main() {
-    use core::prelude::*;
     use process::Process;
     use common::shared::Shared;
 

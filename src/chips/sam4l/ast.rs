@@ -1,4 +1,3 @@
-use core::prelude::*;
 use core::intrinsics;
 use nvic;
 use hil::Controller;

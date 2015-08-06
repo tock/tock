@@ -1,4 +1,3 @@
-use core::prelude::*;
 use core::cell::UnsafeCell;
 
 // Should T be `Sync`?

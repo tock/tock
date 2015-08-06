@@ -1,9 +1,8 @@
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(asm,core,core_intrinsics,core_prelude,core_slice_ext,concat_idents,no_std)]
+#![feature(asm,core_intrinsics,core_slice_ext,concat_idents,no_std)]
 #![no_std]
 
-extern crate core;
 extern crate common;
 extern crate hil;
 

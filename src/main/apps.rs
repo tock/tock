@@ -36,7 +36,6 @@ mod tmp006 {
 }
 
 mod console {
-    use core::prelude::*;
     use super::{command, subscribe};
 
     pub fn putc(c: char) {
@@ -81,7 +80,6 @@ pub mod app1 {
     use super::gpio::*;
     use super::tmp006::*;
     use core::str;
-    use core::prelude::*;
 
     static mut buf : [u8; 1024] = [0; 1024];
     static mut i : usize = 0;
@@ -149,8 +147,6 @@ r##"You may issue the following commands
     }
 
     fn parse_command(line: &str) {
-        use core::prelude::*;
-
         let mut words = line.split(|c| {
             c == '\n' || c == '\r' || c == ' ' || c == '\t'
         }).filter(|s| { !s.is_empty() });

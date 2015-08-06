@@ -1,6 +1,5 @@
 use core::intrinsics::{atomic_xadd, atomic_xsub, breakpoint, volatile_load, volatile_store};
 use core::mem;
-use core::prelude::*;
 use core::raw;
 
 use common::ring_buffer::RingBuffer;

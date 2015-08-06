@@ -1,9 +1,8 @@
 #![crate_name = "hil"]
 #![crate_type = "rlib"]
-#![feature(asm,lang_items,core,no_std)]
+#![feature(asm,lang_items,no_std)]
 #![no_std]
 
-extern crate core;
 extern crate process;
 
 pub mod gpio;

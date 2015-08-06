@@ -1,4 +1,3 @@
-use core::prelude::*;
 use support::atomic;
 
 pub struct RingBuffer<'a, T: 'a> {

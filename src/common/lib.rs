@@ -2,10 +2,9 @@
 
 #![crate_name = "common"]
 #![crate_type = "rlib"]
-#![feature(core,core_slice_ext,core_prelude,no_std)]
+#![feature(core_slice_ext,no_std)]
 #![no_std]
 
-extern crate core;
 extern crate support;
 
 pub mod shared;

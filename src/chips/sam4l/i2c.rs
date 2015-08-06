@@ -4,7 +4,6 @@
  * Uses the TWIM peripheral.
  */
 
-use core::prelude::SliceExt;
 use core::intrinsics;
 
 use hil;

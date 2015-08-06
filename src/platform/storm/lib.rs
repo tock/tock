@@ -1,15 +1,13 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(core,core_prelude,no_std)]
+#![feature(no_std)]
 
-extern crate core;
 extern crate common;
 extern crate drivers;
 extern crate hil;
 extern crate sam4l;
 
-use core::prelude::*;
 use hil::adc::AdcInternal;
 use hil::Controller;
 

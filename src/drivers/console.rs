@@ -1,4 +1,3 @@
-use core::prelude::*;
 use hil::{Driver,Callback};
 use hil::uart::{UART, Reader};
 
