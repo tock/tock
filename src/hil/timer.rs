@@ -66,16 +66,16 @@ impl TimerRequest {
 
 pub struct TimerMux {
     request: Option<&'static mut TimerRequest>,
-    internal: Option<&'static mut alarm::Alarm>
+    internal: &'static mut alarm::Alarm
 }
 
 impl TimerMux {
     pub fn new(internal: &'static mut alarm::Alarm) -> TimerMux {
         TimerMux {
             request: None,
-            internal: Some(internal)
+            internal: internal
         }
-  }
+    }
 
     /*
      * There are two pairs of functions for manipulating the ordered
@@ -190,24 +190,17 @@ impl TimerMux {
      * ticks).
      */
     fn start_request(&'static mut self) {
-        if self.request.is_none() {return;}
+        if self.request.is_none() { return }
 
-        let aopt: Option<&'static mut alarm::Alarm> = self.internal.take();
-        let alarm: &'static mut alarm::Alarm = aopt.unwrap();
-        let ropt = self.request.take();
-        let request: &'static mut TimerRequest = ropt.unwrap();
+        let request = self.request.as_mut().unwrap();
         let mut when = request.when;
-
-        let curr = alarm.now();
+        let curr = self.internal.now();
         let delay = request.when - curr;
         if delay > (0x80000000) {
             when = curr + LATE_DELAY;
             request.when = when;
         }
-        alarm.set_alarm(when, self);
-
-        self.internal = Some(alarm);
-        self.request = Some(request);
+        self.internal.set_alarm(when, self);
     }
 
 }
@@ -253,10 +246,7 @@ impl alarm::Request for TimerMux {
 
 impl Timer for TimerMux {
     fn now(&'static mut self) -> u32 {
-        let alarm = self.internal.as_mut().unwrap();
-        let val = alarm.now();
-        self.internal = Some(*alarm);
-        val
+        self.internal.now()
     }
 
     fn cancel(&'static mut self, request: &'static mut TimerRequest) {
