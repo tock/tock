@@ -13,17 +13,6 @@ use core::prelude::*;
 use hil::Controller;
 use hil::timer::*;
 
-pub static mut TIMER: TimerRequest = TimerRequest {
-    next: None,
-    is_active: false,
-    is_repeat: false,
-    when: 0,
-    interval: 0,
-    callback: None
-};
-
-pub static mut TIMER_MUX : Option<TimerMux> = None;
-
 pub struct Firestorm {
     chip: &'static mut sam4l::chip::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
@@ -79,7 +68,23 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     chip.ast.set_prescalar(0);
     chip.ast.clear_alarm();
 
+    static mut TIMER_MUX : Option<TimerMux> = None;
     TIMER_MUX = Some(TimerMux::new(&mut chip.ast));
+
+    let timer_mux = TIMER_MUX.as_mut().unwrap();
+
+    static mut TIMER_REQUEST: TimerRequest = TimerRequest {
+        next: None,
+        is_active: false,
+        is_repeat: false,
+        when: 0,
+        interval: 0,
+        callback: None
+    };
+    let timer_request = &mut TIMER_REQUEST;
+
+    let virtual_timer0 = VirtualTimer::new(timer_mux, timer_request);
+
 
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
@@ -91,13 +96,12 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &mut chip.pa19, &mut chip.pa14, &mut chip.pa16
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
-        tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2],
-                    VirtualTimer::new(TIMER_MUX.as_mut().unwrap(), &mut TIMER))
+        tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2], virtual_timer0)
     };
 
-    TIMER.callback = Some(&mut firestorm.tmp006);
+    timer_request.callback = Some(&mut firestorm.tmp006);
 
-    chip.ast.configure(TIMER_MUX.as_mut().unwrap());
+    chip.ast.configure(timer_mux);
 
     chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
