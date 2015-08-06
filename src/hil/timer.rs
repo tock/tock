@@ -18,6 +18,7 @@
  * calls to Timer.
  *
  * Author: Philip Levis <pal@cs.stanford.edu>
+ * Author: Amit Levy <levya@cs.stanford.edu>
  * Date: 7/16/15
  */
 #![allow(dead_code)]
@@ -32,14 +33,14 @@ use alarm;
 const LATE_DELAY: u32 = 5;
 
 pub trait TimerCB {
-    fn fired(&'static mut self, &'static mut TimerRequest, now: u32);
+    fn fired(&mut self, &'static mut TimerRequest, now: u32);
 }
 
 pub trait Timer {
-    fn now(&'static self) -> u32;
-    fn cancel(&'static mut self, &'static mut TimerRequest);
-    fn oneshot(&'static mut self, interval: u32, &'static mut TimerRequest);
-    fn repeat(&'static mut self, interval: u32, &'static mut TimerRequest);
+    fn now(&self) -> u32;
+    fn cancel(&mut self, &'static mut TimerRequest);
+    fn oneshot(&mut self, interval: u32, &'static mut TimerRequest);
+    fn repeat(&mut self, interval: u32, &'static mut TimerRequest);
 }
 
 pub struct TimerRequest {
@@ -87,7 +88,7 @@ impl VirtualTimer {
         self.internal.cancel(self.request)
     }
 
-    pub fn now(&'static self) -> u32 {
+    pub fn now(&self) -> u32 {
         self.internal.now()
     }
 }
@@ -118,7 +119,7 @@ impl TimerMux {
 
     /* Insert a TimerRequest into the linked list, reconfiguring the
      * hardware alarm if it is inserted as the first element. */
-    fn add(&'static mut self, request: &'static mut TimerRequest) -> bool {
+    fn add(&mut self, request: &'static mut TimerRequest) -> bool {
         let changed = self.insert(request);
         if changed {
             self.start_request();
@@ -128,7 +129,7 @@ impl TimerMux {
 
     /* Remove a TimerRequest into the linked list, reconfiguring the
      * hardware alarm if it was the first element. */
-    fn remove(&'static mut self, request: &'static mut TimerRequest) -> bool {
+    fn remove(&mut self, request: &'static mut TimerRequest) -> bool {
         let changed = self.delete(request);
         if changed {
             self.start_request();
@@ -138,7 +139,7 @@ impl TimerMux {
 
     /* Insert a TimerRequest into the linked list. Returns whether hardware 
     * clock has to be recalculated (inserted timer is now first timer) */
-    fn insert(&'static mut self, request: &'static mut TimerRequest) -> bool {
+    fn insert(&mut self, request: &'static mut TimerRequest) -> bool {
         if request.next.is_some() { // Already on a list, this is an error!
             false
         } else if self.request.is_none() {
@@ -183,7 +184,7 @@ impl TimerMux {
 
     /* Delete a TimerRequest from the linked list. Returns whether hardware 
      * clock has to be recalculated (removed first timer) */
-    fn delete(&'static mut self, request: &'static mut TimerRequest) -> bool {
+    fn delete(&mut self, request: &'static mut TimerRequest) -> bool {
         if self.request.is_none() {return false;}
 
         let mut done = false;
@@ -217,28 +218,30 @@ impl TimerMux {
      * timer has passed (is late) and so fires immediately (in LATE_DELAY
      * ticks).
      */
-    fn start_request(&'static mut self) {
-        if self.request.is_none() { return }
-
-        let request = self.request.as_mut().unwrap();
-        let mut when = request.when;
-        let curr = self.internal.now();
-        let delay = request.when - curr;
-        if delay > (0x80000000) {
-            when = curr + LATE_DELAY;
-            request.when = when;
+    fn start_request(&mut self) {
+        match self.request {
+            Some(ref mut request) => {
+                let mut when = request.when;
+                let curr = self.internal.now();
+                let delay = request.when - curr;
+                if delay > (0x80000000) {
+                    when = curr + LATE_DELAY;
+                    request.when = when;
+                }
+                self.internal.set_alarm(when);
+            },
+            None => {}
         }
-        self.internal.set_alarm(when, self);
     }
 
 }
 
-impl alarm::Request for TimerMux {
+impl alarm::AlarmClient for TimerMux {
 
     // The hardware alarm fired. If its firing matches the expected
     // firing time, invoke the next software timer and schedule the
     // following one.
-    fn fired(&'static mut self) {
+    fn fired(&mut self) {
         if self.request.is_none() {return;}
         let curr = self.now();
         let ropt = self.request.take();
@@ -273,18 +276,18 @@ impl alarm::Request for TimerMux {
 }
 
 impl Timer for TimerMux {
-    fn now(&'static self) -> u32 {
+    fn now(&self) -> u32 {
         self.internal.now()
     }
 
-    fn cancel(&'static mut self, request: &'static mut TimerRequest) {
+    fn cancel(&mut self, request: &'static mut TimerRequest) {
         if !request.is_active {return;}
 
         request.is_active = false;
         self.remove(request);
     }
 
-    fn oneshot(&'static mut self, interval: u32, request: &'static mut TimerRequest) {
+    fn oneshot(&mut self, interval: u32, request: &'static mut TimerRequest) {
         request.interval = interval;
         request.is_active = true;
         request.when = self.now() + interval;
@@ -292,7 +295,7 @@ impl Timer for TimerMux {
         self.add(request);
     }
 
-    fn repeat(&'static mut self, interval: u32, request: &'static mut TimerRequest) {
+    fn repeat(&mut self, interval: u32, request: &'static mut TimerRequest) {
         request.interval = interval;
         request.is_active = true;
         request.when = self.now() + interval;

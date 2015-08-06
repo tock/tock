@@ -4,6 +4,7 @@
 #![no_std]
 
 extern crate core;
+extern crate common;
 extern crate process;
 
 pub mod led;

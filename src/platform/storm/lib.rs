@@ -97,6 +97,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     TIMER.callback = Some(&mut firestorm.tmp006);
 
+    chip.ast.configure(TIMER_MUX.as_mut().unwrap());
+
     chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
         baud_rate: 115200,
