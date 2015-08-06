@@ -12,7 +12,6 @@ extern crate sam4l;
 use core::prelude::*;
 use hil::Controller;
 use hil::timer::*;
-use hil::led::*;
 
 pub static mut TIMER: TimerRequest = TimerRequest {
     next: None,
@@ -22,28 +21,12 @@ pub static mut TIMER: TimerRequest = TimerRequest {
     interval: 0,
     callback: None
 };
-pub static mut TIMERCB: Option<TestTimer> = None;
-
-pub struct TestTimer {
-    led: &'static mut hil::led::Led
-}
-
-#[allow(unused_variables)]
-impl TimerCB for TestTimer {
-    fn fired(&'static mut self, 
-             request: &'static mut TimerRequest, 
-             now: u32) {
-        self.led.toggle();
-    }
-}
 
 pub struct Firestorm {
     chip: &'static mut sam4l::chip::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
-    timer: TimerMux,
-    led: LedHigh
 }
 
 impl Firestorm {
@@ -55,8 +38,8 @@ impl Firestorm {
         self.chip.has_pending_interrupts()
     }
 
-    pub fn with_driver<F, R>(&mut self, driver_num: usize, mut f: F) -> R where
-            F: FnMut(Option<&mut hil::Driver>) -> R {
+    pub fn with_driver<F, R>(&'static mut self, driver_num: usize, mut f: F) -> R where
+            F: FnMut(Option<&'static mut hil::Driver>) -> R {
 
         f(match driver_num {
             0 => Some(&mut self.console),
@@ -104,15 +87,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &mut chip.pa19, &mut chip.pa14, &mut chip.pa16
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
-        tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
-        timer: hil::timer::TimerMux::new(&mut chip.ast),
-        led: hil::led::LedHigh::new(&mut chip.pc10)
+        tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2],
+                    hil::timer::TimerMux::new(&mut chip.ast), &mut TIMER)
     };
 
-    TIMERCB = Some(TestTimer {led: &mut firestorm.led });
-    TIMER = TimerRequest::new(TIMERCB.as_mut().unwrap());
-
-    firestorm.led.init();
+    TIMER.callback = Some(&mut firestorm.tmp006);
 
     chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
@@ -128,8 +107,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     chip.pa22.configure(Some(sam4l::gpio::PeripheralFunction::E));
 
     firestorm.console.initialize();
-
-    firestorm.timer.repeat(32768, &mut TIMER);
 
     firestorm
 }

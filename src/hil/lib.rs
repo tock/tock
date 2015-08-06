@@ -23,7 +23,7 @@ pub trait Controller {
 }
 
 pub trait Driver {
-    fn subscribe(&mut self, subscribe_type: usize, callback: Callback) -> isize;
+    fn subscribe(&'static mut self, subscribe_type: usize, callback: Callback) -> isize;
     fn command(&mut self, cmd_type: usize, r2: usize) -> isize;
 
     #[allow(unused)]
