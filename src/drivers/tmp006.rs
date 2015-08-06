@@ -15,7 +15,7 @@ enum Registers {
 pub struct TMP006<I: I2C + 'static> {
     i2c: &'static mut I,
     timer: TimerMux,
-    timer_request: Option<&'static mut TimerRequest>,
+    timer_request: &'static mut TimerRequest,
     callback: Option<Callback>
 }
 
@@ -23,7 +23,7 @@ impl<I: I2C> TMP006<I> {
     pub fn new(i2c: &'static mut I, timer: TimerMux,
                timer_request: &'static mut TimerRequest)
             -> TMP006<I> {
-        TMP006{i2c: i2c, timer: timer, timer_request: Some(timer_request), callback: None}
+        TMP006{i2c: i2c, timer: timer, timer_request: timer_request, callback: None}
     }
 
     pub fn foo(&mut self) {
@@ -85,7 +85,7 @@ impl<I: I2C> Driver for TMP006<I> {
 
                 self.i2c.enable();
                 self.callback = Some(callback);
-                self.timer.repeat(32768, self.timer_request.take().unwrap());
+                self.timer.repeat(32768, self.timer_request);
                 0
             },
             _ => -1
