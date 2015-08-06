@@ -14,16 +14,13 @@ enum Registers {
 
 pub struct TMP006<I: I2C + 'static> {
     i2c: &'static mut I,
-    timer: TimerMux,
-    timer_request: &'static mut TimerRequest,
+    timer: VirtualTimer,
     callback: Option<Callback>
 }
 
 impl<I: I2C> TMP006<I> {
-    pub fn new(i2c: &'static mut I, timer: TimerMux,
-               timer_request: &'static mut TimerRequest)
-            -> TMP006<I> {
-        TMP006{i2c: i2c, timer: timer, timer_request: timer_request, callback: None}
+    pub fn new(i2c: &'static mut I, timer: VirtualTimer) -> TMP006<I> {
+        TMP006{i2c: i2c, timer: timer, callback: None}
     }
 
     pub fn foo(&mut self) {
@@ -77,15 +74,12 @@ impl<I: I2C> TimerCB for TMP006<I> {
 }
 
 impl<I: I2C> Driver for TMP006<I> {
-    fn subscribe(&'static mut self, subscribe_num: usize, mut callback: Callback) -> isize {
+    fn subscribe(&'static mut self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 /* read temperature  */ => {
-                let mut buf: [u8; 3] = [0; 3];
-                let mut config: u16;
-
                 self.i2c.enable();
                 self.callback = Some(callback);
-                self.timer.repeat(32768, self.timer_request);
+                self.timer.repeat(32768);
                 0
             },
             _ => -1

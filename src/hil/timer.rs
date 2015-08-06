@@ -36,7 +36,7 @@ pub trait TimerCB {
 }
 
 pub trait Timer {
-    fn now(&'static mut self) -> u32;
+    fn now(&'static self) -> u32;
     fn cancel(&'static mut self, &'static mut TimerRequest);
     fn oneshot(&'static mut self, interval: u32, &'static mut TimerRequest);
     fn repeat(&'static mut self, interval: u32, &'static mut TimerRequest);
@@ -61,6 +61,34 @@ impl TimerRequest {
             interval:  0,
             callback:  Some(cb)
         }
+    }
+}
+
+pub struct VirtualTimer {
+    request: &'static mut TimerRequest,
+    internal: &'static mut Timer
+}
+
+impl VirtualTimer {
+    pub fn new(timer: &'static mut Timer, req: &'static mut TimerRequest)
+        -> VirtualTimer {
+        VirtualTimer { request: req, internal: timer }
+    }
+
+    pub fn repeat(&'static mut self, interval: u32) {
+        self.internal.repeat(interval, self.request)
+    }
+
+    pub fn oneshot(&'static mut self, interval: u32) {
+        self.internal.oneshot(interval, self.request)
+    }
+
+    pub fn cancel(&'static mut self) {
+        self.internal.cancel(self.request)
+    }
+
+    pub fn now(&'static self) -> u32 {
+        self.internal.now()
     }
 }
 
@@ -245,7 +273,7 @@ impl alarm::Request for TimerMux {
 }
 
 impl Timer for TimerMux {
-    fn now(&'static mut self) -> u32 {
+    fn now(&'static self) -> u32 {
         self.internal.now()
     }
 

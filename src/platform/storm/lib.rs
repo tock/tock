@@ -22,6 +22,8 @@ pub static mut TIMER: TimerRequest = TimerRequest {
     callback: None
 };
 
+pub static mut TIMER_MUX : Option<TimerMux> = None;
+
 pub struct Firestorm {
     chip: &'static mut sam4l::chip::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
@@ -77,6 +79,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     chip.ast.set_prescalar(0);
     chip.ast.clear_alarm();
 
+    TIMER_MUX = Some(TimerMux::new(&mut chip.ast));
+
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
         chip: chip,
@@ -88,7 +92,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
         tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2],
-                    hil::timer::TimerMux::new(&mut chip.ast), &mut TIMER)
+                    VirtualTimer::new(TIMER_MUX.as_mut().unwrap(), &mut TIMER))
     };
 
     TIMER.callback = Some(&mut firestorm.tmp006);
