@@ -4,7 +4,6 @@
 #![no_std]
 
 extern crate core;
-extern crate common;
 extern crate process;
 
 pub mod led;
@@ -24,7 +23,7 @@ pub trait Controller {
 }
 
 pub trait Driver {
-    fn subscribe(&'static mut self, subscribe_type: usize, callback: Callback) -> isize;
+    fn subscribe(&mut self, subscribe_type: usize, callback: Callback) -> isize;
     fn command(&mut self, cmd_type: usize, r2: usize) -> isize;
 
     #[allow(unused)]

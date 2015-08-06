@@ -13,8 +13,10 @@ impl<T> Shared<T> {
         }
     }
 
-    pub unsafe fn borrow_mut<'a: 'b,'b>(&'a self) -> &'b mut T {
-        &mut *self.value.get()
+    pub fn borrow_mut<'a: 'b,'b>(&'a self) -> &'b mut T {
+        unsafe {
+            &mut *self.value.get()
+        }
     }
 }
 

@@ -74,7 +74,7 @@ impl<I: I2C> TimerCB for TMP006<I> {
 }
 
 impl<I: I2C> Driver for TMP006<I> {
-    fn subscribe(&'static mut self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&mut self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 /* read temperature  */ => {
                 self.i2c.enable();
