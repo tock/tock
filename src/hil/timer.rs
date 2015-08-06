@@ -24,7 +24,6 @@
 #![allow(dead_code)]
 
 use core::prelude::*;
-use core::mem::transmute;
 use alarm;
 
 // If a timer is late (was supposed to fire in the past), LATE_DELAY
@@ -67,32 +66,35 @@ impl TimerRequest {
 }
 
 pub struct VirtualTimer {
-    request: *mut TimerRequest,
+    request: Option<&'static mut TimerRequest>,
     internal: &'static mut Timer
 }
 
 impl VirtualTimer {
     pub fn new(timer: &'static mut Timer, req: &'static mut TimerRequest)
         -> VirtualTimer {
-        VirtualTimer { request: req, internal: timer }
+        VirtualTimer { request: Some(req), internal: timer }
     }
 
     pub fn repeat(&mut self, interval: u32) {
-        unsafe {
-            self.internal.repeat(interval, transmute(self.request))
-        }
+        self.request.take().map(|request| {
+            self.request = Some(request);
+            self.internal.repeat(interval, request);
+        });
     }
 
     pub fn oneshot(&mut self, interval: u32) {
-        unsafe {
-            self.internal.oneshot(interval, transmute(self.request))
-        }
+        self.request.take().map(|request| {
+            self.request = Some(request);
+            self.internal.oneshot(interval, request);
+        });
     }
 
     pub fn cancel(&mut self) {
-        unsafe {
-            self.internal.cancel(transmute(self.request))
-        }
+        self.request.take().map(|request| {
+            self.request = Some(request);
+            self.internal.cancel(request);
+        });
     }
 
     pub fn now(&self) -> u32 {
