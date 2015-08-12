@@ -1,7 +1,7 @@
 RUSTC_FLAGS += -C opt-level=2 -Z no-landing-pads
 RUSTC_FLAGS += --target src/chips/sam4l/target.json
 RUSTC_FLAGS += -Ctarget-cpu=cortex-m4 -C relocation_model=static
-RUSTC_FLAGS += -g -C no-stack-check
+RUSTC_FLAGS += -C no-stack-check
 
 CFLAGS += -g -O3 -std=gnu99 -mcpu=cortex-m4 -mthumb -nostdlib
 LDFLAGS += -Tsrc/chips/sam4l/loader.ld

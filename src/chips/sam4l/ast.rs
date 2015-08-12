@@ -8,7 +8,8 @@
 use core::prelude::*;
 use core::intrinsics;
 use nvic;
-use hil::alarm::{Alarm, Request};
+use hil::alarm::{Alarm, AlarmClient};
+use hil::Controller;
 use chip;
 
 #[repr(C, packed)]
@@ -44,7 +45,15 @@ pub const AST_BASE: isize = 0x400F0800;
 #[allow(missing_copy_implementations)]
 pub struct Ast {
     regs: &'static mut AstRegisters,
-    callback: Option<&'static mut Request>
+    callback: Option<&'static mut AlarmClient>
+}
+
+impl Controller for Ast {
+    type Config = &'static mut AlarmClient;
+
+    fn configure(&mut self, client: &'static mut AlarmClient) {
+        self.callback = Some(client);
+    }
 }
 
 #[repr(usize)]
@@ -201,12 +210,11 @@ impl Ast {
         }
     }
 
-    #[inline(never)]
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
-        let opt = self.callback.take();
-        let copt: &'static mut Request = opt.unwrap();
-        copt.fired();
+        self.callback.as_mut().map(|cb| {
+            cb.fired();
+        });
     }
 
 }
@@ -223,10 +231,9 @@ impl Alarm for Ast {
         self.clear_alarm();
     }
 
-    fn set_alarm(&mut self, tics: u32, req: &'static mut Request) {
+    fn set_alarm(&mut self, tics: u32) {
         self.disable();
         while self.busy() {}
-        self.callback = Some(req);
         unsafe {
             intrinsics::volatile_store(&mut (*self.regs).ar0, tics);
         }
