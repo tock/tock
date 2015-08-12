@@ -15,37 +15,24 @@ enum Registers {
 pub struct TMP006<I: I2C + 'static> {
     i2c: &'static mut I,
     timer: VirtualTimer,
+    last_temp: Option<i16>,
     callback: Option<Callback>
 }
 
 impl<I: I2C> TMP006<I> {
     pub fn new(i2c: &'static mut I, timer: VirtualTimer) -> TMP006<I> {
-        TMP006{i2c: i2c, timer: timer, callback: None}
-    }
-
-    pub fn foo(&mut self) {
+        TMP006{i2c: i2c, timer: timer, last_temp: None, callback: None}
     }
 }
 
 impl<I: I2C> TimerCB for TMP006<I> {
-    fn fired(&mut self, _: &'static mut TimerRequest, _: u32) {
+    fn fired(&mut self, _: u32) {
         let mut buf: [u8; 3] = [0; 3];
-        let mut config: u16;
 
-        // Start by enabling the sensor
-        config = 0x7 << 12;
-        buf[0] = Registers::Configuration as u8;
-        buf[1] = ((config & 0xFF00) >> 8) as u8;
-        buf[2] = (config & 0x00FF) as u8;
-        self.i2c.write_sync(0x40, &buf);
-
-
-        // Wait for ready bit in control register
-        loop {
-            self.i2c.read_sync(0x40, &mut buf[0..2]);
-            if buf[1] & 0x80 == 0x80 {
-                break;
-            }
+        // If not ready, wait for next timer fire
+        self.i2c.read_sync(0x40, &mut buf[0..2]);
+        if buf[1] & 0x80 != 0x80 {
+            return;
         }
 
         // Now set the correct register pointer value so we can issue a read
@@ -67,19 +54,25 @@ impl<I: I2C> TimerCB for TMP006<I> {
 
         // Shift to the right to make it 14 bits (this should be a signed shift)
         // The die temp is is in 1/32 degrees C.
-        self.callback.as_mut().map(|cb| {
-            cb.schedule((die_temp >> 2) as usize, 0, 0);
+        let final_temp = die_temp >> 2;
+        self.last_temp = Some(final_temp);
+
+        self.callback.take().map(|mut cb| {
+            cb.schedule(final_temp as usize, 0, 0);
         });
     }
 }
 
 impl<I: I2C> Driver for TMP006<I> {
-    fn subscribe(&mut self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&mut self, subscribe_num: usize, mut callback: Callback) -> isize {
         match subscribe_num {
             0 /* read temperature  */ => {
-                self.i2c.enable();
-                self.callback = Some(callback);
-                self.timer.repeat(32768);
+                match self.last_temp {
+                    Some(temp) => callback.schedule(temp as usize, 0, 0),
+                    None => {
+                        self.callback = Some(callback);
+                    }
+                }
                 0
             },
             _ => -1
@@ -89,10 +82,10 @@ impl<I: I2C> Driver for TMP006<I> {
     fn command(&mut self, cmd_num: usize, _: usize) -> isize {
         match cmd_num {
             0 /* Enable sensor  */ => {
+                self.i2c.enable();
+
                 let mut buf: [u8; 3] = [0; 3];
                 let mut config: u16;
-
-                self.i2c.enable();
 
                 // Start by enabling the sensor
                 config = 0x7 << 12;
@@ -100,6 +93,8 @@ impl<I: I2C> Driver for TMP006<I> {
                 buf[1] = ((config & 0xFF00) >> 8) as u8;
                 buf[2] = (config & 0x00FF) as u8;
                 self.i2c.write_sync(0x40, &buf);
+
+                self.timer.repeat(32768);
 
                 0
             },

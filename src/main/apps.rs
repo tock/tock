@@ -131,7 +131,6 @@ r##"You may issue the following commands
                 return
             }
         }
-        subscribe_temperature(tmp_available);
         enable_tmp006();
         puts(PROMPT);
     }
@@ -142,6 +141,8 @@ r##"You may issue the following commands
         putc((('0' as i16) + (tmp / 10)) as u8 as char);
         putc((('0' as i16) + (tmp % 10)) as u8 as char);
         puts("\r\n");
+
+        puts(PROMPT);
     }
 
     fn line_read(len: usize, b: *mut u8) {
@@ -153,7 +154,6 @@ r##"You may issue the following commands
             },
             Err(_) => puts("Invalid UTF8 sequence")
         }
-        puts(PROMPT);
     }
 
     fn parse_command(line: &str) {
@@ -166,6 +166,7 @@ r##"You may issue the following commands
         match cmd {
             Some("help") => {
                 puts(HELP_MESSAGE);
+                puts(PROMPT);
             },
             Some("echo") => {
                 words.next().map(|word| {
@@ -176,6 +177,7 @@ r##"You may issue the following commands
                     puts(w);
                 }
                 puts("\r\n");
+                puts(PROMPT);
             },
             Some("enable") => {
                 match words.next().map(|w| w.parse()) {
@@ -184,6 +186,7 @@ r##"You may issue the following commands
                         puts("Error: first argument must be the pin number\r\n");
                     }
                 }
+                puts(PROMPT);
             },
             Some("set") => {
                 match words.next().map(|w| w.parse()) {
@@ -192,6 +195,7 @@ r##"You may issue the following commands
                         puts("Error: first argument must be the pin number\r\n");
                     }
                 }
+                puts(PROMPT);
             },
             Some("clear") => {
                 match words.next().map(|w| w.parse()) {
@@ -200,6 +204,7 @@ r##"You may issue the following commands
                         puts("Error: first argument must be the pin number\r\n");
                     }
                 }
+                puts(PROMPT);
             },
             Some("toggle") => {
                 match words.next().map(|w| w.parse()) {
@@ -208,13 +213,20 @@ r##"You may issue the following commands
                         puts("Error: first argument must be the pin number\r\n");
                     }
                 }
+                puts(PROMPT);
             },
+            Some("temp") => {
+                subscribe_temperature(tmp_available);
+            }
             Some(c) => {
                 puts("Unknown command: ");
                 puts(c);
                 puts("\r\n");
+                puts(PROMPT);
             },
-            _ => {}
+            _ => {
+                puts(PROMPT);
+            }
         }
     }
 }

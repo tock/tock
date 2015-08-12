@@ -33,7 +33,7 @@ use alarm;
 const LATE_DELAY: u32 = 5;
 
 pub trait TimerCB {
-    fn fired(&mut self, &'static mut TimerRequest, now: u32);
+    fn fired(&mut self, now: u32);
 }
 
 pub trait Timer {
@@ -274,7 +274,7 @@ impl alarm::AlarmClient for TimerMux {
                 request.is_active = false;
             }
             self.start_request();
-            cb.fired(request, curr);
+            cb.fired(curr);
         } else {
             // Timer fired early. Not sure why this happens,
             // But it does -pal 7/28/15
