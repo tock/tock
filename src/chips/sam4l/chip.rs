@@ -6,6 +6,7 @@ use gpio;
 use i2c;
 use nvic;
 use usart;
+use spi;
 
 pub struct Sam4l {
     pub queue: RingBuffer<'static, nvic::NvicIdx>,
@@ -13,6 +14,7 @@ pub struct Sam4l {
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
     pub i2c: [i2c::I2CDevice; 4],
+    pub spi: spi::SPI,
     pub pa00: gpio::GPIOPin, pub pa01: gpio::GPIOPin, pub pa02: gpio::GPIOPin,
     pub pa03: gpio::GPIOPin, pub pa04: gpio::GPIOPin, pub pa05: gpio::GPIOPin,
     pub pa06: gpio::GPIOPin, pub pa07: gpio::GPIOPin, pub pa08: gpio::GPIOPin,
@@ -67,6 +69,7 @@ impl Sam4l {
                 i2c::I2CDevice::new(i2c::Location::I2C02, i2c::Speed::Fast400k),
                 i2c::I2CDevice::new(i2c::Location::I2C03, i2c::Speed::Fast400k)
             ],
+            spi: spi::SPI::new(),
             usarts: [
                 usart::USART::new(usart::Location::USART0),
                 usart::USART::new(usart::Location::USART1),
@@ -192,4 +195,3 @@ impl Sam4l {
         self.queue.has_elements()
     }
 }
-
