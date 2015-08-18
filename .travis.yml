@@ -1,0 +1,13 @@
+language: rust
+rust:
+  - nightly
+matrix:
+  allow_failure:
+    - rust: nightly
+
+before_install:
+  - sudo add-apt-repository ppa:terry.guo/gcc-arm-embedded -y
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq gcc-arm-none-eabi
+
+script: make build/main.elf
