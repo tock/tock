@@ -1,4 +1,5 @@
 include src/chips/Makefile.mk
+include src/common/Makefile.mk
 include src/arch/$(ARCH)/Makefile.mk
 include src/drivers/Makefile.mk
 include src/hil/Makefile.mk

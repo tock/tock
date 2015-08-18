@@ -21,6 +21,7 @@ pub fn volatile_bitwise_or<T: BitOr<Output = T>>(item: &mut T, val: T) {
     volatile_transform(item, |t| { t | val });
 }
 
+#[allow(dead_code)]
 pub fn volatile_bitwise_and<T: BitAnd<Output = T>>(item: &mut T, val: T) {
     volatile_transform(item, |t| { t & val });
 }

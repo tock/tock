@@ -58,14 +58,12 @@ pub extern fn rust_begin_unwind(_fmt: &Arguments,
 }
 
 #[doc(hidden)]
-#[no_stack_check]
 #[no_mangle]
 pub unsafe extern fn __aeabi_unwind_cpp_pr0() {
   abort();
 }
 
 #[doc(hidden)]
-#[no_stack_check]
 #[no_mangle]
 pub unsafe extern fn __aeabi_unwind_cpp_pr1() {
   abort();
