@@ -1,3 +1,4 @@
+use helpers::*;
 use core::intrinsics;
 use core::cmp;
 
@@ -108,7 +109,7 @@ impl SPI {
 
     /// Returns the currently active peripheral
     pub fn get_active_peripheral(&self) -> Peripheral {
-        let mr = volatile!(self.regs.mr);
+        let mr = volatile_load(&self.regs.mr);
         let pcs = (mr >> 16) & 0xF;
         // Split into bits for matching
         let pcs_bits = ((pcs >> 3) & 1, (pcs >> 2) & 1, (pcs >> 1) & 1, pcs & 1);
@@ -133,39 +134,39 @@ impl SPI {
             Peripheral::Peripheral3 => 0b0111,
         };
 
-        let mut mr = volatile!(self.regs.mr);
+        let mut mr = volatile_load(&self.regs.mr);
         // Clear and set MR.PCS
         let pcs_mask: u32 = 0xFFF0FFFF;
         mr &= pcs_mask;
         mr |= peripheral_number << 16;
-        volatile!(self.regs.mr = mr);
+        volatile_store(&mut self.regs.mr, mr);
     }
 
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
     /// peripheral
     fn read_active_csr(&self) -> u32 {
         match self.get_active_peripheral() {
-            Peripheral::Peripheral0 => volatile!(self.regs.csr0),
-            Peripheral::Peripheral1 => volatile!(self.regs.csr1),
-            Peripheral::Peripheral2 => volatile!(self.regs.csr2),
-            Peripheral::Peripheral3 => volatile!(self.regs.csr3),
+            Peripheral::Peripheral0 => volatile_load(&self.regs.csr0),
+            Peripheral::Peripheral1 => volatile_load(&self.regs.csr1),
+            Peripheral::Peripheral2 => volatile_load(&self.regs.csr2),
+            Peripheral::Peripheral3 => volatile_load(&self.regs.csr3),
         }
     }
     /// Sets the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
     /// peripheral
     fn write_active_csr(&mut self, value: u32) {
         match self.get_active_peripheral() {
-            Peripheral::Peripheral0 => volatile!(self.regs.csr0 = value),
-            Peripheral::Peripheral1 => volatile!(self.regs.csr1 = value),
-            Peripheral::Peripheral2 => volatile!(self.regs.csr2 = value),
-            Peripheral::Peripheral3 => volatile!(self.regs.csr3 = value),
+            Peripheral::Peripheral0 => volatile_store(&mut self.regs.csr0, value),
+            Peripheral::Peripheral1 => volatile_store(&mut self.regs.csr1, value),
+            Peripheral::Peripheral2 => volatile_store(&mut self.regs.csr2, value),
+            Peripheral::Peripheral3 => volatile_store(&mut self.regs.csr3, value),
         };
     }
 
 
     /// Ends the SPI transaction by setting the slave select high
     fn end_transaction(&mut self) {
-        volatile!(self.regs.cr = 1 << 24);
+        volatile_store(&mut self.regs.cr, 1 << 24);
     }
 }
 
@@ -190,26 +191,26 @@ impl spi_master::SPI for SPI {
         self.write_active_csr(csr);
 
         // Indicate the last transfer, so that the slave select will be disabled
-        volatile!(self.regs.cr = 1 << 24);
+        volatile_store(&mut self.regs.cr, 1 << 24);
 
-        let mut mode = volatile!(self.regs.mr);
+        let mut mode = volatile_load(&self.regs.mr);
         // Enable master mode
         mode |= 1;
         // Disable mode fault detection (open drain outputs do not seem to be supported)
         mode |= 1 << 4;
-        volatile!(self.regs.mr = mode);
+        volatile_store(&mut self.regs.mr, mode);
     }
 
     fn write_byte(&mut self, out_byte: u8, last_transfer: bool) -> u8 {
         let tdr = out_byte as u32;
-        volatile!(self.regs.tdr = tdr);
+        volatile_store(&mut self.regs.tdr, tdr);
         if last_transfer {
             self.end_transaction();
         }
         // Wait for receive data register full
-        while (volatile!(self.regs.sr) & 1) != 1 {}
+        while (volatile_load(&self.regs.sr) & 1) != 1 {}
         // Return read value
-        volatile!(self.regs.rdr) as u8
+        volatile_load(&self.regs.rdr) as u8
     }
 
     fn read_byte(&mut self, last_transfer: bool) -> u8 {
@@ -221,14 +222,14 @@ impl spi_master::SPI for SPI {
         for i in 0..buffer.len() {
             // Write 0
             let tdr: u32 = 0;
-            volatile!(self.regs.tdr = tdr);
+            volatile_store(&mut self.regs.tdr, tdr);
             if last_transfer && i == buffer.len() - 1 {
                 self.end_transaction();
             }
             // Wait for receive data register full
-            while (volatile!(self.regs.sr) & 1) != 1 {}
+            while (volatile_load(&self.regs.sr) & 1) != 1 {}
 
-            buffer[i] = volatile!(self.regs.rdr) as u8;
+            buffer[i] = volatile_load(&self.regs.rdr) as u8;
         }
         if let Some(ref mut client) = self.client {
             client.read_done();
@@ -240,12 +241,12 @@ impl spi_master::SPI for SPI {
         for i in 0..buffer.len() {
             let tdr: u32 = buffer[i] as u32;
             // Write the value
-            volatile!(self.regs.tdr = tdr);
+            volatile_store(&mut self.regs.tdr, tdr);
             if last_transfer && i == buffer.len() - 1 {
                 self.end_transaction();
             }
             // Wait for transmit data register empty
-            while ((volatile!(self.regs.sr) >> 1) & 1) != 1 {}
+            while ((volatile_load(&self.regs.sr) >> 1) & 1) != 1 {}
         }
         if let Some(ref mut client) = self.client {
             client.write_done();
@@ -258,14 +259,14 @@ impl spi_master::SPI for SPI {
         for i in 0..count {
             let tdr: u32 = write_buffer[i] as u32;
             // Write the value
-            volatile!(self.regs.tdr = tdr);
+            volatile_store(&mut self.regs.tdr, tdr);
             if last_transfer && i == count - 1 {
                 self.end_transaction();
             }
             // Wait for receive data register full
-            while (volatile!(self.regs.sr) & 1) != 1 {}
+            while (volatile_load(&self.regs.sr) & 1) != 1 {}
             // Read the received value
-            let read_byte = volatile!(self.regs.rdr) as u8;
+            let read_byte = volatile_load(&self.regs.rdr) as u8;
             read_buffer[i] = read_byte;
         }
         if let Some(ref mut client) = self.client {
@@ -274,10 +275,10 @@ impl spi_master::SPI for SPI {
     }
 
     fn enable(&mut self) {
-        volatile!(self.regs.cr = 0b1);
+        volatile_store(&mut self.regs.cr, 0b1);
     }
 
     fn disable(&mut self) {
-        volatile!(self.regs.cr = 0b10);
+        volatile_store(&mut self.regs.cr, 0b10);
     }
 }

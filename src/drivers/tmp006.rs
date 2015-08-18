@@ -55,7 +55,6 @@ impl<I: I2C> TimerCB for TMP006<I> {
         // The die temp is is in 1/32 degrees C.
         let final_temp = die_temp >> 2;
         self.last_temp = Some(final_temp);
-
         self.callback.take().map(|mut cb| {
             cb.schedule(final_temp as usize, 0, 0);
         });
@@ -84,10 +83,9 @@ impl<I: I2C> Driver for TMP006<I> {
                 self.i2c.enable();
 
                 let mut buf: [u8; 3] = [0; 3];
-                let mut config: u16;
 
                 // Start by enabling the sensor
-                config = 0x7 << 12;
+                let config = 0x7 << 12;
                 buf[0] = Registers::Configuration as u8;
                 buf[1] = ((config & 0xFF00) >> 8) as u8;
                 buf[2] = (config & 0x00FF) as u8;

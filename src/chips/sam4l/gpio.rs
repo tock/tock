@@ -1,3 +1,4 @@
+use helpers::*;
 use core::intrinsics;
 use hil;
 
@@ -101,35 +102,35 @@ impl GPIOPin {
         let (bit0, bit1, bit2) = (f & 0b1, (f & 0b10) >> 1, (f & 0b100) >> 2);
 
         // clear GPIO enable for pin
-        volatile!(self.port.gper.clear = self.pin_mask);
+        volatile_store(&mut self.port.gper.clear, self.pin_mask);
 
         // Set PMR0-2 according to passed in peripheral
 
         // bradjc: This code doesn't look great, but actually works.
         if bit0 == 0 {
-            volatile!(self.port.pmr0.clear = self.pin_mask);
+            volatile_store(&mut self.port.pmr0.clear, self.pin_mask);
         } else {
-            volatile!(self.port.pmr0.set = self.pin_mask);
+            volatile_store(&mut self.port.pmr0.set, self.pin_mask);
         }
         if bit1 == 0 {
-            volatile!(self.port.pmr1.clear = self.pin_mask);
+            volatile_store(&mut self.port.pmr1.clear, self.pin_mask);
         } else {
-            volatile!(self.port.pmr1.set = self.pin_mask);
+            volatile_store(&mut self.port.pmr1.set, self.pin_mask);
         }
         if bit2 == 0 {
-            volatile!(self.port.pmr2.clear = self.pin_mask);
+            volatile_store(&mut self.port.pmr2.clear, self.pin_mask);
         } else {
-            volatile!(self.port.pmr2.set = self.pin_mask);
+            volatile_store(&mut self.port.pmr2.set, self.pin_mask);
         }
         // bradjc: These register assigns erase previous settings and don't
         //         work.
-        // volatile!(self.port.pmr0.val = bit0 << self.pin_mask);
-        // volatile!(self.port.pmr1.val = bit1 << self.pin_mask);
-        // volatile!(self.port.pmr2.val = bit2 << self.pin_mask);
+        // volatile_store(&mut self.port.pmr0.val, bit0 << self.pin_mask);
+        // volatile_store(&mut self.port.pmr1.val, bit1 << self.pin_mask);
+        // volatile_store(&mut self.port.pmr2.val, bit2 << self.pin_mask);
     }
 
     pub fn set_ster(&mut self) {
-        volatile!(self.port.ster.set = self.pin_mask);
+        volatile_store(&mut self.port.ster.set, self.pin_mask);
     }
 }
 
@@ -146,24 +147,24 @@ impl hil::Controller for GPIOPin {
 
 impl hil::gpio::GPIOPin for GPIOPin {
     fn enable_output(&mut self) {
-        volatile!(self.port.gper.set = self.pin_mask);
-        volatile!(self.port.oder.set = self.pin_mask);
-        volatile!(self.port.ster.clear = self.pin_mask);
+        volatile_store(&mut self.port.gper.set, self.pin_mask);
+        volatile_store(&mut self.port.oder.set, self.pin_mask);
+        volatile_store(&mut self.port.ster.clear, self.pin_mask);
     }
 
     fn read(&self) -> bool {
-        (volatile!(self.port.pvr.val) & self.pin_mask) > 0
+        (volatile_load(&self.port.pvr.val) & self.pin_mask) > 0
     }
 
     fn toggle(&mut self) {
-        volatile!(self.port.ovr.toggle = self.pin_mask);
+        volatile_store(&mut self.port.ovr.toggle, self.pin_mask);
     }
 
     fn set(&mut self) {
-        volatile!(self.port.ovr.set = self.pin_mask);
+        volatile_store(&mut self.port.ovr.set, self.pin_mask);
     }
 
     fn clear(&mut self) {
-        volatile!(self.port.ovr.clear = self.pin_mask);
+        volatile_store(&mut self.port.ovr.clear, self.pin_mask);
     }
 }

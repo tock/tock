@@ -1,3 +1,4 @@
+use helpers::*;
 use core::intrinsics;
 use nvic;
 use hil::adc;
@@ -60,12 +61,12 @@ impl Adc {
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
         // Disable further interrupts
-        volatile!(self.registers.idr = 1);
+        volatile_store(&mut self.registers.idr, 1);
         match self.request.take() {
             Some(ref mut request) => {
                 // Because HWLA is set to 1, most significant bit is
                 // of reading is left justified to bit 15r
-                let val = volatile!(self.registers.lcv) & 0xffff;         
+                let val = volatile_load(&self.registers.lcv) & 0xffff;
                 request.read_done(val as u16);
             }
             None => {}
@@ -81,16 +82,16 @@ impl adc::AdcInternal for Adc {
         if !self.enabled {
             self.enabled = true;
             unsafe {pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));}
-            volatile!(self.registers.cr |= 1 << 8);  // Enable ADC
-            volatile!(self.registers.cr |= 1 << 10); // Enable bandgap buffer
-            volatile!(self.registers.cr |= 1 << 4);  // Enable reference buffer
-            if (volatile!(self.registers.sr) & (1 << 24)) != 0 { // ADC is enabled
+            volatile_bitwise_or(&mut self.registers.cr, 1 << 8);  // Enable ADC
+            volatile_bitwise_or(&mut self.registers.cr, 1 << 10); // Enable bandgap buffer
+            volatile_bitwise_or(&mut self.registers.cr, 1 << 4);  // Enable reference buffer
+            if (volatile_load(&self.registers.sr) & (1 << 24)) != 0 { // ADC is enabled
                 // Setting all 0s in the configuration register sets
                 //   - the clock divider to be 4,
                 //   - the source to be the Generic clock,
                 //   - the max speed to be 300 ksps, and
                 //   - the reference voltage to be 1.0V
-                volatile!(self.registers.cfg = 0);
+                volatile_store(&mut self.registers.cfg, 0);
             }
         }
         return true;
@@ -116,7 +117,7 @@ impl adc::AdcInternal for Adc {
 
             let mut channel:usize = request.channel() as usize;
             channel = channel << 16;
-            volatile!(self.registers.seqcfg = 0x00708081 | channel);
+            volatile_store(&mut self.registers.seqcfg, 0x00708081 | channel);
 /*                    00708081 =  7      << 20 | // MUXNEG
                                   channel << 16 | // MUXPOS
                                   2       << 14 | // Internal
@@ -127,9 +128,9 @@ impl adc::AdcInternal for Adc {
                                   0       << 2  | // BIPOLAR
                                   1               // HWLA ));*/
             // Enable end of conversion interrupt
-            volatile!(self.registers.ier = 1);
+            volatile_store(&mut self.registers.ier, 1);
             // Initiate conversion
-            volatile!(self.registers.cr = 2);
+            volatile_store(&mut self.registers.cr, 2);
             return true;
         }
     }

@@ -1,5 +1,7 @@
 #[allow(dead_code)]
 
+use helpers::*;
+
 #[repr(C, packed)]
 struct PmRegisters {
     mcctrl: u32,
@@ -80,18 +82,18 @@ pub enum PBBClock {
 }
 
 unsafe fn unlock(register_offset: u32) {
-    volatile!((*PM).unlock = 0xAA000000 | register_offset);
+    volatile_store(&mut (*PM).unlock, 0xAA000000 | register_offset);
 }
 
 pub unsafe fn select_main_clock(clock: MainClock) {
-    volatile!((*PM).mcctrl = clock as u32);
+    volatile_store(&mut (*PM).mcctrl, clock as u32);
 }
 
 macro_rules! mask_clock {
     ($module:ident: $field:ident | $mask:expr) => ({
         unlock(concat_idents!($module, _MASK_OFFSET));
-        let val = volatile!((*PM).$field) | ($mask);
-        volatile!((*PM).$field = val);
+        let val = volatile_load(&(*PM).$field) | ($mask);
+        volatile_store(&mut (*PM).$field, val);
     });
 }
 

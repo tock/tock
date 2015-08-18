@@ -4,6 +4,7 @@
  * Uses the TWIM peripheral.
  */
 
+use helpers::*;
 use core::intrinsics;
 
 use hil;
@@ -115,7 +116,7 @@ impl I2CDevice {
                    ((stasto & 0xFF) << 16) |
                    ((high & 0xFF) << 8) |
                    ((low & 0xFF) << 0);
-        volatile!(self.registers.clock_waveform_generator = cwgr);
+        volatile_store(&mut self.registers.clock_waveform_generator, cwgr);
     }
 }
 
@@ -130,23 +131,23 @@ impl hil::i2c::I2C for I2CDevice {
         }
 
         // enable, reset, disable
-        volatile!(self.registers.control = 0x1 << 0);
-        volatile!(self.registers.control = 0x1 << 7);
-        volatile!(self.registers.control = 0x1 << 1);
+        volatile_store(&mut self.registers.control, 0x1 << 0);
+        volatile_store(&mut self.registers.control, 0x1 << 7);
+        volatile_store(&mut self.registers.control, 0x1 << 1);
 
         // Init the bus speed
         self.set_bus_speed();
 
         // slew
-        volatile!(self.registers.slew_rate = (0x2 << 28) | (7<<16) | (7<<0));
+        volatile_store(&mut self.registers.slew_rate, (0x2 << 28) | (7<<16) | (7<<0));
 
         // clear interrupts
-        volatile!(self.registers.status_clear = 0xFFFFFFFF);
+        volatile_store(&mut self.registers.status_clear, 0xFFFFFFFF);
     }
 
     /// This disables the entire I2C peripheral
     fn disable (&mut self) {
-        volatile!(self.registers.control = 0x1 << 1);
+        volatile_store(&mut self.registers.control, 0x1 << 1);
         unsafe {
             pm::disable_clock(self.clock);
         }
@@ -156,9 +157,9 @@ impl hil::i2c::I2C for I2CDevice {
     fn write_sync (&mut self, addr: u16, data: &[u8]) {
 
         // enable, reset, disable
-        volatile!(self.registers.control = 0x1 << 0);
-        volatile!(self.registers.control = 0x1 << 7);
-        volatile!(self.registers.control = 0x1 << 1);
+        volatile_store(&mut self.registers.control, 0x1 << 0);
+        volatile_store(&mut self.registers.control, 0x1 << 7);
+        volatile_store(&mut self.registers.control, 0x1 << 1);
 
         // Configure the command register to instruct the TWIM peripheral
         // to execute the I2C transaction
@@ -169,22 +170,22 @@ impl hil::i2c::I2C for I2CDevice {
                       (0x0 << 11) |                    // TENBIT
                       ((addr as usize) << 1) |         // SADR
                       (0x0 << 0);                      // READ
-        volatile!(self.registers.next_command = command);
+        volatile_store(&mut self.registers.next_command, command);
 
         // Enable TWIM to send command
-        volatile!(self.registers.control = 0x1 << 0);
+        volatile_store(&mut self.registers.control, 0x1 << 0);
 
         // Write all bytes in the data buffer to the I2C peripheral
         for c in data {
             // Wait for the peripheral to tell us that we can
             // write to the TX register
-            while volatile!(self.registers.status) & 2 != 2 {}
-            volatile!(self.registers.transmit_holding = *c as usize);
+            while volatile_load(&self.registers.status) & 2 != 2 {}
+            volatile_store(&mut self.registers.transmit_holding, *c as usize);
         }
 
         // Wait for the end of the TWIM command
         loop {
-            let status = volatile!(self.registers.status);
+            let status = volatile_load(&self.registers.status);
             // CCOMP
             if status & (1 << 3) == (1 << 3) {
                 break;
@@ -195,9 +196,9 @@ impl hil::i2c::I2C for I2CDevice {
     fn read_sync (&mut self, addr: u16, buffer: &mut[u8]) {
 
         // enable, reset, disable
-        volatile!(self.registers.control = 0x1 << 0);
-        volatile!(self.registers.control = 0x1 << 7);
-        volatile!(self.registers.control = 0x1 << 1);
+        volatile_store(&mut self.registers.control, 0x1);
+        volatile_store(&mut self.registers.control, 0x1 << 7);
+        volatile_store(&mut self.registers.control, 0x1 << 1);
 
         // Configure the command register to instruct the TWIM peripheral
         // to execute the I2C transaction
@@ -208,28 +209,28 @@ impl hil::i2c::I2C for I2CDevice {
                       (0x0 << 11) |                    // TENBIT
                       ((addr as usize) << 1) |         // SADR
                       (0x1 << 0);                      // READ
-        volatile!(self.registers.command = command);
+        volatile_store(&mut self.registers.command, command);
 
-        volatile!(self.registers.control = 0x1 << 0);
+        volatile_store(&mut self.registers.control, 0x1 << 0);
 
         // Read bytes in to the buffer
         for i in 0..buffer.len() {
             // Wait for the peripheral to tell us that we can
             // read from the RX register
             loop {
-                let status = volatile!(self.registers.status);
+                let status = volatile_load(&self.registers.status);
                 // TODO: define these constants somewhere
                 // RXRDY
                 if status & (1 << 0) == (1 << 0) {
                     break;
                 }
             }
-            buffer[i] = (volatile!(self.registers.receive_holding)) as u8;
+            buffer[i] = (volatile_load(&self.registers.receive_holding)) as u8;
         }
 
         // Wait for the end of the TWIM command
         loop {
-            let status = volatile!(self.registers.status);
+            let status = volatile_load(&self.registers.status);
             // CCOMP
             if status & (1 << 3) == (1 << 3) {
                 break;

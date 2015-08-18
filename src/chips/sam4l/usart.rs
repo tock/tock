@@ -1,3 +1,4 @@
+use helpers::*;
 use core::intrinsics;
 use hil::{uart, Controller};
 use hil::uart::Parity;
@@ -71,7 +72,7 @@ impl Controller for USART {
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
         self.set_mode(mode);
-        volatile!(self.regs.ttgr = 4);
+        volatile_store(&mut self.regs.ttgr, 4);
         self.enable_rx_interrupts();
     }
 }
@@ -105,11 +106,11 @@ impl USART {
 
     fn set_baud_rate(&mut self, baud_rate: u32) {
         let cd = 48000000 / (16 * baud_rate);
-        volatile!(self.regs.brgr = cd);
+        volatile_store(&mut self.regs.brgr, cd);
     }
 
     fn set_mode(&mut self, mode: u32) {
-        volatile!(self.regs.mr = mode);
+        volatile_store(&mut self.regs.mr, mode);
     }
 
     fn enable_clock(&self) {
@@ -133,23 +134,23 @@ impl USART {
     #[inline(never)]
     pub fn enable_rx_interrupts(&mut self) {
         self.enable_nvic();
-        volatile!(self.regs.ier = 1 as u32);
+        volatile_store(&mut self.regs.ier, 1 as u32);
     }
 
     pub fn enable_tx_interrupts(&mut self) {
         self.enable_nvic();
-        volatile!(self.regs.ier = 2 as u32);
+        volatile_store(&mut self.regs.ier, 2 as u32);
     }
 
     pub fn disable_rx_interrupts(&mut self) {
         self.disable_nvic();
-        volatile!(self.regs.idr = 1 as u32);
+        volatile_store(&mut self.regs.idr, 1 as u32);
     }
 
     pub fn handle_interrupt(&mut self) {
         use hil::uart::UART;
         if self.rx_ready() {
-            let c = volatile!(self.regs.rhr) as u8;
+            let c = volatile_load(&self.regs.rhr) as u8;
             match self.client {
                 Some(ref mut client) => {client.read_done(c)},
                 None => {}
@@ -158,7 +159,7 @@ impl USART {
     }
 
     pub fn reset_rx(&mut self) {
-        volatile!(self.regs.cr = 1 << 2);
+        volatile_store(&mut self.regs.cr, 1 << 2);
     }
 
 }
@@ -175,20 +176,20 @@ impl uart::UART for USART {
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
         self.set_mode(mode);
-        volatile!(self.regs.ttgr = 4);
+        volatile_store(&mut self.regs.ttgr, 4);
     }
 
     fn send_byte(&mut self, byte: u8) {
         while !self.tx_ready() {}
-        volatile!(self.regs.thr = byte as u32);
+        volatile_store(&mut self.regs.thr, byte as u32);
     }
 
     fn rx_ready(&self) -> bool {
-        volatile!(self.regs.csr) & 0b1 != 0
+        volatile_load(&self.regs.csr) & 0b1 != 0
     }
 
     fn tx_ready(&self) -> bool {
-        volatile!(self.regs.csr) & 0b10 != 0
+        volatile_load(&self.regs.csr) & 0b10 != 0
     }
 
 
@@ -200,19 +201,19 @@ impl uart::UART for USART {
     }
 
     fn enable_rx(&mut self) {
-        volatile!(self.regs.cr = 1 << 4);
+        volatile_store(&mut self.regs.cr, 1 << 4);
     }
 
     fn disable_rx(&mut self) {
-        volatile!(self.regs.cr = 1 << 5);
+        volatile_store(&mut self.regs.cr, 1 << 5);
     }
 
     fn enable_tx(&mut self) {
-        volatile!(self.regs.cr = 1 << 6);
+        volatile_store(&mut self.regs.cr, 1 << 6);
     }
 
     fn disable_tx(&mut self) {
-        volatile!(self.regs.cr = 1 << 7);
+        volatile_store(&mut self.regs.cr, 1 << 7);
     }
 
 }
