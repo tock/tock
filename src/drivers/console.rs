@@ -5,6 +5,7 @@ pub struct Console<U: UART + 'static> {
     uart: &'static mut U,
     read_callback: Option<Callback>,
     read_buffer: Option<AppSlice<Shared, u8>>,
+    write_buffer: Option<AppSlice<Shared, u8>>,
     read_idx: usize
 }
 
@@ -14,6 +15,7 @@ impl<U: UART> Console<U> {
             uart: uart,
             read_callback: None,
             read_buffer: None,
+            write_buffer: None,
             read_idx: 0
         }
     }
@@ -44,6 +46,10 @@ impl<U: UART> Driver for Console<U> {
                 self.read_idx = 0;
                 0
             },
+            1 => {
+                self.write_buffer = Some(slice);
+                0
+            }
             _ => -1
         }
     }
@@ -60,7 +66,16 @@ impl<U: UART> Driver for Console<U> {
 
     fn command(&mut self, cmd_num: usize, arg1: usize) -> isize {
         match cmd_num {
-            0 /* putc */ => { self.uart.send_byte(arg1 as u8); 1 }
+            0 /* putc */ => { self.uart.send_byte(arg1 as u8); 1 },
+            1 /* putstr */ => {
+                match self.write_buffer.take() {
+                    None => -1,
+                    Some(slice) => {
+                        self.uart.send_bytes(slice);
+                        0
+                    }
+                }
+            },
             _ => -1
         }
     }

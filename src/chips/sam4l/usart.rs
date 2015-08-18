@@ -2,9 +2,12 @@ use helpers::*;
 use core::intrinsics;
 use hil::{uart, Controller};
 use hil::uart::Parity;
+use dma::DMAChannel;
 use nvic;
 use pm::{self, Clock, PBAClock};
 use chip;
+
+use process::{AppSlice};
 
 pub static mut USART3_INTERRUPT : bool = false;
 
@@ -48,10 +51,12 @@ pub struct USART {
     client: Option<&'static mut uart::Reader>,
     clock: Clock,
     nvic: nvic::NvicIdx,
+    dma: Option<&'static mut DMAChannel>
 }
 
 pub struct USARTParams {
     pub client: &'static mut uart::Reader,
+    pub dma: &'static mut DMAChannel,
     pub baud_rate: u32,
     pub data_bits: u8,
     pub parity: Parity
@@ -62,6 +67,7 @@ impl Controller for USART {
 
     fn configure(&mut self, params: USARTParams) {
         self.client = Some(params.client);
+        self.dma = Some(params.dma);
         let chrl = ((params.data_bits - 1) & 0x3) as u32;
         let mode = 0 /* mode */
             | 0 << 4 /*USCLKS*/
@@ -100,6 +106,7 @@ impl USART {
             regs: unsafe { intrinsics::transmute(address) },
             clock: Clock::PBA(pba_clock),
             nvic: nvic,
+            dma: None,
             client: None
         }
     }
@@ -131,7 +138,6 @@ impl USART {
         }
     }
 
-    #[inline(never)]
     pub fn enable_rx_interrupts(&mut self) {
         self.enable_nvic();
         volatile_store(&mut self.regs.ier, 1 as u32);
@@ -182,6 +188,13 @@ impl uart::UART for USART {
     fn send_byte(&mut self, byte: u8) {
         while !self.tx_ready() {}
         volatile_store(&mut self.regs.thr, byte as u32);
+    }
+
+    fn send_bytes<S>(&mut self, bytes: AppSlice<S, u8>) {
+        self.dma.as_mut().map(|dma| {
+            dma.enable();
+            dma.do_xfer(21, bytes);
+        });
     }
 
     fn rx_ready(&self) -> bool {

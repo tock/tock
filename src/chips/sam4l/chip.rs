@@ -1,6 +1,7 @@
 use common::{RingBuffer,Queue};
 use ast;
 use adc;
+use dma;
 use gpio;
 use i2c;
 use nvic;
@@ -9,6 +10,7 @@ use spi;
 
 pub struct Sam4l {
     pub queue: RingBuffer<'static, nvic::NvicIdx>,
+    pub dma: [dma::DMAChannel; 1],
     pub ast: ast::Ast,
     pub usarts: [usart::USART; 4],
     pub adc: adc::Adc,
@@ -61,6 +63,9 @@ impl Sam4l {
 
         Sam4l {
             queue: RingBuffer::new(unsafe { &mut IQ_BUF }),
+            dma: [
+                dma::DMAChannel::new(dma::DMAChannelNum::DMAChannel00),
+            ],
             ast: ast::Ast::new(),
             i2c: [
                 i2c::I2CDevice::new(i2c::Location::I2C00, i2c::Speed::Fast400k),

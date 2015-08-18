@@ -50,8 +50,14 @@ mod console {
     }
 
     pub fn puts(string: &str) {
-        for c in string.chars() {
-            putc(c);
+        unsafe {
+            let mut i = 0;
+            for c in string.chars() {
+                *super::app1::BUF.offset(i) = c as u8;
+                i += 1;
+            }
+            allow(0, 1, super::app1::BUF as *mut u8 as *mut (), string.len());
+            command(0, 1, 0);
         }
     }
 
@@ -109,7 +115,7 @@ r##"You may issue the following commands
 
     const PROMPT: &'static str = "tock%> ";
 
-    static mut BUF : *mut u8 = 0 as *mut u8;
+    pub static mut BUF : *mut u8 = 0 as *mut u8;
 
     pub fn _start(mem_start: *mut u8, mem_size: usize) {
         unsafe {

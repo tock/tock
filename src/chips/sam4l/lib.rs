@@ -1,15 +1,17 @@
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(asm,core_intrinsics,core_slice_ext,concat_idents,no_std)]
+#![feature(asm,core_intrinsics,core_slice_ext,concat_idents,no_std,raw)]
 #![no_std]
 
 extern crate common;
 extern crate hil;
+extern crate process;
 
 mod helpers;
 
 pub mod chip;
 pub mod ast;
+pub mod dma;
 pub mod i2c;
 pub mod spi;
 pub mod nvic;

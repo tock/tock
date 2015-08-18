@@ -103,6 +103,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
+        dma: &mut chip.dma[0],
         baud_rate: 115200,
         data_bits: 8,
         parity: hil::uart::Parity::None
