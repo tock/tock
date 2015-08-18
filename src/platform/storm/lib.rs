@@ -8,37 +8,14 @@ extern crate drivers;
 extern crate hil;
 extern crate sam4l;
 
-use hil::adc::AdcInternal;
 use hil::Controller;
-
-pub static mut ADC  : Option<sam4l::adc::Adc> = None;
-pub static mut CHIP : Option<sam4l::Sam4l> = None;
-
-pub struct TestRequest {
-  chan: u8
-}
-
-impl hil::adc::Request for TestRequest {
-  fn read_done(&mut self, val: u16) {
-    // Do something with this reading!
-  }
-  fn channel(&mut self) -> u8 {
-    self.chan
-  }
-}
-
-pub static mut REQ: TestRequest = TestRequest {
-  chan: 0
-};
-
-
-pub static mut FIRESTORM : Option<Firestorm> = None;
+use hil::timer::*;
 
 pub struct Firestorm {
-    chip: &'static mut sam4l::Sam4l,
+    chip: &'static mut sam4l::chip::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
-    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>
+    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
 }
 
 impl Firestorm {
@@ -50,8 +27,8 @@ impl Firestorm {
         self.chip.has_pending_interrupts()
     }
 
-    pub fn with_driver<F, R>(&mut self, driver_num: usize, mut f: F) -> R where
-            F: FnMut(Option<&mut hil::Driver>) -> R {
+    pub fn with_driver<F, R>(&'static mut self, driver_num: usize, mut f: F) -> R where
+            F: FnMut(Option<&'static mut hil::Driver>) -> R {
 
         f(match driver_num {
             0 => Some(&mut self.console),
@@ -60,14 +37,55 @@ impl Firestorm {
             _ => None
         })
     }
-
 }
 
-pub unsafe fn init() -> &'static mut Firestorm {
-    CHIP = Some(sam4l::Sam4l::new());
-    let chip = CHIP.as_mut().unwrap();
+pub unsafe fn init<'a>() -> &'a mut Firestorm {
+    use core::mem;
 
-    FIRESTORM = Some(Firestorm {
+    static mut CHIP_BUF : [u8; 2048] = [0; 2048];
+    /* TODO(alevy): replace above line with this. Currently, over allocating to make development
+     * easier, but should be obviated when `size_of` at compile time hits.
+    static mut CHIP_BUF : [u8; 924] = [0; 924];
+    // Just test that CHIP_BUF is correct size
+    // (will throw compiler error if too large or small)
+    let _ : sam4l::chip::Sam4l = mem::transmute(CHIP_BUF);*/
+
+    let chip : &'static mut sam4l::chip::Sam4l = mem::transmute(&mut CHIP_BUF);
+    *chip = sam4l::chip::Sam4l::new();
+    sam4l::chip::INTERRUPT_QUEUE = Some(&mut chip.queue);
+
+    static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
+    /* TODO(alevy): replace above line with this. Currently, over allocating to make development
+     * easier, but should be obviated when `size_of` at compile time hits.
+    static mut FIRESTORM_BUF : [u8; 172] = [0; 172];
+    // Just test that FIRESTORM_BUF is correct size
+    // (will throw compiler error if too large or small)
+    let _ : Firestorm = mem::transmute(FIRESTORM_BUF);*/
+
+    chip.ast.select_clock(sam4l::ast::Clock::ClockRCSys);
+    chip.ast.set_prescalar(0);
+    chip.ast.clear_alarm();
+
+    static mut TIMER_MUX : Option<TimerMux> = None;
+    TIMER_MUX = Some(TimerMux::new(&mut chip.ast));
+
+    let timer_mux = TIMER_MUX.as_mut().unwrap();
+
+    static mut TIMER_REQUEST: TimerRequest = TimerRequest {
+        next: None,
+        is_active: false,
+        is_repeat: false,
+        when: 0,
+        interval: 0,
+        callback: None
+    };
+    let timer_request = &mut TIMER_REQUEST;
+
+    let virtual_timer0 = VirtualTimer::new(timer_mux, timer_request);
+
+
+    let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
+    *firestorm = Firestorm {
         chip: chip,
         console: drivers::console::Console::new(&mut chip.usarts[3]),
         gpio: drivers::gpio::GPIO::new(
@@ -76,10 +94,12 @@ pub unsafe fn init() -> &'static mut Firestorm {
             , &mut chip.pa19, &mut chip.pa14, &mut chip.pa16
             , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
             , &mut chip.pa12, &mut chip.pc09]),
-        tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2]),
-    });
+        tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2], virtual_timer0)
+    };
 
-    let firestorm : &'static mut Firestorm = FIRESTORM.as_mut().unwrap();
+    timer_request.callback = Some(&mut firestorm.tmp006);
+
+    chip.ast.configure(timer_mux);
 
     chip.usarts[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
@@ -94,13 +114,8 @@ pub unsafe fn init() -> &'static mut Firestorm {
     chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::E));
     chip.pa22.configure(Some(sam4l::gpio::PeripheralFunction::E));
 
-    ADC = Some(sam4l::adc::Adc::new());
-    let adc = ADC.as_mut().unwrap();
-    adc.initialize();
-    REQ.chan = 1;
-    adc.sample(&mut REQ);
-
     firestorm.console.initialize();
+
     firestorm
 }
 

@@ -1,9 +1,15 @@
+/* chips::sam4l::ast -- Implementation of a single hardware timer.
+ *
+ * Author: Amit Levy <levya@cs.stanford.edu>
+ * Author: Philip Levis <pal@cs.stanford.edu>
+ * Date: 7/16/15
+ */
+
 use core::intrinsics;
 use nvic;
+use hil::alarm::{Alarm, AlarmClient};
 use hil::Controller;
-use hil::timer::{Timer, TimerReceiver};
-
-pub static mut INTERRUPT : bool = false;
+use chip;
 
 #[repr(C, packed)]
 #[allow(missing_copy_implementations)]
@@ -38,7 +44,15 @@ pub const AST_BASE: isize = 0x400F0800;
 #[allow(missing_copy_implementations)]
 pub struct Ast {
     regs: &'static mut AstRegisters,
-    receiver: Option<&'static mut TimerReceiver>
+    callback: Option<&'static mut AlarmClient>
+}
+
+impl Controller for Ast {
+    type Config = &'static mut AlarmClient;
+
+    fn configure(&mut self, client: &'static mut AlarmClient) {
+        self.callback = Some(client);
+    }
 }
 
 #[repr(usize)]
@@ -50,26 +64,11 @@ pub enum Clock {
     Clock1K = 4
 }
 
-impl Controller for Ast {
-    type Config = &'static mut TimerReceiver;
-    
-    fn configure(&mut self, receiver: &'static mut TimerReceiver) {
-        self.receiver = Some(receiver);
-
-        // These should probably be parameters to `configure`
-        self.select_clock(Clock::ClockRCSys);
-        self.set_prescalar(0);
-
-        self.clear_alarm();
-    }
-
-}
-
 impl Ast {
     pub fn new() -> Ast {
         Ast {
             regs: unsafe { intrinsics::transmute(AST_BASE)},
-            receiver: None
+            callback: None
         }
     }
 
@@ -110,13 +109,14 @@ impl Ast {
     pub fn select_clock(&mut self, clock: Clock) {
         unsafe {
           // Disable clock by setting first bit to zero
-          let enb = intrinsics::volatile_load(&(*self.regs).clock) ^ 1;
+          while self.clock_busy() {}
+          let enb = intrinsics::volatile_load(&(*self.regs).clock) & !1;
           intrinsics::volatile_store(&mut (*self.regs).clock, enb);
           while self.clock_busy() {}
 
           // Select clock
           intrinsics::volatile_store(&mut (*self.regs).clock, (clock as u32) << 8);
-          while self.clock_busy() {}
+	  while self.clock_busy() {}
 
           // Re-enable clock
           let enb = intrinsics::volatile_load(&(*self.regs).clock) | 1;
@@ -209,17 +209,16 @@ impl Ast {
         }
     }
 
-    #[inline(never)]
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
-        self.receiver.as_mut().map(|r| {
-            r.alarm_fired();
+        self.callback.as_mut().map(|cb| {
+            cb.fired();
         });
     }
 
 }
 
-impl Timer for Ast {
+impl Alarm for Ast {
     fn now(&self) -> u32 {
         unsafe {
             intrinsics::volatile_load(&(*self.regs).cv)
@@ -241,12 +240,22 @@ impl Timer for Ast {
         self.enable_alarm_irq();
         self.enable();
     }
+
+    fn get_alarm(&mut self) -> u32 {
+        unsafe { 
+            intrinsics::volatile_load(&(*self.regs).ar0)
+        }
+    }
 }
 
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern fn AST_ALARM_Handler() {
-    volatile!(INTERRUPT = true);
+    use common::Queue;
+
     nvic::disable(nvic::NvicIdx::ASTALARM);
+    chip::INTERRUPT_QUEUE.as_mut().map(|q| {
+        q.enqueue(nvic::NvicIdx::ASTALARM)
+    });
 }
 

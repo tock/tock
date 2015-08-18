@@ -2,7 +2,7 @@ use core::intrinsics::{atomic_xadd, atomic_xsub, breakpoint, volatile_load, vola
 use core::mem;
 use core::raw;
 
-use common::ring_buffer::RingBuffer;
+use common::{RingBuffer, Queue};
 
 #[allow(improper_ctypes)]
 extern {
@@ -32,16 +32,14 @@ pub struct Callback {
 
 pub struct Process<'a> {
     /// The process's memory.
-    pub memory: &'static mut [u8],
+    memory: &'a mut [u8],
 
-    /// The process's memory exposed to the process (the rest is reserved for the
-    /// kernel, drivers, etc).
-    pub exposed_memory: &'a mut [u8],
+    exposed_memory_start: *mut u8,
 
     /// The offset in `memory` to use for the process stack.
-    pub cur_stack: *mut u8,
+    cur_stack: *mut u8,
 
-    pub wait_pc: usize,
+    wait_pc: usize,
 
     pub state: State,
 
@@ -49,7 +47,7 @@ pub struct Process<'a> {
 }
 
 impl<'a> Process<'a> {
-    pub unsafe fn create(init_fn: fn()) -> Option<Process<'a>> {
+    pub unsafe fn create(init_fn: fn(*mut u8, usize)) -> Option<Process<'a>> {
         let cur_idx = atomic_xadd(&mut FREE_MEMORY_IDX, 1);
         if cur_idx > MEMORIES.len() {
             atomic_xsub(&mut FREE_MEMORY_IDX, 1);
@@ -68,13 +66,21 @@ impl<'a> Process<'a> {
             let callback_size = mem::size_of::<Option<Callback>>();
 
             let mut callbacks = RingBuffer::new(callback_buf);
+
+            let exposed_memory_start =
+                    &mut memory[callback_len * callback_size] as *mut u8;
+
+            let exposed_mem_len = memory.len() - callback_len * callback_size;
             callbacks.enqueue(Callback {
-                pc: init_fn as usize, r0: 0, r1: 0, r2:0
+                pc: init_fn as usize,
+                r0: exposed_memory_start as usize,
+                r1: exposed_mem_len,
+                r2: 0
             });
 
             Some(Process {
                 memory: memory,
-                exposed_memory: &mut memory[callback_len * callback_size..],
+                exposed_memory_start: exposed_memory_start,
                 cur_stack: stack_bottom as *mut u8,
                 wait_pc: 0,
                 state: State::Waiting,
@@ -82,6 +88,38 @@ impl<'a> Process<'a> {
             })
         }
     }
+
+    pub fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize)
+            -> bool {
+        use core::raw::Repr;
+
+        let buf_end_addr = ((buf_start_addr as usize) + size) as *const u8;
+
+        let mem = self.memory.repr();
+        let mem_end = ((mem.data as usize) + mem.len) as *const u8;
+
+        buf_start_addr >= self.exposed_memory_start && buf_end_addr <= mem_end
+    }
+
+    pub unsafe fn alloc(&mut self, size: usize) -> Option<&mut [u8]> {
+        use core::raw::Slice;
+
+        let mem_len = self.memory.len();
+        let end_mem = &mut self.memory[mem_len - 1] as *mut u8;
+        let new_start = self.exposed_memory_start.offset(size as isize);
+        if new_start >= end_mem {
+            None
+        } else {
+            let buf = Slice {
+                data: self.exposed_memory_start,
+                len: size
+            };
+            self.exposed_memory_start = new_start;
+            Some(mem::transmute(buf))
+        }
+    }
+
+    pub unsafe fn free<T>(&mut self, _: *mut T) {}
 
     pub fn pop_syscall_stack(&mut self) {
         let pspr = self.cur_stack as *const usize;
@@ -113,7 +151,7 @@ impl<'a> Process<'a> {
 
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
-        if self.cur_stack < (&mut self.exposed_memory[0] as *mut u8) {
+        if self.cur_stack < self.exposed_memory_start {
             breakpoint();
         }
         let psp = switch_to_user(self.cur_stack);
@@ -153,6 +191,11 @@ impl<'a> Process<'a> {
     pub fn r2(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
         unsafe { volatile_load(pspr.offset(2)) }
+    }
+
+    pub fn r3(&self) -> usize {
+        let pspr = self.cur_stack as *const usize;
+        unsafe { volatile_load(pspr.offset(3)) }
     }
 
 }

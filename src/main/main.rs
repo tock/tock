@@ -1,4 +1,4 @@
-#![feature(core_str_ext,core_slice_ext,const_fn,no_std)]
+#![feature(core_str_ext,core_slice_ext,const_fn,no_std,raw)]
 #![no_main]
 #![no_std]
 
@@ -15,7 +15,8 @@ pub mod syscall;
 #[no_mangle]
 pub extern fn main() {
     use process::Process;
-    use common::shared::Shared;
+    use process::AppSlice;
+    use common::{Shared,Queue};
 
     let mut platform = unsafe {
         platform::init()
@@ -79,6 +80,25 @@ pub extern fn main() {
                             });
                             process.set_r0(res);
                         },
+                        Some(syscall::ALLOW) => {
+                            let process_ptr = process as *mut Process<'static> as *mut ();
+                            let res = platform.with_driver(process.r0(), |driver| {
+                                match driver {
+                                    Some(d) => {
+                                        let start_addr = process.r2() as *mut u8;
+                                        let size = process.r3();
+                                        if process.in_exposed_bounds(start_addr, size) {
+                                            let slice = AppSlice::new(start_addr as *mut u8, size, process_ptr);
+                                            d.allow(process.r1(), slice)
+                                        } else {
+                                            -1
+                                        }
+                                    },
+                                    None => -1
+                                }
+                            });
+                            process.set_r0(res);
+                        }
                         _ => {}
                     }
                 }

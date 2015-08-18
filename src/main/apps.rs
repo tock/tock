@@ -1,25 +1,32 @@
 #[allow(improper_ctypes)]
 extern {
-    fn __subscribe(driver_num: usize, subnum: usize, cb: usize);
-    fn __command(driver_num: usize, cmdnum: usize, arg1: usize);
-    fn __wait(a: usize, b: usize, c: usize);
+    fn __allow(driver_num: usize, allownum: usize, ptr: *mut (), len: usize) -> isize;
+    fn __subscribe(driver_num: usize, subnum: usize, cb: usize) -> isize;
+    fn __command(driver_num: usize, cmdnum: usize, arg1: usize) -> isize;
+    fn __wait(a: usize, b: usize, c: usize) -> isize;
 }
 
-fn command(driver_num: usize, cmdnum: usize, arg1: usize) {
+fn allow(driver_num: usize, allownum: usize, ptr: *mut (), len: usize) -> isize {
     unsafe {
-        __command(driver_num, cmdnum, arg1);
+        __allow(driver_num, allownum, ptr, len)
     }
 }
 
-fn subscribe(driver_num: usize, cmdnum: usize, callback: usize) {
+fn command(driver_num: usize, cmdnum: usize, arg1: usize) -> isize {
     unsafe {
-        __subscribe(driver_num, cmdnum, callback);
+        __command(driver_num, cmdnum, arg1)
     }
 }
 
-fn wait() {
+fn subscribe(driver_num: usize, cmdnum: usize, callback: usize) -> isize {
     unsafe {
-        __wait(0, 0, 0);
+        __subscribe(driver_num, cmdnum, callback)
+    }
+}
+
+fn wait() -> isize {
+    unsafe {
+        __wait(0, 0, 0)
     }
 }
 
@@ -36,7 +43,7 @@ mod tmp006 {
 }
 
 mod console {
-    use super::{command, subscribe};
+    use super::{allow, command, subscribe};
 
     pub fn putc(c: char) {
         command(0, 0, c as usize);
@@ -48,8 +55,14 @@ mod console {
         }
     }
 
-    pub fn subscribe_read(f: fn(char)) {
-        subscribe(0, 0, f as usize);
+    pub fn subscribe_read_line(buf: *mut u8, len: usize,
+                               f: fn(usize, *mut u8)) -> isize {
+        let res =  allow(0, 0, buf as *mut (), len);
+        if res < 0 {
+            res
+        } else {
+            subscribe(0, 0, f as usize)
+        }
     }
 
 }
@@ -81,9 +94,6 @@ pub mod app1 {
     use super::tmp006::*;
     use core::str;
 
-    static mut buf : [u8; 1024] = [0; 1024];
-    static mut i : usize = 0;
-
     const WELCOME_MESSAGE: &'static str =
       "Welcome to Tock! Type \"help\" for a list of commands\r\n";
 
@@ -99,7 +109,12 @@ r##"You may issue the following commands
 
     const PROMPT: &'static str = "tock%> ";
 
-    pub fn _start() {
+    static mut BUF : *mut u8 = 0 as *mut u8;
+
+    pub fn _start(mem_start: *mut u8, mem_size: usize) {
+        unsafe {
+            BUF = mem_start;
+        }
         init();
         loop {
             wait();
@@ -108,7 +123,12 @@ r##"You may issue the following commands
 
     fn init() {
         puts(WELCOME_MESSAGE);
-        subscribe_read(readc);
+        unsafe {
+            if subscribe_read_line(BUF, 40, line_read) < 0 {
+                puts("Failed to subscribe to read");
+                return
+            }
+        }
         subscribe_temperature(tmp_available);
         enable_tmp006();
         puts(PROMPT);
@@ -122,28 +142,16 @@ r##"You may issue the following commands
         puts("\r\n");
     }
 
-    fn readc(c: char) {
-        unsafe { // referencing static variables
-            match c {
-                '\n' => {
-                    match str::from_utf8(&buf[0..i]) {
-                        Ok(cmd) => {
-                          parse_command(cmd);
-                        },
-                        Err(_) => puts("Invalid UTF8 sequence")
-                    }
-                    i = 0;
-                    puts(PROMPT);
-                },
-                '\r' => {},
-                _ => {
-                    if i < buf.len() {
-                        buf[i] = c as u8;
-                        i += 1;
-                    }
-                }
-            }
+    fn line_read(len: usize, b: *mut u8) {
+        let buffer = ::core::raw::Slice { data: b, len: len };
+        let line = unsafe { str::from_utf8(::core::mem::transmute(buffer)) };
+        match line {
+            Ok(cmd) => {
+                parse_command(cmd);
+            },
+            Err(_) => puts("Invalid UTF8 sequence")
         }
+        puts(PROMPT);
     }
 
     fn parse_command(line: &str) {
@@ -156,8 +164,12 @@ r##"You may issue the following commands
                 puts(HELP_MESSAGE);
             },
             Some("echo") => {
-                unsafe {
-                    puts(line.slice_unchecked(5, line.len()));
+                words.next().map(|word| {
+                    puts(word);
+                });
+                for w in words {
+                    putc(' ');
+                    puts(w);
                 }
                 puts("\r\n");
             },
@@ -200,7 +212,6 @@ r##"You may issue the following commands
             },
             _ => {}
         }
-
     }
 }
 
