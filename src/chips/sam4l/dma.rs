@@ -134,6 +134,7 @@ impl DMAChannel {
                     pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
+            volatile_store(&mut self.registers.control, 0x1);
             self.enabled = true;
         }
     }
@@ -155,10 +156,9 @@ impl DMAChannel {
     #[inline(never)]
     pub fn do_xfer<S>(&mut self, pid: usize, slice: AppSlice<S, u8>) {
         volatile_store(&mut self.registers.peripheral_select, pid);
-        volatile_store(&mut self.registers.memory_address,
+        volatile_store(&mut self.registers.memory_address_reload,
                        &slice.as_ref()[0] as *const u8 as usize);
-        volatile_store(&mut self.registers.transfer_counter, slice.len());
-        volatile_store(&mut self.registers.control, 0x1);
+        volatile_store(&mut self.registers.transfer_counter_reload, slice.len());
     }
 }
 

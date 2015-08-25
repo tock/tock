@@ -7,7 +7,7 @@ use nvic;
 use pm::{self, Clock, PBAClock};
 use chip;
 
-use process::{AppSlice};
+use process::{AppSlice,AppPtr,Private,Shared};
 
 pub static mut USART3_INTERRUPT : bool = false;
 
@@ -46,12 +46,18 @@ pub enum Location {
     USART0, USART1, USART2, USART3
 }
 
+struct Output {
+    buf: AppSlice<Shared, u8>,
+    next: AppPtr<Private, Output>
+}
+
 pub struct USART {
     regs: &'static mut UsartRegisters,
     client: Option<&'static mut uart::Reader>,
     clock: Clock,
     nvic: nvic::NvicIdx,
-    dma: Option<&'static mut DMAChannel>
+    dma: Option<&'static mut DMAChannel>,
+    bufs: Option<Output>
 }
 
 pub struct USARTParams {
@@ -107,7 +113,8 @@ impl USART {
             clock: Clock::PBA(pba_clock),
             nvic: nvic,
             dma: None,
-            client: None
+            client: None,
+            bufs: None
         }
     }
 
