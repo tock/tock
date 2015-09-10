@@ -12,7 +12,7 @@ use hil::Controller;
 use hil::timer::*;
 
 pub struct Firestorm {
-    chip: &'static mut sam4l::chip::Sam4l,
+    chip: sam4l::chip::Sam4l,
     console: drivers::console::Console<sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
@@ -23,7 +23,7 @@ impl Firestorm {
         self.chip.service_pending_interrupts()
     }
 
-    pub fn has_pending_interrupts(&mut self) -> bool {
+    pub unsafe fn has_pending_interrupts(&mut self) -> bool {
         self.chip.has_pending_interrupts()
     }
 
@@ -41,33 +41,24 @@ impl Firestorm {
 
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
-
-    static mut CHIP_BUF : [u8; 2048] = [0; 2048];
-    /* TODO(alevy): replace above line with this. Currently, over allocating to make development
-     * easier, but should be obviated when `size_of` at compile time hits.
-    static mut CHIP_BUF : [u8; 924] = [0; 924];
-    // Just test that CHIP_BUF is correct size
-    // (will throw compiler error if too large or small)
-    let _ : sam4l::chip::Sam4l = mem::transmute(CHIP_BUF);*/
-
-    let chip : &'static mut sam4l::chip::Sam4l = mem::transmute(&mut CHIP_BUF);
-    *chip = sam4l::chip::Sam4l::new();
-    sam4l::chip::INTERRUPT_QUEUE = Some(&mut chip.queue);
+    use hil::gpio::GPIOPin;
+    use hil::uart::UART;
 
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
      * easier, but should be obviated when `size_of` at compile time hits.
-    static mut FIRESTORM_BUF : [u8; 172] = [0; 172];
+    static mut FIRESTORM_BUF : [u8; 192] = [0; 192];
     // Just test that FIRESTORM_BUF is correct size
     // (will throw compiler error if too large or small)
     let _ : Firestorm = mem::transmute(FIRESTORM_BUF);*/
 
-    chip.ast.select_clock(sam4l::ast::Clock::ClockRCSys);
-    chip.ast.set_prescalar(0);
-    chip.ast.clear_alarm();
+    let ast = &mut sam4l::ast::AST;
+    ast.select_clock(sam4l::ast::Clock::ClockRCSys);
+    ast.set_prescalar(0);
+    ast.clear_alarm();
 
     static mut TIMER_MUX : Option<TimerMux> = None;
-    TIMER_MUX = Some(TimerMux::new(&mut chip.ast));
+    TIMER_MUX = Some(TimerMux::new(ast));
 
     let timer_mux = TIMER_MUX.as_mut().unwrap();
 
@@ -86,34 +77,35 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
-        chip: chip,
-        console: drivers::console::Console::new(&mut chip.usarts[3]),
+        chip: sam4l::chip::Sam4l::new(),
+        console: drivers::console::Console::new(&mut sam4l::usart::USARTS[3]),
         gpio: drivers::gpio::GPIO::new(
-            [ &mut chip.pc10, &mut chip.pc19, &mut chip.pc13
-            , &mut chip.pa09, &mut chip.pa17, &mut chip.pc20
-            , &mut chip.pa19, &mut chip.pa14, &mut chip.pa16
-            , &mut chip.pa13, &mut chip.pa11, &mut chip.pa10
-            , &mut chip.pa12, &mut chip.pc09]),
-        tmp006: drivers::tmp006::TMP006::new(&mut chip.i2c[2], virtual_timer0)
+            [ &mut sam4l::gpio::PC[10], &mut sam4l::gpio::PC[19]
+            , &mut sam4l::gpio::PC[13], &mut sam4l::gpio::PA[9]
+            , &mut sam4l::gpio::PA[17], &mut sam4l::gpio::PC[20]
+            , &mut sam4l::gpio::PA[19], &mut sam4l::gpio::PA[14]
+            , &mut sam4l::gpio::PA[16], &mut sam4l::gpio::PA[13]
+            , &mut sam4l::gpio::PA[11], &mut sam4l::gpio::PA[10]
+            , &mut sam4l::gpio::PA[12], &mut sam4l::gpio::PC[09]]),
+        tmp006: drivers::tmp006::TMP006::new(&mut sam4l::i2c::I2C2, virtual_timer0)
     };
 
     timer_request.callback = Some(&mut firestorm.tmp006);
 
-    chip.ast.configure(timer_mux);
+    ast.configure(timer_mux);
 
-    chip.usarts[3].configure(sam4l::usart::USARTParams {
+    sam4l::usart::USARTS[3].configure(sam4l::usart::USARTParams {
         client: &mut firestorm.console,
-        dma: &mut chip.dma[0],
         baud_rate: 115200,
         data_bits: 8,
         parity: hil::uart::Parity::None
     });
 
-    chip.pb09.configure(Some(sam4l::gpio::PeripheralFunction::A));
-    chip.pb10.configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PB[09].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PB[10].configure(Some(sam4l::gpio::PeripheralFunction::A));
 
-    chip.pa21.configure(Some(sam4l::gpio::PeripheralFunction::E));
-    chip.pa22.configure(Some(sam4l::gpio::PeripheralFunction::E));
+    sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
+    sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 
     firestorm.console.initialize();
 

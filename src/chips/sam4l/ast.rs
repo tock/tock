@@ -43,9 +43,14 @@ pub const AST_BASE: isize = 0x400F0800;
 
 #[allow(missing_copy_implementations)]
 pub struct Ast {
-    regs: &'static mut AstRegisters,
+    regs: *mut AstRegisters,
     callback: Option<&'static mut AlarmClient>
 }
+
+pub static mut AST : Ast = Ast {
+    regs: AST_BASE as *mut AstRegisters,
+    callback: None
+};
 
 impl Controller for Ast {
     type Config = &'static mut AlarmClient;
@@ -65,13 +70,6 @@ pub enum Clock {
 }
 
 impl Ast {
-    pub fn new() -> Ast {
-        Ast {
-            regs: unsafe { intrinsics::transmute(AST_BASE)},
-            callback: None
-        }
-    }
-
     pub fn clock_busy(&self) -> bool {
         unsafe {
             intrinsics::volatile_load(&(*self.regs).sr) & (1 << 28) != 0
@@ -254,8 +252,6 @@ pub unsafe extern fn AST_ALARM_Handler() {
     use common::Queue;
 
     nvic::disable(nvic::NvicIdx::ASTALARM);
-    chip::INTERRUPT_QUEUE.as_mut().map(|q| {
-        q.enqueue(nvic::NvicIdx::ASTALARM)
-    });
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::ASTALARM);
 }
 

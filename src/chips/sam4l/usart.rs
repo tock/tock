@@ -1,18 +1,16 @@
 use helpers::*;
-use core::intrinsics;
+use core::mem;
 use hil::{uart, Controller};
 use hil::uart::Parity;
-use dma::DMAChannel;
+use dma::{DMAChannel, DMAClient};
 use nvic;
 use pm::{self, Clock, PBAClock};
 use chip;
 
-use process::{AppSlice,AppPtr,Private,Shared};
-
-pub static mut USART3_INTERRUPT : bool = false;
+use process::{AppSlice};
 
 #[repr(C, packed)]
-struct UsartRegisters {
+struct Registers {
     cr: u32,
     mr: u32,
     ier: u32,
@@ -46,23 +44,16 @@ pub enum Location {
     USART0, USART1, USART2, USART3
 }
 
-struct Output {
-    buf: AppSlice<Shared, u8>,
-    next: AppPtr<Private, Output>
-}
-
 pub struct USART {
-    regs: &'static mut UsartRegisters,
+    regs: *mut Registers,
     client: Option<&'static mut uart::Reader>,
     clock: Clock,
     nvic: nvic::NvicIdx,
     dma: Option<&'static mut DMAChannel>,
-    bufs: Option<Output>
 }
 
 pub struct USARTParams {
     pub client: &'static mut uart::Reader,
-    pub dma: &'static mut DMAChannel,
     pub baud_rate: u32,
     pub data_bits: u8,
     pub parity: Parity
@@ -73,7 +64,6 @@ impl Controller for USART {
 
     fn configure(&mut self, params: USARTParams) {
         self.client = Some(params.client);
-        self.dma = Some(params.dma);
         let chrl = ((params.data_bits - 1) & 0x3) as u32;
         let mode = 0 /* mode */
             | 0 << 4 /*USCLKS*/
@@ -84,47 +74,45 @@ impl Controller for USART {
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
         self.set_mode(mode);
-        volatile_store(&mut self.regs.ttgr, 4);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.ttgr, 4);
         self.enable_rx_interrupts();
     }
 }
 
+pub static mut USARTS : [USART; 4] = [
+    USART::new(Location::USART0, PBAClock::USART0, nvic::NvicIdx::USART0),
+    USART::new(Location::USART1, PBAClock::USART1, nvic::NvicIdx::USART1),
+    USART::new(Location::USART2, PBAClock::USART2, nvic::NvicIdx::USART2),
+    USART::new(Location::USART3, PBAClock::USART3, nvic::NvicIdx::USART3),
+];
+
 impl USART {
-    pub fn new(location: Location) -> USART {
-        let address = BASE_ADDRESS + (location as usize) * SIZE;
-
-        let pba_clock = match location {
-            Location::USART0 => PBAClock::USART0,
-            Location::USART1 => PBAClock::USART1,
-            Location::USART2 => PBAClock::USART2,
-            Location::USART3 => PBAClock::USART3,
-        };
-
-        let nvic = match location {
-            Location::USART0 => nvic::NvicIdx::USART0,
-            Location::USART1 => nvic::NvicIdx::USART1,
-            Location::USART2 => nvic::NvicIdx::USART2,
-            Location::USART3 => nvic::NvicIdx::USART3
-        };
-
-
+    const fn new(location: Location, clock: PBAClock, nvic: nvic::NvicIdx)
+            -> USART {
         USART {
-            regs: unsafe { intrinsics::transmute(address) },
-            clock: Clock::PBA(pba_clock),
+            regs: (BASE_ADDRESS + (location as usize) * SIZE)
+                as *mut Registers,
+            clock: Clock::PBA(clock),
             nvic: nvic,
             dma: None,
             client: None,
-            bufs: None
         }
+    }
+
+    pub fn set_dma(&mut self, dma: &'static mut DMAChannel) {
+        self.dma = Some(dma);
     }
 
     fn set_baud_rate(&mut self, baud_rate: u32) {
         let cd = 48000000 / (16 * baud_rate);
-        volatile_store(&mut self.regs.brgr, cd);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.brgr, cd);
     }
 
     fn set_mode(&mut self, mode: u32) {
-        volatile_store(&mut self.regs.mr, mode);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.mr, mode);
     }
 
     fn enable_clock(&self) {
@@ -147,23 +135,27 @@ impl USART {
 
     pub fn enable_rx_interrupts(&mut self) {
         self.enable_nvic();
-        volatile_store(&mut self.regs.ier, 1 as u32);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.ier, 1 as u32);
     }
 
     pub fn enable_tx_interrupts(&mut self) {
         self.enable_nvic();
-        volatile_store(&mut self.regs.ier, 2 as u32);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.ier, 2 as u32);
     }
 
     pub fn disable_rx_interrupts(&mut self) {
         self.disable_nvic();
-        volatile_store(&mut self.regs.idr, 1 as u32);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.idr, 1 as u32);
     }
 
     pub fn handle_interrupt(&mut self) {
         use hil::uart::UART;
         if self.rx_ready() {
-            let c = volatile_load(&self.regs.rhr) as u8;
+            let regs : &Registers = unsafe { mem::transmute(self.regs) };
+            let c = volatile_load(&regs.rhr) as u8;
             match self.client {
                 Some(ref mut client) => {client.read_done(c)},
                 None => {}
@@ -172,10 +164,12 @@ impl USART {
     }
 
     pub fn reset_rx(&mut self) {
-        volatile_store(&mut self.regs.cr, 1 << 2);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.cr, 1 << 2);
     }
-
 }
+
+impl DMAClient for USART {}
 
 impl uart::UART for USART {
     fn init(&mut self, params: uart::UARTParams) {
@@ -189,12 +183,14 @@ impl uart::UART for USART {
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
         self.set_mode(mode);
-        volatile_store(&mut self.regs.ttgr, 4);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.ttgr, 4);
     }
 
     fn send_byte(&mut self, byte: u8) {
         while !self.tx_ready() {}
-        volatile_store(&mut self.regs.thr, byte as u32);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.thr, byte as u32);
     }
 
     fn send_bytes<S>(&mut self, bytes: AppSlice<S, u8>) {
@@ -205,35 +201,40 @@ impl uart::UART for USART {
     }
 
     fn rx_ready(&self) -> bool {
-        volatile_load(&self.regs.csr) & 0b1 != 0
+        let regs : &Registers = unsafe { mem::transmute(self.regs) };
+        volatile_load(&regs.csr) & 0b1 != 0
     }
 
     fn tx_ready(&self) -> bool {
-        volatile_load(&self.regs.csr) & 0b10 != 0
+        let regs : &Registers = unsafe { mem::transmute(self.regs) };
+        volatile_load(&regs.csr) & 0b10 != 0
     }
 
 
     fn read_byte(&self) -> u8 {
         while !self.rx_ready() {}
-        unsafe {
-            intrinsics::volatile_load(&self.regs.rhr) as u8
-        }
+        let regs : &Registers = unsafe { mem::transmute(self.regs) };
+        volatile_load(&regs.rhr) as u8
     }
 
     fn enable_rx(&mut self) {
-        volatile_store(&mut self.regs.cr, 1 << 4);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.cr, 1 << 4);
     }
 
     fn disable_rx(&mut self) {
-        volatile_store(&mut self.regs.cr, 1 << 5);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.cr, 1 << 5);
     }
 
     fn enable_tx(&mut self) {
-        volatile_store(&mut self.regs.cr, 1 << 6);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.cr, 1 << 6);
     }
 
     fn disable_tx(&mut self) {
-        volatile_store(&mut self.regs.cr, 1 << 7);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        volatile_store(&mut regs.cr, 1 << 7);
     }
 
 }
@@ -244,8 +245,6 @@ pub unsafe extern fn USART3_Handler() {
     use common::Queue;
 
     nvic::disable(nvic::NvicIdx::USART3);
-    chip::INTERRUPT_QUEUE.as_mut().map(|q| {
-        q.enqueue(nvic::NvicIdx::USART3)
-    });
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::USART3);
 }
 

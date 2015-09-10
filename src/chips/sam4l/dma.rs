@@ -105,17 +105,38 @@ pub enum DMAPeripheral {
     LCDCA_ABMDR_TX = 38
 }
 
+pub static mut DMAChannels : [DMAChannel; 16] = [
+    DMAChannel::new(DMAChannelNum::DMAChannel00),
+    DMAChannel::new(DMAChannelNum::DMAChannel01),
+    DMAChannel::new(DMAChannelNum::DMAChannel02),
+    DMAChannel::new(DMAChannelNum::DMAChannel03),
+    DMAChannel::new(DMAChannelNum::DMAChannel04),
+    DMAChannel::new(DMAChannelNum::DMAChannel05),
+    DMAChannel::new(DMAChannelNum::DMAChannel06),
+    DMAChannel::new(DMAChannelNum::DMAChannel07),
+    DMAChannel::new(DMAChannelNum::DMAChannel08),
+    DMAChannel::new(DMAChannelNum::DMAChannel09),
+    DMAChannel::new(DMAChannelNum::DMAChannel10),
+    DMAChannel::new(DMAChannelNum::DMAChannel11),
+    DMAChannel::new(DMAChannelNum::DMAChannel12),
+    DMAChannel::new(DMAChannelNum::DMAChannel13),
+    DMAChannel::new(DMAChannelNum::DMAChannel14),
+    DMAChannel::new(DMAChannelNum::DMAChannel15),
+];
+
 pub struct DMAChannel {
-    registers: &'static mut DMARegisters,
-    client: Option<usize>,
+    registers: *mut DMARegisters,
+    pub client: Option<&'static mut DMAClient>,
     enabled: bool,
 }
 
+pub trait DMAClient {}
+
 impl DMAChannel {
-    pub fn new(channel: DMAChannelNum) -> DMAChannel {
-        let address = DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE;
+    const fn new(channel: DMAChannelNum) -> DMAChannel {
         DMAChannel {
-            registers: unsafe { mem::transmute(address) },
+            registers: (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE)
+                    as *mut DMARegisters,
             client: None,
             enabled: false
         }
@@ -134,7 +155,10 @@ impl DMAChannel {
                     pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
-            volatile_store(&mut self.registers.control, 0x1);
+            let registers : &mut DMARegisters = unsafe {
+                mem::transmute(self.registers)
+            };
+            volatile_store(&mut registers.control, 0x1);
             self.enabled = true;
         }
     }
@@ -148,17 +172,27 @@ impl DMAChannel {
                     pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
-            volatile_store(&mut self.registers.control, 0x2);
+            let registers : &mut DMARegisters = unsafe {
+                mem::transmute(self.registers)
+            };
+            volatile_store(&mut registers.control, 0x2);
             self.enabled = false;
         }
     }
 
-    #[inline(never)]
     pub fn do_xfer<S>(&mut self, pid: usize, slice: AppSlice<S, u8>) {
-        volatile_store(&mut self.registers.peripheral_select, pid);
-        volatile_store(&mut self.registers.memory_address_reload,
+        let registers : &mut DMARegisters = unsafe {
+            mem::transmute(self.registers)
+        };
+        volatile_store(&mut registers.peripheral_select, pid);
+        volatile_store(&mut registers.memory_address_reload,
                        &slice.as_ref()[0] as *const u8 as usize);
-        volatile_store(&mut self.registers.transfer_counter_reload, slice.len());
+        volatile_store(&mut registers.transfer_counter_reload, slice.len());
     }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn PDCA_0_HANDLER() {
 }
 

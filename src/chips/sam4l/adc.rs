@@ -96,14 +96,14 @@ impl adc::AdcInternal for Adc {
         }
         return true;
     }
-    
+
     fn sample(&mut self, request: &'static mut adc::Request) -> bool {
         if !self.enabled || request.channel() > 14 {
             return false;
         } else {
             self.enabled = true;
             self.request = Some(request);
- 
+
             // This configuration sets the ADC to use Pad Ground as the
             // negative input, and the ADC channel as the positive. Since
             // this is a single-ended sample, the bipolar bit is set to zero.
@@ -142,7 +142,5 @@ pub unsafe extern fn ADC_Handler() {
     use common::Queue;
 
     nvic::disable(nvic::NvicIdx::ADCIFE);
-    chip::INTERRUPT_QUEUE.as_mut().map(|q| {
-        q.enqueue(nvic::NvicIdx::ADCIFE)
-    });
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::ADCIFE);
 }
