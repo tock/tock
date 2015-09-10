@@ -41,8 +41,6 @@ impl Firestorm {
 
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
-    use hil::gpio::GPIOPin;
-    use hil::uart::UART;
 
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development

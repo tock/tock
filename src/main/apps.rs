@@ -71,6 +71,9 @@ mod console {
         }
     }
 
+    pub fn subscribe_write_done(f: fn()) -> isize {
+        subscribe(0, 1, f as usize)
+    }
 }
 
 mod gpio {
@@ -117,7 +120,7 @@ r##"You may issue the following commands
 
     pub static mut BUF : *mut u8 = 0 as *mut u8;
 
-    pub fn _start(mem_start: *mut u8, mem_size: usize) {
+    pub fn _start(mem_start: *mut u8, _mem_size: usize) {
         unsafe {
             BUF = mem_start;
         }
@@ -132,6 +135,10 @@ r##"You may issue the following commands
         unsafe {
             if subscribe_read_line(BUF, 40, line_read) < 0 {
                 puts("Failed to subscribe to read");
+                return
+            }
+            if subscribe_write_done(write_done) < 0 {
+                puts("Failed to subscribe to write");
                 return
             }
         }
@@ -158,6 +165,9 @@ r##"You may issue the following commands
             },
             Err(_) => puts("Invalid UTF8 sequence")
         }
+    }
+
+    fn write_done() {
     }
 
     fn parse_command(line: &str) {

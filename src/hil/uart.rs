@@ -31,7 +31,8 @@ pub trait UART {
     fn disable_tx(&mut self);
 }
 
-pub trait Reader {
+pub trait Client {
     fn read_done(&mut self, byte: u8);
+    fn write_done(&mut self) {}
 }
 

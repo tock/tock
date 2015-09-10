@@ -1,9 +1,10 @@
 use hil::{Driver,Callback,AppSlice,Shared};
-use hil::uart::{UART, Reader};
+use hil::uart::{UART, Client};
 
 pub struct Console<U: UART + 'static> {
     uart: &'static mut U,
     read_callback: Option<Callback>,
+    write_callback: Option<Callback>,
     read_buffer: Option<AppSlice<Shared, u8>>,
     write_buffer: Option<AppSlice<Shared, u8>>,
     read_idx: usize
@@ -14,6 +15,7 @@ impl<U: UART> Console<U> {
         Console {
             uart: uart,
             read_callback: None,
+            write_callback: None,
             read_buffer: None,
             write_buffer: None,
             read_idx: 0
@@ -60,6 +62,10 @@ impl<U: UART> Driver for Console<U> {
                 self.read_callback = Some(callback);
                 0
             },
+            1 /* write done */ => {
+                self.write_callback = Some(callback);
+                0
+            },
             _ => -1
         }
     }
@@ -81,7 +87,12 @@ impl<U: UART> Driver for Console<U> {
     }
 }
 
-impl<U: UART> Reader for Console<U> {
+impl<U: UART> Client for Console<U> {
+    fn write_done(&mut self) {
+        self.write_callback.as_mut().map(|cb| {
+            cb.schedule(0, 0, 0);
+        });
+    }
     fn read_done(&mut self, c: u8) {
         match c as char {
             '\r' => {},

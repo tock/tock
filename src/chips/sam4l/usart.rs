@@ -7,7 +7,7 @@ use nvic;
 use pm::{self, Clock, PBAClock};
 use chip;
 
-use process::{AppSlice};
+use process::AppSlice;
 
 #[repr(C, packed)]
 struct Registers {
@@ -46,14 +46,14 @@ pub enum Location {
 
 pub struct USART {
     regs: *mut Registers,
-    client: Option<&'static mut uart::Reader>,
+    client: Option<&'static mut uart::Client>,
     clock: Clock,
     nvic: nvic::NvicIdx,
     dma: Option<&'static mut DMAChannel>,
 }
 
 pub struct USARTParams {
-    pub client: &'static mut uart::Reader,
+    pub client: &'static mut uart::Client,
     pub baud_rate: u32,
     pub data_bits: u8,
     pub parity: Parity
@@ -169,7 +169,11 @@ impl USART {
     }
 }
 
-impl DMAClient for USART {}
+impl DMAClient for USART {
+    fn xfer_done(&mut self) {
+        self.client.as_mut().map(|c| c.write_done() );
+    }
+}
 
 impl uart::UART for USART {
     fn init(&mut self, params: uart::UARTParams) {

@@ -24,11 +24,12 @@ impl Sam4l {
     }
 
     pub unsafe fn service_pending_interrupts(&mut self) {
-        use nvic::NvicIdx;
+        use nvic::NvicIdx::*;
         INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
             match interrupt {
-                NvicIdx::ASTALARM => ast::AST.handle_interrupt(),
-                NvicIdx::USART3   => usart::USARTS[3].handle_interrupt(),
+                ASTALARM => ast::AST.handle_interrupt(),
+                USART3   => usart::USARTS[3].handle_interrupt(),
+                PDCA0   => dma::DMAChannels[0].handle_interrupt(),
                 //NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
                 _ => {}
             }

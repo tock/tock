@@ -1,9 +1,10 @@
 use core::mem;
 use core::intrinsics;
 use pm;
-use process::{AppSlice};
+use nvic;
 
 use helpers::*;
+use process::AppSlice;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet
 #[repr(C, packed)]
@@ -106,37 +107,41 @@ pub enum DMAPeripheral {
 }
 
 pub static mut DMAChannels : [DMAChannel; 16] = [
-    DMAChannel::new(DMAChannelNum::DMAChannel00),
-    DMAChannel::new(DMAChannelNum::DMAChannel01),
-    DMAChannel::new(DMAChannelNum::DMAChannel02),
-    DMAChannel::new(DMAChannelNum::DMAChannel03),
-    DMAChannel::new(DMAChannelNum::DMAChannel04),
-    DMAChannel::new(DMAChannelNum::DMAChannel05),
-    DMAChannel::new(DMAChannelNum::DMAChannel06),
-    DMAChannel::new(DMAChannelNum::DMAChannel07),
-    DMAChannel::new(DMAChannelNum::DMAChannel08),
-    DMAChannel::new(DMAChannelNum::DMAChannel09),
-    DMAChannel::new(DMAChannelNum::DMAChannel10),
-    DMAChannel::new(DMAChannelNum::DMAChannel11),
-    DMAChannel::new(DMAChannelNum::DMAChannel12),
-    DMAChannel::new(DMAChannelNum::DMAChannel13),
-    DMAChannel::new(DMAChannelNum::DMAChannel14),
-    DMAChannel::new(DMAChannelNum::DMAChannel15),
+    DMAChannel::new(DMAChannelNum::DMAChannel00, nvic::NvicIdx::PDCA0),
+    DMAChannel::new(DMAChannelNum::DMAChannel01, nvic::NvicIdx::PDCA1),
+    DMAChannel::new(DMAChannelNum::DMAChannel02, nvic::NvicIdx::PDCA2),
+    DMAChannel::new(DMAChannelNum::DMAChannel03, nvic::NvicIdx::PDCA3),
+    DMAChannel::new(DMAChannelNum::DMAChannel04, nvic::NvicIdx::PDCA4),
+    DMAChannel::new(DMAChannelNum::DMAChannel05, nvic::NvicIdx::PDCA5),
+    DMAChannel::new(DMAChannelNum::DMAChannel06, nvic::NvicIdx::PDCA6),
+    DMAChannel::new(DMAChannelNum::DMAChannel07, nvic::NvicIdx::PDCA7),
+    DMAChannel::new(DMAChannelNum::DMAChannel08, nvic::NvicIdx::PDCA8),
+    DMAChannel::new(DMAChannelNum::DMAChannel09, nvic::NvicIdx::PDCA9),
+    DMAChannel::new(DMAChannelNum::DMAChannel10, nvic::NvicIdx::PDCA10),
+    DMAChannel::new(DMAChannelNum::DMAChannel11, nvic::NvicIdx::PDCA11),
+    DMAChannel::new(DMAChannelNum::DMAChannel12, nvic::NvicIdx::PDCA12),
+    DMAChannel::new(DMAChannelNum::DMAChannel13, nvic::NvicIdx::PDCA13),
+    DMAChannel::new(DMAChannelNum::DMAChannel14, nvic::NvicIdx::PDCA14),
+    DMAChannel::new(DMAChannelNum::DMAChannel15, nvic::NvicIdx::PDCA15),
 ];
 
 pub struct DMAChannel {
     registers: *mut DMARegisters,
+    nvic: nvic::NvicIdx,
     pub client: Option<&'static mut DMAClient>,
     enabled: bool,
 }
 
-pub trait DMAClient {}
+pub trait DMAClient {
+    fn xfer_done(&mut self);
+}
 
 impl DMAChannel {
-    const fn new(channel: DMAChannelNum) -> DMAChannel {
+    const fn new(channel: DMAChannelNum, nvic: nvic::NvicIdx) -> DMAChannel {
         DMAChannel {
             registers: (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE)
                     as *mut DMARegisters,
+            nvic: nvic,
             client: None,
             enabled: false
         }
@@ -159,6 +164,9 @@ impl DMAChannel {
                 mem::transmute(self.registers)
             };
             volatile_store(&mut registers.control, 0x1);
+
+            unsafe { nvic::enable(self.nvic) };
+
             self.enabled = true;
         }
     }
@@ -177,22 +185,46 @@ impl DMAChannel {
             };
             volatile_store(&mut registers.control, 0x2);
             self.enabled = false;
+            unsafe {
+                nvic::disable(self.nvic);
+            }
         }
+    }
+
+    pub fn handle_interrupt(&mut self) {
+        let registers : &mut DMARegisters = unsafe {
+            mem::transmute(self.registers)
+        };
+
+        volatile_store(&mut registers.interrupt_disable, 1 << 1);
+        self.client.as_mut().map(|client| {
+            client.xfer_done();
+        });
     }
 
     pub fn do_xfer<S>(&mut self, pid: usize, slice: AppSlice<S, u8>) {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
+
+
         volatile_store(&mut registers.peripheral_select, pid);
         volatile_store(&mut registers.memory_address_reload,
                        &slice.as_ref()[0] as *const u8 as usize);
         volatile_store(&mut registers.transfer_counter_reload, slice.len());
+
+        volatile_store(&mut registers.interrupt_enable, 1 << 1);
     }
 }
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern fn PDCA_0_HANDLER() {
+pub unsafe extern fn PDCA_0_Handler() {
+    use common::Queue;
+    use nvic;
+    use chip;
+
+    nvic::disable(nvic::NvicIdx::PDCA0);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA0);
 }
 
