@@ -111,7 +111,7 @@ r##"You may issue the following commands
 
     static mut BUF : *mut u8 = 0 as *mut u8;
 
-    pub fn _start(mem_start: *mut u8, mem_size: usize) {
+    pub fn _start(mem_start: *mut u8, _mem_size: usize) {
         unsafe {
             BUF = mem_start;
         }

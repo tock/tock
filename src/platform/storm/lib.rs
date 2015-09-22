@@ -13,7 +13,7 @@ use hil::timer::*;
 
 pub struct Firestorm {
     chip: &'static mut sam4l::chip::Sam4l,
-    console: drivers::console::Console<sam4l::usart::USART>,
+    console: drivers::console::Console<'static, sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
 }
@@ -27,8 +27,8 @@ impl Firestorm {
         self.chip.has_pending_interrupts()
     }
 
-    pub fn with_driver<F, R>(&'static mut self, driver_num: usize, mut f: F) -> R where
-            F: FnMut(Option<&'static mut hil::Driver>) -> R {
+    pub fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
+            F: FnOnce(Option<&mut hil::Driver>) -> R {
 
         f(match driver_num {
             0 => Some(&mut self.console),

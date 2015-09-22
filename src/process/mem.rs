@@ -3,22 +3,24 @@ use core::marker::PhantomData;
 use core::ops::{Deref,DerefMut};
 use core::ptr::Unique;
 use core::raw::Slice;
-use process::Process;
+use process;
+
+use AppId;
 
 pub struct Private;
 pub struct Shared;
 
 pub struct AppPtr<L, T> {
     ptr: Unique<T>,
-    process: *mut (),
+    process: AppId,
     _phantom: PhantomData<L>
 }
 
 impl<L, T> AppPtr<L, T> {
-    pub unsafe fn new(ptr: *mut T, process: *mut ()) -> AppPtr<L, T> {
+    pub unsafe fn new(ptr: *mut T, appid: AppId) -> AppPtr<L, T> {
         AppPtr {
             ptr: Unique::new(ptr),
-            process: process,
+            process: appid,
             _phantom: PhantomData
         }
     }
@@ -45,8 +47,12 @@ impl<L, T> DerefMut for AppPtr<L, T> {
 impl<L, T> Drop for AppPtr<L, T> {
     fn drop(&mut self) {
         unsafe {
-            let process : &mut Process = mem::transmute(self.process);
-            process.free(self.ptr.get_mut());
+            let ps = &mut process::PROCS;
+            if ps.len() < self.process.idx() {
+                ps[self.process.idx()].as_mut().map(|process| 
+                    process.free(self.ptr.get_mut())
+                );
+            }
         }
     }
 }
@@ -57,10 +63,10 @@ pub struct AppSlice<L, T> {
 }
 
 impl<L, T> AppSlice<L, T> {
-    pub unsafe fn new(ptr: *mut T, len: usize, process_ptr: *mut ())
+    pub unsafe fn new(ptr: *mut T, len: usize, appid: AppId)
             -> AppSlice<L, T> {
         AppSlice {
-            ptr: AppPtr::new(ptr, process_ptr),
+            ptr: AppPtr::new(ptr, appid),
             len: len
         }
     }

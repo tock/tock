@@ -1,20 +1,23 @@
-use hil::{Driver,Callback,AppSlice,Shared};
+use common::utils::init_nones;
+use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
 use hil::uart::{UART, Reader};
 
-pub struct Console<U: UART + 'static> {
-    uart: &'static mut U,
+struct App {
     read_callback: Option<Callback>,
     read_buffer: Option<AppSlice<Shared, u8>>,
     read_idx: usize
 }
 
-impl<U: UART> Console<U> {
-    pub fn new(uart: &'static mut U) -> Console<U> {
+pub struct Console<'a, U: UART + 'a> {
+    uart: &'a mut U,
+    apps: [Option<App>; NUM_PROCS],
+}
+
+impl<'a, U: UART> Console<'a, U> {
+    pub fn new(uart: &'a mut U) -> Console<U> {
         Console {
             uart: uart,
-            read_callback: None,
-            read_buffer: None,
-            read_idx: 0
+            apps: init_nones()
         }
     }
 
@@ -22,26 +25,27 @@ impl<U: UART> Console<U> {
         self.uart.enable_tx();
         self.uart.enable_rx();
     }
-
-    pub fn putstr(&mut self, string: &str) {
-        for c in string.bytes() {
-            self.uart.send_byte(c);
-        }
-    }
-
-    pub fn putbytes(&mut self, string: &[u8]) {
-        for c in string {
-            self.uart.send_byte(*c);
-        }
-    }
 }
 
-impl<U: UART> Driver for Console<U> {
-    fn allow(&mut self, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+impl<'a, U: UART> Driver for Console<'a, U> {
+    fn allow(&mut self, appid: AppId,
+             allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+        let app = appid.idx();
         match allow_num {
             0 => {
-                self.read_buffer = Some(slice);
-                self.read_idx = 0;
+                match self.apps[app] {
+                    None => {
+                        self.apps[app] = Some(App {
+                            read_callback: None,
+                            read_buffer: Some(slice),
+                            read_idx: 0
+                        })
+                    },
+                    Some(ref mut app) => {
+                        app.read_buffer = Some(slice);
+                        app.read_idx = 0;
+                    }
+                }
                 0
             },
             _ => -1
@@ -51,7 +55,18 @@ impl<U: UART> Driver for Console<U> {
     fn subscribe(&mut self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 /* read line */ => {
-                self.read_callback = Some(callback);
+                match self.apps[0] {
+                    None => {
+                        self.apps[0] = Some(App {
+                            read_callback: Some(callback),
+                            read_buffer: None,
+                            read_idx: 0
+                        })
+                    },
+                    Some(ref mut app) => {
+                        app.read_callback = Some(callback);
+                    }
+                }
                 0
             },
             _ => -1
@@ -66,32 +81,43 @@ impl<U: UART> Driver for Console<U> {
     }
 }
 
-impl<U: UART> Reader for Console<U> {
+fn each_some<'a, T, I, F>(lst: I, f: F)
+        where T: 'a, I: Iterator<Item=&'a mut Option<T>>, F: Fn(&mut T) {
+    for item in lst {
+        item.as_mut().map(|i| f(i));
+    }
+}
+
+impl<'a, U: UART> Reader for Console<'a, U> {
     fn read_done(&mut self, c: u8) {
         match c as char {
             '\r' => {},
             '\n' => {
-                let idx = self.read_idx;
-                self.read_buffer = self.read_buffer.take().map(|mut rb| {
-                    use ::core::raw::Repr;
-                    self.read_callback.as_mut().map(|cb| {
-                        let buf = rb.as_mut();
-                        cb.schedule(idx, (buf.repr().data as usize), 0);
+                each_some(self.apps.iter_mut(), |app| {
+                    let idx = app.read_idx;
+                    app.read_buffer = app.read_buffer.take().map(|mut rb| {
+                        use core::raw::Repr;
+                        app.read_callback.as_mut().map(|cb| {
+                            let buf = rb.as_mut();
+                            cb.schedule(idx, (buf.repr().data as usize), 0);
+                        });
+                        rb
                     });
-                    rb
+                    app.read_idx = 0;
                 });
-                self.read_idx = 0;
             },
             _ => {
-                let idx = self.read_idx;
-                if self.read_buffer.is_some() &&
-                    self.read_idx < self.read_buffer.as_ref().unwrap().len() {
+                each_some(self.apps.iter_mut(), |app| {
+                    let idx = app.read_idx;
+                    if app.read_buffer.is_some() &&
+                        app.read_idx < app.read_buffer.as_ref().unwrap().len() {
 
-                    self.read_buffer.as_mut().map(|buf| {
-                        buf.as_mut()[idx] = c;
-                    });
-                    self.read_idx += 1;
-                }
+                        app.read_buffer.as_mut().map(|buf| {
+                            buf.as_mut()[idx] = c;
+                        });
+                        app.read_idx += 1;
+                    }
+                });
             }
         }
     }
