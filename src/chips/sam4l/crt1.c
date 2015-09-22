@@ -279,11 +279,11 @@ void Reset_Handler(void)
 
 // IMPORTANT!! __aeabi_memset has count and value arguments reversed from ANSI
 // memset. TODO(alevy): Why does arm-none-eabi's libc not have __aeabi_memset?
-void __aeabi_memset(void* dest, size_t count, int value) {
+__attribute__ ((weak)) void __aeabi_memset(void* dest, size_t count, int value) {
   memset(dest, value, count);
 }
 
-extern void __aeabi_memcpy(void* dest, void* src, unsigned int n) {
+__attribute__ ((weak)) extern void __aeabi_memcpy(void* dest, void* src, unsigned int n) {
   memcpy(dest, src, n);
 }
 

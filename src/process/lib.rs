@@ -10,7 +10,7 @@ pub mod callback;
 pub mod mem;
 pub mod process;
 
-pub use callback::Callback;
+pub use callback::{AppId, Callback};
 pub use mem::{AppSlice, AppPtr, Private, Shared};
 pub use process::{Process,State};
 

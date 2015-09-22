@@ -11,9 +11,28 @@ extern {
 
 /// Size of each processes's memory region in bytes
 pub const PROC_MEMORY_SIZE : usize = 2048;
+pub const NUM_PROCS : usize = 1;
 
-static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; 8] = [[0; PROC_MEMORY_SIZE]; 8];
+static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE]; NUM_PROCS];
 static mut FREE_MEMORY_IDX: usize = 0;
+
+pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None; NUM_PROCS];
+
+pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
+    let procs = unsafe { &mut PROCS };
+    let idx = appid.idx();
+    if idx >= procs.len() {
+        return false
+    }
+
+    match procs[idx] {
+        None => false,
+        Some(ref mut p) => {
+            // TODO(alevy): validate appid liveness
+            p.callbacks.enqueue(callback)
+        }
+    }
+}
 
 #[derive(Copy,Clone,PartialEq,Eq)]
 pub enum State {

@@ -66,7 +66,9 @@ impl<I: I2C> Driver for TMP006<I> {
         match subscribe_num {
             0 /* read temperature  */ => {
                 match self.last_temp {
-                    Some(temp) => callback.schedule(temp as usize, 0, 0),
+                    Some(temp) => {
+                        callback.schedule(temp as usize, 0, 0);
+                    },
                     None => {
                         self.callback = Some(callback);
                     }
