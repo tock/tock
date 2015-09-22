@@ -3,7 +3,7 @@ extern {
     fn __allow(driver_num: usize, allownum: usize, ptr: *mut (), len: usize) -> isize;
     fn __subscribe(driver_num: usize, subnum: usize, cb: usize) -> isize;
     fn __command(driver_num: usize, cmdnum: usize, arg1: usize) -> isize;
-    fn __wait(a: usize, b: usize, c: usize) -> isize;
+    fn __wait() -> isize;
 }
 
 fn allow(driver_num: usize, allownum: usize, ptr: *mut (), len: usize) -> isize {
@@ -26,7 +26,7 @@ fn subscribe(driver_num: usize, cmdnum: usize, callback: usize) -> isize {
 
 fn wait() -> isize {
     unsafe {
-        __wait(0, 0, 0)
+        __wait()
     }
 }
 
