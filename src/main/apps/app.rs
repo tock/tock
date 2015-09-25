@@ -26,7 +26,6 @@ fn init() {
     use super::console::{print, puts};
     
     puts("Hello\r\n");
-    wait();
     print(format_args!("Welcome to Tock\r\n"));
 }
 
