@@ -1,4 +1,4 @@
-#![feature(core_str_ext,core_slice_ext,const_fn,no_std,raw)]
+#![feature(core_str_ext,core_slice_ext,const_fn,no_std,raw,core_char_ext,nonzero)]
 #![no_main]
 #![no_std]
 
@@ -22,7 +22,7 @@ pub extern fn main() {
         platform::init()
     };
 
-    let app1 = unsafe { Process::create(apps::app1::_start).unwrap() };
+    let app1 = unsafe { Process::create(apps::app::_start).unwrap() };
 
     let processes = unsafe {
         process::process::PROCS = [Some(app1)];

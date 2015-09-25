@@ -19,13 +19,15 @@ impl AppId {
 
 pub struct Callback {
     process_ptr: AppId,
+    appdata: usize,
     fn_ptr: NonZero<*mut ()>
 }
 
 impl Callback {
-    pub unsafe fn new(appid: AppId, fn_ptr: *mut ()) -> Callback {
+    pub unsafe fn new(appid: AppId, appdata: usize, fn_ptr: *mut ()) -> Callback {
         Callback {
             process_ptr: appid,
+            appdata: appdata,
             fn_ptr: NonZero::new(fn_ptr)
         }
     }
@@ -35,6 +37,7 @@ impl Callback {
             r0: r0,
             r1: r1,
             r2: r2,
+            r3: self.appdata,
             pc: *self.fn_ptr as usize
         }, self.process_ptr)
     }

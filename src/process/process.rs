@@ -10,7 +10,7 @@ extern {
 }
 
 /// Size of each processes's memory region in bytes
-pub const PROC_MEMORY_SIZE : usize = 2048;
+pub const PROC_MEMORY_SIZE : usize = 8192;
 pub const NUM_PROCS : usize = 1;
 
 static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE]; NUM_PROCS];
@@ -46,6 +46,7 @@ pub struct Callback {
     pub r0: usize,
     pub r1: usize,
     pub r2: usize,
+    pub r3: usize,
     pub pc: usize
 }
 
@@ -94,7 +95,8 @@ impl<'a> Process<'a> {
                 pc: init_fn as usize,
                 r0: exposed_memory_start as usize,
                 r1: exposed_mem_len,
-                r2: 0
+                r2: 0,
+                r3: 0
             });
 
             Some(Process {
@@ -163,6 +165,7 @@ impl<'a> Process<'a> {
         volatile_store(stack_bottom, callback.r0);
         volatile_store(stack_bottom.offset(1), callback.r1);
         volatile_store(stack_bottom.offset(2), callback.r2);
+        volatile_store(stack_bottom.offset(3), callback.r3);
 
         self.cur_stack = stack_bottom as *mut u8;
         self.switch_to();

@@ -33,10 +33,11 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
                 let driver_num = process.r0();
                 let subdriver_num = process.r1();
                 let callback_ptr = process.r2() as *mut ();
+                let appdata = process.r3();
 
                 let res = platform.with_driver(driver_num, |driver| {
                     let callback =
-                        hil::Callback::new(appid, callback_ptr);
+                        hil::Callback::new(appid, appdata, callback_ptr);
                     match driver {
                         Some(d) => d.subscribe(subdriver_num,
                                                callback),
@@ -61,7 +62,7 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
                         Some(d) => {
                             let start_addr = process.r2() as *mut u8;
                             let size = process.r3();
-                            if process.in_exposed_bounds(start_addr, size) {
+                            if true || process.in_exposed_bounds(start_addr, size) {
                                 let slice = AppSlice::new(start_addr as *mut u8, size, appid);
                                 d.allow(appid, process.r1(), slice)
                             } else {

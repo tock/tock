@@ -92,22 +92,22 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                 }
                 0
             },
-            1 /* write done */ => {
+            1 /* putstr/write_done */ => {
                 match self.apps[0] {
                     None => {
-                        self.apps[0] = Some(App {
-                            read_callback: None,
-                            read_buffer: None,
-                            read_idx: 0,
-                            write_buffer: None,
-                            write_callback: Some(callback),
-                        })
+                        -1
                     },
                     Some(ref mut app) => {
-                        app.write_callback = Some(callback);
+                        match app.write_buffer.take() {
+                            Some(slice) => {
+                                app.write_callback = Some(callback);
+                                self.uart.send_bytes(slice);
+                                0
+                            },
+                            None => -1
+                        }
                     }
                 }
-                0
             },
             _ => -1
         }
@@ -116,20 +116,6 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     fn command(&mut self, cmd_num: usize, arg1: usize) -> isize {
         match cmd_num {
             0 /* putc */ => { self.uart.send_byte(arg1 as u8); 1 },
-            1 /* putstr */ => {
-                let mut app = self.apps[0].take();
-                let res = app.as_mut().map(|app| {
-                    match app.write_buffer.take() {
-                        None => -1,
-                        Some(slice) => {
-                            self.uart.send_bytes(slice);
-                            0
-                        }
-                    }
-                });
-                self.apps[0] = app;
-                res.unwrap_or(-1)
-            },
             _ => -1
         }
     }
