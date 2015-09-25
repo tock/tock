@@ -23,9 +23,13 @@ pub fn _start(mem_start: *mut u8, mem_size: usize) {
 }
 
 fn init() {
-    use super::console::{print, puts};
-    
-    puts("Hello\r\n");
-    print(format_args!("Welcome to Tock\r\n"));
+    print!("You have {} days left...\r\n", 1234);
+    print!("Welcome to Tock\r\n");
+    let stats = (unsafe { &*app }).memory.stats();
+    print!("Memory Stats:\r\n");
+    print!("\tNum Allocated: {}\r\n", stats.num_allocated);
+    print!("\tAllocated Bytes: {}\r\n", stats.allocated_bytes);
+    print!("\tActive: {}\r\n", stats.active);
+    print!("\r\n");
 }
 

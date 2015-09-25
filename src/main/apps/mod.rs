@@ -1,5 +1,6 @@
-pub mod app;
 mod boxed;
-mod console;
+#[macro_use] mod console;
 mod syscalls;
 mod string;
+
+pub mod app;

@@ -171,6 +171,7 @@ impl USART {
 
 impl DMAClient for USART {
     fn xfer_done(&mut self) {
+        self.dma.as_mut().map(|dma| dma.disable());
         self.client.as_mut().map(|c| c.write_done() );
     }
 }

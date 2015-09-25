@@ -13,7 +13,13 @@ struct Chunk {
 pub struct BoxMgr {
     mem: Slice<u8>,
     offset: usize,
-    chunks: [*mut Chunk; 5]
+    chunks: [*mut Chunk; 100]
+}
+
+pub struct BoxMgrStats {
+    pub allocated_bytes: usize,
+    pub num_allocated: usize,
+    pub active: usize
 }
 
 impl BoxMgr {
@@ -24,7 +30,22 @@ impl BoxMgr {
                 len: mem_size - appsize
             },
             offset: 0,
-            chunks: [0 as *mut Chunk; 5]
+            chunks: [0 as *mut Chunk; 100]
+        }
+    }
+
+    pub fn stats(&self) -> BoxMgrStats {
+        let allocated = self.offset;
+        let num_allocated = self.chunks.iter().
+                filter(|c| !c.is_null()).count();
+        let active = unsafe {
+            self.chunks.iter().
+                filter(|c| !c.is_null() && (***c).inuse).count()
+        };
+        BoxMgrStats {
+            allocated_bytes: allocated,
+            num_allocated: num_allocated,
+            active: 0
         }
     }
 }

@@ -7,6 +7,7 @@ struct App {
     write_callback: Option<Callback>,
     read_buffer: Option<AppSlice<Shared, u8>>,
     write_buffer: Option<AppSlice<Shared, u8>>,
+    write_len: usize,
     read_idx: usize
 }
 
@@ -42,6 +43,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                             read_buffer: Some(slice),
                             read_idx: 0,
                             write_buffer: None,
+                            write_len: 0,
                             write_callback: None
                         })
                     },
@@ -60,6 +62,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                             read_buffer: None,
                             read_idx: 0,
                             write_buffer: Some(slice),
+                            write_len: 0,
                             write_callback: None
                         })
                     },
@@ -83,6 +86,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                             read_buffer: None,
                             read_idx: 0,
                             write_buffer: None,
+                            write_len: 0,
                             write_callback: None
                         })
                     },
@@ -101,6 +105,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                         match app.write_buffer.take() {
                             Some(slice) => {
                                 app.write_callback = Some(callback);
+                                app.write_len = slice.len();
                                 self.uart.send_bytes(slice);
                                 0
                             },
@@ -130,9 +135,12 @@ fn each_some<'a, T, I, F>(lst: I, f: F)
 
 impl<'a, U: UART> Client for Console<'a, U> {
     fn write_done(&mut self) {
-        self.apps[0].as_mut().map(|app| app.write_callback.as_mut().map(|cb| {
-            cb.schedule(0, 0, 0);
-        }));
+        self.apps[0].as_mut().map(|app| {
+            app.write_callback.take().map(|mut cb| {
+                cb.schedule(app.write_len, 0, 0);
+            });
+            app.write_len = 0;
+        });
     }
 
     fn read_done(&mut self, c: u8) {
