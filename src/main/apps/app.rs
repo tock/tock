@@ -1,6 +1,8 @@
 use super::syscalls::wait;
 use super::boxed::BoxMgr;
 
+use super::gpio::{enable_pin,set_pin};
+
 pub struct App {
     pub memory: BoxMgr
 }
@@ -23,13 +25,17 @@ pub fn _start(mem_start: *mut u8, mem_size: usize) {
 }
 
 fn init() {
-    print!("You have {} days left...\r\n", 1234);
+    //print!("You have {} days left...\r\n", 1234);
     print!("Welcome to Tock\r\n");
     let stats = (unsafe { &*app }).memory.stats();
     print!("Memory Stats:\r\n");
     print!("\tNum Allocated: {}\r\n", stats.num_allocated);
     print!("\tAllocated Bytes: {}\r\n", stats.allocated_bytes);
+    print!("\tFree Bytes: {}\r\n", stats.free);
+    print!("\tDrops: {}\r\n", stats.drops);
     print!("\tActive: {}\r\n", stats.active);
+    enable_pin(0);
+    set_pin(0);
     print!("\r\n");
 }
 

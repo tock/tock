@@ -13,13 +13,16 @@ struct Chunk {
 pub struct BoxMgr {
     mem: Slice<u8>,
     offset: usize,
+    drops: usize,
     chunks: [*mut Chunk; 100]
 }
 
 pub struct BoxMgrStats {
     pub allocated_bytes: usize,
     pub num_allocated: usize,
-    pub active: usize
+    pub active: usize,
+    pub drops: usize,
+    pub free: usize
 }
 
 impl BoxMgr {
@@ -30,6 +33,7 @@ impl BoxMgr {
                 len: mem_size - appsize
             },
             offset: 0,
+            drops: 0,
             chunks: [0 as *mut Chunk; 100]
         }
     }
@@ -45,7 +49,9 @@ impl BoxMgr {
         BoxMgrStats {
             allocated_bytes: allocated,
             num_allocated: num_allocated,
-            active: 0
+            active: active,
+            drops: self.drops,
+            free: self.mem.len - num_allocated
         }
     }
 }
@@ -137,6 +143,8 @@ impl<T: ?Sized> Drop for Box<T> {
             let chunk = (*self.pointer as *mut T as *mut u8)
                             .offset(0 - chunk_size) as *mut Chunk;
             (&mut *chunk).inuse = false;
+            let myapp = &mut (*app).memory;
+            myapp.drops += 1;
         }
     }
 }
@@ -150,3 +158,4 @@ pub unsafe fn uninitialized_box_slice<T>(size: usize) -> Box<&'static mut [T]> {
     bx.data = (*bx.pointer as *const u8).offset(slice_size as isize);
     mem::transmute(bx)
 }
+
