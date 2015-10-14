@@ -1,26 +1,45 @@
 use core::raw::Slice;
 use core::ops::{Deref,DerefMut};
-use core::nonzero::NonZero;
+use core::ptr::Unique;
 
 use super::app::{app};
 
+/// Header for allocated chunks of memory.
+///
+/// The `inuse` flag designates whether the Chunk is currently allocated (true)
+/// or is free (false).
+///
+/// The `len` field specifies the size of this Chunk **not including the
+/// header**. The Chunk must be at least as large as the value for which it is
+/// allocated, but may be larger.
+///
+/// Allocated data is immeidately after the header in memory.
 #[derive(Clone,Copy)]
-struct Chunk {
-    inuse: bool,
-    slice: Slice<u8>
+#[repr(C)]
+pub struct Chunk {
+    pub inuse: bool,
+    pub len: usize
+}
+
+impl Chunk {
+    unsafe fn data(&self) -> *const u8 {
+        (self as *const Chunk).offset(1) as *const u8
+    }
 }
 
 pub struct BoxMgr {
-    mem: Slice<u8>,
-    offset: usize,
-    drops: usize,
-    chunks: [*mut Chunk; 100]
+    pub mem: Slice<u8>,
+    pub offset: usize,
+    pub drops: usize,
+    pub allocs: usize,
+    pub chunks: [*mut Chunk; 100]
 }
 
 pub struct BoxMgrStats {
     pub allocated_bytes: usize,
     pub num_allocated: usize,
     pub active: usize,
+    pub allocs: usize,
     pub drops: usize,
     pub free: usize
 }
@@ -34,6 +53,7 @@ impl BoxMgr {
             },
             offset: 0,
             drops: 0,
+            allocs: 0,
             chunks: [0 as *mut Chunk; 100]
         }
     }
@@ -51,29 +71,38 @@ impl BoxMgr {
             num_allocated: num_allocated,
             active: active,
             drops: self.drops,
+            allocs: self.allocs,
             free: self.mem.len - num_allocated
         }
     }
 }
 
-pub struct Box<T: ?Sized>{ pointer: NonZero<*mut T> }
+pub struct Box<T>{ inner: Unique<T> }
 
 impl<T> Box<T> {
     
+    pub unsafe fn from_raw(raw: *mut T) -> Box<T> {
+        Box { inner: Unique::new(raw) }
+    }
+
     pub fn raw(&self) -> *mut T {
-        *self.pointer
+        *self.inner
     }
 
     pub unsafe fn uninitialized(size: usize) -> Box<T> {
         use core::mem;
         let myapp = &mut (&mut *app).memory;
+        myapp.allocs += 1;
 
         // First, see if there is an available chunk of the right size
         for chunk in myapp.chunks.iter_mut().filter(|c| !c.is_null()) {
-            let c = &mut **chunk;
-            if !c.inuse && c.slice.len >= size {
+            let c : &mut Chunk = mem::transmute(*chunk);
+            if !c.inuse && c.len >= size {
                 c.inuse = true;
-                return Box { pointer: NonZero::new(c.slice.data as *mut T) };
+                let data = c.data();
+                return Box {
+                    inner: Unique::new(data as *mut T)
+                };
             }
         }
 
@@ -89,18 +118,15 @@ impl<T> Box<T> {
                 } else {
                     size + chunk_align - (size % chunk_align)
                 };
-                chunk.slice = Slice {
-                    data: myapp.mem.data.offset(myapp.offset as isize),
-                    len: size
-                };
-
-                myapp.offset += size;
-
+                chunk.len = size;
                 chunk.inuse = true;
 
-                *slot = chunk;
+                *slot = chunk as *mut Chunk;
 
-                Box{ pointer: NonZero::new(chunk.slice.data as *mut T) }
+                let data = myapp.mem.data.offset(myapp.offset as isize);
+                myapp.offset += size;
+
+                Box{ inner: Unique::new(data as *mut T) }
             },
             None => {
                 panic!("OOM")
@@ -108,13 +134,17 @@ impl<T> Box<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn new(x: T) -> Box<T> {
         use core::mem;
+        use core::intrinsics::copy;
+
         let size = mem::size_of::<T>();
-        let mut d = unsafe { Self::uninitialized(size) };
-        *d = x;
-        d
+        unsafe {
+            let mut d = Self::uninitialized(size);
+            copy(&x, &mut *d, 1);
+            mem::forget(x);
+            d
+        }
     }
 }
 
@@ -122,7 +152,7 @@ impl<T> Deref for Box<T> {
     type Target = T;
     fn deref(&self) -> &T {
         unsafe {
-            &**self.pointer
+            &**self.inner
         }
     }
 }
@@ -130,18 +160,19 @@ impl<T> Deref for Box<T> {
 impl<T> DerefMut for Box<T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe {
-            &mut **self.pointer
+            &mut **self.inner
         }
     }
 }
 
-impl<T: ?Sized> Drop for Box<T> {
+impl<T> Drop for Box<T> {
     fn drop(&mut self) {
         unsafe {
-            use core::mem;
-            let chunk_size = mem::size_of::<Chunk>() as isize;
-            let chunk = (*self.pointer as *mut T as *mut u8)
-                            .offset(0 - chunk_size) as *mut Chunk;
+            use core::{mem, ptr};
+
+            mem::drop(ptr::read(*self.inner));
+
+            let chunk = (*self.inner as *mut T as *mut Chunk).offset(-1);
             (&mut *chunk).inuse = false;
             let myapp = &mut (*app).memory;
             myapp.drops += 1;
@@ -155,7 +186,7 @@ pub unsafe fn uninitialized_box_slice<T>(size: usize) -> Box<&'static mut [T]> {
     let mut bx : Box<Slice<u8>> =
         Box::uninitialized(slice_size + size * mem::size_of::<T>());
     bx.len = size;
-    bx.data = (*bx.pointer as *const u8).offset(slice_size as isize);
+    bx.data = (bx.raw()).offset(1) as *const u8;
     mem::transmute(bx)
 }
 

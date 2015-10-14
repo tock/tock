@@ -5,8 +5,8 @@ use super::string::String;
 
 const WRITE_DONE_TOKEN : isize = 0xbeef;
 
-fn write_done(_: usize, _: usize, _: usize, todrop: Box<String>) -> isize {
-    mem::drop(todrop);
+fn write_done(_: usize, _: usize, _: usize, strptr: *mut String) -> isize {
+    unsafe { mem::drop(Box::<String>::from_raw(strptr)); }
     WRITE_DONE_TOKEN
 }
 
@@ -15,18 +15,18 @@ macro_rules! print {
     ($fmt:expr, $($arg:tt)*) => (::apps::console::print(format_args!($fmt, $($arg)*)));
 }
 
-
 pub fn print(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
-    let mut buf = String::new("");
-    let _ = buf.write_fmt(args);
-    puts(buf);
+    let mut string = String::new("");
+    let _ = string.write_fmt(args);
+    puts(string);
 }
 
 pub fn puts(string: String) {
     allow(0, 1, string.as_str() as *const str as *mut (), string.len());
-    let data = Box::new(string);
-    subscribe(0, 1, write_done as usize, data.raw() as usize);
+    let bx = Box::new(string);
+    subscribe(0, 1, write_done as usize, bx.raw() as usize);
+    mem::forget(bx);
     while wait() != WRITE_DONE_TOKEN {}
 }
 

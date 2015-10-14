@@ -1,4 +1,4 @@
-#![feature(core_str_ext,core_slice_ext,const_fn,no_std,raw,core_char_ext,nonzero)]
+#![feature(core_str_ext,core_slice_ext,const_fn,no_std,raw,core_char_ext,unique,slice_bytes)]
 #![no_main]
 #![no_std]
 
