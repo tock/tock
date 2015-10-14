@@ -163,6 +163,7 @@ impl DMAChannel {
             let registers : &mut DMARegisters = unsafe {
                 mem::transmute(self.registers)
             };
+            volatile_store(&mut registers.interrupt_disable, 0xffffffff);
             volatile_store(&mut registers.control, 0x1);
 
             unsafe { nvic::enable(self.nvic) };
@@ -192,11 +193,6 @@ impl DMAChannel {
     }
 
     pub fn handle_interrupt(&mut self) {
-        let registers : &mut DMARegisters = unsafe {
-            mem::transmute(self.registers)
-        };
-
-        volatile_store(&mut registers.interrupt_disable, 1 << 1);
         self.client.as_mut().map(|client| {
             client.xfer_done();
         });
@@ -224,6 +220,9 @@ pub unsafe extern fn PDCA_0_Handler() {
     use nvic;
     use chip;
 
+    let registers : &mut DMARegisters =
+        mem::transmute(DMAChannels[0].registers);
+    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
     nvic::disable(nvic::NvicIdx::PDCA0);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA0);
 }
