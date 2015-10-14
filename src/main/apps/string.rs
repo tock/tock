@@ -1,50 +1,44 @@
 use core::fmt::{self, Write};
 use super::boxed::{Box, uninitialized_box_slice};
 
-pub struct String { pub bx: Option<Box<&'static mut [u8]>> }
+pub struct String { bx: Box<&'static mut [u8]> }
 
 impl String {
     pub fn new(x: &str) -> String {
         if x.len() == 0 {
-            return String { bx: None };
+            return String { bx: Box::new(&mut []) };
         }
         unsafe {
             let mut slice = uninitialized_box_slice(x.len());
             for (i,c) in x.bytes().enumerate() {
                 slice[i] = c;
             }
-            String { bx: Some(slice) }
+            String { bx: slice }
         }
     }
 
     pub fn len(&self) -> usize {
-        self.bx.as_ref().map(|b| b.len()).unwrap_or(0)
+        self.bx.len()
     }
 
     pub fn as_str(&self) -> &str {
         use core::mem;
         use core::raw::Repr;
 
-        match self.bx.as_ref() {
-            Some(bx) => unsafe {
-                mem::transmute((*bx.raw()).repr())
-            },
-            None => ""
+        unsafe {
+            mem::transmute((*self.bx.raw()).repr())
         }
     }
 }
 
 impl Write for String {
     fn write_char(&mut self, c: char) -> fmt::Result {
+        use core::slice::bytes::copy_memory;
         let charlen = c.len_utf8();
         let oldlen = self.len();
         let mut newbox = unsafe { uninitialized_box_slice(oldlen + charlen) };
         
-        self.bx.as_ref().map(|bx| {
-            for (i, c) in bx.iter().enumerate() {
-                newbox[i] = *c;
-            }
-        });
+        copy_memory(self.as_str().as_bytes(), &mut newbox[..oldlen]);
 
         match charlen {
             1 => newbox[oldlen] = c as u8,
@@ -53,25 +47,20 @@ impl Write for String {
             }
         }
 
-        self.bx = Some(newbox);
+        self.bx = newbox;
         Ok(())
     }
 
     fn write_str(&mut self, s: &str) -> fmt::Result {
+        use core::slice::bytes::copy_memory;
+
         let oldlen = self.len();
         let mut newbox = unsafe { uninitialized_box_slice(oldlen + s.len()) };
 
-        self.bx.as_ref().map(|bx| {
-            for (i, c) in bx.iter().enumerate() {
-                newbox[i] = *c;
-            }
-        });
+        copy_memory(self.as_str().as_bytes(), &mut newbox[..oldlen]);
+        copy_memory(s.as_bytes(), &mut newbox[oldlen..]);
 
-        for (i,c) in s.bytes().enumerate() {
-            newbox[i + oldlen] = c;
-        }
-
-        self.bx = Some(newbox);
+        self.bx = newbox;
 
         Ok(())
     }
