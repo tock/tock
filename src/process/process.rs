@@ -6,7 +6,7 @@ use common::{RingBuffer, Queue};
 
 #[allow(improper_ctypes)]
 extern {
-    pub fn switch_to_user(user_stack: *mut u8) -> *mut u8;
+    pub fn switch_to_user(user_stack: *mut u8, mem_base: *mut u8) -> *mut u8;
 }
 
 /// Size of each processes's memory region in bytes
@@ -16,7 +16,7 @@ pub const NUM_PROCS : usize = 1;
 static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE]; NUM_PROCS];
 static mut FREE_MEMORY_IDX: usize = 0;
 
-pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None; NUM_PROCS];
+pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None];
 
 pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
     let procs = unsafe { &mut PROCS };
@@ -50,6 +50,17 @@ pub struct Callback {
     pub pc: usize
 }
 
+#[repr(C,packed)]
+struct LoadInfo {
+    entry_loc: usize,        /* Entry point for user application */
+    init_data_loc: usize,    /* Data initialization information in flash */
+    init_data_size: usize,    /* Size of initialization information */
+    got_start_offset: usize,  /* Offset to start of GOT */
+    got_end_offset: usize,    /* Offset to end of GOT */
+    bss_start_offset: usize,  /* Offset to start of BSS */
+    bss_end_offset: usize    /* Offset to end of BSS */
+}
+
 pub struct Process<'a> {
     /// The process's memory.
     memory: &'a mut [u8],
@@ -67,7 +78,8 @@ pub struct Process<'a> {
 }
 
 impl<'a> Process<'a> {
-    pub unsafe fn create(init_fn: fn(*mut u8, usize)) -> Option<Process<'a>> {
+    #[inline(never)]
+    pub unsafe fn create(start_addr: *const usize) -> Option<Process<'a>> {
         let cur_idx = atomic_xadd(&mut FREE_MEMORY_IDX, 1);
         if cur_idx > MEMORIES.len() {
             atomic_xsub(&mut FREE_MEMORY_IDX, 1);
@@ -90,25 +102,66 @@ impl<'a> Process<'a> {
             let exposed_memory_start =
                     &mut memory[callback_len * callback_size] as *mut u8;
 
-            let exposed_mem_len = memory.len() - callback_len * callback_size;
-            callbacks.enqueue(Callback {
-                pc: init_fn as usize,
-                r0: exposed_memory_start as usize,
-                r1: exposed_mem_len,
-                r2: 0,
-                r3: 0
-            });
-
-            Some(Process {
+            let mut result = Process {
                 memory: memory,
                 exposed_memory_start: exposed_memory_start,
                 cur_stack: stack_bottom as *mut u8,
                 wait_pc: 0,
                 state: State::Waiting,
                 callbacks: callbacks
-            })
+            };
+
+            result.load(start_addr);
+
+            Some(result)
         }
     }
+
+    unsafe fn load(&mut self, start_addr: *const usize) {
+        let load_info : &LoadInfo = mem::transmute(start_addr);
+        let exposed_memory_start = self.exposed_memory_start;
+
+        // Zero out BSS
+        ::core::intrinsics::write_bytes(
+            exposed_memory_start.offset(load_info.bss_start_offset as isize),
+            0,
+            load_info.bss_end_offset - load_info.bss_start_offset);
+
+        // Copy data into Data section
+        let init_data : &[u8] = mem::transmute(raw::Slice{
+            data: (load_info.init_data_loc + start_addr as usize) as *mut u8,
+            len: load_info.init_data_size
+        });
+
+        let target_data : &mut [u8] = mem::transmute(raw::Slice{
+            data: exposed_memory_start,
+            len: load_info.init_data_size
+        });
+
+        ::core::slice::bytes::copy_memory(init_data, target_data);
+
+        // Fixup Global Offset Table
+        let mut got_cur = exposed_memory_start.offset(load_info.got_start_offset as isize) as *mut usize;
+        let got_end = exposed_memory_start.offset(load_info.got_end_offset as isize) as *mut usize;
+        while got_cur != got_end {
+            *got_cur += exposed_memory_start as usize;
+            got_cur = got_cur.offset(1);
+        }
+
+        // Entry point is offset from app code
+        let init_fn = start_addr as usize + load_info.entry_loc;
+
+        let heap_start = exposed_memory_start.offset(load_info.init_data_size as isize);
+
+        self.callbacks.enqueue(Callback {
+            pc: init_fn as usize,
+            r0: heap_start as usize,
+            r1: 0,
+            r2: 0,
+            r3: 0
+        });
+    }
+
 
     pub fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize)
             -> bool {
@@ -157,7 +210,7 @@ impl<'a> Process<'a> {
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
         volatile_store(stack_bottom.offset(7), 0x01000000);
-        volatile_store(stack_bottom.offset(6), callback.pc);
+        volatile_store(stack_bottom.offset(6), callback.pc | 1);
         // Set the LR register to the saved PC so the callback returns to
         // wherever wait was called. Set lowest bit to one because of THUMB
         // instruction requirements.
@@ -176,7 +229,7 @@ impl<'a> Process<'a> {
         if self.cur_stack < self.exposed_memory_start {
             breakpoint();
         }
-        let psp = switch_to_user(self.cur_stack);
+        let psp = switch_to_user(self.cur_stack, self.exposed_memory_start);
         self.cur_stack = psp;
     }
 

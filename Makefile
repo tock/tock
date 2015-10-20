@@ -13,7 +13,7 @@ PLATFORM ?= storm
 all:	$(BUILD_DIR)
 
 $(BUILD_DIR):
-	@mkdir -p $@
+	@mkdir -p $@/apps
 
 # Common functions and variables
 include Common.mk

@@ -1,4 +1,4 @@
-#![feature(core_str_ext,core_slice_ext,const_fn,no_std,raw,core_char_ext,unique,slice_bytes)]
+#![feature(core_slice_ext,const_fn,no_std)]
 #![no_main]
 #![no_std]
 
@@ -8,25 +8,27 @@ extern crate hil;
 extern crate process;
 extern crate platform;
 
-mod apps;
 mod sched;
 
 pub mod syscall;
+
+#[allow(improper_ctypes)]
+extern {
+    static _sapps : usize;
+}
 
 #[no_mangle]
 pub extern fn main() {
     use process::Process;
     use process::AppId;
 
-    let mut platform = unsafe {
-        platform::init()
+    let processes = unsafe {
+        process::process::PROCS = [Process::create(&_sapps)];
+        &mut process::process::PROCS
     };
 
-    let app1 = unsafe { Process::create(apps::app::_start).unwrap() };
-
-    let processes = unsafe {
-        process::process::PROCS = [Some(app1)];
-        &mut process::process::PROCS
+    let mut platform = unsafe {
+        platform::init()
     };
 
     loop {

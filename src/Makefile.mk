@@ -1,3 +1,4 @@
+include src/apps/Makefile.mk
 include src/chips/Makefile.mk
 include src/common/Makefile.mk
 include src/arch/$(ARCH)/Makefile.mk

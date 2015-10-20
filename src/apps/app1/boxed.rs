@@ -2,7 +2,7 @@ use core::raw::Slice;
 use core::ops::{Deref,DerefMut};
 use core::ptr::Unique;
 
-use super::app::{app};
+use super::{app};
 
 /// Header for allocated chunks of memory.
 ///
@@ -45,6 +45,7 @@ pub struct BoxMgrStats {
 }
 
 impl BoxMgr {
+    #[inline(never)]
     pub fn new(mem_start: *mut u8, mem_size: usize, appsize: usize) -> BoxMgr {
         BoxMgr {
             mem: Slice {

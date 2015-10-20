@@ -4,7 +4,8 @@ RUSTC_FLAGS += -Ctarget-cpu=cortex-m4 -C relocation_model=static
 RUSTC_FLAGS += -g -C no-stack-check
 
 CFLAGS += -g -O3 -std=gnu99 -mcpu=cortex-m4 -mthumb -nostdlib -Tsrc/chips/sam4l/loader.ld
-LDFLAGS += -mcpu=cortex-m4 -mthumb -Tsrc/chips/sam4l/loader.ld
+LDFLAGS += -mcpu=cortex-m4 -mthumb
+LOADER = src/chips/sam4l/loader.ld
 
 ARCH = cortex-m4
 
