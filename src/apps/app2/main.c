@@ -1,3 +1,5 @@
+/* vim: set sw=2 expandtab tw=80: */
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,26 +23,36 @@ void putstr(char* str) {
   }
 }
 
-char hello[] = "Hello World!\r\n";
+char hello[] = "Hi! Reading temperature...\r\n";
 
 void write_done(int _x, int _y, int _z, char *str) {
-  putstr(str);
   free(str);
-  __command(1, 2, 0); // set pin 0
 }
 
+void noop() {}
+
+void tmp_available(int16_t tmp) {
+  char* str = malloc(128);
+  sprintf(str, "Temp: %d\r\n", tmp / 32);
+
+  __allow(0, 1, str, strlen(str));
+  __subscribe(0, 1, write_done, 0);
+}
 
 void main() {
   __command(1, 0, 0); // enable pin 0
+  __command(1, 2, 0); // set pin 0
+
+  __command(2, 0, 0); // enable tmp
 
   char* str = malloc(sizeof(hello));
-  //siprintf(str, "%s (0x%x) (0x%x)\r\n", hello, res, hello);
   strncpy(str, hello, sizeof(hello));
 
   __allow(0, 1, str, strlen(hello));
   __subscribe(0, 1, &write_done, str);
   __wait();
 
+  __subscribe(2, 0, tmp_available);
 
   while(1) __wait();
 }
