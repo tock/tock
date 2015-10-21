@@ -5,43 +5,28 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-extern void __wait();
-extern int __command();
-extern int __allow();
-extern int __subscribe();
+#include "tock.h"
 
-void _putc(char c) {
-  __command(0, 0, c);
-}
 
-void putstr(char* str) {
-  char c = *str;
-  while (c != '\0') {
-    _putc(c);
-    ++str;
-    c = *str;
-  }
-}
-
-void write_done(int _x, int _y, int _z, char *str) {
+int write_done(int _x, int _y, int _z, void* str) {
   free(str);
+  return 0;
 }
 
-void noop() {}
-
-void tmp_available(int16_t tmp) {
+int tmp_available(int r0, int r1, int r2, void* ud) {
+  int16_t tmp = (int16_t)r0;
   char* str = malloc(128);
   sprintf(str, "%d\u2103 \r\n", tmp / 32);
 
-  __allow(0, 1, str, strlen(str));
-  __subscribe(0, 1, write_done, 0);
+  allow(0, 1, str, strlen(str));
+  return subscribe(0, 1, write_done, str);
 }
 
 void main() {
-  __command(1, 0, 0); // enable pin 0
-  __command(1, 2, 0); // set pin 0
+  command(1, 0, 0); // enable pin 0
+  command(1, 2, 0); // set pin 0
 
-  __command(2, 0, 0); // enable tmp
+  command(2, 0, 0); // enable tmp
 
   char hello[] = "Welcome to Tock in C (with libc)\r\n\
 Reading temperature... ";
@@ -49,12 +34,12 @@ Reading temperature... ";
   char* str = malloc(sizeof(hello));
   strncpy(str, hello, sizeof(hello));
 
-  __allow(0, 1, str, strlen(hello));
-  __subscribe(0, 1, &write_done, str);
-  __wait();
+  allow(0, 1, str, strlen(hello));
+  subscribe(0, 1, &write_done, str);
+  wait();
 
-  __subscribe(2, 0, tmp_available);
+  subscribe(2, 0, tmp_available, 0);
 
-  while(1) __wait();
+  while(1) wait();
 }
 
