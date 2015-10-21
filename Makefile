@@ -18,10 +18,14 @@ $(BUILD_DIR):
 # Common functions and variables
 include Common.mk
 
+BASE_DIR = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))/
+
 # External dependencies (Rust libcore)
+EXTERN_DIR = $(BASE_DIR)extern/
 include extern/Makefile.mk
 
 # Tock
+SRC_DIR = $(BASE_DIR)src/
 include src/Makefile.mk
 
 .PHONY: all clean clean-all

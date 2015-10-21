@@ -1,4 +1,7 @@
 APP_LIBC := extern/newlib/libc.a
 CFLAGS_APPS := -fPIC -msingle-pic-base -mno-pic-data-is-text-relative
 
-include src/apps/*/Makefile.mk
+include $(SRC_DIR)apps/*/Makefile.mk
+
+APP_BINS = $(foreach app,$(APPS),$(BUILD_DIR)/apps/$(app).bin.o)
+
