@@ -4,9 +4,9 @@ $(BUILD_DIR)/apps/app2.o: $(call rwildcard,src/apps/app2/,*.rs) $(BUILD_DIR)/lib
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) -C lto --emit obj -o $@ src/apps/app2/main.rs
 
-$(BUILD_DIR)/apps/app2.elf: $(call rwildcard,src/apps/app2/,*.c) $(BUILD_DIR)/arch.o src/apps/app2/libc.a
+$(BUILD_DIR)/apps/app2.elf: $(call rwildcard,src/apps/app2/,*.c) $(BUILD_DIR)/arch.o $(APP_LIBC)
 	@echo "Building $@"
-	$(CC) $(LDFLAGS) $(CFLAGS_APPS) -g -Os -T src/apps/app2/loader.ld -o $@ -ffreestanding -nostdlib --specs=nosys.specs --specs=nano.specs $^ src/apps/app2/libc.a
+	$(CC) $(LDFLAGS) $(CFLAGS_APPS) -g -Os -T src/apps/app2/loader.ld -o $@ -ffreestanding -nostdlib --specs=nosys.specs --specs=nano.specs $^
 
 $(BUILD_DIR)/apps/app2.bin: $(BUILD_DIR)/apps/app2.elf
 	@echo "Extracting binary $@"
