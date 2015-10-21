@@ -97,7 +97,7 @@ impl<'a> Process<'a> {
             });
             let callback_size = mem::size_of::<Option<Callback>>();
 
-            let mut callbacks = RingBuffer::new(callback_buf);
+            let callbacks = RingBuffer::new(callback_buf);
 
             let exposed_memory_start =
                     &mut memory[callback_len * callback_size] as *mut u8;
@@ -144,7 +144,14 @@ impl<'a> Process<'a> {
         let mut got_cur = exposed_memory_start.offset(load_info.got_start_offset as isize) as *mut usize;
         let got_end = exposed_memory_start.offset(load_info.got_end_offset as isize) as *mut usize;
         while got_cur != got_end {
-            *got_cur += exposed_memory_start as usize;
+            let entry = *got_cur;
+            if (entry & 0x80000000) == 0 {
+                // Regular data (memory relative)
+                *got_cur = entry + (exposed_memory_start as usize);
+            } else {
+                // rodata or function pointer (code relative)
+                *got_cur = (entry ^ 0x80000000) + (start_addr as usize);
+            }
             got_cur = got_cur.offset(1);
         }
 

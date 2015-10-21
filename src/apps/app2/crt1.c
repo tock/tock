@@ -21,12 +21,12 @@ typedef struct {
 } Load_Info;
 
 // Load Info is used by the runtime in order to load the application
-//  Note that locations in the text section assume .text starts at 0x10000000
+//  Note that locations in the text section assume .text starts at 0x0
 //  and are therefore updated
 __attribute__ ((section(".load_info"), used))
 Load_Info app_info = {
-    .entry_loc          = (unsigned int*)((unsigned int)_start - 0x10000000),
-    .init_data_loc      = (unsigned int*)((unsigned int)(&_etext) - 0x10000000),
+    .entry_loc          = (unsigned int*)((unsigned int)_start - 0x80000000),
+    .init_data_loc      = (unsigned int*)((unsigned int)(&_etext) - 0x80000000),
     .init_data_size     = (unsigned int)(&_edata),
     .got_start_offset   = (unsigned int)(&_got),
     .got_end_offset     = (unsigned int)(&_egot),
@@ -35,6 +35,13 @@ Load_Info app_info = {
 };
 
 void* heap_base;
+
+caddr_t _sbrk(int incr)
+{
+  void* result = heap_base;
+  heap_base += incr;
+  return heap_base;
+}
 
 __attribute__ ((section(".start"), used))
 void _start(void* heap_start) {
