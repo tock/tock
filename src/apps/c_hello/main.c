@@ -23,8 +23,6 @@ void putstr(char* str) {
   }
 }
 
-char hello[] = "Hi! Reading temperature...\r\n";
-
 void write_done(int _x, int _y, int _z, char *str) {
   free(str);
 }
@@ -33,7 +31,7 @@ void noop() {}
 
 void tmp_available(int16_t tmp) {
   char* str = malloc(128);
-  sprintf(str, "Temp: %d\r\n", tmp / 32);
+  sprintf(str, "%d\u2103 \r\n", tmp / 32);
 
   __allow(0, 1, str, strlen(str));
   __subscribe(0, 1, write_done, 0);
@@ -44,6 +42,9 @@ void main() {
   __command(1, 2, 0); // set pin 0
 
   __command(2, 0, 0); // enable tmp
+
+  char hello[] = "Welcome to Tock in C (with libc)\r\n\
+Reading temperature... ";
 
   char* str = malloc(sizeof(hello));
   strncpy(str, hello, sizeof(hello));
