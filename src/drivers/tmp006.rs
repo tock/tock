@@ -15,12 +15,19 @@ pub struct TMP006<I: I2C + 'static> {
     i2c: &'static mut I,
     timer: VirtualTimer,
     last_temp: Option<i16>,
-    callback: Option<Callback>
+    callback: Option<Callback>,
+    enabled: bool
 }
 
 impl<I: I2C> TMP006<I> {
     pub fn new(i2c: &'static mut I, timer: VirtualTimer) -> TMP006<I> {
-        TMP006{i2c: i2c, timer: timer, last_temp: None, callback: None}
+        TMP006{
+            i2c: i2c,
+            timer: timer,
+            last_temp: None,
+            callback: None,
+            enabled: false
+        }
     }
 }
 
@@ -65,6 +72,9 @@ impl<I: I2C> Driver for TMP006<I> {
     fn subscribe(&mut self, subscribe_num: usize, mut callback: Callback) -> isize {
         match subscribe_num {
             0 /* read temperature  */ => {
+                if !self.enabled {
+                    return -1;
+                }
                 match self.last_temp {
                     Some(temp) => {
                         callback.schedule(temp as usize, 0, 0);
@@ -94,6 +104,8 @@ impl<I: I2C> Driver for TMP006<I> {
                 self.i2c.write_sync(0x40, &buf);
 
                 self.timer.repeat(32768);
+
+                self.enabled = true;
 
                 0
             },
