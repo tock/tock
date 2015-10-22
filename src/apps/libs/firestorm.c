@@ -4,41 +4,45 @@
 #include "firestorm.h"
 #include "tock.h"
 
-static int putstr_cb(int _x, int _y, int _z, void* str) {
+static CB_TYPE putstr_cb(int _x, int _y, int _z, void* str) {
   free(str);
-  return 0;
+  return PUTSTR;
 }
-
 
 void putnstr(char *str, size_t len) {
   char* buf = (char*)malloc(len * sizeof(char));
   strncpy(buf, str, len);
-  allow(0, 1, buf, len);
-  subscribe(0, 1, putstr_cb, buf);
-  wait();
+  putnstr_async(buf, len, putstr_cb, buf);
+  wait_for(PUTSTR);
+}
+
+void putnstr_async(char *str, size_t len, subscribe_cb cb, void* userdata) {
+  allow(0, 1, str, len);
+  subscribe(0, 1, cb, userdata);
 }
 
 void putstr(char *str) {
   putnstr(str, strlen(str));
 }
 
-static int read_tmp006_cb(int r0, int r1, int r2, void* ud) {
-  int16_t *res = (int16_t*)ud;
-  *res = (int16_t)r0 / 32;
-
-  return 0;
-}
-
 void enable_tmp006() {
   command(2, 0, 0);
 }
+
+static CB_TYPE read_tmp006_cb(int r0, int r1, int r2, void* ud) {
+  int16_t *res = (int16_t*)ud;
+  *res = (int16_t)r0 / 32;
+
+  return READTMP;
+}
+
 
 int tmp006_read(int16_t *temperature) {
   int error = tmp006_read_async(read_tmp006_cb, (void*)temperature);
   if (error < 0) {
     return error;
   }
-  wait();
+  wait_for(READTMP);
   return 0;
 }
 
