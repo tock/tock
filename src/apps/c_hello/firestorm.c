@@ -29,12 +29,24 @@ static int read_tmp006_cb(int r0, int r1, int r2, void* ud) {
   return 0;
 }
 
-int16_t read_tmp006() {
-  command(2, 0, 0); // enable tmp006
+void enable_tmp006() {
+  command(2, 0, 0);
+}
 
-  int16_t result;
-  subscribe(2, 0, read_tmp006_cb, &result);
+int tmp006_read(int16_t *temperature) {
+  int error = tmp006_read_async(read_tmp006_cb, (void*)temperature);
+  if (error < 0) {
+    return error;
+  }
   wait();
-  return result;
+  return 0;
+}
+
+int tmp006_read_async(subscribe_cb cb, void* userdata) {
+  return subscribe(2, 0, cb, userdata);
+}
+
+int tmp006_enable() {
+  command(2, 0, 0);
 }
 
