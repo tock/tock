@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "firestorm.h"
-#include "tock.h"
+#include <firestorm.h>
+#include <tock.h>
 
 static CB_TYPE putstr_cb(int _x, int _y, int _z, void* str) {
   free(str);

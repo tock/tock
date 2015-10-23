@@ -5,16 +5,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <tock.h>
 #include <firestorm.h>
 
 char hello[] = "Hello World!\r\n";
 
-int nop(int x, int y, int z, void *ud) {}
+CB_TYPE nop(int x, int y, int z, void *ud) { return ASYNC; }
 
 void main() {
   putnstr_async(hello, sizeof(hello), nop, NULL);
-
-  while(1) wait();
 }
 

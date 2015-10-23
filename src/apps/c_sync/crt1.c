@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <unistd.h>
+#include <tock.h>
 
 extern unsigned int* _etext;
 extern unsigned int* _edata;
@@ -50,5 +51,7 @@ void _start(void* heap_start) {
   heap_base = heap_start;
 
   main();
+
+  while(1) { wait(); }
 }
 

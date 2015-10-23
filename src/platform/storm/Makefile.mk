@@ -14,14 +14,17 @@ $(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main
 	@$(CC) $(LDFLAGS) -T$(LOADER) $^ -o $@ -ffreestanding -nostdlib -lc -lgcc
 
 $(BUILD_DIR)/%.sdb: $(BUILD_DIR)/%.elf
-#	@echo "SDB pack cut out due to errors -pal"
 	@echo "Packing SDB..."
 	@$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
 
 all: $(BUILD_DIR)/main.sdb
 
-.PHONY: program
+.PHONY: rebuild-apps
+rebuild-apps: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o $(APP_BINS)
+	@echo "Relinking with APPS=\"$(APPS)\""
+	@$(CC) $(LDFLAGS) -T$(LOADER) $^ -o $(BUILD_DIR)/main.elf -ffreestanding -nostdlib -lc -lgcc
 
+.PHONY: program
 program: $(BUILD_DIR)/main.sdb
 	$(SLOAD) flash $(BUILD_DIR)/main.sdb
 

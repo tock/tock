@@ -30,10 +30,8 @@ Reading temperature... ");
     putstr(buf);
   } else {
     char* str = malloc(128);
-    sprintf(str, "%d\u2103 \r\n", temperature);
+    sprintf(str, "%d\u00B0C \r\n", temperature);
     putstr(str);
   }
-
-  while(1) wait();
 }
 
