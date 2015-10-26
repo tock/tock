@@ -8,3 +8,7 @@ $(LIBFIRESTORM): $(SRC_DIR)apps/libs/firestorm.c $(SRC_DIR)apps/libs/firestorm.h
 $(LIBTOCK): $(SRC_DIR)apps/libs/tock.c $(SRC_DIR)apps/libs/tock.h
 	@echo "Building libtock"
 	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
+
+$(BUILD_DIR)/apps/crt1.o: $(SRC_DIR)apps/libs/crt1.c
+	@echo "Building libtock"
+	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<

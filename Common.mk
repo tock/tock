@@ -5,6 +5,7 @@ RUSTC_FLAGS += -L$(BUILD_DIR) # Common regardless of platform
 TOOLCHAIN = arm-none-eabi-
 OBJCOPY ?= $(TOOLCHAIN)objcopy
 CC = $(TOOLCHAIN)gcc
+CPP = $(TOOLCHAIN)g++
 LD = $(TOOLCHAIN)ld
 
 UNAME = $(shell uname)

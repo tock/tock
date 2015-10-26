@@ -4,29 +4,33 @@
 #include <firestorm.h>
 #include <tock.h>
 
+int gpio_enable(unsigned int pin) {
+  return command(1, 0, pin);
+}
+
+int gpio_set(unsigned int pin) {
+  return command(1, 2, pin);
+}
+
 static CB_TYPE putstr_cb(int _x, int _y, int _z, void* str) {
   free(str);
   return PUTSTR;
 }
 
-void putnstr(char *str, size_t len) {
+void putnstr(const char *str, size_t len) {
   char* buf = (char*)malloc(len * sizeof(char));
   strncpy(buf, str, len);
   putnstr_async(buf, len, putstr_cb, buf);
   wait_for(PUTSTR);
 }
 
-void putnstr_async(char *str, size_t len, subscribe_cb cb, void* userdata) {
-  allow(0, 1, str, len);
+void putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) {
+  allow(0, 1, (void*)str, len);
   subscribe(0, 1, cb, userdata);
 }
 
-void putstr(char *str) {
+void putstr(const char *str) {
   putnstr(str, strlen(str));
-}
-
-void enable_tmp006() {
-  command(2, 0, 0);
 }
 
 static CB_TYPE read_tmp006_cb(int r0, int r1, int r2, void* ud) {
@@ -51,6 +55,6 @@ int tmp006_read_async(subscribe_cb cb, void* userdata) {
 }
 
 int tmp006_enable() {
-  command(2, 0, 0);
+  return command(2, 0, 0);
 }
 

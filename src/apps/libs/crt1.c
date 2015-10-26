@@ -9,6 +9,8 @@ extern unsigned int* _egot;
 extern unsigned int* _bss;
 extern unsigned int* _ebss;
 
+void main();
+
 void _start();
 
 typedef struct {
@@ -44,7 +46,7 @@ caddr_t _sbrk(int incr)
   return heap_base;
 }
 
-__attribute__ ((section(".start"), used))
+__attribute__ ((section(".start"), used, naked))
 void _start(void* heap_start) {
   void main();
 

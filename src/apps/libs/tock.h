@@ -4,6 +4,10 @@
 #include <inttypes.h>
 #include <unistd.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef int CB_TYPE;
 
 typedef CB_TYPE (subscribe_cb)(int, int, int,void*);
@@ -15,4 +19,8 @@ int subscribe(uint32_t driver, uint32_t subscribe,
               subscribe_cb cb, void* userdata);
 int allow(uint32_t driver, uint32_t allow, void* ptr, size_t size);
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif // _TOCK_H
