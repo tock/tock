@@ -10,5 +10,9 @@ $(LIBTOCK): $(SRC_DIR)apps/libs/tock.c $(SRC_DIR)apps/libs/tock.h
 	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
 
 $(BUILD_DIR)/apps/crt1.o: $(SRC_DIR)apps/libs/crt1.c
-	@echo "Building libtock"
+	@echo "Building app crt1.o"
+	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
+
+$(BUILD_DIR)/apps/sys.o: $(SRC_DIR)apps/libs/sys.c
+	@echo "Building apps libc compat"
 	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<

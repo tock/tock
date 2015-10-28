@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
-extern "C" {
+#include <firestorm.h>
+
 //------------------------------
 // LIBC SUPPORT STUBS
 //------------------------------
@@ -27,7 +28,7 @@ int _open(const char* path, int flags, ...)
 }
 int _write(int fd, const void *buf, uint32_t count)
 {
-    //k_write(1, (const uint8_t*) buf, count);
+    putnstr((const char*)buf, count);
     return count;
 }
 int _close(int fd)
@@ -46,8 +47,9 @@ int _read(int fd, void *buf, uint32_t count)
 {
     return 0; //k_read(fd, (uint8_t*) buf, count);
 }
-void _exit()
+void _exit(int status)
 {
+  while(666);
 }
 void abort()
 {
@@ -61,4 +63,4 @@ int _kill(pid_t pid, int sig)
 {
   return -1;
 }
-}
+
