@@ -7,14 +7,12 @@
 
 using namespace std;
 
-CB_TYPE nop(int, int, int, void*) {
-  return 0;
-}
-
 int main() {
   gpio_enable(0);
   gpio_set(0);
-  string *hello = new string("Hello\r\n");
-  putnstr_async(hello->c_str(), hello->length(), nop, NULL);
+
+  string *hello = new string("Hello from C++\r\n");
+  putnstr(hello->c_str(), hello->length());
+  delete hello;
 }
 
