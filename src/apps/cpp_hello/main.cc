@@ -3,6 +3,7 @@
 #include <string>
 
 #include <firestorm.h>
+#include <stdio.h>
 #include <tock.h>
 
 using namespace std;
@@ -11,8 +12,7 @@ int main() {
   gpio_enable(0);
   gpio_set(0);
 
-  string *hello = new string("Hello from C++\r\n");
-  putnstr(hello->c_str(), hello->length());
-  delete hello;
+  string hello = "Hello from C++\r\n";
+  write(0, hello.c_str(), hello.length());
 }
 
