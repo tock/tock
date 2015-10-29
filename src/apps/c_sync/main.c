@@ -33,5 +33,6 @@ Reading temperature... ");
     sprintf(str, "%d\u00B0C \r\n", temperature);
     putstr(str);
   }
+
 }
 

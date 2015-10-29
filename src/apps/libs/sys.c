@@ -15,7 +15,6 @@ void* __dso_handle = 0;
 
 int _isatty(int fd)
 {
-    return 1;
     if (fd == 0)
     {
         return 1;
@@ -35,13 +34,14 @@ int _close(int fd)
 {
     return -1;
 }
-int _fstat(int fd, struct stat *buf)
+int _fstat(int fd, struct stat *st)
 {
-    return -1;
+    st->st_mode = S_IFCHR;
+    return 0;
 }
 int _lseek(int fd, uint32_t offset, int whence)
 {
-    return -1;
+    return 0;
 }
 int _read(int fd, void *buf, uint32_t count)
 {
