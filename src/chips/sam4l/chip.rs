@@ -17,8 +17,8 @@ impl Sam4l {
     #[inline(never)]
     pub unsafe fn new() -> Sam4l {
         INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
-        usart::USARTS[3].set_dma(&mut dma::DMAChannels[0]);
-        dma::DMAChannels[0].client = Some(&mut usart::USARTS[3]);
+        usart::USART3.borrow_mut().set_dma(&mut dma::DMAChannels[0]);
+        dma::DMAChannels[0].client = Some(&mut usart::USART3);
 
         Sam4l
     }
@@ -28,7 +28,7 @@ impl Sam4l {
         INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
             match interrupt {
                 ASTALARM => ast::AST.handle_interrupt(),
-                USART3   => usart::USARTS[3].handle_interrupt(),
+                USART3   => usart::USART3.borrow_mut().handle_interrupt(),
                 PDCA0   => dma::DMAChannels[0].handle_interrupt(),
                 //NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
                 _ => {}

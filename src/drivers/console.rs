@@ -1,3 +1,4 @@
+use core::cell::RefCell;
 use common::utils::init_nones;
 use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
 use hil::uart::{UART, Client};
@@ -12,12 +13,12 @@ struct App {
 }
 
 pub struct Console<'a, U: UART + 'a> {
-    uart: &'a mut U,
+    uart: &'a RefCell<U>,
     apps: [Option<App>; NUM_PROCS],
 }
 
 impl<'a, U: UART> Console<'a, U> {
-    pub fn new(uart: &'a mut U) -> Console<U> {
+    pub fn new(uart: &'a RefCell<U>) -> Console<U> {
         Console {
             uart: uart,
             apps: init_nones()
@@ -25,8 +26,8 @@ impl<'a, U: UART> Console<'a, U> {
     }
 
     pub fn initialize(&mut self) {
-        self.uart.enable_tx();
-        self.uart.enable_rx();
+        self.uart.borrow_mut().enable_tx();
+        self.uart.borrow_mut().enable_rx();
     }
 }
 
@@ -106,7 +107,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                             Some(slice) => {
                                 app.write_callback = Some(callback);
                                 app.write_len = slice.len();
-                                self.uart.send_bytes(slice);
+                                self.uart.borrow_mut().send_bytes(slice);
                                 0
                             },
                             None => -1
@@ -120,7 +121,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
 
     fn command(&mut self, cmd_num: usize, arg1: usize) -> isize {
         match cmd_num {
-            0 /* putc */ => { self.uart.send_byte(arg1 as u8); 1 },
+            0 /* putc */ => { self.uart.borrow_mut().send_byte(arg1 as u8); 1 },
             _ => -1
         }
     }

@@ -8,14 +8,15 @@ extern crate drivers;
 extern crate hil;
 extern crate sam4l;
 
+use core::cell::RefCell;
 use hil::Controller;
 use hil::timer::*;
 
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
-    console: drivers::console::Console<'static, sam4l::usart::USART>,
+    console: RefCell<drivers::console::Console<'static, sam4l::usart::USART>>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
-    tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
+    //tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
 }
 
 impl Firestorm {
@@ -30,12 +31,15 @@ impl Firestorm {
     pub fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
             F: FnOnce(Option<&mut hil::Driver>) -> R {
 
-        f(match driver_num {
-            0 => Some(&mut self.console),
-            1 => Some(&mut self.gpio),
-            2 => Some(&mut self.tmp006),
-            _ => None
-        })
+        match driver_num {
+            0 => {
+                let mut c = self.console.borrow_mut();
+                f(Some(&mut *c))
+            },
+            1 => f(Some(&mut self.gpio)),
+            //2 => f(Some(&mut self.tmp006)),
+            _ => f(None)
+        }
     }
 }
 
@@ -55,7 +59,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     ast.set_prescalar(0);
     ast.clear_alarm();
 
-    static mut TIMER_MUX : Option<TimerMux> = None;
+    /*static mut TIMER_MUX : Option<TimerMux> = None;
     TIMER_MUX = Some(TimerMux::new(ast));
 
     let timer_mux = TIMER_MUX.as_mut().unwrap();
@@ -70,13 +74,13 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     };
     let timer_request = &mut TIMER_REQUEST;
 
-    let virtual_timer0 = VirtualTimer::new(timer_mux, timer_request);
+    let virtual_timer0 = VirtualTimer::new(timer_mux, timer_request);*/
 
 
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
-        console: drivers::console::Console::new(&mut sam4l::usart::USARTS[3]),
+        console: RefCell::new(drivers::console::Console::new(&sam4l::usart::USART3)),
         gpio: drivers::gpio::GPIO::new(
             [ &mut sam4l::gpio::PC[10], &mut sam4l::gpio::PC[19]
             , &mut sam4l::gpio::PC[13], &mut sam4l::gpio::PA[9]
@@ -85,15 +89,15 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &mut sam4l::gpio::PA[16], &mut sam4l::gpio::PA[13]
             , &mut sam4l::gpio::PA[11], &mut sam4l::gpio::PA[10]
             , &mut sam4l::gpio::PA[12], &mut sam4l::gpio::PC[09]]),
-        tmp006: drivers::tmp006::TMP006::new(&mut sam4l::i2c::I2C2, virtual_timer0)
+        //tmp006: drivers::tmp006::TMP006::new(&mut sam4l::i2c::I2C2, virtual_timer0)
     };
 
-    timer_request.callback = Some(&mut firestorm.tmp006);
+    //timer_request.callback = Some(&mut firestorm.tmp006);
 
-    ast.configure(timer_mux);
+    //ast.configure(timer_mux);
 
-    sam4l::usart::USARTS[3].configure(sam4l::usart::USARTParams {
-        client: &mut firestorm.console,
+    sam4l::usart::USART3.borrow_mut().configure(sam4l::usart::USARTParams {
+        client: &firestorm.console,
         baud_rate: 115200,
         data_bits: 8,
         parity: hil::uart::Parity::None
@@ -105,7 +109,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
     sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 
-    firestorm.console.initialize();
+    firestorm.console.borrow_mut().initialize();
 
     firestorm
 }
