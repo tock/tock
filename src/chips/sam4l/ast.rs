@@ -86,7 +86,7 @@ impl Ast {
     // Clears the alarm bit in the status register (indicating the alarm value
     // has been reached).
     #[inline(never)]
-    pub fn clear_alarm(&mut self) {
+    pub fn clear_alarm(&self) {
         while self.busy() {}
         unsafe {
             intrinsics::volatile_store(&mut (*self.regs).scr, 1 << 8);
@@ -122,7 +122,7 @@ impl Ast {
         }
     }
 
-    pub fn enable(&mut self) {
+    pub fn enable(&self) {
         while self.busy() {}
         unsafe {
             let cr = intrinsics::volatile_load(&(*self.regs).cr) | 1;
@@ -130,7 +130,7 @@ impl Ast {
         }
     }
 
-    pub fn disable(&mut self) {
+    pub fn disable(&self) {
         while self.busy() {}
         unsafe {
             let cr = intrinsics::volatile_load(&(*self.regs).cr) & !1;
@@ -146,7 +146,7 @@ impl Ast {
         }
     }
 
-    pub fn enable_alarm_irq(&mut self) {
+    pub fn enable_alarm_irq(&self) {
         unsafe {
             nvic::enable(nvic::NvicIdx::ASTALARM);
             intrinsics::volatile_store(&mut (*self.regs).ier, 1 << 8);
@@ -223,12 +223,12 @@ impl Alarm for Ast {
         }
     }
 
-    fn disable_alarm(&mut self) {
+    fn disable_alarm(&self) {
         self.disable();
         self.clear_alarm();
     }
 
-    fn set_alarm(&mut self, tics: u32) {
+    fn set_alarm(&self, tics: u32) {
         self.disable();
         while self.busy() {}
         unsafe {
@@ -239,7 +239,7 @@ impl Alarm for Ast {
         self.enable();
     }
 
-    fn get_alarm(&mut self) -> u32 {
+    fn get_alarm(&self) -> u32 {
         unsafe { 
             intrinsics::volatile_load(&(*self.regs).ar0)
         }

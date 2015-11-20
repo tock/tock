@@ -1,5 +1,5 @@
 use helpers::*;
-use core::cell::RefCell;
+use common::shared::Shared;
 use core::mem;
 use hil::{uart, Controller};
 use hil::uart::Parity;
@@ -47,14 +47,14 @@ pub enum Location {
 
 pub struct USART {
     regs: *mut Registers,
-    client: Option<&'static RefCell<uart::Client>>,
+    client: Option<&'static mut uart::Client>,
     clock: Clock,
     nvic: nvic::NvicIdx,
     dma: Option<&'static mut DMAChannel>,
 }
 
 pub struct USARTParams {
-    pub client: &'static RefCell<uart::Client>,
+    //pub client: &'static Shared<uart::Client>,
     pub baud_rate: u32,
     pub data_bits: u8,
     pub parity: Parity
@@ -64,7 +64,7 @@ impl Controller for USART {
     type Config = USARTParams;
 
     fn configure(&mut self, params: USARTParams) {
-        self.client = Some(params.client);
+     //   self.client = Some(params.client.borrow_mut());
         let chrl = ((params.data_bits - 1) & 0x3) as u32;
         let mode = 0 /* mode */
             | 0 << 4 /*USCLKS*/
@@ -81,14 +81,14 @@ impl Controller for USART {
     }
 }
 
-pub static mut USART0 : RefCell<USART> = RefCell::new(
-    USART::new(Location::USART0, PBAClock::USART0, nvic::NvicIdx::USART0));
-pub static mut USART1 : RefCell<USART> = RefCell::new(
-    USART::new(Location::USART1, PBAClock::USART1, nvic::NvicIdx::USART1));
-pub static mut USART2 : RefCell<USART> = RefCell::new(
-    USART::new(Location::USART2, PBAClock::USART2, nvic::NvicIdx::USART2));
-pub static mut USART3 : RefCell<USART> = RefCell::new(
-    USART::new(Location::USART3, PBAClock::USART3, nvic::NvicIdx::USART3));
+pub static mut USART0 : USART =
+    USART::new(Location::USART0, PBAClock::USART0, nvic::NvicIdx::USART0);
+pub static mut USART1 : USART =
+    USART::new(Location::USART1, PBAClock::USART1, nvic::NvicIdx::USART1);
+pub static mut USART2 : USART =
+    USART::new(Location::USART2, PBAClock::USART2, nvic::NvicIdx::USART2);
+pub static mut USART3 : USART =
+    USART::new(Location::USART3, PBAClock::USART3, nvic::NvicIdx::USART3);
 
 impl USART {
     const fn new(location: Location, clock: PBAClock, nvic: nvic::NvicIdx)
@@ -101,6 +101,10 @@ impl USART {
             dma: None,
             client: None,
         }
+    }
+
+    pub fn set_client<C: uart::Client>(&mut self, client: &'static Shared<C>) {
+        self.client = Some(client.borrow_mut());
     }
 
     pub fn set_dma(&mut self, dma: &'static mut DMAChannel) {
@@ -160,7 +164,7 @@ impl USART {
             let regs : &Registers = unsafe { mem::transmute(self.regs) };
             let c = volatile_load(&regs.rhr) as u8;
             match self.client {
-                Some(ref mut client) => {client.borrow_mut().read_done(c)},
+                Some(ref mut client) => {client.read_done(c)},
                 None => {}
             }
         }
@@ -175,7 +179,7 @@ impl USART {
 impl DMAClient for USART {
     fn xfer_done(&mut self) {
         self.dma.as_mut().map(|dma| dma.disable());
-        self.client.as_mut().map(|c| c.borrow_mut().write_done() );
+        self.client.as_mut().map(|c| c.write_done() );
     }
 }
 
@@ -201,6 +205,7 @@ impl uart::UART for USART {
         volatile_store(&mut regs.thr, byte as u32);
     }
 
+    #[inline(never)]
     fn send_bytes<S>(&mut self, bytes: AppSlice<S, u8>) {
         self.dma.as_mut().map(|dma| {
             dma.enable();

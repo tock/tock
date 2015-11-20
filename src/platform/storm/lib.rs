@@ -8,13 +8,13 @@ extern crate drivers;
 extern crate hil;
 extern crate sam4l;
 
-use core::cell::RefCell;
+use common::shared::Shared;
 use hil::Controller;
 use hil::timer::*;
 
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
-    console: RefCell<drivers::console::Console<'static, sam4l::usart::USART>>,
+    console: &'static Shared<drivers::console::Console<'static, sam4l::usart::USART>>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     //tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
 }
@@ -28,13 +28,14 @@ impl Firestorm {
         self.chip.has_pending_interrupts()
     }
 
+    #[inline(never)]
     pub fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
             F: FnOnce(Option<&mut hil::Driver>) -> R {
 
         match driver_num {
             0 => {
-                let mut c = self.console.borrow_mut();
-                f(Some(&mut *c))
+                let c = self.console.borrow_mut();
+                f(Some(c))
             },
             1 => f(Some(&mut self.gpio)),
             //2 => f(Some(&mut self.tmp006)),
@@ -47,12 +48,16 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
 
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
+    static mut CONSOLE_BUF : [u8; 1024] = [0; 1024];
+    
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
      * easier, but should be obviated when `size_of` at compile time hits.
     static mut FIRESTORM_BUF : [u8; 192] = [0; 192];
     // Just test that FIRESTORM_BUF is correct size
     // (will throw compiler error if too large or small)
-    let _ : Firestorm = mem::transmute(FIRESTORM_BUF);*/
+    let _ : Firestorm = mem::transmute(FIRESTORM_BUF);
+    let _ : Firestorm = mem::transmute(CONSOLE_BUF);
+    */
 
     let ast = &mut sam4l::ast::AST;
     ast.select_clock(sam4l::ast::Clock::ClockRCSys);
@@ -72,15 +77,17 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         interval: 0,
         callback: None
     };
-    let timer_request = &mut TIMER_REQUEST;
+    let timer_request = &mut TIMER_REQUEST;*/
 
-    let virtual_timer0 = VirtualTimer::new(timer_mux, timer_request);*/
+    let timer = SingleTimer::new(ast);
 
 
+    let console : &'static Shared<drivers::console::Console<sam4l::usart::USART>> = mem::transmute(&CONSOLE_BUF);
+    *(console.borrow_mut()) = drivers::console::Console::new(&mut sam4l::usart::USART3);
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
-        console: RefCell::new(drivers::console::Console::new(&sam4l::usart::USART3)),
+        console: &console,
         gpio: drivers::gpio::GPIO::new(
             [ &mut sam4l::gpio::PC[10], &mut sam4l::gpio::PC[19]
             , &mut sam4l::gpio::PC[13], &mut sam4l::gpio::PA[9]
@@ -96,12 +103,14 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     //ast.configure(timer_mux);
 
-    sam4l::usart::USART3.borrow_mut().configure(sam4l::usart::USARTParams {
-        client: &firestorm.console,
+    sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
+        //client: &console,
         baud_rate: 115200,
         data_bits: 8,
         parity: hil::uart::Parity::None
     });
+
+    sam4l::usart::USART3.set_client(&console);
 
     sam4l::gpio::PB[09].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PB[10].configure(Some(sam4l::gpio::PeripheralFunction::A));

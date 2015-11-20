@@ -75,7 +75,7 @@ impl<'a> Process<'a> {
         } else {
             let memory = &mut MEMORIES[cur_idx];
 
-            let stack_bottom = &mut memory[PROC_MEMORY_SIZE - 4] as *mut u8;
+            let mut stack_bottom = &mut memory[PROC_MEMORY_SIZE - 4] as *mut u8;
 
             // Take callback buffer from bottom of process memory
             let callback_len = 10;

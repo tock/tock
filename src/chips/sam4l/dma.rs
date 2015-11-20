@@ -1,4 +1,3 @@
-use core::cell::RefCell;
 use core::mem;
 use core::intrinsics;
 use pm;
@@ -129,7 +128,7 @@ pub static mut DMAChannels : [DMAChannel; 16] = [
 pub struct DMAChannel {
     registers: *mut DMARegisters,
     nvic: nvic::NvicIdx,
-    pub client: Option<&'static RefCell<DMAClient>>,
+    pub client: Option<&'static mut DMAClient>,
     enabled: bool,
 }
 
@@ -195,7 +194,7 @@ impl DMAChannel {
 
     pub fn handle_interrupt(&mut self) {
         self.client.as_mut().map(|client| {
-            client.borrow_mut().xfer_done();
+            client.xfer_done();
         });
     }
 

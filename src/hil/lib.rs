@@ -3,6 +3,7 @@
 #![feature(asm,lang_items,no_std)]
 #![no_std]
 
+extern crate common;
 extern crate process;
 
 pub mod driver;
