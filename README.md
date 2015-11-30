@@ -1,5 +1,7 @@
 # Tock Embedded OS [![Build Status](https://travis-ci.org/helena-project/tock.svg?branch=master)](https://travis-ci.org/helena-project/tock)
 
+[![Join the chat at https://gitter.im/helena-project/tock](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/helena-project/tock?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Tock is an operating system designed for running multiple concurrent, mutually
 distrustful applications on Cortex-M based embedded platforms like the
 [Storm](http://storm.rocks). Tock's design centers around protection, both from
