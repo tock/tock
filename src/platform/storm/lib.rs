@@ -8,13 +8,13 @@ extern crate drivers;
 extern crate hil;
 extern crate sam4l;
 
-use common::shared::Shared;
+use core::cell::RefCell;
 use hil::Controller;
 use hil::timer::*;
 
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
-    console: &'static Shared<drivers::console::Console<'static, sam4l::usart::USART>>,
+    console: &'static RefCell<drivers::console::Console<'static, sam4l::usart::USART>>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
     //tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
 }
@@ -34,8 +34,8 @@ impl Firestorm {
 
         match driver_num {
             0 => {
-                let c = self.console.borrow_mut();
-                f(Some(c))
+                let mut c = self.console.borrow_mut();
+                f(Some(&mut *c))
             },
             1 => f(Some(&mut self.gpio)),
             //2 => f(Some(&mut self.tmp006)),
@@ -82,7 +82,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     let timer = SingleTimer::new(ast);
 
 
-    let console : &'static Shared<drivers::console::Console<sam4l::usart::USART>> = mem::transmute(&CONSOLE_BUF);
+    let console : &'static RefCell<drivers::console::Console<sam4l::usart::USART>> = mem::transmute(&CONSOLE_BUF);
     *(console.borrow_mut()) = drivers::console::Console::new(&mut sam4l::usart::USART3);
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
