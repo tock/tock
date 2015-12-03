@@ -88,7 +88,7 @@ pub static mut I2C3 : I2CDevice = I2CDevice {
 impl I2CDevice {
     /// Set the clock prescaler and the time widths of the I2C signals
     /// in the CWGR register to make the bus run at a particular I2C speed.
-    fn set_bus_speed (&mut self) {
+    fn set_bus_speed (&self) {
 
         // Set the clock speed parameters. This could be made smarter, but for
         // now we just use precomputed constants based on a 48MHz clock.
@@ -111,7 +111,7 @@ impl I2CDevice {
 impl hil::i2c::I2C for I2CDevice {
 
     /// This enables the entire I2C peripheral
-    fn enable(&mut self) {
+    fn enable(&self) {
         // Enable the clock for the TWIM module
         unsafe {
             pm::enable_clock(self.clock);
@@ -135,7 +135,7 @@ impl hil::i2c::I2C for I2CDevice {
     }
 
     /// This disables the entire I2C peripheral
-    fn disable (&mut self) {
+    fn disable (&self) {
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         volatile_store(&mut regs.control, 0x1 << 1);
         unsafe {
@@ -144,7 +144,7 @@ impl hil::i2c::I2C for I2CDevice {
     }
 
     #[inline(never)]
-    fn write_sync (&mut self, addr: u16, data: &[u8]) {
+    fn write_sync (&self, addr: u16, data: &[u8]) {
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
 
         // enable, reset, disable
@@ -184,7 +184,7 @@ impl hil::i2c::I2C for I2CDevice {
         }
     }
 
-    fn read_sync (&mut self, addr: u16, buffer: &mut[u8]) {
+    fn read_sync (&self, addr: u16, buffer: &mut[u8]) {
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
 
         // enable, reset, disable

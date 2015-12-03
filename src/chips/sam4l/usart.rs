@@ -63,7 +63,7 @@ pub struct USARTParams {
 impl Controller for USART {
     type Config = USARTParams;
 
-    fn configure(&mut self, params: USARTParams) {
+    fn configure(&self, params: USARTParams) {
      //   self.client = Some(params.client.borrow_mut());
         let chrl = ((params.data_bits - 1) & 0x3) as u32;
         let mode = 0 /* mode */
@@ -111,13 +111,13 @@ impl USART {
         self.dma = Some(dma);
     }
 
-    fn set_baud_rate(&mut self, baud_rate: u32) {
+    fn set_baud_rate(&self, baud_rate: u32) {
         let cd = 48000000 / (16 * baud_rate);
         let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
         volatile_store(&mut regs.brgr, cd);
     }
 
-    fn set_mode(&mut self, mode: u32) {
+    fn set_mode(&self, mode: u32) {
         let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
         volatile_store(&mut regs.mr, mode);
     }
@@ -140,7 +140,7 @@ impl USART {
         }
     }
 
-    pub fn enable_rx_interrupts(&mut self) {
+    pub fn enable_rx_interrupts(&self) {
         self.enable_nvic();
         let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
         volatile_store(&mut regs.ier, 1 as u32);

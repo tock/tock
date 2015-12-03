@@ -139,7 +139,7 @@ impl GPIOPin {
         }
     }
 
-    pub fn select_peripheral(&mut self, function: PeripheralFunction) {
+    pub fn select_peripheral(&self, function: PeripheralFunction) {
         let f = function as u32;
         let (bit0, bit1, bit2) = (f & 0b1, (f & 0b10) >> 1, (f & 0b100) >> 2);
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
@@ -182,7 +182,7 @@ impl hil::Controller for GPIOPin {
     type Config = Option<PeripheralFunction>;
 
 
-    fn configure(&mut self, config: Option<PeripheralFunction>) {
+    fn configure(&self, config: Option<PeripheralFunction>) {
         config.map(|c| {
             self.select_peripheral(c);
         });

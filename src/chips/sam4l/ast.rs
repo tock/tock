@@ -5,6 +5,7 @@
  * Date: 7/16/15
  */
 
+use core::cell::Cell;
 use core::intrinsics;
 use nvic;
 use hil::alarm::{Alarm, AlarmClient};
@@ -44,19 +45,19 @@ pub const AST_BASE: isize = 0x400F0800;
 #[allow(missing_copy_implementations)]
 pub struct Ast {
     regs: *mut AstRegisters,
-    callback: Option<&'static mut AlarmClient>
+    callback: Cell<Option<&'static AlarmClient>>
 }
 
 pub static mut AST : Ast = Ast {
     regs: AST_BASE as *mut AstRegisters,
-    callback: None
+    callback: Cell::new(None)
 };
 
 impl Controller for Ast {
-    type Config = &'static mut AlarmClient;
+    type Config = &'static AlarmClient;
 
-    fn configure(&mut self, client: &'static mut AlarmClient) {
-        self.callback = Some(client);
+    fn configure(&self, client: &'static AlarmClient) {
+        self.callback.set(Some(client));
     }
 }
 
@@ -104,7 +105,7 @@ impl Ast {
     }
 
 
-    pub fn select_clock(&mut self, clock: Clock) {
+    pub fn select_clock(&self, clock: Clock) {
         unsafe {
           // Disable clock by setting first bit to zero
           while self.clock_busy() {}
@@ -138,7 +139,7 @@ impl Ast {
         }
     }
 
-    pub fn set_prescalar(&mut self, val: u8) {
+    pub fn set_prescalar(&self, val: u8) {
         while self.busy() {}
         unsafe {
             let cr = intrinsics::volatile_load(&(*self.regs).cr) | (val as u32) << 16;
@@ -209,7 +210,7 @@ impl Ast {
 
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
-        self.callback.as_mut().map(|cb| {
+        self.callback.get().map(|cb| {
             cb.fired();
         });
     }

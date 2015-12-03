@@ -1,3 +1,4 @@
+use core::cell::Cell;
 use hil::{Driver,Callback};
 use hil::i2c::I2C;
 use hil::timer::*;
@@ -11,21 +12,21 @@ enum Registers {
     DeviceID = 0xFF
 }
 
-pub struct TMP006<I: I2C + 'static> {
-    i2c: &'static mut I,
-    timer: VirtualTimer,
-    last_temp: Option<i16>,
-    callback: Option<Callback>
+pub struct TMP006<'a, I: I2C + 'a> {
+    i2c: &'a I,
+    timer: &'a Timer,
+    last_temp: Cell<Option<i16>>,
+    callback: Cell<Option<Callback>>
 }
 
-impl<I: I2C> TMP006<I> {
-    pub fn new(i2c: &'static mut I, timer: VirtualTimer) -> TMP006<I> {
-        TMP006{i2c: i2c, timer: timer, last_temp: None, callback: None}
+impl<'a, I: I2C> TMP006<'a, I> {
+    pub fn new(i2c: &'a I, timer: &'a Timer) -> TMP006<'a, I> {
+        TMP006{i2c: i2c, timer: timer, last_temp: Cell::new(None), callback: Cell::new(None)}
     }
 }
 
-impl<I: I2C> TimerCB for TMP006<I> {
-    fn fired(&mut self, _: u32) {
+impl<'a, I: I2C> TimerClient for TMP006<'a, I> {
+    fn fired(&self, _: u32) {
         let mut buf: [u8; 3] = [0; 3];
 
         // If not ready, wait for next timer fire
@@ -54,23 +55,23 @@ impl<I: I2C> TimerCB for TMP006<I> {
         // Shift to the right to make it 14 bits (this should be a signed shift)
         // The die temp is is in 1/32 degrees C.
         let final_temp = die_temp >> 2;
-        self.last_temp = Some(final_temp);
-        self.callback.take().map(|mut cb| {
+        self.last_temp.set(Some(final_temp));
+        self.callback.get().map(|mut cb| {
             cb.schedule(final_temp as usize, 0, 0);
         });
     }
 }
 
-impl<I: I2C> Driver for TMP006<I> {
+impl<'a, I: I2C> Driver for TMP006<'a, I> {
     fn subscribe(&mut self, subscribe_num: usize, mut callback: Callback) -> isize {
         match subscribe_num {
             0 /* read temperature  */ => {
-                match self.last_temp {
+                match self.last_temp.get() {
                     Some(temp) => {
                         callback.schedule(temp as usize, 0, 0);
                     },
                     None => {
-                        self.callback = Some(callback);
+                        self.callback.set(Some(callback));
                     }
                 }
                 0

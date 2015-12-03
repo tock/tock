@@ -19,8 +19,10 @@ pub struct SingleTimer<'a, Alrm: Alarm + 'a> {
     alarm: &'a Alrm
 }
 
+unsafe impl<'a, A: Alarm + 'a> Sync for SingleTimer<'a, A> {}
+
 impl<'a, Alrm: Alarm> SingleTimer<'a, Alrm> {
-    pub fn new(alarm: &'a Alrm) -> SingleTimer<'a, Alrm> {
+    pub const fn new(alarm: &'a Alrm) -> SingleTimer<'a, Alrm> {
         SingleTimer {
             interval: Cell::new(0),
             when: Cell::new(0),

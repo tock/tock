@@ -1,7 +1,7 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(no_std)]
+#![feature(no_std,const_fn)]
 
 extern crate common;
 extern crate drivers;
@@ -16,7 +16,7 @@ pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static RefCell<drivers::console::Console<'static, sam4l::usart::USART>>,
     gpio: drivers::gpio::GPIO<[&'static mut hil::gpio::GPIOPin; 14]>,
-    //tmp006: drivers::tmp006::TMP006<sam4l::i2c::I2CDevice>,
+    tmp006: drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice>,
 }
 
 impl Firestorm {
@@ -38,7 +38,7 @@ impl Firestorm {
                 f(Some(&mut *c))
             },
             1 => f(Some(&mut self.gpio)),
-            //2 => f(Some(&mut self.tmp006)),
+            2 => f(Some(&mut self.tmp006)),
             _ => f(None)
         }
     }
@@ -49,7 +49,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
     static mut CONSOLE_BUF : [u8; 1024] = [0; 1024];
-    
+    static mut TIMER_BUF : [u8; 1024] = [0; 1024];
+
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
      * easier, but should be obviated when `size_of` at compile time hits.
     static mut FIRESTORM_BUF : [u8; 192] = [0; 192];
@@ -59,31 +60,20 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     let _ : Firestorm = mem::transmute(CONSOLE_BUF);
     */
 
-    let ast = &mut sam4l::ast::AST;
+    let ast = &sam4l::ast::AST;
     ast.select_clock(sam4l::ast::Clock::ClockRCSys);
     ast.set_prescalar(0);
     ast.clear_alarm();
 
-    /*static mut TIMER_MUX : Option<TimerMux> = None;
-    TIMER_MUX = Some(TimerMux::new(ast));
-
-    let timer_mux = TIMER_MUX.as_mut().unwrap();
-
-    static mut TIMER_REQUEST: TimerRequest = TimerRequest {
-        next: None,
-        is_active: false,
-        is_repeat: false,
-        when: 0,
-        interval: 0,
-        callback: None
-    };
-    let timer_request = &mut TIMER_REQUEST;*/
-
-    let timer = SingleTimer::new(ast);
-
-
     let console : &'static RefCell<drivers::console::Console<sam4l::usart::USART>> = mem::transmute(&CONSOLE_BUF);
     *(console.borrow_mut()) = drivers::console::Console::new(&mut sam4l::usart::USART3);
+
+    let mut timer : &mut SingleTimer<'static, sam4l::ast::Ast> = mem::transmute(&mut TIMER_BUF);
+    *timer = SingleTimer::new(ast);
+
+    ast.configure(timer);
+
+
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
@@ -96,12 +86,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &mut sam4l::gpio::PA[16], &mut sam4l::gpio::PA[13]
             , &mut sam4l::gpio::PA[11], &mut sam4l::gpio::PA[10]
             , &mut sam4l::gpio::PA[12], &mut sam4l::gpio::PC[09]]),
-        //tmp006: drivers::tmp006::TMP006::new(&mut sam4l::i2c::I2C2, virtual_timer0)
+        tmp006: drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, timer)
     };
-
-    //timer_request.callback = Some(&mut firestorm.tmp006);
-
-    //ast.configure(timer_mux);
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
         //client: &console,

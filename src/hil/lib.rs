@@ -1,6 +1,6 @@
 #![crate_name = "hil"]
 #![crate_type = "rlib"]
-#![feature(asm,lang_items,no_std)]
+#![feature(asm,lang_items,no_std,const_fn)]
 #![no_std]
 
 extern crate common;
@@ -25,6 +25,6 @@ pub use process::process::NUM_PROCS;
 pub trait Controller {
     type Config;
 
-    fn configure(&mut self, Self::Config);
+    fn configure(&self, Self::Config);
 }
 
