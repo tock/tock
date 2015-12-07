@@ -16,12 +16,19 @@ pub struct TMP006<'a, I: I2C + 'a> {
     i2c: &'a I,
     timer: &'a Timer,
     last_temp: Cell<Option<i16>>,
-    callback: Cell<Option<Callback>>
+    callback: Cell<Option<Callback>>,
+    enabled: Cell<bool>
 }
 
 impl<'a, I: I2C> TMP006<'a, I> {
     pub fn new(i2c: &'a I, timer: &'a Timer) -> TMP006<'a, I> {
-        TMP006{i2c: i2c, timer: timer, last_temp: Cell::new(None), callback: Cell::new(None)}
+        TMP006{
+            i2c: i2c,
+            timer: timer,
+            last_temp: Cell::new(None),
+            callback: Cell::new(None),
+            enabled: Cell::new(false)
+        }
     }
 }
 
@@ -66,6 +73,9 @@ impl<'a, I: I2C> Driver for TMP006<'a, I> {
     fn subscribe(&self, subscribe_num: usize, mut callback: Callback) -> isize {
         match subscribe_num {
             0 /* read temperature  */ => {
+                if !self.enabled.get() {
+                    return -1;
+                }
                 match self.last_temp.get() {
                     Some(temp) => {
                         callback.schedule(temp as usize, 0, 0);
@@ -95,6 +105,8 @@ impl<'a, I: I2C> Driver for TMP006<'a, I> {
                 self.i2c.write_sync(0x40, &buf);
 
                 self.timer.repeat(32768);
+
+                self.enabled.set(true);
 
                 0
             },

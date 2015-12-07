@@ -22,12 +22,13 @@ to_kernel:
   bx lr
 
 .thumb_func
-/* r0 is start address and r1 is top of user stack */
+/* r0 is top of user stack, r1 is heap base */
 switch_to_user:
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, r0
 
     push {r4-r11}
+    mov r9, r1
     svc 0xff
     pop {r4-r11}
     bx lr

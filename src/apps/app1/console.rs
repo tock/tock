@@ -11,8 +11,8 @@ fn write_done(_: usize, _: usize, _: usize, strptr: *mut String) -> isize {
 }
 
 macro_rules! print {
-    ($str:expr) => (::apps::console::puts(::apps::string::String::new($str)));
-    ($fmt:expr, $($arg:tt)*) => (::apps::console::print(format_args!($fmt, $($arg)*)));
+    ($str:expr) => (::console::puts(::string::String::new($str)));
+    ($fmt:expr, $($arg:tt)*) => (::console::print(format_args!($fmt, $($arg)*)));
 }
 
 pub fn print(args: ::core::fmt::Arguments) {

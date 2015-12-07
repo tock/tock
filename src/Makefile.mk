@@ -1,8 +1,9 @@
-include src/chips/Makefile.mk
-include src/common/Makefile.mk
-include src/arch/$(ARCH)/Makefile.mk
-include src/drivers/Makefile.mk
-include src/hil/Makefile.mk
-include src/platform/Makefile.mk
-include src/process/Makefile.mk
-include src/main/Makefile.mk
+include $(SRC_DIR)apps/Makefile.mk
+include $(SRC_DIR)chips/Makefile.mk
+include $(SRC_DIR)common/Makefile.mk
+include $(SRC_DIR)arch/$(ARCH)/Makefile.mk
+include $(SRC_DIR)drivers/Makefile.mk
+include $(SRC_DIR)hil/Makefile.mk
+include $(SRC_DIR)platform/Makefile.mk
+include $(SRC_DIR)process/Makefile.mk
+include $(SRC_DIR)main/Makefile.mk

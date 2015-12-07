@@ -5,6 +5,7 @@ RUSTC_FLAGS += -L$(BUILD_DIR) # Common regardless of platform
 TOOLCHAIN = arm-none-eabi-
 OBJCOPY ?= $(TOOLCHAIN)objcopy
 CC = $(TOOLCHAIN)gcc
+CPP = $(TOOLCHAIN)g++
 LD = $(TOOLCHAIN)ld
 
 UNAME = $(shell uname)
@@ -21,8 +22,8 @@ rwildcard=$(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2) \
 
 # Default rlib compilation 
 .SECONDEXPANSION:
-$(BUILD_DIR)/lib%.rlib: $$(call rwildcard,src/$$**/,*.rs) $(BUILD_DIR)/libcore.rlib
+$(BUILD_DIR)/lib%.rlib: $$(call rwildcard,$(SRC_DIR)$$**/,*.rs) $(BUILD_DIR)/libcore.rlib
 	@echo "Building $@"
-	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) src/$*/lib.rs
+	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) $(SRC_DIR)$*/lib.rs
 
 
