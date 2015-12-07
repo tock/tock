@@ -190,7 +190,7 @@ impl hil::Controller for GPIOPin {
 }
 
 impl hil::gpio::GPIOPin for GPIOPin {
-    fn enable_output(&mut self) {
+    fn enable_output(&self) {
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.gper.set, self.pin_mask);
         volatile_store(&mut port.oder.set, self.pin_mask);
@@ -202,17 +202,17 @@ impl hil::gpio::GPIOPin for GPIOPin {
         (volatile_load(&port.pvr.val) & self.pin_mask) > 0
     }
 
-    fn toggle(&mut self) {
+    fn toggle(&self) {
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ovr.toggle, self.pin_mask);
     }
 
-    fn set(&mut self) {
+    fn set(&self) {
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ovr.set, self.pin_mask);
     }
 
-    fn clear(&mut self) {
+    fn clear(&self) {
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ovr.clear, self.pin_mask);
     }

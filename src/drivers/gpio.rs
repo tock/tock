@@ -1,11 +1,11 @@
 use hil::{Driver, Callback};
 use hil::gpio::GPIOPin;
 
-pub struct GPIO<S: AsMut<[&'static mut GPIOPin]>> {
+pub struct GPIO<S: AsRef<[&'static GPIOPin]>> {
     pins: S,
 }
 
-impl<S: AsMut<[&'static mut GPIOPin]>> GPIO<S> {
+impl<S: AsRef<[&'static GPIOPin]>> GPIO<S> {
     pub fn new(pins: S) -> GPIO<S> {
         GPIO {
             pins: pins
@@ -13,13 +13,13 @@ impl<S: AsMut<[&'static mut GPIOPin]>> GPIO<S> {
     }
 }
 
-impl<S: AsMut<[&'static mut GPIOPin]>> Driver for GPIO<S> {
-    fn subscribe(&mut self, _: usize, _: Callback) -> isize {
+impl<S: AsRef<[&'static GPIOPin]>> Driver for GPIO<S> {
+    fn subscribe(&self, _: usize, _: Callback) -> isize {
         -1
     }
 
-    fn command(&mut self, cmd_num: usize, r0: usize) -> isize {
-        let pins = self.pins.as_mut();
+    fn command(&self, cmd_num: usize, r0: usize) -> isize {
+        let pins = self.pins.as_ref();
         match cmd_num {
             0 /* enable output */ => {
                 if r0 >= pins.len() {

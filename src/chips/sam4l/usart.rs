@@ -1,5 +1,4 @@
 use helpers::*;
-use core::cell::RefCell;
 use core::mem;
 use hil::{uart, Controller};
 use hil::uart::Parity;
@@ -47,7 +46,7 @@ pub enum Location {
 
 pub struct USART {
     regs: *mut Registers,
-    client: Option<&'static RefCell<uart::Client>>,
+    client: Option<&'static uart::Client>,
     clock: Clock,
     nvic: nvic::NvicIdx,
     dma: Option<&'static mut DMAChannel>,
@@ -103,7 +102,7 @@ impl USART {
         }
     }
 
-    pub fn set_client<C: uart::Client>(&mut self, client: &'static RefCell<C>) {
+    pub fn set_client<C: uart::Client>(&mut self, client: &'static C) {
         self.client = Some(client);
     }
 
@@ -164,7 +163,7 @@ impl USART {
             let regs : &Registers = unsafe { mem::transmute(self.regs) };
             let c = volatile_load(&regs.rhr) as u8;
             match self.client {
-                Some(ref mut client) => {client.borrow_mut().read_done(c)},
+                Some(ref client) => {client.read_done(c)},
                 None => {}
             }
         }
@@ -179,7 +178,7 @@ impl USART {
 impl DMAClient for USART {
     fn xfer_done(&mut self) {
         self.dma.as_mut().map(|dma| dma.disable());
-        self.client.as_ref().map(|c| c.borrow_mut().write_done() );
+        self.client.as_ref().map(|c| c.write_done() );
     }
 }
 
@@ -199,15 +198,15 @@ impl uart::UART for USART {
         volatile_store(&mut regs.ttgr, 4);
     }
 
-    fn send_byte(&mut self, byte: u8) {
+    fn send_byte(&self, byte: u8) {
         while !self.tx_ready() {}
         let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
         volatile_store(&mut regs.thr, byte as u32);
     }
 
     #[inline(never)]
-    fn send_bytes<S>(&mut self, bytes: AppSlice<S, u8>) {
-        self.dma.as_mut().map(|dma| {
+    fn send_bytes<S>(&self, bytes: AppSlice<S, u8>) {
+        self.dma.as_ref().map(|dma| {
             dma.enable();
             dma.do_xfer(21, bytes);
         });
@@ -230,7 +229,7 @@ impl uart::UART for USART {
         volatile_load(&regs.rhr) as u8
     }
 
-    fn enable_rx(&mut self) {
+    fn enable_rx(&self) {
         let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
         volatile_store(&mut regs.cr, 1 << 4);
     }
@@ -240,7 +239,7 @@ impl uart::UART for USART {
         volatile_store(&mut regs.cr, 1 << 5);
     }
 
-    fn enable_tx(&mut self) {
+    fn enable_tx(&self) {
         let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
         volatile_store(&mut regs.cr, 1 << 6);
     }

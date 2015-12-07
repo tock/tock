@@ -1,3 +1,4 @@
+use core::cell::Cell;
 use core::mem;
 use core::intrinsics;
 use pm;
@@ -129,7 +130,7 @@ pub struct DMAChannel {
     registers: *mut DMARegisters,
     nvic: nvic::NvicIdx,
     pub client: Option<&'static mut DMAClient>,
-    enabled: bool,
+    enabled: Cell<bool>,
 }
 
 pub trait DMAClient {
@@ -143,16 +144,16 @@ impl DMAChannel {
                     as *mut DMARegisters,
             nvic: nvic,
             client: None,
-            enabled: false
+            enabled: Cell::new(false)
         }
     }
 
-    pub fn enable(&mut self) {
+    pub fn enable(&self) {
         unsafe {
             pm::enable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
             pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
         }
-        if !self.enabled {
+        if !self.enabled.get() {
             unsafe {
                 let num_enabled = intrinsics::atomic_xadd(&mut NUM_ENABLED, 1);
                 if num_enabled == 1 {
@@ -168,12 +169,12 @@ impl DMAChannel {
 
             unsafe { nvic::enable(self.nvic) };
 
-            self.enabled = true;
+            self.enabled.set(true);
         }
     }
 
-    pub fn disable(&mut self) {
-        if self.enabled {
+    pub fn disable(&self) {
+        if self.enabled.get() {
             unsafe {
                 let num_enabled = intrinsics::atomic_xsub(&mut NUM_ENABLED, 1);
                 if num_enabled == 1 {
@@ -185,7 +186,7 @@ impl DMAChannel {
                 mem::transmute(self.registers)
             };
             volatile_store(&mut registers.control, 0x2);
-            self.enabled = false;
+            self.enabled.set(false);
             unsafe {
                 nvic::disable(self.nvic);
             }
@@ -198,7 +199,7 @@ impl DMAChannel {
         });
     }
 
-    pub fn do_xfer<S>(&mut self, pid: usize, slice: AppSlice<S, u8>) {
+    pub fn do_xfer<S>(&self, pid: usize, slice: AppSlice<S, u8>) {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };

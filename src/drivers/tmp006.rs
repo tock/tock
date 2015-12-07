@@ -63,7 +63,7 @@ impl<'a, I: I2C> TimerClient for TMP006<'a, I> {
 }
 
 impl<'a, I: I2C> Driver for TMP006<'a, I> {
-    fn subscribe(&mut self, subscribe_num: usize, mut callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, mut callback: Callback) -> isize {
         match subscribe_num {
             0 /* read temperature  */ => {
                 match self.last_temp.get() {
@@ -80,7 +80,7 @@ impl<'a, I: I2C> Driver for TMP006<'a, I> {
         }
     }
 
-    fn command(&mut self, cmd_num: usize, _: usize) -> isize {
+    fn command(&self, cmd_num: usize, _: usize) -> isize {
         match cmd_num {
             0 /* Enable sensor  */ => {
                 self.i2c.enable();
