@@ -16,7 +16,8 @@ pub struct SingleTimer<'a, Alrm: Alarm + 'a> {
     interval: Cell<u32>,
     when: Cell<u32>,
     repeat: Cell<bool>,
-    alarm: &'a Alrm
+    alarm: &'a Alrm,
+    client: Cell<Option<&'a TimerClient>>
 }
 
 unsafe impl<'a, A: Alarm + 'a> Sync for SingleTimer<'a, A> {}
@@ -27,8 +28,13 @@ impl<'a, Alrm: Alarm> SingleTimer<'a, Alrm> {
             interval: Cell::new(0),
             when: Cell::new(0),
             repeat: Cell::new(false),
-            alarm: alarm
+            alarm: alarm,
+            client: Cell::new(None)
         }
+    }
+
+    pub fn set_client(&self, client: &'a TimerClient) {
+        self.client.set(Some(client));
     }
 }
 
@@ -62,10 +68,11 @@ impl<'a, Alrm: Alarm> Timer for SingleTimer<'a, Alrm> {
 
 impl<'a, Alrm: Alarm> AlarmClient for SingleTimer<'a, Alrm> {
     fn fired(&self) {
+        let now = self.now();
         let repeat = self.repeat.get();
         if repeat {
             let interval = self.interval.get();
-            let when = interval.wrapping_add(self.now());
+            let when = interval.wrapping_add(now);
 
             self.when.set(when);
 
@@ -73,6 +80,7 @@ impl<'a, Alrm: Alarm> AlarmClient for SingleTimer<'a, Alrm> {
         } else {
             self.alarm.disable_alarm();
         }
+        self.client.get().map(|client| client.fired(now) );
     }
 }
 
