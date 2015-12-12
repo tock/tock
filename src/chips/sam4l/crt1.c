@@ -287,3 +287,27 @@ __attribute__ ((weak)) extern void __aeabi_memcpy(void* dest, void* src, unsigne
   memcpy(dest, src, n);
 }
 
+__attribute__ ((weak)) extern void __aeabi_memcpy4(void* dest, void* src, unsigned int n) {
+  memcpy(dest, src, n);
+}
+
+__attribute__ ((weak)) extern void __aeabi_memcpy8(void* dest, void* src, unsigned int n) {
+  memcpy(dest, src, n);
+}
+
+
+__attribute__ ((weak)) extern void __aeabi_memclr (void *dest, size_t n)
+{
+	  memset (dest, 0, n);
+}
+
+__attribute__ ((weak)) extern void __aeabi_memclr4 (void *dest, size_t n)
+{
+	  memset (dest, 0, n);
+}
+
+__attribute__ ((weak)) extern void __aeabi_memclr8 (void *dest, size_t n)
+{
+	  memset (dest, 0, n);
+}
+
