@@ -5,12 +5,10 @@
 */
 
 pub trait Request {
-  fn read_done(&mut self, val: u16);
-  fn channel(&mut self) -> u8;
+  fn sample_done(&self, val: u16, request: &'static Request);
 }
 
 pub trait AdcInternal {
-    fn initialize(&mut self) -> bool;
-    fn sample(&mut self, &'static mut Request) -> bool;
-//    fn handle_interrupt(&mut self);
+    fn initialize(&'static mut self) -> bool;
+    fn sample(&self, channel: u8, callback: &'static Request) -> bool;
 }

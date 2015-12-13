@@ -18,4 +18,5 @@ pub mod nvic;
 pub mod pm;
 pub mod gpio;
 pub mod usart;
-//pub mod adc;
+pub mod scif;
+pub mod adc;
