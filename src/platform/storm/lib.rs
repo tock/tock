@@ -46,6 +46,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
     static mut CONSOLE_BUF : [u8; 1024] = [0; 1024];
     static mut TIMER_BUF : [u8; 1024] = [0; 1024];
+    static mut MUX_ALARM_BUF : [u8; 256] = [0; 256];
+    static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
     static mut TMP006_BUF : [u8; 1028] = [0; 1028];
 
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
@@ -65,9 +67,16 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     let console : &mut drivers::console::Console<sam4l::usart::USART> = mem::transmute(&mut CONSOLE_BUF);
     *console = drivers::console::Console::new(&mut sam4l::usart::USART3);
 
-    let mut timer : &mut SingleTimer<'static, sam4l::ast::Ast> = mem::transmute(&mut TIMER_BUF);
-    *timer = SingleTimer::new(ast);
-    ast.configure(timer);
+    let mut mux_alarm : &mut MuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut MUX_ALARM_BUF);
+    *mux_alarm = MuxAlarm::new(ast);
+    ast.configure(mux_alarm);
+
+    let mut virtual_alarm : &mut VirtualMuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut VIRT_ALARM_BUF);
+    *virtual_alarm = VirtualMuxAlarm::new(mux_alarm);
+
+    let mut timer : &mut SingleTimer<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>> = mem::transmute(&mut TIMER_BUF);
+    *timer = SingleTimer::new(virtual_alarm);
+    virtual_alarm.set_client(timer);
 
     let tmp006 : &mut drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice> = mem::transmute(&mut TMP006_BUF);
     *tmp006 = drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, timer);
