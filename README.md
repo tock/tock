@@ -23,10 +23,10 @@ applications from each other and the kernel.
 
 ### Rust (nightly)
 
-We are using `rustc 1.4.0-nightly (e35fd7481 2015-08-17)`:
+We are using `rustc 1.7.0-nightly (110df043b 2015-12-13)`:
 
 ```bash
-$ curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --date=2015-08-18
+$ curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --date=2015-12-14
 ```
 
 #### `arm-none-eabi` toolchain
@@ -111,13 +111,6 @@ source and programs the storm:
 
 ```bash
 make program
-```
-
-If you are using `JLinkExe`, use the script included in the source root
-directory:
-
-```bash
-JLinkExe prog.jlink
 ```
 
 ## Printf support
