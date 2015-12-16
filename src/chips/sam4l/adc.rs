@@ -1,20 +1,46 @@
-use helpers::*;
+/* adc.rs -- Implementation of SAM4L ADCIFE.
+ *
+ * This is a bare-bones implementation of the SAM4L ADC. It is bare-bones
+ * because it provides little flexibility on how samples are taken. Currently,
+ * all samples
+ *   - are 12 bits
+ *   - use the ground pad as the negative reference
+ *   - use a 1V positive reference
+ *   - are hardware left justified (16 bits wide, bottom 4 bits empty)
+ *
+ * NOTE: The pin labels/assignments on the Firestorm schematic are
+ * incorrect. The mappings should be
+ *   AD5 -> ADCIFE channel 6
+ *   AD4 -> ADCIFE channel 5
+ *   AD3 -> ADCIFE channel 4
+ *   AD2 -> ADCIFE channel 3
+ *   AD1 -> ADCIFE channel 2
+ *   AD0 -> ADCIFE channel 1
+ *
+ * but in reality they are
+ *   AD5 -> ADCIFE channel 1
+ *   AD4 -> ADCIFE channel 2
+ *   AD3 -> ADCIFE channel 3
+ *   AD2 -> ADCIFE channel 4
+ *   AD1 -> ADCIFE channel 5
+ *   AD0 -> ADCIFE channel 6
+ *
+ *
+ *
+ * Author: Philip Levis <pal@cs.stanford.edu>
+ * Date: August 5, 2015
+ */
+use core::cell::Cell;
+use core::prelude::*;
 use core::intrinsics;
 use nvic;
-use hil::adc;
+use hil::adc::{Request, AdcInternal};
 use pm::{self, Clock, PBAClock};
 use chip;
+use scif;
+use gpio;
+use hil;
 
-/* This is a first cut at an implementation of the SAM4L ADC.
-   It only allows a single sample at a time, and has three known bugs,
-   all serious:
-     1) It has not yet been tested (I have no hardware)
-     2) Interrupts are not hooked up yet
-     3) You cannot request a sample in a callback.
-
-    I've added it mostly as an example of how we might implement
-    these services.
-*/
 
 #[repr(C, packed)]
 #[allow(dead_code,missing_copy_implementations)]
@@ -41,12 +67,12 @@ pub struct AdcRegisters { // From page 1005 of SAM4L manual
 
 // Page 59 of SAM4L data sheet
 pub const BASE_ADDRESS: usize = 0x40038000;
-pub static mut ADC_INTERRUPT : bool = false;
 
 pub struct Adc {
-  registers: &'static mut AdcRegisters,
+  registers: *mut AdcRegisters,
   enabled: bool,
-  request: Option<&'static mut adc::Request>
+  channel: Cell<u8>,
+  request: Cell<Option<&'static Request>>
 }
 
 impl Adc {
@@ -55,55 +81,79 @@ impl Adc {
         Adc {
             registers: unsafe { intrinsics::transmute(address) },
             enabled: false,
-            request: None
+            channel: Cell::new(0),
+            request: Cell::new(None)
         }
     }
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
-        // Disable further interrupts
-        volatile_store(&mut self.registers.idr, 1);
-        match self.request.take() {
-            Some(ref mut request) => {
-                // Because HWLA is set to 1, most significant bit is
-                // of reading is left justified to bit 15r
-                let val = volatile_load(&self.registers.lcv) & 0xffff;
-                request.read_done(val as u16);
-            }
-            None => {}
-
+        let mut val:u16 = 0;
+        unsafe {
+            // Clear SEOC interrupt
+            intrinsics::volatile_store(&mut (*self.registers).scr,  0x0000001);
+            // Disable SEOC interrupt
+            intrinsics::volatile_store(&mut (*self.registers).idr,  0x00000001);
+            // Read the value from the LCV register.
+            // Note that since samples are left-justified (HWLA mode)
+            // the sample is 16 bits wide
+            val = (intrinsics::volatile_load(&(*self.registers).lcv) & 0xffff) as u16;
         }
-//        self.request = None;
+        if self.request.get().is_none() {return;}
+        let opt = self.request.get().take();
+        let copt: &'static Request = opt.unwrap();
+        self.request = Cell::new(None);
+        copt.sample_done(val, copt);
     }
 
 }
 
-impl adc::AdcInternal for Adc {
-    fn initialize(&mut self) -> bool {
+impl AdcInternal for Adc {
+    fn initialize(&'static mut self) -> bool {
         if !self.enabled {
             self.enabled = true;
-            unsafe {pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));}
-            volatile_bitwise_or(&mut self.registers.cr, 1 << 8);  // Enable ADC
-            volatile_bitwise_or(&mut self.registers.cr, 1 << 10); // Enable bandgap buffer
-            volatile_bitwise_or(&mut self.registers.cr, 1 << 4);  // Enable reference buffer
-            if (volatile_load(&self.registers.sr) & (1 << 24)) != 0 { // ADC is enabled
+            unsafe {
+                // This logic is from 38.6.1 "Initializing the ADCIFE" of
+                // the SAM4L data sheet
+                // 1. Start the clocks
+                pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
+                nvic::enable(nvic::NvicIdx::ADCIFE);
+                scif::generic_clock_enable(scif::GenericClock::GCLK10,
+                                           scif::ClockSource::RCSYS);
+                // 2. Insert a fixed delay
+                for i in 1..10000 {
+                    let x = intrinsics::volatile_load(&(*self.registers).cr);
+                }
+
+                // 3, Enable the ADC
+                let mut cr:usize = intrinsics::volatile_load(&(*self.registers).cr);
+                cr |= 1 << 8;
+                intrinsics::volatile_store(&mut (*self.registers).cr, cr);
+
+                // 4. Wait until ADC ready
+                while intrinsics::volatile_load(&(*self.registers).sr) & (1 << 24) == 0 {}
+                // 5. Turn on bandgap and reference buffer
+                let cr2:usize = (1 << 10) | (1 << 8) | (1 << 4);
+                intrinsics::volatile_store(&mut (*self.registers).cr, cr2);
+
+                // 6. Configure the ADCIFE
                 // Setting all 0s in the configuration register sets
                 //   - the clock divider to be 4,
                 //   - the source to be the Generic clock,
                 //   - the max speed to be 300 ksps, and
                 //   - the reference voltage to be 1.0V
-                volatile_store(&mut self.registers.cfg, 0);
+                intrinsics::volatile_store(&mut (*self.registers).cfg, 0x00000030 as usize);
+                while intrinsics::volatile_load(&(*self.registers).sr) & (0x51000000) != 0x51000000 {}
             }
         }
         return true;
     }
-
-    fn sample(&mut self, request: &'static mut adc::Request) -> bool {
-        if !self.enabled || request.channel() > 14 {
+    
+    fn sample(&self, channel: u8, request: &'static Request) -> bool {
+        if !self.enabled || self.request.get().is_some() || channel > 14 {
             return false;
         } else {
-            self.enabled = true;
-            self.request = Some(request);
-
+            self.request.set(Some(request));
+            self.channel.set(channel); 
             // This configuration sets the ADC to use Pad Ground as the
             // negative input, and the ADC channel as the positive. Since
             // this is a single-ended sample, the bipolar bit is set to zero.
@@ -115,32 +165,34 @@ impl adc::AdcInternal for Adc {
             // the same most significant bit but for 8 bit samples the lower
             // 8 bits are zero and for 12 bits the lower 4 bits are zero.
 
-            let mut channel:usize = request.channel() as usize;
-            channel = channel << 16;
-            volatile_store(&mut self.registers.seqcfg, 0x00708081 | channel);
-/*                    00708081 =  7      << 20 | // MUXNEG
-                                  channel << 16 | // MUXPOS
-                                  2       << 14 | // Internal
-                                  0       << 12 | // Resolution
-                                  0       << 8  | // TRGSEL
-                                  1       << 7  | // GCOMP
-                                  0       << 4  | // GAIN
-                                  0       << 2  | // BIPOLAR
-                                  1               // HWLA ));*/
-            // Enable end of conversion interrupt
-            volatile_store(&mut self.registers.ier, 1);
-            // Initiate conversion
-            volatile_store(&mut self.registers.cr, 2);
-            return true;
+            let chan_field: usize = (self.channel.get() as usize) << 16;
+            unsafe {
+                let mut cfg:usize = chan_field;
+                cfg |= 0x00700000; // MUXNEG   = 111 (ground pad)
+                cfg |= 0x00008000; // INTERNAL =  10 (int neg, ext pos)
+                cfg |= 0x00000000; // RES      =   0 (12-bit)
+                cfg |= 0x00000000; // TRGSEL   =   0 (software)
+                cfg |= 0x00000000; // GCOMP    =   0 (no gain error corr)
+                cfg |= 0x00000000; // GAIN     =   0 (1x gain)
+                cfg |= 0x00000000; // BIPOLAR  =   0 (not bipolar)
+                cfg |= 0x00000001; // HWLA     =   1 (left justify value)
+                intrinsics::volatile_store(&mut (*self.registers).seqcfg, cfg);
+                // Enable end of conversion interrupt
+                intrinsics::volatile_store(&mut (*self.registers).ier, 1);
+                // Initiate conversion
+                intrinsics::volatile_store(&mut (*self.registers).cr,  8);
+                return true;
+            }
         }
     }
 }
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern fn ADC_Handler() {
+pub unsafe extern fn ADCIFE_Handler() {
     use common::Queue;
-
     nvic::disable(nvic::NvicIdx::ADCIFE);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::ADCIFE);
+    chip::INTERRUPT_QUEUE.as_mut().map(|q| {
+        q.enqueue(nvic::NvicIdx::ADCIFE)
+    });
 }
