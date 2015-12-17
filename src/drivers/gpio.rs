@@ -14,10 +14,6 @@ impl<S: AsRef<[&'static GPIOPin]>> GPIO<S> {
 }
 
 impl<S: AsRef<[&'static GPIOPin]>> Driver for GPIO<S> {
-    fn subscribe(&self, _: usize, _: Callback) -> isize {
-        -1
-    }
-
     fn command(&self, cmd_num: usize, r0: usize) -> isize {
         let pins = self.pins.as_ref();
         match cmd_num {
