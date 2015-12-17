@@ -1,4 +1,4 @@
-use hil::{Driver, Callback};
+use hil::{Driver};
 use hil::gpio::GPIOPin;
 
 pub struct GPIO<S: AsRef<[&'static GPIOPin]>> {

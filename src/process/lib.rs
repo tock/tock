@@ -1,7 +1,7 @@
 #![crate_name = "process"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(core_intrinsics,raw,core_slice_ext,no_std,unique,nonzero,slice_bytes)]
+#![feature(core_intrinsics,clone_from_slice,raw,unique,nonzero)]
 
 extern crate common;
 extern crate support;

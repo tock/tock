@@ -87,7 +87,7 @@ impl<'a> Process<'a> {
         } else {
             let memory = &mut MEMORIES[cur_idx];
 
-            let mut stack_bottom = &mut memory[PROC_MEMORY_SIZE - 4] as *mut u8;
+            let stack_bottom = &mut memory[PROC_MEMORY_SIZE - 4] as *mut u8;
 
             // Take callback buffer from bottom of process memory
             let callback_len = 10;
@@ -138,7 +138,7 @@ impl<'a> Process<'a> {
             len: load_info.init_data_size
         });
 
-        ::core::slice::bytes::copy_memory(init_data, target_data);
+        target_data.clone_from_slice(init_data);
 
         // Fixup Global Offset Table
         let mut got_cur = exposed_memory_start.offset(load_info.got_start_offset as isize) as *mut usize;

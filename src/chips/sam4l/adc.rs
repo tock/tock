@@ -31,15 +31,12 @@
  * Date: August 5, 2015
  */
 use core::cell::Cell;
-use core::prelude::*;
 use core::intrinsics;
 use nvic;
 use hil::adc::{Request, AdcInternal};
 use pm::{self, Clock, PBAClock};
 use chip;
 use scif;
-use gpio;
-use hil;
 
 
 #[repr(C, packed)]
@@ -87,7 +84,7 @@ impl Adc {
     }
     #[inline(never)]
     pub fn handle_interrupt(&mut self) {
-        let mut val:u16 = 0;
+        let val : u16;
         unsafe {
             // Clear SEOC interrupt
             intrinsics::volatile_store(&mut (*self.registers).scr,  0x0000001);
@@ -120,8 +117,8 @@ impl AdcInternal for Adc {
                 scif::generic_clock_enable(scif::GenericClock::GCLK10,
                                            scif::ClockSource::RCSYS);
                 // 2. Insert a fixed delay
-                for i in 1..10000 {
-                    let x = intrinsics::volatile_load(&(*self.registers).cr);
+                for _ in 1..10000 {
+                    let _ = intrinsics::volatile_load(&(*self.registers).cr);
                 }
 
                 // 3, Enable the ADC

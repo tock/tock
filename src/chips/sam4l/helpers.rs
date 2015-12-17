@@ -17,6 +17,7 @@ pub fn volatile_transform<F, T>(item: &mut T, f: F) where F: FnOnce(T) -> T {
     volatile_store(item, f(x))
 }
 
+#[allow(dead_code)]
 pub fn volatile_bitwise_or<T: BitOr<Output = T>>(item: &mut T, val: T) {
     volatile_transform(item, |t| { t | val });
 }

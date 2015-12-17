@@ -1,4 +1,4 @@
-#![feature(core_slice_ext,const_fn,no_std)]
+#![feature(const_fn)]
 #![no_main]
 #![no_std]
 
