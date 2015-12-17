@@ -14,38 +14,38 @@ impl<S: AsRef<[&'static GPIOPin]>> GPIO<S> {
 }
 
 impl<S: AsRef<[&'static GPIOPin]>> Driver for GPIO<S> {
-    fn command(&self, cmd_num: usize, r0: usize) -> isize {
+    fn command(&self, cmd_num: usize, pin_num: usize, _: usize) -> isize {
         let pins = self.pins.as_ref();
         match cmd_num {
-            0 /* enable output */ => {
-                if r0 >= pins.len() {
+            0 /* output/input */ => {
+                if pin_num >= pins.len() {
                     -1
                 } else {
-                    pins[r0].enable_output();
+                    pins[pin_num].enable_output();
                     0
                 }
             },
             2 /* set */ => {
-                if r0 >= pins.len() {
+                if pin_num >= pins.len() {
                     -1
                 } else {
-                    pins[r0].set();
+                    pins[pin_num].set();
                     0
                 }
             },
             3 /* clear */ => {
-                if r0 >= pins.len() {
+                if pin_num >= pins.len() {
                     -1
                 } else {
-                    pins[r0].clear();
+                    pins[pin_num].clear();
                     0
                 }
             },
             4 /* toggle */ => {
-                if r0 >= pins.len() {
+                if pin_num >= pins.len() {
                     -1
                 } else {
-                    pins[r0].toggle();
+                    pins[pin_num].toggle();
                     0
                 }
             },

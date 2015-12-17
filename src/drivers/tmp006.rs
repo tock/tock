@@ -90,7 +90,7 @@ impl<'a, I: I2C> Driver for TMP006<'a, I> {
         }
     }
 
-    fn command(&self, cmd_num: usize, _: usize) -> isize {
+    fn command(&self, cmd_num: usize, _: usize, _: usize) -> isize {
         match cmd_num {
             0 /* Enable sensor  */ => {
                 self.i2c.enable();

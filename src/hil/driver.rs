@@ -10,7 +10,7 @@ pub trait Driver {
     }
 
     #[allow(unused_variables)]
-    fn command(&self, cmd_type: usize, r2: usize) -> isize {
+    fn command(&self, cmd_type: usize, r2: usize, r3: usize) -> isize {
         -1
     }
 

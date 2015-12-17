@@ -4,7 +4,7 @@
 #include "tock.h"
 
 extern int __wait();
-extern int __command(uint32_t, uint32_t, int);
+extern int __command(uint32_t, uint32_t, int, int);
 extern int __allow();
 extern int __subscribe();
 
@@ -59,8 +59,8 @@ int subscribe(uint32_t driver, uint32_t subscribe,
 }
 
 
-int command(uint32_t driver, uint32_t command, int data) {
-  return __command(driver, command, data);
+int command(uint32_t driver, uint32_t command, int arg1, int arg2) {
+  return __command(driver, command, arg1, arg2);
 }
 
 int allow(uint32_t driver, uint32_t allow, void* ptr, size_t size) {
