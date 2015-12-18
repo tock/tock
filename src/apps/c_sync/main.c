@@ -29,9 +29,9 @@ Reading temperature... ");
     snprintf(buf, 64, "Error(%d): TMP006 not enabled.\r\n", err);
     putstr(buf);
   } else {
-    char* str = malloc(128);
-    sprintf(str, "%d\u00B0C \r\n", temperature);
-    putstr(str);
+    char buf[64];
+    sprintf(buf, "%d\u00B0C \r\n", temperature);
+    putstr(buf);
   }
 
 }
