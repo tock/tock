@@ -14,12 +14,6 @@ struct Register {
 }
 
 #[repr(C, packed)]
-struct RegisterRO {
-    val: u32,
-    reserved: [u32; 3]
-}
-
-#[repr(C, packed)]
 struct RegisterRC {
     val: u32,
     reserved0: u32,
@@ -35,7 +29,8 @@ struct Registers {
     pmr2: Register,
     oder: Register,
     ovr: Register,
-    pvr: RegisterRO,
+    pvr: u32,
+    _reserverd0: [u32; 3],
     puer: Register,
     pder: Register,
     ier: Register,
@@ -43,29 +38,43 @@ struct Registers {
     imr1: Register,
     gfer: Register,
     ifr: RegisterRC,
-    reserved0: [u32; 8],
+    _reserved1: [u32; 8],
     ocdr0: Register,
     ocdr1: Register,
-    reserved1: [u32; 4],
+    _reserved2: [u32; 4],
     osrr0: Register,
-    reserved2: [u32; 8],
+    _reserved3: [u32; 8],
     ster: Register,
-    reserved3: [u32; 4],
+    _reserved4: [u32; 4],
     ever: Register,
-    reserved4: [u32; 26],
+    _reserved5: [u32; 26],
     parameter: u32,
     version: u32,
 }
 
+/// Peripheral functions that may be assigned to a `GPIOPin`.
+///
+/// GPIO pins on the SAM4L may serve multiple functions. In addition to the
+/// default functionality, each pin can be assigned up to eight different
+/// peripheral functions. The various functions for each pin are described in
+/// "Peripheral Multiplexing I/O Lines" section of the SAM4L datasheet[^1].
+///
+/// [^1]: Section 3.2, pages 19-29
 #[derive(Copy,Clone)]
 pub enum PeripheralFunction {
-    A, B, C, D, E, F, G, H
+    A, B, C, D, E, F, G
 }
 
 
 const BASE_ADDRESS: usize = 0x400E1000;
 const SIZE: usize = 0x200;
 
+/// Name of the GPIO pin on the SAM4L.
+///
+/// The "Package and Pinout" section[^1] of the SAM4L datasheet shows the mapping
+/// between these names and hardware pins on different chip packages.
+///
+/// [^1]: Section 3.1, pages 10-18
 #[derive(Copy,Clone)]
 pub enum Pin {
     PA00, PA01, PA02, PA03, PA04, PA05, PA06, PA07,
@@ -89,6 +98,7 @@ pub struct GPIOPin {
     pin_mask: u32
 }
 
+/// Port A `GPIOPin`s
 pub static mut PA : [GPIOPin; 32] = [
     GPIOPin::new(PA00), GPIOPin::new(PA01), GPIOPin::new(PA02),
     GPIOPin::new(PA03), GPIOPin::new(PA04), GPIOPin::new(PA05),
@@ -103,6 +113,7 @@ pub static mut PA : [GPIOPin; 32] = [
     GPIOPin::new(PA30), GPIOPin::new(PA31)
 ];
 
+/// Port B `GPIOPin`s
 pub static mut PB : [GPIOPin; 32] = [
     GPIOPin::new(PB00), GPIOPin::new(PB01), GPIOPin::new(PB02),
     GPIOPin::new(PB03), GPIOPin::new(PB04), GPIOPin::new(PB05),
@@ -117,6 +128,7 @@ pub static mut PB : [GPIOPin; 32] = [
     GPIOPin::new(PB30), GPIOPin::new(PB31)
 ];
 
+/// Port C `GPIOPin`s
 pub static mut PC : [GPIOPin; 32] = [
     GPIOPin::new(PC00), GPIOPin::new(PC01), GPIOPin::new(PC02),
     GPIOPin::new(PC03), GPIOPin::new(PC04), GPIOPin::new(PC05),
@@ -148,8 +160,6 @@ impl GPIOPin {
         volatile_store(&mut port.gper.clear, self.pin_mask);
 
         // Set PMR0-2 according to passed in peripheral
-
-        // bradjc: This code doesn't look great, but actually works.
         if bit0 == 0 {
             volatile_store(&mut port.pmr0.clear, self.pin_mask);
         } else {
@@ -165,16 +175,103 @@ impl GPIOPin {
         } else {
             volatile_store(&mut port.pmr2.set, self.pin_mask);
         }
-        // bradjc: These register assigns erase previous settings and don't
-        //         work.
-        // volatile_store(&mut self.port.pmr0.val, bit0 << self.pin_mask);
-        // volatile_store(&mut self.port.pmr1.val, bit1 << self.pin_mask);
-        // volatile_store(&mut self.port.pmr2.val, bit2 << self.pin_mask);
     }
 
-    pub fn set_ster(&mut self) {
+    pub fn enable(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.gper.set, self.pin_mask);
+    }
+
+    pub fn disable(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.gper.clear, self.pin_mask);
+    }
+
+    pub fn enable_output(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.oder.set, self.pin_mask);
+    }
+
+    pub fn disable_output(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.oder.clear, self.pin_mask);
+    }
+
+    pub fn enable_pull_down(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.pder.set, self.pin_mask);
+    }
+
+    pub fn disable_pull_down(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.pder.clear, self.pin_mask);
+    }
+
+    pub fn enable_pull_up(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.puer.set, self.pin_mask);
+    }
+
+    pub fn disable_pull_up(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.puer.clear, self.pin_mask);
+    }
+
+    /// Sets the interrupt mode registers. Interrupts may fire on the rising or
+    /// falling edge of the pin or on both.
+    ///
+    /// The mode is a two-bit value based on the mapping from section 23.7.13 of
+    /// the SAM4L datasheet (page 563):
+    ///
+    /// | `mode` value | Interrupt Mode |
+    /// | ------------ | -------------- |
+    /// | 0b00         | Pin change     |
+    /// | 0b01         | Rising edge    |
+    /// | 0b10         | Falling edge   |
+    ///
+    pub fn set_interrupt_mode(&self, mode: u8) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        if mode & 0b01 != 0 {
+            volatile_store(&mut port.imr0.set, self.pin_mask);
+        } else {
+            volatile_store(&mut port.imr0.clear, self.pin_mask);
+        }
+
+        if mode & 0b10 != 0 {
+            volatile_store(&mut port.imr1.set, self.pin_mask);
+        } else {
+            volatile_store(&mut port.imr1.clear, self.pin_mask);
+        }
+    }
+
+    pub fn disable_schmidtt_trigger(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.ster.clear, self.pin_mask);
+    }
+
+    pub fn enable_schmidtt_trigger(&self) {
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ster.set, self.pin_mask);
+    }
+
+    pub fn read(&self) -> bool {
+        let port : &Registers = unsafe { mem::transmute(self.port) };
+        (volatile_load(&port.pvr) & self.pin_mask) > 0
+    }
+
+    pub fn toggle(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.ovr.toggle, self.pin_mask);
+    }
+
+    pub fn set(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.ovr.set, self.pin_mask);
+    }
+
+    pub fn clear(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        volatile_store(&mut port.ovr.clear, self.pin_mask);
     }
 }
 
@@ -190,31 +287,55 @@ impl hil::Controller for GPIOPin {
 }
 
 impl hil::gpio::GPIOPin for GPIOPin {
+    fn disable(&self) {
+        GPIOPin::disable(self);
+    }
+
     fn enable_output(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
-        volatile_store(&mut port.gper.set, self.pin_mask);
-        volatile_store(&mut port.oder.set, self.pin_mask);
-        volatile_store(&mut port.ster.clear, self.pin_mask);
+        self.enable();
+        GPIOPin::enable_output(self);
+        self.disable_schmidtt_trigger();
+    }
+
+    fn enable_input(&self, mode: hil::gpio::InputMode) {
+        self.enable();
+        GPIOPin::disable_output(self);
+        self.enable_schmidtt_trigger();
+        match mode {
+            hil::gpio::InputMode::PullUp => {
+                self.disable_pull_down();
+                self.enable_pull_up();
+            },
+            hil::gpio::InputMode::PullDown => {
+                self.disable_pull_up();
+                self.enable_pull_down();
+            }
+        }
     }
 
     fn read(&self) -> bool {
-        let port : &Registers = unsafe { mem::transmute(self.port) };
-        (volatile_load(&port.pvr.val) & self.pin_mask) > 0
+        GPIOPin::read(self)
     }
 
     fn toggle(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
-        volatile_store(&mut port.ovr.toggle, self.pin_mask);
+        GPIOPin::toggle(self);
     }
 
     fn set(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
-        volatile_store(&mut port.ovr.set, self.pin_mask);
+        GPIOPin::set(self);
     }
 
     fn clear(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
-        volatile_store(&mut port.ovr.clear, self.pin_mask);
+        GPIOPin::clear(self);
+    }
+
+    fn set_interrupt_mode(&self, mode: hil::gpio::InterruptMode) {
+        let mode_bits = match mode {
+            hil::gpio::InterruptMode::Change => 0b00,
+            hil::gpio::InterruptMode::RisingEdge => 0b01,
+            hil::gpio::InterruptMode::FallingEdge => 0b10
+        };
+        GPIOPin::set_interrupt_mode(self, mode_bits);
     }
 }
 
