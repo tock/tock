@@ -17,10 +17,10 @@ pub trait GPIOPin {
     fn clear(&self);
     fn toggle(&self);
     fn read(&self) -> bool;
-    fn set_interrupt_mode(&self, mode: InterruptMode);
+    fn enable_interrupt(&self, identifier: usize, mode: InterruptMode);
 }
 
 pub trait Client {
-    fn fired(&self);
+    fn fired(&self, identifier: usize);
 }
 

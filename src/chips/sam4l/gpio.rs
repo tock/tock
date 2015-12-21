@@ -1,5 +1,7 @@
 use helpers::*;
+use core::cell::Cell;
 use core::mem;
+use core::ops::{Index, IndexMut};
 use hil;
 use nvic;
 use chip;
@@ -94,62 +96,135 @@ pub enum Pin {
     PC24, PC25, PC26, PC27, PC28, PC29, PC30, PC31,
 }
 
+/// GPIO port that manages 32 pins.
+///
+/// The SAM4L divides GPIOs into _ports_ that each manage a group of 32
+/// individual pins. There are up to three ports, depending particular chip
+/// (see[^1]).
+///
+/// In general, the kernel and applications should care about individual
+/// [GPIOPin](struct.GPIOPin.html)s. However, mirroring the hardware grouping in
+/// Rust is useful, internally, for correctly handling and dispatching
+/// interrupts.
+///
+/// The port itself is a set of 32-bit memory-mapped I/O registers. Each
+/// register has a bit for each pin in the port. Pins are, thus, named by their
+/// port and offset bit in each register that controls is. For example, the
+/// first port has pins called "PA00" thru "PA31".
+///
+/// [^1]: SAM4L datasheet section 23.8 (page 573): "Module Configuration" for
+///       GPIO
+pub struct Port {
+    port: *mut Registers,
+    pins: [GPIOPin; 32]
+}
+
+impl Index<usize> for Port {
+    type Output = GPIOPin;
+
+    fn index(&self, index: usize) -> &GPIOPin {
+        &self.pins[index]
+    }
+}
+
+impl IndexMut<usize> for Port {
+    fn index_mut(&mut self, index: usize) -> &mut GPIOPin {
+        &mut self.pins[index]
+    }
+}
+
+impl Port {
+    pub fn handle_interrupt(&self) {
+        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+
+        // Interrupt Flag Register (IFR) bits are only valid if the same bits
+        // are enabled in Interrupt Enabled Register (IER).
+        let mut fired = volatile_load(&port.ifr.val) &
+                        volatile_load(&port.ier.val);
+
+        // About to handle all the interrupts, so just clear them now to get
+        // over with it.
+        volatile_store(&mut port.ifr.clear, !0);
+
+        loop {
+            let pin = fired.trailing_zeros() as usize;
+            if pin < self.pins.len() {
+                fired &= !(1 << pin);
+                self.pins[pin].handle_interrupt();
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+/// Port A
+pub static mut PA : Port = Port {
+    port: (BASE_ADDRESS + 0 * SIZE) as *mut Registers,
+    pins: [
+        GPIOPin::new(PA00), GPIOPin::new(PA01), GPIOPin::new(PA02),
+        GPIOPin::new(PA03), GPIOPin::new(PA04), GPIOPin::new(PA05),
+        GPIOPin::new(PA06), GPIOPin::new(PA07), GPIOPin::new(PA08),
+        GPIOPin::new(PA09), GPIOPin::new(PA10), GPIOPin::new(PA11),
+        GPIOPin::new(PA12), GPIOPin::new(PA13), GPIOPin::new(PA14),
+        GPIOPin::new(PA15), GPIOPin::new(PA16), GPIOPin::new(PA17),
+        GPIOPin::new(PA18), GPIOPin::new(PA19), GPIOPin::new(PA20),
+        GPIOPin::new(PA21), GPIOPin::new(PA22), GPIOPin::new(PA23),
+        GPIOPin::new(PA24), GPIOPin::new(PA25), GPIOPin::new(PA26),
+        GPIOPin::new(PA27), GPIOPin::new(PA28), GPIOPin::new(PA29),
+        GPIOPin::new(PA30), GPIOPin::new(PA31)
+    ]
+};
+
+/// Port B
+pub static mut PB : Port = Port {
+    port: (BASE_ADDRESS + 1 * SIZE) as *mut Registers,
+    pins: [
+        GPIOPin::new(PB00), GPIOPin::new(PB01), GPIOPin::new(PB02),
+        GPIOPin::new(PB03), GPIOPin::new(PB04), GPIOPin::new(PB05),
+        GPIOPin::new(PB06), GPIOPin::new(PB07), GPIOPin::new(PB08),
+        GPIOPin::new(PB09), GPIOPin::new(PB10), GPIOPin::new(PB11),
+        GPIOPin::new(PB12), GPIOPin::new(PB13), GPIOPin::new(PB14),
+        GPIOPin::new(PB15), GPIOPin::new(PB16), GPIOPin::new(PB17),
+        GPIOPin::new(PB18), GPIOPin::new(PB19), GPIOPin::new(PB20),
+        GPIOPin::new(PB21), GPIOPin::new(PB22), GPIOPin::new(PB23),
+        GPIOPin::new(PB24), GPIOPin::new(PB25), GPIOPin::new(PB26),
+        GPIOPin::new(PB27), GPIOPin::new(PB28), GPIOPin::new(PB29),
+        GPIOPin::new(PB30), GPIOPin::new(PB31)
+    ]
+};
+
+/// Port C
+pub static mut PC : Port = Port {
+    port: (BASE_ADDRESS + 2 * SIZE) as *mut Registers,
+    pins: [
+        GPIOPin::new(PC00), GPIOPin::new(PC01), GPIOPin::new(PC02),
+        GPIOPin::new(PC03), GPIOPin::new(PC04), GPIOPin::new(PC05),
+        GPIOPin::new(PC06), GPIOPin::new(PC07), GPIOPin::new(PC08),
+        GPIOPin::new(PC09), GPIOPin::new(PC10), GPIOPin::new(PC11),
+        GPIOPin::new(PC12), GPIOPin::new(PC13), GPIOPin::new(PC14),
+        GPIOPin::new(PC15), GPIOPin::new(PC16), GPIOPin::new(PC17),
+        GPIOPin::new(PC18), GPIOPin::new(PC19), GPIOPin::new(PC20),
+        GPIOPin::new(PC21), GPIOPin::new(PC22), GPIOPin::new(PC23),
+        GPIOPin::new(PC24), GPIOPin::new(PC25), GPIOPin::new(PC26),
+        GPIOPin::new(PC27), GPIOPin::new(PC28), GPIOPin::new(PC29),
+        GPIOPin::new(PC30), GPIOPin::new(PC31)
+    ]
+};
+
 pub struct GPIOPin {
     port: *mut Registers,
     pin_mask: u32,
+    client_data: Cell<usize>,
     client: Option<&'static hil::gpio::Client>
 }
 
-/// Port A `GPIOPin`s
-pub static mut PA : [GPIOPin; 32] = [
-    GPIOPin::new(PA00), GPIOPin::new(PA01), GPIOPin::new(PA02),
-    GPIOPin::new(PA03), GPIOPin::new(PA04), GPIOPin::new(PA05),
-    GPIOPin::new(PA06), GPIOPin::new(PA07), GPIOPin::new(PA08),
-    GPIOPin::new(PA09), GPIOPin::new(PA10), GPIOPin::new(PA11),
-    GPIOPin::new(PA12), GPIOPin::new(PA13), GPIOPin::new(PA14),
-    GPIOPin::new(PA15), GPIOPin::new(PA16), GPIOPin::new(PA17),
-    GPIOPin::new(PA18), GPIOPin::new(PA19), GPIOPin::new(PA20),
-    GPIOPin::new(PA21), GPIOPin::new(PA22), GPIOPin::new(PA23),
-    GPIOPin::new(PA24), GPIOPin::new(PA25), GPIOPin::new(PA26),
-    GPIOPin::new(PA27), GPIOPin::new(PA28), GPIOPin::new(PA29),
-    GPIOPin::new(PA30), GPIOPin::new(PA31)
-];
-
-/// Port B `GPIOPin`s
-pub static mut PB : [GPIOPin; 32] = [
-    GPIOPin::new(PB00), GPIOPin::new(PB01), GPIOPin::new(PB02),
-    GPIOPin::new(PB03), GPIOPin::new(PB04), GPIOPin::new(PB05),
-    GPIOPin::new(PB06), GPIOPin::new(PB07), GPIOPin::new(PB08),
-    GPIOPin::new(PB09), GPIOPin::new(PB10), GPIOPin::new(PB11),
-    GPIOPin::new(PB12), GPIOPin::new(PB13), GPIOPin::new(PB14),
-    GPIOPin::new(PB15), GPIOPin::new(PB16), GPIOPin::new(PB17),
-    GPIOPin::new(PB18), GPIOPin::new(PB19), GPIOPin::new(PB20),
-    GPIOPin::new(PB21), GPIOPin::new(PB22), GPIOPin::new(PB23),
-    GPIOPin::new(PB24), GPIOPin::new(PB25), GPIOPin::new(PB26),
-    GPIOPin::new(PB27), GPIOPin::new(PB28), GPIOPin::new(PB29),
-    GPIOPin::new(PB30), GPIOPin::new(PB31)
-];
-
-/// Port C `GPIOPin`s
-pub static mut PC : [GPIOPin; 32] = [
-    GPIOPin::new(PC00), GPIOPin::new(PC01), GPIOPin::new(PC02),
-    GPIOPin::new(PC03), GPIOPin::new(PC04), GPIOPin::new(PC05),
-    GPIOPin::new(PC06), GPIOPin::new(PC07), GPIOPin::new(PC08),
-    GPIOPin::new(PC09), GPIOPin::new(PC10), GPIOPin::new(PC11),
-    GPIOPin::new(PC12), GPIOPin::new(PC13), GPIOPin::new(PC14),
-    GPIOPin::new(PC15), GPIOPin::new(PC16), GPIOPin::new(PC17),
-    GPIOPin::new(PC18), GPIOPin::new(PC19), GPIOPin::new(PC20),
-    GPIOPin::new(PC21), GPIOPin::new(PC22), GPIOPin::new(PC23),
-    GPIOPin::new(PC24), GPIOPin::new(PC25), GPIOPin::new(PC26),
-    GPIOPin::new(PC27), GPIOPin::new(PC28), GPIOPin::new(PC29),
-    GPIOPin::new(PC30), GPIOPin::new(PC31)
-];
-
 impl GPIOPin {
-    pub const fn new(pin: Pin) -> GPIOPin {
+    const fn new(pin: Pin) -> GPIOPin {
         GPIOPin {
             port: (BASE_ADDRESS + ((pin as usize) / 32) * SIZE) as *mut Registers,
             pin_mask: 1 << ((pin as u32) % 32),
+            client_data: Cell::new(0),
             client: None
         }
     }
@@ -256,7 +331,7 @@ impl GPIOPin {
 
     pub fn handle_interrupt(&self) {
         self.client.map(|client| {
-            client.fired();
+            client.fired(self.client_data.get());
         });
     }
 
@@ -345,13 +420,15 @@ impl hil::gpio::GPIOPin for GPIOPin {
         GPIOPin::clear(self);
     }
 
-    fn set_interrupt_mode(&self, mode: hil::gpio::InterruptMode) {
+    fn enable_interrupt(&self, client_data: usize,
+                        mode: hil::gpio::InterruptMode) {
         let mode_bits = match mode {
             hil::gpio::InterruptMode::Change => 0b00,
             hil::gpio::InterruptMode::RisingEdge => 0b01,
             hil::gpio::InterruptMode::FallingEdge => 0b10
         };
         GPIOPin::set_interrupt_mode(self, mode_bits);
+        self.client_data.set(client_data);
     }
 }
 
@@ -362,5 +439,104 @@ pub unsafe extern fn GPIO_0_Handler() {
 
     nvic::disable(nvic::NvicIdx::GPIO0);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO0);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_1_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO1);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO1);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_2_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO2);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO2);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_3_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO3);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO3);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_4_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO4);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO4);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_5_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO5);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO5);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_6_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO6);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO6);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_7_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO7);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO7);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_8_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO8);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO8);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_9_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO9);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO9);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_10_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO10);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO10);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_11_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO11);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO11);
 }
 
