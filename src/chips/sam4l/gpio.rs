@@ -1,7 +1,8 @@
 use helpers::*;
-
 use core::mem;
 use hil;
+use nvic;
+use chip;
 
 use self::Pin::*;
 
@@ -95,7 +96,8 @@ pub enum Pin {
 
 pub struct GPIOPin {
     port: *mut Registers,
-    pin_mask: u32
+    pin_mask: u32,
+    client: Option<&'static hil::gpio::Client>
 }
 
 /// Port A `GPIOPin`s
@@ -147,7 +149,15 @@ impl GPIOPin {
     pub const fn new(pin: Pin) -> GPIOPin {
         GPIOPin {
             port: (BASE_ADDRESS + ((pin as usize) / 32) * SIZE) as *mut Registers,
-            pin_mask: 1 << ((pin as u32) % 32)
+            pin_mask: 1 << ((pin as u32) % 32),
+            client: None
+        }
+    }
+
+    pub fn set_client<C: hil::gpio::Client>(&mut self, client: &'static C) {
+        self.client = Some(client);
+        unsafe {
+            nvic::enable(nvic::NvicIdx::GPIO0);
         }
     }
 
@@ -244,6 +254,12 @@ impl GPIOPin {
         }
     }
 
+    pub fn handle_interrupt(&self) {
+        self.client.map(|client| {
+            client.fired();
+        });
+    }
+
     pub fn disable_schmidtt_trigger(&self) {
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ster.clear, self.pin_mask);
@@ -337,5 +353,14 @@ impl hil::gpio::GPIOPin for GPIOPin {
         };
         GPIOPin::set_interrupt_mode(self, mode_bits);
     }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIO_0_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::GPIO0);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO0);
 }
 
