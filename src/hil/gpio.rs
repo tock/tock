@@ -20,3 +20,7 @@ pub trait GPIOPin {
     fn set_interrupt_mode(&self, mode: InterruptMode);
 }
 
+pub trait Client {
+    fn fired(&self);
+}
+
