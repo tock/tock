@@ -34,6 +34,22 @@ pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
     }
 }
 
+pub unsafe fn alloc(appid: ::AppId, size: usize) -> Option<*mut u8> {
+    let procs = unsafe { &mut PROCS };
+    let idx = appid.idx();
+    if idx >= procs.len() {
+        return None
+    }
+
+    match procs[idx] {
+        None => None,
+        Some(ref mut process) =>
+            process.alloc(size).map(|slice| {
+                (&mut slice[0]) as *mut u8
+            })
+    }
+}
+
 #[derive(Copy,Clone,PartialEq,Eq)]
 pub enum State {
     Running,
