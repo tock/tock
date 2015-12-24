@@ -14,7 +14,7 @@ applications from each other and the kernel.
 
 ## Requirements
 
-1. [Rust](http://www.rust-lang.org/) 1.4.0-nightly (e35fd7481 2015-08-17)
+1. [Rust](http://www.rust-lang.org/) (nightly)
 2. [arm-none-eabi toolchain](https://launchpad.net/gcc-arm-embedded/) (version >= 4.9)
 3. stormloader (recommended) or JLinkExe for programming the storm
 4. Command line utilities: wget, sed, make
