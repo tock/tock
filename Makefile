@@ -1,5 +1,5 @@
 # Makefile for the Tock embedded operating system.
-# 
+#
 # Included Makfiles, in subdirectories, contain most of the build system. See
 # indiviual subdirectories and README for more specific explanation.
 
