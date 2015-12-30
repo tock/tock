@@ -156,7 +156,14 @@ impl spi_master::SpiMaster for Spi {
     fn init(&self, callback: &'static SpiCallback) {
         // Enable clock
         unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); }
-
+        // Configure GPIO pins
+        // PA21, PA27, PC04 -> MISO
+        // PA22, PA28, PC05 -> MOSI
+        // PA23, PA29, PC06 -> SCK
+        // PA24, PA30, PC03 -> CS0
+        // PA31 , PC02-> CS1
+        // PC00 -> CS2
+        // PC01 -> CR3
         self.callback.set(Some(callback));
         self.set_rate(8000000); // Set initial baud rate to 8MHz
         self.set_clock(ClockPolarity::IdleLow);

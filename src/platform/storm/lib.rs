@@ -10,6 +10,7 @@ extern crate sam4l;
 
 use hil::Controller;
 use hil::timer::*;
+use hil::spi_master::*;
 
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
@@ -17,6 +18,19 @@ pub struct Firestorm {
     gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 14]>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice>,
 }
+
+#[allow(unused_variables,dead_code)]
+pub struct DummyCB {
+  val: u8
+}
+impl hil::spi_master::SpiCallback for DummyCB {
+#[allow(unused_variables,dead_code)]
+        fn read_write_done(&'static self, 
+                           read: Option<&'static mut[u8]>,
+                           writer: Option<&'static mut[u8]>) { }
+}
+
+pub static mut SPICB: DummyCB = DummyCB{val: 0x55 as u8};
 
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
@@ -63,7 +77,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     ast.select_clock(sam4l::ast::Clock::ClockRCSys);
     ast.set_prescalar(0);
     ast.clear_alarm();
-
+   
     let console : &mut drivers::console::Console<sam4l::usart::USART> = mem::transmute(&mut CONSOLE_BUF);
     *console = drivers::console::Console::new(&mut sam4l::usart::USART3);
 
@@ -99,7 +113,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &mut sam4l::gpio::PA[12], &mut sam4l::gpio::PC[09]]),
         tmp006: &*tmp006
     };
-
+    
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
         //client: &console,
         baud_rate: 115200,
@@ -113,6 +127,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
     sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 
+
+    let spi = &sam4l::spi::SPI;
+    spi.init(&SPICB);
+    let mut val = spi.read_write_byte(0x55 as u8);
+    val = val + 1;
     firestorm.console.initialize();
 
     firestorm
