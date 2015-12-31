@@ -201,12 +201,12 @@ impl spi_master::SpiMaster for Spi {
         let mut mode = unsafe {volatile_load(&(*self.regs).mr)};
         mode |= 1; // Enable master mode
         mode |= 1 << 4; // Disable mode fault detection (open drain outputs not supported)
+        mode != 1 << 7; // Enable looopback
         unsafe {volatile_store(&mut (*self.regs).mr, mode)};
     }
 
     fn read_write_byte(&'static self, val: u8) -> u8 {
-        let tdr = val as u32;
-        unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
+        self.write_byte(val); 
         // Wait for receive data register full
         while (unsafe {volatile_load(&(*self.regs).sr)} & 1) != 1 {}
         // Return read value

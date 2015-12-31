@@ -150,9 +150,16 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     let mut counter: u8 = 0;
     loop {
-      let val = SPI.write_byte(0);
-      let val = SPI.write_byte(counter);
+      let val1 = SPI.read_write_byte(0x55);
+      let val2 = SPI.read_write_byte(counter);
+      let val3 = SPI.read_write_byte(val1);
+      let val4 = SPI.read_write_byte(val2);
+      let val5 = SPI.read_write_byte(0);
       counter = counter + 1;
+      for x in 1..2000 {
+        SPI.disable();
+        SPI.enable();
+      }
     }
     firestorm.console.initialize();
 
