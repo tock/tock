@@ -65,7 +65,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
     static mut TMP006_BUF : [u8; 1028] = [0; 1028];
 
-    unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); }
+    pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); 
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
      * easier, but should be obviated when `size_of` at compile time hits.
     static mut FIRESTORM_BUF : [u8; 192] = [0; 192];
@@ -148,7 +148,21 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     SPI.init(&SPICB);
     SPI.enable();
 
-    let mut counter: u8 = 0;
+    let mut flop: bool = false;
+    loop {
+        flop = !flop;
+        if flop {
+            SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2));
+        } else {
+            SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
+            for x in 1..2000 {
+                SPI.disable();
+                SPI.enable();
+            }
+        }
+    }
+    // This is a simple byte-level test of SPI.
+    /*let mut counter: u8 = 0;
     loop {
       let val1 = SPI.read_write_byte(0x55);
       let val2 = SPI.read_write_byte(counter);
@@ -160,10 +174,14 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         SPI.disable();
         SPI.enable();
       }
-    }
+    }*/
+
+    
     firestorm.console.initialize();
 
     firestorm
 }
+pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+pub static mut buf2: [u8; 8] = [7, 6, 5, 4, 3, 2, 1, 0];
 pub static mut SPI : sam4l::spi::Spi = sam4l::spi::Spi::new();
 

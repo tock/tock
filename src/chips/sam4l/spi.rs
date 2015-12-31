@@ -2,12 +2,10 @@ use helpers::*;
 use core::cell::Cell;
 use core::cmp;
 
-use pm;
 use hil::spi_master;
 use hil::spi_master::SpiCallback;
 use hil::spi_master::ClockPolarity;
 use hil::spi_master::ClockPhase;
-use hil::spi_master::DataOrder;
 
 // Driver for the SPI hardware (seperate from the USARTS, described in chapter 26 of the
 // datasheet)
@@ -257,9 +255,11 @@ impl spi_master::SpiMaster for Spi {
             }
             // Write the value
             let rxbyte = self.read_write_byte(txbyte);
-            match read_buffer.take() {
-                Some(ref mut buf) => {buf[i] = rxbyte;}
-                None          => {}
+            // Don't do a match here due to lifetime problems,
+            // couldn't figure out how to do it -pal
+            if read_buffer.is_some() {
+               let mut buf = read_buffer.as_mut().unwrap();
+               buf[i] = rxbyte;
             }
         }
         self.callback.get().map(|cb| {
