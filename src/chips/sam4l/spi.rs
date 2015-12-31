@@ -186,7 +186,7 @@ impl spi_master::SpiMaster for Spi {
         // PC00 -> CS2
         // PC01 -> CR3
         self.callback.set(Some(callback));
-        self.set_rate(40000); // Set initial baud rate to 8MHz
+        self.set_rate(40000); // Set initial baud rate to 40kbps
         self.set_clock(ClockPolarity::IdleLow);
         self.set_phase(ClockPhase::SampleLeading);
 
@@ -201,7 +201,6 @@ impl spi_master::SpiMaster for Spi {
         let mut mode = unsafe {volatile_load(&(*self.regs).mr)};
         mode |= 1; // Enable master mode
         mode |= 1 << 4; // Disable mode fault detection (open drain outputs not supported)
-        mode != 1 << 7; // Enable looopback
         unsafe {volatile_store(&mut (*self.regs).mr, mode)};
     }
 
