@@ -66,15 +66,21 @@ pub struct Spi {
     callback: Cell<Option<&'static SpiCallback>>,
 }
 
-pub static mut SPI: Spi = Spi::new();
-
 impl Spi {
     /// Creates a new SPI object, with peripheral 0 selected
-   const fn new() -> Spi {
+   pub const fn new() -> Spi {
         Spi {
             regs: SPI_BASE as *mut SpiRegisters,
             callback: Cell::new(None)
         }
+    }
+
+    pub fn enable(&self) {
+        unsafe { volatile_store(&mut (*self.regs).cr, 0b1); }
+    }
+
+    pub fn disable(&self) {
+        unsafe { volatile_store(&mut (*self.regs).cr, 0b10); }
     }
 
     /// Sets the approximate baud rate for the active peripheral
@@ -85,7 +91,7 @@ impl Spi {
     ///
     /// The lowest available baud rate is 188235 baud. If the requested rate is lower,
     /// 188235 baud will be selected.
-    pub fn set_baud_rate(&'static self, rate: u32) {
+    pub fn set_baud_rate(&self, rate: u32) -> u32 {
         // Main clock frequency
         let mut real_rate = rate;
         let clock = 48000000;
@@ -109,6 +115,21 @@ impl Spi {
         csr &= csr_mask;
         csr |= (scbr & 0xFF) << 8;
         self.write_active_csr(csr);
+        clock / scbr
+    }
+
+    pub fn set_active_peripheral(&self, peripheral: Peripheral) {
+        let peripheral_number: u32 = match peripheral {
+            Peripheral::Peripheral0 => 0b0000,
+            Peripheral::Peripheral1 => 0b0001,
+            Peripheral::Peripheral2 => 0b0011,
+            Peripheral::Peripheral3 => 0b0111
+        };
+        let mut mr = unsafe { volatile_load(& (*self.regs).mr) };
+        let pcs_mask: u32 = 0xFFF0FFFF;
+        mr &= pcs_mask;
+        mr |= peripheral_number << 16;
+        unsafe { volatile_store(&mut (*self.regs).mr, mr); }
     }
 
     /// Returns the currently active peripheral
@@ -132,7 +153,7 @@ impl Spi {
 
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
     /// peripheral
-    fn read_active_csr(&'static self) -> u32 {
+    fn read_active_csr(&self) -> u32 {
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => unsafe {volatile_load(&(*self.regs).csr0)},
             Peripheral::Peripheral1 => unsafe {volatile_load(&(*self.regs).csr1)},
@@ -142,7 +163,7 @@ impl Spi {
     }
     /// Sets the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
     /// peripheral
-    fn write_active_csr(&'static self, value: u32) {
+    fn write_active_csr(&self, value: u32) {
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => unsafe {volatile_store(&mut (*self.regs).csr0, value)},
             Peripheral::Peripheral1 => unsafe {volatile_store(&mut (*self.regs).csr1, value)},
@@ -155,7 +176,7 @@ impl Spi {
 impl spi_master::SpiMaster for Spi {
     fn init(&self, callback: &'static SpiCallback) {
         // Enable clock
-        unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); }
+        // unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); }
         // Configure GPIO pins
         // PA21, PA27, PC04 -> MISO
         // PA22, PA28, PC05 -> MOSI
@@ -165,10 +186,14 @@ impl spi_master::SpiMaster for Spi {
         // PC00 -> CS2
         // PC01 -> CR3
         self.callback.set(Some(callback));
-        self.set_rate(8000000); // Set initial baud rate to 8MHz
+        self.set_rate(40000); // Set initial baud rate to 8MHz
         self.set_clock(ClockPolarity::IdleLow);
         self.set_phase(ClockPhase::SampleLeading);
-        self.set_order(DataOrder::MSBFirst);
+
+        // Keep slave select active until a last transfer bit is set
+        let mut csr = self.read_active_csr(); 
+        csr |= 1 << 3;
+        self.write_active_csr(csr);
 
         // Indicate the last transfer to disable slave select 
         unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
@@ -190,6 +215,9 @@ impl spi_master::SpiMaster for Spi {
 
     fn write_byte(&'static self, out_byte: u8) {
         let tdr = out_byte as u32;
+        // Wait for data to leave TDR and enter serializer, so TDR is free
+        // for this next byte
+        while (unsafe {volatile_load(& (*self.regs).sr)} & 1 << 1) == 0 {}
         unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
     }
 
@@ -242,20 +270,31 @@ impl spi_master::SpiMaster for Spi {
     }
 
 #[allow(unused_variables)]
-    fn set_rate(&self, rate: u32) -> u32 { 0 }
-    fn get_rate(&self) -> u32 { 0 }
+    fn set_rate(&self, rate: u32) -> u32 { 
+      self.set_baud_rate(rate)
+    }
             
 #[allow(unused_variables)]
-    fn set_order(&self, order: DataOrder) { }
-    fn get_order(&self) -> DataOrder { DataOrder::LSBFirst }
+    fn set_clock(&self, polarity: ClockPolarity) { 
+        let mut csr = self.read_active_csr();
+        match polarity {
+            ClockPolarity::IdleHigh => csr |= 1,
+            ClockPolarity::IdleLow => csr &= 0xFFFFFFFE,
+        };
+        self.write_active_csr(csr);
+    }
 
-#[allow(unused_variables)]
-    fn set_clock(&self, polarity: ClockPolarity) { }
     fn get_clock(&self) -> ClockPolarity { ClockPolarity::IdleLow }
 
 #[allow(unused_variables)]
-    fn set_phase(&self, phase: ClockPhase) { }
-    fn get_phase(&self) -> ClockPhase { ClockPhase::SampleTrailing }
+    fn set_phase(&self, phase: ClockPhase) { 
+        let mut csr = self.read_active_csr();
+        match phase {
+            ClockPhase::SampleLeading => csr |= 1 << 1,
+            ClockPhase::SampleTrailing => csr &= 0xFFFFFFFD,
+        };
+        self.write_active_csr(csr);
+    }
 
     /// Sets the active peripheral
     fn set_chip_select(&self, cs: u8) {
