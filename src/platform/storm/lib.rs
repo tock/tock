@@ -8,6 +8,7 @@ extern crate drivers;
 extern crate hil;
 extern crate sam4l;
 
+use sam4l::pm;
 use hil::Controller;
 use hil::timer::*;
 use hil::spi_master::*;
@@ -64,6 +65,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
     static mut TMP006_BUF : [u8; 1028] = [0; 1028];
 
+    pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); 
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
      * easier, but should be obviated when `size_of` at compile time hits.
     static mut FIRESTORM_BUF : [u8; 192] = [0; 192];
@@ -128,12 +130,62 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 
 
-    let spi = &sam4l::spi::SPI;
-    spi.init(&SPICB);
-    let mut val = spi.read_write_byte(0x55 as u8);
-    val = val + 1;
+    /*
+    let pc6 = &sam4l::gpio::PC[6] as &hil::gpio::GPIOPin;
+    pc6.enable_output();
+    loop {
+        pc6.toggle();
+    }
+    */
+
+
+    // Configure SPI pins: CLK, MISO, MOSI, CS3 
+    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
+    SPI.init(&SPICB);
+    SPI.enable();
+
+    let mut flop: bool = false;
+    loop {
+        flop = !flop;
+        if flop {
+            SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2));
+            //SPI.read_write_bytes(Some(&mut buf1), None);
+            //SPI.read_write_bytes(None, Some(&mut buf2));
+        } else {
+            SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
+            //SPI.read_write_bytes(Some(&mut buf2), None);
+            //SPI.read_write_bytes(None, Some(&mut buf1));
+            for x in 1..2000 {
+                SPI.disable();
+                SPI.enable();
+            }
+        }
+    }
+    // This is a simple byte-level test of SPI.
+    /*let mut counter: u8 = 0;
+    loop {
+      let val1 = SPI.read_write_byte(0x55);
+      let val2 = SPI.read_write_byte(counter);
+      let val3 = SPI.read_write_byte(val1);
+      let val4 = SPI.read_write_byte(val2);
+      let val5 = SPI.read_write_byte(0);
+      counter = counter + 1;
+      for x in 1..2000 {
+        SPI.disable();
+        SPI.enable();
+      }
+    }*/
+
+    
     firestorm.console.initialize();
 
     firestorm
 }
+pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+pub static mut buf2: [u8; 8] = [7. 6, 5, 4, 3, 2, 1, 0];
+pub static mut SPI : sam4l::spi::Spi = sam4l::spi::Spi::new();
 
