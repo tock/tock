@@ -186,6 +186,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     firestorm
 }
 pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-pub static mut buf2: [u8; 8] = [7. 6, 5, 4, 3, 2, 1, 0];
+pub static mut buf2: [u8; 8] = [7, 6, 5, 4, 3, 2, 1, 0];
 pub static mut SPI : sam4l::spi::Spi = sam4l::spi::Spi::new();
 

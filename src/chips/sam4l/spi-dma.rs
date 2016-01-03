@@ -155,6 +155,11 @@ impl Spi {
             Peripheral::Peripheral3 => unsafe {volatile_store(&mut (*self.regs).csr3, value)},
         };
     }
+
+    fn set_dma(&mut self, read: &'static mut DMAChannel, write: &'static mut DMAChannel) {
+        self.read = Some(read);
+        self.write = Some(write);
+    }
 }
 
 impl spi_master::SpiMaster for Spi {
@@ -227,6 +232,13 @@ impl spi_master::SpiMaster for Spi {
         };
         let count = if reading && writing {cmp::min(read_len, write_len)}
                     else                  {cmp::max(read_len, write_len)};
+        if reading {
+            read.enable();
+        }
+        if writing {
+            write.enable();
+        }
+
         for i in 0..count {
             let mut txbyte: u8 = 0;
             match write_buffer {

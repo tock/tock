@@ -6,6 +6,7 @@ pub struct AppId {
     idx: usize
 }
 
+
 impl AppId {
     pub unsafe fn new(idx: usize) -> AppId {
         AppId {idx: idx}
@@ -15,6 +16,11 @@ impl AppId {
         self.idx
     }
 }
+
+const KERNEL_ID: usize = 0;
+const KERNEL_APP_ID: AppId = AppId {
+    idx: KERNEL_ID
+};
 
 
 #[derive(Clone, Copy)]
