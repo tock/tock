@@ -64,8 +64,8 @@ pub struct Spi {
     regs: *mut SpiRegisters,
     /// Client
     callback: Cell<Option<&'static SpiCallback>>,
-//    dmaRead:  dma::DMAChannel,
-//    dmaWrite: dma::DMAChannel,
+    dmaRead:  Option<&'static mut DMAChannel>,
+    dmaWrite: Option<&'static mut DMAChannel>,
 }
 
 pub static mut SPI: Spi = Spi::new();
@@ -76,9 +76,12 @@ impl Spi {
         Spi {
             regs: SPI_BASE as *mut SpiRegisters,
             callback: Cell::new(None),
+            dmaRead:  None,
+            dmaWrite: None,
         }
     }
 
+   
     /// Sets the approximate baud rate for the active peripheral
     ///
     /// Since the only supported baud rates are 48 MHz / n where n is an integer from 1 to 255,
