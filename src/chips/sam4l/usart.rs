@@ -2,7 +2,7 @@ use helpers::*;
 use core::mem;
 use hil::{uart, Controller};
 use hil::uart::Parity;
-use dma::{DMAChannel, DMAClient};
+use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use nvic;
 use pm::{self, Clock, PBAClock};
 use chip;
@@ -176,7 +176,7 @@ impl USART {
 }
 
 impl DMAClient for USART {
-    fn xfer_done(&mut self) {
+    fn xfer_done(&mut self, pid: usize) {
         self.dma.as_mut().map(|dma| dma.disable());
         self.client.as_ref().map(|c| c.write_done() );
     }

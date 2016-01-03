@@ -134,7 +134,7 @@ pub struct DMAChannel {
 }
 
 pub trait DMAClient {
-    fn xfer_done(&mut self);
+    fn xfer_done(&mut self, pid: usize);
 }
 
 impl DMAChannel {
@@ -194,8 +194,12 @@ impl DMAChannel {
     }
 
     pub fn handle_interrupt(&mut self) {
+        let registers : &mut DMARegisters = unsafe {
+            mem::transmute(self.registers)
+        };
+        let d: usize = volatile_load(&registers.peripheral_select);
         self.client.as_mut().map(|client| {
-            client.xfer_done();
+            client.xfer_done(d);
         });
     }
 
@@ -209,6 +213,25 @@ impl DMAChannel {
         volatile_store(&mut registers.memory_address_reload,
                        &slice.as_ref()[0] as *const u8 as usize);
         volatile_store(&mut registers.transfer_counter_reload, slice.len());
+
+        volatile_store(&mut registers.interrupt_enable, 1 << 1);
+    }
+
+    pub fn do_xfer_buf(&self, pid: usize, 
+                       buf: &'static mut [u8],
+                       len: usize) {
+        if len > buf.len() {
+            return;
+        }
+
+        let registers : &mut DMARegisters = unsafe {
+            mem::transmute(self.registers)
+        };
+
+        volatile_store(&mut registers.peripheral_select, pid);
+        volatile_store(&mut registers.memory_address_reload,
+                       &buf[0] as *const u8 as usize);
+        volatile_store(&mut registers.transfer_counter_reload, buf.len());
 
         volatile_store(&mut registers.interrupt_enable, 1 << 1);
     }

@@ -8,6 +8,8 @@ use hil::spi_master::SpiCallback;
 use hil::spi_master::ClockPolarity;
 use hil::spi_master::ClockPhase;
 use hil::spi_master::DataOrder;
+use dma::DMAChannel;
+use dma::DMAClient;
 
 // Driver for the SPI hardware (seperate from the USARTS, described in chapter 26 of the
 // datasheet)
@@ -64,8 +66,10 @@ pub struct Spi {
     regs: *mut SpiRegisters,
     /// Client
     callback: Cell<Option<&'static SpiCallback>>,
-    dmaRead:  Option<&'static mut DMAChannel>,
-    dmaWrite: Option<&'static mut DMAChannel>,
+    read_buffer: Option<&'static mut [u8]>,
+    write_buffer: Option<&'static mut [u8]>,
+    dma_read:  Option<&'static mut DMAChannel>,
+    dma_write: Option<&'static mut DMAChannel>,
 }
 
 pub static mut SPI: Spi = Spi::new();
@@ -76,8 +80,10 @@ impl Spi {
         Spi {
             regs: SPI_BASE as *mut SpiRegisters,
             callback: Cell::new(None),
-            dmaRead:  None,
-            dmaWrite: None,
+            read_buffer: None,
+            write_buffer: None,
+            dma_read:  None,
+            dma_write: None,
         }
     }
 
@@ -90,7 +96,7 @@ impl Spi {
     ///
     /// The lowest available baud rate is 188235 baud. If the requested rate is lower,
     /// 188235 baud will be selected.
-    pub fn set_baud_rate(&'static self, rate: u32) {
+    pub fn set_baud_rate(&self, rate: u32) -> u32 {
         // Main clock frequency
         let mut real_rate = rate;
         let clock = 48000000;
@@ -114,6 +120,7 @@ impl Spi {
         csr &= csr_mask;
         csr |= (scbr & 0xFF) << 8;
         self.write_active_csr(csr);
+        clock / scbr
     }
 
     /// Returns the currently active peripheral
@@ -137,7 +144,7 @@ impl Spi {
 
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
     /// peripheral
-    fn read_active_csr(&'static self) -> u32 {
+    fn read_active_csr(&self) -> u32 {
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => unsafe {volatile_load(&(*self.regs).csr0)},
             Peripheral::Peripheral1 => unsafe {volatile_load(&(*self.regs).csr1)},
@@ -147,7 +154,7 @@ impl Spi {
     }
     /// Sets the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
     /// peripheral
-    fn write_active_csr(&'static self, value: u32) {
+    fn write_active_csr(&self, value: u32) {
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => unsafe {volatile_store(&mut (*self.regs).csr0, value)},
             Peripheral::Peripheral1 => unsafe {volatile_store(&mut (*self.regs).csr1, value)},
@@ -157,8 +164,8 @@ impl Spi {
     }
 
     fn set_dma(&mut self, read: &'static mut DMAChannel, write: &'static mut DMAChannel) {
-        self.read = Some(read);
-        self.write = Some(write);
+        self.dma_read = Some(read);
+        self.dma_write = Some(write);
     }
 }
 
@@ -178,7 +185,6 @@ impl spi_master::SpiMaster for Spi {
         self.set_rate(8000000); // Set initial baud rate to 8MHz
         self.set_clock(ClockPolarity::IdleLow);
         self.set_phase(ClockPhase::SampleLeading);
-        self.set_order(DataOrder::MSBFirst);
 
         // Indicate the last transfer to disable slave select 
         unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
@@ -232,47 +238,64 @@ impl spi_master::SpiMaster for Spi {
         };
         let count = if reading && writing {cmp::min(read_len, write_len)}
                     else                  {cmp::max(read_len, write_len)};
+
+        self.read_buffer = read_buffer.take();
+        self.write_buffer = write_buffer.take();
+
         if reading {
-            read.enable();
-        }
-        if writing {
-            write.enable();
+            self.dma_read.as_ref().map(|read| {
+                read.do_xfer_buf(4, read_buffer.as_mut().unwrap(), count); 
+                read.enable();
+            });
         }
 
-        for i in 0..count {
-            let mut txbyte: u8 = 0;
-            match write_buffer {
-                Some(ref buf) => {txbyte = buf[i];}
-                None          => {}
-            }
-            // Write the value
-            let rxbyte = self.read_write_byte(txbyte);
-            match read_buffer.take() {
-                Some(ref mut buf) => {buf[i] = rxbyte;}
-                None          => {}
-            }
+        // You have to TX to do an SPI transfer. So, if no TX
+        // buffer is provided, use the RX buffer. I have no idea
+        // if this works, but otherwise the driver has to allocate
+        // a maximum sized buffer or a client cannot issue read-only
+        // requests.
+        if writing {
+            self.dma_write.as_ref().map(|write| {
+                write.do_xfer_buf(22, write_buffer.as_mut().unwrap(), count); 
+                write.enable();
+            });
+        } else {
+            // Since to write buffer, use read buffer
+            self.dma_write.as_ref().map(|write| {
+                write.do_xfer_buf(22, read_buffer.as_mut().unwrap(), count);
+                write.enable();
+            });
         }
-        self.callback.get().map(|cb| {
-            cb.read_write_done(read_buffer, write_buffer);
-        });
+
         true
     }
 
 #[allow(unused_variables)]
-    fn set_rate(&self, rate: u32) -> u32 { 0 }
-    fn get_rate(&self) -> u32 { 0 }
-            
-#[allow(unused_variables)]
-    fn set_order(&self, order: DataOrder) { }
-    fn get_order(&self) -> DataOrder { DataOrder::LSBFirst }
+    fn set_rate(&self, rate: u32) -> u32 {
+        self.set_baud_rate(rate)
+     }
 
 #[allow(unused_variables)]
-    fn set_clock(&self, polarity: ClockPolarity) { }
+    fn set_clock(&self, polarity: ClockPolarity) {
+        let mut csr = self.read_active_csr();
+        match polarity {
+            ClockPolarity::IdleHigh => csr |= 1,
+            ClockPolarity::IdleLow => csr &= 0xFFFFFFFE,
+        };
+        self.write_active_csr(csr);
+    }
+
     fn get_clock(&self) -> ClockPolarity { ClockPolarity::IdleLow }
 
 #[allow(unused_variables)]
-    fn set_phase(&self, phase: ClockPhase) { }
-    fn get_phase(&self) -> ClockPhase { ClockPhase::SampleTrailing }
+    fn set_phase(&self, phase: ClockPhase) {
+        let mut csr = self.read_active_csr();
+        match phase {
+            ClockPhase::SampleLeading => csr |= 1 << 1,
+            ClockPhase::SampleTrailing => csr &= 0xFFFFFFFD,
+        };
+        self.write_active_csr(csr);
+    }
 
     /// Sets the active peripheral
     fn set_chip_select(&self, cs: u8) {
@@ -294,5 +317,15 @@ impl spi_master::SpiMaster for Spi {
 
     fn clear_chip_select(&self) {
        unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
+    }
+}
+
+impl DMAClient for Spi {
+    fn xfer_done(&mut self, pid: usize) {
+        if pid == 22 { // SPI TX
+            self.callback.get().map(|cb| {
+                cb.read_write_done(self.read_buffer.take(), self.write_buffer.take());
+            });
+        }
     }
 }
