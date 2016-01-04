@@ -7,7 +7,6 @@ use hil::spi_master;
 use hil::spi_master::SpiCallback;
 use hil::spi_master::ClockPolarity;
 use hil::spi_master::ClockPhase;
-use hil::spi_master::DataOrder;
 use dma::DMAChannel;
 use dma::DMAClient;
 
@@ -65,29 +64,36 @@ pub struct Spi {
     /// Registers
     regs: *mut SpiRegisters,
     /// Client
-    callback: Cell<Option<&'static SpiCallback>>,
-    read_buffer: Option<&'static mut [u8]>,
-    write_buffer: Option<&'static mut [u8]>,
+    callback: Option<&'static SpiCallback>,
     dma_read:  Option<&'static mut DMAChannel>,
     dma_write: Option<&'static mut DMAChannel>,
+    reading: Cell<bool>,
+    writing: Cell<bool>,
 }
 
 pub static mut SPI: Spi = Spi::new();
 
 impl Spi {
     /// Creates a new SPI object, with peripheral 0 selected
-   const fn new() -> Spi {
+   pub const fn new() -> Spi {
         Spi {
             regs: SPI_BASE as *mut SpiRegisters,
-            callback: Cell::new(None),
-            read_buffer: None,
-            write_buffer: None,
+            callback: None,
             dma_read:  None,
             dma_write: None,
+            reading: Cell::new(false),
+            writing: Cell::new(false)
         }
     }
 
-   
+    pub fn enable(&self) {
+        unsafe { volatile_store(&mut (*self.regs).cr, 0b1); }
+    }
+
+    pub fn disable(&self) {
+        unsafe { volatile_store(&mut (*self.regs).cr, 0b10); }
+    }
+
     /// Sets the approximate baud rate for the active peripheral
     ///
     /// Since the only supported baud rates are 48 MHz / n where n is an integer from 1 to 255,
@@ -121,6 +127,20 @@ impl Spi {
         csr |= (scbr & 0xFF) << 8;
         self.write_active_csr(csr);
         clock / scbr
+    }
+
+    pub fn set_active_peripheral(&self, peripheral: Peripheral) {
+        let peripheral_number: u32 = match peripheral {
+            Peripheral::Peripheral0 => 0b0000,
+            Peripheral::Peripheral1 => 0b0001,
+            Peripheral::Peripheral2 => 0b0011,
+            Peripheral::Peripheral3 => 0b0111
+        };
+        let mut mr = unsafe { volatile_load(& (*self.regs).mr) };
+        let pcs_mask: u32 = 0xFFF0FFFF;
+        mr &= pcs_mask;
+        mr |= peripheral_number << 16;
+        unsafe { volatile_store(&mut (*self.regs).mr, mr); }
     }
 
     /// Returns the currently active peripheral
@@ -163,29 +183,24 @@ impl Spi {
         };
     }
 
-    fn set_dma(&mut self, read: &'static mut DMAChannel, write: &'static mut DMAChannel) {
+    pub fn set_dma(&mut self, read: &'static mut DMAChannel, write: &'static mut DMAChannel) {
         self.dma_read = Some(read);
         self.dma_write = Some(write);
     }
 }
 
 impl spi_master::SpiMaster for Spi {
-    fn init(&self, callback: &'static SpiCallback) {
-        // Enable clock
-        unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); }
-        // Configure GPIO pins
-        // PA21, PA27, PC04 -> MISO
-        // PA22, PA28, PC05 -> MOSI
-        // PA23, PA29, PC06 -> SCK
-        // PA24, PA30, PC03 -> CS0
-        // PA31 , PC02-> CS1
-        // PC00 -> CS2
-        // PC01 -> CR3
-        self.callback.set(Some(callback));
-        self.set_rate(8000000); // Set initial baud rate to 8MHz
+    fn init(&mut self, callback: &'static SpiCallback) {
+        self.callback = Some(callback);
+        self.set_rate(40000); // Set initial baud rate to 8MHz
         self.set_clock(ClockPolarity::IdleLow);
         self.set_phase(ClockPhase::SampleLeading);
 
+        // Keep slave select active until a last transfer bit is set
+        let mut csr = self.read_active_csr();
+        csr |= 1 << 3;
+        self.write_active_csr(csr);
+        
         // Indicate the last transfer to disable slave select 
         unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
         
@@ -193,22 +208,25 @@ impl spi_master::SpiMaster for Spi {
         mode |= 1; // Enable master mode
         mode |= 1 << 4; // Disable mode fault detection (open drain outputs not supported)
         unsafe {volatile_store(&mut (*self.regs).mr, mode)};
+        
     }
 
     fn read_write_byte(&'static self, val: u8) -> u8 {
-        let tdr = val as u32;
-        unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
+        self.write_byte(val);
         // Wait for receive data register full
         while (unsafe {volatile_load(&(*self.regs).sr)} & 1) != 1 {}
         // Return read value
         unsafe {volatile_load(&(*self.regs).rdr) as u8}
     }
-
+       
     fn write_byte(&'static self, out_byte: u8) {
-        let tdr = out_byte as u32;
-        unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
+       let tdr = out_byte as u32;
+       // Wait for data to leave TDR and enter serializer, so TDR is free
+       // for this next byte
+       while (unsafe {volatile_load(& (*self.regs).sr)} & 1 << 1) == 0 {}
+       unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
     }
-
+        
     fn read_byte(&'static self) -> u8 {
         self.read_write_byte(0)
     }
@@ -216,18 +234,24 @@ impl spi_master::SpiMaster for Spi {
     /// The write buffer has to be mutable because it's passed back to
     /// the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&'static self, 
-                        mut read_buffer:  Option<&'static mut [u8]>, 
+                        read_buffer:  Option<&'static mut [u8]>, 
                         write_buffer: Option<&'static mut [u8]>) -> bool {
         // If both are Some, read/write minimum of lengths
         // If only read is Some, read length and write zeroes
         // If only write is Some, write length and discard reads
         // If both are None, return false
         // TODO: Asynchronous
-        if read_buffer.is_none() && write_buffer.is_none() {
+        if read_buffer.is_none() || write_buffer.is_none() {
             return false
         }
         let reading = read_buffer.is_some();
         let writing = write_buffer.is_some();
+
+        // Need to mark if reading or writing so we correctly
+        // regenerate Options on callback
+        self.writing.set(writing);
+        self.reading.set(reading);
+
         let read_len = match read_buffer {
             Some(ref buf) => {buf.len()},
             None          => 0
@@ -239,35 +263,16 @@ impl spi_master::SpiMaster for Spi {
         let count = if reading && writing {cmp::min(read_len, write_len)}
                     else                  {cmp::max(read_len, write_len)};
 
-        self.read_buffer = read_buffer.take();
-        self.write_buffer = write_buffer.take();
-
-        if reading {
-            self.dma_read.as_ref().map(|read| {
-                read.do_xfer_buf(4, read_buffer.as_mut().unwrap(), count); 
-                read.enable();
-            });
-        }
-
-        // You have to TX to do an SPI transfer. So, if no TX
-        // buffer is provided, use the RX buffer. I have no idea
-        // if this works, but otherwise the driver has to allocate
-        // a maximum sized buffer or a client cannot issue read-only
-        // requests.
-        if writing {
-            self.dma_write.as_ref().map(|write| {
-                write.do_xfer_buf(22, write_buffer.as_mut().unwrap(), count); 
-                write.enable();
-            });
+        if write_buffer.is_none() {
+            self.write_byte(0xa0);
+            false
         } else {
-            // Since to write buffer, use read buffer
-            self.dma_write.as_ref().map(|write| {
-                write.do_xfer_buf(22, read_buffer.as_mut().unwrap(), count);
-                write.enable();
-            });
+            self.dma_read.as_ref().map(|read| read.do_xfer_buf(4, read_buffer, count));
+            self.dma_read.as_ref().map(|read| read.enable());
+            self.dma_write.as_ref().map(|write| write.enable());
+            self.dma_write.as_ref().map(|write| write.do_xfer_buf(22, write_buffer, count));
+            true
         }
-
-        true
     }
 
 #[allow(unused_variables)]
@@ -322,10 +327,14 @@ impl spi_master::SpiMaster for Spi {
 
 impl DMAClient for Spi {
     fn xfer_done(&mut self, pid: usize) {
+        if pid == 4  { // SPI RX
+            self.dma_read.as_ref().map(|dma| dma.disable());
+        }
         if pid == 22 { // SPI TX
-            self.callback.get().map(|cb| {
-                cb.read_write_done(self.read_buffer.take(), self.write_buffer.take());
-            });
+//            let regs: &SpiRegisters = unsafe {mem::transmute(self.regs) };
+
+            self.dma_write.as_ref().map(|dma| dma.disable());
+//            self.callback.as_ref().map(|cb| );
         }
     }
 }

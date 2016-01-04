@@ -172,17 +172,7 @@ impl Spi {
 }
 
 impl spi_master::SpiMaster for Spi {
-    fn init(&self, callback: &'static SpiCallback) {
-        // Enable clock
-        // unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); }
-        // Configure GPIO pins
-        // PA21, PA27, PC04 -> MISO
-        // PA22, PA28, PC05 -> MOSI
-        // PA23, PA29, PC06 -> SCK
-        // PA24, PA30, PC03 -> CS0
-        // PA31 , PC02-> CS1
-        // PC00 -> CS2
-        // PC01 -> CR3
+    fn init(&mut self, callback: &'static SpiCallback) {
         self.callback.set(Some(callback));
         self.set_rate(40000); // Set initial baud rate to 40kbps
         self.set_clock(ClockPolarity::IdleLow);
@@ -226,7 +216,7 @@ impl spi_master::SpiMaster for Spi {
     /// the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&'static self, 
                         mut read_buffer:  Option<&'static mut [u8]>, 
-                        write_buffer: Option<&'static mut [u8]>) -> bool {
+                        mut write_buffer: Option<&'static mut [u8]>) -> bool {
         // If both are Some, read/write minimum of lengths
         // If only read is Some, read length and write zeroes
         // If only write is Some, write length and discard reads

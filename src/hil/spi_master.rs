@@ -47,10 +47,10 @@ pub trait SpiCallback {
 ///
 pub trait SpiMaster {
     /// Configures an object for communication as an SPI master
-    fn init(&self, client: &'static SpiCallback);
+    fn init(&mut self, client: &'static SpiCallback);
     fn read_write_bytes(&'static self, 
                         mut read: Option<&'static mut [u8]>, 
-                        write: Option<&'static mut [u8]>) -> bool;
+                        mut write: Option<&'static mut [u8]>) -> bool;
     fn write_byte(&'static self, val: u8);
     fn read_byte(&'static self) -> u8;
     fn read_write_byte(&'static self, val: u8) -> u8;

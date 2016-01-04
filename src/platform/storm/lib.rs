@@ -144,25 +144,27 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
-    SPI.init(&SPICB);
-    SPI.enable();
+    sam4l::spi_dma::SPI.set_active_peripheral(sam4l::spi_dma::Peripheral::Peripheral1);
+    sam4l::spi_dma::SPI.init(&SPICB);
+    sam4l::spi_dma::SPI.enable();
 
     let mut flop: bool = false;
     loop {
         flop = !flop;
+        sam4l::spi_dma::SPI.write_byte(0x01);
         if flop {
-            SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2));
-            //SPI.read_write_bytes(Some(&mut buf1), None);
-            //SPI.read_write_bytes(None, Some(&mut buf2));
+            //sam4l::spi_dma::SPI.write_byte(0xad);
+            sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2));
+            //sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), None);
+            //sam4l::spi_dma::SPI.read_write_bytes(None, Some(&mut buf2));
         } else {
-            SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
-            //SPI.read_write_bytes(Some(&mut buf2), None);
-            //SPI.read_write_bytes(None, Some(&mut buf1));
-            for x in 1..2000 {
-                SPI.disable();
-                SPI.enable();
-            }
+            //sam4l::spi_dma::SPI.write_byte(0xde);
+            sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
+            //sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), None);
+            //sam4l::spi_dma::SPI.read_write_bytes(None, Some(&mut buf1));
+        }
+        for x in 1..4000 {
+            sam4l::spi_dma::SPI.enable();
         }
     }
     // This is a simple byte-level test of SPI.
@@ -187,5 +189,4 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 }
 pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 pub static mut buf2: [u8; 8] = [7, 6, 5, 4, 3, 2, 1, 0];
-pub static mut SPI : sam4l::spi::Spi = sam4l::spi::Spi::new();
 
