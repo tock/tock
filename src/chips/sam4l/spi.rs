@@ -64,6 +64,8 @@ pub struct Spi {
     callback: Cell<Option<&'static SpiCallback>>,
 }
 
+pub static mut SPI: Spi = Spi::new();
+
 impl Spi {
     /// Creates a new SPI object, with peripheral 0 selected
    pub const fn new() -> Spi {
@@ -257,7 +259,7 @@ impl spi_master::SpiMaster for Spi {
             }
         }
         self.callback.get().map(|cb| {
-            cb.read_write_done(read_buffer, write_buffer);
+            cb.read_write_done();
         });
         true
     }
@@ -277,8 +279,6 @@ impl spi_master::SpiMaster for Spi {
         self.write_active_csr(csr);
     }
 
-    fn get_clock(&self) -> ClockPolarity { ClockPolarity::IdleLow }
-
 #[allow(unused_variables)]
     fn set_phase(&self, phase: ClockPhase) { 
         let mut csr = self.read_active_csr();
@@ -290,7 +290,10 @@ impl spi_master::SpiMaster for Spi {
     }
 
     /// Sets the active peripheral
-    fn set_chip_select(&self, cs: u8) {
+    fn set_chip_select(&self, cs: u8) -> bool {
+        if cs >= 4 {
+            return false
+        }
         let peripheral_number: u32 = match cs {
             0 => 0b0000,
             1 => 0b0001,
@@ -305,6 +308,7 @@ impl spi_master::SpiMaster for Spi {
         mr &= pcs_mask;
         mr |= peripheral_number << 16;
         unsafe {volatile_store(&mut (*self.regs).mr, mr);}
+        true
     }
 
     fn clear_chip_select(&self) {

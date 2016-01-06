@@ -1,4 +1,6 @@
-//! Traits and parameters for SPI master communication
+//! Traits and parameters for SPI master communication.
+//! Authors: Sam Crow <samcrow@uw.edu>
+//!          Philip Levis <pal@cs.stanfored.edu>
 
 use core::option::Option;
 
@@ -66,10 +68,11 @@ pub trait SpiMaster {
     fn read_byte(&self) -> u8;
     fn read_write_byte(&self, val: u8) -> u8;
 
-    /// Returns which this chip select is valid. 0 is always valid.
+    /// Returns whether this chip select is valid and was
+    /// applied, 0 is always valid.
     fn set_chip_select(&self, cs: u8) -> bool;
     fn clear_chip_select(&self);
-    // Returns the actual rate set
+    /// Returns the actual rate set
     fn set_rate(&self, rate: u32) -> u32;
     fn set_clock(&self, polarity: ClockPolarity);
     fn set_phase(&self, phase: ClockPhase);

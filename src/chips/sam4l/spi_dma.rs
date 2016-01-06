@@ -9,6 +9,11 @@ use hil::spi_master::ClockPhase;
 use dma::DMAChannel;
 use dma::DMAClient;
 
+/// Implementation of DMA-based SPI master communication for
+/// the Atmel SAM4L CortexM4 microcontroller.
+/// Authors: Sam Crow <samcrow@uw.edu>
+///          Philip Levis <pal@cs.stanfored.edu>
+///
 // Driver for the SPI hardware (seperate from the USARTS),
 // described in chapter 26 of the datasheet
 
@@ -48,24 +53,14 @@ pub enum Peripheral {
 }
 
 ///
-/// SPI implementation using the SPI hardware
-/// Supports four peripherals. Each peripheral can have different settings.
-///
-/// The init, read, and write methods act on the currently selected peripheral.
-/// The init method can be safely called more than once to configure different peripherals:
-///
-///     spi.set_active_peripheral(Peripheral::Peripheral0);
-///     spi.init(/* Parameters for peripheral 0 */);
-///     spi.set_active_peripheral(Peripheral::Peripheral1);
-///     spi.init(/* Parameters for peripheral 1 */);
-///
+/// The SAM4L supports four peripherals. 
 pub struct Spi {
-    /// Registers
     regs: *mut SpiRegisters,
-    /// Client
     callback: Option<&'static SpiCallback>,
     dma_read:  Option<&'static mut DMAChannel>,
     dma_write: Option<&'static mut DMAChannel>,
+    // keep track of which // interrupts are pending in order 
+    // to correctly issue completion event only after both complete.
     reading: Cell<bool>,
     writing: Cell<bool>,
 }
@@ -73,7 +68,7 @@ pub struct Spi {
 pub static mut SPI: Spi = Spi::new();
 
 impl Spi {
-    /// Creates a new SPI object, with peripheral 0 selected
+   /// Creates a new SPI object, with peripheral 0 selected
    pub const fn new() -> Spi {
         Spi {
             regs: SPI_BASE as *mut SpiRegisters,
@@ -93,7 +88,8 @@ impl Spi {
         unsafe { volatile_store(&mut (*self.regs).cr, 0b10); }
     }
 
-    /// Sets the approximate baud rate for the active peripheral
+    /// Sets the approximate baud rate for the active peripheral,
+    /// and return the actual baud rate set.
     ///
     /// Since the only supported baud rates are 48 MHz / n where n 
     /// is an integer from 1 to 255, the exact baud rate may not 
@@ -162,8 +158,8 @@ impl Spi {
         }
     }
 
-    /// Returns the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
-    /// peripheral
+    /// Returns the value of CSR0, CSR1, CSR2, or CSR3, 
+    /// whichever corresponds to the active peripheral
     fn read_active_csr(&self) -> u32 {
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => unsafe {volatile_load(&(*self.regs).csr0)},
@@ -172,8 +168,8 @@ impl Spi {
             Peripheral::Peripheral3 => unsafe {volatile_load(&(*self.regs).csr3)},
         }
     }
-    /// Sets the value of CSR0, CSR1, CSR2, or CSR3, whichever corresponds to the active
-    /// peripheral
+    /// Sets the Chip Select Register (CSR) of the active peripheral
+    /// (CSR0, CSR1, CSR2, or CSR3). 
     fn write_active_csr(&self, value: u32) {
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => unsafe {volatile_store(&mut (*self.regs).csr0, value)},
@@ -183,6 +179,7 @@ impl Spi {
         };
     }
 
+    /// Set the DMA channels used for reading and writing.
     pub fn set_dma(&mut self, read: &'static mut DMAChannel, write: &'static mut DMAChannel) {
         self.dma_read = Some(read);
         self.dma_write = Some(write);
@@ -190,6 +187,8 @@ impl Spi {
 }
 
 impl spi_master::SpiMaster for Spi {
+    /// By default, initialize SPI to operate at 40KHz, clock is
+    /// idle on low, and sample on the leading edge.
     fn init(&mut self, callback: &'static SpiCallback) {
         self.callback = Some(callback);
         self.set_rate(40000); // Set initial baud rate to 8MHz
@@ -215,6 +214,8 @@ impl spi_master::SpiMaster for Spi {
         self.reading.get() || self.writing.get()
     }
 
+    /// Write a byte to the SPI and return the read; if an
+    /// asynchronous operation is outstanding, do nothing.
     fn read_write_byte(&self, val: u8) -> u8 {
         if self.reading.get() || self.writing.get() {
             return 0;
@@ -225,7 +226,9 @@ impl spi_master::SpiMaster for Spi {
         // Return read value
         unsafe {volatile_load(&(*self.regs).rdr) as u8}
     }
-       
+      
+    /// Write a byte to the SPI and discard the read; if an
+    /// asynchronous operation is outstanding, do nothing.
     fn write_byte(&self, out_byte: u8) {
         if self.reading.get() || self.writing.get() {
             return;
@@ -237,10 +240,13 @@ impl spi_master::SpiMaster for Spi {
         unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
     }
         
+    /// Write 0 to the SPI and return the read; if an
+    /// asynchronous operation is outstanding, do nothing.
     fn read_byte(&self) -> u8 {
         self.read_write_byte(0)
     }
 
+    /// Asynchonous buffer read/write of SPI.
     /// write_buffer must not be None; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
     /// minimum of two buffer lengths; returns true if operation
@@ -289,12 +295,10 @@ impl spi_master::SpiMaster for Spi {
         true
     }
 
-#[allow(unused_variables)]
     fn set_rate(&self, rate: u32) -> u32 {
         self.set_baud_rate(rate)
      }
 
-#[allow(unused_variables)]
     fn set_clock(&self, polarity: ClockPolarity) {
         let mut csr = self.read_active_csr();
         match polarity {
@@ -304,7 +308,6 @@ impl spi_master::SpiMaster for Spi {
         self.write_active_csr(csr);
     }
 
-#[allow(unused_variables)]
     fn set_phase(&self, phase: ClockPhase) {
         let mut csr = self.read_active_csr();
         match phase {
@@ -314,7 +317,6 @@ impl spi_master::SpiMaster for Spi {
         self.write_active_csr(csr);
     }
 
-    /// Sets the active peripheral
     fn set_chip_select(&self, cs: u8) -> bool{
         if cs >= 4 {
             return false
