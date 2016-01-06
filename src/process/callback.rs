@@ -17,12 +17,6 @@ impl AppId {
     }
 }
 
-const KERNEL_ID: usize = 0;
-const KERNEL_APP_ID: AppId = AppId {
-    idx: KERNEL_ID
-};
-
-
 #[derive(Clone, Copy)]
 pub struct Callback {
     process_ptr: AppId,

@@ -37,8 +37,7 @@ pub extern fn main() {
 
             for (i, p) in processes.iter_mut().enumerate() {
                 p.as_mut().map(|process| {
-                    // Reserve 0 to mean "kernel", apps start at 1
-                    sched::do_process(platform, process, AppId::new(i+1));
+                    sched::do_process(platform, process, AppId::new(i));
                 });
             }
 
