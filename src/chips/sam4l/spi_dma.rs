@@ -95,12 +95,13 @@ impl Spi {
 
     /// Sets the approximate baud rate for the active peripheral
     ///
-    /// Since the only supported baud rates are 48 MHz / n where n is an integer from 1 to 255,
-    /// the exact baud rate may not be available. In that case, the next lower baud rate will be
-    /// selected.
+    /// Since the only supported baud rates are 48 MHz / n where n 
+    /// is an integer from 1 to 255, the exact baud rate may not 
+    /// be available. In that case, the next lower baud rate will 
+    /// be selected.
     ///
-    /// The lowest available baud rate is 188235 baud. If the requested rate is lower,
-    /// 188235 baud will be selected.
+    /// The lowest available baud rate is 188235 baud. If the 
+    /// requested rate is lower, 188235 baud will be selected.
     pub fn set_baud_rate(&self, rate: u32) -> u32 {
         // Main clock frequency
         let mut real_rate = rate;
@@ -303,8 +304,6 @@ impl spi_master::SpiMaster for Spi {
         self.write_active_csr(csr);
     }
 
-    fn get_clock(&self) -> ClockPolarity { ClockPolarity::IdleLow }
-
 #[allow(unused_variables)]
     fn set_phase(&self, phase: ClockPhase) {
         let mut csr = self.read_active_csr();
@@ -316,7 +315,10 @@ impl spi_master::SpiMaster for Spi {
     }
 
     /// Sets the active peripheral
-    fn set_chip_select(&self, cs: u8) {
+    fn set_chip_select(&self, cs: u8) -> bool{
+        if cs >= 4 {
+            return false
+        }
         let peripheral_number: u32 = match cs {
             0 => 0b0000,
             1 => 0b0001,
@@ -331,6 +333,7 @@ impl spi_master::SpiMaster for Spi {
         mr &= pcs_mask;
         mr |= peripheral_number << 16;
         unsafe {volatile_store(&mut (*self.regs).mr, mr);}
+        true
     }
 
     fn clear_chip_select(&self) {
