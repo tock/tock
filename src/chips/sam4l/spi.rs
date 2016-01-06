@@ -195,7 +195,7 @@ impl spi_master::SpiMaster for Spi {
     fn read_write_byte(&'static self, val: u8) -> u8 {
         self.write_byte(val); 
         // Wait for receive data register full
-        while (unsafe {volatile_load(&(*self.regs).sr)} & 1) != 1 {}
+        while (unsafe {volatile_load(&(*self.regs).sr)} & 1) == 0 {}
         // Return read value
         unsafe {volatile_load(&(*self.regs).rdr) as u8}
     }

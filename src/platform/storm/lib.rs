@@ -150,8 +150,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     let mut flop: bool = false;
     loop {
-        flop = !flop;
-        sam4l::spi_dma::SPI.write_byte(0x01);
         if flop {
             //sam4l::spi_dma::SPI.write_byte(0xad);
             sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2));
@@ -166,6 +164,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         for x in 1..4000 {
             sam4l::spi_dma::SPI.enable();
         }
+        flop = !flop;
     }
     // This is a simple byte-level test of SPI.
     /*let mut counter: u8 = 0;

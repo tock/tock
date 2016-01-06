@@ -268,9 +268,9 @@ impl spi_master::SpiMaster for Spi {
             false
         } else {
             self.dma_read.as_ref().map(|read| read.do_xfer_buf(4, read_buffer, count));
+            self.dma_write.as_ref().map(|write| write.do_xfer_buf(22, write_buffer, count));
             self.dma_read.as_ref().map(|read| read.enable());
             self.dma_write.as_ref().map(|write| write.enable());
-            self.dma_write.as_ref().map(|write| write.do_xfer_buf(22, write_buffer, count));
             true
         }
     }
