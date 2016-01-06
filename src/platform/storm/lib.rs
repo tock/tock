@@ -149,15 +149,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     let mut flop: bool = false;
     loop {
         if flop {
-            //sam4l::spi_dma::SPI.write_byte(0xad);
             sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2));
-            //sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), None);
-            //sam4l::spi_dma::SPI.read_write_bytes(None, Some(&mut buf2));
         } else {
-            //sam4l::spi_dma::SPI.write_byte(0xde);
             sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
-            //sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), None);
-            //sam4l::spi_dma::SPI.read_write_bytes(None, Some(&mut buf1));
         }
         for x in 1..4000 {
             sam4l::spi_dma::SPI.enable();
