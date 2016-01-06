@@ -26,9 +26,7 @@ pub struct DummyCB {
 }
 impl hil::spi_master::SpiCallback for DummyCB {
 #[allow(unused_variables,dead_code)]
-        fn read_write_done(&'static self, 
-                           read: Option<&'static mut[u8]>,
-                           writer: Option<&'static mut[u8]>) { }
+        fn read_write_done(&'static self) {} 
 }
 
 pub static mut SPICB: DummyCB = DummyCB{val: 0x55 as u8};

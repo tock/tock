@@ -2,7 +2,6 @@ use helpers::*;
 use core::cell::Cell;
 use core::cmp;
 
-use pm;
 use hil::spi_master;
 use hil::spi_master::SpiCallback;
 use hil::spi_master::ClockPolarity;
@@ -10,8 +9,8 @@ use hil::spi_master::ClockPhase;
 use dma::DMAChannel;
 use dma::DMAClient;
 
-// Driver for the SPI hardware (seperate from the USARTS, described in chapter 26 of the
-// datasheet)
+// Driver for the SPI hardware (seperate from the USARTS),
+// described in chapter 26 of the datasheet
 
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
@@ -211,7 +210,14 @@ impl spi_master::SpiMaster for Spi {
         
     }
 
-    fn read_write_byte(&'static self, val: u8) -> u8 {
+    fn is_busy(&self) -> bool {
+        self.reading.get() || self.writing.get()
+    }
+
+    fn read_write_byte(&self, val: u8) -> u8 {
+        if self.reading.get() || self.writing.get() {
+            return 0;
+        }
         self.write_byte(val);
         // Wait for receive data register full
         while (unsafe {volatile_load(&(*self.regs).sr)} & 1) != 1 {}
@@ -219,33 +225,39 @@ impl spi_master::SpiMaster for Spi {
         unsafe {volatile_load(&(*self.regs).rdr) as u8}
     }
        
-    fn write_byte(&'static self, out_byte: u8) {
-       let tdr = out_byte as u32;
-       // Wait for data to leave TDR and enter serializer, so TDR is free
-       // for this next byte
-       while (unsafe {volatile_load(& (*self.regs).sr)} & 1 << 1) == 0 {}
-       unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
+    fn write_byte(&self, out_byte: u8) {
+        if self.reading.get() || self.writing.get() {
+            return;
+        }
+        let tdr = out_byte as u32;
+        // Wait for data to leave TDR and enter serializer, so TDR is free
+        // for this next byte
+        while (unsafe {volatile_load(& (*self.regs).sr)} & 1 << 1) == 0 {}
+        unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
     }
         
-    fn read_byte(&'static self) -> u8 {
+    fn read_byte(&self) -> u8 {
         self.read_write_byte(0)
     }
 
-    /// The write buffer has to be mutable because it's passed back to
-    /// the caller, and the caller may want to be able write into it.
-    fn read_write_bytes(&'static self, 
+    /// write_buffer must not be None; read_buffer may be None;
+    /// if read_buffer is Some, then length of read/write is the
+    /// minimum of two buffer lengths; returns true if operation
+    /// starts (will receive callback through SpiClient), returns
+    /// false if the operation does not start.
+    // The write buffer has to be mutable because it's passed back to
+    // the caller, and the caller may want to be able write into it.
+    fn read_write_bytes(&self, 
                         read_buffer:  Option<&'static mut [u8]>, 
                         write_buffer: Option<&'static mut [u8]>) -> bool {
-        // If both are Some, read/write minimum of lengths
-        // If only read is Some, read length and write zeroes
-        // If only write is Some, write length and discard reads
-        // If both are None, return false
-        // TODO: Asynchronous
-        if read_buffer.is_none() || write_buffer.is_none() {
+        let writing = write_buffer.is_some();
+        let reading = read_buffer.is_some();
+        // If there is no write buffer, or busy, then don't start.
+        // Need to check self.reading as well as self.writing in case
+        // write interrupt comes back first.
+        if !writing  || self.reading.get() || self.writing.get() {
             return false
         }
-        let reading = read_buffer.is_some();
-        let writing = write_buffer.is_some();
 
         // Need to mark if reading or writing so we correctly
         // regenerate Options on callback
@@ -260,19 +272,20 @@ impl spi_master::SpiMaster for Spi {
             Some(ref buf) => {buf.len()},
             None          => 0
         };
-        let count = if reading && writing {cmp::min(read_len, write_len)}
-                    else                  {cmp::max(read_len, write_len)};
+        let count = if !reading {write_len}
+                    else        {cmp::min(read_len, write_len)};
 
-        if write_buffer.is_none() {
-            self.write_byte(0xa0);
-            false
-        } else {
+        // The ordering of these operations matters; if you enable then
+        // perform the operation, you can read a byte early on the SPI data register
+        if reading {
             self.dma_read.as_ref().map(|read| read.do_xfer_buf(4, read_buffer, count));
-            self.dma_write.as_ref().map(|write| write.do_xfer_buf(22, write_buffer, count));
-            self.dma_read.as_ref().map(|read| read.enable());
-            self.dma_write.as_ref().map(|write| write.enable());
-            true
         }
+        self.dma_write.as_ref().map(|write| write.do_xfer_buf(22, write_buffer, count));
+        if reading {
+            self.dma_read.as_ref().map(|read| read.enable());
+        }
+        self.dma_write.as_ref().map(|write| write.enable());
+        true
     }
 
 #[allow(unused_variables)]
@@ -327,14 +340,22 @@ impl spi_master::SpiMaster for Spi {
 
 impl DMAClient for Spi {
     fn xfer_done(&mut self, pid: usize) {
+        // I don't know if there are ordering guarantees on the read and
+        // write interrupts, guessing not, so issue the callback when both
+        // reading and writing are complete -pal
         if pid == 4  { // SPI RX
             self.dma_read.as_ref().map(|dma| dma.disable());
+            self.reading.set(false);
+            if !self.reading.get() && !self.writing.get() {
+                self.callback.as_ref().map(|cb| cb.read_write_done());
+            }
         }
         if pid == 22 { // SPI TX
-//            let regs: &SpiRegisters = unsafe {mem::transmute(self.regs) };
-
             self.dma_write.as_ref().map(|dma| dma.disable());
-//            self.callback.as_ref().map(|cb| );
+            self.writing.set(false);
+            if !self.reading.get() && !self.writing.get() {
+                self.callback.as_ref().map(|cb| cb.read_write_done());
+            }
         }
     }
 }

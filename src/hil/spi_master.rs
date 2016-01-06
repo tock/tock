@@ -30,9 +30,7 @@ pub enum ClockPhase {
 
 pub trait SpiCallback {
     /// Called when a read/write operation finishes
-    fn read_write_done(&'static self, 
-                       read: Option<&'static mut[u8]>,
-                       writer: Option<&'static mut[u8]>);
+    fn read_write_done(&'static self); 
 }
 
 /// Using an SPI implementation normally involves three steps:
@@ -48,15 +46,17 @@ pub trait SpiCallback {
 pub trait SpiMaster {
     /// Configures an object for communication as an SPI master
     fn init(&mut self, client: &'static SpiCallback);
-    fn read_write_bytes(&'static self, 
+    fn is_busy(&self) -> bool;
+
+    fn read_write_bytes(&self, 
                         mut read: Option<&'static mut [u8]>, 
                         mut write: Option<&'static mut [u8]>) -> bool;
-    fn write_byte(&'static self, val: u8);
-    fn read_byte(&'static self) -> u8;
-    fn read_write_byte(&'static self, val: u8) -> u8;
+    fn write_byte(&self, val: u8);
+    fn read_byte(&self) -> u8;
+    fn read_write_byte(&self, val: u8) -> u8;
 
-    fn set_chip_select(&'static self, cs: u8);
-    fn clear_chip_select(&'static self);
+    fn set_chip_select(&self, cs: u8);
+    fn clear_chip_select(&self);
 
     // Returns the actual rate set
     fn set_rate(&self, rate: u32) -> u32;

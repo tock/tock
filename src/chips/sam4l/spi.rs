@@ -7,8 +7,8 @@ use hil::spi_master::SpiCallback;
 use hil::spi_master::ClockPolarity;
 use hil::spi_master::ClockPhase;
 
-// Driver for the SPI hardware (seperate from the USARTS, described in chapter 26 of the
-// datasheet)
+// Driver for the SPI hardware (seperate from the USARTS), 
+// described in chapter 26 of the SAM4L datasheet)
 
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
@@ -192,7 +192,11 @@ impl spi_master::SpiMaster for Spi {
         unsafe {volatile_store(&mut (*self.regs).mr, mode)};
     }
 
-    fn read_write_byte(&'static self, val: u8) -> u8 {
+    fn is_busy(&self) -> bool {
+        false // Since all operations are blocking, never busy
+    }
+
+    fn read_write_byte(&self, val: u8) -> u8 {
         self.write_byte(val); 
         // Wait for receive data register full
         while (unsafe {volatile_load(&(*self.regs).sr)} & 1) == 0 {}
@@ -200,7 +204,7 @@ impl spi_master::SpiMaster for Spi {
         unsafe {volatile_load(&(*self.regs).rdr) as u8}
     }
 
-    fn write_byte(&'static self, out_byte: u8) {
+    fn write_byte(&self, out_byte: u8) {
         let tdr = out_byte as u32;
         // Wait for data to leave TDR and enter serializer, so TDR is free
         // for this next byte
@@ -208,13 +212,13 @@ impl spi_master::SpiMaster for Spi {
         unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
     }
 
-    fn read_byte(&'static self) -> u8 {
+    fn read_byte(&self) -> u8 {
         self.read_write_byte(0)
     }
 
     /// The write buffer has to be mutable because it's passed back to
     /// the caller, and the caller may want to be able write into it.
-    fn read_write_bytes(&'static self, 
+    fn read_write_bytes(&self, 
                         mut read_buffer:  Option<&'static mut [u8]>, 
                         mut write_buffer: Option<&'static mut [u8]>) -> bool {
         // If both are Some, read/write minimum of lengths

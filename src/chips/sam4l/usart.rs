@@ -2,7 +2,7 @@ use helpers::*;
 use core::mem;
 use hil::{uart, Controller};
 use hil::uart::Parity;
-use dma::{DMAChannel, DMAClient, DMAPeripheral};
+use dma::{DMAChannel, DMAClient};
 use nvic;
 use pm::{self, Clock, PBAClock};
 use chip;
