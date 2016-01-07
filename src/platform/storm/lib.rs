@@ -24,9 +24,23 @@ pub struct Firestorm {
 pub struct DummyCB {
   val: u8
 }
+
+pub static mut FLOP: bool = false;
+pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+pub static mut buf2: [u8; 8] = [7, 6, 5, 4, 3, 2, 1, 0];
+
 impl hil::spi_master::SpiCallback for DummyCB {
 #[allow(unused_variables,dead_code)]
-        fn read_write_done(&'static self) {} 
+    fn read_write_done(&'static self) {
+        unsafe {
+            FLOP = !FLOP;
+            if FLOP {
+                sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2));
+            } else {
+                sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
+            }
+        }
+    }
 }
 
 pub static mut SPICB: DummyCB = DummyCB{val: 0x55 as u8};
@@ -52,6 +66,7 @@ impl Firestorm {
         }
     }
 }
+
 
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
@@ -146,18 +161,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::spi_dma::SPI.init(&SPICB);
     sam4l::spi_dma::SPI.enable();
 
-    let mut flop: bool = false;
-    loop {
-        if flop {
-            sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2));
-        } else {
-            sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
-        }
-        for x in 1..4000 {
-            sam4l::spi_dma::SPI.enable();
-        }
-        flop = !flop;
-    }
+    sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
     // This is a simple byte-level test of SPI.
     /*let mut counter: u8 = 0;
     loop {
@@ -177,7 +181,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     firestorm.console.initialize();
 
     firestorm
+ 
 }
-pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-pub static mut buf2: [u8; 8] = [7, 6, 5, 4, 3, 2, 1, 0];
 
