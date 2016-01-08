@@ -61,6 +61,11 @@ void Reset_Handler(void)
 {
 	uint32_t *pSrc, *pDest;
 
+	/* Power on RAM blocks manually (see nRF51822-PAN v2.4, PAN #16). Note
+	 * that xxAA/xxAB variants have only two RAM blocks. For xxAC, change
+	 * to 0x0F. */
+	*((uint32_t volatile * ) 0x40000524) = 0x03;
+
 	/* Move the relocate segment
 	 * This assumes it is located after the
 	 * text segment, which is where the storm
