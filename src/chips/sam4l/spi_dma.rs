@@ -247,16 +247,19 @@ impl spi_master::SpiMaster for Spi {
     }
 
     /// Asynchonous buffer read/write of SPI.
-    /// write_buffer must not be None; read_buffer may be None;
+    /// write_buffer must  be Some; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
     /// minimum of two buffer lengths; returns true if operation
     /// starts (will receive callback through SpiClient), returns
     /// false if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
+    //
+    // A better version of this would 
     fn read_write_bytes(&self, 
-                        read_buffer:  Option<&'static mut [u8]>, 
-                        write_buffer: Option<&'static mut [u8]>) -> bool {
+                        write_buffer:  Option<&'static mut [u8]>, 
+                        read_buffer: Option<&'static mut [u8]>,
+                        len: usize) -> bool {
         let writing = write_buffer.is_some();
         let reading = read_buffer.is_some();
         // If there is no write buffer, or busy, then don't start.
@@ -279,8 +282,9 @@ impl spi_master::SpiMaster for Spi {
             Some(ref buf) => {buf.len()},
             None          => 0
         };
-        let count = if !reading {write_len}
-                    else        {cmp::min(read_len, write_len)};
+        let buflen = if !reading {write_len}
+                     else        {cmp::min(read_len, write_len)};
+        let count = cmp::min(buflen, len);
 
         // The ordering of these operations matters; if you enable then
         // perform the operation, you can read a byte early on the SPI data register

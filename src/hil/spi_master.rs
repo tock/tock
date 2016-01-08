@@ -61,9 +61,16 @@ pub trait SpiMaster {
     fn init(&mut self, client: &'static SpiCallback);
     fn is_busy(&self) -> bool;
 
+    /// Perform an asynchronous read/write operation, whose
+    /// completion is signaled by invoking SpiCallback on 
+    /// the initialzied client. write_buffer must be Some,
+    /// read_buffer may be None. If read_buffer is Some, the
+    /// length of the operation is the minimum of the size of
+    /// the two buffers.
     fn read_write_bytes(&self, 
-                        mut read: Option<&'static mut [u8]>, 
-                        mut write: Option<&'static mut [u8]>) -> bool;
+                        mut write_buffer: Option<&'static mut [u8]>, 
+                        mut read_buffer: Option<&'static mut [u8]>,
+                        len: usize) -> bool;
     fn write_byte(&self, val: u8);
     fn read_byte(&self) -> u8;
     fn read_write_byte(&self, val: u8) -> u8;

@@ -34,10 +34,11 @@ impl hil::spi_master::SpiCallback for DummyCB {
     fn read_write_done(&'static self) {
         unsafe {
             FLOP = !FLOP;
+            let len: usize = buf1.len();
             if FLOP {
-                sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2));
+                sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2), len);
             } else {
-                sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
+                sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
             }
         }
     }
@@ -161,7 +162,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::spi_dma::SPI.init(&SPICB);
     sam4l::spi_dma::SPI.enable();
 
-    sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1));
+    let len = buf1.len();
+    sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
     // This is a simple byte-level test of SPI.
     /*let mut counter: u8 = 0;
     loop {

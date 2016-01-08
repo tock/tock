@@ -221,18 +221,14 @@ impl spi_master::SpiMaster for Spi {
     /// The write buffer has to be mutable because it's passed back to
     /// the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self, 
-                        mut read_buffer:  Option<&'static mut [u8]>, 
-                        mut write_buffer: Option<&'static mut [u8]>) -> bool {
-        // If both are Some, read/write minimum of lengths
-        // If only read is Some, read length and write zeroes
-        // If only write is Some, write length and discard reads
-        // If both are None, return false
-        // TODO: Asynchronous
-        if read_buffer.is_none() && write_buffer.is_none() {
+                        mut write_buffer:  Option<&'static mut [u8]>, 
+                        mut read_buffer: Option<&'static mut [u8]>,
+                        len: usize) -> bool {
+        let writing = write_buffer.is_some();
+        let reading = read_buffer.is_some();
+        if !writing {
             return false
         }
-        let reading = read_buffer.is_some();
-        let writing = write_buffer.is_some();
         let read_len = match read_buffer {
             Some(ref buf) => {buf.len()},
             None          => 0
@@ -241,8 +237,10 @@ impl spi_master::SpiMaster for Spi {
             Some(ref buf) => {buf.len()},
             None          => 0
         };
-        let count = if reading && writing {cmp::min(read_len, write_len)}
-                    else                  {cmp::max(read_len, write_len)};
+        let buflen = if !reading {write_len}
+                     else        {cmp::min(read_len, write_len)};
+        count = cmp::min(buflen, len);
+
         for i in 0..count {
             let mut txbyte: u8 = 0;
             match write_buffer {
