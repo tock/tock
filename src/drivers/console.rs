@@ -115,7 +115,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
         }
     }
 
-    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize) -> isize {
+    fn command(&self, cmd_num: usize, arg1: usize, _arg2: usize) -> isize {
         match cmd_num {
             0 /* putc */ => { self.uart.send_byte(arg1 as u8); 1 },
             _ => -1
