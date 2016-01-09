@@ -14,7 +14,7 @@ use hil::timer::*;
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
-    gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 14]>,
+    gpio: &'static drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 14]>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice>,
 }
 
@@ -33,7 +33,7 @@ impl Firestorm {
 
         match driver_num {
             0 => f(Some(self.console)),
-            1 => f(Some(&self.gpio)),
+            1 => f(Some(self.gpio)),
             2 => f(Some(self.tmp006)),
             _ => f(None)
         }
@@ -46,9 +46,10 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
     static mut CONSOLE_BUF : [u8; 1024] = [0; 1024];
     static mut TIMER_BUF : [u8; 1024] = [0; 1024];
+    static mut GPIO_BUF : [u8; 1024] = [0; 1024];
     static mut MUX_ALARM_BUF : [u8; 256] = [0; 256];
     static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
-    static mut TMP006_BUF : [u8; 1028] = [0; 1028];
+    static mut TMP006_BUF : [u8; 1024] = [0; 1024];
 
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
      * easier, but should be obviated when `size_of` at compile time hits.
@@ -66,6 +67,16 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     let console : &mut drivers::console::Console<sam4l::usart::USART> = mem::transmute(&mut CONSOLE_BUF);
     *console = drivers::console::Console::new(&mut sam4l::usart::USART3);
+
+    let gpio : &mut drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 14]> = mem::transmute(&mut GPIO_BUF);
+    *gpio = drivers::gpio::GPIO::new(
+            [ &mut sam4l::gpio::PC[10], &mut sam4l::gpio::PC[19]
+            , &mut sam4l::gpio::PC[13], &mut sam4l::gpio::PA[9]
+            , &mut sam4l::gpio::PA[17], &mut sam4l::gpio::PC[20]
+            , &mut sam4l::gpio::PA[19], &mut sam4l::gpio::PA[14]
+            , &mut sam4l::gpio::PA[16], &mut sam4l::gpio::PA[13]
+            , &mut sam4l::gpio::PA[11], &mut sam4l::gpio::PA[10]
+            , &mut sam4l::gpio::PA[12], &mut sam4l::gpio::PC[09]]);
 
     let mut mux_alarm : &mut MuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut MUX_ALARM_BUF);
     *mux_alarm = MuxAlarm::new(ast);
@@ -88,16 +99,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
-        console: &*console,
-        gpio: drivers::gpio::GPIO::new(
-            [ &mut sam4l::gpio::PC[10], &mut sam4l::gpio::PC[19]
-            , &mut sam4l::gpio::PC[13], &mut sam4l::gpio::PA[9]
-            , &mut sam4l::gpio::PA[17], &mut sam4l::gpio::PC[20]
-            , &mut sam4l::gpio::PA[19], &mut sam4l::gpio::PA[14]
-            , &mut sam4l::gpio::PA[16], &mut sam4l::gpio::PA[13]
-            , &mut sam4l::gpio::PA[11], &mut sam4l::gpio::PA[10]
-            , &mut sam4l::gpio::PA[12], &mut sam4l::gpio::PC[09]]),
-        tmp006: &*tmp006
+        console: console,
+        gpio: gpio,
+        tmp006: tmp006
     };
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
