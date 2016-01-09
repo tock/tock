@@ -14,7 +14,7 @@ applications from each other and the kernel.
 
 ## Requirements
 
-1. [Rust](http://www.rust-lang.org/) 1.4.0-nightly (e35fd7481 2015-08-17)
+1. [Rust](http://www.rust-lang.org/) (nightly)
 2. [arm-none-eabi toolchain](https://launchpad.net/gcc-arm-embedded/) (version >= 4.9)
 3. stormloader (recommended) or JLinkExe for programming the storm
 4. Command line utilities: wget, sed, make
@@ -23,10 +23,16 @@ applications from each other and the kernel.
 
 ### Rust (nightly)
 
-We are using `rustc 1.7.0-nightly (110df043b 2015-12-13)`:
+We are using `rustc 1.7.0-nightly (110df043b 2015-12-13)`. Install it using rustup:
 
 ```bash
 $ curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --date=2015-12-14
+```
+
+Alternatively, you can use [multirust](https://github.com/brson/multirust):
+
+```bash
+$ multirust update nightly-2015-12-14
 ```
 
 #### `arm-none-eabi` toolchain

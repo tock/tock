@@ -13,8 +13,10 @@ extern {
 pub const PROC_MEMORY_SIZE : usize = 8192;
 pub const NUM_PROCS : usize = 1;
 
-static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE]; NUM_PROCS];
 static mut FREE_MEMORY_IDX: usize = 0;
+
+#[link_section = ".app_memory"]
+static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE]; NUM_PROCS];
 
 pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None];
 

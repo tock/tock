@@ -63,7 +63,7 @@ SECTIONS
         KEEP (*(.init_array))
         __init_array_end = .;
 
-        . = ALIGN(0x4);
+        . = ALIGN(4);
         KEEP (*crtbegin.o(.ctors))
         KEEP (*(EXCLUDE_FILE (*crtend.o) .ctors))
         KEEP (*(SORT(.ctors.*)))
@@ -125,6 +125,10 @@ SECTIONS
         *(COMMON)
         . = ALIGN(4);
         _ebss = . ;
+
+        . = ALIGN(8);
+        *(.app_memory)
+
         _ezero = .;
     } > ram
 
