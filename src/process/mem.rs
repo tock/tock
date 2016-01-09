@@ -31,13 +31,14 @@ impl<L, T> AppPtr<L, T> {
 }
 
 impl<L, T: Copy> AppPtr<L, T> {
-    pub fn alloc(data: T, appId: AppId) -> Option<AppPtr<L, T>> {
+    pub fn alloc(data: T, appid: AppId) -> Option<AppPtr<L, T>> {
         unsafe {
-            let ptr = process::alloc(appId, mem::size_of_val(&data));
+            let ptr : Option<*mut T> = process::alloc(appid);
             ptr.map(|p| {
+                *p = data;
                 AppPtr {
                     ptr: Unique::new(mem::transmute(p)),
-                    process: appId,
+                    process: appid,
                     _phantom: PhantomData
                 }
             })
@@ -92,10 +93,6 @@ impl<L, T> AppSlice<L, T> {
 
     pub fn len(&self) -> usize {
         self.len
-    }
-
-    pub fn app_id(&self) -> AppId {
-        self.ptr.process
     }
 }
 

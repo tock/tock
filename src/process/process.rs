@@ -34,8 +34,8 @@ pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
     }
 }
 
-pub unsafe fn alloc(appid: ::AppId, size: usize) -> Option<*mut u8> {
-    let procs = unsafe { &mut PROCS };
+pub unsafe fn alloc<T>(appid: ::AppId) -> Option<*mut T> {
+    let procs = &mut PROCS;
     let idx = appid.idx();
     if idx >= procs.len() {
         return None
@@ -43,10 +43,12 @@ pub unsafe fn alloc(appid: ::AppId, size: usize) -> Option<*mut u8> {
 
     match procs[idx] {
         None => None,
-        Some(ref mut process) =>
+        Some(ref mut process) => {
+            let size = mem::size_of::<T>();
             process.alloc(size).map(|slice| {
-                (&mut slice[0]) as *mut u8
+                (&mut slice[0]) as *mut u8 as *mut T
             })
+        }
     }
 }
 
