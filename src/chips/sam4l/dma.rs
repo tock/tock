@@ -224,6 +224,7 @@ impl DMAChannel {
         if len > ptr.len() {
             return;
         }
+
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
@@ -231,7 +232,7 @@ impl DMAChannel {
         volatile_store(&mut registers.peripheral_select, pid);
         volatile_store(&mut registers.memory_address_reload,
                        &ptr[0] as *const u8 as usize);
-        volatile_store(&mut registers.transfer_counter_reload, ptr.len());
+        volatile_store(&mut registers.transfer_counter_reload, len);
 
         volatile_store(&mut registers.interrupt_enable, 1 << 1);
     }
