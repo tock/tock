@@ -8,7 +8,6 @@ extern crate drivers;
 extern crate hil;
 extern crate sam4l;
 
-use sam4l::pm;
 use hil::Controller;
 use hil::timer::*;
 use hil::spi_master::*;
@@ -79,7 +78,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
     static mut TMP006_BUF : [u8; 1028] = [0; 1028];
 
-    pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI));
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
      * easier, but should be obviated when `size_of` at compile time hits.
     static mut FIRESTORM_BUF : [u8; 192] = [0; 192];

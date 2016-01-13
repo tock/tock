@@ -8,6 +8,7 @@ use hil::spi_master::ClockPolarity;
 use hil::spi_master::ClockPhase;
 use dma::DMAChannel;
 use dma::DMAClient;
+use pm;
 
 /// Implementation of DMA-based SPI master communication for
 /// the Atmel SAM4L CortexM4 microcontroller.
@@ -188,12 +189,22 @@ impl Spi {
         self.dma_read = Some(read);
         self.dma_write = Some(write);
     }
+
+    fn enable_clock(&self) {
+        unsafe {
+            pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI));
+        }
+    }
+
+
 }
 
 impl spi_master::SpiMaster for Spi {
     /// By default, initialize SPI to operate at 40KHz, clock is
     /// idle on low, and sample on the leading edge.
     fn init(&mut self, callback: &'static SpiCallback) {
+        self.enable_clock();
+
         self.callback = Some(callback);
         self.set_rate(40000); // Set initial baud rate to 8MHz
         self.set_clock(ClockPolarity::IdleLow);
