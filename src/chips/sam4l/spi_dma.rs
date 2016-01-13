@@ -272,7 +272,7 @@ impl spi_master::SpiMaster for Spi {
         // Need to check self.reading as well as self.writing in case
         // write interrupt comes back first.
         if !writing  || self.reading.get() || self.writing.get() {
-//            return false
+            return false
         }
 
         let pc18 = unsafe {&PC[18] as &hil::gpio::GPIOPin};
