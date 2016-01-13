@@ -218,10 +218,9 @@ impl DMAChannel {
     }
 
     pub fn do_xfer_buf(&self, pid: usize, 
-                       buf: Option<&'static mut [u8]>,
+                       buf: &'static mut [u8],
                        len: usize) {
-        let ptr = buf.unwrap();
-        if len > ptr.len() {
+        if len > buf.len() {
             return;
         }
 
@@ -231,7 +230,7 @@ impl DMAChannel {
 
         volatile_store(&mut registers.peripheral_select, pid);
         volatile_store(&mut registers.memory_address_reload,
-                       &ptr[0] as *const u8 as usize);
+                       &buf[0] as *const u8 as usize);
         volatile_store(&mut registers.transfer_counter_reload, len);
 
         volatile_store(&mut registers.interrupt_enable, 1 << 1);

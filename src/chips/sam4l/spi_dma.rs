@@ -2,14 +2,12 @@ use helpers::*;
 use core::cell::Cell;
 use core::cmp;
 
-use hil;
 use hil::spi_master;
 use hil::spi_master::SpiCallback;
 use hil::spi_master::ClockPolarity;
 use hil::spi_master::ClockPhase;
 use dma::DMAChannel;
 use dma::DMAClient;
-use gpio::PC;
 
 /// Implementation of DMA-based SPI master communication for
 /// the Atmel SAM4L CortexM4 microcontroller.
@@ -275,8 +273,6 @@ impl spi_master::SpiMaster for Spi {
             return false
         }
 
-        let pc18 = unsafe {&PC[18] as &hil::gpio::GPIOPin};
-        pc18.toggle();
         // Need to mark if reading or writing so we correctly
         // regenerate Options on callback
         self.writing.set(writing);
@@ -297,9 +293,13 @@ impl spi_master::SpiMaster for Spi {
         // The ordering of these operations matters; if you enable then
         // perform the operation, you can read a byte early on the SPI data register
         if reading {
-            self.dma_read.as_ref().map(|read| read.do_xfer_buf(4, read_buffer, count));
+            self.dma_read.as_ref().map(|read| {
+                // We know from the check above that `reading` is only true if
+                // `read_buffer` is `Some`, so `unwrap` is safe here.
+                read.do_xfer_buf(4, read_buffer.unwrap(), count)
+            });
         }
-        self.dma_write.as_ref().map(|write| write.do_xfer_buf(22, write_buffer, count));
+        self.dma_write.as_ref().map(|write| write.do_xfer_buf(22, write_buffer.unwrap(), count));
         if reading {
             self.dma_read.as_ref().map(|read| read.enable());
         }
