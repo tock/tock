@@ -11,6 +11,9 @@ extern crate sam4l;
 use hil::Controller;
 use hil::timer::*;
 
+// Uncomment to test SPI with commented out code block in `init`
+//mod spi_dummy;
+
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
@@ -39,6 +42,7 @@ impl Firestorm {
         }
     }
 }
+
 
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
@@ -116,6 +120,16 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
     sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
+
+    // Configure SPI pins: CLK, MISO, MOSI, CS3
+    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
+
+    // Uncommenting the following line will cause the device to write
+    // [7, 6, 5, 4, 3, 2, 1, 0] repeatedly over SPI peripheral 1.
+    //spi_dummy::spi_dummy_test();
 
     firestorm.console.initialize();
 
