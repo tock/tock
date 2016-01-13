@@ -2,12 +2,14 @@ use helpers::*;
 use core::cell::Cell;
 use core::cmp;
 
+use hil;
 use hil::spi_master;
 use hil::spi_master::SpiCallback;
 use hil::spi_master::ClockPolarity;
 use hil::spi_master::ClockPhase;
 use dma::DMAChannel;
 use dma::DMAClient;
+use gpio::PC;
 
 /// Implementation of DMA-based SPI master communication for
 /// the Atmel SAM4L CortexM4 microcontroller.
@@ -81,10 +83,14 @@ impl Spi {
     }
 
     pub fn enable(&self) {
+        self.dma_read.as_ref().map(|read| read.enable());
+        self.dma_write.as_ref().map(|write| write.enable());
         unsafe { volatile_store(&mut (*self.regs).cr, 0b1); }
     }
 
     pub fn disable(&self) {
+        self.dma_read.as_ref().map(|read| read.disable());
+        self.dma_write.as_ref().map(|write| write.disable());
         unsafe { volatile_store(&mut (*self.regs).cr, 0b10); }
     }
 
@@ -218,7 +224,7 @@ impl spi_master::SpiMaster for Spi {
     /// asynchronous operation is outstanding, do nothing.
     fn read_write_byte(&self, val: u8) -> u8 {
         if self.reading.get() || self.writing.get() {
-            return 0;
+  //          return 0;
         }
         self.write_byte(val);
         // Wait for receive data register full
@@ -231,7 +237,7 @@ impl spi_master::SpiMaster for Spi {
     /// asynchronous operation is outstanding, do nothing.
     fn write_byte(&self, out_byte: u8) {
         if self.reading.get() || self.writing.get() {
-            return;
+ //           return;
         }
         let tdr = out_byte as u32;
         // Wait for data to leave TDR and enter serializer, so TDR is free
@@ -266,9 +272,11 @@ impl spi_master::SpiMaster for Spi {
         // Need to check self.reading as well as self.writing in case
         // write interrupt comes back first.
         if !writing  || self.reading.get() || self.writing.get() {
-            return false
+//            return false
         }
 
+        let pc18 = unsafe {&PC[18] as &hil::gpio::GPIOPin};
+        pc18.toggle();
         // Need to mark if reading or writing so we correctly
         // regenerate Options on callback
         self.writing.set(writing);
@@ -351,16 +359,21 @@ impl DMAClient for Spi {
     fn xfer_done(&mut self, pid: usize) {
         // I don't know if there are ordering guarantees on the read and
         // write interrupts, guessing not, so issue the callback when both
-        // reading and writing are complete -pal
+        // reading and writing are complete. In practice it seems like
+        // the read interrupt happens second. -pal
+        // 
+        // The disable calls are commented out because executing them
+        // causes subsequent operations to fail. The call to read_write_bytes
+        // calls enable(), so I don't know why. -pal
         if pid == 4  { // SPI RX
-            self.dma_read.as_ref().map(|dma| dma.disable());
+           // self.dma_read.as_ref().map(|dma| dma.disable());
             self.reading.set(false);
             if !self.reading.get() && !self.writing.get() {
                 self.callback.as_ref().map(|cb| cb.read_write_done());
             }
         }
         if pid == 22 { // SPI TX
-            self.dma_write.as_ref().map(|dma| dma.disable());
+           // self.dma_write.as_ref().map(|dma| dma.disable());
             self.writing.set(false);
             if !self.reading.get() && !self.writing.get() {
                 self.callback.as_ref().map(|cb| cb.read_write_done());

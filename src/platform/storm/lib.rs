@@ -143,7 +143,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
     sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 
-
     /*
     let pc6 = &sam4l::gpio::PC[6] as &hil::gpio::GPIOPin;
     pc6.enable_output();
@@ -159,26 +158,15 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::spi_dma::SPI.set_active_peripheral(sam4l::spi_dma::Peripheral::Peripheral1);
-    sam4l::spi_dma::SPI.init(&SPICB);
-    sam4l::spi_dma::SPI.enable();
 
-    let len = buf1.len();
-    sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
-    // This is a simple byte-level test of SPI.
-    /*let mut counter: u8 = 0;
-    loop {
-      let val1 = SPI.read_write_byte(0x55);
-      let val2 = SPI.read_write_byte(counter);
-      let val3 = SPI.read_write_byte(val1);
-      let val4 = SPI.read_write_byte(val2);
-      let val5 = SPI.read_write_byte(0);
-      counter = counter + 1;
-      for x in 1..2000 {
-        SPI.disable();
-        SPI.enable();
-      }
-    }*/
-
+    // Uncommenting these four lines will cause the device to write 
+    // buf2 [7, 6, 5, 4, 3, 2, 1, 0] repeatedly. The first write occurs
+    // here, subsequent writes are in the read_write_done handler above.
+    // 
+    // sam4l::spi_dma::SPI.init(&SPICB);
+    // sam4l::spi_dma::SPI.enable();
+    // let len = buf2.len();
+    // sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
     
     firestorm.console.initialize();
 
