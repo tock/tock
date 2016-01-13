@@ -53,13 +53,13 @@ pub enum Peripheral {
 }
 
 ///
-/// The SAM4L supports four peripherals. 
+/// The SAM4L supports four peripherals.
 pub struct Spi {
     regs: *mut SpiRegisters,
     callback: Option<&'static SpiCallback>,
     dma_read:  Option<&'static mut DMAChannel>,
     dma_write: Option<&'static mut DMAChannel>,
-    // keep track of which // interrupts are pending in order 
+    // keep track of which // interrupts are pending in order
     // to correctly issue completion event only after both complete.
     reading: Cell<bool>,
     writing: Cell<bool>,
@@ -95,12 +95,12 @@ impl Spi {
     /// Sets the approximate baud rate for the active peripheral,
     /// and return the actual baud rate set.
     ///
-    /// Since the only supported baud rates are 48 MHz / n where n 
-    /// is an integer from 1 to 255, the exact baud rate may not 
-    /// be available. In that case, the next lower baud rate will 
+    /// Since the only supported baud rates are 48 MHz / n where n
+    /// is an integer from 1 to 255, the exact baud rate may not
+    /// be available. In that case, the next lower baud rate will
     /// be selected.
     ///
-    /// The lowest available baud rate is 188235 baud. If the 
+    /// The lowest available baud rate is 188235 baud. If the
     /// requested rate is lower, 188235 baud will be selected.
     pub fn set_baud_rate(&self, rate: u32) -> u32 {
         // Main clock frequency
@@ -162,7 +162,7 @@ impl Spi {
         }
     }
 
-    /// Returns the value of CSR0, CSR1, CSR2, or CSR3, 
+    /// Returns the value of CSR0, CSR1, CSR2, or CSR3,
     /// whichever corresponds to the active peripheral
     fn read_active_csr(&self) -> u32 {
         match self.get_active_peripheral() {
@@ -173,7 +173,7 @@ impl Spi {
         }
     }
     /// Sets the Chip Select Register (CSR) of the active peripheral
-    /// (CSR0, CSR1, CSR2, or CSR3). 
+    /// (CSR0, CSR1, CSR2, or CSR3).
     fn write_active_csr(&self, value: u32) {
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => unsafe {volatile_store(&mut (*self.regs).csr0, value)},
@@ -203,7 +203,7 @@ impl spi_master::SpiMaster for Spi {
         let mut csr = self.read_active_csr();
         csr |= 1 << 3;
         self.write_active_csr(csr);
-        
+
         // Indicate the last transfer to disable slave select 
         unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
         
@@ -211,7 +211,6 @@ impl spi_master::SpiMaster for Spi {
         mode |= 1; // Enable master mode
         mode |= 1 << 4; // Disable mode fault detection (open drain outputs not supported)
         unsafe {volatile_store(&mut (*self.regs).mr, mode)};
-        
     }
 
     fn is_busy(&self) -> bool {
@@ -230,12 +229,12 @@ impl spi_master::SpiMaster for Spi {
         // Return read value
         unsafe {volatile_load(&(*self.regs).rdr) as u8}
     }
-      
+
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn write_byte(&self, out_byte: u8) {
         if self.reading.get() || self.writing.get() {
- //           return;
+//           return;
         }
         let tdr = out_byte as u32;
         // Wait for data to leave TDR and enter serializer, so TDR is free
@@ -243,7 +242,7 @@ impl spi_master::SpiMaster for Spi {
         while (unsafe {volatile_load(& (*self.regs).sr)} & 1 << 1) == 0 {}
         unsafe {volatile_store(&mut (*self.regs).tdr, tdr)};
     }
-        
+
     /// Write 0 to the SPI and return the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn read_byte(&self) -> u8 {
@@ -258,10 +257,8 @@ impl spi_master::SpiMaster for Spi {
     /// false if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
-    //
-    // A better version of this would 
-    fn read_write_bytes(&self, 
-                        write_buffer:  Option<&'static mut [u8]>, 
+    fn read_write_bytes(&self,
+                        write_buffer:  Option<&'static mut [u8]>,
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize) -> bool {
         let writing = write_buffer.is_some();
@@ -361,7 +358,7 @@ impl DMAClient for Spi {
         // write interrupts, guessing not, so issue the callback when both
         // reading and writing are complete. In practice it seems like
         // the read interrupt happens second. -pal
-        // 
+        //
         // The disable calls are commented out because executing them
         // causes subsequent operations to fail. The call to read_write_bytes
         // calls enable(), so I don't know why. -pal

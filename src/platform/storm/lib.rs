@@ -79,7 +79,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
     static mut TMP006_BUF : [u8; 1028] = [0; 1028];
 
-    pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); 
+    pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI));
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
      * easier, but should be obviated when `size_of` at compile time hits.
     static mut FIRESTORM_BUF : [u8; 192] = [0; 192];
@@ -93,7 +93,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     ast.select_clock(sam4l::ast::Clock::ClockRCSys);
     ast.set_prescalar(0);
     ast.clear_alarm();
-   
+
     let console : &mut drivers::console::Console<sam4l::usart::USART> = mem::transmute(&mut CONSOLE_BUF);
     *console = drivers::console::Console::new(&mut sam4l::usart::USART3);
 
@@ -129,7 +129,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &mut sam4l::gpio::PA[12], &mut sam4l::gpio::PC[09]]),
         tmp006: &*tmp006
     };
-    
+
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
         //client: &console,
         baud_rate: 115200,
@@ -143,34 +143,25 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
     sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 
-    /*
-    let pc6 = &sam4l::gpio::PC[6] as &hil::gpio::GPIOPin;
-    pc6.enable_output();
-    loop {
-        pc6.toggle();
-    }
-    */
-
-
-    // Configure SPI pins: CLK, MISO, MOSI, CS3 
+    // Configure SPI pins: CLK, MISO, MOSI, CS3
     sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
 
-    // Uncommenting these four lines will cause the device to write 
+    // Uncommenting these four lines will cause the device to write
     // buf2 [7, 6, 5, 4, 3, 2, 1, 0] repeatedly. The first write occurs
     // here, subsequent writes are in the read_write_done handler above.
-    // 
+    //
     // sam4l::spi::SPI.init(&SPICB);
     // sam4l::spi::SPI.enable();
     // let len = buf2.len();
     // sam4l::spi::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
-    
+
     firestorm.console.initialize();
 
     firestorm
- 
+
 }
 

@@ -217,7 +217,7 @@ impl DMAChannel {
         volatile_store(&mut registers.interrupt_enable, 1 << 1);
     }
 
-    pub fn do_xfer_buf(&self, pid: usize, 
+    pub fn do_xfer_buf(&self, pid: usize,
                        buf: &'static mut [u8],
                        len: usize) {
         if len > buf.len() {
