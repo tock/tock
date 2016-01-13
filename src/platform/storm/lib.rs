@@ -10,7 +10,9 @@ extern crate sam4l;
 
 use hil::Controller;
 use hil::timer::*;
-use hil::spi_master::*;
+
+// Uncomment to test SPI with commented out code block in `init`
+//mod spi_dummy;
 
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
@@ -18,32 +20,6 @@ pub struct Firestorm {
     gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 14]>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice>,
 }
-
-#[allow(unused_variables,dead_code)]
-pub struct DummyCB {
-  val: u8
-}
-
-pub static mut FLOP: bool = false;
-pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-pub static mut buf2: [u8; 8] = [7, 6, 5, 4, 3, 2, 1, 0];
-
-impl hil::spi_master::SpiCallback for DummyCB {
-#[allow(unused_variables,dead_code)]
-    fn read_write_done(&'static self) {
-        unsafe {
-            FLOP = !FLOP;
-            let len: usize = buf1.len();
-            if FLOP {
-                sam4l::spi::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2), len);
-            } else {
-                sam4l::spi::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
-            }
-        }
-    }
-}
-
-pub static mut SPICB: DummyCB = DummyCB{val: 0x55 as u8};
 
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
@@ -146,16 +122,10 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
 
-    // Uncommenting these four lines will cause the device to write
-    // buf2 [7, 6, 5, 4, 3, 2, 1, 0] repeatedly. The first write occurs
-    // here, subsequent writes are in the read_write_done handler above.
-    //
-    // sam4l::spi::SPI.init(&SPICB);
-    // sam4l::spi::SPI.enable();
-    // let len = buf2.len();
-    // sam4l::spi::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
+    // Uncommenting the following line will cause the device to write
+    // [7, 6, 5, 4, 3, 2, 1, 0] repeatedly over SPI peripheral 1.
+    //spi_dummy::spi_dummy_test();
 
     firestorm.console.initialize();
 
