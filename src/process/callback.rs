@@ -41,5 +41,9 @@ impl Callback {
             pc: *self.fn_ptr as usize
         }, self.process_ptr)
     }
+
+    pub fn app_id(&self) -> AppId {
+        self.process_ptr
+    }
 }
 

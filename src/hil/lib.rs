@@ -19,7 +19,7 @@ pub mod adc;
 
 pub use driver::Driver;
 
-pub use process::{Callback, AppSlice, Shared, AppId};
+pub use process::{Callback, AppPtr, AppSlice, Shared, AppId};
 pub use process::process::NUM_PROCS;
 
 pub trait Controller {

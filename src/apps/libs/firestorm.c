@@ -5,11 +5,11 @@
 #include <tock.h>
 
 int gpio_enable(unsigned int pin) {
-  return command(1, 0, pin);
+  return command(1, 0, pin, 0);
 }
 
 int gpio_set(unsigned int pin) {
-  return command(1, 2, pin);
+  return command(1, 2, pin, 0);
 }
 
 static CB_TYPE putstr_cb(int _x, int _y, int _z, void* str) {
@@ -55,6 +55,6 @@ int tmp006_read_async(subscribe_cb cb, void* userdata) {
 }
 
 int tmp006_enable() {
-  return command(2, 0, 0);
+  return command(2, 0, 0, 0);
 }
 

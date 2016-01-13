@@ -24,6 +24,26 @@ impl<L, T> AppPtr<L, T> {
             _phantom: PhantomData
         }
     }
+
+    pub fn app_id(&self) -> AppId {
+        self.process
+    }
+}
+
+impl<L, T: Copy> AppPtr<L, T> {
+    pub fn alloc(data: T, appid: AppId) -> Option<AppPtr<L, T>> {
+        unsafe {
+            let ptr : Option<*mut T> = process::alloc(appid);
+            ptr.map(|p| {
+                *p = data;
+                AppPtr {
+                    ptr: Unique::new(mem::transmute(p)),
+                    process: appid,
+                    _phantom: PhantomData
+                }
+            })
+        }
+    }
 }
 
 impl<L, T> Deref for AppPtr<L, T> {
