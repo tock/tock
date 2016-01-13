@@ -36,9 +36,9 @@ impl hil::spi_master::SpiCallback for DummyCB {
             FLOP = !FLOP;
             let len: usize = buf1.len();
             if FLOP {
-                sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2), len);
+                sam4l::spi::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2), len);
             } else {
-                sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
+                sam4l::spi::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
             }
         }
     }
@@ -157,16 +157,16 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::spi_dma::SPI.set_active_peripheral(sam4l::spi_dma::Peripheral::Peripheral1);
+    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
 
     // Uncommenting these four lines will cause the device to write 
     // buf2 [7, 6, 5, 4, 3, 2, 1, 0] repeatedly. The first write occurs
     // here, subsequent writes are in the read_write_done handler above.
     // 
-    // sam4l::spi_dma::SPI.init(&SPICB);
-    // sam4l::spi_dma::SPI.enable();
+    // sam4l::spi::SPI.init(&SPICB);
+    // sam4l::spi::SPI.enable();
     // let len = buf2.len();
-    // sam4l::spi_dma::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
+    // sam4l::spi::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
     
     firestorm.console.initialize();
 

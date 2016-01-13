@@ -13,7 +13,7 @@ pub mod chip;
 pub mod ast;
 pub mod dma;
 pub mod i2c;
-pub mod spi_dma;
+pub mod spi;
 pub mod nvic;
 pub mod pm;
 pub mod gpio;

@@ -4,7 +4,7 @@ use ast;
 use dma;
 use nvic;
 use usart;
-use spi_dma;
+use spi;
 
 pub struct Sam4l;
 
@@ -20,9 +20,9 @@ impl Sam4l {
         INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
         usart::USART3.set_dma(&mut dma::DMAChannels[0]);
         dma::DMAChannels[0].client = Some(&mut usart::USART3);
-        spi_dma::SPI.set_dma(&mut dma::DMAChannels[1], &mut dma::DMAChannels[2]);
-        dma::DMAChannels[1].client = Some(&mut spi_dma::SPI);
-        dma::DMAChannels[2].client = Some(&mut spi_dma::SPI);
+        spi::SPI.set_dma(&mut dma::DMAChannels[1], &mut dma::DMAChannels[2]);
+        dma::DMAChannels[1].client = Some(&mut spi::SPI);
+        dma::DMAChannels[2].client = Some(&mut spi::SPI);
         Sam4l
     }
 
