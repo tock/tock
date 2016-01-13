@@ -16,7 +16,6 @@ impl AppId {
     }
 }
 
-
 #[derive(Clone, Copy)]
 pub struct Callback {
     process_ptr: AppId,
