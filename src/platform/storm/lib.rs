@@ -130,6 +130,5 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     firestorm.console.initialize();
 
     firestorm
-
 }
 
