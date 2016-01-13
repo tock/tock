@@ -5,6 +5,7 @@ use dma;
 use nvic;
 use usart;
 use spi;
+use gpio;
 
 pub struct Sam4l;
 
@@ -31,10 +32,26 @@ impl Sam4l {
         INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
             match interrupt {
                 ASTALARM => ast::AST.handle_interrupt(),
+
                 USART3   => usart::USART3.handle_interrupt(),
+
                 PDCA0   => dma::DMAChannels[0].handle_interrupt(),
                 PDCA1   => dma::DMAChannels[1].handle_interrupt(),
                 PDCA2   => dma::DMAChannels[2].handle_interrupt(),
+
+                GPIO0 => gpio::PA.handle_interrupt(),
+                GPIO1 => gpio::PA.handle_interrupt(),
+                GPIO2 => gpio::PA.handle_interrupt(),
+                GPIO3 => gpio::PA.handle_interrupt(),
+                GPIO4 => gpio::PB.handle_interrupt(),
+                GPIO5 => gpio::PB.handle_interrupt(),
+                GPIO6 => gpio::PB.handle_interrupt(),
+                GPIO7 => gpio::PB.handle_interrupt(),
+                GPIO8 => gpio::PC.handle_interrupt(),
+                GPIO9 => gpio::PC.handle_interrupt(),
+                GPIO10 => gpio::PC.handle_interrupt(),
+                GPIO11 => gpio::PC.handle_interrupt(),
+
                 //NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
                 _ => {}
             }

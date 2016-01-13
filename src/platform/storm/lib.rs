@@ -11,7 +11,10 @@ extern crate sam4l;
 use hil::Controller;
 use hil::timer::*;
 
-// Uncomment to test SPI with commented out code block in `init`
+// Uncomment each module to test with respective commented out code block in
+// `init`
+//
+//mod gpio_dummy;
 //mod spi_dummy;
 
 pub struct Firestorm {
@@ -126,6 +129,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // Uncommenting the following line will cause the device to write
     // [7, 6, 5, 4, 3, 2, 1, 0] repeatedly over SPI peripheral 1.
     //spi_dummy::spi_dummy_test();
+
+    // Uncommenting the following line will toggle the LED whenever the value of
+    // Firestorm's pin 8 changes value (e.g., connect a push button to pin 8 and
+    // press toggle it).
+    //gpio_dummy::gpio_dummy_test();
 
     firestorm.console.initialize();
 
