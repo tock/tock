@@ -12,12 +12,12 @@ struct App {
 }
 
 pub struct Console<'a, U: UART + 'a> {
-    uart: &'a mut U,
+    uart: &'a U,
     apps: [RefCell<Option<App>>; NUM_PROCS],
 }
 
 impl<'a, U: UART> Console<'a, U> {
-    pub fn new(uart: &'a mut U) -> Console<U> {
+    pub const fn new(uart: &'a U) -> Console<U> {
         Console {
             uart: uart,
             apps: [RefCell::new(None)]

@@ -46,7 +46,6 @@ impl Firestorm {
     }
 }
 
-
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
 
@@ -72,7 +71,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     ast.clear_alarm();
 
     let console : &mut drivers::console::Console<sam4l::usart::USART> = mem::transmute(&mut CONSOLE_BUF);
-    *console = drivers::console::Console::new(&mut sam4l::usart::USART3);
+    *console = drivers::console::Console::new(&sam4l::usart::USART3);
 
     let mut mux_alarm : &mut MuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut MUX_ALARM_BUF);
     *mux_alarm = MuxAlarm::new(ast);
@@ -97,13 +96,13 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         chip: sam4l::chip::Sam4l::new(),
         console: &*console,
         gpio: drivers::gpio::GPIO::new(
-            [ &mut sam4l::gpio::PC[10], &mut sam4l::gpio::PC[19]
-            , &mut sam4l::gpio::PC[13], &mut sam4l::gpio::PA[9]
-            , &mut sam4l::gpio::PA[17], &mut sam4l::gpio::PC[20]
-            , &mut sam4l::gpio::PA[19], &mut sam4l::gpio::PA[14]
-            , &mut sam4l::gpio::PA[16], &mut sam4l::gpio::PA[13]
-            , &mut sam4l::gpio::PA[11], &mut sam4l::gpio::PA[10]
-            , &mut sam4l::gpio::PA[12], &mut sam4l::gpio::PC[09]]),
+            [ &sam4l::gpio::PC[10], &sam4l::gpio::PC[19]
+            , &sam4l::gpio::PC[13], &sam4l::gpio::PA[9]
+            , &sam4l::gpio::PA[17], &sam4l::gpio::PC[20]
+            , &sam4l::gpio::PA[19], &sam4l::gpio::PA[14]
+            , &sam4l::gpio::PA[16], &sam4l::gpio::PA[13]
+            , &sam4l::gpio::PA[11], &sam4l::gpio::PA[10]
+            , &sam4l::gpio::PA[12], &sam4l::gpio::PC[09]]),
         tmp006: &*tmp006
     };
 
