@@ -5,5 +5,5 @@ CFLAGS_APPS := -I$(SRC_DIR)apps/libs -fPIC -msingle-pic-base -mno-pic-data-is-te
 
 include $(SRC_DIR)apps/*/Makefile.mk
 
-APP_BINS = $(foreach app,$(APPS),$(BUILD_DIR)/apps/$(app).bin.o)
+APP_BINS = $(foreach app,$(APPS),$(BUILD_APP_DIR)/$(app).bin.o)
 
