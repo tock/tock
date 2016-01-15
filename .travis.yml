@@ -11,4 +11,7 @@ before_install:
   - sudo apt-get install -qq gcc-arm-none-eabi
   - mkdir -p build/apps
 
-script: make build/main.elf
+script:
+  - make build/main.elf
+  - make clean-all
+  - make PLATFORM=nrf_pca10001 CHIP=nrf51822 APPS=c_blinky
