@@ -12,7 +12,7 @@ extern {
 }
 
 /// Size of each processes's memory region in bytes
-pub const PROC_MEMORY_SIZE : usize = 8192;
+pub const PROC_MEMORY_SIZE : usize = 2048;
 pub const NUM_PROCS : usize = 2;
 
 static mut FREE_MEMORY_IDX: usize = 0;
