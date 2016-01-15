@@ -1,1 +1,1 @@
-include $(SRC_DIR)chips/sam4l/Makefile.mk
+include $(SRC_DIR)chips/$(CHIP)/Makefile.mk

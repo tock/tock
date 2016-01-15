@@ -16,6 +16,7 @@ enum firestorm_cb_type {
 
 int gpio_enable(unsigned int pin);
 int gpio_set(unsigned int pin);
+int gpio_clear(unsigned int pin);
 
 void putstr(const char* str);
 void putnstr(const char* str, size_t len);
