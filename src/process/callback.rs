@@ -6,7 +6,6 @@ pub struct AppId {
     idx: usize
 }
 
-
 impl AppId {
     pub unsafe fn new(idx: usize) -> AppId {
         AppId {idx: idx}

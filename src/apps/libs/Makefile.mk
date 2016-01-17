@@ -1,18 +1,18 @@
-LIBFIRESTORM = $(BUILD_DIR)/apps/firestorm.o
-LIBTOCK = $(BUILD_DIR)/apps/tock.o
+LIBFIRESTORM = $(BUILD_APP_DIR)/firestorm.o
+LIBTOCK = $(BUILD_APP_DIR)/tock.o
 
-$(LIBFIRESTORM): $(SRC_DIR)apps/libs/firestorm.c $(SRC_DIR)apps/libs/firestorm.h
-	@echo "Building libfirestorm"
+$(LIBFIRESTORM): $(SRC_DIR)apps/libs/firestorm.c $(SRC_DIR)apps/libs/firestorm.h | $(BUILD_APP_DIR)
+	@echo "Building libfirestorm for apps"
 	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
 
-$(LIBTOCK): $(SRC_DIR)apps/libs/tock.c $(SRC_DIR)apps/libs/tock.h
-	@echo "Building libtock"
+$(LIBTOCK): $(SRC_DIR)apps/libs/tock.c $(SRC_DIR)apps/libs/tock.h | $(BUILD_APP_DIR)
+	@echo "Building libtock for apps"
 	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
 
-$(BUILD_DIR)/apps/crt1.o: $(SRC_DIR)apps/libs/crt1.c
-	@echo "Building app crt1.o"
+$(BUILD_APP_DIR)/crt1.o: $(SRC_DIR)apps/libs/crt1.c | $(BUILD_APP_DIR)
+	@echo "Building crt1 for apps"
 	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
 
-$(BUILD_DIR)/apps/sys.o: $(SRC_DIR)apps/libs/sys.c
-	@echo "Building apps libc compat"
+$(BUILD_APP_DIR)/sys.o: $(SRC_DIR)apps/libs/sys.c | $(BUILD_APP_DIR)
+	@echo "Building libc stubs for apps"
 	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<

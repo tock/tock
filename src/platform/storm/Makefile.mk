@@ -5,6 +5,8 @@ SDB_VERSION=$(shell git show-ref -s HEAD)
 SDB_NAME=storm.rs
 SDB_DESCRIPTION="An OS for the storm"
 
+JLINK_EXE ?= JLinkExe
+
 $(BUILD_DIR)/libplatform.rlib: $(call rwildcard,$(SRC_DIR)platform/storm,*.rs) $(BUILD_DIR)/libcore.rlib $(BUILD_DIR)/libhil.rlib $(BUILD_DIR)/libsam4l.rlib $(BUILD_DIR)/libdrivers.rlib
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) $(SRC_DIR)platform/storm/lib.rs
@@ -12,6 +14,10 @@ $(BUILD_DIR)/libplatform.rlib: $(call rwildcard,$(SRC_DIR)platform/storm,*.rs) $
 $(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o $(APP_BINS)
 	@echo "Linking $@"
 	@$(CC) $(LDFLAGS) -T$(LOADER) $^ -o $@ -ffreestanding -nostdlib -lc -lgcc
+
+$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
+	@echo "Flattening $< to $@..."
+	@$(TOOLCHAIN)objcopy -O binary $< $@
 
 $(BUILD_DIR)/%.sdb: $(BUILD_DIR)/%.elf
 	@echo "Packing SDB..."
@@ -28,3 +34,6 @@ rebuild-apps: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o $(APP_
 program: $(BUILD_DIR)/main.sdb
 	$(SLOAD) flash $(BUILD_DIR)/main.sdb
 
+.PHONY: jlink-program
+program-jlink: $(BUILD_DIR)/main.bin
+	@$(JLINK_EXE) $(SRC_DIR)platform/storm/prog.jlink

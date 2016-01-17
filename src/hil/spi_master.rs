@@ -18,7 +18,7 @@ pub enum ClockPhase {SampleLeading, SampleTrailing}
 
 pub trait SpiCallback {
     /// Called when a read/write operation finishes
-    fn read_write_done(&'static self); 
+    fn read_write_done(&'static self);
 }
 /// The `SpiMaster` trait for interacting with SPI slave
 /// devices at a byte or buffer level.
@@ -62,13 +62,13 @@ pub trait SpiMaster {
     fn is_busy(&self) -> bool;
 
     /// Perform an asynchronous read/write operation, whose
-    /// completion is signaled by invoking SpiCallback on 
+    /// completion is signaled by invoking SpiCallback on
     /// the initialzied client. write_buffer must be Some,
     /// read_buffer may be None. If read_buffer is Some, the
     /// length of the operation is the minimum of the size of
     /// the two buffers.
-    fn read_write_bytes(&self, 
-                        mut write_buffer: Option<&'static mut [u8]>, 
+    fn read_write_bytes(&self,
+                        mut write_buffer: Option<&'static mut [u8]>,
                         mut read_buffer: Option<&'static mut [u8]>,
                         len: usize) -> bool;
     fn write_byte(&self, val: u8);

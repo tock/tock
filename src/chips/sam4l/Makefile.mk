@@ -13,7 +13,7 @@ $(BUILD_DIR)/libsam4l.rlib: $(call rwildcard,$(SRC_DIR)chips/sam4l,*.rs) $(BUILD
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) $(SRC_DIR)chips/sam4l/lib.rs
 
-$(BUILD_DIR)/crt1.o: $(SRC_DIR)chips/sam4l/crt1.c
+$(BUILD_DIR)/crt1.o: $(SRC_DIR)chips/sam4l/crt1.c | $(BUILD_DIR)
 	@echo "Building $@"
 	@$(CC) $(CFLAGS) -c $< -o $@ -lc -lgcc
 

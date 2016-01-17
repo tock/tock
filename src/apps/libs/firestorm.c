@@ -12,6 +12,10 @@ int gpio_set(unsigned int pin) {
   return command(1, 2, pin);
 }
 
+int gpio_clear(unsigned int pin) {
+  return command(1, 3, pin);
+}
+
 static CB_TYPE putstr_cb(int _x, int _y, int _z, void* str) {
   free(str);
   return PUTSTR;
