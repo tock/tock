@@ -9,3 +9,4 @@ extern crate hil;
 pub mod gpio;
 pub mod console;
 pub mod tmp006;
+pub mod spi;

@@ -18,6 +18,7 @@ pub struct Firestorm {
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 14]>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice>,
+    spi: &'static drivers::spi::Spi<'static, sam4l::spi_dma::Spi>,
 }
 
 #[allow(unused_variables,dead_code)]
@@ -63,6 +64,7 @@ impl Firestorm {
             0 => f(Some(self.console)),
             1 => f(Some(&self.gpio)),
             2 => f(Some(self.tmp006)),
+            3 => f(Some(self.spi)),
             _ => f(None)
         }
     }
@@ -78,6 +80,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static mut MUX_ALARM_BUF : [u8; 256] = [0; 256];
     static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
     static mut TMP006_BUF : [u8; 1028] = [0; 1028];
+    static mut SPI_BUF: [u8; 512] = [0; 512];
 
     pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); 
     /* TODO(alevy): replace above line with this. Currently, over allocating to make development
@@ -96,6 +99,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
    
     let console : &mut drivers::console::Console<sam4l::usart::USART> = mem::transmute(&mut CONSOLE_BUF);
     *console = drivers::console::Console::new(&mut sam4l::usart::USART3);
+    sam4l::usart::USART3.set_client(&*console);
 
     let mut mux_alarm : &mut MuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut MUX_ALARM_BUF);
     *mux_alarm = MuxAlarm::new(ast);
@@ -103,7 +107,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     let mut virtual_alarm : &mut VirtualMuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut VIRT_ALARM_BUF);
     *virtual_alarm = VirtualMuxAlarm::new(mux_alarm);
-
     let mut timer : &mut SingleTimer<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>> = mem::transmute(&mut TIMER_BUF);
     *timer = SingleTimer::new(virtual_alarm);
     virtual_alarm.set_client(timer);
@@ -113,7 +116,13 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     timer.set_client(tmp006);
 
-    sam4l::usart::USART3.set_client(&*console);
+    let spi : &mut drivers::spi::Spi<sam4l::spi_dma::Spi> = mem::transmute(&mut SPI_BUF); 
+    {
+      *spi = drivers::spi::Spi::new(&mut sam4l::spi_dma::SPI);
+      sam4l::spi_dma::SPI.init(spi as &hil::spi_master::SpiCallback);
+      sam4l::spi_dma::SPI.enable();
+    }
+
 
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
@@ -127,7 +136,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &mut sam4l::gpio::PA[16], &mut sam4l::gpio::PA[13]
             , &mut sam4l::gpio::PA[11], &mut sam4l::gpio::PA[10]
             , &mut sam4l::gpio::PA[12], &mut sam4l::gpio::PC[09]]),
-        tmp006: &*tmp006
+        tmp006: &*tmp006,
+        spi: &*spi,
     };
     
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
