@@ -270,8 +270,8 @@ impl spi_master::SpiMaster for Spi {
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,
-                        write_buffer:  Option<&'static mut [u8]>,
-                        read_buffer: Option<&'static mut [u8]>,
+                        write_buffer:  Option<&mut [u8]>,
+                        read_buffer: Option<&mut [u8]>,
                         len: usize) -> bool {
         let writing = write_buffer.is_some();
         let reading = read_buffer.is_some();

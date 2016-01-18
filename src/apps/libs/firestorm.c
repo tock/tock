@@ -62,3 +62,6 @@ int tmp006_enable() {
   return command(2, 0, 0);
 }
 
+int spi_write(unsigned char byte) {
+  return command(3, 0, byte);
+}

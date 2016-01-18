@@ -218,7 +218,7 @@ impl DMAChannel {
     }
 
     pub fn do_xfer_buf(&self, pid: usize,
-                       buf: &'static mut [u8],
+                       buf: &mut [u8],
                        len: usize) {
         if len > buf.len() {
             return;

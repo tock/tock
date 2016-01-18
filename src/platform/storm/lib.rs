@@ -100,14 +100,19 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     timer.set_client(tmp006);
 
-    // pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); 
+    // Configure SPI pins: CLK, MISO, MOSI, CS3
+    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
     let spi : &mut drivers::spi::Spi<sam4l::spi::Spi> = mem::transmute(&mut SPI_BUF); 
     {
       *spi = drivers::spi::Spi::new(&mut sam4l::spi::SPI);
       sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
       sam4l::spi::SPI.enable();
     }
-
+    // The SPI clock is now enabled in Spi::enable
+    // pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); 
 
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
@@ -137,12 +142,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
     sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
-
-    // Configure SPI pins: CLK, MISO, MOSI, CS3
-    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
 
     // Uncommenting the following line will cause the device to write
     // [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then echo the 8 bytes read

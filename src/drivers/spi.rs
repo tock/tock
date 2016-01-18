@@ -1,6 +1,8 @@
 use core::cell::RefCell;
+use core::cell::Cell;
 use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
 use hil::spi_master::{SpiMaster,SpiCallback};
+use core::cmp;
 
 /* SPI operations are handled by coping into a kernel buffer for
  * writes and copying out of a kernel buffer for reads.
@@ -17,8 +19,8 @@ struct App {
     callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
-    len: usize,
-    index: usize,
+    len: Cell<usize>,
+    index: Cell<usize>,
 }
 
 pub struct Spi<'a, S: SpiMaster + 'a> {
@@ -39,6 +41,23 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
             kernel_write : [0u8; BUF_SIZE],
         }
     }
+
+    fn do_next_read_write(&self, app: &mut App) {
+        use core::slice::bytes::copy_memory;
+        let start = app.index.get();
+        let len = cmp::min(app.len.get() - app.index.get(), BUF_SIZE);
+        let end = start + len;
+        app.app_write.map(|mut buf| {
+            copy_memory(&buf.as_ref()[start .. end], &mut self.kernel_write);
+        });
+        let reading = app.app_read.is_some(); 
+        if reading {
+            self.spi_master.read_write_bytes(Some(&mut self.kernel_write), Some(&mut self.kernel_read), len);
+        } else {
+            self.spi_master.read_write_bytes(Some(&mut self.kernel_write), None, len);
+        }
+
+    }
 }
 
 impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
@@ -53,8 +72,8 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         callback: None,
                         app_read: Some(slice),
                         app_write: None,
-                        len: 0,
-                        index: 0,
+                        len: Cell::new(0),
+                        index: Cell::new(0),
                     })
                 } else {
                     appc.as_mut().map(|app| {
@@ -70,11 +89,11 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         callback: None,
                         app_read: None,
                         app_write: Some(slice),
-                        len: 0,
-                        index: 0,
+                        len: Cell::new(0),
+                        index: Cell::new(0),
                     })
                 } else {
-                    appc.as_mut().map(|app| app.app_write = Some(slice) );
+                    appc.as_mut().map(|app| app.app_write = Some(slice));
                 }
                 0
             }
@@ -92,11 +111,11 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         callback: Some(callback),
                         app_read: None,
                         app_write: None,
-                        len: 0,
-                        index: 0,
+                        len: Cell::new(0),
+                        index: Cell::new(0),
                     });
                 } else {
-                    app.as_mut().map(|a| a.callback = Some(callback) );
+                    app.as_mut().map(|a| a.callback = Some(callback));
                 }
                 0
             },
@@ -106,10 +125,33 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
 
     fn command(&self, cmd_num: usize, arg1: usize) -> isize {
         match cmd_num {
-            0 /* read_write */ => { 
-                self.spi_master.read_write_byte(arg1 as u8); 
-                1
+            0 /* read_write_byte */ => { 
+                self.spi_master.read_write_byte(arg1 as u8) as isize
             },
+            1 /* read_write_bytes */ => { 
+                let mut app = self.apps[0].borrow_mut();
+                if app.is_none() {
+                    return -1;
+                }
+                app.as_mut().map(|mut a| {
+                    // If no write buffer, return
+                    if a.app_write.is_none() {
+                        return -1;
+                    }
+                    // If write buffer too small, return
+                    a.app_write.as_mut().map(|w| {
+                        if w.len() < arg1 {
+                            return -1;
+                        }
+                        0
+                    });
+                    a.len.set(arg1);
+                    a.index.set(0);
+                    self.do_next_read_write(&mut a as &mut App);
+                    0
+                }); 
+                -1
+            }
             _ => -1
         }
     }
@@ -126,9 +168,9 @@ impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
     fn read_write_done(&self) {
         self.apps[0].borrow_mut().as_mut().map(|app| {
             app.callback.take().map(|mut cb| {
-                cb.schedule(app.len, 0, 0);
+                cb.schedule(app.len.get(), 0, 0);
             });
-            app.len = 0;
+            app.len.set(0);
         });
     }
 }
