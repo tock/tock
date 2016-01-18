@@ -9,7 +9,8 @@ extern crate hil;
 extern crate sam4l;
 
 use hil::Controller;
-use hil::timer::*;
+use drivers::timer::AlarmToTimer;
+use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 // Uncomment each module to test with respective commented out code block in
 // `init`
@@ -80,8 +81,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     let mut virtual_alarm : &mut VirtualMuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut VIRT_ALARM_BUF);
     *virtual_alarm = VirtualMuxAlarm::new(mux_alarm);
 
-    let mut timer : &mut SingleTimer<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>> = mem::transmute(&mut TIMER_BUF);
-    *timer = SingleTimer::new(virtual_alarm);
+    let mut timer : &mut AlarmToTimer<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>> = mem::transmute(&mut TIMER_BUF);
+    *timer = AlarmToTimer::new(virtual_alarm);
     virtual_alarm.set_client(timer);
 
     let tmp006 : &mut drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice> = mem::transmute(&mut TMP006_BUF);

@@ -6,6 +6,8 @@
 extern crate common;
 extern crate hil;
 
-pub mod gpio;
 pub mod console;
+pub mod gpio;
+pub mod timer;
 pub mod tmp006;
+pub mod virtual_alarm;
