@@ -115,7 +115,7 @@ impl Ast {
 
           // Select clock
           intrinsics::volatile_store(&mut (*self.regs).clock, (clock as u32) << 8);
-	  while self.clock_busy() {}
+          while self.clock_busy() {}
 
           // Re-enable clock
           let enb = intrinsics::volatile_load(&(*self.regs).clock) | 1;
@@ -241,7 +241,7 @@ impl Alarm for Ast {
     }
 
     fn get_alarm(&self) -> u32 {
-        unsafe { 
+        unsafe {
             intrinsics::volatile_load(&(*self.regs).ar0)
         }
     }
