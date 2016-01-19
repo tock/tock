@@ -2,10 +2,14 @@ use core::cell::Cell;
 use hil::alarm::{Alarm, AlarmClient};
 use hil::timer::{Timer, TimerClient};
 
+#[derive(Copy, Clone)]
+enum Schedule {
+    Oneshot,
+    Repeating { interval: u32 }
+}
+
 pub struct AlarmToTimer<'a, Alrm: Alarm + 'a> {
-    interval: Cell<u32>,
-    when: Cell<u32>,
-    repeat: Cell<bool>,
+    schedule: Cell<Schedule>,
     alarm: &'a Alrm,
     client: Cell<Option<&'a TimerClient>>
 }
@@ -13,9 +17,7 @@ pub struct AlarmToTimer<'a, Alrm: Alarm + 'a> {
 impl<'a, Alrm: Alarm> AlarmToTimer<'a, Alrm> {
     pub const fn new(alarm: &'a Alrm) -> AlarmToTimer<'a, Alrm> {
         AlarmToTimer {
-            interval: Cell::new(0),
-            when: Cell::new(0),
-            repeat: Cell::new(false),
+            schedule: Cell::new(Schedule::Oneshot),
             alarm: alarm,
             client: Cell::new(None)
         }
@@ -32,24 +34,16 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
     }
 
     fn oneshot(&self, interval: u32) {
+        self.schedule.set(Schedule::Oneshot);
+
         let when = interval.wrapping_add(self.alarm.now());
-
-        self.when.set(when);
-
-        self.interval.set(interval);
-        self.repeat.set(false);
-
         self.alarm.set_alarm(when);
     }
 
     fn repeat(&self, interval: u32) {
+        self.schedule.set(Schedule::Repeating {interval: interval});
+
         let when = interval.wrapping_add(self.alarm.now());
-
-        self.when.set(when);
-
-        self.interval.set(interval);
-        self.repeat.set(true);
-
         self.alarm.set_alarm(when);
     }
 }
@@ -57,17 +51,16 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
 impl<'a, Alrm: Alarm> AlarmClient for AlarmToTimer<'a, Alrm> {
     fn fired(&self) {
         let now = self.now();
-        let repeat = self.repeat.get();
-        if repeat {
-            let interval = self.interval.get();
-            let when = interval.wrapping_add(now);
 
-            self.when.set(when);
+        match self.schedule.get() {
+            Schedule::Oneshot => self.alarm.disable_alarm(),
 
-            self.alarm.set_alarm(when);
-        } else {
-            self.alarm.disable_alarm();
+            Schedule::Repeating { interval } => {
+                let when = interval.wrapping_add(now);
+                self.alarm.set_alarm(when);
+            }
         }
+
         self.client.get().map(|client| client.fired(now) );
     }
 }
