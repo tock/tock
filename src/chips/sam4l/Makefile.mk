@@ -1,3 +1,5 @@
+ARCH = cortex-m4
+
 RUSTC_FLAGS += -C opt-level=3 -Z no-landing-pads
 RUSTC_FLAGS += --target $(SRC_DIR)chips/sam4l/target.json
 RUSTC_FLAGS += -Ctarget-cpu=cortex-m4 -C relocation_model=static
