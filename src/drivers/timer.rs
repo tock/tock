@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use hil::{Callback, Driver, NUM_PROCS};
 use hil::alarm::{Alarm, AlarmClient};
 use hil::timer::{Timer, TimerClient};
 
@@ -62,6 +63,52 @@ impl<'a, Alrm: Alarm> AlarmClient for AlarmToTimer<'a, Alrm> {
         }
 
         self.client.get().map(|client| client.fired(now) );
+    }
+}
+
+#[derive(Copy, Clone)]
+struct TimerData {
+    t0: u32,
+    interval: u32,
+    repeating: bool,
+    callback: Callback
+}
+
+pub struct TimerDriver<'a, T: Timer + 'a> {
+    timer: &'a T,
+    app_timers: [Cell<Option<TimerData>>; NUM_PROCS]
+}
+
+impl<'a, T: Timer> Driver for TimerDriver<'a, T> {
+    fn subscribe(&self, subscribe_type: usize, callback: Callback) -> isize {
+        let interval = 115000;
+        match subscribe_type {
+            0 /* Oneshot */ => {
+                self.app_timers[callback.app_id().idx()].set(Some(TimerData {
+                    t0: self.timer.now(),
+                    interval: interval,
+                    repeating: false,
+                    callback: callback
+                }));
+                self.timer.oneshot(interval);
+                0
+            },
+            _ => -1
+        }
+    }
+}
+
+impl<'a, T: Timer> TimerClient for TimerDriver<'a, T> {
+    fn fired(&self, now: u32) {
+        for mtimer in self.app_timers.iter() {
+            mtimer.get().map(|timer| {
+                let elapsed = now.wrapping_sub(timer.t0);
+                if elapsed >= timer.interval {
+                    let mut cb = timer.callback;
+                    cb.schedule(now as usize, 0, 0);
+                }
+            });
+        }
     }
 }
 
