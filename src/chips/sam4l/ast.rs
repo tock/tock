@@ -58,6 +58,13 @@ impl Controller for Ast {
 
     fn configure(&self, client: &'static AlarmClient) {
         self.callback.set(Some(client));
+
+        self.select_clock(Clock::ClockRCSys);
+        self.set_prescalar(0);
+        self.enable_alarm_wake();
+        self.clear_alarm();
+
+        self.enable();
     }
 }
 
@@ -154,7 +161,7 @@ impl Ast {
         }
     }
 
-    pub fn disable_alarm_irq(&mut self) {
+    pub fn disable_alarm_irq(&self) {
         unsafe {
             intrinsics::volatile_store(&mut (*self.regs).idr, 1 << 8);
         }
@@ -186,6 +193,14 @@ impl Ast {
         }
     }
 
+    pub fn enable_alarm_wake(&self) {
+        while self.busy() {}
+        unsafe {
+            let wer = intrinsics::volatile_load(&mut (*self.regs).wer) | 1 << 8;
+            intrinsics::volatile_store(&mut (*self.regs).wer, wer);
+        }
+    }
+
     pub fn set_periodic_interval(&mut self, interval: u32) {
         while self.busy() {}
         unsafe {
@@ -201,7 +216,7 @@ impl Ast {
     }
 
 
-    pub fn set_counter(&mut self, value: u32) {
+    pub fn set_counter(&self, value: u32) {
         while self.busy() {}
         unsafe {
             intrinsics::volatile_store(&mut (*self.regs).cv, value);
@@ -225,8 +240,7 @@ impl Alarm for Ast {
     }
 
     fn disable_alarm(&self) {
-        self.disable();
-        self.clear_alarm();
+        self.disable_alarm_irq();
     }
 
     fn set_alarm(&self, tics: u32) {
