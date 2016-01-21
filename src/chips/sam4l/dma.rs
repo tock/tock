@@ -66,6 +66,7 @@ pub enum DMAChannelNum {
 /// *_RX means transfer data from peripheral to memory, *_TX means transfer data
 /// from memory to peripheral.
 #[allow(non_camel_case_types)]
+#[derive(Copy,Clone)]
 pub enum DMAPeripheral {
     USART0_RX      = 0,
     USART1_RX      = 1,
@@ -213,7 +214,7 @@ impl DMAChannel {
         });
     }
 
-    pub fn do_xfer(&self, pid: usize,
+    pub fn do_xfer(&self, pid: DMAPeripheral,
                        buf: &'static mut [u8],
                        len: usize) {
         if len > buf.len() {
@@ -223,7 +224,7 @@ impl DMAChannel {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
-        volatile_store(&mut registers.peripheral_select, pid);
+        volatile_store(&mut registers.peripheral_select, pid as usize);
         volatile_store(&mut registers.memory_address_reload,
                        &buf[0] as *const u8 as usize);
         volatile_store(&mut registers.transfer_counter_reload, len);
@@ -276,5 +277,19 @@ pub unsafe extern fn PDCA_2_Handler() {
     volatile_store(&mut registers.interrupt_disable, 0xffffffff);
     nvic::disable(nvic::NvicIdx::PDCA2);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA2);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn PDCA_3_Handler() {
+    use common::Queue;
+    use nvic;
+    use chip;
+
+    let registers : &mut DMARegisters =
+        mem::transmute(DMAChannels[3].registers);
+    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
+    nvic::disable(nvic::NvicIdx::PDCA3);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA3);
 }
 

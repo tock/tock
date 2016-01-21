@@ -50,6 +50,16 @@ enum GPIO_Pin_enum{
 #define P7      PA19
 #define P8      PA13
 
+// Give the BLE Serialization / UART layer a callback to call when
+// a packet is received and when a TX is finished.
+void nrf51822_serialization_subscribe (subscribe_cb cb);
+
+// Pass a buffer for the driver to write received UART bytes to.
+void nrf51822_serialization_setup_rx_buffer (char* rx, int rx_len);
+
+// Write a packet to the BLE Serialization connectivity processor.
+void nrf51822_serialization_write (char* tx, int tx_len);
+
 #ifdef __cplusplus
 }
 #endif
