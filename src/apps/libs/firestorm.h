@@ -4,6 +4,9 @@
 #include <unistd.h>
 #include "tock.h"
 
+// Pin definitions
+#define LED_0 0
+
 #ifdef __cplusplus
 extern "C" {
 #endif
