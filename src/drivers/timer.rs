@@ -79,6 +79,15 @@ pub struct TimerDriver<'a, T: Timer + 'a> {
     app_timers: [Cell<Option<TimerData>>; NUM_PROCS]
 }
 
+impl<'a, T: Timer> TimerDriver<'a, T> {
+    pub const fn new(timer: &'a T) -> TimerDriver<'a, T> {
+        TimerDriver {
+            timer: timer,
+            app_timers: [Cell::new(None); NUM_PROCS]
+        }
+    }
+}
+
 impl<'a, T: Timer> Driver for TimerDriver<'a, T> {
     fn subscribe(&self, subscribe_type: usize, callback: Callback) -> isize {
         let interval = 115000;
@@ -91,6 +100,16 @@ impl<'a, T: Timer> Driver for TimerDriver<'a, T> {
                     callback: callback
                 }));
                 self.timer.oneshot(interval);
+                0
+            },
+            1 /* Repeating */ => {
+                self.app_timers[callback.app_id().idx()].set(Some(TimerData {
+                    t0: self.timer.now(),
+                    interval: interval,
+                    repeating: true,
+                    callback: callback
+                }));
+                self.timer.repeat(interval);
                 0
             },
             _ => -1
