@@ -37,10 +37,15 @@ impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
     fn set_alarm(&self, when: u32) {
         let enabled = self.alarm.enabled.get();
         self.alarm.enabled.set(enabled + 1);
+
+        // If there are no other virtual alarms enabled, set the underlying
+        // alarm
         if enabled == 0 {
+            self.alarm.prev.set(self.alarm.alarm.now());
             self.alarm.alarm.set_alarm(when);
         }
         self.armed.set(true);
+        self.when.set(when);
     }
 
     fn get_alarm(&self) -> u32 {
@@ -56,6 +61,9 @@ impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
 
         let enabled = self.alarm.enabled.get() - 1;
         self.alarm.enabled.set(enabled);
+
+        // If there are not more enabled alarms, disable the underlying alarm
+        // completely.
         if enabled == 0 {
             self.alarm.alarm.disable_alarm();
         }
@@ -86,16 +94,17 @@ impl <'a, Alrm: Alarm> AlarmClient for VirtualMuxAlarm<'a, Alrm> {
     }
 }
 
-fn in_between(cur: u32, now: u32, prev: u32) -> bool {
-    if now >= prev {
-        cur <= now && cur >= prev
-    } else {
-        cur <= prev && cur >= now
-    }
+#[inline(never)]
+fn past_from_base(cur: u32, now: u32, prev: u32) -> bool {
+    cur.wrapping_sub(now) <= cur.wrapping_sub(prev)
 }
 
 impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
     fn fired(&self) {
+        // Disable the alarm. If there are remaining armed alarms at the end we
+        // will enable the alarm again via `set_alarm`
+        self.alarm.disable_alarm();
+
         let now = self.alarm.now();
         let mut next = None;
         let mut min_distance : u32 = u32::max_value();
@@ -105,10 +114,11 @@ impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
             match ocur {
                 None => break,
                 Some(cur) => {
-                    let should_fire = in_between(cur.when.get(),
+                    let should_fire = past_from_base(cur.when.get(),
                                                  now, self.prev.get());
                     if cur.armed.get() && should_fire {
                         cur.armed.set(false);
+                        self.enabled.set(self.enabled.get() - 1);
                         cur.fired();
                     } else {
                         let distance = cur.when.get().wrapping_sub(now);
@@ -122,14 +132,7 @@ impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
             }
         }
         self.prev.set(now);
-        match next {
-            None => {
-                self.alarm.disable_alarm();
-            },
-            Some(valrm) => {
-                self.alarm.set_alarm(valrm.when.get());
-            }
-        }
+        next.map(|valrm| self.alarm.set_alarm(valrm.when.get()));
     }
 }
 
