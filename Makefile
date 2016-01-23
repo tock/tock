@@ -8,8 +8,12 @@ BUILD_APP_DIR ?= $(BUILD_DIR)/apps
 
 # Default platform is the Storm (http://storm.rocks). Change to any platform in
 # the `platform` directory.
-PLATFORM ?= storm
-CHIP ?= sam4l
+ifeq ($(PLATFORM), nrf_pca10001)
+	CHIP = nrf51822
+else
+	PLATFORM = storm
+	CHIP = sam4l
+endif
 
 # Dummy all. The real one is in platform-specific Makefiles.
 all:	$(BUILD_DIR) $(BUILD_APP_DIR)
