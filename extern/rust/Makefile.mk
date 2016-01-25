@@ -12,7 +12,7 @@ $(EXTERN_DIR)rust/rustc/src/libcore/lib.rs: $(EXTERN_DIR)rust/rustc-$(RUSTC_VERS
 	@echo "Extracting $(<F)"
 	@rm -rf $(EXTERN_DIR)/rust/rustc
 	@mkdir -p $(EXTERN_DIR)/rust/rustc
-	@tar -C $(EXTERN_DIR)/rust/rustc -zx --strip-components=1 -f $^
+	@tar -C $(EXTERN_DIR)/rust/rustc -zx --strip-components=1 -f $^ --force-local
 	@touch $@ # Touch so lib.rs appears newer than tarball
 
 $(LIBCORE_DIR)/libcore.rlib: $(EXTERN_DIR)rust/rustc/src/libcore/lib.rs | $(BUILD_DIR)
