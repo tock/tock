@@ -1,4 +1,6 @@
 language: rust
+
+# If you change this, you must also change README and Common.mk
 rust:
   - nightly-2015-12-14
 

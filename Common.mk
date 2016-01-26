@@ -10,6 +10,7 @@ LD = $(TOOLCHAIN)ld
 
 
 # Validate rustc version
+# If you change this, you must also change README and .travis.yml
 RUSTC_VERSION := $(shell $(RUSTC) --version)
 ifneq ($(RUSTC_VERSION),rustc 1.7.0-nightly (110df043b 2015-12-13))
 $(warning Tock currently requires rustc version 1.7.0-nightly (110df043b 2015-12-13) exactly)
