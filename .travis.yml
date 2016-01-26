@@ -1,9 +1,6 @@
 language: rust
 rust:
-  - nightly
-matrix:
-  allow_failure:
-    - rust: nightly
+  - nightly-2015-12-14
 
 before_install:
   - sudo add-apt-repository ppa:terry.guo/gcc-arm-embedded -y
