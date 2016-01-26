@@ -8,10 +8,21 @@ CC = $(TOOLCHAIN)gcc
 CPP = $(TOOLCHAIN)g++
 LD = $(TOOLCHAIN)ld
 
+
+# Validate rustc version
+RUSTC_VERSION := $(shell $(RUSTC) --version)
+ifneq ($(RUSTC_VERSION),rustc 1.7.0-nightly (110df043b 2015-12-13))
+$(warning Tock currently requires rustc version 1.7.0-nightly (110df043b 2015-12-13) exactly)
+$(warning See the README for more information on installing different rustc versions)
+$(error Incorrect version of rustc)
+endif
+
+
 # Recursive wildcard function
 # http://blog.jgc.org/2011/07/gnu-make-recursive-wildcard-function.html
 rwildcard=$(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2) \
   $(filter $(subst *,%,$2),$d))
+
 
 # Default rlib compilation 
 .SECONDEXPANSION:
