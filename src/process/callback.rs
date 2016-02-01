@@ -18,7 +18,7 @@ impl AppId {
 
 #[derive(Clone, Copy)]
 pub struct Callback {
-    process_ptr: AppId,
+    app_id: AppId,
     appdata: usize,
     fn_ptr: NonZero<*mut ()>
 }
@@ -26,7 +26,7 @@ pub struct Callback {
 impl Callback {
     pub unsafe fn new(appid: AppId, appdata: usize, fn_ptr: *mut ()) -> Callback {
         Callback {
-            process_ptr: appid,
+            app_id: appid,
             appdata: appdata,
             fn_ptr: NonZero::new(fn_ptr)
         }
@@ -39,7 +39,11 @@ impl Callback {
             r2: r2,
             r3: self.appdata,
             pc: *self.fn_ptr as usize
-        }, self.process_ptr)
+        }, self.app_id)
+    }
+
+    pub fn app_id(&self) -> AppId {
+        self.app_id
     }
 }
 

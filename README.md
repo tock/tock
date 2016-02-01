@@ -32,7 +32,8 @@ $ curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly 
 Alternatively, you can use [multirust](https://github.com/brson/multirust):
 
 ```bash
-$ multirust update nightly-2015-12-14
+$ curl -sf https://raw.githubusercontent.com/brson/multirust/master/blastoff.sh | sh
+$ multirust override nightly-2015-12-14
 ```
 
 #### `arm-none-eabi` toolchain

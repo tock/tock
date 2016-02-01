@@ -16,6 +16,10 @@ int gpio_clear(unsigned int pin) {
   return command(1, 3, pin);
 }
 
+int gpio_toggle(unsigned int pin) {
+  return command(1, 4, pin);
+}
+
 static CB_TYPE putstr_cb(int _x, int _y, int _z, void* str) {
   free(str);
   return PUTSTR;
@@ -62,6 +66,15 @@ int tmp006_enable() {
   return command(2, 0, 0);
 }
 
+int timer_oneshot_subscribe(subscribe_cb cb, void *userdata) {
+  return subscribe(3, 0, cb, userdata);
+}
+
+int timer_repeating_subscribe(subscribe_cb cb, void *userdata) {
+  return subscribe(3, 1, cb, userdata);
+}
+
 int spi_write(unsigned char byte) {
   return command(3, 0, byte);
 }
+

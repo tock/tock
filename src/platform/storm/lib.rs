@@ -11,6 +11,8 @@ extern crate sam4l;
 use hil::Controller;
 use hil::timer::*;
 use hil::spi_master::SpiMaster;
+use drivers::timer::AlarmToTimer;
+use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 // Uncomment each module to test with respective commented out code block in
 // `init`
@@ -30,6 +32,8 @@ pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
     gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 14]>,
+    timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
+                                VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
 }
@@ -51,54 +55,38 @@ impl Firestorm {
             0 => f(Some(self.console)),
             1 => f(Some(&self.gpio)),
             2 => f(Some(self.tmp006)),
-            3 => f(Some(self.spi)),
+            3 => f(Some(self.timer)),
+            4 => f(Some(self.spi)),
             _ => f(None)
         }
     }
 }
 
+macro_rules! static_init {
+   ($V:ident : $T:ty = $e:expr) => {
+        let $V : &mut $T = {
+            // Waiting out for size_of to be available at compile-time to avoid
+            // hardcoding an abitrary large size...
+            static mut BUF : [u8; 1024] = [0; 1024];
+            let mut tmp : &mut $T = mem::transmute(&mut BUF);
+            *tmp = $e;
+            tmp
+        };
+   }
+}
+
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
 
-    static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
-    static mut CONSOLE_BUF : [u8; 1024] = [0; 1024];
-    static mut TIMER_BUF : [u8; 1024] = [0; 1024];
-    static mut MUX_ALARM_BUF : [u8; 256] = [0; 256];
-    static mut VIRT_ALARM_BUF : [u8; 256] = [0; 256];
-    static mut TMP006_BUF : [u8; 1028] = [0; 1028];
-    static mut SPI_BUF: [u8; 512] = [0; 512];
-
-    /* TODO(alevy): replace above line with this. Currently, over allocating to make development
-     * easier, but should be obviated when `size_of` at compile time hits.
-    static mut FIRESTORM_BUF : [u8; 192] = [0; 192];
-    // Just test that FIRESTORM_BUF is correct size
-    // (will throw compiler error if too large or small)
-    let _ : Firestorm = mem::transmute(FIRESTORM_BUF);
-    let _ : Firestorm = mem::transmute(CONSOLE_BUF);
-    */
+    static_init!(console : drivers::console::Console<sam4l::usart::USART> =
+                    drivers::console::Console::new(&sam4l::usart::USART3));
+    sam4l::usart::USART3.set_client(console);
 
     let ast = &sam4l::ast::AST;
-    ast.select_clock(sam4l::ast::Clock::ClockRCSys);
-    ast.set_prescalar(0);
-    ast.clear_alarm();
 
-    let console : &mut drivers::console::Console<sam4l::usart::USART> = mem::transmute(&mut CONSOLE_BUF);
-    *console = drivers::console::Console::new(&sam4l::usart::USART3);
-
-    let mut mux_alarm : &mut MuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut MUX_ALARM_BUF);
-    *mux_alarm = MuxAlarm::new(ast);
+    static_init!(mux_alarm : MuxAlarm<'static, sam4l::ast::Ast> =
+                    MuxAlarm::new(&sam4l::ast::AST));
     ast.configure(mux_alarm);
-
-    let mut virtual_alarm : &mut VirtualMuxAlarm<'static, sam4l::ast::Ast> = mem::transmute(&mut VIRT_ALARM_BUF);
-    *virtual_alarm = VirtualMuxAlarm::new(mux_alarm);
-    let mut timer : &mut SingleTimer<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>> = mem::transmute(&mut TIMER_BUF);
-    *timer = SingleTimer::new(virtual_alarm);
-    virtual_alarm.set_client(timer);
-
-    let tmp006 : &mut drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice> = mem::transmute(&mut TMP006_BUF);
-    *tmp006 = drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, timer);
-
-    timer.set_client(tmp006);
 
     // Configure SPI pins: CLK, MISO, MOSI, CS3
     sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
@@ -111,11 +99,30 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
       sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
       sam4l::spi::SPI.enable();
     }
-    // The SPI clock is now enabled in Spi::enable
-    // pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI)); 
+    static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
+                    VirtualMuxAlarm::new(mux_alarm));
+    static_init!(vtimer1 : AlarmToTimer<'static,
+                                VirtualMuxAlarm<'static, sam4l::ast::Ast>> =
+                            AlarmToTimer::new(virtual_alarm1));
+    virtual_alarm1.set_client(vtimer1);
+    static_init!(tmp006 : drivers::tmp006::TMP006<'static,
+                                sam4l::i2c::I2CDevice> =
+                    drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, vtimer1));
+    vtimer1.set_client(tmp006);
 
-    let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
-    *firestorm = Firestorm {
+
+    static_init!(virtual_alarm2 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
+                    VirtualMuxAlarm::new(mux_alarm));
+    static_init!(vtimer2 : AlarmToTimer<'static,
+                                VirtualMuxAlarm<'static, sam4l::ast::Ast>> =
+                            AlarmToTimer::new(virtual_alarm2));
+    virtual_alarm2.set_client(vtimer2);
+    static_init!(timer : drivers::timer::TimerDriver<AlarmToTimer<'static,
+                                VirtualMuxAlarm<'static, sam4l::ast::Ast>>> =
+                            drivers::timer::TimerDriver::new(vtimer2));
+    vtimer2.set_client(timer);
+
+    static_init!(firestorm : Firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
         console: &*console,
         gpio: drivers::gpio::GPIO::new(
@@ -126,9 +133,10 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &sam4l::gpio::PA[16], &sam4l::gpio::PA[13]
             , &sam4l::gpio::PA[11], &sam4l::gpio::PA[10]
             , &sam4l::gpio::PA[12], &sam4l::gpio::PC[09]]),
-        tmp006: &*tmp006,
+        timer: timer,
+        tmp006: &*tmp006
         spi: &*spi,
-    };
+    });
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
         //client: &console,
