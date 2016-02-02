@@ -1,6 +1,7 @@
 # Compiler binary defaults. Specific compiler flags in each platform specific
 # Makefile.
 RUSTC ?= rustc
+RUSTDOC ?= rustdoc
 RUSTC_FLAGS += -L$(BUILD_DIR) # Common regardless of platform
 TOOLCHAIN = arm-none-eabi-
 OBJCOPY ?= $(TOOLCHAIN)objcopy
