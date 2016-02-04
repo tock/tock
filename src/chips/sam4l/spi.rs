@@ -64,6 +64,8 @@ pub struct Spi {
     // to correctly issue completion event only after both complete.
     reading: Cell<bool>,
     writing: Cell<bool>,
+    read_buffer: Option<&'static mut [u8]>,
+    write_buffer: Option<&'static mut [u8]>,
 }
 
 pub static mut SPI: Spi = Spi::new();
@@ -77,7 +79,9 @@ impl Spi {
             dma_read:  None,
             dma_write: None,
             reading: Cell::new(false),
-            writing: Cell::new(false)
+            writing: Cell::new(false),
+            read_buffer: None,
+            write_buffer: None,
         }
     }
 
@@ -270,8 +274,8 @@ impl spi_master::SpiMaster for Spi {
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,
-                        write_buffer:  Option<&mut [u8]>,
-                        read_buffer: Option<&mut [u8]>,
+                        write_buffer:  Option<&'static mut [u8]>,
+                        read_buffer: Option<&'static mut [u8]>,
                         len: usize) -> bool {
         let writing = write_buffer.is_some();
         let reading = read_buffer.is_some();
@@ -365,7 +369,7 @@ impl spi_master::SpiMaster for Spi {
 }
 
 impl DMAClient for Spi {
-    fn xfer_done(&mut self, pid: usize) {
+    fn xfer_done(&mut self, pid: usize, buf: &'static mut[u8]) {
         // I don't know if there are ordering guarantees on the read and
         // write interrupts, guessing not, so issue the callback when both
         // reading and writing are complete. In practice it seems like
@@ -377,15 +381,21 @@ impl DMAClient for Spi {
         if pid == 4  { // SPI RX
            // self.dma_read.as_ref().map(|dma| dma.disable());
             self.reading.set(false);
+            self.read_buffer = Some(buf);
             if !self.reading.get() && !self.writing.get() {
-                self.callback.as_ref().map(|cb| cb.read_write_done());
+                let rb = self.read_buffer.take();
+                let wb = self.read_buffer.take();
+                self.callback.as_ref().map(|cb| cb.read_write_done(wb, rb));
             }
         }
-        if pid == 22 { // SPI TX
+        else if pid == 22 { // SPI TX
            // self.dma_write.as_ref().map(|dma| dma.disable());
             self.writing.set(false);
+            self.write_buffer = Some(buf);
             if !self.reading.get() && !self.writing.get() {
-                self.callback.as_ref().map(|cb| cb.read_write_done());
+                let rb = self.read_buffer.take();
+                let wb = self.read_buffer.take();
+                self.callback.as_ref().map(|cb| cb.read_write_done(wb, rb));
             }
         }
     }

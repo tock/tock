@@ -4,6 +4,7 @@ use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
 use hil::spi_master::{SpiMaster,SpiCallback};
 use core::cmp;
 
+
 /* SPI operations are handled by coping into a kernel buffer for
  * writes and copying out of a kernel buffer for reads.
  *
@@ -13,50 +14,63 @@ use core::cmp;
  * operation, while the index variable keeps track of the 
  * index an ongoing operation is at in the buffers. */
 
-const BUF_SIZE : usize = 128;
-
 struct App {
-    callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
+    callback:  Option<Callback>,
+    app_read:  Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
-    len: Cell<usize>,
-    index: Cell<usize>,
+    len:       Cell<usize>,
+    index:     Cell<usize>,
 }
 
 pub struct Spi<'a, S: SpiMaster + 'a> {
-    spi_master: &'a mut S,
-    busy:  bool,
-    apps: [RefCell<Option<App>>; NUM_PROCS],
-    kernel_read: [u8; BUF_SIZE],
-    kernel_write: [u8; BUF_SIZE],
+    spi_master:   &'a mut S,
+    busy:         Cell<bool>,
+    apps:         [RefCell<Option<App>>; NUM_PROCS],
+    kernel_read:  RefCell<Option<&'static mut [u8]>>,
+    kernel_write: RefCell<Option<&'static mut [u8]>>,
+    kernel_len:   Cell<usize>
 }
 
 impl<'a, S: SpiMaster> Spi<'a, S> {
     pub fn new(spi_master: &'a mut S) -> Spi<S> {
         Spi {
             spi_master: spi_master,
-            busy: false,
+            busy: Cell::new(false),
             apps: [RefCell::new(None)],
-            kernel_read : [0u8; BUF_SIZE],
-            kernel_write : [0u8; BUF_SIZE],
+            kernel_len: Cell::new(0),
+            kernel_read : RefCell::new(None),
+            kernel_write : RefCell::new(None),
         }
+    }
+
+    pub fn config_buffers(&mut self,
+                          read: &'static mut [u8],
+                          write: &'static mut [u8]) {
+        let len = cmp::min(read.len(), write.len());
+        self.kernel_len.set(len);
+        self.kernel_read = RefCell::new(Some(read));
+        self.kernel_write = RefCell::new(Some(write));
     }
 
     fn do_next_read_write(&self, app: &mut App) {
         use core::slice::bytes::copy_memory;
         let start = app.index.get();
-        let len = cmp::min(app.len.get() - app.index.get(), BUF_SIZE);
-        let end = start + len;
-        app.app_write.map(|mut buf| {
-            copy_memory(&buf.as_ref()[start .. end], &mut self.kernel_write);
-        });
-        let reading = app.app_read.is_some(); 
-        if reading {
-            self.spi_master.read_write_bytes(Some(&mut self.kernel_write), Some(&mut self.kernel_read), len);
-        } else {
-            self.spi_master.read_write_bytes(Some(&mut self.kernel_write), None, len);
+        let len = cmp::min(app.len.get() - start, self.kernel_len.get());
+        let end = start + len;  
+        let mut kwrite = self.kernel_write.borrow_mut();
+        let mut kread  = self.kernel_read.borrow_mut();
+        {
+          let src = app.app_write.as_mut().unwrap();
+          let mut kwbuf = kwrite.as_mut().unwrap();
+          copy_memory(&src.as_ref()[start .. end], kwbuf);
         }
-
+        let reading = app.app_read.is_some();
+        if reading {
+            let mut kwrite = self.kernel_read.borrow_mut();
+            self.spi_master.read_write_bytes(kwrite.take(), kread.take(), len);
+        } else {
+            self.spi_master.read_write_bytes(kwrite.take(), None, len);
+        }
     }
 }
 
@@ -124,6 +138,9 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     }
 
     fn command(&self, cmd_num: usize, arg1: usize) -> isize {
+        if self.busy.get() {
+            return -1;
+        }
         match cmd_num {
             0 /* read_write_byte */ => { 
                 self.spi_master.read_write_byte(arg1 as u8) as isize
@@ -147,6 +164,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                     });
                     a.len.set(arg1);
                     a.index.set(0);
+                    self.busy.set(true);
                     self.do_next_read_write(&mut a as &mut App);
                     0
                 }); 
@@ -157,6 +175,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     }
 }
 
+#[allow(dead_code)]
 fn each_some<'a, T, I, F>(lst: I, f: F)
         where T: 'a, I: Iterator<Item=&'a RefCell<Option<T>>>, F: Fn(&mut T) {
     for item in lst {
@@ -165,9 +184,14 @@ fn each_some<'a, T, I, F>(lst: I, f: F)
 }
 
 impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
-    fn read_write_done(&self) {
+    fn read_write_done(&self, 
+                       writebuf: Option<&'static mut [u8]>, 
+                       readbuf:  Option<&'static mut [u8]>) {
+        *self.kernel_read.borrow_mut() =  readbuf;
+        *self.kernel_write.borrow_mut() = writebuf;
         self.apps[0].borrow_mut().as_mut().map(|app| {
             app.callback.take().map(|mut cb| {
+                self.busy.set(false);
                 cb.schedule(app.len.get(), 0, 0);
             });
             app.len.set(0);

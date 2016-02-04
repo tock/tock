@@ -9,7 +9,6 @@ extern crate hil;
 extern crate sam4l;
 
 use hil::Controller;
-use hil::timer::*;
 use hil::spi_master::SpiMaster;
 use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -93,12 +92,12 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    let spi : &mut drivers::spi::Spi<sam4l::spi::Spi> = mem::transmute(&mut SPI_BUF); 
-    {
-      *spi = drivers::spi::Spi::new(&mut sam4l::spi::SPI);
-      sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
-      sam4l::spi::SPI.enable();
-    }
+//    let spi : &mut drivers::spi::Spi<sam4l::spi::Spi> = mem::transmute(&mut SPI_BUF); 
+//    {
+//      *spi = drivers::spi::Spi::new(&mut sam4l::spi::SPI);
+//      sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
+//      sam4l::spi::SPI.enable();
+//    }
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
                     VirtualMuxAlarm::new(mux_alarm));
     static_init!(vtimer1 : AlarmToTimer<'static,
@@ -122,6 +121,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                             drivers::timer::TimerDriver::new(vtimer2));
     vtimer2.set_client(timer);
 
+    static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
+                      drivers::spi::Spi::new(&mut sam4l::spi::SPI));
+    sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
+    sam4l::spi::SPI.enable();
+
     static_init!(firestorm : Firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
         console: &*console,
@@ -134,7 +138,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &sam4l::gpio::PA[11], &sam4l::gpio::PA[10]
             , &sam4l::gpio::PA[12], &sam4l::gpio::PC[09]]),
         timer: timer,
-        tmp006: &*tmp006
+        tmp006: &*tmp006,
         spi: &*spi,
     });
 

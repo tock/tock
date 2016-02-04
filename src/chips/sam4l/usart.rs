@@ -176,7 +176,7 @@ impl USART {
 }
 
 impl DMAClient for USART {
-    fn xfer_done(&mut self, _pid: usize) {
+    fn xfer_done(&mut self, _pid: usize, _buf: &mut[u8]) {
         self.dma.as_mut().map(|dma| dma.disable());
         self.client.as_ref().map(|c| c.write_done() );
     }
@@ -208,7 +208,7 @@ impl uart::UART for USART {
     fn send_bytes<S>(&self, bytes: AppSlice<S, u8>) {
         self.dma.as_ref().map(|dma| {
             dma.enable();
-            dma.do_xfer(21, bytes);
+            //dma.do_xfer(21, bytes);
         });
     }
 
