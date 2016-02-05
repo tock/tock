@@ -50,10 +50,6 @@ pub trait Driver {
     /// read from a sensor, and asynchronously respond to the application by
     /// passing the result to the application via the callback.
     ///
-    /// # Conventions
-    ///
-    /// ## Functionality
-    ///
     /// Drivers should allow each application to register a single callback for
     /// each minor number subscription. Thus, a second call to subscribe from
     /// the same application would replace a previous callback.
@@ -62,8 +58,6 @@ pub trait Driver {
     /// itself. For example, a timer driver exposes only one timer to each
     /// application, and the application is responsible for virtualizing that
     /// timer if it needs to.
-    ///
-    /// ## Return value
     ///
     /// The driver should signal success or failure through the sign of the
     /// return value from `subscribe`. A negative return value signifies an
@@ -76,6 +70,14 @@ pub trait Driver {
     }
 
     /// `command` instructs a driver to perform some action synchronously.
+    ///
+    /// The return value should reflect the result of an action. For example,
+    /// enabling/disabling a peripheral should return a success or error code.
+    /// Reading the current system time should return the time as an integer.
+    ///
+    /// Commands should not execute long running tasks synchronously. However,
+    /// commands might "kick-off" asynchronous tasks in coordination with a
+    /// `subscribe` call.
     #[allow(unused_variables)]
     fn command(&self, minor_num: usize, r2: usize) -> isize {
         -1
@@ -83,6 +85,10 @@ pub trait Driver {
 
     /// `allow` lets an application give the driver access to a buffer in the
     /// application's memory.
+    ///
+    /// The buffer is __shared__ between the application and driver, meaning the
+    /// driver should not rely on the contents of the buffer to remain
+    /// unchanged.
     #[allow(unused_variables)]
     fn allow(&self, app: AppId, minor_num: usize, slice: AppSlice<Shared, u8>) -> isize {
         -1
