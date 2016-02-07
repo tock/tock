@@ -13,11 +13,12 @@ use hil::spi_master::SpiMaster;
 use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
-// Uncomment each module to test with respective commented out code block in
-// `init`
-//
+// HAL unit tests. To enable a particular unit test, uncomment
+// the module here and uncomment the call to start the test in
+// the init function below.
 //mod gpio_dummy;
-//mod spi_dummy;
+mod spi_dummy;
+
 #[allow(unused_variables,dead_code)]
 pub struct DummyCB {
     val: u8
@@ -87,17 +88,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                     MuxAlarm::new(&sam4l::ast::AST));
     ast.configure(mux_alarm);
 
-    // Configure SPI pins: CLK, MISO, MOSI, CS3
-    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
-//    let spi : &mut drivers::spi::Spi<sam4l::spi::Spi> = mem::transmute(&mut SPI_BUF); 
-//    {
-//      *spi = drivers::spi::Spi::new(&mut sam4l::spi::SPI);
-//      sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
-//      sam4l::spi::SPI.enable();
-//    }
+
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
                     VirtualMuxAlarm::new(mux_alarm));
     static_init!(vtimer1 : AlarmToTimer<'static,
@@ -121,6 +112,12 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                             drivers::timer::TimerDriver::new(vtimer2));
     vtimer2.set_client(timer);
 
+    // Configure SPI pins: CLK, MISO, MOSI, CS3
+    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // Initialize and enable SPI HAL
     static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
                       drivers::spi::Spi::new(&mut sam4l::spi::SPI));
     sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
@@ -158,7 +155,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // Uncommenting the following line will cause the device to write
     // [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then echo the 8 bytes read
     // from the slave continuously.
-    //spi_dummy::spi_dummy_test();
+    spi_dummy::spi_dummy_test();
 
     // Uncommenting the following line will toggle the LED whenever the value of
     // Firestorm's pin 8 changes value (e.g., connect a push button to pin 8 and

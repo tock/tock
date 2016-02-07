@@ -15,7 +15,9 @@ pub static mut buf2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
 
 impl spi_master::SpiCallback for DummyCB {
 #[allow(unused_variables,dead_code)]
-    fn read_write_done(&'static self) {
+    fn read_write_done(&'static self, 
+                       write: Option<&'static mut [u8]>,
+                       read: Option<&'static mut [u8]>) {
         unsafe {
             FLOP = !FLOP;
             let len: usize = buf1.len();
