@@ -33,7 +33,17 @@ include extern/Makefile.mk
 SRC_DIR = $(BASE_DIR)src/
 include src/Makefile.mk
 
-.PHONY: all clean clean-all
+.PHONY: doc all clean clean-all
+
+# Generates documentation for the kernel and selected architecture and platform.
+doc: $(BUILD_DIR)/main.o
+	@echo "Generating documentation..."
+	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)chips/$(CHIP)/lib.rs
+	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)common/lib.rs
+	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)drivers/lib.rs
+	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)hil/lib.rs
+	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)main/main.rs
+	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)platform/$(PLATFORM)/lib.rs
 
 # Removes compilation artifacts for Tock, but not external dependencies.
 clean:

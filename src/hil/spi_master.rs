@@ -1,6 +1,4 @@
 //! Traits and parameters for SPI master communication.
-//! Authors: Sam Crow <samcrow@uw.edu>
-//!          Philip Levis <pal@cs.stanfored.edu>
 
 use core::option::Option;
 

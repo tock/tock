@@ -1,3 +1,5 @@
+//! Hardware agnostic interfaces for counter-like resources (e.g. an AST).
+
 /// The `Alarm` trait keeps track of a counter such as a hardware AST.
 ///
 /// Alarms represent a resource that keeps track of time in some fixed unit
