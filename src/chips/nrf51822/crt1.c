@@ -53,10 +53,18 @@ void Reset_Handler(void)
 {
 	uint32_t *pSrc, *pDest;
 
-	/* Power on RAM blocks manually (see nRF51822-PAN v2.4, PAN #16). Note
-	 * that xxAA/xxAB variants have only two RAM blocks. For xxAC, change
-	 * to 0x0F. */
-	*((uint32_t volatile * ) 0x40000524) = 0x03;
+	/* Apply early initialization workarounds for anomalies documented on
+	 * nRF51822-PAN v2.4. Note that they have been validated only for xxAA
+	 * variant. For other variants, please refer to the applicable
+	 * nRF51822-PAN. */
+
+	/* Power on RAM blocks manually (PAN #16). Note that xxAA/xxAB variants
+	 * have only two RAM blocks. For xxAC, change to 0x0000000F. */
+	*((uint32_t volatile * ) 0x40000524) = 0x00000003;
+
+	/* Setup peripherals manually (PAN #26) */
+	*((uint32_t volatile * ) 0x40000504) = 0xC007FFDF;
+	*((uint32_t volatile * ) 0x40006C18) = 0x00008000;
 
 	/* Move the relocate segment
 	 * This assumes it is located after the
