@@ -18,7 +18,8 @@ pub trait SpiCallback {
     /// Called when a read/write operation finishes
     fn read_write_done(&'static self,
                        mut write_buffer: Option<&'static mut [u8]>,
-                       mut read_buffer: Option<&'static mut [u8]>);
+                       mut read_buffer: Option<&'static mut [u8]>,
+                       len: usize);
 }
 /// The `SpiMaster` trait for interacting with SPI slave
 /// devices at a byte or buffer level.

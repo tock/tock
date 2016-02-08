@@ -66,6 +66,7 @@ pub struct Spi {
     writing: Cell<bool>,
     read_buffer: Option<&'static mut [u8]>,
     write_buffer: Option<&'static mut [u8]>,
+    dma_length: Cell<usize>,
 }
 
 pub static mut SPI: Spi = Spi::new();
@@ -82,6 +83,7 @@ impl Spi {
             writing: Cell::new(false),
             read_buffer: None,
             write_buffer: None,
+            dma_length: Cell::new(0),
         }
     }
 
@@ -302,7 +304,7 @@ impl spi_master::SpiMaster for Spi {
         let buflen = if !reading {write_len}
                      else        {cmp::min(read_len, write_len)};
         let count = cmp::min(buflen, len);
-
+        self.dma_length.set(count);
         // The ordering of these operations matters; if you enable then
         // perform the operation, you can read a byte early on the SPI data register
         if reading {
@@ -385,7 +387,10 @@ impl DMAClient for Spi {
             if !self.reading.get() && !self.writing.get() {
                 let rb = self.read_buffer.take();
                 let wb = self.read_buffer.take();
-                self.callback.as_ref().map(|cb| cb.read_write_done(wb, rb));
+                let len = self.dma_length.get();
+                self.dma_length.set(0);
+                self.callback.as_ref().map(|cb| 
+                                           cb.read_write_done(wb, rb, len));
             }
         }
         else if pid == 22 { // SPI TX
@@ -395,7 +400,10 @@ impl DMAClient for Spi {
             if !self.reading.get() && !self.writing.get() {
                 let rb = self.read_buffer.take();
                 let wb = self.read_buffer.take();
-                self.callback.as_ref().map(|cb| cb.read_write_done(wb, rb));
+                let len = self.dma_length.get();
+                self.dma_length.set(0);
+                self.callback.as_ref().map(|cb| 
+                                           cb.read_write_done(wb, rb, len));
             }
         }
     }

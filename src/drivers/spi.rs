@@ -52,17 +52,20 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
         self.kernel_write = RefCell::new(Some(write));
     }
 
+    // Assumes checks for busy/etc. already done
+    // Updates app.index to be index + length of op 
     fn do_next_read_write(&self, app: &mut App) {
-        use core::slice::bytes::copy_memory;
         let start = app.index.get();
         let len = cmp::min(app.len.get() - start, self.kernel_len.get());
-        let end = start + len;  
+        let end = start + len;
+        app.index.set(end);
         let mut kwrite = self.kernel_write.borrow_mut();
         let mut kread  = self.kernel_read.borrow_mut();
         {
-          let src = app.app_write.as_mut().unwrap();
-          let mut kwbuf = kwrite.as_mut().unwrap();
-          copy_memory(&src.as_ref()[start .. end], kwbuf);
+            use core::slice::bytes::copy_memory;
+            let src = app.app_write.as_mut().unwrap();
+            let mut kwbuf = kwrite.as_mut().unwrap();
+            copy_memory(&src.as_ref()[start .. end], kwbuf);
         }
         let reading = app.app_read.is_some();
         if reading {
@@ -186,15 +189,31 @@ fn each_some<'a, T, I, F>(lst: I, f: F)
 impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
     fn read_write_done(&self, 
                        writebuf: Option<&'static mut [u8]>, 
-                       readbuf:  Option<&'static mut [u8]>) {
-        *self.kernel_read.borrow_mut() =  readbuf;
-        *self.kernel_write.borrow_mut() = writebuf;
+                       readbuf:  Option<&'static mut [u8]>,
+                       length: usize) {
         self.apps[0].borrow_mut().as_mut().map(|app| {
-            app.callback.take().map(|mut cb| {
-                self.busy.set(false);
-                cb.schedule(app.len.get(), 0, 0);
-            });
-            app.len.set(0);
+            if app.app_read.is_some() {
+                use core::slice::bytes::copy_memory;
+                let src = readbuf.as_ref().unwrap();
+                let dest = app.app_read.as_mut().unwrap(); 
+                let start = app.index.get() - length;
+                let end = start + length;
+                copy_memory(&src[0 .. length], &mut dest.as_mut()[start .. end]);
+            }
+
+            *self.kernel_read.borrow_mut() =  readbuf;
+            *self.kernel_write.borrow_mut() = writebuf;
+
+            if app.index.get() == app.len.get() {
+                app.callback.take().map(|mut cb| {
+                    self.busy.set(false);
+                    cb.schedule(app.len.get(), 0, 0);
+                });
+                app.len.set(0);
+                app.index.set(0);
+            } else {
+                self.do_next_read_write(app);
+            }
         });
     }
 }

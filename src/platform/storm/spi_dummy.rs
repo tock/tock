@@ -17,7 +17,8 @@ impl spi_master::SpiCallback for DummyCB {
 #[allow(unused_variables,dead_code)]
     fn read_write_done(&'static self, 
                        write: Option<&'static mut [u8]>,
-                       read: Option<&'static mut [u8]>) {
+                       read: Option<&'static mut [u8]>,
+                       len: usize) {
         unsafe {
             FLOP = !FLOP;
             let len: usize = buf1.len();
