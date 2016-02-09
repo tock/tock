@@ -1,7 +1,7 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(const_fn)]
+#![feature(const_fn,lang_items,core_intrinsics)]
 
 extern crate common;
 extern crate drivers;
@@ -147,5 +147,41 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     firestorm.console.initialize();
 
     firestorm
+}
+
+use core::fmt::Arguments;
+
+#[cfg(not(test))]
+#[lang="panic_fmt"]
+#[no_mangle]
+pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
+    _file: &'static str, _line: usize) -> ! {
+    use hil::uart::UART;
+    use core::fmt::*;
+
+    sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
+        baud_rate: 115200,
+        data_bits: 8,
+        parity: hil::uart::Parity::None
+    });
+    sam4l::usart::USART3.enable_tx();
+
+    struct Writer;
+
+    impl Write for Writer {
+        fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
+            unsafe {
+                for c in s.bytes() {
+                    sam4l::usart::USART3.send_byte(c);
+                }
+            }
+            Ok(())
+        }
+    }
+
+    let _ = Writer.write_fmt(format_args!("Kernel panic... Sorry!\r\n"));
+
+    loop {
+    }
 }
 

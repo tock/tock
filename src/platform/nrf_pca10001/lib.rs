@@ -1,6 +1,7 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
+#![feature(lang_items,core_intrinsics)]
 
 extern crate drivers;
 extern crate hil;
@@ -57,3 +58,13 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     firestorm
 }
+
+use core::fmt::Arguments;
+#[cfg(not(test))]
+#[lang="panic_fmt"]
+#[no_mangle]
+pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
+    _file: &'static str, _line: usize) -> ! {
+    loop {}
+}
+
