@@ -1,3 +1,6 @@
+# Support
+include $(SRC_DIR)support/Makefile.mk
+
 # Chip
 include $(SRC_DIR)chips/Makefile.mk
 
