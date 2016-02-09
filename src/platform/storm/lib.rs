@@ -1,7 +1,7 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(const_fn,lang_items,core_intrinsics)]
+#![feature(const_fn,lang_items)]
 
 extern crate common;
 extern crate drivers;
