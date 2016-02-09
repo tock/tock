@@ -7,6 +7,7 @@ extern crate common;
 extern crate drivers;
 extern crate hil;
 extern crate sam4l;
+extern crate support;
 
 use hil::Controller;
 use drivers::timer::AlarmToTimer;
@@ -158,6 +159,7 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
     _file: &'static str, _line: usize) -> ! {
     use hil::uart::UART;
     use core::fmt::*;
+    use support::nop;
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
         baud_rate: 115200,
@@ -181,7 +183,17 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
 
     let _ = Writer.write_fmt(format_args!("Kernel panic... Sorry!\r\n"));
 
+    let led = &sam4l::gpio::PC[10];
+    led.enable_output();
     loop {
+        for _ in 0..1000000 {
+            led.set();
+            nop();
+        }
+        for _ in 0..1000000 {
+            led.clear();
+            nop();
+        }
     }
 }
 
