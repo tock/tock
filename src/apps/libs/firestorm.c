@@ -71,10 +71,33 @@ int timer_oneshot_subscribe(subscribe_cb cb, void *userdata) {
 }
 
 int timer_repeating_subscribe(subscribe_cb cb, void *userdata) {
-  return subscribe(3, 1, cb, userdata);
+  return subscribe(4, 1, cb, userdata);
 }
 
 int spi_write(unsigned char byte) {
-  return command(3, 0, byte);
+  return command(4, 0, byte);
 }
 
+int spi_read_buf(const char* str, size_t len) {
+  allow(4, 0, (void*)str, len);
+}
+
+static CB_TYPE spi_cb(int r0, int r1, int r2, void* ud) {
+  return SPIBUF;
+}
+
+int spi_write_buf(const char* str, 
+		  size_t len, 
+		  subscribe_cb cb, 
+		  void* userdata) {
+  allow(4, 1, (void*)str, len);
+  subscribe(4, 0, cb, userdata);
+  command(4, 1, len);
+}
+
+int spi_block_write(const char* str, 
+		    size_t len, 
+		    void* userdata) {
+    spi_write_buf(str, len, spi_cb, userdata);
+//    wait_for(SPIBUF);
+}

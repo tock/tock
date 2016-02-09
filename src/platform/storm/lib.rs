@@ -17,16 +17,16 @@ use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 // the module here and uncomment the call to start the test in
 // the init function below.
 //mod gpio_dummy;
-mod spi_dummy;
+//mod spi_dummy;
+mod spi_driver;
 
 #[allow(unused_variables,dead_code)]
 pub struct DummyCB {
     val: u8
 }
  
-pub static mut FLOP: bool = false;
-pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-pub static mut buf2: [u8; 8] = [7, 6, 5, 4, 3, 2, 1, 0];
+static mut spi_read_buf:  [u8;128] = [0; 128];
+static mut spi_write_buf: [u8;128] = [0; 128];
 
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
@@ -120,6 +120,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // Initialize and enable SPI HAL
     static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
                       drivers::spi::Spi::new(&mut sam4l::spi::SPI));
+    spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
     sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
     sam4l::spi::SPI.enable();
 
@@ -155,7 +157,12 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // Uncommenting the following line will cause the device to write
     // [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then echo the 8 bytes read
     // from the slave continuously.
-    spi_dummy::spi_dummy_test();
+//    spi_driver::spi_driver_test(&firestorm);
+    
+    // Uncommenting the following line will cause the device to use the 
+    // SPI HAL to write [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then 
+    // echo the 8 bytes read from the slave continuously. 
+    //spi_dummy::spi_dummy_test();
 
     // Uncommenting the following line will toggle the LED whenever the value of
     // Firestorm's pin 8 changes value (e.g., connect a push button to pin 8 and
@@ -163,7 +170,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     //gpio_dummy::gpio_dummy_test();
 
     firestorm.console.initialize();
-
     firestorm
 }
 

@@ -56,21 +56,23 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
     // Updates app.index to be index + length of op 
     fn do_next_read_write(&self, app: &mut App) {
         let start = app.index.get();
-        let len = cmp::min(app.len.get() - start, self.kernel_len.get());
+        //let len = cmp::min(app.len.get() - start, self.kernel_len.get());
+        let len = 2;
         let end = start + len;
         app.index.set(end);
+        app.len.set(end);
         let mut kwrite = self.kernel_write.borrow_mut();
         let mut kread  = self.kernel_read.borrow_mut();
         {
-            use core::slice::bytes::copy_memory;
-            let src = app.app_write.as_mut().unwrap();
-            let mut kwbuf = kwrite.as_mut().unwrap();
-            copy_memory(&src.as_ref()[start .. end], kwbuf);
+            //use core::slice::bytes::copy_memory;
+            //let src = app.app_write.as_mut().unwrap();
+            //let mut kwbuf = kwrite.as_mut().unwrap();
+            //copy_memory(&src.as_ref()[start .. end], kwbuf);
         }
         let reading = app.app_read.is_some();
         if reading {
-            let mut kwrite = self.kernel_read.borrow_mut();
-            self.spi_master.read_write_bytes(kwrite.take(), kread.take(), len);
+            //self.spi_master.read_write_bytes(kwrite.take(), kread.take(), len);
+            self.spi_master.read_write_bytes(kwrite.take(), None, len);
         } else {
             self.spi_master.read_write_bytes(kwrite.take(), None, len);
         }
@@ -141,14 +143,14 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     }
 
     fn command(&self, cmd_num: usize, arg1: usize) -> isize {
-        if self.busy.get() {
-            return -1;
-        }
         match cmd_num {
             0 /* read_write_byte */ => { 
                 self.spi_master.read_write_byte(arg1 as u8) as isize
             },
             1 /* read_write_bytes */ => { 
+                if self.busy.get() {
+                    //return -1;
+                }
                 let mut app = self.apps[0].borrow_mut();
                 if app.is_none() {
                     return -1;
@@ -204,13 +206,13 @@ impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
             *self.kernel_read.borrow_mut() =  readbuf;
             *self.kernel_write.borrow_mut() = writebuf;
 
-            if app.index.get() == app.len.get() {
-                app.callback.take().map(|mut cb| {
-                    self.busy.set(false);
-                    cb.schedule(app.len.get(), 0, 0);
-                });
+            if app.index.get() == app.len.get() || true {
+                self.busy.set(false);
                 app.len.set(0);
                 app.index.set(0);
+                app.callback.take().map(|mut cb| {
+                    cb.schedule(app.len.get(), 0, 0);
+                });
             } else {
                 self.do_next_read_write(app);
             }
