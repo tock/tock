@@ -6,4 +6,5 @@
 extern crate common;
 extern crate hil;
 
+mod peripheral_registers;
 pub mod gpio;
