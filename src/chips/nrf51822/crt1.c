@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "peripheral_interrupts.h"
+
 /* Symbols defined in the linker file */
 extern uint32_t _estack;
 extern uint32_t _etext;
@@ -33,6 +35,7 @@ void HardFault_Handler(void)
 void SVC_Handler(void) __attribute__ ((weak, alias("Dummy_Handler")));
 void PendSV_Handler(void) __attribute__ ((weak, alias("Dummy_Handler")));
 void SysTick_Handler(void) __attribute__ ((weak, alias("Dummy_Handler")));
+PERIPHERAL_INTERRUPT_HANDLERS
 
 typedef void (*interrupt_function_t) (void);
 
@@ -47,6 +50,7 @@ interrupt_function_t interrupt_table[] = {
 	0, 0,			/* Reserved */
 	PendSV_Handler,
 	SysTick_Handler,
+	PERIPHERAL_INTERRUPT_VECTORS
 };
 
 void Reset_Handler(void)

@@ -10,7 +10,8 @@ extern crate support;
 pub mod ring_buffer;
 pub mod queue;
 pub mod utils;
+pub mod volatile_cell;
 
 pub use queue::Queue;
 pub use ring_buffer::RingBuffer;
-
+pub use volatile_cell::VolatileCell;
