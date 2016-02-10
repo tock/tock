@@ -58,18 +58,16 @@ void main(void)
 		wbuf[i] = i;
 	}
 //	spi_read_buf(rbuf, 200);
+    while (1) { 
+	gpio_set(LED_1);
+	gpio_clear(LED_0);
 
-	for (i = 0;; i++) {
-		gpio_set(LED_1);
-		gpio_clear(LED_0);
+	spi_write(0xaa);
 
-		spi_write(0xaa);
-		delay_ms(250);
-
-		gpio_clear(LED_1);
-		gpio_set(LED_0);
-		spi_block_write(wbuf, 2, rbuf);;
-
-		delay_ms(250);
-	}
+	gpio_clear(LED_1);
+	gpio_set(LED_0);
+	spi_repeat_write(wbuf, 7, rbuf);
+	wait();
+	delay_ms(25);
+    }
 }

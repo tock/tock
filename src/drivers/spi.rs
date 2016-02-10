@@ -56,28 +56,29 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
     // Updates app.index to be index + length of op 
     fn do_next_read_write(&self, app: &mut App) {
         let start = app.index.get();
-        //let len = cmp::min(app.len.get() - start, self.kernel_len.get());
-        let len = 2;
+        let len = cmp::min(app.len.get() - start, self.kernel_len.get());
         let end = start + len;
         app.index.set(end);
         app.len.set(end);
         let mut kwrite = self.kernel_write.borrow_mut();
         let mut kread  = self.kernel_read.borrow_mut();
         {
-            //use core::slice::bytes::copy_memory;
-            //let src = app.app_write.as_mut().unwrap();
-            //let mut kwbuf = kwrite.as_mut().unwrap();
-            //copy_memory(&src.as_ref()[start .. end], kwbuf);
+            use core::slice::bytes::copy_memory;
+            let src = app.app_write.as_mut().unwrap();
+            let mut kwbuf = kwrite.as_mut().unwrap();
+            copy_memory(&src.as_ref()[start .. end], kwbuf);
         }
         let reading = app.app_read.is_some();
         if reading {
-            //self.spi_master.read_write_bytes(kwrite.take(), kread.take(), len);
-            self.spi_master.read_write_bytes(kwrite.take(), None, len);
+            self.spi_master.read_write_bytes(kwrite.take(), kread.take(), len);
         } else {
             self.spi_master.read_write_bytes(kwrite.take(), None, len);
         }
     }
 }
+
+static mut wbuf: [u8;10] = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+static mut rbuf: [u8;10] = [0; 10];
 
 impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     fn allow(&self, appid: AppId,
@@ -174,7 +175,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                     0
                 }); 
                 -1
-            }
+            } 
             _ => -1
         }
     }
@@ -193,8 +194,9 @@ impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
                        writebuf: Option<&'static mut [u8]>, 
                        readbuf:  Option<&'static mut [u8]>,
                        length: usize) {
+                           return;
         self.apps[0].borrow_mut().as_mut().map(|app| {
-            if app.app_read.is_some() {
+            if app.app_read.is_some() && false {
                 use core::slice::bytes::copy_memory;
                 let src = readbuf.as_ref().unwrap();
                 let dest = app.app_read.as_mut().unwrap(); 

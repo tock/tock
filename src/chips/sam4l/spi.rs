@@ -235,18 +235,6 @@ impl spi_master::SpiMaster for Spi {
         self.reading.get() || self.writing.get()
     }
 
-    /// Write a byte to the SPI and return the read; if an
-    /// asynchronous operation is outstanding, do nothing.
-    fn read_write_byte(&self, val: u8) -> u8 {
-        if self.reading.get() || self.writing.get() {
-  //          return 0;
-        }
-        self.write_byte(val);
-        // Wait for receive data register full
-        while (unsafe {volatile_load(&(*self.regs).sr)} & 1) != 1 {}
-        // Return read value
-        unsafe {volatile_load(&(*self.regs).rdr) as u8}
-    }
 
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
@@ -267,6 +255,19 @@ impl spi_master::SpiMaster for Spi {
         self.read_write_byte(0)
     }
 
+    /// Write a byte to the SPI and return the read; if an
+    /// asynchronous operation is outstanding, do nothing.
+    fn read_write_byte(&self, val: u8) -> u8 {
+        if self.reading.get() || self.writing.get() {
+  //          return 0;
+        }
+        self.write_byte(val);
+        // Wait for receive data register full
+        while (unsafe {volatile_load(&(*self.regs).sr)} & 1) != 1 {}
+        // Return read value
+        unsafe {volatile_load(&(*self.regs).rdr) as u8}
+    }
+
     /// Asynchonous buffer read/write of SPI.
     /// write_buffer must  be Some; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
@@ -285,7 +286,7 @@ impl spi_master::SpiMaster for Spi {
         // Need to check self.reading as well as self.writing in case
         // write interrupt comes back first.
         if !writing  || self.reading.get() || self.writing.get() {
-            return false
+            //return false
         }
 
         // Need to mark if reading or writing so we correctly
@@ -386,7 +387,7 @@ impl DMAClient for Spi {
             self.read_buffer = Some(buf);
             if !self.reading.get() && !self.writing.get() {
                 let rb = self.read_buffer.take();
-                let wb = self.read_buffer.take();
+                let wb = self.write_buffer.take();
                 let len = self.dma_length.get();
                 self.dma_length.set(0);
                 self.callback.as_ref().map(|cb| 
@@ -399,7 +400,7 @@ impl DMAClient for Spi {
             self.write_buffer = Some(buf);
             if !self.reading.get() && !self.writing.get() {
                 let rb = self.read_buffer.take();
-                let wb = self.read_buffer.take();
+                let wb = self.write_buffer.take();
                 let len = self.dma_length.get();
                 self.dma_length.set(0);
                 self.callback.as_ref().map(|cb| 
