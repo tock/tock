@@ -1,10 +1,12 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
+#![feature(lang_items)]
 
 extern crate drivers;
 extern crate hil;
 extern crate nrf51822;
+extern crate support;
 
 pub struct Firestorm {
     gpio: &'static drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 32]>,
@@ -57,3 +59,32 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     firestorm
 }
+
+use core::fmt::Arguments;
+#[cfg(not(test))]
+#[lang="panic_fmt"]
+#[no_mangle]
+pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
+    _file: &'static str, _line: usize) -> ! {
+    use support::nop;
+    use hil::gpio::GPIOPin;
+
+    let led0 = &nrf51822::gpio::PA[18];
+    let led1 = &nrf51822::gpio::PA[19];
+
+    led0.enable_output();
+    led1.enable_output();
+    loop {
+        for _ in 0..100000 {
+            led0.set();
+            led1.set();
+            nop();
+        }
+        for _ in 0..100000 {
+            led0.clear();
+            led1.clear();
+            nop();
+        }
+    }
+}
+

@@ -23,10 +23,10 @@ extern uint32_t _estack;
 
 int main(void);
 
-void Dummy_Handler(void)
-{
-	while (1) {
-	}
+void unhandled_exception();
+
+void Dummy_Handler(void) {
+  unhandled_exception();
 }
 
 void Reset_Handler(void);

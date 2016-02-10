@@ -20,3 +20,8 @@ pub mod gpio;
 pub mod usart;
 pub mod scif;
 pub mod adc;
+
+#[no_mangle]
+pub extern fn unhandled_exception() {
+    panic!("Unhandled Interrupt");
+}

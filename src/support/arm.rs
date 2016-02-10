@@ -1,4 +1,3 @@
-use core::fmt::Arguments;
 use core::intrinsics::*;
 use core::ops::FnOnce;
 
@@ -48,14 +47,6 @@ pub extern fn eh_personality() {}
 #[cfg(not(test))]
 #[lang="begin_unwind"]
 pub extern fn begin_unwind() {}
-
-#[cfg(not(test))]
-#[lang="panic_fmt"]
-#[no_mangle]
-pub extern fn rust_begin_unwind(_fmt: &Arguments,
-    _file_line: &(&'static str, usize)) -> ! {
-  loop { }
-}
 
 #[doc(hidden)]
 #[no_mangle]

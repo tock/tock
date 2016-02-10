@@ -2,47 +2,11 @@ use core::mem;
 use core::ops::{Index, IndexMut};
 use hil;
 
-// Source: https://github.com/hackndev/zinc/tree/master/volatile_cell
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VolatileCell<T> {
-    value: T,
-}
-
-#[allow(dead_code)]
-impl<T> VolatileCell<T> {
-    #[inline]
-    pub fn get(&self) -> T {
-        unsafe {
-            ::core::intrinsics::volatile_load(&self.value)
-        }
-    }
-
-    #[inline]
-    pub fn set(&self, value: T) {
-        unsafe {
-            ::core::intrinsics::volatile_store(&self.value as *const T as *mut T, value)
-        }
-    }
-}
-
-#[allow(non_snake_case)]
-struct GPIO {
-    _pad0: [u8; 1284],
-    pub OUT: VolatileCell<u32>,
-    pub OUTSET: VolatileCell<u32>,
-    pub OUTCLR: VolatileCell<u32>,
-    pub IN: VolatileCell<u32>,
-    pub DIR: VolatileCell<u32>,
-    pub DIRSET: VolatileCell<u32>,
-    pub DIRCLR: VolatileCell<u32>,
-    _pad1: [u8; 480],
-    pub PIN_CNF: [VolatileCell<u32>; 32],
-}
+use peripheral_registers::{GPIO_BASE, GPIO};
 
 #[allow(non_snake_case)]
 fn GPIO() -> &'static GPIO {
-    unsafe { mem::transmute(0x50000000 as usize) }
+    unsafe { mem::transmute(GPIO_BASE as usize) }
 }
 
 pub struct GPIOPin {
@@ -57,7 +21,7 @@ impl GPIOPin {
 
 impl hil::gpio::GPIOPin for GPIOPin {
     fn enable_output(&self) {
-        GPIO().PIN_CNF[self.pin as usize].set((1 << 0) | (1 << 1) | (0 << 2) | (0 << 8) | (0 << 16));
+        GPIO().pin_cnf[self.pin as usize].set((1 << 0) | (1 << 1) | (0 << 2) | (0 << 8) | (0 << 16));
     }
 
     fn enable_input(&self, _mode: hil::gpio::InputMode) {
@@ -69,11 +33,11 @@ impl hil::gpio::GPIOPin for GPIOPin {
     }
 
     fn set(&self) {
-        GPIO().OUTSET.set(1 << self.pin);
+        GPIO().outset.set(1 << self.pin);
     }
 
     fn clear(&self) {
-        GPIO().OUTCLR.set(1 << self.pin);
+        GPIO().outclr.set(1 << self.pin);
     }
 
     fn toggle(&self) {

@@ -1,12 +1,13 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(const_fn)]
+#![feature(const_fn,lang_items)]
 
 extern crate common;
 extern crate drivers;
 extern crate hil;
 extern crate sam4l;
+extern crate support;
 
 use hil::Controller;
 use hil::spi_master::SpiMaster;
@@ -168,5 +169,52 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     firestorm.console.initialize();
     firestorm
+}
+
+use core::fmt::Arguments;
+
+#[cfg(not(test))]
+#[lang="panic_fmt"]
+#[no_mangle]
+pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
+    _file: &'static str, _line: usize) -> ! {
+    use hil::uart::UART;
+    use core::fmt::*;
+    use support::nop;
+
+    sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
+        baud_rate: 115200,
+        data_bits: 8,
+        parity: hil::uart::Parity::None
+    });
+    sam4l::usart::USART3.enable_tx();
+
+    struct Writer;
+
+    impl Write for Writer {
+        fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
+            unsafe {
+                for c in s.bytes() {
+                    sam4l::usart::USART3.send_byte(c);
+                }
+            }
+            Ok(())
+        }
+    }
+
+    let _ = Writer.write_fmt(format_args!("Kernel panic... Sorry!\r\n"));
+
+    let led = &sam4l::gpio::PC[10];
+    led.enable_output();
+    loop {
+        for _ in 0..1000000 {
+            led.set();
+            nop();
+        }
+        for _ in 0..1000000 {
+            led.clear();
+            nop();
+        }
+    }
 }
 
