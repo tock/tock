@@ -464,6 +464,10 @@ impl hil::gpio::GPIOPin for GPIOPin {
         GPIOPin::set_interrupt_mode(self, mode_bits);
         GPIOPin::enable_interrupt(self);
     }
+
+    fn disable_interrupt(&self) {
+        GPIOPin::disable_interrupt(self);
+    }
 }
 
 #[no_mangle]

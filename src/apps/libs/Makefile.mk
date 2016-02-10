@@ -21,3 +21,7 @@ $(BUILD_APP_DIR)/sys.o: $(SRC_DIR)apps/libs/sys.c | $(BUILD_APP_DIR)
 	@echo "Building libc stubs for apps"
 	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
 
+$(BUILD_APP_DIR)/tmp006.o: $(SRC_DIR)apps/libs/tmp006.c $(SRC_DIR)apps/libs/tmp006.h | $(BUILD_APP_DIR)
+	@echo "Building TMP006 driver for apps"
+	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -c -g -Os -o $@ -ffreestanding -nostdlib $<
+

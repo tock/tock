@@ -8,6 +8,7 @@ RUSTC_FLAGS += -g -C no-stack-check
 CFLAGS += -g -O3 -std=gnu99 -mcpu=$(ARCH) -mthumb -nostdlib -T$(SRC_DIR)chips/$(CHIP)/loader.ld
 LDFLAGS += -mcpu=$(ARCH) -mthumb
 LOADER = $(SRC_DIR)chips/$(CHIP)/loader.ld
+OBJDUMP_FLAGS = --disassemble --source --disassembler-options=force-thumb
 
 $(BUILD_DIR)/lib$(CHIP).rlib: $(call rwildcard,$(SRC_DIR)chips/$(CHIP),*.rs) $(BUILD_DIR)/libcore.rlib $(BUILD_DIR)/libhil.rlib $(BUILD_DIR)/libcommon.rlib
 	@echo "Building $@"

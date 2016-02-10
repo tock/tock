@@ -18,6 +18,7 @@ pub trait GPIOPin {
     fn toggle(&self);
     fn read(&self) -> bool;
     fn enable_interrupt(&self, identifier: usize, mode: InterruptMode);
+    fn disable_interrupt(&self);
 }
 
 pub trait Client {
