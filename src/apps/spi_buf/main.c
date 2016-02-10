@@ -47,8 +47,12 @@ static void delay_ms(int duration)
 char rbuf[200];
 char wbuf[200];
 
-void main(void)
-{
+CB_TYPE timer_cb(int arg0, int arg2, int arg3, void* userdata) {
+    gpio_toggle(LED_0);
+    spi_block_write(wbuf, 7, rbuf);
+}
+
+void main(void) {
         int i;
 	gpio_enable(LED_0);
 	gpio_enable(LED_1);
@@ -57,17 +61,5 @@ void main(void)
                 rbuf[i] = 0;
 		wbuf[i] = i;
 	}
-//	spi_read_buf(rbuf, 200);
-    while (1) { 
-	gpio_set(LED_1);
-	gpio_clear(LED_0);
-
-	spi_write(0xaa);
-
-	gpio_clear(LED_1);
-	gpio_set(LED_0);
-	spi_repeat_write(wbuf, 7, rbuf);
-	wait();
-	delay_ms(25);
-    }
+	timer_repeating_subscribe(timer_cb, NULL);
 }

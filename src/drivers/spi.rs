@@ -150,7 +150,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
             },
             1 /* read_write_bytes */ => { 
                 if self.busy.get() {
-                    //return -1;
+                    return -1;
                 }
                 let mut app = self.apps[0].borrow_mut();
                 if app.is_none() {
@@ -194,7 +194,6 @@ impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
                        writebuf: Option<&'static mut [u8]>, 
                        readbuf:  Option<&'static mut [u8]>,
                        length: usize) {
-                           return;
         self.apps[0].borrow_mut().as_mut().map(|app| {
             if app.app_read.is_some() && false {
                 use core::slice::bytes::copy_memory;

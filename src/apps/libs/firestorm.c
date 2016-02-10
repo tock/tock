@@ -71,7 +71,7 @@ int timer_oneshot_subscribe(subscribe_cb cb, void *userdata) {
 }
 
 int timer_repeating_subscribe(subscribe_cb cb, void *userdata) {
-  return subscribe(4, 1, cb, userdata);
+  return subscribe(3, 1, cb, userdata);
 }
 
 int spi_write(unsigned char byte) {
@@ -118,5 +118,5 @@ int spi_block_write(const char* str,
 		    size_t len, 
 		    void* userdata) {
     spi_write_buf(str, len, spi_cb, userdata);
-    wait_for(SPIBUF);
+    //wait_for(SPIBUF);
 }
