@@ -48,9 +48,9 @@ int16_t temp_reading;
 int32_t error_val;
 
 // callback to receive asynchronous data
-CB_TYPE temp_callback(int r0, int r1, int r2, void* ud) {
-  temp_reading = r0;
-  error_val = r1;
+CB_TYPE temp_callback(int temp_value, int error_code, int unused, void* callback_args) {
+  temp_reading = (int16_t)temp_value;
+  error_val = error_code;
 }
 
 // start periodic temperature sampling, then print data, sleeping in between
@@ -60,7 +60,7 @@ void read_periodic (void) {
 
   // start sampling at 1 sample per second (0x2)
   putstr("Start Subscribe.\n");
-  err = tmp006_start_sampling(0x2, temp_callback);
+  err = tmp006_start_sampling(0x2, temp_callback, NULL);
   if (error_val != 0) {
     char buf[64];
     snprintf(buf, 64, "\tError(%d) [0x%X]\n\n", err, err);

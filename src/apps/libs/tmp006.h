@@ -10,8 +10,8 @@ extern "C" {
 #define ERR_NONE 0
 
 int tmp006_read_sync(int16_t* temp_reading);
-int tmp006_read_async(int16_t* temp_reading, subscribe_cb callback);
-int tmp006_start_sampling(uint8_t period, subscribe_cb callback);
+int tmp006_read_async(subscribe_cb callback, void* callback_args);
+int tmp006_start_sampling(uint8_t period, subscribe_cb callback, void* callback_args);
 int tmp006_stop_sampling();
 
 #ifdef __cplusplus

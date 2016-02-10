@@ -2,14 +2,12 @@
 #include <tock.h>
 #include <tmp006.h>
 
-static int errno_val = 0;
-
 // internal callback for faking synchronous reads
-static CB_TYPE tmp006_cb(int r0, int r1, int r2, void* ud) {
-    int16_t* result = (int16_t*)ud;
-    *result = (int16_t)r0;
-
-    errno_val = r1;
+static CB_TYPE tmp006_cb(int temp_value, int error_code, int unused, void* callback_args) {
+    // return data to user
+    int32_t* callback_vals = (int32_t*)callback_args;
+    callback_vals[0] = temp_value;
+    callback_vals[1] = error_code;
 
     // signal that the callback has completed
     return READTMP;
@@ -17,7 +15,11 @@ static CB_TYPE tmp006_cb(int r0, int r1, int r2, void* ud) {
 
 // enable TMP006, take a single reading, disable TMP006, return value to user
 int tmp006_read_sync(int16_t* temp_reading) {
-    uint32_t err_code = tmp006_read_async(temp_reading, tmp006_cb);
+    // store temperature value and error code
+    int32_t callback_vals[2] = {0};
+
+    // request a single sample
+    uint32_t err_code = subscribe(2, 0, tmp006_cb, callback_vals);
     if (err_code != ERR_NONE) {
         return err_code;
     }
@@ -25,23 +27,23 @@ int tmp006_read_sync(int16_t* temp_reading) {
     // wait for result
     wait_for(READTMP);
 
-    // handle error codes
-    if (errno_val != ERR_NONE) {
-        return errno_val;
-    }
-    return ERR_NONE;
+    // write value for user
+    *temp_reading = (int16_t)callback_vals[0];
+
+    // return error code to user
+    return callback_vals[1];
 }
 
 // enable TMP006, take a single reading, disable TMP006, callback with value
-int tmp006_read_async(int16_t* temp_reading, subscribe_cb callback) {
+int tmp006_read_async(subscribe_cb callback, void* callback_args) {
 
     // subscribe to a single temp value callback
     //  also enables the temperature sensor for the duration of one sample
-    return subscribe(2, 0, callback, temp_reading);
+    return subscribe(2, 0, callback, callback_args);
 }
 
 // enable TMP006, configure periodic sampling with interrupts, callback with value on interrupt
-int tmp006_start_sampling(uint8_t period, subscribe_cb callback) {
+int tmp006_start_sampling(uint8_t period, subscribe_cb callback, void* callback_args) {
     // set period for periodic temp readings
     uint32_t err_code = command(2, 0, period);
     if (err_code != ERR_NONE) {
@@ -50,7 +52,7 @@ int tmp006_start_sampling(uint8_t period, subscribe_cb callback) {
 
     // subscribe to periodic temp value callbacks
     //  also enables the temperature sensor
-    return subscribe(2, 1, callback, 0);
+    return subscribe(2, 1, callback, callback_args);
 }
 
 // disable TMP006
