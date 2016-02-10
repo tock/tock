@@ -4,7 +4,7 @@
 //  add additional wrappers as needed
 
 extern {
-    static mut errno: i32;
+    fn __errno() -> &mut i32;
 }
 
 use core::intrinsics::powf32;
@@ -25,8 +25,9 @@ pub fn sqrt(num: f32) -> f32 {
 // return errno value and zero it out
 pub fn get_errno() -> i32 {
     unsafe {
-        let ret = errno;
-        errno = 0;
+        let errnoaddr = __errno();
+        let ret = *errnoaddr;
+        *errnoaddr = 0;
         ret
     }
 }

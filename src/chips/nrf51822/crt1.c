@@ -137,12 +137,6 @@ extern void __aeabi_memclr8(void *dest, size_t n)
 	memset(dest, 0, n);
 }
 
-// errno is necessary for some libm functions
-__attribute__ ((weak)) int errno = 0;
-__attribute__ ((weak)) int* __errno() {
-    return &errno;
-}
-
 /* Based on reference code from GCC documentation, see "Legacy __sync Built-in
  * Functions for Atomic Memory Access" */
 
