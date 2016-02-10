@@ -5,9 +5,11 @@ RUSTDOC ?= rustdoc
 RUSTC_FLAGS += -L$(BUILD_DIR) # Common regardless of platform
 TOOLCHAIN = arm-none-eabi-
 OBJCOPY ?= $(TOOLCHAIN)objcopy
+OBJDUMP ?= $(TOOLCHAIN)objdump
 CC = $(TOOLCHAIN)gcc
 CPP = $(TOOLCHAIN)g++
 LD = $(TOOLCHAIN)ld
+SIZE = $(TOOLCHAIN)size
 
 
 # Validate rustc version

@@ -54,3 +54,6 @@ clean:
 clean-all:
 	rm -Rf $(BUILD_DIR)
 
+# Keep all object files
+.PRECIOUS: *.o *.elf
+

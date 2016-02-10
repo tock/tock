@@ -13,7 +13,9 @@ $(BUILD_DIR)/libplatform.rlib: $(call rwildcard,$(SRC_DIR)platform/storm,*.rs) $
 
 $(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o $(APP_BINS)
 	@echo "Linking $@"
-	@$(CC) $(LDFLAGS) -T$(LOADER) $^ -o $@ -ffreestanding -nostdlib -lc -lgcc
+	@$(CC) $(LDFLAGS) -T$(LOADER) $^ -o $@ -ffreestanding -nostdlib -lc -lm -lgcc -Wl,-Map=$(BUILD_DIR)/main.Map
+	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(BUILD_DIR)/main.lst
+	@$(SIZE) $@
 
 $(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
 	@echo "Flattening $< to $@..."
@@ -33,6 +35,10 @@ rebuild-apps: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o $(APP_
 .PHONY: program
 program: $(BUILD_DIR)/main.sdb
 	$(SLOAD) flash $(BUILD_DIR)/main.sdb
+
+.PHONY: listen
+listen: program
+	$(SLOAD) tail -i
 
 .PHONY: jlink-program
 program-jlink: $(BUILD_DIR)/main.bin

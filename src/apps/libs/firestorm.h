@@ -26,10 +26,6 @@ void putstr(const char* str);
 void putnstr(const char* str, size_t len);
 void putnstr_async(const char* str, size_t len, subscribe_cb cb, void* userdata);
 
-int tmp006_enable();
-int tmp006_read(int16_t *temperature);
-int tmp006_read_async(subscribe_cb cb, void* userdata);
-
 int timer_oneshot_subscribe(subscribe_cb cb, void *userdata);
 int timer_repeating_subscribe(subscribe_cb cb, void *userdata);
 
