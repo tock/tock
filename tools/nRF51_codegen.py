@@ -140,7 +140,7 @@ def main():
     interrupts = get_peripheral_interrupts(parser)
     dump_macros(interrupts,
             open("src/chips/nrf51822/peripheral_interrupts.h", "w"))
-    peripherals = get_peripheral_registers(parser, ["GPIO"])
+    peripherals = get_peripheral_registers(parser, ["GPIO", "RTC1"])
 
     env = Environment(loader=FileSystemLoader('src/chips/nrf51822'))
     template = env.get_template('peripheral_registers.rs.jinja')
