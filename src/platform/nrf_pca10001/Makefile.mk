@@ -9,7 +9,7 @@ $(BUILD_DIR)/libplatform.rlib: $(call rwildcard,$(SRC_DIR)platform/$(PLATFORM),*
 
 $(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o $(APP_BINS)
 	@echo "Linking $@"
-	@$(CC) $(LDFLAGS) -T$(LOADER) $^ -o $@ -ffreestanding -nostdlib -lc -lgcc -Wl,-Map=$(BUILD_DIR)/main.Map
+	@$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@ -Wl,-Map=$(BUILD_DIR)/main.Map
 	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(BUILD_DIR)/main.lst
 	@$(SIZE) $@
 
