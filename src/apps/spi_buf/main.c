@@ -93,5 +93,5 @@ void main(void) {
 	}
 	spi_read_buf(rbuf, 10);
 //	timer_repeating_subscribe(timer_cb, NULL);
-        spi_write_buf(wbuf, 6, write_cb, NULL);
+        spi_write_buf(wbuf, 10, write_cb, NULL);
 }

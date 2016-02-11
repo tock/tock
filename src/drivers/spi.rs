@@ -160,13 +160,17 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                     if a.app_write.is_none() {
                         return -1;
                     }
+                    let mut mlen = 0;
                     // If write buffer too small, return
                     a.app_write.as_mut().map(|w| {
-                        if w.len() < arg1 {
-                            return -1;
-                        }
-                        0
+                        mlen = w.len();
                     });
+                    a.app_read.as_mut().map(|r| {
+                        mlen = cmp::min(mlen, r.len());
+                    });
+                    if mlen < arg1 {
+                        return -1;
+                    }
                     a.len.set(arg1);
                     a.index.set(0);
                     self.busy.set(true);
