@@ -67,6 +67,12 @@ macro_rules! static_init {
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
 
+    // Workaround for SB.02 hardware bug
+    // TODO(alevy): Get rid of this when we think SB.02 are out of circulation
+    sam4l::gpio::PA[14].enable();
+    sam4l::gpio::PA[14].set();
+    sam4l::gpio::PA[14].enable_output();
+
     static_init!(console : drivers::console::Console<sam4l::usart::USART> =
                     drivers::console::Console::new(&sam4l::usart::USART3));
     sam4l::usart::USART3.set_client(console);

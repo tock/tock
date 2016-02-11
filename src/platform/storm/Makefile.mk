@@ -11,9 +11,9 @@ $(BUILD_DIR)/libplatform.rlib: $(call rwildcard,$(SRC_DIR)platform/storm,*.rs) $
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) $(SRC_DIR)platform/storm/lib.rs
 
-$(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o $(APP_BINS)
+$(BUILD_DIR)/main.elf: $(BUILD_DIR)/arch.o $(BUILD_DIR)/main.o $(APP_BINS)
 	@echo "Linking $@"
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@ -Wl,-Map=$(BUILD_DIR)/main.Map
+	@$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@ -Wl,-Map=$(BUILD_DIR)/main.Map
 	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(BUILD_DIR)/main.lst
 	@$(SIZE) $@
 
