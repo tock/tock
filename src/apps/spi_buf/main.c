@@ -46,10 +46,16 @@ static void delay_ms(int duration)
 
 char rbuf[200];
 char wbuf[200];
+int toggle = 0;
 
 CB_TYPE timer_cb(int arg0, int arg2, int arg3, void* userdata) {
     gpio_toggle(LED_0);
-    spi_block_write(wbuf, 7, rbuf);
+    if (toggle == 0) { 
+        spi_block_write(wbuf, 7, rbuf);
+    } else {
+        spi_block_write(rbuf, 5, rbuf);
+    }
+    toggle = toggle ^ 1;
 }
 
 void main(void) {
@@ -58,8 +64,9 @@ void main(void) {
 	gpio_enable(LED_1);
 
 	for (i = 0; i < 200; i++) {
-                rbuf[i] = 0;
+                rbuf[i] = i + 10;
 		wbuf[i] = i;
 	}
+	spi_read_buf(rbuf, 10);
 	timer_repeating_subscribe(timer_cb, NULL);
 }

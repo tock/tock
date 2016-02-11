@@ -195,7 +195,7 @@ impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
                        readbuf:  Option<&'static mut [u8]>,
                        length: usize) {
         self.apps[0].borrow_mut().as_mut().map(|app| {
-            if app.app_read.is_some() && false {
+            if app.app_read.is_some() {
                 use core::slice::bytes::copy_memory;
                 let src = readbuf.as_ref().unwrap();
                 let dest = app.app_read.as_mut().unwrap(); 
