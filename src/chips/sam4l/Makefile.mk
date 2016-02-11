@@ -5,11 +5,12 @@ RUST_TARGET ?= $(SRC_DIR)chips/sam4l/target.json
 RUSTC_FLAGS += -C opt-level=3 -Z no-landing-pads
 RUSTC_FLAGS += --target $(RUST_TARGET)
 RUSTC_FLAGS += -Ctarget-cpu=cortex-m4 -C relocation_model=static
-RUSTC_FLAGS += -g -C no-stack-check
+RUSTC_FLAGS += -g -C no-stack-check -C soft-float -C target-feature="+soft-float"
 
-CFLAGS += -g -O3 -std=gnu99 -mcpu=cortex-m4 -mthumb -nostdlib -T$(SRC_DIR)chips/sam4l/loader.ld
+CFLAGS += -g -O3 -std=gnu99 -mcpu=cortex-m4 -mfloat-abi=soft -mthumb -nostdlib -T$(SRC_DIR)chips/sam4l/loader.ld
 LDFLAGS += -mcpu=cortex-m4 -mthumb
 LOADER = $(SRC_DIR)chips/sam4l/loader.ld
+OBJDUMP_FLAGS = --disassemble --source --disassembler-options=force-thumb
 
 ARCH = cortex-m4
 

@@ -33,10 +33,10 @@ static mut spi_write_buf: [u8;128] = [0; 128];
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
-    gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 14]>,
+    gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 13]>,
     timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
-    tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice>,
+    tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
 }
 
@@ -91,28 +91,21 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     ast.configure(mux_alarm);
 
 
+    // the i2c address of the device is 0x40
+    static_init!(tmp006 : drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin> =
+                    drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, 0x40, &sam4l::gpio::PA[9]));
+    sam4l::gpio::PA[9].set_client(tmp006);
+
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
                     VirtualMuxAlarm::new(mux_alarm));
     static_init!(vtimer1 : AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>> =
                             AlarmToTimer::new(virtual_alarm1));
     virtual_alarm1.set_client(vtimer1);
-    static_init!(tmp006 : drivers::tmp006::TMP006<'static,
-                                sam4l::i2c::I2CDevice> =
-                    drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, vtimer1));
-    vtimer1.set_client(tmp006);
-
-
-    static_init!(virtual_alarm2 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
-                    VirtualMuxAlarm::new(mux_alarm));
-    static_init!(vtimer2 : AlarmToTimer<'static,
-                                VirtualMuxAlarm<'static, sam4l::ast::Ast>> =
-                            AlarmToTimer::new(virtual_alarm2));
-    virtual_alarm2.set_client(vtimer2);
     static_init!(timer : drivers::timer::TimerDriver<AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>> =
-                            drivers::timer::TimerDriver::new(vtimer2));
-    vtimer2.set_client(timer);
+                            drivers::timer::TimerDriver::new(vtimer1));
+    vtimer1.set_client(timer);
 
     // Configure SPI pins: CLK, MISO, MOSI, CS3
     sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
@@ -129,12 +122,12 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         console: &*console,
         gpio: drivers::gpio::GPIO::new(
             [ &sam4l::gpio::PC[10], &sam4l::gpio::PC[19]
-            , &sam4l::gpio::PC[13], &sam4l::gpio::PA[9]
-            , &sam4l::gpio::PA[17], &sam4l::gpio::PC[20]
-            , &sam4l::gpio::PA[19], &sam4l::gpio::PA[14]
-            , &sam4l::gpio::PA[16], &sam4l::gpio::PA[13]
-            , &sam4l::gpio::PA[11], &sam4l::gpio::PA[10]
-            , &sam4l::gpio::PA[12], &sam4l::gpio::PC[09]]),
+            , &sam4l::gpio::PC[13], &sam4l::gpio::PA[17]
+            , &sam4l::gpio::PC[20], &sam4l::gpio::PA[19]
+            , &sam4l::gpio::PA[14], &sam4l::gpio::PA[16]
+            , &sam4l::gpio::PA[13], &sam4l::gpio::PA[11]
+            , &sam4l::gpio::PA[10], &sam4l::gpio::PA[12]
+            , &sam4l::gpio::PC[09]]),
         timer: timer,
         tmp006: &*tmp006,
         spi: &*spi,
@@ -150,6 +143,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PB[09].configure(Some(sam4l::gpio::PeripheralFunction::A));
     sam4l::gpio::PB[10].configure(Some(sam4l::gpio::PeripheralFunction::A));
 
+    // Configure I2C SDA and SCL pins
     sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
     sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 

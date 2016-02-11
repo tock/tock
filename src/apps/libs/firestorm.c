@@ -41,31 +41,6 @@ void putstr(const char *str) {
   putnstr(str, strlen(str));
 }
 
-static CB_TYPE read_tmp006_cb(int r0, int r1, int r2, void* ud) {
-  int16_t *res = (int16_t*)ud;
-  *res = (int16_t)r0 / 32;
-
-  return READTMP;
-}
-
-
-int tmp006_read(int16_t *temperature) {
-  int error = tmp006_read_async(read_tmp006_cb, (void*)temperature);
-  if (error < 0) {
-    return error;
-  }
-  wait_for(READTMP);
-  return 0;
-}
-
-int tmp006_read_async(subscribe_cb cb, void* userdata) {
-  return subscribe(2, 0, cb, userdata);
-}
-
-int tmp006_enable() {
-  return command(2, 0, 0);
-}
-
 int timer_oneshot_subscribe(subscribe_cb cb, void *userdata) {
   return subscribe(3, 0, cb, userdata);
 }

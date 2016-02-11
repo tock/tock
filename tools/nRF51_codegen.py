@@ -1,9 +1,18 @@
 #!/usr/bin/env python
 # Generate chip specific code from CMSIS SVD definitions.
-# To install the cmsis-svd dependency:
-#   pip install -U cmsis-svd
 from __future__ import print_function
-from cmsis_svd.parser import SVDParser
+import sys
+
+try:
+    from cmsis_svd.parser import SVDParser
+except ImportError:
+    print("ERROR: Could not import cmsis_svd. You can install it using:\n\n" +
+            "\tpip install -U cmsis-svd\n", file=sys.stderr)
+    # Print original traceback, just in case it provides more information
+    import traceback
+    traceback.print_exc(file=sys.stderr)
+
+    sys.exit(1)
 
 PROGRAM = "tools/nRF51_codegen.py"
 

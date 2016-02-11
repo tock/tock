@@ -51,6 +51,10 @@ impl hil::gpio::GPIOPin for GPIOPin {
     fn enable_interrupt(&self, _identifier: usize, _mode: hil::gpio::InterruptMode) {
         unimplemented!();
     }
+
+    fn disable_interrupt(&self) {
+        unimplemented!();
+    }
 }
 
 pub struct Port {
