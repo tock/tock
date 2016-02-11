@@ -59,7 +59,6 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
         let len = cmp::min(app.len.get() - start, self.kernel_len.get());
         let end = start + len;
         app.index.set(end);
-        app.len.set(end);
         let mut kwrite = self.kernel_write.borrow_mut();
         let mut kread  = self.kernel_read.borrow_mut();
         {
@@ -207,7 +206,7 @@ impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
             *self.kernel_read.borrow_mut() =  readbuf;
             *self.kernel_write.borrow_mut() = writebuf;
 
-            if app.index.get() == app.len.get() || true {
+            if app.index.get() == app.len.get() {
                 self.busy.set(false);
                 app.len.set(0);
                 app.index.set(0);

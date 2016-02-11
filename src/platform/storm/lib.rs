@@ -27,8 +27,8 @@ pub struct DummyCB {
     val: u8
 }
  
-static mut spi_read_buf:  [u8;128] = [0; 128];
-static mut spi_write_buf: [u8;128] = [0; 128];
+static mut spi_read_buf:  [u8;4] = [0; 4];
+static mut spi_write_buf: [u8;4] = [0; 4];
 
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,

@@ -51,12 +51,36 @@ int toggle = 0;
 CB_TYPE timer_cb(int arg0, int arg2, int arg3, void* userdata) {
     gpio_toggle(LED_0);
     if (toggle == 0) { 
-        spi_block_write(wbuf, 7, rbuf);
+        spi_block_write(rbuf, 6, timer_cb, NULL);
     } else {
-        spi_block_write(rbuf, 5, rbuf);
+        spi_block_write(wbuf, 6, timer_cb, NULL);
     }
     toggle = toggle ^ 1;
 }
+
+CB_TYPE write_cb(int arg0, int arg2, int arg3, void* userdata) {
+    gpio_toggle(LED_0);
+    if (toggle == 0) { 
+        spi_write_buf(rbuf, 6, write_cb, NULL);
+    } else {
+        spi_write_buf(wbuf, 6, write_cb, NULL);
+    }
+    toggle = toggle ^ 1;
+}
+
+// This function can operate in one of two modes. Either
+// a periodic timer triggers an SPI operation, or SPI
+// operations are performed back-to-back (callback issues
+// the next one.)
+//
+// In both cases, the calls alternate on which of two
+// buffers is used as the write buffer. The first call
+// uses the write buffer (initialed to 0..199). The
+// 2n calls use the read buffer. If you set SPI to
+// loopback, then the read buffer (after the first
+// call) will be the same as the write buffer. So
+// this is an easy way to tell if reads are operating
+// properly (all sent buffers should be 0..5).
 
 void main(void) {
         int i;
@@ -68,5 +92,6 @@ void main(void) {
 		wbuf[i] = i;
 	}
 	spi_read_buf(rbuf, 10);
-	timer_repeating_subscribe(timer_cb, NULL);
+//	timer_repeating_subscribe(timer_cb, NULL);
+        spi_write_buf(wbuf, 6, write_cb, NULL);
 }

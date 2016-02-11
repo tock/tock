@@ -67,7 +67,6 @@ int spi_write_buf(const char* str,
 		  void* userdata) {
   allow(4, 1, (void*)str, len);
   subscribe(4, 0, cb, userdata);
-  command(4, 0, 127);
   command(4, 1, len);
 }
 
@@ -75,12 +74,12 @@ char* spi_str;
 size_t spi_len;
 void* spi_userdata;
 
-static CB_TYPE spi_repeat_cb(int r0, int r1, int r2, void* ud) {
+static CB_TYPE spi_repeat_cb() {
   spi_write_buf(spi_str, spi_len, spi_repeat_cb, spi_userdata);
   return SPIBUF;
 }
 
-int spi_repeat_write(const char* str,
+int spi_repeat_write(char* str,
 		     size_t len,
 		     void* userdata) {
     spi_str = str;
@@ -89,7 +88,7 @@ int spi_repeat_write(const char* str,
     spi_write_buf(spi_str, spi_len, spi_repeat_cb, spi_userdata);
 }
 
-int spi_block_write(const char* str, 
+int spi_block_write(char* str, 
 		    size_t len, 
 		    void* userdata) {
     spi_write_buf(str, len, spi_cb, userdata);
