@@ -76,9 +76,6 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
     }
 }
 
-static mut wbuf: [u8;10] = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-static mut rbuf: [u8;10] = [0; 10];
-
 impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     fn allow(&self, appid: AppId,
              allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
@@ -141,6 +138,26 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
             _ => -1
         }
     }
+    /*
+     * 0: read/write a single byte (blocking)
+     * 1: read/write buffers
+     *   - requires write buffer registered with allow
+     *   - read buffer optional
+     * 2: set chip select
+     *   - valid values are 0-3
+     *   - invalid value will result in no chip select
+     * 3: get chip select
+     *   - returns current selected peripheral
+     *   - If none selected, returns 255
+     * x: lock spi
+     *   - if you perform an operation without the lock,
+     *     it implicitly acquires the lock before the
+     *     operation and releases it after
+     *   - while an app holds the lock no other app can issue
+     *     operations on SPI (they are buffered)
+     * x+1: unlock spi
+     *   - does nothing if lock not held
+     */
 
     fn command(&self, cmd_num: usize, arg1: usize) -> isize {
         match cmd_num {
@@ -178,7 +195,19 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                     0
                 }); 
                 -1
-            } 
+            }
+            2 /* set chip select */ => {
+                let cs = arg1 as u8;
+                if cs <= 3 {
+                    self.spi_master.set_chip_select(cs);
+                    0
+                } else {
+                    -1
+                }
+            }
+            3 /* get chip select */ => {
+                self.spi_master.get_chip_select() as isize
+            }
             _ => -1
         }
     }

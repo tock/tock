@@ -80,6 +80,8 @@ pub trait SpiMaster {
     /// applied, 0 is always valid.
     fn set_chip_select(&self, cs: u8) -> bool;
     fn clear_chip_select(&self);
+    fn get_chip_select(&self) -> u8;
+
     /// Returns the actual rate set
     fn set_rate(&self, rate: u32) -> u32;
     fn set_clock(&self, polarity: ClockPolarity);

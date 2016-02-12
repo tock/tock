@@ -366,6 +366,20 @@ impl spi_master::SpiMaster for Spi {
         true
     }
 
+    fn get_chip_select(&self) -> u8 {
+        let mut mr = unsafe {volatile_load(&(*self.regs).mr)};
+        let pcs_mask: u32 = 0xFFF0FFFF;
+        mr &= pcs_mask;
+        mr = mr >> 16;
+        return match mr {
+            0b0000 => 0,
+            0b0001 => 1,
+            0b0011 => 2,
+            0b0111 => 3,
+            _      => 255,
+        };
+    }
+
     fn clear_chip_select(&self) {
        unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
     }
