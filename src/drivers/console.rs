@@ -74,7 +74,6 @@ impl<'a, U: UART> Driver for Console<'a, U> {
         }
     }
 
-    #[inline(never)]
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 /* read line */ => {

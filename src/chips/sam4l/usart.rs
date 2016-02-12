@@ -204,7 +204,6 @@ impl uart::UART for USART {
         volatile_store(&mut regs.thr, byte as u32);
     }
 
-    #[inline(never)]
     fn send_bytes<S>(&self, bytes: AppSlice<S, u8>) {
         self.dma.as_ref().map(|dma| {
             dma.enable();

@@ -93,7 +93,6 @@ impl Ast {
 
     // Clears the alarm bit in the status register (indicating the alarm value
     // has been reached).
-    #[inline(never)]
     pub fn clear_alarm(&self) {
         while self.busy() {}
         unsafe {

@@ -80,7 +80,6 @@ pub struct Process<'a> {
 }
 
 impl<'a> Process<'a> {
-    #[inline(never)]
     pub unsafe fn create(start_addr: *const usize) -> Option<Process<'a>> {
         let cur_idx = atomic_xadd(&mut FREE_MEMORY_IDX, 1);
         if cur_idx > MEMORIES.len() {

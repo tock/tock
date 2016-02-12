@@ -94,7 +94,6 @@ impl <'a, Alrm: Alarm> AlarmClient for VirtualMuxAlarm<'a, Alrm> {
     }
 }
 
-#[inline(never)]
 fn past_from_base(cur: u32, now: u32, prev: u32) -> bool {
     cur.wrapping_sub(now) <= cur.wrapping_sub(prev)
 }
