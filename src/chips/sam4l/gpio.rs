@@ -135,7 +135,6 @@ impl IndexMut<usize> for Port {
 }
 
 impl Port {
-    #[inline(never)]
     pub fn handle_interrupt(&self) {
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
 

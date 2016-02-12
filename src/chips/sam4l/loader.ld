@@ -84,6 +84,11 @@ SECTIONS
         KEEP (*crtend.o(.dtors))
 
         . = ALIGN(4);
+        _sapps = .;
+        *(.app.*)
+        _eapps = .;
+
+        . = ALIGN(4);
         _efixed = .;            /* End of text section */
     } > rom
 
@@ -105,11 +110,6 @@ SECTIONS
         _srelocate = .;
         *(.ramfunc .ramfunc.*);
         *(.data .data.*);
-
-        . = ALIGN(4);
-        _sapps = .;
-        *(.app.*)
-        _eapps = .;
 
         . = ALIGN(4);
         _erelocate = .;

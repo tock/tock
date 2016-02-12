@@ -16,7 +16,6 @@ pub static mut INTERRUPT_QUEUE : Option<RingBuffer<'static, nvic::NvicIdx>> = No
 
 
 impl Sam4l {
-    #[inline(never)]
     pub unsafe fn new() -> Sam4l {
         INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
         usart::USART3.set_dma(&mut dma::DMAChannels[0]);

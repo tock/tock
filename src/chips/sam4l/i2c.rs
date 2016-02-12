@@ -143,7 +143,6 @@ impl hil::i2c::I2C for I2CDevice {
         }
     }
 
-    #[inline(never)]
     fn write_sync (&self, addr: u16, data: &[u8]) {
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
 

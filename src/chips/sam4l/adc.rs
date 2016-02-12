@@ -82,7 +82,6 @@ impl Adc {
             request: Cell::new(None)
         }
     }
-    #[inline(never)]
     pub fn handle_interrupt(&mut self) {
         let val : u16;
         unsafe {
