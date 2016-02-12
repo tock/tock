@@ -7,7 +7,7 @@ $(BUILD_DIR)/libplatform.rlib: $(call rwildcard,$(SRC_DIR)platform/$(PLATFORM),*
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) $(SRC_DIR)platform/$(PLATFORM)/lib.rs
 
-$(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/ctx_switch.o $(BUILD_DIR)/sync.o $(BUILD_DIR)/main.o $(APP_BINS)
+$(BUILD_DIR)/main.elf: $(BUILD_DIR)/crt1.o $(BUILD_DIR)/ctx_switch.o $(BUILD_DIR)/main.o $(APP_BINS)
 	@echo "Linking $@"
 	@$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@ -Wl,-Map=$(BUILD_DIR)/main.Map
 	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(BUILD_DIR)/main.lst
