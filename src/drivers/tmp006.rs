@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use common::math::{powi_f32, pow_f32, get_errno};
+use common::math::{sqrtf32, get_errno};
 use hil::{Driver,Callback};
 use hil::i2c::I2C;
 use hil::gpio::{GPIOPin, InputMode, InterruptMode, Client};
@@ -176,7 +176,8 @@ impl<'a, I: I2C, G: GPIOPin> TMP006<'a, I, G> {
         let v_adj = v_obj-v_os;
         let f_v_obj = v_adj + C_2*v_adj*v_adj;
 
-        let t_kelvin = pow_f32(powi_f32(t_die, 4) + (f_v_obj / s), 0.25);
+        let t_kelvin =
+            sqrtf32(sqrtf32(t_die * t_die * t_die * t_die + (f_v_obj / s)));
         let t_celsius = t_kelvin + K_TO_C;
 
         // return data value
