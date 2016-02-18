@@ -90,7 +90,7 @@ impl<'a, T: Timer> TimerDriver<'a, T> {
 
 impl<'a, T: Timer> Driver for TimerDriver<'a, T> {
     fn subscribe(&self, subscribe_type: usize, callback: Callback) -> isize {
-        let interval = 115000;
+        let interval = 15000;
         match subscribe_type {
             0 /* Oneshot */ => {
                 self.app_timers[callback.app_id().idx()].set(Some(TimerData {

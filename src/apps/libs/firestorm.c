@@ -49,3 +49,37 @@ int timer_repeating_subscribe(subscribe_cb cb, void *userdata) {
   return subscribe(3, 1, cb, userdata);
 }
 
+int spi_write_byte(unsigned char byte) {
+  return command(4, 0, byte);
+}
+
+int spi_read_buf(const char* str, size_t len) {
+  allow(4, 0, (void*)str, len);
+}
+
+static CB_TYPE spi_cb(int r0, int r1, int r2, void* ud) {
+  return SPIBUF;
+}
+
+int spi_write(const char* str, 
+   	      size_t len, 
+	      subscribe_cb cb) { 
+  allow(4, 1, (void*)str, len);
+  subscribe(4, 0, cb, NULL);
+  command(4, 1, len);
+}
+
+int spi_read_write(const char* write,
+		   char* read, 
+		   size_t  len,
+		   subscribe_cb cb) {
+
+  allow(4, 0, (void*)read, len);
+  spi_write(write, len, cb);
+}
+
+int spi_block_write(char* str, 
+		    size_t len) { 
+    spi_write(str, len, spi_cb);
+    //wait_for(SPIBUF);
+}

@@ -1,11 +1,11 @@
 use core::cell::Cell;
+use core::cell::RefCell;
 use core::mem;
 use core::intrinsics;
 use pm;
 use nvic;
 
 use helpers::*;
-use process::AppSlice;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet
 #[repr(C, packed)]
@@ -131,10 +131,11 @@ pub struct DMAChannel {
     nvic: nvic::NvicIdx,
     pub client: Option<&'static mut DMAClient>,
     enabled: Cell<bool>,
+    buffer: RefCell<Option<&'static mut [u8]>>,
 }
 
 pub trait DMAClient {
-    fn xfer_done(&mut self, pid: usize);
+    fn xfer_done(&mut self, pid: usize, buf: &'static mut [u8]);
 }
 
 impl DMAChannel {
@@ -144,7 +145,9 @@ impl DMAChannel {
                     as *mut DMARegisters,
             nvic: nvic,
             client: None,
-            enabled: Cell::new(false)
+            enabled: Cell::new(false),
+            buffer: RefCell::new(None)
+
         }
     }
 
@@ -198,23 +201,13 @@ impl DMAChannel {
             mem::transmute(self.registers)
         };
         let d: usize = volatile_load(&registers.peripheral_select);
+        // Here we take the buffer reference out of the option and
+        // return it to the caller
+        let buffer_opt = self.buffer.borrow_mut().take();
         self.client.as_mut().map(|client| {
-            client.xfer_done(d);
+            let buf = buffer_opt.unwrap();
+            client.xfer_done(d, buf);
         });
-    }
-
-    pub fn do_xfer<S>(&self, pid: usize, slice: AppSlice<S, u8>) {
-        let registers : &mut DMARegisters = unsafe {
-            mem::transmute(self.registers)
-        };
-
-
-        volatile_store(&mut registers.peripheral_select, pid);
-        volatile_store(&mut registers.memory_address_reload,
-                       &slice.as_ref()[0] as *const u8 as usize);
-        volatile_store(&mut registers.transfer_counter_reload, slice.len());
-
-        volatile_store(&mut registers.interrupt_enable, 1 << 1);
     }
 
     pub fn do_xfer_buf(&self, pid: usize,
@@ -227,13 +220,15 @@ impl DMAChannel {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
-
         volatile_store(&mut registers.peripheral_select, pid);
         volatile_store(&mut registers.memory_address_reload,
                        &buf[0] as *const u8 as usize);
         volatile_store(&mut registers.transfer_counter_reload, len);
 
         volatile_store(&mut registers.interrupt_enable, 1 << 1);
+        // Store the buffer reference in the Option,
+        // will be returned to the caller
+        *self.buffer.borrow_mut() = Some(buf); 
     }
 }
 

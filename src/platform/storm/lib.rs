@@ -10,14 +10,25 @@ extern crate sam4l;
 extern crate support;
 
 use hil::Controller;
+use hil::spi_master::SpiMaster;
 use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
-// Uncomment each module to test with respective commented out code block in
-// `init`
-//
+// HAL unit tests. To enable a particular unit test, uncomment
+// the module here and uncomment the call to start the test in
+// the init function below.
 //mod gpio_dummy;
 //mod spi_dummy;
+//mod spi_driver;
+
+
+#[allow(unused_variables,dead_code)]
+pub struct DummyCB {
+    val: u8
+}
+ 
+static mut spi_read_buf:  [u8; 64] = [0; 64];
+static mut spi_write_buf: [u8; 64] = [0; 64];
 
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
@@ -26,6 +37,7 @@ pub struct Firestorm {
     timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin>,
+    spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
 }
 
 impl Firestorm {
@@ -45,6 +57,7 @@ impl Firestorm {
             1 => f(Some(&self.gpio)),
             2 => f(Some(self.tmp006)),
             3 => f(Some(self.timer)),
+            4 => f(Some(self.spi)),
             _ => f(None)
         }
     }
@@ -99,6 +112,16 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                             drivers::timer::TimerDriver::new(vtimer1));
     vtimer1.set_client(timer);
 
+    // Configure SPI pins: CLK, MISO, MOSI, CS3
+    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // Initialize and enable SPI HAL
+    static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
+                      drivers::spi::Spi::new(&mut sam4l::spi::SPI));
+    spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+
     static_init!(firestorm : Firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
         console: &*console,
@@ -111,7 +134,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             , &sam4l::gpio::PA[10], &sam4l::gpio::PA[12]
             , &sam4l::gpio::PC[09]]),
         timer: timer,
-        tmp006: &*tmp006
+        tmp006: &*tmp006,
+        spi: &*spi,
     });
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
@@ -128,15 +152,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
     sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 
-    // Configure SPI pins: CLK, MISO, MOSI, CS3
-    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
-
-    // Uncommenting the following line will cause the device to write
-    // [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then echo the 8 bytes read
-    // from the slave continuously.
+    // Uncommenting the following line will cause the device to use the 
+    // SPI HAL to write [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then 
+    // echo the 8 bytes read from the slave continuously. 
     //spi_dummy::spi_dummy_test();
 
     // Uncommenting the following line will toggle the LED whenever the value of
@@ -144,8 +162,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // press toggle it).
     //gpio_dummy::gpio_dummy_test();
 
-    firestorm.console.initialize();
+    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
+    sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
+    sam4l::spi::SPI.enable();
 
+    firestorm.console.initialize();
     firestorm
 }
 

@@ -64,6 +64,9 @@ pub struct Spi {
     // to correctly issue completion event only after both complete.
     reading: Cell<bool>,
     writing: Cell<bool>,
+    read_buffer: Option<&'static mut [u8]>,
+    write_buffer: Option<&'static mut [u8]>,
+    dma_length: Cell<usize>,
 }
 
 pub static mut SPI: Spi = Spi::new();
@@ -77,11 +80,15 @@ impl Spi {
             dma_read:  None,
             dma_write: None,
             reading: Cell::new(false),
-            writing: Cell::new(false)
+            writing: Cell::new(false),
+            read_buffer: None,
+            write_buffer: None,
+            dma_length: Cell::new(0),
         }
     }
 
     pub fn enable(&self) {
+        unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI));}
         self.dma_read.as_ref().map(|read| read.enable());
         self.dma_write.as_ref().map(|write| write.enable());
         unsafe { volatile_store(&mut (*self.regs).cr, 0b1); }
@@ -228,18 +235,6 @@ impl spi_master::SpiMaster for Spi {
         self.reading.get() || self.writing.get()
     }
 
-    /// Write a byte to the SPI and return the read; if an
-    /// asynchronous operation is outstanding, do nothing.
-    fn read_write_byte(&self, val: u8) -> u8 {
-        if self.reading.get() || self.writing.get() {
-  //          return 0;
-        }
-        self.write_byte(val);
-        // Wait for receive data register full
-        while (unsafe {volatile_load(&(*self.regs).sr)} & 1) != 1 {}
-        // Return read value
-        unsafe {volatile_load(&(*self.regs).rdr) as u8}
-    }
 
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
@@ -260,6 +255,19 @@ impl spi_master::SpiMaster for Spi {
         self.read_write_byte(0)
     }
 
+    /// Write a byte to the SPI and return the read; if an
+    /// asynchronous operation is outstanding, do nothing.
+    fn read_write_byte(&self, val: u8) -> u8 {
+        if self.reading.get() || self.writing.get() {
+  //          return 0;
+        }
+        self.write_byte(val);
+        // Wait for receive data register full
+        while (unsafe {volatile_load(&(*self.regs).sr)} & 1) != 1 {}
+        // Return read value
+        unsafe {volatile_load(&(*self.regs).rdr) as u8}
+    }
+
     /// Asynchonous buffer read/write of SPI.
     /// write_buffer must  be Some; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
@@ -278,7 +286,7 @@ impl spi_master::SpiMaster for Spi {
         // Need to check self.reading as well as self.writing in case
         // write interrupt comes back first.
         if !writing  || self.reading.get() || self.writing.get() {
-            return false
+            //return false
         }
 
         // Need to mark if reading or writing so we correctly
@@ -297,7 +305,7 @@ impl spi_master::SpiMaster for Spi {
         let buflen = if !reading {write_len}
                      else        {cmp::min(read_len, write_len)};
         let count = cmp::min(buflen, len);
-
+        self.dma_length.set(count);
         // The ordering of these operations matters; if you enable then
         // perform the operation, you can read a byte early on the SPI data register
         if reading {
@@ -383,13 +391,27 @@ impl spi_master::SpiMaster for Spi {
         true
     }
 
+    fn get_chip_select(&self) -> u8 {
+        let mut mr = unsafe {volatile_load(&(*self.regs).mr)};
+        let pcs_mask: u32 = 0xFFF0FFFF;
+        mr &= pcs_mask;
+        mr = mr >> 16;
+        return match mr {
+            0b0000 => 0,
+            0b0001 => 1,
+            0b0011 => 2,
+            0b0111 => 3,
+            _      => 255,
+        };
+    }
+
     fn clear_chip_select(&self) {
        unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
     }
 }
 
 impl DMAClient for Spi {
-    fn xfer_done(&mut self, pid: usize) {
+    fn xfer_done(&mut self, pid: usize, buf: &'static mut[u8]) {
         // I don't know if there are ordering guarantees on the read and
         // write interrupts, guessing not, so issue the callback when both
         // reading and writing are complete. In practice it seems like
@@ -401,15 +423,27 @@ impl DMAClient for Spi {
         if pid == 4  { // SPI RX
            // self.dma_read.as_ref().map(|dma| dma.disable());
             self.reading.set(false);
+            self.read_buffer = Some(buf);
             if !self.reading.get() && !self.writing.get() {
-                self.callback.as_ref().map(|cb| cb.read_write_done());
+                let rb = self.read_buffer.take();
+                let wb = self.write_buffer.take();
+                let len = self.dma_length.get();
+                self.dma_length.set(0);
+                self.callback.as_ref().map(|cb| 
+                                           cb.read_write_done(wb, rb, len));
             }
         }
-        if pid == 22 { // SPI TX
+        else if pid == 22 { // SPI TX
            // self.dma_write.as_ref().map(|dma| dma.disable());
             self.writing.set(false);
+            self.write_buffer = Some(buf);
             if !self.reading.get() && !self.writing.get() {
-                self.callback.as_ref().map(|cb| cb.read_write_done());
+                let rb = self.read_buffer.take();
+                let wb = self.write_buffer.take();
+                let len = self.dma_length.get();
+                self.dma_length.set(0);
+                self.callback.as_ref().map(|cb| 
+                                           cb.read_write_done(wb, rb, len));
             }
         }
     }

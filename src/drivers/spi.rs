@@ -162,7 +162,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
      *   - 1 is trailing edge
      * 8: set clock rate (u32 bps)
      *   - returns actual clock rate set
-     * 8: get clock rate 
+     * 9: get clock rate 
      *   - returns clock rate (u32 bps)
      * x: lock spi
      *   - if you perform an operation without the lock,

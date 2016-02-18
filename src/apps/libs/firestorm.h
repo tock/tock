@@ -14,7 +14,8 @@ extern "C" {
 enum firestorm_cb_type {
   PUTSTR,
   READTMP,
-  ASYNC
+  ASYNC,
+  SPIBUF
 };
 
 int gpio_enable(unsigned int pin);

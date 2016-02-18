@@ -1,6 +1,6 @@
 #![crate_name = "drivers"]
 #![crate_type = "rlib"]
-#![feature(const_fn, raw)]
+#![feature(const_fn, raw, slice_bytes)]
 #![no_std]
 
 extern crate common;
@@ -11,3 +11,4 @@ pub mod gpio;
 pub mod timer;
 pub mod tmp006;
 pub mod virtual_alarm;
+pub mod spi;
