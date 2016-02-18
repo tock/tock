@@ -137,6 +137,12 @@ impl Spi {
         clock / scbr
     }
 
+    pub fn get_baud_rate(&self) -> u32 {
+        let clock = 48000000;
+        let scbr = (self.read_active_csr() >> 8) & 0xFF;
+        clock / scbr
+    }
+
     pub fn set_active_peripheral(&self, peripheral: Peripheral) {
         let peripheral_number: u32 = match peripheral {
             Peripheral::Peripheral0 => 0b0000,
@@ -325,7 +331,11 @@ impl spi_master::SpiMaster for Spi {
 
     fn set_rate(&self, rate: u32) -> u32 {
         self.set_baud_rate(rate)
-     }
+    }
+
+    fn get_rate(&self) -> u32 {
+         self.get_baud_rate()
+    } 
 
     fn set_clock(&self, polarity: ClockPolarity) {
         let mut csr = self.read_active_csr();
@@ -336,6 +346,16 @@ impl spi_master::SpiMaster for Spi {
         self.write_active_csr(csr);
     }
 
+
+    fn get_clock(&self) -> ClockPolarity {
+        let csr = self.read_active_csr();
+        let polarity = csr & 0x1;
+        match polarity {
+            0 => ClockPolarity::IdleLow,
+            _ => ClockPolarity::IdleHigh,
+        }
+    }
+
     fn set_phase(&self, phase: ClockPhase) {
         let mut csr = self.read_active_csr();
         match phase {
@@ -343,6 +363,15 @@ impl spi_master::SpiMaster for Spi {
             ClockPhase::SampleTrailing => csr &= 0xFFFFFFFD,
         };
         self.write_active_csr(csr);
+    }
+
+    fn get_phase(&self) -> ClockPhase {
+        let csr = self.read_active_csr();
+        let phase = (csr >> 1) & 0x1;
+        match phase {
+            0 => ClockPhase::SampleTrailing,
+            _ => ClockPhase::SampleLeading,
+        }
     }
 
     fn set_chip_select(&self, cs: u8) -> bool{
@@ -367,17 +396,15 @@ impl spi_master::SpiMaster for Spi {
     }
 
     fn get_chip_select(&self) -> u8 {
-        let mut mr = unsafe {volatile_load(&(*self.regs).mr)};
-        let pcs_mask: u32 = 0xFFF0FFFF;
-        mr &= pcs_mask;
-        mr = mr >> 16;
-        return match mr {
+        let mr = unsafe {volatile_load(&(*self.regs).mr)};
+        let cs = (mr >> 16) & 0xF;
+        match cs {
             0b0000 => 0,
             0b0001 => 1,
             0b0011 => 2,
             0b0111 => 3,
-            _      => 255,
-        };
+            _ => 0,
+        }
     }
 
     fn clear_chip_select(&self) {
