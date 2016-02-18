@@ -10,6 +10,7 @@ extern crate support;
 pub mod ring_buffer;
 pub mod queue;
 pub mod utils;
+pub mod take_cell;
 pub mod volatile_cell;
 pub mod math;
 
