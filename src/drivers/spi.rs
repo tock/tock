@@ -149,6 +149,21 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
      * 3: get chip select
      *   - returns current selected peripheral
      *   - If none selected, returns 255
+     * 4: set clock polarity
+     *   - 0 is idle low
+     *   - non-zero is idle high
+     * 5: get clock polarity
+     *   - returns 0 if idle low, 1 if idle high
+     * 6: set clock phase
+     *   - 0 is sample leading edge
+     *   - non-zero is sample trailing edge
+     * 7: get clock phase
+     *   - 0 is leading edge
+     *   - 1 is trailing edge
+     * 8: set clock rate (u32 bps)
+     *   - returns actual clock rate set
+     * 8: get clock rate 
+     *   - returns clock rate (u32 bps)
      * x: lock spi
      *   - if you perform an operation without the lock,
      *     it implicitly acquires the lock before the
@@ -207,6 +222,34 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
             }
             3 /* get chip select */ => {
                 self.spi_master.get_chip_select() as isize
+            }
+            4 /* set polarity */ => {
+                let pol = match arg1 as u8 {
+                    0 => ClockPolarity::IdleLow,
+                    _ => ClockPolarity::IdleHigh
+                };
+                self.spi_master.set_clock(pol);
+                0
+            }
+            5 /* get polarity */ => {
+                self.spi_master.get_clock()
+            }
+            6 /* set phase */ => {
+                let phase = match arg1 as u8 {
+                    0 => ClockPhase::SampleLeading,
+                    _ => ClockPhase::SampleTrailing
+                };
+                self.spi_master.set_phase(phase);
+                0
+            }
+            7 /* get phase */ => {
+                self.spi_master.get_phase()
+            }
+            8 /* set rate */ => {
+                self.spi_master.set_rate(arg1 as u32)
+            }
+            9 /* get rate */ => {
+                self.spi_master.get_rate() as u32
             }
             _ => -1
         }

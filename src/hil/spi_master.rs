@@ -79,6 +79,9 @@ pub trait SpiMaster {
     fn clear_chip_select(&self);
     /// Returns the actual rate set
     fn set_rate(&self, rate: u32) -> u32;
+    fn get_rate(&self) -> u32;
     fn set_clock(&self, polarity: ClockPolarity);
+    fn get_clock(&self) -> ClockPolarity;
     fn set_phase(&self, phase: ClockPhase);
+    fn get_phase(&self) -> ClockPhase;
 }

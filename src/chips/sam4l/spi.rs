@@ -319,6 +319,13 @@ impl spi_master::SpiMaster for Spi {
         self.set_baud_rate(rate)
      }
 
+    fn get_rate(&self) -> u32 {
+        let csr = self.read_active_csr();
+        let sbcr = (csr << 8) & 0xFF;
+        let clock = 48000000;
+        clock / sbcr
+    }
+
     fn set_clock(&self, polarity: ClockPolarity) {
         let mut csr = self.read_active_csr();
         match polarity {
@@ -326,6 +333,15 @@ impl spi_master::SpiMaster for Spi {
             ClockPolarity::IdleLow => csr &= 0xFFFFFFFE,
         };
         self.write_active_csr(csr);
+    }
+    
+    fn get_clock(&self) -> ClockPolarity {
+        let csr = self.read_active_csr();
+        let polarity = csr & 0x1; 
+        match polarity {
+            0 => ClockPolarity::IdleLow,
+            _ => ClockPolarity::IdleHigh
+        }
     }
 
     fn set_phase(&self, phase: ClockPhase) {
@@ -335,6 +351,15 @@ impl spi_master::SpiMaster for Spi {
             ClockPhase::SampleTrailing => csr &= 0xFFFFFFFD,
         };
         self.write_active_csr(csr);
+    }
+
+    fn get_phase(&self) -> ClockPhase {
+        let csr = self.read_active_csr();
+        let phase = (csr >> 1) & 0x1;
+        match phase {
+            0 => ClockPhase::SampleTrailing,
+            _ => ClockPhase::SampleLeading,
+        }
     }
 
     fn set_chip_select(&self, cs: u8) -> bool{
