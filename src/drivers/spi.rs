@@ -3,6 +3,8 @@ use core::cell::Cell;
 use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
 use hil::spi_master::{SpiMaster,SpiCallback};
 use core::cmp;
+use hil::spi_master::ClockPolarity;
+use hil::spi_master::ClockPhase;
 
 
 /* SPI operations are handled by coping into a kernel buffer for
@@ -144,11 +146,29 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
      *   - requires write buffer registered with allow
      *   - read buffer optional
      * 2: set chip select
-     *   - valid values are 0-3
-     *   - invalid value will result in no chip select
+     *   - selects which peripheral (CS line) the SPI should
+     *     activate
+     *   - valid values are 0-3 for SAM4L
+     *   - invalid value will result in CS 0
      * 3: get chip select
      *   - returns current selected peripheral
      *   - If none selected, returns 255
+     * 4: set rate on current peripheral
+     *   - parameter in bps
+     * 5: get rate on current peripheral
+     *   - value in bps
+     * 6: set clock phase on current peripheral
+     *   - 0 is sample leading
+     *   - non-zero is sample trailing
+     * 7: get clock phase on current peripheral
+     *   - 0 is sample leading
+     *   - non-zero is sample trailing
+     * 8: set clock polarity on current peripheral
+     *   - 0 is idle low
+     *   - non-zero is idle high
+     * 9: get clock polarity on current peripheral
+     *   - 0 is idle low
+     *   - non-zero is idle high
      * x: lock spi
      *   - if you perform an operation without the lock,
      *     it implicitly acquires the lock before the
@@ -207,6 +227,32 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
             }
             3 /* get chip select */ => {
                 self.spi_master.get_chip_select() as isize
+            }
+            4 /* set baud rate */ => {
+                self.spi_master.set_rate(arg1 as u32) as isize
+            }
+            5 /* get baud rate */ => {
+                self.spi_master.get_rate() as isize
+            }
+            6 /* set phase */ => {
+                match arg1 {
+                    0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
+                    _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
+                };
+                0
+            }
+            7 /* get phase */ => {
+                self.spi_master.get_phase() as isize
+            }
+            8 /* set polarity */ => {
+                match arg1 {
+                    0 => self.spi_master.set_clock(ClockPolarity::IdleLow),
+                    _ => self.spi_master.set_clock(ClockPolarity::IdleHigh),
+                };
+                0
+            }
+            9 /* get polarity */ => {
+                self.spi_master.get_clock() as isize
             }
             _ => -1
         }
