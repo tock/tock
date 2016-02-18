@@ -1,6 +1,7 @@
-$(BUILD_APP_DIR)/spi_buf.elf: $(call rwildcard,$(SRC_DIR)apps/spi_buf/,*.c) $(BUILD_DIR)/arch.o $(BUILD_APP_DIR)/firestorm.o $(BUILD_APP_DIR)/tock.o $(BUILD_APP_DIR)/crt1.o $(BUILD_APP_DIR)/sys.o $(BUILD_APP_DIR)/arch.o $(APP_LIBC)
+$(BUILD_APP_DIR)/spi_buf.elf: $(call rwildcard,$(SRC_DIR)apps/spi_buf/,*.c) $(BUILD_APP_DIR)/firestorm.o $(BUILD_APP_DIR)/tock.o $(BUILD_APP_DIR)/crt1.o $(BUILD_APP_DIR)/sys.o $(BUILD_APP_DIR)/arch.o $(APP_LIBC)
 	@echo "Building $@"
-	@$(CC) $(LDFLAGS) $(CFLAGS_APPS) -g -Os -T $(SRC_DIR)apps/spi_buf/loader.ld -o $@ -ffreestanding -nostdlib $^
+	@$(CC) $(CFLAGS_BASE) $(CFLAGS_APPS) -g -Os -T $(SRC_DIR)apps/spi_buf/loader.ld -o $@ -ffreestanding -nostdlib -Wl,-Map=$(BUILD_APP_DIR)/app.Map $^
+	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(BUILD_APP_DIR)/app.lst
 
 $(BUILD_APP_DIR)/spi_buf.bin: $(BUILD_APP_DIR)/spi_buf.elf
 	@echo "Extracting binary $@"
