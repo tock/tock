@@ -214,7 +214,7 @@ impl DMAChannel {
         });
     }
 
-    pub fn do_xfer<S>(&self, pid: usize, mut slice: AppSlice<S, u8>) {
+    pub fn do_xfer_old<S>(&self, pid: usize, mut slice: AppSlice<S, u8>) {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
@@ -232,7 +232,7 @@ impl DMAChannel {
         self.buffer.replace(unsafe { mem::transmute(slice.as_mut()) });
     }
 
-    pub fn do_xfer_buf(&self, pid: usize,
+    pub fn do_xfer(&self, pid: usize,
                        buf: &'static mut [u8],
                        len: usize) {
         if len > buf.len() {

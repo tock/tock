@@ -207,7 +207,7 @@ impl uart::UART for USART {
     fn send_bytes<S>(&self, bytes: AppSlice<S, u8>) {
         self.dma.as_ref().map(|dma| {
             dma.enable();
-            dma.do_xfer(21, bytes);
+            dma.do_xfer_old(21, bytes);
         });
     }
 
