@@ -364,7 +364,7 @@ impl spi_master::SpiMaster for Spi {
 }
 
 impl DMAClient for Spi {
-    fn xfer_done(&mut self, pid: usize) {
+    fn xfer_done(&mut self, pid: usize, _buffer: &'static mut [u8]) {
         // I don't know if there are ordering guarantees on the read and
         // write interrupts, guessing not, so issue the callback when both
         // reading and writing are complete. In practice it seems like

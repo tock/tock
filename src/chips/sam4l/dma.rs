@@ -1,6 +1,7 @@
 use core::cell::Cell;
 use core::mem;
 use core::intrinsics;
+use common::take_cell::TakeCell;
 use pm;
 use nvic;
 
@@ -131,10 +132,11 @@ pub struct DMAChannel {
     nvic: nvic::NvicIdx,
     pub client: Option<&'static mut DMAClient>,
     enabled: Cell<bool>,
+    buffer: TakeCell<&'static mut [u8]>
 }
 
 pub trait DMAClient {
-    fn xfer_done(&mut self, pid: usize);
+    fn xfer_done(&mut self, pid: usize, buffer: &'static mut [u8]);
 }
 
 impl DMAChannel {
@@ -144,7 +146,8 @@ impl DMAChannel {
                     as *mut DMARegisters,
             nvic: nvic,
             client: None,
-            enabled: Cell::new(false)
+            enabled: Cell::new(false),
+            buffer: TakeCell::empty()
         }
     }
 
@@ -197,13 +200,21 @@ impl DMAChannel {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
-        let d: usize = volatile_load(&registers.peripheral_select);
+        let channel : usize = volatile_load(&registers.peripheral_select);
+
+        // Here we take the buffer reference out of the option and
+        // return it to the caller
+        let buffer = self.buffer.take();
         self.client.as_mut().map(|client| {
-            client.xfer_done(d);
+            // If buffer is `None` we neglected to `replace` it in `do_xfer`
+            // which should never happen...
+            buffer.map(|buf| {
+                client.xfer_done(channel, buf);
+            });
         });
     }
 
-    pub fn do_xfer<S>(&self, pid: usize, slice: AppSlice<S, u8>) {
+    pub fn do_xfer<S>(&self, pid: usize, mut slice: AppSlice<S, u8>) {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
@@ -215,6 +226,10 @@ impl DMAChannel {
         volatile_store(&mut registers.transfer_counter_reload, slice.len());
 
         volatile_store(&mut registers.interrupt_enable, 1 << 1);
+
+        // TODO(alevy): This is, like, pretty stupid, but we're gonna get rid of
+        // this whole method anyway
+        self.buffer.replace(unsafe { mem::transmute(slice.as_mut()) });
     }
 
     pub fn do_xfer_buf(&self, pid: usize,
@@ -234,6 +249,10 @@ impl DMAChannel {
         volatile_store(&mut registers.transfer_counter_reload, len);
 
         volatile_store(&mut registers.interrupt_enable, 1 << 1);
+
+        // Store the buffer reference in the TakeCell so it can be returned to
+        // the caller in `handle_interrupt`
+        self.buffer.replace(buf);
     }
 }
 
