@@ -1,4 +1,4 @@
-use core::cell::RefCell;
+use common::take_cell::TakeCell;
 use core::cell::Cell;
 use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
 use hil::spi_master::{SpiMaster,SpiCallback};
@@ -27,9 +27,9 @@ struct App {
 pub struct Spi<'a, S: SpiMaster + 'a> {
     spi_master:   &'a mut S,
     busy:         Cell<bool>,
-    apps:         [RefCell<Option<App>>; NUM_PROCS],
-    kernel_read:  RefCell<Option<&'static mut [u8]>>,
-    kernel_write: RefCell<Option<&'static mut [u8]>>,
+    apps:         [TakeCell<App>; NUM_PROCS],
+    kernel_read:  TakeCell<&'static mut [u8]>,
+    kernel_write: TakeCell<&'static mut [u8]>,
     kernel_len:   Cell<usize>
 }
 
@@ -38,10 +38,10 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
-            apps: [RefCell::new(None)],
+            apps: [TakeCell::empty()],
             kernel_len: Cell::new(0),
-            kernel_read : RefCell::new(None),
-            kernel_write : RefCell::new(None),
+            kernel_read : TakeCell::empty(),
+            kernel_write : TakeCell::empty()
         }
     }
 
@@ -50,8 +50,8 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
                           write: &'static mut [u8]) {
         let len = cmp::min(read.len(), write.len());
         self.kernel_len.set(len);
-        self.kernel_read = RefCell::new(Some(read));
-        self.kernel_write = RefCell::new(Some(write));
+        self.kernel_read.replace(read);
+        self.kernel_write.replace(write);
     }
 
     // Assumes checks for busy/etc. already done
@@ -61,20 +61,17 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
         let len = cmp::min(app.len.get() - start, self.kernel_len.get());
         let end = start + len;
         app.index.set(end);
-        let mut kwrite = self.kernel_write.borrow_mut();
-        let mut kread  = self.kernel_read.borrow_mut();
-        {
-            use core::slice::bytes::copy_memory;
-            let src = app.app_write.as_mut().unwrap();
-            let mut kwbuf = kwrite.as_mut().unwrap();
-            copy_memory(&src.as_ref()[start .. end], kwbuf);
-        }
-        let reading = app.app_read.is_some();
-        if reading {
-            self.spi_master.read_write_bytes(kwrite.take(), kread.take(), len);
-        } else {
-            self.spi_master.read_write_bytes(kwrite.take(), None, len);
-        }
+
+        self.kernel_write.map(|kwbuf| {
+            app.app_write.as_mut().map(|src| {
+                for (i, c) in src.as_ref()[start .. end].iter().enumerate() {
+                    kwbuf[i] = *c;
+                }
+            });
+        });
+
+        self.spi_master.read_write_bytes(self.kernel_write.take(),
+                                         self.kernel_read.take(), len);
     }
 }
 
@@ -84,35 +81,37 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
         let app = appid.idx();
         match allow_num {
             0 => {
-                let mut appc = self.apps[app].borrow_mut();
-                if appc.is_none() {
-                    *appc = Some(App {
+                let appc = match self.apps[app].take() {
+                    None => App {
                         callback: None,
                         app_read: Some(slice),
                         app_write: None,
                         len: Cell::new(0),
                         index: Cell::new(0),
-                    })
-                } else {
-                    appc.as_mut().map(|app| {
-                        app.app_read = Some(slice);
-                    });
-                }
+                    },
+                    Some(mut appc) => {
+                        appc.app_read = Some(slice);
+                        appc
+                    }
+                };
+                self.apps[app].replace(appc);
                 0
             },
             1 => {
-                let mut appc = self.apps[app].borrow_mut();
-                if appc.is_none() {
-                    *appc = Some(App {
+                let appc = match self.apps[app].take() {
+                    None => App {
                         callback: None,
                         app_read: None,
                         app_write: Some(slice),
                         len: Cell::new(0),
                         index: Cell::new(0),
-                    })
-                } else {
-                    appc.as_mut().map(|app| app.app_write = Some(slice));
-                }
+                    },
+                    Some(mut appc) => {
+                        appc.app_write = Some(slice);
+                        appc
+                    }
+                };
+                self.apps[app].replace(appc);
                 0
             }
             _ => -1
@@ -123,18 +122,20 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 /* read_write */ => {
-                let mut app = self.apps[0].borrow_mut();
-                if app.is_none() {
-                    *app = Some(App {
+                let appc = match self.apps[0].take() {
+                    None => App {
                         callback: Some(callback),
                         app_read: None,
                         app_write: None,
                         len: Cell::new(0),
                         index: Cell::new(0),
-                    });
-                } else {
-                    app.as_mut().map(|a| a.callback = Some(callback));
-                }
+                    },
+                    Some(mut appc) => {
+                        appc.callback = Some(callback);
+                        appc
+                    }
+                };
+                self.apps[0].replace(appc);
                 0
             },
             _ => -1
@@ -188,33 +189,25 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                 if self.busy.get() {
                     return -1;
                 }
-                let mut app = self.apps[0].borrow_mut();
-                if app.is_none() {
-                    return -1;
-                }
-                app.as_mut().map(|mut a| {
-                    // If no write buffer, return
-                    if a.app_write.is_none() {
-                        return -1;
-                    }
+                let mut result = -1;
+                self.apps[0].map(|app| {
                     let mut mlen = 0;
                     // If write buffer too small, return
-                    a.app_write.as_mut().map(|w| {
+                    app.app_write.as_mut().map(|w| {
                         mlen = w.len();
                     });
-                    a.app_read.as_mut().map(|r| {
+                    app.app_read.as_mut().map(|r| {
                         mlen = cmp::min(mlen, r.len());
                     });
-                    if mlen < arg1 {
-                        return -1;
+                    if mlen >= arg1 {
+                        app.len.set(arg1);
+                        app.index.set(0);
+                        self.busy.set(true);
+                        self.do_next_read_write(app);
+                        result = 0;
                     }
-                    a.len.set(arg1);
-                    a.index.set(0);
-                    self.busy.set(true);
-                    self.do_next_read_write(&mut a as &mut App);
-                    0
                 }); 
-                -1
+                return result;
             }
             2 /* set chip select */ => {
                 let cs = arg1 as u8;
@@ -261,9 +254,9 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
 
 #[allow(dead_code)]
 fn each_some<'a, T, I, F>(lst: I, f: F)
-        where T: 'a, I: Iterator<Item=&'a RefCell<Option<T>>>, F: Fn(&mut T) {
+        where T: 'static, I: Iterator<Item=&'a TakeCell<T>>, F: Fn(&mut T) {
     for item in lst {
-        item.borrow_mut().as_mut().map(|i| f(i));
+        item.map(|i| f(i));
     }
 }
 
@@ -272,18 +265,21 @@ impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
                        writebuf: Option<&'static mut [u8]>, 
                        readbuf:  Option<&'static mut [u8]>,
                        length: usize) {
-        self.apps[0].borrow_mut().as_mut().map(|app| {
+        self.apps[0].map(|app| {
             if app.app_read.is_some() {
-                use core::slice::bytes::copy_memory;
                 let src = readbuf.as_ref().unwrap();
                 let dest = app.app_read.as_mut().unwrap(); 
                 let start = app.index.get() - length;
                 let end = start + length;
-                copy_memory(&src[0 .. length], &mut dest.as_mut()[start .. end]);
+
+                let d = &mut dest.as_mut()[start .. end];
+                for (i, c) in src[0 .. length].iter().enumerate() {
+                    d[i] = *c;
+                }
             }
 
-            *self.kernel_read.borrow_mut() =  readbuf;
-            *self.kernel_write.borrow_mut() = writebuf;
+            self.kernel_read.put(readbuf);
+            self.kernel_write.put(writebuf);
 
             if app.index.get() == app.len.get() {
                 self.busy.set(false);
