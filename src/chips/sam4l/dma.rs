@@ -6,7 +6,6 @@ use pm;
 use nvic;
 
 use helpers::*;
-use process::AppSlice;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet
 #[repr(C, packed)]
@@ -212,24 +211,6 @@ impl DMAChannel {
                 client.xfer_done(channel, buf);
             });
         });
-    }
-
-    pub fn do_xfer_old<S>(&self, pid: usize, mut slice: AppSlice<S, u8>) {
-        let registers : &mut DMARegisters = unsafe {
-            mem::transmute(self.registers)
-        };
-
-
-        volatile_store(&mut registers.peripheral_select, pid);
-        volatile_store(&mut registers.memory_address_reload,
-                       &slice.as_ref()[0] as *const u8 as usize);
-        volatile_store(&mut registers.transfer_counter_reload, slice.len());
-
-        volatile_store(&mut registers.interrupt_enable, 1 << 1);
-
-        // TODO(alevy): This is, like, pretty stupid, but we're gonna get rid of
-        // this whole method anyway
-        self.buffer.replace(unsafe { mem::transmute(slice.as_mut()) });
     }
 
     pub fn do_xfer(&self, pid: usize,
