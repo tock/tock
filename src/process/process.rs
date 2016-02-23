@@ -1,4 +1,4 @@
-use core::intrinsics::{atomic_xadd, atomic_xsub, breakpoint, volatile_load, volatile_store};
+use core::intrinsics::{breakpoint, volatile_load, volatile_store};
 use core::mem;
 use core::raw;
 
@@ -81,11 +81,9 @@ pub struct Process<'a> {
 
 impl<'a> Process<'a> {
     pub unsafe fn create(start_addr: *const usize) -> Option<Process<'a>> {
-        let cur_idx = atomic_xadd(&mut FREE_MEMORY_IDX, 1);
-        if cur_idx > MEMORIES.len() {
-            atomic_xsub(&mut FREE_MEMORY_IDX, 1);
-            None
-        } else {
+        let cur_idx = FREE_MEMORY_IDX;
+        if cur_idx <= MEMORIES.len() {
+            FREE_MEMORY_IDX += 1;
             let memory = &mut MEMORIES[cur_idx];
 
             let stack_bottom = &mut memory[PROC_MEMORY_SIZE - 4] as *mut u8;
@@ -115,6 +113,8 @@ impl<'a> Process<'a> {
             result.load(start_addr);
 
             Some(result)
+        } else {
+            None
         }
     }
 

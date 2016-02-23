@@ -1,7 +1,7 @@
 use core::cell::Cell;
-use core::cell::RefCell;
 use core::mem;
 use core::intrinsics;
+use common::take_cell::TakeCell;
 use pm;
 use nvic;
 
@@ -131,11 +131,11 @@ pub struct DMAChannel {
     nvic: nvic::NvicIdx,
     pub client: Option<&'static mut DMAClient>,
     enabled: Cell<bool>,
-    buffer: RefCell<Option<&'static mut [u8]>>,
+    buffer: TakeCell<&'static mut [u8]>
 }
 
 pub trait DMAClient {
-    fn xfer_done(&mut self, pid: usize, buf: &'static mut [u8]);
+    fn xfer_done(&mut self, pid: usize, buffer: &'static mut [u8]);
 }
 
 impl DMAChannel {
@@ -146,8 +146,7 @@ impl DMAChannel {
             nvic: nvic,
             client: None,
             enabled: Cell::new(false),
-            buffer: RefCell::new(None)
-
+            buffer: TakeCell::empty()
         }
     }
 
@@ -200,17 +199,21 @@ impl DMAChannel {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
-        let d: usize = volatile_load(&registers.peripheral_select);
+        let channel : usize = volatile_load(&registers.peripheral_select);
+
         // Here we take the buffer reference out of the option and
         // return it to the caller
-        let buffer_opt = self.buffer.borrow_mut().take();
+        let buffer = self.buffer.take();
         self.client.as_mut().map(|client| {
-            let buf = buffer_opt.unwrap();
-            client.xfer_done(d, buf);
+            // If buffer is `None` we neglected to `replace` it in `do_xfer`
+            // which should never happen...
+            buffer.map(|buf| {
+                client.xfer_done(channel, buf);
+            });
         });
     }
 
-    pub fn do_xfer_buf(&self, pid: usize,
+    pub fn do_xfer(&self, pid: usize,
                        buf: &'static mut [u8],
                        len: usize) {
         if len > buf.len() {
@@ -226,9 +229,10 @@ impl DMAChannel {
         volatile_store(&mut registers.transfer_counter_reload, len);
 
         volatile_store(&mut registers.interrupt_enable, 1 << 1);
-        // Store the buffer reference in the Option,
-        // will be returned to the caller
-        *self.buffer.borrow_mut() = Some(buf); 
+
+        // Store the buffer reference in the TakeCell so it can be returned to
+        // the caller in `handle_interrupt`
+        self.buffer.replace(buf);
     }
 }
 

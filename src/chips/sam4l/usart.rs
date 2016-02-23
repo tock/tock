@@ -7,8 +7,6 @@ use nvic;
 use pm::{self, Clock, PBAClock};
 use chip;
 
-use process::AppSlice;
-
 #[repr(C, packed)]
 struct Registers {
     cr: u32,
@@ -176,9 +174,9 @@ impl USART {
 }
 
 impl DMAClient for USART {
-    fn xfer_done(&mut self, _pid: usize, _buf: &mut[u8]) {
+    fn xfer_done(&mut self, _pid: usize, buffer: &'static mut [u8]) {
         self.dma.as_mut().map(|dma| dma.disable());
-        self.client.as_ref().map(|c| c.write_done() );
+        self.client.as_ref().map(move |c| c.write_done(buffer) );
     }
 }
 
@@ -204,10 +202,10 @@ impl uart::UART for USART {
         volatile_store(&mut regs.thr, byte as u32);
     }
 
-    fn send_bytes<S>(&self, bytes: AppSlice<S, u8>) {
-        self.dma.as_ref().map(|dma| {
+    fn send_bytes(&self, bytes: &'static mut [u8], len: usize) {
+        self.dma.as_ref().map(move |dma| {
             dma.enable();
-            //dma.do_xfer(21, bytes);
+            dma.do_xfer(21, bytes, len);
         });
     }
 

@@ -1,5 +1,3 @@
-use process::{AppSlice};
-
 #[derive(Copy, Clone)]
 pub enum Parity {
     Even = 0,
@@ -21,7 +19,7 @@ pub struct UARTParams {
 pub trait UART {
     fn init(&mut self, params: UARTParams);
     fn send_byte(&self, byte: u8);
-    fn send_bytes<S>(&self, bytes: AppSlice<S, u8>);
+    fn send_bytes(&self, bytes: &'static mut [u8], len: usize);
     fn read_byte(&self) -> u8;
     fn rx_ready(&self) -> bool;
     fn tx_ready(&self) -> bool;
@@ -33,6 +31,6 @@ pub trait UART {
 
 pub trait Client {
     fn read_done(&self, byte: u8);
-    fn write_done(&self) {}
+    fn write_done(&self, buffer: &'static mut [u8]);
 }
 

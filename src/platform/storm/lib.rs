@@ -86,7 +86,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PA[14].enable_output();
 
     static_init!(console : drivers::console::Console<sam4l::usart::USART> =
-                    drivers::console::Console::new(&sam4l::usart::USART3));
+                    drivers::console::Console::new(&sam4l::usart::USART3,
+                                       &mut drivers::console::WRITE_BUF));
     sam4l::usart::USART3.set_client(console);
 
     let ast = &sam4l::ast::AST;

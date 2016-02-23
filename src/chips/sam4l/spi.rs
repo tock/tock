@@ -318,10 +318,10 @@ impl spi_master::SpiMaster for Spi {
             self.dma_read.as_ref().map(|read| {
                 // We know from the check above that `reading` is only true if
                 // `read_buffer` is `Some`, so `unwrap` is safe here.
-                read.do_xfer_buf(4, read_buffer.unwrap(), count)
+                read.do_xfer(4, read_buffer.unwrap(), count)
             });
         }
-        self.dma_write.as_ref().map(|write| write.do_xfer_buf(22, write_buffer.unwrap(), count));
+        self.dma_write.as_ref().map(|write| write.do_xfer(22, write_buffer.unwrap(), count));
         if reading {
             self.dma_read.as_ref().map(|read| read.enable());
         }
