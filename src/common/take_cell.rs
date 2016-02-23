@@ -42,6 +42,14 @@ impl<T> TakeCell<T> {
             let inner = &mut *self.val.get();
             inner.take()
         }
+    } 
+
+    pub fn put(&self, val: Option<T>) {
+        let _ = self.take();
+        let ptr = self.val.get();
+        unsafe {
+            ptr::replace(ptr, val);
+        }
     }
 
     /// Replaces the contents of the `TakeCell` with `val`. If the cell was not
