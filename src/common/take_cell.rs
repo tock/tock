@@ -66,7 +66,7 @@ impl<T> TakeCell<T> {
     /// let x = &cell;
     /// let y = &cell;
     ///
-    /// x.with_value(|value| {
+    /// x.map(|value| {
     ///     // We have mutable access to the value while in the closure
     ///     value += 1;
     /// });
@@ -75,7 +75,7 @@ impl<T> TakeCell<T> {
     /// // but potentially changed.
     /// assert_eq!(y.take(), Some(1235));
     /// ```
-    pub fn with_value<F, R>(&self, closure: F) -> Option<R>
+    pub fn map<F, R>(&self, closure: F) -> Option<R>
             where F: FnOnce(&mut T) -> R {
         let maybe_val = self.take();
         maybe_val.map(|mut val| {
@@ -83,6 +83,18 @@ impl<T> TakeCell<T> {
             self.replace(val);
             res
         })
+    }
+
+    pub fn modify_or_replace<F, G>(&self, modify: F, mkval: G)
+            where F: FnOnce(&mut T), G: FnOnce() -> T {
+        let val = match self.take() {
+            Some(mut val) => {
+                modify(&mut val);
+                val
+            },
+            None => mkval()
+        };
+        self.replace(val);
     }
 }
 
