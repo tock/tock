@@ -20,8 +20,8 @@ struct App {
     callback:  Option<Callback>,
     app_read:  Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
-    len:       Cell<usize>,
-    index:     Cell<usize>,
+    len:       usize,
+    index:     usize,
 }
 
 pub struct Spi<'a, S: SpiMaster + 'a> {
@@ -57,10 +57,10 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
     // Assumes checks for busy/etc. already done
     // Updates app.index to be index + length of op 
     fn do_next_read_write(&self, app: &mut App) {
-        let start = app.index.get();
-        let len = cmp::min(app.len.get() - start, self.kernel_len.get());
+        let start = app.index;
+        let len = cmp::min(app.len - start, self.kernel_len.get());
         let end = start + len;
-        app.index.set(end);
+        app.index = end;
 
         self.kernel_write.map(|kwbuf| {
             app.app_write.as_mut().map(|src| {
@@ -86,8 +86,8 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         callback: None,
                         app_read: Some(slice),
                         app_write: None,
-                        len: Cell::new(0),
-                        index: Cell::new(0),
+                        len: 0,
+                        index: 0,
                     },
                     Some(mut appc) => {
                         appc.app_read = Some(slice);
@@ -103,8 +103,8 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         callback: None,
                         app_read: None,
                         app_write: Some(slice),
-                        len: Cell::new(0),
-                        index: Cell::new(0),
+                        len: 0,
+                        index: 0,
                     },
                     Some(mut appc) => {
                         appc.app_write = Some(slice);
@@ -127,8 +127,8 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         callback: Some(callback),
                         app_read: None,
                         app_write: None,
-                        len: Cell::new(0),
-                        index: Cell::new(0),
+                        len: 0,
+                        index: 0,
                     },
                     Some(mut appc) => {
                         appc.callback = Some(callback);
@@ -200,13 +200,13 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         mlen = cmp::min(mlen, r.len());
                     });
                     if mlen >= arg1 {
-                        app.len.set(arg1);
-                        app.index.set(0);
+                        app.len = arg1;
+                        app.index = 0;
                         self.busy.set(true);
                         self.do_next_read_write(app);
                         result = 0;
                     }
-                }); 
+                });
                 return result;
             }
             2 /* set chip select */ => {
@@ -252,24 +252,16 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     }
 }
 
-#[allow(dead_code)]
-fn each_some<'a, T, I, F>(lst: I, f: F)
-        where T: 'static, I: Iterator<Item=&'a TakeCell<T>>, F: Fn(&mut T) {
-    for item in lst {
-        item.map(|i| f(i));
-    }
-}
-
 impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
-    fn read_write_done(&self, 
-                       writebuf: Option<&'static mut [u8]>, 
+    fn read_write_done(&self,
+                       writebuf: Option<&'static mut [u8]>,
                        readbuf:  Option<&'static mut [u8]>,
                        length: usize) {
         self.apps[0].map(|app| {
             if app.app_read.is_some() {
                 let src = readbuf.as_ref().unwrap();
-                let dest = app.app_read.as_mut().unwrap(); 
-                let start = app.index.get() - length;
+                let dest = app.app_read.as_mut().unwrap();
+                let start = app.index - length;
                 let end = start + length;
 
                 let d = &mut dest.as_mut()[start .. end];
@@ -281,12 +273,12 @@ impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
             self.kernel_read.put(readbuf);
             self.kernel_write.put(writebuf);
 
-            if app.index.get() == app.len.get() {
+            if app.index == app.len {
                 self.busy.set(false);
-                app.len.set(0);
-                app.index.set(0);
+                app.len = 0;
+                app.index = 0;
                 app.callback.take().map(|mut cb| {
-                    cb.schedule(app.len.get(), 0, 0);
+                    cb.schedule(app.len, 0, 0);
                 });
             } else {
                 self.do_next_read_write(app);
