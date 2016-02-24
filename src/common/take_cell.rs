@@ -9,7 +9,7 @@ use core::ptr;
 /// operate on a borrow within a closure. You can think of a `TakeCell` as a
 /// between an `Option` wrapped in a `RefCell` --- attempts to take the value
 /// from inside a `TakeCell` may fail by returning `None`.
-pub struct TakeCell<T: 'static> {
+pub struct TakeCell<T> {
     val: UnsafeCell<Option<T>>
 }
 

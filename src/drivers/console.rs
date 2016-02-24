@@ -128,8 +128,8 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     }
 }
 
-fn each_some<'a, T, I, F>(lst: I, f: F)
-        where T: 'static, I: Iterator<Item=&'a TakeCell<T>>, F: Fn(&mut T) {
+fn each_some<'a, T, I, F>(lst: I, mut f: F)
+        where T: 'a, I: Iterator<Item=&'a TakeCell<T>>, F: FnMut(&mut T) {
     for item in lst {
         item.map(|i| f(i));
     }
