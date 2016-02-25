@@ -8,7 +8,7 @@ BUILD_APP_DIR ?= $(BUILD_DIR)/apps
 
 # Default platform is the Storm (http://storm.rocks). Change to any platform in
 # the `platform` directory.
-PLATFORM ?= storm
+TOCK_PLATFORM ?= storm
 CHIP ?= sam4l
 
 # Dummy all. The real one is in platform-specific Makefiles.
@@ -43,7 +43,7 @@ doc: $(BUILD_DIR)/main.o
 	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)drivers/lib.rs
 	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)hil/lib.rs
 	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)main/main.rs
-	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)platform/$(PLATFORM)/lib.rs
+	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_DIR) $(SRC_DIR)platform/$(TOCK_PLATFORM)/lib.rs
 
 # Removes compilation artifacts for Tock, but not external dependencies.
 clean:
