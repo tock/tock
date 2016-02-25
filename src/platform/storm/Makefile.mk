@@ -1,3 +1,5 @@
+CHIP=sam4l
+
 SLOAD=sload
 SDB=$(BUILD_PLATFORM_DIR)/main.sdb
 SDB_MAINTAINER=$(shell whoami)

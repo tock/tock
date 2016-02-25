@@ -6,7 +6,6 @@
 # Default platform is the Storm (http://storm.rocks). Change to any platform in
 # the `platform` directory.
 TOCK_PLATFORM ?= storm
-CHIP ?= sam4l
 
 BUILD_ROOT ?= build
 BUILD_PLATFORM_DIR ?= $(BUILD_ROOT)/$(TOCK_PLATFORM)
@@ -42,7 +41,8 @@ include src/Makefile.mk
 # Generates documentation for the kernel and selected architecture and platform.
 doc: $(BUILD_PLATFORM_DIR)/main.o
 	@echo "Generating documentation..."
-	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)chips/$(CHIP)/lib.rs
+	# Break this temporarily; we'll fix later when this is done recursively
+	#@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)chips/$(CHIP)/lib.rs
 	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)common/lib.rs
 	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)drivers/lib.rs
 	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)hil/lib.rs

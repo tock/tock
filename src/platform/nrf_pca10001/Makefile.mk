@@ -1,3 +1,5 @@
+CHIP=nrf51822
+
 JLINK_OPTIONS = -device nrf51822 -if swd -speed 1000
 JLINK = JLinkExe
 
