@@ -18,8 +18,7 @@ before_install:
   - mkdir -p build/apps
 
 script:
-  - make build/main.elf
-  - make clean-all
+  - make
   - make TOCK_PLATFORM=nrf_pca10001 CHIP=nrf51822 APPS=c_blinky
 
 notifications:

@@ -11,11 +11,11 @@ LOADER = $(SRC_DIR)chips/$(CHIP)/loader.ld
 LDFLAGS += -T$(LOADER) -lm
 OBJDUMP_FLAGS = --disassemble --source --disassembler-options=force-thumb
 
-$(BUILD_DIR)/lib$(CHIP).rlib: $(call rwildcard,$(SRC_DIR)chips/$(CHIP),*.rs) $(BUILD_DIR)/libcore.rlib $(BUILD_DIR)/libhil.rlib $(BUILD_DIR)/libcommon.rlib
+$(BUILD_PLATFORM_DIR)/lib$(CHIP).rlib: $(call rwildcard,$(SRC_DIR)chips/$(CHIP),*.rs) $(BUILD_PLATFORM_DIR)/libcore.rlib $(BUILD_PLATFORM_DIR)/libhil.rlib $(BUILD_PLATFORM_DIR)/libcommon.rlib | $(BUILD_PLATFORM_DIR)
 	@echo "Building $@"
-	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) $(SRC_DIR)chips/$(CHIP)/lib.rs
+	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_PLATFORM_DIR) $(SRC_DIR)chips/$(CHIP)/lib.rs
 
-$(BUILD_DIR)/crt1.o: $(SRC_DIR)chips/$(CHIP)/crt1.c
+$(BUILD_PLATFORM_DIR)/crt1.o: $(SRC_DIR)chips/$(CHIP)/crt1.c | $(BUILD_PLATFORM_DIR)
 	@echo "Building $@"
 	@$(CC) $(CFLAGS) -c $< -o $@ -lc -lgcc
 

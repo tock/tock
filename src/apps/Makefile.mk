@@ -5,5 +5,5 @@ CFLAGS_APPS := -I$(SRC_DIR)apps/libs -fdata-sections -ffunction-sections -Wl,-gc
 
 include $(SRC_DIR)apps/*/Makefile.mk
 
-APP_BINS = $(foreach app,$(APPS),$(BUILD_APP_DIR)/$(app).bin.o)
+APP_BINS = $(foreach app,$(APPS),$(BUILD_PLATFORM_APP_DIR)/$(app).bin.o)
 
