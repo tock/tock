@@ -176,11 +176,16 @@ use core::fmt::Arguments;
 #[cfg(not(test))]
 #[lang="panic_fmt"]
 #[no_mangle]
-pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
-    _file: &'static str, _line: usize) -> ! {
+pub unsafe extern fn rust_begin_unwind(args: Arguments,
+    file: &'static str, line: u32) -> ! {
+
+    static mut NUM : usize = 0;
+
     use hil::uart::UART;
     use core::fmt::*;
     use support::nop;
+
+    NUM += 1;
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
         baud_rate: 115200,
@@ -202,7 +207,10 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
         }
     }
 
-    let _ = Writer.write_fmt(format_args!("Kernel panic... Sorry!\r\n"));
+    let mut writer = Writer;
+    let _ = writer.write_fmt(format_args!("Kernel panic at {}:{}:\r\n\t\"", file, line));
+    let _ = write(&mut writer, args);
+    let _ = writer.write_str("\"\r\n");
 
     let led = &sam4l::gpio::PC[10];
     led.enable_output();
