@@ -43,10 +43,10 @@ $(TOCK_APP_BUILD_DIR)/%.o:	$(APP_DIR)/%.cpp | $(TOCK_APP_BUILD_DIR)
 
 
 # XXX FIXME
-$(TOCK_APP_BUILD_DIR)/arch.o:	$(TOCK_DIR)/arch/$(ARCH)/syscalls.S | $(TOCK_APP_BUILD_DIR)
+$(TOCK_APP_BUILD_DIR)/syscalls.o:	$(TOCK_DIR)/arch/$(ARCH)/syscalls.S | $(TOCK_APP_BUILD_DIR)
 	$(AS) $(ASFLAGS) $^ -o $@
 
-LIBS += $(TOCK_APP_BUILD_DIR)/arch.o
+LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 
 
 

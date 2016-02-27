@@ -1,19 +1,10 @@
 CHIP=sam4l
 
-SLOAD=sload
-SDB=$(BUILD_PLATFORM_DIR)/kernel.sdb
-SDB_MAINTAINER=$(shell whoami)
-SDB_VERSION=$(shell git show-ref -s HEAD)
-SDB_NAME=storm.rs
-SDB_DESCRIPTION="An OS for the storm"
-
-JLINK_EXE ?= JLinkExe
-
 $(BUILD_PLATFORM_DIR)/libplatform.rlib: $(call rwildcard,$(SRC_DIR)platform/storm,*.rs) $(BUILD_PLATFORM_DIR)/libcore.rlib $(BUILD_PLATFORM_DIR)/libhil.rlib $(BUILD_PLATFORM_DIR)/libsam4l.rlib $(BUILD_PLATFORM_DIR)/libdrivers.rlib | $(BUILD_PLATFORM_DIR)
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_PLATFORM_DIR) $(SRC_DIR)platform/storm/lib.rs
 
-all: $(BUILD_PLATFORM_DIR)/libplatform.rlib $(BUILD_PLATFORM_DIR)/arch.o $(BUILD_PLATFORM_DIR)/kernel.o
+all: $(BUILD_PLATFORM_DIR)/libplatform.rlib $(BUILD_PLATFORM_DIR)/ctx_switch.o $(BUILD_PLATFORM_DIR)/kernel.o
 
 
 # .PHONY: rebuild-apps
