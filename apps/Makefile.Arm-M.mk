@@ -22,4 +22,5 @@ OBJDUMP_FLAGS += -C -g --section-headers
 
 SIZE := $(TOOLCHAIN)-size
 
+GDB := $(TOOLCHAIN)-gdb
 

@@ -81,7 +81,7 @@ kernel:
 	$(MAKE) -C $(TOCK_APPS_DIR)/..
 
 .PHONY:	clean
-clean:
+clean::
 	rm -rf $(TOCK_APP_BUILD_DIR)
 
 $(TOCK_APP_BUILD_DIR):

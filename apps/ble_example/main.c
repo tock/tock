@@ -14,8 +14,8 @@
 #include "eddystone.h"
 
 // Define constants about this beacon.
-#define DEVICE_NAME "nRFtest"
-#define PHYSWEB_URL "goo.gl/aaaaaa"
+#define DEVICE_NAME "tock-test"
+#define PHYSWEB_URL "goo.gl/hi-from-tock"
 
 // Intervals for advertising and connections
 static simple_ble_config_t ble_config = {
