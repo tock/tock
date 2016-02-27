@@ -33,7 +33,7 @@ static mut spi_write_buf: [u8; 64] = [0; 64];
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
-    gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 13]>,
+    gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin>,
@@ -54,7 +54,7 @@ impl Firestorm {
 
         match driver_num {
             0 => f(Some(self.console)),
-            1 => f(Some(&self.gpio)),
+            1 => f(Some(self.gpio)),
             2 => f(Some(self.tmp006)),
             3 => f(Some(self.timer)),
             4 => f(Some(self.spi)),
@@ -123,17 +123,29 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                       drivers::spi::Spi::new(&mut sam4l::spi::SPI));
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
 
+    // set GPIO driver controlling remaining GPIO pins
+    static_init!(gpio : drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin> =
+                 drivers::gpio::GPIO::new(&sam4l::gpio::PC[10]));
+    sam4l::gpio::PC[10].set_client(gpio);
+    /*
+    sam4l::gpio::PC[19].set_client(firestorm.gpio);
+    sam4l::gpio::PC[13].set_client(firestorm.gpio);
+    sam4l::gpio::PA[17].set_client(firestorm.gpio);
+    sam4l::gpio::PC[20].set_client(firestorm.gpio);
+    sam4l::gpio::PA[19].set_client(firestorm.gpio);
+    sam4l::gpio::PA[14].set_client(firestorm.gpio);
+    sam4l::gpio::PA[16].set_client(firestorm.gpio);
+    sam4l::gpio::PA[13].set_client(firestorm.gpio);
+    sam4l::gpio::PA[11].set_client(firestorm.gpio);
+    sam4l::gpio::PA[10].set_client(firestorm.gpio);
+    sam4l::gpio::PA[12].set_client(firestorm.gpio);
+    sam4l::gpio::PC[ 9].set_client(firestorm.gpio);
+    */
+
     static_init!(firestorm : Firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
         console: &*console,
-        gpio: drivers::gpio::GPIO::new(
-            [ &sam4l::gpio::PC[10], &sam4l::gpio::PC[19]
-            , &sam4l::gpio::PC[13], &sam4l::gpio::PA[17]
-            , &sam4l::gpio::PC[20], &sam4l::gpio::PA[19]
-            , &sam4l::gpio::PA[14], &sam4l::gpio::PA[16]
-            , &sam4l::gpio::PA[13], &sam4l::gpio::PA[11]
-            , &sam4l::gpio::PA[10], &sam4l::gpio::PA[12]
-            , &sam4l::gpio::PC[09]]),
+        gpio: gpio,
         timer: timer,
         tmp006: &*tmp006,
         spi: &*spi,

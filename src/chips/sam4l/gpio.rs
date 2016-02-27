@@ -432,7 +432,11 @@ impl hil::gpio::GPIOPin for GPIOPin {
             hil::gpio::InputMode::PullDown => {
                 self.disable_pull_up();
                 self.enable_pull_down();
-            }
+            },
+            hil::gpio::InputMode::PullNone => {
+                self.disable_pull_up();
+                self.disable_pull_down();
+            },
         }
     }
 
