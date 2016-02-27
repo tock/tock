@@ -7,8 +7,12 @@
 use helpers::*;
 use core::mem;
 
+use common::take_cell::TakeCell;
+
 use hil;
 use pm;
+use dma::{DMAChannel, DMAClient, DMAPeripheral};
+use nvic;
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet
@@ -60,28 +64,47 @@ pub enum Speed {
 // This represents an abstraction of the peripheral hardware.
 pub struct I2CDevice {
     registers: *mut Registers,  // Pointer to the I2C registers in memory
-    clock: pm::Clock
+    clock: pm::Clock,
+    dma: TakeCell<&'static DMAChannel>,
+    dma_pids: (DMAPeripheral, DMAPeripheral),
+    nvic: nvic::NvicIdx,
 }
 
 pub static mut I2C0 : I2CDevice = I2CDevice {
     registers: I2C_BASE_ADDRS[0] as *mut Registers,
-    clock: pm::Clock::PBA(pm::PBAClock::TWIM0)
+    clock: pm::Clock::PBA(pm::PBAClock::TWIM0),
+    dma: TakeCell::empty(),
+    dma_pids: (DMAPeripheral::TWIM0_RX, DMAPeripheral::TWIM0_TX),
+    nvic: nvic::NvicIdx::TWIM0,
 };
 
 pub static mut I2C1 : I2CDevice = I2CDevice {
     registers: I2C_BASE_ADDRS[1] as *mut Registers,
-    clock: pm::Clock::PBA(pm::PBAClock::TWIM1)
+    clock: pm::Clock::PBA(pm::PBAClock::TWIM1),
+    dma: TakeCell::empty(),
+    dma_pids: (DMAPeripheral::TWIM1_RX, DMAPeripheral::TWIM1_TX),
+    nvic: nvic::NvicIdx::TWIM1,
 };
 
 pub static mut I2C2 : I2CDevice = I2CDevice {
     registers: I2C_BASE_ADDRS[2] as *mut Registers,
-    clock: pm::Clock::PBA(pm::PBAClock::TWIM2)
+    clock: pm::Clock::PBA(pm::PBAClock::TWIM2),
+    dma: TakeCell::empty(),
+    dma_pids: (DMAPeripheral::TWIM2_RX, DMAPeripheral::TWIM2_TX),
+    nvic: nvic::NvicIdx::TWIM2,
 };
 
 pub static mut I2C3 : I2CDevice = I2CDevice {
     registers: I2C_BASE_ADDRS[3] as *mut Registers,
-    clock: pm::Clock::PBA(pm::PBAClock::TWIM0)
+    clock: pm::Clock::PBA(pm::PBAClock::TWIM0),
+    dma: TakeCell::empty(),
+    dma_pids: (DMAPeripheral::TWIM3_RX, DMAPeripheral::TWIM3_TX),
+    nvic: nvic::NvicIdx::TWIM3,
 };
+
+pub const START : usize = 1 << 13;
+pub const STOP : usize = 1 << 14;
+pub const ACKLAST : usize = 1 << 24;
 
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
@@ -105,8 +128,76 @@ impl I2CDevice {
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         volatile_store(&mut regs.clock_waveform_generator, cwgr);
     }
+
+    pub fn set_dma(&self, dma: &'static DMAChannel) {
+        self.dma.replace(dma);
+    }
+
+    fn setup_xfer(&self, chip: u8, flags: usize, read: bool, len: usize) {
+        let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+
+        // disable before configuring
+        volatile_store(&mut regs.control, 0x1 << 1);
+
+        let read = if read { 1 } else { 0 };
+        let command = (0 << 1) // Not read
+                    | ((chip as usize) << 1) // 7 bit address at offset 1 (8th
+                                             // bit is ignored anyway)
+                    | flags  // START, STOP & ACKLAST flags
+                    | (1 << 15) // VALID
+                    | len << 16 // NBYTES (at most 255)
+                    | read;
+        volatile_store(&mut regs.command, command);
+
+        // Enable to begin transfer
+        volatile_store(&mut regs.control, 0x1 << 0);
+
+        // Enable transaction error interrupts
+        volatile_store(&mut regs.interrupt_enable,
+                         (1 << 8)    // ANAK   - Address not ACKd
+                       | (1 << 9)    // DNAK   - Data not ACKd
+                       | (1 << 10)); // ARBLST - Abitration lost
+    }
+
+    pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8])
+            -> usize {
+        let len = data.len() & 0xFF;
+        self.setup_xfer(chip, flags, false, len);
+
+        /*let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+        // Write all bytes in the data buffer to the I2C peripheral
+        for c in data {
+            // Wait for the peripheral to tell us that we can
+            // write to the TX register
+            loop {
+                let status = volatile_load(&regs.status);
+                if status & 2 == 2 {
+                    break;
+                }
+                if status & (1 << 8 | 1 << 9 | 1 << 10) != 0 {
+                    //panic!("ERROR 0x{:x}", status);
+                    return 0;
+                }
+            }
+            volatile_store(&mut regs.transmit_holding, *c as usize);
+        }*/
+
+        self.dma.map(move |dma| {
+            dma.enable();
+            dma.do_xfer(self.dma_pids.1 as usize, data, len);
+        });
+
+        len
+    }
 }
 
+impl DMAClient for I2CDevice {
+    fn xfer_done(&mut self, _pid: usize, buffer: &'static mut [u8]) {
+        let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+        let status = volatile_load(&regs.status);
+        panic!("XFER Done. Status: 0x{:x}", status);
+    }
+}
 
 impl hil::i2c::I2C for I2CDevice {
 
@@ -118,6 +209,9 @@ impl hil::i2c::I2C for I2CDevice {
         }
 
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+
+        // Disable TWIM
+        volatile_store(&mut regs.control, 0x1 << 1);
 
         // enable, reset, disable
         volatile_store(&mut regs.control, 0x1 << 0);
@@ -131,7 +225,11 @@ impl hil::i2c::I2C for I2CDevice {
         volatile_store(&mut regs.slew_rate, (0x2 << 28) | (7<<16) | (7<<0));
 
         // clear interrupts
-        volatile_store(&mut regs.status_clear, 0xFFFFFFFF);
+        volatile_store(&mut regs.status_clear, !0);
+
+        unsafe {
+            nvic::enable(self.nvic);
+        }
     }
 
     /// This disables the entire I2C peripheral
@@ -140,6 +238,7 @@ impl hil::i2c::I2C for I2CDevice {
         volatile_store(&mut regs.control, 0x1 << 1);
         unsafe {
             pm::disable_clock(self.clock);
+            nvic::disable(self.nvic);
         }
     }
 
@@ -230,3 +329,6 @@ impl hil::i2c::I2C for I2CDevice {
     }
 }
 
+pub unsafe extern "C" fn twim2_interrupt() {
+    panic!("TWIM2 Interrupt");
+}

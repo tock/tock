@@ -6,6 +6,7 @@ use nvic;
 use usart;
 use spi;
 use gpio;
+use i2c;
 
 pub struct Sam4l;
 
@@ -20,9 +21,13 @@ impl Sam4l {
         INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
         usart::USART3.set_dma(&mut dma::DMAChannels[0]);
         dma::DMAChannels[0].client = Some(&mut usart::USART3);
+
         spi::SPI.set_dma(&mut dma::DMAChannels[1], &mut dma::DMAChannels[2]);
         dma::DMAChannels[1].client = Some(&mut spi::SPI);
         dma::DMAChannels[2].client = Some(&mut spi::SPI);
+
+        i2c::I2C2.set_dma(&dma::DMAChannels[3]);
+        dma::DMAChannels[3].client = Some(&mut i2c::I2C2);
         Sam4l
     }
 
@@ -37,6 +42,7 @@ impl Sam4l {
                 PDCA0   => dma::DMAChannels[0].handle_interrupt(),
                 PDCA1   => dma::DMAChannels[1].handle_interrupt(),
                 PDCA2   => dma::DMAChannels[2].handle_interrupt(),
+                PDCA3   => dma::DMAChannels[3].handle_interrupt(),
 
                 GPIO0 => gpio::PA.handle_interrupt(),
                 GPIO1 => gpio::PA.handle_interrupt(),
