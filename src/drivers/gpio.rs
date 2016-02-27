@@ -1,54 +1,197 @@
-use hil::{Driver};
-use hil::gpio::GPIOPin;
+use core::cell::Cell;
+use hil::{Driver,Callback};
+use hil::gpio::{GPIOPin,InputMode,InterruptMode,Client};
 
-pub struct GPIO<S: AsRef<[&'static GPIOPin]>> {
-    pins: S,
+pub struct GPIO<'a, G: GPIOPin + 'a> {
+    pins: [&'a G; 1],
+    callback: Cell<Option<Callback>>,
 }
 
-impl<S: AsRef<[&'static GPIOPin]>> GPIO<S> {
-    pub fn new(pins: S) -> GPIO<S> {
+impl<'a, G: GPIOPin> GPIO<'a, G> {
+    pub fn new(pins: &'a G) -> GPIO<'a, G> {
         GPIO {
-            pins: pins
+            pins: [pins],
+            callback: Cell::new(None),
+        }
+    }
+
+    fn configure_input_pin(&self, pin_num: usize, config: usize) -> isize {
+        let pins = self.pins.as_ref();
+        match config {
+            0 => {
+                pins[pin_num].enable_input(InputMode::PullUp);
+                0
+            },
+
+            1 => {
+                pins[pin_num].enable_input(InputMode::PullDown);
+                0
+            },
+
+            2 => {
+                pins[pin_num].enable_input(InputMode::PullNone);
+                0
+            },
+
+            _ => -1
+        }
+    }
+
+    fn configure_interrupt(&self, pin_num: usize, config: usize) -> isize {
+        let pins = self.pins.as_ref();
+        match config {
+            0 => {
+                pins[pin_num].enable_interrupt(pin_num, InterruptMode::Change);
+                0
+            },
+
+            1 => {
+                pins[pin_num].enable_interrupt(pin_num, InterruptMode::Change);
+                0
+            },
+
+            2 => {
+                pins[pin_num].enable_interrupt(pin_num, InterruptMode::Change);
+                0
+            },
+
+            _ => -1
         }
     }
 }
 
-impl<S: AsRef<[&'static GPIOPin]>> Driver for GPIO<S> {
-    fn command(&self, cmd_num: usize, r0: usize) -> isize {
+impl<'a, G: GPIOPin> Client for GPIO<'a, G> {
+    fn fired(&self, pin_num: usize) {
+        //XXX: fill out
+    }
+}
+
+impl<'a, G: GPIOPin> Driver for GPIO<'a, G> {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+        match subscribe_num {
+            // subscribe to all pin interrupts
+            // (no affect or reliance on individual pins being configured as interrupts)
+            0 => {
+                self.callback.set(Some(callback));
+                0
+            }
+
+            // default
+            _ => -1
+        }
+    }
+
+    fn command(&self, command_num: usize, data: usize) -> isize {
         let pins = self.pins.as_ref();
-        match cmd_num {
-            0 /* enable output */ => {
-                if r0 >= pins.len() {
+        match command_num {
+            // enable output
+            0 => {
+                if data >= pins.len() {
                     -1
                 } else {
-                    pins[r0].enable_output();
+                    pins[data].enable_output();
                     0
                 }
             },
-            2 /* set */ => {
-                if r0 >= pins.len() {
+
+            // set pin
+            1 => {
+                if data >= pins.len() {
                     -1
                 } else {
-                    pins[r0].set();
+                    pins[data].set();
                     0
                 }
             },
-            3 /* clear */ => {
-                if r0 >= pins.len() {
+
+            // clear pin
+            2  => {
+                if data >= pins.len() {
                     -1
                 } else {
-                    pins[r0].clear();
+                    pins[data].clear();
                     0
                 }
             },
-            4 /* toggle */ => {
-                if r0 >= pins.len() {
+
+            // toggle pin
+            3 => {
+                if data >= pins.len() {
                     -1
                 } else {
-                    pins[r0].toggle();
+                    pins[data].toggle();
                     0
                 }
             },
+
+            // enable and configure input
+            4 => {
+                //XXX: this is clunky
+                // data == ((pin_config << 8) | pin)
+                // this allows two values to be passed into a command interface
+                let pin_num = data & 0xFF;
+                let pin_config = (data >> 8) & 0xFF;
+                if pin_num >= pins.len() {
+                    -1
+                } else {
+                   let err_code = self.configure_input_pin(pin_num, pin_config);
+                   err_code
+                }
+            },
+
+            // read input
+            5 => {
+                if data >= pins.len() {
+                    -1
+                } else {
+                    let pin_state = pins[data].read();
+                    pin_state as isize
+                }
+            },
+
+            // enable and configure interrupts on pin, also sets pin as input
+            // (no affect or reliance on registered callback)
+            6 => {
+                //XXX: this is clunky
+                // data == ((irq_config << 16) | (pin_config << 8) | pin)
+                // this allows three values to be passed into a command interface
+                let pin_num = data & 0xFF;
+                let pin_config = (data >>  8) & 0xFF;
+                let irq_config = (data >> 16) & 0xFF;
+                if pin_num >= pins.len() {
+                    -1
+                } else {
+                    let mut err_code = self.configure_input_pin(pin_num, pin_config);
+                    if err_code == 0 {
+                        err_code = self.configure_interrupt(pin_num, irq_config);
+                    }
+                    err_code
+                }
+            },
+
+            // disable interrupts on pin, also disables pin
+            // (no affect or reliance on registered callback)
+            7 => {
+                if data >= pins.len() {
+                    -1
+                } else {
+                    pins[data].disable_interrupt();
+                    pins[data].disable();
+                    0
+                }
+            },
+
+            // disable pin
+            8 => {
+                if data >= pins.len() {
+                    -1
+                } else {
+                    pins[data].disable();
+                    0
+                }
+            }
+
+            // default
             _ => -1
         }
     }
