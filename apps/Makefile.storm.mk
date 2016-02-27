@@ -1,27 +1,8 @@
 CHIP := sam4l
 ARCH := cortex-m4
-
-TOOLCHAIN := arm-none-eabi
-
-AS := $(TOOLCHAIN)-as
-ASFLAGS += -mcpu=$(ARCH) -mthumb
-
-CC := $(TOOLCHAIN)-gcc
-CXX := $(TOOLCHAIN)-g++
-CPPFLAGS += -mcpu=$(ARCH) -mthumb -mfloat-abi=soft
-
-LD := $(TOOLCHAIN)-ld
-
-OBJCOPY := $(TOOLCHAIN)-objcopy
-
-OBJDUMP := $(TOOLCHAIN)-objdump
-OBJDUMP_FLAGS := --disassemble --source --disassembler-options=force-thumb
-OBJDUMP_FLAGS += -C -g --section-headers
-
-SIZE := $(TOOLCHAIN)-size
-
 TOCK_PLATFORM_LINKER_SCRIPT = $(TOCK_DIR)/chips/sam4l/loader.ld
-LDFLAGS += -T$(TOCK_PLATFORM_LINKER_SCRIPT) -lm
+
+include $(TOCK_APPS_DIR)/Makefile.Arm-M.mk
 
 SLOAD=sload
 SDB=$(TOCK_BUILD_DIR)/kernel.sdb
