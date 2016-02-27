@@ -126,15 +126,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // set GPIO driver controlling remaining GPIO pins
     static_init!(gpio : drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(&sam4l::gpio::PC[10]));
-    /*
-            [ &sam4l::gpio::PC[10], &sam4l::gpio::PC[19]
-            , &sam4l::gpio::PC[13], &sam4l::gpio::PA[17]
-            , &sam4l::gpio::PC[20], &sam4l::gpio::PA[19]
-            , &sam4l::gpio::PA[14], &sam4l::gpio::PA[16]
-            , &sam4l::gpio::PA[13], &sam4l::gpio::PA[11]
-            , &sam4l::gpio::PA[10], &sam4l::gpio::PA[12]
-            , &sam4l::gpio::PC[ 9]]
-    */
     sam4l::gpio::PC[10].set_client(gpio);
     /*
     sam4l::gpio::PC[19].set_client(firestorm.gpio);
