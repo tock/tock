@@ -15,7 +15,8 @@ LD := $(TOOLCHAIN)-ld
 OBJCOPY := $(TOOLCHAIN)-objcopy
 
 OBJDUMP := $(TOOLCHAIN)-objdump
-OBJDUMP_FLAGS = --disassemble --source --disassembler-options=force-thumb
+OBJDUMP_FLAGS := --disassemble --source --disassembler-options=force-thumb
+OBJDUMP_FLAGS += -C -g --section-headers
 
 SIZE := $(TOOLCHAIN)-size
 
@@ -35,8 +36,8 @@ JLINK_EXE ?= JLinkExe
 .SECONDEXPANSION:
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/arch.o $(TOCK_BUILD_DIR)/kernel.o $$(APPS_TO_LINK_TO_KERNEL) | $(TOCK_BUILD_DIR)
 	@tput bold ; echo "Linking $@" ; tput sgr0
-	$(CC) $(CFLAGS) $(CPPFLAGS) $^ $(LDFLAGS) -Wl,-Map=$(TOCK_BUILD_DIR)/kernel.Map -o $@
-	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_BUILD_DIR)/kernel.lst
+	$(CC) $(CFLAGS) $(CPPFLAGS) $^ $(LDFLAGS) -Wl,-Map=$(TOCK_APP_BUILD_DIR)/kernel_and_app.Map -o $@
+	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/kernel_and_app.lst
 	$(SIZE) $@
 
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf

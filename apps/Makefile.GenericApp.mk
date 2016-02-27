@@ -52,6 +52,7 @@ LIBS += $(TOCK_APP_BUILD_DIR)/arch.o
 $(TOCK_APP_BUILD_DIR)/$(APP).elf: $(LIBS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
 	@echo "Linking $@"
 	$(LD) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
+	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
 
 $(TOCK_APP_BUILD_DIR)/$(APP).bin: $(TOCK_APP_BUILD_DIR)/$(APP).elf
 	@echo "Extracting binary $@"
@@ -61,6 +62,7 @@ $(TOCK_APP_BUILD_DIR)/$(APP).bin.o: $(TOCK_APP_BUILD_DIR)/$(APP).bin
 	@echo "Re-Linking $@"
 	$(LD) -r -b binary -o $@ $<
 	$(OBJCOPY) --rename-section .data=.app.2 $@
+	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).bin.lst
 
 APPS_TO_LINK_TO_KERNEL=$(TOCK_APP_BUILD_DIR)/$(APP).bin.o
 
