@@ -9,7 +9,7 @@ TOCK_PLATFORM ?= storm
 
 BUILD_ROOT ?= build
 BUILD_PLATFORM_DIR ?= $(BUILD_ROOT)/$(TOCK_PLATFORM)
-BUILD_PLATFORM_APP_DIR ?= $(BUILD_PLATFORM_DIR)/apps
+#BUILD_PLATFORM_APP_DIR ?= $(BUILD_PLATFORM_DIR)/apps
 
 # Dummy all. The real one is in platform-specific Makefiles.
 all:	$(BUILD_ROOT) $(BUILD_PLATFORM_APP_DIR)
@@ -20,8 +20,8 @@ $(BUILD_ROOT):
 $(BUILD_PLATFORM_DIR): $(BUILD_ROOT)
 	@mkdir -p $@
 
-$(BUILD_PLATFORM_APP_DIR): $(BUILD_PLATFORM_DIR)
-	@mkdir -p $@
+#$(BUILD_PLATFORM_APP_DIR): $(BUILD_PLATFORM_DIR)
+#	@mkdir -p $@
 
 # Common functions and variables
 include Common.mk
