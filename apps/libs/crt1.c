@@ -41,7 +41,6 @@ void* heap_base;
 
 caddr_t _sbrk(int incr)
 {
-  void* result = heap_base;
   heap_base += incr;
   return heap_base;
 }
