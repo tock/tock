@@ -105,11 +105,21 @@ If all the tools are in your `$PATH`, you should be good to go. Otherwise set th
 * `CC` - `arm-none-eabi-gcc`
 * `OBJCOPY` - `arm-none-eabi-objcopy`
 
-Simply call make:
+The build system respects the environment variable `TOCK_PLATFORM`, which
+currently defaults to the `storm` platform but can be set to any available
+platform (anything in `src/platform`).
 
-```bash
-make
-```
+Invoking `make` in the root directory will build the tock kernel (placing it
+in `tock/build/$(TOCK_PLATFORM)/`).
+
+To build applications, change to `apps/$(APP)/` directory and invoke `make`.
+As applications depend on the kernel, they will ensure it is up to date first.
+It will then build both the application (into `tock/build/$(TOCK_PLATFORM)/$(APP)/$(APP).elf`)
+and a loadable image of the tock kernel with that single application installed
+as a convenience (`tock/build/$(TOCK_PLATFORM)/$(APP)/kernel_and_app.elf`).
+
+Most platforms also define the convenience target `make program` that will load
+the `kernel_and_app` image by default.
 
 ## Programming the storm
 
