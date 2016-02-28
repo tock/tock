@@ -3,7 +3,11 @@
 #include <tmp006.h>
 
 // internal callback for faking synchronous reads
-static CB_TYPE tmp006_cb(int temp_value, int error_code, int unused, void* callback_args) {
+static CB_TYPE tmp006_cb(
+                int temp_value,
+                int error_code,
+                int unused __attribute__ ((unused)),
+                void* callback_args) {
     // return data to user
     int32_t* callback_vals = (int32_t*)callback_args;
     callback_vals[0] = temp_value;
