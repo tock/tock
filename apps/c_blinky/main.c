@@ -1,11 +1,11 @@
 #include <firestorm.h>
+#include <gpio.h>
 
 CB_TYPE timer_cb(int, int, int, void*);
 
-void main(void)
-{
-	gpio_enable(LED_0);
-        timer_repeating_subscribe(timer_cb, NULL);
+void main(void) {
+    gpio_enable(LED_0);
+    timer_repeating_subscribe(timer_cb, NULL);
 }
 
 CB_TYPE timer_cb(int arg0, int arg2, int arg3, void* userdata) {
