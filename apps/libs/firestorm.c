@@ -20,7 +20,11 @@ int gpio_toggle(unsigned int pin) {
   return command(1, 4, pin);
 }
 
-static CB_TYPE putstr_cb(int _x, int _y, int _z, void* str) {
+static CB_TYPE putstr_cb(
+                int _x __attribute__ ((unused)),
+                int _y __attribute__ ((unused)),
+                int _z __attribute__ ((unused)),
+                void* str) {
   free(str);
   return PUTSTR;
 }
