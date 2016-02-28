@@ -46,12 +46,12 @@ impl<'a, G: GPIOPin> GPIO<'a, G> {
             },
 
             1 => {
-                pins[pin_num].enable_interrupt(pin_num, InterruptMode::Change);
+                pins[pin_num].enable_interrupt(pin_num, InterruptMode::RisingEdge);
                 0
             },
 
             2 => {
-                pins[pin_num].enable_interrupt(pin_num, InterruptMode::Change);
+                pins[pin_num].enable_interrupt(pin_num, InterruptMode::FallingEdge);
                 0
             },
 
@@ -62,7 +62,10 @@ impl<'a, G: GPIOPin> GPIO<'a, G> {
 
 impl<'a, G: GPIOPin> Client for GPIO<'a, G> {
     fn fired(&self, pin_num: usize) {
-        //XXX: fill out
+        // schedule callback with the pin number
+        if self.callback.get().is_some() {
+            self.callback.get().unwrap().schedule(pin_num, 0, 0);
+        }
     }
 }
 

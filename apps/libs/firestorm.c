@@ -4,22 +4,6 @@
 #include <firestorm.h>
 #include <tock.h>
 
-int gpio_enable(unsigned int pin) {
-  return command(1, 0, pin);
-}
-
-int gpio_set(unsigned int pin) {
-  return command(1, 2, pin);
-}
-
-int gpio_clear(unsigned int pin) {
-  return command(1, 3, pin);
-}
-
-int gpio_toggle(unsigned int pin) {
-  return command(1, 4, pin);
-}
-
 static CB_TYPE putstr_cb(int _x, int _y, int _z, void* str) {
   free(str);
   return PUTSTR;
