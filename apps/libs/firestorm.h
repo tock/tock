@@ -3,9 +3,10 @@
 
 #include <unistd.h>
 #include "tock.h"
+#include "gpio.h"
 
 // Pin definitions
-#define LED_0 0
+#define LED_0 PC10
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,13 +16,9 @@ enum firestorm_cb_type {
   PUTSTR,
   READTMP,
   ASYNC,
-  SPIBUF
+  SPIBUF,
+  GPIO,
 };
-
-int gpio_enable(unsigned int pin);
-int gpio_set(unsigned int pin);
-int gpio_clear(unsigned int pin);
-int gpio_toggle(unsigned int pin);
 
 void putstr(const char* str);
 void putnstr(const char* str, size_t len);
