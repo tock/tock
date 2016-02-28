@@ -57,6 +57,11 @@ impl Sam4l {
                 GPIO10 => gpio::PC.handle_interrupt(),
                 GPIO11 => gpio::PC.handle_interrupt(),
 
+                TWIM0 => i2c::I2C0.handle_interrupt(),
+                TWIM1 => i2c::I2C1.handle_interrupt(),
+                TWIM2 => i2c::I2C2.handle_interrupt(),
+                TWIM3 => i2c::I2C3.handle_interrupt(),
+
                 //NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
                 _ => {}
             }

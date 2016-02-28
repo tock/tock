@@ -68,6 +68,7 @@ pub struct I2CDevice {
     dma: TakeCell<&'static DMAChannel>,
     dma_pids: (DMAPeripheral, DMAPeripheral),
     nvic: nvic::NvicIdx,
+    client: TakeCell<&'static hil::i2c::I2CClient>,
 }
 
 pub static mut I2C0 : I2CDevice = I2CDevice {
@@ -76,6 +77,7 @@ pub static mut I2C0 : I2CDevice = I2CDevice {
     dma: TakeCell::empty(),
     dma_pids: (DMAPeripheral::TWIM0_RX, DMAPeripheral::TWIM0_TX),
     nvic: nvic::NvicIdx::TWIM0,
+    client: TakeCell::empty(),
 };
 
 pub static mut I2C1 : I2CDevice = I2CDevice {
@@ -84,6 +86,7 @@ pub static mut I2C1 : I2CDevice = I2CDevice {
     dma: TakeCell::empty(),
     dma_pids: (DMAPeripheral::TWIM1_RX, DMAPeripheral::TWIM1_TX),
     nvic: nvic::NvicIdx::TWIM1,
+    client: TakeCell::empty(),
 };
 
 pub static mut I2C2 : I2CDevice = I2CDevice {
@@ -92,6 +95,7 @@ pub static mut I2C2 : I2CDevice = I2CDevice {
     dma: TakeCell::empty(),
     dma_pids: (DMAPeripheral::TWIM2_RX, DMAPeripheral::TWIM2_TX),
     nvic: nvic::NvicIdx::TWIM2,
+    client: TakeCell::empty(),
 };
 
 pub static mut I2C3 : I2CDevice = I2CDevice {
@@ -100,6 +104,7 @@ pub static mut I2C3 : I2CDevice = I2CDevice {
     dma: TakeCell::empty(),
     dma_pids: (DMAPeripheral::TWIM3_RX, DMAPeripheral::TWIM3_TX),
     nvic: nvic::NvicIdx::TWIM3,
+    client: TakeCell::empty(),
 };
 
 pub const START : usize = 1 << 13;
@@ -131,6 +136,36 @@ impl I2CDevice {
 
     pub fn set_dma(&self, dma: &'static DMAChannel) {
         self.dma.replace(dma);
+    }
+
+    pub fn set_client(&self, client: &'static hil::i2c::I2CClient) {
+        self.client.replace(client);
+    }
+
+    pub fn handle_interrupt(&self) {
+        use hil::i2c::Error;
+        let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+
+        let old_status = volatile_load(&regs.status);
+
+        volatile_store(&mut regs.command, 0);
+        volatile_store(&mut regs.status_clear, !0);
+
+        let err = match old_status {
+            x if x & (1 <<  8) != 0 /*ANACK*/ => Some(Error::AddressNak),
+            x if x & (1 <<  9) != 0 /*DNACK*/ => Some(Error::DataNak),
+            x if x & (1 << 10) != 0 /*ARBLST*/ => Some(Error::ArbitrationLost),
+            _ => None
+        };
+
+        err.map(|err| {
+            self.client.map(|client| {
+                let buf = self.dma.map(|dma| { dma.abort_xfer() });
+                buf.map(|buf| {
+                    client.command_error(buf, err);
+                });
+            });
+        });
     }
 
     fn setup_xfer(&self, chip: u8, flags: usize, read: bool, len: usize) {
@@ -189,13 +224,37 @@ impl I2CDevice {
 
         len
     }
+
+    pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8])
+            -> usize {
+        let len = data.len() & 0xFF;
+        self.setup_xfer(chip, flags, true, len);
+
+        self.dma.map(move |dma| {
+            dma.enable();
+            dma.do_xfer(self.dma_pids.0 as usize, data, len);
+        });
+        len
+    }
+
+    fn enable_interrupts(&self) {
+        unsafe {
+            nvic::enable(self.nvic);
+        }
+    }
+
+    fn disable_interrupts(&self) {
+        unsafe {
+            nvic::disable(self.nvic);
+        }
+    }
 }
 
 impl DMAClient for I2CDevice {
     fn xfer_done(&mut self, _pid: usize, buffer: &'static mut [u8]) {
-        let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
-        let status = volatile_load(&regs.status);
-        panic!("XFER Done. Status: 0x{:x}", status);
+        self.client.map(move |client| {
+            client.command_complete(buffer);
+        });
     }
 }
 
@@ -209,9 +268,6 @@ impl hil::i2c::I2C for I2CDevice {
         }
 
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
-
-        // Disable TWIM
-        volatile_store(&mut regs.control, 0x1 << 1);
 
         // enable, reset, disable
         volatile_store(&mut regs.control, 0x1 << 0);
@@ -227,9 +283,7 @@ impl hil::i2c::I2C for I2CDevice {
         // clear interrupts
         volatile_store(&mut regs.status_clear, !0);
 
-        unsafe {
-            nvic::enable(self.nvic);
-        }
+        self.enable_interrupts();
     }
 
     /// This disables the entire I2C peripheral
@@ -238,8 +292,8 @@ impl hil::i2c::I2C for I2CDevice {
         volatile_store(&mut regs.control, 0x1 << 1);
         unsafe {
             pm::disable_clock(self.clock);
-            nvic::disable(self.nvic);
         }
+        self.disable_interrupts();
     }
 
     fn write_sync (&self, addr: u16, data: &[u8]) {
@@ -330,5 +384,11 @@ impl hil::i2c::I2C for I2CDevice {
 }
 
 pub unsafe extern "C" fn twim2_interrupt() {
-    panic!("TWIM2 Interrupt");
+    use chip;
+    use common::Queue;
+
+    let dev = &I2C2;
+    dev.disable_interrupts();
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(dev.nvic);
 }
+
