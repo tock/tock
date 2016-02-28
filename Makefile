@@ -9,7 +9,6 @@ TOCK_PLATFORM ?= storm
 
 BUILD_ROOT ?= build
 BUILD_PLATFORM_DIR ?= $(BUILD_ROOT)/$(TOCK_PLATFORM)
-#BUILD_PLATFORM_APP_DIR ?= $(BUILD_PLATFORM_DIR)/apps
 
 # Dummy all. The real one is in platform-specific Makefiles.
 all:	$(BUILD_ROOT) $(BUILD_PLATFORM_APP_DIR)
@@ -52,7 +51,6 @@ doc: $(BUILD_PLATFORM_DIR)/main.o
 # Removes compilation artifacts for Tock, but not external dependencies.
 clean:
 	rm -Rf $(BUILD_PLATFORM_DIR)/*.*
-	rm -Rf $(BUILD_PLATFORM_APP_DIR)/*.*
 
 # Remove all compilation artifacts, including for external dependencies.
 clean-all:
