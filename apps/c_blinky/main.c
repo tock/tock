@@ -4,7 +4,7 @@
 CB_TYPE timer_cb(int, int, int, void*);
 
 void main(void) {
-    gpio_enable(LED_0);
+    gpio_enable_output(LED_0);
     timer_repeating_subscribe(timer_cb, NULL);
 }
 

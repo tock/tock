@@ -28,7 +28,7 @@ typedef enum {
   PA10,
   PA12,
   PC09,
-} GPIO_PIN_t;
+} GPIO_Pin_t;
 
 typedef enum {
   PullUp=0,
