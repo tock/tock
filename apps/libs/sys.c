@@ -7,6 +7,10 @@
 
 #include <firestorm.h>
 
+// XXX Suppress unused parameter warnings for this file as the implementations
+// are currently all just stubs
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 //------------------------------
 // LIBC SUPPORT STUBS
 //------------------------------
