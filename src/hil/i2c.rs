@@ -7,13 +7,16 @@ pub enum Error {
     /// is incorrect or the slave is not properly connected.
     AddressNak,
 
-    /// The data was not acknowledged by the slave
+    /// The data was not acknowledged by the slave.
     DataNak,
 
     /// Arbitration lost, meaning the state of the data line does not correspond
     /// to the data driven onto it. This can happen, for example, when a
     /// higher-priority transmission is in progress by a different master.
-    ArbitrationLost
+    ArbitrationLost,
+
+    /// No error occured and the command completed successfully.
+    CommandComplete
 }
 
 impl Display for Error {
@@ -21,7 +24,8 @@ impl Display for Error {
         let display_str = match *self {
             Error::AddressNak => "I2C Address Not Acknowledged",
             Error::DataNak => "I2C Data Not Acknowledged",
-            Error::ArbitrationLost => "ArbitrationLost"
+            Error::ArbitrationLost => "I2C Bus Arbitration Lost",
+            Error::CommandComplete => "I2C Command Completed"
         };
         write!(fmt, "{}", display_str)
     }
@@ -35,9 +39,7 @@ pub trait I2C {
 }
 
 pub trait I2CClient {
-    /// Called when an I2C command completed successfully
-    fn command_complete(&self, buffer: &'static mut [u8]);
-
-    /// Called when an I2C command did not complete because of an error
-    fn command_error(&self, buffer: &'static mut [u8], error: Error);
+    /// Called when an I2C command completed. The `error` denotes whether the command completed
+    /// successfully or if an error occured.
+    fn command_complete(&self, buffer: &'static mut [u8], error: Error);
 }

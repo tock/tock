@@ -152,9 +152,10 @@ impl I2CDevice {
         volatile_store(&mut regs.status_clear, !0);
 
         let err = match old_status {
-            x if x & (1 <<  8) != 0 /*ANACK*/ => Some(Error::AddressNak),
-            x if x & (1 <<  9) != 0 /*DNACK*/ => Some(Error::DataNak),
+            x if x & (1 <<  8) != 0 /*ANACK*/  => Some(Error::AddressNak),
+            x if x & (1 <<  9) != 0 /*DNACK*/  => Some(Error::DataNak),
             x if x & (1 << 10) != 0 /*ARBLST*/ => Some(Error::ArbitrationLost),
+            x if x & (1 <<  4) != 0 /*IDLE*/   => Some(Error::CommandComplete),
             _ => None
         };
 
@@ -162,7 +163,7 @@ impl I2CDevice {
             self.client.map(|client| {
                 let buf = self.dma.map(|dma| { dma.abort_xfer() });
                 buf.map(|buf| {
-                    client.command_error(buf, err);
+                    client.command_complete(buf, err);
                 });
             });
         });
@@ -189,7 +190,8 @@ impl I2CDevice {
 
         // Enable transaction error interrupts
         volatile_store(&mut regs.interrupt_enable,
-                         (1 << 8)    // ANAK   - Address not ACKd
+                         (1 << 4)    // IDLE   - Command completed
+                       | (1 << 8)    // ANAK   - Address not ACKd
                        | (1 << 9)    // DNAK   - Data not ACKd
                        | (1 << 10)); // ARBLST - Abitration lost
     }
@@ -229,6 +231,8 @@ impl I2CDevice {
     }
 
     fn disable_interrupts(&self) {
+        let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+        volatile_store(&mut regs.interrupt_disable, !0);
         unsafe {
             nvic::disable(self.nvic);
         }
@@ -237,9 +241,9 @@ impl I2CDevice {
 
 impl DMAClient for I2CDevice {
     fn xfer_done(&mut self, _pid: usize, buffer: &'static mut [u8]) {
-        self.client.map(move |client| {
+        /*self.client.map(move |client| {
             client.command_complete(buffer);
-        });
+        });*/
     }
 }
 
