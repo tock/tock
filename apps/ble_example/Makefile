@@ -39,9 +39,9 @@ TOCK_LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 
 .SECONDEXPANSION:
 $(TOCK_APP_BUILD_DIR)/$(APP).elf: $$(OBJS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
-	@echo "Linking $@"
-	$(CC) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
-	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
+	$(TRACE_LD)
+	$(Q)$(CC) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
 
 
 ###
@@ -183,17 +183,17 @@ $(HEX): $(OBJS)
 size: $(ELF)
 	$(SIZE) $(ELF)
 
-$(OUTPUT_PATH)%.o: %.c
-	$(MAKE_BUILD_FOLDER)
-	$(CC) $(LDFLAGS) $(CFLAGS) $(COMPILE_ONLY) $< -o $@
+$(OUTPUT_PATH)%.o: %.c | $(OUTPUT_PATH)
+	$(TRACE_CC)
+	$(Q)$(CC) $(CFLAGS) $(COMPILE_ONLY) $< -o $@
 
-$(OUTPUT_PATH)%.os: %.s
-	$(MAKE_BUILD_FOLDER)
-	$(AS) $< -o $@
+$(OUTPUT_PATH)%.os: %.s | $(OUTPUT_PATH)
+	$(TRACE_AS)
+	$(Q)$(AS) $(ASFLAGS) $< -o $@
 
-$(OUTPUT_PATH)%.lst: %.o
-	$(MAKE_BUILD_FOLDER)
-	$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
+$(OUTPUT_PATH)%.lst: %.o | $(OUTPUT_PATH)
+	$(TRACE_LST)
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
 .PHONY: all size clean
 
@@ -202,12 +202,13 @@ $(OUTPUT_PATH)%.lst: %.o
 # nrf5x-base/make/Makefile.posix
 ##################################################
 
-MAKE_BUILD_FOLDER = mkdir -p $(OUTPUT_PATH)
+$(OUTPUT_PATH):
+	@mkdir -p $@
 
 clean::
-	rm -rf $(OUTPUT_PATH)
-	rm -f *.jlink
-	rm -f JLink.log
-	rm -f .gdbinit
-	rm -f *.d
+	$(Q)rm -rf $(OUTPUT_PATH)
+	$(Q)rm -f *.jlink
+	$(Q)rm -f JLink.log
+	$(Q)rm -f .gdbinit
+	$(Q)rm -f *.d
 

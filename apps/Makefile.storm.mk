@@ -17,19 +17,20 @@ JLINK_EXE ?= JLinkExe
 .SECONDEXPANSION:
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_BUILD_DIR)/kernel.o $$(APPS_TO_LINK_TO_KERNEL) | $(TOCK_BUILD_DIR)
 	@tput bold ; echo "Linking $@" ; tput sgr0
-	$(CC) $(CFLAGS) $(CPPFLAGS) $^ $(LDFLAGS) -Wl,-Map=$(TOCK_APP_BUILD_DIR)/kernel_and_app.Map -o $@
-	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/kernel_and_app.lst
-	$(SIZE) $@
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $^ $(LDFLAGS) -Wl,-Map=$(TOCK_APP_BUILD_DIR)/kernel_and_app.Map -o $@
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/kernel_and_app.lst
+	$(Q)$(SIZE) $@
 
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
 	@tput bold ; echo "Flattening $< to $@..." ; tput sgr0
-	$(OBJCOPY) -O binary $< $@
+	$(Q)$(OBJCOPY) -O binary $< $@
 
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
 	@tput bold ; echo "Packing SDB..." ; tput sgr0
-	$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
+	$(Q)$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
 
 all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb
+	@tput bold ; echo "Finished building $(APP) for $(TOCK_PLATFORM)" ; tput sgr0
 
 .PHONY: program
 program: $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb

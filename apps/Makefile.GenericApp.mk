@@ -32,19 +32,23 @@ LIBS := $(foreach var,$(LIBS),$(TOCK_APP_BUILD_DIR)/$(var))
 
 
 $(TOCK_APP_BUILD_DIR)/%.o:	$(APP_DIR)/%.c | $(TOCK_APP_BUILD_DIR)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -c -o $@
+	$(TRACE_CC)
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $^ -c -o $@
 
 $(TOCK_APP_BUILD_DIR)/%.o:	$(APP_DIR)/%.cc | $(TOCK_APP_BUILD_DIR)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -c -o $@
+	$(TRACE_CXX)
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -c -o $@
 
 $(TOCK_APP_BUILD_DIR)/%.o:	$(APP_DIR)/%.cpp | $(TOCK_APP_BUILD_DIR)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -c -o $@
+	$(TRACE_CXX)
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -c -o $@
 
 
 
 # XXX FIXME
 $(TOCK_APP_BUILD_DIR)/syscalls.o:	$(TOCK_DIR)/arch/$(ARCH)/syscalls.S | $(TOCK_APP_BUILD_DIR)
-	$(AS) $(ASFLAGS) $^ -o $@
+	$(TRACE_AS)
+	$(Q)$(AS) $(ASFLAGS) $^ -o $@
 
 LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 
@@ -52,7 +56,7 @@ LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 
 
 $(TOCK_APP_BUILD_DIR)/$(APP).elf: $(LIBS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
-	@echo "Linking $@"
-	$(LD) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
-	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
+	$(TRACE_LD)
+	$(Q)$(LD) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
 

@@ -29,7 +29,7 @@ CPPFLAGS += \
 ## Tock Application Support Library
 
 $(TOCK_APP_LIBS_DIR):
-	mkdir -p $@
+	$(Q)mkdir -p $@
 
 TOCK_LIBS := $(subst .c,.o,$(wildcard $(TOCK_APPS_DIR)/libs/*.c))
 TOCK_LIBS += $(subst .s,.o,$(wildcard $(TOCK_APPS_DIR)/libs/*.s))
@@ -39,10 +39,12 @@ TOCK_LIBS := $(foreach var,$(TOCK_LIBS),$(TOCK_APP_LIBS_DIR)/$(var))
 #$(error $(TOCK_LIBS))
 
 $(TOCK_APP_LIBS_DIR)/%.o: $(TOCK_APPS_DIR)/libs/%.c | $(TOCK_APP_LIBS_DIR)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -c -o $@
+	$(TRACE_CC)
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $^ -c -o $@
 
 $(TOCK_APP_LIBS_DIR)/%.o: $(TOCK_APPS_DIR)/libs/%.s | $(TOCK_APP_LIBS_DIR)
-	$(AS) $(ASFLAGS) $^ -o $@
+	$(TRACE_AS)
+	$(Q)$(AS) $(ASFLAGS) $^ -o $@
 
 
 ###############################################################################
@@ -53,14 +55,14 @@ $(TOCK_APP_LIBS_DIR)/%.o: $(TOCK_APPS_DIR)/libs/%.s | $(TOCK_APP_LIBS_DIR)
 ## app that can be later linked into the kernel.
 
 $(TOCK_APP_BUILD_DIR)/$(APP).bin: $(TOCK_APP_BUILD_DIR)/$(APP).elf
-	@echo "Extracting binary $@"
-	$(OBJCOPY) --gap-fill 0xff -O binary $< $@
+	$(TRACE_BIN)
+	$(Q)$(OBJCOPY) --gap-fill 0xff -O binary $< $@
 
 $(TOCK_APP_BUILD_DIR)/$(APP).monolithic.o: $(TOCK_APP_BUILD_DIR)/$(APP).bin
-	@echo "Re-Linking $@"
-	$(LD) -r -b binary -o $@ $<
-	$(OBJCOPY) --rename-section .data=.app.$(APP) $@
-	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).monolithic.lst
+	$(TRACE_LD)
+	$(Q)$(LD) -r -b binary -o $@ $<
+	$(Q)$(OBJCOPY) --rename-section .data=.app.$(APP) $@
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).monolithic.lst
 
 APPS_TO_LINK_TO_KERNEL=$(TOCK_APP_BUILD_DIR)/$(APP).monolithic.o
 
@@ -76,14 +78,37 @@ rwildcard=$(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2) \
 #####################################################################
 ## Convenience rules
 
+# If environment variable V is non-empty, be verbose
+ifneq ($(V),)
+Q=
+TRACE_BIN =
+TRACE_CC  =
+TRACE_CXX =
+TRACE_LD  =
+TRACE_AR  =
+TRACE_AS  =
+TRACE_LST =
+else
+Q=@
+TRACE_BIN = @echo " BIN       " $@
+TRACE_CC  = @echo "  CC       " $<
+TRACE_CXX = @echo " CXX       " $<
+TRACE_LD  = @echo "  LD       " $@
+TRACE_AR  = @echo "  AR       " $@
+TRACE_AS  = @echo "  AS       " $<
+TRACE_LST = @echo " LST       " $<
+endif
+
 .PHONY: kernel
 kernel:
+	@tput bold ; echo "Verifying kernel is up to date" ; tput sgr0
 	$(MAKE) -C $(TOCK_APPS_DIR)/..
 
 .PHONY:	clean
 clean::
-	rm -rf $(TOCK_APP_BUILD_DIR)
+	@tput bold ; echo "Cleaning $(APP)" ; tput sgr0
+	$(Q)rm -rf $(TOCK_APP_BUILD_DIR)
 
 $(TOCK_APP_BUILD_DIR):
-	mkdir -p $@
+	$(Q)mkdir -p $@
 
