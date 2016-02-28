@@ -1,0 +1,3 @@
+[submodule "apps/ble_example/nrf5x-base"]
+	path = apps/ble_example/nrf5x-base
+	url = https://github.com/lab11/nrf5x-base.git
