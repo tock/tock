@@ -19,6 +19,8 @@ APP_LIBC := ../../extern/newlib/libc.a
 CPPFLAGS += \
 	    -I$(TOCK_APPS_DIR)/libs\
 	    -fdata-sections -ffunction-sections\
+	    -Wall\
+	    -Wextra\
 	    -Wl,-gc-sections\
 	    -fPIC\
 	    -msingle-pic-base\
