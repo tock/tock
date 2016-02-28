@@ -1,29 +1,28 @@
 CHIP := nrf51822
 ARCH := cortex-m0
-TOCK_PLATFORM_LINKER_SCRIPT = $(TOCK_DIR)/chips/nrf_pca10001/loader.ld
+TOCK_PLATFORM_LINKER_SCRIPT = $(TOCK_DIR)/chips/$(CHIP)/loader.ld
 
 include $(TOCK_APPS_DIR)/Makefile.Arm-M.mk
 
 JLINK_OPTIONS := -device nrf51822 -if swd -speed 1000
 JLINK_EXE ?= JLinkExe
 
+# XXX Temporary until new kernel build system in place
+$(TOCK_BUILD_DIR)/ctx_switch.o: kernel
+
 # Apps to link may grow over time so defer expanding that
 .SECONDEXPANSION:
-$(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/arch.o $(TOCK_BUILD_DIR)/kernel.o $$(APPS_TO_LINK_TO_KERNEL) | $(TOCK_BUILD_DIR)
+$(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_BUILD_DIR)/kernel.o $$(APPS_TO_LINK_TO_KERNEL) | $(TOCK_BUILD_DIR)
 	@tput bold ; echo "Linking $@" ; tput sgr0
 	$(CC) $(CFLAGS) $(CPPFLAGS) $^ $(LDFLAGS) -Wl,-Map=$(TOCK_APP_BUILD_DIR)/kernel_and_app.Map -o $@
 	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/kernel_and_app.lst
 	$(SIZE) $@
 
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
-	@tput bold ; echo "Flattening $< to $@..." ; tput sgr0
+	@tput bold ; echo "Flattening $< to $@" ; tput sgr0
 	$(OBJCOPY) -O binary $< $@
 
-$(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
-	@tput bold ; echo "Packing SDB..." ; tput sgr0
-	$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
-
-all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb
+all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 
 
 # "Flash" process:
@@ -31,7 +30,7 @@ all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb
 # 2) write firmware at address 0
 # 3) set NVMC.CONFIG to 0 (Read only access)
 .PHONY: program
-program: $(BUILD_PLATFORM_DIR)/main.bin
+program: $(BUILD_PLATFORM_DIR)/kernel_and_app.bin
 	echo \
 	connect\\n\
 	w4 4001e504 1\\n\

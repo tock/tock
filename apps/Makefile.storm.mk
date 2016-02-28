@@ -13,6 +13,9 @@ SDB_DESCRIPTION="An OS for the storm"
 
 JLINK_EXE ?= JLinkExe
 
+# XXX Temporary until new kernel build system in place
+$(TOCK_BUILD_DIR)/ctx_switch.o: kernel
+
 # Apps to link may grow over time so defer expanding that
 .SECONDEXPANSION:
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_BUILD_DIR)/kernel.o $$(APPS_TO_LINK_TO_KERNEL) | $(TOCK_BUILD_DIR)
