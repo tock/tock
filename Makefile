@@ -10,17 +10,21 @@ TOCK_PLATFORM ?= storm
 BUILD_ROOT ?= build
 BUILD_PLATFORM_DIR ?= $(BUILD_ROOT)/$(TOCK_PLATFORM)
 
+TOCK_ALL_PLATFORMS := $(shell find src/platform -maxdepth 1 -mindepth 1 -type d)
+TOCK_ALL_PLATFORMS := $(subst src/platform/,,$(TOCK_ALL_PLATFORMS))
+
+ifeq ($(findstring $(TOCK_PLATFORM),$(TOCK_ALL_PLATFORMS)),)
+$(error TOCK_PLATFORM=$(TOCK_PLATFORM) is not in src/platform ?)
+endif
+
 # Dummy all. The real one is in platform-specific Makefiles.
-all:	$(BUILD_ROOT) $(BUILD_PLATFORM_APP_DIR)
+all:
 
 $(BUILD_ROOT):
 	@mkdir -p $@
 
-$(BUILD_PLATFORM_DIR): $(BUILD_ROOT)
+$(BUILD_PLATFORM_DIR): | $(BUILD_ROOT)
 	@mkdir -p $@
-
-#$(BUILD_PLATFORM_APP_DIR): $(BUILD_PLATFORM_DIR)
-#	@mkdir -p $@
 
 # Common functions and variables
 include Common.mk
@@ -50,11 +54,17 @@ doc: $(BUILD_PLATFORM_DIR)/main.o
 
 # Removes compilation artifacts for Tock, but not external dependencies.
 clean:
-	rm -Rf $(BUILD_PLATFORM_DIR)/*.*
+	rm -rf $(BUILD_PLATFORM_DIR)/*.*
 
 # Remove all compilation artifacts, including for external dependencies.
 clean-all:
-	rm -Rf $(BUILD_PLATFORM_DIR)
+	rm -rf $(BUILD_PLATFORM_DIR)
+
+# Convenience rule that runs `make clean-all` for all valid TOCK_PLATFORMS
+clean-all-platforms:
+	@for P in $(TOCK_ALL_PLATFORMS); do $(MAKE) --no-print-directory TOCK_PLATFORM=$$P clean-all; done
+
+.PHONY: clean clean-all-platforms clean-all
 
 # Keep all object files
 .PRECIOUS: *.o *.elf
