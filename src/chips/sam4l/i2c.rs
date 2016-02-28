@@ -197,29 +197,12 @@ impl I2CDevice {
     pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8])
             -> usize {
         let len = data.len() & 0xFF;
-        self.setup_xfer(chip, flags, false, len);
-
-        /*let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
-        // Write all bytes in the data buffer to the I2C peripheral
-        for c in data {
-            // Wait for the peripheral to tell us that we can
-            // write to the TX register
-            loop {
-                let status = volatile_load(&regs.status);
-                if status & 2 == 2 {
-                    break;
-                }
-                if status & (1 << 8 | 1 << 9 | 1 << 10) != 0 {
-                    //panic!("ERROR 0x{:x}", status);
-                    return 0;
-                }
-            }
-            volatile_store(&mut regs.transmit_holding, *c as usize);
-        }*/
 
         self.dma.map(move |dma| {
             dma.enable();
-            dma.do_xfer(self.dma_pids.1 as usize, data, len);
+            dma.prepare_xfer(self.dma_pids.1 as usize, data, len);
+            self.setup_xfer(chip, flags, false, len);
+            dma.start_xfer();
         });
 
         len
@@ -228,12 +211,14 @@ impl I2CDevice {
     pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8])
             -> usize {
         let len = data.len() & 0xFF;
-        self.setup_xfer(chip, flags, true, len);
 
         self.dma.map(move |dma| {
             dma.enable();
-            dma.do_xfer(self.dma_pids.0 as usize, data, len);
+            dma.prepare_xfer(self.dma_pids.0 as usize, data, len);
+            self.setup_xfer(chip, flags, true, len);
+            dma.start_xfer();
         });
+
         len
     }
 

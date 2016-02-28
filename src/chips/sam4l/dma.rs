@@ -168,7 +168,6 @@ impl DMAChannel {
                 mem::transmute(self.registers)
             };
             volatile_store(&mut registers.interrupt_disable, 0xffffffff);
-            volatile_store(&mut registers.control, 0x1);
 
             unsafe { nvic::enable(self.nvic) };
 
@@ -214,9 +213,16 @@ impl DMAChannel {
         });
     }
 
-    pub fn do_xfer(&self, pid: usize,
-                       buf: &'static mut [u8],
-                       mut len: usize) {
+    pub fn start_xfer(&self) {
+        let registers : &mut DMARegisters = unsafe {
+            mem::transmute(self.registers)
+        };
+        volatile_store(&mut registers.control, 0x1);
+    }
+
+    pub fn prepare_xfer(&self, pid: usize,
+                        buf: &'static mut [u8],
+                        mut len: usize) {
         // TODO(alevy): take care of zero length case
         if len > buf.len() {
             len = buf.len();
@@ -235,6 +241,13 @@ impl DMAChannel {
         // Store the buffer reference in the TakeCell so it can be returned to
         // the caller in `handle_interrupt`
         self.buffer.replace(buf);
+    }
+
+    pub fn do_xfer(&self, pid: usize,
+                       buf: &'static mut [u8],
+                       len: usize) {
+        self.prepare_xfer(pid, buf, len);
+        self.start_xfer();
     }
 
     pub fn abort_xfer(&self) -> &'static mut [u8] {

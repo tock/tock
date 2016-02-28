@@ -9,7 +9,7 @@ static mut I2C_Client : DummyI2CClient = DummyI2CClient;
 
 impl hil::i2c::I2CClient for DummyI2CClient {
     fn command_complete(&self, _buffer: &'static mut [u8]) {
-        panic!("Command complete!!");
+        println!("Command complete!!");
 
     }
 
@@ -21,7 +21,7 @@ impl hil::i2c::I2CClient for DummyI2CClient {
 pub fn i2c_dummy_test(_dev: &'static mut i2c::I2CDevice) {
     use hil::i2c::I2C;
 
-    static mut DATA : [u8; 2] = [0; 2];
+    static mut DATA : [u8; 1] = [0; 1];
 
     let dev = unsafe { &mut i2c::I2C2 };
 
