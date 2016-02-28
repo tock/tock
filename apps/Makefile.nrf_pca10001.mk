@@ -7,9 +7,6 @@ include $(TOCK_APPS_DIR)/Makefile.Arm-M.mk
 JLINK_OPTIONS := -device nrf51822 -if swd -speed 1000
 JLINK_EXE ?= JLinkExe
 
-# XXX Temporary until new kernel build system in place
-$(TOCK_BUILD_DIR)/ctx_switch.o: kernel
-
 # Apps to link may grow over time so defer expanding that
 .SECONDEXPANSION:
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_BUILD_DIR)/kernel.o $$(APPS_TO_LINK_TO_KERNEL) | $(TOCK_BUILD_DIR)
@@ -17,6 +14,9 @@ $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_
 	$(CC) $(CFLAGS) $(CPPFLAGS) $^ $(LDFLAGS) -Wl,-Map=$(TOCK_APP_BUILD_DIR)/kernel_and_app.Map -o $@
 	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/kernel_and_app.lst
 	$(SIZE) $@
+
+# XXX Temporary until new kernel build system in place
+$(TOCK_BUILD_DIR)/ctx_switch.o: kernel
 
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
 	@tput bold ; echo "Flattening $< to $@" ; tput sgr0
