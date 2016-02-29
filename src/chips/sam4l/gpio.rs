@@ -7,6 +7,8 @@ use nvic;
 use chip;
 use nvic::NvicIdx::*;
 
+use common::take_cell::TakeCell;
+
 use self::Pin::*;
 
 #[repr(C, packed)]
@@ -232,7 +234,7 @@ pub struct GPIOPin {
     nvic: nvic::NvicIdx,
     pin_mask: u32,
     client_data: Cell<usize>,
-    client: Option<&'static hil::gpio::Client>
+    client: TakeCell<&'static hil::gpio::Client>
 }
 
 impl GPIOPin {
@@ -242,12 +244,12 @@ impl GPIOPin {
             nvic: nvic,
             pin_mask: 1 << ((pin as u32) % 32),
             client_data: Cell::new(0),
-            client: None
+            client: TakeCell::empty()
         }
     }
 
-    pub fn set_client<C: hil::gpio::Client>(&mut self, client: &'static C) {
-        self.client = Some(client);
+    pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
+        self.client.replace(client);
     }
 
     pub fn select_peripheral(&self, function: PeripheralFunction) {

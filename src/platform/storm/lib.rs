@@ -124,32 +124,19 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
 
     // set GPIO driver controlling remaining GPIO pins
+    static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 13] =
+                [ &sam4l::gpio::PC[10], &sam4l::gpio::PC[19]
+                , &sam4l::gpio::PC[13], &sam4l::gpio::PA[17]
+                , &sam4l::gpio::PC[20], &sam4l::gpio::PA[19]
+                , &sam4l::gpio::PA[14], &sam4l::gpio::PA[16]
+                , &sam4l::gpio::PA[13], &sam4l::gpio::PA[11]
+                , &sam4l::gpio::PA[10], &sam4l::gpio::PA[12]
+                , &sam4l::gpio::PC[ 9]]);
     static_init!(gpio : drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin> =
-                 drivers::gpio::GPIO::new(&sam4l::gpio::PC[10]));
-    /*
-            [ &sam4l::gpio::PC[10], &sam4l::gpio::PC[19]
-            , &sam4l::gpio::PC[13], &sam4l::gpio::PA[17]
-            , &sam4l::gpio::PC[20], &sam4l::gpio::PA[19]
-            , &sam4l::gpio::PA[14], &sam4l::gpio::PA[16]
-            , &sam4l::gpio::PA[13], &sam4l::gpio::PA[11]
-            , &sam4l::gpio::PA[10], &sam4l::gpio::PA[12]
-            , &sam4l::gpio::PC[ 9]]
-    */
-    sam4l::gpio::PC[10].set_client(gpio);
-    /*
-    sam4l::gpio::PC[19].set_client(firestorm.gpio);
-    sam4l::gpio::PC[13].set_client(firestorm.gpio);
-    sam4l::gpio::PA[17].set_client(firestorm.gpio);
-    sam4l::gpio::PC[20].set_client(firestorm.gpio);
-    sam4l::gpio::PA[19].set_client(firestorm.gpio);
-    sam4l::gpio::PA[14].set_client(firestorm.gpio);
-    sam4l::gpio::PA[16].set_client(firestorm.gpio);
-    sam4l::gpio::PA[13].set_client(firestorm.gpio);
-    sam4l::gpio::PA[11].set_client(firestorm.gpio);
-    sam4l::gpio::PA[10].set_client(firestorm.gpio);
-    sam4l::gpio::PA[12].set_client(firestorm.gpio);
-    sam4l::gpio::PC[ 9].set_client(firestorm.gpio);
-    */
+                 drivers::gpio::GPIO::new(gpio_pins));
+    for pin in gpio_pins.iter() {
+        pin.set_client(gpio);
+    }
 
     static_init!(firestorm : Firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
