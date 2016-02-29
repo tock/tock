@@ -5,30 +5,14 @@
 #include "tock.h"
 
 #define GPIO_DRIVER_NUM 1
-#define LED_0 PC10
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//XXX: This is platform dependent and needs to leave
-//XXX: Also this should be fixed to be only the exposed IO
-//XXX: Also build an LED driver that is separate from the GPIO driver
-typedef enum {
-  PC10=0,
-  PC19,
-  PC13,
-  PA17,
-  PC20,
-  PA19,
-  PA14,
-  PA16,
-  PA13,
-  PA11,
-  PA10,
-  PA12,
-  PC09,
-} GPIO_Pin_t;
+// GPIO pin enum is defined externally in platform headers
+enum GPIO_Pin_enum;
+typedef enum GPIO_Pin_enum GPIO_Pin_t;
 
 typedef enum {
   PullUp=0,
