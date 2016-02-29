@@ -330,7 +330,7 @@ impl hil::i2c::I2C for I2CDevice {
         I2CDevice::read(self, addr, START | STOP, data, len);
     }
 
-    fn write_sync (&self, addr: u16, data: &[u8]) {
+    fn write_sync (&self, addr: u8, data: &[u8]) {
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
 
         // enable, reset, disable
@@ -370,7 +370,7 @@ impl hil::i2c::I2C for I2CDevice {
         }
     }
 
-    fn read_sync (&self, addr: u16, buffer: &mut[u8]) {
+    fn read_sync (&self, addr: u8, buffer: &mut[u8]) {
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
 
         // enable, reset, disable

@@ -34,8 +34,8 @@ impl Display for Error {
 pub trait I2C {
     fn enable(&self);
     fn disable(&self);
-    fn write_sync(&self, addr: u16, data: &[u8]);
-    fn read_sync(&self, addr: u16, buffer: &mut [u8]);
+    fn write_sync(&self, addr: u8, data: &[u8]);
+    fn read_sync(&self, addr: u8, buffer: &mut [u8]);
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8);
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8);
 }

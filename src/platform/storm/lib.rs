@@ -96,7 +96,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     // the i2c address of the device is 0x40
     static_init!(tmp006 : drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin> =
-                    drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, 0x40, &sam4l::gpio::PA[9]));
+                    drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, 0x40, &sam4l::gpio::PA[9],
+                                                 &mut drivers::tmp006::BUFFER));
+    sam4l::i2c::I2C2.set_client(tmp006);
     sam4l::gpio::PA[9].set_client(tmp006);
 
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =

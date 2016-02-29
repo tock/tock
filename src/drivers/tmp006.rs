@@ -1,8 +1,11 @@
 use core::cell::Cell;
+use common::take_cell::TakeCell;
 use common::math::{sqrtf32, get_errno};
 use hil::{Driver,Callback};
-use hil::i2c::I2C;
+use hil::i2c;
 use hil::gpio::{GPIOPin, InputMode, InterruptMode, Client};
+
+pub static mut BUFFER : [u8; 3] = [0; 3];
 
 // error codes for this driver
 const ERR_BAD_VALUE: isize = -2;
@@ -37,17 +40,61 @@ enum Registers {
     DeviceID = 0xFF,
 }
 
-pub struct TMP006<'a, I: I2C + 'a, G: GPIOPin + 'a> {
+type SensorVoltage = u16;
+
+/// States of the I2C protocol with the TMP006. There are three sequences:
+///
+/// ### Enable sensor
+///
+/// Configure -> ()
+///
+/// ### Disable sensor
+///
+/// Disconfigure -> ()
+///
+/// ### Read temperature
+///
+/// SetRegSensorVoltage -->
+///     ReadingSensorVoltage --(voltage)->
+///         SetRegDieTemperature(voltage) --(voltage)->
+///             ReadingDieTemperature -> ()
+#[derive(Clone,Copy)]
+enum ProtocolState {
+    /// Enable sensor by setting the configuration register.
+    Configure,
+
+    /// Disable sensor by setting the configuration register.
+    Deconfigure,
+
+    /// Set the active register to sensor voltage.
+    SetRegSensorVoltage,
+
+    /// Read the sensor voltage register.
+    ReadingSensorVoltage,
+
+    /// Set the active register to die temperature, carrying over the sensor
+    /// voltage reading.
+    SetRegDieTemperature(SensorVoltage),
+
+    /// Read the die temperature register, carrying over the sensor voltage
+    /// reading.
+    ReadingDieTemperature(usize),
+}
+
+pub struct TMP006<'a, I: i2c::I2C + 'a, G: GPIOPin + 'a> {
     i2c: &'a I,
-    i2c_address: Cell<u16>,
+    i2c_address: Cell<u8>,
     interrupt_pin: &'a G,
     sampling_period: Cell<u8>,
     repeated_mode: Cell<bool>,
     callback: Cell<Option<Callback>>,
+    protocol_state: Cell<ProtocolState>,
+    buffer: TakeCell<&'static mut [u8]>
 }
 
-impl<'a, I: I2C, G: GPIOPin> TMP006<'a, I, G> {
-    pub fn new(i2c: &'a I, i2c_address: u16, interrupt_pin: &'a G) -> TMP006<'a, I, G> {
+impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
+    pub fn new(i2c: &'a I, i2c_address: u8, interrupt_pin: &'a G,
+               buffer: &'static mut [u8]) -> TMP006<'a, I, G> {
         // setup and return struct
         TMP006{
             i2c: i2c,
@@ -56,23 +103,23 @@ impl<'a, I: I2C, G: GPIOPin> TMP006<'a, I, G> {
             sampling_period: Cell::new(DEFAULT_SAMPLING_RATE),
             repeated_mode: Cell::new(false),
             callback: Cell::new(None),
+            protocol_state: Cell::new(ProtocolState::Configure),
+            buffer: TakeCell::new(buffer)
         }
     }
 
     fn enable_sensor(&self, sampling_period: u8) {
-        // turn on i2c to send commands
-        self.i2c.enable();
-
         // enable and configure TMP006
-        let mut buf: [u8; 3] = [0; 3];
-        let config = 0x7100 | (((sampling_period & 0x7) as u16) << 9);
-        buf[0] = Registers::Configuration as u8;
-        buf[1] = ((config & 0xFF00) >> 8) as u8;
-        buf[2] = (config & 0x00FF) as u8;
-        self.i2c.write_sync(self.i2c_address.get(), &buf);
+        self.buffer.take().map(|buf| {
+            // turn on i2c to send commands
+            self.i2c.enable();
 
-        // disable the i2c
-        self.i2c.disable();
+            let config = 0x7100 | (((sampling_period & 0x7) as u16) << 9);
+            buf[0] = Registers::Configuration as u8;
+            buf[1] = ((config & 0xFF00) >> 8) as u8;
+            buf[2] = (config & 0x00FF) as u8;
+            self.i2c.write(self.i2c_address.get(), buf, 3);
+        });
     }
 
     fn disable_sensor(&self) {
@@ -101,46 +148,6 @@ impl<'a, I: I2C, G: GPIOPin> TMP006<'a, I, G> {
         // disable interrupts from the sensor
         self.interrupt_pin.disable_interrupt();
         self.interrupt_pin.disable();
-    }
-
-    #[allow(dead_code)]
-    fn read_manufacturer_id(&self) -> u16 {
-        // turn on i2c to send commands
-        self.i2c.enable();
-
-        let mut buf: [u8; 3] = [0; 3];
-
-        // select manufacturer id register and read it
-        buf[0] = Registers::ManufacturerID as u8;
-        self.i2c.write_sync(self.i2c_address.get(), &buf[0..1]);
-        self.i2c.read_sync(self.i2c_address.get(), &mut buf[0..2]);
-        let manufacturer_id = (((buf[0] as u16) << 8) | buf[1] as u16) as u16;
-
-        // disable i2c
-        self.i2c.disable();
-
-        // return device id
-        manufacturer_id
-    }
-
-    #[allow(dead_code)]
-    fn read_device_id(&self) -> u16 {
-        // turn on i2c to send commands
-        self.i2c.enable();
-
-        let mut buf: [u8; 3] = [0; 3];
-
-        // select device id register and read it
-        buf[0] = Registers::DeviceID as u8;
-        self.i2c.write_sync(self.i2c_address.get(), &buf[0..1]);
-        self.i2c.read_sync(self.i2c_address.get(), &mut buf[0..2]);
-        let device_id = (((buf[0] as u16) << 8) | buf[1] as u16) as u16;
-
-        // disable i2c
-        self.i2c.disable();
-
-        // return device id
-        device_id
     }
 
     fn read_temperature(&self) -> f32 {
@@ -185,7 +192,21 @@ impl<'a, I: I2C, G: GPIOPin> TMP006<'a, I, G> {
     }
 }
 
-impl<'a, I: I2C, G: GPIOPin> Client for TMP006<'a, I, G> {
+impl<'a, I: i2c::I2C, G: GPIOPin> i2c::I2CClient for TMP006<'a, I, G> {
+    fn command_complete(&self, buffer: &'static mut [u8], error: i2c::Error) {
+        match self.protocol_state.get() {
+            ProtocolState::Configure => {
+                self.buffer.replace(buffer);
+                self.enable_interrupts();
+                self.i2c.disable()
+            },
+            _ => {}
+        }
+    }
+
+}
+
+impl<'a, I: i2c::I2C, G: GPIOPin> Client for TMP006<'a, I, G> {
     fn fired(&self, _: usize) {
         // read value from temperature sensor
         let temp_val = self.read_temperature();
@@ -207,7 +228,7 @@ impl<'a, I: I2C, G: GPIOPin> Client for TMP006<'a, I, G> {
     }
 }
 
-impl<'a, I: I2C, G: GPIOPin> Driver for TMP006<'a, I, G> {
+impl<'a, I: i2c::I2C, G: GPIOPin> Driver for TMP006<'a, I, G> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             // single temperature reading with callback
@@ -220,7 +241,6 @@ impl<'a, I: I2C, G: GPIOPin> Driver for TMP006<'a, I, G> {
 
                 // enable sensor
                 //  turn up the sampling rate so we get the sample faster
-                self.enable_interrupts();
                 self.enable_sensor(MAX_SAMPLING_RATE);
 
                 0
@@ -235,7 +255,6 @@ impl<'a, I: I2C, G: GPIOPin> Driver for TMP006<'a, I, G> {
                 self.callback.set(Some(callback));
 
                 // enable temperature sensor
-                self.enable_interrupts();
                 self.enable_sensor(self.sampling_period.get());
 
                 0
