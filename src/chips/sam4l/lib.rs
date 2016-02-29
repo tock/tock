@@ -164,28 +164,29 @@ unsafe extern "C" fn reset_handler() {
 }
 
 unsafe extern "C" fn hard_fault_handler() {
-    let faulting_stack: *const u32;
+    use core::intrinsics::offset;
+
+    let faulting_stack: *mut u32;
 
     asm!(
         "tst    lr, #4                      \n\
          ite    eq                          \n\
          mrseq  r0, msp                     \n\
-         mrsne  r0, psp                     \n\
-         movs   r1, #0                      "
-        : "={r1}"(faulting_stack)
+         mrsne  r0, psp                     "
+        : "={r0}"(faulting_stack)
         :
-        : "r1"
+        : "r0"
         :
         );
 
-    let stacked_r0  = *faulting_stack;
-    let stacked_r1  = *faulting_stack+4;
-    let stacked_r2  = *faulting_stack+8;
-    let stacked_r3  = *faulting_stack+12;
-    let stacked_r12 = *faulting_stack+16;
-    let stacked_lr  = *faulting_stack+20;
-    let stacked_pc  = *faulting_stack+24;
-    let stacked_prs = *faulting_stack+28;
+    let stacked_r0  :u32 = *offset(faulting_stack, 0);
+    let stacked_r1  :u32 = *offset(faulting_stack, 1);
+    let stacked_r2  :u32 = *offset(faulting_stack, 2);
+    let stacked_r3  :u32 = *offset(faulting_stack, 3);
+    let stacked_r12 :u32 = *offset(faulting_stack, 4);
+    let stacked_lr  :u32 = *offset(faulting_stack, 5);
+    let stacked_pc  :u32 = *offset(faulting_stack, 6);
+    let stacked_prs :u32 = *offset(faulting_stack, 7);
 
     panic!("HardFault.\n\
            \tr0  0x{:x}\n\
