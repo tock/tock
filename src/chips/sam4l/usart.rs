@@ -180,9 +180,18 @@ impl USART {
 }
 
 impl DMAClient for USART {
-    fn xfer_done(&mut self, _pid: usize, buffer: &'static mut [u8]) {
-        self.dma.as_mut().map(|dma| dma.disable());
-        self.client.as_ref().map(move |c| c.write_done(buffer) );
+    fn xfer_done(&mut self, _pid: usize) {
+        let buffer = match self.dma.as_mut() {
+            Some(dma) => {
+                let buf = dma.abort_xfer();
+                dma.disable();
+                buf
+            },
+            None => None
+        };
+        self.client.as_ref().map(move |c| {
+            buffer.map(|buf| c.write_done(buf));
+        });
     }
 }
 

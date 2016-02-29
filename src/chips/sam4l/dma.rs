@@ -66,7 +66,7 @@ pub enum DMAChannelNum {
 /// *_RX means transfer data from peripheral to memory, *_TX means transfer data
 /// from memory to peripheral.
 #[allow(non_camel_case_types)]
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub enum DMAPeripheral {
     USART0_RX      = 0,
     USART1_RX      = 1,
@@ -136,7 +136,7 @@ pub struct DMAChannel {
 }
 
 pub trait DMAClient {
-    fn xfer_done(&mut self, pid: usize, buffer: &'static mut [u8]);
+    fn xfer_done(&mut self, pid: usize);
 }
 
 impl DMAChannel {
@@ -168,7 +168,6 @@ impl DMAChannel {
                 mem::transmute(self.registers)
             };
             volatile_store(&mut registers.interrupt_disable, 0xffffffff);
-            volatile_store(&mut registers.control, 0x1);
 
             unsafe { nvic::enable(self.nvic) };
 
@@ -202,23 +201,24 @@ impl DMAChannel {
         };
         let channel : usize = volatile_load(&registers.peripheral_select);
 
-        // Here we take the buffer reference out of the option and
-        // return it to the caller
-        let buffer = self.buffer.take();
         self.client.as_mut().map(|client| {
-            // If buffer is `None` we neglected to `replace` it in `do_xfer`
-            // which should never happen...
-            buffer.map(|buf| {
-                client.xfer_done(channel, buf);
-            });
+            client.xfer_done(channel);
         });
     }
 
-    pub fn do_xfer(&self, pid: DMAPeripheral,
-                       buf: &'static mut [u8],
-                       len: usize) {
+    pub fn start_xfer(&self) {
+        let registers : &mut DMARegisters = unsafe {
+            mem::transmute(self.registers)
+        };
+        volatile_store(&mut registers.control, 0x1);
+    }
+
+    pub fn prepare_xfer(&self, pid: DMAPeripheral,
+                        buf: &'static mut [u8],
+                        mut len: usize) {
+        // TODO(alevy): take care of zero length case
         if len > buf.len() {
-            return;
+            len = buf.len();
         }
 
         let registers : &mut DMARegisters = unsafe {
@@ -234,6 +234,27 @@ impl DMAChannel {
         // Store the buffer reference in the TakeCell so it can be returned to
         // the caller in `handle_interrupt`
         self.buffer.replace(buf);
+    }
+
+    pub fn do_xfer(&self, pid: DMAPeripheral,
+                       buf: &'static mut [u8],
+                       len: usize) {
+        self.prepare_xfer(pid, buf, len);
+        self.start_xfer();
+    }
+
+    /// Aborts any current transactions and returns the buffer used in the
+    /// transaction.
+    pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
+        let registers : &mut DMARegisters = unsafe {
+            mem::transmute(self.registers)
+        };
+        volatile_store(&mut registers.interrupt_disable, !0);
+
+        // Reset counter
+        volatile_store(&mut registers.transfer_counter, 0);
+
+        self.buffer.take()
     }
 }
 
@@ -290,6 +311,20 @@ pub unsafe extern fn PDCA_3_Handler() {
         mem::transmute(DMAChannels[3].registers);
     volatile_store(&mut registers.interrupt_disable, 0xffffffff);
     nvic::disable(nvic::NvicIdx::PDCA3);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA3);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn PDCA_4_Handler() {
+    use common::Queue;
+    use nvic;
+    use chip;
+
+    let registers : &mut DMARegisters =
+        mem::transmute(DMAChannels[4].registers);
+    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
+    nvic::disable(nvic::NvicIdx::PDCA4);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA3);
 }
 

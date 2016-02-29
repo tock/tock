@@ -14,18 +14,15 @@ use hil::spi_master::SpiMaster;
 use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
+#[macro_use]
+pub mod io;
+
 // HAL unit tests. To enable a particular unit test, uncomment
 // the module here and uncomment the call to start the test in
 // the init function below.
 //mod gpio_dummy;
 //mod spi_dummy;
-//mod spi_driver;
-
-
-#[allow(unused_variables,dead_code)]
-pub struct DummyCB {
-    val: u8
-}
+//mod i2c_dummy;
 
 static mut spi_read_buf:  [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
@@ -108,7 +105,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     // the i2c address of the device is 0x40
     static_init!(tmp006 : drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin> =
-                    drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, 0x40, &sam4l::gpio::PA[9]));
+                    drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, 0x40, &sam4l::gpio::PA[9],
+                                                 &mut drivers::tmp006::BUFFER));
+    sam4l::i2c::I2C2.set_client(tmp006);
     sam4l::gpio::PA[9].set_client(tmp006);
 
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
@@ -131,6 +130,10 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
                       drivers::spi::Spi::new(&mut sam4l::spi::SPI));
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
+    sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
+    sam4l::spi::SPI.enable();
+
 
     // set GPIO driver controlling remaining GPIO pins
     static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 8] = [
@@ -204,67 +207,14 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // press toggle it).
     //gpio_dummy::gpio_dummy_test();
 
-    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
-    sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
-    sam4l::spi::SPI.enable();
+    // Uncommenting the following line will test the I2C
+    //i2c_dummy::i2c_scan_slaves();
+    //i2c_dummy::i2c_tmp006_test();
+    //i2c_dummy::i2c_accel_test();
+    //i2c_dummy::i2c_li_test();
 
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();
     firestorm
-}
-
-use core::fmt::Arguments;
-
-#[cfg(not(test))]
-#[lang="panic_fmt"]
-#[no_mangle]
-pub unsafe extern fn rust_begin_unwind(args: Arguments,
-    file: &'static str, line: u32) -> ! {
-
-    static mut NUM : usize = 0;
-
-    use hil::uart::UART;
-    use core::fmt::*;
-    use support::nop;
-
-    NUM += 1;
-
-    sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
-        baud_rate: 115200,
-        data_bits: 8,
-        parity: hil::uart::Parity::None
-    });
-    sam4l::usart::USART3.enable_tx();
-
-    struct Writer;
-
-    impl Write for Writer {
-        fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-            unsafe {
-                for c in s.bytes() {
-                    sam4l::usart::USART3.send_byte(c);
-                }
-            }
-            Ok(())
-        }
-    }
-
-    let mut writer = Writer;
-    let _ = writer.write_fmt(format_args!("Kernel panic at {}:{}:\r\n\t\"", file, line));
-    let _ = write(&mut writer, args);
-    let _ = writer.write_str("\"\r\n");
-
-    let led = &sam4l::gpio::PC[10];
-    led.enable_output();
-    loop {
-        for _ in 0..1000000 {
-            led.set();
-            nop();
-        }
-        for _ in 0..1000000 {
-            led.clear();
-            nop();
-        }
-    }
 }
 

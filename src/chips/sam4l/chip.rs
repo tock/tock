@@ -6,6 +6,7 @@ use nvic;
 use usart;
 use spi;
 use gpio;
+use i2c;
 
 pub struct Sam4l;
 
@@ -18,13 +19,20 @@ pub static mut INTERRUPT_QUEUE : Option<RingBuffer<'static, nvic::NvicIdx>> = No
 impl Sam4l {
     pub unsafe fn new() -> Sam4l {
         INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
-        usart::USART3.set_dma(&mut dma::DMAChannels[0], dma::DMAPeripheral::USART3_TX);
-        dma::DMAChannels[0].client = Some(&mut usart::USART3);
-        spi::SPI.set_dma(&mut dma::DMAChannels[1], &mut dma::DMAChannels[2]);
-        dma::DMAChannels[1].client = Some(&mut spi::SPI);
+
+        usart::USART2.set_dma(&mut dma::DMAChannels[0], dma::DMAPeripheral::USART2_TX);
+        dma::DMAChannels[0].client = Some(&mut usart::USART2);
+
+        usart::USART3.set_dma(&mut dma::DMAChannels[1], dma::DMAPeripheral::USART3_TX);
+        dma::DMAChannels[1].client = Some(&mut usart::USART3);
+
+        spi::SPI.set_dma(&mut dma::DMAChannels[2], &mut dma::DMAChannels[3]);
         dma::DMAChannels[2].client = Some(&mut spi::SPI);
-        usart::USART2.set_dma(&mut dma::DMAChannels[3], dma::DMAPeripheral::USART2_TX);
-        dma::DMAChannels[3].client = Some(&mut usart::USART2);
+        dma::DMAChannels[3].client = Some(&mut spi::SPI);
+
+        i2c::I2C2.set_dma(&dma::DMAChannels[4]);
+        dma::DMAChannels[4].client = Some(&mut i2c::I2C2);
+
         Sam4l
     }
 
@@ -54,6 +62,11 @@ impl Sam4l {
                 GPIO9 => gpio::PC.handle_interrupt(),
                 GPIO10 => gpio::PC.handle_interrupt(),
                 GPIO11 => gpio::PC.handle_interrupt(),
+
+                TWIM0 => i2c::I2C0.handle_interrupt(),
+                TWIM1 => i2c::I2C1.handle_interrupt(),
+                TWIM2 => i2c::I2C2.handle_interrupt(),
+                TWIM3 => i2c::I2C3.handle_interrupt(),
 
                 //NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
                 _ => {}
