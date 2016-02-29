@@ -17,7 +17,7 @@ LDFLAGS += -T$(TOCK_PLATFORM_LINKER_SCRIPT) -lm
 OBJCOPY := $(TOOLCHAIN)-objcopy
 
 OBJDUMP := $(TOOLCHAIN)-objdump
-OBJDUMP_FLAGS := --disassemble --source --disassembler-options=force-thumb
+OBJDUMP_FLAGS := --disassemble-all --source --disassembler-options=force-thumb
 OBJDUMP_FLAGS += -C --section-headers
 
 SIZE := $(TOOLCHAIN)-size
