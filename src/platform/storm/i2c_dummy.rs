@@ -82,7 +82,7 @@ impl hil::i2c::I2CClient for TMP006Client {
             },
             ReadingDevIdReg => {
                 let dev_id = (((buffer[0] as u16) << 8) | buffer[1] as u16) as u16;
-                println!("Device Id is 0x{:x}", dev_id);
+                println!("Device Id is 0x{:x} ({})", dev_id, error);
             }
         }
     }
@@ -90,6 +90,14 @@ impl hil::i2c::I2CClient for TMP006Client {
 
 pub fn i2c_tmp006_test() {
     static mut DATA : [u8; 255] = [0; 255];
+
+    unsafe {
+        use sam4l;
+        use hil::gpio::GPIOPin;
+        sam4l::gpio::PA[16].enable_output();
+        sam4l::gpio::PA[16].set();
+    }
+
 
     let dev = unsafe { &mut i2c::I2C2 };
 
@@ -174,4 +182,77 @@ pub fn i2c_accel_test() {
     dev.write(0x1e, i2c::START | i2c::STOP, buf, 2);
 }
 
+
+// ===========================================
+// Test LI
+// ===========================================
+
+#[derive(Copy,Clone)]
+enum LiClientState {
+    Enabling,
+    Enabling2,
+    ReadingLI
+}
+
+struct LiClient { state: Cell<LiClientState> }
+
+static mut LI_CLIENT : LiClient =
+    LiClient { state: Cell::new(LiClientState::Enabling) };
+
+impl hil::i2c::I2CClient for LiClient {
+    fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
+        use self::LiClientState::*;
+
+        let dev = unsafe { &mut i2c::I2C2 };
+
+        match self.state.get() {
+            Enabling => {
+                println!("Reading Lumminance Registers ({})", error);
+                buffer[0] = 1;
+                buffer[1] = 0b00000011;
+                dev.write(0x44, i2c::START | i2c::STOP, buffer, 2);
+                self.state.set(Enabling2);
+            },
+            Enabling2 => {
+                buffer[0] = 0x02 as u8; // Device Id Register
+                buffer[0] = 0;
+                dev.write_read(0x44, buffer, 1, 2);
+                self.state.set(ReadingLI);
+            },
+            ReadingLI => {
+                let intensity = (((buffer[1] as u16) << 8) | buffer[0] as u16) as u16;
+                println!("Light Intensity: 0x{:x} ({})", intensity, error);
+                /*buf[0] = 0;
+                buf[1] = 0b10100000;
+                buf[2] = 0b00000011;
+                dev.write(0x44, i2c::START | i2c::STOP, buf, 3);
+                self.state.set(Enabling);*/
+            }
+        }
+    }
+}
+
+pub fn i2c_li_test() {
+    static mut DATA : [u8; 255] = [0; 255];
+
+    unsafe {
+        use sam4l;
+        use hil::gpio::GPIOPin;
+        sam4l::gpio::PA[16].enable_output();
+        sam4l::gpio::PA[16].set();
+    }
+
+    let dev = unsafe { &mut i2c::I2C2 };
+
+    let i2c_client = unsafe { &LI_CLIENT };
+    dev.set_client(i2c_client);
+    dev.enable();
+
+    let buf = unsafe { &mut DATA };
+    println!("Enabling LI...");
+    buf[0] = 0;
+    buf[1] = 0b10100000;
+    buf[2] = 0b00000011;
+    dev.write(0x44, i2c::START | i2c::STOP, buf, 2);
+}
 

@@ -36,6 +36,8 @@ pub trait I2C {
     fn disable(&self);
     fn write_sync(&self, addr: u16, data: &[u8]);
     fn read_sync(&self, addr: u16, buffer: &mut [u8]);
+    fn write(&self, addr: u8, data: &'static mut [u8], len: u8);
+    fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8);
 }
 
 pub trait I2CClient {

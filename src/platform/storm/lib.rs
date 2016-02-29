@@ -168,6 +168,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     //i2c_dummy::i2c_scan_slaves();
     i2c_dummy::i2c_tmp006_test();
     //i2c_dummy::i2c_accel_test();
+    //i2c_dummy::i2c_li_test();
 
 
     firestorm.console.initialize();

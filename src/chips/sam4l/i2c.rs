@@ -145,6 +145,7 @@ impl I2CDevice {
         let old_status = volatile_load(&regs.status);
 
         volatile_store(&mut regs.command, 0);
+        volatile_store(&mut regs.next_command, 0);
         volatile_store(&mut regs.status_clear, !0);
 
         let err = match old_status {
@@ -156,6 +157,11 @@ impl I2CDevice {
         };
 
         err.map(|err| {
+            // enable, reset, disable
+            volatile_store(&mut regs.control, 0x1 << 0);
+            volatile_store(&mut regs.control, 0x1 << 7);
+            volatile_store(&mut regs.control, 0x1 << 1);
+
             self.client.map(|client| {
                 let buf = match self.dma.take() {
                     Some(dma) => {
@@ -314,6 +320,14 @@ impl hil::i2c::I2C for I2CDevice {
             pm::disable_clock(self.clock);
         }
         self.disable_interrupts();
+    }
+
+    fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
+        I2CDevice::write(self, addr, START | STOP, data, len);
+    }
+
+    fn read(&self, addr: u8, data: &'static mut [u8], len: u8) {
+        I2CDevice::read(self, addr, START | STOP, data, len);
     }
 
     fn write_sync (&self, addr: u16, data: &[u8]) {
