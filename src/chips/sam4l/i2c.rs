@@ -229,7 +229,7 @@ impl I2CDevice {
     pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
         self.dma.map(move |dma| {
             dma.enable();
-            dma.prepare_xfer(self.dma_pids.1 as usize, data, len as usize);
+            dma.prepare_xfer(self.dma_pids.1, data, len as usize);
             self.setup_xfer(chip, flags, false, len);
             dma.start_xfer();
         });
@@ -238,7 +238,7 @@ impl I2CDevice {
     pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
         self.dma.map(move |dma| {
             dma.enable();
-            dma.prepare_xfer(self.dma_pids.0 as usize, data, len as usize);
+            dma.prepare_xfer(self.dma_pids.0, data, len as usize);
             self.setup_xfer(chip, flags, true, len);
             dma.start_xfer();
         });
@@ -247,7 +247,7 @@ impl I2CDevice {
     pub fn write_read(&self, chip: u8, data: &'static mut [u8], split: u8, read_len: u8) {
         self.dma.map(move |dma| {
            dma.enable();
-           dma.prepare_xfer(self.dma_pids.1 as usize, data, split as usize);
+           dma.prepare_xfer(self.dma_pids.1, data, split as usize);
            self.setup_xfer(chip, START, false, split);
            self.setup_nextfer(chip, START | STOP, true, read_len);
            self.on_deck.replace(
@@ -277,7 +277,7 @@ impl DMAClient for I2CDevice {
         self.on_deck.take().map(|(dma_periph, len)| {
             self.dma.map(|dma| {
                 let buf = dma.abort_xfer().unwrap();
-                dma.prepare_xfer(dma_periph as usize, buf, len);
+                dma.prepare_xfer(dma_periph, buf, len);
                 dma.start_xfer();
             });
         });

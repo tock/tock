@@ -8,6 +8,7 @@ MAIN_DEPS+=$(BUILD_PLATFORM_DIR)/libplatform.rlib $(BUILD_PLATFORM_DIR)/libproce
 $(BUILD_PLATFORM_DIR)/kernel.o: $(MAIN_DEPS) | $(BUILD_PLATFORM_DIR)
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) -C lto --emit obj -o $@ $(SRC_DIR)main/main.rs
+	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(BUILD_PLATFORM_DIR)/kernel.lst
 
 $(BUILD_PLATFORM_DIR)/kernel.S: $(MAIN_DEPS) | $(BUILD_PLATFORM_DIR)
 	@echo "Building $@"

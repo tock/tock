@@ -4,22 +4,6 @@
 #include <firestorm.h>
 #include <tock.h>
 
-int gpio_enable(unsigned int pin) {
-  return command(1, 0, pin);
-}
-
-int gpio_set(unsigned int pin) {
-  return command(1, 2, pin);
-}
-
-int gpio_clear(unsigned int pin) {
-  return command(1, 3, pin);
-}
-
-int gpio_toggle(unsigned int pin) {
-  return command(1, 4, pin);
-}
-
 static CB_TYPE putstr_cb(
                 int _x __attribute__ ((unused)),
                 int _y __attribute__ ((unused)),
@@ -65,16 +49,16 @@ static CB_TYPE spi_cb(int r0, int r1, int r2, void* ud) {
   return SPIBUF;
 }
 
-int spi_write(const char* str, 
-   	      size_t len, 
-	      subscribe_cb cb) { 
+int spi_write(const char* str,
+   	      size_t len,
+	      subscribe_cb cb) {
   allow(4, 1, (void*)str, len);
   subscribe(4, 0, cb, NULL);
   command(4, 1, len);
 }
 
 int spi_read_write(const char* write,
-		   char* read, 
+		   char* read,
 		   size_t  len,
 		   subscribe_cb cb) {
 
@@ -82,8 +66,26 @@ int spi_read_write(const char* write,
   spi_write(write, len, cb);
 }
 
-int spi_block_write(char* str, 
-		    size_t len) { 
+int spi_block_write(char* str,
+		    size_t len) {
     spi_write(str, len, spi_cb);
     //wait_for(SPIBUF);
+}
+
+void nrf51822_serialization_subscribe (subscribe_cb cb) {
+  // get some callback love
+  subscribe(5, 0, cb, NULL);
+}
+
+void nrf51822_serialization_setup_rx_buffer (char* rx, int rx_len) {
+  // Pass the RX buffer for the UART module to use.
+  allow(5, 0, rx, rx_len);
+}
+
+void nrf51822_serialization_write (char* tx, int tx_len) {
+  // Pass in the TX buffer.
+  allow(5, 1, tx, tx_len);
+
+  // Do the write!!!!!
+  command(5, 0, 0);
 }

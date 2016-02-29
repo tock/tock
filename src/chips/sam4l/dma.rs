@@ -213,7 +213,7 @@ impl DMAChannel {
         volatile_store(&mut registers.control, 0x1);
     }
 
-    pub fn prepare_xfer(&self, pid: usize,
+    pub fn prepare_xfer(&self, pid: DMAPeripheral,
                         buf: &'static mut [u8],
                         mut len: usize) {
         // TODO(alevy): take care of zero length case
@@ -224,7 +224,7 @@ impl DMAChannel {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
-        volatile_store(&mut registers.peripheral_select, pid);
+        volatile_store(&mut registers.peripheral_select, pid as usize);
         volatile_store(&mut registers.memory_address_reload,
                        &buf[0] as *const u8 as usize);
         volatile_store(&mut registers.transfer_counter_reload, len);
@@ -236,7 +236,7 @@ impl DMAChannel {
         self.buffer.replace(buf);
     }
 
-    pub fn do_xfer(&self, pid: usize,
+    pub fn do_xfer(&self, pid: DMAPeripheral,
                        buf: &'static mut [u8],
                        len: usize) {
         self.prepare_xfer(pid, buf, len);
@@ -311,6 +311,20 @@ pub unsafe extern fn PDCA_3_Handler() {
         mem::transmute(DMAChannels[3].registers);
     volatile_store(&mut registers.interrupt_disable, 0xffffffff);
     nvic::disable(nvic::NvicIdx::PDCA3);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA3);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn PDCA_4_Handler() {
+    use common::Queue;
+    use nvic;
+    use chip;
+
+    let registers : &mut DMARegisters =
+        mem::transmute(DMAChannels[4].registers);
+    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
+    nvic::disable(nvic::NvicIdx::PDCA4);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA3);
 }
 

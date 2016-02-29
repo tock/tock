@@ -30,11 +30,12 @@ static mut spi_write_buf: [u8; 64] = [0; 64];
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
-    gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 13]>,
+    gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
+    nrf51822: &'static drivers::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
 }
 
 impl Firestorm {
@@ -51,10 +52,11 @@ impl Firestorm {
 
         match driver_num {
             0 => f(Some(self.console)),
-            1 => f(Some(&self.gpio)),
+            1 => f(Some(self.gpio)),
             2 => f(Some(self.tmp006)),
             3 => f(Some(self.timer)),
             4 => f(Some(self.spi)),
+            5 => f(Some(self.nrf51822)),
             _ => f(None)
         }
     }
@@ -86,6 +88,13 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                     drivers::console::Console::new(&sam4l::usart::USART3,
                                        &mut drivers::console::WRITE_BUF));
     sam4l::usart::USART3.set_client(console);
+
+    // Create the Nrf51822Serialization driver for passing BLE commands
+    // over UART to the nRF51822 radio.
+    static_init!(nrf_serialization : drivers::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART> =
+                    drivers::nrf51822_serialization::Nrf51822Serialization::new(&sam4l::usart::USART2,
+                                                                                &mut drivers::nrf51822_serialization::WRITE_BUF));
+    sam4l::usart::USART2.set_client(nrf_serialization);
 
     let ast = &sam4l::ast::AST;
 
@@ -126,20 +135,39 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::spi::SPI.enable();
 
 
+    // set GPIO driver controlling remaining GPIO pins
+    static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 8] = [
+            &sam4l::gpio::PC[10], // LED_0
+            &sam4l::gpio::PA[16], // P2
+            &sam4l::gpio::PA[12], // P3
+            &sam4l::gpio::PC[ 9], // P4
+            &sam4l::gpio::PA[10], // P5
+            &sam4l::gpio::PA[11], // P6
+            &sam4l::gpio::PA[19], // P7
+            &sam4l::gpio::PA[13], // P8
+            ]);
+    static_init!(gpio : drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin> =
+                 drivers::gpio::GPIO::new(gpio_pins));
+    for pin in gpio_pins.iter() {
+        pin.set_client(gpio);
+    }
+
+    /* Note: The following GPIO pins aren't assigned to anything:
+    &sam4l::gpio::PC[19] // !ENSEN
+    &sam4l::gpio::PC[13] // ACC_INT1
+    &sam4l::gpio::PA[17] // STORM_INT (nRF51822)
+    &sam4l::gpio::PC[20] // ACC_INT2
+    &sam4l::gpio::PA[14] // No Connection
+    */
+
     static_init!(firestorm : Firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
         console: &*console,
-        gpio: drivers::gpio::GPIO::new(
-            [ &sam4l::gpio::PC[10], &sam4l::gpio::PC[19]
-            , &sam4l::gpio::PC[13], &sam4l::gpio::PA[17]
-            , &sam4l::gpio::PC[20], &sam4l::gpio::PA[19]
-            , &sam4l::gpio::PA[14], &sam4l::gpio::PA[16]
-            , &sam4l::gpio::PA[13], &sam4l::gpio::PA[11]
-            , &sam4l::gpio::PA[10], &sam4l::gpio::PA[12]
-            , &sam4l::gpio::PC[09]]),
+        gpio: gpio,
         timer: timer,
         tmp006: &*tmp006,
         spi: &*spi,
+        nrf51822: &*nrf_serialization,
     });
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
@@ -147,6 +175,13 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         baud_rate: 115200,
         data_bits: 8,
         parity: hil::uart::Parity::None
+    });
+
+    // Setup USART2 for the nRF51822 connection
+    sam4l::usart::USART2.configure(sam4l::usart::USARTParams {
+        baud_rate: 250000,
+        data_bits: 8,
+        parity: hil::uart::Parity::Even
     });
 
     sam4l::gpio::PB[09].configure(Some(sam4l::gpio::PeripheralFunction::A));
@@ -161,6 +196,12 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // echo the 8 bytes read from the slave continuously.
     //spi_dummy::spi_dummy_test();
 
+    // Configure USART2 Pins for connection to nRF51822
+    sam4l::gpio::PC[ 7].configure(Some(sam4l::gpio::PeripheralFunction::B));
+    sam4l::gpio::PC[ 8].configure(Some(sam4l::gpio::PeripheralFunction::B));
+    sam4l::gpio::PC[11].configure(Some(sam4l::gpio::PeripheralFunction::B));
+    sam4l::gpio::PC[12].configure(Some(sam4l::gpio::PeripheralFunction::B));
+
     // Uncommenting the following line will toggle the LED whenever the value of
     // Firestorm's pin 8 changes value (e.g., connect a push button to pin 8 and
     // press toggle it).
@@ -172,9 +213,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     //i2c_dummy::i2c_accel_test();
     //i2c_dummy::i2c_li_test();
 
-
     firestorm.console.initialize();
-
+    firestorm.nrf51822.initialize();
     firestorm
 }
 

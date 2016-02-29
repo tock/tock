@@ -22,7 +22,20 @@ pub mod scif;
 pub mod adc;
 
 unsafe extern "C" fn unhandled_interrupt() {
-    panic!("Unhandled Interrupt");
+    let mut interrupt_number: u32;
+
+    // IPSR[8:0] holds the currently active interrupt
+    asm!(
+        "mrs    r0, ipsr                    "
+        : "={r0}"(interrupt_number)
+        :
+        : "r0"
+        :
+        );
+
+    interrupt_number = interrupt_number & 0x1ff;
+
+    panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
 extern {
@@ -50,7 +63,7 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
     /* Stack top */     Option::Some(_estack),
     /* Reset */         Option::Some(reset_handler),
     /* NMI */           Option::Some(unhandled_interrupt),
-    /* Hard Fault */    Option::Some(unhandled_interrupt),
+    /* Hard Fault */    Option::Some(hard_fault_handler),
     /* MemManage */     Option::Some(unhandled_interrupt),
     /* BusFault */      Option::Some(unhandled_interrupt),
     /* UsageFault*/     Option::Some(unhandled_interrupt),
@@ -68,7 +81,8 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
     /* PDCA1 */         Option::Some(dma::PDCA_1_Handler),
     /* PDCA2 */         Option::Some(dma::PDCA_2_Handler),
     /* PDCA3 */         Option::Some(dma::PDCA_3_Handler),
-    /* PDCA4..PDCA15 */ None, None, None, None, None, None, None, None, None,
+    /* PDCA4 */         Option::Some(dma::PDCA_4_Handler),
+    /* PDCA5..PDCA15 */ None, None, None, None, None, None, None, None,
                         None, None, None,
     /* CRCCU */         Option::Some(unhandled_interrupt),
     /* USBC */          Option::Some(unhandled_interrupt),
@@ -120,7 +134,7 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
     /* TWIS1 */         Option::Some(unhandled_interrupt),
     /* USART0 */        Option::Some(unhandled_interrupt),
     /* USART1 */        Option::Some(unhandled_interrupt),
-    /* USART2 */        Option::Some(unhandled_interrupt),
+    /* USART2 */        Option::Some(usart::USART2_Handler),
     /* USART3 */        Option::Some(usart::USART3_Handler),
     /* ADCIFE */        Option::Some(adc::ADCIFE_Handler),
     /* DACC */          Option::Some(unhandled_interrupt),
@@ -162,5 +176,43 @@ unsafe extern "C" fn reset_handler() {
     }
 
     main();
+}
+
+unsafe extern "C" fn hard_fault_handler() {
+    use core::intrinsics::offset;
+
+    let faulting_stack: *mut u32;
+
+    asm!(
+        "tst    lr, #4                      \n\
+         ite    eq                          \n\
+         mrseq  r0, msp                     \n\
+         mrsne  r0, psp                     "
+        : "={r0}"(faulting_stack)
+        :
+        : "r0"
+        :
+        );
+
+    let stacked_r0  :u32 = *offset(faulting_stack, 0);
+    let stacked_r1  :u32 = *offset(faulting_stack, 1);
+    let stacked_r2  :u32 = *offset(faulting_stack, 2);
+    let stacked_r3  :u32 = *offset(faulting_stack, 3);
+    let stacked_r12 :u32 = *offset(faulting_stack, 4);
+    let stacked_lr  :u32 = *offset(faulting_stack, 5);
+    let stacked_pc  :u32 = *offset(faulting_stack, 6);
+    let stacked_prs :u32 = *offset(faulting_stack, 7);
+
+    panic!("HardFault.\n\
+           \tr0  0x{:x}\n\
+           \tr1  0x{:x}\n\
+           \tr2  0x{:x}\n\
+           \tr3  0x{:x}\n\
+           \tr12 0x{:x}\n\
+           \tlr  0x{:x}\n\
+           \tpc  0x{:x}\n\
+           \tprs 0x{:x}\n\
+           ", stacked_r0, stacked_r1, stacked_r2, stacked_r3,
+           stacked_r12, stacked_lr, stacked_pc, stacked_prs);
 }
 

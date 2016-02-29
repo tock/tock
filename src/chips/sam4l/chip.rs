@@ -19,15 +19,20 @@ pub static mut INTERRUPT_QUEUE : Option<RingBuffer<'static, nvic::NvicIdx>> = No
 impl Sam4l {
     pub unsafe fn new() -> Sam4l {
         INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
-        usart::USART3.set_dma(&mut dma::DMAChannels[0]);
-        dma::DMAChannels[0].client = Some(&mut usart::USART3);
 
-        spi::SPI.set_dma(&mut dma::DMAChannels[1], &mut dma::DMAChannels[2]);
-        dma::DMAChannels[1].client = Some(&mut spi::SPI);
+        usart::USART2.set_dma(&mut dma::DMAChannels[0], dma::DMAPeripheral::USART2_TX);
+        dma::DMAChannels[0].client = Some(&mut usart::USART2);
+
+        usart::USART3.set_dma(&mut dma::DMAChannels[1], dma::DMAPeripheral::USART3_TX);
+        dma::DMAChannels[1].client = Some(&mut usart::USART3);
+
+        spi::SPI.set_dma(&mut dma::DMAChannels[2], &mut dma::DMAChannels[3]);
         dma::DMAChannels[2].client = Some(&mut spi::SPI);
+        dma::DMAChannels[3].client = Some(&mut spi::SPI);
 
-        i2c::I2C2.set_dma(&dma::DMAChannels[3]);
-        dma::DMAChannels[3].client = Some(&mut i2c::I2C2);
+        i2c::I2C2.set_dma(&dma::DMAChannels[4]);
+        dma::DMAChannels[4].client = Some(&mut i2c::I2C2);
+
         Sam4l
     }
 
@@ -37,6 +42,7 @@ impl Sam4l {
             match interrupt {
                 ASTALARM => ast::AST.handle_interrupt(),
 
+                USART2   => usart::USART2.handle_interrupt(),
                 USART3   => usart::USART3.handle_interrupt(),
 
                 PDCA0   => dma::DMAChannels[0].handle_interrupt(),

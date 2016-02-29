@@ -33,16 +33,17 @@ LIBS := $(foreach var,$(LIBS),$(TOCK_APP_BUILD_DIR)/$(var))
 
 $(TOCK_APP_BUILD_DIR)/%.o:	$(APP_DIR)/%.c | $(TOCK_APP_BUILD_DIR)
 	$(TRACE_CC)
-	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $^ -c -o $@
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $< -c -o $@
 
 $(TOCK_APP_BUILD_DIR)/%.o:	$(APP_DIR)/%.cc | $(TOCK_APP_BUILD_DIR)
 	$(TRACE_CXX)
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -c -o $@
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $< -c -o $@
 
 $(TOCK_APP_BUILD_DIR)/%.o:	$(APP_DIR)/%.cpp | $(TOCK_APP_BUILD_DIR)
 	$(TRACE_CXX)
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -c -o $@
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $< -c -o $@
 
+-include $(patsubst %.o,%.d,$(LIBS))
 
 
 # XXX FIXME
