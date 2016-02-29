@@ -3,14 +3,14 @@ use hil::{Driver,Callback};
 use hil::gpio::{GPIOPin,InputMode,InterruptMode,Client};
 
 pub struct GPIO<'a, G: GPIOPin + 'a> {
-    pins: [&'a G; 1],
+    pins: &'a [&'a G],
     callback: Cell<Option<Callback>>,
 }
 
 impl<'a, G: GPIOPin> GPIO<'a, G> {
-    pub fn new(pins: &'a G) -> GPIO<'a, G> {
+    pub fn new(pins: &'a [&'a G]) -> GPIO<'a, G> {
         GPIO {
-            pins: [pins],
+            pins: pins,
             callback: Cell::new(None),
         }
     }
@@ -155,7 +155,7 @@ impl<'a, G: GPIOPin> Driver for GPIO<'a, G> {
             // enable and configure interrupts on pin, also sets pin as input
             // (no affect or reliance on registered callback)
             6 => {
-                //XXX: this is clunky
+                // TODO(brghena): this is clunky
                 // data == ((irq_config << 16) | (pin_config << 8) | pin)
                 // this allows three values to be passed into a command interface
                 let pin_num = data & 0xFF;
