@@ -65,18 +65,18 @@ static mut TMP006_CLIENT : TMP006Client =
 impl hil::i2c::I2CClient for TMP006Client {
     fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
         use self::TmpClientState::*;
-        println!("{}", error);
 
         let dev = unsafe { &mut i2c::I2C2 };
 
         match self.state.get() {
             Enabling => {
-                buffer[0] = 0xFF as u8;
+                println!("Selecting Device Id Register ({})", error);
+                buffer[0] = 0xFF as u8; // Device Id Register
                 dev.write(0x40, i2c::START | i2c::STOP, buffer, 1);
                 self.state.set(SelectingDevIdReg);
             },
             SelectingDevIdReg => {
-                println!("Device Id Register selected");
+                println!("Device Id Register selected ({})", error);
                 dev.read(0x40, i2c::START | i2c::STOP, buffer, 2);
                 self.state.set(ReadingDevIdReg);
             },
@@ -105,4 +105,73 @@ pub fn i2c_tmp006_test() {
     buf[2] = (config & 0x00FF) as u8;
     dev.write(0x40, i2c::START | i2c::STOP, buf, 3);
 }
+
+// ===========================================
+// Test FXOS8700CQ
+// ===========================================
+
+#[derive(Copy,Clone)]
+enum AccelClientState {
+    ReadingWhoami,
+    Activating,
+    ReadingAccelData
+}
+
+struct AccelClient { state: Cell<AccelClientState> }
+
+static mut ACCEL_CLIENT : AccelClient =
+    AccelClient { state: Cell::new(AccelClientState::ReadingWhoami) };
+
+impl hil::i2c::I2CClient for AccelClient {
+    fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
+        use self::AccelClientState::*;
+
+        let dev = unsafe { &mut i2c::I2C2 };
+
+        match self.state.get() {
+            ReadingWhoami => {
+                println!("Read WHOAMI Register 0x{:x} ({})", buffer[0], error);
+                /*buffer[0] = 0x2A as u8; // CTRL_REG1
+                buffer[1] = 1; // Bit 1 sets `active`
+                dev.write(0x1e, i2c::START | i2c::STOP, buffer, 2);
+                self.state.set(Activating);*/
+            },
+            Activating => {
+                println!("Sensor Activated ({})", error);
+                buffer[0] = 0x01 as u8; // X-MSB register
+                // Reading 6 bytes will increment the register pointer through
+                // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
+                dev.write_read(0x1e, buffer, 1, 6);
+                self.state.set(ReadingAccelData);
+            },
+            ReadingAccelData => {
+                let x = (((buffer[0] as u16) << 8) | buffer[1] as u16) as u16;
+                let y = (((buffer[2] as u16) << 8) | buffer[3] as u16) as u16;
+                let z = (((buffer[4] as u16) << 8) | buffer[5] as u16) as u16;
+
+                println!("Accel data ready x: {}, y: {}, z: {} ({})",
+                         x >> 2, y >> 2, z >> 2, error);
+            }
+        }
+    }
+}
+
+pub fn i2c_accel_test() {
+    static mut DATA : [u8; 255] = [0; 255];
+
+    let dev = unsafe { &mut i2c::I2C2 };
+
+    let i2c_client = unsafe { &ACCEL_CLIENT };
+    dev.set_client(i2c_client);
+    dev.enable();
+
+    let buf = unsafe { &mut DATA };
+    println!("Reading Accel's WHOAMI...");
+    //buf[0] = 0x0D as u8; // 0x2 == Configuration register
+    //dev.write_read(0x1e, buf, 1, 1);
+    buf[0] = 0x2A as u8; // CTRL_REG1
+    buf[1] = 0x01; // Bit 1 sets `active`
+    dev.write(0x1e, i2c::START | i2c::STOP, buf, 2);
+}
+
 

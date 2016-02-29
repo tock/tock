@@ -39,7 +39,11 @@ struct Registers {
 }
 
 // The addresses in memory (7.1 of manual) of the TWIM peripherals
-const I2C_BASE_ADDRS: [usize; 4] = [0x40018000, 0x4001C000, 0x40078000, 0x4007C000];
+const I2C_BASE_ADDRS: [*mut Registers; 4] =
+    [ 0x40018000 as *mut Registers
+    , 0x4001C000 as *mut Registers
+    , 0x40078000 as *mut Registers
+    , 0x4007C000 as *mut Registers];
 
 // There are four TWIM (two wire master interface) peripherals on the SAM4L.
 // These likely won't all be used for I2C, but we let the platform decide
@@ -69,43 +73,21 @@ pub struct I2CDevice {
     dma_pids: (DMAPeripheral, DMAPeripheral),
     nvic: nvic::NvicIdx,
     client: TakeCell<&'static hil::i2c::I2CClient>,
+    on_deck: TakeCell<(DMAPeripheral, usize)>,
 }
 
-pub static mut I2C0 : I2CDevice = I2CDevice {
-    registers: I2C_BASE_ADDRS[0] as *mut Registers,
-    clock: pm::Clock::PBA(pm::PBAClock::TWIM0),
-    dma: TakeCell::empty(),
-    dma_pids: (DMAPeripheral::TWIM0_RX, DMAPeripheral::TWIM0_TX),
-    nvic: nvic::NvicIdx::TWIM0,
-    client: TakeCell::empty(),
-};
-
-pub static mut I2C1 : I2CDevice = I2CDevice {
-    registers: I2C_BASE_ADDRS[1] as *mut Registers,
-    clock: pm::Clock::PBA(pm::PBAClock::TWIM1),
-    dma: TakeCell::empty(),
-    dma_pids: (DMAPeripheral::TWIM1_RX, DMAPeripheral::TWIM1_TX),
-    nvic: nvic::NvicIdx::TWIM1,
-    client: TakeCell::empty(),
-};
-
-pub static mut I2C2 : I2CDevice = I2CDevice {
-    registers: I2C_BASE_ADDRS[2] as *mut Registers,
-    clock: pm::Clock::PBA(pm::PBAClock::TWIM2),
-    dma: TakeCell::empty(),
-    dma_pids: (DMAPeripheral::TWIM2_RX, DMAPeripheral::TWIM2_TX),
-    nvic: nvic::NvicIdx::TWIM2,
-    client: TakeCell::empty(),
-};
-
-pub static mut I2C3 : I2CDevice = I2CDevice {
-    registers: I2C_BASE_ADDRS[3] as *mut Registers,
-    clock: pm::Clock::PBA(pm::PBAClock::TWIM0),
-    dma: TakeCell::empty(),
-    dma_pids: (DMAPeripheral::TWIM3_RX, DMAPeripheral::TWIM3_TX),
-    nvic: nvic::NvicIdx::TWIM3,
-    client: TakeCell::empty(),
-};
+pub static mut I2C0 : I2CDevice =
+    I2CDevice::new(I2C_BASE_ADDRS[0], pm::PBAClock::TWIM0, nvic::NvicIdx::TWIM0,
+                   DMAPeripheral::TWIM0_RX, DMAPeripheral::TWIM0_TX);
+pub static mut I2C1 : I2CDevice =
+    I2CDevice::new(I2C_BASE_ADDRS[1], pm::PBAClock::TWIM1, nvic::NvicIdx::TWIM1,
+                   DMAPeripheral::TWIM1_RX, DMAPeripheral::TWIM1_TX);
+pub static mut I2C2 : I2CDevice =
+    I2CDevice::new(I2C_BASE_ADDRS[2], pm::PBAClock::TWIM2, nvic::NvicIdx::TWIM2,
+                   DMAPeripheral::TWIM2_RX, DMAPeripheral::TWIM2_TX);
+pub static mut I2C3 : I2CDevice =
+    I2CDevice::new(I2C_BASE_ADDRS[3], pm::PBAClock::TWIM3, nvic::NvicIdx::TWIM3,
+                   DMAPeripheral::TWIM3_RX, DMAPeripheral::TWIM3_TX);
 
 pub const START : usize = 1 << 13;
 pub const STOP : usize = 1 << 14;
@@ -114,6 +96,20 @@ pub const ACKLAST : usize = 1 << 24;
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
 impl I2CDevice {
+    const fn new(base_addr: *mut Registers, clock: pm::PBAClock,
+                 nvic: nvic::NvicIdx,
+                 dma_rx: DMAPeripheral, dma_tx: DMAPeripheral) -> I2CDevice {
+        I2CDevice {
+            registers: base_addr as *mut Registers,
+            clock: pm::Clock::PBA(clock),
+            dma: TakeCell::empty(),
+            dma_pids: (dma_rx, dma_tx),
+            nvic: nvic,
+            client: TakeCell::empty(),
+            on_deck: TakeCell::empty()
+        }
+    }
+
     /// Set the clock prescaler and the time widths of the I2C signals
     /// in the CWGR register to make the bus run at a particular I2C speed.
     fn set_bus_speed (&self) {
@@ -155,7 +151,7 @@ impl I2CDevice {
             x if x & (1 <<  8) != 0 /*ANACK*/  => Some(Error::AddressNak),
             x if x & (1 <<  9) != 0 /*DNACK*/  => Some(Error::DataNak),
             x if x & (1 << 10) != 0 /*ARBLST*/ => Some(Error::ArbitrationLost),
-            x if x & (1 <<  4) != 0 /*IDLE*/   => Some(Error::CommandComplete),
+            x if x & (1 <<  3) != 0 /*CCOMP*/   => Some(Error::CommandComplete),
             _ => None
         };
 
@@ -191,40 +187,68 @@ impl I2CDevice {
                     | (len as usize) << 16 // NBYTES (at most 255)
                     | read;
         volatile_store(&mut regs.command, command);
+        volatile_store(&mut regs.next_command, 0);
 
         // Enable to begin transfer
         volatile_store(&mut regs.control, 0x1 << 0);
 
         // Enable transaction error interrupts
         volatile_store(&mut regs.interrupt_enable,
-                         (1 << 4)    // IDLE   - Command completed
+                         (1 << 3)    // CCOMP   - Command completed
                        | (1 << 8)    // ANAK   - Address not ACKd
                        | (1 << 9)    // DNAK   - Data not ACKd
                        | (1 << 10)); // ARBLST - Abitration lost
     }
 
-    pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8)
-            -> u8 {
+    fn setup_nextfer(&self, chip: u8, flags: usize, read: bool, len: u8) {
+        let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+
+        // disable before configuring
+        volatile_store(&mut regs.control, 0x1 << 1);
+
+        let read = if read { 1 } else { 0 };
+        let command = (0 << 1) // Not read
+                    | ((chip as usize) << 1) // 7 bit address at offset 1 (8th
+                                             // bit is ignored anyway)
+                    | flags  // START, STOP & ACKLAST flags
+                    | (1 << 15) // VALID
+                    | (len as usize) << 16 // NBYTES (at most 255)
+                    | read;
+        volatile_store(&mut regs.next_command, command);
+
+        // Enable
+        volatile_store(&mut regs.control, 0x1 << 0);
+    }
+
+    pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
         self.dma.map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.1 as usize, data, len as usize);
             self.setup_xfer(chip, flags, false, len);
             dma.start_xfer();
         });
-
-        len
     }
 
-    pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8)
-            -> u8 {
+    pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
         self.dma.map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.0 as usize, data, len as usize);
             self.setup_xfer(chip, flags, true, len);
             dma.start_xfer();
         });
+    }
 
-        len
+    pub fn write_read(&self, chip: u8, data: &'static mut [u8], split: u8, read_len: u8) {
+        self.dma.map(move |dma| {
+           dma.enable();
+           dma.prepare_xfer(self.dma_pids.1 as usize, data, split as usize);
+           self.setup_xfer(chip, START, false, split);
+           self.setup_nextfer(chip, START | STOP, true, read_len);
+           self.on_deck.replace(
+               (self.dma_pids.0, read_len as usize)
+           );
+           dma.start_xfer();
+        });
     }
 
     fn enable_interrupts(&self) {
@@ -244,6 +268,13 @@ impl I2CDevice {
 
 impl DMAClient for I2CDevice {
     fn xfer_done(&mut self, _pid: usize) {
+        self.on_deck.take().map(|(dma_periph, len)| {
+            self.dma.map(|dma| {
+                let buf = dma.abort_xfer().unwrap();
+                dma.prepare_xfer(dma_periph as usize, buf, len);
+                dma.start_xfer();
+            });
+        });
     }
 }
 
