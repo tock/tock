@@ -161,7 +161,14 @@ impl I2CDevice {
 
         err.map(|err| {
             self.client.map(|client| {
-                let buf = self.dma.map(|dma| { dma.abort_xfer() });
+                let buf = match self.dma.take() {
+                    Some(dma) => {
+                        let b = dma.abort_xfer();
+                        self.dma.replace(dma);
+                        b
+                    },
+                    None => None
+                };
                 buf.map(|buf| {
                     client.command_complete(buf, err);
                 });
@@ -169,7 +176,7 @@ impl I2CDevice {
         });
     }
 
-    fn setup_xfer(&self, chip: u8, flags: usize, read: bool, len: usize) {
+    fn setup_xfer(&self, chip: u8, flags: usize, read: bool, len: u8) {
         let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
 
         // disable before configuring
@@ -181,7 +188,7 @@ impl I2CDevice {
                                              // bit is ignored anyway)
                     | flags  // START, STOP & ACKLAST flags
                     | (1 << 15) // VALID
-                    | len << 16 // NBYTES (at most 255)
+                    | (len as usize) << 16 // NBYTES (at most 255)
                     | read;
         volatile_store(&mut regs.command, command);
 
@@ -196,13 +203,11 @@ impl I2CDevice {
                        | (1 << 10)); // ARBLST - Abitration lost
     }
 
-    pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8])
-            -> usize {
-        let len = data.len() & 0xFF;
-
+    pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8)
+            -> u8 {
         self.dma.map(move |dma| {
             dma.enable();
-            dma.prepare_xfer(self.dma_pids.1 as usize, data, len);
+            dma.prepare_xfer(self.dma_pids.1 as usize, data, len as usize);
             self.setup_xfer(chip, flags, false, len);
             dma.start_xfer();
         });
@@ -210,13 +215,11 @@ impl I2CDevice {
         len
     }
 
-    pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8])
-            -> usize {
-        let len = data.len() & 0xFF;
-
+    pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8)
+            -> u8 {
         self.dma.map(move |dma| {
             dma.enable();
-            dma.prepare_xfer(self.dma_pids.0 as usize, data, len);
+            dma.prepare_xfer(self.dma_pids.0 as usize, data, len as usize);
             self.setup_xfer(chip, flags, true, len);
             dma.start_xfer();
         });
@@ -240,10 +243,7 @@ impl I2CDevice {
 }
 
 impl DMAClient for I2CDevice {
-    fn xfer_done(&mut self, _pid: usize, buffer: &'static mut [u8]) {
-        /*self.client.map(move |client| {
-            client.command_complete(buffer);
-        });*/
+    fn xfer_done(&mut self, _pid: usize) {
     }
 }
 

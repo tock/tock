@@ -136,7 +136,7 @@ pub struct DMAChannel {
 }
 
 pub trait DMAClient {
-    fn xfer_done(&mut self, pid: usize, buffer: &'static mut [u8]);
+    fn xfer_done(&mut self, pid: usize);
 }
 
 impl DMAChannel {
@@ -201,15 +201,8 @@ impl DMAChannel {
         };
         let channel : usize = volatile_load(&registers.peripheral_select);
 
-        // Here we take the buffer reference out of the option and
-        // return it to the caller
-        let buffer = self.buffer.take();
         self.client.as_mut().map(|client| {
-            // If buffer is `None` we neglected to `replace` it in `do_xfer`
-            // which should never happen...
-            buffer.map(|buf| {
-                client.xfer_done(channel, buf);
-            });
+            client.xfer_done(channel);
         });
     }
 
@@ -250,7 +243,9 @@ impl DMAChannel {
         self.start_xfer();
     }
 
-    pub fn abort_xfer(&self) -> &'static mut [u8] {
+    /// Aborts any current transactions and returns the buffer used in the
+    /// transaction.
+    pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
@@ -259,10 +254,7 @@ impl DMAChannel {
         // Reset counter
         volatile_store(&mut registers.transfer_counter, 0);
 
-        match self.buffer.take() {
-            Some(buf) => buf,
-            None => &mut []
-        }
+        self.buffer.take()
     }
 }
 

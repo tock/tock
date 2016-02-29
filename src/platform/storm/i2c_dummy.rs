@@ -9,7 +9,7 @@ struct DummyI2CClient { devid: Cell<u8> }
 static mut I2C_Client : DummyI2CClient = DummyI2CClient { devid: Cell::new(1) };
 
 impl hil::i2c::I2CClient for DummyI2CClient {
-    fn command_complete(&self, _buffer: &'static mut [u8], error: hil::i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], error: hil::i2c::Error) {
         let mut devid = self.devid.get();
 
         match error {
@@ -18,16 +18,17 @@ impl hil::i2c::I2CClient for DummyI2CClient {
         }
 
         let dev = unsafe { &mut i2c::I2C2 };
-        let buffer = unsafe { &mut DATA };
         if devid < 0x7F {
             devid += 1;
             self.devid.set(devid);
-            dev.write(devid, i2c::START | i2c::STOP, buffer );
+            dev.write(devid, i2c::START | i2c::STOP, buffer, 1);
+        } else {
+            println!("Done scanning for I2C devices. Buffer len: {}", buffer.len());
         }
     }
 }
 
-static mut DATA : [u8; 1] = [0; 1];
+static mut DATA : [u8; 255] = [0; 255];
 
 pub fn i2c_scan_slaves() {
     use hil::i2c::I2C;
@@ -39,6 +40,6 @@ pub fn i2c_scan_slaves() {
     dev.enable();
 
     println!("Try writing to a non-existent I2C device");
-    dev.write(i2c_client.devid.get(), i2c::START | i2c::STOP, unsafe { &mut DATA} );
+    dev.write(i2c_client.devid.get(), i2c::START | i2c::STOP, unsafe { &mut DATA}, 1);
 }
 
