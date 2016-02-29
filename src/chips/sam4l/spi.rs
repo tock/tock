@@ -8,6 +8,7 @@ use hil::spi_master::ClockPolarity;
 use hil::spi_master::ClockPhase;
 use dma::DMAChannel;
 use dma::DMAClient;
+use dma::DMAPeripheral;
 use pm;
 
 /// Implementation of DMA-based SPI master communication for
@@ -228,9 +229,9 @@ impl spi_master::SpiMaster for Spi {
         csr |= 1 << 3;
         self.write_active_csr(csr);
 
-        // Indicate the last transfer to disable slave select 
+        // Indicate the last transfer to disable slave select
         unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
-        
+
         let mut mode = unsafe {volatile_load(&(*self.regs).mr)};
         mode |= 1; // Enable master mode
         mode |= 1 << 4; // Disable mode fault detection (open drain outputs not supported)
@@ -318,10 +319,10 @@ impl spi_master::SpiMaster for Spi {
             self.dma_read.as_ref().map(|read| {
                 // We know from the check above that `reading` is only true if
                 // `read_buffer` is `Some`, so `unwrap` is safe here.
-                read.do_xfer(4, read_buffer.unwrap(), count)
+                read.do_xfer(DMAPeripheral::SPI_RX, read_buffer.unwrap(), count)
             });
         }
-        self.dma_write.as_ref().map(|write| write.do_xfer(22, write_buffer.unwrap(), count));
+        self.dma_write.as_ref().map(|write| write.do_xfer(DMAPeripheral::SPI_TX, write_buffer.unwrap(), count));
         if reading {
             self.dma_read.as_ref().map(|read| read.enable());
         }
@@ -335,7 +336,7 @@ impl spi_master::SpiMaster for Spi {
 
     fn get_rate(&self) -> u32 {
          self.get_baud_rate()
-    } 
+    }
 
     fn set_clock(&self, polarity: ClockPolarity) {
         let mut csr = self.read_active_csr();
@@ -431,7 +432,7 @@ impl DMAClient for Spi {
                 let wb = self.write_buffer.take();
                 let len = self.dma_length.get();
                 self.dma_length.set(0);
-                self.callback.as_ref().map(|cb| 
+                self.callback.as_ref().map(|cb|
                                            cb.read_write_done(wb, rb, len));
             }
         }
@@ -444,7 +445,7 @@ impl DMAClient for Spi {
                 let wb = self.write_buffer.take();
                 let len = self.dma_length.get();
                 self.dma_length.set(0);
-                self.callback.as_ref().map(|cb| 
+                self.callback.as_ref().map(|cb|
                                            cb.read_write_done(wb, rb, len));
             }
         }
