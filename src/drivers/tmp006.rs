@@ -40,7 +40,7 @@ enum Registers {
     DeviceID = 0xFF,
 }
 
-type SensorVoltage = u16;
+type SensorVoltage = i16;
 
 /// States of the I2C protocol with the TMP006. There are three sequences:
 ///
@@ -57,14 +57,18 @@ type SensorVoltage = u16;
 /// SetRegSensorVoltage -->
 ///     ReadingSensorVoltage --(voltage)->
 ///         SetRegDieTemperature(voltage) --(voltage)->
-///             ReadingDieTemperature -> ()
-#[derive(Clone,Copy)]
+///             ReadingDieTemperature --(unless repeated_mode)->
+///                 Disconfigure
+#[derive(Clone,Copy,PartialEq)]
 enum ProtocolState {
+    Idle,
+
     /// Enable sensor by setting the configuration register.
     Configure,
 
-    /// Disable sensor by setting the configuration register.
-    Deconfigure,
+    /// Disable sensor by setting the configuration register. Optionally contains the most recent
+    /// temperature to give back to callbacks.
+    Deconfigure(Option<f32>),
 
     /// Set the active register to sensor voltage.
     SetRegSensorVoltage,
@@ -78,7 +82,7 @@ enum ProtocolState {
 
     /// Read the die temperature register, carrying over the sensor voltage
     /// reading.
-    ReadingDieTemperature(usize),
+    ReadingDieTemperature(SensorVoltage),
 }
 
 pub struct TMP006<'a, I: i2c::I2C + 'a, G: GPIOPin + 'a> {
@@ -103,7 +107,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
             sampling_period: Cell::new(DEFAULT_SAMPLING_RATE),
             repeated_mode: Cell::new(false),
             callback: Cell::new(None),
-            protocol_state: Cell::new(ProtocolState::Configure),
+            protocol_state: Cell::new(ProtocolState::Idle),
             buffer: TakeCell::new(buffer)
         }
     }
@@ -119,23 +123,23 @@ impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
             buf[1] = ((config & 0xFF00) >> 8) as u8;
             buf[2] = (config & 0x00FF) as u8;
             self.i2c.write(self.i2c_address.get(), buf, 3);
+            self.protocol_state.set(ProtocolState::Configure);
         });
     }
 
-    fn disable_sensor(&self) {
-        // turn on i2c to send commands
-        self.i2c.enable();
-
+    fn disable_sensor(&self, temperature: Option<f32>) {
         // disable the TMP006
-        let mut buf: [u8; 3] = [0; 3];
-        let config = 0x0000;
-        buf[0] = Registers::Configuration as u8;
-        buf[1] = ((config & 0xFF00) >> 8) as u8;
-        buf[2] = (config & 0x00FF) as u8;
-        self.i2c.write_sync(self.i2c_address.get(), &buf);
+        self.buffer.take().map(|buf| {
+            // turn on i2c to send commands
+            self.i2c.enable();
 
-        // disable the i2c
-        self.i2c.disable();
+            let config = 0x0000;
+            buf[0] = Registers::Configuration as u8;
+            buf[1] = ((config & 0xFF00) >> 8) as u8;
+            buf[2] = (config & 0x00FF) as u8;
+            self.i2c.write(self.i2c_address.get(), buf, 3);
+            self.protocol_state.set(ProtocolState::Deconfigure(temperature));
+        });
     }
 
     fn enable_interrupts(&self) {
@@ -149,82 +153,109 @@ impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
         self.interrupt_pin.disable_interrupt();
         self.interrupt_pin.disable();
     }
+}
 
-    fn read_temperature(&self) -> f32 {
-        // turn on i2c to send commands
-        self.i2c.enable();
+fn calculate_temperature(sensor_voltage: i16, die_temperature: i16) -> f32 {
+    // do calculation of actual temperature
+    //  Calculations based on TMP006 User's Guide section 5.1
+    let t_die = ((die_temperature >> 2) as f32)*T_DIE_CONVERT + C_TO_K;
+    let t_adj = t_die-T_REF;
+    let s = S_0 * (1.0 + A_1*t_adj + A_2*t_adj*t_adj);
 
-        let mut buf: [u8; 3] = [0; 3];
+    let v_obj = (sensor_voltage as f32)*V_OBJ_CONVERT/NV_TO_V;
+    let v_os = B_0 + B_1*t_adj + B_2*t_adj*t_adj;
 
-        // select sensor voltage register and read it
-        buf[0] = Registers::SensorVoltage as u8;
-        self.i2c.write_sync(self.i2c_address.get(), &buf[0..1]);
-        self.i2c.read_sync(self.i2c_address.get(), &mut buf[0..2]);
-        let sensor_voltage = (((buf[0] as u16) << 8) | buf[1] as u16) as i16;
+    let v_adj = v_obj-v_os;
+    let f_v_obj = v_adj + C_2*v_adj*v_adj;
 
-        // select die temperature register and read it
-        buf[0] = Registers::DieTemperature as u8;
-        self.i2c.write_sync(self.i2c_address.get(), &buf[0..1]);
-        self.i2c.read_sync(self.i2c_address.get(), &mut buf[0..2]);
-        let die_temperature = (((buf[0] as u16) << 8) | buf[1] as u16) as i16;
+    let t_kelvin =
+        sqrtf32(sqrtf32(t_die * t_die * t_die * t_die + (f_v_obj / s)));
+    let t_celsius = t_kelvin + K_TO_C;
 
-        // disable the i2c
-        self.i2c.disable();
-
-        // do calculation of actual temperature
-        //  Calculations based on TMP006 User's Guide section 5.1
-        let t_die = ((die_temperature >> 2) as f32)*T_DIE_CONVERT + C_TO_K;
-        let t_adj = t_die-T_REF;
-        let s = S_0 * (1.0 + A_1*t_adj + A_2*t_adj*t_adj);
-
-        let v_obj = (sensor_voltage as f32)*V_OBJ_CONVERT/NV_TO_V;
-        let v_os = B_0 + B_1*t_adj + B_2*t_adj*t_adj;
-
-        let v_adj = v_obj-v_os;
-        let f_v_obj = v_adj + C_2*v_adj*v_adj;
-
-        let t_kelvin =
-            sqrtf32(sqrtf32(t_die * t_die * t_die * t_die + (f_v_obj / s)));
-        let t_celsius = t_kelvin + K_TO_C;
-
-        // return data value
-        t_celsius
-    }
+    // return data value
+    t_celsius
 }
 
 impl<'a, I: i2c::I2C, G: GPIOPin> i2c::I2CClient for TMP006<'a, I, G> {
-    fn command_complete(&self, buffer: &'static mut [u8], error: i2c::Error) {
+    fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
+        //TODO(alevy): handle protocol errors
         match self.protocol_state.get() {
             ProtocolState::Configure => {
                 self.buffer.replace(buffer);
                 self.enable_interrupts();
-                self.i2c.disable()
+                self.i2c.disable();
+                self.protocol_state.set(ProtocolState::Idle);
+            },
+            ProtocolState::Deconfigure(temperature) => {
+                self.buffer.replace(buffer);
+                self.disable_interrupts();
+                self.i2c.disable();
+                self.protocol_state.set(ProtocolState::Idle);
+                temperature.map(|temp_val| {
+                    self.callback.get().map(|mut cb|
+                        cb.schedule(temp_val as usize, get_errno() as usize, 0));
+                    self.callback.set(None);
+                });
+            },
+            ProtocolState::SetRegSensorVoltage => {
+                // Read sensor voltage register
+                self.i2c.read(self.i2c_address.get(), buffer, 2);
+                self.protocol_state.set(ProtocolState::ReadingSensorVoltage);
+            },
+            ProtocolState::ReadingSensorVoltage => {
+                let sensor_voltage =
+                    (((buffer[0] as u16) << 8) | buffer[1] as u16) as i16;
+
+                // Select die temperature register
+                buffer[0] = Registers::DieTemperature as u8;
+                self.i2c.write(self.i2c_address.get(), buffer, 1);
+
+                self.protocol_state.set(
+                    ProtocolState::SetRegDieTemperature(sensor_voltage));
+            },
+            ProtocolState::SetRegDieTemperature(sensor_voltage) => {
+                // Read die temperature register
+                self.i2c.read(self.i2c_address.get(), buffer, 2);
+                self.protocol_state.set(
+                    ProtocolState::ReadingDieTemperature(sensor_voltage));
+            },
+            ProtocolState::ReadingDieTemperature(sensor_voltage) => {
+                let die_temperature =
+                    (((buffer[0] as u16) << 8) | buffer[1] as u16) as i16;
+                self.buffer.replace(buffer);
+
+                let temp_val = calculate_temperature(sensor_voltage, die_temperature);
+
+                // disable callback and sensing if in single-shot mode
+                if self.repeated_mode.get() == false {
+                    // disable temperature sensor. When disabling is finished, we will give the
+                    // temperature to the callback.
+                    self.disable_sensor(Some(temp_val));
+                } else {
+                    // send value to callback
+                    self.callback.get().map(|mut cb|
+                        cb.schedule(temp_val as usize, get_errno() as usize, 0)
+                    );
+
+                    self.i2c.disable();
+                }
             },
             _ => {}
         }
     }
-
 }
 
 impl<'a, I: i2c::I2C, G: GPIOPin> Client for TMP006<'a, I, G> {
     fn fired(&self, _: usize) {
-        // read value from temperature sensor
-        let temp_val = self.read_temperature();
+        self.buffer.take().map(|buf| {
+            // turn on i2c to send commands
+            self.i2c.enable();
 
-        // send value to callback
-        if self.callback.get().is_some() {
-            self.callback.get().unwrap().schedule(temp_val as usize, get_errno() as usize, 0);
-        }
-
-        // disable callback and sensing if in single-shot mode
-        if self.repeated_mode.get() == false {
-            // clear callback
-            self.callback.set(None);
-
-            // disable temperature sensor
-            self.disable_sensor();
-            self.disable_interrupts();
-        }
+            // select sensor voltage register and read it
+            buf[0] = Registers::SensorVoltage as u8;
+            self.i2c.write(self.i2c_address.get(), buf, 1);
+            self.protocol_state.set(ProtocolState::SetRegSensorVoltage);
+        });
     }
 }
 
@@ -286,8 +317,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> Driver for TMP006<'a, I, G> {
                 self.callback.set(None);
 
                 // disable temperature sensor
-                self.disable_sensor();
-                self.disable_interrupts();
+                self.disable_sensor(None);
 
                 0
             },
