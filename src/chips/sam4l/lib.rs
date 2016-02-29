@@ -22,6 +22,9 @@ pub mod scif;
 pub mod adc;
 
 unsafe extern "C" fn unhandled_interrupt() {
+    // HACK: See comment at function definition
+    hard_fault_handler_helper(0 as *const u32, true);
+
     panic!("Unhandled Interrupt");
 }
 
@@ -50,7 +53,7 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
     /* Stack top */     Option::Some(_estack),
     /* Reset */         Option::Some(reset_handler),
     /* NMI */           Option::Some(unhandled_interrupt),
-    /* Hard Fault */    Option::Some(unhandled_interrupt),
+    /* Hard Fault */    Option::Some(hard_fault_handler),
     /* MemManage */     Option::Some(unhandled_interrupt),
     /* BusFault */      Option::Some(unhandled_interrupt),
     /* UsageFault*/     Option::Some(unhandled_interrupt),
@@ -161,5 +164,71 @@ unsafe extern "C" fn reset_handler() {
     }
 
     main();
+}
+
+unsafe extern "C" fn hard_fault_handler() {
+    asm!(
+        "tst    lr, #4                      \n\
+         ite    eq                          \n\
+         mrseq  r0, msp                     \n\
+         mrsne  r0, psp                     \n\
+         movs   r1, #0                      \n\
+         b      hard_fault_handler_helper   "
+        :::: "volatile");
+}
+
+/* Okay, so this is a cascade of hacks. The fundamental issue is that there's
+ * no way to convince rust to preserve a function called only from assembly
+ * currently, that's waiting on:
+ *   https://github.com/mahkoh/rfcs/blob/used/text/0000-used.md
+ *   https://github.com/rust-lang/rfcs/pull/1459
+ *
+ * Because of limitations in rust's current LTO implementation (referenced in
+ * the above issues), the *only* way to keep this function around is for
+ * something to actually call it. Now this is where LTO gets annoyingly smart,
+ * if it can reason about the parameters passed to the function from the only
+ * caller, (i.e. if preserve_hack is always true), then it will rip out the
+ * body of the if statement. So, this function actually takes two arguments,
+ * we just read the second one using assembly so that the compiler can't see it.
+ * Ugh.
+ */
+#[export_name = "hard_fault_handler_helper"]
+#[inline(never)]
+unsafe extern "C" fn  hard_fault_handler_helper(faulting_stack: *const u32, preserve_hack :bool) {
+    let flag: bool;
+
+    asm!("cmp r1, #0\n\
+          ite eq\n\
+          moveq r2, #1\n\
+          movne r2, #0\n\
+          "
+         : "={r2}"(flag)                        /* output operands */
+         : "preserve_hack"(preserve_hack)       /* input operands */
+         : "r2"                                 /* clobbers */
+         :                                      /* options */
+         );
+
+    if flag {
+        let stacked_r0  = *faulting_stack;
+        let stacked_r1  = *faulting_stack+4;
+        let stacked_r2  = *faulting_stack+8;
+        let stacked_r3  = *faulting_stack+12;
+        let stacked_r12 = *faulting_stack+16;
+        let stacked_lr  = *faulting_stack+20;
+        let stacked_pc  = *faulting_stack+24;
+        let stacked_prs = *faulting_stack+28;
+
+        panic!("HardFault.\n\
+               \tr0  0x{:x}\n\
+               \tr1  0x{:x}\n\
+               \tr2  0x{:x}\n\
+               \tr3  0x{:x}\n\
+               \tr12 0x{:x}\n\
+               \tlr  0x{:x}\n\
+               \tpc  0x{:x}\n\
+               \tprs 0x{:x}\n\
+               ", stacked_r0, stacked_r1, stacked_r2, stacked_r3,
+               stacked_r12, stacked_lr, stacked_pc, stacked_prs);
+    }
 }
 
