@@ -1,7 +1,6 @@
 #include <stdbool.h>
 #include <firestorm.h>
-
-#define LED_1 19
+#include <gpio.h>
 
 #define BUF_SIZE 200
 char rbuf[BUF_SIZE];
@@ -41,10 +40,6 @@ CB_TYPE write_cb(int arg0, int arg2, int arg3, void* userdata) {
 void main(void) {
         int i;
 	gpio_enable(LED_0);
-	gpio_enable(LED_1);
-
-	gpio_enable(7);
-	gpio_set(7);
 
 	for (i = 0; i < 200; i++) {
 		wbuf[i] = i;

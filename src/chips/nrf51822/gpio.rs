@@ -1,6 +1,9 @@
 use core::mem;
+use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use hil;
+
+use common::take_cell::TakeCell;
 
 use peripheral_registers::{GPIO_BASE, GPIO};
 
@@ -11,12 +14,23 @@ fn GPIO() -> &'static GPIO {
 
 pub struct GPIOPin {
     pin: u8,
+    client_data: Cell<usize>,
+    client: TakeCell<&'static hil::gpio::Client>,
 }
 
 impl GPIOPin {
     const fn new(pin: u8) -> GPIOPin {
-        GPIOPin { pin: pin }
+        GPIOPin {
+            pin: pin,
+            client_data: Cell::new(0),
+            client: TakeCell::empty(),
+        }
     }
+
+    pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
+        self.client.replace(client);
+    }
+
 }
 
 impl hil::gpio::GPIOPin for GPIOPin {
@@ -48,7 +62,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
         unimplemented!();
     }
 
-    fn enable_interrupt(&self, _identifier: usize, _mode: hil::gpio::InterruptMode) {
+    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
         unimplemented!();
     }
 
