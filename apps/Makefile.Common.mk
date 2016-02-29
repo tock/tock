@@ -19,6 +19,7 @@ APP_LIBC := ../../extern/newlib/libc.a
 CPPFLAGS += \
 	    -I$(TOCK_APPS_DIR)/libs\
 	    -fdata-sections -ffunction-sections\
+	    -MD\
 	    -Wall\
 	    -Wextra\
 	    -Wl,-gc-sections\
@@ -42,12 +43,13 @@ TOCK_LIBS := $(foreach var,$(TOCK_LIBS),$(TOCK_APP_LIBS_DIR)/$(var))
 
 $(TOCK_APP_LIBS_DIR)/%.o: $(TOCK_APPS_DIR)/libs/%.c | $(TOCK_APP_LIBS_DIR)
 	$(TRACE_CC)
-	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $^ -c -o $@
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) $< -c -o $@
 
 $(TOCK_APP_LIBS_DIR)/%.o: $(TOCK_APPS_DIR)/libs/%.s | $(TOCK_APP_LIBS_DIR)
 	$(TRACE_AS)
-	$(Q)$(AS) $(ASFLAGS) $^ -o $@
+	$(Q)$(AS) $(ASFLAGS) $< -o $@
 
+-include $(patsubst %.o,%.d,$(TOCK_LIBS))
 
 ###############################################################################
 ## Rules to convert a built app to something that can be loaded into tock
