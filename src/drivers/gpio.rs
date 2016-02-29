@@ -62,9 +62,13 @@ impl<'a, G: GPIOPin> GPIO<'a, G> {
 
 impl<'a, G: GPIOPin> Client for GPIO<'a, G> {
     fn fired(&self, pin_num: usize) {
-        // schedule callback with the pin number
+        // read the value of the pin
+        let pins = self.pins.as_ref();
+        let pin_state = pins[pin_num].read();
+
+        // schedule callback with the pin number and value
         if self.callback.get().is_some() {
-            self.callback.get().unwrap().schedule(pin_num, 0, 0);
+            self.callback.get().unwrap().schedule(pin_num, pin_state as usize, 0);
         }
     }
 }
