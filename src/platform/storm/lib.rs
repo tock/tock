@@ -22,7 +22,7 @@ pub mod io;
 // the init function below.
 //mod gpio_dummy;
 //mod spi_dummy;
-mod i2c_dummy;
+//mod i2c_dummy;
 
 static mut spi_read_buf:  [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
@@ -166,7 +166,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     // Uncommenting the following line will test the I2C
     //i2c_dummy::i2c_scan_slaves();
-    i2c_dummy::i2c_tmp006_test();
+    //i2c_dummy::i2c_tmp006_test();
     //i2c_dummy::i2c_accel_test();
     //i2c_dummy::i2c_li_test();
 
