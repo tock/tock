@@ -50,7 +50,7 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
     /* Stack top */     Option::Some(_estack),
     /* Reset */         Option::Some(reset_handler),
     /* NMI */           Option::Some(unhandled_interrupt),
-    /* Hard Fault */    Option::Some(unhandled_interrupt),
+    /* Hard Fault */    Option::Some(hard_fault_handler),
     /* MemManage */     Option::Some(unhandled_interrupt),
     /* BusFault */      Option::Some(unhandled_interrupt),
     /* UsageFault*/     Option::Some(unhandled_interrupt),
@@ -161,5 +161,42 @@ unsafe extern "C" fn reset_handler() {
     }
 
     main();
+}
+
+unsafe extern "C" fn hard_fault_handler() {
+    let faulting_stack: *const u32;
+
+    asm!(
+        "tst    lr, #4                      \n\
+         ite    eq                          \n\
+         mrseq  r0, msp                     \n\
+         mrsne  r0, psp                     \n\
+         movs   r1, #0                      "
+        : "={r1}"(faulting_stack)
+        :
+        : "r1"
+        :
+        );
+
+    let stacked_r0  = *faulting_stack;
+    let stacked_r1  = *faulting_stack+4;
+    let stacked_r2  = *faulting_stack+8;
+    let stacked_r3  = *faulting_stack+12;
+    let stacked_r12 = *faulting_stack+16;
+    let stacked_lr  = *faulting_stack+20;
+    let stacked_pc  = *faulting_stack+24;
+    let stacked_prs = *faulting_stack+28;
+
+    panic!("HardFault.\n\
+           \tr0  0x{:x}\n\
+           \tr1  0x{:x}\n\
+           \tr2  0x{:x}\n\
+           \tr3  0x{:x}\n\
+           \tr12 0x{:x}\n\
+           \tlr  0x{:x}\n\
+           \tpc  0x{:x}\n\
+           \tprs 0x{:x}\n\
+           ", stacked_r0, stacked_r1, stacked_r2, stacked_r3,
+           stacked_r12, stacked_lr, stacked_pc, stacked_prs);
 }
 
