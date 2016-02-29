@@ -165,7 +165,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     //gpio_dummy::gpio_dummy_test();
     
     // Uncommenting the following line will test the I2C
-    i2c_dummy::i2c_scan_slaves();
+    //i2c_dummy::i2c_scan_slaves();
+    i2c_dummy::i2c_tmp006_test();
 
 
     firestorm.console.initialize();
