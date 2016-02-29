@@ -3,6 +3,7 @@
 
 #include <unistd.h>
 #include "tock.h"
+#include "firestorm.h"
 
 #define GPIO_DRIVER_NUM 1
 
