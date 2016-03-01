@@ -10,6 +10,7 @@ PROJECT_NAME = $(shell basename "$(realpath ./)")
 APPLICATION_SRCS = $(notdir $(wildcard ./*.c))
 APPLICATION_SRCS += simple_ble.c
 APPLICATION_SRCS += simple_adv.c
+APPLICATION_SRCS += eddystone.c
 
 APPLICATION_SRCS += app_ble_gap_sec_keys.c
 APPLICATION_SRCS += app_ble_user_mem.c

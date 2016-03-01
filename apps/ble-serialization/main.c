@@ -9,9 +9,11 @@
 #include <firestorm.h>
 
 #include "nrf_error.h"
+#include "ble_advdata.h"
 
 #include "simple_ble.h"
 #include "simple_adv.h"
+#include "eddystone.h"
 
 #include "nrf.h"
 
@@ -36,7 +38,12 @@ simple_ble_config_t ble_config = {
     .max_conn_interval = MSEC_TO_UNITS(1000, UNIT_1_25_MS)
 };
 
+// URL to advertise
+char eddystone_url[] = "goo.gl/123abc";
 
+// Manufacturer specific data setup
+#define UMICH_COMPANY_IDENTIFIER 0x02E0
+uint8_t mdata[2] = {0x99, 0xbe};
 
 int main () {
 
@@ -50,6 +57,14 @@ int main () {
     // Setup BLE
     simple_ble_init(&ble_config);
 
+    ble_advdata_manuf_data_t mandata;
+    mandata.company_identifier = UMICH_COMPANY_IDENTIFIER;
+    mandata.data.p_data = mdata;
+    mandata.data.size   = 2;
+
+    eddystone_with_manuf_adv(eddystone_url, &mandata);
+    // eddystone_adv(eddystone_url, NULL);
+
     // Advertise our name packet
-    simple_adv_only_name();
+    // simple_adv_only_name();
 }
