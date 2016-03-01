@@ -1,3 +1,4 @@
+SHELL ?= /usr/bin/env bash
 APP ?= $(notdir $(CURDIR))
 APP_DIR ?= $(CURDIR)
 APP_LINKER_SCRIPT ?= $(CURDIR)/loader.ld
@@ -67,7 +68,7 @@ $(TOCK_APP_BUILD_DIR)/$(APP).bin: $(TOCK_APP_BUILD_DIR)/$(APP).elf
 			readelf -rs $$f |\
 			awk '1;/\.rel\.debug/{exit}' |\
 			grep -B2 R_ARM_ABS32 && \
-				tput bold && tput setaf 1 && echo ERROR: Symbol from $$f will not be PIC && exit 1;\
+				tput bold && tput setaf 1 && echo ERROR: Symbol from $$f will not be PIC;\
 		done; popd
 	@tput bold; tput setaf 3; echo Passed. ; tput sgr0
 	$(Q)$(SIZE) $(TOCK_APP_BUILD_DIR)/$(APP).elf
