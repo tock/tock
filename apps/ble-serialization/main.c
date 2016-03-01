@@ -16,32 +16,17 @@
 #include "nrf.h"
 
 #include "delay.h"
-#include "serialization.h"
 
 
-// char txdone[] = "TX DONE!\r\n";
-char txdone[] = "T\n";
-char hello[] = "Done!\r\n";
-char am[] = "am!\r\n";
-
-CB_TYPE nop(int x, int y, int z, void *ud) { return ASYNC; }
-
-
-
-
-ble_address_set() {
+void ble_address_set () {
+    // ignore address setting for now, not sure if that works...
     __asm("nop;");
 }
 
 
 
-
-
-
-char device_name[] = "FSTORM";
-
-
 // Intervals for advertising and connections
+char device_name[] = "FSTORM";
 simple_ble_config_t ble_config = {
     .platform_id       = 0x00,              // used as 4th octect in device BLE address
     .device_id         = DEVICE_ID_DEFAULT,
@@ -52,51 +37,19 @@ simple_ble_config_t ble_config = {
 };
 
 
-void main() {
 
+int main () {
+
+    // Configure the LED for debugging
     gpio_enable_output(LED_0);
     gpio_clear(LED_0);
 
+    // Set the device name in the struct this way to avoid errors with PIC code
     ble_config.adv_name = device_name;
 
-    // gpio_toggle(LED_0);
-    // delay_ms(200);
-    // gpio_toggle(LED_0);
-    // delay_ms(200);
-
-    // gpio_toggle(LED_0);
-    // delay_ms(200);
-    // gpio_toggle(LED_0);
-    // delay_ms(200);
-
-    // gpio_toggle(LED_0);
-    // delay_ms(200);
-    // gpio_toggle(LED_0);
-    // delay_ms(200);
-
-
-  // putnstr_async(hello, sizeof(hello), nop, NULL);
-
-
-
-    serialization_init();
-
-  // nrf51822_serialization_write(tx, 10);
-
-
-
-  // Setup BLE
+    // Setup BLE
     simple_ble_init(&ble_config);
 
-
-    // gpio_set(LED_0);
-
-    // Advertise because why not
+    // Advertise our name packet
     simple_adv_only_name();
-
-
-
-
-
 }
-

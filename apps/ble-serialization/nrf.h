@@ -52,7 +52,7 @@ typedef enum {
 #define SOFTDEVICE_EVT_IRQ        SWI2_IRQn       /**< SoftDevice Event IRQ number. Used for both protocol events and SoC events. */
 #define SOFTDEVICE_EVT_IRQHandler TOCK_EVT_IRQHandler
 
-
+void SOFTDEVICE_EVT_IRQHandler(void);
 
 #else
 
