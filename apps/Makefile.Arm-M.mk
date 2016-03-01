@@ -18,7 +18,7 @@ OBJCOPY := $(TOOLCHAIN)-objcopy
 
 OBJDUMP := $(TOOLCHAIN)-objdump
 OBJDUMP_FLAGS := --disassemble --source --disassembler-options=force-thumb
-OBJDUMP_FLAGS += -C -g --section-headers
+OBJDUMP_FLAGS += -C --section-headers
 
 SIZE := $(TOOLCHAIN)-size
 

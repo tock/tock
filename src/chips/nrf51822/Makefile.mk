@@ -10,7 +10,7 @@ CFLAGS += $(CFLAGS_BASE) -g -O3 -std=gnu99 -nostartfiles
 LOADER = $(SRC_DIR)chips/$(CHIP)/loader.ld
 LDFLAGS += -T$(LOADER) -lm
 OBJDUMP_FLAGS := --disassemble --source --disassembler-options=force-thumb
-OBJDUMP_FLAGS += -C -g --section-headers
+OBJDUMP_FLAGS += -C --section-headers
 
 $(BUILD_PLATFORM_DIR)/lib$(CHIP).rlib: $(call rwildcard,$(SRC_DIR)chips/$(CHIP),*.rs) $(BUILD_PLATFORM_DIR)/libcore.rlib $(BUILD_PLATFORM_DIR)/libhil.rlib $(BUILD_PLATFORM_DIR)/libcommon.rlib | $(BUILD_PLATFORM_DIR)
 	@echo "Building $@"

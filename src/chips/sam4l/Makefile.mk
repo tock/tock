@@ -12,7 +12,7 @@ CFLAGS += $(CFLAGS_BASE) -g -O3 -std=gnu99 -nostartfiles
 LOADER = $(SRC_DIR)chips/sam4l/loader.ld
 LDFLAGS += -T$(LOADER) -lm
 OBJDUMP_FLAGS := --disassemble --source --disassembler-options=force-thumb
-OBJDUMP_FLAGS += -C -g --section-headers
+OBJDUMP_FLAGS += -C --section-headers
 
 ARCH = cortex-m4
 
