@@ -144,8 +144,6 @@ impl I2CDevice {
 
         let old_status = volatile_load(&regs.status);
 
-        volatile_store(&mut regs.command, 0);
-        volatile_store(&mut regs.next_command, 0);
         volatile_store(&mut regs.status_clear, !0);
 
         let err = match old_status {
@@ -156,26 +154,53 @@ impl I2CDevice {
             _ => None
         };
 
-        err.map(|err| {
-            // enable, reset, disable
-            volatile_store(&mut regs.control, 0x1 << 0);
-            volatile_store(&mut regs.control, 0x1 << 7);
-            volatile_store(&mut regs.control, 0x1 << 1);
+        match self.on_deck.take() {
+            None => {
+                volatile_store(&mut regs.command, 0);
+                volatile_store(&mut regs.next_command, 0);
 
-            self.client.map(|client| {
-                let buf = match self.dma.take() {
-                    Some(dma) => {
-                        let b = dma.abort_xfer();
-                        self.dma.replace(dma);
-                        b
-                    },
-                    None => None
-                };
-                buf.map(|buf| {
-                    client.command_complete(buf, err);
+                err.map(|err| {
+                    // enable, reset, disable
+                    volatile_store(&mut regs.control, 0x1 << 0);
+                    volatile_store(&mut regs.control, 0x1 << 7);
+                    volatile_store(&mut regs.control, 0x1 << 1);
+
+                    self.client.map(|client| {
+                        let buf = match self.dma.take() {
+                            Some(dma) => {
+                                let b = dma.abort_xfer();
+                                self.dma.replace(dma);
+                                b
+                            },
+                            None => None
+                        };
+                        buf.map(|buf| {
+                            client.command_complete(buf, err);
+                        });
+                    });
                 });
-            });
-        });
+            },
+            Some((dma_periph, len)) => {
+                self.dma.map(|dma| {
+                    let buf = dma.abort_xfer().unwrap();
+                    dma.prepare_xfer(dma_periph, buf, len + 1);
+                    dma.start_xfer();
+                    while dma.transfer_counter() > 1 {}
+                    let ctr = dma.transfer_counter();
+                    let old_status = volatile_load(&regs.status);
+                    while old_status == volatile_load(&regs.status) {}
+                    panic!("Changed! 0x{:x}", regs.status);
+                    //let cmdr = volatile_load(&regs.command);
+                    //let ncmdr = volatile_load(&regs.next_command);
+                    //panic!("0x{:x} 0x{:x} 0x{:x} 0x{:x} {}", old_status, status, cmdr, ncmdr, ctr);
+                    // EXPL(alevy): We seem to be able to get here in a repeated
+                    // start. The DMA counter doesn't seem to like to get all
+                    // the way down to 0, and even though the status eventually
+                    // changes to have a CCOMP, it doesn't see to fire the
+                    // interrupt (or at least call handle_interrupt).
+                });
+            }
+        }
     }
 
     fn setup_xfer(&self, chip: u8, flags: usize, read: bool, len: u8) {
@@ -185,8 +210,7 @@ impl I2CDevice {
         volatile_store(&mut regs.control, 0x1 << 1);
 
         let read = if read { 1 } else { 0 };
-        let command = (0 << 1) // Not read
-                    | ((chip as usize) << 1) // 7 bit address at offset 1 (8th
+        let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
                                              // bit is ignored anyway)
                     | flags  // START, STOP & ACKLAST flags
                     | (1 << 15) // VALID
@@ -194,9 +218,6 @@ impl I2CDevice {
                     | read;
         volatile_store(&mut regs.command, command);
         volatile_store(&mut regs.next_command, 0);
-
-        // Enable to begin transfer
-        volatile_store(&mut regs.control, 0x1 << 0);
 
         // Enable transaction error interrupts
         volatile_store(&mut regs.interrupt_enable,
@@ -213,8 +234,7 @@ impl I2CDevice {
         volatile_store(&mut regs.control, 0x1 << 1);
 
         let read = if read { 1 } else { 0 };
-        let command = (0 << 1) // Not read
-                    | ((chip as usize) << 1) // 7 bit address at offset 1 (8th
+        let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
                                              // bit is ignored anyway)
                     | flags  // START, STOP & ACKLAST flags
                     | (1 << 15) // VALID
@@ -226,11 +246,20 @@ impl I2CDevice {
         volatile_store(&mut regs.control, 0x1 << 0);
     }
 
+    fn master_enable(&self) {
+        let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+
+        // Enable to begin transfer
+        volatile_store(&mut regs.control, 0x1 << 0);
+
+    }
+
     pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
         self.dma.map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.1, data, len as usize);
             self.setup_xfer(chip, flags, false, len);
+            self.master_enable();
             dma.start_xfer();
         });
     }
@@ -240,6 +269,7 @@ impl I2CDevice {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.0, data, len as usize);
             self.setup_xfer(chip, flags, true, len);
+            self.master_enable();
             dma.start_xfer();
         });
     }
