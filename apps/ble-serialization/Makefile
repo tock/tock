@@ -155,15 +155,16 @@ include $(TOCK_APPS_DIR)/Makefile.Common.mk
 
 # XXX FIXME
 $(TOCK_APP_BUILD_DIR)/syscalls.o:	$(TOCK_DIR)/arch/$(ARCH)/syscalls.S | $(TOCK_APP_BUILD_DIR)
-	$(AS) $(ASFLAGS) $^ -o $@
+	$(TRACE_AS)
+	$(Q)$(AS) $(ASFLAGS) $^ -o $@
 
 TOCK_LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 
 .SECONDEXPANSION:
 $(TOCK_APP_BUILD_DIR)/$(APP).elf: $$(OBJS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
-	@echo "Linking $@"
-	$(CC) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
-	$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
+	$(TRACE_LD)
+	$(Q)$(CC) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
 
 
 ###
