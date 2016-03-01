@@ -25,7 +25,7 @@ static uint8_t* hal_rx_buf = NULL;
 // Buffer to create an outgoing packet into.
 static uint8_t tx[SER_HAL_TRANSPORT_TX_MAX_PKT_SIZE];
 // Length of the outgoing packet.
-static uint16_t tx_len;
+static uint16_t tx_len = 0;
 
 // Callback that we pass TX done and RX events to
 static ser_phy_events_handler_t _ser_phy_event_handler;
@@ -160,6 +160,7 @@ uint32_t ser_phy_open (ser_phy_events_handler_t events_handler) {
 
 uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
 
+
     // Error checks
     if (p_buffer == NULL) {
         return NRF_ERROR_NULL;
@@ -167,8 +168,10 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
         return NRF_ERROR_INVALID_PARAM;
     }
 
+
+
     // Check if there is no ongoing transmission at the moment
-    if (tx_len == 0) {
+    // if (tx_len == 0) {
         // Encode the number of bytes as the first two bytes of the outgoing
         // packet.
         tx[0] = num_of_bytes & 0xFF;
@@ -181,10 +184,11 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
         tx_len = num_of_bytes + SER_PHY_HEADER_SIZE;
 
         // Call tx procedure to start transmission of a packet
+gpio_toggle(LED_0);
         nrf51822_serialization_write((char*) tx, tx_len);
-    } else {
-        return NRF_ERROR_BUSY;
-    }
+    // } else {
+        // return NRF_ERROR_BUSY;
+    // }
 
     return NRF_SUCCESS;
 }

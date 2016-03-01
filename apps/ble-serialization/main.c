@@ -101,6 +101,7 @@ int main () {
     mandata.data.size   = 2;
 
     eddystone_with_manuf_adv(eddystone_url, &mandata);
+    // eddystone_with_manuf_adv(eddystone_url, &mandata);
     // eddystone_adv(eddystone_url, NULL);
 
     // Advertise our name packet
@@ -111,7 +112,7 @@ int main () {
     while (1) {
         wait();
 
-        putstr("temp callback\n");
+        // putstr("temp callback\n");
 
 
 
