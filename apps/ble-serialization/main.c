@@ -529,8 +529,7 @@ void ser_app_power_system_off_enter(void)
 }
 
 
-uint32_t sd_app_evt_wait(void)
-{
+uint32_t sd_app_evt_wait (void) {
     // __WFE();
     wait();
 
@@ -554,14 +553,14 @@ uint32_t sd_nvic_EnableIRQ(IRQn_Type IRQn) {
 
 
 
-// char* name = "FSTORM";
+char device_name[] = "FSTORM";
 
 
 // Intervals for advertising and connections
 simple_ble_config_t ble_config = {
     .platform_id       = 0x00,              // used as 4th octect in device BLE address
     .device_id         = DEVICE_ID_DEFAULT,
-    .adv_name          = "FSTORM",
+    .adv_name          = NULL,
     .adv_interval      = MSEC_TO_UNITS(500, UNIT_0_625_MS),
     .min_conn_interval = MSEC_TO_UNITS(500, UNIT_1_25_MS),
     .max_conn_interval = MSEC_TO_UNITS(1000, UNIT_1_25_MS)
@@ -570,8 +569,10 @@ simple_ble_config_t ble_config = {
 
 void main() {
 
-    gpio_enable(LED_0);
+    gpio_enable_output(LED_0);
     gpio_clear(LED_0);
+
+    ble_config.adv_name = device_name;
 
     // gpio_toggle(LED_0);
     // delay_ms(200);
