@@ -1,8 +1,15 @@
-/*
- * I2C Support for the Atmel SAM4L.
- *
- * Uses the TWIM peripheral.
- */
+/// TWIM Driver for the SAM4L
+///
+/// The implementation, especially of repeated starts, is quite sensitive to the
+/// ordering of operations (e.g. setup DMA, then set command register, then next
+/// command register, then enable, then start the DMA transfer). The placement
+/// of writes to interrupt enable/disable registers is also significant, but not
+/// refactored in such a way that's very logical right now.
+///
+/// The point is that until this changes, and this notice is taken away: IF YOU
+/// CHANGE THIS DRIVER, TEST RIGOROUSLY!!!
+///
+
 
 use helpers::*;
 use core::mem;
@@ -181,23 +188,16 @@ impl I2CDevice {
                 });
             },
             Some((dma_periph, len)) => {
+                // Enable transaction error interrupts
+                volatile_store(&mut regs.interrupt_enable,
+                                 (1 << 3)    // CCOMP   - Command completed
+                               | (1 << 8)    // ANAK   - Address not ACKd
+                               | (1 << 9)    // DNAK   - Data not ACKd
+                               | (1 << 10)); // ARBLST - Abitration lost
                 self.dma.map(|dma| {
                     let buf = dma.abort_xfer().unwrap();
-                    dma.prepare_xfer(dma_periph, buf, len + 1);
+                    dma.prepare_xfer(dma_periph, buf, len);
                     dma.start_xfer();
-                    while dma.transfer_counter() > 1 {}
-                    let ctr = dma.transfer_counter();
-                    let old_status = volatile_load(&regs.status);
-                    while old_status == volatile_load(&regs.status) {}
-                    panic!("Changed! 0x{:x}", regs.status);
-                    //let cmdr = volatile_load(&regs.command);
-                    //let ncmdr = volatile_load(&regs.next_command);
-                    //panic!("0x{:x} 0x{:x} 0x{:x} 0x{:x} {}", old_status, status, cmdr, ncmdr, ctr);
-                    // EXPL(alevy): We seem to be able to get here in a repeated
-                    // start. The DMA counter doesn't seem to like to get all
-                    // the way down to 0, and even though the status eventually
-                    // changes to have a CCOMP, it doesn't see to fire the
-                    // interrupt (or at least call handle_interrupt).
                 });
             }
         }
