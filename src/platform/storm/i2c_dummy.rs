@@ -230,7 +230,7 @@ impl hil::i2c::I2CClient for LiClient {
                 self.state.set(ReadingLI);
             },
             ReadingLI => {
-                let intensity = (((buffer[1] as usize) << 8) | buffer[0] as usize);
+                let intensity = ((buffer[1] as usize) << 8) | buffer[0] as usize;
                 println!("Light Intensity: {}% ({})", (intensity * 100) >> 16, error);
                 buffer[0] = 0x02 as u8;
                 dev.write_read(0x44, buffer, 1, 2);
