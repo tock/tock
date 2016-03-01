@@ -171,7 +171,7 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
 
 
     // Check if there is no ongoing transmission at the moment
-    // if (tx_len == 0) {
+    if (tx_len == 0) {
         // Encode the number of bytes as the first two bytes of the outgoing
         // packet.
         tx[0] = num_of_bytes & 0xFF;
@@ -186,9 +186,9 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
         // Call tx procedure to start transmission of a packet
 gpio_toggle(LED_0);
         nrf51822_serialization_write((char*) tx, tx_len);
-    // } else {
-        // return NRF_ERROR_BUSY;
-    // }
+    } else {
+        return NRF_ERROR_BUSY;
+    }
 
     return NRF_SUCCESS;
 }
