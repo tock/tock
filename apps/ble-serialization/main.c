@@ -90,7 +90,7 @@ int main () {
 
     mandata.company_identifier = UMICH_COMPANY_IDENTIFIER;
     mandata.data.p_data = mdata;
-    mandata.data.size   = 2;
+    mandata.data.size   = 4;
 
     eddystone_with_manuf_adv(eddystone_url, &mandata);
 

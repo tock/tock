@@ -1,4 +1,4 @@
-SHELL ?= /usr/bin/env bash
+SHELL = /usr/bin/env bash
 APP ?= $(notdir $(CURDIR))
 APP_DIR ?= $(CURDIR)
 APP_LINKER_SCRIPT ?= $(CURDIR)/loader.ld
