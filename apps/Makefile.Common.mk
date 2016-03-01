@@ -60,6 +60,16 @@ $(TOCK_APP_LIBS_DIR)/%.o: $(TOCK_APPS_DIR)/libs/%.s | $(TOCK_APP_LIBS_DIR)
 
 $(TOCK_APP_BUILD_DIR)/$(APP).bin: $(TOCK_APP_BUILD_DIR)/$(APP).elf
 	$(TRACE_BIN)
+	@tput bold; tput setaf 3; echo Running temporary hack to check for bad relocations ; tput sgr0
+	@pushd $(TOCK_APP_BUILD_DIR) &&\
+		for f in $$(find . -type f -name '*.o'); do\
+			if [ "$$(basename $$f)" = crt1.o ]; then continue; fi ;\
+			readelf -rs $$f |\
+			awk '1;/\.rel\.debug/{exit}' |\
+			grep -B2 R_ARM_ABS32 && \
+				tput bold && tput setaf 1 && echo ERROR: Symbol from $$f will not be PIC && exit 1;\
+		done; popd
+	@tput bold; tput setaf 3; echo Passed. ; tput sgr0
 	$(Q)$(SIZE) $(TOCK_APP_BUILD_DIR)/$(APP).elf
 	$(Q)$(OBJCOPY) --gap-fill 0xff -O binary $< $@
 
