@@ -256,6 +256,13 @@ impl DMAChannel {
 
         self.buffer.take()
     }
+
+    pub fn transfer_counter(&self) -> usize {
+        let registers : &mut DMARegisters = unsafe {
+            mem::transmute(self.registers)
+        };
+        volatile_load(&registers.transfer_counter)
+    }
 }
 
 #[no_mangle]
@@ -325,6 +332,20 @@ pub unsafe extern fn PDCA_4_Handler() {
         mem::transmute(DMAChannels[4].registers);
     volatile_store(&mut registers.interrupt_disable, 0xffffffff);
     nvic::disable(nvic::NvicIdx::PDCA4);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA3);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA4);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn PDCA_5_Handler() {
+    use common::Queue;
+    use nvic;
+    use chip;
+
+    let registers : &mut DMARegisters =
+        mem::transmute(DMAChannels[5].registers);
+    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
+    nvic::disable(nvic::NvicIdx::PDCA5);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA4);
 }
 

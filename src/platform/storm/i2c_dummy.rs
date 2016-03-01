@@ -72,8 +72,8 @@ impl hil::i2c::I2CClient for TMP006Client {
             Enabling => {
                 println!("Selecting Device Id Register ({})", error);
                 buffer[0] = 0xFF as u8; // Device Id Register
-                dev.write(0x40, i2c::START | i2c::STOP, buffer, 1);
-                self.state.set(SelectingDevIdReg);
+                dev.write_read(0x40, buffer, 1, 2);
+                self.state.set(ReadingDevIdReg);
             },
             SelectingDevIdReg => {
                 println!("Device Id Register selected ({})", error);
@@ -122,6 +122,7 @@ pub fn i2c_tmp006_test() {
 enum AccelClientState {
     ReadingWhoami,
     Activating,
+    Deactivating,
     ReadingAccelData
 }
 
@@ -138,11 +139,12 @@ impl hil::i2c::I2CClient for AccelClient {
 
         match self.state.get() {
             ReadingWhoami => {
-                println!("Read WHOAMI Register 0x{:x} ({})", buffer[0], error);
-                /*buffer[0] = 0x2A as u8; // CTRL_REG1
+                println!("WHOAMI Register 0x{:x} ({})", buffer[0], error);
+                println!("Activating Sensor...");
+                buffer[0] = 0x2A as u8; // CTRL_REG1
                 buffer[1] = 1; // Bit 1 sets `active`
                 dev.write(0x1e, i2c::START | i2c::STOP, buffer, 2);
-                self.state.set(Activating);*/
+                self.state.set(Activating);
             },
             Activating => {
                 println!("Sensor Activated ({})", error);
@@ -153,12 +155,29 @@ impl hil::i2c::I2CClient for AccelClient {
                 self.state.set(ReadingAccelData);
             },
             ReadingAccelData => {
-                let x = (((buffer[0] as u16) << 8) | buffer[1] as u16) as u16;
-                let y = (((buffer[2] as u16) << 8) | buffer[3] as u16) as u16;
-                let z = (((buffer[4] as u16) << 8) | buffer[5] as u16) as u16;
+                let x = (((buffer[0] as u16) << 8) | buffer[1] as u16) as usize;
+                let y = (((buffer[2] as u16) << 8) | buffer[3] as u16) as usize;
+                let z = (((buffer[4] as u16) << 8) | buffer[5] as u16) as usize;
+
+                let x = ((x >> 2) * 976) / 1000;
+                let y = ((y >> 2) * 976) / 1000;
+                let z = ((z >> 2) * 976) / 1000;
 
                 println!("Accel data ready x: {}, y: {}, z: {} ({})",
                          x >> 2, y >> 2, z >> 2, error);
+
+                println!("Deactivating Sensor..");
+                buffer[0] = 0x2A as u8; // CTRL_REG1
+                buffer[1] = 0; // Bit 1 sets `active`
+                dev.write(0x1e, i2c::START | i2c::STOP, buffer, 2);
+                self.state.set(Deactivating);
+            }
+            Deactivating => {
+                println!("Sensor deactivated ({})", error);
+                println!("Reading Accel's WHOAMI...");
+                buffer[0] = 0x0D as u8; // 0x0D == WHOAMI register
+                dev.write_read(0x1e, buffer, 1, 1);
+                self.state.set(AccelClientState::ReadingWhoami);
             }
         }
     }
@@ -175,11 +194,9 @@ pub fn i2c_accel_test() {
 
     let buf = unsafe { &mut DATA };
     println!("Reading Accel's WHOAMI...");
-    //buf[0] = 0x0D as u8; // 0x2 == Configuration register
-    //dev.write_read(0x1e, buf, 1, 1);
-    buf[0] = 0x2A as u8; // CTRL_REG1
-    buf[1] = 0x01; // Bit 1 sets `active`
-    dev.write(0x1e, i2c::START | i2c::STOP, buf, 2);
+    buf[0] = 0x0D as u8; // 0x0D == WHOAMI register
+    dev.write_read(0x1e, buf, 1, 1);
+    i2c_client.state.set(AccelClientState::ReadingWhoami);
 }
 
 
@@ -190,7 +207,6 @@ pub fn i2c_accel_test() {
 #[derive(Copy,Clone)]
 enum LiClientState {
     Enabling,
-    Enabling2,
     ReadingLI
 }
 
@@ -208,25 +224,17 @@ impl hil::i2c::I2CClient for LiClient {
         match self.state.get() {
             Enabling => {
                 println!("Reading Lumminance Registers ({})", error);
-                buffer[0] = 1;
-                buffer[1] = 0b00000011;
-                dev.write(0x44, i2c::START | i2c::STOP, buffer, 2);
-                self.state.set(Enabling2);
-            },
-            Enabling2 => {
-                buffer[0] = 0x02 as u8; // Device Id Register
+                buffer[0] = 0x02 as u8;
                 buffer[0] = 0;
                 dev.write_read(0x44, buffer, 1, 2);
                 self.state.set(ReadingLI);
             },
             ReadingLI => {
-                let intensity = (((buffer[1] as u16) << 8) | buffer[0] as u16) as u16;
-                println!("Light Intensity: 0x{:x} ({})", intensity, error);
-                /*buf[0] = 0;
-                buf[1] = 0b10100000;
-                buf[2] = 0b00000011;
-                dev.write(0x44, i2c::START | i2c::STOP, buf, 3);
-                self.state.set(Enabling);*/
+                let intensity = (((buffer[1] as usize) << 8) | buffer[0] as usize);
+                println!("Light Intensity: {}% ({})", (intensity * 100) >> 16, error);
+                buffer[0] = 0x02 as u8;
+                dev.write_read(0x44, buffer, 1, 2);
+                self.state.set(ReadingLI);
             }
         }
     }
@@ -254,5 +262,6 @@ pub fn i2c_li_test() {
     buf[1] = 0b10100000;
     buf[2] = 0b00000011;
     dev.write(0x44, i2c::START | i2c::STOP, buf, 2);
+    i2c_client.state.set(LiClientState::Enabling);
 }
 
