@@ -44,15 +44,15 @@ simple_ble_config_t ble_config = {
 };
 
 // URL to advertise
-char eddystone_url[] = "goo.gl/123abc";
+char eddystone_url[] = "goo.gl/8685Uw";
 
 // Manufacturer specific data setup
 #define UMICH_COMPANY_IDENTIFIER 0x02E0
-uint8_t mdata[2] = {0x99, 0xbe};
+#define BLE_APP_ID  0x15
+#define BLE_APP_VERSION_NUM 0x00
+uint8_t mdata[4] = {BLE_APP_ID, BLE_APP_VERSION_NUM, 0x99, 0xbe};
 
 ble_advdata_manuf_data_t mandata;
-
-
 
 
 /*******************************************************************************
@@ -67,21 +67,13 @@ CB_TYPE temp_callback (int temp_value, int error_code, int unused, void* callbac
     UNUSED_PARAMETER(unused);
     UNUSED_PARAMETER(callback_args);
 
-
-
     temp_reading = (int16_t) temp_value;
-
-
     return 0;
 }
 
 void temperature_init () {
     tmp006_start_sampling(0x2, temp_callback, NULL);
 }
-
-
-
-
 
 
 int main () {
@@ -101,26 +93,17 @@ int main () {
     mandata.data.size   = 2;
 
     eddystone_with_manuf_adv(eddystone_url, &mandata);
-    // eddystone_with_manuf_adv(eddystone_url, &mandata);
-    // eddystone_adv(eddystone_url, NULL);
 
     // Advertise our name packet
-    // simple_adv_only_name();
     gpio_set(LED_0);
     temperature_init();
 
     while (1) {
         wait();
 
-        // putstr("temp callback\n");
-
-
-
-
-
         // Update manufacturer specific data with new temp reading
-        mdata[0] = temp_reading & 0xff;
-        mdata[1] = (temp_reading >> 8) & 0xff;
+        mdata[2] = temp_reading & 0xff;
+        mdata[3] = (temp_reading >> 8) & 0xff;
 
         // And update advertising data
         eddystone_with_manuf_adv(eddystone_url, &mandata);
