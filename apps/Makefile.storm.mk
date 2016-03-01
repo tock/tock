@@ -37,7 +37,7 @@ all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb
 
 .PHONY: program
 program: $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb
-	$(SLOAD) -V flash $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb
+	$(SLOAD) flash $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb
 
 .PHONY: listen
 listen: program
