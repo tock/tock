@@ -60,6 +60,7 @@ $(TOCK_APP_LIBS_DIR)/%.o: $(TOCK_APPS_DIR)/libs/%.s | $(TOCK_APP_LIBS_DIR)
 
 $(TOCK_APP_BUILD_DIR)/$(APP).bin: $(TOCK_APP_BUILD_DIR)/$(APP).elf
 	$(TRACE_BIN)
+	$(Q)$(SIZE) $(TOCK_APP_BUILD_DIR)/$(APP).elf
 	$(Q)$(OBJCOPY) --gap-fill 0xff -O binary $< $@
 
 $(TOCK_APP_BUILD_DIR)/$(APP).monolithic.o: $(TOCK_APP_BUILD_DIR)/$(APP).bin
