@@ -175,7 +175,7 @@ impl hil::i2c::I2CClient for AccelClient {
             Deactivating => {
                 println!("Sensor deactivated ({})", error);
                 println!("Reading Accel's WHOAMI...");
-                buffer[0] = 0x0D as u8; // 0x2 == Configuration register
+                buffer[0] = 0x0D as u8; // 0x0D == WHOAMI register
                 dev.write_read(0x1e, buffer, 1, 1);
                 self.state.set(AccelClientState::ReadingWhoami);
             }
@@ -194,7 +194,7 @@ pub fn i2c_accel_test() {
 
     let buf = unsafe { &mut DATA };
     println!("Reading Accel's WHOAMI...");
-    buf[0] = 0x0D as u8; // 0x2 == Configuration register
+    buf[0] = 0x0D as u8; // 0x0D == WHOAMI register
     dev.write_read(0x1e, buf, 1, 1);
     i2c_client.state.set(AccelClientState::ReadingWhoami);
 }
@@ -231,7 +231,7 @@ impl hil::i2c::I2CClient for LiClient {
             },
             ReadingLI => {
                 let intensity = (((buffer[1] as usize) << 8) | buffer[0] as usize);
-                println!("Light Intensity: {}% ({})", (intensity * 100) / 64000, error);
+                println!("Light Intensity: {}% ({})", (intensity * 100) >> 16, error);
                 buffer[0] = 0x02 as u8;
                 dev.write_read(0x44, buffer, 1, 2);
                 self.state.set(ReadingLI);
