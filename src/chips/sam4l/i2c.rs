@@ -121,12 +121,15 @@ impl I2CDevice {
     /// in the CWGR register to make the bus run at a particular I2C speed.
     fn set_bus_speed (&self) {
 
-        // Set the clock speed parameters. This could be made smarter, but for
-        // now we just use precomputed constants based on a 48MHz clock.
-        // See line 320 in asf-2.31.0/sam/drivers/twim/twim.c for where I
-        // got these values.
-        // clock_speed / bus_speed / 2
-        let (exp, data, stasto, high, low) = (7, 10, 200, 100, 100);
+        // These parameters are copied from the Michael's TinyOS implementation. Are they correct?
+        // Who knows... Michael probably knows. We were originally copying the parameters from the
+        // Atmel Software Framework, but those parameters didn't agree with the accelerometer and
+        // nearly burned my fingers. Michael's parameters seem to work without danger of injury.
+        //
+        // Ultimately we should understand what the heck these parameters actually mean and either
+        // confirm them or replace them. They almost certainly depend on the clock speed of the
+        // CPU, so we'll need to change them if we change the CPU clock speed.
+        let (exp, data, stasto, high, low) = (3, 4, 10, 10, 10);
 
         let cwgr = ((exp & 0x7) << 28) |
                    ((data & 0xF) << 24) |
