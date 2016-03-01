@@ -7,7 +7,9 @@
 #include <unistd.h>
 
 #include <firestorm.h>
+#include <tmp006.h>
 
+#include "nordic_common.h"
 #include "nrf_error.h"
 #include "ble_advdata.h"
 
@@ -26,6 +28,9 @@ void ble_address_set () {
 }
 
 
+/*******************************************************************************
+ * BLE
+ ******************************************************************************/
 
 // Intervals for advertising and connections
 char device_name[] = "FSTORM";
@@ -45,6 +50,40 @@ char eddystone_url[] = "goo.gl/123abc";
 #define UMICH_COMPANY_IDENTIFIER 0x02E0
 uint8_t mdata[2] = {0x99, 0xbe};
 
+ble_advdata_manuf_data_t mandata;
+
+
+
+
+/*******************************************************************************
+ * TEMPERATURE
+ ******************************************************************************/
+
+int16_t temp_reading;
+
+// callback to receive asynchronous data
+CB_TYPE temp_callback (int temp_value, int error_code, int unused, void* callback_args) {
+    UNUSED_PARAMETER(error_code);
+    UNUSED_PARAMETER(unused);
+    UNUSED_PARAMETER(callback_args);
+
+
+
+    temp_reading = (int16_t) temp_value;
+
+
+    return 0;
+}
+
+void temperature_init () {
+    tmp006_start_sampling(0x2, temp_callback, NULL);
+}
+
+
+
+
+
+
 int main () {
 
     // Configure the LED for debugging
@@ -57,7 +96,6 @@ int main () {
     // Setup BLE
     simple_ble_init(&ble_config);
 
-    ble_advdata_manuf_data_t mandata;
     mandata.company_identifier = UMICH_COMPANY_IDENTIFIER;
     mandata.data.p_data = mdata;
     mandata.data.size   = 2;
@@ -67,4 +105,23 @@ int main () {
 
     // Advertise our name packet
     // simple_adv_only_name();
+    gpio_set(LED_0);
+    temperature_init();
+
+    while (1) {
+        wait();
+
+        putstr("temp callback\n");
+
+
+
+
+
+        // Update manufacturer specific data with new temp reading
+        mdata[0] = temp_reading & 0xff;
+        mdata[1] = (temp_reading >> 8) & 0xff;
+
+        // And update advertising data
+        eddystone_with_manuf_adv(eddystone_url, &mandata);
+    }
 }
