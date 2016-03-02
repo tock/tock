@@ -159,7 +159,7 @@ impl<'a> Process<'a> {
         // Entry point is offset from app code
         let init_fn = start_addr as usize + load_info.entry_loc;
 
-        let heap_start = exposed_memory_start.offset(load_info.init_data_size as isize);
+        let heap_start = exposed_memory_start.offset(load_info.bss_end_offset as isize);
 
         self.callbacks.enqueue(Callback {
             pc: init_fn as usize,
