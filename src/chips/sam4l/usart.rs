@@ -219,12 +219,9 @@ impl uart::UART for USART {
     }
 
     fn send_bytes(&self, bytes: &'static mut [u8], len: usize) {
-        // TODO: Verify that this is the best way to do this. I just needed
-        //       to find some way to tell the compiler to chill out.
-        let local_periph = self.dma_peripheral.clone();
         self.dma.as_ref().map(move |dma| {
             dma.enable();
-            dma.do_xfer(local_periph, bytes, len);
+            dma.do_xfer(self.dma_peripheral, bytes, len);
         });
     }
 
