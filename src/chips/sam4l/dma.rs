@@ -346,6 +346,6 @@ pub unsafe extern fn PDCA_5_Handler() {
         mem::transmute(DMAChannels[5].registers);
     volatile_store(&mut registers.interrupt_disable, 0xffffffff);
     nvic::disable(nvic::NvicIdx::PDCA5);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA4);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA5);
 }
 
