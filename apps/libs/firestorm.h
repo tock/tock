@@ -41,14 +41,16 @@ enum GPIO_Pin_enum{
   PA11,
   PA19,
   PA13,
+  PA17,
 };
-#define LED_0   PC10
-#define P2      PA16
-#define P3      PA12
-#define P5      PA10
-#define P6      PA11
-#define P7      PA19
-#define P8      PA13
+#define LED_0     PC10
+#define P2        PA16
+#define P3        PA12
+#define P5        PA10
+#define P6        PA11
+#define P7        PA19
+#define P8        PA13
+#define STORM_INT PA17
 
 // Give the BLE Serialization / UART layer a callback to call when
 // a packet is received and when a TX is finished.

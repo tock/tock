@@ -103,8 +103,9 @@ CB_TYPE ble_serialization_callback (int callback_type, int rx_len, int c, void* 
 //
 
 uint32_t ser_app_hal_hw_init() {
-    // TODO: configure the pin for the reset pin
-    // nrf_gpio_cfg_output(CONN_CHIP_RESET_PIN_NO);
+    // Configure the pin for the reset pin. We don't have the actual !RESET
+    // pin pinned to the Storm, so we will use this one.
+    gpio_enable_output(STORM_INT);
 
     return NRF_SUCCESS;
 }
@@ -114,13 +115,11 @@ void ser_app_hal_delay (uint32_t ms)  {
 }
 
 void ser_app_hal_nrf_reset_pin_clear() {
-    // TODO: reset nRF
-    // nrf_gpio_pin_clear(CONN_CHIP_RESET_PIN_NO);
+    gpio_clear(STORM_INT);
 }
 
 void ser_app_hal_nrf_reset_pin_set() {
-    // TODO: stop resetting nRF
-    // nrf_gpio_pin_set(CONN_CHIP_RESET_PIN_NO);
+    gpio_set(STORM_INT);
 }
 
 void ser_app_hal_nrf_evt_irq_priority_set () {
@@ -184,7 +183,6 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
         tx_len = num_of_bytes + SER_PHY_HEADER_SIZE;
 
         // Call tx procedure to start transmission of a packet
-gpio_toggle(LED_0);
         nrf51822_serialization_write((char*) tx, tx_len);
     } else {
         return NRF_ERROR_BUSY;

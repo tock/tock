@@ -136,7 +136,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
 
     // set GPIO driver controlling remaining GPIO pins
-    static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 8] = [
+    static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 9] = [
             &sam4l::gpio::PC[10], // LED_0
             &sam4l::gpio::PA[16], // P2
             &sam4l::gpio::PA[12], // P3
@@ -145,6 +145,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             &sam4l::gpio::PA[11], // P6
             &sam4l::gpio::PA[19], // P7
             &sam4l::gpio::PA[13], // P8
+            &sam4l::gpio::PA[17], // STORM_INT (nRF51822)
             ]);
     static_init!(gpio : drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(gpio_pins));
@@ -155,7 +156,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     /* Note: The following GPIO pins aren't assigned to anything:
     &sam4l::gpio::PC[19] // !ENSEN
     &sam4l::gpio::PC[13] // ACC_INT1
-    &sam4l::gpio::PA[17] // STORM_INT (nRF51822)
     &sam4l::gpio::PC[20] // ACC_INT2
     &sam4l::gpio::PA[14] // No Connection
     */

@@ -16,8 +16,16 @@ Usage
 [Firestorm BLE serialization app](https://github.com/helena-project/storm-ble/tree/master/nrf51822/apps/firestorm-ble-serialization-uart-peripheral)
 to the nRF51822.
 
-2. Clone [nrf5x-base](https://github.com/lab11/nrf5x-base) in this folder.
+2. Make sure the submodule in the `ble_example` application is up to date.
 
 3. Install this app on Storm.
 
 
+
+
+TODO
+----
+
+1. Add ability to set BLE address.
+2. Implement app_timer for the Nordic stack.
+3. Verify that services/connections work after adding timers.

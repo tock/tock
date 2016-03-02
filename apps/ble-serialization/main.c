@@ -76,6 +76,10 @@ void temperature_init () {
 }
 
 
+/*******************************************************************************
+ * MAIN
+ ******************************************************************************/
+
 int main () {
 
     // Configure the LED for debugging
@@ -88,17 +92,17 @@ int main () {
     // Setup BLE
     simple_ble_init(&ble_config);
 
+    // Init advertising data
     mandata.company_identifier = UMICH_COMPANY_IDENTIFIER;
     mandata.data.p_data = mdata;
     mandata.data.size   = 4;
-
     eddystone_with_manuf_adv(eddystone_url, &mandata);
 
-    // Advertise our name packet
-    gpio_set(LED_0);
+    // Setup reading from the temperature sensor
     temperature_init();
 
     while (1) {
+        // When this returns, we should have gotten a new temp reading
         wait();
 
         // Update manufacturer specific data with new temp reading
