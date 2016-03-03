@@ -49,6 +49,8 @@ impl Sam4l {
                 PDCA1   => dma::DMAChannels[1].handle_interrupt(),
                 PDCA2   => dma::DMAChannels[2].handle_interrupt(),
                 PDCA3   => dma::DMAChannels[3].handle_interrupt(),
+                PDCA4   => dma::DMAChannels[4].handle_interrupt(),
+                PDCA5   => dma::DMAChannels[5].handle_interrupt(),
 
                 GPIO0 => gpio::PA.handle_interrupt(),
                 GPIO1 => gpio::PA.handle_interrupt(),

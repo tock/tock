@@ -307,13 +307,6 @@ impl I2CDevice {
 
 impl DMAClient for I2CDevice {
     fn xfer_done(&mut self, _pid: usize) {
-        self.on_deck.take().map(|(dma_periph, len)| {
-            self.dma.map(|dma| {
-                let buf = dma.abort_xfer().unwrap();
-                dma.prepare_xfer(dma_periph, buf, len);
-                dma.start_xfer();
-            });
-        });
     }
 }
 
