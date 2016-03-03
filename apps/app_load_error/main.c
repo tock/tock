@@ -24,11 +24,13 @@ struct test_struct_t {
   uint32_t  data_1;
   int*      ptr_1;
   uint32_t  data_2;
+  int*      ptr_2;
 };
 struct test_struct_t my_struct = {
   .data_1 = 0x00000001,
   .ptr_1  = "String in a struct worked\n",
-  .data_1 = 0x80000001,
+  .data_2 = 0x80000001,
+  .ptr_2  = "String number two was fine\n",
 };
 
 int main() {
