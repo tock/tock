@@ -4,6 +4,8 @@
 
 extern unsigned int* _etext;
 extern unsigned int* _edata;
+extern unsigned int* _reldata;
+extern unsigned int* _ereldata;
 extern unsigned int* _got;
 extern unsigned int* _egot;
 extern unsigned int* _bss;
@@ -21,6 +23,8 @@ typedef struct {
     unsigned int got_end_offset;    /* Offset to end of GOT */
     unsigned int bss_start_offset;  /* Offset to start of BSS */
     unsigned int bss_end_offset;    /* Offset to end of BSS */
+    unsigned int rel_start_offset;  /* Offset to start of relocate data */
+    unsigned int rel_end_offset;    /* Offset to start of relocate data */
 } Load_Info;
 
 // Load Info is used by the runtime in order to load the application
@@ -35,6 +39,8 @@ Load_Info app_info = {
     .got_end_offset     = (unsigned int)(&_egot),
     .bss_start_offset   = (unsigned int)(&_bss),
     .bss_end_offset     = (unsigned int)(&_ebss),
+    .rel_start_offset   = (unsigned int)(&_reldata),
+    .rel_end_offset     = (unsigned int)(&_ereldata),
 };
 
 void* heap_base;

@@ -41,6 +41,9 @@ SECTIONS {
     .data :
     {
         _data = .;
+        _reldata = .;
+        *(.data.rel*)
+        _ereldata = .;
         *(.data*)
         _edata = .;
     } > SRAM AT > FLASH

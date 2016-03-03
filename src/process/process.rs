@@ -60,7 +60,9 @@ struct LoadInfo {
     got_start_offset: usize,  /* Offset to start of GOT */
     got_end_offset: usize,    /* Offset to end of GOT */
     bss_start_offset: usize,  /* Offset to start of BSS */
-    bss_end_offset: usize    /* Offset to end of BSS */
+    bss_end_offset: usize,    /* Offset to end of BSS */
+    rel_start_offset: usize,  /* Offset to start of relocation data */
+    rel_end_offset: usize    /* Offset to end of relocation data */
 }
 
 pub struct Process<'a> {
@@ -141,20 +143,28 @@ impl<'a> Process<'a> {
 
         target_data.clone_from_slice(init_data);
 
-        // Fixup Global Offset Table
-        let mut got_cur = exposed_memory_start.offset(load_info.got_start_offset as isize) as *mut usize;
-        let got_end = exposed_memory_start.offset(load_info.got_end_offset as isize) as *mut usize;
-        while got_cur != got_end {
-            let entry = *got_cur;
-            if (entry & 0x80000000) == 0 {
-                // Regular data (memory relative)
-                *got_cur = entry + (exposed_memory_start as usize);
-            } else {
-                // rodata or function pointer (code relative)
-                *got_cur = (entry ^ 0x80000000) + (start_addr as usize);
+        // Fixup function for GOT and relocation data sections
+        let fixup = |start_offset: usize, end_offset: usize| {
+            let mut cur = exposed_memory_start.offset(start_offset as isize) as *mut usize;
+            let end = exposed_memory_start.offset(end_offset as isize) as *mut usize;
+            while cur != end {
+                let entry = *cur;
+                if (entry & 0x80000000) == 0 {
+                    // Regular data (memory relative)
+                    *cur = entry + (exposed_memory_start as usize);
+                } else {
+                    // rodata or function pointer (code relative)
+                    *cur = (entry ^ 0x80000000) + (start_addr as usize);
+                }
+                cur = cur.offset(1);
             }
-            got_cur = got_cur.offset(1);
-        }
+        };
+
+        // Fixup Global Offset Table
+        fixup(load_info.got_start_offset, load_info.got_end_offset);
+
+        // Fixup relocation data
+        fixup(load_info.rel_start_offset, load_info.rel_end_offset);
 
         // Entry point is offset from app code
         let init_fn = start_addr as usize + load_info.entry_loc;
