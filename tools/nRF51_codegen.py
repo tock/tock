@@ -86,7 +86,7 @@ def get_peripheral_registers(parser, peripheral_names=[]):
             continue
         peripherals[peripheral.name] = {
             "base_address": peripheral.base_address,
-            "registers": []
+            "registers": [],
         }
         registers = peripheral.registers
         derived_from = compat_get_derived_from(parser, peripheral)
@@ -96,15 +96,36 @@ def get_peripheral_registers(parser, peripheral_names=[]):
         # Makes no sense to continue in this case
         assert registers, "SVD does not contain any registers for peripheral " + \
                 "'%s'" % peripheral.name
+        cur_ofs = 0
+        reserved_id = 1
         for register in registers:
+            offset = register.address_offset
+            if offset != cur_ofs:
+                assert offset > cur_ofs
+                # This should always be true due to ARM alignment requirements
+                assert (offset - cur_ofs) % 4 == 0
+                reserved_size = (offset - cur_ofs) / 4
+                peripherals[peripheral.name]["registers"].append({
+                    "name": "_reserved%d" % reserved_id,
+                    "array_size": reserved_size,
+                    "reserved": True,
+                })
+                reserved_id += 1
             if register.dim:
                 assert register.dim_increment == 4
                 assert register.dim_index == range(0, register.dim)
                 array_size = register.dim
             else:
                 array_size = 0
-            peripherals[peripheral.name]["registers"].append((register.name,
-                register.address_offset, array_size))
+            rname = register.name.replace("[%s]", "").lower()
+            if rname in RUST_KEYWORDS:
+                rname += "_"
+            peripherals[peripheral.name]["registers"].append({
+                "name": rname,
+                "array_size": array_size,
+                "reserved": False,
+            })
+            cur_ofs = offset + 4
     return peripherals
 
 def dump_registers(peripherals, outfile):
@@ -116,24 +137,13 @@ def dump_registers(peripherals, outfile):
         print("pub const %s_BASE: usize = 0x%08X;" % (pname,
             peripherals[pname]["base_address"]), file=outfile)
         print("pub struct %s {" % pname, file=outfile)
-        cur_ofs = 0
-        reserved_id = 1
-        for (rname, offset, array_size) in peripherals[pname]["registers"]:
-            rname = rname.replace("[%s]", "").lower()
-            if rname in RUST_KEYWORDS:
-                rname += "_"
-            if offset != cur_ofs:
-                assert offset > cur_ofs
-                # This should always be true due to ARM alignment requirements
-                assert (offset - cur_ofs) % 4 == 0
-                reserved_size = (offset - cur_ofs) / 4
-                print("    _reserved%d: [u32; %d]," % (reserved_id, reserved_size), file=outfile)
-                reserved_id += 1
-            if array_size:
-                print("    pub %s: [VolatileCell<u32>; %d]," % (rname, array_size), file=outfile)
+        for reg in peripherals[pname]["registers"]:
+            if reg["reserved"]:
+                print("    %s: [u32; %d]," % (reg["name"], reg["array_size"]), file=outfile)
+            elif reg["array_size"]:
+                print("    pub %s: [VolatileCell<u32>; %d]," % (reg["name"], reg["array_size"]), file=outfile)
             else:
-                print("    pub %s: VolatileCell<u32>," % rname, file=outfile)
-            cur_ofs = offset + 4
+                print("    pub %s: VolatileCell<u32>," % reg["name"], file=outfile)
         print("}", file=outfile)
 
 def main():
