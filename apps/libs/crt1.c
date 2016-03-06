@@ -26,7 +26,7 @@ typedef struct {
 // Load Info is used by the runtime in order to load the application
 //  Note that locations in the text section assume .text starts at 0x0
 //  and are therefore updated
-__attribute__ ((section(".load_info"), used))
+/*__attribute__ ((section(".load_info"), used))
 Load_Info app_info = {
     .entry_loc          = (unsigned int*)((unsigned int)_start - 0x80000000),
     .init_data_loc      = (unsigned int*)((unsigned int)(&_etext) - 0x80000000),
@@ -35,7 +35,7 @@ Load_Info app_info = {
     .got_end_offset     = (unsigned int)(&_egot),
     .bss_start_offset   = (unsigned int)(&_bss),
     .bss_end_offset     = (unsigned int)(&_ebss),
-};
+};*/
 
 void* heap_base;
 

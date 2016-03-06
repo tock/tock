@@ -119,7 +119,10 @@ impl<'a> Process<'a> {
     }
 
     unsafe fn load(&mut self, start_addr: *const usize) {
+        let mut start_addr = start_addr as *const u8;
         let load_info : &LoadInfo = mem::transmute(start_addr);
+        start_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
+
         let exposed_memory_start = self.exposed_memory_start;
 
         // Zero out BSS
