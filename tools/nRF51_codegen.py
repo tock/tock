@@ -117,14 +117,15 @@ def dump_registers(peripherals, outfile):
             peripherals[pname]["base_address"]), file=outfile)
         print("pub struct %s {" % pname, file=outfile)
         cur_ofs = 0
-        pad_id = 0
+        reserved_id = 1
         for (rname, offset, array_size) in peripherals[pname]["registers"]:
             rname = rname.replace("[%s]", "").lower()
             if rname in RUST_KEYWORDS:
                 rname += "_"
             if offset != cur_ofs:
-                print("    _pad%d: [u8; %d]," % (pad_id, offset - cur_ofs), file=outfile)
-                pad_id += 1
+                assert offset > cur_ofs
+                print("    _reserved%d: [u8; %d]," % (reserved_id, offset - cur_ofs), file=outfile)
+                reserved_id += 1
             if array_size:
                 print("    pub %s: [VolatileCell<u32>; %d]," % (rname, array_size), file=outfile)
             else:

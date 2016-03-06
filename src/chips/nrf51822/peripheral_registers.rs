@@ -3,7 +3,7 @@ use common::VolatileCell;
 
 pub const GPIO_BASE: usize = 0x50000000;
 pub struct GPIO {
-    _pad0: [u8; 1284],
+    _reserved1: [u8; 1284],
     pub out: VolatileCell<u32>,
     pub outset: VolatileCell<u32>,
     pub outclr: VolatileCell<u32>,
@@ -11,6 +11,6 @@ pub struct GPIO {
     pub dir: VolatileCell<u32>,
     pub dirset: VolatileCell<u32>,
     pub dirclr: VolatileCell<u32>,
-    _pad1: [u8; 480],
+    _reserved2: [u8; 480],
     pub pin_cnf: [VolatileCell<u32>; 32],
 }
