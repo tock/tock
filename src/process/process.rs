@@ -54,15 +54,14 @@ pub struct Callback {
 
 #[repr(C,packed)]
 struct LoadInfo {
+    rel_data_size: usize,
     entry_loc: usize,        /* Entry point for user application */
     init_data_loc: usize,    /* Data initialization information in flash */
     init_data_size: usize,    /* Size of initialization information */
     got_start_offset: usize,  /* Offset to start of GOT */
     got_end_offset: usize,    /* Offset to end of GOT */
     bss_start_offset: usize,  /* Offset to start of BSS */
-    bss_end_offset: usize,    /* Offset to end of BSS */
-    rel_start_offset: usize,  /* Offset to start of relocation data */
-    rel_end_offset: usize    /* Offset to end of relocation data */
+    bss_end_offset: usize    /* Offset to end of BSS */
 }
 
 pub struct Process<'a> {
@@ -121,7 +120,16 @@ impl<'a> Process<'a> {
     }
 
     unsafe fn load(&mut self, start_addr: *const usize) {
+        let mut start_addr = start_addr as *const u8;
         let load_info : &LoadInfo = mem::transmute(start_addr);
+        start_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
+
+        let rel_data : &mut [usize] = mem::transmute(raw::Slice{
+            data: start_addr,
+            len: load_info.rel_data_size / 4
+        });
+        start_addr = start_addr.offset(load_info.rel_data_size as isize);
+
         let exposed_memory_start = self.exposed_memory_start;
 
         // Zero out BSS
@@ -143,28 +151,31 @@ impl<'a> Process<'a> {
 
         target_data.clone_from_slice(init_data);
 
-        // Fixup function for GOT and relocation data sections
-        let fixup = |start_offset: usize, end_offset: usize| {
-            let mut cur = exposed_memory_start.offset(start_offset as isize) as *mut usize;
-            let end = exposed_memory_start.offset(end_offset as isize) as *mut usize;
-            while cur != end {
-                let entry = *cur;
-                if (entry & 0x80000000) == 0 {
-                    // Regular data (memory relative)
-                    *cur = entry + (exposed_memory_start as usize);
-                } else {
-                    // rodata or function pointer (code relative)
-                    *cur = (entry ^ 0x80000000) + (start_addr as usize);
-                }
-                cur = cur.offset(1);
+        let fixup = |addr: *mut usize| {
+            let entry = *addr;
+            if (entry & 0x80000000) == 0 {
+                // Regular data (memory relative)
+                *addr = entry + (exposed_memory_start as usize);
+            } else {
+                // rodata or function pointer (code relative)
+                *addr = (entry ^ 0x80000000) + (start_addr as usize);
             }
         };
 
         // Fixup Global Offset Table
-        fixup(load_info.got_start_offset, load_info.got_end_offset);
+        let mut got_cur = exposed_memory_start.offset(load_info.got_start_offset as isize) as *mut usize;
+        let got_end = exposed_memory_start.offset(load_info.got_end_offset as isize) as *mut usize;
+        while got_cur != got_end {
+            fixup(got_cur);
+            got_cur = got_cur.offset(1);
+        }
 
         // Fixup relocation data
-        fixup(load_info.rel_start_offset, load_info.rel_end_offset);
+        for (i, addr) in rel_data.iter().enumerate() {
+            if i % 2 == 0 { // Only the first of every 2 entries is an address
+                fixup(exposed_memory_start.offset(*addr as isize) as *mut usize);
+            }
+        }
 
         // Entry point is offset from app code
         let init_fn = start_addr as usize + load_info.entry_loc;

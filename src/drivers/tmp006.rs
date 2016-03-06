@@ -87,7 +87,7 @@ enum ProtocolState {
 
 pub struct TMP006<'a, I: i2c::I2C + 'a, G: GPIOPin + 'a> {
     i2c: &'a I,
-    i2c_address: Cell<u8>,
+    i2c_address: u8,
     interrupt_pin: &'a G,
     sampling_period: Cell<u8>,
     repeated_mode: Cell<bool>,
@@ -102,7 +102,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
         // setup and return struct
         TMP006{
             i2c: i2c,
-            i2c_address: Cell::new(i2c_address),
+            i2c_address: i2c_address,
             interrupt_pin: interrupt_pin,
             sampling_period: Cell::new(DEFAULT_SAMPLING_RATE),
             repeated_mode: Cell::new(false),
@@ -122,7 +122,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
             buf[0] = Registers::Configuration as u8;
             buf[1] = ((config & 0xFF00) >> 8) as u8;
             buf[2] = (config & 0x00FF) as u8;
-            self.i2c.write(self.i2c_address.get(), buf, 3);
+            self.i2c.write(self.i2c_address, buf, 3);
             self.protocol_state.set(ProtocolState::Configure);
         });
     }
@@ -137,7 +137,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
             buf[0] = Registers::Configuration as u8;
             buf[1] = ((config & 0xFF00) >> 8) as u8;
             buf[2] = (config & 0x00FF) as u8;
-            self.i2c.write(self.i2c_address.get(), buf, 3);
+            self.i2c.write(self.i2c_address, buf, 3);
             self.protocol_state.set(ProtocolState::Deconfigure(temperature));
         });
     }
@@ -199,7 +199,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> i2c::I2CClient for TMP006<'a, I, G> {
             },
             ProtocolState::SetRegSensorVoltage => {
                 // Read sensor voltage register
-                self.i2c.read(self.i2c_address.get(), buffer, 2);
+                self.i2c.read(self.i2c_address, buffer, 2);
                 self.protocol_state.set(ProtocolState::ReadingSensorVoltage);
             },
             ProtocolState::ReadingSensorVoltage => {
@@ -208,14 +208,14 @@ impl<'a, I: i2c::I2C, G: GPIOPin> i2c::I2CClient for TMP006<'a, I, G> {
 
                 // Select die temperature register
                 buffer[0] = Registers::DieTemperature as u8;
-                self.i2c.write(self.i2c_address.get(), buffer, 1);
+                self.i2c.write(self.i2c_address, buffer, 1);
 
                 self.protocol_state.set(
                     ProtocolState::SetRegDieTemperature(sensor_voltage));
             },
             ProtocolState::SetRegDieTemperature(sensor_voltage) => {
                 // Read die temperature register
-                self.i2c.read(self.i2c_address.get(), buffer, 2);
+                self.i2c.read(self.i2c_address, buffer, 2);
                 self.protocol_state.set(
                     ProtocolState::ReadingDieTemperature(sensor_voltage));
             },
@@ -253,7 +253,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> Client for TMP006<'a, I, G> {
 
             // select sensor voltage register and read it
             buf[0] = Registers::SensorVoltage as u8;
-            self.i2c.write(self.i2c_address.get(), buf, 1);
+            self.i2c.write(self.i2c_address, buf, 1);
             self.protocol_state.set(ProtocolState::SetRegSensorVoltage);
         });
     }
