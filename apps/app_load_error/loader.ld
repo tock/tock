@@ -6,11 +6,6 @@ MEMORY {
 }
 
 SECTIONS {
-/* Load information, used by runtime to load app */
-    .load_info :
-    {
-        KEEP(*(.load_info))
-    } > FLASH =0xFF
 
 /* Text section, Code! */
     .text :
@@ -41,9 +36,6 @@ SECTIONS {
     .data :
     {
         _data = .;
-        _reldata = .;
-        *(.data.rel*)
-        _ereldata = .;
         *(.data*)
         _edata = .;
     } > SRAM AT > FLASH
