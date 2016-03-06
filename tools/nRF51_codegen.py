@@ -68,6 +68,17 @@ def dump_macros(interrupts, outfile):
             '((weak, alias("Dummy_Handler")));')
     dump_as_c_macro("PERIPHERAL_INTERRUPT_HANDLERS", lines, outfile)
 
+def compat_get_derived_from(parser, peripheral):
+    try:
+        # Will work when a future cmsis-svd version exposes it.
+        return peripheral.derived_from
+    except AttributeError:
+        # FIXME: workaround for getting into "derivedFrom" for the
+        # peripheral (which is missing from the model). Issue being tracked
+        # on https://github.com/posborne/cmsis-svd/pull/18
+        return parser._root.findall('.//peripheral/[name=\'%s\']' %
+                peripheral.name)[0].get('derivedFrom')
+
 def get_peripheral_registers(parser, peripheral_names=[]):
     peripherals = {}
     for peripheral in parser.get_device().peripherals:
@@ -77,7 +88,15 @@ def get_peripheral_registers(parser, peripheral_names=[]):
             "base_address": peripheral.base_address,
             "registers": []
         }
-        for register in peripheral.registers:
+        registers = peripheral.registers
+        derived_from = compat_get_derived_from(parser, peripheral)
+        if not registers and derived_from:
+            registers = filter(lambda p: p.name == derived_from,
+                    parser.get_device().peripherals)[0].registers
+        # Makes no sense to continue in this case
+        assert registers, "SVD does not contain any registers for peripheral " + \
+                "'%s'" % peripheral.name
+        for register in registers:
             if register.dim:
                 assert register.dim_increment == 4
                 assert register.dim_index == range(0, register.dim)
