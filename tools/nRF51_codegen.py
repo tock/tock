@@ -124,7 +124,10 @@ def dump_registers(peripherals, outfile):
                 rname += "_"
             if offset != cur_ofs:
                 assert offset > cur_ofs
-                print("    _reserved%d: [u8; %d]," % (reserved_id, offset - cur_ofs), file=outfile)
+                # This should always be true due to ARM alignment requirements
+                assert (offset - cur_ofs) % 4 == 0
+                reserved_size = (offset - cur_ofs) / 4
+                print("    _reserved%d: [u32; %d]," % (reserved_id, reserved_size), file=outfile)
                 reserved_id += 1
             if array_size:
                 print("    pub %s: [VolatileCell<u32>; %d]," % (rname, array_size), file=outfile)
