@@ -10,6 +10,8 @@ TOCK_APP_BUILD_DIR := $(TOCK_BUILD_DIR)/$(APP)
 TOCK_APP_LIBS_DIR := $(TOCK_APP_BUILD_DIR)/libs
 include $(TOCK_APPS_DIR)/Makefile.$(TOCK_PLATFORM).mk
 
+ELF2TBF ?= $(TOCK_APPS_DIR)/../build/elf2tbf
+
 TOCK_DIR = $(TOCK_APPS_DIR)/../src
 
 # XXX FIXME extern stuff
@@ -62,7 +64,7 @@ $(TOCK_APP_LIBS_DIR)/%.o: $(TOCK_APPS_DIR)/libs/%.s | $(TOCK_APP_LIBS_DIR)
 $(TOCK_APP_BUILD_DIR)/$(APP).bin: $(TOCK_APP_BUILD_DIR)/$(APP).elf
 	$(TRACE_BIN)
 	$(Q)$(SIZE) $(TOCK_APP_BUILD_DIR)/$(APP).elf
-	$(Q)isadore -o $@ $<
+	$(Q)$(ELF2TBF) -o $@ $<
 
 $(TOCK_APP_BUILD_DIR)/$(APP).monolithic.o: $(TOCK_APP_BUILD_DIR)/$(APP).bin
 	$(TRACE_LD)
