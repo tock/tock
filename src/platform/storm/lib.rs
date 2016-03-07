@@ -34,6 +34,7 @@ pub struct Firestorm {
     timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
     tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin>,
+    isl29035: &'static drivers::isl29035::Isl29035<'static>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static drivers::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
 }
@@ -57,6 +58,7 @@ impl Firestorm {
             3 => f(Some(self.timer)),
             4 => f(Some(self.spi)),
             5 => f(Some(self.nrf51822)),
+            6 => f(Some(self.isl29035)),
             _ => f(None)
         }
     }
@@ -110,6 +112,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::i2c::I2C2.set_client(tmp006);
     sam4l::gpio::PA[9].set_client(tmp006);
 
+    static_init!(isl29035 : drivers::isl29035::Isl29035<'static> =
+                 drivers::isl29035::Isl29035::new(&sam4l::i2c::I2C2, 0x44,
+                                                  &mut drivers::isl29035::BUF));
+    sam4l::i2c::I2C2.set_client(isl29035);
+
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
                     VirtualMuxAlarm::new(mux_alarm));
     static_init!(vtimer1 : AlarmToTimer<'static,
@@ -162,12 +169,13 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     static_init!(firestorm : Firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
-        console: &*console,
+        console: console,
         gpio: gpio,
         timer: timer,
-        tmp006: &*tmp006,
-        spi: &*spi,
-        nrf51822: &*nrf_serialization,
+        tmp006: tmp006,
+        isl29035: isl29035,
+        spi: spi,
+        nrf51822: nrf_serialization,
     });
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {

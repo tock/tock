@@ -49,6 +49,7 @@ int wait_for(CB_TYPE cb_type) {
       wait_queue_head = cur;
     } else {
       wait_queue_tail->next = cur;
+      wait_queue_tail = cur;
     }
   }
 }

@@ -355,6 +355,11 @@ impl hil::i2c::I2C for I2CDevice {
     fn read(&self, addr: u8, data: &'static mut [u8], len: u8) {
         I2CDevice::read(self, addr, START | STOP, data, len);
     }
+
+    fn write_read(&self, addr: u8, data: &'static mut [u8],
+                  write_len: u8, read_len: u8) {
+        I2CDevice::write_read(self, addr, data, write_len, read_len)
+    }
 }
 
 pub unsafe extern "C" fn twim2_interrupt() {

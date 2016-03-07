@@ -18,6 +18,7 @@ enum firestorm_cb_type {
   ASYNC,
   SPIBUF,
   GPIO,
+  READLIGHT,
 };
 
 void putstr(const char* str);
