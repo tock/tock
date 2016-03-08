@@ -1,5 +1,3 @@
-/* vim: set sw=2 expandtab tw=80: */
-
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -33,11 +31,11 @@ void ble_address_set () {
  ******************************************************************************/
 
 // Intervals for advertising and connections
-char device_name[] = "FSTORM";
+//char device_name[] = "FSTORM";
 simple_ble_config_t ble_config = {
     .platform_id       = 0x00,              // used as 4th octect in device BLE address
     .device_id         = DEVICE_ID_DEFAULT,
-    .adv_name          = NULL,
+    .adv_name          = "FSTORM",
     .adv_interval      = MSEC_TO_UNITS(500, UNIT_0_625_MS),
     .min_conn_interval = MSEC_TO_UNITS(500, UNIT_1_25_MS),
     .max_conn_interval = MSEC_TO_UNITS(1000, UNIT_1_25_MS)
@@ -81,13 +79,12 @@ void temperature_init () {
  ******************************************************************************/
 
 int main () {
+    putstr("Starting BLE serialization example\n");
+    putstr("\tAfter programming: unplug and replug the Firestorm to start app\n");
 
     // Configure the LED for debugging
     gpio_enable_output(LED_0);
     gpio_clear(LED_0);
-
-    // Set the device name in the struct this way to avoid errors with PIC code
-    ble_config.adv_name = device_name;
 
     // Setup BLE
     simple_ble_init(&ble_config);
@@ -106,6 +103,7 @@ int main () {
         wait();
 
         // Update manufacturer specific data with new temp reading
+        putstr("Data!\n");
         mdata[2] = temp_reading & 0xff;
         mdata[3] = (temp_reading >> 8) & 0xff;
 
