@@ -116,6 +116,7 @@ APPLICATION_SRCS += ble_uuid_encode.c
 APPLICATION_SRCS += ble_uuid_vs_add.c
 APPLICATION_SRCS += ble_version_get.c
 APPLICATION_SRCS += power_system_off.c
+APPLICATION_SRCS += temp_get.c
 
 APPLICATION_SRCS += ble_gap_struct_serialization.c
 APPLICATION_SRCS += ble_struct_serialization.c
@@ -129,7 +130,6 @@ APPLICATION_SRCS += ser_hal_transport.c
 APPLICATION_SRCS += ser_sd_transport.c
 APPLICATION_SRCS += ser_softdevice_handler.c
 
-APPLICATION_SRCS += app_error.c
 APPLICATION_SRCS += app_mailbox.c
 APPLICATION_SRCS += ble_advdata.c
 APPLICATION_SRCS += ble_conn_params.c
@@ -164,7 +164,7 @@ TOCK_LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 .SECONDEXPANSION:
 $(TOCK_APP_BUILD_DIR)/$(APP).elf: $$(OBJS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
 	$(TRACE_LD)
-	$(Q)$(CC) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
+	$(Q)$(LD) -g -Os -T $(APP_LINKER_SCRIPT) --emit-relocs -nostdlib $(LIBRARY_INCLUDES) $^ -o $@
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
 
 
