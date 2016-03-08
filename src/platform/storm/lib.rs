@@ -34,7 +34,7 @@ pub struct Firestorm {
     gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
-    tmp006: &'static drivers::tmp006::TMP006<'static, drivers::virtual_i2c::I2CDevice<'static>, sam4l::gpio::GPIOPin>,
+    tmp006: &'static drivers::tmp006::TMP006<'static>,
     isl29035: &'static drivers::isl29035::Isl29035<'static>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static drivers::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
@@ -111,7 +111,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // Configure the TMP006. Device address 0x40
     static_init!(tmp006_i2c : drivers::virtual_i2c::I2CDevice =
                  drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x40));
-    static_init!(tmp006 : drivers::tmp006::TMP006<'static, drivers::virtual_i2c::I2CDevice, sam4l::gpio::GPIOPin> =
+    static_init!(tmp006 : drivers::tmp006::TMP006<'static> =
                     drivers::tmp006::TMP006::new(tmp006_i2c, &sam4l::gpio::PA[9],
                                                  &mut drivers::tmp006::BUFFER));
     tmp006_i2c.set_client(tmp006);
