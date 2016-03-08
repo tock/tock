@@ -59,5 +59,5 @@ LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 $(TOCK_APP_BUILD_DIR)/$(APP).elf: $(LIBS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
 	$(TRACE_LD)
 	$(Q)$(LD) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
+	$(Q)$(GENLST) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
 
