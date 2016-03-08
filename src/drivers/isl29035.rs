@@ -1,7 +1,7 @@
 //! Driver for the ISL29035 digital light sensor
 
 use hil::{Driver, Callback};
-use hil::i2c::{I2C, I2CClient, Error};
+use hil::i2c::{I2CDevice, I2CClient, Error};
 use core::cell::Cell;
 use common::take_cell::TakeCell;
 
@@ -16,19 +16,17 @@ enum State {
 }
 
 pub struct Isl29035<'a> {
-    i2c: &'a I2C,
-    i2c_address: u8,
+    i2c: &'a I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<&'static mut [u8]>,
     callback: Cell<Option<Callback>>,
 }
 
 impl<'a> Isl29035<'a> {
-    pub const fn new(i2c: &'a I2C, i2c_address: u8, buffer: &'static mut [u8])
+    pub const fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8])
             -> Isl29035<'a> {
         Isl29035 {
             i2c: i2c,
-            i2c_address: i2c_address,
             state: Cell::new(State::Disabled),
             buffer: TakeCell::new(buffer),
             callback: Cell::new(None)
@@ -52,7 +50,7 @@ impl<'a> Isl29035<'a> {
                 // ADC resolution 8-bit (bits 2,3)
                 // Other bits are reserved
                 buf[2] = 0b00001001;
-                self.i2c.write(self.i2c_address, buf, 3);
+                self.i2c.write(buf, 3);
                 self.state.set(State::Enabling);
             });
         }
@@ -87,7 +85,7 @@ impl<'a> I2CClient for Isl29035<'a> {
         match self.state.get() {
             State::Enabling => {
                 buffer[0] = 0x02 as u8;
-                self.i2c.write_read(0x44, buffer, 1, 2);
+                self.i2c.write_read(buffer, 1, 2);
                 self.state.set(State::ReadingLI);
             },
             State::ReadingLI => {
@@ -102,7 +100,7 @@ impl<'a> I2CClient for Isl29035<'a> {
                 let lux = (data * 4000) >> 8;
 
                 buffer[0] = 0;
-                self.i2c.write(self.i2c_address, buffer, 2);
+                self.i2c.write(buffer, 2);
                 self.state.set(State::Disabling(lux));
             },
             State::Disabling(lux) => {

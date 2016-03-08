@@ -1,10 +1,10 @@
 use core::cell::Cell;
-use hil::i2c::{I2C, I2CClient, Error};
+use hil::i2c::{self, I2CClient, Error};
 use common::{List, ListLink, ListNode};
 use common::take_cell::TakeCell;
 
 pub struct MuxI2C<'a> {
-    i2c: &'a I2C,
+    i2c: &'a i2c::I2CController,
     devices: List<'a, I2CDevice<'a>>,
     enabled: Cell<usize>,
     inflight: TakeCell<&'a I2CDevice<'a>>
@@ -20,7 +20,7 @@ impl<'a> I2CClient for MuxI2C<'a> {
 }
 
 impl<'a> MuxI2C<'a> {
-    pub const fn new(i2c: &'a I2C) -> MuxI2C<'a> {
+    pub const fn new(i2c: &'a i2c::I2CController) -> MuxI2C<'a> {
         MuxI2C {
             i2c: i2c,
             devices: List::new(),
@@ -120,7 +120,7 @@ impl<'a> ListNode<'a, I2CDevice<'a>> for I2CDevice<'a> {
     }
 }
 
-impl<'a> I2C for I2CDevice<'a> {
+impl<'a> i2c::I2CDevice for I2CDevice<'a> {
     fn enable(&self) {
         if !self.enabled.get() {
             self.mux.enable();
@@ -133,20 +133,20 @@ impl<'a> I2C for I2CDevice<'a> {
         }
     }
 
-    fn write_read(&self, _addr: u8, data: &'static mut [u8],
+    fn write_read(&self,  data: &'static mut [u8],
                     write_len: u8, read_len: u8) {
         self.buffer.replace(data);
         self.operation.set(Op::WriteRead(write_len, read_len));
         self.mux.do_next_op();
     }
 
-    fn write(&self, _addr: u8, data: &'static mut [u8], len: u8) {
+    fn write(&self, data: &'static mut [u8], len: u8) {
         self.buffer.replace(data);
         self.operation.set(Op::Write(len));
         self.mux.do_next_op();
     }
 
-    fn read(&self, _addr: u8, buffer: &'static mut [u8], len: u8) {
+    fn read(&self, buffer: &'static mut [u8], len: u8) {
         self.buffer.replace(buffer);
         self.operation.set(Op::Read(len));
         self.mux.do_next_op();

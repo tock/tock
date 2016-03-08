@@ -112,7 +112,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static_init!(tmp006_i2c : drivers::virtual_i2c::I2CDevice =
                  drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x40));
     static_init!(tmp006 : drivers::tmp006::TMP006<'static, drivers::virtual_i2c::I2CDevice, sam4l::gpio::GPIOPin> =
-                    drivers::tmp006::TMP006::new(tmp006_i2c, 0x40, &sam4l::gpio::PA[9],
+                    drivers::tmp006::TMP006::new(tmp006_i2c, &sam4l::gpio::PA[9],
                                                  &mut drivers::tmp006::BUFFER));
     tmp006_i2c.set_client(tmp006);
     sam4l::gpio::PA[9].set_client(tmp006);
@@ -121,7 +121,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static_init!(isl29035_i2c : drivers::virtual_i2c::I2CDevice =
                  drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x44));
     static_init!(isl29035 : drivers::isl29035::Isl29035<'static> =
-                 drivers::isl29035::Isl29035::new(isl29035_i2c, 0x44,
+                 drivers::isl29035::Isl29035::new(isl29035_i2c,
                                                   &mut drivers::isl29035::BUF));
     isl29035_i2c.set_client(isl29035);
 

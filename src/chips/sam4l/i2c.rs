@@ -310,7 +310,7 @@ impl DMAClient for I2CDevice {
     }
 }
 
-impl hil::i2c::I2C for I2CDevice {
+impl hil::i2c::I2CController for I2CDevice {
 
     /// This enables the entire I2C peripheral
     fn enable(&self) {

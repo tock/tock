@@ -85,9 +85,8 @@ enum ProtocolState {
     ReadingDieTemperature(SensorVoltage),
 }
 
-pub struct TMP006<'a, I: i2c::I2C + 'a, G: GPIOPin + 'a> {
+pub struct TMP006<'a, I: i2c::I2CDevice + 'a, G: GPIOPin + 'a> {
     i2c: &'a I,
-    i2c_address: u8,
     interrupt_pin: &'a G,
     sampling_period: Cell<u8>,
     repeated_mode: Cell<bool>,
@@ -96,13 +95,12 @@ pub struct TMP006<'a, I: i2c::I2C + 'a, G: GPIOPin + 'a> {
     buffer: TakeCell<&'static mut [u8]>
 }
 
-impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
-    pub fn new(i2c: &'a I, i2c_address: u8, interrupt_pin: &'a G,
+impl<'a, I: i2c::I2CDevice, G: GPIOPin> TMP006<'a, I, G> {
+    pub fn new(i2c: &'a I, interrupt_pin: &'a G,
                buffer: &'static mut [u8]) -> TMP006<'a, I, G> {
         // setup and return struct
         TMP006{
             i2c: i2c,
-            i2c_address: i2c_address,
             interrupt_pin: interrupt_pin,
             sampling_period: Cell::new(DEFAULT_SAMPLING_RATE),
             repeated_mode: Cell::new(false),
@@ -122,7 +120,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
             buf[0] = Registers::Configuration as u8;
             buf[1] = ((config & 0xFF00) >> 8) as u8;
             buf[2] = (config & 0x00FF) as u8;
-            self.i2c.write(self.i2c_address, buf, 3);
+            self.i2c.write(buf, 3);
             self.protocol_state.set(ProtocolState::Configure);
         });
     }
@@ -137,7 +135,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> TMP006<'a, I, G> {
             buf[0] = Registers::Configuration as u8;
             buf[1] = ((config & 0xFF00) >> 8) as u8;
             buf[2] = (config & 0x00FF) as u8;
-            self.i2c.write(self.i2c_address, buf, 3);
+            self.i2c.write(buf, 3);
             self.protocol_state.set(ProtocolState::Deconfigure(temperature));
         });
     }
@@ -176,7 +174,7 @@ fn calculate_temperature(sensor_voltage: i16, die_temperature: i16) -> f32 {
     t_celsius
 }
 
-impl<'a, I: i2c::I2C, G: GPIOPin> i2c::I2CClient for TMP006<'a, I, G> {
+impl<'a, I: i2c::I2CDevice, G: GPIOPin> i2c::I2CClient for TMP006<'a, I, G> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         //TODO(alevy): handle protocol errors
         match self.protocol_state.get() {
@@ -199,7 +197,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> i2c::I2CClient for TMP006<'a, I, G> {
             },
             ProtocolState::SetRegSensorVoltage => {
                 // Read sensor voltage register
-                self.i2c.read(self.i2c_address, buffer, 2);
+                self.i2c.read(buffer, 2);
                 self.protocol_state.set(ProtocolState::ReadingSensorVoltage);
             },
             ProtocolState::ReadingSensorVoltage => {
@@ -208,14 +206,14 @@ impl<'a, I: i2c::I2C, G: GPIOPin> i2c::I2CClient for TMP006<'a, I, G> {
 
                 // Select die temperature register
                 buffer[0] = Registers::DieTemperature as u8;
-                self.i2c.write(self.i2c_address, buffer, 1);
+                self.i2c.write(buffer, 1);
 
                 self.protocol_state.set(
                     ProtocolState::SetRegDieTemperature(sensor_voltage));
             },
             ProtocolState::SetRegDieTemperature(sensor_voltage) => {
                 // Read die temperature register
-                self.i2c.read(self.i2c_address, buffer, 2);
+                self.i2c.read(buffer, 2);
                 self.protocol_state.set(
                     ProtocolState::ReadingDieTemperature(sensor_voltage));
             },
@@ -245,7 +243,7 @@ impl<'a, I: i2c::I2C, G: GPIOPin> i2c::I2CClient for TMP006<'a, I, G> {
     }
 }
 
-impl<'a, I: i2c::I2C, G: GPIOPin> Client for TMP006<'a, I, G> {
+impl<'a, I: i2c::I2CDevice, G: GPIOPin> Client for TMP006<'a, I, G> {
     fn fired(&self, _: usize) {
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -253,13 +251,13 @@ impl<'a, I: i2c::I2C, G: GPIOPin> Client for TMP006<'a, I, G> {
 
             // select sensor voltage register and read it
             buf[0] = Registers::SensorVoltage as u8;
-            self.i2c.write(self.i2c_address, buf, 1);
+            self.i2c.write(buf, 1);
             self.protocol_state.set(ProtocolState::SetRegSensorVoltage);
         });
     }
 }
 
-impl<'a, I: i2c::I2C, G: GPIOPin> Driver for TMP006<'a, I, G> {
+impl<'a, I: i2c::I2CDevice, G: GPIOPin> Driver for TMP006<'a, I, G> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             // single temperature reading with callback
