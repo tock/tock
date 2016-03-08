@@ -13,6 +13,7 @@ use hil::Controller;
 use hil::spi_master::SpiMaster;
 use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use drivers::virtual_i2c::{MuxI2C, I2CDevice};
 
 #[macro_use]
 pub mod io;
@@ -33,7 +34,7 @@ pub struct Firestorm {
     gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
-    tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin>,
+    tmp006: &'static drivers::tmp006::TMP006<'static, drivers::virtual_i2c::I2CDevice<'static>, sam4l::gpio::GPIOPin>,
     isl29035: &'static drivers::isl29035::Isl29035<'static>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static drivers::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
@@ -104,18 +105,25 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                     MuxAlarm::new(&sam4l::ast::AST));
     ast.configure(mux_alarm);
 
+    static_init!(mux_i2c : MuxI2C<'static> = MuxI2C::new(&sam4l::i2c::I2C2));
+    sam4l::i2c::I2C2.set_client(mux_i2c);
 
-    // the i2c address of the device is 0x40
-    static_init!(tmp006 : drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin> =
-                    drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, 0x40, &sam4l::gpio::PA[9],
+    // Configure the TMP006. Device address 0x40
+    static_init!(tmp006_i2c : drivers::virtual_i2c::I2CDevice =
+                 drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x40));
+    static_init!(tmp006 : drivers::tmp006::TMP006<'static, drivers::virtual_i2c::I2CDevice, sam4l::gpio::GPIOPin> =
+                    drivers::tmp006::TMP006::new(tmp006_i2c, 0x40, &sam4l::gpio::PA[9],
                                                  &mut drivers::tmp006::BUFFER));
-    sam4l::i2c::I2C2.set_client(tmp006);
+    tmp006_i2c.set_client(tmp006);
     sam4l::gpio::PA[9].set_client(tmp006);
 
+    // Configure the ISL29035, device address 0x44
+    static_init!(isl29035_i2c : drivers::virtual_i2c::I2CDevice =
+                 drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x44));
     static_init!(isl29035 : drivers::isl29035::Isl29035<'static> =
-                 drivers::isl29035::Isl29035::new(&sam4l::i2c::I2C2, 0x44,
+                 drivers::isl29035::Isl29035::new(isl29035_i2c, 0x44,
                                                   &mut drivers::isl29035::BUF));
-    sam4l::i2c::I2C2.set_client(isl29035);
+    isl29035_i2c.set_client(isl29035);
 
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
                     VirtualMuxAlarm::new(mux_alarm));
