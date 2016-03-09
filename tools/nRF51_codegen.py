@@ -14,8 +14,6 @@ except ImportError:
 
     sys.exit(1)
 
-PROGRAM = "tools/nRF51_codegen.py"
-
 # A subset of keywords that may appear as register names
 RUST_KEYWORDS = ["in"]
 
@@ -105,23 +103,33 @@ def get_peripheral_registers(parser, peripheral_names=[]):
 
     return peripherals
 
+def gen_file(env, outfile, variables):
+    # To generate a template for file.c, create a file.c.jinja
+    template = env.get_template(outfile + '.jinja')
+    template.stream(**variables).dump(outfile)
+
 def main():
     from jinja2 import Environment, FileSystemLoader
+    from os.path import relpath
 
     parser = SVDParser.for_packaged_svd('Nordic', 'nrf51.svd')
     #dump_json(parser)
     interrupts = get_peripheral_interrupts(parser)
     peripherals = get_peripheral_registers(parser, ["GPIO", "RTC1"])
 
-    env = Environment(loader=FileSystemLoader('src/chips/nrf51822'))
+    variables = {
+            'program': relpath(sys.argv[0]),
+            'peripherals': peripherals,
+            'interrupts': interrupts,
+    }
 
-    template = env.get_template('peripheral_registers.rs.jinja')
-    template.stream(program=PROGRAM, peripherals=peripherals).dump(
-            'src/chips/nrf51822/peripheral_registers.rs')
-
-    template = env.get_template('peripheral_interrupts.h.jinja')
-    template.stream(program=PROGRAM, interrupts=interrupts).dump(
-            'src/chips/nrf51822/peripheral_interrupts.h')
+    env = Environment(loader=FileSystemLoader('.'))
+    prefix = 'src/chips/nrf51822/'
+    for outf in [
+            'peripheral_registers.rs',
+            'peripheral_interrupts.h',
+            ]:
+        gen_file(env, prefix + outf, variables)
 
 if __name__ == "__main__":
     main()
