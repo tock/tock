@@ -43,7 +43,7 @@ pub enum State {
 }
 
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub struct Callback {
     pub r0: usize,
     pub r1: usize,
@@ -74,6 +74,7 @@ pub struct Process<'a> {
     cur_stack: *mut u8,
 
     wait_pc: usize,
+    psr: usize,
 
     pub state: State,
 
@@ -107,6 +108,7 @@ impl<'a> Process<'a> {
                 exposed_memory_start: exposed_memory_start,
                 cur_stack: stack_bottom as *mut u8,
                 wait_pc: 0,
+                psr: 0x01000000,
                 state: State::Waiting,
                 callbacks: callbacks
             };
@@ -228,6 +230,7 @@ impl<'a> Process<'a> {
         let pspr = self.cur_stack as *const usize;
         unsafe {
             self.wait_pc = volatile_load(pspr.offset(6));
+            self.psr = volatile_load(pspr.offset(7));
             self.cur_stack =
                 (self.cur_stack as *mut usize).offset(8) as *mut u8;
         }
@@ -238,7 +241,7 @@ impl<'a> Process<'a> {
         // Fill in initial stack expected by SVC handler
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
-        volatile_store(stack_bottom.offset(7), 0x01000000);
+        volatile_store(stack_bottom.offset(7), self.psr);
         volatile_store(stack_bottom.offset(6), callback.pc | 1);
         // Set the LR register to the saved PC so the callback returns to
         // wherever wait was called. Set lowest bit to one because of THUMB
