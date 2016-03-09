@@ -9,17 +9,17 @@ extern crate nrf51822;
 extern crate support;
 
 pub struct Firestorm {
+    chip: nrf51822::chip::Nrf51822,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
 }
 
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
+        self.chip.service_pending_interrupts()
     }
 
     pub unsafe fn has_pending_interrupts(&mut self) -> bool {
-        // FIXME: The wfi call from main() blocks forever if no interrupts are generated. For now,
-        // pretend we have interrupts to avoid blocking.
-        true
+        self.chip.has_pending_interrupts()
     }
 
     #[inline(never)]
@@ -95,6 +95,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
+        chip: nrf51822::chip::Nrf51822::new(),
         gpio: gpio,
     };
 
