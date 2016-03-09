@@ -7,10 +7,17 @@ extern crate drivers;
 extern crate hil;
 extern crate nrf51822;
 extern crate support;
+extern crate process;
+
+use hil::Controller;
+use drivers::timer::AlarmToTimer;
+use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 pub struct Firestorm {
     chip: nrf51822::chip::Nrf51822,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
+    timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
+                                VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>>>,
 }
 
 impl Firestorm {
@@ -27,6 +34,7 @@ impl Firestorm {
             F: FnOnce(Option<&hil::Driver>) -> R {
         match driver_num {
             1 => f(Some(self.gpio)),
+            3 => f(Some(self.timer)),
             _ => f(None)
         }
     }
@@ -93,10 +101,29 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         pin.set_client(gpio);
     }
 
+    let rtc = &nrf51822::rtc::RTC;
+
+    static_init!(mux_alarm : MuxAlarm<'static, nrf51822::rtc::Rtc> =
+                    MuxAlarm::new(&nrf51822::rtc::RTC));
+    rtc.configure(mux_alarm);
+
+    static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, nrf51822::rtc::Rtc> =
+                    VirtualMuxAlarm::new(mux_alarm));
+    static_init!(vtimer1 : AlarmToTimer<'static,
+                                VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>> =
+                            AlarmToTimer::new(virtual_alarm1));
+    virtual_alarm1.set_client(vtimer1);
+    static_init!(timer : drivers::timer::TimerDriver<AlarmToTimer<'static,
+                                VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>>> =
+                            drivers::timer::TimerDriver::new(vtimer1,
+                                                 process::Container::create()));
+    vtimer1.set_client(timer);
+
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
         chip: nrf51822::chip::Nrf51822::new(),
         gpio: gpio,
+        timer: timer,
     };
 
     firestorm

@@ -11,3 +11,4 @@ mod peripheral_interrupts;
 mod nvic;
 pub mod chip;
 pub mod gpio;
+pub mod rtc;

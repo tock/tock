@@ -1,5 +1,6 @@
 use common::{RingBuffer,Queue};
 use nvic;
+use rtc;
 use peripheral_interrupts::NvicIdx;
 
 const IQ_SIZE: usize = 100;
@@ -17,6 +18,7 @@ impl Nrf51822 {
     pub unsafe fn service_pending_interrupts(&mut self) {
         INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
             match interrupt {
+                NvicIdx::RTC1 => rtc::RTC.handle_interrupt(),
                 _ => {}
             }
             nvic::enable(interrupt);
