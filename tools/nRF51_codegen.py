@@ -127,6 +127,7 @@ def main():
     prefix = 'src/chips/nrf51822/'
     for outf in [
             'peripheral_registers.rs',
+            'peripheral_interrupts.rs',
             'peripheral_interrupts.h',
             ]:
         gen_file(env, prefix + outf, variables)
