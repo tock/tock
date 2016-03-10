@@ -43,7 +43,7 @@ pub enum State {
 }
 
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub struct Callback {
     pub r0: usize,
     pub r1: usize,
@@ -54,6 +54,7 @@ pub struct Callback {
 
 #[repr(C,packed)]
 struct LoadInfo {
+    rel_data_size: usize,
     entry_loc: usize,        /* Entry point for user application */
     init_data_loc: usize,    /* Data initialization information in flash */
     init_data_size: usize,    /* Size of initialization information */
@@ -73,6 +74,7 @@ pub struct Process<'a> {
     cur_stack: *mut u8,
 
     wait_pc: usize,
+    psr: usize,
 
     pub state: State,
 
@@ -106,6 +108,7 @@ impl<'a> Process<'a> {
                 exposed_memory_start: exposed_memory_start,
                 cur_stack: stack_bottom as *mut u8,
                 wait_pc: 0,
+                psr: 0x01000000,
                 state: State::Waiting,
                 callbacks: callbacks
             };
@@ -119,7 +122,16 @@ impl<'a> Process<'a> {
     }
 
     unsafe fn load(&mut self, start_addr: *const usize) {
+        let mut start_addr = start_addr as *const u8;
         let load_info : &LoadInfo = mem::transmute(start_addr);
+        start_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
+
+        let rel_data : &mut [usize] = mem::transmute(raw::Slice{
+            data: start_addr,
+            len: load_info.rel_data_size / 4
+        });
+        start_addr = start_addr.offset(load_info.rel_data_size as isize);
+
         let exposed_memory_start = self.exposed_memory_start;
 
         // Zero out BSS
@@ -141,19 +153,30 @@ impl<'a> Process<'a> {
 
         target_data.clone_from_slice(init_data);
 
+        let fixup = |addr: *mut usize| {
+            let entry = *addr;
+            if (entry & 0x80000000) == 0 {
+                // Regular data (memory relative)
+                *addr = entry + (exposed_memory_start as usize);
+            } else {
+                // rodata or function pointer (code relative)
+                *addr = (entry ^ 0x80000000) + (start_addr as usize);
+            }
+        };
+
         // Fixup Global Offset Table
         let mut got_cur = exposed_memory_start.offset(load_info.got_start_offset as isize) as *mut usize;
         let got_end = exposed_memory_start.offset(load_info.got_end_offset as isize) as *mut usize;
         while got_cur != got_end {
-            let entry = *got_cur;
-            if (entry & 0x80000000) == 0 {
-                // Regular data (memory relative)
-                *got_cur = entry + (exposed_memory_start as usize);
-            } else {
-                // rodata or function pointer (code relative)
-                *got_cur = (entry ^ 0x80000000) + (start_addr as usize);
-            }
+            fixup(got_cur);
             got_cur = got_cur.offset(1);
+        }
+
+        // Fixup relocation data
+        for (i, addr) in rel_data.iter().enumerate() {
+            if i % 2 == 0 { // Only the first of every 2 entries is an address
+                fixup(exposed_memory_start.offset(*addr as isize) as *mut usize);
+            }
         }
 
         // Entry point is offset from app code
@@ -207,6 +230,7 @@ impl<'a> Process<'a> {
         let pspr = self.cur_stack as *const usize;
         unsafe {
             self.wait_pc = volatile_load(pspr.offset(6));
+            self.psr = volatile_load(pspr.offset(7));
             self.cur_stack =
                 (self.cur_stack as *mut usize).offset(8) as *mut u8;
         }
@@ -217,7 +241,7 @@ impl<'a> Process<'a> {
         // Fill in initial stack expected by SVC handler
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
-        volatile_store(stack_bottom.offset(7), 0x01000000);
+        volatile_store(stack_bottom.offset(7), self.psr);
         volatile_store(stack_bottom.offset(6), callback.pc | 1);
         // Set the LR register to the saved PC so the callback returns to
         // wherever wait was called. Set lowest bit to one because of THUMB

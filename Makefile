@@ -19,7 +19,7 @@ $(error TOCK_PLATFORM=$(TOCK_PLATFORM) is not in src/platform ?)
 endif
 
 # Dummy all. The real one is in platform-specific Makefiles.
-all:
+all: $(BUILD_ROOT)/elf2tbf
 
 $(BUILD_ROOT):
 	@mkdir -p $@
@@ -31,6 +31,9 @@ $(BUILD_PLATFORM_DIR): | $(BUILD_ROOT)
 include Common.mk
 
 BASE_DIR = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))/
+
+# Tools
+include tools/Makefile.mk
 
 # External dependencies (Rust libcore)
 EXTERN_DIR = $(BASE_DIR)extern/

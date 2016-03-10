@@ -10,6 +10,8 @@ TOCK_APP_BUILD_DIR := $(TOCK_BUILD_DIR)/$(APP)
 TOCK_APP_LIBS_DIR := $(TOCK_APP_BUILD_DIR)/libs
 include $(TOCK_APPS_DIR)/Makefile.$(TOCK_PLATFORM).mk
 
+ELF2TBF ?= $(TOCK_APPS_DIR)/../build/elf2tbf
+
 TOCK_DIR = $(TOCK_APPS_DIR)/../src
 
 # XXX FIXME extern stuff
@@ -61,18 +63,8 @@ $(TOCK_APP_LIBS_DIR)/%.o: $(TOCK_APPS_DIR)/libs/%.s | $(TOCK_APP_LIBS_DIR)
 
 $(TOCK_APP_BUILD_DIR)/$(APP).bin: $(TOCK_APP_BUILD_DIR)/$(APP).elf
 	$(TRACE_BIN)
-	@tput bold; tput setaf 3; echo -e "\nRunning temporary hack to check for bad relocations" ; tput sgr0
-	@pushd $(TOCK_APP_BUILD_DIR) > /dev/null &&\
-		for f in $$(find . -type f -name '*.o'); do\
-			if [ "$$(basename $$f)" = crt1.o ]; then continue; fi ;\
-			readelf -rs $$f |\
-			awk '1;/\.rel\.debug/{exit}' |\
-			grep -B2 R_ARM_ABS32 && \
-				tput bold && tput setaf 1 && echo -e "ERROR: Symbol from $$f will not be PIC\n"; tput sgr0;\
-		done; popd > /dev/null
-	@tput bold; tput setaf 3; echo -e "Check complete" ; tput sgr0
 	$(Q)$(SIZE) $(TOCK_APP_BUILD_DIR)/$(APP).elf
-	$(Q)$(OBJCOPY) --gap-fill 0xff -O binary $< $@
+	$(Q)$(ELF2TBF) -o $@ $<
 
 $(TOCK_APP_BUILD_DIR)/$(APP).monolithic.o: $(TOCK_APP_BUILD_DIR)/$(APP).bin
 	$(TRACE_LD)
