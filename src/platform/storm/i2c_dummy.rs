@@ -260,8 +260,8 @@ pub fn i2c_li_test() {
     println!("Enabling LI...");
     buf[0] = 0;
     buf[1] = 0b10100000;
-    buf[2] = 0b00000011;
-    dev.write(0x44, i2c::START | i2c::STOP, buf, 2);
+    buf[2] = 0b00000000;
+    dev.write(0x44, i2c::START | i2c::STOP, buf, 3);
     i2c_client.state.set(LiClientState::Enabling);
 }
 

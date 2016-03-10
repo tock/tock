@@ -165,7 +165,7 @@ TOCK_LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 $(TOCK_APP_BUILD_DIR)/$(APP).elf: $$(OBJS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
 	$(TRACE_LD)
 	$(Q)$(LD) -g -Os -T $(APP_LINKER_SCRIPT) --emit-relocs -nostdlib $(LIBRARY_INCLUDES) $^ -o $@
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
+	$(Q)$(GENLST) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
 
 
 ###
@@ -395,7 +395,7 @@ $(HEX): $(OBJS)
 	$(Q)$(LD) $(LDFLAGS) $(OBJS) -o $(ELF)
 	$(Q)$(OBJCOPY) -Oihex $(ELF) $(HEX)
 	$(Q)$(OBJCOPY) -Obinary $(ELF) $(BIN)
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $(ELF) > $(LST)
+	$(Q)$(GENLST) $(ELF) > $(LST)
 	$(Q)$(LD) -r -b binary -o ../code_to_load.o $(BIN)
 	$(Q)$(OBJCOPY) --rename-section .data=.app ../code_to_load.o
 	$(Q)$(SIZE) $(ELF)
@@ -415,7 +415,7 @@ $(OUTPUT_PATH)%.os: %.s
 
 $(OUTPUT_PATH)%.lst: %.o
 	$(Q)$(MAKE_BUILD_FOLDER)
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
+	$(Q)$(GENLST) $< > $@
 
 .PHONY: all size clean
 

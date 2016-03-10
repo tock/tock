@@ -8,8 +8,10 @@ extern crate hil;
 
 pub mod console;
 pub mod gpio;
+pub mod isl29035;
+pub mod nrf51822_serialization;
 pub mod timer;
 pub mod tmp006;
-pub mod virtual_alarm;
 pub mod spi;
-pub mod nrf51822_serialization;
+pub mod virtual_alarm;
+pub mod virtual_i2c;

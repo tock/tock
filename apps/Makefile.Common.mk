@@ -70,7 +70,7 @@ $(TOCK_APP_BUILD_DIR)/$(APP).monolithic.o: $(TOCK_APP_BUILD_DIR)/$(APP).bin
 	$(TRACE_LD)
 	$(Q)$(LD) -r -b binary -o $@ $<
 	$(Q)$(OBJCOPY) --rename-section .data=.app.$(APP) $@
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).monolithic.lst
+	$(Q)$(GENLST) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).monolithic.lst
 
 APPS_TO_LINK_TO_KERNEL=$(TOCK_APP_BUILD_DIR)/$(APP).monolithic.o
 
