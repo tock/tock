@@ -30,10 +30,7 @@
 //! While drivers to handle the `wait` system call, it's important to understand
 //! it's function and it interacts with `subscribe`.
 
-use AppId;
-use AppSlice;
-use Callback;
-use Shared;
+use process::{AppId, AppSlice, Callback, Shared};
 
 /// `Driver`s implement the three driver-specific system calls: `subscribe`,
 /// `command` and `allow`.

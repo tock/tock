@@ -1,5 +1,6 @@
 use common::take_cell::TakeCell;
-use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
+use process::{AppId, AppSlice, Callback, Shared, NUM_PROCS};
+use hil::Driver;
 use hil::uart::{UART, Client};
 
 struct App {

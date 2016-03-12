@@ -1,6 +1,7 @@
 //! Driver for the ISL29035 digital light sensor
 
-use hil::{Driver, Callback};
+use process::Callback;
+use hil::Driver;
 use hil::i2c::{I2CDevice, I2CClient, Error};
 use core::cell::Cell;
 use common::take_cell::TakeCell;

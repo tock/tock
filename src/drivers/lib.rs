@@ -5,6 +5,7 @@
 
 extern crate common;
 extern crate hil;
+extern crate process;
 
 pub mod console;
 pub mod gpio;
