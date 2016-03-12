@@ -1,6 +1,7 @@
 use common::take_cell::TakeCell;
 use core::cell::Cell;
-use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
+use process::{AppId,Callback,AppSlice,Shared,NUM_PROCS};
+use hil::Driver;
 use hil::spi_master::{SpiMaster,SpiCallback};
 use core::cmp;
 use hil::spi_master::ClockPolarity;
