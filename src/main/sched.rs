@@ -3,7 +3,6 @@ use process;
 use process::Process;
 use process::{AppSlice,AppId};
 use common::Queue;
-use hil;
 use syscall;
 
 pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
@@ -37,7 +36,7 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
 
                 let res = platform.with_driver(driver_num, |driver| {
                     let callback =
-                        hil::Callback::new(appid, appdata, callback_ptr);
+                        process::Callback::new(appid, appdata, callback_ptr);
                     match driver {
                         Some(d) => d.subscribe(subdriver_num,
                                                callback),
