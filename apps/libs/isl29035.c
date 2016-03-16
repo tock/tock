@@ -3,7 +3,9 @@
 #include <isl29035.h>
 
 // internal callback for faking synchronous reads
-static CB_TYPE isl29035_cb(int intensity, int unused1, int unused2, void* ud) {
+static CB_TYPE isl29035_cb(int intensity,
+                           __attribute__ ((unused)) int unused1,
+                           __attribute__ ((unused)) int unused2, void* ud) {
   int* result = (int*)ud;
   *result = intensity;
   return READLIGHT;

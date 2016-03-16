@@ -25,8 +25,9 @@ void putstr(const char* str);
 void putnstr(const char* str, size_t len);
 void putnstr_async(const char* str, size_t len, subscribe_cb cb, void* userdata);
 
-int timer_oneshot_subscribe(subscribe_cb cb, void *userdata);
-int timer_repeating_subscribe(subscribe_cb cb, void *userdata);
+int timer_subscribe(subscribe_cb cb, void *userdata);
+int timer_start_repeating(uint32_t interval);
+int timer_oneshot(uint32_t interval);
 
 int spi_read_write(const char* write, char* read, size_t  len, subscribe_cb cb);
 
