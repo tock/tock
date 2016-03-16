@@ -14,20 +14,23 @@ void main();
 
 void _start();
 
-void* heap_base;
-
 caddr_t _sbrk(int incr)
 {
-  heap_base += incr;
-  return heap_base;
+  return (void*)memop(1, incr);
+}
+
+int brk(void* memory_break) {
+  return memop(0, (int)memory_break);
 }
 
 #ifndef STACK_SIZE
-#define STACK_SIZE 1024
+#define STACK_SIZE 2048
 #endif
 
 __attribute__ ((section(".start"), used, naked))
-void _start(void* mem_start, __attribute__((unused))void* mem_end) {
+void _start(void* mem_start,
+    __attribute__((unused))void* app_memory_break,
+    __attribute__((unused))void* kernel_memory_break) {
   void main();
 
   /* Setup the stack and heap.
@@ -38,16 +41,10 @@ void _start(void* mem_start, __attribute__((unused))void* mem_end) {
    * The heap will begin directly above the stack, and grow upwards towards
    * kernel borrowed heap (which grows downwards from the top of memory).
    */
-  void* heap_start;
-  int stack_size = STACK_SIZE;
+  void* stack_bottom = mem_start + STACK_SIZE;
+  brk(stack_bottom);
 
-  asm volatile ("add %0, %1, %2\n\t" // Stack start = `mem_start` + `stack_size`
-                "mov sp, %0\n\t"     //
-                "add %0, %0, #4\n\t" // Heap starts 4 bytes above stack
-                : "=r" (heap_start)
-                : "r" (mem_start), "r" (stack_size));
-
-  heap_base = heap_start;
+  asm volatile ("mov sp, %0\n\t" : : "r" (stack_bottom));
 
   main();
 

@@ -23,6 +23,23 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
             }
         }
         match process.svc_number() {
+            Some(syscall::MEMOP) => {
+                let brk_type = process.r0();
+                let r1 = process.r1();
+
+                let res = match brk_type {
+                    0 /* BRK */ => {
+                        process.brk(r1 as *const u8)
+                            .map(|_| 0).unwrap_or(-1)
+                    },
+                    1 /* SBRK */ => {
+                        process.sbrk(r1 as isize)
+                            .map(|addr| addr as isize).unwrap_or(-1)
+                    },
+                    _ => -2
+                };
+                process.set_r0(res);
+            },
             Some(syscall::WAIT) => {
                 process.state = process::State::Waiting;
                 process.pop_syscall_stack();
