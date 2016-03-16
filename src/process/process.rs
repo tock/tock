@@ -4,6 +4,8 @@ use core::raw::{Repr,Slice};
 
 use common::{RingBuffer, Queue};
 
+use container;
+
 #[allow(improper_ctypes)]
 extern {
     pub fn switch_to_user(user_stack: *const u8, mem_base: *const u8) -> *mut u8;
@@ -34,6 +36,13 @@ pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
             p.callbacks.enqueue(callback)
         }
     }
+}
+
+#[derive(Copy,Clone,PartialEq,Eq)]
+pub enum Error {
+    NoSuchApp,
+    OutOfMemory,
+    AddressOutOfBounds
 }
 
 #[derive(Copy,Clone,PartialEq,Eq)]
@@ -68,7 +77,8 @@ pub struct Process<'a> {
     /// The process's memory.
     memory: Slice<u8>,
 
-    memory_break: *const u8,
+    app_memory_break: *const u8,
+    kernel_memory_break: *const u8,
 
     /// Process text segment
     text: Slice<u8>,
@@ -85,32 +95,64 @@ pub struct Process<'a> {
 }
 
 impl<'a> Process<'a> {
+    pub const fn mem_start(&self) -> *const u8 {
+        self.memory.data
+    }
+
+    pub fn mem_end(&self) -> *const u8 {
+        unsafe {
+            self.memory.data.offset(self.memory.len as isize)
+        }
+    }
+
     pub unsafe fn create(start_addr: *const usize) -> Option<Process<'a>> {
         let cur_idx = FREE_MEMORY_IDX;
         if cur_idx <= MEMORIES.len() {
             FREE_MEMORY_IDX += 1;
             let memory = MEMORIES[cur_idx].repr();
 
-            let stack_bottom = memory.data.offset(256);
+            let mut kernel_memory_break = {
+                // make room for container pointers
+                let psz = mem::size_of::<*const usize>();
+                let num_ctrs = volatile_load(&container::CONTAINER_COUNTER);
+                let container_ptrs_size = num_ctrs * psz;
+                let res = memory.data.offset((memory.len - container_ptrs_size) as isize);
+                // set all ptrs to null
+                let opts : &mut [*const usize] = mem::transmute(Slice {
+                    data: res as *mut *const usize,
+                    len: num_ctrs
+                });
+                for opt in opts.iter_mut() {
+                    *opt = ::core::ptr::null()
+                }
+                res
+            };
 
             // Take callback buffer from bottom of process memory
+            let callback_size = mem::size_of::<Option<Callback>>();
             let callback_len = 10;
+            let callback_offset = memory.len - (callback_len * callback_size);
+            // Set kernel break to beginning of callback buffer
+            kernel_memory_break =
+                kernel_memory_break.offset(callback_offset as isize);
             let callback_buf = mem::transmute(Slice {
-                data: memory.data as *const Option<Callback>,
+                data: kernel_memory_break as *const Option<Callback>,
                 len: callback_len
             });
-            let callback_size = mem::size_of::<Option<Callback>>();
+
+            kernel_memory_break =
+                kernel_memory_break.offset(-(container::CONTAINER_COUNTER as isize) * 4);
 
             let callbacks = RingBuffer::new(callback_buf);
 
-            let memory_break = memory.data.offset(
-                    (memory.len - callback_len * callback_size) as isize);
-
             let load_result = load(start_addr, memory.data);
+
+            let stack_bottom = load_result.app_mem_start.offset(512);
 
             let mut process = Process {
                 memory: memory,
-                memory_break: memory_break,
+                app_memory_break: stack_bottom,
+                kernel_memory_break: kernel_memory_break,
                 text: Slice {
                     data: load_result.text_start,
                     len: load_result.text_len },
@@ -124,8 +166,8 @@ impl<'a> Process<'a> {
             process.callbacks.enqueue(Callback {
                 pc: load_result.init_fn,
                 r0: load_result.app_mem_start as usize,
-                r1: process.memory_break as usize,
-                r2: 0,
+                r1: process.app_memory_break as usize,
+                r2: process.kernel_memory_break as usize,
                 r3: 0
             });
 
@@ -135,6 +177,22 @@ impl<'a> Process<'a> {
         }
     }
 
+    pub fn sbrk(&mut self, increment: isize) -> Result<*const u8, Error> {
+        let new_break = unsafe { self.app_memory_break.offset(increment) };
+        self.brk(new_break)
+    }
+
+    pub fn brk(&mut self, new_break: *const u8) -> Result<*const u8, Error> {
+        if new_break < self.mem_start() || new_break >= self.mem_end() {
+            Err(Error::AddressOutOfBounds)
+        } else if new_break > self.kernel_memory_break {
+            Err(Error::OutOfMemory)
+        } else {
+            let old_break = self.app_memory_break;
+            self.app_memory_break = new_break;
+            Ok(old_break)
+        }
+    }
 
     pub fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize)
             -> bool {
@@ -147,16 +205,37 @@ impl<'a> Process<'a> {
         buf_start_addr >= self.memory.data && buf_end_addr <= mem_end
     }
 
-    pub unsafe fn container_for(&self, container_num: usize)
-            -> Option<*mut u8> {
-        None
-    }
-
     pub unsafe fn alloc(&mut self, size: usize) -> Option<&mut [u8]> {
-        None
+        let new_break = self.kernel_memory_break.offset(-(size as isize));
+        if new_break < self.app_memory_break {
+            None
+        } else {
+            self.kernel_memory_break = new_break;
+            Some(mem::transmute(Slice {
+                data: new_break as *mut u8,
+                len: size
+            }))
+        }
     }
 
     pub unsafe fn free<T>(&mut self, _: *mut T) {}
+
+    pub unsafe fn container_for<T: Default>(&mut self, container_num: usize)
+            -> Option<*mut T> {
+        let container_num = container_num as isize;
+        let ptr = (self.mem_end() as *mut usize)
+                        .offset(-(container_num + 1));
+        if ptr.is_null() {
+            self.alloc(mem::size_of::<T>()).map(|root_arr| {
+                let root_ptr = root_arr.repr().data as *mut T;
+                *root_ptr = Default::default();
+                root_ptr
+            })
+        } else {
+            Some(*ptr as *mut T)
+        }
+    }
+
 
     pub fn pop_syscall_stack(&mut self) {
         let pspr = self.cur_stack as *const usize;
