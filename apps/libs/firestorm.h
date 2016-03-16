@@ -26,10 +26,37 @@ void putstr(const char* str);
 void putnstr(const char* str, size_t len);
 void putnstr_async(const char* str, size_t len, subscribe_cb cb, void* userdata);
 
+/*
+ * Sets the callback for timers
+ *
+ * Side-effects: cancels any existing/outstanding timers
+ */
 int timer_subscribe(subscribe_cb cb, void *userdata);
+
+/*
+ * Starts a repeating timer
+ *
+ * interval_ms - the interval for the timer in milliseconds
+ *
+ * Side-effects: cancels any existing/outstanding timers
+ */
 int timer_start_repeating(uint32_t interval_ms);
+
+/*
+ * Starts a oneshot timer
+ *
+ * interval_ms - the interval for the timer in milliseconds
+ *
+ * Side-effects: cancels any existing/outstanding timers
+ */
 int timer_oneshot(uint32_t interval_ms);
 
+/*
+ * Blocks for the given amount of time in millisecond.
+ *
+ * This is a wrapper around the `timer` interface, so calling this will cancel
+ * any outstanding timers as well as replace the timer callback.
+ */
 void delay_ms(uint32_t ms);
 
 int spi_read_write(const char* write, char* read, size_t  len, subscribe_cb cb);
