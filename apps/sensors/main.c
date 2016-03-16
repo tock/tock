@@ -57,7 +57,8 @@ int main() {
 
   isl29035_subscribe(intensity_cb, NULL);
   // Setup periodic timer
-  timer_repeating_subscribe(timer_fired, NULL);
+  timer_subscribe(timer_fired, NULL);
+  timer_start_repeating(1000);
 
   tmp006_start_sampling(0x2, temp_callback, NULL);
 

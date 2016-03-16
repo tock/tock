@@ -22,7 +22,8 @@ void gpio_output() {
 
   // set LED pin as output and start repeating timer
   gpio_enable_output(LED_0);
-  timer_repeating_subscribe(timer_cb, NULL);
+  timer_subscribe(timer_cb, NULL);
+  timer_start_repeating(500);
 
   while (1) {
     gpio_toggle(LED_0);
@@ -40,7 +41,8 @@ void gpio_input() {
   // set LED pin as input and start repeating timer
   // pin is configured with a pull-down resistor, so it should read 0 as default
   gpio_enable_input(LED_0, PullDown);
-  timer_repeating_subscribe(timer_cb, NULL);
+  timer_subscribe(timer_cb, NULL);
+  timer_start_repeating(500);
 
   while (1) {
     // print pin value
