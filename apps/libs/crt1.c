@@ -44,7 +44,7 @@ void _start(void* mem_start,
   void* stack_bottom = mem_start + STACK_SIZE;
   brk(stack_bottom);
 
-  asm volatile ("mov sp, %0\n\t" : : "r" (stack_bottom));
+  __asm volatile ("mov sp, %0\n\t" : : "r" (stack_bottom));
 
   main();
 
