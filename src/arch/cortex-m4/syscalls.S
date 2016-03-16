@@ -9,6 +9,7 @@
 .global __allow
 .global __subscribe
 .global __command
+.global __memop
 
 .thumb_func
 __wait:
@@ -35,6 +36,13 @@ __subscribe:
 __command:
     push {r4-r11}
     svc 2
+    pop {r4-r11}
+    bx lr
+
+.thumb_func
+__memop:
+    push {r4-r11}
+    svc 4
     pop {r4-r11}
     bx lr
 
