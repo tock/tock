@@ -35,7 +35,7 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
     }
 
     fn oneshot(&self, interval_ms: u32) {
-        let interval = interval_ms * 115 / 2;
+        let interval = interval_ms * 16;
 
         self.schedule.set(Schedule::Oneshot);
 
@@ -44,7 +44,7 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
     }
 
     fn repeat(&self, interval_ms: u32) {
-        let interval = interval_ms * 115 / 2;
+        let interval = interval_ms * 16;
 
         self.schedule.set(Schedule::Repeating {interval: interval});
 

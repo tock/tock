@@ -11,6 +11,7 @@ use nvic;
 use hil::alarm::{Alarm, AlarmClient};
 use hil::Controller;
 use chip;
+use pm::{self, PBDClock};
 
 #[repr(C, packed)]
 #[allow(missing_copy_implementations)]
@@ -59,7 +60,10 @@ impl Controller for Ast {
     fn configure(&self, client: &'static AlarmClient) {
         self.callback.set(Some(client));
 
-        self.select_clock(Clock::ClockRCSys);
+        unsafe {
+            pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
+        }
+        self.select_clock(Clock::ClockOsc32);
         self.set_prescalar(0);
         self.enable_alarm_wake();
         self.clear_alarm();
