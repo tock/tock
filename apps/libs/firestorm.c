@@ -41,6 +41,16 @@ int timer_start_repeating(uint32_t interval) {
   return command(3, 1, (int)interval);
 }
 
+CB_TYPE delay_cb() {
+  return DELAY;
+}
+
+void delay_ms(uint32_t ms) {
+  timer_subscribe(delay_cb, NULL);
+  timer_oneshot(ms);
+  wait_for(DELAY);
+}
+
 int spi_write_byte(unsigned char byte) {
   return command(4, 0, byte);
 }

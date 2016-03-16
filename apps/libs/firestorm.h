@@ -19,6 +19,7 @@ enum firestorm_cb_type {
   SPIBUF,
   GPIO,
   READLIGHT,
+  DELAY,
 };
 
 void putstr(const char* str);
@@ -26,8 +27,10 @@ void putnstr(const char* str, size_t len);
 void putnstr_async(const char* str, size_t len, subscribe_cb cb, void* userdata);
 
 int timer_subscribe(subscribe_cb cb, void *userdata);
-int timer_start_repeating(uint32_t interval);
-int timer_oneshot(uint32_t interval);
+int timer_start_repeating(uint32_t interval_ms);
+int timer_oneshot(uint32_t interval_ms);
+
+void delay_ms(uint32_t ms);
 
 int spi_read_write(const char* write, char* read, size_t  len, subscribe_cb cb);
 
