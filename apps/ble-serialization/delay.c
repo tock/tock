@@ -16,7 +16,7 @@
  *
  * For a 16 MHz CPU, 1us == 16 instructions (assuming each instruction takes
  * one cycle). */
-void delay_us(int duration) {
+void my_delay_us(int duration) {
     // The inner loop instructions are: 14 NOPs + 1 SUBS/ADDS + 1 CMP
     while (duration-- != 0) {
         __asm volatile (
@@ -42,9 +42,9 @@ void delay_us(int duration) {
  *
  * Note that this is not precise as there are 2 extra instructions on the inner
  * loop. Therefore, there is 1us added every 8 iterations. */
-void delay_ms(int duration) {
+void my_delay_ms(int duration) {
     while (duration-- != 0) {
-        delay_us(1000);
+        my_delay_us(1000);
     }
 }
 

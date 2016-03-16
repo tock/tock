@@ -111,7 +111,7 @@ uint32_t ser_app_hal_hw_init() {
 }
 
 void ser_app_hal_delay (uint32_t ms)  {
-    delay_ms(ms);
+    my_delay_ms(ms);
 }
 
 void ser_app_hal_nrf_reset_pin_clear() {
@@ -210,6 +210,23 @@ void ser_phy_interrupts_disable () { }
 
 // TODO: implement timers!
 
+/**@brief Timer node type. The nodes will be used form a linked list of running timers. */
+typedef struct
+{
+    uint32_t                    ticks_to_expire;                            /**< Number of ticks from previous timer interrupt to timer expiry. */
+    uint32_t                    ticks_at_start;                             /**< Current RTC counter value when the timer was started. */
+    uint32_t                    ticks_first_interval;                       /**< Number of ticks in the first timer interval. */
+    uint32_t                    ticks_periodic_interval;                    /**< Timer period (for repeating timers). */
+    bool                        is_running;                                 /**< True if timer is running, False otherwise. */
+    app_timer_mode_t            mode;                                       /**< Timer mode. */
+    app_timer_timeout_handler_t p_timeout_handler;                          /**< Pointer to function to be executed when the timer expires. */
+    void *                      p_context;                                  /**< General purpose pointer. Will be passed to the timeout handler when the timer expires. */
+    void *                      next;                                       /**< Pointer to the next node. */
+} timer_node_t;
+
+#define APP_TIMER_MS(TICKS, PRESCALER)\
+    ( ((uint64_t) TICKS * ((PRESCALER+1)*1000)) / ((uint64_t) APP_TIMER_CLOCK_FREQ) )
+
 uint32_t app_timer_init (uint32_t                      prescaler,
                          uint8_t                       op_queues_size,
                          void *                        p_buffer,
@@ -243,10 +260,31 @@ uint32_t app_timer_init (uint32_t                      prescaler,
 uint32_t app_timer_create (app_timer_id_t const *      p_timer_id,
                            app_timer_mode_t            mode,
                            app_timer_timeout_handler_t timeout_handler) {
-    UNUSED_PARAMETER(p_timer_id);
-    UNUSED_PARAMETER(mode);
-    UNUSED_PARAMETER(timeout_handler);
+    // UNUSED_PARAMETER(p_timer_id);
+    // UNUSED_PARAMETER(mode);
+    // UNUSED_PARAMETER(timeout_handler);
+    timer_node_t * p_node     = (timer_node_t*) *p_timer_id;
+    p_node->is_running        = false;
+    p_node->mode              = mode;
+    p_node->p_timeout_handler = timeout_handler;
+
+
+
     return NRF_SUCCESS;
+}
+
+
+
+CB_TYPE serialization_timer_cb (int a, int b, int c, void* timer_id) {
+    UNUSED_PARAMETER(a);
+    UNUSED_PARAMETER(b);
+    UNUSED_PARAMETER(c);
+
+    timer_node_t* p_node = (timer_node_t*) timer_id;
+
+    p_node->p_timeout_handler(p_node->p_context);
+
+    return 0;
 }
 
 /**@brief Function for starting a timer.
@@ -272,9 +310,21 @@ uint32_t app_timer_create (app_timer_id_t const *      p_timer_id,
 uint32_t app_timer_start (app_timer_id_t timer_id,
                           uint32_t timeout_ticks,
                           void* p_context) {
-    UNUSED_PARAMETER(timer_id);
-    UNUSED_PARAMETER(timeout_ticks);
+    // UNUSED_PARAMETER(timer_id);
+    // UNUSED_PARAMETER(timeout_ticks);
     UNUSED_PARAMETER(p_context);
+
+    timer_node_t* p_node = (timer_node_t*) timer_id;
+
+    if (p_node->mode == APP_TIMER_MODE_REPEATED) {
+        p_node->p_context = p_context;
+        timer_subscribe(serialization_timer_cb, timer_id);
+        // timer_repeating_subscribe(p_node->p_timeout_handler, &timer_id);
+        timer_start_repeating(APP_TIMER_MS(timeout_ticks, 0)); // Use 0 for the prescaler
+    } else {
+        // timer_oneshot_subscribe(p_node->p_timeout_handler, &timer_id);
+    }
+
     return NRF_SUCCESS;
 }
 
