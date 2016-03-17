@@ -144,7 +144,7 @@ SOFTDEVICE_MODEL := s110
 
 SERIALIZATION_MODE = application
 
-NRF_BASE_PATH ?= $(TOCK_APPS_DIR)/ble_example/nrf5x-base
+NRF_BASE_PATH ?= nrf5x-base
 
 
 ###
