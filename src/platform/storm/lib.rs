@@ -79,6 +79,183 @@ macro_rules! static_init {
    }
 }
 
+unsafe fn set_pin_primary_functions() {
+    use sam4l::gpio::{PA, PB, PC};
+    use sam4l::gpio::PeripheralFunction::{A, B, C, D, E};
+
+    // Right column: Firestorm pin name
+    // Left  column: SAM4L peripheral function
+
+    // SPI CS2  --  SPI NPCS1
+    PC[02].configure(Some(A));
+
+    // SPI CS1  --  SPI NPCS2
+    PC[00].configure(Some(A));
+
+    // SPI CLK  --  SPI SCK
+    PC[06].configure(Some(A));
+
+    // SPI MISO --  SPI MISO
+    PC[04].configure(Some(A));
+
+    // SPI MOSI --  SPI MOSI
+    PC[05].configure(Some(A));
+
+    // LI_INT   --  EIC EXTINT2
+    PA[04].configure(Some(C));
+
+    // EXTINT1  --  EIC EXTINT1
+    PA[06].configure(Some(C));
+
+    // PWM 0    --  GPIO pin
+    PA[08].configure(None);
+
+    // PWM 1    --  GPIO pin
+    PC[16].configure(None);
+
+    // PWM 2    --  GPIO pin
+    PC[17].configure(None);
+
+    // PWM 3    --  GPIO pin
+    PC[18].configure(None);
+
+    // AD5      --  ADCIFE AD1
+    PA[05].configure(Some(A));
+
+    // AD4      --  ADCIFE AD2
+    PA[07].configure(Some(A));
+
+    // AD3      --  ADCIFE AD3
+    PB[02].configure(Some(A));
+
+    // AD2      --  ADCIFE AD4
+    PB[03].configure(Some(A));
+
+    // AD1      --  ADCIFE AD5
+    PB[04].configure(Some(A));
+
+    // AD0      --  ADCIFE AD6
+    PB[05].configure(Some(A));
+
+
+    // BL_SEL   --  USART3 RTS
+    PB[06].configure(Some(A));
+
+    //          --  USART3 CTS
+    PB[07].configure(Some(A));
+
+    //          --  USART3 CLK
+    PB[08].configure(Some(A));
+
+    // PRI_RX   --  USART3 RX
+    PB[09].configure(Some(A));
+
+    // PRI_TX   --  USART3 TX
+    PB[10].configure(Some(A));
+
+    // U1_CTS   --  USART0 CTS
+    PB[11].configure(Some(A));
+
+    // U1_RTS   --  USART0 RTS
+    PB[12].configure(Some(A));
+
+    // U1_CLK   --  USART0 CLK
+    PB[13].configure(Some(A));
+
+    // U1_RX    --  USART0 RX
+    PB[14].configure(Some(A));
+
+    // U1_TX    --  USART0 TX
+    PB[15].configure(Some(A));
+
+    // STORMRTS --  USART2 RTS
+    PC[07].configure(Some(B));
+
+    // STORMCTS --  USART2 CTS
+    PC[08].configure(Some(E));
+
+    // STORMRX  --  USART2 RX
+    PC[11].configure(Some(B));
+
+    // STORMTX  --  USART2 TX
+    PC[12].configure(Some(B));
+
+    // STORMCLK --  USART2 CLK
+    PA[18].configure(Some(A));
+
+    // ESDA     --  TWIMS1 TWD
+    PB[00].configure(Some(A));
+
+    // ESCL     --  TWIMS1 TWCK
+    PB[02].configure(Some(A));
+
+    // SDA      --  TWIM2 TWD
+    PA[21].configure(Some(E));
+
+    // SCL      --  TWIM2 TWCK
+    PA[22].configure(Some(E));
+
+    // EPCLK    --  USBC DM
+    PA[25].configure(Some(A));
+
+    // EPDAT    --  USBC DP
+    PA[26].configure(Some(A));
+
+    // PCLK     --  PARC PCCK
+    PC[21].configure(Some(D));
+    // PCEN1    --  PARC PCEN1
+    PC[22].configure(Some(D));
+    // EPGP     --  PARC PCEN2
+    PC[23].configure(Some(D));
+    // PCD0     --  PARC PCDATA0
+    PC[24].configure(Some(D));
+    // PCD1     --  PARC PCDATA1
+    PC[25].configure(Some(D));
+    // PCD2     --  PARC PCDATA2
+    PC[26].configure(Some(D));
+    // PCD3     --  PARC PCDATA3
+    PC[27].configure(Some(D));
+    // PCD4     --  PARC PCDATA4
+    PC[28].configure(Some(D));
+    // PCD5     --  PARC PCDATA5
+    PC[29].configure(Some(D));
+    // PCD6     --  PARC PCDATA6
+    PC[30].configure(Some(D));
+    // PCD7     --  PARC PCDATA7
+    PC[31].configure(Some(D));
+
+    // P2       -- GPIO Pin
+    PA[16].configure(None);
+    // P3       -- GPIO Pin
+    PA[12].configure(None);
+    // P4       -- GPIO Pin
+    PC[09].configure(None);
+    // P5       -- GPIO Pin
+    PA[10].configure(None);
+    // P6       -- GPIO Pin
+    PA[11].configure(None);
+    // P7       -- GPIO Pin
+    PA[19].configure(None);
+    // P8       -- GPIO Pin
+    PA[13].configure(None);
+
+    // none     -- GPIO Pin
+    PA[14].configure(None);
+
+    // ACC_INT2 -- GPIO Pin
+    PC[20].configure(None);
+    // STORMINT -- GPIO Pin
+    PA[17].configure(None);
+    // TMP_DRDY -- GPIO Pin
+    PA[09].configure(None);
+    // ACC_INT1 -- GPIO Pin
+    PC[13].configure(None);
+    // ENSEN    -- GPIO Pin
+    PC[19].configure(None);
+    // LED0     -- GPIO Pin
+    PC[10].configure(None);
+}
+
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
 
@@ -87,6 +264,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PA[14].enable();
     sam4l::gpio::PA[14].set();
     sam4l::gpio::PA[14].enable_output();
+
+    set_pin_primary_functions();
 
     static_init!(console : drivers::console::Console<sam4l::usart::USART> =
                     drivers::console::Console::new(&sam4l::usart::USART3,
@@ -137,11 +316,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                             drivers::timer::TimerDriver::new(vtimer1));
     vtimer1.set_client(timer);
 
-    // Configure SPI pins: CLK, MISO, MOSI, CS3
-    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
     // Initialize and enable SPI HAL
     static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
                       drivers::spi::Spi::new(&mut sam4l::spi::SPI));
@@ -202,29 +376,19 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         parity: hil::uart::Parity::Even,
         mode: hil::uart::Mode::FlowControl,
     });
+    // Configure USART2 Pins for connection to nRF51822
+    // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
+    //  that it is because RX DMA is not set up. For now, just having it always
+    //  enabled works just fine
+    sam4l::gpio::PC[07].enable();
+    sam4l::gpio::PC[07].enable_output();
+    sam4l::gpio::PC[07].clear();
 
-    sam4l::gpio::PB[09].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PB[10].configure(Some(sam4l::gpio::PeripheralFunction::A));
-
-    // Configure I2C SDA and SCL pins
-    sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
-    sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 
     // Uncommenting the following line will cause the device to use the
     // SPI HAL to write [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then
     // echo the 8 bytes read from the slave continuously.
     //spi_dummy::spi_dummy_test();
-
-    // Configure USART2 Pins for connection to nRF51822
-    // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
-    //  that it is because RX DMA is not set up. For now, just having it always
-    //  enabled works just fine
-    //sam4l::gpio::PC[ 7].configure(Some(sam4l::gpio::PeripheralFunction::B));
-    sam4l::gpio::PC[ 7].enable_output();
-    sam4l::gpio::PC[ 7].clear();
-    sam4l::gpio::PC[ 8].configure(Some(sam4l::gpio::PeripheralFunction::E));
-    sam4l::gpio::PC[11].configure(Some(sam4l::gpio::PeripheralFunction::B));
-    sam4l::gpio::PC[12].configure(Some(sam4l::gpio::PeripheralFunction::B));
 
     // Uncommenting the following line will toggle the LED whenever the value of
     // Firestorm's pin 8 changes value (e.g., connect a push button to pin 8 and
