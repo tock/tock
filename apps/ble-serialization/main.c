@@ -158,7 +158,7 @@ int main () {
                 putstr(buf);
             }
             simple_ble_stack_char_set(&temp_sensor_char, 2, (uint8_t*)&temp_reading);
-            simple_ble_notify_char (simple_ble_char_t* char_handle);
+            simple_ble_notify_char(&temp_sensor_char);
             mdata[2] = temp_reading & 0xff;
             mdata[3] = (temp_reading >> 8) & 0xff;
 
