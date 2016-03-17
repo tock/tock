@@ -11,7 +11,6 @@
 #include "app_timer.h"
 
 #include "firestorm.h"
-#include "delay.h"
 
 // Buffer to receive packets from the nRF51822 in.
 // The upper layer also has a buffer, which we could use, but to make
@@ -113,7 +112,7 @@ uint32_t ser_app_hal_hw_init() {
 }
 
 void ser_app_hal_delay (uint32_t ms)  {
-    my_delay_ms(ms);
+    delay_ms(ms);
 }
 
 void ser_app_hal_nrf_reset_pin_clear() {
