@@ -39,11 +39,13 @@ static ser_phy_evt_t _ser_phy_tx_event;
  * Callback from the UART layer in the kernel
  ******************************************************************************/
 
+bool ble_callback_flag = false;
 CB_TYPE ble_serialization_callback (int callback_type, int rx_len, int c, void* other) {
     UNUSED_PARAMETER(c);
     UNUSED_PARAMETER(other);
+    ble_callback_flag = true;
 
-	if (callback_type == 1) {
+    if (callback_type == 1) {
         // TX DONE
 
         // Reset that we are no longer sending a packet.
@@ -56,7 +58,7 @@ CB_TYPE ble_serialization_callback (int callback_type, int rx_len, int c, void* 
             _ser_phy_event_handler(_ser_phy_tx_event);
         }
 
-	} else if (callback_type == 2) {
+    } else if (callback_type == 2) {
         // RX STARTED
 
         // Need a dummy request for a buffer to keep the state machines
@@ -87,7 +89,7 @@ CB_TYPE ble_serialization_callback (int callback_type, int rx_len, int c, void* 
             }
         }
 
-	}
+    }
 
     return 0;
 }
@@ -206,7 +208,6 @@ void ser_phy_close () {
 void ser_phy_interrupts_enable () { }
 
 void ser_phy_interrupts_disable () { }
-
 
 // TODO: implement timers!
 
@@ -399,7 +400,13 @@ void ser_app_power_system_off_enter () {
 
 // Essentially sleep this process
 uint32_t sd_app_evt_wait () {
-    wait();
+    while (1) {
+        wait();
+        if (ble_callback_flag) {
+            ble_callback_flag = false;
+            break;
+        }
+    }
     return NRF_SUCCESS;
 }
 

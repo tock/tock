@@ -16,7 +16,8 @@ impl Write for Writer {
             uart.configure(sam4l::usart::USARTParams {
                 baud_rate: 115200,
                 data_bits: 8,
-                parity: uart::Parity::None
+                parity: uart::Parity::None,
+                mode: uart::Mode::Normal,
             });
             uart.enable_tx();
 

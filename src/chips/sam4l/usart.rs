@@ -1,7 +1,7 @@
 use helpers::*;
 use core::mem;
 use hil::{uart, Controller};
-use hil::uart::Parity;
+use hil::uart::{Parity, Mode};
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use nvic;
 use pm::{self, Clock, PBAClock};
@@ -55,7 +55,8 @@ pub struct USARTParams {
     //pub client: &'static Shared<uart::Client>,
     pub baud_rate: u32,
     pub data_bits: u8,
-    pub parity: Parity
+    pub parity: Parity,
+    pub mode: Mode,
 }
 
 impl Controller for USART {
@@ -64,7 +65,8 @@ impl Controller for USART {
     fn configure(&self, params: USARTParams) {
      //   self.client = Some(params.client.borrow_mut());
         let chrl = ((params.data_bits - 1) & 0x3) as u32;
-        let mode = 0 /* mode */
+        let mode =
+            (params.mode as u32) /* mode */
             | 0 << 4 /*USCLKS*/
             | chrl << 6 /* Character Length */
             | (params.parity as u32) << 9 /* Parity */
@@ -198,7 +200,8 @@ impl DMAClient for USART {
 impl uart::UART for USART {
     fn init(&mut self, params: uart::UARTParams) {
         let chrl = ((params.data_bits - 1) & 0x3) as u32;
-        let mode = 0 /* mode */
+        let mode =
+            (params.mode as u32) /* mode */
             | 0 << 4 /*USCLKS*/
             | chrl << 6 /* Character Length */
             | (params.parity as u32) << 9 /* Parity */

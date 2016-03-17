@@ -11,6 +11,7 @@ extern crate support;
 
 use hil::Controller;
 use hil::spi_master::SpiMaster;
+use hil::gpio::GPIOPin;
 use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::virtual_i2c::{MuxI2C, I2CDevice};
@@ -190,14 +191,16 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         //client: &console,
         baud_rate: 115200,
         data_bits: 8,
-        parity: hil::uart::Parity::None
+        parity: hil::uart::Parity::None,
+        mode: hil::uart::Mode::Normal,
     });
 
     // Setup USART2 for the nRF51822 connection
     sam4l::usart::USART2.configure(sam4l::usart::USARTParams {
         baud_rate: 250000,
         data_bits: 8,
-        parity: hil::uart::Parity::Even
+        parity: hil::uart::Parity::Even,
+        mode: hil::uart::Mode::FlowControl,
     });
 
     sam4l::gpio::PB[09].configure(Some(sam4l::gpio::PeripheralFunction::A));
@@ -213,8 +216,13 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     //spi_dummy::spi_dummy_test();
 
     // Configure USART2 Pins for connection to nRF51822
-    sam4l::gpio::PC[ 7].configure(Some(sam4l::gpio::PeripheralFunction::B));
-    sam4l::gpio::PC[ 8].configure(Some(sam4l::gpio::PeripheralFunction::B));
+    // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
+    //  that it is because RX DMA is not set up. For now, just having it always
+    //  enabled works just fine
+    //sam4l::gpio::PC[ 7].configure(Some(sam4l::gpio::PeripheralFunction::B));
+    sam4l::gpio::PC[ 7].enable_output();
+    sam4l::gpio::PC[ 7].clear();
+    sam4l::gpio::PC[ 8].configure(Some(sam4l::gpio::PeripheralFunction::E));
     sam4l::gpio::PC[11].configure(Some(sam4l::gpio::PeripheralFunction::B));
     sam4l::gpio::PC[12].configure(Some(sam4l::gpio::PeripheralFunction::B));
 

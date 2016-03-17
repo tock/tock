@@ -60,18 +60,37 @@ static simple_ble_service_t sensor_service = {
     static simple_ble_char_t temp_sensor_char = {.uuid16 = 0xf803};
     static int16_t temp_reading;
 
+void ble_evt_user_handler (ble_evt_t* p_ble_evt) {
+    ble_gap_conn_params_t conn_params;
+    memset(&conn_params, 0, sizeof(conn_params));
+    conn_params.min_conn_interval = ble_config.min_conn_interval;
+    conn_params.max_conn_interval = ble_config.max_conn_interval;
+    conn_params.slave_latency     = SLAVE_LATENCY;
+    conn_params.conn_sup_timeout  = CONN_SUP_TIMEOUT;
+
+    switch (p_ble_evt->header.evt_id) {
+        case BLE_GAP_EVT_CONN_PARAM_UPDATE:
+            // just update them right now
+            sd_ble_gap_conn_param_update(0, &conn_params);
+            break;
+    }
+}
+
+
 /*******************************************************************************
  * TEMPERATURE
  ******************************************************************************/
 
 
 // callback to receive asynchronous data
+bool temp_callback_flag = false;
 CB_TYPE temp_callback (int temp_value, int error_code, int unused, void* callback_args) {
     UNUSED_PARAMETER(error_code);
     UNUSED_PARAMETER(unused);
     UNUSED_PARAMETER(callback_args);
 
     temp_reading = (int16_t) temp_value;
+    temp_callback_flag = true;
     return 0;
 }
 
@@ -86,7 +105,7 @@ void temperature_init () {
 
 void ble_error (uint32_t error_code) {
     char buf[64];
-    snprintf(buf, 64, "BLE ERROR: Code = %d\n", error_code);
+    snprintf(buf, 64, "BLE ERROR: Code = %d\n", (int)error_code);
     putstr(buf);
 }
 
@@ -129,13 +148,21 @@ int main () {
         // When this returns, we should have gotten a new temp reading
         wait();
 
-        // Update manufacturer specific data with new temp reading
-        putstr("Data!\n");
-        simple_ble_stack_char_set(&temp_sensor_char, 2, temp_reading);
-        mdata[2] = temp_reading & 0xff;
-        mdata[3] = (temp_reading >> 8) & 0xff;
+        if (temp_callback_flag) {
+            temp_callback_flag = false;
 
-        // And update advertising data
-        eddystone_with_manuf_adv(eddystone_url, &mandata);
+            // Update manufacturer specific data with new temp reading
+            {
+                char buf[64];
+                snprintf(buf, 64, "Temp reading = %d\n", (int)temp_reading);
+                putstr(buf);
+            }
+            simple_ble_stack_char_set(&temp_sensor_char, 2, (uint8_t*)&temp_reading);
+            mdata[2] = temp_reading & 0xff;
+            mdata[3] = (temp_reading >> 8) & 0xff;
+
+            // And update advertising data
+            eddystone_with_manuf_adv(eddystone_url, &mandata);
+        }
     }
 }

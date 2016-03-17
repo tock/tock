@@ -9,11 +9,18 @@ pub enum Parity {
 }
 
 #[derive(Copy, Clone)]
+pub enum Mode {
+    Normal = 0,
+    FlowControl = 2,
+}
+
+#[derive(Copy, Clone)]
 pub struct UARTParams {
     // Parity and stop bits should both be enums.
     pub baud_rate: u32,
     pub data_bits: u8,
-    pub parity: Parity
+    pub parity: Parity,
+    pub mode: Mode,
 }
 
 pub trait UART {
