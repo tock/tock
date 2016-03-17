@@ -33,7 +33,7 @@ simple_ble_config_t ble_config = {
     .device_id         = DEVICE_ID_DEFAULT,
     .adv_name          = "FSTORM",
     .adv_interval      = MSEC_TO_UNITS(500, UNIT_0_625_MS),
-    .min_conn_interval = MSEC_TO_UNITS(500, UNIT_1_25_MS),
+    .min_conn_interval = MSEC_TO_UNITS(10, UNIT_1_25_MS),
     .max_conn_interval = MSEC_TO_UNITS(1000, UNIT_1_25_MS)
 };
 
@@ -54,7 +54,8 @@ ble_advdata_manuf_data_t mandata = {
 // Sensor data service
 static simple_ble_service_t sensor_service = {
     .uuid128 = {{0x1b, 0x98, 0x8e, 0xc4, 0xd0, 0xc4, 0x4a, 0x85,
-                 0x91, 0x96, 0x95, 0x57, 0xf8, 0x02, 0xa0, 0x54}}};
+                 0x91, 0x96, 0x95, 0x57, 0xf8, 0x02, 0xa0, 0x54}}
+};
 
 // characteristic to display temperature values
 static simple_ble_char_t temp_sensor_char = {.uuid16 = 0xf803};
@@ -74,6 +75,16 @@ void ble_evt_user_handler (ble_evt_t* p_ble_evt) {
             sd_ble_gap_conn_param_update(0, &conn_params);
             break;
     }
+}
+
+void ble_evt_connected(ble_evt_t* p_ble_evt) {
+    UNUSED_PARAMETER(p_ble_evt);
+    printf("Connected to central\n");
+}
+
+void ble_evt_disconnected(ble_evt_t* p_ble_evt) {
+    UNUSED_PARAMETER(p_ble_evt);
+    printf("Disconnected from central\n");
 }
 
 void ble_error (uint32_t error_code) {
