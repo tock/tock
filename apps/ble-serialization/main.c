@@ -4,16 +4,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <nordic_common.h>
+#include <nrf_error.h>
+#include <ble_advdata.h>
+
+#include <simple_ble.h>
+#include <simple_adv.h>
+#include <eddystone.h>
+
 #include <firestorm.h>
 #include <tmp006.h>
-
-#include "nordic_common.h"
-#include "nrf_error.h"
-#include "ble_advdata.h"
-
-#include "simple_ble.h"
-#include "simple_adv.h"
-#include "eddystone.h"
 
 #include "nrf.h"
 
@@ -101,21 +101,19 @@ void services_init (void) {
                 &sensor_service, &temp_sensor_char);
 }
 
-
 /*******************************************************************************
  * TEMPERATURE
  ******************************************************************************/
 
-
-// callback to receive asynchronous data
-CB_TYPE temp_callback (int temp_value, int error_code, int unused, void* callback_args) {
+// Temperature read callback
+static CB_TYPE temp_callback (int temp_value, int error_code, int unused, void* ud) {
     UNUSED_PARAMETER(error_code);
     UNUSED_PARAMETER(unused);
-    UNUSED_PARAMETER(callback_args);
+    UNUSED_PARAMETER(ud);
 
-    temp_reading = (int16_t) temp_value;
-
+    temp_reading = (int16_t)temp_value;
     printf("Temp reading = %d\n", (int)temp_reading);
+
     simple_ble_stack_char_set(&temp_sensor_char, 2, (uint8_t*)&temp_reading);
     simple_ble_notify_char(&temp_sensor_char);
 
