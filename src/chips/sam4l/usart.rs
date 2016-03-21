@@ -1,13 +1,11 @@
 use helpers::*;
 use core::mem;
 use hil::{uart, Controller};
-use hil::uart::Parity;
-use dma::{DMAChannel, DMAClient};
+use hil::uart::{Parity, Mode};
+use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use nvic;
 use pm::{self, Clock, PBAClock};
 use chip;
-
-use process::AppSlice;
 
 #[repr(C, packed)]
 struct Registers {
@@ -49,6 +47,7 @@ pub struct USART {
     client: Option<&'static uart::Client>,
     clock: Clock,
     nvic: nvic::NvicIdx,
+    dma_peripheral: DMAPeripheral,
     dma: Option<&'static mut DMAChannel>,
 }
 
@@ -56,7 +55,8 @@ pub struct USARTParams {
     //pub client: &'static Shared<uart::Client>,
     pub baud_rate: u32,
     pub data_bits: u8,
-    pub parity: Parity
+    pub parity: Parity,
+    pub mode: Mode,
 }
 
 impl Controller for USART {
@@ -65,11 +65,13 @@ impl Controller for USART {
     fn configure(&self, params: USARTParams) {
      //   self.client = Some(params.client.borrow_mut());
         let chrl = ((params.data_bits - 1) & 0x3) as u32;
-        let mode = 0 /* mode */
+        let mode =
+            (params.mode as u32) /* mode */
             | 0 << 4 /*USCLKS*/
             | chrl << 6 /* Character Length */
             | (params.parity as u32) << 9 /* Parity */
-            | 0 << 12; /* Number of stop bits = 1 */;
+            | 0 << 12 /* Number of stop bits = 1 */
+            | 1 << 19 /* Oversample at 8 times baud rate */;
 
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
@@ -98,6 +100,9 @@ impl USART {
             clock: Clock::PBA(clock),
             nvic: nvic,
             dma: None,
+            dma_peripheral: DMAPeripheral::USART0_RX, // Set to some default.
+                                                      // This is updated when a
+                                                      // real DMA is configured.
             client: None,
         }
     }
@@ -106,12 +111,13 @@ impl USART {
         self.client = Some(client);
     }
 
-    pub fn set_dma(&mut self, dma: &'static mut DMAChannel) {
+    pub fn set_dma(&mut self, dma: &'static mut DMAChannel, dma_peripheral: DMAPeripheral) {
         self.dma = Some(dma);
+        self.dma_peripheral = dma_peripheral;
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
-        let cd = 48000000 / (16 * baud_rate);
+        let cd = 48000000 / (8 * baud_rate);
         let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
         volatile_store(&mut regs.brgr, cd);
     }
@@ -176,20 +182,31 @@ impl USART {
 }
 
 impl DMAClient for USART {
-    fn xfer_done(&mut self, _pid: usize, _buf: &mut[u8]) {
-        self.dma.as_mut().map(|dma| dma.disable());
-        self.client.as_ref().map(|c| c.write_done() );
+    fn xfer_done(&mut self, _pid: usize) {
+        let buffer = match self.dma.as_mut() {
+            Some(dma) => {
+                let buf = dma.abort_xfer();
+                dma.disable();
+                buf
+            },
+            None => None
+        };
+        self.client.as_ref().map(move |c| {
+            buffer.map(|buf| c.write_done(buf));
+        });
     }
 }
 
 impl uart::UART for USART {
     fn init(&mut self, params: uart::UARTParams) {
         let chrl = ((params.data_bits - 1) & 0x3) as u32;
-        let mode = 0 /* mode */
+        let mode =
+            (params.mode as u32) /* mode */
             | 0 << 4 /*USCLKS*/
             | chrl << 6 /* Character Length */
             | (params.parity as u32) << 9 /* Parity */
-            | 0 << 12; /* Number of stop bits = 1 */;
+            | 0 << 12 /* Number of stop bits = 1 */
+            | 1 << 19 /* Oversample at 8 times baud rate */;
 
         self.enable_clock();
         self.set_baud_rate(params.baud_rate);
@@ -204,10 +221,10 @@ impl uart::UART for USART {
         volatile_store(&mut regs.thr, byte as u32);
     }
 
-    fn send_bytes<S>(&self, bytes: AppSlice<S, u8>) {
-        self.dma.as_ref().map(|dma| {
+    fn send_bytes(&self, bytes: &'static mut [u8], len: usize) {
+        self.dma.as_ref().map(move |dma| {
             dma.enable();
-            //dma.do_xfer(21, bytes);
+            dma.do_xfer(self.dma_peripheral, bytes, len);
         });
     }
 
@@ -248,6 +265,15 @@ impl uart::UART for USART {
         volatile_store(&mut regs.cr, 1 << 7);
     }
 
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn USART2_Handler() {
+    use common::Queue;
+
+    nvic::disable(nvic::NvicIdx::USART2);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::USART2);
 }
 
 #[no_mangle]

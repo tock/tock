@@ -1,4 +1,4 @@
-use core::cell::RefCell;
+use common::take_cell::TakeCell;
 use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
 use hil::uart::{UART, Client};
 
@@ -11,16 +11,21 @@ struct App {
     read_idx: usize
 }
 
+pub static mut WRITE_BUF : [u8; 64] = [0; 64];
+
 pub struct Console<'a, U: UART + 'a> {
     uart: &'a U,
-    apps: [RefCell<Option<App>>; NUM_PROCS],
+    apps: [TakeCell<App>; NUM_PROCS],
+    buffer: TakeCell<&'static mut [u8]>
 }
 
 impl<'a, U: UART> Console<'a, U> {
-    pub const fn new(uart: &'a U) -> Console<U> {
+    pub const fn new(uart: &'a U, buffer: &'static mut [u8])
+            -> Console<'a, U> {
         Console {
             uart: uart,
-            apps: [RefCell::new(None)]
+            apps: [TakeCell::empty()],
+            buffer: TakeCell::new(buffer)
         }
     }
 
@@ -36,38 +41,40 @@ impl<'a, U: UART> Driver for Console<'a, U> {
         let app = appid.idx();
         match allow_num {
             0 => {
-                let mut appc = self.apps[app].borrow_mut();
-                if appc.is_none() {
-                    *appc = Some(App {
+                let resapp = match self.apps[app].take() {
+                    Some(mut app) => {
+                        app.read_buffer = Some(slice);
+                        app.read_idx = 0;
+                        app
+                    },
+                    None => App {
                         read_callback: None,
                         read_buffer: Some(slice),
                         read_idx: 0,
                         write_buffer: None,
                         write_len: 0,
                         write_callback: None
-                    })
-                } else {
-                    appc.as_mut().map(|app| {
-                        app.read_buffer = Some(slice);
-                        app.read_idx = 0;
-                    });
-                }
+                    }
+                };
+                self.apps[app].replace(resapp);
                 0
             },
             1 => {
-                let mut appc = self.apps[app].borrow_mut();
-                if appc.is_none() {
-                    *appc = Some(App {
+                let resapp = match self.apps[app].take() {
+                    Some(mut app) => {
+                        app.write_buffer = Some(slice);
+                        app
+                    },
+                    None => App {
                         read_callback: None,
                         read_buffer: None,
                         read_idx: 0,
                         write_buffer: Some(slice),
                         write_len: 0,
                         write_callback: None
-                    })
-                } else {
-                    appc.as_mut().map(|app| app. write_buffer = Some(slice) );
-                }
+                    }
+                };
+                self.apps[app].replace(resapp);
                 0
             }
             _ => -1
@@ -77,38 +84,37 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 /* read line */ => {
-                let mut app = self.apps[0].borrow_mut();
-                if app.is_none() {
-                    *app = Some(App {
+                self.apps[callback.app_id().idx()].modify_or_replace(
+                    |mut app| app.read_callback = Some(callback),
+                    ||
+                        App {
                         read_callback: Some(callback),
                         read_buffer: None,
                         read_idx: 0,
                         write_buffer: None,
                         write_len: 0,
                         write_callback: None
-                    });
-                } else {
-                    app.as_mut().map(|a| a. read_callback = Some(callback) );
-                }
+                        });
                 0
             },
             1 /* putstr/write_done */ => {
-                match self.apps[0].borrow_mut().as_mut() {
-                    None => {
-                        -1
-                    },
-                    Some(app) => {
-                        match app.write_buffer.take() {
-                            Some(slice) => {
-                                app.write_callback = Some(callback);
-                                app.write_len = slice.len();
-                                self.uart.send_bytes(slice);
-                                0
-                            },
-                            None => -1
-                        }
+                let result = self.apps[callback.app_id().idx()].map(|app| {
+                    match app.write_buffer.take() {
+                        Some(slice) => {
+                            app.write_callback = Some(callback);
+                            app.write_len = slice.len();
+                            self.buffer.take().map(|buffer| {
+                                for (i, c) in slice.as_ref().iter().enumerate() {
+                                    buffer[i] = *c;
+                                }
+                                self.uart.send_bytes(buffer, app.write_len);
+                            });
+                            0
+                        },
+                        None => -1
                     }
-                }
+                });
+                result.unwrap_or(-1)
             },
             _ => -1
         }
@@ -122,16 +128,17 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     }
 }
 
-fn each_some<'a, T, I, F>(lst: I, f: F)
-        where T: 'a, I: Iterator<Item=&'a RefCell<Option<T>>>, F: Fn(&mut T) {
+fn each_some<'a, T, I, F>(lst: I, mut f: F)
+        where T: 'a, I: Iterator<Item=&'a TakeCell<T>>, F: FnMut(&mut T) {
     for item in lst {
-        item.borrow_mut().as_mut().map(|i| f(i));
+        item.map(|i| f(i));
     }
 }
 
 impl<'a, U: UART> Client for Console<'a, U> {
-    fn write_done(&self) {
-        self.apps[0].borrow_mut().as_mut().map(|app| {
+    fn write_done(&self, buffer: &'static mut [u8]) {
+        self.buffer.replace(buffer);
+        self.apps[0].map(|app| {
             app.write_callback.take().map(|mut cb| {
                 cb.schedule(app.write_len, 0, 0);
             });

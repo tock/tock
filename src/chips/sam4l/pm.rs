@@ -50,6 +50,7 @@ const PM_BASE: isize = 0x400E0000;
 const HSB_MASK_OFFSET: u32 = 0x24;
 const PBA_MASK_OFFSET: u32 = 0x28;
 const PBB_MASK_OFFSET: u32 = 0x2C;
+const PBD_MASK_OFFSET: u32 = 0x34;
 
 static mut PM: *mut PmRegisters = PM_BASE as *mut PmRegisters;
 
@@ -62,6 +63,7 @@ pub enum Clock {
     HSB(HSBClock),
     PBA(PBAClock),
     PBB(PBBClock),
+    PBD(PBDClock),
 }
 
 #[derive(Copy,Clone)]
@@ -79,6 +81,11 @@ pub enum PBAClock {
 #[derive(Copy,Clone)]
 pub enum PBBClock {
     FLASHCALW, HRAMC1, HMATRIX, PDCA, CRCCU, USBC, PEVC
+}
+
+#[derive(Copy,Clone)]
+pub enum PBDClock {
+    BPM, BSCIF, AST, WDT, EIC, PICOUART
 }
 
 unsafe fn unlock(register_offset: u32) {
@@ -102,6 +109,7 @@ pub unsafe fn enable_clock(clock: Clock) {
         Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
         Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
         Clock::PBB(v) => mask_clock!(PBB: pbbmask | 1 << (v as u32)),
+        Clock::PBD(v) => mask_clock!(PBD: pbdmask | 1 << (v as u32)),
     }
 }
 
@@ -110,6 +118,7 @@ pub unsafe fn disable_clock(clock: Clock) {
         Clock::HSB(v) => mask_clock!(HSB: hsbmask | !(1 << (v as u32))),
         Clock::PBA(v) => mask_clock!(PBA: pbamask | !(1 << (v as u32))),
         Clock::PBB(v) => mask_clock!(PBB: pbbmask | !(1 << (v as u32))),
+        Clock::PBD(v) => mask_clock!(PBD: pbdmask | !(1 << (v as u32))),
     }
 }
 

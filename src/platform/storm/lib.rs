@@ -11,33 +11,34 @@ extern crate support;
 
 use hil::Controller;
 use hil::spi_master::SpiMaster;
+use hil::gpio::GPIOPin;
 use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use drivers::virtual_i2c::{MuxI2C, I2CDevice};
+
+#[macro_use]
+pub mod io;
 
 // HAL unit tests. To enable a particular unit test, uncomment
 // the module here and uncomment the call to start the test in
 // the init function below.
 //mod gpio_dummy;
 //mod spi_dummy;
-//mod spi_driver;
+//mod i2c_dummy;
 
-
-#[allow(unused_variables,dead_code)]
-pub struct DummyCB {
-    val: u8
-}
- 
 static mut spi_read_buf:  [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
 
 pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
-    gpio: drivers::gpio::GPIO<[&'static hil::gpio::GPIOPin; 13]>,
+    gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
-    tmp006: &'static drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin>,
+    tmp006: &'static drivers::tmp006::TMP006<'static>,
+    isl29035: &'static drivers::isl29035::Isl29035<'static>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
+    nrf51822: &'static drivers::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
 }
 
 impl Firestorm {
@@ -54,10 +55,12 @@ impl Firestorm {
 
         match driver_num {
             0 => f(Some(self.console)),
-            1 => f(Some(&self.gpio)),
+            1 => f(Some(self.gpio)),
             2 => f(Some(self.tmp006)),
             3 => f(Some(self.timer)),
             4 => f(Some(self.spi)),
+            5 => f(Some(self.nrf51822)),
+            6 => f(Some(self.isl29035)),
             _ => f(None)
         }
     }
@@ -76,6 +79,183 @@ macro_rules! static_init {
    }
 }
 
+unsafe fn set_pin_primary_functions() {
+    use sam4l::gpio::{PA, PB, PC};
+    use sam4l::gpio::PeripheralFunction::{A, B, C, D, E};
+
+    // Right column: Firestorm pin name
+    // Left  column: SAM4L peripheral function
+
+    // SPI CS2  --  SPI NPCS1
+    PC[02].configure(Some(A));
+
+    // SPI CS1  --  SPI NPCS2
+    PC[00].configure(Some(A));
+
+    // SPI CLK  --  SPI SCK
+    PC[06].configure(Some(A));
+
+    // SPI MISO --  SPI MISO
+    PC[04].configure(Some(A));
+
+    // SPI MOSI --  SPI MOSI
+    PC[05].configure(Some(A));
+
+    // LI_INT   --  EIC EXTINT2
+    PA[04].configure(Some(C));
+
+    // EXTINT1  --  EIC EXTINT1
+    PA[06].configure(Some(C));
+
+    // PWM 0    --  GPIO pin
+    PA[08].configure(None);
+
+    // PWM 1    --  GPIO pin
+    PC[16].configure(None);
+
+    // PWM 2    --  GPIO pin
+    PC[17].configure(None);
+
+    // PWM 3    --  GPIO pin
+    PC[18].configure(None);
+
+    // AD5      --  ADCIFE AD1
+    PA[05].configure(Some(A));
+
+    // AD4      --  ADCIFE AD2
+    PA[07].configure(Some(A));
+
+    // AD3      --  ADCIFE AD3
+    PB[02].configure(Some(A));
+
+    // AD2      --  ADCIFE AD4
+    PB[03].configure(Some(A));
+
+    // AD1      --  ADCIFE AD5
+    PB[04].configure(Some(A));
+
+    // AD0      --  ADCIFE AD6
+    PB[05].configure(Some(A));
+
+
+    // BL_SEL   --  USART3 RTS
+    PB[06].configure(Some(A));
+
+    //          --  USART3 CTS
+    PB[07].configure(Some(A));
+
+    //          --  USART3 CLK
+    PB[08].configure(Some(A));
+
+    // PRI_RX   --  USART3 RX
+    PB[09].configure(Some(A));
+
+    // PRI_TX   --  USART3 TX
+    PB[10].configure(Some(A));
+
+    // U1_CTS   --  USART0 CTS
+    PB[11].configure(Some(A));
+
+    // U1_RTS   --  USART0 RTS
+    PB[12].configure(Some(A));
+
+    // U1_CLK   --  USART0 CLK
+    PB[13].configure(Some(A));
+
+    // U1_RX    --  USART0 RX
+    PB[14].configure(Some(A));
+
+    // U1_TX    --  USART0 TX
+    PB[15].configure(Some(A));
+
+    // STORMRTS --  USART2 RTS
+    PC[07].configure(Some(B));
+
+    // STORMCTS --  USART2 CTS
+    PC[08].configure(Some(E));
+
+    // STORMRX  --  USART2 RX
+    PC[11].configure(Some(B));
+
+    // STORMTX  --  USART2 TX
+    PC[12].configure(Some(B));
+
+    // STORMCLK --  USART2 CLK
+    PA[18].configure(Some(A));
+
+    // ESDA     --  TWIMS1 TWD
+    PB[00].configure(Some(A));
+
+    // ESCL     --  TWIMS1 TWCK
+    PB[02].configure(Some(A));
+
+    // SDA      --  TWIM2 TWD
+    PA[21].configure(Some(E));
+
+    // SCL      --  TWIM2 TWCK
+    PA[22].configure(Some(E));
+
+    // EPCLK    --  USBC DM
+    PA[25].configure(Some(A));
+
+    // EPDAT    --  USBC DP
+    PA[26].configure(Some(A));
+
+    // PCLK     --  PARC PCCK
+    PC[21].configure(Some(D));
+    // PCEN1    --  PARC PCEN1
+    PC[22].configure(Some(D));
+    // EPGP     --  PARC PCEN2
+    PC[23].configure(Some(D));
+    // PCD0     --  PARC PCDATA0
+    PC[24].configure(Some(D));
+    // PCD1     --  PARC PCDATA1
+    PC[25].configure(Some(D));
+    // PCD2     --  PARC PCDATA2
+    PC[26].configure(Some(D));
+    // PCD3     --  PARC PCDATA3
+    PC[27].configure(Some(D));
+    // PCD4     --  PARC PCDATA4
+    PC[28].configure(Some(D));
+    // PCD5     --  PARC PCDATA5
+    PC[29].configure(Some(D));
+    // PCD6     --  PARC PCDATA6
+    PC[30].configure(Some(D));
+    // PCD7     --  PARC PCDATA7
+    PC[31].configure(Some(D));
+
+    // P2       -- GPIO Pin
+    PA[16].configure(None);
+    // P3       -- GPIO Pin
+    PA[12].configure(None);
+    // P4       -- GPIO Pin
+    PC[09].configure(None);
+    // P5       -- GPIO Pin
+    PA[10].configure(None);
+    // P6       -- GPIO Pin
+    PA[11].configure(None);
+    // P7       -- GPIO Pin
+    PA[19].configure(None);
+    // P8       -- GPIO Pin
+    PA[13].configure(None);
+
+    // none     -- GPIO Pin
+    PA[14].configure(None);
+
+    // ACC_INT2 -- GPIO Pin
+    PC[20].configure(None);
+    // STORMINT -- GPIO Pin
+    PA[17].configure(None);
+    // TMP_DRDY -- GPIO Pin
+    PA[09].configure(None);
+    // ACC_INT1 -- GPIO Pin
+    PC[13].configure(None);
+    // ENSEN    -- GPIO Pin
+    PC[19].configure(None);
+    // LED0     -- GPIO Pin
+    PC[10].configure(None);
+}
+
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
 
@@ -85,9 +265,19 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     sam4l::gpio::PA[14].set();
     sam4l::gpio::PA[14].enable_output();
 
+    set_pin_primary_functions();
+
     static_init!(console : drivers::console::Console<sam4l::usart::USART> =
-                    drivers::console::Console::new(&sam4l::usart::USART3));
+                    drivers::console::Console::new(&sam4l::usart::USART3,
+                                       &mut drivers::console::WRITE_BUF));
     sam4l::usart::USART3.set_client(console);
+
+    // Create the Nrf51822Serialization driver for passing BLE commands
+    // over UART to the nRF51822 radio.
+    static_init!(nrf_serialization : drivers::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART> =
+                    drivers::nrf51822_serialization::Nrf51822Serialization::new(&sam4l::usart::USART2,
+                                                                                &mut drivers::nrf51822_serialization::WRITE_BUF));
+    sam4l::usart::USART2.set_client(nrf_serialization);
 
     let ast = &sam4l::ast::AST;
 
@@ -95,11 +285,25 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                     MuxAlarm::new(&sam4l::ast::AST));
     ast.configure(mux_alarm);
 
+    static_init!(mux_i2c : MuxI2C<'static> = MuxI2C::new(&sam4l::i2c::I2C2));
+    sam4l::i2c::I2C2.set_client(mux_i2c);
 
-    // the i2c address of the device is 0x40
-    static_init!(tmp006 : drivers::tmp006::TMP006<'static, sam4l::i2c::I2CDevice, sam4l::gpio::GPIOPin> =
-                    drivers::tmp006::TMP006::new(&sam4l::i2c::I2C2, 0x40, &sam4l::gpio::PA[9]));
+    // Configure the TMP006. Device address 0x40
+    static_init!(tmp006_i2c : drivers::virtual_i2c::I2CDevice =
+                 drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x40));
+    static_init!(tmp006 : drivers::tmp006::TMP006<'static> =
+                    drivers::tmp006::TMP006::new(tmp006_i2c, &sam4l::gpio::PA[9],
+                                                 &mut drivers::tmp006::BUFFER));
+    tmp006_i2c.set_client(tmp006);
     sam4l::gpio::PA[9].set_client(tmp006);
+
+    // Configure the ISL29035, device address 0x44
+    static_init!(isl29035_i2c : drivers::virtual_i2c::I2CDevice =
+                 drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x44));
+    static_init!(isl29035 : drivers::isl29035::Isl29035<'static> =
+                 drivers::isl29035::Isl29035::new(isl29035_i2c,
+                                                  &mut drivers::isl29035::BUF));
+    isl29035_i2c.set_client(isl29035);
 
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
                     VirtualMuxAlarm::new(mux_alarm));
@@ -112,49 +316,78 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                             drivers::timer::TimerDriver::new(vtimer1));
     vtimer1.set_client(timer);
 
-    // Configure SPI pins: CLK, MISO, MOSI, CS3
-    sam4l::gpio::PC[ 6].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 4].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 5].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PC[ 1].configure(Some(sam4l::gpio::PeripheralFunction::A));
     // Initialize and enable SPI HAL
     static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
                       drivers::spi::Spi::new(&mut sam4l::spi::SPI));
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
+    sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
+    sam4l::spi::SPI.enable();
+
+
+    // set GPIO driver controlling remaining GPIO pins
+    static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 9] = [
+            &sam4l::gpio::PC[10], // LED_0
+            &sam4l::gpio::PA[16], // P2
+            &sam4l::gpio::PA[12], // P3
+            &sam4l::gpio::PC[ 9], // P4
+            &sam4l::gpio::PA[10], // P5
+            &sam4l::gpio::PA[11], // P6
+            &sam4l::gpio::PA[19], // P7
+            &sam4l::gpio::PA[13], // P8
+            &sam4l::gpio::PA[17], // STORM_INT (nRF51822)
+            ]);
+    static_init!(gpio : drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin> =
+                 drivers::gpio::GPIO::new(gpio_pins));
+    for pin in gpio_pins.iter() {
+        pin.set_client(gpio);
+    }
+
+    /* Note: The following GPIO pins aren't assigned to anything:
+    &sam4l::gpio::PC[19] // !ENSEN
+    &sam4l::gpio::PC[13] // ACC_INT1
+    &sam4l::gpio::PC[20] // ACC_INT2
+    &sam4l::gpio::PA[14] // No Connection
+    */
 
     static_init!(firestorm : Firestorm = Firestorm {
         chip: sam4l::chip::Sam4l::new(),
-        console: &*console,
-        gpio: drivers::gpio::GPIO::new(
-            [ &sam4l::gpio::PC[10], &sam4l::gpio::PC[19]
-            , &sam4l::gpio::PC[13], &sam4l::gpio::PA[17]
-            , &sam4l::gpio::PC[20], &sam4l::gpio::PA[19]
-            , &sam4l::gpio::PA[14], &sam4l::gpio::PA[16]
-            , &sam4l::gpio::PA[13], &sam4l::gpio::PA[11]
-            , &sam4l::gpio::PA[10], &sam4l::gpio::PA[12]
-            , &sam4l::gpio::PC[09]]),
+        console: console,
+        gpio: gpio,
         timer: timer,
-        tmp006: &*tmp006,
-        spi: &*spi,
+        tmp006: tmp006,
+        isl29035: isl29035,
+        spi: spi,
+        nrf51822: nrf_serialization,
     });
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
         //client: &console,
         baud_rate: 115200,
         data_bits: 8,
-        parity: hil::uart::Parity::None
+        parity: hil::uart::Parity::None,
+        mode: hil::uart::Mode::Normal,
     });
 
-    sam4l::gpio::PB[09].configure(Some(sam4l::gpio::PeripheralFunction::A));
-    sam4l::gpio::PB[10].configure(Some(sam4l::gpio::PeripheralFunction::A));
+    // Setup USART2 for the nRF51822 connection
+    sam4l::usart::USART2.configure(sam4l::usart::USARTParams {
+        baud_rate: 250000,
+        data_bits: 8,
+        parity: hil::uart::Parity::Even,
+        mode: hil::uart::Mode::FlowControl,
+    });
+    // Configure USART2 Pins for connection to nRF51822
+    // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
+    //  that it is because RX DMA is not set up. For now, just having it always
+    //  enabled works just fine
+    sam4l::gpio::PC[07].enable();
+    sam4l::gpio::PC[07].enable_output();
+    sam4l::gpio::PC[07].clear();
 
-    // Configure I2C SDA and SCL pins
-    sam4l::gpio::PA[21].configure(Some(sam4l::gpio::PeripheralFunction::E));
-    sam4l::gpio::PA[22].configure(Some(sam4l::gpio::PeripheralFunction::E));
 
-    // Uncommenting the following line will cause the device to use the 
-    // SPI HAL to write [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then 
-    // echo the 8 bytes read from the slave continuously. 
+    // Uncommenting the following line will cause the device to use the
+    // SPI HAL to write [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then
+    // echo the 8 bytes read from the slave continuously.
     //spi_dummy::spi_dummy_test();
 
     // Uncommenting the following line will toggle the LED whenever the value of
@@ -162,58 +395,14 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // press toggle it).
     //gpio_dummy::gpio_dummy_test();
 
-    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
-    sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
-    sam4l::spi::SPI.enable();
+    // Uncommenting the following line will test the I2C
+    //i2c_dummy::i2c_scan_slaves();
+    //i2c_dummy::i2c_tmp006_test();
+    //i2c_dummy::i2c_accel_test();
+    //i2c_dummy::i2c_li_test();
 
     firestorm.console.initialize();
+    firestorm.nrf51822.initialize();
     firestorm
-}
-
-use core::fmt::Arguments;
-
-#[cfg(not(test))]
-#[lang="panic_fmt"]
-#[no_mangle]
-pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
-    _file: &'static str, _line: usize) -> ! {
-    use hil::uart::UART;
-    use core::fmt::*;
-    use support::nop;
-
-    sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
-        baud_rate: 115200,
-        data_bits: 8,
-        parity: hil::uart::Parity::None
-    });
-    sam4l::usart::USART3.enable_tx();
-
-    struct Writer;
-
-    impl Write for Writer {
-        fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-            unsafe {
-                for c in s.bytes() {
-                    sam4l::usart::USART3.send_byte(c);
-                }
-            }
-            Ok(())
-        }
-    }
-
-    let _ = Writer.write_fmt(format_args!("Kernel panic... Sorry!\r\n"));
-
-    let led = &sam4l::gpio::PC[10];
-    led.enable_output();
-    loop {
-        for _ in 0..1000000 {
-            led.set();
-            nop();
-        }
-        for _ in 0..1000000 {
-            led.clear();
-            nop();
-        }
-    }
 }
 

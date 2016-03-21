@@ -1,8 +1,10 @@
-use core::cell::RefCell;
+use common::take_cell::TakeCell;
 use core::cell::Cell;
 use hil::{AppId,Driver,Callback,AppSlice,Shared,NUM_PROCS};
 use hil::spi_master::{SpiMaster,SpiCallback};
 use core::cmp;
+use hil::spi_master::ClockPolarity;
+use hil::spi_master::ClockPhase;
 
 
 /* SPI operations are handled by coping into a kernel buffer for
@@ -18,16 +20,16 @@ struct App {
     callback:  Option<Callback>,
     app_read:  Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
-    len:       Cell<usize>,
-    index:     Cell<usize>,
+    len:       usize,
+    index:     usize,
 }
 
 pub struct Spi<'a, S: SpiMaster + 'a> {
     spi_master:   &'a mut S,
     busy:         Cell<bool>,
-    apps:         [RefCell<Option<App>>; NUM_PROCS],
-    kernel_read:  RefCell<Option<&'static mut [u8]>>,
-    kernel_write: RefCell<Option<&'static mut [u8]>>,
+    apps:         [TakeCell<App>; NUM_PROCS],
+    kernel_read:  TakeCell<&'static mut [u8]>,
+    kernel_write: TakeCell<&'static mut [u8]>,
     kernel_len:   Cell<usize>
 }
 
@@ -36,10 +38,10 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
-            apps: [RefCell::new(None)],
+            apps: [TakeCell::empty()],
             kernel_len: Cell::new(0),
-            kernel_read : RefCell::new(None),
-            kernel_write : RefCell::new(None),
+            kernel_read : TakeCell::empty(),
+            kernel_write : TakeCell::empty()
         }
     }
 
@@ -48,31 +50,28 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
                           write: &'static mut [u8]) {
         let len = cmp::min(read.len(), write.len());
         self.kernel_len.set(len);
-        self.kernel_read = RefCell::new(Some(read));
-        self.kernel_write = RefCell::new(Some(write));
+        self.kernel_read.replace(read);
+        self.kernel_write.replace(write);
     }
 
     // Assumes checks for busy/etc. already done
     // Updates app.index to be index + length of op 
     fn do_next_read_write(&self, app: &mut App) {
-        let start = app.index.get();
-        let len = cmp::min(app.len.get() - start, self.kernel_len.get());
+        let start = app.index;
+        let len = cmp::min(app.len - start, self.kernel_len.get());
         let end = start + len;
-        app.index.set(end);
-        let mut kwrite = self.kernel_write.borrow_mut();
-        let mut kread  = self.kernel_read.borrow_mut();
-        {
-            use core::slice::bytes::copy_memory;
-            let src = app.app_write.as_mut().unwrap();
-            let mut kwbuf = kwrite.as_mut().unwrap();
-            copy_memory(&src.as_ref()[start .. end], kwbuf);
-        }
-        let reading = app.app_read.is_some();
-        if reading {
-            self.spi_master.read_write_bytes(kwrite.take(), kread.take(), len);
-        } else {
-            self.spi_master.read_write_bytes(kwrite.take(), None, len);
-        }
+        app.index = end;
+
+        self.kernel_write.map(|kwbuf| {
+            app.app_write.as_mut().map(|src| {
+                for (i, c) in src.as_ref()[start .. end].iter().enumerate() {
+                    kwbuf[i] = *c;
+                }
+            });
+        });
+
+        self.spi_master.read_write_bytes(self.kernel_write.take(),
+                                         self.kernel_read.take(), len);
     }
 }
 
@@ -82,35 +81,37 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
         let app = appid.idx();
         match allow_num {
             0 => {
-                let mut appc = self.apps[app].borrow_mut();
-                if appc.is_none() {
-                    *appc = Some(App {
+                let appc = match self.apps[app].take() {
+                    None => App {
                         callback: None,
                         app_read: Some(slice),
                         app_write: None,
-                        len: Cell::new(0),
-                        index: Cell::new(0),
-                    })
-                } else {
-                    appc.as_mut().map(|app| {
-                        app.app_read = Some(slice);
-                    });
-                }
+                        len: 0,
+                        index: 0,
+                    },
+                    Some(mut appc) => {
+                        appc.app_read = Some(slice);
+                        appc
+                    }
+                };
+                self.apps[app].replace(appc);
                 0
             },
             1 => {
-                let mut appc = self.apps[app].borrow_mut();
-                if appc.is_none() {
-                    *appc = Some(App {
+                let appc = match self.apps[app].take() {
+                    None => App {
                         callback: None,
                         app_read: None,
                         app_write: Some(slice),
-                        len: Cell::new(0),
-                        index: Cell::new(0),
-                    })
-                } else {
-                    appc.as_mut().map(|app| app.app_write = Some(slice));
-                }
+                        len: 0,
+                        index: 0,
+                    },
+                    Some(mut appc) => {
+                        appc.app_write = Some(slice);
+                        appc
+                    }
+                };
+                self.apps[app].replace(appc);
                 0
             }
             _ => -1
@@ -121,18 +122,20 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 /* read_write */ => {
-                let mut app = self.apps[0].borrow_mut();
-                if app.is_none() {
-                    *app = Some(App {
+                let appc = match self.apps[0].take() {
+                    None => App {
                         callback: Some(callback),
                         app_read: None,
                         app_write: None,
-                        len: Cell::new(0),
-                        index: Cell::new(0),
-                    });
-                } else {
-                    app.as_mut().map(|a| a.callback = Some(callback));
-                }
+                        len: 0,
+                        index: 0,
+                    },
+                    Some(mut appc) => {
+                        appc.callback = Some(callback);
+                        appc
+                    }
+                };
+                self.apps[0].replace(appc);
                 0
             },
             _ => -1
@@ -144,26 +147,29 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
      *   - requires write buffer registered with allow
      *   - read buffer optional
      * 2: set chip select
-     *   - valid values are 0-3
-     *   - invalid value will result in no chip select
+     *   - selects which peripheral (CS line) the SPI should
+     *     activate
+     *   - valid values are 0-3 for SAM4L
+     *   - invalid value will result in CS 0
      * 3: get chip select
      *   - returns current selected peripheral
      *   - If none selected, returns 255
-     * 4: set clock polarity
+     * 4: set rate on current peripheral
+     *   - parameter in bps
+     * 5: get rate on current peripheral
+     *   - value in bps
+     * 6: set clock phase on current peripheral
+     *   - 0 is sample leading
+     *   - non-zero is sample trailing
+     * 7: get clock phase on current peripheral
+     *   - 0 is sample leading
+     *   - non-zero is sample trailing
+     * 8: set clock polarity on current peripheral
      *   - 0 is idle low
      *   - non-zero is idle high
-     * 5: get clock polarity
-     *   - returns 0 if idle low, 1 if idle high
-     * 6: set clock phase
-     *   - 0 is sample leading edge
-     *   - non-zero is sample trailing edge
-     * 7: get clock phase
-     *   - 0 is leading edge
-     *   - 1 is trailing edge
-     * 8: set clock rate (u32 bps)
-     *   - returns actual clock rate set
-     * 9: get clock rate 
-     *   - returns clock rate (u32 bps)
+     * 9: get clock polarity on current peripheral
+     *   - 0 is idle low
+     *   - non-zero is idle high
      * x: lock spi
      *   - if you perform an operation without the lock,
      *     it implicitly acquires the lock before the
@@ -183,33 +189,25 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                 if self.busy.get() {
                     return -1;
                 }
-                let mut app = self.apps[0].borrow_mut();
-                if app.is_none() {
-                    return -1;
-                }
-                app.as_mut().map(|mut a| {
-                    // If no write buffer, return
-                    if a.app_write.is_none() {
-                        return -1;
-                    }
+                let mut result = -1;
+                self.apps[0].map(|app| {
                     let mut mlen = 0;
                     // If write buffer too small, return
-                    a.app_write.as_mut().map(|w| {
+                    app.app_write.as_mut().map(|w| {
                         mlen = w.len();
                     });
-                    a.app_read.as_mut().map(|r| {
+                    app.app_read.as_mut().map(|r| {
                         mlen = cmp::min(mlen, r.len());
                     });
-                    if mlen < arg1 {
-                        return -1;
+                    if mlen >= arg1 {
+                        app.len = arg1;
+                        app.index = 0;
+                        self.busy.set(true);
+                        self.do_next_read_write(app);
+                        result = 0;
                     }
-                    a.len.set(arg1);
-                    a.index.set(0);
-                    self.busy.set(true);
-                    self.do_next_read_write(&mut a as &mut App);
-                    0
-                }); 
-                -1
+                });
+                return result;
             }
             2 /* set chip select */ => {
                 let cs = arg1 as u8;
@@ -223,71 +221,64 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
             3 /* get chip select */ => {
                 self.spi_master.get_chip_select() as isize
             }
-            4 /* set polarity */ => {
-                let pol = match arg1 as u8 {
-                    0 => ClockPolarity::IdleLow,
-                    _ => ClockPolarity::IdleHigh
-                };
-                self.spi_master.set_clock(pol);
-                0
+            4 /* set baud rate */ => {
+                self.spi_master.set_rate(arg1 as u32) as isize
             }
-            5 /* get polarity */ => {
-                self.spi_master.get_clock()
+            5 /* get baud rate */ => {
+                self.spi_master.get_rate() as isize
             }
             6 /* set phase */ => {
-                let phase = match arg1 as u8 {
-                    0 => ClockPhase::SampleLeading,
-                    _ => ClockPhase::SampleTrailing
+                match arg1 {
+                    0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
+                    _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
                 };
-                self.spi_master.set_phase(phase);
                 0
             }
             7 /* get phase */ => {
-                self.spi_master.get_phase()
+                self.spi_master.get_phase() as isize
             }
-            8 /* set rate */ => {
-                self.spi_master.set_rate(arg1 as u32)
+            8 /* set polarity */ => {
+                match arg1 {
+                    0 => self.spi_master.set_clock(ClockPolarity::IdleLow),
+                    _ => self.spi_master.set_clock(ClockPolarity::IdleHigh),
+                };
+                0
             }
-            9 /* get rate */ => {
-                self.spi_master.get_rate() as u32
+            9 /* get polarity */ => {
+                self.spi_master.get_clock() as isize
             }
             _ => -1
         }
     }
 }
 
-#[allow(dead_code)]
-fn each_some<'a, T, I, F>(lst: I, f: F)
-        where T: 'a, I: Iterator<Item=&'a RefCell<Option<T>>>, F: Fn(&mut T) {
-    for item in lst {
-        item.borrow_mut().as_mut().map(|i| f(i));
-    }
-}
-
 impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
-    fn read_write_done(&self, 
-                       writebuf: Option<&'static mut [u8]>, 
+    fn read_write_done(&self,
+                       writebuf: Option<&'static mut [u8]>,
                        readbuf:  Option<&'static mut [u8]>,
                        length: usize) {
-        self.apps[0].borrow_mut().as_mut().map(|app| {
+        self.apps[0].map(|app| {
             if app.app_read.is_some() {
-                use core::slice::bytes::copy_memory;
                 let src = readbuf.as_ref().unwrap();
-                let dest = app.app_read.as_mut().unwrap(); 
-                let start = app.index.get() - length;
+                let dest = app.app_read.as_mut().unwrap();
+                let start = app.index - length;
                 let end = start + length;
-                copy_memory(&src[0 .. length], &mut dest.as_mut()[start .. end]);
+
+                let d = &mut dest.as_mut()[start .. end];
+                for (i, c) in src[0 .. length].iter().enumerate() {
+                    d[i] = *c;
+                }
             }
 
-            *self.kernel_read.borrow_mut() =  readbuf;
-            *self.kernel_write.borrow_mut() = writebuf;
+            self.kernel_read.put(readbuf);
+            self.kernel_write.put(writebuf);
 
-            if app.index.get() == app.len.get() {
+            if app.index == app.len {
                 self.busy.set(false);
-                app.len.set(0);
-                app.index.set(0);
+                app.len = 0;
+                app.index = 0;
                 app.callback.take().map(|mut cb| {
-                    cb.schedule(app.len.get(), 0, 0);
+                    cb.schedule(app.len, 0, 0);
                 });
             } else {
                 self.do_next_read_write(app);

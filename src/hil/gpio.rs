@@ -1,12 +1,13 @@
 pub enum InputMode {
     PullUp,
-    PullDown
+    PullDown,
+    PullNone,
 }
 
 pub enum InterruptMode {
     Change,
     RisingEdge,
-    FallingEdge
+    FallingEdge,
 }
 
 pub trait GPIOPin {

@@ -8,6 +8,7 @@ use hil::spi_master::ClockPolarity;
 use hil::spi_master::ClockPhase;
 use dma::DMAChannel;
 use dma::DMAClient;
+use dma::DMAPeripheral;
 use pm;
 
 /// Implementation of DMA-based SPI master communication for
@@ -137,6 +138,12 @@ impl Spi {
         clock / scbr
     }
 
+    pub fn get_baud_rate(&self) -> u32 {
+        let clock = 48000000;
+        let scbr = (self.read_active_csr() >> 8) & 0xFF;
+        clock / scbr
+    }
+
     pub fn set_active_peripheral(&self, peripheral: Peripheral) {
         let peripheral_number: u32 = match peripheral {
             Peripheral::Peripheral0 => 0b0000,
@@ -222,9 +229,9 @@ impl spi_master::SpiMaster for Spi {
         csr |= 1 << 3;
         self.write_active_csr(csr);
 
-        // Indicate the last transfer to disable slave select 
+        // Indicate the last transfer to disable slave select
         unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
-        
+
         let mut mode = unsafe {volatile_load(&(*self.regs).mr)};
         mode |= 1; // Enable master mode
         mode |= 1 << 4; // Disable mode fault detection (open drain outputs not supported)
@@ -312,10 +319,10 @@ impl spi_master::SpiMaster for Spi {
             self.dma_read.as_ref().map(|read| {
                 // We know from the check above that `reading` is only true if
                 // `read_buffer` is `Some`, so `unwrap` is safe here.
-                read.do_xfer_buf(4, read_buffer.unwrap(), count)
+                read.do_xfer(DMAPeripheral::SPI_RX, read_buffer.unwrap(), count)
             });
         }
-        self.dma_write.as_ref().map(|write| write.do_xfer_buf(22, write_buffer.unwrap(), count));
+        self.dma_write.as_ref().map(|write| write.do_xfer(DMAPeripheral::SPI_TX, write_buffer.unwrap(), count));
         if reading {
             self.dma_read.as_ref().map(|read| read.enable());
         }
@@ -325,7 +332,11 @@ impl spi_master::SpiMaster for Spi {
 
     fn set_rate(&self, rate: u32) -> u32 {
         self.set_baud_rate(rate)
-     }
+    }
+
+    fn get_rate(&self) -> u32 {
+         self.get_baud_rate()
+    }
 
     fn get_rate(&self) -> u32 {
         let csr = self.read_active_csr();
@@ -349,6 +360,16 @@ impl spi_master::SpiMaster for Spi {
         match polarity {
             0 => ClockPolarity::IdleLow,
             _ => ClockPolarity::IdleHigh
+        }
+    }
+
+
+    fn get_clock(&self) -> ClockPolarity {
+        let csr = self.read_active_csr();
+        let polarity = csr & 0x1;
+        match polarity {
+            0 => ClockPolarity::IdleLow,
+            _ => ClockPolarity::IdleHigh,
         }
     }
 
@@ -392,17 +413,15 @@ impl spi_master::SpiMaster for Spi {
     }
 
     fn get_chip_select(&self) -> u8 {
-        let mut mr = unsafe {volatile_load(&(*self.regs).mr)};
-        let pcs_mask: u32 = 0xFFF0FFFF;
-        mr &= pcs_mask;
-        mr = mr >> 16;
-        return match mr {
+        let mr = unsafe {volatile_load(&(*self.regs).mr)};
+        let cs = (mr >> 16) & 0xF;
+        match cs {
             0b0000 => 0,
             0b0001 => 1,
             0b0011 => 2,
             0b0111 => 3,
-            _      => 255,
-        };
+            _ => 0,
+        }
     }
 
     fn clear_chip_select(&self) {
@@ -411,7 +430,7 @@ impl spi_master::SpiMaster for Spi {
 }
 
 impl DMAClient for Spi {
-    fn xfer_done(&mut self, pid: usize, buf: &'static mut[u8]) {
+    fn xfer_done(&mut self, pid: usize) {
         // I don't know if there are ordering guarantees on the read and
         // write interrupts, guessing not, so issue the callback when both
         // reading and writing are complete. In practice it seems like
@@ -423,26 +442,34 @@ impl DMAClient for Spi {
         if pid == 4  { // SPI RX
            // self.dma_read.as_ref().map(|dma| dma.disable());
             self.reading.set(false);
-            self.read_buffer = Some(buf);
+            let buf = match self.dma_read.as_mut() {
+                Some(dma) => dma.abort_xfer(),
+                None => None
+            };
+            self.read_buffer = buf;
             if !self.reading.get() && !self.writing.get() {
                 let rb = self.read_buffer.take();
                 let wb = self.write_buffer.take();
                 let len = self.dma_length.get();
                 self.dma_length.set(0);
-                self.callback.as_ref().map(|cb| 
+                self.callback.as_ref().map(|cb|
                                            cb.read_write_done(wb, rb, len));
             }
         }
         else if pid == 22 { // SPI TX
            // self.dma_write.as_ref().map(|dma| dma.disable());
             self.writing.set(false);
-            self.write_buffer = Some(buf);
+            let buf = match self.dma_write.as_mut() {
+                Some(dma) => dma.abort_xfer(),
+                None => None
+            };
+            self.write_buffer = buf;
             if !self.reading.get() && !self.writing.get() {
                 let rb = self.read_buffer.take();
                 let wb = self.write_buffer.take();
                 let len = self.dma_length.get();
                 self.dma_length.set(0);
-                self.callback.as_ref().map(|cb| 
+                self.callback.as_ref().map(|cb|
                                            cb.read_write_done(wb, rb, len));
             }
         }

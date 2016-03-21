@@ -34,14 +34,18 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
         self.alarm.now()
     }
 
-    fn oneshot(&self, interval: u32) {
+    fn oneshot(&self, interval_ms: u32) {
+        let interval = interval_ms * 16;
+
         self.schedule.set(Schedule::Oneshot);
 
         let when = interval.wrapping_add(self.alarm.now());
         self.alarm.set_alarm(when);
     }
 
-    fn repeat(&self, interval: u32) {
+    fn repeat(&self, interval_ms: u32) {
+        let interval = interval_ms * 16;
+
         self.schedule.set(Schedule::Repeating {interval: interval});
 
         let when = interval.wrapping_add(self.alarm.now());
@@ -89,31 +93,47 @@ impl<'a, T: Timer> TimerDriver<'a, T> {
 }
 
 impl<'a, T: Timer> Driver for TimerDriver<'a, T> {
-    fn subscribe(&self, subscribe_type: usize, callback: Callback) -> isize {
-        let interval = 15000;
-        match subscribe_type {
-            0 /* Oneshot */ => {
-                self.app_timers[callback.app_id().idx()].set(Some(TimerData {
-                    t0: self.timer.now(),
-                    interval: interval,
-                    repeating: false,
-                    callback: callback
-                }));
-                self.timer.oneshot(interval);
-                0
-            },
-            1 /* Repeating */ => {
-                self.app_timers[callback.app_id().idx()].set(Some(TimerData {
-                    t0: self.timer.now(),
-                    interval: interval,
-                    repeating: true,
-                    callback: callback
-                }));
-                self.timer.repeat(interval);
-                0
-            },
-            _ => -1
-        }
+    fn subscribe(&self, _: usize, callback: Callback) -> isize {
+        self.app_timers[callback.app_id().idx()].set(Some(TimerData {
+            t0: 0,
+            interval: 0,
+            repeating: false,
+            callback: callback
+        }));
+        0
+    }
+
+    fn command(&self, cmd_type: usize, interval: usize) -> isize {
+        let interval = interval as u32;
+        self.app_timers[0].get().map(|td| {
+            match cmd_type {
+                0 /* Oneshot */ => {
+                    self.app_timers[0].set(
+                            Some(TimerData {
+                                t0: self.timer.now(),
+                                interval: interval,
+                                repeating: false,
+                                callback: td.callback
+                            })
+                    );
+                    self.timer.oneshot(interval);
+                    0
+                },
+                1 /* Repeating */ => {
+                    self.app_timers[0].set(
+                            Some(TimerData {
+                                t0: self.timer.now(),
+                                interval: interval,
+                                repeating: true,
+                                callback: td.callback
+                            })
+                    );
+                    self.timer.repeat(interval);
+                    0
+                },
+                _ => -1
+            }
+        }).unwrap_or(-2)
     }
 }
 

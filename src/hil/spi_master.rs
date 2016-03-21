@@ -8,7 +8,7 @@ pub enum DataOrder {MSBFirst, LSBFirst}
 
 /// Values for the clock polarity (idle state or CPOL)
 #[derive(Copy, Clone)]
-pub enum ClockPolarity {IdleHigh, IdleLow}
+pub enum ClockPolarity {IdleLow, IdleHigh}
 
 /// Which clock edge values are sampled on
 #[derive(Copy, Clone)]
@@ -90,3 +90,4 @@ pub trait SpiMaster {
     fn set_phase(&self, phase: ClockPhase);
     fn get_phase(&self) -> ClockPhase;
 }
+

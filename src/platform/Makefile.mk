@@ -1,1 +1,1 @@
-include $(SRC_DIR)platform/$(PLATFORM)/Makefile.mk
+include $(SRC_DIR)platform/$(TOCK_PLATFORM)/Makefile.mk

@@ -88,9 +88,11 @@ pub enum NvicIdx {
     ADCIFE,
     DACC,
     ACIFC,
+    ABDACB,
     TRNG,
     PARC,
     CATB,
+    _RESERVED,
     TWIM2,
     TWIM3,
     LCDCA

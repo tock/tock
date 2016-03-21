@@ -11,11 +11,12 @@ CFLAGS_BASE = -mcpu=$(ARCH) -mthumb -mfloat-abi=soft
 CFLAGS += $(CFLAGS_BASE) -g -O3 -std=gnu99 -nostartfiles
 LOADER = $(SRC_DIR)chips/sam4l/loader.ld
 LDFLAGS += -T$(LOADER) -lm
-OBJDUMP_FLAGS = --disassemble --source --disassembler-options=force-thumb
+OBJDUMP_FLAGS := --disassemble --source --disassembler-options=force-thumb
+OBJDUMP_FLAGS += -C --section-headers
 
 ARCH = cortex-m4
 
-$(BUILD_DIR)/libsam4l.rlib: $(call rwildcard,$(SRC_DIR)chips/sam4l,*.rs) $(BUILD_DIR)/libcore.rlib $(BUILD_DIR)/libhil.rlib $(BUILD_DIR)/libcommon.rlib
+$(BUILD_PLATFORM_DIR)/libsam4l.rlib: $(call rwildcard,$(SRC_DIR)chips/sam4l,*.rs) $(BUILD_PLATFORM_DIR)/libcore.rlib $(BUILD_PLATFORM_DIR)/libhil.rlib $(BUILD_PLATFORM_DIR)/libcommon.rlib | $(BUILD_PLATFORM_DIR)
 	@echo "Building $@"
-	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_DIR) $(SRC_DIR)chips/sam4l/lib.rs
+	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_PLATFORM_DIR) $(SRC_DIR)chips/sam4l/lib.rs
 
