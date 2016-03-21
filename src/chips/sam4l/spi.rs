@@ -338,13 +338,6 @@ impl spi_master::SpiMaster for Spi {
          self.get_baud_rate()
     }
 
-    fn get_rate(&self) -> u32 {
-        let csr = self.read_active_csr();
-        let sbcr = (csr << 8) & 0xFF;
-        let clock = 48000000;
-        clock / sbcr
-    }
-
     fn set_clock(&self, polarity: ClockPolarity) {
         let mut csr = self.read_active_csr();
         match polarity {
@@ -360,16 +353,6 @@ impl spi_master::SpiMaster for Spi {
         match polarity {
             0 => ClockPolarity::IdleLow,
             _ => ClockPolarity::IdleHigh
-        }
-    }
-
-
-    fn get_clock(&self) -> ClockPolarity {
-        let csr = self.read_active_csr();
-        let polarity = csr & 0x1;
-        match polarity {
-            0 => ClockPolarity::IdleLow,
-            _ => ClockPolarity::IdleHigh,
         }
     }
 
