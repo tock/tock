@@ -32,7 +32,7 @@ $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb: $(TOCK_APP_BUILD_DIR)/kernel_and_app.e
 	@tput bold ; echo "Packing SDB..." ; tput sgr0
 	$(Q)$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
 
-all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.sdb
+all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
 	@tput bold ; echo "Finished building $(APP) for $(TOCK_PLATFORM)" ; tput sgr0
 
 .PHONY: program
