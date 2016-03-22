@@ -36,6 +36,9 @@ impl<'a, Alrm: Alarm> VirtualMuxAlarm<'a, Alrm> {
 }
 
 impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
+
+    type Frequency = Alrm::Frequency;
+
     fn now(&self) -> u32 {
         self.alarm.alarm.now()
     }
