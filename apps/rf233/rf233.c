@@ -64,22 +64,13 @@
 */
 
 #include "firestorm.h"
-//#include <stdlib.h>
 #include <stdint.h>
-//#include <stdio.h>
-//#include <string.h>
-//#include "contiki.h"
-//#include "leds.h"
-//#include "rtimer.h"
-//#include "netstack.h"
-//#include "net/packetbuf.h"
 #include "rf233-const.h"
 #include "rf233-config.h"
 #include "rf233-arch.h"
 #include "trx_access.h"
 #include "rf233.h"
-//#include "delay.h"
-//#include "system_interrupt.h"
+
 #define RF233_STATUS()                    rf233_status()
 /*---------------------------------------------------------------------------*/
 static int  on(void);
@@ -91,6 +82,21 @@ static uint8_t ack_status = 0;
 static volatile int radio_is_on = 0;
 static volatile int pending_frame = 0;
 static volatile int sleep_on = 0;
+
+#define PC14 0
+#define PC15 0
+#define PC01 0
+#define PA20 0
+
+#define SLP_PIN PC14
+#define RST_PIN PC15
+#define SEL_PIN PC01
+#define PORTIRQ PA20
+
+#define IEEE802154_CONF_PANID 0x66
+
+#define RADIO_TX_OK  0
+#define RADIO_TX_ERR 1
 
 /*---------------------------------------------------------------------------*/
 int rf233_init(void);
@@ -104,6 +110,11 @@ int rf233_pending_packet(void);
 int rf233_on(void);
 int rf233_off(void);
 int rf233_sleep(void);
+
+
+void ENTER_TRX_REGION() {} // Disable interrupts
+void LEAVE_TRX_REGION() {} // Re-enable interrupts
+void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
 
 /*---------------------------------------------------------------------------*/
 /* convenience macros */
@@ -125,20 +136,21 @@ int rf233_sleep(void);
 #define PRINTF(...)
 #endif
 
-#define BUSYWAIT_UNTIL(cond, max_time)                                  \
-  do {                                                                  \
-    rtimer_clock_t t0;                                                  \
-    t0 = RTIMER_NOW();                                                  \
-    while(!(cond) && RTIMER_CLOCK_LT(RTIMER_NOW(), t0 + (max_time)));   \
+#define BUSYWAIT_UNTIL(cond, max_time)        \
+  do {                                        \
+    int counter = max_time;                   \
+    while (!(cond) && counter > 0) {          \
+      delay_ms(1);                            \
+      counter--;                              \
+    }                                         \
   } while(0)
+
 /*---------------------------------------------------------------------------*/
 /**
  * \brief      Get radio channel
  * \return     The radio channel
  */
-int
-rf_get_channel(void)
-{
+int rf_get_channel(void) {
 	uint8_t channel;
   channel=trx_reg_read(RF233_REG_PHY_CC_CCA) & PHY_CC_CCA_CHANNEL;
   //printf("rf233 channel%d\n",channel);
@@ -151,9 +163,7 @@ rf_get_channel(void)
  * \retval -1  Fail: channel number out of bounds
  * \retval 0   Success
  */
-int
-rf_set_channel(uint8_t ch)
-{
+int rf_set_channel(uint8_t ch) {
   uint8_t temp;
   PRINTF("RF233: setting channel %u\n", ch);
   if(ch > 26 || ch < 11) {
@@ -171,10 +181,8 @@ rf_set_channel(uint8_t ch)
 /**
  * \brief      Get transmission power
  * \return     The transmission power
- */
-int
-rf233_get_txp(void)
-{
+ */ 
+int rf233_get_txp(void) {
   PRINTF("RF233: get txp\n");
   return trx_reg_read(RF233_REG_PHY_TX_PWR_CONF) & PHY_TX_PWR_TXP;
 }
@@ -185,9 +193,7 @@ rf233_get_txp(void)
  * \retval -1  Fail: transmission power out of bounds
  * \retval 0   Success
  */
-int
-rf233_set_txp(uint8_t txp)
-{
+int rf233_set_txp(uint8_t txp) {
   PRINTF("RF233: setting txp %u\n", txp);
   if(txp > TXP_M17) {
     /* undefined */
@@ -203,9 +209,7 @@ rf233_set_txp(uint8_t txp)
  * \return     Returns success/fail
  * \retval 0   Success
  */
-int
-rf233_init(void)
-{
+int rf233_init(void) {
   volatile uint8_t regtemp;
   volatile uint8_t radio_state;  /* don't optimize this away, it's important */
   PRINTF("RF233: init.\n");
@@ -222,12 +226,12 @@ rf233_init(void)
 
   /* reset will put us into TRX_OFF state */
   /* reset the radio core */
-  gpio_enable_output(AT86RFX_RST_PIN);
-  gpio_enable_output(AT86RFX_SLP_PIN);
-  gpio_clear(AT86RFX_RST_PIN);
-  delay_cycles_ms(1);
-  gpio_set(AT86RFX_RST_PIN);
-  gpio_clear(AT86RFX_SLP_PIN); /* be awake from sleep*/
+  gpio_enable_output(RST_PIN);
+  gpio_enable_output(SLP_PIN);
+  gpio_clear(RST_PIN);
+  delay_ms(1);
+  gpio_set(RST_PIN);
+  gpio_clear(SLP_PIN); /* be awake from sleep*/
 
   /* before enabling interrupts, make sure we have cleared IRQ status */
   regtemp = trx_reg_read(RF233_REG_IRQ_STATUS);
@@ -236,13 +240,14 @@ rf233_init(void)
   PRINTF("After arch read reg: state 0x%04x\n", radio_state);
 
   if(radio_state == STATE_P_ON) {
-	  trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);
-	  } 
+    trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);
+  } 
   /* Assign regtemp to regtemp to avoid compiler warnings */
   regtemp = regtemp;
-  trx_irq_init((FUNC_PTR)rf233_interrupt_poll);
-  ENABLE_TRX_IRQ();  
-  system_interrupt_enable_global();
+  // Set up interrupts
+  //trx_irq_init(rf233_interrupt_poll);
+  // ENABLE_TRX_IRQ();  
+  //system_interrupt_enable_global();
   /* Configure the radio using the default values except these. */
   trx_reg_write(RF233_REG_TRX_CTRL_1,      RF233_REG_TRX_CTRL_1_CONF);
   trx_reg_write(RF233_REG_PHY_CC_CCA,      RF233_REG_PHY_CC_CCA_CONF);
@@ -250,28 +255,22 @@ rf233_init(void)
   trx_reg_write(RF233_REG_TRX_CTRL_2,      RF233_REG_TRX_CTRL_2_CONF);
   trx_reg_write(RF233_REG_IRQ_MASK,        RF233_REG_IRQ_MASK_CONF);
   // trx_reg_write(0x17, 0x02);
-#if HW_CSMA_FRAME_RETRIES
   trx_bit_write(SR_MAX_FRAME_RETRIES, 3);
   trx_bit_write(SR_MAX_CSMA_RETRIES, 4);
-#else  
-  trx_bit_write(SR_MAX_FRAME_RETRIES, 0);
-  trx_bit_write(SR_MAX_CSMA_RETRIES, 7);
-#endif  
   SetPanId(IEEE802154_CONF_PANID);
   
   rf_generate_random_seed();
   
-  for(uint8_t i=0;i<8;i++)
-  {
-	  regtemp =trx_reg_read(0x24+i);
+  for (uint8_t i = 0; i < 8; i++)   {
+    regtemp = trx_reg_read(0x24 + i);
   }
 
   /* 11_09_rel */
-  trx_reg_write(RF233_REG_TRX_RPC,0xFF); /* Enable RPC feature by default */
+  trx_reg_write(RF233_REG_TRX_RPC, 0xFF); /* Enable RPC feature by default */
   // regtemp = trx_reg_read(RF233_REG_PHY_TX_PWR);
   
   /* start the radio process */
-  process_start(&rf233_radio_process, NULL);
+  //process_start(&rf233_radio_process, NULL);
   return 0;
 }
 
@@ -279,8 +278,7 @@ rf233_init(void)
  * \brief Generates a 16-bit random number used as initial seed for srand()
  *
  */
-static void rf_generate_random_seed(void)
-{
+static void rf_generate_random_seed(void) {
 	uint16_t seed = 0;
 	uint8_t cur_random_val = 0;
 
@@ -290,22 +288,17 @@ static void rf_generate_random_seed(void)
 	 */
 	ENTER_TRX_REGION();
 
-	do
-	{
-		trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);
-		
+	do {
+          trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);
 	} while (TRXCMD_TRX_OFF != rf233_status());
 
-	do
-	{
-		/* Ensure that PLL has locked and receive mode is reached. */
-		trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_PLL_ON);
-		
+	do {
+          /* Ensure that PLL has locked and receive mode is reached. */
+          trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_PLL_ON);
 	} while (TRXCMD_PLL_ON != rf233_status());
-	do
-	{
-		trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_RX_ON);
-		
+
+	do {
+          trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_RX_ON);
 	} while (TRXCMD_RX_ON != rf233_status());
 
 	/* Ensure that register bit RX_PDT_DIS is set to 0. */
@@ -316,17 +309,16 @@ static void rf_generate_random_seed(void)
 	 * values.
 	 */
 	for (uint8_t i = 0; i < 8; i++) {
-		/* Now we can safely read the 2-bit random number. */
-		cur_random_val = trx_bit_read(SR_RND_VALUE);
-		seed = seed << 2;
-		seed |= cur_random_val;
-		delay_us(1); /* wait that the random value gets updated */
+          /* Now we can safely read the 2-bit random number. */
+          cur_random_val = trx_bit_read(SR_RND_VALUE);
+          seed = seed << 2;
+          seed |= cur_random_val;
+          delay_ms(1); /* wait that the random value gets updated */
 	}
-
-	do
-	{
-		/* Ensure that PLL has locked and receive mode is reached. */
-		trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);		
+        
+	do {
+          /* Ensure that PLL has locked and receive mode is reached. */
+          trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);		
 	} while (TRXCMD_TRX_OFF != rf233_status());
 	/*
 	 * Now we need to clear potential pending TRX IRQs and
@@ -347,12 +339,8 @@ static void rf_generate_random_seed(void)
  * \param payload_len     length of data to copy
  * \return     Returns success/fail, refer to radio.h for explanation
  */
-int
-rf233_prepare(const void *payload, unsigned short payload_len)
-{
-#if DEBUG_PRINTDATA
+int rf233_prepare(const void *payload, unsigned short payload_len) {
   int i;
-#endif  /* DEBUG_PRINTDATA */
   uint8_t templen;
   uint8_t radio_status;
   uint8_t data[130];
@@ -364,18 +352,12 @@ rf233_prepare(const void *payload, unsigned short payload_len)
   /* FCS is assumed to already be included in the payload */
   templen = payload_len;
 #endif  /* USE_HW_FCS_CHECK */
- //data = templen;
  
-/*
-for(i = 0; i < templen; i++) {
-	data++;
-	data =(uint8_t *)(payload + i);
-	
-}*/
-//memcpy(data,&templen,1);
-data[0] = templen;
-memcpy(&data[1],payload,templen);
-//data--;
+  data[0] = templen;
+  for (i = 0; i < templen; i++) {
+    data[i + 1] = ((uint8_t*)payload)[i];
+  }
+
 #if DEBUG_PRINTDATA
   PRINTF("RF233 prepare (%u/%u): 0x", payload_len, templen);
   for(i = 0; i < templen; i++) {
@@ -391,15 +373,10 @@ memcpy(&data[1],payload,templen);
   }
 
   /* check that the FIFO is clear to access */
-  radio_status=rf233_status();
-  #if NULLRDC_CONF_802154_AUTOACK_HW
-  if(radio_status == STATE_BUSY_RX_AACK || radio_status == STATE_BUSY_TX_ARET) {
-	  PRINTF("RF233: TRX buffer unavailable: prep when %s\n", radio_status == STATE_BUSY_RX_AACK ? "rx" : "tx");
-  #else
-   if(radio_status == STATE_BUSY_RX || radio_status == STATE_BUSY_TX) {
-	   PRINTF("RF233: TRX buffer unavailable: prep when %s\n", radio_status == STATE_BUSY_RX? "rx" : "tx");
-  #endif
-    
+  radio_status = rf233_status();
+  if (radio_status == STATE_BUSY_RX_AACK ||
+      radio_status == STATE_BUSY_TX_ARET) {
+    PRINTF("RF233: TRX buffer unavailable: prep when %s\n", radio_status == STATE_BUSY_RX_AACK ? "rx" : "tx");
     return RADIO_TX_ERR;
   }
 
@@ -414,9 +391,7 @@ memcpy(&data[1],payload,templen);
  * \param payload_len    Length of the frame to send
  * \return     Returns success/fail, refer to radio.h for explanation
  */
-int
-rf233_transmit(unsigned short payload_len)
-{
+int rf233_transmit(unsigned short payload_len) {
   static uint8_t status_now;
   PRINTF("RF233: tx %u\n", payload_len);
 
@@ -424,89 +399,48 @@ rf233_transmit(unsigned short payload_len)
   
   status_now = rf233_status();
    //status_now = trx_reg_read(RF233_REG_TRX_RPC);
-  #if NULLRDC_CONF_802154_AUTOACK_HW
-  if(status_now == STATE_BUSY_RX_AACK || status_now == STATE_BUSY_TX_ARET) {
-  #else
-  if(status_now == STATE_BUSY_RX || status_now == STATE_BUSY_TX) {
-  #endif
+  if (status_now == STATE_BUSY_RX_AACK || status_now == STATE_BUSY_TX_ARET) {
     PRINTF("RF233: collision, was receiving 0x%02X\n",status_now);
     /* NOTE: to avoid loops */
     return RADIO_TX_ERR;;
     // return RADIO_TX_COLLISION;
   }
-  if(status_now != STATE_PLL_ON) {
-    /* prepare for going to state TX, should take max 80 us */
-    //RF233_COMMAND(TRXCMD_PLL_ON);
-	trx_reg_write(RF233_REG_TRX_STATE,0x09);
-   // BUSYWAIT_UNTIL(trx_reg_read(RF233_REG_TRX_STATUS) == STATE_PLL_ON, 1 * RTIMER_SECOND/1000);
-   //delay_ms(10);
-   //status_now = trx_reg_read(RF233_REG_TRX_STATE);
-   do 
-   {
-	   status_now = trx_bit_read(0x01, 0x1F, 0);
-   } while (status_now == 0x1f);
+  if (status_now != STATE_PLL_ON) {
+    trx_reg_write(RF233_REG_TRX_STATE,0x09);
+    do {
+      status_now = trx_bit_read(0x01, 0x1F, 0);
+    } while (status_now == 0x1f);
   }
-
-  if(rf233_status() != STATE_PLL_ON) {
+  
+  if (rf233_status() != STATE_PLL_ON) {
     /* failed moving into PLL_ON state, gracefully try to recover */
     PRINTF("RF233: failed going to PLLON\n");
     RF233_COMMAND(TRXCMD_PLL_ON);   /* try again */
-	static uint8_t state;
-	state = rf233_status();
+    static uint8_t state;
+    state = rf233_status();
     if(state != STATE_PLL_ON) {
-      /* give up and signal big fail (should perhaps reset radio core instead?) */
       PRINTF("RF233: graceful recovery (in tx) failed, giving up. State: 0x%02X\n", rf233_status());
       return RADIO_TX_ERR;
     }
   }
-
+  
   /* perform transmission */
-  ENERGEST_OFF(ENERGEST_TYPE_LISTEN);
-  ENERGEST_ON(ENERGEST_TYPE_TRANSMIT);
-#if NULLRDC_CONF_802154_AUTOACK_HW
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
-#endif
   RF233_COMMAND(TRXCMD_TX_START);
-   flag_transmit=1;
-   //delay_ms(5);
-  //printf("RTIMER value %d",RTIMER_NOW());
+  flag_transmit = 1;
 
-#if !NULLRDC_CONF_802154_AUTOACK_HW
-    BUSYWAIT_UNTIL(rf233_status() == STATE_BUSY_TX, RTIMER_SECOND/2000);
-   // printf("RTIMER value1 %d",RTIMER_NOW());
-   // printf("\r\nSTATE_BUSY_TX");
-  BUSYWAIT_UNTIL(rf233_status() != STATE_BUSY_TX, 10 * RTIMER_SECOND/1000);
-  // printf("RTIMER value2 %d",RTIMER_NOW());
-#endif
-
-  ENERGEST_OFF(ENERGEST_TYPE_TRANSMIT);
-  ENERGEST_ON(ENERGEST_TYPE_LISTEN);
-
-#if !NULLRDC_CONF_802154_AUTOACK_HW
-   if(rf233_status() != STATE_PLL_ON) {
-    // something has failed 
-    PRINTF("RF233: radio fatal err after tx\n");
-    radiocore_hard_recovery();
-    return RADIO_TX_ERR;
+  BUSYWAIT_UNTIL(ack_status == 1, 10);
+  if (ack_status) {
+    //	printf("\r\nrf233 sent\r\n ");
+    ack_status=0;
+    //	printf("\nACK received");
+    return RADIO_TX_OK;
   }
-  RF233_COMMAND(TRXCMD_RX_ON);
-#else
-	BUSYWAIT_UNTIL(ack_status == 1, 10 * RTIMER_SECOND/1000);
-	if((ack_status))
-	{
-	//	printf("\r\nrf233 sent\r\n ");
-		ack_status=0;
-	//	printf("\nACK received");
-		return RADIO_TX_OK;
-	}
-	else
-	{
-	//	printf("\nNOACK received");		
-		return RADIO_TX_NOACK;
-	}
-	
-#endif
-
+  else {
+    //	printf("\nNOACK received");		
+    return RADIO_TX_NOACK;
+  }
+  
   PRINTF("RF233: tx ok\n");
   return RADIO_TX_OK;
 }
