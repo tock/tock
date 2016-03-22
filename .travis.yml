@@ -15,11 +15,11 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew tap px4/px4; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gcc-arm-none-eabi-49; fi
-  - mkdir -p build/apps
 
 script:
-  - make
-  - make TOCK_PLATFORM=nrf_pca10001 APPS=c_blinky
+  - cd apps/c_blinky
+  - make TOCK_PLATFORM=storm
+  - make TOCK_PLATFORM=nrf_pca10001
 
 notifications:
   webhooks:
