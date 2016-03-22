@@ -147,6 +147,77 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
     }                                         \
   } while(0)
 
+// Register operations
+
+int main() {
+	rf233_init();
+	while(1) {}
+}
+
+uint8_t trx_reg_read(uint8_t addr) {
+	uint8_t command = addr | READ_ACCESS_COMMAND;
+	spi_write_byte(command);
+	return spi_write_byte(0);
+}
+
+uint8_t trx_bit_read(uint8_t addr, uint8_t mask, uint8_t pos) {
+        uint8_t ret;
+        ret = trx_reg_read(addr);
+        ret &= mask;
+        ret >>= pos;
+        return ret;
+}
+
+void trx_reg_write(uint8_t addr, uint8_t data) {
+        uint8_t command = addr | WRITE_ACCESS_COMMAND;;
+        spi_write_byte(command);
+        spi_write_byte(data);
+        return;
+}
+
+void trx_bit_write(uint8_t reg_addr, 
+		   uint8_t mask, 
+		   uint8_t pos, 
+		   uint8_t new_value) {
+        uint8_t current_reg_value;
+        current_reg_value = trx_reg_read(reg_addr);
+        current_reg_value &= ~mask;
+        new_value <<= pos;
+        new_value &= mask;
+        new_value |= current_reg_value;
+        trx_reg_write(reg_addr, new_value);
+}
+
+void trx_sram_read(uint8_t addr, uint8_t *data, uint8_t length)  {
+        uint8_t temp;
+        temp = TRX_CMD_SR;
+        /* Send the command byte */
+        spi_write_byte(temp);
+        /* Send the command byte */
+        spi_write_byte(addr);
+
+        /* Send the address from which the read operation should start */
+        /* Upload the received byte in the user provided location */
+	for (uint8_t i = 0; i < length; i++) {
+          data[i] = spi_write_byte(0);
+	}
+}
+
+void trx_frame_read(uint8_t *data, uint8_t length)  { 
+  spi_write_byte(TRX_CMD_FR);
+  for (uint8_t i = 0; i < length; i++) {
+    data[i] = spi_write_byte(0);
+  }
+}
+
+void trx_frame_write(uint8_t *data, uint8_t length) {
+  spi_write_byte(TRX_CMD_FW);
+  for (uint8_t i = 0; i < length; i++) {
+    spi_write_byte(data[i]);
+  }
+}
+
+
 /*---------------------------------------------------------------------------*/
 /**
  * \brief      Get radio channel
@@ -836,17 +907,6 @@ int rf233_interrupt_poll(void) {
   interrupt_callback_in_progress = 0;
   return 0;
 }
-
-/*---------------------------------------------------------------------------*/
-/* 
- * Hard, brute reset of radio core and re-init due to it being in unknown,
- * unexpected, or locked state from which we cannot recover in the usual places.
- * Does a full reset and re-init.
- */
-static void radiocore_hard_recovery(void) {
-  rf233_init();
-}
-
 
 /*---------------------------------------------------------------------------*/
 /* 
