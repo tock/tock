@@ -44,7 +44,6 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
         self.alarm.set_alarm(when);
     }
 
-    #[inline(never)]
     fn repeat(&self, interval_ms: u32) {
         let interval = interval_ms * <Alrm::Frequency>::frequency() / 1000;
 
