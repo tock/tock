@@ -1,5 +1,23 @@
 //! Hardware agnostic interfaces for counter-like resources (e.g. an AST).
 
+pub trait Frequency {
+    fn frequency() -> u32;
+}
+
+pub struct Freq16Khz;
+impl Frequency for Freq16Khz {
+    fn frequency() -> u32 {
+        16000
+    }
+}
+
+pub struct Freq1Khz;
+impl Frequency for Freq1Khz {
+    fn frequency() -> u32 {
+        1000
+    }
+}
+
 /// The `Alarm` trait keeps track of a counter such as a hardware AST.
 ///
 /// Alarms represent a resource that keeps track of time in some fixed unit
@@ -7,6 +25,9 @@
 /// [`AlarmClient`](trait.AlarmClient.html) trait to signal when the counter has
 /// reached a pre-specified value set in [`set_alarm`](#tymethod.set_alarm).
 pub trait Alarm {
+
+    type Frequency : Frequency;
+
     /// Returns the current time in hardware clock units.
     fn now(&self) -> u32;
 

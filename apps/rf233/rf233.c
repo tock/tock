@@ -29,8 +29,9 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
- /**
-* Copyright (c) 2015 Atmel Corporation and 2012 – 2013, Thingsquare, http://www.thingsquare.com/. All rights reserved. 
+/**
+* Copyright (c) 2015 Atmel Corporation and
+* 2012 - 2013, Thingsquare, http://www.thingsquare.com/. All rights reserved. 
 *  
 * Redistribution and use in source and binary forms, with or without 
 * modification, are permitted provided that the following conditions are met:
@@ -42,7 +43,8 @@
 * this list of conditions and the following disclaimer in the documentation 
 * and/or other materials provided with the distribution.
 * 
-* 3. Neither the name of Atmel nor the name of Thingsquare nor the names of its contributors may be used to endorse or promote products derived 
+* 3. Neither the name of Atmel nor the name of Thingsquare nor the names of its
+* contributors may be used to endorse or promote products derived 
 * from this software without specific prior written permission.  
 * 
 * 4. This software may only be redistributed and used in connection with an 
@@ -58,9 +60,6 @@
 * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
 * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY 
 * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-* 
-* 
-* 
 */
 
 #include "firestorm.h"
@@ -83,14 +82,12 @@ static volatile int radio_is_on = 0;
 static volatile int pending_frame = 0;
 static volatile int sleep_on = 0;
 
-#define PC14 0
-#define PC15 0
-#define PC01 0
-#define PA20 0
+#define PC14 9
+#define PC15 10
+#define PA20 11
 
 #define SLP_PIN PC14
 #define RST_PIN PC15
-#define SEL_PIN PC01
 #define PORTIRQ PA20
 
 #define IEEE802154_CONF_PANID 0x66
@@ -146,6 +143,88 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
       counter--;                              \
     }                                         \
   } while(0)
+
+// Register operations
+
+int main() {
+	rf233_init();
+	while(1) {}
+}
+
+uint8_t trx_reg_read(uint8_t addr) {
+	uint8_t command = addr | READ_ACCESS_COMMAND;
+        char buf[2];
+        buf[0] = command;
+        buf[1] = 0;
+        spi_read_write_sync(buf, buf, 2);
+	return buf[1];
+}
+
+uint8_t trx_bit_read(uint8_t addr, uint8_t mask, uint8_t pos) {
+        uint8_t ret;
+        ret = trx_reg_read(addr);
+        ret &= mask;
+        ret >>= pos;
+        return ret;
+}
+
+void trx_reg_write(uint8_t addr, uint8_t data) {
+        uint8_t command = addr | WRITE_ACCESS_COMMAND;
+        char buf[2];
+        buf[0] = command;
+        buf[1] = data;
+        spi_write_sync(buf, 2);
+        return;
+}
+
+void trx_bit_write(uint8_t reg_addr, 
+		   uint8_t mask, 
+		   uint8_t pos, 
+		   uint8_t new_value) {
+        uint8_t current_reg_value;
+        current_reg_value = trx_reg_read(reg_addr);
+        current_reg_value &= ~mask;
+        new_value <<= pos;
+        new_value &= mask;
+        new_value |= current_reg_value;
+        trx_reg_write(reg_addr, new_value);
+}
+
+void trx_sram_read(uint8_t addr, uint8_t *data, uint8_t length)  {
+        uint8_t temp;
+        temp = TRX_CMD_SR;
+        spi_hold_low();
+        /* Send the command byte */
+        spi_write_byte(temp);
+        /* Send the command byte */
+        spi_write_byte(addr);
+
+        /* Send the address from which the read operation should start */
+        /* Upload the received byte in the user provided location */
+	for (uint8_t i = 0; i < length; i++) {
+          data[i] = spi_write_byte(0);
+	}
+        spi_release_low();
+}
+
+void trx_frame_read(uint8_t *data, uint8_t length)  {
+  spi_hold_low();
+  spi_write_byte(TRX_CMD_FR);
+  for (uint8_t i = 0; i < length; i++) {
+    data[i] = spi_write_byte(0);
+  }
+  spi_release_low();
+}
+
+void trx_frame_write(uint8_t *data, uint8_t length) {
+  spi_hold_low();
+  spi_write_byte(TRX_CMD_FW);
+  for (uint8_t i = 0; i < length; i++) {
+    spi_write_byte(data[i]);
+  }
+  spi_release_low();
+}
+
 
 /*---------------------------------------------------------------------------*/
 /**
@@ -205,6 +284,12 @@ int rf233_set_txp(uint8_t txp) {
   trx_reg_write(RF233_REG_PHY_TX_PWR_CONF, txp);
   return 0;
 }
+
+
+CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
+  return 0;
+}
+
 /*---------------------------------------------------------------------------*/
 /**
  * \brief      Init the radio
@@ -247,9 +332,9 @@ int rf233_init(void) {
   /* Assign regtemp to regtemp to avoid compiler warnings */
   regtemp = regtemp;
   // Set up interrupts
-  //trx_irq_init(rf233_interrupt_poll);
-  // ENABLE_TRX_IRQ();  
-  //system_interrupt_enable_global();
+  gpio_interrupt_callback(interrupt_callback, NULL);
+  gpio_enable_interrupt(RADIO_IRQ, RisingEdge, PullNone);
+
   /* Configure the radio using the default values except these. */
   trx_reg_write(RF233_REG_TRX_CTRL_1,      RF233_REG_TRX_CTRL_1_CONF);
   trx_reg_write(RF233_REG_PHY_CC_CCA,      RF233_REG_PHY_CC_CCA_CONF);
@@ -477,10 +562,10 @@ int
 rf233_read(void *buf, unsigned short bufsize)
 {
 //  uint8_t radio_state;
-  uint8_t ed;       /* frame metadata */
+  //uint8_t ed;       /* frame metadata */
   uint8_t frame_len = 0;
   uint8_t len = 0;
-  int rssi;
+  //int rssi;
 #if DEBUG_PRINTDATA
   uint8_t tempreadlen;
 #endif  /* DEBUG_PRINTDATA */
@@ -489,24 +574,6 @@ rf233_read(void *buf, unsigned short bufsize)
     return 0;
   }
   pending_frame = 0;
-
- /* / * check that data in FIFO is valid * /
-  radio_state = RF233_STATUS();
-  if(radio_state == STATE_BUSY_TX) {
-    / * data is invalid, bail out * /
-    PRINTF("RF233: read while in BUSY_TX ie invalid, dropping.\n");
-    return -1;
-  }
-  if(radio_state == STATE_BUSY_RX) {
-    / * still receiving - data is invalid, wait for it to finish * /
-    PRINTF("RF233: read while BUSY_RX, waiting.\n");
-    BUSYWAIT_UNTIL(RF233_STATUS() != STATE_BUSY_RX, 10 * RTIMER_SECOND/1000);
-	if(RF233_STATUS() == STATE_BUSY_RX) {
-      PRINTF("RF233: timed out, still BUSY_RX, dropping.\n");
-      return -2;
-    }
-  }
-*/
 
   /* get length of data in FIFO */
   trx_frame_read(&frame_len, 1);
@@ -554,8 +621,8 @@ rf233_read(void *buf, unsigned short bufsize)
    * Ergo, real RSSI is (ed-91) dBm or less.
    */
   #define RSSI_OFFSET       (91)
-  ed = trx_reg_read(RF233_REG_PHY_ED_LEVEL);
-  rssi = (int) ed - RSSI_OFFSET;
+  //ed = trx_reg_read(RF233_REG_PHY_ED_LEVEL);
+  //rssi = (int) ed - RSSI_OFFSET;
   //packetbuf_set_attr(PACKETBUF_ATTR_RSSI, rssi);
   flush_buffer();
 
@@ -836,17 +903,6 @@ int rf233_interrupt_poll(void) {
   interrupt_callback_in_progress = 0;
   return 0;
 }
-
-/*---------------------------------------------------------------------------*/
-/* 
- * Hard, brute reset of radio core and re-init due to it being in unknown,
- * unexpected, or locked state from which we cannot recover in the usual places.
- * Does a full reset and re-init.
- */
-static void radiocore_hard_recovery(void) {
-  rf233_init();
-}
-
 
 /*---------------------------------------------------------------------------*/
 /* 

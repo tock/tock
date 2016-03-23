@@ -171,6 +171,11 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
      * 9: get clock polarity on current peripheral
      *   - 0 is idle low
      *   - non-zero is idle high
+     * 10: hold CS line low between transfers
+     *   - set CSAAT bit of control register
+     * 11: release CS line (high) between transfers
+     *   - clear CSAAT bit of control register
+     *
      * x: lock spi
      *   - if you perform an operation without the lock,
      *     it implicitly acquires the lock before the
@@ -247,6 +252,14 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
             }
             9 /* get polarity */ => {
                 self.spi_master.get_clock() as isize
+            }
+            10 /* hold low */ => {
+                self.spi_master.hold_low();
+                0
+            }
+            11 /* release low */ => {
+                self.spi_master.release_low();
+                0
             }
             _ => -1
         }

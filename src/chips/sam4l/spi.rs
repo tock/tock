@@ -90,8 +90,8 @@ impl Spi {
 
     pub fn enable(&self) {
         unsafe { pm::enable_clock(pm::Clock::PBA(pm::PBAClock::SPI));}
-        self.dma_read.as_ref().map(|read| read.enable());
-        self.dma_write.as_ref().map(|write| write.enable());
+        //self.dma_read.as_ref().map(|read| read.enable());
+        //self.dma_write.as_ref().map(|write| write.enable());
         unsafe { volatile_store(&mut (*self.regs).cr, 0b1); }
     }
 
@@ -287,13 +287,14 @@ impl spi_master::SpiMaster for Spi {
                         write_buffer:  Option<&'static mut [u8]>,
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize) -> bool {
+        self.enable();
         let writing = write_buffer.is_some();
         let reading = read_buffer.is_some();
         // If there is no write buffer, or busy, then don't start.
         // Need to check self.reading as well as self.writing in case
         // write interrupt comes back first.
         if !writing  || self.reading.get() || self.writing.get() {
-            //return false
+            panic!("Busy {} {} {}", writing, self.reading.get(), self.writing.get());
         }
 
         // Need to mark if reading or writing so we correctly
@@ -315,18 +316,17 @@ impl spi_master::SpiMaster for Spi {
         self.dma_length.set(count);
         // The ordering of these operations matters; if you enable then
         // perform the operation, you can read a byte early on the SPI data register
+        self.dma_write.as_ref().map(|write| {
+            write.enable();
+            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer.unwrap(), count)
+        });
         if reading {
             self.dma_read.as_ref().map(|read| {
-                // We know from the check above that `reading` is only true if
-                // `read_buffer` is `Some`, so `unwrap` is safe here.
+                read.enable();
                 read.do_xfer(DMAPeripheral::SPI_RX, read_buffer.unwrap(), count)
             });
         }
-        self.dma_write.as_ref().map(|write| write.do_xfer(DMAPeripheral::SPI_TX, write_buffer.unwrap(), count));
-        if reading {
-            self.dma_read.as_ref().map(|read| read.enable());
-        }
-        self.dma_write.as_ref().map(|write| write.enable());
+
         true
     }
 
@@ -372,6 +372,18 @@ impl spi_master::SpiMaster for Spi {
             0 => ClockPhase::SampleTrailing,
             _ => ClockPhase::SampleLeading,
         }
+    }
+
+    fn hold_low(&self) {
+        let mut csr = self.read_active_csr();
+        csr |= 1 << 2;
+        self.write_active_csr(csr);
+    }
+
+    fn release_low(&self) {
+        let mut csr = self.read_active_csr();
+        csr &= 0xFFFFFFFB;
+        self.write_active_csr(csr);
     }
 
     fn set_chip_select(&self, cs: u8) -> bool{
@@ -423,10 +435,13 @@ impl DMAClient for Spi {
         // causes subsequent operations to fail. The call to read_write_bytes
         // calls enable(), so I don't know why. -pal
         if pid == 4  { // SPI RX
-           // self.dma_read.as_ref().map(|dma| dma.disable());
             self.reading.set(false);
             let buf = match self.dma_read.as_mut() {
-                Some(dma) => dma.abort_xfer(),
+                Some(dma) => {
+                    let buf = dma.abort_xfer();
+                    dma.disable();
+                    buf
+                },
                 None => None
             };
             self.read_buffer = buf;
@@ -440,10 +455,13 @@ impl DMAClient for Spi {
             }
         }
         else if pid == 22 { // SPI TX
-           // self.dma_write.as_ref().map(|dma| dma.disable());
             self.writing.set(false);
             let buf = match self.dma_write.as_mut() {
-                Some(dma) => dma.abort_xfer(),
+                Some(dma) => {
+                    let buf = dma.abort_xfer();
+                    dma.disable();
+                    buf
+                },
                 None => None
             };
             self.write_buffer = buf;

@@ -89,5 +89,17 @@ pub trait SpiMaster {
     fn get_clock(&self) -> ClockPolarity;
     fn set_phase(&self, phase: ClockPhase);
     fn get_phase(&self) -> ClockPhase;
+
+    // These two functions determine what happens to the chip
+    // select line between transfers. If hold_low() is called,
+    // then the chip select line is held low after transfers
+    // complete. If release_low() is called, then the chip select
+    // line is brought high after a transfer completes. A "transfer"
+    // is any of the read/read_write calls. These functions
+    // allow an application to manually control when the 
+    // CS line is high or low, such that it can issue multi-byte
+    // requests with single byte oprations.
+    fn hold_low(&self);
+    fn release_low(&self);
 }
 

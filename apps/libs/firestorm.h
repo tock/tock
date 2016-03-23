@@ -17,10 +17,11 @@ enum firestorm_cb_type {
   PUTSTR,
   READTMP,
   ASYNC,
-  SPIBUF,
   GPIO,
   READLIGHT,
   DELAY,
+  SPI,
+  RADIO
 };
 
 void putstr(const char* str);
@@ -76,9 +77,14 @@ int spi_set_phase(bool phase);
 int spi_get_phase();
 int spi_set_polarity(bool pol);
 int spi_get_polarity();
+int spi_hold_low();
+int spi_release_low();
 int spi_write_byte(unsigned char byte);
-int spi_write(const char* write, size_t  len, subscribe_cb cb);
-int spi_read_write(const char* write, char* read, size_t  len, subscribe_cb cb);
+int spi_write(const char* write, size_t len, subscribe_cb cb);
+int spi_read_write(const char* write, char* read, size_t len, subscribe_cb cb);
+
+int spi_write_sync(const char* write, size_t len);
+int spi_read_write_sync(const char* write, char* read, size_t len);
 
 // Output pins on Firestorm
 // From https://github.com/SoftwareDefinedBuildings/storm/blob/master/docs/_posts/2014-10-02-pins.md
@@ -93,6 +99,9 @@ enum GPIO_Pin_enum{
   PA19,
   PA13,
   PA17,
+  PC14,
+  PC15,
+  PA20,
 };
 #define LED_0     PC10
 #define P2        PA16
@@ -102,6 +111,9 @@ enum GPIO_Pin_enum{
 #define P7        PA19
 #define P8        PA13
 #define STORM_INT PA17
+#define RADIO_SLP PC14
+#define RADIO_RST PC15
+#define RADIO_IRQ PA20
 
 // Give the BLE Serialization / UART layer a callback to call when
 // a packet is received and when a TX is finished.
