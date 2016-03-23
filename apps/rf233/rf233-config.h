@@ -34,14 +34,7 @@
 #define _RF233_CONFIG_H_
 /*---------------------------------------------------------------------------*/
 /* Set radio channel, default channel 26 as it is not overlapping with Wi-Fi */
-#ifdef RF_CHANNEL
-#if RF_CHANNEL < 11 || RF_CHANNEL > 26
-#error RF_CHANNEL must be between 11 and 26.
-#endif
-#define PHY_CC_CCA_CONF      (RF_CHANNEL | PHY_CC_CCA_MODE_CS_OR_ED)
-#else   /* RF_CHANNEL */
 #define PHY_CC_CCA_CONF      (26 | PHY_CC_CCA_MODE_CS_OR_ED)
-#endif  /* RF_CHANNEL */
 /*---------------------------------------------------------------------------*/
 /* 
  * Define whether to use hardware (RF233) CRC/FCS check. If >0, the radio FCS is
@@ -50,20 +43,11 @@
  * used if the radio is used with non-802.15.4-2006 frames, or if the FCS check
  * is performed in layers above this.
  */
-#define USE_HW_FCS_CHECK                  1
 /*---------------------------------------------------------------------------*/
-// #define RF233_REG_TRX_CTRL_0_CONF      ()
-#if USE_HW_FCS_CHECK
 #define RF233_REG_TRX_CTRL_1_CONF      (TRX_CTRL_1_DIG34_RXTX_INDICATOR | TRX_CTRL_1_SPI_CMD_TRX_STATUS | TRX_CTRL_1_AUTO_CRC)
-#else   /* USE_HW_FCS_CHECK */
-#define RF233_REG_TRX_CTRL_1_CONF      (TRX_CTRL_1_DIG34_RXTX_INDICATOR | TRX_CTRL_1_SPI_CMD_TRX_STATUS)
-#endif  /* USE_HW_FCS_CHECK */
-
 #define RF233_REG_PHY_TX_PWR_CONF      (TXP_0)
 #define RF233_REG_PHY_CC_CCA_CONF      (PHY_CC_CCA_CONF)  /* see above */
-// #define RF233_REG_SFD_VALUE_CONF       ()
 #define RF233_REG_TRX_CTRL_2_CONF      (TRX_CTRL_2_RX_SAFE_MODE | DATA_RATE_250)  /* disallow overwriting rxfifo until prev has been read */
-// #define RF233_REG_ANT_DIV_CONF         ()
 #define RF233_REG_IRQ_MASK_CONF        (IRQ_TRXBUF_ACCESS_VIOLATION | IRQ_TRX_DONE) // 
 
 #endif  /* _RF233_CONFIG_H_ */
