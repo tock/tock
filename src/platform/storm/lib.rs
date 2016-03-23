@@ -325,10 +325,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
                       drivers::spi::Spi::new(&mut sam4l::spi::SPI));
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
-    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
+    sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral3);
     sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
-    sam4l::spi::SPI.enable();
-
 
     // set GPIO driver controlling remaining GPIO pins
     static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 12] = [
