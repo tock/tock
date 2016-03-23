@@ -132,7 +132,7 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
 #if _DEBUG_
 #define PRINTF(...)       printf(__VA_ARGS__)
 #else
-#define PRINTF(...)
+#define PRINTF(...)       printf(__VA_ARGS__)
 #endif
 
 #define BUSYWAIT_UNTIL(cond, max_time)        \
@@ -148,7 +148,7 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
 
 int main() {
 	rf233_init();
-	while(1) {}
+	//while(1) {}
 }
 
 uint8_t trx_reg_read(uint8_t addr) {
@@ -305,7 +305,7 @@ int rf233_init(void) {
 
   spi_init();
   // RF233 expects line low for CS, this is default SAM4L behavior
-  spi_set_chip_select(3);
+  //spi_set_chip_select(3);
   // POL = 0 means idle is low
   spi_set_polarity(0);
   // PHASE = 0 means sample leading edge
@@ -606,7 +606,7 @@ rf233_read(void *buf, unsigned short bufsize)
 
   {
     int k;
-    PRINTF("RF233: Read frame (%u/%u): ", tempreadlen, frame_len);
+    //PRINTF("RF233: Read frame (%u/%u): ", tempreadlen, frame_len);
     for(k = 0; k < frame_len; k++) {
       PRINTF("%02x", *((uint8_t *)buf + k));
     }
