@@ -114,7 +114,10 @@ int spi_write_sync(const char* write,
 int spi_read_write_sync(const char* write,
 		        char* read,
 		        size_t  len) {
-  spi_read_write(write, read, len, spi_cb);
+  int err = spi_read_write(write, read, len, spi_cb);
+  if (err < 0) {
+    return err;
+  }
   wait_for(SPI);
   return 0;
 }
