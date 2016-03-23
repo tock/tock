@@ -1,6 +1,6 @@
 use core::cell::Cell;
 use hil::{Callback, Driver, NUM_PROCS};
-use hil::alarm::{Alarm, AlarmClient};
+use hil::alarm::{Alarm, AlarmClient, Frequency};
 use hil::timer::{Timer, TimerClient};
 
 #[derive(Copy, Clone)]
@@ -35,7 +35,7 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
     }
 
     fn oneshot(&self, interval_ms: u32) {
-        let interval = interval_ms * 16;
+        let interval = interval_ms * <Alrm::Frequency>::frequency() / 1000;
 
         self.schedule.set(Schedule::Oneshot);
 
@@ -43,8 +43,9 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
         self.alarm.set_alarm(when);
     }
 
+    #[inline(never)]
     fn repeat(&self, interval_ms: u32) {
-        let interval = interval_ms * 16;
+        let interval = interval_ms * <Alrm::Frequency>::frequency() / 2;
 
         self.schedule.set(Schedule::Repeating {interval: interval});
 

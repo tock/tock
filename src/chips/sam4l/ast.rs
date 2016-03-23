@@ -8,7 +8,7 @@
 use core::cell::Cell;
 use core::intrinsics;
 use nvic;
-use hil::alarm::{Alarm, AlarmClient};
+use hil::alarm::{Alarm, AlarmClient, Freq1Khz};
 use hil::Controller;
 use chip;
 use pm::{self, PBDClock};
@@ -64,7 +64,7 @@ impl Controller for Ast {
             pm::enable_clock(pm::Clock::PBD(PBDClock::AST));
         }
         self.select_clock(Clock::ClockOsc32);
-        self.set_prescalar(0);
+        self.set_prescalar(4); // 32Khz / (2^(4 + 1)) = 1Khz
         self.enable_alarm_wake();
         self.clear_alarm();
 
@@ -236,6 +236,9 @@ impl Ast {
 }
 
 impl Alarm for Ast {
+
+    type Frequency = Freq1Khz;
+
     fn now(&self) -> u32 {
         unsafe {
             intrinsics::volatile_load(&(*self.regs).cv)
