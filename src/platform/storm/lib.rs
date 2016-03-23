@@ -83,24 +83,29 @@ unsafe fn set_pin_primary_functions() {
     use sam4l::gpio::{PA, PB, PC};
     use sam4l::gpio::PeripheralFunction::{A, B, C, D, E};
 
+    // Configuring pins for RF233
+    // SPI
+    PC[03].configure(Some(A)); // SPI NPCS0
+    PC[02].configure(Some(A)); // SPI NPCS1
+    PC[00].configure(Some(A)); // SPI NPCS2
+    PC[01].configure(Some(A)); // SPI NPCS3 (RF233)
+    PC[06].configure(Some(A)); // SPI CLK
+    PC[04].configure(Some(A)); // SPI MISO
+    PC[05].configure(Some(A)); // SPI MOSI
+    // GIRQ line of RF233
+    PA[20].enable();
+    PA[20].disable_output();
+    PA[20].disable_interrupt();
+    // PA00 is RCLK
+    // PC14 is RSLP
+    // PC15 is RRST
+    PC[14].enable();
+    PC[14].disable_output();
+    PC[15].enable();
+    PC[15].disable_output();
+
     // Right column: Firestorm pin name
     // Left  column: SAM4L peripheral function
-
-    // SPI CS2  --  SPI NPCS1
-    PC[02].configure(Some(A));
-
-    // SPI CS1  --  SPI NPCS2
-    PC[00].configure(Some(A));
-
-    // SPI CLK  --  SPI SCK
-    PC[06].configure(Some(A));
-
-    // SPI MISO --  SPI MISO
-    PC[04].configure(Some(A));
-
-    // SPI MOSI --  SPI MOSI
-    PC[05].configure(Some(A));
-
     // LI_INT   --  EIC EXTINT2
     PA[04].configure(Some(C));
 
@@ -326,7 +331,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
 
     // set GPIO driver controlling remaining GPIO pins
-    static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 9] = [
+    static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 12] = [
             &sam4l::gpio::PC[10], // LED_0
             &sam4l::gpio::PA[16], // P2
             &sam4l::gpio::PA[12], // P3
@@ -336,6 +341,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
             &sam4l::gpio::PA[19], // P7
             &sam4l::gpio::PA[13], // P8
             &sam4l::gpio::PA[17], // STORM_INT (nRF51822)
+            &sam4l::gpio::PC[14], // RSLP (RF233 sleep line)
+            &sam4l::gpio::PC[15], // RRST (RF233 reset line)
+            &sam4l::gpio::PA[20], // RIRQ (RF233 interrupt)
             ]);
     static_init!(gpio : drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(gpio_pins));

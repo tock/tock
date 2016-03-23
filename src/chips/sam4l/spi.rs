@@ -374,6 +374,18 @@ impl spi_master::SpiMaster for Spi {
         }
     }
 
+    fn hold_low(&self) {
+        let mut csr = self.read_active_csr();
+        csr |= 1 << 2;
+        self.write_active_csr(csr);
+    }
+
+    fn release_low(&self) {
+        let mut csr = self.read_active_csr();
+        csr &= 0xFFFFFFFB;
+        self.write_active_csr(csr);
+    }
+
     fn set_chip_select(&self, cs: u8) -> bool{
         if cs >= 4 {
             return false
