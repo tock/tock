@@ -45,7 +45,7 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
 
     #[inline(never)]
     fn repeat(&self, interval_ms: u32) {
-        let interval = interval_ms * <Alrm::Frequency>::frequency() / 2;
+        let interval = interval_ms * <Alrm::Frequency>::frequency() / 1000;
 
         self.schedule.set(Schedule::Repeating {interval: interval});
 
