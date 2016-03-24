@@ -14,6 +14,7 @@
 
 #include <firestorm.h>
 #include <tmp006.h>
+#include <isl29035.h>
 
 #include "nrf.h"
 
@@ -58,8 +59,12 @@ static simple_ble_service_t sensor_service = {
 };
 
 // characteristic to display temperature values
-static simple_ble_char_t temp_sensor_char = {.uuid16 = 0xf803};
+static simple_ble_char_t temperature_char = {.uuid16 = 0xf803};
 static int16_t temp_reading = 0xFFFF;
+
+// Light intensity characteristic
+static simple_ble_char_t light_intensity_char = {.uuid16 = 0xf804};
+static uint32_t light_intensity = 0;
 
 void ble_evt_user_handler (ble_evt_t* p_ble_evt) {
     ble_gap_conn_params_t conn_params;
@@ -79,11 +84,13 @@ void ble_evt_user_handler (ble_evt_t* p_ble_evt) {
 
 void ble_evt_connected(ble_evt_t* p_ble_evt) {
     UNUSED_PARAMETER(p_ble_evt);
+    timer_start_repeating(5000);
     printf("Connected to central\n");
 }
 
 void ble_evt_disconnected(ble_evt_t* p_ble_evt) {
     UNUSED_PARAMETER(p_ble_evt);
+    timer_stop();
     printf("Disconnected from central\n");
 }
 
@@ -98,7 +105,12 @@ void services_init (void) {
     // add characteristic for temperature
     simple_ble_add_stack_characteristic(1, 0, 1, 0, // read, write, notify, vlen
                 2, (uint8_t*)&temp_reading,
-                &sensor_service, &temp_sensor_char);
+                &sensor_service, &temperature_char);
+
+    // add light intensity service
+    simple_ble_add_stack_characteristic(1, 0, 1, 0, // read, write, notify, vlen
+                4, (uint8_t*)&light_intensity,
+                &sensor_service, &light_intensity_char);
 }
 
 /*******************************************************************************
@@ -114,8 +126,8 @@ static CB_TYPE temp_callback (int temp_value, int error_code, int unused, void* 
     temp_reading = (int16_t)temp_value;
     printf("Temp reading = %d\n", (int)temp_reading);
 
-    simple_ble_stack_char_set(&temp_sensor_char, 2, (uint8_t*)&temp_reading);
-    simple_ble_notify_char(&temp_sensor_char);
+    simple_ble_stack_char_set(&temperature_char, 2, (uint8_t*)&temp_reading);
+    simple_ble_notify_char(&temperature_char);
 
     // Update manufacturer specific data with new temp reading
     mdata[2] = temp_reading & 0xff;
@@ -123,6 +135,22 @@ static CB_TYPE temp_callback (int temp_value, int error_code, int unused, void* 
 
     // And update advertising data
     eddystone_with_manuf_adv(eddystone_url, &mandata);
+    return ASYNC;
+}
+
+static CB_TYPE timer_fired(int interval, int unused1, int unused2, void* ud) {
+    UNUSED_PARAMETER(interval);
+    UNUSED_PARAMETER(unused1);
+    UNUSED_PARAMETER(unused2);
+    UNUSED_PARAMETER(ud);
+
+    light_intensity = isl29035_read_light_intensity();
+    printf("Light (lux) reading = %d\n", (int)light_intensity);
+
+    simple_ble_stack_char_set(&light_intensity_char, 4,
+        (uint8_t*)&light_intensity);
+    simple_ble_notify_char(&light_intensity_char);
+
     return ASYNC;
 }
 
@@ -138,5 +166,7 @@ int main () {
 
     // Setup reading from the temperature sensor
     tmp006_start_sampling(0x2, temp_callback, NULL);
+
+    timer_subscribe(timer_fired, NULL);
 }
 
