@@ -41,6 +41,10 @@ int timer_start_repeating(uint32_t interval) {
   return command(3, 1, (int)interval);
 }
 
+int timer_stop() {
+  return command(3, 2, 0);
+}
+
 CB_TYPE delay_cb() {
   return DELAY;
 }

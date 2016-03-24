@@ -53,6 +53,8 @@ int timer_start_repeating(uint32_t interval_ms);
  */
 int timer_oneshot(uint32_t interval_ms);
 
+int timer_stop();
+
 /*
  * Blocks for the given amount of time in millisecond.
  *

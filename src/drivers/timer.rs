@@ -52,6 +52,10 @@ impl<'a, Alrm: Alarm> Timer for AlarmToTimer<'a, Alrm> {
         let when = interval.wrapping_add(self.alarm.now());
         self.alarm.set_alarm(when);
     }
+
+    fn stop(&self) {
+        self.alarm.disable_alarm();
+    }
 }
 
 impl<'a, Alrm: Alarm> AlarmClient for AlarmToTimer<'a, Alrm> {
@@ -131,6 +135,14 @@ impl<'a, T: Timer> Driver for TimerDriver<'a, T> {
                     );
                     self.timer.repeat(interval);
                     0
+                },
+                2 /* Stop */ => {
+                    if self.app_timers[0].get().is_some() {
+                        self.timer.stop();
+                        0
+                    } else {
+                        -1
+                    }
                 },
                 _ => -1
             }
