@@ -42,8 +42,6 @@ int wait_for(CB_TYPE cb_type) {
     if (result == cb_type) {
       if (prev == NULL) {
         wait_queue_head = cur->next;
-      } else {
-        prev = cur->next;
       }
       if (cur->next == NULL) {
         wait_queue_tail = wait_queue_head;
