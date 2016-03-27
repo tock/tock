@@ -146,9 +146,9 @@ impl Spi {
 
     pub fn set_active_peripheral(&self, peripheral: Peripheral) {
         let peripheral_number: u32 = match peripheral {
-            Peripheral::Peripheral0 => 0b0000,
-            Peripheral::Peripheral1 => 0b0001,
-            Peripheral::Peripheral2 => 0b0011,
+            Peripheral::Peripheral0 => 0b1110,
+            Peripheral::Peripheral1 => 0b1101,
+            Peripheral::Peripheral2 => 0b1011,
             Peripheral::Peripheral3 => 0b0111
         };
         let mut mr = unsafe { volatile_load(& (*self.regs).mr) };
@@ -164,11 +164,11 @@ impl Spi {
         let pcs = (mr >> 16) & 0xF;
         // Split into bits for matching
         let pcs_bits = ((pcs >> 3) & 1, (pcs >> 2) & 1, (pcs >> 1) & 1, pcs & 1);
-        match pcs_bits {
-            (_, _, _, 0) => Peripheral::Peripheral0,
-            (_, _, 0, 1) => Peripheral::Peripheral1,
-            (_, 0, 1, 1) => Peripheral::Peripheral2,
-            (0, 1, 1, 1) => Peripheral::Peripheral3,
+        match pcs {
+            0b1110 => Peripheral::Peripheral0,
+            0b1101 => Peripheral::Peripheral1,
+            0b1011 => Peripheral::Peripheral2,
+            0b0111 => Peripheral::Peripheral3,
             _ => {
                 // Invalid configuration
                 // ???
@@ -220,16 +220,6 @@ impl spi_master::SpiMaster for Spi {
         self.enable_clock();
 
         self.callback = Some(callback);
-        self.set_rate(40000); // Set initial baud rate to 8MHz
-        self.set_clock(ClockPolarity::IdleLow);
-        self.set_phase(ClockPhase::SampleLeading);
-
-        // Keep slave select active until a last transfer bit is set
-        let mut csr = self.read_active_csr();
-        csr |= 1 << 3;
-        self.write_active_csr(csr);
-
-        // Indicate the last transfer to disable slave select
         unsafe {volatile_store(&mut (*self.regs).cr, 1 << 24)};
 
         let mut mode = unsafe {volatile_load(&(*self.regs).mr)};
@@ -376,34 +366,25 @@ impl spi_master::SpiMaster for Spi {
 
     fn hold_low(&self) {
         let mut csr = self.read_active_csr();
-        csr |= 1 << 2;
+        csr |= 1 << 3;
         self.write_active_csr(csr);
     }
 
     fn release_low(&self) {
         let mut csr = self.read_active_csr();
-        csr &= 0xFFFFFFFB;
+        csr &= 0xFFFFFFF7;
         self.write_active_csr(csr);
     }
 
     fn set_chip_select(&self, cs: u8) -> bool{
-        if cs >= 4 {
-            return false
-        }
-        let peripheral_number: u32 = match cs {
-            0 => 0b0000,
-            1 => 0b0001,
-            2 => 0b0011,
-            3 => 0b0111,
-            _ => 0b0000,
+        let peripheral_number = match cs {
+            0 => Peripheral::Peripheral0,
+            1 => Peripheral::Peripheral1,
+            2 => Peripheral::Peripheral2,
+            3 => Peripheral::Peripheral3,
+            _ => return false
         };
-
-        let mut mr = unsafe {volatile_load(&(*self.regs).mr)};
-        // Clear and set MR.PCS
-        let pcs_mask: u32 = 0xFFF0FFFF;
-        mr &= pcs_mask;
-        mr |= peripheral_number << 16;
-        unsafe {volatile_store(&mut (*self.regs).mr, mr);}
+        self.set_active_peripheral(peripheral_number);
         true
     }
 

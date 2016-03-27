@@ -90,7 +90,7 @@ static volatile int sleep_on = 0;
 #define RST_PIN PC15
 #define PORTIRQ PA20
 
-#define IEEE802154_CONF_PANID 0x66
+#define IEEE802154_CONF_PANID 0x6666
 
 enum {
   RADIO_TX_OK        = 0,
@@ -148,7 +148,9 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
 // Register operations
 
 int main() {
-	rf233_init();
+  char buf[8] = {0x02, 0x25, 0x19, 0x77, 0xde, 0xad, 0xbe, 0xef};
+  rf233_init();
+  rf233_send(buf, 8);
 	//while(1) {}
 }
 
@@ -341,11 +343,13 @@ int rf233_init(void) {
   // RF233 expects line low for CS, this is default SAM4L behavior
   //spi_set_chip_select(3);
   // POL = 0 means idle is low
+  spi_set_chip_select(3);
   spi_set_polarity(0);
   // PHASE = 0 means sample leading edge
   spi_set_phase(0);
+  spi_set_rate(400000);
 
-  /* reset will put us into TRX_OFF state */
+    /* reset will put us into TRX_OFF state */
   /* reset the radio core */
   gpio_enable_output(RST_PIN);
   gpio_enable_output(SLP_PIN);
@@ -353,6 +357,13 @@ int rf233_init(void) {
   delay_ms(1);
   gpio_set(RST_PIN);
   gpio_clear(SLP_PIN); /* be awake from sleep*/
+
+  
+  /* Read the PART_NUM register to verify that the radio is
+   * working/responding. Could check in software, I just look at
+   * the bus. If this is working, the first write should be 0x9C x00
+   * and the return bytes should be 0x00 0x0B. - pal*/
+  regtemp = trx_reg_read(RF233_REG_PART_NUM);
 
   /* before enabling interrupts, make sure we have cleared IRQ status */
   regtemp = trx_reg_read(RF233_REG_IRQ_STATUS);
@@ -381,13 +392,18 @@ int rf233_init(void) {
 
   {
     uint8_t addr[8];
-    for (int i = 0; i < 8; i++) {
-      addr[i] = 0x88;
-    }
+    addr[0] = 0xde;
+    addr[1] = 0xad;
+    addr[2] = 0xbe;
+    addr[3] = 0xef;
+    addr[4] = 0xfa;
+    addr[5] = 0xce;
+    addr[6] = 0xb0;
+    addr[7] = 0x0c;
     SetPanId(IEEE802154_CONF_PANID);
     
     SetIEEEAddr(addr);
-    SetShortAddr(0x8888);
+    SetShortAddr(0xdead);
   }
   rf_generate_random_seed();
   
@@ -480,9 +496,9 @@ int rf233_transmit() {
     // return RADIO_TX_COLLISION;
   }
   if (status_now != STATE_PLL_ON) {
-    trx_reg_write(RF233_REG_TRX_STATE,0x09);
+    trx_reg_write(RF233_REG_TRX_STATE, STATE_PLL_ON);
     do {
-      status_now = trx_bit_read(0x01, 0x1F, 0);
+      status_now = trx_bit_read(RF233_REG_TRX_STATUS, 0x1F, 0);
     } while (status_now == 0x1f);
   }
   
@@ -525,9 +541,7 @@ int rf233_transmit() {
  * \param payload_len     length of data to copy
  * \return     Returns success/fail, refer to radio.h for explanation
  */
-int
-rf233_send(const void *payload, unsigned short payload_len)
-{
+int rf233_send(const void *payload, unsigned short payload_len) {
   PRINTF("RF233: send %u\n", payload_len);
   if (rf233_prepare(payload, payload_len) != RADIO_TX_OK) {
     return RADIO_TX_ERR;
