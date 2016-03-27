@@ -41,6 +41,10 @@ int timer_start_repeating(uint32_t interval) {
   return command(3, 1, (int)interval);
 }
 
+int timer_stop() {
+  return command(3, 2, 0);
+}
+
 CB_TYPE delay_cb() {
   return DELAY;
 }
@@ -114,7 +118,10 @@ int spi_write_sync(const char* write,
 int spi_read_write_sync(const char* write,
 		        char* read,
 		        size_t  len) {
-  spi_read_write(write, read, len, spi_cb);
+  int err = spi_read_write(write, read, len, spi_cb);
+  if (err < 0) {
+    return err;
+  }
   wait_for(SPI);
   return 0;
 }

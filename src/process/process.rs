@@ -1,12 +1,14 @@
 use core::intrinsics::{breakpoint, volatile_load, volatile_store};
 use core::mem;
-use core::raw;
+use core::raw::{Repr,Slice};
 
 use common::{RingBuffer, Queue};
 
+use container;
+
 #[allow(improper_ctypes)]
 extern {
-    pub fn switch_to_user(user_stack: *mut u8, mem_base: *mut u8) -> *mut u8;
+    pub fn switch_to_user(user_stack: *const u8, mem_base: *const u8) -> *mut u8;
 }
 
 /// Size of each processes's memory region in bytes
@@ -34,6 +36,13 @@ pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
             p.callbacks.enqueue(callback)
         }
     }
+}
+
+#[derive(Copy,Clone,PartialEq,Eq)]
+pub enum Error {
+    NoSuchApp,
+    OutOfMemory,
+    AddressOutOfBounds
 }
 
 #[derive(Copy,Clone,PartialEq,Eq)]
@@ -66,12 +75,16 @@ struct LoadInfo {
 
 pub struct Process<'a> {
     /// The process's memory.
-    memory: &'a mut [u8],
+    memory: Slice<u8>,
 
-    exposed_memory_start: *mut u8,
+    app_memory_break: *const u8,
+    kernel_memory_break: *const u8,
+
+    /// Process text segment
+    text: Slice<u8>,
 
     /// The offset in `memory` to use for the process stack.
-    cur_stack: *mut u8,
+    cur_stack: *const u8,
 
     wait_pc: usize,
     psr: usize,
@@ -82,149 +95,147 @@ pub struct Process<'a> {
 }
 
 impl<'a> Process<'a> {
+    pub const fn mem_start(&self) -> *const u8 {
+        self.memory.data
+    }
+
+    pub fn mem_end(&self) -> *const u8 {
+        unsafe {
+            self.memory.data.offset(self.memory.len as isize)
+        }
+    }
+
     pub unsafe fn create(start_addr: *const usize) -> Option<Process<'a>> {
         let cur_idx = FREE_MEMORY_IDX;
         if cur_idx <= MEMORIES.len() {
             FREE_MEMORY_IDX += 1;
-            let memory = &mut MEMORIES[cur_idx];
+            let memory = MEMORIES[cur_idx].repr();
 
-            let stack_bottom = &mut memory[PROC_MEMORY_SIZE - 4] as *mut u8;
+            let mut kernel_memory_break = {
+                // make room for container pointers
+                let psz = mem::size_of::<*const usize>();
+                let num_ctrs = volatile_load(&container::CONTAINER_COUNTER);
+                let container_ptrs_size = num_ctrs * psz;
+                let res = memory.data.offset((memory.len - container_ptrs_size) as isize);
+                // set all ptrs to null
+                let opts : &mut [*const usize] = mem::transmute(Slice {
+                    data: res as *mut *const usize,
+                    len: num_ctrs
+                });
+                for opt in opts.iter_mut() {
+                    *opt = ::core::ptr::null()
+                }
+                res
+            };
 
             // Take callback buffer from bottom of process memory
+            let callback_size = mem::size_of::<Option<Callback>>();
             let callback_len = 10;
-            let callback_buf = mem::transmute(raw::Slice {
-                data: &mut memory[0] as *mut u8 as *mut Option<Callback>,
+            let callback_offset = memory.len - (callback_len * callback_size);
+            // Set kernel break to beginning of callback buffer
+            kernel_memory_break =
+                kernel_memory_break.offset(callback_offset as isize);
+            let callback_buf = mem::transmute(Slice {
+                data: kernel_memory_break as *const Option<Callback>,
                 len: callback_len
             });
-            let callback_size = mem::size_of::<Option<Callback>>();
+
+            kernel_memory_break =
+                kernel_memory_break.offset(-(container::CONTAINER_COUNTER as isize) * 4);
 
             let callbacks = RingBuffer::new(callback_buf);
 
-            let exposed_memory_start =
-                    &mut memory[callback_len * callback_size] as *mut u8;
+            let load_result = load(start_addr, memory.data);
 
-            let mut result = Process {
+            let stack_bottom = load_result.app_mem_start.offset(512);
+
+            let mut process = Process {
                 memory: memory,
-                exposed_memory_start: exposed_memory_start,
-                cur_stack: stack_bottom as *mut u8,
+                app_memory_break: stack_bottom,
+                kernel_memory_break: kernel_memory_break,
+                text: Slice {
+                    data: load_result.text_start,
+                    len: load_result.text_len },
+                cur_stack: stack_bottom,
                 wait_pc: 0,
                 psr: 0x01000000,
                 state: State::Waiting,
                 callbacks: callbacks
             };
 
-            result.load(start_addr);
+            process.callbacks.enqueue(Callback {
+                pc: load_result.init_fn,
+                r0: load_result.app_mem_start as usize,
+                r1: process.app_memory_break as usize,
+                r2: process.kernel_memory_break as usize,
+                r3: 0
+            });
 
-            Some(result)
+            Some(process)
         } else {
             None
         }
     }
 
-    unsafe fn load(&mut self, start_addr: *const usize) {
-        let mut start_addr = start_addr as *const u8;
-        let load_info : &LoadInfo = mem::transmute(start_addr);
-        start_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
-
-        let rel_data : &mut [usize] = mem::transmute(raw::Slice{
-            data: start_addr,
-            len: load_info.rel_data_size / 4
-        });
-        start_addr = start_addr.offset(load_info.rel_data_size as isize);
-
-        let exposed_memory_start = self.exposed_memory_start;
-
-        // Zero out BSS
-        ::core::intrinsics::write_bytes(
-            exposed_memory_start.offset(load_info.bss_start_offset as isize),
-            0,
-            load_info.bss_end_offset - load_info.bss_start_offset);
-
-        // Copy data into Data section
-        let init_data : &[u8] = mem::transmute(raw::Slice{
-            data: (load_info.init_data_loc + start_addr as usize) as *mut u8,
-            len: load_info.init_data_size
-        });
-
-        let target_data : &mut [u8] = mem::transmute(raw::Slice{
-            data: exposed_memory_start,
-            len: load_info.init_data_size
-        });
-
-        target_data.clone_from_slice(init_data);
-
-        let fixup = |addr: *mut usize| {
-            let entry = *addr;
-            if (entry & 0x80000000) == 0 {
-                // Regular data (memory relative)
-                *addr = entry + (exposed_memory_start as usize);
-            } else {
-                // rodata or function pointer (code relative)
-                *addr = (entry ^ 0x80000000) + (start_addr as usize);
-            }
-        };
-
-        // Fixup Global Offset Table
-        let mut got_cur = exposed_memory_start.offset(load_info.got_start_offset as isize) as *mut usize;
-        let got_end = exposed_memory_start.offset(load_info.got_end_offset as isize) as *mut usize;
-        while got_cur != got_end {
-            fixup(got_cur);
-            got_cur = got_cur.offset(1);
-        }
-
-        // Fixup relocation data
-        for (i, addr) in rel_data.iter().enumerate() {
-            if i % 2 == 0 { // Only the first of every 2 entries is an address
-                fixup(exposed_memory_start.offset(*addr as isize) as *mut usize);
-            }
-        }
-
-        // Entry point is offset from app code
-        let init_fn = start_addr as usize + load_info.entry_loc;
-
-        let heap_start = exposed_memory_start.offset(load_info.bss_end_offset as isize);
-
-        self.callbacks.enqueue(Callback {
-            pc: init_fn as usize,
-            r0: heap_start as usize,
-            r1: 0,
-            r2: 0,
-            r3: 0
-        });
+    pub fn sbrk(&mut self, increment: isize) -> Result<*const u8, Error> {
+        let new_break = unsafe { self.app_memory_break.offset(increment) };
+        self.brk(new_break)
     }
 
+    pub fn brk(&mut self, new_break: *const u8) -> Result<*const u8, Error> {
+        if new_break < self.mem_start() || new_break >= self.mem_end() {
+            Err(Error::AddressOutOfBounds)
+        } else if new_break > self.kernel_memory_break {
+            Err(Error::OutOfMemory)
+        } else {
+            let old_break = self.app_memory_break;
+            self.app_memory_break = new_break;
+            Ok(old_break)
+        }
+    }
 
     pub fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize)
             -> bool {
-        use core::raw::Repr;
 
         let buf_end_addr = ((buf_start_addr as usize) + size) as *const u8;
 
-        let mem = self.memory.repr();
-        let mem_end = ((mem.data as usize) + mem.len) as *const u8;
+        let mem_end =
+            ((self.memory.data as usize) + self.memory.len) as *const u8;
 
-        buf_start_addr >= self.exposed_memory_start && buf_end_addr <= mem_end
+        buf_start_addr >= self.memory.data && buf_end_addr <= mem_end
     }
 
     pub unsafe fn alloc(&mut self, size: usize) -> Option<&mut [u8]> {
-        use core::raw::Slice;
-
-        let mem_len = self.memory.len();
-        let end_mem = &mut self.memory[mem_len - 1] as *mut u8;
-        let new_start = self.exposed_memory_start.offset(size as isize);
-        if new_start >= end_mem {
+        let new_break = self.kernel_memory_break.offset(-(size as isize));
+        if new_break < self.app_memory_break {
             None
         } else {
-            let buf = Slice {
-                data: self.exposed_memory_start,
+            self.kernel_memory_break = new_break;
+            Some(mem::transmute(Slice {
+                data: new_break as *mut u8,
                 len: size
-            };
-            self.exposed_memory_start = new_start;
-            Some(mem::transmute(buf))
+            }))
         }
     }
 
     pub unsafe fn free<T>(&mut self, _: *mut T) {}
+
+    pub unsafe fn container_for<T: Default>(&mut self, container_num: usize)
+            -> Option<*mut T> {
+        let container_num = container_num as isize;
+        let ptr = (self.mem_end() as *mut usize)
+                        .offset(-(container_num + 1));
+        if ptr.is_null() {
+            self.alloc(mem::size_of::<T>()).map(|root_arr| {
+                let root_ptr = root_arr.repr().data as *mut T;
+                *root_ptr = Default::default();
+                root_ptr
+            })
+        } else {
+            Some(*ptr as *mut T)
+        }
+    }
+
 
     pub fn pop_syscall_stack(&mut self) {
         let pspr = self.cur_stack as *const usize;
@@ -258,10 +269,10 @@ impl<'a> Process<'a> {
 
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
-        if self.cur_stack < self.exposed_memory_start {
+        if self.cur_stack < self.memory.data {
             breakpoint();
         }
-        let psp = switch_to_user(self.cur_stack, self.exposed_memory_start);
+        let psp = switch_to_user(self.cur_stack, self.memory.data);
         self.cur_stack = psp;
     }
 
@@ -305,5 +316,89 @@ impl<'a> Process<'a> {
         unsafe { volatile_load(pspr.offset(3)) }
     }
 
+}
+
+struct LoadResult {
+    text_start: *const u8,
+    text_len: usize,
+    init_fn: usize,
+    app_mem_start: *const u8
+}
+
+unsafe fn load(start_addr: *const usize, mem_base: *const u8) -> LoadResult {
+    let mut result = LoadResult {
+        text_start: 0 as *const u8,
+        text_len: 0,
+        init_fn: 0,
+        app_mem_start: 0 as *const u8
+    };
+
+    let mut start_addr = start_addr as *const u8;
+    let load_info : &LoadInfo = mem::transmute(start_addr);
+    start_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
+
+    let rel_data : &mut [usize] = mem::transmute(Slice{
+        data: start_addr,
+        len: load_info.rel_data_size / 4
+    });
+    start_addr = start_addr.offset(load_info.rel_data_size as isize);
+
+    // Update text location in self
+    result.text_start = start_addr;
+    result.text_len = load_info.init_data_loc;
+
+    // Zero out BSS
+    ::core::intrinsics::write_bytes(
+        mem_base.offset(load_info.bss_start_offset as isize) as *mut u8,
+        0,
+        load_info.bss_end_offset - load_info.bss_start_offset);
+
+    // Copy data into Data section
+    let init_data : &[u8] = mem::transmute(Slice{
+        data: (load_info.init_data_loc + start_addr as usize) as *mut u8,
+        len: load_info.init_data_size
+    });
+
+    let target_data : &mut [u8] = mem::transmute(Slice{
+        data: mem_base,
+        len: load_info.init_data_size
+    });
+
+    target_data.clone_from_slice(init_data);
+
+    let fixup = |addr: *mut usize| {
+        let entry = *addr;
+        if (entry & 0x80000000) == 0 {
+            // Regular data (memory relative)
+            *addr = entry + (mem_base as usize);
+        } else {
+            // rodata or function pointer (code relative)
+            *addr = (entry ^ 0x80000000) + (start_addr as usize);
+        }
+    };
+
+    // Fixup Global Offset Table
+    let mut got_cur = mem_base.offset(
+        load_info.got_start_offset as isize) as *mut usize;
+    let got_end = mem_base.offset(
+        load_info.got_end_offset as isize) as *mut usize;
+    while got_cur != got_end {
+        fixup(got_cur);
+        got_cur = got_cur.offset(1);
+    }
+
+    // Fixup relocation data
+    for (i, addr) in rel_data.iter().enumerate() {
+        if i % 2 == 0 { // Only the first of every 2 entries is an address
+            fixup(mem_base.offset(*addr as isize) as *mut usize);
+        }
+    }
+
+    // Entry point is offset from app code
+    result.init_fn = start_addr as usize + load_info.entry_loc;
+
+    result.app_mem_start = mem_base.offset(load_info.bss_end_offset as isize);
+
+    result
 }
 

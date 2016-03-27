@@ -183,15 +183,18 @@ unsafe extern "C" fn hard_fault_handler() {
     use core::intrinsics::offset;
 
     let faulting_stack: *mut u32;
+    let kernel_stack: bool;
 
     asm!(
-        "tst    lr, #4                      \n\
-         ite    eq                          \n\
+        "mov    r1, 0                       \n\
+         tst    lr, #4                      \n\
+         itte   eq                          \n\
          mrseq  r0, msp                     \n\
+         addeq  r1, 1                       \n\
          mrsne  r0, psp                     "
-        : "={r0}"(faulting_stack)
+        : "={r0}"(faulting_stack), "={r1}"(kernel_stack)
         :
-        : "r0"
+        : "r0", "r1"
         :
         );
 
@@ -204,7 +207,13 @@ unsafe extern "C" fn hard_fault_handler() {
     let stacked_pc  :u32 = *offset(faulting_stack, 6);
     let stacked_prs :u32 = *offset(faulting_stack, 7);
 
-    panic!("HardFault.\n\
+    let mode_str = if kernel_stack { "Kernel" } else { "Process" };
+
+    let shcsr : u32 = core::intrinsics::volatile_load(0xE000ED24 as *const u32);
+    let cfsr : u32 = core::intrinsics::volatile_load(0xE000ED28 as *const u32);
+    let hfsr : u32 = core::intrinsics::volatile_load(0xE000ED2C as *const u32);
+
+    panic!("{} HardFault.\n\
            \tr0  0x{:x}\n\
            \tr1  0x{:x}\n\
            \tr2  0x{:x}\n\
@@ -213,7 +222,13 @@ unsafe extern "C" fn hard_fault_handler() {
            \tlr  0x{:x}\n\
            \tpc  0x{:x}\n\
            \tprs 0x{:x}\n\
-           ", stacked_r0, stacked_r1, stacked_r2, stacked_r3,
-           stacked_r12, stacked_lr, stacked_pc, stacked_prs);
+           \tsp  0x{:x}\n\
+           \tSHCSR 0x{:x}\n\
+           \tCFSR  0x{:x}\n\
+           \tHSFR  0x{:x}\n\
+           ", mode_str,
+           stacked_r0, stacked_r1, stacked_r2, stacked_r3,
+           stacked_r12, stacked_lr, stacked_pc, stacked_prs,
+           faulting_stack as u32, shcsr, cfsr, hfsr);
 }
 
