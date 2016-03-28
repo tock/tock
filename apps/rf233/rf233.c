@@ -140,7 +140,7 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
   do {                                        \
     int counter = max_time;                   \
     while (!(cond) && counter > 0) {          \
-      delay_ms(1);                            \
+      delay_ms(2);                            \
       counter--;                              \
     }                                         \
   } while(0)
@@ -150,8 +150,11 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
 int main() {
   char buf[8] = {0x02, 0x25, 0x19, 0x77, 0xde, 0xad, 0xbe, 0xef};
   rf233_init();
-  rf233_send(buf, 8);
-	//while(1) {}
+  while (1) {
+    rf233_send(buf, 8);
+    delay_ms(250);
+  }
+  //while(1) {}
 }
 
 uint8_t packetbuf[PACKETBUF_SIZE];
@@ -519,7 +522,7 @@ int rf233_transmit() {
   RF233_COMMAND(TRXCMD_TX_START);
   flag_transmit = 1;
 
-  BUSYWAIT_UNTIL(ack_status == 1, 10);
+  BUSYWAIT_UNTIL(ack_status == 1, 1);
   if (ack_status) {
     //	printf("\r\nrf233 sent\r\n ");
     ack_status=0;

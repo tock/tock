@@ -163,7 +163,6 @@ impl Spi {
         let mr = unsafe {volatile_load(&(*self.regs).mr)};
         let pcs = (mr >> 16) & 0xF;
         // Split into bits for matching
-        let pcs_bits = ((pcs >> 3) & 1, (pcs >> 2) & 1, (pcs >> 1) & 1, pcs & 1);
         match pcs {
             0b1110 => Peripheral::Peripheral0,
             0b1101 => Peripheral::Peripheral1,
