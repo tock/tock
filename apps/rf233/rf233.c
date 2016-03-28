@@ -88,7 +88,7 @@ static volatile int sleep_on = 0;
 
 #define SLP_PIN PC14
 #define RST_PIN PC15
-#define PORTIRQ PA20
+#define RADIO_IRQ PA20
 
 #define IEEE802154_CONF_PANID 0x6666
 
@@ -140,8 +140,8 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
   do {                                        \
     int counter = max_time;                   \
     while (!(cond) && counter > 0) {          \
-      delay_ms(2);                            \
-      counter--;                              \
+      delay_ms(5);                            \
+      counter -= 5;                              \
     }                                         \
   } while(0)
 
@@ -311,7 +311,7 @@ CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
   irq_source = trx_reg_read(RF233_REG_IRQ_STATUS);
   if (irq_source & IRQ_TRX_DONE) {
     // Completed a transmission
-    if (flag_transmit == 1) {
+    if (flag_transmit != 0) {
       flag_transmit = 0;
       //printf("Status %x",trx_reg_read(RF233_REG_TRX_STATE) & TRX_STATE_TRAC_STATUS);
       if(!(trx_reg_read(RF233_REG_TRX_STATE) & TRX_STATE_TRAC_STATUS))
@@ -326,7 +326,7 @@ CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
       PRINTF("RF233: Received packet and read from device.\n");
     }
   }
-  return 0;
+  return RADIO;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -381,7 +381,9 @@ int rf233_init(void) {
   regtemp = regtemp;
   // Set up interrupts
   gpio_interrupt_callback(interrupt_callback, NULL);
-  gpio_enable_interrupt(RADIO_IRQ, RisingEdge, PullNone);
+  gpio_enable_input(RADIO_IRQ, PullNone);
+  gpio_clear(RADIO_IRQ);
+  gpio_enable_interrupt(RADIO_IRQ, Change, PullNone);
 
   /* Configure the radio using the default values except these. */
   trx_reg_write(RF233_REG_TRX_CTRL_1,      RF233_REG_TRX_CTRL_1_CONF);
@@ -450,6 +452,8 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   for (i = 0; i < templen; i++) {
     data[i + 1] = ((uint8_t*)payload)[i];
   }
+  data[3] = 0x80 | (uint8_t)(flag_transmit & 0xff);
+
 
 #if DEBUG_PRINTDATA
   PRINTF("RF233 prepare (%u/%u): 0x", payload_len, templen);
@@ -520,9 +524,10 @@ int rf233_transmit() {
   /* perform transmission */
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
   RF233_COMMAND(TRXCMD_TX_START);
-  flag_transmit = 1;
+  flag_transmit++;
 
-  BUSYWAIT_UNTIL(ack_status == 1, 1);
+  // wait_for(RADIO);
+  //BUSYWAIT_UNTIL(ack_status == 1, 1);
   if (ack_status) {
     //	printf("\r\nrf233 sent\r\n ");
     ack_status=0;
