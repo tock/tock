@@ -32,3 +32,4 @@ SYSCALL __wait, 0
 SYSCALL __subscribe, 1
 SYSCALL __command, 2
 SYSCALL __allow, 3
+SYSCALL __memop, 4
