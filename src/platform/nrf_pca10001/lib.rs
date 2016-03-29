@@ -59,41 +59,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
 
-    //XXX: this should be pared down to only give externally usable pins to the
-    //  user gpio driver
-    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 32] = [
-            &nrf51822::gpio::PA[ 0],
-            &nrf51822::gpio::PA[ 1],
-            &nrf51822::gpio::PA[ 2],
-            &nrf51822::gpio::PA[ 3],
-            &nrf51822::gpio::PA[ 4],
-            &nrf51822::gpio::PA[ 5],
-            &nrf51822::gpio::PA[ 6],
-            &nrf51822::gpio::PA[ 7],
-            &nrf51822::gpio::PA[ 8],
-            &nrf51822::gpio::PA[ 9],
-            &nrf51822::gpio::PA[10],
-            &nrf51822::gpio::PA[11],
-            &nrf51822::gpio::PA[12],
-            &nrf51822::gpio::PA[13],
-            &nrf51822::gpio::PA[14],
-            &nrf51822::gpio::PA[15],
-            &nrf51822::gpio::PA[16],
-            &nrf51822::gpio::PA[17],
-            &nrf51822::gpio::PA[18],
-            &nrf51822::gpio::PA[19],
-            &nrf51822::gpio::PA[20],
-            &nrf51822::gpio::PA[21],
-            &nrf51822::gpio::PA[22],
-            &nrf51822::gpio::PA[23],
-            &nrf51822::gpio::PA[24],
-            &nrf51822::gpio::PA[25],
-            &nrf51822::gpio::PA[26],
-            &nrf51822::gpio::PA[27],
-            &nrf51822::gpio::PA[28],
-            &nrf51822::gpio::PA[29],
-            &nrf51822::gpio::PA[30],
-            &nrf51822::gpio::PA[31],
+    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 2] = [
+            &nrf51822::gpio::PA[18], // LED_0
+            &nrf51822::gpio::PA[19], // LED_1
             ]);
     static_init!(gpio : drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(gpio_pins));
