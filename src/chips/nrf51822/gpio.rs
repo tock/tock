@@ -1,5 +1,4 @@
 use core::mem;
-use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use hil;
 
@@ -14,7 +13,6 @@ fn GPIO() -> &'static GPIO {
 
 pub struct GPIOPin {
     pin: u8,
-    client_data: Cell<usize>,
     client: TakeCell<&'static hil::gpio::Client>,
 }
 
@@ -22,7 +20,6 @@ impl GPIOPin {
     const fn new(pin: u8) -> GPIOPin {
         GPIOPin {
             pin: pin,
-            client_data: Cell::new(0),
             client: TakeCell::empty(),
         }
     }
@@ -62,7 +59,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
         unimplemented!();
     }
 
-    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
+    fn enable_interrupt(&self, _client_data: usize, _mode: hil::gpio::InterruptMode) {
         unimplemented!();
     }
 
