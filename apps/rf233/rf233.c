@@ -318,7 +318,7 @@ CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
         ack_status = 1;
       RF233_COMMAND(TRXCMD_RX_AACK_ON);
       PRINTF("RF233: TX complete, send AACK_ON.\n");
-      return 0;
+      return RADIO;
     } else {
       packetbuf_clear();
       int len = rf233_read(packetbuf_dataptr(), MAX_PACKET_LEN);
@@ -383,7 +383,7 @@ int rf233_init(void) {
   gpio_interrupt_callback(interrupt_callback, NULL);
   gpio_enable_input(RADIO_IRQ, PullNone);
   gpio_clear(RADIO_IRQ);
-  gpio_enable_interrupt(RADIO_IRQ, Change, PullNone);
+  gpio_enable_interrupt(RADIO_IRQ, PullNone, Change);
 
   /* Configure the radio using the default values except these. */
   trx_reg_write(RF233_REG_TRX_CTRL_1,      RF233_REG_TRX_CTRL_1_CONF);
@@ -526,7 +526,7 @@ int rf233_transmit() {
   RF233_COMMAND(TRXCMD_TX_START);
   flag_transmit++;
 
-  // wait_for(RADIO);
+  wait_for(RADIO);
   //BUSYWAIT_UNTIL(ack_status == 1, 1);
   if (ack_status) {
     //	printf("\r\nrf233 sent\r\n ");
