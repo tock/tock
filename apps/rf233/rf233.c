@@ -530,6 +530,7 @@ int rf233_transmit() {
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
   RF233_COMMAND(TRXCMD_TX_START);
   wait_for(RADIO_TX);
+
   //BUSYWAIT_UNTIL(ack_status == 1, 1);
   if (ack_status) {
     //	printf("\r\nrf233 sent\r\n ");
