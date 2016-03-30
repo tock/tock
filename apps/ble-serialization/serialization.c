@@ -38,11 +38,9 @@ static ser_phy_evt_t _ser_phy_tx_event;
  * Callback from the UART layer in the kernel
  ******************************************************************************/
 
-bool ble_callback_flag = false;
 CB_TYPE ble_serialization_callback (int callback_type, int rx_len, int c, void* other) {
     UNUSED_PARAMETER(c);
     UNUSED_PARAMETER(other);
-    ble_callback_flag = true;
 
     if (callback_type == 1) {
         // TX DONE
@@ -90,7 +88,7 @@ CB_TYPE ble_serialization_callback (int callback_type, int rx_len, int c, void* 
 
     }
 
-    return 0;
+    return 0xff;
 }
 
 
@@ -399,14 +397,8 @@ void ser_app_power_system_off_enter () {
 
 // Essentially sleep this process
 uint32_t sd_app_evt_wait () {
-    while (1) {
-        wait();
-        if (ble_callback_flag) {
-            ble_callback_flag = false;
-            break;
-        }
-    }
-    return NRF_SUCCESS;
+  wait_for(0xff);
+  return NRF_SUCCESS;
 }
 
 void critical_region_enter () {
