@@ -309,24 +309,28 @@ CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
   volatile uint8_t irq_source;
   /* handle IRQ source (for what IRQs are enabled, see rf233-config.h) */
   irq_source = trx_reg_read(RF233_REG_IRQ_STATUS);
+
   if (irq_source & IRQ_TRX_DONE) {
     // Completed a transmission
     if (flag_transmit != 0) {
       flag_transmit = 0;
       //printf("Status %x",trx_reg_read(RF233_REG_TRX_STATE) & TRX_STATE_TRAC_STATUS);
-      if(!(trx_reg_read(RF233_REG_TRX_STATE) & TRX_STATE_TRAC_STATUS))
-        ack_status = 1;
+      if (!(trx_reg_read(RF233_REG_TRX_STATE) & TRX_STATE_TRAC_STATUS)) {
+        flag_transmit = ack_status = 1;
+      }
       RF233_COMMAND(TRXCMD_RX_AACK_ON);
-      PRINTF("RF233: TX complete, send AACK_ON.\n");
-      return 0;
+      PRINTF("RF233: TX complete, go back to RX with acks on.\n");
+      return RADIO_TX;
     } else {
+      flag_transmit = 0x1f;
       packetbuf_clear();
       int len = rf233_read(packetbuf_dataptr(), MAX_PACKET_LEN);
       pending_frame = 1;
       PRINTF("RF233: Received packet and read from device.\n");
     }
+    return RADIO_RX;
   }
-  return RADIO;
+  return NONE;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -383,7 +387,7 @@ int rf233_init(void) {
   gpio_interrupt_callback(interrupt_callback, NULL);
   gpio_enable_input(RADIO_IRQ, PullNone);
   gpio_clear(RADIO_IRQ);
-  gpio_enable_interrupt(RADIO_IRQ, Change, PullNone);
+  gpio_enable_interrupt(RADIO_IRQ, PullNone, RisingEdge);
 
   /* Configure the radio using the default values except these. */
   trx_reg_write(RF233_REG_TRX_CTRL_1,      RF233_REG_TRX_CTRL_1_CONF);
@@ -522,11 +526,10 @@ int rf233_transmit() {
   }
   
   /* perform transmission */
+  flag_transmit++;
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
   RF233_COMMAND(TRXCMD_TX_START);
-  flag_transmit++;
-
-  // wait_for(RADIO);
+  wait_for(RADIO_TX);
   //BUSYWAIT_UNTIL(ack_status == 1, 1);
   if (ack_status) {
     //	printf("\r\nrf233 sent\r\n ");
@@ -573,20 +576,14 @@ int rf233_read(void *buf, unsigned short bufsize) {
   uint8_t frame_len = 0;
   uint8_t len = 0;
   //int rssi;
-#if DEBUG_PRINTDATA
-  uint8_t tempreadlen;
-#endif  /* DEBUG_PRINTDATA */
 
-  if(pending_frame == 0) {
+  if (pending_frame == 0) {
     return 0;
   }
   pending_frame = 0;
 
   /* get length of data in FIFO */
   trx_frame_read(&frame_len, 1);
-#if DEBUG_PRINTDATA
-  tempreadlen = frame_len;
-#endif  /* DEBUG_PRINTDATA */
   if(frame_len == 1) {
     frame_len = 0;
   }
@@ -595,10 +592,10 @@ int rf233_read(void *buf, unsigned short bufsize) {
   /* FCS has already been stripped */
   len = frame_len - 2;
 
-  if(frame_len == 0) {
+  if (frame_len == 0) {
     return 0;
   }
-  if(len > bufsize) {
+  if (len > bufsize) {
     /* too large frame for the buffer, drop */
     PRINTF("RF233: too large frame for buffer, dropping (%u > %u).\n", frame_len, bufsize);
     flush_buffer();

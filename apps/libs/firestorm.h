@@ -14,6 +14,7 @@ extern "C" {
 #endif
 
 enum firestorm_cb_type {
+  NONE,
   PUTSTR,
   READTMP,
   ASYNC,
@@ -21,7 +22,8 @@ enum firestorm_cb_type {
   READLIGHT,
   DELAY,
   SPI,
-  RADIO
+  RADIO_RX,
+  RADIO_TX,
 };
 
 void putstr(const char* str);
