@@ -90,7 +90,7 @@ static volatile int sleep_on = 0;
 #define RST_PIN PC15
 #define RADIO_IRQ PA20
 
-#define IEEE802154_CONF_PANID 0x6666
+#define IEEE802154_CONF_PANID 0x1111
 
 enum {
   RADIO_TX_OK        = 0,
@@ -140,18 +140,18 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
   do {                                        \
     int counter = max_time;                   \
     while (!(cond) && counter > 0) {          \
-      delay_ms(5);                            \
-      counter -= 5;                              \
+      delay_ms(1);                            \
+      counter--;                              \
     }                                         \
   } while(0)
 
 // Register operations
 
 int main() {
-  char buf[8] = {0x02, 0x25, 0x19, 0x77, 0xde, 0xad, 0xbe, 0xef};
+  char buf[10] = {0x41, 0xAA, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0xdd};
   rf233_init();
   while (1) {
-    rf233_send(buf, 8);
+    //rf233_send(buf, 10);
     delay_ms(250);
   }
   //while(1) {}
@@ -374,9 +374,9 @@ int rf233_init(void) {
 
   /* before enabling interrupts, make sure we have cleared IRQ status */
   regtemp = trx_reg_read(RF233_REG_IRQ_STATUS);
-  PRINTF("After wake from sleep\n");
+  PRINTF("RF233: After wake from sleep\n");
   radio_state = rf233_status();
-  PRINTF("After arch read reg: state 0x%04x\n", radio_state);
+  PRINTF("RF233: Radio state 0x%04x\n", radio_state);
 
   if(radio_state == STATE_P_ON) {
     trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);
@@ -398,21 +398,21 @@ int rf233_init(void) {
   // trx_reg_write(0x17, 0x02);
   trx_bit_write(SR_MAX_FRAME_RETRIES, 3);
   trx_bit_write(SR_MAX_CSMA_RETRIES, 4);
-
+  PRINTF("RF233: Configured transciever.\n");
   {
     uint8_t addr[8];
-    addr[0] = 0xde;
-    addr[1] = 0xad;
-    addr[2] = 0xbe;
-    addr[3] = 0xef;
-    addr[4] = 0xfa;
-    addr[5] = 0xce;
-    addr[6] = 0xb0;
-    addr[7] = 0x0c;
+    addr[0] = 0x22;
+    addr[1] = 0x22;
+    addr[2] = 0x22;
+    addr[3] = 0x22;
+    addr[4] = 0x22;
+    addr[5] = 0x22;
+    addr[6] = 0x22;
+    addr[7] = 0x22;
     SetPanId(IEEE802154_CONF_PANID);
     
     SetIEEEAddr(addr);
-    SetShortAddr(0xdead);
+    SetShortAddr(0x2222);
   }
   rf_generate_random_seed();
   
@@ -423,6 +423,7 @@ int rf233_init(void) {
   /* 11_09_rel */
   trx_reg_write(RF233_REG_TRX_RPC, 0xFF); /* Enable RPC feature by default */
   // regtemp = trx_reg_read(RF233_REG_PHY_TX_PWR);
+  //PRINTF("RF233: Installed addresses. Turning on radio.");
   rf233_on();
   /* start the radio process */
   //process_start(&rf233_radio_process, NULL);
@@ -444,6 +445,8 @@ static void rf_generate_random_seed(void) {
  * \param payload_len     length of data to copy
  * \return     Returns success/fail, refer to radio.h for explanation
  */
+
+static int counter = 0;
 int rf233_prepare(const void *payload, unsigned short payload_len) {
   int i;
   uint8_t templen;
@@ -456,8 +459,8 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   for (i = 0; i < templen; i++) {
     data[i + 1] = ((uint8_t*)payload)[i];
   }
-  data[3] = 0x80 | (uint8_t)(flag_transmit & 0xff);
-
+  data[3] = (uint8_t)(counter & 0xff);
+  counter++;
 
 #if DEBUG_PRINTDATA
   PRINTF("RF233 prepare (%u/%u): 0x", payload_len, templen);
