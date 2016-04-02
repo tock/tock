@@ -36,6 +36,15 @@
 #include <stdint.h>
 /*---------------------------------------------------------------------------*/
 
+typedef struct {
+  uint16_t fcf;
+  uint8_t  seq;
+  uint16_t pan;
+  uint16_t dest;
+  uint16_t src;
+  char payload[];
+} __attribute__((packed)) header_t;
+
 int rf233_interrupt_poll(void);
 int rf_get_channel(void);
 int rf_set_channel(uint8_t ch);

@@ -127,6 +127,7 @@
 #define RF233_REG_RX_CTRL         (0x0A)
 #define RF233_REG_SFD_VALUE       (0x0B)
 #define RF233_REG_TRX_CTRL_2      (0x0C)
+#define FTN_START                 (0x80)
   #define TRX_CTRL_2_RX_SAFE_MODE   (1 << 7)  /* disallow rx buffer overwrites */
   #define DATA_RATE_250             (0)
   #define DATA_RATE_500             (1)

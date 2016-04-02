@@ -128,12 +128,12 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
 #define PACKETBUF_SIZE                    128 /* bytes, for even int writes */
 
 /*---------------------------------------------------------------------------*/
-#define _DEBUG_                 0
+#define _DEBUG_                 1
 #define DEBUG_PRINTDATA       0    /* print frames to/from the radio; requires DEBUG == 1 */
 #if _DEBUG_
 #define PRINTF(...)       printf(__VA_ARGS__)
 #else
-#define PRINTF(...)       printf(__VA_ARGS__)
+#define PRINTF(...)       1
 #endif
 
 #define BUSYWAIT_UNTIL(cond, max_time)        \
@@ -148,11 +148,12 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
 // Register operations
 
 int main() {
-  char buf[10] = {0x41, 0xAA, 0x00, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0xdd};
+  char buf[10] = {0x61, 0xAA, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xdd};
+
   rf233_init();
   while (1) {
-    //rf233_send(buf, 10);
-    delay_ms(250);
+    rf233_send(buf, 10);
+    delay_ms(2000);
   }
   //while(1) {}
 }
@@ -213,7 +214,7 @@ void trx_sram_read(uint8_t addr, uint8_t *data, uint8_t length)  {
         uint8_t temp;
         temp = TRX_CMD_SR;
         spi_hold_low();
-        /* Send the command byte */
+       /* Send the command byte */
         spi_write_byte(temp);
         /* Send the command byte */
         spi_write_byte(addr);
@@ -309,12 +310,15 @@ CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
   volatile uint8_t irq_source;
   /* handle IRQ source (for what IRQs are enabled, see rf233-config.h) */
   irq_source = trx_reg_read(RF233_REG_IRQ_STATUS);
-
-  if (irq_source & IRQ_TRX_DONE) {
+  PRINTF("RF233: Interrupt handler: 0x%x\n", (int)irq_source);
+  if (irq_source == IRQ_RX_START) {
+    PRINTF("RF233: Interrupt receive start.\n");
+  } else if (irq_source == IRQ_TRX_DONE) {
+    PRINTF("RF233: TRX_DONE handler.\n");
     // Completed a transmission
     if (flag_transmit != 0) {
+      PRINTF("RF233: Interrupt transmit.\n");
       flag_transmit = 0;
-      //printf("Status %x",trx_reg_read(RF233_REG_TRX_STATE) & TRX_STATE_TRAC_STATUS);
       if (!(trx_reg_read(RF233_REG_TRX_STATE) & TRX_STATE_TRAC_STATUS)) {
         flag_transmit = ack_status = 1;
       }
@@ -322,13 +326,17 @@ CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
       PRINTF("RF233: TX complete, go back to RX with acks on.\n");
       return RADIO_TX;
     } else {
-      flag_transmit = 0x1f;
+      PRINTF("RF233: Interrupt receive.\n");
       packetbuf_clear();
-      int len = rf233_read(packetbuf_dataptr(), MAX_PACKET_LEN);
       pending_frame = 1;
-      PRINTF("RF233: Received packet and read from device.\n");
+      int len = rf233_read(packetbuf_dataptr(), MAX_PACKET_LEN);
+      if (len > 0) {
+        PRINTF("RF233: Received packet and read from device.\n");
+      } else {
+        PRINTF("RF233: Read failed.\n");
+      }
+      return RADIO_RX;
     }
-    return RADIO_RX;
   }
   return NONE;
 }
@@ -395,7 +403,7 @@ int rf233_init(void) {
   trx_reg_write(RF233_REG_PHY_TX_PWR, RF233_REG_PHY_TX_PWR_CONF);
   trx_reg_write(RF233_REG_TRX_CTRL_2,      RF233_REG_TRX_CTRL_2_CONF);
   trx_reg_write(RF233_REG_IRQ_MASK,        RF233_REG_IRQ_MASK_CONF);
-  // trx_reg_write(0x17, 0x02);
+  trx_reg_write(RF233_REG_XAH_CTRL_1,      0x02);
   trx_bit_write(SR_MAX_FRAME_RETRIES, 3);
   trx_bit_write(SR_MAX_CSMA_RETRIES, 4);
   PRINTF("RF233: Configured transciever.\n");
@@ -529,24 +537,12 @@ int rf233_transmit() {
   }
   
   /* perform transmission */
-  flag_transmit++;
+  flag_transmit = 1;
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
   RF233_COMMAND(TRXCMD_TX_START);
   wait_for(RADIO_TX);
 
-  //BUSYWAIT_UNTIL(ack_status == 1, 1);
-  if (ack_status) {
-    //	printf("\r\nrf233 sent\r\n ");
-    ack_status=0;
-    //	printf("\nACK received");
-    return RADIO_TX_OK;
-  }
-  else {
-    //	printf("\nNOACK received");		
-    return RADIO_TX_NOACK;
-  }
-  
-  PRINTF("RF233: tx ok\n");
+  PRINTF("RF233: tx ok\n\n");
   return RADIO_TX_OK;
 }
 /*---------------------------------------------------------------------------*/
@@ -581,15 +577,18 @@ int rf233_read(void *buf, unsigned short bufsize) {
   uint8_t len = 0;
   //int rssi;
 
+  PRINTF("RF233: Receiving.\n");
+  
   if (pending_frame == 0) {
+    PRINTF("RF233: No frame pending, abort.\n");
     return 0;
   }
   pending_frame = 0;
 
   /* get length of data in FIFO */
   trx_frame_read(&frame_len, 1);
-  if(frame_len == 1) {
-    frame_len = 0;
+  if (frame_len < 2) {
+    frame_len = 2;
   }
 
   len = frame_len;
@@ -597,39 +596,36 @@ int rf233_read(void *buf, unsigned short bufsize) {
   len = frame_len - 2;
 
   if (frame_len == 0) {
+    PRINTF("Frame is not long enough, abort.\n");
     return 0;
   }
   if (len > bufsize) {
     /* too large frame for the buffer, drop */
     PRINTF("RF233: too large frame for buffer, dropping (%u > %u).\n", frame_len, bufsize);
     flush_buffer();
-    return -3;
+    return 0;
   }
   PRINTF("RF233 read %u B\n", frame_len);
 
   /* read out the data into the buffer, disregarding the length and metadata bytes */
   trx_sram_read(1,(uint8_t *)buf, len);
-
-  {
-    int k;
-    //PRINTF("RF233: Read frame (%u/%u): ", tempreadlen, frame_len);
-    for(k = 0; k < frame_len; k++) {
-      PRINTF("%02x", *((uint8_t *)buf + k));
+  if (len >= 10) {
+    header_t* header = (header_t*)buf;
+    PRINTF("  FCF: %x\n", header->fcf);
+    PRINTF("  SEQ: %x\n", header->seq);
+    PRINTF("  PAN: %x\n", header->pan);
+    PRINTF("  DST: %x\n", header->dest);
+    PRINTF("  SRC: %x\n", header->src);
+    {
+      int k;
+      PRINTF("RF233: Read frame (%u): ", frame_len);
+      for(k = 0; k < frame_len; k++) {
+        PRINTF("%02x", *((uint8_t *)buf + k));
+      }
+      PRINTF("\n");
     }
-    PRINTF("\n");
   }
 
-
-  /* 
-   * Energy level during reception, ranges from 0x00 to 0x53 (=83d) with a
-   * resolution of 1dB and accuracy of +/- 5dB. 0xFF means invalid measurement.
-   * 0x00 means <= RSSI(base_val), which is -91dBm (typ). See datasheet 12.7.
-   * Ergo, real RSSI is (ed-91) dBm or less.
-   */
-  #define RSSI_OFFSET       (91)
-  //ed = trx_reg_read(RF233_REG_PHY_ED_LEVEL);
-  //rssi = (int) ed - RSSI_OFFSET;
-  //packetbuf_set_attr(PACKETBUF_ATTR_RSSI, rssi);
   flush_buffer();
 
   return len;
