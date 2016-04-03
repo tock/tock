@@ -24,6 +24,7 @@ enum firestorm_cb_type {
   SPI,
   RADIO_RX,
   RADIO_TX,
+  RADIO_PLL,
 };
 
 void putstr(const char* str);
