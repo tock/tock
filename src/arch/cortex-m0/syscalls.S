@@ -12,7 +12,11 @@
 .global \NAME
 .thumb_func
 \NAME :
+.ifc \NAME,__wait
+  push {r4-r7,lr}
+.else
   push {r4-r7}
+.endif
   mov r4,  r8
   mov r5,  r9
   mov r6, r10
@@ -24,8 +28,12 @@
   mov  r9, r5
   mov r10, r6
   mov r11, r7
+.ifc \NAME,__wait
+  pop {r4-r7,pc}
+.else
   pop {r4-r7}
   bx lr
+.endif
 .endm
 
 SYSCALL __wait, 0
