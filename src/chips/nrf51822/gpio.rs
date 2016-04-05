@@ -52,7 +52,8 @@ impl hil::gpio::GPIOPin for GPIOPin {
     }
 
     fn toggle(&self) {
-        unimplemented!();
+        // TODO: check need for a atomic XOR operator
+        GPIO().out.set((1 << self.pin) ^ GPIO().out.get());
     }
 
     fn read(&self) -> bool {
