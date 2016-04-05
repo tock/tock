@@ -4,20 +4,57 @@
 #include <firestorm.h>
 #include <tock.h>
 
+typedef struct putstr_data {
+  char* buf;
+  int len;
+  int num;
+  struct putstr_data* next;
+} putstr_data_t;
+
+static putstr_data_t *putstr_head = NULL;
+static putstr_data_t *putstr_tail = NULL;
+static int putstr_num = 0xf0;
+
 static CB_TYPE putstr_cb(
                 int _x __attribute__ ((unused)),
                 int _y __attribute__ ((unused)),
                 int _z __attribute__ ((unused)),
-                void* str) {
-  free(str);
-  return PUTSTR;
+                void* ud __attribute__ ((unused))) {
+  putstr_data_t* data = putstr_head;
+  putstr_head = data->next;
+
+  if (putstr_head == NULL) {
+    putstr_tail = NULL;
+  } else {
+    putnstr_async(putstr_head->buf, putstr_head->len, putstr_cb, NULL);
+  }
+
+  return data->num;
 }
 
 void putnstr(const char *str, size_t len) {
-  char* buf = (char*)malloc(len * sizeof(char));
-  strncpy(buf, str, len);
-  putnstr_async(buf, len, putstr_cb, buf);
-  wait_for(PUTSTR);
+  putstr_data_t* data = (putstr_data_t*)malloc(sizeof(putstr_data_t));
+
+  data->len = len;
+  data->num = putstr_num++;
+  data->buf = (char*)malloc(len * sizeof(char));
+  strncpy(data->buf, str, len);
+  data->next = NULL;
+
+  if (putstr_tail == NULL) {
+    // Invariant, if tail is NULL, head is also NULL
+    putstr_head = data;
+    putstr_tail = data;
+    putnstr_async(data->buf, data->len, putstr_cb, NULL);
+  } else {
+    putstr_tail->next = data;
+    putstr_tail = data;
+  }
+
+  wait_for(data->num);
+
+  free(data->buf);
+  free(data);
 }
 
 void putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) {
