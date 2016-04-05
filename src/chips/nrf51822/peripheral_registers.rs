@@ -12,7 +12,7 @@ pub struct RTC1 {
     pub events_ovrflw: VolatileCell<u32>,
     _reserved2: [u32; 14],
     pub events_compare: [VolatileCell<u32>; 4],
-    _reserved3: [u32; 112],
+    _reserved3: [u32; 109],
     pub intenset: VolatileCell<u32>,
     pub intenclr: VolatileCell<u32>,
     _reserved4: [u32; 13],
@@ -24,7 +24,7 @@ pub struct RTC1 {
     pub prescaler: VolatileCell<u32>,
     _reserved6: [u32; 13],
     pub cc: [VolatileCell<u32>; 4],
-    _reserved7: [u32; 686],
+    _reserved7: [u32; 683],
     pub power: VolatileCell<u32>,
 }
 

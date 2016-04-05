@@ -84,7 +84,7 @@ def get_peripheral_registers(parser, peripheral_names=[]):
                 assert register.dim_index == range(0, register.dim)
                 array_size = register.dim
             else:
-                array_size = 0
+                array_size = 1
             rname = register.name.replace("[%s]", "").lower()
             if rname in RUST_KEYWORDS:
                 rname += "_"
@@ -93,7 +93,7 @@ def get_peripheral_registers(parser, peripheral_names=[]):
                 "array_size": array_size,
                 "reserved": False,
             })
-            cur_ofs = offset + 4
+            cur_ofs = offset + 4 * array_size
 
         peripherals.append({
             "name": peripheral.name,
