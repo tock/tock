@@ -38,9 +38,13 @@ static ser_phy_evt_t _ser_phy_tx_event;
  * Callback from the UART layer in the kernel
  ******************************************************************************/
 
-CB_TYPE ble_serialization_callback (int callback_type, int rx_len, int c, void* other) {
+static bool nrf_serialization_done = false;
+
+void ble_serialization_callback (int callback_type, int rx_len, int c, void* other) {
     UNUSED_PARAMETER(c);
     UNUSED_PARAMETER(other);
+
+    nrf_serialization_done = true;
 
     if (callback_type == 1) {
         // TX DONE
@@ -87,8 +91,6 @@ CB_TYPE ble_serialization_callback (int callback_type, int rx_len, int c, void* 
         }
 
     }
-
-    return 0xff;
 }
 
 
@@ -273,7 +275,7 @@ uint32_t app_timer_create (app_timer_id_t const *      p_timer_id,
 
 
 
-CB_TYPE serialization_timer_cb (int a, int b, int c, void* timer_id) {
+void serialization_timer_cb (int a, int b, int c, void* timer_id) {
     UNUSED_PARAMETER(a);
     UNUSED_PARAMETER(b);
     UNUSED_PARAMETER(c);
@@ -281,8 +283,6 @@ CB_TYPE serialization_timer_cb (int a, int b, int c, void* timer_id) {
     timer_node_t* p_node = (timer_node_t*) timer_id;
 
     p_node->p_timeout_handler(p_node->p_context);
-
-    return 0;
 }
 
 /**@brief Function for starting a timer.
@@ -397,7 +397,8 @@ void ser_app_power_system_off_enter () {
 
 // Essentially sleep this process
 uint32_t sd_app_evt_wait () {
-  wait_for(0xff);
+  nrf_serialization_done = false;
+  wait_for(&nrf_serialization_done);
   return NRF_SUCCESS;
 }
 

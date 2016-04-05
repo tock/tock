@@ -7,12 +7,12 @@ char rbuf[BUF_SIZE];
 char wbuf[BUF_SIZE];
 bool toggle = true;
 
-CB_TYPE write_cb(int arg0, int arg2, int arg3, void* userdata) {
+void write_cb(int arg0, int arg2, int arg3, void* userdata) {
     gpio_toggle(LED_0);
     if (toggle) { 
-        spi_read_write(rbuf, wbuf, BUF_SIZE, write_cb);
+        spi_read_write(rbuf, wbuf, BUF_SIZE, write_cb, NULL);
     } else {
-        spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb);
+        spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
     }
     toggle = !toggle;
 }
@@ -37,13 +37,13 @@ CB_TYPE write_cb(int arg0, int arg2, int arg3, void* userdata) {
 // result, you can check if reads work properly: all writes 
 // will be 0..n rather than all 0s.
 
-void main(void) {
+int main(void) {
         int i;
-	gpio_enable(LED_0);
+	gpio_enable_output(LED_0);
 
 	for (i = 0; i < 200; i++) {
 		wbuf[i] = i;
 	}
 
-        spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb);
+        spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
 }

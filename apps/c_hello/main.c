@@ -9,7 +9,7 @@
 
 char hello[] = "Hello World!\r\n";
 
-CB_TYPE nop(int x, int y, int z, void *ud) { return ASYNC; }
+void nop(int x, int y, int z, void *ud) {}
 
 void main() {
   putnstr_async(hello, sizeof(hello), nop, NULL);

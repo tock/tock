@@ -98,7 +98,7 @@ void services_init (void) {
  ******************************************************************************/
 
 // Temperature read callback
-static CB_TYPE temp_callback (int temp_value, int error_code, int unused, void* ud) {
+static void temp_callback (int temp_value, int error_code, int unused, void* ud) {
     UNUSED_PARAMETER(error_code);
     UNUSED_PARAMETER(unused);
     UNUSED_PARAMETER(ud);
@@ -114,7 +114,6 @@ static CB_TYPE temp_callback (int temp_value, int error_code, int unused, void* 
     // precision of 0.1 watts/m2, assuming sunlight efficacy of 93 lumens per watt.
     uint16_t irradiance = lux * 10 / 93;
     env_sense_update_irradiance(conn_handle, irradiance);
-    return ASYNC;
 }
 
 /*******************************************************************************

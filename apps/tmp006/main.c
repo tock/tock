@@ -48,7 +48,7 @@ int16_t temp_reading;
 int32_t error_val;
 
 // callback to receive asynchronous data
-CB_TYPE temp_callback(int temp_value, int error_code, int unused, void* callback_args) {
+void temp_callback(int temp_value, int error_code, int unused, void* callback_args) {
   temp_reading = (int16_t)temp_value;
   error_val = error_code;
 }
@@ -96,7 +96,7 @@ void read_periodic (void) {
 //********************************************************************************
 
 // demonstrate both synchronous and asynchronous reading from a driver
-void main() {
+int main() {
   putstr("Welcome to Tock in C (with libc)\nReading temperature...\n");
 
   // uncomment whichever example you want

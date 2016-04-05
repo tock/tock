@@ -10,8 +10,7 @@
 #include <gpio.h>
 
 // callback for timers
-CB_TYPE timer_cb (int arg0, int arg2, int arg3, void* userdata) {
-  return 0;
+timer_cb (int arg0, int arg2, int arg3, void* userdata) {
 }
 
 //**************************************************
@@ -59,8 +58,7 @@ void gpio_input() {
 //**************************************************
 // GPIO interrupt example
 //**************************************************
-CB_TYPE gpio_cb (int pin_num, int arg2, int arg3, void* userdata) {
-  return 0;
+void gpio_cb (int pin_num, int arg2, int arg3, void* userdata) {
 }
 
 void gpio_interrupt() {

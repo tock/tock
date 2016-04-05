@@ -19,7 +19,7 @@ static SensorData_t sensor_data = {
 };
 
 // callback for gpio interrupts
-CB_TYPE gpio_cb (int pin_num, int pin_val, int unused, void* userdata) {
+void gpio_cb (int pin_num, int pin_val, int unused, void* userdata) {
 
   // save sensor data
   if (pin_num == 1) {
@@ -30,8 +30,6 @@ CB_TYPE gpio_cb (int pin_num, int pin_val, int unused, void* userdata) {
     // interrupt from reed switch
     sensor_data.reed_switch = pin_val;
   }
-
-  return 0;
 }
 
 // This application reads from multiple sources:
