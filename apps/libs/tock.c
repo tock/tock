@@ -10,81 +10,13 @@ extern int __allow();
 extern int __subscribe();
 extern int __memop(uint32_t, int);
 
-struct callback_link {
-  CB_TYPE result;
-  struct callback_link *next;
-};
-
-typedef struct callback_link callback_link_t;
-
-static callback_link_t *wait_queue_head = NULL;
-static callback_link_t *wait_queue_tail = NULL;
-
-int wait() {
-  callback_link_t *cur = wait_queue_head;
-  if (cur != NULL) {
-    wait_queue_head = cur->next;
-    if (wait_queue_head == NULL) {
-      wait_queue_tail = NULL;
-    }
-    int result = cur->result;
-    free(cur);
-    return result;
-  }
-  return __wait();
+void wait() {
+  __wait();
 }
 
-int wait_for(CB_TYPE cb_type) {
-  bool look_for(CB_TYPE cb_type) {
-    callback_link_t *prev = NULL;
-    callback_link_t *cur = wait_queue_head;
-    while (cur != NULL) {
-      int result = cur->result;
-      if (result == cb_type) {
-        if (prev == NULL) {
-          wait_queue_head = cur->next;
-        }
-        if (cur->next == NULL) {
-          wait_queue_tail = wait_queue_head;
-        }
-        free(cur);
-        return true;
-      } else {
-        prev = cur;
-        cur = cur->next;
-      }
-    }
-    return false;
-  }
-
-  if (look_for(cb_type)) {
-    return cb_type;
-  }
-
-  while(1) {
-    CB_TYPE res_type = __wait();
-    if (res_type == cb_type) {
-      return cb_type;
-    }
-
-    bool fired = look_for(cb_type);
-
-    // Async callback. Store for later
-    callback_link_t *cur =
-      (callback_link_t*)malloc(sizeof(callback_link_t));
-    cur->result = res_type;
-    cur->next = NULL;
-    if (wait_queue_tail == NULL) {
-      wait_queue_tail = cur;
-      wait_queue_head = cur;
-    } else {
-      wait_queue_tail->next = cur;
-      wait_queue_tail = cur;
-    }
-
-    if (fired) {
-      return cb_type;
-    }
+void wait_for(bool *cond) {
+  while(!*cond) {
+    __wait();
   }
 }
 
