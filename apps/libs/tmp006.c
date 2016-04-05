@@ -2,19 +2,20 @@
 #include <tock.h>
 #include <tmp006.h>
 
+static bool readtemp;
+
 // internal callback for faking synchronous reads
-static CB_TYPE tmp006_cb(
+static void tmp006_cb(
                 int temp_value,
                 int error_code,
                 int unused __attribute__ ((unused)),
                 void* callback_args) {
+    readtemp = true;
+
     // return data to user
     int32_t* callback_vals = (int32_t*)callback_args;
     callback_vals[0] = temp_value;
     callback_vals[1] = error_code;
-
-    // signal that the callback has completed
-    return READTMP;
 }
 
 // enable TMP006, take a single reading, disable TMP006, return value to user
@@ -29,7 +30,8 @@ int tmp006_read_sync(int16_t* temp_reading) {
     }
 
     // wait for result
-    wait_for(READTMP);
+    readtemp = false;
+    wait_for(&readtemp);
 
     // write value for user
     *temp_reading = (int16_t)callback_vals[0];

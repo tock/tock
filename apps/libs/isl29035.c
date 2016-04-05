@@ -2,17 +2,22 @@
 #include <tock.h>
 #include <isl29035.h>
 
+struct isl_data {
+  int intensity;
+  bool fired;
+};
+
 // internal callback for faking synchronous reads
-static CB_TYPE isl29035_cb(int intensity,
+static void isl29035_cb(int intensity,
                            __attribute__ ((unused)) int unused1,
                            __attribute__ ((unused)) int unused2, void* ud) {
-  int* result = (int*)ud;
-  *result = intensity;
-  return READLIGHT;
+  struct isl_data* result = (struct isl_data*)ud;
+  result->intensity = intensity;
+  result->fired = true;
 }
 
 int isl29035_read_light_intensity() {
-  int result;
+  struct isl_data result = { .fired = false };
   int err;
 
   err = isl29035_subscribe(isl29035_cb, (void*)(&result));
@@ -25,9 +30,9 @@ int isl29035_read_light_intensity() {
     return err;
   }
 
-  wait_for(READLIGHT);
+  wait_for(&result.fired);
 
-  return result;
+  return result.intensity;
 }
 
 int isl29035_subscribe(subscribe_cb callback, void* userdata) {
