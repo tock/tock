@@ -348,8 +348,11 @@ int rf233_set_txp(uint8_t txp) {
   return 0;
 }
 
+static bool radio_pll;
+static bool radio_tx;
+static bool radio_rx;
 
-CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
+void interrupt_callback() {
   volatile uint8_t irq_source;
   PRINTF("RF233: interrupt handler.\n");
   /* handle IRQ source (for what IRQs are enabled, see rf233-config.h) */
@@ -357,9 +360,9 @@ CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
   PRINTF("  interrupt sources: 0x%x\n", (int)irq_source);
   if (irq_source & IRQ_PLL_LOCK) {
     PRINTF("RF233: PLL locked.\n");
-    return RADIO_PLL;
-  }
-  else if (irq_source == IRQ_RX_START) {
+    radio_pll = true;
+    return;
+  } else if (irq_source == IRQ_RX_START) {
     PRINTF("RF233: Interrupt receive start.\n");
   } else if (irq_source == IRQ_TRX_DONE) {
     PRINTF("RF233: TRX_DONE handler.\n");
@@ -372,7 +375,8 @@ CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
       }
       RF233_COMMAND(TRXCMD_RX_ON);
       PRINTF("RF233: TX complete, go back to RX with acks on.\n");
-      return RADIO_TX;
+      radio_tx = true;
+      return;
     } else {
       //PRINTF("RF233: Interrupt receive.\n");
       packetbuf_clear();
@@ -383,10 +387,10 @@ CB_TYPE interrupt_callback(int arg0, int arg2, int arg3, void* userdata) {
       } else {
         PRINTF("RF233: Read failed.\n\n");
       }
-      return RADIO_RX;
+      radio_rx = true;
+      return;
     }
   }
-  return NONE;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -587,11 +591,12 @@ int rf233_transmit() {
   
   /* perform transmission */
   flag_transmit = 1;
+  radio_tx = false;
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
   RF233_COMMAND(TRXCMD_TX_START);
 
   PRINTF("RF233:: Issued TX_START, wait for completion interrupt.\n");
-  wait_for(RADIO_TX);
+  wait_for(&radio_tx);
   PRINTF("RF233: tx ok\n\n");
   
   return RADIO_TX_OK;
@@ -830,8 +835,9 @@ int on(void) {
   }
 
   PRINTF("RF233: State is %s, transitioning to PLL_ON.\n", state_str(rf233_status()));
+  radio_pll = false;
   RF233_COMMAND(TRXCMD_PLL_ON);
-  wait_for(RADIO_PLL);
+  wait_for(&radio_pll);
   delay_ms(1);
   PRINTF("RF233: State is %s, transitioning to RX_ON.\n", state_str(rf233_status()));
   /* go to RX_ON state */
