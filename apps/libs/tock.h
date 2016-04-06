@@ -2,18 +2,17 @@
 #define _TOCK_H
 
 #include <inttypes.h>
+#include <stdbool.h>
 #include <unistd.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef int CB_TYPE;
+typedef void (subscribe_cb)(int, int, int,void*);
 
-typedef CB_TYPE (subscribe_cb)(int, int, int,void*);
-
-CB_TYPE wait();
-CB_TYPE wait_for();
+void wait();
+void wait_for(bool*);
 int command(uint32_t driver, uint32_t command, int data);
 int subscribe(uint32_t driver, uint32_t subscribe,
               subscribe_cb cb, void* userdata);

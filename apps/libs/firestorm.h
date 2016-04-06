@@ -13,20 +13,6 @@
 extern "C" {
 #endif
 
-enum firestorm_cb_type {
-  NONE,
-  PUTSTR,
-  READTMP,
-  ASYNC,
-  GPIO,
-  READLIGHT,
-  DELAY,
-  SPI,
-  RADIO_RX,
-  RADIO_TX,
-  RADIO_PLL,
-};
-
 void putstr(const char* str);
 void putnstr(const char* str, size_t len);
 void putnstr_async(const char* str, size_t len, subscribe_cb cb, void* userdata);
@@ -85,8 +71,8 @@ int spi_get_polarity();
 int spi_hold_low();
 int spi_release_low();
 int spi_write_byte(unsigned char byte);
-int spi_write(const char* write, size_t len, subscribe_cb cb);
-int spi_read_write(const char* write, char* read, size_t len, subscribe_cb cb);
+int spi_write(const char* write, size_t len, subscribe_cb cb, bool* cond);
+int spi_read_write(const char* write, char* read, size_t len, subscribe_cb cb, bool* cond);
 
 int spi_write_sync(const char* write, size_t len);
 int spi_read_write_sync(const char* write, char* read, size_t len);

@@ -4,20 +4,55 @@
 #include <firestorm.h>
 #include <tock.h>
 
-static CB_TYPE putstr_cb(
+typedef struct putstr_data {
+  char* buf;
+  int len;
+  bool called;
+  struct putstr_data* next;
+} putstr_data_t;
+
+static putstr_data_t *putstr_head = NULL;
+static putstr_data_t *putstr_tail = NULL;
+
+static void putstr_cb(
                 int _x __attribute__ ((unused)),
                 int _y __attribute__ ((unused)),
                 int _z __attribute__ ((unused)),
-                void* str) {
-  free(str);
-  return PUTSTR;
+                void* ud __attribute__ ((unused))) {
+  putstr_data_t* data = putstr_head;
+  data->called = true;
+  putstr_head = data->next;
+
+  if (putstr_head == NULL) {
+    putstr_tail = NULL;
+  } else {
+    putnstr_async(putstr_head->buf, putstr_head->len, putstr_cb, NULL);
+  }
 }
 
 void putnstr(const char *str, size_t len) {
-  char* buf = (char*)malloc(len * sizeof(char));
-  strncpy(buf, str, len);
-  putnstr_async(buf, len, putstr_cb, buf);
-  wait_for(PUTSTR);
+  putstr_data_t* data = (putstr_data_t*)malloc(sizeof(putstr_data_t));
+
+  data->len = len;
+  data->called = false;
+  data->buf = (char*)malloc(len * sizeof(char));
+  strncpy(data->buf, str, len);
+  data->next = NULL;
+
+  if (putstr_tail == NULL) {
+    // Invariant, if tail is NULL, head is also NULL
+    putstr_head = data;
+    putstr_tail = data;
+    putnstr_async(data->buf, data->len, putstr_cb, NULL);
+  } else {
+    putstr_tail->next = data;
+    putstr_tail = data;
+  }
+
+  wait_for(&data->called);
+
+  free(data->buf);
+  free(data);
 }
 
 void putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) {
@@ -45,14 +80,18 @@ int timer_stop() {
   return command(3, 2, 0);
 }
 
-CB_TYPE delay_cb() {
-  return DELAY;
+static void delay_cb( __attribute__ ((unused)) int unused0,
+                      __attribute__ ((unused)) int unused1,
+                      __attribute__ ((unused)) int unused2,
+                      void* ud) {
+  *((bool*)ud) = true;
 }
 
 void delay_ms(uint32_t ms) {
-  timer_subscribe(delay_cb, NULL);
+  bool cond = false;
+  timer_subscribe(delay_cb, &cond);
   timer_oneshot(ms);
-  wait_for(DELAY);
+  wait_for(&cond);
 }
 int spi_init() {return 0;}
 int spi_set_chip_select(unsigned char cs) {return command(4, 2, cs);}
@@ -74,22 +113,22 @@ int spi_read_buf(const char* str, size_t len) {
   return allow(4, 0, (void*)str, len);
 }
 
-static CB_TYPE spi_cb( __attribute__ ((unused)) int unused0,
-                      __attribute__ ((unused)) int unused1,
-                      __attribute__ ((unused)) int unused2,
-                      __attribute__ ((unused)) void* ud) {
-  return SPI;
+static void spi_cb( __attribute__ ((unused)) int unused0,
+                    __attribute__ ((unused)) int unused1,
+                    __attribute__ ((unused)) int unused2,
+                    __attribute__ ((unused)) void* ud) {
+  *((bool*)ud) = true;
 }
 
 int spi_write(const char* str,
    	      size_t len,
-	      subscribe_cb cb) {
+	      subscribe_cb cb, bool* cond) {
   int err;
   err = allow(4, 1, (void*)str, len);
   if (err < 0 ) {
     return err;
   }
-  err = subscribe(4, 0, cb, NULL);
+  err = subscribe(4, 0, cb, cond);
   if (err < 0 ) {
     return err;
   }
@@ -99,30 +138,32 @@ int spi_write(const char* str,
 int spi_read_write(const char* write,
 		   char* read,
 		   size_t  len,
-		   subscribe_cb cb) {
+		   subscribe_cb cb, bool* cond) {
 
   int err = allow(4, 0, (void*)read, len);
   if (err < 0) {
     return err;
   }
-  return spi_write(write, len, cb);
+  return spi_write(write, len, cb, cond);
 }
 
 int spi_write_sync(const char* write,
 		   size_t  len) {
-  spi_write(write, len, spi_cb);
-  wait_for(SPI);
+  bool cond = false;
+  spi_write(write, len, spi_cb, &cond);
+  wait_for(&cond);
   return 0;
 }
 
 int spi_read_write_sync(const char* write,
 		        char* read,
 		        size_t  len) {
-  int err = spi_read_write(write, read, len, spi_cb);
+  bool cond = false;
+  int err = spi_read_write(write, read, len, spi_cb, &cond);
   if (err < 0) {
     return err;
   }
-  wait_for(SPI);
+  wait_for(&cond);
   return 0;
 }
 
