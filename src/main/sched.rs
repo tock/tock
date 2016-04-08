@@ -66,7 +66,8 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
                 let res = platform.with_driver(process.r0(), |driver| {
                     match driver {
                         Some(d) => d.command(process.r1(),
-                                             process.r2()),
+                                             process.r2(),
+                                             appid),
                         None => -1
                     }
                 });

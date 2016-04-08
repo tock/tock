@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use process::Callback;
+use process::{AppId, Callback};
 use hil::Driver;
 use hil::gpio::{GPIOPin,InputMode,InterruptMode,Client};
 
@@ -89,7 +89,7 @@ impl<'a, G: GPIOPin> Driver for GPIO<'a, G> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize) -> isize {
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         let pins = self.pins.as_ref();
         match command_num {
             // enable output

@@ -186,7 +186,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
      *   - does nothing if lock not held
      */
 
-    fn command(&self, cmd_num: usize, arg1: usize) -> isize {
+    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
         match cmd_num {
             0 /* read_write_byte */ => { 
                 self.spi_master.read_write_byte(arg1 as u8) as isize

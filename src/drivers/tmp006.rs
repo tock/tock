@@ -1,7 +1,7 @@
 use core::cell::Cell;
 use common::take_cell::TakeCell;
 use common::math::{sqrtf32, get_errno};
-use process::Callback;
+use process::{AppId, Callback};
 use hil::Driver;
 use hil::i2c;
 use hil::gpio::{GPIOPin, InputMode, InterruptMode, Client};
@@ -295,7 +295,7 @@ impl<'a> Driver for TMP006<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize) -> isize {
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         match command_num {
             // set period for sensing
             0 => {

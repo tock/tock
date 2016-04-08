@@ -132,7 +132,7 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
     ///
     /// command_type: 0 - Write a byte to the UART.
     ///
-    fn command(&self, command_type: usize, _: usize) -> isize {
+    fn command(&self, command_type: usize, _: usize, _: AppId) -> isize {
 
         match command_type {
             0 => {
