@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use process::{Callback, NUM_PROCS};
+use process::{AppId, Container, Callback};
 use hil::Driver;
 use hil::alarm::{Alarm, AlarmClient, Frequency};
 use hil::timer::{Timer, TimerClient};
@@ -80,69 +80,62 @@ pub struct TimerData {
     t0: u32,
     interval: u32,
     repeating: bool,
-    callback: Callback
+    callback: Option<Callback>
+}
+
+impl Default for TimerData {
+    fn default() -> TimerData {
+        TimerData { t0: 0, interval: 0, repeating: false, callback: None }
+    }
 }
 
 pub struct TimerDriver<'a, T: Timer + 'a> {
     timer: &'a T,
-    app_timers: [Cell<Option<TimerData>>; NUM_PROCS],
+    app_timer: Container<TimerData>
 }
 
 impl<'a, T: Timer> TimerDriver<'a, T> {
-    pub const fn new(timer: &'a T) -> TimerDriver<'a, T> {
+    pub const fn new(timer: &'a T, container: Container<TimerData>)
+            -> TimerDriver<'a, T> {
         TimerDriver {
             timer: timer,
-            app_timers: [Cell::new(None), Cell::new(None)],
+            app_timer: container
         }
     }
 }
 
 impl<'a, T: Timer> Driver for TimerDriver<'a, T> {
     fn subscribe(&self, _: usize, callback: Callback) -> isize {
-        self.app_timers[callback.app_id().idx()].set(Some(TimerData {
-            t0: 0,
-            interval: 0,
-            repeating: false,
-            callback: callback
-        }));
-        0
+        self.app_timer.enter(callback.app_id(), |td, _allocator| {
+            td.callback = Some(callback);
+            0
+        }).unwrap_or(-1)
     }
 
-    fn command(&self, cmd_type: usize, interval: usize) -> isize {
+    fn command(&self, cmd_type: usize, interval: usize, caller_id: AppId)
+            -> isize {
         let interval = interval as u32;
-        self.app_timers[0].get().map(|td| {
+        self.app_timer.enter(caller_id, |td, _allocator| {
             match cmd_type {
                 0 /* Oneshot */ => {
-                    self.app_timers[0].set(
-                            Some(TimerData {
-                                t0: self.timer.now(),
-                                interval: interval,
-                                repeating: false,
-                                callback: td.callback
-                            })
-                    );
+                    td.t0 = self.timer.now();
+                    td.interval = interval;
+                    td.repeating = false;
                     self.timer.oneshot(interval);
                     0
                 },
                 1 /* Repeating */ => {
-                    self.app_timers[0].set(
-                            Some(TimerData {
-                                t0: self.timer.now(),
-                                interval: interval,
-                                repeating: true,
-                                callback: td.callback
-                            })
-                    );
+                    td.t0 = self.timer.now();
+                    td.interval = interval;
+                    td.repeating = true;
                     self.timer.repeat(interval);
                     0
                 },
                 2 /* Stop */ => {
-                    if self.app_timers[0].get().is_some() {
-                        self.timer.stop();
-                        0
-                    } else {
-                        -1
-                    }
+                    td.interval = 0;
+                    td.t0 = 0;
+                    self.timer.stop();
+                    0
                 },
                 _ => -1
             }
@@ -152,15 +145,14 @@ impl<'a, T: Timer> Driver for TimerDriver<'a, T> {
 
 impl<'a, T: Timer> TimerClient for TimerDriver<'a, T> {
     fn fired(&self, now: u32) {
-        for mtimer in self.app_timers.iter() {
-            mtimer.get().map(|timer| {
-                let elapsed = now.wrapping_sub(timer.t0);
-                if elapsed >= timer.interval {
-                    let mut cb = timer.callback;
+        self.app_timer.each(|timer| {
+            let elapsed = now.wrapping_sub(timer.t0);
+            if elapsed >= timer.interval {
+                timer.callback.map(|mut cb| {
                     cb.schedule(now as usize, 0, 0);
-                }
-            });
-        }
+                });
+            }
+        });
     }
 }
 
