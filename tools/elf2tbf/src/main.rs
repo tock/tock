@@ -77,14 +77,21 @@ fn get_section<'a>(input: &'a elf::File, name: &str) -> &'a elf::Section {
 }
 
 fn do_work(input: &elf::File, output: &mut Write) {
-    let rel_data = get_section(input, ".rel.data");
+    let (rel_data_size, rel_data) = match input.sections.iter()
+            .find(|section| section.shdr.name == ".rel.data".as_ref()) {
+        Some(section) => {
+            (section.shdr.size, section.data.as_ref())
+        },
+        None => (0 as u64, &[] as &[u8])
+
+    };
     let text = get_section(input, ".text");
     let got = get_section(input, ".got");
     let data = get_section(input, ".data");
     let bss = get_section(input, ".bss");
 
     let load_info = LoadInfo {
-        rel_data_size: rel_data.shdr.size as u32,
+        rel_data_size: rel_data_size as u32,
         entry_loc: (input.ehdr.entry ^ 0x80000000) as u32,
         init_data_loc: text.shdr.size as u32,
         init_data_size: (data.shdr.size + got.shdr.size) as u32,
@@ -100,12 +107,33 @@ fn do_work(input: &elf::File, output: &mut Write) {
             len: std::mem::size_of::<LoadInfo>()
         })
     };
+
+    let mut total_len : u32 =
+        (std::mem::size_of::<u32>() +
+        load_info_bytes.as_ref().len() +
+        rel_data.len() +
+        text.data.len() +
+        got.data.len() +
+        data.data.len()) as u32;
+    let pad = (4 - (total_len % 4)) % 4;
+    total_len = total_len + pad;
+
+    let total_len_buf : &[u8; 4] = unsafe {
+        std::mem::transmute(&total_len)
+    };
+
+    let _ = output.write(total_len_buf);
+
     let _ = output.write(load_info_bytes);
 
-    let _ = output.write(rel_data.data.as_ref());
+    let _ = output.write(rel_data.as_ref());
 
     let _ = output.write(text.data.as_ref());
     let _ = output.write(got.data.as_ref());
     let _ = output.write(data.data.as_ref());
+
+    for _ in 0..pad {
+        let _ = output.write(&[0]);
+    }
 }
 
