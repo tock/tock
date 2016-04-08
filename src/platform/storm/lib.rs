@@ -8,6 +8,7 @@ extern crate drivers;
 extern crate hil;
 extern crate sam4l;
 extern crate support;
+extern crate process;
 
 use hil::Controller;
 use hil::spi_master::SpiMaster;
@@ -318,7 +319,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     virtual_alarm1.set_client(vtimer1);
     static_init!(timer : drivers::timer::TimerDriver<AlarmToTimer<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>>> =
-                            drivers::timer::TimerDriver::new(vtimer1));
+                            drivers::timer::TimerDriver::new(vtimer1,
+                                            process::Container::create()));
     vtimer1.set_client(timer);
 
     // Initialize and enable SPI HAL
