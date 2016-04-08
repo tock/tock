@@ -5,6 +5,8 @@ import stormloader
 from stormloader import sl_api
 from sys import argv
 
+APP_BASE_ADDR = 0x30000
+
 argv.pop(0)
 
 img = ""
@@ -24,11 +26,11 @@ try:
     sl = sl_api.StormLoader(None)
     sl.enter_bootload_mode()
     then = time.time()
-    sl.write_extended_irange(0x30000, img)
+    sl.write_extended_irange(APP_BASE_ADDR, img)
     now = time.time()
     print("Wrote %d bytes in %.3f seconds" %(len(img), now-then))
     expected_crc = sl.crc32(img)
-    written_crc = sl.c_crcif(0x50000, len(img))
+    written_crc = sl.c_crcif(APP_BASE_ADDR, len(img))
     if expected_crc != written_crc:
         print("CRC failure: expected 0x%04x, got 0x%04x" % (expected_crc, written_crc))
         sys.exit(1)
