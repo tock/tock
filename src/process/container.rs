@@ -88,7 +88,7 @@ impl<T: Default> Container<T> {
             let app_id = appid.idx();
             match process::PROCS[app_id] {
                 Some(ref mut app) => {
-                    app.container_for::<T>(self.container_num).map_or(
+                    app.container_for_or_alloc::<T>(self.container_num).map_or(
                         Err(Error::OutOfMemory), move |root_ptr| {
                             let mut root = Owned::new(root_ptr, app_id);
                             let mut allocator = Allocator {
@@ -100,6 +100,20 @@ impl<T: Default> Container<T> {
                     })
                 },
                 None => Err(Error::NoSuchApp)
+            }
+        }
+    }
+
+    pub fn each<F>(&self, fun: F) where F: Fn(&mut Owned<T>) {
+        unsafe {
+            let itr = process::PROCS.iter_mut().filter_map(|p| p.as_mut());
+            for (app_id, app) in itr.enumerate() {
+                let ctr_ptr = app.container_for::<T>(self.container_num);
+                if !ctr_ptr.is_null() {
+                    let root_ptr = *ctr_ptr;
+                    let mut root = Owned::new(root_ptr, app_id);
+                    fun(&mut root);
+                }
             }
         }
     }
