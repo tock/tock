@@ -162,7 +162,11 @@ $(TOCK_APP_BUILD_DIR)/syscalls.o:	$(TOCK_DIR)/arch/$(ARCH)/syscalls.S | $(TOCK_A
 TOCK_LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 
 .SECONDEXPANSION:
-$(TOCK_APP_BUILD_DIR)/$(APP).elf: $$(OBJS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
+$(TOCK_APP_BUILD_DIR)/$(APP)-stage0.elf: $$(OBJS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
+	$(Q)$(LD) --gc-sections -r  --entry=_start -T $(APP_LINKER_SCRIPT) $(LIBRARY_INCLUDES) -nostdlib $^ -o $@
+
+.SECONDEXPANSION:
+$(TOCK_APP_BUILD_DIR)/$(APP).elf: $(TOCK_APP_BUILD_DIR)/$(APP)-stage0.elf
 	$(TRACE_LD)
 	$(Q)$(LD) -g -Os -T $(APP_LINKER_SCRIPT) --emit-relocs -nostdlib $(LIBRARY_INCLUDES) $^ -o $@
 	$(Q)$(GENLST) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
