@@ -92,7 +92,7 @@ impl<'a, T: Timer> TimerDriver<'a, T> {
     pub const fn new(timer: &'a T) -> TimerDriver<'a, T> {
         TimerDriver {
             timer: timer,
-            app_timers: [Cell::new(None); NUM_PROCS],
+            app_timers: [Cell::new(None), Cell::new(None)],
         }
     }
 }

@@ -32,7 +32,7 @@ impl<'a, U: UART> Nrf51822Serialization<'a, U> {
     pub const fn new(uart: &'a U, buffer: &'static mut [u8]) -> Nrf51822Serialization<'a, U> {
         Nrf51822Serialization {
             uart: uart,
-            apps: [TakeCell::empty()],
+            apps: [TakeCell::empty(), TakeCell::empty()],
             buffer: TakeCell::new(buffer)
         }
     }

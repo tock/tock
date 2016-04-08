@@ -25,7 +25,7 @@ impl<'a, U: UART> Console<'a, U> {
             -> Console<'a, U> {
         Console {
             uart: uart,
-            apps: [TakeCell::empty()],
+            apps: [TakeCell::empty(), TakeCell::empty()],
             buffer: TakeCell::new(buffer)
         }
     }

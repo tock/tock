@@ -13,14 +13,14 @@ extern {
 
 /// Size of each processes's memory region in bytes
 pub const PROC_MEMORY_SIZE : usize = 8192;
-pub const NUM_PROCS : usize = 1;
+pub const NUM_PROCS : usize = 2;
 
 static mut FREE_MEMORY_IDX: usize = 0;
 
 #[link_section = ".app_memory"]
 static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE]; NUM_PROCS];
 
-pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None];
+pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None, None];
 
 pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
     let procs = unsafe { &mut PROCS };
@@ -92,6 +92,23 @@ pub struct Process<'a> {
     pub state: State,
 
     pub callbacks: RingBuffer<'a, Callback>
+}
+
+#[inline(never)]
+pub unsafe fn load_processes(mut start_addr: *const usize) ->
+        &'static mut [Option<Process<'static>>] {
+    for op in PROCS.iter_mut() {
+        if *start_addr != 0 {
+            let prog_start = start_addr.offset(1);
+            let length = *start_addr as isize;
+            start_addr = (start_addr as *const u8).offset(length) as *const usize;
+
+            *op = Process::create(prog_start);
+        } else {
+            *op = None;
+        }
+    }
+    &mut PROCS
 }
 
 impl<'a> Process<'a> {
@@ -397,7 +414,9 @@ unsafe fn load(start_addr: *const usize, mem_base: *const u8) -> LoadResult {
     // Entry point is offset from app code
     result.init_fn = start_addr as usize + load_info.entry_loc;
 
-    result.app_mem_start = mem_base.offset(load_info.bss_end_offset as isize);
+    let mut aligned_mem_start = load_info.bss_end_offset as isize;
+    aligned_mem_start += (8 - (aligned_mem_start % 8)) % 8;
+    result.app_mem_start = mem_base.offset(aligned_mem_start);
 
     result
 }
