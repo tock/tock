@@ -275,7 +275,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     static_init!(console : drivers::console::Console<sam4l::usart::USART> =
                     drivers::console::Console::new(&sam4l::usart::USART3,
-                                       &mut drivers::console::WRITE_BUF));
+                                       &mut drivers::console::WRITE_BUF,
+                                       process::Container::create()));
     sam4l::usart::USART3.set_client(console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
