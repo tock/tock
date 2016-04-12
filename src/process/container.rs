@@ -83,7 +83,7 @@ impl<T: Default> Container<T> {
     }
 
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
-        where F: Fn(&mut Owned<T>, &mut Allocator) -> R, R: Copy {
+        where F: FnOnce(&mut Owned<T>, &mut Allocator) -> R, R: Copy {
         unsafe {
             let app_id = appid.idx();
             match process::PROCS[app_id] {
