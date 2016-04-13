@@ -13,14 +13,14 @@ extern {
 
 /// Size of each processes's memory region in bytes
 pub const PROC_MEMORY_SIZE : usize = 8192;
-pub const NUM_PROCS : usize = 1;
+pub const NUM_PROCS : usize = 2;
 
 static mut FREE_MEMORY_IDX: usize = 0;
 
 #[link_section = ".app_memory"]
 static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE]; NUM_PROCS];
 
-pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None];
+pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None, None];
 
 pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
     let procs = unsafe { &mut PROCS };
@@ -94,6 +94,23 @@ pub struct Process<'a> {
     pub callbacks: RingBuffer<'a, Callback>
 }
 
+#[inline(never)]
+pub unsafe fn load_processes(mut start_addr: *const usize) ->
+        &'static mut [Option<Process<'static>>] {
+    for op in PROCS.iter_mut() {
+        if *start_addr != 0 {
+            let prog_start = start_addr.offset(1);
+            let length = *start_addr as isize;
+            start_addr = (start_addr as *const u8).offset(length) as *const usize;
+
+            *op = Process::create(prog_start);
+        } else {
+            *op = None;
+        }
+    }
+    &mut PROCS
+}
+
 impl<'a> Process<'a> {
     pub const fn mem_start(&self) -> *const u8 {
         self.memory.data
@@ -128,20 +145,17 @@ impl<'a> Process<'a> {
                 res
             };
 
-            // Take callback buffer from bottom of process memory
+            // Take callback buffer from of memory
             let callback_size = mem::size_of::<Option<Callback>>();
             let callback_len = 10;
-            let callback_offset = memory.len - (callback_len * callback_size);
+            let callback_offset = callback_len * callback_size;
             // Set kernel break to beginning of callback buffer
             kernel_memory_break =
-                kernel_memory_break.offset(callback_offset as isize);
+                kernel_memory_break.offset(-(callback_offset as isize));
             let callback_buf = mem::transmute(Slice {
                 data: kernel_memory_break as *const Option<Callback>,
                 len: callback_len
             });
-
-            kernel_memory_break =
-                kernel_memory_break.offset(-(container::CONTAINER_COUNTER as isize) * 4);
 
             let callbacks = RingBuffer::new(callback_buf);
 
@@ -220,19 +234,27 @@ impl<'a> Process<'a> {
 
     pub unsafe fn free<T>(&mut self, _: *mut T) {}
 
-    pub unsafe fn container_for<T: Default>(&mut self, container_num: usize)
-            -> Option<*mut T> {
+    pub unsafe fn container_for<T>(&mut self, container_num: usize)
+            -> *mut *mut T {
         let container_num = container_num as isize;
         let ptr = (self.mem_end() as *mut usize)
                         .offset(-(container_num + 1));
-        if ptr.is_null() {
+        ptr as *mut *mut T
+    }
+
+    pub unsafe fn container_for_or_alloc<T: Default>(&mut self,
+                                                     container_num: usize)
+            -> Option<*mut T> {
+        let ctr_ptr = self.container_for::<T>(container_num);
+        if (*ctr_ptr).is_null() {
             self.alloc(mem::size_of::<T>()).map(|root_arr| {
                 let root_ptr = root_arr.repr().data as *mut T;
                 *root_ptr = Default::default();
+                volatile_store(ctr_ptr, root_ptr);
                 root_ptr
             })
         } else {
-            Some(*ptr as *mut T)
+            Some(*ctr_ptr)
         }
     }
 
@@ -397,7 +419,9 @@ unsafe fn load(start_addr: *const usize, mem_base: *const u8) -> LoadResult {
     // Entry point is offset from app code
     result.init_fn = start_addr as usize + load_info.entry_loc;
 
-    result.app_mem_start = mem_base.offset(load_info.bss_end_offset as isize);
+    let mut aligned_mem_start = load_info.bss_end_offset as isize;
+    aligned_mem_start += (8 - (aligned_mem_start % 8)) % 8;
+    result.app_mem_start = mem_base.offset(aligned_mem_start);
 
     result
 }

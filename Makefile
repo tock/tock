@@ -46,7 +46,7 @@ include src/Makefile.mk
 .PHONY: doc all clean clean-all
 
 # Generates documentation for the kernel and selected architecture and platform.
-doc: $(BUILD_PLATFORM_DIR)/main.o
+doc: $(BUILD_PLATFORM_DIR)/kernel.o
 	@echo "Generating documentation..."
 	# Break this temporarily; we'll fix later when this is done recursively
 	#@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)chips/$(CHIP)/lib.rs

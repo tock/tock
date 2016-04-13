@@ -14,8 +14,6 @@ LDFLAGS += -T$(LOADER) -lm
 OBJDUMP_FLAGS := --disassemble --source --disassembler-options=force-thumb
 OBJDUMP_FLAGS += -C --section-headers
 
-ARCH = cortex-m4
-
 $(BUILD_PLATFORM_DIR)/libsam4l.rlib: $(call rwildcard,$(SRC_DIR)chips/sam4l,*.rs) $(BUILD_PLATFORM_DIR)/libcore.rlib $(BUILD_PLATFORM_DIR)/libhil.rlib $(BUILD_PLATFORM_DIR)/libcommon.rlib | $(BUILD_PLATFORM_DIR)
 	@echo "Building $@"
 	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_PLATFORM_DIR) $(SRC_DIR)chips/sam4l/lib.rs

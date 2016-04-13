@@ -2,7 +2,7 @@
 
 use sam4l::i2c;
 use hil;
-use hil::i2c::I2C;
+use hil::i2c::I2CController;
 use core::cell::Cell;
 
 // ===========================================

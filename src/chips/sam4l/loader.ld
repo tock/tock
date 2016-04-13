@@ -26,7 +26,8 @@ SEARCH_DIR(.)
 /* Memory Spaces Definitions, 448K flash, 64K ram */
 MEMORY
 {
-  rom (rx)  : ORIGIN = 0x00010000, LENGTH = 0x00070000
+  rom (rx)  : ORIGIN = 0x00010000, LENGTH = 0x00020000
+  prog (rx) : ORIGIN = 0x00030000, LENGTH = 0x00040000
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x00010000
 }
 
@@ -84,13 +85,17 @@ SECTIONS
         KEEP (*crtend.o(.dtors))
 
         . = ALIGN(4);
+        _efixed = .;            /* End of text section */
+    } > rom
+
+    .apps :
+    {
+        . = ALIGN(4);
         _sapps = .;
         KEEP (*(.app.*))
         _eapps = .;
+    } > prog
 
-        . = ALIGN(4);
-        _efixed = .;            /* End of text section */
-    } > rom
 
     /* .ARM.exidx is sorted, so has to go in its own output section.  */
     PROVIDE_HIDDEN (__exidx_start = .);

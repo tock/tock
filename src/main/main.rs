@@ -19,7 +19,6 @@ extern {
 
 #[no_mangle]
 pub extern fn main() {
-    use process::Process;
     use process::AppId;
 
     let mut platform = unsafe {
@@ -28,8 +27,7 @@ pub extern fn main() {
 
 
     let processes = unsafe {
-        process::process::PROCS = [Process::create(&_sapps)];
-        &mut process::process::PROCS
+        process::process::load_processes(&_sapps)
     };
 
     loop {

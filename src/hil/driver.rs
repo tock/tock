@@ -76,7 +76,7 @@ pub trait Driver {
     /// commands might "kick-off" asynchronous tasks in coordination with a
     /// `subscribe` call.
     #[allow(unused_variables)]
-    fn command(&self, minor_num: usize, r2: usize) -> isize {
+    fn command(&self, minor_num: usize, r2: usize, caller_id: AppId) -> isize {
         -1
     }
 

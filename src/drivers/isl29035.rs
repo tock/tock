@@ -1,6 +1,6 @@
 //! Driver for the ISL29035 digital light sensor
 
-use process::Callback;
+use process::{AppId, Callback};
 use hil::Driver;
 use hil::i2c::{I2CDevice, I2CClient, Error};
 use core::cell::Cell;
@@ -69,7 +69,7 @@ impl<'a> Driver for Isl29035<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, _arg1: usize) -> isize {
+    fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> isize {
         match command_num {
             0 => {
                 self.start_read_lux();

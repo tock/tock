@@ -56,9 +56,11 @@ LIBS += $(TOCK_APP_BUILD_DIR)/syscalls.o
 
 
 
-$(TOCK_APP_BUILD_DIR)/$(APP).elf: $(LIBS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
+$(TOCK_APP_BUILD_DIR)/$(APP)-stage0.elf: $(LIBS) $(TOCK_LIBS) $(APP_LIBC) | $(TOCK_APP_BUILD_DIR) kernel
+	$(Q)$(LD) $(CFLAGS) --gc-sections -r  --entry=_start -T $(APP_LINKER_SCRIPT) -nostdlib $^ -o $@
+
+$(TOCK_APP_BUILD_DIR)/$(APP).elf: $(TOCK_APP_BUILD_DIR)/$(APP)-stage0.elf
 	$(TRACE_LD)
-	$(Q)$(LD) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) --emit-relocs -nostdlib $^ -o $@
-	$(Q)$(LD) $(CFLAGS) -g -Os -T $(APP_LINKER_SCRIPT) --emit-relocs -nostdlib $^ -o $@
+	$(Q)$(LD) $(CFLAGS) -Os -T $(APP_LINKER_SCRIPT) --emit-relocs -nostdlib $^ -o $@
 	$(Q)$(GENLST) $@ > $(TOCK_APP_BUILD_DIR)/$(APP).lst
 

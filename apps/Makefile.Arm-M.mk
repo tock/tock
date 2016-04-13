@@ -9,10 +9,10 @@ ASFLAGS += -mcpu=$(ARCH) -mthumb
 
 CC := $(TOOLCHAIN)-gcc
 CXX := $(TOOLCHAIN)-g++
-CPPFLAGS += -mcpu=$(ARCH) -mthumb -mfloat-abi=soft
+CPPFLAGS += -g -mcpu=$(ARCH) -mthumb -mfloat-abi=soft
 
 LD := $(TOOLCHAIN)-ld
-LDFLAGS += -T$(TOCK_PLATFORM_LINKER_SCRIPT) -lm
+LDFLAGS += -g -T$(TOCK_PLATFORM_LINKER_SCRIPT) -lm
 
 OBJCOPY := $(TOOLCHAIN)-objcopy
 
