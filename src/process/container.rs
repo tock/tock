@@ -7,12 +7,30 @@ use core::ptr::Unique;
 use core::raw::Repr;
 use process::{self, Error};
 
+pub static mut CONTAINER_COUNTER : usize = 0;
+
 pub struct Container<T: Default> {
     container_num: usize,
     ptr: PhantomData<T>
 }
 
-pub static mut CONTAINER_COUNTER : usize = 0;
+pub struct AppliedContainer<T> {
+    appid: usize,
+    container: *mut T,
+    _phantom: PhantomData<T>
+}
+
+impl<T> AppliedContainer<T> {
+    pub fn enter<F,R>(self, fun: F) -> R
+        where F: FnOnce(&mut Owned<T>, &mut Allocator) -> R, R: Copy {
+        let mut allocator = Allocator {
+            app: unsafe { process::PROCS[self.appid].as_mut().unwrap() },
+            app_id: self.appid
+        };
+        let mut root = unsafe { Owned::new(self.container, self.appid) };
+        fun(&mut root, &mut allocator)
+    }
+}
 
 pub struct Allocator<'a> {
     app: &'a mut process::Process<'a>,
@@ -27,6 +45,12 @@ pub struct Owned<T: ?Sized> {
 impl<T: ?Sized> Owned<T> {
     pub unsafe fn new(data: *mut T, app_id: usize) -> Owned<T> {
         Owned { data: Unique::new(data), app_id: app_id }
+    }
+
+    pub fn appid(&self) -> AppId {
+        unsafe {
+            AppId::new(self.app_id)
+        }
     }
 }
 
@@ -82,6 +106,27 @@ impl<T: Default> Container<T> {
         }
     }
 
+    pub fn container(&self, appid: AppId) -> Option<AppliedContainer<T>> {
+        unsafe {
+            let app_id = appid.idx();
+            match process::PROCS[app_id] {
+                Some(ref mut app) => {
+                    let cntr = app.container_for::<T>(self.container_num);
+                    if cntr.is_null() {
+                        None
+                    } else {
+                        Some(AppliedContainer {
+                            appid: app_id,
+                            container: *cntr,
+                            _phantom: PhantomData
+                        })
+                    }
+                },
+                None => None
+            }
+        }
+    }
+
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
         where F: FnOnce(&mut Owned<T>, &mut Allocator) -> R, R: Copy {
         unsafe {
@@ -116,6 +161,38 @@ impl<T: Default> Container<T> {
                 }
             }
         }
+    }
+
+    pub fn iter(&self) -> Iter<T> {
+        unsafe {
+            Iter {
+                container: self,
+                index: 0,
+                len: process::PROCS.len()
+            }
+        }
+    }
+}
+
+pub struct Iter<'a, T: 'a + Default> {
+    container: &'a Container<T>,
+    index: usize,
+    len: usize
+}
+
+impl<'a, T: Default> Iterator for Iter<'a, T> {
+    type Item = AppliedContainer<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.index < self.len {
+            let idx = self.index;
+            self.index += 1;
+            let res = self.container.container(unsafe { AppId::new(idx) });
+            if res.is_some() {
+                return res;
+            }
+        }
+        None
     }
 }
 
