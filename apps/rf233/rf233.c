@@ -1,66 +1,11 @@
-/*
- * Copyright (c) 2013, Thingsquare, http://www.thingsquare.com/.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * 3. Neither the name of the copyright holder nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE
- * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
- * OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- */
-/**
-* Copyright (c) 2015 Atmel Corporation and
-* 2012 - 2013, Thingsquare, http://www.thingsquare.com/. All rights reserved. 
-*  
-* Redistribution and use in source and binary forms, with or without 
-* modification, are permitted provided that the following conditions are met:
-* 
-* 1. Redistributions of source code must retain the above copyright notice, this
-* list of conditions and the following disclaimer.
-* 
-* 2. Redistributions in binary form must reproduce the above copyright notice, 
-* this list of conditions and the following disclaimer in the documentation 
-* and/or other materials provided with the distribution.
-* 
-* 3. Neither the name of Atmel nor the name of Thingsquare nor the names of its
-* contributors may be used to endorse or promote products derived 
-* from this software without specific prior written permission.  
-* 
-* 4. This software may only be redistributed and used in connection with an 
-* Atmel microcontroller or Atmel wireless product.
-* 
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-* ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
-* LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
-* CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
-* GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
-* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
-* STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY 
-* OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+// Implementation of an RF233 radio stack for the Tock operating
+// system. Adapted from the Contiki RF233 stack provided as part
+// of Atmel Studio. The licenses for the original code are at the
+// bottom of the file to reduce clutter.
+//
+// Author: Philip Levis <pal@cs.stanford.edu>
+// Date: April 18 2016
+
 
 #include "firestorm.h"
 #include <stdint.h>
@@ -72,8 +17,8 @@
 
 #define RF233_STATUS()                    rf233_status()
 /*---------------------------------------------------------------------------*/
-static int  on(void);
-static int  off(void);
+static int on(void);
+static int off(void);
 static void rf_generate_random_seed(void);
 static void flush_buffer(void);
 static uint8_t flag_transmit = 0;
@@ -105,17 +50,12 @@ int rf233_prepare(const void *payload, unsigned short payload_len);
 int rf233_transmit();
 int rf233_send(const void *data, unsigned short len);
 int rf233_read(void *buf, unsigned short bufsize);
-int rf233_channel_clear(void);
 int rf233_receiving_packet(void);
 int rf233_pending_packet(void);
 int rf233_on(void);
 int rf233_off(void);
 int rf233_sleep(void);
 
-
-void ENTER_TRX_REGION() {} // Disable interrupts
-void LEAVE_TRX_REGION() {} // Re-enable interrupts
-void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
 
 /*---------------------------------------------------------------------------*/
 /* convenience macros */
@@ -136,17 +76,7 @@ void CLEAR_TRX_IRQ() {}    // Clear pending interrupts
 #define PRINTF(...)       1
 #endif
 
-#define BUSYWAIT_UNTIL(cond, max_time)        \
-  do {                                        \
-    int counter = max_time;                   \
-    while (!(cond) && counter > 0) {          \
-      delay_ms(1);                            \
-      counter--;                              \
-    }                                         \
-  } while(0)
-
-// Register operations
-
+// Used for debugging output
 char* state_str(uint8_t state) {
   switch (state) {
   case STATE_P_ON:
@@ -180,6 +110,10 @@ char* state_str(uint8_t state) {
   }
 }
 
+
+// Section 9.8 of the RF233 manual suggests recalibrating filters at
+// least every 5 minutes of operation. Transitioning out of sleep
+// resets the filters automatically.
 void calibrate_filters() {
   PRINTF("RF233: Calibrating filters.\n");
   trx_reg_write(RF233_REG_FTN_CTRL, 0x80);
@@ -192,8 +126,11 @@ int main() {
   rf233_init();
   while (1) {
     rf233_send(buf, 10);
-    delay_ms(2000);
-    calibrate_filters();
+    delay_ms(10);
+    rf233_sleep();
+    delay_ms(1000);
+    rf233_on();
+    delay_ms(10000);
   }
   //while(1) {}
 }
@@ -482,11 +419,8 @@ int rf233_init(void) {
 
   /* 11_09_rel */
   trx_reg_write(RF233_REG_TRX_RPC, 0xFF); /* Enable RPC feature by default */
-  // regtemp = trx_reg_read(RF233_REG_PHY_TX_PWR);
-  //PRINTF("RF233: Installed addresses. Turning on radio.");
+  PRINTF("RF233: Installed addresses. Turning on radio.");
   rf233_on();
-  /* start the radio process */
-  //process_start(&rf233_radio_process, NULL);
   return 0;
 }
 
@@ -563,7 +497,6 @@ int rf233_transmit() {
   PRINTF("RF233: attempting transmit, in state %s\n", state_str(status_now));
 
   if (status_now == STATE_BUSY_RX_AACK ||
-      //status_now == STATE_BUSY_RX ||  // BUSY_RX triggered by filling buffer
       status_now == STATE_BUSY_TX_ARET) {
     PRINTF("RF233: collision, was in state %s\n", state_str(status_now));
     /* NOTE: to avoid loops */
@@ -631,7 +564,10 @@ int rf233_read(void *buf, unsigned short bufsize) {
   //uint8_t ed;       /* frame metadata */
   uint8_t frame_len = 0;
   uint8_t len = 0;
-  //int rssi;
+  char wbuf[PACKETBUF_SIZE];
+  for (int i = 0; i < bufsize; i++) {
+    wbuf[i] = 0;
+  }
 
   PRINTF("RF233: Receiving.\n");
   
@@ -666,14 +602,16 @@ int rf233_read(void *buf, unsigned short bufsize) {
   PRINTF("RF233 read %u bytes:\n", frame_len);
 
   /* read out the data into the buffer, disregarding the length and metadata bytes */
+  //spi_read_write_sync(wbuf, (char*)buf, len - 1);
   for (uint8_t i = 0; i < len - 1; i++) {
     uint8_t val = spi_write_byte(0);
     ((uint8_t*)buf)[i] = val;
-    PRINTF("%02x ", val);
+    PRINTF("%02x ", ((uint8_t*)buf)[i]);
     if (i % 10 == 9) {
       PRINTF("\n");
     }
   }
+  
   PRINTF("\n");
   spi_release_low();
   
@@ -691,46 +629,7 @@ int rf233_read(void *buf, unsigned short bufsize) {
 
   return len;
 }
-/*---------------------------------------------------------------------------*/
-/**
- * \brief      perform a clear channel assessment 
- * \retval >0  Channel is clear
- * \retval 0   Channel is not clear
- */
-int rf233_channel_clear(void) {
-  uint8_t regsave;
-  int was_off = 0;
-  
-  if(rf233_status() != STATE_RX_ON) {
-    /* CCA can only be performed in RX state */
-    was_off = 1;
-    RF233_COMMAND(TRXCMD_RX_ON);
-  }
-   delay_ms(1);
-  /* request a CCA, storing the channel number (set with the same reg) */
-  regsave = trx_reg_read(RF233_REG_PHY_CC_CCA);
-  regsave |= PHY_CC_CCA_DO_CCA | PHY_CC_CCA_MODE_CS_OR_ED;
-  trx_reg_write(RF233_REG_PHY_CC_CCA, regsave);
-  
-  BUSYWAIT_UNTIL(trx_reg_read(RF233_REG_TRX_STATUS) & TRX_CCA_DONE, 1);
-  //regsave = rf233_status();
-  regsave = trx_reg_read(RF233_REG_TRX_STATUS);
-  /* return to previous state */
-  if (was_off) {
-    RF233_COMMAND(TRXCMD_TRX_OFF);
-  }
-  else {
-    RF233_COMMAND(TRXCMD_RX_ON);
-  }
 
-  /* check CCA */
-  if((regsave & TRX_CCA_DONE) && (regsave & TRX_CCA_STATUS)) {
-    PRINTF("RF233: CCA 1\n");
-    return 1;
-  }
-  PRINTF("RF233: CCA 0\n");
-  return 0;
-}
 /*---------------------------------------------------------------------------*/
 /**
  * \brief      check whether we are currently receiving a frame 
@@ -739,8 +638,8 @@ int rf233_channel_clear(void) {
  */
 int rf233_receiving_packet(void) { 
   uint8_t trx_state;
-  trx_state=rf233_status();
-  if(trx_state == STATE_BUSY_RX_AACK) {
+  trx_state = rf233_status();
+  if (trx_state == STATE_BUSY_RX_AACK) {
     PRINTF("RF233: Receiving frame\n");
     return 1;
   }
@@ -763,7 +662,7 @@ int rf233_pending_packet(void) {
  * \retval 0   Success
  */
 int rf233_on(void) {
-  PRINTF("RF233: on\n");
+  PRINTF("RF233: turning on from state %s\n  - sleeping radio will be POWER_ON since it doesn't respond to SPI and 0x0 is POWER_ON", state_str(rf233_status()));
   on();
   return 0;
 }
@@ -773,7 +672,7 @@ int rf233_on(void) {
  * \retval 0   Success
  */
 int rf233_off(void) {
-  PRINTF("RF233: off\n");
+  PRINTF("RF233: turning off from state %s\n", state_str(rf233_status()));
   off();
   return 0;
 }
@@ -800,19 +699,19 @@ void SetIEEEAddr(uint8_t *ieee_addr) {
 	//}
 }
 
- void SetPanId(uint16_t panId) {
-	uint8_t *d = (uint8_t *)&panId;
-
-	trx_reg_write(0x22, d[0]);
-	trx_reg_write(0x23, d[1]);
+void SetPanId(uint16_t panId) {
+  uint8_t *d = (uint8_t *)&panId;
+  
+  trx_reg_write(0x22, d[0]);
+  trx_reg_write(0x23, d[1]);
 }
  
 void SetShortAddr(uint16_t addr) {
-	uint8_t *d = (uint8_t *)&addr;
-
-	trx_reg_write(0x20, d[0]);
-	trx_reg_write(0x21, d[1]);
-	trx_reg_write(0x2d, d[0] + d[1]);
+  uint8_t *d = (uint8_t *)&addr;
+  
+  trx_reg_write(0x20, d[0]);
+  trx_reg_write(0x21, d[1]);
+  trx_reg_write(0x2d, d[0] + d[1]);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -821,9 +720,9 @@ int on(void) {
   /* Check whether radio is in sleep */
   if (sleep_on) {
     /* Wake the radio. It'll move to TRX_OFF state */
-    wake_from_sleep();
+    gpio_clear(SLP_PIN);
     delay_ms(1);
-    //printf("\r\nWake from sleep %d",rf233_get_channel());
+    printf("RF233: Wake from sleep\n");
     sleep_on = 0;
   }
   uint8_t state_now = rf233_status();
@@ -856,6 +755,7 @@ int off(void) {
 
   /* turn off the radio transceiver */
   RF233_COMMAND(TRXCMD_TRX_OFF);
+  
   radio_is_on = 0;
   return 0;
 }
@@ -863,18 +763,15 @@ int off(void) {
 /* Put the Radio in sleep mode */
 
 int rf233_sleep(void) {
-  int status;
   /* Check whether we're already sleeping */
   if (!sleep_on) {
-    //printf("\r\n goto sleep %d",rf233_get_channel());
+    PRINTF("RF233: Putting to sleep.\n");
     //delay_ms(1);
     sleep_on = 1;
     /* Turn off the Radio */
-    status = rf233_off();
+    rf233_off();
     /* Set the SLP_PIN to high */
-    if(status == 0) {
-      goto_sleep();
-    }
+    gpio_set(SLP_PIN);
   }
   
   return 0;
@@ -893,10 +790,10 @@ static void flush_buffer(void) {
 }
 
 void goto_sleep(void) {
-  gpio_set(SLP_PIN);
+
 }
- 
- void wake_from_sleep(void) {
+
+void wake_from_sleep(void) {
   /* 
    * Triggers a radio state transition - assumes that the radio already is in
    * state SLEEP or DEEP_SLEEP and SLP pin is low. Refer to datasheet 6.6.
@@ -904,10 +801,74 @@ void goto_sleep(void) {
    * Note: this is the only thing that can get the radio from state SLEEP or 
    * state DEEP_SLEEP!
    */
-  gpio_clear(SLP_PIN);
+
 }
 
 uint8_t rf233_status() {
-	return (trx_reg_read(RF233_REG_TRX_STATUS) & TRX_STATUS);
+  return (trx_reg_read(RF233_REG_TRX_STATUS) & TRX_STATUS);
 }
 /*---------------------------------------------------------------------------*/
+
+/*
+ * Copyright (c) 2013, Thingsquare, http://www.thingsquare.com/.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ */
+/**
+* Copyright (c) 2015 Atmel Corporation and
+* 2012 - 2013, Thingsquare, http://www.thingsquare.com/. All rights reserved. 
+*  
+* Redistribution and use in source and binary forms, with or without 
+* modification, are permitted provided that the following conditions are met:
+* 
+* 1. Redistributions of source code must retain the above copyright notice, this
+* list of conditions and the following disclaimer.
+* 
+* 2. Redistributions in binary form must reproduce the above copyright notice, 
+* this list of conditions and the following disclaimer in the documentation 
+* and/or other materials provided with the distribution.
+* 
+* 3. Neither the name of Atmel nor the name of Thingsquare nor the names of its
+* contributors may be used to endorse or promote products derived 
+* from this software without specific prior written permission.  
+* 
+* 4. This software may only be redistributed and used in connection with an 
+* Atmel microcontroller or Atmel wireless product.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+* ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
+* LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+* CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
+* GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
+* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
+* STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY 
+* OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
