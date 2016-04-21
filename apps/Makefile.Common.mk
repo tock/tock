@@ -116,6 +116,7 @@ kernel:
 clean::
 	@tput bold ; echo "Cleaning $(APP)" ; tput sgr0
 	$(Q)rm -rf $(TOCK_APP_BUILD_DIR)
+	$(Q)rm -f *~
 
 $(TOCK_APP_BUILD_DIR):
 	$(Q)mkdir -p $@
