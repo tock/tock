@@ -138,4 +138,29 @@ To get the UART printf from firestorm:
 sload tail -i
 ```
 
+## JTAG Programming
+To connect to the board with a j-link programmer:
+
+```bash
+JLinkExe -device ATSAM4LC8C -speed 1200 -if swd -AutoConnect 1
+```
+
+To debug with GDB:
+
+```bash
+JLinkGDBServer -device ATSAM4LC8C -speed 1200 -if swd -AutoConnect 1 -port 2331
+
+(open a new terminal)
+
+arm-none-eabi-gdb <ELF_FILE>
+```
+
+You also need a `.gdbinit` file:
+
+```bash
+target remote localhost:2331
+load
+mon reset
+break main
+```
 
