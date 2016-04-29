@@ -8,6 +8,7 @@ extern crate common;
 extern crate hil;
 extern crate process;
 
+#[macro_use]
 mod helpers;
 
 pub mod chip;
