@@ -193,7 +193,7 @@ unsafe fn set_pin_primary_functions() {
     PB[00].configure(Some(A));
 
     // ESCL     --  TWIMS1 TWCK
-    PB[02].configure(Some(A));
+    PB[01].configure(Some(A));
 
     // SDA      --  TWIM2 TWD
     PA[21].configure(Some(E));
