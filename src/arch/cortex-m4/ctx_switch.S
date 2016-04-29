@@ -22,14 +22,26 @@ to_kernel:
   bx lr
 
 .thumb_func
-/* r0 is top of user stack, r1 is heap base */
+/* r0 is top of user stack, r1 Process GOT */
 switch_to_user:
+    push {r4-r11}
+
+    /* Load non-hardware-stacked registers from Process stack */
+    sub r0, #32
+    ldmia r0!, {r4-r11}
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, r0
 
-    push {r4-r11}
+    /* Set PIC base pointer to the Process GOT */
     mov r9, r1
-    svc 0xff
+
+    /* SWITCH */
+    svc 0xff /* It doesn't matter which SVC number we use here */
+
+    /* Push non-harware-stacked registers onto Process stack */
+    /* r0 points to user stack (see to_kernel) */
+    stmdb r0, {r4-r11}
+
     pop {r4-r11}
     bx lr
 
