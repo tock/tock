@@ -265,87 +265,33 @@ impl DMAChannel {
     }
 }
 
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn PDCA_0_Handler() {
-    use common::Queue;
-    use nvic;
-    use chip;
-
-    let registers : &mut DMARegisters =
-        mem::transmute(DMAChannels[0].registers);
-    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
-    nvic::disable(nvic::NvicIdx::PDCA0);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA0);
+macro_rules! pdca_handler {
+    ($name: ident, $nvic: ident, $num: expr) => {
+        interrupt_handler!(
+            $name,
+            $nvic,
+            {
+                let registers : &mut DMARegisters =
+                    mem::transmute(DMAChannels[$num].registers);
+                volatile_store(&mut registers.interrupt_disable, 0xffffffff);
+            });
+    }
 }
 
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn PDCA_1_Handler() {
-    use common::Queue;
-    use nvic;
-    use chip;
-
-    let registers : &mut DMARegisters =
-        mem::transmute(DMAChannels[1].registers);
-    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
-    nvic::disable(nvic::NvicIdx::PDCA1);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA1);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn PDCA_2_Handler() {
-    use common::Queue;
-    use nvic;
-    use chip;
-
-    let registers : &mut DMARegisters =
-        mem::transmute(DMAChannels[2].registers);
-    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
-    nvic::disable(nvic::NvicIdx::PDCA2);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA2);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn PDCA_3_Handler() {
-    use common::Queue;
-    use nvic;
-    use chip;
-
-    let registers : &mut DMARegisters =
-        mem::transmute(DMAChannels[3].registers);
-    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
-    nvic::disable(nvic::NvicIdx::PDCA3);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA3);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn PDCA_4_Handler() {
-    use common::Queue;
-    use nvic;
-    use chip;
-
-    let registers : &mut DMARegisters =
-        mem::transmute(DMAChannels[4].registers);
-    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
-    nvic::disable(nvic::NvicIdx::PDCA4);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA4);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn PDCA_5_Handler() {
-    use common::Queue;
-    use nvic;
-    use chip;
-
-    let registers : &mut DMARegisters =
-        mem::transmute(DMAChannels[5].registers);
-    volatile_store(&mut registers.interrupt_disable, 0xffffffff);
-    nvic::disable(nvic::NvicIdx::PDCA5);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::PDCA5);
-}
+pdca_handler!(pdca0_handler,  PDCA0,  0);
+pdca_handler!(pdca1_handler,  PDCA1,  1);
+pdca_handler!(pdca2_handler,  PDCA2,  2);
+pdca_handler!(pdca3_handler,  PDCA3,  3);
+pdca_handler!(pdca4_handler,  PDCA4,  4);
+pdca_handler!(pdca5_handler,  PDCA5,  5);
+pdca_handler!(pdca6_handler,  PDCA6,  6);
+pdca_handler!(pdca7_handler,  PDCA7,  7);
+pdca_handler!(pdca8_handler,  PDCA8,  8);
+pdca_handler!(pdca9_handler,  PDCA9,  9);
+pdca_handler!(pdca10_handler, PDCA10, 10);
+pdca_handler!(pdca11_handler, PDCA11, 11);
+pdca_handler!(pdca12_handler, PDCA12, 12);
+pdca_handler!(pdca13_handler, PDCA13, 13);
+pdca_handler!(pdca14_handler, PDCA14, 14);
+pdca_handler!(pdca15_handler, PDCA15, 15);
 
