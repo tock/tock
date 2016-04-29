@@ -19,3 +19,16 @@ pub use queue::Queue;
 pub use ring_buffer::RingBuffer;
 pub use volatile_cell::VolatileCell;
 pub use list::{List, ListLink, ListNode};
+
+#[macro_export]
+macro_rules! interrupt_handler {
+    ($name: ident, $body: expr) => {
+        #[no_mangle]
+        #[allow(non_snake_case)]
+        pub unsafe extern fn $name() {
+            // Body returns no result
+            $body
+        }
+    }
+}
+
