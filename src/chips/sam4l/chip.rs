@@ -1,3 +1,4 @@
+use core::intrinsics;
 use common::{RingBuffer,Queue};
 use ast;
 //use adc;
@@ -15,6 +16,8 @@ static mut IQ_BUF : [nvic::NvicIdx; IQ_SIZE] =
     [nvic::NvicIdx::HFLASHC; IQ_SIZE];
 pub static mut INTERRUPT_QUEUE : Option<RingBuffer<'static, nvic::NvicIdx>> = None;
 
+#[no_mangle]
+pub static mut IRQ_FIRED : usize = 0;
 
 impl Sam4l {
     pub unsafe fn new() -> Sam4l {
@@ -38,6 +41,9 @@ impl Sam4l {
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx::*;
+
+        intrinsics::volatile_store(&mut IRQ_FIRED, 0);
+
         INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
             match interrupt {
                 ASTALARM => ast::AST.handle_interrupt(),
@@ -78,7 +84,7 @@ impl Sam4l {
     }
 
     pub unsafe fn has_pending_interrupts(&mut self) -> bool {
-        INTERRUPT_QUEUE.as_mut().unwrap().has_elements()
+        intrinsics::volatile_load(&IRQ_FIRED) == 1
     }
 }
 

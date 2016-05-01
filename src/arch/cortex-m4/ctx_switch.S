@@ -11,6 +11,7 @@
 
 .extern INTERRUPT_TABLE
 .extern OVERFLOW_FIRED
+.extern IRQ_FIRED
 
 .thumb_func
 SVC_Handler:
@@ -74,5 +75,11 @@ generic_isr:
     blx r0
     pop {lr}
 
+    ldr r0, =IRQ_FIRED
+    mov r1, #1
+    str r1, [r0, #0]
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF
+    bx lr
     bx lr
 
