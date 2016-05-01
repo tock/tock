@@ -6,6 +6,9 @@ use common::{RingBuffer, Queue};
 
 use container;
 
+#[no_mangle]
+pub static mut SYSCALL_FIRED : usize = 0;
+
 #[allow(improper_ctypes)]
 extern {
     pub fn switch_to_user(user_stack: *const u8, mem_base: *const u8) -> *mut u8;
@@ -286,6 +289,10 @@ impl<'a> Process<'a> {
         volatile_store(stack_bottom.offset(3), callback.r3);
 
         self.cur_stack = stack_bottom as *mut u8;
+    }
+
+    pub unsafe fn syscall_fired(&self) -> bool {
+        ::core::intrinsics::volatile_load(&SYSCALL_FIRED) != 0
     }
 
     /// Context switch to the process.
