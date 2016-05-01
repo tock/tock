@@ -7,9 +7,11 @@
 .global SVC_Handler
 .globl switch_to_user
 .globl generic_isr
+.globl systick_handler
 
 .extern INTERRUPT_TABLE
 .extern SYSCALL_FIRED
+.extern OVERFLOW_FIRED
 
 .thumb_func
 SVC_Handler:
@@ -22,6 +24,7 @@ to_kernel:
   ldr r0, =SYSCALL_FIRED
   mov r1, #1
   str r1, [r0, #0]
+
   movw LR, #0xFFF9
   movt LR, #0xFFFF
   bx lr
@@ -69,7 +72,6 @@ generic_isr:
     /* Push non-hardware-stacked registers onto Process stack */
     /* r0 points to user stack (see to_kernel) */
     stmdb r0, {r4-r11}
-
 _generic_isr_no_stacking:
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
@@ -88,6 +90,25 @@ _generic_isr_no_stacking:
     blx r0
     pop {lr}
 
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF
+    bx lr
+
+.thumb_func
+systick_handler:
+    /* Skip saving process state if not coming from user-space */
+    cmp lr, #0xfffffffd
+    bne _systick_handler_no_stacking
+
+    mrs r0, PSP /* PSP into r0 */
+
+    /* Push non-hardware-stacked registers onto Process stack */
+    /* r0 points to user stack (see to_kernel) */
+    stmdb r0, {r4-r11}
+_systick_handler_no_stacking:
+    ldr r0, =OVERFLOW_FIRED
+    mov r1, #1
+    str r1, [r0, #0]
     movw LR, #0xFFF9
     movt LR, #0xFFFF
     bx lr
