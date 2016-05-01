@@ -18,6 +18,11 @@
 SVC_Handler:
   cmp lr, #0xfffffff9
   bne to_kernel
+
+  /* Set thread mode to unprivileged */
+  mov r0, #1
+  msr CONTROL, r0
+
   movw lr, #0xfffd
   movt lr, #0xffff
   bx lr
@@ -25,6 +30,11 @@ to_kernel:
   ldr r0, =SYSCALL_FIRED
   mov r1, #1
   str r1, [r0, #0]
+
+  /* Set thread mode to privileged */
+  mov r0, #0
+  msr CONTROL, r0
+
   movw LR, #0xFFF9
   movt LR, #0xFFFF
   bx lr
@@ -64,6 +74,11 @@ systick_handler:
   ldr r0, =OVERFLOW_FIRED
   mov r1, #1
   str r1, [r0, #0]
+
+  /* Set thread mode to privileged */
+  mov r0, #0
+  msr CONTROL, r0
+
   movw LR, #0xFFF9
   movt LR, #0xFFFF
   bx lr
@@ -86,8 +101,12 @@ generic_isr:
     ldr r0, =IRQ_FIRED
     mov r1, #1
     str r1, [r0, #0]
+
+    /* Set thread mode to privileged */
+    mov r0, #0
+    msr CONTROL, r0
+
     movw LR, #0xFFF9
     movt LR, #0xFFFF
-    bx lr
     bx lr
 
