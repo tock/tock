@@ -52,6 +52,24 @@ impl Firestorm {
         self.chip.has_pending_interrupts()
     }
 
+    pub unsafe fn enable_mpu(&mut self) {
+        use core::intrinsics;
+        let ctrl = 0xE000ED94 as *mut usize;
+        intrinsics::volatile_store(ctrl, 0b101);
+    }
+
+    pub unsafe fn set_mpu(&mut self, region_num: usize,
+                          start_addr: usize, len: usize,
+                          execute: bool, ap: usize) {
+        use core::intrinsics;
+        let rbar = 0xE000ED9C as *mut usize;
+        let rasr = 0xE000EDA0 as *mut usize;
+
+        intrinsics::volatile_store(rbar, region_num | 1 << 4 | start_addr);
+        let xn = if execute { 0 } else { 1 };
+        intrinsics::volatile_store(rasr, 1 | len << 1 | ap << 24 | xn << 28);
+    }
+
     pub fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
             F: FnOnce(Option<&hil::Driver>) -> R {
 
@@ -414,6 +432,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();
+
+    firestorm.enable_mpu();
+
     firestorm
 }
 
