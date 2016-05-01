@@ -7,7 +7,9 @@
 .global SVC_Handler
 .globl switch_to_user
 .globl systick_handler
+.globl generic_isr
 
+.extern INTERRUPT_TABLE
 .extern OVERFLOW_FIRED
 
 .thumb_func
@@ -56,3 +58,21 @@ systick_handler:
   movw LR, #0xFFF9
   movt LR, #0xFFFF
   bx lr
+
+.thumb_func
+generic_isr:
+    mrs r0, IPSR
+    and r0, #0xff
+    sub r0, #16
+    mov r1, #4
+    mul r0, r1
+    ldr r1, =INTERRUPT_TABLE
+    add r1, r0
+    ldr r0, [r1]
+
+    push {lr}
+    blx r0
+    pop {lr}
+
+    bx lr
+

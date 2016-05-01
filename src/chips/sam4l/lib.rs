@@ -53,6 +53,8 @@ extern {
     fn SVC_Handler();
     fn systick_handler();
 
+    fn generic_isr();
+
     static mut _szero : u32;
     static mut _ezero : u32;
     static mut _etext : u32;
@@ -61,23 +63,27 @@ extern {
 }
 
 #[link_section=".vectors"]
-pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
-    // First 16 are defined in the Cortex M4 user guide section 2.3.4
+pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
+    _estack, reset_handler,
+    /* NMI */           unhandled_interrupt,
+    /* Hard Fault */    hard_fault_handler,
+    /* MemManage */     unhandled_interrupt,
+    /* BusFault */      unhandled_interrupt,
+    /* UsageFault*/     unhandled_interrupt,
+    unhandled_interrupt, unhandled_interrupt, unhandled_interrupt,
+    unhandled_interrupt,
+    /* SVC */           SVC_Handler,
+    /* DebugMon */      unhandled_interrupt,
+    unhandled_interrupt,
+    /* PendSV */        unhandled_interrupt,
+    /* SysTick */       systick_handler
+];
 
-    /* Stack top */     Option::Some(_estack),
-    /* Reset */         Option::Some(reset_handler),
-    /* NMI */           Option::Some(unhandled_interrupt),
-    /* Hard Fault */    Option::Some(hard_fault_handler),
-    /* MemManage */     Option::Some(unhandled_interrupt),
-    /* BusFault */      Option::Some(unhandled_interrupt),
-    /* UsageFault*/     Option::Some(unhandled_interrupt),
-    None, None, None, None,
-    /* SVC */           Option::Some(SVC_Handler),
-    /* DebugMon */      Option::Some(unhandled_interrupt),
-    None,
-    /* PendSV */        Option::Some(unhandled_interrupt),
-    /* SysTick */       Option::Some(systick_handler),
+#[link_section=".vectors"]
+pub static IRQS: [unsafe extern fn(); 80] = [generic_isr; 80];
 
+#[no_mangle]
+pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     // Perhipheral vectors are defined by Atmel in the SAM4L datasheet section
     // 4.7.
     /* HFLASHC */       Option::Some(unhandled_interrupt),
