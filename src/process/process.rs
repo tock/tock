@@ -1,10 +1,13 @@
 use core::intrinsics::{breakpoint, volatile_load, volatile_store};
-use core::mem;
+use core::{mem,ptr,intrinsics};
 use core::raw::{Repr,Slice};
 
 use common::{RingBuffer, Queue};
 
 use container;
+
+#[no_mangle]
+pub static mut SYSCALL_FIRED : usize = 0;
 
 #[allow(improper_ctypes)]
 extern {
@@ -140,7 +143,7 @@ impl<'a> Process<'a> {
                     len: num_ctrs
                 });
                 for opt in opts.iter_mut() {
-                    *opt = ::core::ptr::null()
+                    *opt = ptr::null()
                 }
                 res
             };
@@ -287,6 +290,10 @@ impl<'a> Process<'a> {
 
         self.cur_stack = stack_bottom as *mut u8;
         self.switch_to();
+    }
+
+    pub unsafe fn syscall_fired(&self) -> bool {
+        intrinsics::volatile_load(&SYSCALL_FIRED) != 0
     }
 
     /// Context switch to the process.

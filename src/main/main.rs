@@ -38,6 +38,9 @@ pub extern fn main() {
                 p.as_mut().map(|process| {
                     sched::do_process(platform, process, AppId::new(i));
                 });
+                if platform.has_pending_interrupts() {
+                    break;
+                }
             }
 
             support::atomic(|| {

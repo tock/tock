@@ -22,6 +22,11 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
                 }
             }
         }
+
+        if !process.syscall_fired() {
+            break;
+        }
+
         match process.svc_number() {
             Some(syscall::MEMOP) => {
                 let brk_type = process.r0();
