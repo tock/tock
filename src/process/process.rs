@@ -273,7 +273,7 @@ impl<'a> Process<'a> {
     }
 
     /// Context switch to the process.
-    pub unsafe fn switch_to_callback(&mut self, callback: Callback) {
+    pub unsafe fn push_callback(&mut self, callback: Callback) {
         // Fill in initial stack expected by SVC handler
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
@@ -289,7 +289,6 @@ impl<'a> Process<'a> {
         volatile_store(stack_bottom.offset(3), callback.r3);
 
         self.cur_stack = stack_bottom as *mut u8;
-        self.switch_to();
     }
 
     pub unsafe fn syscall_fired(&self) -> bool {
