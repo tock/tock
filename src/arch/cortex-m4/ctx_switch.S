@@ -12,6 +12,7 @@
 .extern INTERRUPT_TABLE
 .extern OVERFLOW_FIRED
 .extern IRQ_FIRED
+.extern SYSCALL_FIRED
 
 .thumb_func
 SVC_Handler:
@@ -21,6 +22,9 @@ SVC_Handler:
   movt lr, #0xffff
   bx lr
 to_kernel:
+  ldr r0, =SYSCALL_FIRED
+  mov r1, #1
+  str r1, [r0, #0]
   movw LR, #0xFFF9
   movt LR, #0xFFFF
   bx lr
@@ -38,6 +42,10 @@ switch_to_user:
 
     /* Set PIC base pointer to the Process GOT */
     mov r9, r1
+
+    ldr r0, =SYSCALL_FIRED
+    mov r1, #0
+    str r1, [r0, #0]
 
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
