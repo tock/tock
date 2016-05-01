@@ -51,6 +51,7 @@ extern {
 
     // Defined in src/arch/cortex-m4/ctx_switch.S
     fn SVC_Handler();
+    fn systick_handler();
 
     static mut _szero : u32;
     static mut _ezero : u32;
@@ -75,7 +76,7 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
     /* DebugMon */      Option::Some(unhandled_interrupt),
     None,
     /* PendSV */        Option::Some(unhandled_interrupt),
-    /* SysTick */       Option::Some(unhandled_interrupt),
+    /* SysTick */       Option::Some(systick_handler),
 
     // Perhipheral vectors are defined by Atmel in the SAM4L datasheet section
     // 4.7.
