@@ -42,6 +42,9 @@ pub extern fn main() {
                         running_left = true;
                     }
                 });
+                if platform.has_pending_interrupts() {
+                    break;
+                }
             }
 
             support::atomic(|| {

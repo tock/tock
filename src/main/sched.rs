@@ -35,7 +35,7 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
         }
 
         // We may have exited due to a systick interrupt
-        if systick::overflow_fired() {
+        if systick::overflow_fired() || platform.has_pending_interrupts() {
             break;
         }
 
