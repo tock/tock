@@ -15,7 +15,7 @@ ELF2TBF ?= $(TOCK_APPS_DIR)/../build/elf2tbf
 TOCK_DIR = $(TOCK_APPS_DIR)/../src
 
 # XXX FIXME extern stuff
-APP_LIBC := ../../extern/newlib/libc.a
+APP_LIBC := $(TOCK_APPS_DIR)/../extern/newlib/libc.a
 
 # n.b. make convention is that CPPFLAGS are shared for C and C++ sources
 # [CFLAGS is C only, CXXFLAGS is C++ only]
