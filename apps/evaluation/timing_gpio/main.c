@@ -2,14 +2,14 @@
 #include <gpio.h>
 
 void main(void) {
-    gpio_enable_output(LED_0);
+    gpio_enable_output(P3);
 
     while(1) {
       /*
          base = 0x400E1000
          base+0x54: Set
          base+0x58: Clear
-         LED_0 -> PC10 -> PC10=0
+         P3 -> PA12
       */
 
       // Set pin using direct MMIO
@@ -25,7 +25,7 @@ void main(void) {
           );
 
       // Clear using interface path
-      gpio_clear(LED_0);
+      gpio_clear(P3);
 
       // Set pin using direct MMIO
       asm ("\
@@ -39,7 +39,7 @@ void main(void) {
           : "r3", "r4"    /* clobbers */
           );
 
-      delay_ms(500);
+      delay_ms(10);
       // Clear to start fresh timing round
       asm ("\
           movw r3, 0x1058    \n\
