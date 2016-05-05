@@ -26,7 +26,7 @@ void main(void) {
 
       // SPI Configuration from rf232 app
   ;                    // spi_init();
-  command(4,3,0);      // spi_set_chip_select(3);
+  command(4,2,0);      // spi_set_chip_select(3);
   command(4,8,0);      // spi_set_polarity(0);
   command(4,6,0);      // spi_set_phase(0);
   command(4,4,400000); //spi_set_rate(400000);
@@ -44,7 +44,7 @@ int spi_hold_low()                        {return command(4, 10, 0);}
 int spi_release_low()                     {return command(4, 11, 0);}
       */
 
-      // RESULT: 39.4 us
+      // RESULT: 40.0 us
 
       // Clear
       asm ("\
