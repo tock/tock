@@ -1,12 +1,13 @@
 #![crate_name = "hil"]
 #![crate_type = "rlib"]
-#![feature(asm,lang_items,const_fn)]
+#![feature(asm,lang_items,const_fn,core_intrinsics)]
 #![no_std]
 
 extern crate common;
 extern crate process;
 
 pub mod driver;
+pub mod dwt;
 
 pub mod led;
 pub mod alarm;
