@@ -25,7 +25,9 @@ void main(void) {
           );
 
       // Clear using interface path
+      /* RESULT: 5.12 us */
       gpio_clear(P3);
+      /* RESULT: 4.72 us */
 
       // Set pin using direct MMIO
       asm ("\
@@ -39,7 +41,7 @@ void main(void) {
           : "r3", "r4"    /* clobbers */
           );
 
-      delay_ms(10);
+      delay_ms(1);
       // Clear to start fresh timing round
       asm ("\
           movw r3, 0x1058    \n\
@@ -51,6 +53,7 @@ void main(void) {
           :               /* input */
           : "r3", "r4"    /* clobbers */
           );
+      delay_ms(2);
     }
 }
 
