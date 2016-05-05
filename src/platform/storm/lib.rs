@@ -516,6 +516,64 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     }
     */
 
+    /* EVAL: Comm Overhead "Capsule" SPI
+       ** Must disable MPU **
+
+    sam4l::gpio::PA[12].enable();
+    sam4l::gpio::PA[12].enable_output();
+    loop {
+      // Set pin using direct MMIO
+      asm!("\
+          movw r3, 0x1054    \n\
+          movt r3, 0x400E    \n\
+          movs r4, 0x1000    \n\
+          str  r4, [r3]      \n\
+          "
+          :               /* output */
+          :               /* input */
+          : "r3", "r4"    /* clobbers */
+          : "volatile"
+          );
+      // Do SPI calls
+
+      // command(4,2,0)
+      sam4l::spi::SPI.set_chip_select(0);
+      // command(4,8,0)
+      sam4l::spi::SPI.set_clock(hil::spi_master::ClockPolarity::IdleLow);
+      // command(4,6,0)
+      sam4l::spi::SPI.set_phase(hil::spi_master::ClockPhase::SampleLeading);
+      // command(4,4,400000)
+      sam4l::spi::SPI.set_rate(400000);
+
+      // RESULT: 2.76 us
+
+      // Clear pin using direct MMIO
+      asm!("\
+          movw r3, 0x1058    \n\
+          movt r3, 0x400E    \n\
+          movs r4, 0x1000    \n\
+          str  r4, [r3]      \n\
+          "
+          :               /* output */
+          :               /* input */
+          : "r3", "r4"    /* clobbers */
+          : "volatile"
+          );
+
+      // Wait a little while
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+    }
+    */
+
     firestorm
 }
 
