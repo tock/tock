@@ -25,7 +25,7 @@ void main(void) {
           );
 
       // Clear using interface path
-      gpio_toggle(LED_0);
+      gpio_clear(LED_0);
 
       // Set pin using direct MMIO
       asm ("\
