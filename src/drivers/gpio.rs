@@ -63,6 +63,24 @@ impl<'a, G: GPIOPin> GPIO<'a, G> {
 
 impl<'a, G: GPIOPin> Client for GPIO<'a, G> {
     fn fired(&self, pin_num: usize) {
+
+        /*
+        // Event Overhead, GPIO, Capsule
+        // set P3 as low to end test
+        unsafe {
+        asm! ("\
+            movw r3, 0x1058    \n\
+            movt r3, 0x400E    \n\
+            movs r4, 0x1000    \n\
+            str  r4, [r3]      \n\
+            "
+            :               /* output */
+            :               /* input */
+            : "r3", "r4"    /* clobbers */
+            );
+        }
+        */
+
         // read the value of the pin
         let pins = self.pins.as_ref();
         let pin_state = pins[pin_num].read();
