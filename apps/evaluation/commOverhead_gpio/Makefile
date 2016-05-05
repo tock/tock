@@ -1,5 +1,5 @@
 TOCK_APPS_DIR=../..
-APP=timing_gpio
+APP=commOverhead_gpio
 
 include $(TOCK_APPS_DIR)/Makefile.GenericApp.mk
 
