@@ -1,7 +1,7 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(core_intrinsics,const_fn,lang_items)]
+#![feature(asm,core_intrinsics,const_fn,lang_items)]
 
 extern crate common;
 extern crate drivers;
@@ -439,6 +439,82 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     firestorm.nrf51822.initialize();
 
     firestorm.enable_mpu();
+
+
+    /* EVAL: Comm Overhead "Capsule" Blink
+       ** Must disable MPU **
+
+    sam4l::gpio::PA[12].enable();
+    sam4l::gpio::PA[12].enable_output();
+    loop {
+      // Set pin using direct MMIO
+      asm!("\
+          movw r3, 0x1054    \n\
+          movt r3, 0x400E    \n\
+          movs r4, 0x1000    \n\
+          str  r4, [r3]      \n\
+          "
+          :               /* output */
+          :               /* input */
+          : "r3", "r4"    /* clobbers */
+          : "volatile"
+          );
+      // Clear pin using interface
+      // RESULT: 124 ns
+      sam4l::gpio::PA[12].clear();
+      // RESULT: 124 ns
+
+      // Set pin using direct MMIO
+      asm!("\
+          movw r3, 0x1054    \n\
+          movt r3, 0x400E    \n\
+          movs r4, 0x1000    \n\
+          str  r4, [r3]      \n\
+          "
+          :               /* output */
+          :               /* input */
+          : "r3", "r4"    /* clobbers */
+          : "volatile"
+          );
+
+      // Wait a little while
+      asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");
+
+      // Clear pin to start timining round
+      asm!("\
+          movw r3, 0x1058    \n\
+          movt r3, 0x400E    \n\
+          movs r4, 0x1000    \n\
+          str  r4, [r3]      \n\
+          "
+          :               /* output */
+          :               /* input */
+          : "r3", "r4"    /* clobbers */
+          : "volatile"
+          );
+
+      // Wait twice as long so we can ID it
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+      asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
+    }
+    */
 
     firestorm
 }
