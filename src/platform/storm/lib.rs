@@ -13,6 +13,7 @@ extern crate process;
 use hil::Controller;
 use hil::spi_master::SpiMaster;
 use hil::gpio::GPIOPin;
+use hil::uart::{UART};
 use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::virtual_i2c::{MuxI2C, I2CDevice};
@@ -299,6 +300,21 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     set_pin_primary_functions();
 
+
+    /*
+    // EVAL
+    static_init!(uart_loop : drivers::uart_loop::UartLoop<sam4l::usart::USART> =
+                    drivers::uart_loop::UartLoop::new(&sam4l::usart::USART3,
+                                       &mut drivers::uart_loop::WRITE_BUF));
+    sam4l::usart::USART3.set_client(uart_loop);
+
+
+    static_init!(console : drivers::console::Console<sam4l::usart::USART> =
+                    drivers::console::Console::new(&sam4l::usart::USART1,
+                                       &mut drivers::console::WRITE_BUF,
+                                       process::Container::create()));
+    sam4l::usart::USART1.set_client(console);
+    */
     static_init!(console : drivers::console::Console<sam4l::usart::USART> =
                     drivers::console::Console::new(&sam4l::usart::USART3,
                                        &mut drivers::console::WRITE_BUF,
@@ -572,6 +588,17 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
       asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
       asm!("nop" :::: "volatile");asm!("nop" :::: "volatile");
     }
+    */
+
+    /* EVAL: Comm Overhead "Capsule" SPI
+       ** Must disable MPU **
+
+    sam4l::gpio::PA[12].enable();
+    sam4l::gpio::PA[12].enable_output();
+
+    static mut triggerbuf : [u8; 1] = ['f' as u8; 1];
+    uart_loop.initialize();
+    sam4l::usart::USART3.send_bytes(&mut triggerbuf, 1);
     */
 
     firestorm

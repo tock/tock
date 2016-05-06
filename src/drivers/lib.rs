@@ -8,6 +8,7 @@ extern crate hil;
 extern crate process;
 
 pub mod console;
+//pub mod uart_loop; // EVAL
 pub mod gpio;
 pub mod isl29035;
 pub mod nrf51822_serialization;
