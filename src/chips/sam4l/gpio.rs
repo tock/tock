@@ -137,6 +137,24 @@ impl IndexMut<usize> for Port {
 
 impl Port {
     pub fn handle_interrupt(&self) {
+
+        /*
+        // Event Overhead, Timer, Lowest Capsule
+        // set P3 as low to end test
+        unsafe {
+        asm! ("\
+            movw r3, 0x1058    \n\
+            movt r3, 0x400E    \n\
+            movs r4, 0x1000    \n\
+            str  r4, [r3]      \n\
+            "
+            :               /* output */
+            :               /* input */
+            : "r3", "r4"    /* clobbers */
+            );
+        }
+        */
+
         let port : &mut Registers = unsafe { mem::transmute(self.port) };
 
         // Interrupt Flag Register (IFR) bits are only valid if the same bits
