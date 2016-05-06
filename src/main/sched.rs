@@ -48,7 +48,9 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
             Some(syscall::WAIT) => {
                 process.state = process::State::Waiting;
                 process.pop_syscall_stack();
-                break;
+
+                // There might be already enqueued callbacks
+                continue;
             },
             Some(syscall::SUBSCRIBE) => {
                 let driver_num = process.r0();
