@@ -91,7 +91,14 @@ generic_isr:
     movt r3, 0x400e
     movs r2, 0x1000
     str  r2, [r3]
-    */
+    //*/
+    /*
+    // Event Overhead, Timer, Top Half; clear GPIO off
+    movw r3, 0x1058
+    movt r3, 0x400e
+    movs r4, 0x1000
+    str  r4, [r3]
+    //*/
     mrs r0, IPSR
     and r0, #0xff
     sub r0, #16
