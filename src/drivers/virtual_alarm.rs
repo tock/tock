@@ -77,6 +77,10 @@ impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
             self.alarm.alarm.disable_alarm();
         }
     }
+
+    fn is_armed(&self) -> bool {
+        self.armed.get()
+    }
 }
 
 pub struct MuxAlarm<'a, Alrm: Alarm + 'a> {

@@ -66,8 +66,6 @@ impl Controller for Ast {
         self.set_prescalar(0); // 32Khz / (2^(0 + 1)) = 16Khz
         self.enable_alarm_wake();
         self.clear_alarm();
-
-        self.enable();
     }
 }
 
@@ -137,6 +135,13 @@ impl Ast {
         unsafe {
             let cr = intrinsics::volatile_load(&(*self.regs).cr) | 1;
             intrinsics::volatile_store(&mut (*self.regs).cr, cr);
+        }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        while self.busy() {}
+        unsafe {
+            intrinsics::volatile_load(&(*self.regs).cr) & 1 == 1
         }
     }
 
@@ -246,6 +251,10 @@ impl Alarm for Ast {
 
     fn disable_alarm(&self) {
         self.disable_alarm_irq();
+    }
+
+    fn is_armed(&self) -> bool {
+        self.is_enabled()
     }
 
     fn set_alarm(&self, tics: u32) {
