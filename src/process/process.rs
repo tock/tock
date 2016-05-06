@@ -203,6 +203,61 @@ impl<'a> Process<'a> {
         }
     }
 
+    /// Reloads the process
+    pub unsafe fn recreate(&mut self) {
+        let mut kernel_memory_break = {
+            // make room for container pointers
+            let psz = mem::size_of::<*const usize>();
+            let num_ctrs = volatile_load(&container::CONTAINER_COUNTER);
+            let container_ptrs_size = num_ctrs * psz;
+            let res = self.memory.data.offset((self.memory.len - container_ptrs_size) as isize);
+            // set all ptrs to null
+            let opts : &mut [*const usize] = mem::transmute(Slice {
+                data: res as *mut *const usize,
+                len: num_ctrs
+            });
+            for opt in opts.iter_mut() {
+                *opt = ::core::ptr::null()
+            }
+            res
+        };
+
+        // Take callback buffer from of memory
+        let callback_size = mem::size_of::<Option<Callback>>();
+        let callback_len = 10;
+        let callback_offset = callback_len * callback_size;
+        // Set kernel break to beginning of callback buffer
+        kernel_memory_break =
+            kernel_memory_break.offset(-(callback_offset as isize));
+        let callback_buf = mem::transmute(Slice {
+            data: kernel_memory_break as *const Option<Callback>,
+            len: callback_len
+        });
+
+        let callbacks = RingBuffer::new(callback_buf);
+
+        let start_addr = (self.text.data as *const usize).offset(1);
+        let load_result = load(start_addr, self.memory.data);
+
+        let stack_bottom = load_result.app_mem_start.offset(512);
+
+        self.app_memory_break = stack_bottom;
+        self.kernel_memory_break = kernel_memory_break;
+        self.cur_stack = stack_bottom;
+        self.wait_pc = 0;
+        self.psr = 0x01000000;
+        self.state = State::Waiting;
+
+        self.callbacks = callbacks;
+        self.callbacks.enqueue(Callback {
+            pc: load_result.init_fn,
+            r0: load_result.app_mem_start as usize,
+            r1: self.app_memory_break as usize,
+            r2: self.kernel_memory_break as usize,
+            r3: 0
+        });
+    }
+
     pub fn sbrk(&mut self, increment: isize) -> Result<*const u8, Error> {
         let new_break = unsafe { self.app_memory_break.offset(increment) };
         self.brk(new_break)

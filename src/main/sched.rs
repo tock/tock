@@ -41,9 +41,15 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
             }
         }
 
+        if ::core::intrinsics::volatile_load(&systick::HARD_FAULT) == 1 {
+            ::core::intrinsics::volatile_store(&mut systick::HARD_FAULT, 0);
+            process.recreate();
+            continue;
+        }
+
         // We may have exited due to a systick interrupt or IRQ
         if !process.syscall_fired() {
-            break;
+            continue;
         }
 
         match process.svc_number() {
