@@ -18,6 +18,11 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
 }
 
 impl<'a, T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
+    fn clear(&mut self) {
+        self.head = 0;
+        self.tail = 0;
+    }
+
     fn has_elements(&self) -> bool {
         unsafe {
             let head = volatile_load(&self.head);
