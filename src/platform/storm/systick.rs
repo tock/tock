@@ -47,7 +47,6 @@ pub unsafe fn reset() {
     intrinsics::volatile_store(&mut OVERFLOW_FIRED, 0);
 }
 
-#[inline(never)]
 pub unsafe fn enable(with_interrupt: bool) {
     let systick : &mut SysTick = &mut *BASE_ADDR;
 
@@ -60,6 +59,9 @@ pub unsafe fn enable(with_interrupt: bool) {
 
 #[no_mangle]
 pub static mut OVERFLOW_FIRED : usize = 0;
+#[no_mangle]
+pub static mut HARD_FAULT : usize = 0;
+
 
 pub unsafe fn overflow_fired() -> bool {
     intrinsics::volatile_load(&OVERFLOW_FIRED) == 1

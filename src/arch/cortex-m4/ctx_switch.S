@@ -7,12 +7,16 @@
 .global SVC_Handler
 .globl switch_to_user
 .globl systick_handler
+.globl hard_fault_handler_isr
 .globl generic_isr
 
 .extern INTERRUPT_TABLE
 .extern OVERFLOW_FIRED
 .extern IRQ_FIRED
 .extern SYSCALL_FIRED
+.extern HARD_FAULT
+
+.extern hard_fault_handler
 
 .thumb_func
 SVC_Handler:
@@ -82,6 +86,33 @@ systick_handler:
   movw LR, #0xFFF9
   movt LR, #0xFFFF
   bx lr
+
+.thumb_func:
+hard_fault_handler_isr:
+  mrs r0, PSP
+  ldr r1, [r0, #24]
+  add r1, r1, 2
+  str r1, [r0, #24]
+  bx lr
+
+/*
+  mov r1, sp
+  mrs r0, msp
+  cmp r0, r1
+  beq hard_fault_handler
+
+  ldr r0, =HARD_FAULT
+  mov r1, #1
+  str r1, [r0, #0]
+
+  mov r0, #0
+  msr CONTROL, r0
+
+  movw LR, #0xFFF9
+  movt LR, #0xFFFF
+  bx lr
+  */
+  
 
 .thumb_func
 generic_isr:
