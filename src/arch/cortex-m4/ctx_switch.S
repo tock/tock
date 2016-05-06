@@ -85,6 +85,13 @@ systick_handler:
 
 .thumb_func
 generic_isr:
+    /*
+    // Event Overhead, GPIO, Top Half
+    movw r3, 0x1058
+    movt r3, 0x400e
+    movs r4, 0x1000
+    str  r4, [r3]
+    */
     mrs r0, IPSR
     and r0, #0xff
     sub r0, #16

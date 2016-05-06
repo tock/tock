@@ -1,6 +1,6 @@
 #![crate_name = "drivers"]
 #![crate_type = "rlib"]
-#![feature(const_fn, raw)]
+#![feature(asm, const_fn, raw)]
 #![no_std]
 
 extern crate common;
@@ -8,6 +8,7 @@ extern crate hil;
 extern crate process;
 
 pub mod console;
+//pub mod uart_loop; // EVAL
 pub mod gpio;
 pub mod isl29035;
 pub mod nrf51822_serialization;

@@ -27,6 +27,7 @@ impl Default for App {
     }
 }
 
+//pub static mut WRITE_BUF : [u8; 1024] = [0; 1024]; // EVAL
 pub static mut WRITE_BUF : [u8; 64] = [0; 64];
 
 pub struct Console<'a, U: UART + 'a> {
