@@ -48,6 +48,9 @@ pub trait Alarm {
     /// Disables the alarm.
     fn disable_alarm(&self);
 
+    /// Returns true if the alarm is armed
+    fn is_armed(&self) -> bool;
+
     /// Returns the value set in [`set_alarm`](#tymethod.set_alarm)
     fn get_alarm(&self) -> u32;
 }
