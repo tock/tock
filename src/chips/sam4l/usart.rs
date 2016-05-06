@@ -221,6 +221,22 @@ impl uart::UART for USART {
     }
 
     fn send_bytes(&self, bytes: &'static mut [u8], len: usize) {
+        /*
+        // EVAL
+        unsafe {
+          asm!("\
+              movw r3, 0x1058    \n\
+              movt r3, 0x400E    \n\
+              movs r2, 0x1000    \n\
+              str  r2, [r3]      \n\
+              "
+              :               /* output */
+              :               /* input */
+              : "r3", "r2"    /* clobbers */
+              : "volatile"
+              );
+        }
+        */
         self.dma.as_ref().map(move |dma| {
             dma.enable();
             dma.do_xfer(self.dma_peripheral, bytes, len);

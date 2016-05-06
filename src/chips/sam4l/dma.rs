@@ -210,6 +210,24 @@ impl DMAChannel {
         let registers : &mut DMARegisters = unsafe {
             mem::transmute(self.registers)
         };
+
+        /*
+        // EVAL, clear
+        unsafe {
+          asm!("\
+              movw r3, 0x1058    \n\
+              movt r3, 0x400E    \n\
+              movs r2, 0x1000    \n\
+              movs r3, 0x0\n\
+              str  r2, [r3]      \n\
+              "
+              :               /* output */
+              :               /* input */
+              : "r3", "r2"    /* clobbers */
+              );
+        }
+        */
+
         volatile_store(&mut registers.control, 0x1);
     }
 

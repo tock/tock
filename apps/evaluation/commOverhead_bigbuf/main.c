@@ -37,7 +37,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaB\
           : "r3", "r4"    /* clobbers */
           );
 
-      putnstr(bigbuf, 1000);
+      putnstr(bigbuf, 100);
 
       // RESULTS:
       // bytes ,   ms
@@ -45,7 +45,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaB\
       //    5  ,   0.440
       //   10  ,   1.05
       //   50  ,   5.92
-      //  100  ,  12.0
+      //  100  ,  12.0 --> pre-call -> start: 99.2 us, start -> int: 11.897 ms, int -> done: 31.47 us
       //  500  ,  60.6
       // 1000  , 121.
 

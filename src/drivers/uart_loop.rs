@@ -66,7 +66,7 @@ impl<'a, U: UART> Client for UartLoop<'a, U> {
             : "r3", "r4"    /* clobbers */
             : "volatile"
             );
-        self.uart.send_bytes(&mut bigbuf, 1000);
+        self.uart.send_bytes(&mut bigbuf, 100);
 
         // RESULTS
         // bytes ,    ms
@@ -74,7 +74,7 @@ impl<'a, U: UART> Client for UartLoop<'a, U> {
         //    5  ,   0.387
         //   10  ,   0.993
         //   50  ,   5.84
-        //  100  ,  11.9
+        //  100  ,  11.9 --> pre-call -> start: 0.208 us, start -> int: 11.891 ms, int -> done: 9 us
         //  500  ,  60.4
         // 1000  , 121.
       }
