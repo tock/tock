@@ -13,7 +13,6 @@ extern crate process;
 use hil::Controller;
 use hil::spi_master::SpiMaster;
 use hil::gpio::GPIOPin;
-use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::virtual_i2c::{MuxI2C, I2CDevice};
 
@@ -34,8 +33,8 @@ pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
-                                VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
+    timer: &'static drivers::timer::TimerDriver<'static,
+                VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
     tmp006: &'static drivers::tmp006::TMP006<'static>,
     isl29035: &'static drivers::isl29035::Isl29035<'static>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
@@ -320,15 +319,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
                     VirtualMuxAlarm::new(mux_alarm));
-    static_init!(vtimer1 : AlarmToTimer<'static,
+    static_init!(timer : drivers::timer::TimerDriver<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>> =
-                            AlarmToTimer::new(virtual_alarm1));
-    virtual_alarm1.set_client(vtimer1);
-    static_init!(timer : drivers::timer::TimerDriver<AlarmToTimer<'static,
-                                VirtualMuxAlarm<'static, sam4l::ast::Ast>>> =
-                            drivers::timer::TimerDriver::new(vtimer1,
+                            drivers::timer::TimerDriver::new(virtual_alarm1,
                                             process::Container::create()));
-    vtimer1.set_client(timer);
+    virtual_alarm1.set_client(timer);
 
     // Initialize and enable SPI HAL
     static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =

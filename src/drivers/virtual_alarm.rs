@@ -88,6 +88,10 @@ impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
             self.mux.alarm.disable_alarm();
         }
     }
+
+    fn is_armed(&self) -> bool {
+        self.armed.get()
+    }
 }
 
 impl <'a, Alrm: Alarm> AlarmClient for VirtualMuxAlarm<'a, Alrm> {
