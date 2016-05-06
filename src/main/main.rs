@@ -1,4 +1,4 @@
-#![feature(const_fn)]
+#![feature(const_fn,core_intrinsics)]
 #![no_main]
 #![no_std]
 

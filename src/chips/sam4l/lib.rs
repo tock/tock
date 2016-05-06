@@ -26,6 +26,7 @@ pub mod adc;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
+    panic!("NO INTERRUPT");
 
     // IPSR[8:0] holds the currently active interrupt
     asm!(
@@ -53,6 +54,7 @@ extern {
     fn SVC_Handler();
     fn systick_handler();
 
+    fn hard_fault_handler_isr();
     fn generic_isr();
 
     static mut _szero : u32;
@@ -66,7 +68,7 @@ extern {
 pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     _estack, reset_handler,
     /* NMI */           unhandled_interrupt,
-    /* Hard Fault */    hard_fault_handler,
+    /* Hard Fault */    hard_fault_handler_isr,
     /* MemManage */     unhandled_interrupt,
     /* BusFault */      unhandled_interrupt,
     /* UsageFault*/     unhandled_interrupt,
@@ -197,7 +199,8 @@ unsafe extern "C" fn reset_handler() {
     main();
 }
 
-unsafe extern "C" fn hard_fault_handler() {
+#[no_mangle]
+pub unsafe extern "C" fn hard_fault_handler() {
     use core::intrinsics::offset;
 
     let faulting_stack: *mut u32;
