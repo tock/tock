@@ -26,7 +26,6 @@ pub mod adc;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
-    panic!("NO INTERRUPT");
 
     // IPSR[8:0] holds the currently active interrupt
     asm!(
