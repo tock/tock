@@ -131,7 +131,7 @@ SECTIONS
         . = ALIGN(4);
         _ebss = . ;
 
-        . = ALIGN(8);
+        . = ALIGN(8K);
         *(.app_memory)
 
         _ezero = .;
