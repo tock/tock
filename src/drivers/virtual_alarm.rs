@@ -113,6 +113,24 @@ fn past_from_base(cur: u32, now: u32, prev: u32) -> bool {
 
 impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
     fn fired(&self) {
+
+        /*
+        // Event Overhead, Timer, Middle Capsule
+        // set P3 as low to end test
+        unsafe {
+        asm! ("\
+            movw r3, 0x1058    \n\
+            movt r3, 0x400E    \n\
+            movs r4, 0x1000    \n\
+            str  r4, [r3]      \n\
+            "
+            :               /* output */
+            :               /* input */
+            : "r3", "r4"    /* clobbers */
+            );
+        }
+        */
+
         // Disable the alarm. If there are remaining armed alarms at the end we
         // will enable the alarm again via `set_alarm`
         self.alarm.disable_alarm();

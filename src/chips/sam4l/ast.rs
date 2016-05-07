@@ -95,6 +95,7 @@ impl Ast {
     // Clears the alarm bit in the status register (indicating the alarm value
     // has been reached).
     pub fn clear_alarm(&self) {
+        //XXX: Should this line be used? It takes about 80 uS to respond
         while self.busy() {}
         unsafe {
             intrinsics::volatile_store(&mut (*self.regs).scr, 1 << 8);
@@ -231,6 +232,24 @@ impl Ast {
     }
 
     pub fn handle_interrupt(&mut self) {
+
+        /*
+        // Event Overhead, Timer, Lowest Capsule
+        // set P3 as low to end test
+        unsafe {
+        asm! ("\
+            movw r3, 0x1058    \n\
+            movt r3, 0x400E    \n\
+            movs r4, 0x1000    \n\
+            str  r4, [r3]      \n\
+            "
+            :               /* output */
+            :               /* input */
+            : "r3", "r4"    /* clobbers */
+            );
+        }
+        */
+
         self.clear_alarm();
         self.callback.get().map(|cb| {
             cb.fired();

@@ -123,10 +123,30 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
 
 impl<'a, A: Alarm> AlarmClient for TimerDriver<'a, A> {
     fn fired(&self) {
+
+        /*
+        // Event Overhead, Timer, Highest Capsule
+        // set P3 as low to end test
+        unsafe {
+        asm! ("\
+            movw r3, 0x1058    \n\
+            movt r3, 0x400E    \n\
+            movs r4, 0x1000    \n\
+            str  r4, [r3]      \n\
+            "
+            :               /* output */
+            :               /* input */
+            : "r3", "r4"    /* clobbers */
+            );
+        }
+        */
+
         let now = self.alarm.now();
 
         self.app_timer.each(|timer| {
             let elapsed = now.wrapping_sub(timer.t0);
+            // Event Overhead, Virtual Timer testing
+            //if true || timer.interval > 0 && elapsed >= timer.interval {
             if timer.interval > 0 && elapsed >= timer.interval {
                 if timer.repeating {
                     timer.t0 = now;

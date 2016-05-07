@@ -31,7 +31,7 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
             }
             process::State::Waiting => {
                 match process.callbacks.dequeue() {
-                    None => { break },
+                    None => { break; },
                     Some(cb) => {
                         process.state = process::State::Running;
                         process.push_callback(cb);
@@ -67,7 +67,7 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
             Some(syscall::WAIT) => {
                 process.state = process::State::Waiting;
                 process.pop_syscall_stack();
-                break;
+                continue;
             },
             Some(syscall::SUBSCRIBE) => {
                 let driver_num = process.r0();
