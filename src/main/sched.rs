@@ -12,7 +12,8 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
     systick::enable(true);
 
     loop {
-        if systick::overflowed() || systick::value() <= 500 {
+        if platform.has_pending_interrupts() ||
+                systick::overflowed() || systick::value() <= 500 {
             break;
         }
 
