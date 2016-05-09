@@ -1,6 +1,6 @@
 //! Driver for the ISL29035 digital light sensor
 
-use process::{AppId, Callback};
+use process::{AppId, Callback, Container};
 use hil::Driver;
 use hil::i2c::{I2CDevice, I2CClient, Error};
 use core::cell::Cell;
@@ -20,17 +20,17 @@ pub struct Isl29035<'a> {
     i2c: &'a I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<&'static mut [u8]>,
-    callback: Cell<Option<Callback>>,
+    callback: Container<Option<Callback>>,
 }
 
 impl<'a> Isl29035<'a> {
-    pub const fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8])
-            -> Isl29035<'a> {
+    pub const fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8],
+                     container: Container<Option<Callback>>) -> Isl29035<'a> {
         Isl29035 {
             i2c: i2c,
             state: Cell::new(State::Disabled),
             buffer: TakeCell::new(buffer),
-            callback: Cell::new(None)
+            callback: container,
         }
     }
 
@@ -62,8 +62,10 @@ impl<'a> Driver for Isl29035<'a> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 => {
-                self.callback.set(Some(callback));
-                0
+                self.callback.enter(callback.app_id(), |scallback, _| {
+                    **scallback = Some(callback);
+                    0
+                }).unwrap_or(-1)
             }
             _ => -1
         }
@@ -107,7 +109,9 @@ impl<'a> I2CClient for Isl29035<'a> {
             State::Disabling(lux) => {
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.callback.get().map(|mut cb| cb.schedule(lux, 0, 0));
+                self.callback.each(|scb| {
+                    scb.map(|mut cb| cb.schedule(lux, 0, 0));
+                });
             },
             _ => {}
         }

@@ -350,7 +350,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                  drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x44));
     static_init!(isl29035 : drivers::isl29035::Isl29035<'static> =
                  drivers::isl29035::Isl29035::new(isl29035_i2c,
-                                                  &mut drivers::isl29035::BUF));
+                                          &mut drivers::isl29035::BUF,
+                                          process::Container::create()));
     isl29035_i2c.set_client(isl29035);
 
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
