@@ -13,14 +13,14 @@ extern {
 
 /// Size of each processes's memory region in bytes
 pub const PROC_MEMORY_SIZE : usize = 2048;
-pub const NUM_PROCS : usize = 2;
+pub const NUM_PROCS : usize = 1;
 
 static mut FREE_MEMORY_IDX: usize = 0;
 
 #[link_section = ".app_memory"]
 static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE]; NUM_PROCS];
 
-pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None, None];
+pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None; NUM_PROCS];
 
 pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
     let procs = unsafe { &mut PROCS };
