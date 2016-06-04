@@ -1,7 +1,7 @@
 use core::mem;
 use core::cell::Cell;
 use hil::Controller;
-use hil::alarm::{Alarm, AlarmClient, Freq1Khz};
+use hil::alarm::{Alarm, AlarmClient, Freq16Khz};
 use peripheral_registers::{RTC1_BASE, RTC1};
 use peripheral_interrupts::NvicIdx;
 use chip;
@@ -27,6 +27,8 @@ impl Controller for Rtc {
 
         // FIXME: what to do here?
         //self.start();
+        // Set counter incrementing frequency to 16KHz
+        rtc1().prescaler.set(1);
     }
 }
 
@@ -92,7 +94,7 @@ impl Rtc {
 }
 
 impl Alarm for Rtc {
-    type Frequency = Freq1Khz;
+    type Frequency = Freq16Khz;
 
     fn now(&self) -> u32 {
         rtc1().counter.get()
