@@ -4,7 +4,6 @@ use core::mem;
 use core::ops::{Index, IndexMut};
 use hil;
 use nvic;
-use chip;
 use nvic::NvicIdx::*;
 
 use common::take_cell::TakeCell;
@@ -475,111 +474,28 @@ impl hil::gpio::GPIOPin for GPIOPin {
     }
 }
 
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_0_Handler() {
-    use common::Queue;
+macro_rules! gpio_handler {
+    ($num: ident) => {
+        interrupt_handler!(concat_idents!(GPIO_, $num, _Handler), {
+            use common::Queue;
 
-    nvic::disable(nvic::NvicIdx::GPIO0);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO0);
+            let nvic = concat_idents!(nvic::NvicIdx::GPIO, $num);
+            nvic::disable(nvic);
+            chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic);
+        })
+    }
 }
 
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_1_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO1);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO1);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_2_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO2);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO2);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_3_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO3);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO3);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_4_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO4);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO4);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_5_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO5);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO5);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_6_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO6);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO6);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_7_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO7);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO7);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_8_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO8);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO8);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_9_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO9);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO9);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_10_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO10);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO10);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn GPIO_11_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::GPIO11);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::GPIO11);
-}
+interrupt_handler!(gpio0_handler,  GPIO0);
+interrupt_handler!(gpio1_handler,  GPIO1);
+interrupt_handler!(gpio2_handler,  GPIO2);
+interrupt_handler!(gpio3_handler,  GPIO3);
+interrupt_handler!(gpio4_handler,  GPIO4);
+interrupt_handler!(gpio5_handler,  GPIO5);
+interrupt_handler!(gpio6_handler,  GPIO6);
+interrupt_handler!(gpio7_handler,  GPIO7);
+interrupt_handler!(gpio8_handler,  GPIO8);
+interrupt_handler!(gpio9_handler,  GPIO9);
+interrupt_handler!(gpio10_handler, GPIO10);
+interrupt_handler!(gpio11_handler, GPIO11);
 

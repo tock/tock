@@ -12,19 +12,7 @@
 .global \NAME
 .thumb_func
 \NAME :
-  push {r4-r7}
-  mov r4,  r8
-  mov r5,  r9
-  mov r6, r10
-  mov r7, r11
-  push {r4-r7}
   svc \NUM
-  pop {r4-r7}
-  mov  r8, r4
-  mov  r9, r5
-  mov r10, r6
-  mov r11, r7
-  pop {r4-r7}
   bx lr
 .endm
 
