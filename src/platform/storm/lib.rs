@@ -1,7 +1,7 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(core_intrinsics,const_fn,lang_items)]
+#![feature(asm,core_intrinsics,const_fn,lang_items)]
 
 extern crate common;
 extern crate drivers;
@@ -450,7 +450,7 @@ pub unsafe extern "C" fn hard_fault_handler() {
           add r1, r1, 2     \n
           str r1, [r0, #24] \n
 
-          
+
           mov r0, #0        \n
           msr CONTROL, r0   \n
 
