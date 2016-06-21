@@ -115,7 +115,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
             }
         }).unwrap_or((-3, false));
         if reset {
-            self.reset_active_timer();        
+            self.reset_active_timer();
         }
         res
     }
@@ -127,18 +127,37 @@ impl<'a, A: Alarm> AlarmClient for TimerDriver<'a, A> {
 
         self.app_timer.each(|timer| {
             let elapsed = now.wrapping_sub(timer.t0);
-            if timer.interval > 0 && elapsed >= timer.interval {
+            // Need interval in clock cycles to compare with `elapsed`
+            let native_int =
+                timer.interval * (<A::Frequency>::frequency() / 1000);
+
+            // TODO(alevy): How much jitter should use? Probably clock specific
+            let jitter = 100;
+
+            // timer.interval == 0 means the timer is inactive
+            if timer.interval > 0 &&
+                    // Becuse of the calculations done for timer.interval when
+                    // setting the timer, we might fire earlier than expected
+                    // by some jitter.
+                    elapsed + jitter >= native_int {
+
                 if timer.repeating {
+                    // Repeating timer, reset the reference time to now
                     timer.t0 = now;
                 } else {
+                    // Deactivate timer
                     timer.interval = 0;
                     self.num_armed.set(self.num_armed.get() - 1);
                 }
+
                 timer.callback.map(|mut cb| {
                     cb.schedule(now as usize, 0, 0);
                 });
             }
         });
+
+        // If there are armed timers left, reset the underlying timer to the
+        // nearest interval. Otherwise, disable the underlying timer.
         if self.num_armed.get() > 0 {
             self.reset_active_timer();
         } else {
