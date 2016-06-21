@@ -12,7 +12,7 @@ void intensity_cb(int intensity, int unused1, int unused2, void* ud) {
 }
 
 void temp_callback(int temp_value, int err, int unused, void* ud) {
-  gpio_toggle(LED_0);
+  //gpio_toggle(LED_0);
   printf("Current Temp (%d) [0x%X]\n", temp_value, err);
 }
 
