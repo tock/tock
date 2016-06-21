@@ -41,9 +41,7 @@ impl<'a, A: Alarm + 'a> TimerDriver<'a, A> {
         for timer in self.app_timer.iter() {
             timer.enter(|timer, _| {
                 if timer.interval > 0 {
-                    let native_int =
-                        timer.interval * <A::Frequency>::frequency() / 1000;
-                    let t_alarm = timer.t0.wrapping_add(native_int);
+                    let t_alarm = timer.t0.wrapping_add(timer.interval);
                     let t_dist = t_alarm.wrapping_sub(now);
                     if next_dist > t_dist {
                         next_alarm = t_alarm;
@@ -68,8 +66,16 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
 
     fn command(&self, cmd_type: usize, interval: usize, caller_id: AppId)
             -> isize {
-        let interval = interval as u32;
-        let (res, reset) = self.app_timer.enter(caller_id, |td, _allocator| {
+        // First, convert from milliseconds to native clock frequency
+        let interval = (interval as u32) * <A::Frequency>::frequency() / 1000;
+
+        // Returns the error code to return to the user (0 for success, negative
+        // otherwise) and whether we need to reset which is the next active
+        // alarm. We only _don't_ reset if we're disabling the underlying alarm
+        // anyway, if the underlying alarm is currently disabled and we're
+        // enabling the first alarm, or on an error (i.e. no change to the
+        // alarms).
+        let (err_code, reset) = self.app_timer.enter(caller_id, |td, _alloc| {
             match cmd_type {
                 2 /* Stop */ => {
                     if td.interval > 0 {
@@ -93,6 +99,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                         return (-2, false);
                     }
 
+                    // if previously unarmed, but now will become armed
                     if td.interval == 0 {
                         self.num_armed.set(self.num_armed.get() + 1);
                     }
@@ -105,9 +112,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                     if self.alarm.is_armed() {
                         (0, true)
                     } else {
-                        let interval =
-                            interval * <A::Frequency>::frequency() / 1000;
-                        self.alarm.set_alarm(td.t0.wrapping_add(interval));
+                        self.alarm.set_alarm(td.t0.wrapping_add(td.interval));
                         (0, false)
                     }
                 },
@@ -115,9 +120,9 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
             }
         }).unwrap_or((-3, false));
         if reset {
-            self.reset_active_timer();        
+            self.reset_active_timer();
         }
-        res
+        err_code
     }
 }
 
@@ -127,18 +132,31 @@ impl<'a, A: Alarm> AlarmClient for TimerDriver<'a, A> {
 
         self.app_timer.each(|timer| {
             let elapsed = now.wrapping_sub(timer.t0);
-            if timer.interval > 0 && elapsed >= timer.interval {
+
+            // timer.interval == 0 means the timer is inactive
+            if timer.interval > 0 &&
+                    // Becuse of the calculations done for timer.interval when
+                    // setting the timer, we might fire earlier than expected
+                    // by some jitter.
+                    elapsed >= timer.interval {
+
                 if timer.repeating {
+                    // Repeating timer, reset the reference time to now
                     timer.t0 = now;
                 } else {
+                    // Deactivate timer
                     timer.interval = 0;
                     self.num_armed.set(self.num_armed.get() - 1);
                 }
+
                 timer.callback.map(|mut cb| {
                     cb.schedule(now as usize, 0, 0);
                 });
             }
         });
+
+        // If there are armed timers left, reset the underlying timer to the
+        // nearest interval. Otherwise, disable the underlying timer.
         if self.num_armed.get() > 0 {
             self.reset_active_timer();
         } else {
