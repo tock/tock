@@ -240,6 +240,7 @@ impl Alarm for Ast {
     type Frequency = Freq16Khz;
 
     fn now(&self) -> u32 {
+        while self.busy() {}
         unsafe {
             intrinsics::volatile_load(&(*self.regs).cv)
         }
@@ -261,6 +262,7 @@ impl Alarm for Ast {
     }
 
     fn get_alarm(&self) -> u32 {
+        while self.busy() {}
         unsafe {
             intrinsics::volatile_load(&(*self.regs).ar0)
         }
