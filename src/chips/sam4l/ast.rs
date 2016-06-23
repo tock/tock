@@ -269,6 +269,7 @@ impl Alarm for Ast {
     }
 
     fn get_alarm(&self) -> u32 {
+        while self.busy() {}
         unsafe {
             intrinsics::volatile_load(&(*self.regs).ar0)
         }
