@@ -83,7 +83,7 @@ pub struct FLASHCALW {
 
 }
 
-//static instance for the board. Only one FLASHCALW needed / on board.
+//static instance for the board. Only one FLASHCALW on chip.
 pub static mut flash_controller : FLASHCALW = 
     FLASHCALW::new(FLASHCALW_BASE_ADDRS, pm::HSBClock::FLASHCALW, 
         pm::HSBClock::FLASHCALW, pm::PBBClock::FLASHCALW);
@@ -94,8 +94,20 @@ const FLASH_PAGE_SIZE : usize = 512;
 const FLASH_NB_OF_REGIONS : usize = 16;
 const FLASHCALW_REGIONS : usize = FLASH_NB_OF_REGIONS;
 
-// TODO: should export this to a board specific module or so... something that gives me size.
-const FLASHCALW_SIZE : usize = 512;
+// a variable to hold the error statuses of all Flashcalw commands so far.
+static mut flashcalw_error_status : u32 = 0;
+
+
+//A few constants just for readability
+const BIT_ON: u32 = 1;
+
+// TODO: should export this to a chip specific module or so... something that gives me size.
+//const FLASHCALW_SIZE : usize = 512; // instead I'll just read it straight from the table
+                                      // which will be alloced only for a fxn call.
+
+macro_rules! get_bit {
+    ($w:expr) => (0x1u32 << $w);
+}
 
 impl FLASHCALW {
     const fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock, 
@@ -110,7 +122,25 @@ impl FLASHCALW {
 
     /// FLASH properties.
     pub fn get_flash_size(&self) -> u32 {
-        FLASHCALW_SIZE    
+        let flash_sizes = [4,
+                           8,
+                           16,
+                           32,
+                           48,
+                           64,
+                           96,
+                           128,
+                           192,
+                           256,
+                           384,
+                           512,
+                           768,
+                           1024,
+                           2048]
+        flash_sizes[self.registers.parameter & 0xf]; // get the FSZ number and 
+                                                     // lookup in the table for the size.
+        //FLASHCALW_SIZE
+        //could also just read this from the flash...
     }
 
     pub fn get_page_count(&self) -> u32 {
@@ -121,10 +151,6 @@ impl FLASHCALW {
         flashcalw_get_page_count() / FLASH_NB_OF_REGIONS
     }
 
-    pub fn get_page_number(&self) -> u32 {
-        1
-        // DUMMY IMPLEMENTATION 
-    }
 
     // TODO: implement get_page_number().
     pub fn get_page_region(&self, page_number : i32) -> u32 {
@@ -143,16 +169,69 @@ impl FLASHCALW {
     /// FLASHC Control
         //TODO:
     
+    ///Flashcalw status
+
+
+    ///Flashcalw command control
+
+    pub fn get_page_number(&self) -> u32 {
+        1
+        // DUMMY IMPLEMENTATION 
+    }
+    
+    pub issue_command(&self, command : FlashCMD, page_number : i32) {
+        ; // TODO: implement
+        //wait_until_ready(); // would be better to avoid busy waiting...  
+    }
+
 
     ///FLASHCALW Protection Mechanisms
+    //Todo: write out bit positions?
     pub fn is_security_bit_active(&self) -> bool {
-        //think about this more ( get a better design hmmm...)
-        (self.registers.status & 0x16) == 1
+        (self.registers.status & get_bit!(4))
     }
 
     pub fn set_security_bit(&self) {
-        self.registers.status |=     
+       /* let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
+        volatile_store(&mut regs.status, (regs.status | get_bit!(4))); */
+        issue_command(SSB, -1);
     }
 
+    pub fn is_page_region_locked(&self, page_number : u32) -> bool {
+        is_region_locked(get_page_region(page_number))
+    }
+
+    pub fn is_region_locked(&self, region : u32) -> bool {
+        self.registers.status & get_bit!(region + 16)    
+    }
+    
+    pub fn lock_page_region(&self, page_number : i32, lock : bool) {
+        if(lock) {
+            issue_command(LP, page_number);
+        } else {
+            issue_command(UP, page_number);
+        }
+    }
+
+    pub fn lock_region(region : u32, lock : bool) {
+        lock_page_region(get_region_first_page_number(region), lock);    
+    }
+
+    pub fn lock_all_regions(lock : bool) {
+        let mut error_status = 0;
+        let mut num_regions = FLASHCALW_REGIONS;
+
+        while(num_regions >= 0) {
+            lock_region(num_regions, lock);
+            unsafe {
+                error_status |= flashcalw_error_status;    
+            }
+            num_regions -= 1;
+        }
+        
+        unsafe {
+            flashcalw_error_status = error_status;
+        }
+    }
 }
 
