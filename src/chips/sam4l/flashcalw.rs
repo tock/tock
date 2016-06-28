@@ -371,5 +371,224 @@ impl FLASHCALW {
             flashcalw_error_status = error_status;
         }
     }
+
+    ///Flashcalw General-Purpose Fuses
+    pub fn read_gp_fuse_bit(&self, gp_fuse_bit : u32) -> bool {
+        (self.read_all_gp_fuses() & (1u64 << (gp_fuse_bit & 0x3F))) != 0    
+    }
+
+    pub fn read_gp_fuse_bitfield(&self, pos : u32, width : u32) -> u64 {
+        self.read_all_gp_fuses() >> (pos & 0x3F) & 
+            ((1u64 << std::cmp::min(width, 64)) - 1)
+    }
+
+    pub fn read_gp_fuse_byte(&self, gp_fuse_byte : u32) {
+        self.read_all_gp_fuses() >> ((gp_fuse_byte & 0x07) << 3);    
+    }
+
+    pub fn read_all_gp_fuses(&self) -> u64 {
+        self.registers.general_purpose_fuse_reiger_lo   | 
+        (self.registers.general_purpose_fuse_register_hi << 32)
+    }
+    
+    pub fn erase_gp_fuse_bit(&self, gp_fuse_bit : u32, check : bool) -> bool {
+        self.issue_command(EGPB, gp_fuse_bit & 0x3F);
+        if check {
+            self.read_gp_fuse_bit(gp_fuse_bit)
+        } else {
+            true    
+        }
+    }
+
+    pub fn erase_gp_fuse_bitfield(&self, pos : u32, width : u32, check : bool) -> bool {
+        let mut error_status : u32 = 0;
+
+        pos &= 0x3F;
+        width = std::cmp::min(width, 64);
+        for gp_fuse_bit in pos..(pos + width) {
+            self.erase_gp_fuse_bit(gp_fuse_bit, false);
+            error_status |= flashcalw_error_status;
+        }
+
+        flashcalw_error_status = error_status;
+        if check {
+            self.read_gp_fuse_bitfield(pos, width) == ((1u64 << width) - 1)
+        } else {
+            true
+        }
+    }
+
+    pub fn erase_gp_fuse_byte(&self, gp_fuse_byte : u32, check : bool) {
+        unimplemented!() //TODO: implement
+    }
+
+    pub fn erase_all_gp_fuses(&self, check : bool) -> bool {
+        self.issue_command(EAGPF, -1);
+        if check {
+            self.read_all_gp_fuses() == (-1 as u64)
+        } else {
+            true
+        }
+    }
+
+    pub fn write_gp_fuse_bit(&self, gp_fuse_bit : u32, value : bool) {
+        if(!value) {
+            self.issue_command(WGPB, gp_fuse_bit & 0x3F)
+        }    
+    }
+
+    pub fn write_gp_fuse_bitfield(&self, pos : u32, width : u32, value : u64) {
+        let mut error_status : u32 = 0;
+
+        pos &= 0x3F;
+        width = std::cmp::min(width, 64);
+
+        for gp_fuse_bit in pos..(pos + width) {
+            write_gp_fuse_bit(gp_fuse_bit, value & 0x01);
+            error_status |= flashcalw_error_status;
+            value >>= 1;
+        }
+        flashcalw_error_status = error_status;
+    }
+
+    pub fn write_gp_fuse_byte(&self, gp_fuse_byte : u32, value : u8) {
+        self.issue_command(PGPFB, (gp_fuse_byte & 0x07) | value << 3);    
+    }
+
+    pub fn write_all_gp_fuses(&self, value : u64) {
+        let mut error_status : u32 = 0;
+        
+        for gp_fuse_byte in 0..8 {
+            self.write_gp_fuse_byte(gp_fuse_byte, value);
+            error_status |= flashcalw_error_status;
+            value >>= 8;
+        }
+        flashcalw_error_status = error_status;
+    }
+
+    pub fn set_gp_fuse_bit(&self, gp_fuse_bit : u32, value : bool) {
+        if value {
+            self.erase_gp_fuse_bit(gp_fuse_bit, false);    
+        } else {
+            self.write_gp_fuse_bit(gp_fuse_bit, false);    
+        }
+    }
+
+    pub fn set_gp_fuse_bitfield(&self, pos: u32, width : u32, value : u64) {
+        let mut error_status : u32 = 0;
+
+        pos &= 0x3F;
+        width = std::cmp::min(width, 64);
+
+        for gp_fuse_bit in pos..(pos + width) {
+            self.set_gp_fuse_bit(gp_fuse_bit, value & 0x01);
+            error_status |= flashcalw_error_status;
+            value >>= 1;
+        }
+        flashcalw_error_status = error_status;
+    }
+
+    pub fn set_gp_fuse_byte(&self, gp_fuse_byte : u32, value : u8) {
+        let mut error_status : u32 = 0;
+        match (value) {
+            0xFF => {
+                self.erase_gp_fuse_byte(gp_fuse_byte, false);    
+            },
+            0x00 => {
+                self.write_gp_fuse_byte(gp_fuse_byte, 0x00);
+            },
+            _ => {
+                self.erase_gp_fuse_byte(gp_fuse_byte, false);
+                error_status = flashcalw_error_status;
+                self.write_gp_fuse_byte(gp_fuse_byte, value);
+                flashcalw_error_status |= error_status;
+            }
+        };
+
+    }
+
+    pub fn set_all_gp_fuses(&self, value : u64) {
+        let mut error_status : u32 = 0;
+
+        match value {
+            -1u64 => {
+                self.erase_all_gp_fuses(false);  
+            },
+            0u64 => {
+                self.write_all_gp_fuses(0u64);  
+            },
+            _ => {
+                self.erase_all_gp_fuses(false);
+                error_status = flashcalw_error_status;
+                self.write_all_gp_fuses(value);
+                flashcalw_error_status |= error_status;
+            }
+        }
+    }
+    
+    ///Flashcalw Access to Flash Pages
+    pub fn clear_page_buffer(&self) {
+        self.issue_command(CPB, -1)    
+    }
+
+    pub fn is_page_erased(&self) -> bool {
+        (self.registers.status & get_bit!(5)) != 0    
+    }
+
+    pub fn quick_page_read(&self, page_number : i32) -> bool {
+        self.issue_command(QPR, page_number);
+        self.is_page_erased();
+    }
+
+    pub fn erase_page(&self, page_number : i32, check : bool) -> bool {
+        let mut page_erased = true;
+
+        self.issue_command(EP, page_number);
+        if check {
+            let mut error_status : u32 = flashcalw_error_status;
+            page_erased = self.quick_page_read(-1);
+            flashcalw_error_status |= error_status;
+        }
+
+        page_erased
+    }
+
+    pub fn erase_all_pages(&self, check : bool) -> bool {
+        let mut all_pages_erased = true;
+        let mut error_status : u32 = 0;
+        let mut page_number : u32 = self.get_page_count() - 1;
+
+        while page_number >= 0 {
+            all_pages_erased &= self.erase_page(page_number, check);
+            error_status |= flashcalw_error_status;
+            page_number--;
+        }
+
+        flashcalw_error_status = error_status;
+        all_pages_erased
+    }
+
+    pub fn write_page(&self, page_number : i32) {
+        self.issue_command(WP, page_number);    
+    }
+
+    pub fn quick_user_page_read(&self) -> bool {
+        self.issue_command(QPRUP, -1);
+        self.is_page_erased();
+    }
+
+    pub fn erase_user_page(&self, check : bool) -> bool {
+        self.issue_command(EUP, -1);    
+        if check {
+            self.quick_user_page_read()
+        } else {
+            true    
+        }
+    }
+
+    pub fn write_user_page(&self) {
+        self.issue_command(WUP, -1);    
+    } 
+    //TODO: implement memset / memcpy fxns.
 }
 
