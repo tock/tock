@@ -169,10 +169,114 @@ impl FLASHCALW {
 
 
     /// FLASHC Control
-        //TODO:
-    
-    ///Flashcalw status
+    fn change_single_bit_val(&self, position : u32, enable : bool) {
+       let mut reg_val = self.registers.control & !get_bit!(position);
+       if enable {
+            reg_val |= get_bit!(position); 
+       }
+        
+       let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+       volatile_store(&mut regs.control, reg_val);
+    }
 
+    pub fn get_wait_state(&self) -> u32 {
+        if self.registers.control & get_bit!(6) == 0 {
+            0
+        } else{
+            1
+        }
+    }
+
+    pub fn set_wait_state(&self, wait_state : u32) {
+        if wait_state == 1 {
+            self.change_single_bit_val(6, true);
+        } else {
+            self.change_single_bit_val(6, false);
+        }
+        /*let mut reg_val = self.registers.control & !get_bit!(6)
+        if wait_state == 1 {
+            reg_val |= get_bit!(6);
+        }
+
+        let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+        volatile_store(&mut regs.control, reg_val);
+        */
+    }
+    
+    pub fn set_flash_waitstate_and_readmode(&self, cpu_freq : u32, 
+        ps_val : u32, is_fwu_enabled) {
+        unimplemented!() // TODO: implement!    
+    }
+
+    pub fn is_ready_int_enabled(&self) -> bool {
+        (self.registers.control & get_bit!(0)) != 0
+    }
+
+    pub fn enable_ready_int(&self, enable : bool) {
+        self.change_single_bit_val(0, enable); /*
+        let mut reg_val = self.registers.control & !get_bit!(0);
+        if(enable) {
+            reg_val |= 0x1;
+        }
+        
+        let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+        volatile_store(&mut regs.control, reg_val); */
+    }
+
+    pub fn is_lock_error_int_enabled(&self) -> bool {
+        (self.registers.control & get_bit!(2)) != 0
+    }
+
+    pub fn enable_lock_error_int(&self, enable : bool) {
+        self.change_single_bit_val(2, enable);
+        /*
+       let mut reg_val = self.registers.control & !get_bit!(2);
+       if enable {
+            reg_val |= get_bit!(2); 
+       }
+        
+       let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+       volatile_store(&mut regs.control, reg_val); */
+    }
+
+    pub fn is_prog_error_int_enabled(&self) -> bool {
+        (self.registers.control & get_bit!(3)) != 0
+    }
+
+    pub fn enable_prog_error_int(&self, enable : bool) {
+       self.change_single_bit_val(3, enable); /*
+       let mut reg_val = self.registers.control & !get_bit!(2);
+       if enable {
+            reg_val |= get_bit!(2); 
+       }
+        
+       let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+       volatile_store(&mut regs.control, reg_val);
+            */
+    }
+
+    ///Flashcalw status
+    //TODO: add function pointer "wait_until_ready"
+
+    pub fn is_ready(&self) -> bool {
+        self.registers.status & get_bit!(0) != 0
+    }
+
+    pub fn default_wait_until_ready(&self) {
+        while(!self.is_ready()){}    
+    }
+
+    pub fn get_error_status(&self) -> u32 {
+        self.registers.status & ( get_bit!(3) | get_bit!(2))    
+    }
+
+    pub fn is_lock_error(&self) -> bool {
+        self.registers.status & get_bit!(2) != 0
+    }
+
+    pub fn is_programming_error(&self) -> bool {
+        self.registers.status & get_bit!(3) != 0    
+    }
 
     ///Flashcalw command control
     pub fn get_command(&self) -> FlashCMD {
@@ -221,7 +325,6 @@ impl FLASHCALW {
     }
 
     ///FLASHCALW Protection Mechanisms
-    //Todo: write out bit positions?
     pub fn is_security_bit_active(&self) -> bool {
         (self.registers.status & get_bit!(4)) != 0
     }
