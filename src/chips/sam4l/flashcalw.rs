@@ -78,6 +78,8 @@ pub struct FLASHCALW {
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
+    speed_mode: Speed,
+    wait_until_ready : fn(&FLASHCALW)
     //client: TakeCell...
 
 }
@@ -85,7 +87,7 @@ pub struct FLASHCALW {
 //static instance for the board. Only one FLASHCALW on chip.
 pub static mut flash_controller : FLASHCALW = 
     FLASHCALW::new(FLASHCALW_BASE_ADDRS, pm::HSBClock::FLASHCALW, 
-        pm::HSBClock::FLASHCALW, pm::PBBClock::FLASHCALW);
+        pm::HSBClock::FLASHCALW, pm::PBBClock::FLASHCALW, Speed::Standard);
 
 
 // Few constants relating to module configuration.
@@ -94,12 +96,20 @@ const FLASH_NB_OF_REGIONS : usize = 16;
 const FLASHCALW_REGIONS : usize = FLASH_NB_OF_REGIONS;
 const FLASHCALW_CMD_KEY : usize = 0xA5;
 
+//Various operating frequencies
+const FLASH_FREQ_PS1_FWS_1_FWU_MAX_FREQ : u32 = 12000000;
+const FLASH_FREQ_PS0_FWS_0_MAX_FREQ : u32 = 18000000;
+const FLASH_FREQ_PS0_FWS_1_MAX_FREQ : u32 = 36000000;
+const FLASH_FREQ_PS1_FWS_0_MAX_FREQ : u32 = 8000000;
+const FLASH_FREQ_PS1_FWS_1_MAX_FREQ : u32 = 12000000;
+const FLASH_FREQ_PS2_FWS_0_MAX_FREQ : u32 = 24000000;
+const FLASH_FREQ_PS2_FWS_1_MAX_FREQ : u32 = 48000000;
+
 // a variable to hold the error statuses of all Flashcalw commands so far.
 static mut flashcalw_error_status : u32 = 0;
 
-
-//A few constants just for readability
-const BIT_ON: u32 = 1;
+//Function pointer. Can be changed by user
+//let wait_until_ready = default_wait_until_ready;
 
 // TODO: should export this to a chip specific module or so... something that gives me size.
 //const FLASHCALW_SIZE : usize = 512; // instead I'll just read it straight from the table
@@ -109,18 +119,30 @@ macro_rules! get_bit {
     ($w:expr) => (0x1u32 << $w);
 }
 
+/// This is simply std::cmp::min from std
+#[inline]
+fn min<T: Ord>(v1: T, v2: T) -> T {
+    if v1 <= v2 { v1 } else { v2 }    
+}
+
+fn placeholder_wait_function(i : &FLASHCALW) {}
+
 impl FLASHCALW {
     //TODO: remove this as more files are linked ( somehow to ./lib.rs
-    //#![feature(const_fn)]
-    //const fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock, TODO: change heading back to const_fn
-    pub fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock, 
-    hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock) -> FLASHCALW {
-        FLASHCALW {
+    #![feature(const_fn)]
+    const fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock, //TODO: change heading back to const_fn
+    //pub fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock, 
+    hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock, mode : Speed) -> FLASHCALW {
+        let controller = FLASHCALW {
             registers: base_addr,
             ahb_clock: pm::Clock::HSB(ahb_clk),
             hramc1_clock: pm::Clock::HSB(hramc1_clk),
             pb_clock: pm::Clock::HSB(pb_clk),
-        }   
+            speed_mode: mode,
+            wait_until_ready: placeholder_wait_function 
+        };
+        controller.wait_until_ready = controller.default_wait_until_ready;
+        controller
     }
 
     /// FLASH properties.
@@ -147,11 +169,11 @@ impl FLASHCALW {
     }
 
     pub fn get_page_count(&self) -> u32 {
-        self.flashcalw_get_flash_size() / FLASH_PAGE_SIZE    
+        self.get_flash_size() / FLASH_PAGE_SIZE    
     }
 
     pub fn get_page_count_per_region(&self) -> u32 {
-        self.flashcalw_get_page_count() / FLASH_NB_OF_REGIONS
+        self.get_page_count() / FLASH_NB_OF_REGIONS
     }
 
 
@@ -159,12 +181,12 @@ impl FLASHCALW {
         (if page_number >= 0 
             { page_number } 
         else 
-            { self.flashcalw_get_page_number() as i32 } 
-        / self.flashcalw_get_page_count_per_region())
+            { self.get_page_number() as i32 } 
+        / self.get_page_count_per_region())
     }
 
     pub fn get_region_first_page_number(&self, region : u32) -> u32 {
-        region * self.flashcalw_get_page_count_per_region()    
+        region * self.get_page_count_per_region()    
     }
 
 
@@ -203,10 +225,52 @@ impl FLASHCALW {
         */
     }
     
+    //depending on if this flag is passed in this function is implemented differently.
+    #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE)]
     pub fn set_flash_waitstate_and_readmode(&self, cpu_freq : u32, 
-        ps_val : u32, is_fwu_enabled) {
-        unimplemented!() // TODO: implement!    
+        _ps_val : u32, _is_fwu_enabled : bool) {
+        //ps_val and is_fwu_enabled not used in this implementation.
+        if cpu_freq > FLASH_FREQ_PS2_FWS_0_MAX_FREQ {
+            self.set_wait_state(1);    
+        } else {
+            self.set_wait_state(0);
+        }
+
+        self.issue_command(FlashCMD::HSEN, -1);
     }
+
+    #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE))]
+    pub fn set_flash_waitstate_and_readmode(&self, cpu_freq : u32, 
+        ps_val : u32, is_fwu_enabled : bool) {
+        if ps_val == 0 {
+            if cpu_freq > FLASH_FREQ_PS0_FWS_0_MAX_FREQ {
+                self.set_wait_state(1);
+                if cpu_freq <= FLASH_FREQ_PS0_FWS_1_MAX_FREQ {
+                    self.issue_command(FlashCMD::HSDIS, -1);
+                } else {
+                    self.issue_command(FlashCMD::HSEN, -1);
+                }
+            }else {
+                if is_fwu_enabled && cpu_freq <= FLASH_FREQ_PS1_FWS_1_FWU_MAX_FREQ {
+                    self.set_wait_state(1);
+                    self.issue_command(FlashCMD::HSDIS, -1);
+                } else {
+                    self.set_wait_state(0);
+                    self.issue_command(FlashCMD::HSDIS, -1);
+                }
+            }
+        
+        } else {
+            /* ps_val == 1 */
+            if cpu_freq > FLASH_FREQ_PS1_FWS_0_MAX_FREQ {
+                self.set_wait_state(1);    
+            } else {
+                self.set_wait_state(0);
+            }
+            self.issue_command(FlashCMD::HSDIS, -1);
+        }
+    }
+
 
     pub fn is_ready_int_enabled(&self) -> bool {
         (self.registers.control & get_bit!(0)) != 0
@@ -256,14 +320,13 @@ impl FLASHCALW {
     }
 
     ///Flashcalw status
-    //TODO: add function pointer "wait_until_ready"
 
     pub fn is_ready(&self) -> bool {
         self.registers.status & get_bit!(0) != 0
     }
 
     pub fn default_wait_until_ready(&self) {
-        while(!self.is_ready()){}    
+        while !self.is_ready(){}    
     }
 
     pub fn get_error_status(&self) -> u32 {
@@ -293,7 +356,7 @@ impl FLASHCALW {
     }
     
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
-        wait_until_ready(); // would be better to avoid busy waiting...
+        self.wait_until_ready(); // would be better to avoid busy waiting...
         let mut reg_val : usize = self.registers.command;
         
         let clear_cmd_mask : usize = !(get_bit!(6) - 1);
@@ -301,27 +364,27 @@ impl FLASHCALW {
         
         // craft the command
         if page_number >= 0 {
-            reg_val = ( FLASHCALW_CMD_KEY << 24 | 
+            reg_val =   FLASHCALW_CMD_KEY << 24 | 
                         page_number << 8        |
-                        command as usize);
+                        command as usize;
         } else {
-            reg_val |= (FLASHCALW_CMD_KEY << 24 | command as usize);     
+            reg_val |= FLASHCALW_CMD_KEY << 24 | command as usize;     
         }
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
 
-        flashcalw_error_status = get_error_status();
-        wait_until_ready();
+        flashcalw_error_status = self.get_error_status();
+        self.wait_until_ready();
     }
 
 
     /// Flashcalw global commands
     pub fn flashcalw_no_operation(&self) {
-        self.issue_command(NOP, -1);        
+        self.issue_command(FlashCMD::NOP, -1);        
     }
 
     pub fn erase_all(&self) {
-        self.issue_command(EA, -1);    
+        self.issue_command(FlashCMD::EA, -1);    
     }
 
     ///FLASHCALW Protection Mechanisms
@@ -332,11 +395,11 @@ impl FLASHCALW {
     pub fn set_security_bit(&self) {
        /* let regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         volatile_store(&mut regs.status, (regs.status | get_bit!(4))); */
-        self.issue_command(SSB, -1);
+        self.issue_command(FlashCMD::SSB, -1);
     }
 
     pub fn is_page_region_locked(&self, page_number : u32) -> bool {
-        self.is_region_locked(get_page_region(page_number))
+        self.is_region_locked(self.get_page_region(page_number))
     }
 
     pub fn is_region_locked(&self, region : u32) -> bool {
@@ -345,9 +408,9 @@ impl FLASHCALW {
     
     pub fn lock_page_region(&self, page_number : i32, lock : bool) {
         if lock {
-            self.issue_command(LP, page_number);
+            self.issue_command(FlashCMD::LP, page_number);
         } else {
-            self.issue_command(UP, page_number);
+            self.issue_command(FlashCMD::UP, page_number);
         }
     }
 
@@ -379,7 +442,7 @@ impl FLASHCALW {
 
     pub fn read_gp_fuse_bitfield(&self, pos : u32, width : u32) -> u64 {
         self.read_all_gp_fuses() >> (pos & 0x3F) & 
-            ((1u64 << std::cmp::min(width, 64)) - 1)
+            ((1u64 << min(width, 64)) - 1)
     }
 
     pub fn read_gp_fuse_byte(&self, gp_fuse_byte : u32) {
@@ -392,7 +455,7 @@ impl FLASHCALW {
     }
     
     pub fn erase_gp_fuse_bit(&self, gp_fuse_bit : u32, check : bool) -> bool {
-        self.issue_command(EGPB, gp_fuse_bit & 0x3F);
+        self.issue_command(FlashCMD::EGPB, gp_fuse_bit & 0x3F);
         if check {
             self.read_gp_fuse_bit(gp_fuse_bit)
         } else {
@@ -404,7 +467,7 @@ impl FLASHCALW {
         let mut error_status : u32 = 0;
 
         pos &= 0x3F;
-        width = std::cmp::min(width, 64);
+        width = min(width, 64);
         for gp_fuse_bit in pos..(pos + width) {
             self.erase_gp_fuse_bit(gp_fuse_bit, false);
             error_status |= flashcalw_error_status;
@@ -419,11 +482,31 @@ impl FLASHCALW {
     }
 
     pub fn erase_gp_fuse_byte(&self, gp_fuse_byte : u32, check : bool) {
-        unimplemented!() //TODO: implement
+        let mut error_status : u32 = 0;
+        let mut value = self.read_all_gp_fuses();
+
+        self.erase_all_gp_fuses(false);
+        error_status = flashcalw_error_status;
+
+        for current_gp_fuse_byte in 0..8 {
+            if current_gp_fuse_byte != gp_fuse_byte {
+                self.write_gp_fuse_byte(current_gp_fuse_byte, value);
+                error_status |= flashcalw_error_status;
+            }
+            value >>= 8;    
+        }
+
+        flashcalw_error_status = error_status;
+        
+        if check {
+            self.read_gp_fuse_byte(gp_fuse_byte) == 0xFF
+        } else {
+            true    
+        }
     }
 
     pub fn erase_all_gp_fuses(&self, check : bool) -> bool {
-        self.issue_command(EAGPF, -1);
+        self.issue_command(FlashCMD::EAGPF, -1);
         if check {
             self.read_all_gp_fuses() == (-1 as u64)
         } else {
@@ -432,8 +515,8 @@ impl FLASHCALW {
     }
 
     pub fn write_gp_fuse_bit(&self, gp_fuse_bit : u32, value : bool) {
-        if(!value) {
-            self.issue_command(WGPB, gp_fuse_bit & 0x3F)
+        if !value {
+            self.issue_command(FlashCMD::WGPB, gp_fuse_bit & 0x3F)
         }    
     }
 
@@ -441,10 +524,10 @@ impl FLASHCALW {
         let mut error_status : u32 = 0;
 
         pos &= 0x3F;
-        width = std::cmp::min(width, 64);
+        width = min(width, 64);
 
         for gp_fuse_bit in pos..(pos + width) {
-            write_gp_fuse_bit(gp_fuse_bit, value & 0x01);
+            self.write_gp_fuse_bit(gp_fuse_bit, value & 0x01);
             error_status |= flashcalw_error_status;
             value >>= 1;
         }
@@ -452,7 +535,7 @@ impl FLASHCALW {
     }
 
     pub fn write_gp_fuse_byte(&self, gp_fuse_byte : u32, value : u8) {
-        self.issue_command(PGPFB, (gp_fuse_byte & 0x07) | value << 3);    
+        self.issue_command(FlashCMD::PGPFB, (gp_fuse_byte & 0x07) | value << 3);    
     }
 
     pub fn write_all_gp_fuses(&self, value : u64) {
@@ -478,7 +561,7 @@ impl FLASHCALW {
         let mut error_status : u32 = 0;
 
         pos &= 0x3F;
-        width = std::cmp::min(width, 64);
+        width = min(width, 64);
 
         for gp_fuse_bit in pos..(pos + width) {
             self.set_gp_fuse_bit(gp_fuse_bit, value & 0x01);
@@ -490,7 +573,7 @@ impl FLASHCALW {
 
     pub fn set_gp_fuse_byte(&self, gp_fuse_byte : u32, value : u8) {
         let mut error_status : u32 = 0;
-        match (value) {
+        match value {
             0xFF => {
                 self.erase_gp_fuse_byte(gp_fuse_byte, false);    
             },
@@ -528,7 +611,7 @@ impl FLASHCALW {
     
     ///Flashcalw Access to Flash Pages
     pub fn clear_page_buffer(&self) {
-        self.issue_command(CPB, -1)    
+        self.issue_command(FlashCMD::CPB, -1)    
     }
 
     pub fn is_page_erased(&self) -> bool {
@@ -536,14 +619,14 @@ impl FLASHCALW {
     }
 
     pub fn quick_page_read(&self, page_number : i32) -> bool {
-        self.issue_command(QPR, page_number);
+        self.issue_command(FlashCMD::QPR, page_number);
         self.is_page_erased();
     }
 
     pub fn erase_page(&self, page_number : i32, check : bool) -> bool {
         let mut page_erased = true;
 
-        self.issue_command(EP, page_number);
+        self.issue_command(FlashCMD::EP, page_number);
         if check {
             let mut error_status : u32 = flashcalw_error_status;
             page_erased = self.quick_page_read(-1);
@@ -561,7 +644,7 @@ impl FLASHCALW {
         while page_number >= 0 {
             all_pages_erased &= self.erase_page(page_number, check);
             error_status |= flashcalw_error_status;
-            page_number--;
+            page_number -= 1;
         }
 
         flashcalw_error_status = error_status;
@@ -569,16 +652,16 @@ impl FLASHCALW {
     }
 
     pub fn write_page(&self, page_number : i32) {
-        self.issue_command(WP, page_number);    
+        self.issue_command(FlashCMD::WP, page_number);    
     }
 
     pub fn quick_user_page_read(&self) -> bool {
-        self.issue_command(QPRUP, -1);
+        self.issue_command(FlashCMD::QPRUP, -1);
         self.is_page_erased();
     }
 
     pub fn erase_user_page(&self, check : bool) -> bool {
-        self.issue_command(EUP, -1);    
+        self.issue_command(FlashCMD::EUP, -1);    
         if check {
             self.quick_user_page_read()
         } else {
@@ -587,8 +670,11 @@ impl FLASHCALW {
     }
 
     pub fn write_user_page(&self) {
-        self.issue_command(WUP, -1);    
+        self.issue_command(FlashCMD::WUP, -1);    
     } 
+    
     //TODO: implement memset / memcpy fxns.
+    
+
 }
 
