@@ -21,6 +21,7 @@ pub mod gpio;
 pub mod usart;
 pub mod scif;
 pub mod adc;
+pub mod flashcalw;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;

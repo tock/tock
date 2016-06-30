@@ -125,9 +125,6 @@ const FLASH_FREQ_PS2_FWS_0_MAX_FREQ : u32 = 24000000;
 //helper for gp fuses all one...
 const GP_ALL_FUSES_ONE : u64 = !0 as u64;
 
-//Function pointer. Can be changed by user
-//let wait_until_ready = default_wait_until_ready;
-
 // TODO: should export this to a chip specific module or so... something that gives me size.
 //const FLASHCALW_SIZE : usize = 512; // instead I'll just read it straight from the table
                                       // which will be alloced only for a fxn call.
@@ -200,6 +197,23 @@ impl FLASHCALW {
         }
     }
 
+    pub fn handle_interrupt(&self) {
+        use hil::flashc::Error;
+        
+        let status = self.read_register(RegKey::STATUS);
+        //the status register is now automatically cleared...
+
+        /*
+        let err = match status {
+            x if x & (1 <<     
+        };*/
+
+        //TODO: implement...
+        
+
+    }
+  
+  
     /// FLASH properties.
     pub fn get_flash_size(&self) -> u32 {
         let flash_sizes = [4,
