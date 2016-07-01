@@ -1,0 +1,3 @@
+/// A dummy flash client to test flash functionality....
+
+// TODO: implement... and integrate into platform's lib.rs

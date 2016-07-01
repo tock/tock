@@ -4,6 +4,7 @@
 use helpers::*;
 use core::mem;
 
+use hil::flash;
 use pm;
 
 
@@ -198,7 +199,7 @@ impl FLASHCALW {
     }
 
     pub fn handle_interrupt(&self) {
-        use hil::flashc::Error;
+        use hil::flash::Error;
         
         let status = self.read_register(RegKey::STATUS);
         //the status register is now automatically cleared...
@@ -715,6 +716,38 @@ impl FLASHCALW {
     
     //TODO: implement memset / memcpy fxns.
     
+}
 
+// implement the generic calls using the low-lv functions.
+impl flash::FlashController for FLASHCALW {
+    
+    fn configure(&self) {
+        unimplemented!()    
+    }
+
+    fn get_page_size(&self) -> u32 {
+        FLASH_PAGE_SIZE
+    }
+
+    fn get_flash_size(&self) -> u32 {
+        //check clock
+        self.get_flash_size()
+    }
+
+    fn read_page(&self, addr: usize, data: &'static mut [u8], len: u8) {
+        unimplemented!()    
+    }
+    
+    fn write_page(&self, addr: usize, data: &'static mut [u8], len: u8) {
+        unimplemented!()    
+    }
+    
+    fn erase_page(&self, page_num: usize) {
+        unimplemented!()    
+    }
+
+    fn current_page(&self) -> i32 {
+        unimplemented!()    
+    }
 }
 

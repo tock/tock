@@ -16,7 +16,7 @@ pub mod spi_master;
 pub mod timer;
 pub mod uart;
 pub mod adc;
-pub mod flashc;
+pub mod flash;
 
 pub use driver::Driver;
 
