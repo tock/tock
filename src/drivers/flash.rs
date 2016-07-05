@@ -52,10 +52,11 @@ impl<'a, F: FlashController> Driver for Flash<'a, F> {
                 1
             },
             2 /* erase_page */ => {
+                self.controller.erase_page(data as i32);
                 1
             },
             3 /* current_page */ => {
-                1
+                self.controller.current_page() as isize
             },
             _ => { -1 }
         }

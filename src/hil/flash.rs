@@ -24,20 +24,21 @@ impl Display for Error {
 }
 
 pub trait FlashController {
-    //meta functions
-    fn configure(&self);
+    // meta functions
+    
+    fn configure(&mut self);
+    // in bytes
     fn get_page_size(&self) -> u32;
+    // in # of pages
     fn get_flash_size(&self) -> u32;
     
     //commands
     
     // The three functions below will need to be used with a subscribe CB
     // as they might take a while...
-    fn read_page(&self, addr : usize, buffer: &'static mut [u8], len: u8);
-    fn write_page(&self, addr : usize, data: &'static mut [u8], len: u8);
-    fn erase_page(&self, page_num: usize);
-
-    fn current_page(&self) -> i32;
+    fn read_page(&self, addr : usize, mut buffer: &mut [usize]);
+    fn write_page(&mut self, addr : usize, data: & [u8]);
+    fn erase_page(&mut self, page_num: i32);
 }
 
 pub trait Client {

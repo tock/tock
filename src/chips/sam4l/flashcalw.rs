@@ -4,6 +4,7 @@
 use helpers::*;
 use core::mem;
 
+use core::slice;
 use hil::flash;
 use pm;
 
@@ -86,21 +87,18 @@ pub enum Speed {
 //TODO: finishing beefing up...
 pub struct FLASHCALW {
     registers: *mut Registers,
-    // might make these more specific
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
     speed_mode: Speed,
     wait_until_ready : fn(&FLASHCALW) -> (),
     error_status : u32
-    //client: TakeCell...
-
 }
 
 //static instance for the board. Only one FLASHCALW on chip.
 pub static mut flash_controller : FLASHCALW = 
     FLASHCALW::new(FLASHCALW_BASE_ADDRS, pm::HSBClock::FLASHCALW, 
-        pm::HSBClock::FLASHCALW, pm::PBBClock::FLASHCALW, Speed::Standard);
+        pm::HSBClock::FLASHCALWP, pm::PBBClock::FLASHCALW, Speed::Standard);
 
 
 // Few constants relating to module configuration.
@@ -126,10 +124,6 @@ const FLASH_FREQ_PS2_FWS_0_MAX_FREQ : u32 = 24000000;
 //helper for gp fuses all one...
 const GP_ALL_FUSES_ONE : u64 = !0 as u64;
 
-// TODO: should export this to a chip specific module or so... something that gives me size.
-//const FLASHCALW_SIZE : usize = 512; // instead I'll just read it straight from the table
-                                      // which will be alloced only for a fxn call.
-
 macro_rules! get_bit {
     ($w:expr) => (0x1u32 << $w);
 }
@@ -152,7 +146,6 @@ pub fn default_wait_until_ready(flash : &FLASHCALW) {
 
 
 impl FLASHCALW {
-    //#![feature(const_fn)]
     const fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock,
     hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock, mode : Speed) -> FLASHCALW {
         FLASHCALW {
@@ -665,7 +658,7 @@ impl FLASHCALW {
         self.is_page_erased()
     }
 
-    pub fn erase_page(&mut self, page_number : i32, check : bool) -> bool {
+    pub fn flashcalw_erase_page(&mut self, page_number : i32, check : bool) -> bool {
         let mut page_erased = true;
 
         self.issue_command(FlashCMD::EP, page_number);
@@ -684,7 +677,7 @@ impl FLASHCALW {
         let mut page_number : i32 = (self.get_page_count() as i32) - 1;
 
         while page_number >= 0 {
-            all_pages_erased &= self.erase_page(page_number, check);
+            all_pages_erased &= self.flashcalw_erase_page(page_number, check);
             error_status |= self.error_status;
             page_number -= 1;
         }
@@ -692,7 +685,7 @@ impl FLASHCALW {
         all_pages_erased
     }
 
-    pub fn write_page(&mut self, page_number : i32) {
+    pub fn flashcalw_write_page(&mut self, page_number : i32) {
         self.issue_command(FlashCMD::WP, page_number);    
     }
 
@@ -714,15 +707,38 @@ impl FLASHCALW {
         self.issue_command(FlashCMD::WUP, -1);    
     } 
     
-    //TODO: implement memset / memcpy fxns.
-    
+    //Instead of having several memset/ memcpy functions,
+    //will only have one to write to the page buffer
+    //note all locations are 
+    pub fn write_to_page_buffer(&mut self, data : &[u8]) {
+       //let mut page_buffer : &mut [u8] = unsafe { mem::transmute(0x0) };
+       let mut page_buffer : *mut u8 = 0x0 as *mut u8;
+       //let mut page_buffer : [u8; FLASH_PAGE_SIZE as usize] = unsafe { mem::transmute(0x0) }; 
+
+       //write to the page_buffer
+       //page_buffer.clone_from_slice(&data);
+        
+        unsafe {
+            use core::ptr;
+            let start_buffer : *const u8 = &data[0] as *const u8;
+
+            ptr::copy(start_buffer, page_buffer, FLASH_PAGE_SIZE as usize);
+        }
+    }
 }
 
 // implement the generic calls using the low-lv functions.
 impl flash::FlashController for FLASHCALW {
     
-    fn configure(&self) {
-        unimplemented!()    
+    fn configure(&mut self) {
+        //enable all clocks (if they aren't on already...)
+        unsafe {
+            pm::enable_clock(self.ahb_clock);
+            pm::enable_clock(self.hramc1_clock);
+            pm::enable_clock(self.pb_clock);
+        }
+        //clear the page buffer
+        self.clear_page_buffer();
     }
 
     fn get_page_size(&self) -> u32 {
@@ -730,24 +746,49 @@ impl flash::FlashController for FLASHCALW {
     }
 
     fn get_flash_size(&self) -> u32 {
-        //check clock
+        //check clock and enable just incase
+        unsafe { pm::enable_clock(self.pb_clock); }
         self.get_flash_size()
     }
 
-    fn read_page(&self, addr: usize, data: &'static mut [u8], len: u8) {
-        unimplemented!()    
+    fn read_page(&self, addr: usize, mut buffer: &mut [usize]) {
+        //enable clock incase it's off
+        unsafe { pm::enable_clock(self.ahb_clock); }
+
+        let page: *const usize  = (((addr) / (FLASH_PAGE_SIZE as usize)) * (FLASH_PAGE_SIZE as usize)) as *const usize;
+
+        unsafe {
+            let slice = slice::from_raw_parts(page, (FLASH_PAGE_SIZE as usize) / mem::size_of::<usize>());    
+            buffer.clone_from_slice(slice);
+        }
+        //for now assume addr is pagenum (TODO)
+        
     }
     
-    fn write_page(&self, addr: usize, data: &'static mut [u8], len: u8) {
-        unimplemented!()    
+    fn write_page(&mut self, addr: usize, data: & [u8]) {
+        //enable clock incase it's off
+        unsafe { pm::enable_clock(self.ahb_clock); }
+        
+        //write to page buffer @ 0x0
+        self.write_to_page_buffer(data);
+
+        //TODO addr is being treted as pgnum here...
+
+        //issue write command to write the page buffer to some specific page!
+        self.flashcalw_write_page( addr as i32); 
+        
+        //clear page buffer for next write...
+        self.clear_page_buffer();
     }
     
-    fn erase_page(&self, page_num: usize) {
-        unimplemented!()    
+    fn erase_page(&mut self, page_num: i32) {
+        //need to use flashcalw_erase_page so modified the name convention to 
+        // disambiguate function calls
+        self.flashcalw_erase_page(page_num, true);
     }
 
-    fn current_page(&self) -> i32 {
-        unimplemented!()    
+    fn current_page(&self) -> u32 {
+        self.get_page_number()
     }
 }
 
