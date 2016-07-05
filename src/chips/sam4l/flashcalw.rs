@@ -3,8 +3,8 @@
 
 use helpers::*;
 use core::mem;
-
 use core::slice;
+use common::take_cell::TakeCell;
 use hil::flash;
 use pm;
 
@@ -92,7 +92,7 @@ pub struct FLASHCALW {
     pb_clock: pm::Clock,
     speed_mode: Speed,
     wait_until_ready : fn(&FLASHCALW) -> (),
-    error_status : u32
+    error_status : TakeCell<u32>
 }
 
 //static instance for the board. Only one FLASHCALW on chip.
@@ -155,7 +155,7 @@ impl FLASHCALW {
             pb_clock: pm::Clock::PBB(pb_clk),
             speed_mode: mode,
             wait_until_ready: default_wait_until_ready,
-            error_status: 0
+            error_status: TakeCell::new(0) 
         }
     }
 
@@ -381,7 +381,7 @@ impl FLASHCALW {
         ((self.read_register(RegKey::COMMAND) & page_mask) >> 8) as u32
     }
     
-    pub fn issue_command(&mut self, command : FlashCMD, page_number : i32) {
+    pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         (self.wait_until_ready)(self); // call the registered wait function
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         let mut reg_val : usize = volatile_load(&mut cmd_regs.command);
@@ -398,18 +398,18 @@ impl FLASHCALW {
             reg_val |= FLASHCALW_CMD_KEY << 24 | command as usize;     
         }
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
-
-        self.error_status = self.get_error_status();
+        
+        self.error_status.put(Some(self.get_error_status()));
         (self.wait_until_ready)(self);
     }
 
 
     /// Flashcalw global commands
-    pub fn flashcalw_no_operation(&mut self) {
+    pub fn flashcalw_no_operation(&self) {
         self.issue_command(FlashCMD::NOP, -1);        
     }
 
-    pub fn erase_all(&mut self) {
+    pub fn erase_all(&self) {
         self.issue_command(FlashCMD::EA, -1);    
     }
 
@@ -418,7 +418,7 @@ impl FLASHCALW {
         (self.read_register(RegKey::STATUS) & get_ubit!(4)) != 0
     }
 
-    pub fn set_security_bit(&mut self) {
+    pub fn set_security_bit(&self) {
         self.issue_command(FlashCMD::SSB, -1);
     }
 
@@ -430,7 +430,7 @@ impl FLASHCALW {
         (self.read_register(RegKey::STATUS) & get_ubit!(region + 16)) != 0    
     }
     
-    pub fn lock_page_region(&mut self, page_number : i32, lock : bool) {
+    pub fn lock_page_region(&self, page_number : i32, lock : bool) {
         if lock {
             self.issue_command(FlashCMD::LP, page_number);
         } else {
@@ -438,22 +438,22 @@ impl FLASHCALW {
         }
     }
 
-    pub fn lock_region(&mut self, region : u32, lock : bool) {
+    pub fn lock_region(&self, region : u32, lock : bool) {
         let first_page : i32 = self.get_region_first_page_number(region) as i32;
         self.lock_page_region(first_page, lock);    
     }
 
-    pub fn lock_all_regions(&mut self, lock : bool) {
+    pub fn lock_all_regions(&self, lock : bool) {
         let mut error_status = 0;
         let mut num_regions = 0;
 
         while num_regions < FLASHCALW_REGIONS {
             self.lock_region(num_regions, lock);
-            error_status |= self.error_status;    
+            error_status |= self.error_status.take().unwrap();    
             num_regions += 1;
         }
         
-        self.error_status = error_status;
+        self.error_status.replace(error_status);
     }
 
     ///Flashcalw General-Purpose Fuses
@@ -479,7 +479,7 @@ impl FLASHCALW {
         (gpfrlo | (gpfrhi << 32))
     }
     
-    pub fn erase_gp_fuse_bit(&mut self, gp_fuse_bit : u32, check : bool) -> bool {
+    pub fn erase_gp_fuse_bit(&self, gp_fuse_bit : u32, check : bool) -> bool {
         self.issue_command(FlashCMD::EGPB, (gp_fuse_bit as i32) & 0x3F);
         if check {
             self.read_gp_fuse_bit(gp_fuse_bit)
@@ -488,17 +488,17 @@ impl FLASHCALW {
         }
     }
 
-    pub fn erase_gp_fuse_bitfield(&mut self, mut pos : u32, mut width : u32, check : bool) -> bool {
+    pub fn erase_gp_fuse_bitfield(&self, mut pos : u32, mut width : u32, check : bool) -> bool {
         let mut error_status : u32 = 0;
 
         pos &= 0x3F;
         width = min(width, 64);
         for gp_fuse_bit in pos..(pos + width) {
             self.erase_gp_fuse_bit(gp_fuse_bit, false);
-            error_status |= self.error_status;
+            error_status |= self.error_status.take().unwrap();
         }
 
-        self.error_status = error_status;
+        self.error_status.replace(error_status);
         if check {
             self.read_gp_fuse_bitfield(pos, width) == ((1u64 << width) - 1)
         } else {
@@ -506,24 +506,24 @@ impl FLASHCALW {
         }
     }
 
-    pub fn erase_gp_fuse_byte(&mut self, gp_fuse_byte : u32, check : bool) -> bool {
+    pub fn erase_gp_fuse_byte(&self, gp_fuse_byte : u32, check : bool) -> bool {
         let mut error_status : u32;
         let mut value = self.read_all_gp_fuses();
         let mut byte_val : u8;
 
         self.erase_all_gp_fuses(false);
-        error_status = self.error_status;
+        error_status = self.error_status.take().unwrap();
 
         for current_gp_fuse_byte in 0..8 {
             if current_gp_fuse_byte != gp_fuse_byte {
                 byte_val = (value & ((1u64 << 8) - 1)) as u8;
                 self.write_gp_fuse_byte(current_gp_fuse_byte, byte_val);
-                error_status |= self.error_status;
+                error_status |= self.error_status.take().unwrap();
             }
             value >>= 8;    
         }
 
-        self.error_status = error_status;
+        self.error_status.replace(error_status);
         
         if check {
             self.read_gp_fuse_byte(gp_fuse_byte) == 0xFF
@@ -532,7 +532,7 @@ impl FLASHCALW {
         }
     }
 
-    pub fn erase_all_gp_fuses(&mut self, check : bool) -> bool {
+    pub fn erase_all_gp_fuses(&self, check : bool) -> bool {
         self.issue_command(FlashCMD::EAGPF, -1);
         if check {
             self.read_all_gp_fuses() == (GP_ALL_FUSES_ONE)
@@ -541,13 +541,13 @@ impl FLASHCALW {
         }
     }
 
-    pub fn write_gp_fuse_bit(&mut self, gp_fuse_bit : u32, value : bool) {
+    pub fn write_gp_fuse_bit(&self, gp_fuse_bit : u32, value : bool) {
         if !value {
             self.issue_command(FlashCMD::WGPB, (gp_fuse_bit as i32) & 0x3F)
         }    
     }
 
-    pub fn write_gp_fuse_bitfield(&mut self, mut pos : u32, mut width : u32, mut value : u64) {
+    pub fn write_gp_fuse_bitfield(&self, mut pos : u32, mut width : u32, mut value : u64) {
         let mut error_status : u32 = 0;
 
         pos &= 0x3F;
@@ -555,17 +555,17 @@ impl FLASHCALW {
 
         for gp_fuse_bit in pos..(pos + width) {
             self.write_gp_fuse_bit(gp_fuse_bit, value & 0x01 != 0);
-            error_status |= self.error_status;
+            error_status |= self.error_status.take().unwrap();
             value >>= 1;
         }
-        self.error_status = error_status;
+        self.error_status.replace(error_status);
     }
 
-    pub fn write_gp_fuse_byte(&mut self, gp_fuse_byte : u32, value : u8) {
+    pub fn write_gp_fuse_byte(&self, gp_fuse_byte : u32, value : u8) {
         self.issue_command(FlashCMD::PGPFB, ((gp_fuse_byte & 0x07) | (value as u32) << 3) as i32);    
     }
 
-    pub fn write_all_gp_fuses(&mut self, mut value : u64) {
+    pub fn write_all_gp_fuses(&self, mut value : u64) {
         let mut error_status : u32 = 0;
         let mut byte_val : u8;
 
@@ -573,13 +573,13 @@ impl FLASHCALW {
             //get the lower byte
             byte_val = (value & ((1u64 << 8) - 1)) as u8;
             self.write_gp_fuse_byte(gp_fuse_byte, byte_val);
-            error_status |= self.error_status;
+            error_status |= self.error_status.take().unwrap();
             value >>= 8;
         }
-            self.error_status = error_status;
+            self.error_status.replace(error_status);
     }
 
-    pub fn set_gp_fuse_bit(&mut self, gp_fuse_bit : u32, value : bool) {
+    pub fn set_gp_fuse_bit(&self, gp_fuse_bit : u32, value : bool) {
         if value {
             self.erase_gp_fuse_bit(gp_fuse_bit, false);    
         } else {
@@ -587,7 +587,7 @@ impl FLASHCALW {
         }
     }
 
-    pub fn set_gp_fuse_bitfield(&mut self, mut pos: u32, mut width : u32, mut value : u64) {
+    pub fn set_gp_fuse_bitfield(&self, mut pos: u32, mut width : u32, mut value : u64) {
         let mut error_status : u32 = 0;
 
         pos &= 0x3F;
@@ -595,14 +595,14 @@ impl FLASHCALW {
 
         for gp_fuse_bit in pos..(pos + width) {
             self.set_gp_fuse_bit(gp_fuse_bit, value & 0x01 != 0);
-            error_status |= self.error_status;
+            error_status |= self.error_status.take().unwrap();
             value >>= 1;
         }
-        self.error_status = error_status;
+        self.error_status.replace(error_status);
     }
 
-    pub fn set_gp_fuse_byte(&mut self, gp_fuse_byte : u32, value : u8) {
-        let error_status : u32;
+    pub fn set_gp_fuse_byte(&self, gp_fuse_byte : u32, value : u8) {
+        let mut error_status : u32;
         match value {
             0xFF => {
                 self.erase_gp_fuse_byte(gp_fuse_byte, false);    
@@ -612,16 +612,17 @@ impl FLASHCALW {
             },
             _ => {
                 self.erase_gp_fuse_byte(gp_fuse_byte, false);
-                error_status = self.error_status;
+                error_status = self.error_status.take().unwrap();
                 self.write_gp_fuse_byte(gp_fuse_byte, value);
-                self.error_status |= error_status;
+                error_status |= self.error_status.take().unwrap();
+                self.error_status.replace(error_status);
             }
         };
 
     }
 
-    pub fn set_all_gp_fuses(&mut self, value : u64) {
-        let error_status : u32;
+    pub fn set_all_gp_fuses(&self, value : u64) {
+        let mut error_status : u32;
 
         match value {
             GP_ALL_FUSES_ONE => {
@@ -632,15 +633,16 @@ impl FLASHCALW {
             },
             _ => {
                 self.erase_all_gp_fuses(false);
-                error_status = self.error_status;
+                error_status = self.error_status.take().unwrap();
                 self.write_all_gp_fuses(value);
-                self.error_status |= error_status;
+                error_status |= self.error_status.take().unwrap();
+                self.error_status.replace(error_status);
             }
         }
     }
     
     ///Flashcalw Access to Flash Pages
-    pub fn clear_page_buffer(&mut self) {
+    pub fn clear_page_buffer(&self) {
         self.issue_command(FlashCMD::CPB, -1)    
     }
 
@@ -653,48 +655,49 @@ impl FLASHCALW {
         (status & get_ubit!(5)) != 0    
     }
 
-    pub fn quick_page_read(&mut self, page_number : i32) -> bool {
+    pub fn quick_page_read(&self, page_number : i32) -> bool {
         self.issue_command(FlashCMD::QPR, page_number);
         self.is_page_erased()
     }
 
-    pub fn flashcalw_erase_page(&mut self, page_number : i32, check : bool) -> bool {
+    pub fn flashcalw_erase_page(&self, page_number : i32, check : bool) -> bool {
         let mut page_erased = true;
 
         self.issue_command(FlashCMD::EP, page_number);
         if check {
-            let error_status : u32 = self.error_status;
+            let mut error_status : u32 = self.error_status.take().unwrap();
             page_erased = self.quick_page_read(-1);
-            self.error_status |= error_status;
+            error_status |= self.error_status.take().unwrap();
+            self.error_status.replace(error_status);
         }
 
         page_erased
     }
 
-    pub fn erase_all_pages(&mut self, check : bool) -> bool {
+    pub fn erase_all_pages(&self, check : bool) -> bool {
         let mut all_pages_erased = true;
         let mut error_status : u32 = 0;
         let mut page_number : i32 = (self.get_page_count() as i32) - 1;
 
         while page_number >= 0 {
             all_pages_erased &= self.flashcalw_erase_page(page_number, check);
-            error_status |= self.error_status;
+            error_status |= self.error_status.take().unwrap();
             page_number -= 1;
         }
-        self.error_status = error_status;
+        self.error_status.replace(error_status);
         all_pages_erased
     }
 
-    pub fn flashcalw_write_page(&mut self, page_number : i32) {
+    pub fn flashcalw_write_page(&self, page_number : i32) {
         self.issue_command(FlashCMD::WP, page_number);    
     }
 
-    pub fn quick_user_page_read(&mut self) -> bool {
+    pub fn quick_user_page_read(&self) -> bool {
         self.issue_command(FlashCMD::QPRUP, -1);
         self.is_page_erased()
     }
 
-    pub fn erase_user_page(&mut self, check : bool) -> bool {
+    pub fn erase_user_page(&self, check : bool) -> bool {
         self.issue_command(FlashCMD::EUP, -1);    
         if check {
             self.quick_user_page_read()
@@ -703,14 +706,14 @@ impl FLASHCALW {
         }
     }
 
-    pub fn write_user_page(&mut self) {
+    pub fn write_user_page(&self) {
         self.issue_command(FlashCMD::WUP, -1);    
     } 
     
     //Instead of having several memset/ memcpy functions,
     //will only have one to write to the page buffer
     //note all locations are 
-    pub fn write_to_page_buffer(&mut self, data : &[u8]) {
+    pub fn write_to_page_buffer(&self, data : &[u8]) {
        //let mut page_buffer : &mut [u8] = unsafe { mem::transmute(0x0) };
        let mut page_buffer : *mut u8 = 0x0 as *mut u8;
        //let mut page_buffer : [u8; FLASH_PAGE_SIZE as usize] = unsafe { mem::transmute(0x0) }; 
@@ -765,7 +768,7 @@ impl flash::FlashController for FLASHCALW {
         
     }
     
-    fn write_page(&mut self, addr: usize, data: & [u8]) {
+    fn write_page(&self, addr: usize, data: & [u8]) {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
         
@@ -781,14 +784,10 @@ impl flash::FlashController for FLASHCALW {
         self.clear_page_buffer();
     }
     
-    fn erase_page(&mut self, page_num: i32) {
+    fn erase_page(&self, page_num: i32) {
         //need to use flashcalw_erase_page so modified the name convention to 
         // disambiguate function calls
         self.flashcalw_erase_page(page_num, true);
-    }
-
-    fn current_page(&self) -> u32 {
-        self.get_page_number()
     }
 }
 

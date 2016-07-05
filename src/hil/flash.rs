@@ -37,8 +37,8 @@ pub trait FlashController {
     // The three functions below will need to be used with a subscribe CB
     // as they might take a while...
     fn read_page(&self, addr : usize, mut buffer: &mut [usize]);
-    fn write_page(&mut self, addr : usize, data: & [u8]);
-    fn erase_page(&mut self, page_num: i32);
+    fn write_page(&self, addr : usize, data: & [u8]);
+    fn erase_page(&self, page_num: i32);
 }
 
 pub trait Client {
