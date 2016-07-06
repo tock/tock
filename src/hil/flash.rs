@@ -30,7 +30,7 @@ pub trait FlashController {
     // in bytes
     fn get_page_size(&self) -> u32;
     // in # of pages
-    fn get_flash_size(&self) -> u32;
+    fn get_number_pages(&self) -> u32;
     
     //commands
     

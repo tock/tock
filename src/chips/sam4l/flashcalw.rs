@@ -748,7 +748,7 @@ impl flash::FlashController for FLASHCALW {
         FLASH_PAGE_SIZE
     }
 
-    fn get_flash_size(&self) -> u32 {
+    fn get_number_pages(&self) -> u32 {
         //check clock and enable just incase
         unsafe { pm::enable_clock(self.pb_clock); }
         self.get_page_count()

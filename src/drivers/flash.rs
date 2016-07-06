@@ -25,7 +25,7 @@ impl<'a, F: FlashController> Flash <'a, F> {
         self.controller.configure(); // do any configurations necessary for the
                                      // specific flash driver (i.e. check clocks, etc.)
         self.page_size = self.controller.get_page_size();
-        self.num_pages = self.controller.get_flash_size();
+        self.num_pages = self.controller.get_number_pages();
         self.busy.set(false); // become available after configuration
     } 
 }
