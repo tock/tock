@@ -225,7 +225,7 @@ impl FLASHCALW {
                            768,
                            1024,
                            2048];
-        flash_sizes[self.read_register(RegKey::PARAMETER) & 0xf] // get the FSZ number and 
+        flash_sizes[self.read_register(RegKey::PARAMETER) & 0xf]  << 10// get the FSZ number and 
                                                     // lookup in the table for the size.
     }
 
@@ -758,8 +758,10 @@ impl flash::FlashController for FLASHCALW {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
 
-        let page: *const usize  = (((addr) / (FLASH_PAGE_SIZE as usize)) * (FLASH_PAGE_SIZE as usize)) as *const usize;
-
+        //let page: *const usize  = (((addr) / (FLASH_PAGE_SIZE as usize)) * (FLASH_PAGE_SIZE as usize)) as *const usize;
+        //actually the above calculation uses addr as an addr...
+        let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
+        //println!("Page is at address:{}", page);
         unsafe {
             let slice = slice::from_raw_parts(page, (FLASH_PAGE_SIZE as usize) / mem::size_of::<usize>());    
             buffer.clone_from_slice(slice);
@@ -779,7 +781,7 @@ impl flash::FlashController for FLASHCALW {
 
         //issue write command to write the page buffer to some specific page!
         self.flashcalw_write_page( addr as i32); 
-        
+            
         //clear page buffer for next write...
         self.clear_page_buffer();
     }
