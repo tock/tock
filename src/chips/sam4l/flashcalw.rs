@@ -728,6 +728,17 @@ impl FLASHCALW {
             ptr::copy(start_buffer, page_buffer, FLASH_PAGE_SIZE as usize);
         }
     }
+
+    /// FOR DEBUGGING PURPOSES...
+    pub fn debug_error_status(&self) -> u32 {
+        let status = self.error_status.take().unwrap();
+        self.error_status.put(Some(0));
+        status
+    }
+
+    pub fn enable_ahb(&self) {
+        unsafe { pm::enable_clock(self.ahb_clock); }
+    }
 }
 
 // implement the generic calls using the low-lv functions.
@@ -763,6 +774,7 @@ impl flash::FlashController for FLASHCALW {
         let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
         //println!("Page is at address:{}", page);
         unsafe {
+            //TODO: the from_raw_pats fails with page being at 0x0, b/c it thinks it's null...
             let slice = slice::from_raw_parts(page, (FLASH_PAGE_SIZE as usize) / mem::size_of::<usize>());    
             buffer.clone_from_slice(slice);
         }
@@ -773,6 +785,9 @@ impl flash::FlashController for FLASHCALW {
     fn write_page(&self, addr: usize, data: & [u8]) {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
+       
+        //erase page
+        self.erase_page(addr as i32);
         
         //write to page buffer @ 0x0
         self.write_to_page_buffer(data);
@@ -789,6 +804,12 @@ impl flash::FlashController for FLASHCALW {
     fn erase_page(&self, page_num: i32) {
         //need to use flashcalw_erase_page so modified the name convention to 
         // disambiguate function calls
+        //note: it's possible that the erase_page could fail.
+        //TODO: change so that it'll keep trying if erase_page doesn't have 
+        //any errors...
+        //while(!self.flashcalw_erase_page(page_num, true)) {};
+        //not sure if you need to enable clock here...
+        unsafe { pm::enable_clock(self.ahb_clock); }
         self.flashcalw_erase_page(page_num, true);
     }
 }
