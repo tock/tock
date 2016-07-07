@@ -105,6 +105,7 @@ impl<'a> I2CClient for Isl29035<'a> {
                 self.state.set(State::Disabling(lux));
             },
             State::Disabling(lux) => {
+                self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
                 self.callback.get().map(|mut cb| cb.schedule(lux, 0, 0));
