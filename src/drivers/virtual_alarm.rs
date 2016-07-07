@@ -3,7 +3,7 @@ use hil::alarm::{Alarm, AlarmClient};
 use common::{List, ListLink, ListNode};
 
 pub struct VirtualMuxAlarm<'a, Alrm: Alarm + 'a> {
-    alarm: &'a MuxAlarm<'a, Alrm>,
+    mux: &'a MuxAlarm<'a, Alrm>,
     when: Cell<u32>,
     armed: Cell<bool>,
     next: ListLink<'a, VirtualMuxAlarm<'a, Alrm>>,
@@ -19,7 +19,7 @@ impl<'a, A: Alarm + 'a> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm
 impl<'a, Alrm: Alarm> VirtualMuxAlarm<'a, Alrm> {
     pub fn new(mux_alarm: &'a MuxAlarm<'a, Alrm>) -> VirtualMuxAlarm<'a, Alrm> {
         VirtualMuxAlarm {
-            alarm: mux_alarm,
+            mux: mux_alarm,
             when: Cell::new(0),
             armed: Cell::new(false),
             next: ListLink::empty(),
@@ -28,7 +28,7 @@ impl<'a, Alrm: Alarm> VirtualMuxAlarm<'a, Alrm> {
     }
 
     pub fn set_client(&'a self, client: &'a AlarmClient) {
-        self.alarm.virtual_alarms.push_head(self);
+        self.mux.virtual_alarms.push_head(self);
         self.when.set(0);
         self.armed.set(false);
         self.client.set(Some(client));
@@ -40,20 +40,31 @@ impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
     type Frequency = Alrm::Frequency;
 
     fn now(&self) -> u32 {
-        self.alarm.alarm.now()
+        self.mux.alarm.now()
     }
 
     fn set_alarm(&self, when: u32) {
-        let enabled = self.alarm.enabled.get();
-        self.alarm.enabled.set(enabled + 1);
+        let enabled = self.mux.enabled.get();
 
-        // If there are no other virtual alarms enabled, set the underlying
-        // alarm
-        if enabled == 0 {
-            self.alarm.prev.set(self.alarm.alarm.now());
-            self.alarm.alarm.set_alarm(when);
+        if !self.is_armed() {
+            self.mux.enabled.set(enabled + 1);
+            self.armed.set(true);
+
         }
-        self.armed.set(true);
+
+        if enabled > 0 {
+            let cur_alarm = self.mux.alarm.get_alarm();
+            let now = self.now();
+
+            if cur_alarm.wrapping_sub(now) > when.wrapping_sub(now) {
+                self.mux.prev.set(self.mux.alarm.now());
+                self.mux.alarm.set_alarm(when);
+            }
+        } else {
+            self.mux.prev.set(self.mux.alarm.now());
+            self.mux.alarm.set_alarm(when);
+        }
+
         self.when.set(when);
     }
 
@@ -68,16 +79,28 @@ impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
 
         self.armed.set(false);
 
-        let enabled = self.alarm.enabled.get() - 1;
-        self.alarm.enabled.set(enabled);
+        let enabled = self.mux.enabled.get() - 1;
+        self.mux.enabled.set(enabled);
 
         // If there are not more enabled alarms, disable the underlying alarm
         // completely.
         if enabled == 0 {
-            self.alarm.alarm.disable_alarm();
+            self.mux.alarm.disable_alarm();
         }
     }
+
+    fn is_armed(&self) -> bool {
+        self.armed.get()
+    }
 }
+
+impl <'a, Alrm: Alarm> AlarmClient for VirtualMuxAlarm<'a, Alrm> {
+    fn fired(&self) {
+        self.client.get().map(|client| client.fired() );
+    }
+}
+
+/* MuxAlarm */
 
 pub struct MuxAlarm<'a, Alrm: Alarm + 'a> {
     virtual_alarms: List<'a, VirtualMuxAlarm<'a, Alrm>>,
@@ -97,14 +120,8 @@ impl<'a, Alrm: Alarm> MuxAlarm<'a, Alrm> {
     }
 }
 
-impl <'a, Alrm: Alarm> AlarmClient for VirtualMuxAlarm<'a, Alrm> {
-    fn fired(&self) {
-        self.client.get().map(|client| client.fired() );
-    }
-}
-
 fn past_from_base(cur: u32, now: u32, prev: u32) -> bool {
-    cur.wrapping_sub(now) <= cur.wrapping_sub(prev)
+    now.wrapping_sub(prev) >= cur.wrapping_sub(prev)
 }
 
 impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
@@ -114,17 +131,21 @@ impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
         self.alarm.disable_alarm();
 
         let now = self.alarm.now();
-        let mut next = None;
-        let mut min_distance : u32 = u32::max_value();
 
         for cur in self.virtual_alarms.iter() {
             let should_fire = past_from_base(cur.when.get(),
-                                         now, self.prev.get());
+                                         now + 100, self.prev.get());
             if cur.armed.get() && should_fire {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
                 cur.fired();
-            } else {
+            }
+        }
+
+        let mut next = None;
+        let mut min_distance : u32 = u32::max_value();
+        for cur in self.virtual_alarms.iter() {
+            if cur.armed.get() {
                 let distance = cur.when.get().wrapping_sub(now);
                 if cur.armed.get() && distance < min_distance {
                     min_distance = distance;
