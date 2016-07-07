@@ -13,6 +13,7 @@ fn GPIO() -> &'static GPIO {
 
 pub struct GPIOPin {
     pin: u8,
+    client_data: Cell<usize>,
     client: TakeCell<&'static hil::gpio::Client>,
 }
 
@@ -20,6 +21,7 @@ impl GPIOPin {
     const fn new(pin: u8) -> GPIOPin {
         GPIOPin {
             pin: pin,
+            client_data: Cell::new(0),
             client: TakeCell::empty(),
         }
     }
@@ -32,15 +34,28 @@ impl GPIOPin {
 
 impl hil::gpio::GPIOPin for GPIOPin {
     fn enable_output(&self) {
+        // bit 0: set as output
+        // bit 1: disconnect input buffer
+        // bit 2-3: no pullup/down
+        // bit 8-10: drive configruation
+        // bit 16-17: sensing
         GPIO().pin_cnf[self.pin as usize].set((1 << 0) | (1 << 1) | (0 << 2) | (0 << 8) | (0 << 16));
     }
 
+    // Configuration constants stolen from 
+    // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
     fn enable_input(&self, _mode: hil::gpio::InputMode) {
-        unimplemented!();
+        let conf = match _mode {
+            hil::gpio::InputMode::PullUp   => 0x3 << 2,
+            hil::gpio::InputMode::PullDown => 0x1 << 2,
+            hil::gpio::InputMode::PullNone => 0,
+        };
+        GPIO().pin_cnf[self.pin as usize].set(conf);
     }
 
+    // Not clk
     fn disable(&self) {
-        unimplemented!();
+        self.enable_input(hil::gpio::OutputMode::PullNone);
     }
 
     fn set(&self) {
@@ -57,11 +72,16 @@ impl hil::gpio::GPIOPin for GPIOPin {
     }
 
     fn read(&self) -> bool {
-        unimplemented!();
+        GPIO().in_.get() & (1 << self.pin);
     }
 
     fn enable_interrupt(&self, _client_data: usize, _mode: hil::gpio::InterruptMode) {
-        unimplemented!();
+       self.client_data.set(_client_data);
+       let mode_bits = match _mode {
+           hil::gpio::InterruptMode::Change      => 0,
+           hil::gpio::InterruptMode::RisingEdge  => 0,
+           hil::gpio::InterruptMode::FallingEdge => 0,
+       }
     }
 
     fn disable_interrupt(&self) {
