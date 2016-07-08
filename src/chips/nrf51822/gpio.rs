@@ -1,4 +1,5 @@
 use core::mem;
+use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use hil;
 
@@ -55,7 +56,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
 
     // Not clk
     fn disable(&self) {
-        self.enable_input(hil::gpio::OutputMode::PullNone);
+        self.enable_input(hil::gpio::InputMode::PullNone);
     }
 
     fn set(&self) {
@@ -72,7 +73,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
     }
 
     fn read(&self) -> bool {
-        GPIO().in_.get() & (1 << self.pin);
+        GPIO().in_.get() & (1 << self.pin) != 0
     }
 
     fn enable_interrupt(&self, _client_data: usize, _mode: hil::gpio::InterruptMode) {
@@ -81,7 +82,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
            hil::gpio::InterruptMode::Change      => 0,
            hil::gpio::InterruptMode::RisingEdge  => 0,
            hil::gpio::InterruptMode::FallingEdge => 0,
-       }
+       };
     }
 
     fn disable_interrupt(&self) {
