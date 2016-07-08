@@ -49,12 +49,20 @@ switch_to_user:
     bx lr
 
 .thumb_func
+/* All ISRs are caught by this handler which indirects to a custom handler by
+ * indexing into `INTERRUPT_TABLE` based on the ISR number. */
 generic_isr:
+    /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
     and r0, #0xff
+    /* ISRs start at 16, so substract 16 to get zero-indexed */
     sub r0, #16
+
+    /* INTERRUPT_TABLE contains function pointers, which are word sized, so
+     * multiply by 4 (the word size) */
     mov r1, #4
     mul r0, r1
+
     ldr r1, =INTERRUPT_TABLE
     add r1, r0
     ldr r0, [r1]
