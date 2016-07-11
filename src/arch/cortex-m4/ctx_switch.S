@@ -41,7 +41,7 @@ switch_to_user:
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
 
-    /* Push non-hadrware-stacked registers onto Process stack */
+    /* Push non-hardware-stacked registers onto Process stack */
     /* r0 points to user stack (see to_kernel) */
     stmdb r0, {r4-r11}
 
