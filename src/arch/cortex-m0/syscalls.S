@@ -12,8 +12,15 @@
 .global \NAME
 .thumb_func
 \NAME :
+.ifc \NAME,__wait
+  push {lr}
+.endif
   svc \NUM
+.ifc \NAME,__wait
+  pop {pc}
+.else
   bx lr
+.endif
 .endm
 
 SYSCALL __wait, 0

@@ -39,11 +39,13 @@ switch_to_user:
     push {r4-r7}
 
     /* Load non-hardware-stacked registers from Process stack */
+
+    subs r0, #32 // We actually store r4-r11 below the process stack
     ldmia r0!, {r4-r7}
-    mov r4,  r8
-    mov r5,  r9
-    mov r6, r10
-    mov r7, r11
+    mov r11, r7
+    mov r10, r6
+    mov r9,  r5
+    mov r8,  r4
     ldmia r0!, {r4-r7}
 
     /* Load bottom of stack into Process Stack Pointer */
@@ -55,25 +57,28 @@ switch_to_user:
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
 
-    /* Push non-harware-stacked registers onto Process stack.  r0 points to user
+    /* Push non-hardware-stacked registers onto Process stack.  r0 points to user
      * stack (see to_kernel). We store the registers passed the stack to make it
      * easier to address hardware-stacked registers in the rest of the kernel.
      * This is fine since we just account for that above.
      */
-    str r4, [r0, #32]
-    str r5, [r0, #28]
-    str r6, [r0, #24]
-    str r7, [r0, #20]
 
-    mov  r8, r4
-    mov  r9, r5
-    mov r10, r6
-    mov r11, r7
-
+    subs r0, #32 // We actually store r4-r11 below the process stack
     str r4, [r0, #16]
+    str r5, [r0, #20]
+    str r6, [r0, #24]
+    str r7, [r0, #28]
+
+    mov  r4, r8
+    mov  r5, r9
+    mov  r6, r10
+    mov  r7, r11
+
+    str r4, [r0, #0]
+    str r5, [r0, #4]
     str r6, [r0, #8]
-    str r5, [r0, #12]
-    str r7, [r0, #4]
+    str r7, [r0, #12]
+    adds r0, #32 // We actually store r4-r11 below the process stack
 
     /* These instructions are equivalent to the 32-bit "pop {r4-r11}" */
     pop {r4-r7}
