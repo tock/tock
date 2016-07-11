@@ -41,7 +41,7 @@ switch_to_user:
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
 
-    /* Push non-harware-stacked registers onto Process stack */
+    /* Push non-hadrware-stacked registers onto Process stack */
     /* r0 points to user stack (see to_kernel) */
     stmdb r0, {r4-r11}
 
@@ -60,12 +60,10 @@ generic_isr:
 
     /* INTERRUPT_TABLE contains function pointers, which are word sized, so
      * multiply by 4 (the word size) */
-    mov r1, #4
-    mul r0, r1
+    lsl r0, r0, #2
 
     ldr r1, =INTERRUPT_TABLE
-    add r1, r0
-    ldr r0, [r1]
+    ldr r0, [r1, r0]
 
     push {lr}
     blx r0

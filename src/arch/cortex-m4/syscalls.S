@@ -15,8 +15,7 @@
 __wait:
     push {lr}
     svc 0
-    pop {lr}
-    bx lr
+    pop {pc}
 
 .thumb_func
 __allow:
