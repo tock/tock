@@ -39,20 +39,13 @@ switch_to_user:
     push {r4-r7}
 
     /* Load non-hardware-stacked registers from Process stack */
-    subs r0, #32
-    ldr r7, [r0, #0]
-    ldr r6, [r0, #4]
-    ldr r5, [r0, #8]
-    ldr r4, [r0, #12]
+    ldmia r0!, {r4-r7}
     mov r4,  r8
     mov r5,  r9
     mov r6, r10
     mov r7, r11
-    ldr r7, [r0, #16]
-    ldr r6, [r0, #20]
-    ldr r5, [r0, #24]
-    ldr r4, [r0, #28]
-    adds r0, #32
+    ldmia r0!, {r4-r7}
+
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, r0
 
