@@ -3,10 +3,12 @@
 #![feature(asm,core_intrinsics,concat_idents,const_fn)]
 #![no_std]
 
+#[macro_use]
 extern crate common;
 extern crate hil;
 extern crate process;
 
+#[macro_use]
 mod helpers;
 
 pub mod chip;
@@ -50,6 +52,8 @@ extern {
     // Defined in src/arch/cortex-m4/ctx_switch.S
     fn SVC_Handler();
 
+    fn generic_isr();
+
     static mut _szero : u32;
     static mut _ezero : u32;
     static mut _etext : u32;
@@ -58,33 +62,46 @@ extern {
 }
 
 #[link_section=".vectors"]
-pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
-    // First 16 are defined in the Cortex M4 user guide section 2.3.4
+pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
+    _estack, reset_handler,
+    /* NMI */           unhandled_interrupt,
+    /* Hard Fault */    hard_fault_handler,
+    /* MemManage */     unhandled_interrupt,
+    /* BusFault */      unhandled_interrupt,
+    /* UsageFault*/     unhandled_interrupt,
+    unhandled_interrupt, unhandled_interrupt, unhandled_interrupt,
+    unhandled_interrupt,
+    /* SVC */           SVC_Handler,
+    /* DebugMon */      unhandled_interrupt,
+    unhandled_interrupt,
+    /* PendSV */        unhandled_interrupt,
+    /* SysTick */       unhandled_interrupt
+];
 
-    /* Stack top */     Option::Some(_estack),
-    /* Reset */         Option::Some(reset_handler),
-    /* NMI */           Option::Some(unhandled_interrupt),
-    /* Hard Fault */    Option::Some(hard_fault_handler),
-    /* MemManage */     Option::Some(unhandled_interrupt),
-    /* BusFault */      Option::Some(unhandled_interrupt),
-    /* UsageFault*/     Option::Some(unhandled_interrupt),
-    None, None, None, None,
-    /* SVC */           Option::Some(SVC_Handler),
-    /* DebugMon */      Option::Some(unhandled_interrupt),
-    None,
-    /* PendSV */        Option::Some(unhandled_interrupt),
-    /* SysTick */       Option::Some(unhandled_interrupt),
+#[link_section=".vectors"]
+pub static IRQS: [unsafe extern fn(); 80] = [generic_isr; 80];
 
+#[no_mangle]
+pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     // Perhipheral vectors are defined by Atmel in the SAM4L datasheet section
     // 4.7.
     /* HFLASHC */       Option::Some(unhandled_interrupt),
-    /* PDCA0 */         Option::Some(dma::PDCA_0_Handler),
-    /* PDCA1 */         Option::Some(dma::PDCA_1_Handler),
-    /* PDCA2 */         Option::Some(dma::PDCA_2_Handler),
-    /* PDCA3 */         Option::Some(dma::PDCA_3_Handler),
-    /* PDCA4 */         Option::Some(dma::PDCA_4_Handler),
-    /* PDCA5..PDCA15 */ None, None, None, None, None, None, None, None,
-                        None, None, None,
+    /* PDCA0 */         Option::Some(dma::pdca0_handler),
+    /* PDCA1 */         Option::Some(dma::pdca1_handler),
+    /* PDCA2 */         Option::Some(dma::pdca2_handler),
+    /* PDCA3 */         Option::Some(dma::pdca3_handler),
+    /* PDCA4 */         Option::Some(dma::pdca4_handler),
+    /* PDCA5 */         Option::Some(dma::pdca5_handler),
+    /* PDCA6 */         Option::Some(dma::pdca6_handler),
+    /* PDCA7 */         Option::Some(dma::pdca7_handler),
+    /* PDCA8 */         Option::Some(dma::pdca8_handler),
+    /* PDCA9 */         Option::Some(dma::pdca9_handler),
+    /* PDCA10 */        Option::Some(dma::pdca10_handler),
+    /* PDCA11 */        Option::Some(dma::pdca11_handler),
+    /* PDCA12 */        Option::Some(dma::pdca12_handler),
+    /* PDCA13 */        Option::Some(dma::pdca13_handler),
+    /* PDCA14 */        Option::Some(dma::pdca14_handler),
+    /* PDCA15 */        Option::Some(dma::pdca15_handler),
     /* CRCCU */         Option::Some(unhandled_interrupt),
     /* USBC */          Option::Some(unhandled_interrupt),
     /* PEVC_TR */       Option::Some(unhandled_interrupt),
@@ -93,21 +110,21 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
     /* PM */            Option::Some(unhandled_interrupt),
     /* SCIF */          Option::Some(unhandled_interrupt),
     /* FREQM */         Option::Some(unhandled_interrupt),
-    /* GPIO0 */         Option::Some(gpio::GPIO_0_Handler),
-    /* GPIO1 */         Option::Some(gpio::GPIO_1_Handler),
-    /* GPIO2 */         Option::Some(gpio::GPIO_2_Handler),
-    /* GPIO3 */         Option::Some(gpio::GPIO_3_Handler),
-    /* GPIO4 */         Option::Some(gpio::GPIO_4_Handler),
-    /* GPIO5 */         Option::Some(gpio::GPIO_5_Handler),
-    /* GPIO6 */         Option::Some(gpio::GPIO_6_Handler),
-    /* GPIO7 */         Option::Some(gpio::GPIO_7_Handler),
-    /* GPIO8 */         Option::Some(gpio::GPIO_8_Handler),
-    /* GPIO9 */         Option::Some(gpio::GPIO_9_Handler),
-    /* GPIO10 */        Option::Some(gpio::GPIO_10_Handler),
-    /* GPIO11 */        Option::Some(gpio::GPIO_11_Handler),
+    /* GPIO0 */         Option::Some(gpio::gpio0_handler),
+    /* GPIO1 */         Option::Some(gpio::gpio1_handler),
+    /* GPIO2 */         Option::Some(gpio::gpio2_handler),
+    /* GPIO3 */         Option::Some(gpio::gpio3_handler),
+    /* GPIO4 */         Option::Some(gpio::gpio4_handler),
+    /* GPIO5 */         Option::Some(gpio::gpio5_handler),
+    /* GPIO6 */         Option::Some(gpio::gpio6_handler),
+    /* GPIO7 */         Option::Some(gpio::gpio7_handler),
+    /* GPIO8 */         Option::Some(gpio::gpio8_handler),
+    /* GPIO9 */         Option::Some(gpio::gpio9_handler),
+    /* GPIO10 */        Option::Some(gpio::gpio10_handler),
+    /* GPIO11 */        Option::Some(gpio::gpio11_handler),
     /* BPM */           Option::Some(unhandled_interrupt),
     /* BSCIF */         Option::Some(unhandled_interrupt),
-    /* AST_ALARM */     Option::Some(ast::AST_ALARM_Handler),
+    /* AST_ALARM */     Option::Some(ast::ast_alarm_handler),
     /* AST_PER */       Option::Some(unhandled_interrupt),
     /* AST_OVF */       Option::Some(unhandled_interrupt),
     /* AST_READY */     Option::Some(unhandled_interrupt),
@@ -129,15 +146,15 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
     /* TC10 */          Option::Some(unhandled_interrupt),
     /* TC11 */          Option::Some(unhandled_interrupt),
     /* TC12 */          Option::Some(unhandled_interrupt),
-    /* TWIM0 */         Option::Some(unhandled_interrupt),
+    /* TWIM0 */         Option::Some(i2c::twim0_handler),
     /* TWIS0 */         Option::Some(unhandled_interrupt),
-    /* TWIM1 */         Option::Some(unhandled_interrupt),
+    /* TWIM1 */         Option::Some(i2c::twim1_handler),
     /* TWIS1 */         Option::Some(unhandled_interrupt),
-    /* USART0 */        Option::Some(unhandled_interrupt),
-    /* USART1 */        Option::Some(unhandled_interrupt),
-    /* USART2 */        Option::Some(usart::USART2_Handler),
-    /* USART3 */        Option::Some(usart::USART3_Handler),
-    /* ADCIFE */        Option::Some(adc::ADCIFE_Handler),
+    /* USART0 */        Option::Some(usart::usart0_handler),
+    /* USART1 */        Option::Some(usart::usart1_handler),
+    /* USART2 */        Option::Some(usart::usart2_handler),
+    /* USART3 */        Option::Some(usart::usart3_handler),
+    /* ADCIFE */        Option::Some(adc::adcife_handler),
     /* DACC */          Option::Some(unhandled_interrupt),
     /* ACIFC */         Option::Some(unhandled_interrupt),
     /* ABDACB */        Option::Some(unhandled_interrupt),
@@ -145,8 +162,8 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
     /* PARC */          Option::Some(unhandled_interrupt),
     /* CATB */          Option::Some(unhandled_interrupt),
     None,
-    /* TWIM2 */         Option::Some(i2c::twim2_interrupt),
-    /* TWIM3 */         Option::Some(unhandled_interrupt),
+    /* TWIM2 */         Option::Some(i2c::twim2_handler),
+    /* TWIM3 */         Option::Some(i2c::twim3_handler),
     /* LCDCA */         Option::Some(unhandled_interrupt),
 ];
 

@@ -10,7 +10,6 @@ use core::intrinsics;
 use nvic;
 use hil::alarm::{Alarm, AlarmClient, Freq16Khz};
 use hil::Controller;
-use chip;
 use pm::{self, PBDClock};
 
 #[repr(C, packed)]
@@ -278,12 +277,5 @@ impl Alarm for Ast {
     }
 }
 
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn AST_ALARM_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::ASTALARM);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::ASTALARM);
-}
+interrupt_handler!(ast_alarm_handler, ASTALARM);
 
