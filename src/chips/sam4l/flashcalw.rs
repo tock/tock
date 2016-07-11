@@ -7,6 +7,11 @@ use core::slice;
 use common::take_cell::TakeCell;
 use hil::flash;
 use pm;
+use support;
+
+//TODO: remove
+use ast::AST;
+use hil::alarm::Alarm;
 
 
 // Listing of the FLASHCALW register memory map.
@@ -38,7 +43,7 @@ enum RegKey {
 
 // This is the pico cache registers...
 // TODO: does this get it's own driver... yea....
-/*
+
 struct Picocache_Registers {
     picocache_control:                      usize,
     picocache_status:                       usize,
@@ -50,7 +55,31 @@ struct Picocache_Registers {
     picocache_monitor_status:               usize,
     version:                                usize
 }
-*/
+
+//TODO: kinda sketchy addr (section 14.10.8 says this addr, but section 7 memory diagram says
+// 0x400A0400
+const PICOCACHE_BASE_ADDRS : *mut Picocache_Registers = 0x400A0400 as *mut Picocache_Registers;
+
+pub fn enable_picocache(enable : bool) {
+    let registers : &mut Picocache_Registers = unsafe { 
+        mem::transmute(PICOCACHE_BASE_ADDRS)
+    };
+    if (enable) {
+        volatile_store(&mut registers.picocache_control, 0x1);
+    }
+    else {
+        volatile_store(&mut registers.picocache_control, 0x0);
+    }
+
+}
+
+
+pub fn pico_enabled() -> bool {
+    let registers : &mut Picocache_Registers = unsafe { 
+        mem::transmute(PICOCACHE_BASE_ADDRS)
+    };
+   volatile_load(&registers.picocache_status) & 0x1 != 0
+}
 
 // There are 18 recognized commands possible to command the flash
 // Table 14-5.
@@ -92,7 +121,8 @@ pub struct FLASHCALW {
     pb_clock: pm::Clock,
     speed_mode: Speed,
     wait_until_ready : fn(&FLASHCALW) -> (),
-    error_status : TakeCell<u32>
+    error_status : TakeCell<u32>,
+    //busy : TakeCell<bool>
 }
 
 //static instance for the board. Only one FLASHCALW on chip.
@@ -118,7 +148,7 @@ const FLASH_FREQ_PS1_FWS_0_MAX_FREQ : u32 = 8000000;
 // const FLASH_FREQ_PS1_FWS_1_MAX_FREQ : u32 = 12000000; 
 //const FLASH_FREQ_PS2_FWS_1_MAX_FREQ : u32 = 48000000;
 
-#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE)]
+//#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE)]
 const FLASH_FREQ_PS2_FWS_0_MAX_FREQ : u32 = 24000000;
 
 //helper for gp fuses all one...
@@ -155,7 +185,8 @@ impl FLASHCALW {
             pb_clock: pm::Clock::PBB(pb_clk),
             speed_mode: mode,
             wait_until_ready: default_wait_until_ready,
-            error_status: TakeCell::new(0) 
+            error_status: TakeCell::new(0),
+            //busy: TakeCell::new(false)
         }
     }
 
@@ -195,6 +226,10 @@ impl FLASHCALW {
         use hil::flash::Error;
         
         let status = self.read_register(RegKey::STATUS);
+
+        //assuming it's just a command complete...
+        //self.busy.replace(false);
+
         //the status register is now automatically cleared...
 
         /*
@@ -279,7 +314,7 @@ impl FLASHCALW {
     }
     
     //depending on if this flag is passed in this function is implemented differently.
-    #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE)]
+   // #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE)]
     pub fn set_flash_waitstate_and_readmode(&mut self, cpu_freq : u32, 
         _ps_val : u32, _is_fwu_enabled : bool) {
         //ps_val and is_fwu_enabled not used in this implementation.
@@ -292,7 +327,7 @@ impl FLASHCALW {
         self.issue_command(FlashCMD::HSEN, -1);
     }
 
-    #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE))]
+    /*#[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE))]
     pub fn set_flash_waitstate_and_readmode(&mut self, cpu_freq : u32, 
         ps_val : u32, is_fwu_enabled : bool) {
         if ps_val == 0 {
@@ -314,7 +349,7 @@ impl FLASHCALW {
             }
         
         } else {
-            /* ps_val == 1 */
+            // ps_val == 1
             if cpu_freq > FLASH_FREQ_PS1_FWS_0_MAX_FREQ {
                 self.set_wait_state(1);    
             } else {
@@ -322,7 +357,7 @@ impl FLASHCALW {
             }
             self.issue_command(FlashCMD::HSDIS, -1);
         }
-    }
+    }*/
 
 
     pub fn is_ready_int_enabled(&self) -> bool {
@@ -352,18 +387,24 @@ impl FLASHCALW {
     ///Flashcalw status
 
     pub fn is_ready(&self) -> bool {
+        unsafe { pm::enable_clock(self.pb_clock); }
         self.read_register(RegKey::STATUS) & get_ubit!(0) != 0
+        // unsafe { support::wfi(); }
+        // !self.busy.take().unwrap()
     }
 
     pub fn get_error_status(&self) -> u32 {
+        unsafe { pm::enable_clock(self.pb_clock); }
         (self.read_register(RegKey::STATUS) as u32) & ( get_bit!(3) | get_bit!(2))    
     }
 
     pub fn is_lock_error(&self) -> bool {
+        unsafe { pm::enable_clock(self.pb_clock); }
         self.read_register(RegKey::STATUS) & get_ubit!(2) != 0
     }
 
     pub fn is_programming_error(&self) -> bool {
+        unsafe { pm::enable_clock(self.pb_clock); }
         self.read_register(RegKey::STATUS) & get_ubit!(3) != 0    
     }
 
@@ -383,6 +424,9 @@ impl FLASHCALW {
     
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         (self.wait_until_ready)(self); // call the registered wait function
+        //self.busy = true;
+        //self.busy.replace(true);
+        unsafe { pm::enable_clock(self.pb_clock); }
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         let mut reg_val : usize = volatile_load(&mut cmd_regs.command);
         
@@ -397,8 +441,10 @@ impl FLASHCALW {
         } else {
             reg_val |= FLASHCALW_CMD_KEY << 24 | command as usize;     
         }
+        
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
         
+        (self.wait_until_ready)(self);
         self.error_status.put(Some(self.get_error_status()));
         (self.wait_until_ready)(self);
     }
@@ -713,19 +759,30 @@ impl FLASHCALW {
     //Instead of having several memset/ memcpy functions,
     //will only have one to write to the page buffer
     //note all locations are 
-    pub fn write_to_page_buffer(&self, data : &[u8]) {
+    pub fn write_to_page_buffer(&self, data : &[u8], pg_buff_addr : usize) {
        //let mut page_buffer : &mut [u8] = unsafe { mem::transmute(0x0) };
-       let mut page_buffer : *mut u8 = 0x0 as *mut u8;
+       let mut page_buffer : *mut u8 = pg_buff_addr as *mut u8;
        //let mut page_buffer : [u8; FLASH_PAGE_SIZE as usize] = unsafe { mem::transmute(0x0) }; 
-
+       let cleared_double_word : [u8; 8] = [255; 8];
+       let clr_ptr : *const u8 = &cleared_double_word[0] as *const u8;
        //write to the page_buffer
        //page_buffer.clone_from_slice(&data);
-        
+       
+       // Errata @45.1.7 has been killing me... nope :l
         unsafe {
             use core::ptr;
-            let start_buffer : *const u8 = &data[0] as *const u8;
+            let mut start_buffer : *const u8 = &data[0] as *const u8;
+            let mut data_transfered : u32 = 0;
+                while data_transfered < FLASH_PAGE_SIZE {
+                    //errata copy..
+                    ptr::copy(clr_ptr, page_buffer, 8);
 
-            ptr::copy(start_buffer, page_buffer, FLASH_PAGE_SIZE as usize);
+                    // real copy
+                    ptr::copy(start_buffer, page_buffer, 8);
+                    page_buffer = page_buffer.offset(8); 
+                    start_buffer = start_buffer.offset(8);
+                    data_transfered += 8;
+                }
         }
     }
 
@@ -739,6 +796,7 @@ impl FLASHCALW {
     pub fn enable_ahb(&self) {
         unsafe { pm::enable_clock(self.ahb_clock); }
     }
+
 }
 
 // implement the generic calls using the low-lv functions.
@@ -768,7 +826,7 @@ impl flash::FlashController for FLASHCALW {
     fn read_page(&self, addr: usize, mut buffer: &mut [usize]) {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
-
+        (self.wait_until_ready)(self); // call the registered wait function
         //let page: *const usize  = (((addr) / (FLASH_PAGE_SIZE as usize)) * (FLASH_PAGE_SIZE as usize)) as *const usize;
         //actually the above calculation uses addr as an addr...
         let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
@@ -788,17 +846,26 @@ impl flash::FlashController for FLASHCALW {
        
         //erase page
         self.erase_page(addr as i32);
+        unsafe { 
+            let now = AST.now();
+            let delta = 10000;
+            while(AST.now() - now < delta) {}
+        }
+        
+        self.clear_page_buffer();
         
         //write to page buffer @ 0x0
-        self.write_to_page_buffer(data);
+        self.write_to_page_buffer(data, addr * 512);
 
         //TODO addr is being treted as pgnum here...
 
         //issue write command to write the page buffer to some specific page!
-        self.flashcalw_write_page( addr as i32); 
-            
-        //clear page buffer for next write...
-        self.clear_page_buffer();
+        self.flashcalw_write_page( addr as i32);
+        unsafe { 
+            let now = AST.now();
+            let delta = 10000;
+            while(AST.now() - now < delta) {}
+        }
     }
     
     fn erase_page(&self, page_num: i32) {

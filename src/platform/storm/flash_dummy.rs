@@ -3,7 +3,36 @@ use sam4l::flashcalw;
 use hil::flash::{FlashController, Client};
 use core::mem;
 
+// put any 'let me try this' type of test code here...
+pub unsafe fn scratch_test() {
+    //testing with QPR
+    assert_eq!(flashcalw::flash_controller.quick_page_read(40), false);
+    assert_eq!(flashcalw::flash_controller.quick_page_read(41), false);
+    assert_eq!(flashcalw::flash_controller.quick_page_read(42), false);
 
+    println!("\tTesting erase, quick read and read");
+    //write_and_read(50, 12);
+    /*let x = write_and_read(50, 4);*/
+
+    let mut x = [0usize; 128];
+    flashcalw::flash_controller.read_page(50, &mut x);
+    let trans : [u8; 512] = mem::transmute(x);
+    for i in 0..512 {
+        println!("Val of {}th trans is:{}",i, trans[i]);
+    }
+
+    test_erase(50);
+
+    flashcalw::flash_controller.read_page(50, &mut x);
+    let trans : [u8; 512] = mem::transmute(x);
+    for i in 0..512 {
+        println!("Val of {}th trans is:{}",i, trans[i]);
+    }
+    //test_erase(41);
+
+
+    
+}
 
 // tests the flash driver for the flashcalw...
 pub unsafe fn flash_dummy_test() {
@@ -11,10 +40,19 @@ pub unsafe fn flash_dummy_test() {
     println!("Flashcalw Sam4L testing beginning...");
     
     println!("Configuring...");
+    //flashcalw::flash_controller.enable_ready_int(true);
     flashcalw::flash_controller.configure();
+    flashcalw::flash_controller.set_flash_waitstate_and_readmode(48000000, 0, false);
+    //flashcalw::flash_controller.set_wait_state(1);
+
     //unlock any locks on the flash to all writing...
     flashcalw::flash_controller.lock_all_regions(false);
     println!("Configured!");
+    
+
+    //println!("Disabling PicoCache....");
+    //flashcalw::enable_picocache(false);
+    println!("Testing PicoCache...{}", flashcalw::pico_enabled());
 
     println!("Testing Meta Info...");
     test_meta_info();
@@ -23,32 +61,34 @@ pub unsafe fn flash_dummy_test() {
     println!("Testing Read, Write and Erase");
     
     println!("\tTesting basic r/w to a page ONCE!");
-    test_read_write(40, 4);
-    test_read_write(41, 5);
-    test_read_write(42, 6);
-    println!("\tPassed basic r/w ONCE!");
-
+    for i in 40u8..61 {
+        test_read_write(i as i32, i - 40);
+    }
+    //println!("\tPassed basic r/w ONCE!");
     
-    //testing with QPR
-    assert_eq!(flashcalw::flash_controller.quick_page_read(40), false);
-    assert_eq!(flashcalw::flash_controller.quick_page_read(41), false);
-    assert_eq!(flashcalw::flash_controller.quick_page_read(42), false);
+    test_erase(60);
+    //write_page_std(60, 4);
+    //test_read_write(60, 4);
+    //test_erase_read(40);
 
-    println!("\tTesting erase, quick read and read");
-    test_erase(40);
-    test_erase(41);
-
+    //scratch_test();
+    /* 
     println!("\tTesting erase & read");
-    test_erase_read(43);
-    test_erase_read(42);
-    test_erase_read(41);
-    test_erase_read(40);
+    for i in 60u8..39 {
+        test_erase_read(i as i32);
+    }
+    
+    println!("\tTesting basic r/w to a page ONCE!");
+    for i in 40u8..61 {
+        test_read_write(i as i32, i - 40);
+    }
+    println!("\tPassed basic r/w ONCE!");
     println!("\tPassed erase & read!");
     
     println!("All literate! Passed Read, Write and Erase!");
 
     println!("Done testing Sam4L Flashcalw.");
-
+    */
 }
 
 
@@ -115,6 +155,7 @@ pub unsafe fn test_read_write(page_num : i32, value : u8) {
 
     //compare raw bits
     for i in 0..512 {
+        //println!("Testing bit {}", i);
         assert_eq!(expected_bit_pattern[i], output_bits[i]);
     }
 }
@@ -125,7 +166,74 @@ pub unsafe fn write_and_read(page_num : i32, value : u8) -> [usize;128] {
     let buff = [value; 512];
     let mut read_buffer = [0usize; 128];
     //write to the page...
-    flashcalw::flash_controller.write_page(page_num as usize, &buff);
+    flashcalw::flash_controller.write_page(page_num as usize, &buff); 
     flashcalw::flash_controller.read_page(page_num as usize, &mut read_buffer);
     read_buffer
+}
+
+pub unsafe fn write_page(page_num : i32, value : u8) { 
+    let data = [value; 512];
+    
+    //enable clock incase it's off
+    flashcalw::flash_controller.enable_ahb();
+
+    //erase page
+    flashcalw::flash_controller.erase_page(page_num);
+    println!("Erased page {}, with error:{}", page_num,
+        flashcalw::flash_controller.debug_error_status());
+    
+    flashcalw::flash_controller.clear_page_buffer();
+    
+    //write to page buffer @ 0x0
+    flashcalw::flash_controller.write_to_page_buffer(&data, page_num as usize * 512);
+
+    //TODO addr is being treted as pgnum here...
+
+    //issue write command to write the page buffer to some specific page!
+    flashcalw::flash_controller.flashcalw_write_page( page_num); 
+    
+    println!("Written to page {}, with error:{}", page_num,
+        flashcalw::flash_controller.debug_error_status());
+        
+    let mut read_buffer = [0usize; 128];
+
+    //computationally intensive thing...lol or sleep tbh..
+    /*for i in 0..10000 {
+        println!("wasting time to show the race!");
+        do_fib(80);
+    }*/
+    //do_fib(50);
+
+    flashcalw::flash_controller.read_page(page_num as usize, &mut read_buffer);
+   
+    let output_bits : [u8;512]  = mem::transmute(read_buffer);
+
+    //compare raw bits
+    for i in 0..512 {
+        println!("expected:{}, got bits:{}", data[i], output_bits[i]);
+        //assert_eq!(data[i], output_bits[i]);
+    }
+    
+}
+
+// More or less write_page but uses write pg from library..
+pub unsafe fn write_page_std(page_num : i32, value : u8) { 
+    let expected : [u8; 512] = [value; 512];
+    //computationally intensive thing...lol or sleep tbh..
+    /*for i in 0..10000 {
+        println!("wasting time to show the race!");
+        do_fib(80);
+    }*/
+    //do_fib(50);
+
+    let mut read_buffer = write_and_read(page_num, value);
+
+    let output_bits : [u8;512]  = mem::transmute(read_buffer);
+
+    //compare raw bits
+    for i in 0..512 {
+        println!("expected:{}, got bits:{}", expected[i], output_bits[i]);
+        //assert_eq!(data[i], output_bits[i]);
+    }
+    
 }

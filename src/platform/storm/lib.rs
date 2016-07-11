@@ -17,6 +17,10 @@ use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::virtual_i2c::{MuxI2C, I2CDevice};
 
+//TODO: remove. Only using for 'sleep'...
+use hil::alarm::Alarm;
+
+
 #[macro_use]
 pub mod io;
 
@@ -339,7 +343,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
     sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
 
-    //TODO: static_init the flash driver.
+    // Static_init the flash driver.
     static_init!(flash: drivers::flash::Flash<'static, sam4l::flashcalw::FLASHCALW> =
                         drivers::flash::Flash::new(&mut sam4l::flashcalw::flash_controller));
 

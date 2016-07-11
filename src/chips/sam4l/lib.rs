@@ -6,6 +6,7 @@
 extern crate common;
 extern crate hil;
 extern crate process;
+extern crate support;
 
 mod helpers;
 
