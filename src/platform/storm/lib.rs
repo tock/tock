@@ -6,6 +6,7 @@
 extern crate common;
 extern crate drivers;
 extern crate hil;
+#[macro_use]
 extern crate sam4l;
 extern crate support;
 extern crate process;
@@ -20,9 +21,6 @@ use drivers::virtual_i2c::{MuxI2C, I2CDevice};
 //TODO: remove. Only using for 'sleep'...
 use hil::alarm::Alarm;
 
-
-#[macro_use]
-pub mod io;
 
 // HAL unit tests. To enable a particular unit test, uncomment
 // the module here and uncomment the call to start the test in

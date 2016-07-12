@@ -1,12 +1,15 @@
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(asm,core_intrinsics,concat_idents,const_fn, clone_from_slice)]
+#![feature(lang_items,asm,core_intrinsics,concat_idents,const_fn, clone_from_slice)]
 #![no_std]
 
 extern crate common;
 extern crate hil;
 extern crate process;
 extern crate support;
+
+#[macro_use]
+pub mod io;
 
 mod helpers;
 

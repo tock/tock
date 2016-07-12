@@ -1,8 +1,10 @@
-use sam4l;
 use core::fmt::*;
 use support::nop;
 use hil::Controller;
 use hil::uart::{self, UART};
+
+use usart;
+use gpio;
 
 pub struct Writer { initialized: bool }
 
@@ -10,10 +12,10 @@ pub static mut WRITER : Writer = Writer { initialized: false };
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-        let uart = unsafe { &mut sam4l::usart::USART3 };
+        let uart = unsafe { &mut usart::USART3 };
         if !self.initialized {
             self.initialized = true;
-            uart.configure(sam4l::usart::USARTParams {
+            uart.configure(usart::USARTParams {
                 baud_rate: 115200,
                 data_bits: 8,
                 parity: uart::Parity::None,
@@ -41,7 +43,7 @@ pub unsafe extern fn rust_begin_unwind(args: Arguments,
     let _ = write(writer, args);
     let _ = writer.write_str("\"\r\n");
 
-    let led = &sam4l::gpio::PC[10];
+    let led = &gpio::PC[10];
     led.enable_output();
     loop {
         for _ in 0..1000000 {
