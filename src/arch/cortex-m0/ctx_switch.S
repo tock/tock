@@ -7,6 +7,8 @@
 .global SVC_Handler
 .globl switch_to_user
 
+.extern SYSCALL_FIRED
+
 .thumb_func
 SVC_Handler:
   ldr r0, EXC_RETURN_MSP
@@ -16,8 +18,9 @@ SVC_Handler:
   bx r1
 
 to_kernel:
-  mrs r0, PSP /* PSP into r0 */
-  str r0, [sp, #0] /* PSP into Master stack r0 */
+  ldr r0, =SYSCALL_FIRED
+  movs r1, #1
+  str r1, [r0, #0]
   ldr r1, EXC_RETURN_MSP
   bx r1
 
@@ -54,6 +57,10 @@ switch_to_user:
     /* Set PIC base pointer to the Process GOT */
     mov r9, r1
 
+    ldr r0, =SYSCALL_FIRED
+    movs r1, #0
+    str r1, [r0, #0]
+
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
 
@@ -62,6 +69,8 @@ switch_to_user:
      * easier to address hardware-stacked registers in the rest of the kernel.
      * This is fine since we just account for that above.
      */
+
+    mrs r0, PSP /* PSP into r0 */
 
     subs r0, #32 // We actually store r4-r11 below the process stack
     str r4, [r0, #16]
