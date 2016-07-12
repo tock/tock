@@ -79,7 +79,7 @@ pub static ISR_VECTOR: [Option<unsafe extern fn()>; 96] = [
 
     // Perhipheral vectors are defined by Atmel in the SAM4L datasheet section
     // 4.7.
-    /* HFLASHC */       Option::Some(unhandled_interrupt),
+    /* HFLASHC */       Option::Some(flashcalw::FLASH_Handler),
     /* PDCA0 */         Option::Some(dma::PDCA_0_Handler),
     /* PDCA1 */         Option::Some(dma::PDCA_1_Handler),
     /* PDCA2 */         Option::Some(dma::PDCA_2_Handler),

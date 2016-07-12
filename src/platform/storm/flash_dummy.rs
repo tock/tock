@@ -39,15 +39,21 @@ pub unsafe fn flash_dummy_test() {
     
     println!("Flashcalw Sam4L testing beginning...");
     
+    println!("Ready interrupt is on? {}", 
+        flashcalw::flash_controller.is_ready_int_enabled());
+    println!("Enabling Ready Interrupt...");
+    flashcalw::flash_controller.enable_ready_int(true);
     println!("Configuring...");
-    //flashcalw::flash_controller.enable_ready_int(true);
     flashcalw::flash_controller.configure();
+    println!("Configured!");
+    println!("Setting Wait State...");
     flashcalw::flash_controller.set_flash_waitstate_and_readmode(48000000, 0, false);
+    println!("Wait State Set");
+    println!("And the controller is available right? {}", flashcalw::flash_controller.is_ready());
     //flashcalw::flash_controller.set_wait_state(1);
 
     //unlock any locks on the flash to all writing...
     flashcalw::flash_controller.lock_all_regions(false);
-    println!("Configured!");
     
 
     //println!("Disabling PicoCache....");
@@ -66,8 +72,8 @@ pub unsafe fn flash_dummy_test() {
     }
     //println!("\tPassed basic r/w ONCE!");
     
-    test_erase(60);
-    //write_page_std(60, 4);
+    //test_erase(60);
+    write_page_std(60, 4);
     //test_read_write(60, 4);
     //test_erase_read(40);
 

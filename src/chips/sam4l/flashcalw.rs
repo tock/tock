@@ -8,6 +8,7 @@ use common::take_cell::TakeCell;
 use hil::flash;
 use pm;
 use support;
+use nvic;
 
 //TODO: remove
 use ast::AST;
@@ -122,7 +123,7 @@ pub struct FLASHCALW {
     speed_mode: Speed,
     wait_until_ready : fn(&FLASHCALW) -> (),
     error_status : TakeCell<u32>,
-    //busy : TakeCell<bool>
+    ready : TakeCell<bool>
 }
 
 //static instance for the board. Only one FLASHCALW on chip.
@@ -169,13 +170,38 @@ fn min<T: Ord>(v1: T, v2: T) -> T {
     if v1 <= v2 { v1 } else { v2 }    
 }
 
+// This one gets stuck by WFI. Would like to implement w/o busy waiting...
+/*
 pub fn default_wait_until_ready(flash : &FLASHCALW) {
-    while !flash.is_ready(){}    
+    while !flash.is_ready() {    
+        unsafe { support::wfi(); }
+    }
+}*/
+
+pub fn default_wait_until_ready(flash : &FLASHCALW) {
+    let mut val = flash.get_ready_status();
+    while !val {    
+        val = flash.get_ready_status();
+    }
 }
 
 
-
 impl FLASHCALW {
+
+    pub fn mark_ready(&self) {
+        self.ready.replace(true);
+    }
+
+    pub fn get_ready_status(&self) -> bool {
+        if self.ready.is_none() || !self.ready.take().unwrap() {
+            false
+        } else {
+            self.ready.put(Some(true));
+            true
+        }
+    
+    }
+    
     const fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock,
     hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock, mode : Speed) -> FLASHCALW {
         FLASHCALW {
@@ -186,7 +212,7 @@ impl FLASHCALW {
             speed_mode: mode,
             wait_until_ready: default_wait_until_ready,
             error_status: TakeCell::new(0),
-            //busy: TakeCell::new(false)
+            ready: TakeCell::new(true)
         }
     }
 
@@ -222,14 +248,18 @@ impl FLASHCALW {
         }
     }
 
+    
+
+
     pub fn handle_interrupt(&self) {
         use hil::flash::Error;
         
         let status = self.read_register(RegKey::STATUS);
+        
 
         //assuming it's just a command complete...
-        //self.busy.replace(false);
-
+        self.ready.replace(true);
+        panic!("Just handled an interrupt!!");
         //the status register is now automatically cleared...
 
         /*
@@ -389,8 +419,6 @@ impl FLASHCALW {
     pub fn is_ready(&self) -> bool {
         unsafe { pm::enable_clock(self.pb_clock); }
         self.read_register(RegKey::STATUS) & get_ubit!(0) != 0
-        // unsafe { support::wfi(); }
-        // !self.busy.take().unwrap()
     }
 
     pub fn get_error_status(&self) -> u32 {
@@ -424,8 +452,7 @@ impl FLASHCALW {
     
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         (self.wait_until_ready)(self); // call the registered wait function
-        //self.busy = true;
-        //self.busy.replace(true);
+        self.ready.replace(false);
         unsafe { pm::enable_clock(self.pb_clock); }
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         let mut reg_val : usize = volatile_load(&mut cmd_regs.command);
@@ -444,9 +471,9 @@ impl FLASHCALW {
         
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
         
-        (self.wait_until_ready)(self);
         self.error_status.put(Some(self.get_error_status()));
         (self.wait_until_ready)(self);
+        panic!("Issued cmd {}", command as u32);
     }
 
 
@@ -786,6 +813,10 @@ impl FLASHCALW {
         }
     }
 
+    pub fn set_ready(&self) {
+        self.ready.replace(true);
+    }
+
     /// FOR DEBUGGING PURPOSES...
     pub fn debug_error_status(&self) -> u32 {
         let status = self.error_status.take().unwrap();
@@ -808,7 +839,11 @@ impl flash::FlashController for FLASHCALW {
             pm::enable_clock(self.ahb_clock);
             pm::enable_clock(self.hramc1_clock);
             pm::enable_clock(self.pb_clock);
+            
+            //enable interrupts from nvic
+            nvic::enable(nvic::NvicIdx::HFLASHC);
         }
+
         //clear the page buffer
         self.clear_page_buffer();
     }
@@ -826,7 +861,7 @@ impl flash::FlashController for FLASHCALW {
     fn read_page(&self, addr: usize, mut buffer: &mut [usize]) {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
-        (self.wait_until_ready)(self); // call the registered wait function
+        //(self.wait_until_ready)(self); // call the registered wait function
         //let page: *const usize  = (((addr) / (FLASH_PAGE_SIZE as usize)) * (FLASH_PAGE_SIZE as usize)) as *const usize;
         //actually the above calculation uses addr as an addr...
         let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
@@ -846,11 +881,11 @@ impl flash::FlashController for FLASHCALW {
        
         //erase page
         self.erase_page(addr as i32);
-        unsafe { 
+        /*unsafe { 
             let now = AST.now();
             let delta = 10000;
             while(AST.now() - now < delta) {}
-        }
+        }*/
         
         self.clear_page_buffer();
         
@@ -861,11 +896,11 @@ impl flash::FlashController for FLASHCALW {
 
         //issue write command to write the page buffer to some specific page!
         self.flashcalw_write_page( addr as i32);
-        unsafe { 
+       /* unsafe { 
             let now = AST.now();
             let delta = 10000;
             while(AST.now() - now < delta) {}
-        }
+        }*/
     }
     
     fn erase_page(&self, page_num: i32) {
@@ -881,3 +916,12 @@ impl flash::FlashController for FLASHCALW {
     }
 }
 
+pub unsafe extern fn FLASH_Handler() {
+    //assuming it's just a command complete...
+    use common::Queue;
+    use chip;
+    
+    flash_controller.mark_ready(); 
+    nvic::disable(nvic::NvicIdx::HFLASHC);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
+}

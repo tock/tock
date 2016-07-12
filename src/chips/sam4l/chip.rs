@@ -73,7 +73,7 @@ impl Sam4l {
 
                 HFLASHC => flashcalw::flash_controller.handle_interrupt(),
                 //NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
-                _ => {}
+                _ => {  panic!("unmatched interrupt:{}", interrupt as u32);}
             }
             nvic::enable(interrupt);
        });

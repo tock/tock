@@ -50,6 +50,7 @@ pub struct Firestorm {
 
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
+        println!("Servicing pending interrupts...");
         self.chip.service_pending_interrupts()
     }
 
