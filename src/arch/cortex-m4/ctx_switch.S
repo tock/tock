@@ -60,6 +60,17 @@ switch_to_user:
 /* All ISRs are caught by this handler which indirects to a custom handler by
  * indexing into `INTERRUPT_TABLE` based on the ISR number. */
 generic_isr:
+    /* Skip saving process state if not coming from user-space */
+    cmp lr, #0xfffffffd
+    bne _generic_isr_no_stacking
+
+    mrs r0, PSP /* PSP into r0 */
+
+    /* Push non-hardware-stacked registers onto Process stack */
+    /* r0 points to user stack (see to_kernel) */
+    stmdb r0, {r4-r11}
+
+_generic_isr_no_stacking:
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
     and r0, #0xff
