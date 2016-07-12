@@ -9,6 +9,7 @@
 .globl generic_isr
 
 .extern INTERRUPT_TABLE
+.extern SYSCALL_FIRED
 
 .thumb_func
 SVC_Handler:
@@ -18,8 +19,9 @@ SVC_Handler:
   movt lr, #0xffff
   bx lr
 to_kernel:
-  mrs r0, PSP /* PSP into r0 */
-  str r0, [sp, #0] /* PSP into Master stack r0 */
+  ldr r0, =SYSCALL_FIRED
+  mov r1, #1
+  str r1, [r0, #0]
   movw LR, #0xFFF9
   movt LR, #0xFFFF
   bx lr
@@ -38,8 +40,14 @@ switch_to_user:
     /* Set PIC base pointer to the Process GOT */
     mov r9, r1
 
+    ldr r0, =SYSCALL_FIRED
+    mov r1, #0
+    str r1, [r0, #0]
+
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
+
+    mrs r0, PSP /* PSP into r0 */
 
     /* Push non-hardware-stacked registers onto Process stack */
     /* r0 points to user stack (see to_kernel) */
@@ -52,6 +60,17 @@ switch_to_user:
 /* All ISRs are caught by this handler which indirects to a custom handler by
  * indexing into `INTERRUPT_TABLE` based on the ISR number. */
 generic_isr:
+    /* Skip saving process state if not coming from user-space */
+    cmp lr, #0xfffffffd
+    bne _generic_isr_no_stacking
+
+    mrs r0, PSP /* PSP into r0 */
+
+    /* Push non-hardware-stacked registers onto Process stack */
+    /* r0 points to user stack (see to_kernel) */
+    stmdb r0, {r4-r11}
+
+_generic_isr_no_stacking:
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
     and r0, #0xff
@@ -69,5 +88,7 @@ generic_isr:
     blx r0
     pop {lr}
 
+    movw LR, #0xFFF9
+    movt LR, #0xFFFF
     bx lr
 
