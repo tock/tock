@@ -283,6 +283,13 @@ impl FLASHCALW {
 
         //assuming it's just a command complete...
         self.ready.replace(true);
+        
+        if(!self.client.is_none()){
+            let client = self.client.take().unwrap();
+            client.command_complete();
+            self.client.put(Some(client));
+        }
+        
         panic!("Just handled an interrupt!!");
         //the status register is now automatically cleared...
 
@@ -496,19 +503,14 @@ impl FLASHCALW {
         
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
         //TODO: fix this. Don't want this jankyness in final version 
-        if(!self.client.is_none() && { let cl = self.client.take().unwrap(); let res = cl.is_configuring(); 
-        self.client.put(Some(cl)); res}){ println!("skipped waiting..");} 
-        else{
-            (self.wait_until_ready)(self);
-        }
+        //if(!self.client.is_none() && { let cl = self.client.take().unwrap(); let res = cl.is_configuring(); 
+        //self.client.put(Some(cl)); res}){ println!("skipped waiting..");} 
+        //else{
+          //  (self.wait_until_ready)(self);
+        //}
         self.error_status.put(Some(self.get_error_status()));
         println!("\tError status:{}", self.debug_error_status());
         println!("Command issued");
-        if(!self.client.is_none()){
-            let client = self.client.take().unwrap();
-            client.command_complete();
-            self.client.put(Some(client));
-        }
     }
 
 
