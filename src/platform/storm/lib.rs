@@ -1,7 +1,7 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(const_fn,lang_items)]
+#![feature(core_intrinsics,const_fn,lang_items)]
 
 extern crate common;
 extern crate drivers;
@@ -18,6 +18,8 @@ use drivers::virtual_i2c::{MuxI2C, I2CDevice};
 
 #[macro_use]
 pub mod io;
+
+pub mod systick;
 
 // HAL unit tests. To enable a particular unit test, uncomment
 // the module here and uncomment the call to start the test in

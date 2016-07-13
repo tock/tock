@@ -8,6 +8,8 @@ extern crate hil;
 extern crate nrf51822;
 extern crate support;
 
+pub mod systick;
+
 pub struct Firestorm {
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
 }

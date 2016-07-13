@@ -51,6 +51,7 @@ extern {
 
     // Defined in src/arch/cortex-m4/ctx_switch.S
     fn SVC_Handler();
+    fn systick_handler();
 
     fn generic_isr();
 
@@ -75,7 +76,7 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     /* DebugMon */      unhandled_interrupt,
     unhandled_interrupt,
     /* PendSV */        unhandled_interrupt,
-    /* SysTick */       unhandled_interrupt
+    /* SysTick */       systick_handler
 ];
 
 #[link_section=".vectors"]
