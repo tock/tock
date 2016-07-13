@@ -43,5 +43,6 @@ pub trait FlashController {
 
 pub trait Client {
     fn command_complete(&self);     
+    fn is_configuring(&self) -> bool;
 }
 

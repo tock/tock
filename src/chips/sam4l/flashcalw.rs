@@ -121,9 +121,10 @@ pub struct FLASHCALW {
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
     speed_mode: Speed,
-    wait_until_ready : fn(&FLASHCALW) -> (),
-    error_status : TakeCell<u32>,
-    ready : TakeCell<bool>
+    wait_until_ready: fn(&FLASHCALW) -> (),
+    error_status: TakeCell<u32>,
+    ready: TakeCell<bool>,
+    client: TakeCell<&'static flash::Client>
 }
 
 //static instance for the board. Only one FLASHCALW on chip.
@@ -138,7 +139,6 @@ const FLASH_NB_OF_REGIONS : u32 = 16;
 const FLASHCALW_REGIONS : u32 = FLASH_NB_OF_REGIONS;
 const FLASHCALW_CMD_KEY : usize = 0xA5;
 
-//Various operating frequencies
 const FLASH_FREQ_PS1_FWS_1_FWU_MAX_FREQ : u32 = 12000000;
 const FLASH_FREQ_PS0_FWS_0_MAX_FREQ : u32 = 18000000;
 const FLASH_FREQ_PS0_FWS_1_MAX_FREQ : u32 = 36000000;
@@ -171,26 +171,49 @@ fn min<T: Ord>(v1: T, v2: T) -> T {
 }
 
 // This one gets stuck by WFI. Would like to implement w/o busy waiting...
-/*
-pub fn default_wait_until_ready(flash : &FLASHCALW) {
-    while !flash.is_ready() {    
-        unsafe { support::wfi(); }
-    }
-}*/
 
 pub fn default_wait_until_ready(flash : &FLASHCALW) {
-    let mut val = flash.get_ready_status();
-    while !val {    
-        val = flash.get_ready_status();
+    while !flash.get_ready_status() {    
+        unsafe { 
+            //println!("Going to sleep!");
+            support::wfi(); 
+        }
     }
 }
 
 
+/*
+pub fn default_wait_until_ready(flash : &FLASHCALW) {
+    print!("\tstarting waiting...");
+    //while !flash.is_ready() {
+    while !flash.is_ready() || !flash.get_ready_status() {
+        unsafe { 
+            println!("Going to sleep!");
+            support::wfi(); 
+        }
+    }
+    println!("done waiting");
+}
+*/
+
+/*
+pub fn default_wait_until_ready(flash : &FLASHCALW) {
+    let mut val = flash.get_ready_status();
+    while !val {
+        println!("waiting...");
+        unsafe { support::wfi(); }
+        val = flash.get_ready_status();
+    }
+}
+*/
+
 impl FLASHCALW {
 
     pub fn mark_ready(&self) {
-        self.ready.replace(true);
+        self.ready.put(Some(true));
     }
+
+    pub fn set_client(&self, client: &'static flash::Client) { self.client.put(Some(client)); }
 
     pub fn get_ready_status(&self) -> bool {
         if self.ready.is_none() || !self.ready.take().unwrap() {
@@ -212,7 +235,8 @@ impl FLASHCALW {
             speed_mode: mode,
             wait_until_ready: default_wait_until_ready,
             error_status: TakeCell::new(0),
-            ready: TakeCell::new(true)
+            ready: TakeCell::new(true),
+            client: TakeCell::empty()
         }
     }
 
@@ -453,6 +477,7 @@ impl FLASHCALW {
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         (self.wait_until_ready)(self); // call the registered wait function
         self.ready.replace(false);
+        print!("Issuing command...{}", command as u32);
         unsafe { pm::enable_clock(self.pb_clock); }
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         let mut reg_val : usize = volatile_load(&mut cmd_regs.command);
@@ -470,10 +495,20 @@ impl FLASHCALW {
         }
         
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
-        
+        //TODO: fix this. Don't want this jankyness in final version 
+        if(!self.client.is_none() && { let cl = self.client.take().unwrap(); let res = cl.is_configuring(); 
+        self.client.put(Some(cl)); res}){ println!("skipped waiting..");} 
+        else{
+            (self.wait_until_ready)(self);
+        }
         self.error_status.put(Some(self.get_error_status()));
-        (self.wait_until_ready)(self);
-        panic!("Issued cmd {}", command as u32);
+        println!("\tError status:{}", self.debug_error_status());
+        println!("Command issued");
+        if(!self.client.is_none()){
+            let client = self.client.take().unwrap();
+            client.command_complete();
+            self.client.put(Some(client));
+        }
     }
 
 
@@ -834,6 +869,9 @@ impl FLASHCALW {
 impl flash::FlashController for FLASHCALW {
     
     fn configure(&mut self) {
+        
+        self.enable_ready_int(true);
+        
         //enable all clocks (if they aren't on already...)
         unsafe {
             pm::enable_clock(self.ahb_clock);
@@ -921,7 +959,9 @@ pub unsafe extern fn FLASH_Handler() {
     use common::Queue;
     use chip;
     
-    flash_controller.mark_ready(); 
+    println!("In FLASH_HANDLER");
+    //TODO: fix to follow normal convention...
+    //flash_controller.mark_ready(); 
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
 }

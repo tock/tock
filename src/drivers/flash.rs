@@ -34,7 +34,11 @@ impl<'a, F: FlashController> Flash <'a, F> {
 impl<'a, F: FlashController> Client for Flash<'a, F> {
     fn command_complete(&self) {
         unimplemented!()
-    }        
+    }       
+
+    fn is_configuring(&self) -> bool {
+        unimplemented!()
+    }
 }
 
 //driver implementation

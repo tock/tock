@@ -2,6 +2,7 @@
 use sam4l::flashcalw;
 use hil::flash::{FlashController, Client};
 use core::mem;
+use core::cell::Cell;
 
 // put any 'let me try this' type of test code here...
 pub unsafe fn scratch_test() {
@@ -34,6 +35,57 @@ pub unsafe fn scratch_test() {
     
 }
 
+// ======================================
+//  Test the flash controller (using interrupts).
+// ======================================
+
+#[derive(Copy,Clone,PartialEq)]
+enum FlashClientState {
+    Enabling,
+    Writing,
+    Reading,
+    Erasing
+}
+
+struct FlashClient { state : Cell<FlashClientState>, page: Cell<u32> }
+
+static mut FLASH_CLIENT : FlashClient = 
+    FlashClient { state: Cell::new(FlashClientState::Enabling), page: Cell::new(40) };
+
+impl Client for FlashClient {
+    fn command_complete(&self) {
+        println!("Client Notified that job done...");
+    }
+
+    fn is_configuring(&self) -> bool {
+        /*self.state.map(|value| {
+            value == FlashClientState::Enabling
+        });*/
+        self.state.get() == FlashClientState::Enabling
+    }
+}
+
+pub fn set_read_write_test() {
+    let flashClient = unsafe { &mut FLASH_CLIENT };
+    let dev = unsafe { &mut flashcalw::flash_controller };
+
+    dev.set_client(flashClient);
+    println!("Calling configure...");
+    dev.configure();
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
 // tests the flash driver for the flashcalw...
 pub unsafe fn flash_dummy_test() {
     
@@ -60,9 +112,7 @@ pub unsafe fn flash_dummy_test() {
     //flashcalw::enable_picocache(false);
     println!("Testing PicoCache...{}", flashcalw::pico_enabled());
 
-    println!("Testing Meta Info...");
-    test_meta_info();
-    println!("Passed Meta Info...");
+    //test_meta_info();
 
     println!("Testing Read, Write and Erase");
     
@@ -101,7 +151,8 @@ pub unsafe fn flash_dummy_test() {
 /// This function primarily tests meta information for the chip on the 
 /// the FireStorm - ATSAM4LC8C. For other ATSAM4L chips, calculations using the 
 /// flash size asserts might fail (as they might not have the same flash size).
-pub unsafe fn test_meta_info() {
+pub unsafe fn meta_test() {
+    println!("Testing Meta Info...");
     assert_eq!(flashcalw::flash_controller.get_page_size(), 512);
     assert_eq!(flashcalw::flash_controller.get_flash_size(), 512 << 10);
     assert_eq!(flashcalw::flash_controller.get_number_pages(), 1024);
@@ -113,6 +164,7 @@ pub unsafe fn test_meta_info() {
             pg_num);
         pg_num += 64;
     }
+    println!("Passed Meta Info...");
 }
 
 /// Erases page page_num and test whether both QPR and Read confirm it's been erased...

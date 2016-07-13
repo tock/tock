@@ -427,7 +427,10 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     //i2c_dummy::i2c_li_test();
 
     // Uncommenting the following lines will test the Flash Controller
-    flash_dummy::flash_dummy_test();
+    flash_dummy::meta_test();
+    //flash_dummy::flash_dummy_test();
+    flash_dummy::set_read_write_test();
+    //println!("here we go!");
 
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();
