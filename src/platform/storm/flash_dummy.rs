@@ -47,14 +47,55 @@ enum FlashClientState {
     Erasing
 }
 
-struct FlashClient { state : Cell<FlashClientState>, page: Cell<u32> }
+struct FlashClient { state : Cell<FlashClientState>, page: Cell<i32>, 
+    region_unlocked: Cell<u32>, num_read_write_of_page: u32, val_data: Cell<u8>}
 
-static mut FLASH_CLIENT : FlashClient = 
-    FlashClient { state: Cell::new(FlashClientState::Enabling), page: Cell::new(40) };
+static mut FLASH_CLIENT : FlashClient = FlashClient { 
+    state: Cell::new(FlashClientState::Enabling),
+    page: Cell::new(40),
+    region_unlocked: Cell::new(0),
+    num_read_write_of_page: 1,
+    val_data: Cell::new(2)};
 
 impl Client for FlashClient {
+
     fn command_complete(&self) {
-        println!("Client Notified that job done...");
+        
+        print!("Client Notified that job done in state {}", self.state.get() as u32);
+        
+        let dev = unsafe { &mut flashcalw::flash_controller };
+        
+        match self.state.get() {
+            FlashClientState::Enabling => {
+                if self.region_unlocked.get() == 16 {
+                    self.state.set(FlashClientState::Writing);
+                    println!("\t All Regions unlocked");
+                    println!("===========Transitioning \
+                        to Erasing/Writing/Reading========");
+                    self.command_complete();
+                } else {
+                    dev.lock_region(self.region_unlocked.get(), false);
+                    println!("\t Unlocking Region {}", self.region_unlocked.get()); 
+                    self.region_unlocked.set(self.region_unlocked.get() + 1);
+                }
+            },
+            FlashClientState::Writing => {
+               if self.page.get() < 60 {
+                    for i in 0..self.num_read_write_of_page {
+                       unsafe {  test_read_write(self.page.get(), self.val_data.get()); }
+                        self.val_data.set(self.val_data.get() + 1);
+                    }
+                    self.page.set(self.page.get() + 1);
+                    //dev.write_page();
+               }
+            },
+            FlashClientState::Reading => {
+                //if self.page.
+            },
+            FlashClientState::Erasing => {
+
+            }
+        }
     }
 
     fn is_configuring(&self) -> bool {
@@ -70,8 +111,9 @@ pub fn set_read_write_test() {
     let dev = unsafe { &mut flashcalw::flash_controller };
 
     dev.set_client(flashClient);
-    println!("Calling configure...");
+    print!("Calling configure...");
     dev.configure();
+    dev.lock_page_region(0, false);
 
 }
 
@@ -116,7 +158,7 @@ pub unsafe fn flash_dummy_test() {
 
     println!("Testing Read, Write and Erase");
     
-    println!("\tTesting basic r/w to a page ONCE!");
+    println!("\t Testing basic r/w to a page ONCE!");
     for i in 40u8..61 {
         test_read_write(i as i32, i - 40);
     }
@@ -207,6 +249,7 @@ pub unsafe fn test_erase_read(page_num : i32) {
 /// Writes some u8 value repeatedly to a page, and see tests whether
 /// the same pattern is read.
 pub unsafe fn test_read_write(page_num : i32, value : u8) {
+    println!("\tTesting Writing and Reading...");
     let expected_bit_pattern = [value; 512];
     let read_val = write_and_read(page_num, value);
     let output_bits : [u8;512]  = mem::transmute(read_val);
@@ -224,8 +267,11 @@ pub unsafe fn write_and_read(page_num : i32, value : u8) -> [usize;128] {
     let buff = [value; 512];
     let mut read_buffer = [0usize; 128];
     //write to the page...
+    println!("Writing to the page");
     flashcalw::flash_controller.write_page(page_num as usize, &buff); 
+    print!("Going to read buffer?");
     flashcalw::flash_controller.read_page(page_num as usize, &mut read_buffer);
+    println!("READ BUFFER");
     read_buffer
 }
 

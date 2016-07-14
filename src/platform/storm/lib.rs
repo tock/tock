@@ -430,7 +430,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     flash_dummy::meta_test();
     //flash_dummy::flash_dummy_test();
     flash_dummy::set_read_write_test();
-    //println!("here we go!");
+    println!("======FireStorm Done Initalizing======");
 
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();

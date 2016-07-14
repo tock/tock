@@ -84,7 +84,7 @@ pub fn pico_enabled() -> bool {
 
 // There are 18 recognized commands possible to command the flash
 // Table 14-5.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum FlashCMD {
     NOP,
     WP,
@@ -175,7 +175,7 @@ fn min<T: Ord>(v1: T, v2: T) -> T {
 pub fn default_wait_until_ready(flash : &FLASHCALW) {
     while !flash.get_ready_status() {    
         unsafe { 
-            //println!("Going to sleep!");
+            println!("Going to sleep!");
             support::wfi(); 
         }
     }
@@ -277,20 +277,25 @@ impl FLASHCALW {
 
     pub fn handle_interrupt(&self) {
         use hil::flash::Error;
+       
+        println!("In handle_interrupt...");
         
-        let status = self.read_register(RegKey::STATUS);
+        //let status = self.read_register(RegKey::STATUS);
         
 
         //assuming it's just a command complete...
         self.ready.replace(true);
-        
+       
+         
         if(!self.client.is_none()){
             let client = self.client.take().unwrap();
-            client.command_complete();
+            if(client.is_configuring()) {
+                client.command_complete();
+            }
             self.client.put(Some(client));
         }
         
-        panic!("Just handled an interrupt!!");
+        
         //the status register is now automatically cleared...
 
         /*
@@ -298,7 +303,8 @@ impl FLASHCALW {
             x if x & (1 <<     
         };*/
 
-        //TODO: implement...
+        //TODO: implement..
+        unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); };
         
 
     }
@@ -483,7 +489,9 @@ impl FLASHCALW {
     
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         (self.wait_until_ready)(self); // call the registered wait function
-        self.ready.replace(false);
+        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR) {
+            self.ready.replace(false);
+        }
         print!("Issuing command...{}", command as u32);
         unsafe { pm::enable_clock(self.pb_clock); }
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
@@ -502,11 +510,12 @@ impl FLASHCALW {
         }
         
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
+        //unsafe { support::wfi(); }
         //TODO: fix this. Don't want this jankyness in final version 
         //if(!self.client.is_none() && { let cl = self.client.take().unwrap(); let res = cl.is_configuring(); 
         //self.client.put(Some(cl)); res}){ println!("skipped waiting..");} 
         //else{
-          //  (self.wait_until_ready)(self);
+         //   (self.wait_until_ready)(self);
         //}
         self.error_status.put(Some(self.get_error_status()));
         println!("\tError status:{}", self.debug_error_status());
@@ -515,7 +524,7 @@ impl FLASHCALW {
 
 
     /// Flashcalw global commands
-    pub fn flashcalw_no_operation(&self) {
+    pub fn no_operation(&self) {
         self.issue_command(FlashCMD::NOP, -1);        
     }
 
@@ -550,7 +559,14 @@ impl FLASHCALW {
 
     pub fn lock_region(&self, region : u32, lock : bool) {
         let first_page : i32 = self.get_region_first_page_number(region) as i32;
-        self.lock_page_region(first_page, lock);    
+        self.lock_page_region(first_page, lock);
+        
+        //TODO: remove just for testing...
+        if(!self.client.is_none()){
+            let client = self.client.take().unwrap();
+            client.command_complete();
+            self.client.put(Some(client));
+        }
     }
 
     pub fn lock_all_regions(&self, lock : bool) {
@@ -872,20 +888,29 @@ impl flash::FlashController for FLASHCALW {
     
     fn configure(&mut self) {
         
-        self.enable_ready_int(true);
-        
         //enable all clocks (if they aren't on already...)
         unsafe {
             pm::enable_clock(self.ahb_clock);
             pm::enable_clock(self.hramc1_clock);
             pm::enable_clock(self.pb_clock);
             
-            //enable interrupts from nvic
-            nvic::enable(nvic::NvicIdx::HFLASHC);
         }
+        //enable interrupts on driver
+        self.enable_ready_int(true);
+        
+        //enable interrupts from nvic
+        unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); }
+       
+        println!("Configured");
 
+
+        //TODO: figure out how the config should be... shouldn't need to cuase
+        // an interrupt pre-actually use.
+        //just doing a call to interrupts to start my state machine...
+        //Also clear page buffer might not call an interrupt :L
         //clear the page buffer
-        self.clear_page_buffer();
+        //self.clear_page_buffer();
+        //self.lock_region(0, false);
     }
 
     fn get_page_size(&self) -> u32 {
@@ -901,16 +926,23 @@ impl flash::FlashController for FLASHCALW {
     fn read_page(&self, addr: usize, mut buffer: &mut [usize]) {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
-        //(self.wait_until_ready)(self); // call the registered wait function
+        //guarentees page safety after read...
+        (self.wait_until_ready)(self); // call the registered wait function
         //let page: *const usize  = (((addr) / (FLASH_PAGE_SIZE as usize)) * (FLASH_PAGE_SIZE as usize)) as *const usize;
         //actually the above calculation uses addr as an addr...
         let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
-        //println!("Page is at address:{}", page);
         unsafe {
             //TODO: the from_raw_pats fails with page being at 0x0, b/c it thinks it's null...
             let slice = slice::from_raw_parts(page, (FLASH_PAGE_SIZE as usize) / mem::size_of::<usize>());    
             buffer.clone_from_slice(slice);
         }
+        
+        if(!self.client.is_none()){
+            let client = self.client.take().unwrap();
+            client.command_complete();
+            self.client.put(Some(client));
+        }
+        
         //for now assume addr is pagenum (TODO)
         
     }
@@ -921,13 +953,9 @@ impl flash::FlashController for FLASHCALW {
        
         //erase page
         self.erase_page(addr as i32);
-        /*unsafe { 
-            let now = AST.now();
-            let delta = 10000;
-            while(AST.now() - now < delta) {}
-        }*/
-        
+        println!("\twrite_page: erased page"); 
         self.clear_page_buffer();
+        println!("\twrite_page: cleared buffer"); 
         
         //write to page buffer @ 0x0
         self.write_to_page_buffer(data, addr * 512);
@@ -936,11 +964,12 @@ impl flash::FlashController for FLASHCALW {
 
         //issue write command to write the page buffer to some specific page!
         self.flashcalw_write_page( addr as i32);
-       /* unsafe { 
-            let now = AST.now();
-            let delta = 10000;
-            while(AST.now() - now < delta) {}
-        }*/
+        
+        if(!self.client.is_none()){
+            let client = self.client.take().unwrap();
+            client.command_complete();
+            self.client.put(Some(client));
+        }
     }
     
     fn erase_page(&self, page_num: i32) {
@@ -952,7 +981,9 @@ impl flash::FlashController for FLASHCALW {
         //while(!self.flashcalw_erase_page(page_num, true)) {};
         //not sure if you need to enable clock here...
         unsafe { pm::enable_clock(self.ahb_clock); }
-        self.flashcalw_erase_page(page_num, true);
+        //self.flashcalw_erase_page(page_num, true);
+        //TODO: change it back so it checks...
+        self.flashcalw_erase_page(page_num, false);
     }
 }
 
@@ -961,7 +992,7 @@ pub unsafe extern fn FLASH_Handler() {
     use common::Queue;
     use chip;
     
-    println!("In FLASH_HANDLER");
+    //println!("In FLASH_HANDLER");
     //TODO: fix to follow normal convention...
     //flash_controller.mark_ready(); 
     nvic::disable(nvic::NvicIdx::HFLASHC);
