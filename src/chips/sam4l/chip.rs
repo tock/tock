@@ -1,5 +1,5 @@
-use core::intrinsics;
 use common::{RingBuffer,Queue};
+use cortexm4;
 use ast;
 //use adc;
 use dma;
@@ -9,7 +9,9 @@ use spi;
 use gpio;
 use i2c;
 
-pub struct Sam4l;
+pub struct Sam4l {
+    pub mpu: cortexm4::mpu::MPU
+}
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF : [nvic::NvicIdx; IQ_SIZE] =
@@ -34,7 +36,9 @@ impl Sam4l {
         i2c::I2C2.set_dma(&dma::DMAChannels[4]);
         dma::DMAChannels[4].client = Some(&mut i2c::I2C2);
 
-        Sam4l
+        Sam4l {
+            mpu: cortexm4::mpu::MPU::new()
+        }
     }
 
     pub unsafe fn service_pending_interrupts(&mut self) {
