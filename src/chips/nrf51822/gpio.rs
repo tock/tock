@@ -7,6 +7,31 @@ use common::take_cell::TakeCell;
 
 use peripheral_registers::{GPIO_BASE, GPIO};
 
+struct GpioteRegisters {
+    out0: u32, // 0x0
+    out1: u32, // 0x4
+    out2: u32, // 0x8
+    out3: u32, // 0xC
+    reserved0: [u32; 0xF0],
+    in0:  u32, // 0x100
+    in1:  u32, // 0x104
+    in2:  u32, // 0x108
+    in3:  u32, // 0x10C
+    reserved1: [u32; 0x70],
+    port: u32, // 0x17C,
+    reserved2: [u32; 0x180],
+    inten:    u32, // 0x300
+    intenset: u32, // 0x304
+    intenclr: u32, // 0x308
+    reserved3: [u32; 0x204],
+    config0:  u32, // 0x510
+    config1:  u32, // 0x514
+    config2:  u32, // 0x518
+    config3:  u32, // 0x51C
+}
+
+const GPIOTE_BASE: u32 = 0x40006000;
+
 #[allow(non_snake_case)]
 fn GPIO() -> &'static GPIO {
     unsafe { mem::transmute(GPIO_BASE as usize) }
@@ -108,7 +133,7 @@ impl IndexMut<usize> for Port {
     }
 }
 
-pub static mut PA : Port = Port {
+pub static mut PORT : Port = Port {
     pins: [
         GPIOPin::new(0), GPIOPin::new(1), GPIOPin::new(2), GPIOPin::new(3),
         GPIOPin::new(4), GPIOPin::new(5), GPIOPin::new(6), GPIOPin::new(7),

@@ -55,13 +55,21 @@ macro_rules! static_init {
 
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
-    use nrf51822::gpio::PA;
+    use nrf51822::gpio::PORT;
 
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
 
-    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 2] = [
-            &nrf51822::gpio::PA[18], // LED_0
-            &nrf51822::gpio::PA[19], // LED_1
+    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 10] = [
+            &nrf51822::gpio::PORT[18], // LED_0
+            &nrf51822::gpio::PORT[19], // LED_1
+            &nrf51822::gpio::PORT[0], // Top left header on EK board
+            &nrf51822::gpio::PORT[1], //   |
+            &nrf51822::gpio::PORT[2], //   V 
+            &nrf51822::gpio::PORT[3], // 
+            &nrf51822::gpio::PORT[4], //
+            &nrf51822::gpio::PORT[5], // 
+            &nrf51822::gpio::PORT[6], // 
+            &nrf51822::gpio::PORT[7], // 
             ]);
     static_init!(gpio : drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(gpio_pins));
@@ -106,8 +114,8 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
     use support::nop;
     use hil::gpio::GPIOPin;
 
-    let led0 = &nrf51822::gpio::PA[18];
-    let led1 = &nrf51822::gpio::PA[19];
+    let led0 = &nrf51822::gpio::PORT[18];
+    let led1 = &nrf51822::gpio::PORT[19];
 
     led0.enable_output();
     led1.enable_output();
