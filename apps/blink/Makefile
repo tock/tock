@@ -1,5 +1,5 @@
 TOCK_APPS_DIR=..
-APP=c_blinky
+APP=blink
 
 include $(TOCK_APPS_DIR)/Makefile.GenericApp.mk
 
