@@ -2,10 +2,11 @@ extern crate elf;
 extern crate getopts;
 
 use getopts::Options;
+use std::cmp;
 use std::env;
 use std::fs::File;
-use std::io;
 use std::io::Write;
+use std::io;
 use std::mem;
 use std::path::Path;
 use std::slice;
@@ -58,9 +59,7 @@ fn main() {
             Ok(mut f) => do_work(&file, &mut f),
             Err(e) => panic!("Error: {:?}", e),
         }
-    };
-
-
+    }.expect("Failed to write output");
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -83,7 +82,7 @@ unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
         mem::size_of::<T>())
 }
 
-fn do_work(input: &elf::File, output: &mut Write) {
+fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
     let (rel_data_size, rel_data) = match input.sections.iter()
             .find(|section| section.shdr.name == ".rel.data".as_ref()) {
         Some(section) => {
@@ -126,18 +125,23 @@ fn do_work(input: &elf::File, output: &mut Write) {
     };
     total_len = total_len + pad;
 
-    let _ = output.write(unsafe { as_byte_slice(&total_len) });
+    try!(output.write_all(unsafe { as_byte_slice(&total_len) }));
 
-    let _ = output.write(load_info_bytes);
+    try!(output.write_all(load_info_bytes));
 
-    let _ = output.write(rel_data.as_ref());
+    try!(output.write_all(rel_data.as_ref()));
 
-    let _ = output.write(text.data.as_ref());
-    let _ = output.write(got.data.as_ref());
-    let _ = output.write(data.data.as_ref());
+    try!(output.write_all(text.data.as_ref()));
+    try!(output.write_all(got.data.as_ref()));
+    try!(output.write_all(data.data.as_ref()));
 
-    for _ in 0..pad {
-        let _ = output.write(&[0]);
+    let mut pad = pad as usize;
+    let zero_buf = [0u8; 512];
+    while pad > 0 {
+        let amount_to_write = cmp::min(zero_buf.len(), pad);
+        pad -= try!(output.write(&zero_buf[..amount_to_write]));
     }
+
+    Ok(())
 }
 
