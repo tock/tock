@@ -17,9 +17,8 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gcc-arm-none-eabi-49; fi
 
 script:
-  - cd apps/c_blinky
-  - make TOCK_PLATFORM=storm
-  - make TOCK_PLATFORM=nrf_pca10001
+  - make -C apps/blink TOCK_PLATFORM=storm
+  - make -C apps/blink TOCK_PLATFORM=nrf_pca10001
 
 notifications:
   webhooks:
