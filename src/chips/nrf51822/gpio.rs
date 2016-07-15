@@ -1,33 +1,36 @@
 use core::mem;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use hil;
-
+use peripheral_interrupts::NvicIdx;
 use common::take_cell::TakeCell;
+use common::VolatileCell;
+use hil;
+use chip;
+use nvic;
 
 use peripheral_registers::{GPIO_BASE, GPIO};
 
 struct GpioteRegisters {
-    out0: u32, // 0x0
-    out1: u32, // 0x4
-    out2: u32, // 0x8
-    out3: u32, // 0xC
-    reserved0: [u32; 0xF0],
-    in0:  u32, // 0x100
-    in1:  u32, // 0x104
-    in2:  u32, // 0x108
-    in3:  u32, // 0x10C
-    reserved1: [u32; 0x70],
-    port: u32, // 0x17C,
-    reserved2: [u32; 0x180],
-    inten:    u32, // 0x300
-    intenset: u32, // 0x304
-    intenclr: u32, // 0x308
-    reserved3: [u32; 0x204],
-    config0:  u32, // 0x510
-    config1:  u32, // 0x514
-    config2:  u32, // 0x518
-    config3:  u32, // 0x51C
+    pub out0:     VolatileCell<u32>, // 0x0
+    pub out1:     VolatileCell<u32>, // 0x4
+    pub out2:     VolatileCell<u32>, // 0x8
+    pub out3:     VolatileCell<u32>, // 0xC
+    _reserved0:     [VolatileCell<u8>; 0xF0],
+    pub in0:      VolatileCell<u32>, // 0x100
+    pub in1:      VolatileCell<u32>, // 0x104
+    pub in2:      VolatileCell<u32>, // 0x108
+    pub in3:      VolatileCell<u32>, // 0x10C
+    _reserved1:     [VolatileCell<u8>; 0x6C],
+    pub port:     VolatileCell<u32>, // 0x17C,
+    _reserved2:     [VolatileCell<u8>; 0x180],
+    pub inten:    VolatileCell<u32>, // 0x300
+    pub intenset: VolatileCell<u32>, // 0x304
+    pub intenclr: VolatileCell<u32>, // 0x308
+    _reserved3:     [VolatileCell<u8>; 0x204],
+    pub config0:  VolatileCell<u32>, // 0x510
+    pub config1:  VolatileCell<u32>, // 0x514
+    pub config2:  VolatileCell<u32>, // 0x518
+    pub config3:  VolatileCell<u32>, // 0x51C
 }
 
 const GPIOTE_BASE: u32 = 0x40006000;
@@ -35,6 +38,37 @@ const GPIOTE_BASE: u32 = 0x40006000;
 #[allow(non_snake_case)]
 fn GPIO() -> &'static GPIO {
     unsafe { mem::transmute(GPIO_BASE as usize) }
+}
+
+#[allow(non_snake_case)]
+fn GPIOTE() -> &'static GpioteRegisters {
+    unsafe { mem::transmute(GPIOTE_BASE as usize) }
+}
+
+fn allocate_channel() -> i8 {
+    if GPIOTE().config0.get() & 1 == 0 {
+        return 0;
+    } else if GPIOTE().config1.get() & 1 == 0 {
+        return 1;
+    } else if GPIOTE().config2.get() & 1 == 0 {
+        return 2;
+    } else if GPIOTE().config3.get() & 1 == 0 {
+        return 3;
+    }
+    return -1;
+}
+
+fn find_channel(pin: u8) -> i8 {
+    if (GPIOTE().config0.get() >> 8) & 0x1F == pin as u32 { 
+        return 0;
+    } else if ((GPIOTE().config1.get() >> 8) & 0x1F) == pin as u32 {
+        return 1;
+    } else if ((GPIOTE().config2.get() >> 8) & 0x1F) == pin as u32 {
+        return 2;
+    } else if ((GPIOTE().config3.get() >> 8) & 0x1F) == pin as u32 {
+        return 3;
+    }
+   return -1;
 }
 
 pub struct GPIOPin {
@@ -103,15 +137,44 @@ impl hil::gpio::GPIOPin for GPIOPin {
 
     fn enable_interrupt(&self, _client_data: usize, _mode: hil::gpio::InterruptMode) {
        self.client_data.set(_client_data);
-       let mode_bits = match _mode {
-           hil::gpio::InterruptMode::Change      => 0,
-           hil::gpio::InterruptMode::RisingEdge  => 0,
-           hil::gpio::InterruptMode::FallingEdge => 0,
+       let mut mode_bits: u32 = 1; // Event
+       mode_bits |= match _mode {
+           hil::gpio::InterruptMode::Change      => 3 << 16,
+           hil::gpio::InterruptMode::RisingEdge  => 1 << 16,
+           hil::gpio::InterruptMode::FallingEdge => 2 << 16,
        };
+       let pin = self.pin as u32;
+       mode_bits |= pin << 8;
+       let channel = allocate_channel();
+       match channel {
+           0 => GPIOTE().config0.set(mode_bits),
+//           1 => GPIOTE().config1.set(mode_bits),
+//           2 => GPIOTE().config2.set(mode_bits),
+//           3 => GPIOTE().config3.set(mode_bits),
+           _ => {}
+       }
+       GPIOTE().intenset.set(1 << channel);
+       nvic::enable(NvicIdx::GPIOTE);
     }
 
     fn disable_interrupt(&self) {
-        unimplemented!();
+        let channel = find_channel(self.pin);
+        match channel {
+           0 => GPIOTE().config0.set(0),
+           1 => GPIOTE().config1.set(0),
+           2 => GPIOTE().config2.set(0),
+           3 => GPIOTE().config3.set(0),
+           _ => {}
+        }
+        GPIOTE().intenclr.set(1 << channel);
+    }
+}
+
+impl GPIOPin {
+    pub fn handle_interrupt(&self) {
+        self.client.map(|client| {
+            client.fired(self.client_data.get());
+        });
     }
 }
 
@@ -133,6 +196,32 @@ impl IndexMut<usize> for Port {
     }
 }
 
+impl Port {
+    // GPIOTE interrupt
+    pub fn handle_interrupt(&self) {
+        if GPIOTE().in0.get() != 0 {
+            GPIOTE().in0.set(0);
+            let pin = (GPIOTE().config0.get() >> 8 & 0x1F) as usize;
+            self.pins[pin].handle_interrupt();
+        }
+        if GPIOTE().in1.get() != 0 {
+            GPIOTE().in1.set(0);
+            let pin = (GPIOTE().config1.get() >> 8 & 0x1F) as usize;
+            self.pins[pin].handle_interrupt();
+        }
+        if GPIOTE().in2.get() != 0 {
+            GPIOTE().in2.set(0);
+            let pin = (GPIOTE().config2.get() >> 8 & 0x1F) as usize;
+            self.pins[pin].handle_interrupt();
+        }
+        if GPIOTE().in3.get() != 0 {
+            GPIOTE().in3.set(0);
+            let pin = (GPIOTE().config3.get() >> 8 & 0x1F) as usize;
+            self.pins[pin].handle_interrupt();
+        }
+    }
+}
+
 pub static mut PORT : Port = Port {
     pins: [
         GPIOPin::new(0), GPIOPin::new(1), GPIOPin::new(2), GPIOPin::new(3),
@@ -145,3 +234,15 @@ pub static mut PORT : Port = Port {
         GPIOPin::new(28), GPIOPin::new(29), GPIOPin::new(30), GPIOPin::new(31),
     ],
 };
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn GPIOTE_Handler() {
+    use common::Queue;
+
+    let pin = &PORT[0] as &hil::gpio::GPIOPin; 
+    pin.toggle();
+
+    nvic::disable(NvicIdx::GPIOTE);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::GPIOTE);
+}
