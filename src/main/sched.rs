@@ -8,7 +8,7 @@ use syscall;
 pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
                   appid: AppId) {
     systick::reset();
-    systick::set_timer(10);
+    systick::set_timer(10000);
     systick::enable(true);
 
     loop {

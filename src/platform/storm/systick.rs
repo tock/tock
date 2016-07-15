@@ -9,15 +9,15 @@ struct SysTick {
 
 const BASE_ADDR : *mut SysTick = 0xE000E010 as *mut SysTick;
 
-/// Sets the timer as close as possible to the given interval in milliseconds.
+/// Sets the timer as close as possible to the given interval in microseconds.
 /// The clock is 24-bits wide and specific timing is dependent on the driving
 /// clock. Increments of 10ms are most accurate and, in practice 466ms is the
 /// approximate maximum.
-pub unsafe fn set_timer(ms: u32) {
+pub unsafe fn set_timer(us: u32) {
     let systick : &mut SysTick = &mut *BASE_ADDR;
 
     let tenms = intrinsics::volatile_load(&systick.calibration) & 0xffffff;
-    let reload = tenms * ms / 10;
+    let reload = tenms * us / 10000;
 
     intrinsics::volatile_store(&mut systick.value, 0);
     intrinsics::volatile_store(&mut systick.reload, reload);
