@@ -38,9 +38,6 @@ $ multirust override nightly-2015-12-14
 
 #### `arm-none-eabi` toolchain
 
-We are currently using arm-none-eabi-gcc 5.4. Using pre-5.0 versions may
-run into problems with missing intrinsics (e.g., ```__aeabi_memclr```). 
-
 On Mac OS X, you can get the arm-none-eabi toolchain via port:
 
 ```bash
@@ -52,17 +49,14 @@ or via homebrew:
 ```bash
 $ brew tap PX4/homebrew-px4
 $ brew update
-$ brew install gcc-arm-none-eabi-54
+$ brew install gcc-arm-none-eabi-49
 ```
 
-On Linux we recommend getting packages from Launchpad
-
-https://launchpad.net/gcc-arm-embedded/+download
-
-E.g.:
+On Linux it is available through many distribution managers:
 
 ```bash
-$ curl https://launchpad.net/gcc-arm-embedded/5.0/5-2016-q2-update/+download/gcc-arm-none-eabi-5_4-2016q2-20160622-linux.tar.bz2
+$ pacman -S arm-none-eabi-gcc
+$ apt-get install gcc-arm-none-eabi
 ```
 
 For Windows and other operating systems, download site is

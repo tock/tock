@@ -19,4 +19,3 @@ pub use queue::Queue;
 pub use ring_buffer::RingBuffer;
 pub use volatile_cell::VolatileCell;
 pub use list::{List, ListLink, ListNode};
-

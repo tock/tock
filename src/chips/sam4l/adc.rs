@@ -35,6 +35,7 @@ use core::intrinsics;
 use nvic;
 use hil::adc::{Request, AdcInternal};
 use pm::{self, Clock, PBAClock};
+use chip;
 use scif;
 
 
@@ -182,5 +183,12 @@ impl AdcInternal for Adc {
     }
 }
 
-interrupt_handler!(adcife_handler, ADCIFE);
-
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern fn ADCIFE_Handler() {
+    use common::Queue;
+    nvic::disable(nvic::NvicIdx::ADCIFE);
+    chip::INTERRUPT_QUEUE.as_mut().map(|q| {
+        q.enqueue(nvic::NvicIdx::ADCIFE)
+    });
+}

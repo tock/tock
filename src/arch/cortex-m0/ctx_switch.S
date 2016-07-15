@@ -7,8 +7,6 @@
 .global SVC_Handler
 .globl switch_to_user
 
-.extern SYSCALL_FIRED
-
 .thumb_func
 SVC_Handler:
   ldr r0, EXC_RETURN_MSP
@@ -18,9 +16,8 @@ SVC_Handler:
   bx r1
 
 to_kernel:
-  ldr r0, =SYSCALL_FIRED
-  movs r1, #1
-  str r1, [r0, #0]
+  mrs r0, PSP /* PSP into r0 */
+  str r0, [sp, #0] /* PSP into Master stack r0 */
   ldr r1, EXC_RETURN_MSP
   bx r1
 
@@ -30,72 +27,29 @@ EXC_RETURN_PSP:
   .word 0xFFFFFFFD
 
 .thumb_func
-/* r0 is top of user stack, r1 Process GOT */
+/* r0 is top of user stack, r1 is heap base */
 switch_to_user:
-    /* Cortex-M0 can only push registers R0-R7 directly, so move R8-R11 to R0-R3.
-     * This is equivalent to the 32-bit "push {r4-r11}" instruction. */
-    push {r4-r7}
-    mov r4,  r8
-    mov r5,  r9
-    mov r6, r10
-    mov r7, r11
-    push {r4-r7}
+  /* Load bottom of stack into Process Stack Pointer */
+  msr psp, r0
 
-    /* Load non-hardware-stacked registers from Process stack */
+  /* Cortex-M0 can only push registers R0-R7 directly, so move R8-R11 to R0-R3.
+   * This is equivalent to the 32-bit "push {r4-r11}" instruction. */
+  push {r4-r7}
+  mov r4,  r8
+  mov r5,  r9
+  mov r6, r10
+  mov r7, r11
+  push {r4-r7}
 
-    subs r0, #32 // We actually store r4-r11 below the process stack
-    ldmia r0!, {r4-r7}
-    mov r11, r7
-    mov r10, r6
-    mov r9,  r5
-    mov r8,  r4
-    ldmia r0!, {r4-r7}
+  mov r9, r1
+  svc 0xff
 
-    /* Load bottom of stack into Process Stack Pointer */
-    msr psp, r0
+  /* These instructions are equivalent to the 32-bit "pop {r4-r11}" */
+  pop {r4-r7}
+  mov  r8, r4
+  mov  r9, r5
+  mov r10, r6
+  mov r11, r7
+  pop {r4-r7}
 
-    /* Set PIC base pointer to the Process GOT */
-    mov r9, r1
-
-    ldr r0, =SYSCALL_FIRED
-    movs r1, #0
-    str r1, [r0, #0]
-
-    /* SWITCH */
-    svc 0xff /* It doesn't matter which SVC number we use here */
-
-    /* Push non-hardware-stacked registers onto Process stack.  r0 points to user
-     * stack (see to_kernel). We store the registers passed the stack to make it
-     * easier to address hardware-stacked registers in the rest of the kernel.
-     * This is fine since we just account for that above.
-     */
-
-    mrs r0, PSP /* PSP into r0 */
-
-    subs r0, #32 // We actually store r4-r11 below the process stack
-    str r4, [r0, #16]
-    str r5, [r0, #20]
-    str r6, [r0, #24]
-    str r7, [r0, #28]
-
-    mov  r4, r8
-    mov  r5, r9
-    mov  r6, r10
-    mov  r7, r11
-
-    str r4, [r0, #0]
-    str r5, [r0, #4]
-    str r6, [r0, #8]
-    str r7, [r0, #12]
-    adds r0, #32 // We actually store r4-r11 below the process stack
-
-    /* These instructions are equivalent to the 32-bit "pop {r4-r11}" */
-    pop {r4-r7}
-    mov  r8, r4
-    mov  r9, r5
-    mov r10, r6
-    mov r11, r7
-    pop {r4-r7}
-
-    bx lr
-
+  bx lr

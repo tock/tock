@@ -28,10 +28,9 @@ impl<'a> MuxI2C<'a> {
             inflight: TakeCell::empty()
         }
     }
-
     fn enable(&self) {
         let enabled = self.enabled.get();
-        self.enabled.set(enabled + 1);
+        self.enabled.set(enabled);
         if enabled == 0 {
             self.i2c.enable();
         }
@@ -124,14 +123,12 @@ impl<'a> ListNode<'a, I2CDevice<'a>> for I2CDevice<'a> {
 impl<'a> i2c::I2CDevice for I2CDevice<'a> {
     fn enable(&self) {
         if !self.enabled.get() {
-            self.enabled.set(true);
             self.mux.enable();
         }
     }
 
     fn disable(&self) {
         if self.enabled.get() {
-            self.enabled.set(false);
             self.mux.disable();
         }
     }

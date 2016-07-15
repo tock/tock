@@ -1,4 +1,3 @@
-use core::intrinsics;
 use common::{RingBuffer,Queue};
 use ast;
 //use adc;
@@ -39,9 +38,7 @@ impl Sam4l {
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx::*;
-
-        let iq = INTERRUPT_QUEUE.as_mut().unwrap();
-        while let Some(interrupt) = iq.dequeue() {
+        INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
             match interrupt {
                 ASTALARM => ast::AST.handle_interrupt(),
 
@@ -77,7 +74,7 @@ impl Sam4l {
                 _ => {}
             }
             nvic::enable(interrupt);
-       }
+       });
     }
 
     pub unsafe fn has_pending_interrupts(&mut self) -> bool {
