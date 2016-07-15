@@ -82,7 +82,8 @@ impl Client for FlashClient {
             FlashClientState::Writing => {
                if self.page.get() < 60 {
                     for i in 0..self.num_read_write_of_page {
-                       unsafe {  test_read_write(self.page.get(), self.val_data.get()); }
+                        unsafe {  test_read_write(self.page.get(), self.val_data.get()); }
+                     //   dev.clear_page_buffer();
                         self.val_data.set(self.val_data.get() + 1);
                     }
                     self.page.set(self.page.get() + 1);

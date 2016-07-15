@@ -209,20 +209,25 @@ pub fn default_wait_until_ready(flash : &FLASHCALW) {
 
 impl FLASHCALW {
 
-    pub fn mark_ready(&self) {
-        self.ready.put(Some(true));
+    pub unsafe fn mark_ready(&self) {
+        support::atomic(|| {
+            self.ready.put(Some(true));
+        });
     }
 
     pub fn set_client(&self, client: &'static flash::Client) { self.client.put(Some(client)); }
 
     pub fn get_ready_status(&self) -> bool {
-        if self.ready.is_none() || !self.ready.take().unwrap() {
-            false
-        } else {
-            self.ready.put(Some(true));
-            true
+        unsafe {  
+            support::atomic(|| {
+                if self.ready.is_none() || !self.ready.take().unwrap() {
+                    false
+                } else {
+                    self.ready.put(Some(true));
+                    true
+                }
+            })
         }
-    
     }
     
     const fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock,
@@ -289,9 +294,9 @@ impl FLASHCALW {
          
         if(!self.client.is_none()){
             let client = self.client.take().unwrap();
-            if(client.is_configuring()) {
+           // if(client.is_configuring()) {
                 client.command_complete();
-            }
+           // }
             self.client.put(Some(client));
         }
         
@@ -489,7 +494,7 @@ impl FLASHCALW {
     
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         (self.wait_until_ready)(self); // call the registered wait function
-        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR) {
+        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR /*&& command != FlashCMD::CPB */) {
             self.ready.replace(false);
         }
         print!("Issuing command...{}", command as u32);
@@ -562,11 +567,11 @@ impl FLASHCALW {
         self.lock_page_region(first_page, lock);
         
         //TODO: remove just for testing...
-        if(!self.client.is_none()){
+        /*if(!self.client.is_none()){
             let client = self.client.take().unwrap();
             client.command_complete();
             self.client.put(Some(client));
-        }
+        }*/
     }
 
     pub fn lock_all_regions(&self, lock : bool) {
@@ -769,7 +774,12 @@ impl FLASHCALW {
     
     ///Flashcalw Access to Flash Pages
     pub fn clear_page_buffer(&self) {
-        self.issue_command(FlashCMD::CPB, -1)    
+        self.issue_command(FlashCMD::CPB, -1);    
+        /*if(!self.client.is_none()){
+            let client = self.client.take().unwrap();
+            client.command_complete();
+            self.client.put(Some(client));
+        }*/
     }
 
     pub fn is_page_erased(&self) -> bool {
@@ -906,11 +916,7 @@ impl flash::FlashController for FLASHCALW {
 
         //TODO: figure out how the config should be... shouldn't need to cuase
         // an interrupt pre-actually use.
-        //just doing a call to interrupts to start my state machine...
         //Also clear page buffer might not call an interrupt :L
-        //clear the page buffer
-        //self.clear_page_buffer();
-        //self.lock_region(0, false);
     }
 
     fn get_page_size(&self) -> u32 {
@@ -952,10 +958,12 @@ impl flash::FlashController for FLASHCALW {
         unsafe { pm::enable_clock(self.ahb_clock); }
        
         //erase page
-        self.erase_page(addr as i32);
-        println!("\twrite_page: erased page"); 
+//        self.erase_page(addr as i32);
+ //       println!("\twrite_page: erased page"); 
         self.clear_page_buffer();
         println!("\twrite_page: cleared buffer"); 
+        self.erase_page(addr as i32);
+        println!("\twrite_page: erased page"); 
         
         //write to page buffer @ 0x0
         self.write_to_page_buffer(data, addr * 512);
