@@ -63,14 +63,14 @@ struct FlashClient {
 
 static mut FLASH_CLIENT : FlashClient = FlashClient { 
     state: Cell::new(FlashClientState::Enabling),
-    page: Cell::new(40),
+    page: Cell::new(53),
     region_unlocked: Cell::new(0),
     num_cycle_per_page: 2,
     val_data: Cell::new(2),
     cycles_finished: Cell::new(0)
 };
 
-const MAX_PAGE_NUM: i32 = 80;
+const MAX_PAGE_NUM: i32 = 200;
 
 impl Client for FlashClient {
 
@@ -120,7 +120,7 @@ impl Client for FlashClient {
                 for i in 0..512 {
                     if( data[i] != self.val_data.get()) {
                         pass = false;
-                        println!("\t\tbit:{} expected {}, got {}", i, 
+                        println!("\t\t======bit:{} expected {}, got {}========", i, 
                            self.val_data.get(), data[i]);
                         
                     }
@@ -128,15 +128,17 @@ impl Client for FlashClient {
                 }
                 
                 if(!pass) {
-                    for j in 0..20 {
+                    for j in 0..3 {
                         println!("\treading page {}", self.page.get());
                         let mut data : [u8; 512] = [0;512];
                         dev.read_page_raw(self.page.get(), &mut data);
                         //verify what we expect
                         for i in 0..512 {
-                            println!("\t\tbit:{} expected {}, got {}", i, 
+                            if data[i] != self.val_data.get() {
+                            println!("\t\t\t======bit:{} expected {}, got {}========", i, 
                                self.val_data.get(), data[i]);
-                            //assert_eq!(self.val_data.get(), data[i]);
+                            
+                            }
                         }
                     }
                 }
