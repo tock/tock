@@ -9,9 +9,9 @@ rust:
   - nightly-2015-12-14
 
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo add-apt-repository ppa:terry.guo/gcc-arm-embedded -y; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa -y; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -qq gcc-arm-none-eabi; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -qq gcc-arm-embedded; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew tap px4/px4; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gcc-arm-none-eabi-49; fi

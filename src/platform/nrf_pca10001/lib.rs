@@ -10,15 +10,16 @@ extern crate support;
 extern crate process;
 
 use hil::Controller;
-use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+
+pub mod systick;
 
 pub struct Firestorm {
     chip: nrf51822::chip::Nrf51822,
     noop: &'static drivers::noop::Noop,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
-    timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
-                                VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>>>,
+    timer: &'static drivers::timer::TimerDriver<'static, 
+                                VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>>,
 }
 
 impl Firestorm {
@@ -87,15 +88,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, nrf51822::rtc::Rtc> =
                     VirtualMuxAlarm::new(mux_alarm));
-    static_init!(vtimer1 : AlarmToTimer<'static,
+    static_init!(timer : drivers::timer::TimerDriver<'static,
                                 VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>> =
-                            AlarmToTimer::new(virtual_alarm1));
-    virtual_alarm1.set_client(vtimer1);
-    static_init!(timer : drivers::timer::TimerDriver<AlarmToTimer<'static,
-                                VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>>> =
-                            drivers::timer::TimerDriver::new(vtimer1,
+                            drivers::timer::TimerDriver::new(virtual_alarm1,
                                                  process::Container::create()));
-    vtimer1.set_client(timer);
+    virtual_alarm1.set_client(timer);
 
     static_init!(noop : drivers::noop::Noop = drivers::noop::Noop::new());
 
@@ -106,6 +103,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         gpio: gpio,
         timer: timer,
     };
+
+    let led0 : &hil::gpio::GPIOPin = &nrf51822::gpio::PORT[18];
+    led0.enable_output();
+    led0.set();
+
     firestorm
 }
 

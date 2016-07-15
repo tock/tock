@@ -1,4 +1,4 @@
-use platform::Firestorm;
+use platform::{Firestorm,systick};
 use process;
 use process::Process;
 use process::{AppSlice,AppId};
@@ -7,21 +7,38 @@ use syscall;
 
 pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
                   appid: AppId) {
+    systick::reset();
+    systick::set_timer(10);
+    systick::enable(true);
+
     loop {
+        if platform.has_pending_interrupts() ||
+                systick::overflowed() || systick::value() <= 500 {
+            break;
+        }
+
         match process.state {
             process::State::Running => {
+                systick::enable(true);
                 process.switch_to();
+                systick::enable(false);
             }
             process::State::Waiting => {
                 match process.callbacks.dequeue() {
-                    None => { return },
+                    None => { break },
                     Some(cb) => {
                         process.state = process::State::Running;
-                        process.switch_to_callback(cb);
+                        process.push_callback(cb);
+                        continue;
                     }
                 }
             }
         }
+
+        if !process.syscall_fired() {
+            break;
+        }
+
         match process.svc_number() {
             Some(syscall::MEMOP) => {
                 let brk_type = process.r0();
@@ -43,7 +60,9 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
             Some(syscall::WAIT) => {
                 process.state = process::State::Waiting;
                 process.pop_syscall_stack();
-                break;
+
+                // There might be already enqueued callbacks
+                continue;
             },
             Some(syscall::SUBSCRIBE) => {
                 let driver_num = process.r0();
@@ -94,4 +113,5 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
             _ => {}
         }
     }
+    systick::reset();
 }
