@@ -176,7 +176,7 @@ pub fn default_wait_until_ready(flash : &FLASHCALW) {
     while !flash.get_ready_status() {    
         unsafe { 
             println!("Going to sleep!");
-            support::wfi(); 
+            //support::wfi(); 
         }
     }
 }
@@ -890,6 +890,21 @@ impl FLASHCALW {
     pub fn enable_ahb(&self) {
         unsafe { pm::enable_clock(self.ahb_clock); }
     }
+    
+    //TODO: fix this up. 
+    /* Just a 'rawer' version of read page. */
+    pub fn read_page_raw(&self, addr : i32, buffer : &mut [u8]) {
+        //let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
+        let page : *const u8 = (addr * (FLASH_PAGE_SIZE as i32)) as *const u8;
+        //let mut buffer_ptr : *mut u8 = &buffer as *mut u8;
+        //let mut tmp_buffer = [0usize; 128];
+        unsafe {
+            //TODO: the from_raw_pats fails with page being at 0x0, b/c it thinks it's null...
+            let slice = slice::from_raw_parts(page, FLASH_PAGE_SIZE as usize);    
+            buffer.clone_from_slice(slice);
+        }
+
+    }
 
 }
 
@@ -1002,7 +1017,7 @@ pub unsafe extern fn FLASH_Handler() {
     
     //println!("In FLASH_HANDLER");
     //TODO: fix to follow normal convention...
-    //flash_controller.mark_ready(); 
+    flash_controller.mark_ready(); 
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
 }

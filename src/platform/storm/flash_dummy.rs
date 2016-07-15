@@ -37,25 +37,40 @@ pub unsafe fn scratch_test() {
 
 // ======================================
 //  Test the flash controller (using interrupts).
+//  Note: This assumes that all the buses in the config function is on for the
+//  entire time.
 // ======================================
 
 #[derive(Copy,Clone,PartialEq)]
 enum FlashClientState {
     Enabling,
+    ClearPageBuffer,
+    WritePageBuffer,
     Writing,
     Reading,
-    Erasing
+    Erasing,
+    EWRCycleStart   /* Start of the Erase, Write, Read Cycle */
 }
 
-struct FlashClient { state : Cell<FlashClientState>, page: Cell<i32>, 
-    region_unlocked: Cell<u32>, num_read_write_of_page: u32, val_data: Cell<u8>}
+struct FlashClient { 
+    state : Cell<FlashClientState>,
+    page: Cell<i32>, 
+    region_unlocked: Cell<u32>,
+    num_cycle_per_page: u32,
+    val_data: Cell<u8>,
+    cycles_finished: Cell<u32>
+}
 
 static mut FLASH_CLIENT : FlashClient = FlashClient { 
     state: Cell::new(FlashClientState::Enabling),
     page: Cell::new(40),
     region_unlocked: Cell::new(0),
-    num_read_write_of_page: 1,
-    val_data: Cell::new(2)};
+    num_cycle_per_page: 2,
+    val_data: Cell::new(2),
+    cycles_finished: Cell::new(0)
+};
+
+const MAX_PAGE_NUM: i32 = 80;
 
 impl Client for FlashClient {
 
@@ -68,7 +83,7 @@ impl Client for FlashClient {
         match self.state.get() {
             FlashClientState::Enabling => {
                 if self.region_unlocked.get() == 16 {
-                    self.state.set(FlashClientState::Writing);
+                    self.state.set(FlashClientState::EWRCycleStart);
                     println!("\t All Regions unlocked");
                     println!("===========Transitioning \
                         to Erasing/Writing/Reading========");
@@ -80,22 +95,102 @@ impl Client for FlashClient {
                 }
             },
             FlashClientState::Writing => {
-               if self.page.get() < 60 {
-                    for i in 0..self.num_read_write_of_page {
-                        unsafe {  test_read_write(self.page.get(), self.val_data.get()); }
-                     //   dev.clear_page_buffer();
-                        self.val_data.set(self.val_data.get() + 1);
-                    }
-                    self.page.set(self.page.get() + 1);
-                    //dev.write_page();
-               }
+                println!("\tWriting page {}", self.page.get());
+                dev.flashcalw_write_page(self.page.get());
+                self.state.set(FlashClientState::Reading);
             },
             FlashClientState::Reading => {
-                //if self.page.
+               /* use sam4l::ast::AST;
+                use hil::alarm::Alarm;
+                unsafe {
+                    //implementing a 'wait' essentially...
+                    let now = AST.now();
+                    let delta = 16000 * 40; // wait 480k cycles ticks from the AST.
+                    while( AST.now() - delta < now) {}
+                }*/
+                //  Again like WritePageBuffer, this isn't a command. But should be
+                //  triggered after the write (hopefully).
+                let mut pass = true;
+                
+                
+                println!("\treading page {}", self.page.get());
+                let mut data : [u8; 512] = [0;512];
+                dev.read_page_raw(self.page.get(), &mut data);
+                //verify what we expect
+                for i in 0..512 {
+                    if( data[i] != self.val_data.get()) {
+                        pass = false;
+                        println!("\t\tbit:{} expected {}, got {}", i, 
+                           self.val_data.get(), data[i]);
+                        
+                    }
+                    //assert_eq!(self.val_data.get(), data[i]);
+                }
+                
+                if(!pass) {
+                    for j in 0..20 {
+                        println!("\treading page {}", self.page.get());
+                        let mut data : [u8; 512] = [0;512];
+                        dev.read_page_raw(self.page.get(), &mut data);
+                        //verify what we expect
+                        for i in 0..512 {
+                            println!("\t\tbit:{} expected {}, got {}", i, 
+                               self.val_data.get(), data[i]);
+                            //assert_eq!(self.val_data.get(), data[i]);
+                        }
+                    }
+                }
+                    
+                //start cycle again
+                self.state.set(FlashClientState::EWRCycleStart);
             },
             FlashClientState::Erasing => {
-
+                println!("\tErasing page {}", self.page.get());
+                dev.flashcalw_erase_page(self.page.get(), true);
+                self.state.set(FlashClientState::ClearPageBuffer);
+            },
+            FlashClientState::ClearPageBuffer => { 
+                println!("\tClearing page buffer");
+                dev.clear_page_buffer();
+                self.state.set(FlashClientState::WritePageBuffer);
+            },
+            FlashClientState::WritePageBuffer => {
+                println!("\tWriting to page buffer");
+                let data : [u8;512] = [self.val_data.get(); 512];
+                dev.write_to_page_buffer(&data, (self.page.get() * 512) as usize);
+                self.state.set(FlashClientState::Writing);
+                self.command_complete(); // we need to call this here as 
+                                         // write_to_page_buffer isn't really a
+                                         // command (thus no interrupt generated).
+            },
+            FlashClientState::EWRCycleStart => {
+                if self.page.get() <= MAX_PAGE_NUM {
+                    if self.cycles_finished.get() >= self.num_cycle_per_page {
+                        //reset count
+                        self.cycles_finished.set(1);
+                        //increment pg num
+                        self.page.set(self.page.get() + 1);
+                        //increment val_data
+                        self.val_data.set(self.val_data.get() + 1);
+                        //start new cycle
+                        if self.page.get() <= MAX_PAGE_NUM {
+                            self.state.set(FlashClientState::Erasing);
+                            println!("==============Starting work on page {} \
+                                =================", self.page.get());
+                            self.command_complete();
+                        }
+                    } else {
+                        println!("\t Still Cycling page {}", self.page.get());
+                        //increment cycle count
+                        self.cycles_finished.set(self.cycles_finished.get() + 1);
+                        //increment val_data
+                        self.val_data.set(self.val_data.get() + 1);
+                        //continue cycle
+                        self.state.set(FlashClientState::Erasing);
+                    }
+                }
             }
+
         }
     }
 
