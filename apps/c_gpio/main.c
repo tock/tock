@@ -62,6 +62,7 @@ void interrupt_callback() {
 int main(void) {
     gpio_enable_output(LED_0);
     gpio_enable_output(LED_1);
+    gpio_set(LED_1);
     // Application pin 3 is HW GPIO pin 0, see nrf_pc10001/lib.rs
     gpio_enable_input(3, PullDown);
     gpio_enable_interrupt(3, PullDown, RisingEdge);

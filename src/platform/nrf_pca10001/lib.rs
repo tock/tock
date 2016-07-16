@@ -10,8 +10,9 @@ extern crate support;
 extern crate process;
 
 use hil::Controller;
-use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+
+pub mod systick;
 
 pub struct Firestorm {
     chip: nrf51822::chip::Nrf51822,
@@ -87,13 +88,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, nrf51822::rtc::Rtc> =
                     VirtualMuxAlarm::new(mux_alarm));
-    static_init!(vtimer1 : AlarmToTimer<'static,
+    static_init!(timer : drivers::timer::TimerDriver<'static,
                                 VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>> =
-                            AlarmToTimer::new(virtual_alarm1));
-    virtual_alarm1.set_client(vtimer1);
-    static_init!(timer : drivers::timer::TimerDriver<AlarmToTimer<'static,
-                                VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>>> =
-                            drivers::timer::TimerDriver::new(vtimer1,
+                            drivers::timer::TimerDriver::new(virtual_alarm1,
                                                  process::Container::create()));
     vtimer1.set_client(timer);
 */
@@ -106,6 +103,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         gpio: gpio,
  //       timer: timer,
     };
+
     firestorm
 }
 

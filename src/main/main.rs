@@ -34,14 +34,21 @@ pub extern fn main() {
         unsafe {
             platform.service_pending_interrupts();
 
+            let mut running_left = false;
             for (i, p) in processes.iter_mut().enumerate() {
                 p.as_mut().map(|process| {
                     sched::do_process(platform, process, AppId::new(i));
+                    if process.state == process::State::Running {
+                        running_left = true;
+                    }
                 });
+                if platform.has_pending_interrupts() {
+                    break;
+                }
             }
 
             support::atomic(|| {
-                if !platform.has_pending_interrupts() {
+                if !platform.has_pending_interrupts() && !running_left {
                     support::wfi();
                 }
             })

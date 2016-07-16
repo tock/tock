@@ -86,6 +86,10 @@ impl Rtc {
         wait_task();
     }
 
+    fn is_running(&self) -> bool {
+        rtc1().evten.get() & (1 << 16) == (1 << 16)
+    }
+
     pub fn handle_interrupt(&self) {
         self.callback.get().map(|cb| {
             cb.fired();
@@ -111,6 +115,10 @@ impl Alarm for Rtc {
 
     fn get_alarm(&self) -> u32 {
         rtc1().cc[0].get()
+    }
+
+    fn is_armed(&self) -> bool {
+       self.is_running()
     }
 }
 
