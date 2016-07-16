@@ -17,8 +17,8 @@ pub struct Firestorm {
     chip: nrf51822::chip::Nrf51822,
     noop: &'static drivers::noop::Noop,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
-    timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
-                                VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>>>,
+//    timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
+//                                VirtualMuxAlarm<'static, nrf51822::rtc::Rtc>>>,
 }
 
 impl Firestorm {
@@ -36,7 +36,7 @@ impl Firestorm {
         match driver_num {
            99 => f(Some(self.noop)),
             1 => f(Some(self.gpio)),
-            3 => f(Some(self.timer)),
+           // 3 => f(Some(self.timer)),
             _ => f(None)
         }
     }
@@ -78,7 +78,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
-
+/*
     let rtc = &nrf51822::rtc::RTC;
 
     static_init!(mux_alarm : MuxAlarm<'static, nrf51822::rtc::Rtc> =
@@ -96,7 +96,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                             drivers::timer::TimerDriver::new(vtimer1,
                                                  process::Container::create()));
     vtimer1.set_client(timer);
-
+*/
     static_init!(noop : drivers::noop::Noop = drivers::noop::Noop::new());
 
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
@@ -104,7 +104,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         chip: nrf51822::chip::Nrf51822::new(),
         noop: noop,
         gpio: gpio,
-        timer: timer,
+ //       timer: timer,
     };
     firestorm
 }
