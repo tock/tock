@@ -70,7 +70,7 @@ static mut FLASH_CLIENT : FlashClient = FlashClient {
     cycles_finished: Cell::new(0)
 };
 
-const MAX_PAGE_NUM: i32 = 200;
+const MAX_PAGE_NUM: i32 = 80;
 
 impl Client for FlashClient {
 
@@ -87,7 +87,8 @@ impl Client for FlashClient {
                     println!("\t All Regions unlocked");
                     println!("===========Transitioning \
                         to Erasing/Writing/Reading========");
-                    self.command_complete();
+                    //self.command_complete();
+                    dev.set_flash_waitstate_and_readmode(48000000, 0, false);
                 } else {
                     dev.lock_region(self.region_unlocked.get(), false);
                     println!("\t Unlocking Region {}", self.region_unlocked.get()); 
@@ -108,6 +109,12 @@ impl Client for FlashClient {
                     let delta = 16000 * 40; // wait 480k cycles ticks from the AST.
                     while( AST.now() - delta < now) {}
                 }*/
+                use support;
+                for i in 0..24_000_000 {
+                    //NOP SPIN!
+                    support::nop();
+                }
+
                 //  Again like WritePageBuffer, this isn't a command. But should be
                 //  triggered after the write (hopefully).
                 let mut pass = true;
@@ -189,6 +196,7 @@ impl Client for FlashClient {
                         self.val_data.set(self.val_data.get() + 1);
                         //continue cycle
                         self.state.set(FlashClientState::Erasing);
+                        self.command_complete();
                     }
                 }
             }
@@ -211,6 +219,7 @@ pub fn set_read_write_test() {
     dev.set_client(flashClient);
     print!("Calling configure...");
     dev.configure();
+    println!("Is the picocache on? {}", flashcalw::pico_enabled());
     dev.lock_page_region(0, false);
 
 }
