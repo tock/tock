@@ -10,10 +10,6 @@ use pm;
 use support;
 use nvic;
 
-//TODO: remove
-use ast::AST;
-use hil::alarm::Alarm;
-
 
 // Listing of the FLASHCALW register memory map.
 // Section 14.10 of the datasheet
@@ -43,23 +39,33 @@ enum RegKey {
 }
 
 // This is the pico cache registers...
-// TODO: does this get it's own driver... yea....
 
 struct Picocache_Registers {
+    reserved_1:                             [u8;0x8],
     picocache_control:                      usize,
     picocache_status:                       usize,
+    reserved_2:                             [u8;0x10],
     picocache_maintenance_register_0:       usize,
     picocache_maintenance_register_1:       usize,
     picocache_montior_configuration:        usize,
     picocache_monitor_enable:               usize,
     picocache_monitor_control:              usize,
     picocache_monitor_status:               usize,
+    reserved_3:                             [u8;0xC4],
     version:                                usize
 }
 
-//TODO: kinda sketchy addr (section 14.10.8 says this addr, but section 7 memory diagram says
-// 0x400A0400
+//  Section 7 (the memory diagram) says it starts at 0x400A0400. 
 const PICOCACHE_BASE_ADDRS : *mut Picocache_Registers = 0x400A0400 as *mut Picocache_Registers;
+
+//  Flush the cache. Should be called after every write!
+pub fn invalidate_cache() {
+    let registers : &mut Picocache_Registers = unsafe { 
+        mem::transmute(PICOCACHE_BASE_ADDRS)
+    };
+
+    volatile_store(&mut registers.picocache_maintenance_register_0, 0x1);
+}
 
 pub fn enable_picocache(enable : bool) {
     let registers : &mut Picocache_Registers = unsafe { 
@@ -73,7 +79,6 @@ pub fn enable_picocache(enable : bool) {
     }
 
 }
-
 
 pub fn pico_enabled() -> bool {
     let registers : &mut Picocache_Registers = unsafe { 
@@ -399,6 +404,10 @@ impl FLASHCALW {
         self.issue_command(FlashCMD::HSEN, -1);
     }
 
+    pub fn enable_ws1_read_opt(&mut self, enable : bool) {
+        self.change_control_single_bit_val(7, enable);
+    }
+
     /*#[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE))]
     pub fn set_flash_waitstate_and_readmode(&mut self, cpu_freq : u32, 
         ps_val : u32, is_fwu_enabled : bool) {
@@ -441,7 +450,7 @@ impl FLASHCALW {
     }
 
     pub fn is_lock_error_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::COMMAND) & get_ubit!(2)) != 0
+        (self.read_register(RegKey::CONTROL) & get_ubit!(2)) != 0
     }
 
     pub fn enable_lock_error_int(&self, enable : bool) {
@@ -449,11 +458,19 @@ impl FLASHCALW {
     }
 
     pub fn is_prog_error_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::COMMAND) & get_ubit!(3)) != 0
+        (self.read_register(RegKey::CONTROL) & get_ubit!(3)) != 0
     }
 
     pub fn enable_prog_error_int(&self, enable : bool) {
        self.change_control_single_bit_val(3, enable);
+    }
+
+    pub fn is_ecc_int_enabled(&self) -> bool {
+        (self.read_register(RegKey::CONTROL) & get_ubit!(4)) != 0
+    }
+
+    pub fn enable_ecc_int(&self, enable : bool) {
+        self.change_control_single_bit_val(4, enable);
     }
 
     ///Flashcalw status
@@ -515,7 +532,7 @@ impl FLASHCALW {
         }
         
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
-        //unsafe { support::wfi(); }
+        invalidate_cache();
         //TODO: fix this. Don't want this jankyness in final version 
         //if(!self.client.is_none() && { let cl = self.client.take().unwrap(); let res = cl.is_configuring(); 
         //self.client.put(Some(cl)); res}){ println!("skipped waiting..");} 
@@ -565,13 +582,6 @@ impl FLASHCALW {
     pub fn lock_region(&self, region : u32, lock : bool) {
         let first_page : i32 = self.get_region_first_page_number(region) as i32;
         self.lock_page_region(first_page, lock);
-        
-        //TODO: remove just for testing...
-        /*if(!self.client.is_none()){
-            let client = self.client.take().unwrap();
-            client.command_complete();
-            self.client.put(Some(client));
-        }*/
     }
 
     pub fn lock_all_regions(&self, lock : bool) {
@@ -775,11 +785,6 @@ impl FLASHCALW {
     ///Flashcalw Access to Flash Pages
     pub fn clear_page_buffer(&self) {
         self.issue_command(FlashCMD::CPB, -1);    
-        /*if(!self.client.is_none()){
-            let client = self.client.take().unwrap();
-            client.command_complete();
-            self.client.put(Some(client));
-        }*/
     }
 
     pub fn is_page_erased(&self) -> bool {
@@ -922,7 +927,16 @@ impl flash::FlashController for FLASHCALW {
         }
         //enable interrupts on driver
         self.enable_ready_int(true);
-        
+        //enable all the interrupts just for testing... maybe EEC error?
+        self.enable_lock_error_int(true);
+        self.enable_prog_error_int(true);
+        self.enable_ecc_int(true);
+       
+        //enable 1WS OPT?
+        //self.set_flash_waitstate_and_readmode(48000000, 0, false);
+
+        //self.enable_ws1_read_opt(true);
+
         //enable interrupts from nvic
         unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); }
        
@@ -987,12 +1001,6 @@ impl flash::FlashController for FLASHCALW {
 
         //issue write command to write the page buffer to some specific page!
         self.flashcalw_write_page( addr as i32);
-        
-        if(!self.client.is_none()){
-            let client = self.client.take().unwrap();
-            client.command_complete();
-            self.client.put(Some(client));
-        }
     }
     
     fn erase_page(&self, page_num: i32) {

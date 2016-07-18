@@ -87,7 +87,9 @@ impl Client for FlashClient {
                     println!("\t All Regions unlocked");
                     println!("===========Transitioning \
                         to Erasing/Writing/Reading========");
-                    //self.command_complete();
+                    dev.enable_ws1_read_opt(true);
+                    // This enabled High Speed Mode using a command
+                    // which generates the interrupt for the next stage.
                     dev.set_flash_waitstate_and_readmode(48000000, 0, false);
                 } else {
                     dev.lock_region(self.region_unlocked.get(), false);
@@ -101,19 +103,11 @@ impl Client for FlashClient {
                 self.state.set(FlashClientState::Reading);
             },
             FlashClientState::Reading => {
-               /* use sam4l::ast::AST;
-                use hil::alarm::Alarm;
-                unsafe {
-                    //implementing a 'wait' essentially...
-                    let now = AST.now();
-                    let delta = 16000 * 40; // wait 480k cycles ticks from the AST.
-                    while( AST.now() - delta < now) {}
-                }*/
-                use support;
+               /* use support;
                 for i in 0..24_000_000 {
                     //NOP SPIN!
                     support::nop();
-                }
+                }*/
 
                 //  Again like WritePageBuffer, this isn't a command. But should be
                 //  triggered after the write (hopefully).
@@ -205,9 +199,6 @@ impl Client for FlashClient {
     }
 
     fn is_configuring(&self) -> bool {
-        /*self.state.map(|value| {
-            value == FlashClientState::Enabling
-        });*/
         self.state.get() == FlashClientState::Enabling
     }
 }
@@ -219,7 +210,16 @@ pub fn set_read_write_test() {
     dev.set_client(flashClient);
     print!("Calling configure...");
     dev.configure();
+    
+    //WTF? picocache is on then when guide says it's off by default...
+    // bootloader turns it on. will turn it on explicitly (as bootloader might
+    // change and don't want this to break on that. 
     println!("Is the picocache on? {}", flashcalw::pico_enabled());
+    print!("Turning it on then...");
+    flashcalw::enable_picocache(true);
+    println!("It's on? {}", flashcalw::pico_enabled());
+    
+    //kicks off the interrupts
     dev.lock_page_region(0, false);
 
 }
