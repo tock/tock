@@ -53,21 +53,44 @@ macro_rules! static_init {
    }
 }
 
+/*let nrf_uart = nrf51822::uart::UART::new()
+nrf_uart.init();
+
+nrf_uart.enable_tx();
+while(nrf_uart.tx_ready()) {
+
+    while (true){
+    nrf_uart.send_byte('g' as u8);
+    }
+}*/
+
+
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
-    use nrf51822::gpio::PA;
+    use nrf51822::gpio::Port;
 
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
 
-    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 2] = [
-            &nrf51822::gpio::PA[18], // LED_0
-            &nrf51822::gpio::PA[19], // LED_1
+    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 10] = [
+            &Port[18], // LED_0
+            &nrf51822::gpio::Port[19], // LED_1
+            &nrf51822::gpio::Port[0], // Top left header on EK board
+            &nrf51822::gpio::Port[1], //   |
+            &nrf51822::gpio::Port[2], //   V 
+            &nrf51822::gpio::Port[3], // 
+            &nrf51822::gpio::Port[4], //
+            &nrf51822::gpio::Port[5], // 
+            &nrf51822::gpio::Port[6], // 
+            &nrf51822::gpio::Port[7], // 
             ]);
     static_init!(gpio : drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(gpio_pins));
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
+
+    static_init!(uart : drivers::console::UART<'static, nrf51822::uart::UART> =
+                 drivers::console::UART);
 
     let rtc = &nrf51822::rtc::RTC;
 
@@ -106,8 +129,8 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
     use support::nop;
     use hil::gpio::GPIOPin;
 
-    let led0 = &nrf51822::gpio::PA[18];
-    let led1 = &nrf51822::gpio::PA[19];
+    let led0 = &nrf51822::gpio::Port[18];
+    let led1 = &nrf51822::gpio::Port[19];
 
     led0.enable_output();
     led1.enable_output();
@@ -124,4 +147,5 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
         }
     }
 }
+
 

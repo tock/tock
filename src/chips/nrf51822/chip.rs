@@ -1,7 +1,7 @@
 use common::{RingBuffer,Queue};
 use nvic;
 use rtc;
-use peripheral_interrupts::NvicIdx;
+use nvic::NvicIdx; //changed from peripheral_interrupts
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF : [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];

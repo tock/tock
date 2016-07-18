@@ -3,7 +3,8 @@ use core::cell::Cell;
 use hil::Controller;
 use hil::alarm::{Alarm, AlarmClient, Freq16Khz};
 use peripheral_registers::{RTC1_BASE, RTC1};
-use peripheral_interrupts::NvicIdx;
+//use peripheral_interrupts::NvicIdx;
+use nvic::NvicIdx;
 use chip;
 use nvic;
 

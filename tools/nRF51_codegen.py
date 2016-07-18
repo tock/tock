@@ -116,6 +116,7 @@ def main():
     #dump_json(parser)
     interrupts = get_peripheral_interrupts(parser)
     peripherals = get_peripheral_registers(parser, ["GPIO", "RTC1"])
+#""", "UART0"])"""
 
     variables = {
             'program': relpath(sys.argv[0]),
