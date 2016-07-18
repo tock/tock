@@ -8,9 +8,11 @@ extern crate hil;
 extern crate nrf51822;
 extern crate support;
 extern crate process;
+extern crate common;
 
 use hil::Controller;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use hil::gpio::GPIOPin;
 
 pub mod systick;
 
@@ -104,6 +106,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
  //       timer: timer,
     };
 
+    systick::reset();
+    systick::enable(true);
     firestorm
 }
 

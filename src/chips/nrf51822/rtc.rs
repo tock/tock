@@ -28,7 +28,7 @@ impl Controller for Rtc {
         // FIXME: what to do here?
         //self.start();
         // Set counter incrementing frequency to 16KHz
-        rtc1().prescaler.set(1);
+        // rtc1().prescaler.set(1);
     }
 }
 
@@ -68,10 +68,11 @@ fn wait_task() {
    }
 }
 
+const COMPARE0_EVENT: u32 = 1 << 16;
+
 impl Rtc {
+
     fn start(&self) {
-        rtc1().evtenset.set(1 << 16);
-        rtc1().intenset.set(1 << 16);
         nvic::clear_pending(NvicIdx::RTC1);
         nvic::enable(NvicIdx::RTC1);
         rtc1().tasks_start.set(1);
@@ -80,14 +81,14 @@ impl Rtc {
 
     fn stop(&self) {
         nvic::disable(NvicIdx::RTC1);
-        rtc1().evtenclr.set(1 << 16);
-        rtc1().intenclr.set(1 << 16);
+        rtc1().intenclr.set(COMPARE0_EVENT);
+        rtc1().cc[0].set(0);
         rtc1().tasks_stop.set(1);
         wait_task();
     }
 
     fn is_running(&self) -> bool {
-        rtc1().evten.get() & (1 << 16) == (1 << 16)
+        rtc1().evten.get() & (COMPARE0_EVENT) == (COMPARE0_EVENT)
     }
 
     pub fn handle_interrupt(&self) {
@@ -110,6 +111,7 @@ impl Alarm for Rtc {
 
     fn set_alarm(&self, tics: u32) {
         rtc1().cc[0].set(tics);
+        rtc1().intenset.set(COMPARE0_EVENT);
         self.start();
     }
 
@@ -126,14 +128,7 @@ impl Alarm for Rtc {
 #[allow(non_snake_case)]
 pub unsafe extern fn RTC1_Handler() {
     use common::Queue;
-
-    rtc1().events_compare[0].set(0);
-    rtc1().events_compare[1].set(0);
-    rtc1().events_compare[2].set(0);
-    rtc1().events_compare[3].set(0);
-    rtc1().events_tick.set(0);
-    rtc1().events_ovrflw.set(0);
-
+    nvic::clear_pending(NvicIdx::RTC1);
     nvic::disable(NvicIdx::RTC1);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::RTC1);
 }
