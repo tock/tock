@@ -40,6 +40,7 @@ impl Sam4l {
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx::*;
         INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
+            //TODO: remove
             println!("handling interrupt: {}", interrupt as u32);
             match interrupt {
                 ASTALARM => ast::AST.handle_interrupt(),
@@ -74,7 +75,7 @@ impl Sam4l {
 
                 HFLASHC => flashcalw::flash_controller.handle_interrupt(),
                 //NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
-                _ => { println!("unmatched interrupt {}", interrupt as u32);     }
+                _ => {}
             }
             nvic::enable(interrupt);
        });
