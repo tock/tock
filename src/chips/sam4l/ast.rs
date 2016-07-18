@@ -10,7 +10,6 @@ use core::intrinsics;
 use nvic;
 use hil::alarm::{Alarm, AlarmClient, Freq16Khz};
 use hil::Controller;
-use chip;
 use pm::{self, PBDClock};
 
 #[repr(C, packed)]
@@ -67,8 +66,6 @@ impl Controller for Ast {
         self.set_prescalar(0); // 32Khz / (2^(0 + 1)) = 16Khz
         self.enable_alarm_wake();
         self.clear_alarm();
-
-        self.enable();
     }
 }
 
@@ -138,6 +135,13 @@ impl Ast {
         unsafe {
             let cr = intrinsics::volatile_load(&(*self.regs).cr) | 1;
             intrinsics::volatile_store(&mut (*self.regs).cr, cr);
+        }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        while self.busy() {}
+        unsafe {
+            intrinsics::volatile_load(&(*self.regs).cr) & 1 == 1
         }
     }
 
@@ -240,6 +244,7 @@ impl Alarm for Ast {
     type Frequency = Freq16Khz;
 
     fn now(&self) -> u32 {
+        while self.busy() {}
         unsafe {
             intrinsics::volatile_load(&(*self.regs).cv)
         }
@@ -247,6 +252,10 @@ impl Alarm for Ast {
 
     fn disable_alarm(&self) {
         self.disable_alarm_irq();
+    }
+
+    fn is_armed(&self) -> bool {
+        self.is_enabled()
     }
 
     fn set_alarm(&self, tics: u32) {
@@ -261,18 +270,12 @@ impl Alarm for Ast {
     }
 
     fn get_alarm(&self) -> u32 {
+        while self.busy() {}
         unsafe {
             intrinsics::volatile_load(&(*self.regs).ar0)
         }
     }
 }
 
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn AST_ALARM_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::ASTALARM);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::ASTALARM);
-}
+interrupt_handler!(ast_alarm_handler, ASTALARM);
 

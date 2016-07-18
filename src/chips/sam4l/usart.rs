@@ -5,7 +5,6 @@ use hil::uart::{Parity, Mode};
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use nvic;
 use pm::{self, Clock, PBAClock};
-use chip;
 
 #[repr(C, packed)]
 struct Registers {
@@ -267,21 +266,7 @@ impl uart::UART for USART {
 
 }
 
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn USART2_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::USART2);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::USART2);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern fn USART3_Handler() {
-    use common::Queue;
-
-    nvic::disable(nvic::NvicIdx::USART3);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::USART3);
-}
-
+interrupt_handler!(usart0_handler, USART0);
+interrupt_handler!(usart1_handler, USART1);
+interrupt_handler!(usart2_handler, USART2);
+interrupt_handler!(usart3_handler, USART3);

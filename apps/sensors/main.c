@@ -12,7 +12,6 @@ void intensity_cb(int intensity, int unused1, int unused2, void* ud) {
 }
 
 void temp_callback(int temp_value, int err, int unused, void* ud) {
-  gpio_toggle(LED_0);
   printf("Current Temp (%d) [0x%X]\n", temp_value, err);
 }
 
@@ -22,7 +21,6 @@ void timer_fired(int arg0, int arg1, int arg2, void* ud) {
 
 int main() {
   printf("Hello\n");
-  gpio_enable_output(LED_0);
 
   isl29035_subscribe(intensity_cb, NULL);
   // Setup periodic timer

@@ -1,7 +1,10 @@
 use common::{RingBuffer,Queue};
 use nvic;
 use rtc;
-use nvic::NvicIdx; //changed from peripheral_interrupts
+
+use gpio;
+use peripheral_interrupts::NvicIdx;
+
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF : [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
@@ -19,6 +22,7 @@ impl Nrf51822 {
         INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
             match interrupt {
                 NvicIdx::RTC1 => rtc::RTC.handle_interrupt(),
+                NvicIdx::GPIOTE  => gpio::PORT.handle_interrupt(),
                 _ => {}
             }
             nvic::enable(interrupt);
