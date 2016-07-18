@@ -89,11 +89,12 @@ pub unsafe fn set_timer(val: usize) {
     // Clock is 32768Hz
     // Each tick is 30.51us, approximate as 30.5
     let ticks: u32 = (val as u32 * 10) / 305;
-    RTC0().cc[0].set(ticks);
+    RTC0().cc[0].set(ticks); // Compare value
     VAL = val
 }
 
 pub unsafe fn enable(_: bool) {
+    // Cribbed from mynewt; some of this overkill but be safe
     CLOCK().xtalfreq.set(0);
     CLOCK().tasks_lfclkstop.set(1);
     CLOCK().events_lfclkstarted.set(0);
@@ -118,6 +119,8 @@ pub unsafe fn value() -> usize {
     // Each tick is 30.51us, approximate as 30.5
     let counter = RTC0().counter.get() as usize;
     let val = counter * 305 / 10;
+    // Keep this hardcoded value because counter seems to
+    // not work correctly
     VAL * 1000
 }
 
