@@ -10,6 +10,14 @@ pub enum Error {
     ECC,
 }
 
+#[derive(Clone, Copy)]
+pub enum Command {
+    Write,
+    Read,
+    Erase,
+    None
+}
+
 impl Display for Error {
     fn fmt(&self, fmt: &mut Formatter) -> Result {
         let display_str = match *self {
@@ -25,24 +33,29 @@ impl Display for Error {
 
 pub trait FlashController {
     // meta functions
-    
     fn configure(&mut self);
+    
     // in bytes
     fn get_page_size(&self) -> u32;
+    
     // in # of pages
     fn get_number_pages(&self) -> u32;
     
-    //commands
-    
-    // The three functions below will need to be used with a subscribe CB
-    // as they might take a while...
-    fn read_page(&self, addr : usize, mut buffer: &mut [usize]);
+    //  Commands
+    //  The three functions below will need to be used with a subscribe CB
+    //  as they will take a while...
+
+    //  Read_page actually doesn't take a while. 
+    //  It's simply reading from memory...
+    fn read_page(&self, addr : usize, buffer: &mut [u8]);
+        
     fn write_page(&self, addr : usize, data: & [u8]);
     fn erase_page(&self, page_num: i32);
+
 }
 
 pub trait Client {
+    //  Called upon a completed call
     fn command_complete(&self);     
-    fn is_configuring(&self) -> bool;
 }
 

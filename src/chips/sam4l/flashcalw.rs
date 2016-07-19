@@ -2,8 +2,8 @@
 
 
 use helpers::*;
-use core::mem;
-use core::slice;
+use core::{mem, slice};
+use core::cell::Cell;
 use common::take_cell::TakeCell;
 use hil::flash;
 use pm;
@@ -118,6 +118,19 @@ pub enum Speed {
     HighSpeed
 }
 
+#[derive(Clone, Copy)]
+pub enum FlashState {
+    Locking,
+    Unlocking,
+    ClearPageBuffer,
+    WritePageBuffer,
+    Writing,
+    Reading,
+    Erasing,
+    Ready,
+    Unconfigured
+}
+
 // The FLASHCALW controller
 //TODO: finishing beefing up...
 pub struct FLASHCALW {
@@ -129,7 +142,9 @@ pub struct FLASHCALW {
     wait_until_ready: fn(&FLASHCALW) -> (),
     error_status: TakeCell<u32>,
     ready: TakeCell<bool>,
-    client: TakeCell<&'static flash::Client>
+    client: TakeCell<&'static flash::Client>,
+    current_state: Cell<FlashState>,
+    current_command: Cell<flash::Command>
 }
 
 //static instance for the board. Only one FLASHCALW on chip.
@@ -176,7 +191,7 @@ fn min<T: Ord>(v1: T, v2: T) -> T {
 }
 
 // This one gets stuck by WFI. Would like to implement w/o busy waiting...
-
+// TODO: tbh delete ( should never ever have to wait (b/c we're using interrupts!)
 pub fn default_wait_until_ready(flash : &FLASHCALW) {
     while !flash.get_ready_status() {    
         unsafe { 
@@ -185,32 +200,6 @@ pub fn default_wait_until_ready(flash : &FLASHCALW) {
         }
     }
 }
-
-
-/*
-pub fn default_wait_until_ready(flash : &FLASHCALW) {
-    print!("\tstarting waiting...");
-    //while !flash.is_ready() {
-    while !flash.is_ready() || !flash.get_ready_status() {
-        unsafe { 
-            println!("Going to sleep!");
-            support::wfi(); 
-        }
-    }
-    println!("done waiting");
-}
-*/
-
-/*
-pub fn default_wait_until_ready(flash : &FLASHCALW) {
-    let mut val = flash.get_ready_status();
-    while !val {
-        println!("waiting...");
-        unsafe { support::wfi(); }
-        val = flash.get_ready_status();
-    }
-}
-*/
 
 impl FLASHCALW {
 
@@ -246,7 +235,10 @@ impl FLASHCALW {
             wait_until_ready: default_wait_until_ready,
             error_status: TakeCell::new(0),
             ready: TakeCell::new(true),
-            client: TakeCell::empty()
+            client: TakeCell::empty(),
+            current_state:  Cell::new(FlashState::Unconfigured),
+            current_command:  Cell::new(flash::Command::None)
+
         }
     }
 
@@ -286,17 +278,47 @@ impl FLASHCALW {
 
 
     pub fn handle_interrupt(&self) {
-        use hil::flash::Error;
-       
+        use hil::flash::{Error, Command};
         println!("In handle_interrupt...");
         
         //let status = self.read_register(RegKey::STATUS);
         
 
+        //do common things
         //assuming it's just a command complete...
         self.ready.replace(true);
-       
-         
+        unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); };
+        
+        // find out current state and command just processed
+        match self.current_command.get() {
+            Write => {
+                
+            },
+            Read => {
+                // This isn't a real call so not an issue.   
+            },
+            Erase => {
+                match self.current_state.get() {
+                    FlashState::Unlocking => {
+                        self.current_state.set(FlashState::Erasing);
+                        // call the next function
+                    }, 
+                    FlashState::Erasing => {
+
+                    },
+                    FlashState::Locking => {
+                    }
+                }
+            }
+            None => { 
+                println!("Command:None - Complete in State {}", 
+                    self.current_state.get()); 
+                self.current_state.set(FlashState::Ready);
+            }
+
+        }
+        
+
         if(!self.client.is_none()){
             let client = self.client.take().unwrap();
            // if(client.is_configuring()) {
@@ -314,7 +336,6 @@ impl FLASHCALW {
         };*/
 
         //TODO: implement..
-        unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); };
         
 
     }
@@ -511,7 +532,7 @@ impl FLASHCALW {
     
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         (self.wait_until_ready)(self); // call the registered wait function
-        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR /*&& command != FlashCMD::CPB */) {
+        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR) {
             self.ready.replace(false);
         }
         print!("Issuing command...{}", command as u32);
@@ -927,10 +948,6 @@ impl flash::FlashController for FLASHCALW {
         }
         //enable interrupts on driver
         self.enable_ready_int(true);
-        //enable all the interrupts just for testing... maybe EEC error?
-        self.enable_lock_error_int(true);
-        self.enable_prog_error_int(true);
-        self.enable_ecc_int(true);
        
         //enable 1WS OPT?
         //self.set_flash_waitstate_and_readmode(48000000, 0, false);
@@ -945,7 +962,6 @@ impl flash::FlashController for FLASHCALW {
 
         //TODO: figure out how the config should be... shouldn't need to cuase
         // an interrupt pre-actually use.
-        //Also clear page buffer might not call an interrupt :L
     }
 
     fn get_page_size(&self) -> u32 {
@@ -1004,27 +1020,32 @@ impl flash::FlashController for FLASHCALW {
     }
     
     fn erase_page(&self, page_num: i32) {
-        //need to use flashcalw_erase_page so modified the name convention to 
-        // disambiguate function calls
+        // Enable AHB clock (encase it was off).
+        unsafe { pm::enable_clock(self.ahb_clock); }
+        
+        self.current_state.set(FlashState::Unlocking);
+        self.current_command.set(flash::Command::Erase);
+       
+        self.lock_page_region(page_num, false);
+        
         //note: it's possible that the erase_page could fail.
         //TODO: change so that it'll keep trying if erase_page doesn't have 
         //any errors...
         //while(!self.flashcalw_erase_page(page_num, true)) {};
         //not sure if you need to enable clock here...
-        unsafe { pm::enable_clock(self.ahb_clock); }
         //self.flashcalw_erase_page(page_num, true);
         //TODO: change it back so it checks...
-        self.flashcalw_erase_page(page_num, false);
+        //self.flashcalw_erase_page(page_num, false);
     }
 }
 
+//  Assumes the only Hardware Interrupt enabled for the FLASHCALW is the
+//  FRDY (Flash Ready) interrupt.
 pub unsafe extern fn FLASH_Handler() {
-    //assuming it's just a command complete...
     use common::Queue;
     use chip;
     
-    //println!("In FLASH_HANDLER");
-    //TODO: fix to follow normal convention...
+    //mark the controller as being ready to run a new command
     flash_controller.mark_ready(); 
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
