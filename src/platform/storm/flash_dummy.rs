@@ -165,9 +165,6 @@ impl Client for FlashClient {
         }
     }
 
-    fn is_configuring(&self) -> bool {
-        self.state.get() == FlashClientState::Enabling
-    }
 }
 
 // Sets up the testing for the flash driver.

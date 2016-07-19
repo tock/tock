@@ -118,7 +118,7 @@ pub enum Speed {
     HighSpeed
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum FlashState {
     Locking,
     Unlocking,
@@ -144,7 +144,8 @@ pub struct FLASHCALW {
     ready: TakeCell<bool>,
     client: TakeCell<&'static flash::Client>,
     current_state: Cell<FlashState>,
-    current_command: Cell<flash::Command>
+    current_command: Cell<flash::Command>,
+    page: Cell<i32>
 }
 
 //static instance for the board. Only one FLASHCALW on chip.
@@ -227,18 +228,18 @@ impl FLASHCALW {
     const fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock,
     hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock, mode : Speed) -> FLASHCALW {
         FLASHCALW {
-            registers: base_addr,
-            ahb_clock: pm::Clock::HSB(ahb_clk),
-            hramc1_clock: pm::Clock::HSB(hramc1_clk),
-            pb_clock: pm::Clock::PBB(pb_clk),
-            speed_mode: mode,
-            wait_until_ready: default_wait_until_ready,
-            error_status: TakeCell::new(0),
-            ready: TakeCell::new(true),
-            client: TakeCell::empty(),
-            current_state:  Cell::new(FlashState::Unconfigured),
-            current_command:  Cell::new(flash::Command::None)
-
+            registers:              base_addr,
+            ahb_clock:              pm::Clock::HSB(ahb_clk),
+            hramc1_clock:           pm::Clock::HSB(hramc1_clk),
+            pb_clock:               pm::Clock::PBB(pb_clk),
+            speed_mode:             mode,
+            wait_until_ready:       default_wait_until_ready,
+            error_status:           TakeCell::new(0),
+            ready:                  TakeCell::new(true),
+            client:                 TakeCell::empty(),
+            current_state:          Cell::new(FlashState::Unconfigured),
+            current_command:        Cell::new(flash::Command::None),
+            page:                   Cell::new(0)
         }
     }
 
@@ -291,53 +292,78 @@ impl FLASHCALW {
         
         // find out current state and command just processed
         match self.current_command.get() {
-            Write => {
-                
+            Command::Write => {
+                match self.current_state.get() {
+                    FlashState::Unlocking => {
+                        self.current_state.set(FlashState::Erasing);
+                        self.flashcalw_erase_page(self.page.get(), false);
+                    },
+                    FlashState::Erasing => {
+                        self.current_state.set(FlashState::ClearPageBuffer);
+                        self.clear_page_buffer();
+                    },
+                    FlashState::ClearPageBuffer => { 
+                        //TODO: write to the page buffer using the memory grant area.
+                        self.current_state.set(FlashState::WritePageBuffer);
+                        //self.write_to_page_bufer(data, page_num)
+                    },
+                    FlashState::WritePageBuffer => {
+                        self.current_state.set(FlashState::Writing);
+                        self.flashcalw_write_page(self.page.get());
+                    },
+                    FlashState::Writing => {
+                        self.current_state.set(FlashState::Locking);
+                        self.lock_page_region(self.page.get(), true);
+                    },
+                    FlashState::Locking => {
+                        self.current_state.set(FlashState::Ready);
+                        self.current_command.set(Command::None);
+                    },
+                    _ => { assert!(false) /* should never reach here */ }
+
+                }
             },
-            Read => {
+            Command::Read => {
                 // This isn't a real call so not an issue.   
             },
-            Erase => {
+            Command::Erase => {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
                         self.current_state.set(FlashState::Erasing);
                         // call the next function
+                        self.flashcalw_erase_page(self.page.get(), false);
+                        //TODO change this to true (maybe...)
                     }, 
                     FlashState::Erasing => {
-
+                        self.current_state.set(FlashState::Locking);
+                        self.lock_page_region(self.page.get(), true);
                     },
                     FlashState::Locking => {
-                    }
+                        self.current_state.set(FlashState::Ready);
+                        self.current_command.set(Command::None);
+                    },
+                    _ => { assert!(false); /* should never happen. */}
                 }
             }
-            None => { 
-                println!("Command:None - Complete in State {}", 
-                    self.current_state.get()); 
+            Command::None => { 
+                //println!("Command:None - Complete in State {}", 
+                //    self.current_state.get()); 
                 self.current_state.set(FlashState::Ready);
             }
 
         }
         
-
-        if(!self.client.is_none()){
-            let client = self.client.take().unwrap();
-           // if(client.is_configuring()) {
+        //IF command is none call the complete CB.
+        if self.current_command.get() == Command::None && 
+            self.current_state.get() == FlashState::Ready {
+            // Callback 
+            // TODO: use map function.
+            if(!self.client.is_none()){
+                let client = self.client.take().unwrap();
                 client.command_complete();
-           // }
-            self.client.put(Some(client));
+                self.client.put(Some(client));
+            }
         }
-        
-        
-        //the status register is now automatically cleared...
-
-        /*
-        let err = match status {
-            x if x & (1 <<     
-        };*/
-
-        //TODO: implement..
-        
-
     }
   
   
@@ -974,7 +1000,7 @@ impl flash::FlashController for FLASHCALW {
         self.get_page_count()
     }
 
-    fn read_page(&self, addr: usize, mut buffer: &mut [usize]) {
+    fn read_page(&self, addr: usize, buffer: &mut [u8]) -> i32 {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
         //guarentees page safety after read...
@@ -984,8 +1010,8 @@ impl flash::FlashController for FLASHCALW {
         let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
         unsafe {
             //TODO: the from_raw_pats fails with page being at 0x0, b/c it thinks it's null...
-            let slice = slice::from_raw_parts(page, (FLASH_PAGE_SIZE as usize) / mem::size_of::<usize>());    
-            buffer.clone_from_slice(slice);
+         /*   let slice = slice::from_raw_parts(page, (FLASH_PAGE_SIZE as usize) / mem::size_of::<usize>());    
+            buffer.clone_from_slice(slice);*/
         }
         
         if(!self.client.is_none()){
@@ -993,41 +1019,42 @@ impl flash::FlashController for FLASHCALW {
             client.command_complete();
             self.client.put(Some(client));
         }
-        
+        0
         //for now assume addr is pagenum (TODO)
         
     }
     
-    fn write_page(&self, addr: usize, data: & [u8]) {
-        //enable clock incase it's off
+    fn write_page(&self, addr: usize, data: & [u8]) -> i32{
+        // enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
-       
-        //erase page
-//        self.erase_page(addr as i32);
- //       println!("\twrite_page: erased page"); 
-        self.clear_page_buffer();
-        println!("\twrite_page: cleared buffer"); 
-        self.erase_page(addr as i32);
-        println!("\twrite_page: erased page"); 
         
-        //write to page buffer @ 0x0
-        self.write_to_page_buffer(data, addr * 512);
-
-        //TODO addr is being treted as pgnum here...
-
-        //issue write command to write the page buffer to some specific page!
-        self.flashcalw_write_page( addr as i32);
+        // if we're not ready don't take the command.
+        if self.current_state.get() != FlashState::Ready {
+            return -1
+        }
+        
+        //  TODO: figure out which is best. Thinking using a i32 is better.
+        self.page.set(addr as i32);
+        self.current_state.set(FlashState::Unlocking);
+        self.current_command.set(flash::Command::Write);
+        self.lock_page_region(addr as i32, false);
+        0 
     }
     
-    fn erase_page(&self, page_num: i32) {
+    // Returns the status (-1 on failure, 0 on successfully went through)
+    fn erase_page(&self, page_num: i32) -> i32 {
         // Enable AHB clock (encase it was off).
         unsafe { pm::enable_clock(self.ahb_clock); }
-        
+        if self.current_state.get() != FlashState::Ready {
+            return -1
+        }
+        self.page.set(page_num);
         self.current_state.set(FlashState::Unlocking);
         self.current_command.set(flash::Command::Erase);
-       
-        self.lock_page_region(page_num, false);
         
+
+        self.lock_page_region(page_num, false);
+        0 
         //note: it's possible that the erase_page could fail.
         //TODO: change so that it'll keep trying if erase_page doesn't have 
         //any errors...

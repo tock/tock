@@ -35,10 +35,6 @@ impl<'a, F: FlashController> Client for Flash<'a, F> {
     fn command_complete(&self) {
         unimplemented!()
     }       
-
-    fn is_configuring(&self) -> bool {
-        unimplemented!()
-    }
 }
 
 //driver implementation
@@ -70,7 +66,7 @@ impl<'a, F: FlashController> Driver for Flash<'a, F> {
     fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         match command_num {
             0 /* read_page  */ => {
-                let mut x : [usize;129] = [0;129];
+                let mut x : [u8;512] = [0;512];
                 self.controller.read_page(data, &mut x);
                 1             
             },

@@ -10,7 +10,7 @@ pub enum Error {
     ECC,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Command {
     Write,
     Read,
@@ -47,10 +47,10 @@ pub trait FlashController {
 
     //  Read_page actually doesn't take a while. 
     //  It's simply reading from memory...
-    fn read_page(&self, addr : usize, buffer: &mut [u8]);
+    fn read_page(&self, addr : usize, buffer: &mut [u8]) -> i32;
         
-    fn write_page(&self, addr : usize, data: & [u8]);
-    fn erase_page(&self, page_num: i32);
+    fn write_page(&self, addr : usize, data: & [u8]) -> i32;
+    fn erase_page(&self, page_num: i32) -> i32;
 
 }
 
