@@ -1,7 +1,7 @@
 #include <firestorm.h>
 #include <gpio.h>
 
-void main(void) {
+int main(void) {
     gpio_enable_output(LED_0);
 
     while(1) {
