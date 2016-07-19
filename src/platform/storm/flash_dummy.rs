@@ -3,7 +3,7 @@
 /// will generate an interrupt.
 
 use sam4l::flashcalw;
-use hil::flash::{FlashController, Client};
+use hil::flash::{FlashController, Client, Error};
 use core::mem;
 use core::cell::Cell;
 
@@ -47,7 +47,7 @@ const MAX_PAGE_NUM: i32 = 80;   // Page to go up to
 
 impl Client for FlashClient {
 
-    fn command_complete(&self) {
+    fn command_complete(&self, error : Error) {
         
         print!("Client Notified that job done in state {}", self.state.get() as u32);
         
@@ -129,7 +129,7 @@ impl Client for FlashClient {
                 let data : [u8;512] = [self.val_data.get(); 512];
                 dev.write_to_page_buffer(&data, (self.page.get() * 512) as usize);
                 self.state.set(FlashClientState::Writing);
-                self.command_complete(); // we need to call this here as 
+                self.command_complete(Error::CommandComplete); // we need to call this here as 
                                          // write_to_page_buffer isn't really a
                                          // command (thus no interrupt generated).
             },
@@ -147,7 +147,7 @@ impl Client for FlashClient {
                             self.state.set(FlashClientState::Erasing);
                             println!("==============Starting work on page {} \
                                 =================", self.page.get());
-                            self.command_complete();
+                            self.command_complete(Error::CommandComplete);
                         }
                     } else {
                         println!("\t Still Cycling page {}", self.page.get());
@@ -157,7 +157,7 @@ impl Client for FlashClient {
                         self.val_data.set(self.val_data.get() + 1);
                         //continue cycle
                         self.state.set(FlashClientState::Erasing);
-                        self.command_complete();
+                        self.command_complete(Error::CommandComplete);
                     }
                 }
             }

@@ -32,10 +32,11 @@ impl<'a, F: FlashController> Flash <'a, F> {
 
 //client implementation
 impl<'a, F: FlashController> Client for Flash<'a, F> {
-    fn command_complete(&self) {
+    fn command_complete(&self, err: Error) {
         unimplemented!()
     }       
 }
+
 
 //driver implementation
 impl<'a, F: FlashController> Driver for Flash<'a, F> {
@@ -65,18 +66,18 @@ impl<'a, F: FlashController> Driver for Flash<'a, F> {
     //          to the app...
     fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         match command_num {
-            0 /* read_page  */ => {
+            0  /* read_page */  => {
                 let mut x : [u8;512] = [0;512];
-                self.controller.read_page(data, &mut x);
+               // self.controller.read_page(data, &mut x);
                 1             
             },
-            1 /* write_page */  => {
+            1  /* write_page */  => {
                 let x : [u8;512] = [0;512];
-                self.controller.write_page(data, &x); 
+               // self.controller.write_page(data, &x); 
                 1
             },
-            2 /* erase_page */ => {
-                self.controller.erase_page(data as i32);
+            2  /* erase_page */ => {
+                //self.controller.erase_page(data as i32);
                 1
             },
             _ => { -1 }
@@ -88,4 +89,4 @@ impl<'a, F: FlashController> Driver for Flash<'a, F> {
         unimplemented!()    
     }
     
-}
+} 

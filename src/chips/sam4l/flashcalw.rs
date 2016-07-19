@@ -210,7 +210,6 @@ impl FLASHCALW {
         });
     }
 
-    pub fn set_client(&self, client: &'static flash::Client) { self.client.put(Some(client)); }
 
     pub fn get_ready_status(&self) -> bool {
         unsafe {  
@@ -281,16 +280,48 @@ impl FLASHCALW {
     pub fn handle_interrupt(&self) {
         use hil::flash::{Error, Command};
         println!("In handle_interrupt...");
-        
-        //let status = self.read_register(RegKey::STATUS);
-        
+     
+        let error_status = self.error_status.take().unwrap();
 
-        //do common things
-        //assuming it's just a command complete...
+        //  Since the only interrupt request on is FRDY, a command should have
+        //  either completed or failed at this point.
+        //TODO: delete line below 
         self.ready.replace(true);
+
+        //enable interrupt again
         unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); };
+
+        // Check for errors and report to Client if there are
+        if error_status != 0 {
+            //reset commands / ready
+            self.current_command.set(Command::None);
+            self.current_state.set(FlashState::Ready);
+            
+            //call command complete with error
+            match error_status {
+                4 =>  {
+                    self.client.map(|value| {
+                        value.command_complete(Error::LockE);
+                    });
+                },
+                8 =>  {
+                    self.client.map(|value| {
+                        value.command_complete(Error::ProgE);
+                    });
+                },
+                12 => {
+                    self.client.map(|value| {
+                        value.command_complete(Error::LockProgE);
+                    });
+                },
+                _ => { /* TODO: could add ECCERR here... but that'd be so rare/ odd */}
+            }
+            
+            return;
+        }
         
-        // find out current state and command just processed
+        //  Part of a command succeeded -- continue onto next steps.
+        
         match self.current_command.get() {
             Command::Write => {
                 match self.current_state.get() {
@@ -323,14 +354,13 @@ impl FLASHCALW {
 
                 }
             },
-            Command::Read => {
-                // This isn't a real call so not an issue.   
+            Command::Read => { 
+                // This isn't a real call and is handled synchronously (not here).
             },
             Command::Erase => {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
                         self.current_state.set(FlashState::Erasing);
-                        // call the next function
                         self.flashcalw_erase_page(self.page.get(), false);
                         //TODO change this to true (maybe...)
                     }, 
@@ -353,16 +383,12 @@ impl FLASHCALW {
 
         }
         
-        //IF command is none call the complete CB.
+        //  If the command is finished call the complete CB.
         if self.current_command.get() == Command::None && 
             self.current_state.get() == FlashState::Ready {
-            // Callback 
-            // TODO: use map function.
-            if(!self.client.is_none()){
-                let client = self.client.take().unwrap();
-                client.command_complete();
-                self.client.put(Some(client));
-            }
+            self.client.map(|value| {
+                value.command_complete(Error::CommandComplete);
+            });
         }
     }
   
@@ -910,7 +936,7 @@ impl FLASHCALW {
        //write to the page_buffer
        //page_buffer.clone_from_slice(&data);
        
-       // Errata @45.1.7 has been killing me... nope :l
+       // Errata @45.1.7 
         unsafe {
             use core::ptr;
             let mut start_buffer : *const u8 = &data[0] as *const u8;
@@ -926,10 +952,6 @@ impl FLASHCALW {
                     data_transfered += 8;
                 }
         }
-    }
-
-    pub fn set_ready(&self) {
-        self.ready.replace(true);
     }
 
     /// FOR DEBUGGING PURPOSES...
@@ -962,6 +984,10 @@ impl FLASHCALW {
 
 // implement the generic calls using the low-lv functions.
 impl flash::FlashController for FLASHCALW {
+    
+    fn set_client(&self, client: &'static flash::Client) { 
+        self.client.put(Some(client)); 
+    }
     
     fn configure(&mut self) {
         
@@ -1000,31 +1026,30 @@ impl flash::FlashController for FLASHCALW {
         self.get_page_count()
     }
 
-    fn read_page(&self, addr: usize, buffer: &mut [u8]) -> i32 {
+    fn read(&self, address: usize, size: u32, buffer: &mut [u8]) -> i32 {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
         //guarentees page safety after read...
-        (self.wait_until_ready)(self); // call the registered wait function
         //let page: *const usize  = (((addr) / (FLASH_PAGE_SIZE as usize)) * (FLASH_PAGE_SIZE as usize)) as *const usize;
         //actually the above calculation uses addr as an addr...
+        /*
         let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
         unsafe {
             //TODO: the from_raw_pats fails with page being at 0x0, b/c it thinks it's null...
-         /*   let slice = slice::from_raw_parts(page, (FLASH_PAGE_SIZE as usize) / mem::size_of::<usize>());    
-            buffer.clone_from_slice(slice);*/
-        }
-        
+            let slice = slice::from_raw_parts(page, (FLASH_PAGE_SIZE as usize) / mem::size_of::<usize>());    
+            buffer.clone_from_slice(slice);
+        }*/
+        //call command complete...
+        /* 
         if(!self.client.is_none()){
             let client = self.client.take().unwrap();
             client.command_complete();
             self.client.put(Some(client));
-        }
+        }*/
         0
-        //for now assume addr is pagenum (TODO)
-        
     }
     
-    fn write_page(&self, addr: usize, data: & [u8]) -> i32{
+    fn write_page(&self, page_num: i32, data: & [u8]) -> i32{
         // enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
         
@@ -1034,10 +1059,10 @@ impl flash::FlashController for FLASHCALW {
         }
         
         //  TODO: figure out which is best. Thinking using a i32 is better.
-        self.page.set(addr as i32);
+        self.page.set(page_num);
         self.current_state.set(FlashState::Unlocking);
         self.current_command.set(flash::Command::Write);
-        self.lock_page_region(addr as i32, false);
+        self.lock_page_region(page_num, false);
         0 
     }
     
@@ -1056,13 +1081,7 @@ impl flash::FlashController for FLASHCALW {
         self.lock_page_region(page_num, false);
         0 
         //note: it's possible that the erase_page could fail.
-        //TODO: change so that it'll keep trying if erase_page doesn't have 
-        //any errors...
-        //while(!self.flashcalw_erase_page(page_num, true)) {};
-        //not sure if you need to enable clock here...
-        //self.flashcalw_erase_page(page_num, true);
         //TODO: change it back so it checks...
-        //self.flashcalw_erase_page(page_num, false);
     }
 }
 
