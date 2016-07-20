@@ -47,6 +47,108 @@ const MAX_PAGE_NUM: i32 = 80;   // Page to go up to
 
 impl Client for FlashClient {
 
+    
+    fn command_complete(&self, error : Error) {
+        
+        print!("Client Notified that job done in state {}", self.state.get() as u32);
+        
+        let dev = unsafe { &mut flashcalw::flash_controller };
+        
+        match self.state.get() {
+            FlashClientState::Enabling => {
+                    self.state.set(FlashClientState::EWRCycleStart);
+                    println!("===========Transitioning \
+                        to Erasing/Writing/Reading========");
+                    dev.enable_ws1_read_opt(true);
+                    // This enabled High Speed Mode using a command
+                    // which generates the interrupt for the next stage.
+                    dev.set_flash_waitstate_and_readmode(48000000, 0, false);
+            },
+            FlashClientState::Writing => {
+                println!("\tWriting page {}", self.page.get());
+                let data : [u8;512] = [self.val_data.get(); 512];
+                dev.write_page(self.page.get(), &data);
+                self.state.set(FlashClientState::Reading);
+            },
+            FlashClientState::Reading => {
+                //  Again like WritePageBuffer, this isn't a command. But should be
+                //  triggered after the write (hopefully).
+                let mut pass = true;
+                
+                //  Prints out any differences in the flash page. 
+                println!("\treading page {}", self.page.get());
+                let mut data : [u8; 512] = [0;512];
+                dev.read(self.page.get() as usize * 512, 512, &mut data);
+                
+                //verify what we expect
+                for i in 0..512 {
+                    if( data[i] != self.val_data.get()) {
+                        pass = false;
+                        println!("\t\t======bit:{} expected {}, got {}========", i, 
+                           self.val_data.get(), data[i]);
+                        
+                    }
+                }
+                
+                if(!pass) {
+                    for j in 0..3 {
+                        println!("\treading page {}", self.page.get());
+                        let mut data : [u8; 512] = [0;512];
+                        dev.read(self.page.get() as usize * 512, 512, &mut data);
+                        //verify what we expect
+                        for i in 0..512 {
+                            if data[i] != self.val_data.get() {
+                            println!("\t\t\t======bit:{} expected {}, got {}========", i, 
+                               self.val_data.get(), data[i]);
+                            
+                            }
+                        }
+                    }
+                }
+                    
+                //start cycle again
+                self.state.set(FlashClientState::EWRCycleStart);
+            },
+            FlashClientState::Erasing => {
+                println!("\tErasing page {}", self.page.get());
+                dev.erase_page(self.page.get());
+                self.state.set(FlashClientState::Writing);
+            },
+            FlashClientState::EWRCycleStart => {
+                if self.page.get() <= MAX_PAGE_NUM {
+                    if self.cycles_finished.get() >= self.num_cycle_per_page {
+                        //reset count
+                        self.cycles_finished.set(1);
+                        //increment pg num
+                        self.page.set(self.page.get() + 1);
+                        //increment val_data
+                        self.val_data.set(self.val_data.get() + 1);
+                        //start new cycle
+                        if self.page.get() <= MAX_PAGE_NUM {
+                            self.state.set(FlashClientState::Erasing);
+                            println!("==============Starting work on page {} \
+                                =================", self.page.get());
+                            self.command_complete(Error::CommandComplete);
+                        }
+                    } else {
+                        println!("\t Still Cycling page {}", self.page.get());
+                        //increment cycle count
+                        self.cycles_finished.set(self.cycles_finished.get() + 1);
+                        //increment val_data
+                        self.val_data.set(self.val_data.get() + 1);
+                        //continue cycle
+                        self.state.set(FlashClientState::Erasing);
+                        self.command_complete(Error::CommandComplete);
+                    }
+                }
+            },
+            _ => { panic!("Should never reach here!"); }
+
+        }
+    } 
+
+    /*  // This is the old state-machine controller (pre-interal interrupts)
+        // Might be useful to have if debugging...
     fn command_complete(&self, error : Error) {
         
         print!("Client Notified that job done in state {}", self.state.get() as u32);
@@ -83,7 +185,7 @@ impl Client for FlashClient {
                 //  Prints out any differences in the flash page. 
                 println!("\treading page {}", self.page.get());
                 let mut data : [u8; 512] = [0;512];
-                dev.read_page_raw(self.page.get(), &mut data);
+                dev.read(self.page.get() as usize * 512, 512, &mut data);
                 
                 //verify what we expect
                 for i in 0..512 {
@@ -99,7 +201,7 @@ impl Client for FlashClient {
                     for j in 0..3 {
                         println!("\treading page {}", self.page.get());
                         let mut data : [u8; 512] = [0;512];
-                        dev.read_page_raw(self.page.get(), &mut data);
+                        dev.read(self.page.get() as usize * 512, 512, &mut data);
                         //verify what we expect
                         for i in 0..512 {
                             if data[i] != self.val_data.get() {
@@ -127,7 +229,8 @@ impl Client for FlashClient {
             FlashClientState::WritePageBuffer => {
                 println!("\tWriting to page buffer");
                 let data : [u8;512] = [self.val_data.get(); 512];
-                dev.write_to_page_buffer(&data, (self.page.get() * 512) as usize);
+                // TODO: note this won't work b/c of the no writing to page buffer.
+                //dev.write_to_page_buffer(&data, (self.page.get() * 512) as usize);
                 self.state.set(FlashClientState::Writing);
                 self.command_complete(Error::CommandComplete); // we need to call this here as 
                                          // write_to_page_buffer isn't really a
@@ -163,7 +266,7 @@ impl Client for FlashClient {
             }
 
         }
-    }
+    } */
 
 }
 
@@ -186,6 +289,7 @@ pub fn set_read_write_test() {
     
     //kicks off the interrupts
     dev.lock_page_region(0, false);
+    //dev.clear_page_buffer();
 
 }
 

@@ -132,7 +132,6 @@ pub enum FlashState {
 }
 
 // The FLASHCALW controller
-//TODO: finishing beefing up...
 pub struct FLASHCALW {
     registers: *mut Registers,
     ahb_clock: pm::Clock,
@@ -145,7 +144,8 @@ pub struct FLASHCALW {
     client: TakeCell<&'static flash::Client>,
     current_state: Cell<FlashState>,
     current_command: Cell<flash::Command>,
-    page: Cell<i32>
+    page: Cell<i32>,
+    page_buffer: TakeCell<[u8; FLASH_PAGE_SIZE as usize]>
 }
 
 //static instance for the board. Only one FLASHCALW on chip.
@@ -238,7 +238,8 @@ impl FLASHCALW {
             client:                 TakeCell::empty(),
             current_state:          Cell::new(FlashState::Unconfigured),
             current_command:        Cell::new(flash::Command::None),
-            page:                   Cell::new(0)
+            page:                   Cell::new(0),
+            page_buffer:            TakeCell::new([0; FLASH_PAGE_SIZE as usize])
         }
     }
 
@@ -286,7 +287,7 @@ impl FLASHCALW {
         //  Since the only interrupt request on is FRDY, a command should have
         //  either completed or failed at this point.
         //TODO: delete line below 
-        self.ready.replace(true);
+        // self.ready.replace(true);
 
         //enable interrupt again
         unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); };
@@ -321,7 +322,7 @@ impl FLASHCALW {
         }
         
         //  Part of a command succeeded -- continue onto next steps.
-        
+         
         match self.current_command.get() {
             Command::Write => {
                 match self.current_state.get() {
@@ -334,9 +335,8 @@ impl FLASHCALW {
                         self.clear_page_buffer();
                     },
                     FlashState::ClearPageBuffer => { 
-                        //TODO: write to the page buffer using the memory grant area.
                         self.current_state.set(FlashState::WritePageBuffer);
-                        //self.write_to_page_bufer(data, page_num)
+                        self.write_to_page_buffer(self.page.get() as usize * 512);
                     },
                     FlashState::WritePageBuffer => {
                         self.current_state.set(FlashState::Writing);
@@ -376,8 +376,7 @@ impl FLASHCALW {
                 }
             }
             Command::None => { 
-                //println!("Command:None - Complete in State {}", 
-                //    self.current_state.get()); 
+                println!("Command:None Completed"); 
                 self.current_state.set(FlashState::Ready);
             }
 
@@ -606,12 +605,7 @@ impl FLASHCALW {
         
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
         invalidate_cache();
-        //TODO: fix this. Don't want this jankyness in final version 
-        //if(!self.client.is_none() && { let cl = self.client.take().unwrap(); let res = cl.is_configuring(); 
-        //self.client.put(Some(cl)); res}){ println!("skipped waiting..");} 
-        //else{
-         //   (self.wait_until_ready)(self);
-        //}
+        
         self.error_status.put(Some(self.get_error_status()));
         println!("\tError status:{}", self.debug_error_status());
         println!("Command issued");
@@ -924,24 +918,26 @@ impl FLASHCALW {
         self.issue_command(FlashCMD::WUP, -1);    
     } 
     
-    //Instead of having several memset/ memcpy functions,
-    //will only have one to write to the page buffer
-    //note all locations are 
-    pub fn write_to_page_buffer(&self, data : &[u8], pg_buff_addr : usize) {
-       //let mut page_buffer : &mut [u8] = unsafe { mem::transmute(0x0) };
-       let mut page_buffer : *mut u8 = pg_buff_addr as *mut u8;
-       //let mut page_buffer : [u8; FLASH_PAGE_SIZE as usize] = unsafe { mem::transmute(0x0) }; 
-       let cleared_double_word : [u8; 8] = [255; 8];
-       let clr_ptr : *const u8 = &cleared_double_word[0] as *const u8;
-       //write to the page_buffer
-       //page_buffer.clone_from_slice(&data);
+    //  Instead of having several memset/memcpy functions as Atmel's ASF implementation
+    //  will only have one to write to the page buffer
+    pub fn write_to_page_buffer(&self, pg_buff_addr : usize) {
+        let mut page_buffer : *mut u8 = pg_buff_addr as *mut u8;
        
-       // Errata @45.1.7 
+        //   Errata 45.1.7 - Need to write a 64-bit all one word for every write to
+        //   the page buffer.
+        let cleared_double_word : [u8; 8] = [255; 8];
+        let clr_ptr : *const u8 = &cleared_double_word[0] as *const u8;
+        
+        //  borrow the page buffer from the take cell
+        let buffer = self.page_buffer.take().unwrap();
+       
         unsafe {
             use core::ptr;
-            let mut start_buffer : *const u8 = &data[0] as *const u8;
+
+            let mut start_buffer : *const u8 = &buffer[0] as *const u8;
             let mut data_transfered : u32 = 0;
                 while data_transfered < FLASH_PAGE_SIZE {
+       
                     //errata copy..
                     ptr::copy(clr_ptr, page_buffer, 8);
 
@@ -952,6 +948,8 @@ impl FLASHCALW {
                     data_transfered += 8;
                 }
         }
+        //  replace the page buffer in the take cell
+        self.page_buffer.put(Some(buffer));
     }
 
     /// FOR DEBUGGING PURPOSES...
@@ -960,26 +958,6 @@ impl FLASHCALW {
         self.error_status.put(Some(0));
         status
     }
-
-    pub fn enable_ahb(&self) {
-        unsafe { pm::enable_clock(self.ahb_clock); }
-    }
-    
-    //TODO: fix this up. 
-    /* Just a 'rawer' version of read page. */
-    pub fn read_page_raw(&self, addr : i32, buffer : &mut [u8]) {
-        //let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
-        let page : *const u8 = (addr * (FLASH_PAGE_SIZE as i32)) as *const u8;
-        //let mut buffer_ptr : *mut u8 = &buffer as *mut u8;
-        //let mut tmp_buffer = [0usize; 128];
-        unsafe {
-            //TODO: the from_raw_pats fails with page being at 0x0, b/c it thinks it's null...
-            let slice = slice::from_raw_parts(page, FLASH_PAGE_SIZE as usize);    
-            buffer.clone_from_slice(slice);
-        }
-
-    }
-
 }
 
 // implement the generic calls using the low-lv functions.
@@ -990,7 +968,6 @@ impl flash::FlashController for FLASHCALW {
     }
     
     fn configure(&mut self) {
-        
         //enable all clocks (if they aren't on already...)
         unsafe {
             pm::enable_clock(self.ahb_clock);
@@ -1011,7 +988,6 @@ impl flash::FlashController for FLASHCALW {
        
         println!("Configured");
 
-
         //TODO: figure out how the config should be... shouldn't need to cuase
         // an interrupt pre-actually use.
     }
@@ -1025,30 +1001,30 @@ impl flash::FlashController for FLASHCALW {
         unsafe { pm::enable_clock(self.pb_clock); }
         self.get_page_count()
     }
-
-    fn read(&self, address: usize, size: u32, buffer: &mut [u8]) -> i32 {
+    
+    // Address is some raw address in flash that you want to read.
+    fn read(&self, address: usize, size: usize, buffer: &mut [u8]) -> i32 {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
-        //guarentees page safety after read...
-        //let page: *const usize  = (((addr) / (FLASH_PAGE_SIZE as usize)) * (FLASH_PAGE_SIZE as usize)) as *const usize;
-        //actually the above calculation uses addr as an addr...
-        /*
-        let page : *const usize = (addr * (FLASH_PAGE_SIZE as usize)) as *const usize;
+        
+        //  check that address makes sense and buffer has room
+        if address > (self.get_flash_size() as usize) || 
+            address + size > (self.get_flash_size() as usize) || 
+            address + size < size || buffer.len() < size  {
+            // invalid flash address
+            return -1
+        }
+
+        let mut byte : *const u8 = address as *const u8;
         unsafe {
-            //TODO: the from_raw_pats fails with page being at 0x0, b/c it thinks it's null...
-            let slice = slice::from_raw_parts(page, (FLASH_PAGE_SIZE as usize) / mem::size_of::<usize>());    
-            buffer.clone_from_slice(slice);
-        }*/
-        //call command complete...
-        /* 
-        if(!self.client.is_none()){
-            let client = self.client.take().unwrap();
-            client.command_complete();
-            self.client.put(Some(client));
-        }*/
+            for i in 0..size {
+                buffer[i] = *byte;
+                byte = byte.offset(1); 
+            }
+        }
         0
     }
-    
+
     fn write_page(&self, page_num: i32, data: & [u8]) -> i32{
         // enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
@@ -1058,7 +1034,14 @@ impl flash::FlashController for FLASHCALW {
             return -1
         }
         
-        //  TODO: figure out which is best. Thinking using a i32 is better.
+        //  check data length is of size 'page_size'
+        if data.len() != self.get_page_size() as usize {
+            return -1
+        }
+
+        self.page_buffer.map(|value| {
+            value.clone_from_slice(&data);
+        });
         self.page.set(page_num);
         self.current_state.set(FlashState::Unlocking);
         self.current_command.set(flash::Command::Write);
@@ -1068,20 +1051,17 @@ impl flash::FlashController for FLASHCALW {
     
     // Returns the status (-1 on failure, 0 on successfully went through)
     fn erase_page(&self, page_num: i32) -> i32 {
-        // Enable AHB clock (encase it was off).
+        // Enable AHB clock (incase it was off).
         unsafe { pm::enable_clock(self.ahb_clock); }
         if self.current_state.get() != FlashState::Ready {
             return -1
         }
+        
         self.page.set(page_num);
         self.current_state.set(FlashState::Unlocking);
         self.current_command.set(flash::Command::Erase);
-        
-
         self.lock_page_region(page_num, false);
         0 
-        //note: it's possible that the erase_page could fail.
-        //TODO: change it back so it checks...
     }
 }
 
@@ -1092,6 +1072,7 @@ pub unsafe extern fn FLASH_Handler() {
     use chip;
     
     //mark the controller as being ready to run a new command
+    println!("Marking FC as ready");
     flash_controller.mark_ready(); 
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);

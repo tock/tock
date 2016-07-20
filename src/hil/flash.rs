@@ -48,7 +48,7 @@ pub trait FlashController {
 
     //  Read_page actually doesn't take a while => will do it synchronously.
     //  This call will fail if size and the buffer's size is different. 
-    fn read(&self, address : usize, size: u32, buffer: &mut [u8]) -> i32;
+    fn read(&self, address : usize, size: usize, buffer: &mut [u8]) -> i32;
        
     // Write fails if data isn't of size page size.
     fn write_page(&self, page_num : i32, data: & [u8]) -> i32;
