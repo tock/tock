@@ -89,7 +89,7 @@ impl Client for FlashClient {
                         
                     }
                 }
-                
+                 
                 if(!pass) {
                     for j in 0..3 {
                         println!("\treading page {}", self.page.get());

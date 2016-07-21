@@ -122,7 +122,6 @@ pub enum Speed {
 pub enum FlashState {
     Locking,
     Unlocking,
-    ClearPageBuffer,
     WritePageBuffer,
     Writing,
     Reading,
@@ -281,13 +280,16 @@ impl FLASHCALW {
     pub fn handle_interrupt(&self) {
         use hil::flash::{Error, Command};
         println!("In handle_interrupt...");
-     
+        
+        //  mark the controller as ready
+        unsafe { 
+            self.mark_ready();  
+        }
         let error_status = self.error_status.take().unwrap();
+        self.error_status.put(Some(error_status));
 
         //  Since the only interrupt request on is FRDY, a command should have
         //  either completed or failed at this point.
-        //TODO: delete line below 
-        // self.ready.replace(true);
 
         //enable interrupt again
         unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); };
@@ -327,26 +329,35 @@ impl FLASHCALW {
             Command::Write => {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
+                        println!("Writing: Unlocked Page");
                         self.current_state.set(FlashState::Erasing);
                         self.flashcalw_erase_page(self.page.get(), false);
                     },
                     FlashState::Erasing => {
-                        self.current_state.set(FlashState::ClearPageBuffer);
+                        println!("Writing: Erased Page");
+                        self.current_state.set(FlashState::WritePageBuffer);
                         self.clear_page_buffer();
                     },
-                    FlashState::ClearPageBuffer => { 
-                        self.current_state.set(FlashState::WritePageBuffer);
-                        self.write_to_page_buffer(self.page.get() as usize * 512);
-                    },
                     FlashState::WritePageBuffer => {
+                        //  Note write page buffer isn't really a command, thus
+                        //  I'm combining it with a call to write_page which saves
+                        //  the page.
+                        println!("Writing: Cleared Page Buffer and Writing to it!");
+                        self.write_to_page_buffer(self.page.get() as usize 
+                            * FLASH_PAGE_SIZE as usize);
+                        
                         self.current_state.set(FlashState::Writing);
                         self.flashcalw_write_page(self.page.get());
                     },
                     FlashState::Writing => {
+                        println!("Writing: Wrote Page"); 
+                        // Flush the cache
+                        invalidate_cache();
                         self.current_state.set(FlashState::Locking);
                         self.lock_page_region(self.page.get(), true);
                     },
                     FlashState::Locking => {
+                        println!("Writing: Locked Page"); 
                         self.current_state.set(FlashState::Ready);
                         self.current_command.set(Command::None);
                     },
@@ -356,19 +367,23 @@ impl FLASHCALW {
             },
             Command::Read => { 
                 // This isn't a real call and is handled synchronously (not here).
+                assert!(false);
             },
             Command::Erase => {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
+                        println!("Erasing: Unlocked Page"); 
                         self.current_state.set(FlashState::Erasing);
                         self.flashcalw_erase_page(self.page.get(), false);
                         //TODO change this to true (maybe...)
                     }, 
                     FlashState::Erasing => {
+                        println!("Erasing: Erased Page"); 
                         self.current_state.set(FlashState::Locking);
                         self.lock_page_region(self.page.get(), true);
                     },
                     FlashState::Locking => {
+                        println!("Erasing: Locked Page"); 
                         self.current_state.set(FlashState::Ready);
                         self.current_command.set(Command::None);
                     },
@@ -604,7 +619,6 @@ impl FLASHCALW {
         }
         
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
-        invalidate_cache();
         
         self.error_status.put(Some(self.get_error_status()));
         println!("\tError status:{}", self.debug_error_status());
@@ -930,7 +944,7 @@ impl FLASHCALW {
         
         //  borrow the page buffer from the take cell
         let buffer = self.page_buffer.take().unwrap();
-       
+
         unsafe {
             use core::ptr;
 
@@ -955,7 +969,7 @@ impl FLASHCALW {
     /// FOR DEBUGGING PURPOSES...
     pub fn debug_error_status(&self) -> u32 {
         let status = self.error_status.take().unwrap();
-        self.error_status.put(Some(0));
+        self.error_status.put(Some(status));
         status
     }
 }
@@ -1014,7 +1028,7 @@ impl flash::FlashController for FLASHCALW {
             // invalid flash address
             return -1
         }
-
+        
         let mut byte : *const u8 = address as *const u8;
         unsafe {
             for i in 0..size {
@@ -1042,6 +1056,7 @@ impl flash::FlashController for FLASHCALW {
         self.page_buffer.map(|value| {
             value.clone_from_slice(&data);
         });
+
         self.page.set(page_num);
         self.current_state.set(FlashState::Unlocking);
         self.current_command.set(flash::Command::Write);
@@ -1049,7 +1064,6 @@ impl flash::FlashController for FLASHCALW {
         0 
     }
     
-    // Returns the status (-1 on failure, 0 on successfully went through)
     fn erase_page(&self, page_num: i32) -> i32 {
         // Enable AHB clock (incase it was off).
         unsafe { pm::enable_clock(self.ahb_clock); }
@@ -1071,9 +1085,7 @@ pub unsafe extern fn FLASH_Handler() {
     use common::Queue;
     use chip;
     
-    //mark the controller as being ready to run a new command
-    println!("Marking FC as ready");
-    flash_controller.mark_ready(); 
+    //  reset the nvic interrupt bit for flash and queue a handle interrupt
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
 }
