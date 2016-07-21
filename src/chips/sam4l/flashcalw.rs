@@ -39,7 +39,7 @@ enum RegKey {
 }
 
 // This is the pico cache registers...
-
+#[allow(dead_code)]
 struct Picocache_Registers {
     reserved_1:                             [u8;0x8],
     picocache_control:                      usize,
@@ -159,17 +159,17 @@ const FLASH_NB_OF_REGIONS : u32 = 16;
 const FLASHCALW_REGIONS : u32 = FLASH_NB_OF_REGIONS;
 const FLASHCALW_CMD_KEY : usize = 0xA5;
 
+#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
 const FLASH_FREQ_PS1_FWS_1_FWU_MAX_FREQ : u32 = 12000000;
+#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
 const FLASH_FREQ_PS0_FWS_0_MAX_FREQ : u32 = 18000000;
+#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
 const FLASH_FREQ_PS0_FWS_1_MAX_FREQ : u32 = 36000000;
+#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
 const FLASH_FREQ_PS1_FWS_0_MAX_FREQ : u32 = 8000000;
 
-// These frequencies is not used anywhere, but are in the original library...
-// so commenting them out...
-// const FLASH_FREQ_PS1_FWS_1_MAX_FREQ : u32 = 12000000; 
-//const FLASH_FREQ_PS2_FWS_1_MAX_FREQ : u32 = 48000000;
 
-//#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE)]
+#[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
 const FLASH_FREQ_PS2_FWS_0_MAX_FREQ : u32 = 24000000;
 
 //helper for gp fuses all one...
@@ -190,16 +190,17 @@ fn min<T: Ord>(v1: T, v2: T) -> T {
     if v1 <= v2 { v1 } else { v2 }    
 }
 
-// This one gets stuck by WFI. Would like to implement w/o busy waiting...
-// TODO: tbh delete ( should never ever have to wait (b/c we're using interrupts!)
+// Should never ever have to wait (b/c we're using interrupts!)
 pub fn default_wait_until_ready(flash : &FLASHCALW) {
     while !flash.get_ready_status() {    
         unsafe { 
             println!("Going to sleep!");
-            //support::wfi(); 
         }
     }
 }
+    
+// TODO: remove!!
+static mut num_cmd_iss : i32 = 0; 
 
 impl FLASHCALW {
 
@@ -284,15 +285,15 @@ impl FLASHCALW {
         //  mark the controller as ready
         unsafe { 
             self.mark_ready();  
+            nvic::enable(nvic::NvicIdx::HFLASHC);
         }
+       
+
         let error_status = self.error_status.take().unwrap();
         self.error_status.put(Some(error_status));
 
         //  Since the only interrupt request on is FRDY, a command should have
         //  either completed or failed at this point.
-
-        //enable interrupt again
-        unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); };
 
         // Check for errors and report to Client if there are
         if error_status != 0 {
@@ -317,7 +318,7 @@ impl FLASHCALW {
                         value.command_complete(Error::LockProgE);
                     });
                 },
-                _ => { /* TODO: could add ECCERR here... but that'd be so rare/ odd */}
+                _ => {}
             }
             
             return;
@@ -331,7 +332,7 @@ impl FLASHCALW {
                     FlashState::Unlocking => {
                         println!("Writing: Unlocked Page");
                         self.current_state.set(FlashState::Erasing);
-                        self.flashcalw_erase_page(self.page.get(), false);
+                        self.flashcalw_erase_page(self.page.get(), true);
                     },
                     FlashState::Erasing => {
                         println!("Writing: Erased Page");
@@ -339,9 +340,9 @@ impl FLASHCALW {
                         self.clear_page_buffer();
                     },
                     FlashState::WritePageBuffer => {
-                        //  Note write page buffer isn't really a command, thus
-                        //  I'm combining it with a call to write_page which saves
-                        //  the page.
+                        //  Write page buffer isn't really a command, thus
+                        //  I'm combining it with an actually command write_page 
+                        //  which saves the page.
                         println!("Writing: Cleared Page Buffer and Writing to it!");
                         self.write_to_page_buffer(self.page.get() as usize 
                             * FLASH_PAGE_SIZE as usize);
@@ -374,8 +375,7 @@ impl FLASHCALW {
                     FlashState::Unlocking => {
                         println!("Erasing: Unlocked Page"); 
                         self.current_state.set(FlashState::Erasing);
-                        self.flashcalw_erase_page(self.page.get(), false);
-                        //TODO change this to true (maybe...)
+                        self.flashcalw_erase_page(self.page.get(), true);
                     }, 
                     FlashState::Erasing => {
                         println!("Erasing: Erased Page"); 
@@ -477,8 +477,13 @@ impl FLASHCALW {
         }
     }
     
-    //depending on if this flag is passed in this function is implemented differently.
-   // #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE)]
+    pub fn enable_ws1_read_opt(&mut self, enable : bool) {
+        self.change_control_single_bit_val(7, enable);
+    }
+    
+    //  By default, we are going with High Speed Enable (based on our device running
+    //  in PS2). 
+    #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
     pub fn set_flash_waitstate_and_readmode(&mut self, cpu_freq : u32, 
         _ps_val : u32, _is_fwu_enabled : bool) {
         //ps_val and is_fwu_enabled not used in this implementation.
@@ -491,11 +496,8 @@ impl FLASHCALW {
         self.issue_command(FlashCMD::HSEN, -1);
     }
 
-    pub fn enable_ws1_read_opt(&mut self, enable : bool) {
-        self.change_control_single_bit_val(7, enable);
-    }
 
-    /*#[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_ENABLE))]
+    #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
     pub fn set_flash_waitstate_and_readmode(&mut self, cpu_freq : u32, 
         ps_val : u32, is_fwu_enabled : bool) {
         if ps_val == 0 {
@@ -525,7 +527,7 @@ impl FLASHCALW {
             }
             self.issue_command(FlashCMD::HSDIS, -1);
         }
-    }*/
+    }
 
 
     pub fn is_ready_int_enabled(&self) -> bool {
@@ -595,14 +597,18 @@ impl FLASHCALW {
 
         ((self.read_register(RegKey::COMMAND) & page_mask) >> 8) as u32
     }
-    
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
-        (self.wait_until_ready)(self); // call the registered wait function
+        unsafe { pm::enable_clock(self.pb_clock); }
         if(command != FlashCMD::QPRUP && command != FlashCMD::QPR) {
+            unsafe {
+                num_cmd_iss = num_cmd_iss + 1;
+            }
+            (self.wait_until_ready)(self); // call the registered wait function
             self.ready.replace(false);
         }
-        print!("Issuing command...{}", command as u32);
-        unsafe { pm::enable_clock(self.pb_clock); }
+        unsafe {
+            print!("Issuing the #{} command...{}", num_cmd_iss, command as u32);
+        }
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         let mut reg_val : usize = volatile_load(&mut cmd_regs.command);
         
@@ -989,17 +995,24 @@ impl flash::FlashController for FLASHCALW {
             pm::enable_clock(self.pb_clock);
             
         }
-        //enable interrupts on driver
+        //  enable interrupts on driver
         self.enable_ready_int(true);
-       
-        //enable 1WS OPT?
-        //self.set_flash_waitstate_and_readmode(48000000, 0, false);
-
-        //self.enable_ws1_read_opt(true);
-
+        self.enable_lock_error_int(false);
+        self.enable_prog_error_int(false);
+        self.enable_ecc_int(false);
         //enable interrupts from nvic
         unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); }
        
+        //  enable wait state 1 optimization
+        self.enable_ws1_read_opt(true);
+
+        //  explicitly enable the cache
+        enable_picocache(true);
+        
+        //  set flash speed. 
+       // self.set_flash_waitstate_and_readmode(48000000, 0, false);
+        //self.clear_page_buffer();
+        //self.lock_page_region(0, false);
         println!("Configured");
 
         //TODO: figure out how the config should be... shouldn't need to cuase
@@ -1079,13 +1092,20 @@ impl flash::FlashController for FLASHCALW {
     }
 }
 
+//TODO: remove
+static mut nvic_count : i32 = 0;
+
 //  Assumes the only Hardware Interrupt enabled for the FLASHCALW is the
 //  FRDY (Flash Ready) interrupt.
 pub unsafe extern fn FLASH_Handler() {
     use common::Queue;
     use chip;
     
+    nvic_count = nvic_count + 1;
+
+    println!("Queued Flash Interrupt! #{}", nvic_count);
     //  reset the nvic interrupt bit for flash and queue a handle interrupt
+    //nvic::clear_pending(nvic::NvicIdx::HFLASHC);
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
 }
