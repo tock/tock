@@ -4,7 +4,6 @@
 
 use sam4l::flashcalw;
 use hil::flash::{FlashController, Client, Error};
-use core::mem;
 use core::cell::Cell;
 
 // ======================================
@@ -14,6 +13,7 @@ use core::cell::Cell;
 //  entire time.
 // ======================================
 
+#[allow(dead_code)]
 #[derive(Copy,Clone,PartialEq)]
 enum FlashClientState {
     Enabling,
@@ -56,6 +56,10 @@ impl Client for FlashClient {
         
         match self.state.get() {
             FlashClientState::Enabling => {
+                    /*use support;
+                    for i in 0..92_000_000 {
+                        support::nop();
+                    }*/
                     self.state.set(FlashClientState::EWRCycleStart);
                     println!("===========Transitioning \
                         to Erasing/Writing/Reading========");
@@ -82,7 +86,7 @@ impl Client for FlashClient {
                 
                 //verify what we expect
                 for i in 0..512 {
-                    if( data[i] != self.val_data.get()) {
+                    if data[i] != self.val_data.get() {
                         pass = false;
                         println!("\t\t======bit:{} expected {}, got {}========", i, 
                            self.val_data.get(), data[i]);
@@ -90,7 +94,7 @@ impl Client for FlashClient {
                     }
                 }
                  
-                if(!pass) {
+                if !pass {
                     for j in 0..3 {
                         println!("\treading page {}", self.page.get());
                         let mut data : [u8; 512] = [0;512];
