@@ -205,22 +205,22 @@ static mut num_cmd_iss : i32 = 0;
 impl FLASHCALW {
 
     pub unsafe fn mark_ready(&self) {
-        support::atomic(|| {
+        //support::atomic(|| {
             self.ready.put(Some(true));
-        });
+       // });
     }
 
 
     pub fn get_ready_status(&self) -> bool {
         unsafe {  
-            support::atomic(|| {
+            //support::atomic(|| {
                 if self.ready.is_none() || !self.ready.take().unwrap() {
                     false
                 } else {
                     self.ready.put(Some(true));
                     true
                 }
-            })
+           // })
         }
     }
     
@@ -285,6 +285,7 @@ impl FLASHCALW {
         //  mark the controller as ready
         unsafe { 
             self.mark_ready();  
+            //self.enable_ready_int(true);
             nvic::enable(nvic::NvicIdx::HFLASHC);
         }
        
@@ -391,7 +392,7 @@ impl FLASHCALW {
                 }
             }
             Command::None => { 
-                println!("Command:None Completed"); 
+                println!("Command:None Completed in state {}", self.current_state.get() as u32); 
                 self.current_state.set(FlashState::Ready);
             }
 
@@ -599,10 +600,13 @@ impl FLASHCALW {
     }
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         unsafe { pm::enable_clock(self.pb_clock); }
+        unsafe {
+            num_cmd_iss = num_cmd_iss + 1;
+        }
         if(command != FlashCMD::QPRUP && command != FlashCMD::QPR) {
-            unsafe {
+/*            unsafe {
                 num_cmd_iss = num_cmd_iss + 1;
-            }
+            }*/
             (self.wait_until_ready)(self); // call the registered wait function
             self.ready.replace(false);
         }
@@ -624,6 +628,17 @@ impl FLASHCALW {
             reg_val |= FLASHCALW_CMD_KEY << 24 | command as usize;     
         }
         
+
+        println!("Enabling Ready Int before Issuing Command");
+        //  enable ready int
+        self.enable_ready_int(true);
+        {
+            use support;
+            for i in 0..12_000_000 {
+                support::nop();
+            }
+        }
+        println!("Interrupt enabled! Issuing command");
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
         
         self.error_status.put(Some(self.get_error_status()));
@@ -1014,7 +1029,7 @@ impl flash::FlashController for FLASHCALW {
         //self.clear_page_buffer();
         //self.lock_page_region(0, false);
         println!("Configured");
-
+        self.current_state.set(FlashState::Ready);
         //TODO: figure out how the config should be... shouldn't need to cuase
         // an interrupt pre-actually use.
     }
@@ -1106,6 +1121,7 @@ pub unsafe extern fn FLASH_Handler() {
     println!("Queued Flash Interrupt! #{}", nvic_count);
     //  reset the nvic interrupt bit for flash and queue a handle interrupt
     //nvic::clear_pending(nvic::NvicIdx::HFLASHC);
+    flash_controller.enable_ready_int(false);
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
 }

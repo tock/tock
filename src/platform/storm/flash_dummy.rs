@@ -38,12 +38,12 @@ static mut FLASH_CLIENT : FlashClient = FlashClient {
     state: Cell::new(FlashClientState::Enabling),
     page: Cell::new(53), // Page to start
     region_unlocked: Cell::new(0),
-    num_cycle_per_page: 2,  // How many times to repeat a Erase/Write/Read cycle on a page
+    num_cycle_per_page: 1,  // How many times to repeat a Erase/Write/Read cycle on a page
     val_data: Cell::new(2), // Data to write to the page.
     cycles_finished: Cell::new(0)
 };
 
-const MAX_PAGE_NUM: i32 = 80;   // Page to go up to
+const MAX_PAGE_NUM: i32 = 53;   // Page to go up to
 
 impl Client for FlashClient {
 
@@ -292,6 +292,7 @@ pub fn set_read_write_test() {
     println!("It's on? {}", flashcalw::pico_enabled());
     
     //kicks off the interrupts
+    //flashClient.command_complete(Error::CommandComplete);
     dev.lock_page_region(0, false);
     //dev.clear_page_buffer();
 
