@@ -4,7 +4,6 @@ use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
 use core::ptr::Unique;
-use core::raw::Repr;
 use process::{self, Error};
 
 pub static mut CONTAINER_COUNTER : usize = 0;
@@ -88,7 +87,7 @@ impl<'a> Allocator<'a> {
             let app_id = self.app_id;
             self.app.alloc(size_of::<T>()).map_or(Err(Error::OutOfMemory),
                 |arr| {
-                    let mut owned = Owned::new(arr.repr().data as *mut T, app_id);
+                    let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
                     *owned = data;
                     Ok(owned)
             })

@@ -24,7 +24,7 @@ pub struct Isl29035<'a> {
 }
 
 impl<'a> Isl29035<'a> {
-    pub const fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8])
+    pub fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8])
             -> Isl29035<'a> {
         Isl29035 {
             i2c: i2c,

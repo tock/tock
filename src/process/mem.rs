@@ -1,8 +1,7 @@
-use core::mem;
 use core::marker::PhantomData;
 use core::ops::{Deref,DerefMut};
 use core::ptr::Unique;
-use core::raw::Slice;
+use core::slice;
 use process;
 
 use AppId;
@@ -49,7 +48,7 @@ impl<L, T> Drop for AppPtr<L, T> {
         unsafe {
             let ps = &mut process::PROCS;
             if ps.len() < self.process.idx() {
-                ps[self.process.idx()].as_mut().map(|process| 
+                ps[self.process.idx()].as_mut().map(|process|
                     process.free(self.ptr.get_mut())
                 );
             }
@@ -78,23 +77,13 @@ impl<L, T> AppSlice<L, T> {
 
 impl<L, T> AsRef<[T]> for AppSlice<L, T> {
     fn as_ref(&self) -> &[T] {
-        unsafe {
-            mem::transmute(Slice{
-                data: self.ptr.ptr.get(),
-                len: self.len
-            })
-        }
+        unsafe { slice::from_raw_parts(self.ptr.ptr.get(), self.len) }
     }
 }
 
 impl<L, T> AsMut<[T]> for AppSlice<L, T> {
     fn as_mut(&mut self) -> &mut [T] {
-        unsafe {
-            mem::transmute(Slice{
-                data: self.ptr.ptr.get(),
-                len: self.len
-            })
-        }
+        unsafe { slice::from_raw_parts_mut(self.ptr.ptr.get_mut(), self.len) }
     }
 }
 
