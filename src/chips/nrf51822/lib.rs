@@ -12,3 +12,4 @@ mod nvic;
 pub mod chip;
 pub mod gpio;
 pub mod rtc;
+pub mod clock;
