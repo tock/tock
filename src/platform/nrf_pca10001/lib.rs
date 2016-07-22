@@ -17,7 +17,7 @@ pub struct Firestorm {
 pub struct DummyMPU;
 
 impl DummyMPU {
-    pub fn set_mpu(&mut self, _: usize, _: usize, _: usize, _: bool, _: usize) {
+    pub fn set_mpu(&mut self, _: u32, _: u32, _: u32, _: bool, _: u32) {
     }
 }
 
