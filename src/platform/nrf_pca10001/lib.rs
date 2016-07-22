@@ -14,6 +14,13 @@ pub struct Firestorm {
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
 }
 
+pub struct DummyMPU;
+
+impl DummyMPU {
+    pub fn set_mpu(&mut self, _: u32, _: u32, _: u32, _: bool, _: u32) {
+    }
+}
+
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
     }
@@ -22,6 +29,10 @@ impl Firestorm {
         // FIXME: The wfi call from main() blocks forever if no interrupts are generated. For now,
         // pretend we have interrupts to avoid blocking.
         true
+    }
+
+    pub fn mpu(&mut self) -> DummyMPU {
+        DummyMPU
     }
 
     #[inline(never)]
