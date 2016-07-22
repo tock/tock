@@ -2,7 +2,7 @@
 # Makefile.
 RUSTC ?= rustc
 RUSTDOC ?= rustdoc
-RUSTC_FLAGS += -g -L$(BUILD_PLATFORM_DIR) # Common regardless of platform
+RUSTC_FLAGS += -L$(BUILD_PLATFORM_DIR) # Common regardless of platform
 CARGO ?= cargo
 TOOLCHAIN = arm-none-eabi-
 OBJCOPY ?= $(TOOLCHAIN)objcopy
