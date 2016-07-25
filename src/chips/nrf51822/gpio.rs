@@ -1,7 +1,8 @@
 use core::mem;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use peripheral_interrupts::NvicIdx;
+//use peripheral_interrupts::NvicIdx;
+use nvic::NvicIdx;
 use common::take_cell::TakeCell;
 use common::VolatileCell;
 use hil;

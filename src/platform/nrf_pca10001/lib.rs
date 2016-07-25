@@ -58,16 +58,17 @@ macro_rules! static_init {
    }
 }
 
-/*let nrf_uart = nrf51822::uart::UART::new()
+let nrf_uart = nrf51822::uart::UART::new()
 nrf_uart.init();
 
 nrf_uart.enable_tx();
+nrf_uart.set_baud_rate(9600); //doesnt matter. I have hard coded the reg value in init
 while(nrf_uart.tx_ready()) {
 
-    while (true){
-    nrf_uart.send_byte('g' as u8);
+    loop{
+    nrf_uart.send_byte('+' as u8);
     }
-}*/
+}
 
 
 pub unsafe fn init<'a>() -> &'a mut Firestorm {

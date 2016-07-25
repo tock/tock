@@ -3,8 +3,8 @@ use nvic;
 use rtc;
 
 use gpio;
-use peripheral_interrupts::NvicIdx;
-
+//use peripheral_interrupts::NvicIdx;
+use nvic::NvicIdx;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF : [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
