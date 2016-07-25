@@ -215,6 +215,7 @@ impl FLASHCALW {
         unsafe {  
             //support::atomic(|| {
                 if self.ready.is_none() || !self.ready.take().unwrap() {
+                    self.ready.put(Some(false));
                     false
                 } else {
                     self.ready.put(Some(true));
@@ -275,8 +276,6 @@ impl FLASHCALW {
         }
     }
 
-    
-
 
     pub fn handle_interrupt(&self) {
         use hil::flash::{Error, Command};
@@ -286,12 +285,13 @@ impl FLASHCALW {
         unsafe { 
             self.mark_ready();  
             //self.enable_ready_int(true);
-            nvic::enable(nvic::NvicIdx::HFLASHC);
         }
        
-
-        let error_status = self.error_status.take().unwrap();
-        self.error_status.put(Some(error_status));
+        let error_status = 0;
+        self.error_status.put(Some(self.get_error_status()));
+        //let error_status = self.error_status.take().unwrap();
+        //self.error_status.put(Some(error_status));
+        //println!("\tError status:{}", error_status);
 
         //  Since the only interrupt request on is FRDY, a command should have
         //  either completed or failed at this point.
@@ -375,8 +375,14 @@ impl FLASHCALW {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
                         println!("Erasing: Unlocked Page"); 
-                        self.current_state.set(FlashState::Erasing);
-                        self.flashcalw_erase_page(self.page.get(), true);
+                        unsafe {
+                        if lock_count < 20 {
+                        //self.current_state.set(FlashState::Erasing);
+                        self.lock_page_region(self.page.get(), true);
+                        lock_count = lock_count + 1 }
+                        //self.clear_page_buffer();
+                        //self.flashcalw_erase_page(self.page.get(), true); 
+                        }
                     }, 
                     FlashState::Erasing => {
                         println!("Erasing: Erased Page"); 
@@ -401,6 +407,7 @@ impl FLASHCALW {
         //  If the command is finished call the complete CB.
         if self.current_command.get() == Command::None && 
             self.current_state.get() == FlashState::Ready {
+            println!("Calling CB(CommandComplete)");
             self.client.map(|value| {
                 value.command_complete(Error::CommandComplete);
             });
@@ -600,13 +607,10 @@ impl FLASHCALW {
     }
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         unsafe { pm::enable_clock(self.pb_clock); }
-        unsafe {
-            num_cmd_iss = num_cmd_iss + 1;
-        }
         if(command != FlashCMD::QPRUP && command != FlashCMD::QPR) {
-/*            unsafe {
+            unsafe {
                 num_cmd_iss = num_cmd_iss + 1;
-            }*/
+            }
             (self.wait_until_ready)(self); // call the registered wait function
             self.ready.replace(false);
         }
@@ -641,8 +645,8 @@ impl FLASHCALW {
         println!("Interrupt enabled! Issuing command");
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
         
-        self.error_status.put(Some(self.get_error_status()));
-        println!("\tError status:{}", self.debug_error_status());
+        //self.error_status.put(Some(self.get_error_status()));
+       // println!("\tError status:{}", self.debug_error_status());
         println!("Command issued");
     }
 
@@ -910,7 +914,8 @@ impl FLASHCALW {
         if check {
             let mut error_status : u32 = self.error_status.take().unwrap();
             page_erased = self.quick_page_read(-1);
-            error_status |= self.error_status.take().unwrap();
+            // TODO: add a get error_status here b/c QPR gens no interrupts (also do this for similar places)
+            error_status |= self.get_error_status();
             self.error_status.replace(error_status);
         }
 
@@ -1019,7 +1024,7 @@ impl flash::FlashController for FLASHCALW {
         unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); }
        
         //  enable wait state 1 optimization
-        self.enable_ws1_read_opt(true);
+        //self.enable_ws1_read_opt(true);
 
         //  explicitly enable the cache
         enable_picocache(true);
@@ -1109,6 +1114,7 @@ impl flash::FlashController for FLASHCALW {
 
 //TODO: remove
 static mut nvic_count : i32 = 0;
+static mut lock_count : i32 = 0;
 
 //  Assumes the only Hardware Interrupt enabled for the FLASHCALW is the
 //  FRDY (Flash Ready) interrupt.
@@ -1121,6 +1127,7 @@ pub unsafe extern fn FLASH_Handler() {
     println!("Queued Flash Interrupt! #{}", nvic_count);
     //  reset the nvic interrupt bit for flash and queue a handle interrupt
     //nvic::clear_pending(nvic::NvicIdx::HFLASHC);
+    println!("Error status is {};", flash_controller.debug_error_status());
     flash_controller.enable_ready_int(false);
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);

@@ -112,6 +112,8 @@ impl Client for FlashClient {
                     
                 //start cycle again
                 self.state.set(FlashClientState::EWRCycleStart);
+                // call self as reading isn't a callback...
+                self.command_complete(Error::CommandComplete);
             },
             FlashClientState::Erasing => {
                 println!("\tErasing page {}", self.page.get());
