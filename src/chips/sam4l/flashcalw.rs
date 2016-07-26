@@ -286,8 +286,6 @@ impl FLASHCALW {
             self.mark_ready();  
             // clear pending interrupt ( it's being handled...)
             nvic::clear_pending(nvic::NvicIdx::HFLASHC);
-            //nvic::clear_pending(nvic::NvicIdx::HFLASHC);
-            //self.enable_ready_int(true);
         }
        
         self.error_status.put(Some(self.get_error_status()));
@@ -340,8 +338,8 @@ impl FLASHCALW {
                         println!("Writing: Erased Page");
                         self.current_state.set(FlashState::WritePageBuffer);
                         self.clear_page_buffer();
-                    },
-                    FlashState::WritePageBuffer => {
+                    /*},
+                    FlashState::WritePageBuffer => { */
                         //  Write page buffer isn't really a command, thus
                         //  I'm combining it with an actually command write_page 
                         //  which saves the page.
@@ -376,14 +374,8 @@ impl FLASHCALW {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
                         println!("Erasing: Unlocked Page"); 
-                        unsafe {
-                        if lock_count < 20 {
-                        //self.current_state.set(FlashState::Erasing);
-                        self.lock_page_region(self.page.get(), true);
-                        lock_count = lock_count + 1 }
-                        self.clear_page_buffer();
-                        //self.flashcalw_erase_page(self.page.get(), true); 
-                        }
+                        self.current_state.set(FlashState::Erasing);
+                        self.flashcalw_erase_page(self.page.get(), true); 
                     }, 
                     FlashState::Erasing => {
                         println!("Erasing: Erased Page"); 
@@ -608,7 +600,8 @@ impl FLASHCALW {
     }
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         unsafe { pm::enable_clock(self.pb_clock); }
-        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB) {
+        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB
+            && command != FlashCMD::HSEN) {
             unsafe {
                 num_cmd_iss = num_cmd_iss + 1;
             }
@@ -1025,7 +1018,7 @@ impl flash::FlashController for FLASHCALW {
             
         }
         //  enable interrupts on driver
-        self.enable_ready_int(true);
+        //self.enable_ready_int(true);
         self.enable_lock_error_int(false);
         self.enable_prog_error_int(false);
         self.enable_ecc_int(false);
@@ -1033,7 +1026,9 @@ impl flash::FlashController for FLASHCALW {
         unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); }
        
         //  enable wait state 1 optimization
-        //self.enable_ws1_read_opt(true);
+        self.enable_ws1_read_opt(true);
+        // change speed mode here (since it gens no interrupt)
+        self.set_flash_waitstate_and_readmode(48_000_000, 0, false);
 
         //  explicitly enable the cache
         enable_picocache(true);

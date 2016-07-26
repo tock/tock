@@ -35,15 +35,17 @@ struct FlashClient {
 }
 
 static mut FLASH_CLIENT : FlashClient = FlashClient { 
-    state: Cell::new(FlashClientState::Enabling),
+    //state: Cell::new(FlashClientState::Enabling),
+    //TODO: note starting off in EWR
+    state: Cell::new(FlashClientState::EWRCycleStart),
     page: Cell::new(53), // Page to start
     region_unlocked: Cell::new(0),
-    num_cycle_per_page: 1,  // How many times to repeat a Erase/Write/Read cycle on a page
+    num_cycle_per_page: 2,  // How many times to repeat a Erase/Write/Read cycle on a page
     val_data: Cell::new(2), // Data to write to the page.
     cycles_finished: Cell::new(0)
 };
 
-const MAX_PAGE_NUM: i32 = 53;   // Page to go up to
+const MAX_PAGE_NUM: i32 = 80;   // Page to go up to
 
 impl Client for FlashClient {
 
@@ -56,10 +58,10 @@ impl Client for FlashClient {
         
         match self.state.get() {
             FlashClientState::Enabling => {
-                    //self.state.set(FlashClientState::EWRCycleStart);
+                    self.state.set(FlashClientState::EWRCycleStart);
                     println!("===========Transitioning \
                         to Erasing/Writing/Reading========");
-                    //dev.enable_ws1_read_opt(true);
+                    dev.enable_ws1_read_opt(true);
                     // This enabled High Speed Mode using a command
                     // which generates the interrupt for the next stage.
                     //dev.write_to_page_buffer(0x40 * 512);
@@ -67,7 +69,9 @@ impl Client for FlashClient {
                    // println!("cleared pg buff with status:{}", dev.get_error_status());
                     //dev.write_user_page();
                     //dev.lock_page_region(0, false);
-                    //dev.set_flash_waitstate_and_readmode(48000000, 0, false);
+                    dev.set_flash_waitstate_and_readmode(48000000, 0, false);
+                    //follow up with a call to begin the process...
+                   // self.command_complete(Error::CommandComplete);
             },
             FlashClientState::Writing => {
                 println!("\tWriting page {}", self.page.get());
@@ -119,6 +123,7 @@ impl Client for FlashClient {
             FlashClientState::Erasing => {
                 println!("\tErasing page {}", self.page.get());
                 dev.erase_page(self.page.get());
+                //self.state.set(FlashClientState::ClearPageBuffer);
                 self.state.set(FlashClientState::Writing);
             },
             FlashClientState::EWRCycleStart => {
@@ -296,11 +301,7 @@ pub fn set_read_write_test() {
     
     //kicks off the interrupts
     //flashClient.command_complete(Error::CommandComplete);
-    dev.clear_page_buffer();
     dev.lock_page_region(0, false);
-    //dev.no_operation();
-    //dev.clear_page_buffer();
-    //println!("cleared pg buff with status:{}", dev.get_error_status());
 
 }
 
