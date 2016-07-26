@@ -16,7 +16,6 @@ use core::cell::Cell;
 #[allow(dead_code)]
 #[derive(Copy,Clone,PartialEq)]
 enum FlashClientState {
-    Enabling,
     ClearPageBuffer,
     WritePageBuffer,
     Writing,
@@ -35,8 +34,6 @@ struct FlashClient {
 }
 
 static mut FLASH_CLIENT : FlashClient = FlashClient { 
-    //state: Cell::new(FlashClientState::Enabling),
-    //TODO: note starting off in EWR
     state: Cell::new(FlashClientState::EWRCycleStart),
     page: Cell::new(53), // Page to start
     region_unlocked: Cell::new(0),
@@ -45,7 +42,7 @@ static mut FLASH_CLIENT : FlashClient = FlashClient {
     cycles_finished: Cell::new(0)
 };
 
-const MAX_PAGE_NUM: i32 = 80;   // Page to go up to
+const MAX_PAGE_NUM: i32 = 53;   // Page to go up to
 
 impl Client for FlashClient {
 
@@ -57,22 +54,6 @@ impl Client for FlashClient {
         let dev = unsafe { &mut flashcalw::flash_controller };
         
         match self.state.get() {
-            FlashClientState::Enabling => {
-                    self.state.set(FlashClientState::EWRCycleStart);
-                    println!("===========Transitioning \
-                        to Erasing/Writing/Reading========");
-                    dev.enable_ws1_read_opt(true);
-                    // This enabled High Speed Mode using a command
-                    // which generates the interrupt for the next stage.
-                    //dev.write_to_page_buffer(0x40 * 512);
-                    //dev.clear_page_buffer();
-                   // println!("cleared pg buff with status:{}", dev.get_error_status());
-                    //dev.write_user_page();
-                    //dev.lock_page_region(0, false);
-                    dev.set_flash_waitstate_and_readmode(48000000, 0, false);
-                    //follow up with a call to begin the process...
-                   // self.command_complete(Error::CommandComplete);
-            },
             FlashClientState::Writing => {
                 println!("\tWriting page {}", self.page.get());
                 let data : [u8;512] = [self.val_data.get(); 512];
@@ -80,8 +61,8 @@ impl Client for FlashClient {
                 self.state.set(FlashClientState::Reading);
             },
             FlashClientState::Reading => {
-                //  Again like WritePageBuffer, this isn't a command. But should be
-                //  triggered after the write (hopefully).
+                //  The callback from completing the write will lead to this being
+                //  called.
                 let mut pass = true;
                 
                 //  Prints out any differences in the flash page. 
@@ -98,7 +79,9 @@ impl Client for FlashClient {
                         
                     }
                 }
-                 
+                
+                //  If there's any discrepancies read the page 3x more and output
+                //  differences.
                 if !pass {
                     for j in 0..3 {
                         println!("\treading page {}", self.page.get());
@@ -123,7 +106,6 @@ impl Client for FlashClient {
             FlashClientState::Erasing => {
                 println!("\tErasing page {}", self.page.get());
                 dev.erase_page(self.page.get());
-                //self.state.set(FlashClientState::ClearPageBuffer);
                 self.state.set(FlashClientState::Writing);
             },
             FlashClientState::EWRCycleStart => {
@@ -159,127 +141,6 @@ impl Client for FlashClient {
         }
     } 
 
-    /*  // This is the old state-machine controller (pre-interal interrupts)
-        // Might be useful to have if debugging...
-    fn command_complete(&self, error : Error) {
-        
-        print!("Client Notified that job done in state {}", self.state.get() as u32);
-        
-        let dev = unsafe { &mut flashcalw::flash_controller };
-        
-        match self.state.get() {
-            FlashClientState::Enabling => {
-                if self.region_unlocked.get() == 16 {
-                    self.state.set(FlashClientState::EWRCycleStart);
-                    println!("\t All Regions unlocked");
-                    println!("===========Transitioning \
-                        to Erasing/Writing/Reading========");
-                    dev.enable_ws1_read_opt(true);
-                    // This enabled High Speed Mode using a command
-                    // which generates the interrupt for the next stage.
-                    dev.set_flash_waitstate_and_readmode(48000000, 0, false);
-                } else {
-                    dev.lock_region(self.region_unlocked.get(), false);
-                    println!("\t Unlocking Region {}", self.region_unlocked.get()); 
-                    self.region_unlocked.set(self.region_unlocked.get() + 1);
-                }
-            },
-            FlashClientState::Writing => {
-                println!("\tWriting page {}", self.page.get());
-                dev.flashcalw_write_page(self.page.get());
-                self.state.set(FlashClientState::Reading);
-            },
-            FlashClientState::Reading => {
-                //  Again like WritePageBuffer, this isn't a command. But should be
-                //  triggered after the write (hopefully).
-                let mut pass = true;
-                
-                //  Prints out any differences in the flash page. 
-                println!("\treading page {}", self.page.get());
-                let mut data : [u8; 512] = [0;512];
-                dev.read(self.page.get() as usize * 512, 512, &mut data);
-                
-                //verify what we expect
-                for i in 0..512 {
-                    if( data[i] != self.val_data.get()) {
-                        pass = false;
-                        println!("\t\t======bit:{} expected {}, got {}========", i, 
-                           self.val_data.get(), data[i]);
-                        
-                    }
-                }
-                
-                if(!pass) {
-                    for j in 0..3 {
-                        println!("\treading page {}", self.page.get());
-                        let mut data : [u8; 512] = [0;512];
-                        dev.read(self.page.get() as usize * 512, 512, &mut data);
-                        //verify what we expect
-                        for i in 0..512 {
-                            if data[i] != self.val_data.get() {
-                            println!("\t\t\t======bit:{} expected {}, got {}========", i, 
-                               self.val_data.get(), data[i]);
-                            
-                            }
-                        }
-                    }
-                }
-                    
-                //start cycle again
-                self.state.set(FlashClientState::EWRCycleStart);
-            },
-            FlashClientState::Erasing => {
-                println!("\tErasing page {}", self.page.get());
-                dev.flashcalw_erase_page(self.page.get(), true);
-                self.state.set(FlashClientState::ClearPageBuffer);
-            },
-            FlashClientState::ClearPageBuffer => { 
-                println!("\tClearing page buffer");
-                dev.clear_page_buffer();
-                self.state.set(FlashClientState::WritePageBuffer);
-            },
-            FlashClientState::WritePageBuffer => {
-                println!("\tWriting to page buffer");
-                let data : [u8;512] = [self.val_data.get(); 512];
-                // TODO: note this won't work b/c of the no writing to page buffer.
-                //dev.write_to_page_buffer(&data, (self.page.get() * 512) as usize);
-                self.state.set(FlashClientState::Writing);
-                self.command_complete(Error::CommandComplete); // we need to call this here as 
-                                         // write_to_page_buffer isn't really a
-                                         // command (thus no interrupt generated).
-            },
-            FlashClientState::EWRCycleStart => {
-                if self.page.get() <= MAX_PAGE_NUM {
-                    if self.cycles_finished.get() >= self.num_cycle_per_page {
-                        //reset count
-                        self.cycles_finished.set(1);
-                        //increment pg num
-                        self.page.set(self.page.get() + 1);
-                        //increment val_data
-                        self.val_data.set(self.val_data.get() + 1);
-                        //start new cycle
-                        if self.page.get() <= MAX_PAGE_NUM {
-                            self.state.set(FlashClientState::Erasing);
-                            println!("==============Starting work on page {} \
-                                =================", self.page.get());
-                            self.command_complete(Error::CommandComplete);
-                        }
-                    } else {
-                        println!("\t Still Cycling page {}", self.page.get());
-                        //increment cycle count
-                        self.cycles_finished.set(self.cycles_finished.get() + 1);
-                        //increment val_data
-                        self.val_data.set(self.val_data.get() + 1);
-                        //continue cycle
-                        self.state.set(FlashClientState::Erasing);
-                        self.command_complete(Error::CommandComplete);
-                    }
-                }
-            }
-
-        }
-    } */
-
 }
 
 // Sets up the testing for the flash driver.
@@ -290,17 +151,10 @@ pub fn set_read_write_test() {
     dev.set_client(flashClient);
     print!("Calling configure...");
     dev.configure();
+    println!("Is the picocache on? {}", 
+        if flashcalw::pico_enabled() {"yes"} else {"no"});
     
-    //  By default the picocache ( a cache only for the flash) is turned off.
-    //  However the bootloader turns it on. I will explicitly turn it on here.
-    //  So if the bootloader changes, nothing breaks.
-    println!("Is the picocache on? {}", flashcalw::pico_enabled());
-    print!("Turning it on then...");
-    flashcalw::enable_picocache(true);
-    println!("It's on? {}", flashcalw::pico_enabled());
-    
-    //kicks off the interrupts
-    //flashClient.command_complete(Error::CommandComplete);
+    // generates an interrupt which will cause a callback after initalization.
     dev.lock_page_region(0, false);
 
 }

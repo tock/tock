@@ -136,7 +136,6 @@ pub struct FLASHCALW {
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
-    speed_mode: Speed,
     wait_until_ready: fn(&FLASHCALW) -> (),
     error_status: TakeCell<u32>,
     ready: TakeCell<bool>,
@@ -150,7 +149,7 @@ pub struct FLASHCALW {
 //static instance for the board. Only one FLASHCALW on chip.
 pub static mut flash_controller : FLASHCALW = 
     FLASHCALW::new(FLASHCALW_BASE_ADDRS, pm::HSBClock::FLASHCALW, 
-        pm::HSBClock::FLASHCALWP, pm::PBBClock::FLASHCALW, Speed::Standard);
+        pm::HSBClock::FLASHCALWP, pm::PBBClock::FLASHCALW);
 
 
 // Few constants relating to module configuration.
@@ -190,7 +189,7 @@ fn min<T: Ord>(v1: T, v2: T) -> T {
     if v1 <= v2 { v1 } else { v2 }    
 }
 
-// Should never ever have to wait (b/c we're using interrupts!)
+// Should never ever have to wait (because we're using interrupts!)
 pub fn default_wait_until_ready(flash : &FLASHCALW) {
     while !flash.get_ready_status() {    
         unsafe { 
@@ -204,35 +203,28 @@ static mut num_cmd_iss : i32 = 0;
 
 impl FLASHCALW {
 
-    pub unsafe fn mark_ready(&self) {
-        //support::atomic(|| {
-            self.ready.put(Some(true));
-       // });
+    pub fn mark_ready(&self) {
+        self.ready.put(Some(true));
     }
 
 
     pub fn get_ready_status(&self) -> bool {
-        unsafe {  
-            //support::atomic(|| {
-                if self.ready.is_none() || !self.ready.take().unwrap() {
-                    self.ready.put(Some(false));
-                    false
-                } else {
-                    self.ready.put(Some(true));
-                    true
-                }
-           // })
+        if self.ready.is_none() || !self.ready.take().unwrap() {
+            self.ready.put(Some(false));
+            false
+        } else {
+            self.ready.put(Some(true));
+            true
         }
     }
     
     const fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock,
-    hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock, mode : Speed) -> FLASHCALW {
+    hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock) -> FLASHCALW {
         FLASHCALW {
             registers:              base_addr,
             ahb_clock:              pm::Clock::HSB(ahb_clk),
             hramc1_clock:           pm::Clock::HSB(hramc1_clk),
             pb_clock:               pm::Clock::PBB(pb_clk),
-            speed_mode:             mode,
             wait_until_ready:       default_wait_until_ready,
             error_status:           TakeCell::new(0),
             ready:                  TakeCell::new(true),
@@ -335,18 +327,16 @@ impl FLASHCALW {
                         self.flashcalw_erase_page(self.page.get(), true);
                     },
                     FlashState::Erasing => {
+                        //  Write page buffer isn't really a command, and 
+                        //  clear page buffer dosn't trigger an interrupt thus
+                        //  I'm combining these with an actual command, write_page, 
+                        //  which generates and interrupt and saves the page.
                         println!("Writing: Erased Page");
-                        self.current_state.set(FlashState::WritePageBuffer);
                         self.clear_page_buffer();
-                    /*},
-                    FlashState::WritePageBuffer => { */
-                        //  Write page buffer isn't really a command, thus
-                        //  I'm combining it with an actually command write_page 
-                        //  which saves the page.
                         println!("Writing: Cleared Page Buffer and Writing to it!");
                         self.write_to_page_buffer(self.page.get() as usize 
                             * FLASH_PAGE_SIZE as usize);
-                        
+                       
                         self.current_state.set(FlashState::Writing);
                         self.flashcalw_write_page(self.page.get());
                     },
@@ -631,19 +621,11 @@ impl FLASHCALW {
         }
         
 
-       /* {
-            use support;
-            for i in 0..12_000_000 {
-                support::nop();
-            }
-        } */
-        //invalidate_cache();
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
-        //invalidate_cache();
         //  verify the data stored. 
         
         let data = volatile_load(&cmd_regs.command);
-        let page = ((get_ubit!(24) - 1) & data) >> 7;
+        let page = ((get_ubit!(24) - 1) & data) >> 8;
         let cmd = (get_ubit!(6) - 1) & data;
     
         println!("According to registeres issues command {} on page {}", cmd, page); 
@@ -916,7 +898,6 @@ impl FLASHCALW {
         if check {
             let mut error_status : u32 = self.error_status.take().unwrap();
             page_erased = self.quick_page_read(-1);
-            // TODO: add a get error_status here b/c QPR gens no interrupts (also do this for similar places)
             error_status |= self.get_error_status();
             self.error_status.replace(error_status);
         }
@@ -1017,30 +998,29 @@ impl flash::FlashController for FLASHCALW {
             pm::enable_clock(self.pb_clock);
             
         }
-        //  enable interrupts on driver
-        //self.enable_ready_int(true);
+        
+        //enable interrupts from nvic
+        unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); }
+        
+        //configure all other interrupts explicitly.
+        self.enable_ready_int(false); // note the issue_command function turns this
+                                      // on when need be.
         self.enable_lock_error_int(false);
         self.enable_prog_error_int(false);
         self.enable_ecc_int(false);
-        //enable interrupts from nvic
-        unsafe { nvic::enable(nvic::NvicIdx::HFLASHC); }
        
         //  enable wait state 1 optimization
         self.enable_ws1_read_opt(true);
-        // change speed mode here (since it gens no interrupt)
+        // change speed mode
         self.set_flash_waitstate_and_readmode(48_000_000, 0, false);
 
-        //  explicitly enable the cache
+        //  By default the picocache ( a cache only for the flash) is turned off.
+        //  However the bootloader turns it on. I will explicitly turn it on here.
+        //  So if the bootloader changes, nothing breaks.
         enable_picocache(true);
         
-        //  set flash speed. 
-       // self.set_flash_waitstate_and_readmode(48000000, 0, false);
-        //self.clear_page_buffer();
-        //self.lock_page_region(0, false);
-        println!("Configured");
         self.current_state.set(FlashState::Ready);
-        //TODO: figure out how the config should be... shouldn't need to cuase
-        // an interrupt pre-actually use.
+        println!("Configured");
     }
 
     fn get_page_size(&self) -> u32 {
