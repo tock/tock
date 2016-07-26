@@ -381,7 +381,7 @@ impl FLASHCALW {
                         //self.current_state.set(FlashState::Erasing);
                         self.lock_page_region(self.page.get(), true);
                         lock_count = lock_count + 1 }
-                        //self.clear_page_buffer();
+                        self.clear_page_buffer();
                         //self.flashcalw_erase_page(self.page.get(), true); 
                         }
                     }, 
@@ -608,7 +608,7 @@ impl FLASHCALW {
     }
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         unsafe { pm::enable_clock(self.pb_clock); }
-        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR) {
+        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB) {
             unsafe {
                 num_cmd_iss = num_cmd_iss + 1;
             }
@@ -634,8 +634,7 @@ impl FLASHCALW {
                         (page_number as usize) << 8   |
                         command as usize;
         } else {
-            //reg_val |= FLASHCALW_CMD_KEY << 24 | command as usize;     
-            reg_val |= FLASHCALW_CMD_KEY << 24 | 3 as usize;     
+            reg_val |= FLASHCALW_CMD_KEY << 24 | command as usize;     
         }
         
 
@@ -645,9 +644,9 @@ impl FLASHCALW {
                 support::nop();
             }
         } */
-        invalidate_cache();
+        //invalidate_cache();
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
-        invalidate_cache();
+        //invalidate_cache();
         //  verify the data stored. 
         
         let data = volatile_load(&cmd_regs.command);
