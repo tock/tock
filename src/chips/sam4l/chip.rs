@@ -11,7 +11,8 @@ use flashcalw;
 
 pub struct Sam4l;
 
-const IQ_SIZE: usize = 100;
+//const IQ_SIZE: usize = 100;
+const IQ_SIZE: usize = 2;
 static mut IQ_BUF : [nvic::NvicIdx; IQ_SIZE] =
     [nvic::NvicIdx::HFLASHC; IQ_SIZE];
 pub static mut INTERRUPT_QUEUE : Option<RingBuffer<'static, nvic::NvicIdx>> = None;
@@ -39,6 +40,15 @@ impl Sam4l {
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx::*;
+
+       /* if (INTERRUPT_QUEUE.as_mut().unwrap().is_full()) {
+            println!("INTERRUPT_QUEUE is full, seeing what's in here...");
+        }*/
+        if (!self.has_pending_interrupts()) {
+            println!("No pending interrupts here!");
+            return;
+        }
+
         INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
             //TODO: remove
             println!("handling interrupt: {}", interrupt as u32);

@@ -284,14 +284,16 @@ impl FLASHCALW {
         //  mark the controller as ready
         unsafe { 
             self.mark_ready();  
+            // clear pending interrupt ( it's being handled...)
+            nvic::clear_pending(nvic::NvicIdx::HFLASHC);
+            //nvic::clear_pending(nvic::NvicIdx::HFLASHC);
             //self.enable_ready_int(true);
         }
        
-        let error_status = 0;
         self.error_status.put(Some(self.get_error_status()));
-        //let error_status = self.error_status.take().unwrap();
-        //self.error_status.put(Some(error_status));
-        //println!("\tError status:{}", error_status);
+        let error_status = self.error_status.take().unwrap();
+        self.error_status.put(Some(error_status));
+        println!("\tError status:{}", error_status);
 
         //  Since the only interrupt request on is FRDY, a command should have
         //  either completed or failed at this point.
@@ -321,7 +323,6 @@ impl FLASHCALW {
                 },
                 _ => {}
             }
-            
             return;
         }
         
@@ -579,7 +580,7 @@ impl FLASHCALW {
 
     pub fn get_error_status(&self) -> u32 {
         unsafe { pm::enable_clock(self.pb_clock); }
-        (self.read_register(RegKey::STATUS) as u32) & ( get_bit!(3) | get_bit!(2))    
+        (self.read_register(RegKey::STATUS) as u32) & ( get_bit!(3) | get_bit!(2)) 
     }
 
     pub fn is_lock_error(&self) -> bool {
@@ -613,6 +614,10 @@ impl FLASHCALW {
             }
             (self.wait_until_ready)(self); // call the registered wait function
             self.ready.replace(false);
+            println!("Enabling Ready Int before Issuing Command");
+            //  enable ready int
+            self.enable_ready_int(true);
+            println!("Is ready interrupt on? {}", self.is_ready_int_enabled());
         }
         unsafe {
             print!("Issuing the #{} command...{}", num_cmd_iss, command as u32);
@@ -629,24 +634,29 @@ impl FLASHCALW {
                         (page_number as usize) << 8   |
                         command as usize;
         } else {
-            reg_val |= FLASHCALW_CMD_KEY << 24 | command as usize;     
+            //reg_val |= FLASHCALW_CMD_KEY << 24 | command as usize;     
+            reg_val |= FLASHCALW_CMD_KEY << 24 | 3 as usize;     
         }
         
 
-        println!("Enabling Ready Int before Issuing Command");
-        //  enable ready int
-        self.enable_ready_int(true);
-        {
+       /* {
             use support;
             for i in 0..12_000_000 {
                 support::nop();
             }
-        }
-        println!("Interrupt enabled! Issuing command");
+        } */
+        invalidate_cache();
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
+        invalidate_cache();
+        //  verify the data stored. 
         
-        //self.error_status.put(Some(self.get_error_status()));
-       // println!("\tError status:{}", self.debug_error_status());
+        let data = volatile_load(&cmd_regs.command);
+        let page = ((get_ubit!(24) - 1) & data) >> 7;
+        let cmd = (get_ubit!(6) - 1) & data;
+    
+        println!("According to registeres issues command {} on page {}", cmd, page); 
+        self.error_status.put(Some(self.get_error_status()));
+        println!("\tError status:{}", self.debug_error_status());
         println!("Command issued");
     }
 
@@ -1127,7 +1137,7 @@ pub unsafe extern fn FLASH_Handler() {
     println!("Queued Flash Interrupt! #{}", nvic_count);
     //  reset the nvic interrupt bit for flash and queue a handle interrupt
     //nvic::clear_pending(nvic::NvicIdx::HFLASHC);
-    println!("Error status is {};", flash_controller.debug_error_status());
+    //println!("Error status is {};", flash_controller.debug_error_status());
     flash_controller.enable_ready_int(false);
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);

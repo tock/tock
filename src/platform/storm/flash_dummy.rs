@@ -56,17 +56,18 @@ impl Client for FlashClient {
         
         match self.state.get() {
             FlashClientState::Enabling => {
-                    /*use support;
-                    for i in 0..92_000_000 {
-                        support::nop();
-                    }*/
-                    self.state.set(FlashClientState::EWRCycleStart);
+                    //self.state.set(FlashClientState::EWRCycleStart);
                     println!("===========Transitioning \
                         to Erasing/Writing/Reading========");
-                    dev.enable_ws1_read_opt(true);
+                    //dev.enable_ws1_read_opt(true);
                     // This enabled High Speed Mode using a command
                     // which generates the interrupt for the next stage.
-                    dev.set_flash_waitstate_and_readmode(48000000, 0, false);
+                    //dev.write_to_page_buffer(0x40 * 512);
+                    //dev.clear_page_buffer();
+                   // println!("cleared pg buff with status:{}", dev.get_error_status());
+                    //dev.write_user_page();
+                    //dev.lock_page_region(0, false);
+                    //dev.set_flash_waitstate_and_readmode(48000000, 0, false);
             },
             FlashClientState::Writing => {
                 println!("\tWriting page {}", self.page.get());
@@ -295,8 +296,11 @@ pub fn set_read_write_test() {
     
     //kicks off the interrupts
     //flashClient.command_complete(Error::CommandComplete);
-    dev.lock_page_region(0, false);
+    //dev.lock_page_region(0, false);
     //dev.clear_page_buffer();
+    dev.no_operation();
+    //dev.clear_page_buffer();
+    //println!("cleared pg buff with status:{}", dev.get_error_status());
 
 }
 

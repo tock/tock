@@ -18,10 +18,6 @@ use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::virtual_i2c::{MuxI2C, I2CDevice};
 
-//TODO: remove. Only using for 'sleep'...
-use hil::alarm::Alarm;
-
-
 // HAL unit tests. To enable a particular unit test, uncomment
 // the module here and uncomment the call to start the test in
 // the init function below.
