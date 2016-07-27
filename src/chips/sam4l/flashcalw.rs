@@ -5,7 +5,6 @@ use helpers::*;
 use core::{mem, slice};
 use core::cell::Cell;
 use common::take_cell::TakeCell;
-use hil::flash;
 use pm;
 use support;
 use nvic;
@@ -37,6 +36,24 @@ enum RegKey {
     GPFRHI,
     GPFRLO
 }
+
+/// ERROR codes
+pub enum Error {
+    CommandComplete,
+    LockE,
+    ProgE,
+    LockProgE,
+    ECC,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Command {
+    Write,
+    Read,
+    Erase,
+    None
+}
+
 
 // This is the pico cache registers...
 #[allow(dead_code)]
@@ -139,9 +156,9 @@ pub struct FLASHCALW {
     wait_until_ready: fn(&FLASHCALW) -> (),
     error_status: TakeCell<u32>,
     ready: TakeCell<bool>,
-    client: TakeCell<&'static flash::Client>,
+    client: TakeCell<&'static Client>,
     current_state: Cell<FlashState>,
-    current_command: Cell<flash::Command>,
+    current_command: Cell<Command>,
     page: Cell<i32>,
     page_buffer: TakeCell<[u8; FLASH_PAGE_SIZE as usize]>
 }
@@ -197,6 +214,12 @@ pub fn default_wait_until_ready(flash : &FLASHCALW) {
         }
     }
 }
+
+// Trait for a client of the flash driver.
+pub trait Client {
+    //  Called upon a completed call
+    fn command_complete(&self, err: Error);     
+}
     
 // TODO: remove!!
 static mut num_cmd_iss : i32 = 0; 
@@ -230,7 +253,7 @@ impl FLASHCALW {
             ready:                  TakeCell::new(true),
             client:                 TakeCell::empty(),
             current_state:          Cell::new(FlashState::Unconfigured),
-            current_command:        Cell::new(flash::Command::None),
+            current_command:        Cell::new(Command::None),
             page:                   Cell::new(0),
             page_buffer:            TakeCell::new([0; FLASH_PAGE_SIZE as usize])
         }
@@ -270,7 +293,6 @@ impl FLASHCALW {
 
 
     pub fn handle_interrupt(&self) {
-        use hil::flash::{Error, Command};
         println!("In handle_interrupt...");
         
         //  mark the controller as ready
@@ -984,13 +1006,13 @@ impl FLASHCALW {
 }
 
 // implement the generic calls using the low-lv functions.
-impl flash::FlashController for FLASHCALW {
+impl FLASHCALW {
     
-    fn set_client(&self, client: &'static flash::Client) { 
+    pub fn set_client(&self, client: &'static Client) { 
         self.client.put(Some(client)); 
     }
     
-    fn configure(&mut self) {
+    pub fn configure(&mut self) {
         //enable all clocks (if they aren't on already...)
         unsafe {
             pm::enable_clock(self.ahb_clock);
@@ -1023,18 +1045,18 @@ impl flash::FlashController for FLASHCALW {
         println!("Configured");
     }
 
-    fn get_page_size(&self) -> u32 {
+    pub fn get_page_size(&self) -> u32 {
         FLASH_PAGE_SIZE
     }
 
-    fn get_number_pages(&self) -> u32 {
+    pub fn get_number_pages(&self) -> u32 {
         //check clock and enable just incase
         unsafe { pm::enable_clock(self.pb_clock); }
         self.get_page_count()
     }
     
     // Address is some raw address in flash that you want to read.
-    fn read(&self, address: usize, size: usize, buffer: &mut [u8]) -> i32 {
+    pub fn read(&self, address: usize, size: usize, buffer: &mut [u8]) -> i32 {
         //enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
         
@@ -1056,7 +1078,7 @@ impl flash::FlashController for FLASHCALW {
         0
     }
 
-    fn write_page(&self, page_num: i32, data: & [u8]) -> i32{
+    pub fn write_page(&self, page_num: i32, data: & [u8]) -> i32{
         // enable clock incase it's off
         unsafe { pm::enable_clock(self.ahb_clock); }
         
@@ -1076,12 +1098,12 @@ impl flash::FlashController for FLASHCALW {
 
         self.page.set(page_num);
         self.current_state.set(FlashState::Unlocking);
-        self.current_command.set(flash::Command::Write);
+        self.current_command.set(Command::Write);
         self.lock_page_region(page_num, false);
         0 
     }
     
-    fn erase_page(&self, page_num: i32) -> i32 {
+    pub fn erase_page(&self, page_num: i32) -> i32 {
         // Enable AHB clock (incase it was off).
         unsafe { pm::enable_clock(self.ahb_clock); }
         if self.current_state.get() != FlashState::Ready {
@@ -1090,7 +1112,7 @@ impl flash::FlashController for FLASHCALW {
         
         self.page.set(page_num);
         self.current_state.set(FlashState::Unlocking);
-        self.current_command.set(flash::Command::Erase);
+        self.current_command.set(Command::Erase);
         self.lock_page_region(page_num, false);
         0 
     }

@@ -6,6 +6,7 @@
 extern crate common;
 extern crate drivers;
 extern crate hil;
+// TODO: remove macro use here and in chips. Move io back here.
 #[macro_use]
 extern crate sam4l;
 extern crate support;
@@ -39,11 +40,11 @@ pub struct Firestorm {
     isl29035: &'static drivers::isl29035::Isl29035<'static>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static drivers::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
-    flash: &'static drivers::flash::Flash<'static, sam4l::flashcalw::FLASHCALW>,
 }
 
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
+        // TODO: remove
         println!("Servicing pending interrupts...");
         self.chip.service_pending_interrupts()
     }
@@ -63,7 +64,6 @@ impl Firestorm {
             4 => f(Some(self.spi)),
             5 => f(Some(self.nrf51822)),
             6 => f(Some(self.isl29035)),
-            7 => f(Some(self.flash)),
             _ => f(None)
         }
     }
@@ -338,10 +338,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
     sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
 
-    // Static_init the flash driver.
-    static_init!(flash: drivers::flash::Flash<'static, sam4l::flashcalw::FLASHCALW> =
-                        drivers::flash::Flash::new(&mut sam4l::flashcalw::flash_controller));
-
     // set GPIO driver controlling remaining GPIO pins
     static_init!(gpio_pins : [&'static sam4l::gpio::GPIOPin; 12] = [
             &sam4l::gpio::PC[10], // LED_0
@@ -379,7 +375,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         isl29035: isl29035,
         spi: spi,
         nrf51822: nrf_serialization,
-        flash: flash
     });
 
     sam4l::usart::USART3.configure(sam4l::usart::USARTParams {

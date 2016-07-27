@@ -3,7 +3,7 @@
 /// will generate an interrupt.
 
 use sam4l::flashcalw;
-use hil::flash::{FlashController, Client, Error};
+use sam4l::flashcalw::{Error, Client};
 use core::cell::Cell;
 
 // ======================================
