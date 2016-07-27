@@ -42,7 +42,7 @@ static mut FLASH_CLIENT : FlashClient = FlashClient {
     cycles_finished: Cell::new(0)
 };
 
-const MAX_PAGE_NUM: i32 = 53;   // Page to go up to
+const MAX_PAGE_NUM: i32 = 80;   // Page to go up to
 
 impl Client for FlashClient {
 

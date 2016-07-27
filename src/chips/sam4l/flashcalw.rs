@@ -1,14 +1,79 @@
-/// FLASHCALW Driver for the SAM4L.
-
+/* chips::sam4l::flashcalw -- Implementation of a flash controller.
+ *
+ * This implementation of the flash controller for at sam4l flash controller
+ * uses interrupts to handle main tasks of a flash -- write, reads, and erases.
+ * If modifying this file, you should check whether the flash commands (issued
+ * via issue_command) generates and interrupt and design a higher level function
+ * based off of that.
+ *
+ * Although the datasheet says that when the FRDY interrupt is on, a interrupt will
+ * be generated after a command is complete, it doesn't appear to occur for some
+ * commands.
+ *
+ * A clean interface for reading from flash, writing pages and erasing pages are
+ * defined below and should be used to handle the complexity of these tasks.
+ * 
+ * The driver should be configured() before use, and a Client should be set to
+ * enable a callback after a command is completed.
+ * Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
+ * Date: 7/27/16
+ */
 
 use helpers::*;
 use core::{mem, slice};
 use core::cell::Cell;
 use common::take_cell::TakeCell;
 use pm;
-use support;
 use nvic;
 
+//  These are the registers of the PicoCache -- a cache sole for the flash.
+#[allow(dead_code)]
+struct Picocache_Registers {
+    reserved_1:                             [u8;0x8],
+    picocache_control:                      usize,
+    picocache_status:                       usize,
+    reserved_2:                             [u8;0x10],
+    picocache_maintenance_register_0:       usize,
+    picocache_maintenance_register_1:       usize,
+    picocache_montior_configuration:        usize,
+    picocache_monitor_enable:               usize,
+    picocache_monitor_control:              usize,
+    picocache_monitor_status:               usize,
+    reserved_3:                             [u8;0xC4],
+    version:                                usize
+}
+
+//  Section 7 (the memory diagram) says the register starts at 0x400A0400. 
+const PICOCACHE_BASE_ADDRS : *mut Picocache_Registers = 0x400A0400 as *mut Picocache_Registers;
+
+//  Flush the cache. Should be called after every write!
+pub fn invalidate_cache() {
+    let registers : &mut Picocache_Registers = unsafe { 
+        mem::transmute(PICOCACHE_BASE_ADDRS)
+    };
+
+    volatile_store(&mut registers.picocache_maintenance_register_0, 0x1);
+}
+
+pub fn enable_picocache(enable : bool) {
+    let registers : &mut Picocache_Registers = unsafe { 
+        mem::transmute(PICOCACHE_BASE_ADDRS)
+    };
+    if (enable) {
+        volatile_store(&mut registers.picocache_control, 0x1);
+    }
+    else {
+        volatile_store(&mut registers.picocache_control, 0x0);
+    }
+
+}
+
+pub fn pico_enabled() -> bool {
+    let registers : &mut Picocache_Registers = unsafe { 
+        mem::transmute(PICOCACHE_BASE_ADDRS)
+    };
+   volatile_load(&registers.picocache_status) & 0x1 != 0
+}
 
 // Listing of the FLASHCALW register memory map.
 // Section 14.10 of the datasheet
@@ -46,6 +111,7 @@ pub enum Error {
     ECC,
 }
 
+// High level commands to issue to the flash.
 #[derive(Clone, Copy, PartialEq)]
 pub enum Command {
     Write,
@@ -55,54 +121,6 @@ pub enum Command {
 }
 
 
-// This is the pico cache registers...
-#[allow(dead_code)]
-struct Picocache_Registers {
-    reserved_1:                             [u8;0x8],
-    picocache_control:                      usize,
-    picocache_status:                       usize,
-    reserved_2:                             [u8;0x10],
-    picocache_maintenance_register_0:       usize,
-    picocache_maintenance_register_1:       usize,
-    picocache_montior_configuration:        usize,
-    picocache_monitor_enable:               usize,
-    picocache_monitor_control:              usize,
-    picocache_monitor_status:               usize,
-    reserved_3:                             [u8;0xC4],
-    version:                                usize
-}
-
-//  Section 7 (the memory diagram) says it starts at 0x400A0400. 
-const PICOCACHE_BASE_ADDRS : *mut Picocache_Registers = 0x400A0400 as *mut Picocache_Registers;
-
-//  Flush the cache. Should be called after every write!
-pub fn invalidate_cache() {
-    let registers : &mut Picocache_Registers = unsafe { 
-        mem::transmute(PICOCACHE_BASE_ADDRS)
-    };
-
-    volatile_store(&mut registers.picocache_maintenance_register_0, 0x1);
-}
-
-pub fn enable_picocache(enable : bool) {
-    let registers : &mut Picocache_Registers = unsafe { 
-        mem::transmute(PICOCACHE_BASE_ADDRS)
-    };
-    if (enable) {
-        volatile_store(&mut registers.picocache_control, 0x1);
-    }
-    else {
-        volatile_store(&mut registers.picocache_control, 0x0);
-    }
-
-}
-
-pub fn pico_enabled() -> bool {
-    let registers : &mut Picocache_Registers = unsafe { 
-        mem::transmute(PICOCACHE_BASE_ADDRS)
-    };
-   volatile_load(&registers.picocache_status) & 0x1 != 0
-}
 
 // There are 18 recognized commands possible to command the flash
 // Table 14-5.
@@ -188,14 +206,13 @@ const FLASH_FREQ_PS1_FWS_0_MAX_FREQ : u32 = 8000000;
 #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
 const FLASH_FREQ_PS2_FWS_0_MAX_FREQ : u32 = 24000000;
 
-//helper for gp fuses all one...
 const GP_ALL_FUSES_ONE : u64 = !0 as u64;
 
+// Macros for getting the i-th bit.
 macro_rules! get_bit {
     ($w:expr) => (0x1u32 << $w);
 }
 
-// save me some casts...
 macro_rules! get_ubit {
     ($w:expr) => (0x1usize << $w);
 }
@@ -208,10 +225,8 @@ fn min<T: Ord>(v1: T, v2: T) -> T {
 
 // Should never ever have to wait (because we're using interrupts!)
 pub fn default_wait_until_ready(flash : &FLASHCALW) {
-    while !flash.get_ready_status() {    
-        unsafe { 
-            println!("Going to sleep!");
-        }
+    while !flash.get_ready_status() { 
+        panic!("Flash wasn't ready for a command -- interrupt system used incorrectly.");
     }
 }
 
@@ -221,9 +236,6 @@ pub trait Client {
     fn command_complete(&self, err: Error);     
 }
     
-// TODO: remove!!
-static mut num_cmd_iss : i32 = 0; 
-
 impl FLASHCALW {
 
     pub fn mark_ready(&self) {
@@ -259,8 +271,7 @@ impl FLASHCALW {
         }
     }
 
-    //simple helper to read the register (use if only one call needs to be accessed 
-    // your fxn.
+    // Helper to read a flashcalw register 
     fn read_register(&self, key : RegKey) -> usize {
         let registers : &mut Registers = unsafe { 
             mem::transmute(self.registers)
@@ -293,19 +304,15 @@ impl FLASHCALW {
 
 
     pub fn handle_interrupt(&self) {
-        println!("In handle_interrupt...");
-        
-        //  mark the controller as ready
         unsafe { 
+            //  mark the controller as ready and clear pending interrupt 
             self.mark_ready();  
-            // clear pending interrupt ( it's being handled...)
             nvic::clear_pending(nvic::NvicIdx::HFLASHC);
         }
        
         self.error_status.put(Some(self.get_error_status()));
         let error_status = self.error_status.take().unwrap();
         self.error_status.put(Some(error_status));
-        println!("\tError status:{}", error_status);
 
         //  Since the only interrupt request on is FRDY, a command should have
         //  either completed or failed at this point.
@@ -344,7 +351,6 @@ impl FLASHCALW {
             Command::Write => {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
-                        println!("Writing: Unlocked Page");
                         self.current_state.set(FlashState::Erasing);
                         self.flashcalw_erase_page(self.page.get(), true);
                     },
@@ -353,9 +359,7 @@ impl FLASHCALW {
                         //  clear page buffer dosn't trigger an interrupt thus
                         //  I'm combining these with an actual command, write_page, 
                         //  which generates and interrupt and saves the page.
-                        println!("Writing: Erased Page");
                         self.clear_page_buffer();
-                        println!("Writing: Cleared Page Buffer and Writing to it!");
                         self.write_to_page_buffer(self.page.get() as usize 
                             * FLASH_PAGE_SIZE as usize);
                        
@@ -363,14 +367,12 @@ impl FLASHCALW {
                         self.flashcalw_write_page(self.page.get());
                     },
                     FlashState::Writing => {
-                        println!("Writing: Wrote Page"); 
                         // Flush the cache
                         invalidate_cache();
                         self.current_state.set(FlashState::Locking);
                         self.lock_page_region(self.page.get(), true);
                     },
                     FlashState::Locking => {
-                        println!("Writing: Locked Page"); 
                         self.current_state.set(FlashState::Ready);
                         self.current_command.set(Command::None);
                     },
@@ -385,17 +387,14 @@ impl FLASHCALW {
             Command::Erase => {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
-                        println!("Erasing: Unlocked Page"); 
                         self.current_state.set(FlashState::Erasing);
                         self.flashcalw_erase_page(self.page.get(), true); 
                     }, 
                     FlashState::Erasing => {
-                        println!("Erasing: Erased Page"); 
                         self.current_state.set(FlashState::Locking);
                         self.lock_page_region(self.page.get(), true);
                     },
                     FlashState::Locking => {
-                        println!("Erasing: Locked Page"); 
                         self.current_state.set(FlashState::Ready);
                         self.current_command.set(Command::None);
                     },
@@ -403,7 +402,6 @@ impl FLASHCALW {
                 }
             }
             Command::None => { 
-                println!("Command:None Completed in state {}", self.current_state.get() as u32); 
                 self.current_state.set(FlashState::Ready);
             }
 
@@ -412,7 +410,6 @@ impl FLASHCALW {
         //  If the command is finished call the complete CB.
         if self.current_command.get() == Command::None && 
             self.current_state.get() == FlashState::Ready {
-            println!("Calling CB(CommandComplete)");
             self.client.map(|value| {
                 value.command_complete(Error::CommandComplete);
             });
@@ -437,8 +434,8 @@ impl FLASHCALW {
                            768,
                            1024,
                            2048];
-        flash_sizes[self.read_register(RegKey::PARAMETER) & 0xf]  << 10// get the FSZ number and 
-                                                    // lookup in the table for the size.
+        // get the FSZ number and lookup in the table for the size.
+        flash_sizes[self.read_register(RegKey::PARAMETER) & 0xf]  << 10
     }
 
     pub fn get_page_count(&self) -> u32 {
@@ -610,23 +607,17 @@ impl FLASHCALW {
 
         ((self.read_register(RegKey::COMMAND) & page_mask) >> 8) as u32
     }
+    
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         unsafe { pm::enable_clock(self.pb_clock); }
         if(command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB
             && command != FlashCMD::HSEN) {
-            unsafe {
-                num_cmd_iss = num_cmd_iss + 1;
-            }
             (self.wait_until_ready)(self); // call the registered wait function
             self.ready.replace(false);
-            println!("Enabling Ready Int before Issuing Command");
             //  enable ready int
             self.enable_ready_int(true);
-            println!("Is ready interrupt on? {}", self.is_ready_int_enabled());
         }
-        unsafe {
-            print!("Issuing the #{} command...{}", num_cmd_iss, command as u32);
-        }
+        
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         let mut reg_val : usize = volatile_load(&mut cmd_regs.command);
         
@@ -644,16 +635,11 @@ impl FLASHCALW {
         
 
         volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
-        //  verify the data stored. 
         
-        let data = volatile_load(&cmd_regs.command);
-        let page = ((get_ubit!(24) - 1) & data) >> 8;
-        let cmd = (get_ubit!(6) - 1) & data;
-    
-        println!("According to registeres issues command {} on page {}", cmd, page); 
-        self.error_status.put(Some(self.get_error_status()));
-        println!("\tError status:{}", self.debug_error_status());
-        println!("Command issued");
+        if(command == FlashCMD::QPRUP || command == FlashCMD::QPR || command == FlashCMD::CPB
+            || command == FlashCMD::HSEN) {
+            self.error_status.put(Some(self.get_error_status()));
+        }
     }
 
 
@@ -694,19 +680,6 @@ impl FLASHCALW {
     pub fn lock_region(&self, region : u32, lock : bool) {
         let first_page : i32 = self.get_region_first_page_number(region) as i32;
         self.lock_page_region(first_page, lock);
-    }
-
-    pub fn lock_all_regions(&self, lock : bool) {
-        let mut error_status = 0;
-        let mut num_regions = 0;
-
-        while num_regions < FLASHCALW_REGIONS {
-            self.lock_region(num_regions, lock);
-            error_status |= self.error_status.take().unwrap();    
-            num_regions += 1;
-        }
-        
-        self.error_status.replace(error_status);
     }
 
     ///Flashcalw General-Purpose Fuses
@@ -920,7 +893,9 @@ impl FLASHCALW {
         if check {
             let mut error_status : u32 = self.error_status.take().unwrap();
             page_erased = self.quick_page_read(-1);
-            error_status |= self.get_error_status();
+            
+            //  issue command should have added changed the error status.
+            error_status |= self.error_status.take().unwrap();
             self.error_status.replace(error_status);
         }
 
@@ -997,7 +972,7 @@ impl FLASHCALW {
         self.page_buffer.put(Some(buffer));
     }
 
-    /// FOR DEBUGGING PURPOSES...
+    // returns the error_status (useful for debugging).
     pub fn debug_error_status(&self) -> u32 {
         let status = self.error_status.take().unwrap();
         self.error_status.put(Some(status));
@@ -1005,7 +980,7 @@ impl FLASHCALW {
     }
 }
 
-// implement the generic calls using the low-lv functions.
+// implementation of high level calls using the low-lv functions.
 impl FLASHCALW {
     
     pub fn set_client(&self, client: &'static Client) { 
@@ -1118,22 +1093,14 @@ impl FLASHCALW {
     }
 }
 
-//TODO: remove
-static mut nvic_count : i32 = 0;
-static mut lock_count : i32 = 0;
-
 //  Assumes the only Hardware Interrupt enabled for the FLASHCALW is the
 //  FRDY (Flash Ready) interrupt.
 pub unsafe extern fn FLASH_Handler() {
     use common::Queue;
     use chip;
     
-    nvic_count = nvic_count + 1;
-
-    println!("Queued Flash Interrupt! #{}", nvic_count);
-    //  reset the nvic interrupt bit for flash and queue a handle interrupt
-    //nvic::clear_pending(nvic::NvicIdx::HFLASHC);
-    //println!("Error status is {};", flash_controller.debug_error_status());
+    //  disable the nvic interrupt line for flash, turn of the perherial interrupt,
+    //  and queue a handle interrupt.
     flash_controller.enable_ready_int(false);
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
