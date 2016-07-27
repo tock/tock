@@ -6,8 +6,6 @@
 extern crate common;
 extern crate drivers;
 extern crate hil;
-// TODO: remove macro use here and in chips. Move io back here.
-#[macro_use]
 extern crate sam4l;
 extern crate support;
 extern crate process;
@@ -18,6 +16,9 @@ use hil::gpio::GPIOPin;
 use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::virtual_i2c::{MuxI2C, I2CDevice};
+
+#[macro_use]
+pub mod io;
 
 // HAL unit tests. To enable a particular unit test, uncomment
 // the module here and uncomment the call to start the test in

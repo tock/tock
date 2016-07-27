@@ -41,8 +41,6 @@ impl Sam4l {
         use nvic::NvicIdx::*;
 
         INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
-            //TODO: remove
-            println!("handling interrupt: {}", interrupt as u32);
             match interrupt {
                 ASTALARM => ast::AST.handle_interrupt(),
 
@@ -80,8 +78,6 @@ impl Sam4l {
             }
             nvic::enable(interrupt);
        });
-        //TODO: remove
-    println!("==================Done Servicing Interrupts!===================");
     }
 
     pub unsafe fn has_pending_interrupts(&mut self) -> bool {

@@ -1017,7 +1017,6 @@ impl FLASHCALW {
         enable_picocache(true);
         
         self.current_state.set(FlashState::Ready);
-        println!("Configured");
     }
 
     pub fn get_page_size(&self) -> u32 {

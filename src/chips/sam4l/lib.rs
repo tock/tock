@@ -6,10 +6,6 @@
 extern crate common;
 extern crate hil;
 extern crate process;
-extern crate support;
-
-#[macro_use]
-pub mod io;
 
 mod helpers;
 
