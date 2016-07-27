@@ -10,8 +10,7 @@ extern crate support;
 extern crate process;
 extern crate common;
 
-use hil::Controller;
-use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+// use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use hil::gpio::GPIOPin;
 
 pub mod systick;

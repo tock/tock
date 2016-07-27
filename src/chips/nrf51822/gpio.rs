@@ -240,9 +240,6 @@ pub static mut PORT : Port = Port {
 pub unsafe extern fn GPIOTE_Handler() {
     use common::Queue;
 
-    let pin = &PORT[0] as &hil::gpio::GPIOPin; 
-    pin.toggle();
-
     nvic::disable(NvicIdx::GPIOTE);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::GPIOTE);
 }
