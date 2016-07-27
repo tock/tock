@@ -45,8 +45,6 @@ pub struct Firestorm {
 
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
-        // TODO: remove
-        println!("Servicing pending interrupts...");
         self.chip.service_pending_interrupts()
     }
 
@@ -419,10 +417,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     //i2c_dummy::i2c_li_test();
 
     // Uncommenting the following lines will test the Flash Controller
-    // TODO: comment and delete the println
-    flash_dummy::meta_test();
-    flash_dummy::set_read_write_test();
-    println!("======FireStorm Done Initalizing======");
+    //flash_dummy::meta_test();
+    //flash_dummy::set_read_write_test();
+    //println!("======FireStorm Done Initalizing======");
 
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();
