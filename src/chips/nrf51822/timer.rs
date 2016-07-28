@@ -5,7 +5,7 @@ use peripheral_interrupts::NvicIdx;
 use nvic;
 use chip;
 use hil;
-use hil::alarm::{Alarm, AlarmClient, Freq16MHz};
+use hil::alarm::{Alarm, AlarmClient, Freq16KHz};
 
 #[repr(C, packed)]
 struct Registers {
@@ -168,24 +168,83 @@ impl Timer {
     }
 }
 
-impl hil::alarm::Alarm for Timer {
+pub struct TimerAlarm {
+    which: Location,
+    nvic: NvicIdx,
+    client: TakeCell<&'static AlarmClient>,
+}
 
-    type Frequency = Freq16MHz;
+impl TimerAlarm {
+    fn timer(&self) -> &'static Registers { TIMER(self.which) }
 
+    pub const fn new(location: Location, nvic: NvicIdx) -> TimerAlarm {
+        TimerAlarm {
+            which: location,
+            nvic: nvic,
+            client: TakeCell::empty(),
+        }
+    }
+
+    pub fn set_client(&self, client: &'static AlarmClient) {
+        self.client.replace(client);
+    }
+
+    pub fn start(&self) {
+        // Clock is 16MHz, so scale down by 2^10 to 16KHz
+        self.timer().prescaler.set(10);
+        self.timer().task_start.set(1);
+    }
+
+    pub fn stop(&self) {
+        self.timer().task_stop.set(1);
+    }
+
+    pub fn handle_interrupt(&self) {
+        self.client.map(|client| {
+            client.fired();
+        });
+    }
+
+    pub fn enable_interrupts(&self, interrupts: u32) {
+        self.timer().intenset.set(interrupts); 
+    }
+    pub fn disable_interrupts(&self, interrupts: u32) {
+        self.timer().intenclr.set(interrupts); 
+    }
+
+    pub fn enable_nvic(&self) {
+        nvic::enable(self.nvic);
+    }
+
+    pub fn disable_nvic(&self) {
+        nvic::disable(self.nvic);
+    }
+}
+
+impl hil::alarm::Alarm for TimerAlarm {
+    type Frequency = Freq16KHz;
+    
     fn now(&self) -> u32 {
-        self.capture(0)    
+        self.timer().task_capture[0].set(1);
+        self.timer().cc[0].get()
     }
     fn set_alarm(&self, tics: u32) {
-        self.set_cc1(tics); 
+        self.disable_alarm();
+        self.enable_nvic();
+        // Enable interrupt on cc1
+        self.enable_interrupts(1 << 1);
+        self.timer().cc[1].set(tics);
     }
     fn disable_alarm(&self) {
-        self.set_cc1(0); 
+        // Disable interrupt on cc1
+        self.disable_interrupts(1 << 1);
+        self.timer().cc[1].set(0);
     }
     fn is_armed(&self) -> bool {
-        self.get_cc1() != 0    
+        self.timer().cc[1].get() != 0
     }
     fn get_alarm(&self) -> u32 {
-        self.get_cc1()
+        self.timer().cc[1].get()
     }
 }
 
