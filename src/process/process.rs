@@ -1,10 +1,13 @@
 use core::intrinsics::{breakpoint, volatile_load, volatile_store};
-use core::mem;
+use core::{mem,ptr,intrinsics};
 use core::raw::{Repr,Slice};
 
 use common::{RingBuffer, Queue};
 
 use container;
+
+#[no_mangle]
+pub static mut SYSCALL_FIRED : usize = 0;
 
 #[allow(improper_ctypes)]
 extern {
@@ -103,7 +106,7 @@ pub unsafe fn load_processes(mut start_addr: *const usize) ->
             let length = *start_addr as isize;
             start_addr = (start_addr as *const u8).offset(length) as *const usize;
 
-            *op = Process::create(prog_start);
+            *op = Process::create(prog_start, length);
         } else {
             *op = None;
         }
@@ -122,7 +125,16 @@ impl<'a> Process<'a> {
         }
     }
 
-    pub unsafe fn create(start_addr: *const usize) -> Option<Process<'a>> {
+    pub fn memory_regions(&self) -> (usize, usize, usize, usize) {
+        let data_start = self.memory.data as usize;
+        let data_len = 12;
+
+        let text_start = self.text.data as usize;
+        let text_len = ((32 - self.text.len.leading_zeros()) - 2) as usize;
+        (data_start, data_len, text_start, text_len)
+    }
+
+    pub unsafe fn create(start_addr: *const usize, length: isize) -> Option<Process<'a>> {
         let cur_idx = FREE_MEMORY_IDX;
         if cur_idx <= MEMORIES.len() {
             FREE_MEMORY_IDX += 1;
@@ -140,7 +152,7 @@ impl<'a> Process<'a> {
                     len: num_ctrs
                 });
                 for opt in opts.iter_mut() {
-                    *opt = ::core::ptr::null()
+                    *opt = ptr::null()
                 }
                 res
             };
@@ -168,8 +180,8 @@ impl<'a> Process<'a> {
                 app_memory_break: stack_bottom,
                 kernel_memory_break: kernel_memory_break,
                 text: Slice {
-                    data: load_result.text_start,
-                    len: load_result.text_len },
+                    data: start_addr.offset(-1) as *const u8,
+                    len: length as usize },
                 cur_stack: stack_bottom,
                 wait_pc: 0,
                 psr: 0x01000000,
@@ -270,7 +282,7 @@ impl<'a> Process<'a> {
     }
 
     /// Context switch to the process.
-    pub unsafe fn switch_to_callback(&mut self, callback: Callback) {
+    pub unsafe fn push_callback(&mut self, callback: Callback) {
         // Fill in initial stack expected by SVC handler
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
@@ -286,7 +298,10 @@ impl<'a> Process<'a> {
         volatile_store(stack_bottom.offset(3), callback.r3);
 
         self.cur_stack = stack_bottom as *mut u8;
-        self.switch_to();
+    }
+
+    pub unsafe fn syscall_fired(&self) -> bool {
+        intrinsics::volatile_load(&SYSCALL_FIRED) != 0
     }
 
     /// Context switch to the process.
@@ -349,7 +364,7 @@ struct LoadResult {
 
 unsafe fn load(start_addr: *const usize, mem_base: *const u8) -> LoadResult {
     let mut result = LoadResult {
-        text_start: 0 as *const u8,
+        text_start: start_addr as *const u8,
         text_len: 0,
         init_fn: 0,
         app_mem_start: 0 as *const u8

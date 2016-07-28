@@ -1,9 +1,10 @@
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
-#![feature(const_fn,lang_items)]
+#![feature(core_intrinsics,const_fn,lang_items)]
 
 extern crate common;
+extern crate cortexm4;
 extern crate drivers;
 extern crate hil;
 extern crate sam4l;
@@ -13,12 +14,13 @@ extern crate process;
 use hil::Controller;
 use hil::spi_master::SpiMaster;
 use hil::gpio::GPIOPin;
-use drivers::timer::AlarmToTimer;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::virtual_i2c::{MuxI2C, I2CDevice};
 
 #[macro_use]
 pub mod io;
+
+pub mod systick;
 
 // HAL unit tests. To enable a particular unit test, uncomment
 // the module here and uncomment the call to start the test in
@@ -35,8 +37,8 @@ pub struct Firestorm {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static drivers::timer::TimerDriver<'static, AlarmToTimer<'static,
-                                VirtualMuxAlarm<'static, sam4l::ast::Ast>>>,
+    timer: &'static drivers::timer::TimerDriver<'static,
+                VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
     tmp006: &'static drivers::tmp006::TMP006<'static>,
     isl29035: &'static drivers::isl29035::Isl29035<'static>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
@@ -50,6 +52,10 @@ impl Firestorm {
 
     pub unsafe fn has_pending_interrupts(&mut self) -> bool {
         self.chip.has_pending_interrupts()
+    }
+
+    pub fn mpu(&mut self) -> &mut cortexm4::mpu::MPU {
+        &mut self.chip.mpu
     }
 
     pub fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
@@ -321,15 +327,11 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, sam4l::ast::Ast> =
                     VirtualMuxAlarm::new(mux_alarm));
-    static_init!(vtimer1 : AlarmToTimer<'static,
+    static_init!(timer : drivers::timer::TimerDriver<'static,
                                 VirtualMuxAlarm<'static, sam4l::ast::Ast>> =
-                            AlarmToTimer::new(virtual_alarm1));
-    virtual_alarm1.set_client(vtimer1);
-    static_init!(timer : drivers::timer::TimerDriver<AlarmToTimer<'static,
-                                VirtualMuxAlarm<'static, sam4l::ast::Ast>>> =
-                            drivers::timer::TimerDriver::new(vtimer1,
+                            drivers::timer::TimerDriver::new(virtual_alarm1,
                                             process::Container::create()));
-    vtimer1.set_client(timer);
+    virtual_alarm1.set_client(timer);
 
     // Initialize and enable SPI HAL
     static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
@@ -423,6 +425,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();
+
+    firestorm.mpu().enable_mpu();
+
     firestorm
 }
 

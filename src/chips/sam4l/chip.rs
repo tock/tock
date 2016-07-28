@@ -1,4 +1,5 @@
 use common::{RingBuffer,Queue};
+use cortexm4;
 use ast;
 //use adc;
 use dma;
@@ -9,7 +10,9 @@ use gpio;
 use i2c;
 use flashcalw;
 
-pub struct Sam4l;
+pub struct Sam4l {
+    pub mpu: cortexm4::mpu::MPU
+}
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF : [nvic::NvicIdx; IQ_SIZE] =
@@ -34,13 +37,16 @@ impl Sam4l {
         i2c::I2C2.set_dma(&dma::DMAChannels[4]);
         dma::DMAChannels[4].client = Some(&mut i2c::I2C2);
 
-        Sam4l
+        Sam4l {
+            mpu: cortexm4::mpu::MPU::new()
+        }
     }
 
     pub unsafe fn service_pending_interrupts(&mut self) {
         use nvic::NvicIdx::*;
 
-        INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
+        let iq = INTERRUPT_QUEUE.as_mut().unwrap();
+        while let Some(interrupt) = iq.dequeue() {
             match interrupt {
                 ASTALARM => ast::AST.handle_interrupt(),
 
@@ -77,7 +83,7 @@ impl Sam4l {
                 _ => {}
             }
             nvic::enable(interrupt);
-       });
+       }
     }
 
     pub unsafe fn has_pending_interrupts(&mut self) -> bool {
