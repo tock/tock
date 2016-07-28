@@ -1,82 +1,73 @@
-/* chips::sam4l::flashcalw -- Implementation of a flash controller.
- *
- * This implementation of the flash controller for at sam4l flash controller
- * uses interrupts to handle main tasks of a flash -- write, reads, and erases.
- * If modifying this file, you should check whether the flash commands (issued
- * via issue_command) generates and interrupt and design a higher level function
- * based off of that.
- *
- * Although the datasheet says that when the FRDY interrupt is on, a interrupt will
- * be generated after a command is complete, it doesn't appear to occur for some
- * commands.
- *
- * A clean interface for reading from flash, writing pages and erasing pages are
- * defined below and should be used to handle the complexity of these tasks.
- * 
- * The driver should be configured() before use, and a Client should be set to
- * enable a callback after a command is completed.
- * Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
- * Date: 7/27/16
- */
+//! chips::sam4l::flashcalw -- Implementation of a flash controller.
+//!
+//! This implementation of the flash controller for at sam4l flash controller
+//! uses interrupts to handle main tasks of a flash -- write, reads, and erases.
+//! If modifying this file, you should check whether the flash commands (issued
+//! via issue_command) generates and interrupt and design a higher level function
+//! based off of that.
+//!
+//! Although the datasheet says that when the FRDY interrupt is on, a interrupt will
+//! be generated after a command is complete, it doesn't appear to occur for some
+//! commands.
+//!
+//! A clean interface for reading from flash, writing pages and erasing pages are
+//! defined below and should be used to handle the complexity of these tasks.
+//!
+//! The driver should be configured() before use, and a Client should be set to
+//! enable a callback after a command is completed.
+//! Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
+//! Date: 7/27/16
+//!
 
 use helpers::*;
 use core::{mem, slice};
 use core::cell::Cell;
 use common::take_cell::TakeCell;
+use common::VolatileCell;
 use pm;
 use nvic;
 
-//  These are the registers of the PicoCache -- a cache sole for the flash.
+//  These are the registers of the PicoCache -- a cache dedicated to the flash.
 #[allow(dead_code)]
-struct Picocache_Registers {
-    reserved_1:                             [u8;0x8],
-    picocache_control:                      usize,
-    picocache_status:                       usize,
-    reserved_2:                             [u8;0x10],
-    picocache_maintenance_register_0:       usize,
-    picocache_maintenance_register_1:       usize,
-    picocache_montior_configuration:        usize,
-    picocache_monitor_enable:               usize,
-    picocache_monitor_control:              usize,
-    picocache_monitor_status:               usize,
-    reserved_3:                             [u8;0xC4],
-    version:                                usize
+struct PicocacheRegisters {
+    _reserved_1:                  [u8; 8],
+    control:                      VolatileCell<u32>,
+    status:                       VolatileCell<u32>,
+    _reserved_2:                  [u8; 16],
+    maintenance_register_0:       VolatileCell<u32>,
+    maintenance_register_1:       VolatileCell<u32>,
+    montior_configuration:        VolatileCell<u32>,
+    monitor_enable:               VolatileCell<u32>,
+    monitor_control:              VolatileCell<u32>,
+    monitor_status:               VolatileCell<u32>,
+    _reserved_3:                  [u8; 196],
+    version:                      VolatileCell<u32>
 }
 
 //  Section 7 (the memory diagram) says the register starts at 0x400A0400. 
-const PICOCACHE_BASE_ADDRS : *mut Picocache_Registers = 0x400A0400 as *mut Picocache_Registers;
+const PICOCACHE_BASE_ADDR : usize = 0x400A0400; 
+fn PICOCACHE() -> &'static PicocacheRegisters {
+    unsafe { mem::transmute(PICOCACHE_BASE_ADDR) }
+}
 
 //  Flush the cache. Should be called after every write!
 pub fn invalidate_cache() {
-    let registers : &mut Picocache_Registers = unsafe { 
-        mem::transmute(PICOCACHE_BASE_ADDRS)
-    };
-
-    volatile_store(&mut registers.picocache_maintenance_register_0, 0x1);
+    PICOCACHE().maintenance_register_0.set(0x1);
 }
 
 pub fn enable_picocache(enable : bool) {
-    let registers : &mut Picocache_Registers = unsafe { 
-        mem::transmute(PICOCACHE_BASE_ADDRS)
-    };
-    if (enable) {
-        volatile_store(&mut registers.picocache_control, 0x1);
+    if enable {
+        PICOCACHE().control.set(0x1);
+    } else {
+        PICOCACHE().control.set(0x0);
     }
-    else {
-        volatile_store(&mut registers.picocache_control, 0x0);
-    }
-
 }
 
 pub fn pico_enabled() -> bool {
-    let registers : &mut Picocache_Registers = unsafe { 
-        mem::transmute(PICOCACHE_BASE_ADDRS)
-    };
-   volatile_load(&registers.picocache_status) & 0x1 != 0
-}
+    PICOCACHE().status.get() & 0x1 != 0
+} 
 
-// Listing of the FLASHCALW register memory map.
-// Section 14.10 of the datasheet
+// Struct of the FLASHCALW registers. Section 14.10 of the datasheet
 #[repr(C, packed)]
 #[allow(dead_code)]
 struct Registers {
@@ -102,16 +93,24 @@ enum RegKey {
     GPFRLO
 }
 
-/// ERROR codes
+/// Error codes are used to inform the Client if the command completed successfully
+/// or whether there was an error and what type of error it was.
 pub enum Error {
-    CommandComplete,
-    LockE,
-    ProgE,
-    LockProgE,
-    ECC,
+    CommandComplete,    /* Command Complete */
+    LockE,              /* Lock Error (i.e. tried writing to locked page) */
+    ProgE,              /* Program Error (i.e. incorrectly issued flash commands */
+    LockProgE,          /* Lock and Program Error */
+    ECC,                /* Error Correcting Code Error */
 }
 
-// High level commands to issue to the flash.
+/// High level commands to issue to the flash. Usually to track the state of 
+/// a command especially if it's multiple FlashCMDs. 
+/// 
+/// For example an erase is: 1) Unlock Page  (UP)
+///                          2) Erase Page   (EP)
+///                          3) Lock Page    (LP)
+/// Store what high level command we're doing allows us to track the state and
+/// continue the steps of the command in handle_interrupt.
 #[derive(Clone, Copy, PartialEq)]
 pub enum Command {
     Write,
@@ -122,8 +121,9 @@ pub enum Command {
 
 
 
-// There are 18 recognized commands possible to command the flash
-// Table 14-5.
+/// There are 18 recognized commands for the flash. These are 'bare-bones' commands
+/// and values that are written to the Flash's command register to inform 
+/// the flash what to do. Table 14-5.
 #[derive(Clone, Copy, PartialEq)]
 pub enum FlashCMD {
     NOP,
@@ -153,6 +153,8 @@ pub enum Speed {
     HighSpeed
 }
 
+/// FlashState is used to track the current state of the flash in high level
+/// command.
 #[derive(Clone, Copy, PartialEq)]
 pub enum FlashState {
     Locking,
@@ -230,7 +232,7 @@ pub fn default_wait_until_ready(flash : &FLASHCALW) {
     }
 }
 
-// Trait for a client of the flash driver.
+/// Trait for a client of the flash controller.
 pub trait Client {
     //  Called upon a completed call
     fn command_complete(&self, err: Error);     
@@ -980,7 +982,7 @@ impl FLASHCALW {
     }
 }
 
-// implementation of high level calls using the low-lv functions.
+// Implementation of high level calls using the low-lv functions.
 impl FLASHCALW {
     
     pub fn set_client(&self, client: &'static Client) { 
@@ -1092,8 +1094,8 @@ impl FLASHCALW {
     }
 }
 
-//  Assumes the only Hardware Interrupt enabled for the FLASHCALW is the
-//  FRDY (Flash Ready) interrupt.
+///  Assumes the only Peripheral Interrupt enabled for the FLASHCALW is the
+///  FRDY (Flash Ready) interrupt.
 pub unsafe extern fn FLASH_Handler() {
     use common::Queue;
     use chip;
