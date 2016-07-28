@@ -40,6 +40,24 @@ pub enum Location {
     TIMER0, TIMER1, TIMER2
 }
 
+pub static mut TIMER0 : Timer = Timer {
+   which: Location::TIMER0,
+   nvic: NvicIdx::TIMER0,
+   client: TakeCell::empty()
+};
+
+pub static mut ALARM1 : TimerAlarm = TimerAlarm {
+    which:  Location::TIMER1,
+    nvic:   NvicIdx::TIMER1,
+    client: TakeCell::empty(),
+};
+
+pub static mut TIMER2 : Timer = Timer {
+   which: Location::TIMER2,
+   nvic: NvicIdx::TIMER2,
+   client: TakeCell::empty()
+};
+
 #[allow(non_snake_case)]
 fn TIMER(location: Location) -> &'static Registers {
     let ptr = TIMER_BASE + (location as usize) * SIZE;
