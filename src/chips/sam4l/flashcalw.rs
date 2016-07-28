@@ -71,13 +71,13 @@ pub fn pico_enabled() -> bool {
 #[repr(C, packed)]
 #[allow(dead_code)]
 struct Registers {
-    control:                          usize,
-    command:                          usize,
-    status:                           usize,
-    parameter:                        usize,
-    version:                          usize,
-    general_purpose_fuse_register_hi: usize,
-    general_purpose_fuse_register_lo: usize,
+    control:                          VolatileCell<u32>,
+    command:                          VolatileCell<u32>,
+    status:                           VolatileCell<u32>,
+    parameter:                        VolatileCell<u32>,
+    version:                          VolatileCell<u32>,
+    general_purpose_fuse_register_hi: VolatileCell<u32>,
+    general_purpose_fuse_register_lo: VolatileCell<u32>,
 }
 
 const FLASHCALW_BASE_ADDRS : *mut Registers = 0x400A0000 as *mut Registers;
@@ -193,7 +193,7 @@ pub static mut flash_controller : FLASHCALW =
 const FLASH_PAGE_SIZE : u32 = 512;
 const FLASH_NB_OF_REGIONS : u32 = 16;
 const FLASHCALW_REGIONS : u32 = FLASH_NB_OF_REGIONS;
-const FLASHCALW_CMD_KEY : usize = 0xA5;
+const FLASHCALW_CMD_KEY : u32 = 0xA5 << 24;
 
 #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
 const FLASH_FREQ_PS1_FWS_1_FWU_MAX_FREQ : u32 = 12000000;
@@ -213,10 +213,6 @@ const GP_ALL_FUSES_ONE : u64 = !0 as u64;
 // Macros for getting the i-th bit.
 macro_rules! get_bit {
     ($w:expr) => (0x1u32 << $w);
-}
-
-macro_rules! get_ubit {
-    ($w:expr) => (0x1usize << $w);
 }
 
 /// This is simply std::cmp::min from std
@@ -274,33 +270,33 @@ impl FLASHCALW {
     }
 
     // Helper to read a flashcalw register 
-    fn read_register(&self, key : RegKey) -> usize {
+    fn read_register(&self, key : RegKey) -> u32 {
         let registers : &mut Registers = unsafe { 
             mem::transmute(self.registers)
         };
         
         match key {
             RegKey::CONTROL => {
-                volatile_load(&registers.control)    
+                registers.control.get()
             },
             RegKey::COMMAND => {
-                volatile_load(&registers.command)    
+                registers.command.get()
             },
             RegKey::STATUS => {
-                volatile_load(&registers.status)
+                registers.status.get()
             },
             RegKey::PARAMETER => {
-                volatile_load(&registers.parameter)
+                registers.parameter.get()
             },
             RegKey::VERSION => {
-                volatile_load(&registers.version)
+                registers.version.get()
             },
             RegKey::GPFRHI => {
-                volatile_load(&registers.general_purpose_fuse_register_hi)
+                registers.general_purpose_fuse_register_hi.get()
             },
             RegKey::GPFRLO => {
-                volatile_load(&registers.general_purpose_fuse_register_lo)
-            }
+                registers.general_purpose_fuse_register_lo.get()
+            } 
         }
     }
 
@@ -437,7 +433,7 @@ impl FLASHCALW {
                            1024,
                            2048];
         // get the FSZ number and lookup in the table for the size.
-        flash_sizes[self.read_register(RegKey::PARAMETER) & 0xf]  << 10
+        flash_sizes[self.read_register(RegKey::PARAMETER) as usize & 0xf]  << 10
     }
 
     pub fn get_page_count(&self) -> u32 {
@@ -465,16 +461,16 @@ impl FLASHCALW {
     /// FLASHC Control
     fn change_control_single_bit_val(&self, position : u32, enable : bool) {
        let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
-       let mut reg_val = volatile_load(&regs.control) & !get_ubit!(position);
+       let mut reg_val = regs.control.get() & !get_bit!(position);
        if enable {
-            reg_val |= get_ubit!(position); 
+            reg_val |= get_bit!(position); 
        }
-        
-       volatile_store(&mut regs.control, reg_val);
+       
+       regs.control.set(reg_val);
     }
 
     pub fn get_wait_state(&self) -> u32 {
-        if self.read_register(RegKey::CONTROL) & get_ubit!(6) == 0 {
+        if self.read_register(RegKey::CONTROL) & get_bit!(6) == 0 {
             0
         } else{
             1
@@ -543,7 +539,7 @@ impl FLASHCALW {
 
 
     pub fn is_ready_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::CONTROL) & get_ubit!(0)) != 0
+        (self.read_register(RegKey::CONTROL) & get_bit!(0)) != 0
     }
 
     pub fn enable_ready_int(&self, enable : bool) {
@@ -551,7 +547,7 @@ impl FLASHCALW {
     }
 
     pub fn is_lock_error_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::CONTROL) & get_ubit!(2)) != 0
+        (self.read_register(RegKey::CONTROL) & get_bit!(2)) != 0
     }
 
     pub fn enable_lock_error_int(&self, enable : bool) {
@@ -559,7 +555,7 @@ impl FLASHCALW {
     }
 
     pub fn is_prog_error_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::CONTROL) & get_ubit!(3)) != 0
+        (self.read_register(RegKey::CONTROL) & get_bit!(3)) != 0
     }
 
     pub fn enable_prog_error_int(&self, enable : bool) {
@@ -567,7 +563,7 @@ impl FLASHCALW {
     }
 
     pub fn is_ecc_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::CONTROL) & get_ubit!(4)) != 0
+        (self.read_register(RegKey::CONTROL) & get_bit!(4)) != 0
     }
 
     pub fn enable_ecc_int(&self, enable : bool) {
@@ -578,36 +574,36 @@ impl FLASHCALW {
 
     pub fn is_ready(&self) -> bool {
         unsafe { pm::enable_clock(self.pb_clock); }
-        self.read_register(RegKey::STATUS) & get_ubit!(0) != 0
+        self.read_register(RegKey::STATUS) & get_bit!(0) != 0
     }
 
     pub fn get_error_status(&self) -> u32 {
         unsafe { pm::enable_clock(self.pb_clock); }
-        (self.read_register(RegKey::STATUS) as u32) & ( get_bit!(3) | get_bit!(2)) 
+        self.read_register(RegKey::STATUS) & ( get_bit!(3) | get_bit!(2)) 
     }
 
     pub fn is_lock_error(&self) -> bool {
         unsafe { pm::enable_clock(self.pb_clock); }
-        self.read_register(RegKey::STATUS) & get_ubit!(2) != 0
+        self.read_register(RegKey::STATUS) & get_bit!(2) != 0
     }
 
     pub fn is_programming_error(&self) -> bool {
         unsafe { pm::enable_clock(self.pb_clock); }
-        self.read_register(RegKey::STATUS) & get_ubit!(3) != 0    
+        self.read_register(RegKey::STATUS) & get_bit!(3) != 0
     }
 
     ///Flashcalw command control
     pub fn get_command(&self) -> u32 {
-        ((self.read_register(RegKey::COMMAND) as u32) & (get_bit!(6) - 1))
+        (self.read_register(RegKey::COMMAND) & (get_bit!(6) - 1))
     }
 
     pub fn get_page_number(&self) -> u32 {
         //create a mask for the page number field
-        let mut page_mask : usize = get_ubit!(8) - 1;
+        let mut page_mask : u32 = get_bit!(8) - 1;
         page_mask |= page_mask << 24;
         page_mask = !page_mask;
 
-        ((self.read_register(RegKey::COMMAND) & page_mask) >> 8) as u32
+        ((self.read_register(RegKey::COMMAND) & page_mask) >> 8)
     }
     
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
@@ -621,22 +617,21 @@ impl FLASHCALW {
         }
         
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
-        let mut reg_val : usize = volatile_load(&mut cmd_regs.command);
+        let mut reg_val : u32 = cmd_regs.command.get();
         
-        let clear_cmd_mask : usize = (!(get_bit!(6) - 1)) as usize;
+        let clear_cmd_mask : u32 = (!(get_bit!(6) - 1));
         reg_val &= clear_cmd_mask;
-        
+       
         // craft the command
         if page_number >= 0 {
-            reg_val =   FLASHCALW_CMD_KEY << 24     | 
-                        (page_number as usize) << 8   |
-                        command as usize;
+            reg_val =   FLASHCALW_CMD_KEY    | 
+                        (page_number as u32) << 8   |
+                        command as u32;
         } else {
-            reg_val |= FLASHCALW_CMD_KEY << 24 | command as usize;     
+            reg_val |= FLASHCALW_CMD_KEY | command as u32;     
         }
         
-
-        volatile_store(&mut cmd_regs.command, reg_val); // write the cmd
+        cmd_regs.command.set(reg_val); // write the cmd
         
         if(command == FlashCMD::QPRUP || command == FlashCMD::QPR || command == FlashCMD::CPB
             || command == FlashCMD::HSEN) {
@@ -656,7 +651,7 @@ impl FLASHCALW {
 
     ///FLASHCALW Protection Mechanisms
     pub fn is_security_bit_active(&self) -> bool {
-        (self.read_register(RegKey::STATUS) & get_ubit!(4)) != 0
+        (self.read_register(RegKey::STATUS) & get_bit!(4)) != 0
     }
 
     pub fn set_security_bit(&self) {
@@ -668,7 +663,7 @@ impl FLASHCALW {
     }
 
     pub fn is_region_locked(&self, region : u32) -> bool {
-        (self.read_register(RegKey::STATUS) & get_ubit!(region + 16)) != 0    
+        (self.read_register(RegKey::STATUS) & get_bit!(region + 16)) != 0
     }
     
     pub fn lock_page_region(&self, page_number : i32, lock : bool) {
@@ -702,8 +697,8 @@ impl FLASHCALW {
         let registers : &mut Registers = unsafe {
             mem::transmute(self.registers)  
         };
-        let gpfrhi : u64 = volatile_load(&registers.general_purpose_fuse_register_hi) as u64;
-        let gpfrlo : u64 = volatile_load(&registers.general_purpose_fuse_register_lo) as u64;
+        let gpfrhi : u64 = self.read_register(RegKey::GPFRHI) as u64;
+        let gpfrlo : u64 = self.read_register(RegKey::GPFRLO) as u64;
         (gpfrlo | (gpfrhi << 32))
     }
     
@@ -878,9 +873,9 @@ impl FLASHCALW {
         let registers : &mut Registers = unsafe {
             mem::transmute(self.registers)     
         };
-        let status = volatile_load(&registers.status);
+        let status = registers.status.get();
 
-        (status & get_ubit!(5)) != 0    
+        (status & get_bit!(5)) != 0
     }
 
     pub fn quick_page_read(&self, page_number : i32) -> bool {

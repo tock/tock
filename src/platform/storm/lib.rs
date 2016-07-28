@@ -28,7 +28,7 @@ pub mod systick;
 //mod gpio_dummy;
 //mod spi_dummy;
 //mod i2c_dummy;
-mod flash_dummy;
+//mod flash_dummy;
 
 static mut spi_read_buf:  [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
@@ -421,7 +421,6 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     // Uncommenting the following lines will test the Flash Controller
     //flash_dummy::meta_test();
     //flash_dummy::set_read_write_test();
-    //println!("======FireStorm Done Initalizing======");
 
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();
