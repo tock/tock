@@ -1,8 +1,11 @@
 use core::mem;
 use common::VolatileCell;
+use common::take_cell::TakeCell;
 use peripheral_interrupts::NvicIdx;
 use nvic;
 use chip;
+use hil;
+use hil::alarm::{Alarm, AlarmClient, Freq16MHz};
 
 #[repr(C, packed)]
 struct Registers {
@@ -51,21 +54,24 @@ pub trait CompareClient {
 pub struct Timer {
     which: Location,
     nvic: NvicIdx,
-    client: Option<&'static CompareClient>,
+    client: TakeCell<&'static CompareClient>,
 }
 
 impl Timer {
+    fn timer(&self) -> &'static Registers { TIMER(self.which) }
+
     pub const fn new(location: Location, nvic: NvicIdx) -> Timer {
         Timer {
             which: location,
             nvic: nvic,
-            client: None,
+            client: TakeCell::empty(),
         }
     }
 
-    fn timer(&self) -> &'static Registers {
-        TIMER(self.which)
+    pub fn set_client(&self, client: &'static CompareClient) {
+        self.client.replace(client);
     }
+
     pub fn start(&self) {
         self.timer().task_start.set(1); 
     }
@@ -81,6 +87,32 @@ impl Timer {
     pub fn clear(&self) {
         self.timer().task_clear.set(1); 
     }
+
+    pub fn capture(&self, which: u8) -> u32 {
+        match which {
+            0 => {
+                  self.timer().task_capture[0].set(1);
+                  self.timer().cc[0].get()
+            }
+            1 => {
+                  self.timer().task_capture[1].set(1);
+                  self.timer().cc[1].get()
+            }
+            2 => {
+                  self.timer().task_capture[2].set(1);
+                  self.timer().cc[2].get()
+            }
+            _ => {
+                  self.timer().task_capture[3].set(1);
+                  self.timer().cc[3].get()
+            }
+        }
+    }
+
+    pub fn capture_to(&self, which: u8) {
+        let _ = self.capture(which);
+    }
+
     pub fn get_shortcuts(&self) -> u32 {
         self.timer().shorts.get() 
     }
@@ -135,6 +167,28 @@ impl Timer {
         });
     }
 }
+
+impl hil::alarm::Alarm for Timer {
+
+    type Frequency = Freq16MHz;
+
+    fn now(&self) -> u32 {
+        self.capture(0)    
+    }
+    fn set_alarm(&self, tics: u32) {
+        self.set_cc1(tics); 
+    }
+    fn disable_alarm(&self) {
+        self.set_cc1(0); 
+    }
+    fn is_armed(&self) -> bool {
+        self.get_cc1() != 0    
+    }
+    fn get_alarm(&self) -> u32 {
+        self.get_cc1()
+    }
+}
+
 
 #[no_mangle]
 #[allow(non_snake_case)]
