@@ -1,4 +1,0 @@
-make TOCK_PLATFORM=nrf_pca10001 -C apps/c_gpio 
-arm-none-eabi-objcopy -Oihex build/nrf_pca10001/c_gpio/kernel_and_app.elf nrf-firmware.hex
-cp nrf-firmware.hex /var/run/usbmount/MBED_microcontroller/firmware.hex
-
