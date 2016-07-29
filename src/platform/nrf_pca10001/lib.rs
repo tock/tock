@@ -10,7 +10,7 @@ extern crate support;
 
 pub mod systick;
 
-pub struct Firestorm {
+pub struct Platform {
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
 }
 
@@ -21,7 +21,7 @@ impl DummyMPU {
     }
 }
 
-impl Firestorm {
+impl Platform {
     pub unsafe fn service_pending_interrupts(&mut self) {
     }
 
@@ -58,11 +58,11 @@ macro_rules! static_init {
    }
 }
 
-pub unsafe fn init<'a>() -> &'a mut Firestorm {
+pub unsafe fn init<'a>() -> &'a mut Platform {
     use core::mem;
     use nrf51822::gpio::PA;
 
-    static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
+    static mut PLATFORM_BUF : [u8; 1024] = [0; 1024];
 
     //XXX: this should be pared down to only give externally usable pins to the
     //  user gpio driver
@@ -106,12 +106,12 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         pin.set_client(gpio);
     }
 
-    let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
-    *firestorm = Firestorm {
+    let platform : &'static mut Platform = mem::transmute(&mut PLATFORM_BUF);
+    *platform = Platform {
         gpio: gpio,
     };
 
-    firestorm
+    platform
 }
 
 use core::fmt::Arguments;

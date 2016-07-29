@@ -32,7 +32,7 @@ pub mod systick;
 static mut spi_read_buf:  [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
 
-pub struct Firestorm {
+pub struct Platform {
     chip: sam4l::chip::Sam4l,
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -44,7 +44,7 @@ pub struct Firestorm {
     nrf51822: &'static drivers::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
 }
 
-impl Firestorm {
+impl Platform {
     pub unsafe fn service_pending_interrupts(&mut self) {
         self.chip.service_pending_interrupts()
     }
@@ -268,7 +268,7 @@ unsafe fn set_pin_primary_functions() {
     PC[10].configure(None);
 }
 
-pub unsafe fn init<'a>() -> &'a mut Firestorm {
+pub unsafe fn init<'a>() -> &'a mut Platform {
     use core::mem;
 
     // Workaround for SB.02 hardware bug
@@ -366,7 +366,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     &sam4l::gpio::PA[14] // No Connection
     */
 
-    static_init!(firestorm : Firestorm = Firestorm {
+    static_init!(firestorm : Platform = Platform {
         chip: sam4l::chip::Sam4l::new(),
         console: console,
         gpio: gpio,
