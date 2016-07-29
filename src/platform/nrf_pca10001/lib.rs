@@ -20,7 +20,6 @@ pub mod systick;
 
 pub struct Firestorm {
     chip: nrf51822::chip::Nrf51822,
-    noop: &'static drivers::noop::Noop,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
 }
@@ -38,7 +37,6 @@ impl Firestorm {
     pub fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
             F: FnOnce(Option<&hil::Driver>) -> R {
         match driver_num {
-           99 => f(Some(self.noop)),
             1 => f(Some(self.gpio)),
            // 3 => f(Some(self.timer)),
             _ => f(None)
@@ -93,12 +91,10 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                          TimerDriver::new(virtual_alarm1, process::Container::create()));
     virtual_alarm1.set_client(timer);
 
-    static_init!(noop : drivers::noop::Noop = drivers::noop::Noop::new());
 
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
         chip: nrf51822::chip::Nrf51822::new(),
-        noop: noop,
         gpio: gpio,
         timer: timer,
     };
