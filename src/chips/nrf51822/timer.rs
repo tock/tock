@@ -173,14 +173,15 @@ impl Timer {
 
     pub fn handle_interrupt(&self) {
         self.client.map(|client| {
-            let val = self.timer().event_compare[0].get() |
-                      self.timer().event_compare[1].get() << 1 |
-                      self.timer().event_compare[2].get() << 2 |
-                      self.timer().event_compare[3].get() << 3;
-            self.timer().event_compare[0].set(0);
-            self.timer().event_compare[1].set(0);
-            self.timer().event_compare[2].set(0);
-            self.timer().event_compare[3].set(0);
+            let mut val = 0;
+            // For each of 4 possible compare events, if it's happened,
+            // clear it and store its bit in val to pass in callback.
+            for i in 0..4 {
+                if self.timer().event_compare[i].get() != 0 {
+                    val = val | 1 << i;
+                    self.timer().event_compare[i].set(0);
+                }
+            }
             client.compare(val as u8);
         });
     }

@@ -10,6 +10,12 @@ use nvic;
 
 use peripheral_registers::{GPIO_BASE, GPIO};
 
+// The nRF51822 doesn't automatically provide GPIO interrupts. Instead, 
+// to receive interrupts from a GPIO line, you must allocate a GPIOTE
+// (GPIO Task and Event) channel, and bind the channel to the desired 
+// pin. There are 4 channels. This means that requesting an interrupt 
+// can fail, if there are already 4 allocated.
+
 struct GpioteRegisters {
     pub out0:     VolatileCell<u32>, // 0x0
     pub out1:     VolatileCell<u32>, // 0x4
@@ -45,6 +51,7 @@ fn GPIOTE() -> &'static GpioteRegisters {
     unsafe { mem::transmute(GPIOTE_BASE as usize) }
 }
 
+// Allocate a GPIOTE channel
 fn allocate_channel() -> i8 {
     if GPIOTE().config0.get() & 1 == 0 {
         return 0;
@@ -148,9 +155,9 @@ impl hil::gpio::GPIOPin for GPIOPin {
        let channel = allocate_channel();
        match channel {
            0 => GPIOTE().config0.set(mode_bits),
-//           1 => GPIOTE().config1.set(mode_bits),
-//           2 => GPIOTE().config2.set(mode_bits),
-//           3 => GPIOTE().config3.set(mode_bits),
+           1 => GPIOTE().config1.set(mode_bits),
+           2 => GPIOTE().config2.set(mode_bits),
+           3 => GPIOTE().config3.set(mode_bits),
            _ => {}
        }
        GPIOTE().intenset.set(1 << channel);
@@ -197,7 +204,8 @@ impl IndexMut<usize> for Port {
 }
 
 impl Port {
-    // GPIOTE interrupt
+    // GPIOTE interrupt: check each of 4 GPIOTE channels, if any has
+    // fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {
         if GPIOTE().in0.get() != 0 {
             GPIOTE().in0.set(0);
