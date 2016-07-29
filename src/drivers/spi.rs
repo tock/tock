@@ -39,7 +39,7 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
-            apps: [TakeCell::empty(), TakeCell::empty()],
+            apps: [TakeCell::empty(); NUM_PROCS],
             kernel_len: Cell::new(0),
             kernel_read : TakeCell::empty(),
             kernel_write : TakeCell::empty()

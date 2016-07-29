@@ -7,11 +7,21 @@ extern crate drivers;
 extern crate hil;
 extern crate nrf51822;
 extern crate support;
+extern crate process;
+extern crate common;
+
+use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use hil::gpio::GPIOPin;
+use drivers::timer::TimerDriver;
+use nrf51822::timer::TimerAlarm;
+use nrf51822::timer::ALARM1;
 
 pub mod systick;
 
 pub struct Firestorm {
+    chip: nrf51822::chip::Nrf51822,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
 }
 
 pub struct DummyMPU;
@@ -23,12 +33,11 @@ impl DummyMPU {
 
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
+        self.chip.service_pending_interrupts()
     }
 
     pub unsafe fn has_pending_interrupts(&mut self) -> bool {
-        // FIXME: The wfi call from main() blocks forever if no interrupts are generated. For now,
-        // pretend we have interrupts to avoid blocking.
-        true
+        self.chip.has_pending_interrupts()
     }
 
     pub fn mpu(&mut self) -> DummyMPU {
@@ -40,6 +49,7 @@ impl Firestorm {
             F: FnOnce(Option<&hil::Driver>) -> R {
         match driver_num {
             1 => f(Some(self.gpio)),
+           // 3 => f(Some(self.timer)),
             _ => f(None)
         }
     }
@@ -60,45 +70,21 @@ macro_rules! static_init {
 
 pub unsafe fn init<'a>() -> &'a mut Firestorm {
     use core::mem;
-    use nrf51822::gpio::PA;
+    use nrf51822::gpio::PORT;
 
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
 
-    //XXX: this should be pared down to only give externally usable pins to the
-    //  user gpio driver
-    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 32] = [
-            &nrf51822::gpio::PA[ 0],
-            &nrf51822::gpio::PA[ 1],
-            &nrf51822::gpio::PA[ 2],
-            &nrf51822::gpio::PA[ 3],
-            &nrf51822::gpio::PA[ 4],
-            &nrf51822::gpio::PA[ 5],
-            &nrf51822::gpio::PA[ 6],
-            &nrf51822::gpio::PA[ 7],
-            &nrf51822::gpio::PA[ 8],
-            &nrf51822::gpio::PA[ 9],
-            &nrf51822::gpio::PA[10],
-            &nrf51822::gpio::PA[11],
-            &nrf51822::gpio::PA[12],
-            &nrf51822::gpio::PA[13],
-            &nrf51822::gpio::PA[14],
-            &nrf51822::gpio::PA[15],
-            &nrf51822::gpio::PA[16],
-            &nrf51822::gpio::PA[17],
-            &nrf51822::gpio::PA[18],
-            &nrf51822::gpio::PA[19],
-            &nrf51822::gpio::PA[20],
-            &nrf51822::gpio::PA[21],
-            &nrf51822::gpio::PA[22],
-            &nrf51822::gpio::PA[23],
-            &nrf51822::gpio::PA[24],
-            &nrf51822::gpio::PA[25],
-            &nrf51822::gpio::PA[26],
-            &nrf51822::gpio::PA[27],
-            &nrf51822::gpio::PA[28],
-            &nrf51822::gpio::PA[29],
-            &nrf51822::gpio::PA[30],
-            &nrf51822::gpio::PA[31],
+    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 10] = [
+            &nrf51822::gpio::PORT[18], // LED_0
+            &nrf51822::gpio::PORT[19], // LED_1
+            &nrf51822::gpio::PORT[0], // Top left header on EK board
+            &nrf51822::gpio::PORT[1], //   |
+            &nrf51822::gpio::PORT[2], //   V 
+            &nrf51822::gpio::PORT[3], // 
+            &nrf51822::gpio::PORT[4], //
+            &nrf51822::gpio::PORT[5], // 
+            &nrf51822::gpio::PORT[6], // 
+            &nrf51822::gpio::PORT[7], // 
             ]);
     static_init!(gpio : drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(gpio_pins));
@@ -106,13 +92,29 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         pin.set_client(gpio);
     }
 
+    let alarm = &nrf51822::timer::ALARM1;
+    static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1));
+    alarm.set_client(mux_alarm);
+
+    static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, TimerAlarm> =
+                                  VirtualMuxAlarm::new(mux_alarm));
+    static_init!(timer : TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>> =
+                         TimerDriver::new(virtual_alarm1, process::Container::create()));
+    virtual_alarm1.set_client(timer);
+
+
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
+        chip: nrf51822::chip::Nrf51822::new(),
         gpio: gpio,
+        timer: timer,
     };
 
+    systick::reset();
+    systick::enable(true);
     firestorm
 }
+
 
 use core::fmt::Arguments;
 #[cfg(not(test))]
@@ -123,8 +125,8 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
     use support::nop;
     use hil::gpio::GPIOPin;
 
-    let led0 = &nrf51822::gpio::PA[18];
-    let led1 = &nrf51822::gpio::PA[19];
+    let led0 = &nrf51822::gpio::PORT[18];
+    let led1 = &nrf51822::gpio::PORT[19];
 
     led0.enable_output();
     led1.enable_output();
