@@ -46,70 +46,76 @@ impl Platform {
 }
 
 macro_rules! static_init {
-   ($V:ident : $T:ty = $e:expr) => {
-        let $V : &mut $T = {
-            // Waiting out for size_of to be available at compile-time to avoid
-            // hardcoding an abitrary large size...
-            static mut BUF : [u8; 1024] = [0; 1024];
+    ($V:ident : $T:ty = $e:expr, $size:expr) => {
+        // Ideally we could use mem::size_of<$T> here instead of $size, however
+        // that is not currently possible in rust. Instead we write the size as
+        // a constant in the code and use compile-time verification to see that
+        // we got it right
+        let $V : &'static mut $T = {
+            use core::{mem, ptr};
+            // This is our compile-time assertion. The optimizer should be able
+            // to remove it from the generated code.
+            let assert_buf: [u8; $size] = mem::uninitialized();
+            let assert_val: $T = mem::transmute(assert_buf);
+            mem::forget(assert_val);
+
+            // Statically allocate a read-write buffer for the value, write our
+            // initial value into it (without dropping the initial zeros) and
+            // return a reference to it.
+            static mut BUF: [u8; $size] = [0; $size];
             let mut tmp : &mut $T = mem::transmute(&mut BUF);
-            *tmp = $e;
+            ptr::write(tmp as *mut $T, $e);
             tmp
         };
-   }
+    }
 }
 
-pub unsafe fn init<'a>() -> &'a mut Platform {
-    use core::mem;
+pub unsafe fn init() -> &'static mut Platform {
     use nrf51822::gpio::PA;
-
-    static mut PLATFORM_BUF : [u8; 1024] = [0; 1024];
 
     //XXX: this should be pared down to only give externally usable pins to the
     //  user gpio driver
-    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 32] = [
-            &nrf51822::gpio::PA[ 0],
-            &nrf51822::gpio::PA[ 1],
-            &nrf51822::gpio::PA[ 2],
-            &nrf51822::gpio::PA[ 3],
-            &nrf51822::gpio::PA[ 4],
-            &nrf51822::gpio::PA[ 5],
-            &nrf51822::gpio::PA[ 6],
-            &nrf51822::gpio::PA[ 7],
-            &nrf51822::gpio::PA[ 8],
-            &nrf51822::gpio::PA[ 9],
-            &nrf51822::gpio::PA[10],
-            &nrf51822::gpio::PA[11],
-            &nrf51822::gpio::PA[12],
-            &nrf51822::gpio::PA[13],
-            &nrf51822::gpio::PA[14],
-            &nrf51822::gpio::PA[15],
-            &nrf51822::gpio::PA[16],
-            &nrf51822::gpio::PA[17],
-            &nrf51822::gpio::PA[18],
-            &nrf51822::gpio::PA[19],
-            &nrf51822::gpio::PA[20],
-            &nrf51822::gpio::PA[21],
-            &nrf51822::gpio::PA[22],
-            &nrf51822::gpio::PA[23],
-            &nrf51822::gpio::PA[24],
-            &nrf51822::gpio::PA[25],
-            &nrf51822::gpio::PA[26],
-            &nrf51822::gpio::PA[27],
-            &nrf51822::gpio::PA[28],
-            &nrf51822::gpio::PA[29],
-            &nrf51822::gpio::PA[30],
-            &nrf51822::gpio::PA[31],
-            ]);
-    static_init!(gpio : drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
-                 drivers::gpio::GPIO::new(gpio_pins));
+    static_init!(gpio_pins: [&'static nrf51822::gpio::GPIOPin; 32] = [
+        &nrf51822::gpio::PA[0],
+        &nrf51822::gpio::PA[1],
+        &nrf51822::gpio::PA[2],
+        &nrf51822::gpio::PA[3],
+        &nrf51822::gpio::PA[4],
+        &nrf51822::gpio::PA[5],
+        &nrf51822::gpio::PA[6],
+        &nrf51822::gpio::PA[7],
+        &nrf51822::gpio::PA[8],
+        &nrf51822::gpio::PA[9],
+        &nrf51822::gpio::PA[10],
+        &nrf51822::gpio::PA[11],
+        &nrf51822::gpio::PA[12],
+        &nrf51822::gpio::PA[13],
+        &nrf51822::gpio::PA[14],
+        &nrf51822::gpio::PA[15],
+        &nrf51822::gpio::PA[16],
+        &nrf51822::gpio::PA[17],
+        &nrf51822::gpio::PA[18],
+        &nrf51822::gpio::PA[19],
+        &nrf51822::gpio::PA[20],
+        &nrf51822::gpio::PA[21],
+        &nrf51822::gpio::PA[22],
+        &nrf51822::gpio::PA[23],
+        &nrf51822::gpio::PA[24],
+        &nrf51822::gpio::PA[25],
+        &nrf51822::gpio::PA[26],
+        &nrf51822::gpio::PA[27],
+        &nrf51822::gpio::PA[28],
+        &nrf51822::gpio::PA[29],
+        &nrf51822::gpio::PA[30],
+        &nrf51822::gpio::PA[31]
+    ], 4 * 32);
+    static_init!(gpio: drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
+                     drivers::gpio::GPIO::new(gpio_pins), 20);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
 
-    let platform : &'static mut Platform = mem::transmute(&mut PLATFORM_BUF);
-    *platform = Platform {
-        gpio: gpio,
-    };
+    static_init!(platform: Platform = Platform { gpio: gpio }, 4);
 
     platform
 }
@@ -141,4 +147,3 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
         }
     }
 }
-
