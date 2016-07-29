@@ -21,6 +21,9 @@ impl Nrf51822 {
             match interrupt {
                 NvicIdx::RTC1 => rtc::RTC.handle_interrupt(),
                 NvicIdx::GPIOTE  => gpio::PORT.handle_interrupt(),
+                NvicIdx::TIMER0  => timer::TIMER0.handle_interrupt(),
+                NvicIdx::TIMER1  => timer::ALARM1.handle_interrupt(),
+                NvicIdx::TIMER2  => timer::TIMER2.handle_interrupt(),
                 _ => {}
             }
             nvic::enable(interrupt);

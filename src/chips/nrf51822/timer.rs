@@ -6,6 +6,18 @@ use nvic;
 use chip;
 use hil;
 use hil::alarm::{Alarm, AlarmClient, Freq16KHz};
+// The nRF51822 timer system operates off of the high frequency clock 
+// (HFCLK) and provides three timers from the clock. Timer0 is tied
+// to the radio through some hard-coded peripheral linkages (e.g., there
+// are dedicated PPI connections between Timer0's compare events and
+// radio tasks, its capture tasks and radio events).
+// 
+// This implementation provides a full-fledged Timer interface to
+// timers 0 and 2, and exposes Timer1 as an HIL Alarm, for a Tock 
+// timer system. It may be that the Tock timer system should be ultimately
+// placed on top of the RTC (from the low frequency clock). It's currently
+// implemented this way as a demonstration that it can be and because
+// the full RTC/clock interface hasn't been finalized yet.
 
 #[repr(C, packed)]
 struct Registers {
