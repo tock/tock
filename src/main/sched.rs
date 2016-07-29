@@ -19,6 +19,14 @@ pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
 
         match process.state {
             process::State::Running => {
+                let (data_start, data_len, text_start, text_len) =
+                        process.memory_regions();
+                // Data segment read/write/execute
+                platform.mpu().set_mpu(
+                    0, data_start as u32, data_len as u32, true, 0b011);
+                // Text segment read/execute (no write)
+                platform.mpu().set_mpu(
+                    1, text_start as u32, text_len as u32, true, 0b111);
                 systick::enable(true);
                 process.switch_to();
                 systick::enable(false);

@@ -24,6 +24,13 @@ pub struct Firestorm {
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
 }
 
+pub struct DummyMPU;
+
+impl DummyMPU {
+    pub fn set_mpu(&mut self, _: u32, _: u32, _: u32, _: bool, _: u32) {
+    }
+}
+
 impl Firestorm {
     pub unsafe fn service_pending_interrupts(&mut self) {
         self.chip.service_pending_interrupts()
@@ -31,6 +38,10 @@ impl Firestorm {
 
     pub unsafe fn has_pending_interrupts(&mut self) -> bool {
         self.chip.has_pending_interrupts()
+    }
+
+    pub fn mpu(&mut self) -> DummyMPU {
+        DummyMPU
     }
 
     #[inline(never)]

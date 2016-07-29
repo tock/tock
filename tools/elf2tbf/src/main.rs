@@ -115,7 +115,13 @@ fn do_work(input: &elf::File, output: &mut Write) {
         text.data.len() +
         got.data.len() +
         data.data.len()) as u32;
-    let pad = (4 - (total_len % 4)) % 4;
+
+    let pad = if total_len.count_ones() > 1 {
+        let power2len = 1 << (32 - total_len.leading_zeros());
+        power2len - total_len
+    } else {
+        0
+    };
     total_len = total_len + pad;
 
     let total_len_buf : &[u8; 4] = unsafe {
