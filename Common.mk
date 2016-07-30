@@ -16,7 +16,7 @@ SIZE = $(TOOLCHAIN)size
 # Validate rustc version
 # If you change this, you must also change README and .travis.yml
 RUSTC_VERSION := $(shell $(RUSTC) --version)
-TARGET_RUSTC_VERSION := rustc 1.12.0-nightly (936bfea94 2016-07-20)
+TARGET_RUSTC_VERSION := rustc 1.12.0-nightly (54c0dcfd6 2016-07-28)
 ifneq ($(RUSTC_VERSION),$(TARGET_RUSTC_VERSION))
 $(warning Tock currently requires $(TARGET_RUSTC_VERSION) exactly)
 $(warning You have $(RUSTC) --version: $(shell $(RUSTC) --version))
