@@ -2,6 +2,7 @@ use common::{RingBuffer,Queue};
 use nvic;
 use rtc;
 use gpio;
+use timer;
 use peripheral_interrupts::NvicIdx;
 
 const IQ_SIZE: usize = 100;
