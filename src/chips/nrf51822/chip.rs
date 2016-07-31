@@ -3,8 +3,13 @@ use nvic;
 use rtc;
 
 use gpio;
+<<<<<<< HEAD
 //use peripheral_interrupts::NvicIdx;
 use nvic::NvicIdx;
+=======
+use timer;
+use peripheral_interrupts::NvicIdx;
+>>>>>>> 9dcf92d1c00ef8fd4fa422cfe04d12850b7da8cf
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF : [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
@@ -23,6 +28,9 @@ impl Nrf51822 {
             match interrupt {
                 NvicIdx::RTC1 => rtc::RTC.handle_interrupt(),
                 NvicIdx::GPIOTE  => gpio::PORT.handle_interrupt(),
+                NvicIdx::TIMER0  => timer::TIMER0.handle_interrupt(),
+                NvicIdx::TIMER1  => timer::ALARM1.handle_interrupt(),
+                NvicIdx::TIMER2  => timer::TIMER2.handle_interrupt(),
                 _ => {}
             }
             nvic::enable(interrupt);

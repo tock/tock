@@ -4,15 +4,22 @@ pub trait Frequency {
     fn frequency() -> u32;
 }
 
-pub struct Freq16Khz;
-impl Frequency for Freq16Khz {
+pub struct Freq16MHz;
+impl Frequency for Freq16MHz {
+    fn frequency() -> u32 {
+        16000000
+    }
+}
+
+pub struct Freq16KHz;
+impl Frequency for Freq16KHz {
     fn frequency() -> u32 {
         16000
     }
 }
 
-pub struct Freq1Khz;
-impl Frequency for Freq1Khz {
+pub struct Freq1KHz;
+impl Frequency for Freq1KHz {
     fn frequency() -> u32 {
         1000
     }

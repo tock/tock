@@ -11,6 +11,12 @@ use nvic;
 
 use peripheral_registers::{GPIO_BASE, GPIO};
 
+// The nRF51822 doesn't automatically provide GPIO interrupts. Instead, 
+// to receive interrupts from a GPIO line, you must allocate a GPIOTE
+// (GPIO Task and Event) channel, and bind the channel to the desired 
+// pin. There are 4 channels. This means that requesting an interrupt 
+// can fail, if there are already 4 allocated.
+
 struct GpioteRegisters {
     pub out0:     VolatileCell<u32>, // 0x0
     pub out1:     VolatileCell<u32>, // 0x4
@@ -41,11 +47,15 @@ fn GPIO() -> &'static GPIO {
     unsafe { mem::transmute(GPIO_BASE as usize) }
 }
 
+// Access to the GPIO Task and Event (GPIOTE) registers, for setting
+// up interrupts through the nRF51822 task/event system, in chapter 10
+// of the reference manual (v3.0).
 #[allow(non_snake_case)]
 fn GPIOTE() -> &'static GpioteRegisters {
     unsafe { mem::transmute(GPIOTE_BASE as usize) }
 }
 
+// Allocate a GPIOTE channel
 fn allocate_channel() -> i8 {
     if GPIOTE().config0.get() & 1 == 0 {
         return 0;
@@ -96,17 +106,21 @@ impl GPIOPin {
 impl hil::gpio::GPIOPin for GPIOPin {
     fn enable_output(&self) {
         // bit 0: set as output
-        // bit 1: disconnect input buffer
+        // bit 1: disconnect input buffer (1 is disconnect)
         // bit 2-3: no pullup/down
         // bit 8-10: drive configruation
         // bit 16-17: sensing
-        GPIO().pin_cnf[self.pin as usize].set((1 << 0) | (1 << 1) | (0 << 2) | (0 << 8) | (0 << 16));
+        GPIO().pin_cnf[self.pin as usize].set((1 << 0) | // set as output
+                                              (1 << 1) | // no input buf 
+                                              (0 << 2) | // no pull
+                                              (0 << 8) | // no drive 
+                                              (0 << 16)); // no sensing
     }
 
     // Configuration constants stolen from 
     // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
-    fn enable_input(&self, _mode: hil::gpio::InputMode) {
-        let conf = match _mode {
+    fn enable_input(&self, mode: hil::gpio::InputMode) {
+        let conf = match mode {
             hil::gpio::InputMode::PullUp   => 0x3 << 2,
             hil::gpio::InputMode::PullDown => 0x1 << 2,
             hil::gpio::InputMode::PullNone => 0,
@@ -128,7 +142,6 @@ impl hil::gpio::GPIOPin for GPIOPin {
     }
 
     fn toggle(&self) {
-        // TODO: check need for a atomic XOR operator
         GPIO().out.set((1 << self.pin) ^ GPIO().out.get());
     }
 
@@ -150,9 +163,9 @@ impl hil::gpio::GPIOPin for GPIOPin {
        let channel = allocate_channel();
        match channel {
            0 => GPIOTE().config0.set(mode_bits),
-//           1 => GPIOTE().config1.set(mode_bits),
-//           2 => GPIOTE().config2.set(mode_bits),
-//           3 => GPIOTE().config3.set(mode_bits),
+           1 => GPIOTE().config1.set(mode_bits),
+           2 => GPIOTE().config2.set(mode_bits),
+           3 => GPIOTE().config3.set(mode_bits),
            _ => {}
        }
        GPIOTE().intenset.set(1 << channel);
@@ -200,7 +213,8 @@ impl IndexMut<usize> for Port {
 }
 
 impl Port {
-    // GPIOTE interrupt
+    // GPIOTE interrupt: check each of 4 GPIOTE channels, if any has
+    // fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {
         if GPIOTE().in0.get() != 0 {
             GPIOTE().in0.set(0);
@@ -242,9 +256,6 @@ pub static mut PORT : Port = Port {
 #[allow(non_snake_case)]
 pub unsafe extern fn GPIOTE_Handler() {
     use common::Queue;
-
-    let pin = &PORT[0] as &hil::gpio::GPIOPin; 
-    pin.toggle();
 
     nvic::disable(NvicIdx::GPIOTE);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::GPIOTE);

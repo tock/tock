@@ -10,8 +10,16 @@ extern crate hil;
 mod peripheral_registers;
 mod peripheral_interrupts;
 mod nvic;
+<<<<<<< HEAD
 mod helpers;
 pub mod chip;
 pub mod gpio;
 pub mod rtc;
 pub mod uart;
+=======
+
+pub mod chip;
+pub mod gpio;
+pub mod rtc;
+pub mod timer;
+>>>>>>> 9dcf92d1c00ef8fd4fa422cfe04d12850b7da8cf

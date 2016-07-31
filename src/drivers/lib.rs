@@ -7,7 +7,6 @@ extern crate common;
 extern crate hil;
 extern crate process;
 
-pub mod noop;
 pub mod console;
 pub mod gpio;
 pub mod isl29035;

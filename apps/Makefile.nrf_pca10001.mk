@@ -23,6 +23,10 @@ $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin: $(TOCK_APP_BUILD_DIR)/kernel_and_app.e
 	@tput bold ; echo "Flattening $< to $@" ; tput sgr0
 	$(OBJCOPY) -O binary $< $@
 
+$(TOCK_APP_BUILD_DIR)/kernel_and_app.hex: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
+	@tput bold ; echo "Flattening $< to $@" ; tput sgr0
+	$(OBJCOPY) -O ihex $< $@
+
 all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 
 
@@ -56,4 +60,9 @@ erase-all:
 	w4 4001e504 0\\n\
 	r\\n\
 	exit | $(JLINK_EXE) $(JLINK_OPTIONS)
+
+MOUNT_DIR=/var/run/usbmount/MBED_microcontroller
+.PHONY: program-mbed
+program-mbed: $(TOCK_APP_BUILD_DIR)/kernel_and_app.hex
+	cp $^ $(MOUNT_DIR)/firmware.hex
 
