@@ -1,7 +1,8 @@
 use common::VolatileCell;
+use common::take_cell::TakeCell;
 use core::mem;
 
-struct CLOCK {
+struct Registers {
     pub tasks_hfclkstart    : VolatileCell<u32>,
     pub tasks_hfclkstop     : VolatileCell<u32>,
     pub tasks_lfclkstart    : VolatileCell<u32>,
@@ -34,10 +35,6 @@ struct CLOCK {
 
 const CLOCK_BASE: usize = 0x40000000;
 
-#[allow(non_snake_case)]
-fn CLOCK() -> &'static CLOCK {
-        unsafe { mem::transmute(CLOCK_BASE as usize) }
-}
 
 pub enum InterruptField {
     HFCLKSTARTED = (1 << 0),
@@ -73,75 +70,103 @@ pub enum XtalFreq {
     F32MHz         = 0,
 }
 
-
-pub fn interrupt_enable(interrupt: InterruptField) {
-    CLOCK().intenset.set(interrupt as u32);
+pub struct Clock {
+    client: TakeCell<&'static ClockClient>,
 }
 
-pub fn interrupt_disable(interrupt: InterruptField) {
-    CLOCK().intenclr.set(interrupt as u32);
+pub trait ClockClient {
+    // All clock interrupts are control signals, e.g., when
+    // a clock has started etc. We don't actually handle any
+    // of them for now, but keep this trait in place for if we
+    // do need to in the future.
+    fn event(&self);
 }
 
-pub fn high_start() {
-    CLOCK().tasks_hfclkstart.set(1);
-}
+pub static mut CLOCK : Clock = Clock {
+    client: TakeCell::empty(),
+};
 
-pub fn high_stop() {
-    CLOCK().tasks_hfclkstop.set(1);
-}
 
-pub fn high_started() -> bool {
-    CLOCK().events_hfclkstarted.get() == 1
-}
-
-pub fn high_source() -> HighClockSource {
-    match CLOCK().hfclkstat.get() & 1 {
-        0b0   => HighClockSource::RC,
-        _     => HighClockSource::XTAL,
+impl Clock {
+    #[allow(non_snake_case)]
+    fn CLOCK(&self) -> &'static Registers {
+        unsafe { mem::transmute(CLOCK_BASE as usize) }
     }
-}
 
-pub fn high_freq() -> XtalFreq {
-    match CLOCK().xtalfreq.get() {
-        0xff => XtalFreq::F16MHz,
-        _    => XtalFreq::F32MHz,
+    pub fn set_client(&self, client: &'static ClockClient) {
+        self.client.replace(client);
     }
-}
 
-pub fn high_set_freq(freq: XtalFreq) {
-    CLOCK().xtalfreq.set(freq as u32);
-}
-
-pub fn high_running() -> bool {
-    (CLOCK().hfclkstat.get() & ClockRunning::RUN as u32) == 
-        ClockRunning::RUN as u32
-}
-
-pub fn low_start() {
-    CLOCK().tasks_lfclkstart.set(1);
-}
-
-pub fn low_stop() {
-    CLOCK().tasks_lfclkstop.set(1);
-}
-
-pub fn low_started() -> bool {
-    CLOCK().events_lfclkstarted.get() == 1
-}
-
-pub fn low_source() -> LowClockSource {
-    match CLOCK().lfclkstat.get() & (LowClockSource::MASK as u32) {
-        0b1    => LowClockSource::XTAL,
-        0b10   => LowClockSource::SYNTH,
-        _ => LowClockSource::RC
+    pub fn interrupt_enable(&self, interrupt: InterruptField) {
+        self.CLOCK().intenset.set(interrupt as u32);
     }
-}
 
-pub fn low_running() -> bool {
-    (CLOCK().lfclkstat.get() & ClockRunning::RUN as u32) == 
-        ClockRunning::RUN as u32
-}
+    pub fn interrupt_disable(&self, interrupt: InterruptField) {
+        self.CLOCK().intenclr.set(interrupt as u32);
+    }
 
-pub fn low_set_source(src: LowClockSource) {
-    CLOCK().lfclksrc.set(src as u32);
+    pub fn high_start(&self) {
+        self.CLOCK().tasks_hfclkstart.set(1);
+    }
+
+    pub fn high_stop(&self) {
+        self.CLOCK().tasks_hfclkstop.set(1);
+    }
+
+    pub fn high_started(&self) -> bool {
+        self.CLOCK().events_hfclkstarted.get() == 1
+    }
+
+    pub fn high_source(&self) -> HighClockSource {
+        match self.CLOCK().hfclkstat.get() & 1 {
+            0b0   => HighClockSource::RC,
+            _     => HighClockSource::XTAL,
+        }
+    }
+
+    pub fn high_freq(&self) -> XtalFreq {
+        match self.CLOCK().xtalfreq.get() {
+            0xff => XtalFreq::F16MHz,
+            _    => XtalFreq::F32MHz,
+        }
+    }
+
+    pub fn high_set_freq(&self, freq: XtalFreq) {
+        self.CLOCK().xtalfreq.set(freq as u32);
+    }
+
+    pub fn high_running(&self) -> bool {
+        (self.CLOCK().hfclkstat.get() & ClockRunning::RUN as u32) == 
+            ClockRunning::RUN as u32
+    }
+
+    pub fn low_start(&self) {
+        self.CLOCK().tasks_lfclkstart.set(1);
+    }
+
+    pub fn low_stop(&self) {
+        self.CLOCK().tasks_lfclkstop.set(1);
+    }
+
+    pub fn low_started(&self) -> bool {
+        self.CLOCK().events_lfclkstarted.get() == 1
+    }
+
+    pub fn low_source(&self) -> LowClockSource {
+        match self.CLOCK().lfclkstat.get() & (LowClockSource::MASK as u32) {
+            0b1    => LowClockSource::XTAL,
+            0b10   => LowClockSource::SYNTH,
+            _ => LowClockSource::RC
+        }
+    }
+
+    pub fn low_running(&self) -> bool {
+        (self.CLOCK().lfclkstat.get() & ClockRunning::RUN as u32) == 
+            ClockRunning::RUN as u32
+    }
+
+    pub fn low_set_source(&self, src: LowClockSource) {
+        self.CLOCK().lfclksrc.set(src as u32);
+    
+    }
 }
