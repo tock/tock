@@ -51,7 +51,6 @@ static void busy_delay_us(int duration)
 static void busy_delay_ms(int duration) {
 	while (duration-- != 0) {
 		busy_delay_us(1000);
-                yield();
 	}
 }
 

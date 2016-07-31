@@ -5,6 +5,7 @@
 
 #[macro_use]
 extern crate common;
+extern crate cortexm4;
 extern crate hil;
 extern crate process;
 

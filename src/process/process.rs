@@ -106,7 +106,7 @@ pub unsafe fn load_processes(mut start_addr: *const usize) ->
             let length = *start_addr as isize;
             start_addr = (start_addr as *const u8).offset(length) as *const usize;
 
-            *op = Process::create(prog_start);
+            *op = Process::create(prog_start, length);
         } else {
             *op = None;
         }
@@ -125,7 +125,16 @@ impl<'a> Process<'a> {
         }
     }
 
-    pub unsafe fn create(start_addr: *const usize) -> Option<Process<'a>> {
+    pub fn memory_regions(&self) -> (usize, usize, usize, usize) {
+        let data_start = self.memory.data as usize;
+        let data_len = 12;
+
+        let text_start = self.text.data as usize;
+        let text_len = ((32 - self.text.len.leading_zeros()) - 2) as usize;
+        (data_start, data_len, text_start, text_len)
+    }
+
+    pub unsafe fn create(start_addr: *const usize, length: isize) -> Option<Process<'a>> {
         let cur_idx = FREE_MEMORY_IDX;
         if cur_idx <= MEMORIES.len() {
             FREE_MEMORY_IDX += 1;
@@ -171,8 +180,8 @@ impl<'a> Process<'a> {
                 app_memory_break: stack_bottom,
                 kernel_memory_break: kernel_memory_break,
                 text: Slice {
-                    data: load_result.text_start,
-                    len: load_result.text_len },
+                    data: start_addr.offset(-1) as *const u8,
+                    len: length as usize },
                 cur_stack: stack_bottom,
                 wait_pc: 0,
                 psr: 0x01000000,
@@ -355,7 +364,7 @@ struct LoadResult {
 
 unsafe fn load(start_addr: *const usize, mem_base: *const u8) -> LoadResult {
     let mut result = LoadResult {
-        text_start: 0 as *const u8,
+        text_start: start_addr as *const u8,
         text_len: 0,
         init_fn: 0,
         app_mem_start: 0 as *const u8

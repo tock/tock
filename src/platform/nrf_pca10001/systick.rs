@@ -114,6 +114,7 @@ pub unsafe fn overflowed() -> bool {
     false
 }
 
+#[allow(unused_variables)]
 pub unsafe fn value() -> usize {
     // Clock is 32768Hz
     // Each tick is 30.51us, approximate as 30.5

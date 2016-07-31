@@ -138,8 +138,8 @@ impl<'a, U: UART> Client for Console<'a, U> {
         for cntr in self.apps.iter() {
             let started_tx = cntr.enter(|app, _| {
                 if app.pending_write {
-                    app.write_buffer.take().map(|slice| {
-                        app.pending_write = false;
+                    app.pending_write = false;
+                    app.write_buffer.as_ref().map(|slice| {
                         self.buffer.take().map(|buffer| {
                             for (i, c) in slice.as_ref().iter().enumerate() {
                                 if buffer.len() <= i {

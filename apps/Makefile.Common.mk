@@ -26,6 +26,7 @@ CPPFLAGS += \
 	    -Wall\
 	    -Wextra\
 	    -Wl,-gc-sections\
+	    -g\
 	    -fPIC\
 	    -msingle-pic-base\
 	    -mno-pic-data-is-text-relative

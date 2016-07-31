@@ -4,6 +4,7 @@
 #![feature(core_intrinsics,const_fn,lang_items)]
 
 extern crate common;
+extern crate cortexm4;
 extern crate drivers;
 extern crate hil;
 extern crate sam4l;
@@ -50,6 +51,10 @@ impl Firestorm {
 
     pub unsafe fn has_pending_interrupts(&mut self) -> bool {
         self.chip.has_pending_interrupts()
+    }
+
+    pub fn mpu(&mut self) -> &mut cortexm4::mpu::MPU {
+        &mut self.chip.mpu
     }
 
     pub fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
@@ -414,6 +419,9 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();
+
+    firestorm.mpu().enable_mpu();
+
     firestorm
 }
 

@@ -10,10 +10,6 @@ extern int __allow();
 extern int __subscribe();
 extern int __memop(uint32_t, int);
 
-int yield() {
-    return command(99, 0, 0); 
-}
-
 void wait() {
   __wait();
 }
