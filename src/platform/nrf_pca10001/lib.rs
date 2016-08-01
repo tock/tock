@@ -2,14 +2,12 @@
 #![crate_type = "rlib"]
 #![no_std]
 #![feature(lang_items)]
-#![feature(core_intrinsics)]
 
 extern crate drivers;
 extern crate hil;
 extern crate nrf51822;
 extern crate support;
 
-use core::intrinsics::{volatile_load, volatile_store};
 pub mod systick;
 
 pub struct Platform {
@@ -116,25 +114,6 @@ pub unsafe fn init() -> &'static mut Platform {
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
-	
-
-    use core::mem;
-
-	let mut nrf_uart = uart::UART::new();
-
-    //let mut uart_params = hiluart::UARTParams {baud_rate : 115200, data_bits:1, parity: Odd, mode: Normal};
-//	nrf_uart.init(9600);
-   nrf_uart.send_byte('h' as u8);
-    let reg : uart::Registers = uart::Registers {starttx : 0x40002008};
-	volatile_store(reg.starttx as *mut usize, 1); //starttx
-	volatile_store(0x40002500 as *mut usize, 100); //enable
-	//volatile_store(0x40002524 as *mut usize, 0x00275000); //baudrate
-	//volatile_store(0x40002508 as *mut usize, 8); //pselrts
-	//volatile_store(0x4000250C as *mut usize, 9); //pseltxd
-	//volatile_store(0x40002510 as *mut usize, 10); //pselcts
-	//volatile_store(0x40002514 as *mut usize, 11); //pselrxd
-	//volatile_store(0x4000251C as *mut usize, 0111); //txd
-
 
     static_init!(platform: Platform = Platform { gpio: gpio }, 4);
 
