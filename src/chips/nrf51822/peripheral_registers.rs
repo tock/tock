@@ -39,5 +39,5 @@ pub struct GPIO {
     pub dirset: VolatileCell<u32>,
     pub dirclr: VolatileCell<u32>,
     _reserved2: [u32; 120],
-    pub pin_cnf: [VolatileCell<u32>; 32],
+    pub pin_cnf: [VolatileCell<u32>; 32],// config for 32 pins
 }

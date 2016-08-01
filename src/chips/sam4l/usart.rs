@@ -10,15 +10,15 @@ use pm::{self, Clock, PBAClock};
 struct Registers {
     cr: u32,
     mr: u32,
-    ier: u32,
+    ier: u32, //interrupt enable reg
     idr: u32,
     imr: u32,
-    csr: u32,
-    rhr: u32,
-    thr: u32,
+    csr: u32, //channel status register
+    rhr: u32, //RXD (receive holding register)
+    thr: u32, //TXD
     brgr: u32, // 0x20
     rtor: u32,
-    ttgr: u32,
+    ttgr: u32, //Transmitter Timeguard Register
     reserved0: [u32; 5],
     fidi: u32, // 0x40
     ner: u32,

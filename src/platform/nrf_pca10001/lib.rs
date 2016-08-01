@@ -2,6 +2,7 @@
 #![crate_type = "rlib"]
 #![no_std]
 #![feature(lang_items)]
+#![feature(core_intrinsics)]
 
 extern crate drivers;
 extern crate hil;
@@ -10,11 +11,19 @@ extern crate support;
 extern crate process;
 extern crate common;
 
+
+use core::intrinsics::{volatile_load, volatile_store};
+
+use hil::Controller;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use hil::gpio::GPIOPin;
+use nrf51822::gpio::PORT;
+use nrf51822::uart;
+
 use drivers::timer::TimerDriver;
 use nrf51822::timer::TimerAlarm;
 use nrf51822::timer::ALARM1;
+
 
 pub mod systick;
 
@@ -68,13 +77,44 @@ macro_rules! static_init {
    }
 }
 
-pub unsafe fn init<'a>() -> &'a mut Firestorm {
-    use core::mem;
-    use nrf51822::gpio::PORT;
+//let nrf_uart = nrf51822::uart::UART::new()
+//nrf_uart.init();
 
+//nrf_uart.enable_tx();
+//nrf_uart.set_baud_rate(9600); //doesnt matter. I have hard coded the reg value in init
+//while(nrf_uart.tx_ready()) {
+
+//    loop{
+//    nrf_uart.send_byte('+' as u8);
+//    }
+//}
+
+#[inline(never)]
+	
+pub unsafe fn init<'a>() -> &'a mut Firestorm {
+
+    use core::mem;
+
+//	let mut nrf_uart = uart::UART::new();
+
+    //let mut uart_params = hiluart::UARTParams {baud_rate : 115200, data_bits:1, parity: Odd, mode: Normal};
+//	nrf_uart.init(9600);
+//    nrf_uart.send_byte('h' as u8);
+    //let reg : uart::Registers = uart::Registers {starttx : 0x40002008};
+	//volatile_store(reg.starttx as *mut usize, 1); //starttx
+	//volatile_store(0x40002500 as *mut usize, 100); //enable
+	//volatile_store(0x40002524 as *mut usize, 0x00275000); //baudrate
+	//volatile_store(0x40002508 as *mut usize, 8); //pselrts
+	//volatile_store(0x4000250C as *mut usize, 9); //pseltxd
+	//volatile_store(0x40002510 as *mut usize, 10); //pselcts
+	//volatile_store(0x40002514 as *mut usize, 11); //pselrxd
+	//volatile_store(0x4000251C as *mut usize, 0111); //txd
+
+	
     static mut FIRESTORM_BUF : [u8; 1024] = [0; 1024];
 
     static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 10] = [
+
             &nrf51822::gpio::PORT[18], // LED_0
             &nrf51822::gpio::PORT[19], // LED_1
             &nrf51822::gpio::PORT[0], // Top left header on EK board
@@ -91,6 +131,7 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
+
 
     let alarm = &nrf51822::timer::ALARM1;
     static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1));
@@ -135,6 +176,7 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
     use support::nop;
     use hil::gpio::GPIOPin;
 
+
     let led0 = &nrf51822::gpio::PORT[18];
     let led1 = &nrf51822::gpio::PORT[19];
 
@@ -153,4 +195,5 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
         }
     }
 }
+
 

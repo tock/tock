@@ -29,7 +29,7 @@ pub mod systick;
 //mod spi_dummy;
 //mod i2c_dummy;
 
-static mut spi_read_buf:  [u8; 64] = [0; 64];
+static mut spi_read_buf:  [u8; 64] = [0; 64]; //initialising a zero array
 static mut spi_write_buf: [u8; 64] = [0; 64];
 
 pub struct Firestorm {

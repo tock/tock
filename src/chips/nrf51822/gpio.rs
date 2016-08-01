@@ -1,7 +1,8 @@
 use core::mem;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use peripheral_interrupts::NvicIdx;
+//use peripheral_interrupts::NvicIdx;
+use nvic::NvicIdx;
 use common::take_cell::TakeCell;
 use common::VolatileCell;
 use hil;
@@ -150,6 +151,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
 
     fn enable_interrupt(&self, _client_data: usize, _mode: hil::gpio::InterruptMode) {
        self.client_data.set(_client_data);
+
        let mut mode_bits: u32 = 1; // Event
        mode_bits |= match _mode {
            hil::gpio::InterruptMode::Change      => 3 << 16,
@@ -168,6 +170,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
        }
        GPIOTE().intenset.set(1 << channel);
        nvic::enable(NvicIdx::GPIOTE);
+
     }
 
     fn disable_interrupt(&self) {
