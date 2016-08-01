@@ -35,7 +35,7 @@ all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 # 2) write firmware at address 0
 # 3) set NVMC.CONFIG to 0 (Read only access)
 .PHONY: program
-program: $(BUILD_PLATFORM_DIR)/kernel_and_app.bin
+program: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 	echo \
 	connect\\n\
 	w4 4001e504 1\\n\
