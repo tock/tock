@@ -12,12 +12,9 @@ mod peripheral_interrupts;
 mod nvic;
 
 mod helpers;
-pub mod chip;
+
 pub mod gpio;
-pub mod rtc;
+
 pub mod uart;
 
-pub mod timer;
-
-pub mod clock;
 
