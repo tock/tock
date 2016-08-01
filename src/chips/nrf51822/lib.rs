@@ -8,7 +8,7 @@ extern crate common;
 extern crate hil;
 
 mod peripheral_registers;
-mod peripheral_interrupts;
+
 pub mod gpio;
 
 pub mod uart;
