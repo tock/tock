@@ -5,8 +5,6 @@
 #![feature(core_intrinsics,const_fn,fixed_size_array)]
 #![no_std]
 
-extern crate support;
-
 pub mod ring_buffer;
 pub mod queue;
 pub mod utils;
