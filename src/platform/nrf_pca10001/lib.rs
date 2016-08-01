@@ -143,6 +143,14 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
                          TimerDriver::new(virtual_alarm1, process::Container::create()));
     virtual_alarm1.set_client(timer);
 
+    nrf51822::clock::CLOCK.low_stop();
+    nrf51822::clock::CLOCK.high_stop();
+
+    nrf51822::clock::CLOCK.low_set_source(nrf51822::clock::LowClockSource::RC);
+    nrf51822::clock::CLOCK.low_start();
+    nrf51822::clock::CLOCK.high_start();
+    while !nrf51822::clock::CLOCK.low_started() {}
+    while !nrf51822::clock::CLOCK.high_started() {}
 
     let firestorm : &'static mut Firestorm = mem::transmute(&mut FIRESTORM_BUF);
     *firestorm = Firestorm {
@@ -151,6 +159,8 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
         timer: timer,
     };
 
+    // The systick implementation currently directly accesses the low clock;
+    // it should go through clock::CLOCK instead.
     systick::reset();
     systick::enable(true);
     firestorm
