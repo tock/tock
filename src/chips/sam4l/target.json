@@ -6,5 +6,6 @@
     "arch": "arm",
     "os": "none",
     "morestack": false,
-    "executables": true
+    "executables": true,
+    "no-compiler-rt": true
 }

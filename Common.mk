@@ -35,7 +35,7 @@ rwildcard=$(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2) \
 .SECONDEXPANSION:
 $(BUILD_PLATFORM_DIR)/lib%.rlib: $$(call rwildcard,$(SRC_DIR)$$**/,*.rs) $(BUILD_PLATFORM_DIR)/libcore.rlib
 	@echo "Building $@"
-	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_PLATFORM_DIR) $(SRC_DIR)$*/lib.rs
+	@$(RUSTC) $(RUSTC_FLAGS) --out-dir $(BUILD_PLATFORM_DIR) $(SRC_DIR)$*/src/lib.rs
 
 
 # Detect currently running OS
