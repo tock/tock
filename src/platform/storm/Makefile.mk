@@ -8,8 +8,8 @@ SDB_NAME=storm.rs
 SDB_DESCRIPTION="An OS for the storm"
 
 PLATFORM_DEPS=$(BUILD_PLATFORM_DIR)/libcore.rlib $(BUILD_PLATFORM_DIR)/libsupport.rlib
-PLATFORM_DEPS+=$(BUILD_PLATFORM_DIR)/libmain.rlib $(BUILD_PLATFORM_DIR)/libprocess.rlib
 PLATFORM_DEPS+=$(BUILD_PLATFORM_DIR)/libhil.rlib $(BUILD_PLATFORM_DIR)/libdrivers.rlib
+PLATFORM_DEPS+=$(BUILD_PLATFORM_DIR)/libmain.rlib
 
 all: $(BUILD_PLATFORM_DIR)/kernel.elf
 

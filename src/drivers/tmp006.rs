@@ -1,8 +1,7 @@
 use core::cell::Cell;
 use common::take_cell::TakeCell;
 use common::math::{sqrtf32, get_errno};
-use process::{AppId, Callback};
-use hil::Driver;
+use main::{AppId, Callback, Driver};
 use hil::i2c;
 use hil::gpio::{GPIOPin, InputMode, InterruptMode, Client};
 

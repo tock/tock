@@ -12,5 +12,4 @@ include $(SRC_DIR)arch/$(ARCH)/Makefile.mk
 include $(SRC_DIR)common/Makefile.mk
 include $(SRC_DIR)drivers/Makefile.mk
 include $(SRC_DIR)hil/Makefile.mk
-include $(SRC_DIR)process/Makefile.mk
 include $(SRC_DIR)main/Makefile.mk

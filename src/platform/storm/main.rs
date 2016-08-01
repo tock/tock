@@ -9,7 +9,6 @@ extern crate hil;
 extern crate main;
 extern crate sam4l;
 extern crate support;
-extern crate process;
 
 use hil::Controller;
 use hil::spi_master::SpiMaster;
@@ -49,7 +48,7 @@ impl Platform for Firestorm {
     }*/
 
     fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
-            F: FnOnce(Option<&hil::Driver>) -> R {
+            F: FnOnce(Option<&main::Driver>) -> R {
 
         match driver_num {
             0 => f(Some(self.console)),
@@ -292,7 +291,7 @@ pub unsafe fn reset_handler() {
     static_init!(console: drivers::console::Console<sam4l::usart::USART> =
                      drivers::console::Console::new(&sam4l::usart::USART3,
                                                     &mut drivers::console::WRITE_BUF,
-                                                    process::Container::create()),
+                                                    main::Container::create()),
                  24);
     sam4l::usart::USART3.set_client(console);
 
@@ -343,7 +342,7 @@ pub unsafe fn reset_handler() {
     static_init!(timer: drivers::timer::TimerDriver<'static,
                                                     VirtualMuxAlarm<'static, sam4l::ast::Ast>> =
                      drivers::timer::TimerDriver::new(virtual_alarm1,
-                                                      process::Container::create()),
+                                                      main::Container::create()),
                  12);
     virtual_alarm1.set_client(timer);
 

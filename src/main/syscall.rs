@@ -4,8 +4,3 @@ pub const COMMAND: u8 = 2;
 pub const ALLOW: u8 = 3;
 pub const MEMOP: u8 = 4;
 
-pub enum ReturnTo {
-  Process = 0,
-  Kernel = 1
-}
-

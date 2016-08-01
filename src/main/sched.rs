@@ -1,12 +1,11 @@
 use platform::{Chip, Platform, MPU, SysTick};
 use process;
 use process::Process;
-use process::{AppSlice,AppId};
 use common::Queue;
 use syscall;
 
 pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P, chip: &mut C, process: &mut Process,
-                  appid: AppId) {
+                  appid: ::AppId) {
     let systick = chip.systick();
     systick.reset();
     systick.set_timer(10000);
@@ -81,7 +80,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P, chip: &mut C, p
 
                 let res = platform.with_driver(driver_num, |driver| {
                     let callback =
-                        process::Callback::new(appid, appdata, callback_ptr);
+                        ::Callback::new(appid, appdata, callback_ptr);
                     match driver {
                         Some(d) => d.subscribe(subdriver_num,
                                                callback),
@@ -108,7 +107,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P, chip: &mut C, p
                             let start_addr = process.r2() as *mut u8;
                             let size = process.r3();
                             if process.in_exposed_bounds(start_addr, size) {
-                                let slice = AppSlice::new(start_addr as *mut u8, size, appid);
+                                let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
                                 d.allow(appid, process.r1(), slice)
                             } else {
                                 -1

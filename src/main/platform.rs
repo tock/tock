@@ -1,4 +1,4 @@
-use hil::Driver;
+use driver::Driver;
 
 pub trait Platform {
     fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where

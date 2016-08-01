@@ -4,9 +4,7 @@
 #![no_std]
 
 extern crate common;
-extern crate process;
-
-pub mod driver;
+extern crate main;
 
 pub mod led;
 pub mod alarm;
@@ -16,8 +14,6 @@ pub mod spi_master;
 pub mod timer;
 pub mod uart;
 pub mod adc;
-
-pub use driver::Driver;
 
 pub trait Controller {
     type Config;

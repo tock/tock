@@ -1,19 +1,28 @@
 #![crate_name = "main"]
 #![crate_type = "rlib"]
-#![feature(const_fn)]
+#![feature(core_intrinsics,unique,nonzero,const_fn)]
 #![no_std]
 
 extern crate common;
 extern crate support;
-extern crate hil;
-extern crate process;
+
+pub mod callback;
+pub mod container;
+pub mod driver;
+pub mod mem;
+pub mod process;
 
 mod sched;
 
 mod syscall;
 mod platform;
 
+pub use callback::{AppId, Callback};
+pub use container::{Container};
+pub use driver::Driver;
+pub use mem::{AppSlice, AppPtr, Private, Shared};
 pub use platform::{Chip, MPU, Platform, SysTick};
+pub use process::{Process,State, NUM_PROCS};
 
 extern {
     /// Beginning of the ROM region containing app images.
@@ -21,10 +30,8 @@ extern {
 }
 
 pub fn main<P: Platform, C: Chip>(platform: &mut P, chip: &mut C) {
-    use process::AppId;
-
     let processes = unsafe {
-        process::process::load_processes(&_sapps)
+        process::load_processes(&_sapps)
     };
 
     loop {
