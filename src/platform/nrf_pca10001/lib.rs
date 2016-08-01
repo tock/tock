@@ -77,11 +77,6 @@ macro_rules! static_init {
    }
 }
 
-let nrf_uart = nrf51822::uart::UART::new()
-nrf_uart.init();
-
-nrf_uart.enable_tx();
-nrf_uart.set_baud_rate(9600); 
 
 #[inline(never)]
 	
@@ -93,10 +88,10 @@ pub unsafe fn init<'a>() -> &'a mut Firestorm {
 
     //let mut uart_params = hiluart::UARTParams {baud_rate : 115200, data_bits:1, parity: Odd, mode: Normal};
 //	nrf_uart.init(9600);
-//    nrf_uart.send_byte('h' as u8);
-    //let reg : uart::Registers = uart::Registers {starttx : 0x40002008};
-	//volatile_store(reg.starttx as *mut usize, 1); //starttx
-	//volatile_store(0x40002500 as *mut usize, 100); //enable
+   nrf_uart.send_byte('h' as u8);
+    let reg : uart::Registers = uart::Registers {starttx : 0x40002008};
+	volatile_store(reg.starttx as *mut usize, 1); //starttx
+	volatile_store(0x40002500 as *mut usize, 100); //enable
 	//volatile_store(0x40002524 as *mut usize, 0x00275000); //baudrate
 	//volatile_store(0x40002508 as *mut usize, 8); //pselrts
 	//volatile_store(0x4000250C as *mut usize, 9); //pseltxd
