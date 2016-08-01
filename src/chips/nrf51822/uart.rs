@@ -1,7 +1,7 @@
 use core::mem;
 use helpers::*;
 //use hil::uart;
-use nvic;
+//use nvic;
 use chip;
 
 struct Registers {
