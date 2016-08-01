@@ -1,4 +1,5 @@
 use common::volatile_cell::VolatileCell;
+use main;
 
 /// Indicates whether the MPU is present and, if so, how many regions it
 /// supports.
@@ -77,25 +78,16 @@ impl MPU {
     pub const unsafe fn new() -> MPU {
         MPU(MPU_BASE_ADDRESS)
     }
+}
 
-    /// Enables MPU, allowing privileged software access to the default memory
-    /// map.
-    pub fn enable_mpu(&mut self) {
+impl main::MPU for MPU {
+
+    fn enable_mpu(&self) {
         let regs = unsafe { &*self.0 };
         regs.control.set(0b101);
     }
 
-    /// Sets the base address, size and access attributes of the given MPU
-    /// region number.
-    ///
-    /// `region_num`: an MPU region number 0-7
-    /// `start_addr`: the region base address. Lower bits will be masked
-    ///               according to the region size. 
-    /// `len`       : region size as a function 2^(len + 1)
-    /// `execute`   : whether to enable code execution from this region
-    /// `ap`        : access permissions as defined in Table 4.47 of the user
-    ///               guide.
-    pub fn set_mpu(&mut self, region_num: u32, start_addr: u32, len: u32,
+    fn set_mpu(&self, region_num: u32, start_addr: u32, len: u32,
                   execute: bool, ap: u32) {
         let regs = unsafe { &*self.0 };
         regs.region_base_address.set(region_num | 1 << 4 | start_addr);

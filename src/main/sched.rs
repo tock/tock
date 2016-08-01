@@ -1,19 +1,20 @@
-use platform::{Platform,systick};
+use platform::{Chip, Platform, MPU, SysTick};
 use process;
 use process::Process;
 use process::{AppSlice,AppId};
 use common::Queue;
 use syscall;
 
-pub unsafe fn do_process(platform: &mut Platform, process: &mut Process,
+pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P, chip: &mut C, process: &mut Process,
                   appid: AppId) {
-    systick::reset();
-    systick::set_timer(10000);
-    systick::enable(true);
+    let systick = chip.systick();
+    systick.reset();
+    systick.set_timer(10000);
+    systick.enable(true);
 
     loop {
-        if platform.has_pending_interrupts() ||
-                systick::overflowed() || systick::value() <= 500 {
+        if chip.has_pending_interrupts() ||
+                systick.overflowed() || systick.value() <= 500 {
             break;
         }
 
@@ -22,14 +23,14 @@ pub unsafe fn do_process(platform: &mut Platform, process: &mut Process,
                 let (data_start, data_len, text_start, text_len) =
                         process.memory_regions();
                 // Data segment read/write/execute
-                platform.mpu().set_mpu(
+                chip.mpu().set_mpu(
                     0, data_start as u32, data_len as u32, true, 0b011);
                 // Text segment read/execute (no write)
-                platform.mpu().set_mpu(
+                chip.mpu().set_mpu(
                     1, text_start as u32, text_len as u32, true, 0b111);
-                systick::enable(true);
+                systick.enable(true);
                 process.switch_to();
-                systick::enable(false);
+                systick.enable(false);
             }
             process::State::Waiting => {
                 match process.callbacks.dequeue() {
@@ -121,5 +122,5 @@ pub unsafe fn do_process(platform: &mut Platform, process: &mut Process,
             _ => {}
         }
     }
-    systick::reset();
+    systick.reset();
 }

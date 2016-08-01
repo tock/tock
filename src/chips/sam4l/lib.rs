@@ -7,6 +7,7 @@
 extern crate common;
 extern crate cortexm4;
 extern crate hil;
+extern crate main;
 extern crate process;
 
 #[macro_use]
@@ -48,8 +49,8 @@ extern {
     // You should never actually invoke it!!
     fn _estack();
 
-    // Defined in src/main/main.rs
-    fn main();
+    // Defined by platform
+    fn reset_handler();
 
     // Defined in src/arch/cortex-m4/ctx_switch.S
     fn SVC_Handler();
@@ -172,7 +173,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* LCDCA */         Option::Some(unhandled_interrupt),
 ];
 
-unsafe extern "C" fn reset_handler() {
+pub unsafe fn init() {
 
     // Relocate data segment.
     // Assumes data starts right after text segment as specified by the linker
@@ -197,8 +198,6 @@ unsafe extern "C" fn reset_handler() {
         *pdest = 0;
         pdest = pdest.offset(1);
     }
-
-    main();
 }
 
 unsafe extern "C" fn hard_fault_handler() {
