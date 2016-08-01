@@ -101,4 +101,3 @@ pub static mut PA : Port = Port {
         GPIOPin::new(28), GPIOPin::new(29), GPIOPin::new(30), GPIOPin::new(31),
     ],
 };
-
