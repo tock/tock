@@ -53,9 +53,9 @@ pub enum Location {
 }
 
 pub static mut TIMER0 : Timer = Timer {
-   which: Location::TIMER0,
-   nvic: NvicIdx::TIMER0,
-   client: TakeCell::empty()
+    which: Location::TIMER0,
+    nvic: NvicIdx::TIMER0,
+    client: TakeCell::empty()
 };
 
 pub static mut ALARM1 : TimerAlarm = TimerAlarm {
@@ -65,9 +65,9 @@ pub static mut ALARM1 : TimerAlarm = TimerAlarm {
 };
 
 pub static mut TIMER2 : Timer = Timer {
-   which: Location::TIMER2,
-   nvic: NvicIdx::TIMER2,
-   client: TakeCell::empty()
+    which: Location::TIMER2,
+    nvic: NvicIdx::TIMER2,
+    client: TakeCell::empty()
 };
 
 #[allow(non_snake_case)]
@@ -121,20 +121,20 @@ impl Timer {
     pub fn capture(&self, which: u8) -> u32 {
         match which {
             0 => {
-                  self.timer().task_capture[0].set(1);
-                  self.timer().cc[0].get()
+                self.timer().task_capture[0].set(1);
+                self.timer().cc[0].get()
             }
             1 => {
-                  self.timer().task_capture[1].set(1);
-                  self.timer().cc[1].get()
+                self.timer().task_capture[1].set(1);
+                self.timer().cc[1].get()
             }
             2 => {
-                  self.timer().task_capture[2].set(1);
-                  self.timer().cc[2].get()
+                self.timer().task_capture[2].set(1);
+                self.timer().cc[2].get()
             }
             _ => {
-                  self.timer().task_capture[3].set(1);
-                  self.timer().cc[3].get()
+                self.timer().task_capture[3].set(1);
+                self.timer().cc[3].get()
             }
         }
     }
@@ -184,6 +184,7 @@ impl Timer {
     }
 
     pub fn handle_interrupt(&self) {
+        nvic::clear_pending(self.nvic);
         self.client.map(|client| {
             let mut val = 0;
             // For each of 4 possible compare events, if it's happened,
@@ -192,6 +193,7 @@ impl Timer {
                 if self.timer().event_compare[i].get() != 0 {
                     val = val | 1 << i;
                     self.timer().event_compare[i].set(0);
+                    self.disable_interrupts(1 << (i + 16));
                 }
             }
             client.compare(val as u8);
@@ -216,6 +218,10 @@ impl TimerAlarm {
         }
     }
 
+    pub fn clear(&self) {
+        self.timer().task_clear.set(1);
+    }
+
     pub fn set_client(&self, client: &'static AlarmClient) {
         self.client.replace(client);
     }
@@ -231,6 +237,11 @@ impl TimerAlarm {
     }
 
     pub fn handle_interrupt(&self) {
+        nvic::clear_pending(self.nvic);
+        self.disable_interrupts(0b1111 << 16);
+        self.timer().event_compare[0].set(0);
+        self.timer().event_compare[1].set(0);
+
         self.client.map(|client| {
             client.fired();
         });
@@ -239,6 +250,7 @@ impl TimerAlarm {
     pub fn enable_interrupts(&self, interrupts: u32) {
         self.timer().intenset.set(interrupts); 
     }
+
     pub fn disable_interrupts(&self, interrupts: u32) {
         self.timer().intenclr.set(interrupts); 
     }
@@ -250,11 +262,16 @@ impl TimerAlarm {
     pub fn disable_nvic(&self) {
         nvic::disable(self.nvic);
     }
+
+    pub fn value(&self) -> u32 {
+        self.timer().task_capture[0].set(1);
+        self.timer().cc[0].get()
+    }
 }
 
 impl hil::alarm::Alarm for TimerAlarm {
     type Frequency = Freq16KHz;
-    
+
     fn now(&self) -> u32 {
         self.timer().task_capture[0].set(1);
         self.timer().cc[0].get()
@@ -265,6 +282,7 @@ impl hil::alarm::Alarm for TimerAlarm {
         // Enable interrupt on cc1
         self.enable_interrupts(1 << 1);
         self.timer().cc[1].set(tics);
+        self.timer().shorts.set(0b10);
     }
     fn disable_alarm(&self) {
         // Disable interrupt on cc1

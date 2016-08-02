@@ -1,11 +1,11 @@
-use platform::{Firestorm,systick};
+use platform::{Platform,systick};
 use process;
 use process::Process;
 use process::{AppSlice,AppId};
 use common::Queue;
 use syscall;
 
-pub unsafe fn do_process(platform: &mut Firestorm, process: &mut Process,
+pub unsafe fn do_process(platform: &mut Platform, process: &mut Process,
                   appid: AppId) {
     systick::reset();
     systick::set_timer(10000);
