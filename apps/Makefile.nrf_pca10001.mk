@@ -61,7 +61,10 @@ erase-all:
 	r\\n\
 	exit | $(JLINK_EXE) $(JLINK_OPTIONS)
 
-MOUNT_DIR=/var/run/usbmount/MBED_microcontroller
+# Linux
+#MOUNT_DIR=/var/run/usbmount/MBED_microcontroller
+# OS X
+MOUNT_DIR=/Volumes/MBED
 .PHONY: program-mbed
 program-mbed: $(TOCK_APP_BUILD_DIR)/kernel_and_app.hex
 	cp $^ $(MOUNT_DIR)/firmware.hex
