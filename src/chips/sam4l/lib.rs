@@ -1,6 +1,6 @@
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(lang_items,asm,core_intrinsics,concat_idents,const_fn, clone_from_slice)]
+#![feature(asm,core_intrinsics,concat_idents,const_fn, clone_from_slice)]
 #![no_std]
 
 #[macro_use]
