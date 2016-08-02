@@ -2,7 +2,6 @@ use core::cell::Cell;
 use process::{AppId, Container, Callback};
 use hil::Driver;
 use hil::alarm::{Alarm, AlarmClient, Frequency};
-use hil::timer::{Timer};
 
 #[derive(Copy, Clone)]
 pub struct TimerData {
