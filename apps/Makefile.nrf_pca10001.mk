@@ -9,7 +9,7 @@ JLINK_EXE ?= JLinkExe
 
 # Apps to link may grow over time so defer expanding that
 .SECONDEXPANSION:
-$(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_BUILD_DIR)/kernel.o $$(APPS_TO_LINK_TO_KERNEL) | $(TOCK_BUILD_DIR)
+$(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_BUILD_DIR)/kernel.o $$(APPS_TO_LINK_TO_KERNEL) $(TOCK_BUILD_DIR)/crt1.o | $(TOCK_BUILD_DIR)
 	@tput bold ; echo "Linking $@" ; tput sgr0
 	$(CC) $(CFLAGS) $(CPPFLAGS) $^ $(LDFLAGS) -Wl,-Map=$(TOCK_APP_BUILD_DIR)/kernel_and_app.Map -o $@
 	$(GENLST) $@ > $(TOCK_APP_BUILD_DIR)/kernel_and_app.lst
@@ -17,6 +17,7 @@ $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_
 
 # XXX Temporary until new kernel build system in place
 $(TOCK_BUILD_DIR)/ctx_switch.o: kernel
+$(TOCK_BUILD_DIR)/crt1.o: kernel
 
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
 	@tput bold ; echo "Flattening $< to $@" ; tput sgr0

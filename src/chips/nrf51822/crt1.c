@@ -20,15 +20,13 @@ extern uint32_t _ezero;
 extern uint32_t _srelocate;
 extern uint32_t _erelocate;
 
-int main(void);
-
 void Dummy_Handler(void)
 {
 	while (1) {
 	}
 }
 
-void Reset_Handler(void);
+void reset_handler(void);
 void NMI_Handler(void) __attribute__ ((weak, alias("Dummy_Handler")));
 void HardFault_Handler(void)
     __attribute__ ((weak, alias("Dummy_Handler")));
@@ -42,7 +40,7 @@ typedef void (*interrupt_function_t) (void);
 __attribute__ ((section(".vectors")))
 interrupt_function_t interrupt_table[] = {
 	(interrupt_function_t) (&_estack),
-	Reset_Handler,
+	reset_handler,
 	NMI_Handler,
 	HardFault_Handler,
 	0, 0, 0, 0, 0, 0, 0,	/* Reserved */
@@ -53,7 +51,7 @@ interrupt_function_t interrupt_table[] = {
 	PERIPHERAL_INTERRUPT_VECTORS
 };
 
-void Reset_Handler(void)
+void init(void)
 {
 	uint32_t *pSrc, *pDest;
 
@@ -88,8 +86,5 @@ void Reset_Handler(void)
 	for (pDest = &_szero; pDest < &_ezero;) {
 		*pDest++ = 0;
 	}
-
-	/* Branch to main function */
-	main();
 }
 

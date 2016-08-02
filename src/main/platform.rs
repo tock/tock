@@ -34,6 +34,13 @@ pub trait MPU {
                execute: bool, ap: u32);
 }
 
+/// Noop implementation of MPU trait
+impl MPU for () {
+    fn enable_mpu(&self) {}
+
+    fn set_mpu(&self, _: u32, _: u32, _: u32, _: bool, _: u32) {}
+}
+
 pub trait SysTick {
     /// Sets the timer as close as possible to the given interval in
     /// microseconds.  The clock is 24-bits wide and specific timing is
@@ -53,3 +60,19 @@ pub trait SysTick {
 
     fn overflow_fired() -> bool;
 }
+
+impl SysTick for () {
+
+    fn reset(&self) {}
+
+    fn set_timer(&self, _: u32) {}
+
+    fn enable(&self, _: bool) {}
+
+    fn overflowed(&self) -> bool { false }
+
+    fn value(&self) -> u32 { !0 }
+
+    fn overflow_fired() -> bool { false }
+}
+
