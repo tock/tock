@@ -8,7 +8,7 @@ pub struct RingBuffer<'a, T: 'a> {
 }
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
-    pub const fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
+    pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
             tail: 0,

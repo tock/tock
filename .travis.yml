@@ -6,7 +6,7 @@ os:
 
 # If you change this, you must also change README and Common.mk
 rust:
-  - nightly-2015-12-14
+  - nightly-2016-07-29
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa -y; fi

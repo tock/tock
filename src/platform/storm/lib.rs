@@ -13,9 +13,8 @@ extern crate process;
 
 use hil::Controller;
 use hil::spi_master::SpiMaster;
-use hil::gpio::GPIOPin;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use drivers::virtual_i2c::{MuxI2C, I2CDevice};
+use drivers::virtual_i2c::MuxI2C;
 
 #[macro_use]
 pub mod io;

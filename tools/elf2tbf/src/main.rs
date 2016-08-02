@@ -1,17 +1,19 @@
-#![feature(raw)]
 extern crate elf;
 extern crate getopts;
 
 use getopts::Options;
+use std::cmp;
 use std::env;
-use std::path::Path;
 use std::fs::File;
-use std::io;
 use std::io::Write;
+use std::io;
+use std::mem;
+use std::path::Path;
+use std::slice;
 
 
-#[repr(C,packed)]
-#[derive(Debug)]
+#[repr(C, packed)]
+#[derive(Clone, Copy, Debug)]
 struct LoadInfo {
     rel_data_size: u32,
     entry_loc: u32,        /* Entry point for user application */
@@ -57,9 +59,7 @@ fn main() {
             Ok(mut f) => do_work(&file, &mut f),
             Err(e) => panic!("Error: {:?}", e),
         }
-    };
-
-
+    }.expect("Failed to write output");
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -76,7 +76,13 @@ fn get_section<'a>(input: &'a elf::File, name: &str) -> &'a elf::Section {
     }
 }
 
-fn do_work(input: &elf::File, output: &mut Write) {
+unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
+    slice::from_raw_parts(
+        input as *const T as *const u8,
+        mem::size_of::<T>())
+}
+
+fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
     let (rel_data_size, rel_data) = match input.sections.iter()
             .find(|section| section.shdr.name == ".rel.data".as_ref()) {
         Some(section) => {
@@ -101,16 +107,11 @@ fn do_work(input: &elf::File, output: &mut Write) {
         bss_end_offset: (bss.shdr.addr + bss.shdr.size) as u32
     };
 
-    let load_info_bytes : &[u8] = unsafe {
-        std::mem::transmute(std::raw::Slice {
-            data: &load_info,
-            len: std::mem::size_of::<LoadInfo>()
-        })
-    };
+    let load_info_bytes = unsafe { as_byte_slice(&load_info) };
 
     let mut total_len : u32 =
-        (std::mem::size_of::<u32>() +
-        load_info_bytes.as_ref().len() +
+        (mem::size_of::<u32>() +
+        load_info_bytes.len() +
         rel_data.len() +
         text.data.len() +
         got.data.len() +
@@ -124,22 +125,23 @@ fn do_work(input: &elf::File, output: &mut Write) {
     };
     total_len = total_len + pad;
 
-    let total_len_buf : &[u8; 4] = unsafe {
-        std::mem::transmute(&total_len)
-    };
+    try!(output.write_all(unsafe { as_byte_slice(&total_len) }));
 
-    let _ = output.write(total_len_buf);
+    try!(output.write_all(load_info_bytes));
 
-    let _ = output.write(load_info_bytes);
+    try!(output.write_all(rel_data.as_ref()));
 
-    let _ = output.write(rel_data.as_ref());
+    try!(output.write_all(text.data.as_ref()));
+    try!(output.write_all(got.data.as_ref()));
+    try!(output.write_all(data.data.as_ref()));
 
-    let _ = output.write(text.data.as_ref());
-    let _ = output.write(got.data.as_ref());
-    let _ = output.write(data.data.as_ref());
-
-    for _ in 0..pad {
-        let _ = output.write(&[0]);
+    let mut pad = pad as usize;
+    let zero_buf = [0u8; 512];
+    while pad > 0 {
+        let amount_to_write = cmp::min(zero_buf.len(), pad);
+        pad -= try!(output.write(&zero_buf[..amount_to_write]));
     }
+
+    Ok(())
 }
 

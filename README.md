@@ -23,17 +23,17 @@ applications from each other and the kernel.
 
 ### Rust (nightly)
 
-We are using `rustc 1.7.0-nightly (110df043b 2015-12-13)`. Install it using rustup:
+We are using `rustc 1.12.0-nightly (54c0dcfd6 2016-07-28)`. Install it using rustup:
 
 ```bash
-$ curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --date=2015-12-14
+$ curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --date=2016-07-29
 ```
 
 Alternatively, you can use [multirust](https://github.com/brson/multirust):
 
 ```bash
 $ curl -sf https://raw.githubusercontent.com/brson/multirust/master/blastoff.sh | sh
-$ multirust override nightly-2015-12-14
+$ multirust override nightly-2016-07-29
 ```
 
 #### `arm-none-eabi` toolchain

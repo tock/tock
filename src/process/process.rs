@@ -1,6 +1,5 @@
 use core::intrinsics::{breakpoint, volatile_load, volatile_store};
-use core::{mem,ptr,intrinsics};
-use core::raw::{Repr,Slice};
+use core::{intrinsics, mem, ptr, slice};
 
 use common::{RingBuffer, Queue};
 
@@ -78,13 +77,13 @@ struct LoadInfo {
 
 pub struct Process<'a> {
     /// The process's memory.
-    memory: Slice<u8>,
+    memory: &'static mut [u8],
 
     app_memory_break: *const u8,
     kernel_memory_break: *const u8,
 
     /// Process text segment
-    text: Slice<u8>,
+    text: &'static [u8],
 
     /// The offset in `memory` to use for the process stack.
     cur_stack: *const u8,
@@ -106,7 +105,7 @@ pub unsafe fn load_processes(mut start_addr: *const usize) ->
             let length = *start_addr as isize;
             start_addr = (start_addr as *const u8).offset(length) as *const usize;
 
-            *op = Process::create(prog_start, length);
+            *op = Process::create(prog_start as *mut u8, length);
         } else {
             *op = None;
         }
@@ -115,42 +114,40 @@ pub unsafe fn load_processes(mut start_addr: *const usize) ->
 }
 
 impl<'a> Process<'a> {
-    pub const fn mem_start(&self) -> *const u8 {
-        self.memory.data
+    pub fn mem_start(&self) -> *const u8 {
+        self.memory.as_ptr()
     }
 
     pub fn mem_end(&self) -> *const u8 {
         unsafe {
-            self.memory.data.offset(self.memory.len as isize)
+            self.memory.as_ptr().offset(self.memory.len() as isize)
         }
     }
 
     pub fn memory_regions(&self) -> (usize, usize, usize, usize) {
-        let data_start = self.memory.data as usize;
+        let data_start = self.memory.as_ptr() as usize;
         let data_len = 12;
 
-        let text_start = self.text.data as usize;
-        let text_len = ((32 - self.text.len.leading_zeros()) - 2) as usize;
+        let text_start = self.text.as_ptr() as usize;
+        let text_len = ((32 - self.text.len().leading_zeros()) - 2) as usize;
         (data_start, data_len, text_start, text_len)
     }
 
-    pub unsafe fn create(start_addr: *const usize, length: isize) -> Option<Process<'a>> {
+    pub unsafe fn create(start_addr: *const u8, length: isize) -> Option<Process<'a>> {
         let cur_idx = FREE_MEMORY_IDX;
         if cur_idx <= MEMORIES.len() {
             FREE_MEMORY_IDX += 1;
-            let memory = MEMORIES[cur_idx].repr();
+            let memory = &mut MEMORIES[cur_idx];
 
             let mut kernel_memory_break = {
                 // make room for container pointers
                 let psz = mem::size_of::<*const usize>();
                 let num_ctrs = volatile_load(&container::CONTAINER_COUNTER);
                 let container_ptrs_size = num_ctrs * psz;
-                let res = memory.data.offset((memory.len - container_ptrs_size) as isize);
+                let res = memory.as_mut_ptr().offset((memory.len() - container_ptrs_size) as isize);
                 // set all ptrs to null
-                let opts : &mut [*const usize] = mem::transmute(Slice {
-                    data: res as *mut *const usize,
-                    len: num_ctrs
-                });
+                let opts = slice::from_raw_parts_mut(
+                    res as *mut *const usize, num_ctrs);
                 for opt in opts.iter_mut() {
                     *opt = ptr::null()
                 }
@@ -164,14 +161,12 @@ impl<'a> Process<'a> {
             // Set kernel break to beginning of callback buffer
             kernel_memory_break =
                 kernel_memory_break.offset(-(callback_offset as isize));
-            let callback_buf = mem::transmute(Slice {
-                data: kernel_memory_break as *const Option<Callback>,
-                len: callback_len
-            });
+            let callback_buf = slice::from_raw_parts_mut(
+                kernel_memory_break as *mut Callback, callback_len);
 
             let callbacks = RingBuffer::new(callback_buf);
 
-            let load_result = load(start_addr, memory.data);
+            let load_result = load(start_addr, memory.as_mut_ptr());
 
             let stack_bottom = load_result.app_mem_start.offset(512);
 
@@ -179,9 +174,9 @@ impl<'a> Process<'a> {
                 memory: memory,
                 app_memory_break: stack_bottom,
                 kernel_memory_break: kernel_memory_break,
-                text: Slice {
-                    data: start_addr.offset(-1) as *const u8,
-                    len: length as usize },
+                text: slice::from_raw_parts(
+                    start_addr.offset(-1) as *const u8,
+                    length as usize),
                 cur_stack: stack_bottom,
                 wait_pc: 0,
                 psr: 0x01000000,
@@ -223,12 +218,9 @@ impl<'a> Process<'a> {
     pub fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize)
             -> bool {
 
-        let buf_end_addr = ((buf_start_addr as usize) + size) as *const u8;
+        let buf_end_addr = unsafe { buf_start_addr.offset(size as isize) };
 
-        let mem_end =
-            ((self.memory.data as usize) + self.memory.len) as *const u8;
-
-        buf_start_addr >= self.memory.data && buf_end_addr <= mem_end
+        buf_start_addr >= self.mem_start() && buf_end_addr <= self.mem_end()
     }
 
     pub unsafe fn alloc(&mut self, size: usize) -> Option<&mut [u8]> {
@@ -237,10 +229,7 @@ impl<'a> Process<'a> {
             None
         } else {
             self.kernel_memory_break = new_break;
-            Some(mem::transmute(Slice {
-                data: new_break as *mut u8,
-                len: size
-            }))
+            Some(slice::from_raw_parts_mut(new_break as *mut u8, size))
         }
     }
 
@@ -260,7 +249,7 @@ impl<'a> Process<'a> {
         let ctr_ptr = self.container_for::<T>(container_num);
         if (*ctr_ptr).is_null() {
             self.alloc(mem::size_of::<T>()).map(|root_arr| {
-                let root_ptr = root_arr.repr().data as *mut T;
+                let root_ptr = root_arr.as_mut_ptr() as *mut T;
                 *root_ptr = Default::default();
                 volatile_store(ctr_ptr, root_ptr);
                 root_ptr
@@ -306,10 +295,10 @@ impl<'a> Process<'a> {
 
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
-        if self.cur_stack < self.memory.data {
+        if self.cur_stack < self.memory.as_ptr() {
             breakpoint();
         }
-        let psp = switch_to_user(self.cur_stack, self.memory.data);
+        let psp = switch_to_user(self.cur_stack, self.memory.as_ptr());
         self.cur_stack = psp;
     }
 
@@ -362,7 +351,7 @@ struct LoadResult {
     app_mem_start: *const u8
 }
 
-unsafe fn load(start_addr: *const usize, mem_base: *const u8) -> LoadResult {
+unsafe fn load(mut start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     let mut result = LoadResult {
         text_start: start_addr as *const u8,
         text_len: 0,
@@ -370,14 +359,12 @@ unsafe fn load(start_addr: *const usize, mem_base: *const u8) -> LoadResult {
         app_mem_start: 0 as *const u8
     };
 
-    let mut start_addr = start_addr as *const u8;
     let load_info : &LoadInfo = mem::transmute(start_addr);
     start_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
 
-    let rel_data : &mut [usize] = mem::transmute(Slice{
-        data: start_addr,
-        len: load_info.rel_data_size / 4
-    });
+    let rel_data : &[usize] = slice::from_raw_parts(
+        start_addr as *const usize,
+        load_info.rel_data_size / 4);
     start_addr = start_addr.offset(load_info.rel_data_size as isize);
 
     // Update text location in self
@@ -391,15 +378,13 @@ unsafe fn load(start_addr: *const usize, mem_base: *const u8) -> LoadResult {
         load_info.bss_end_offset - load_info.bss_start_offset);
 
     // Copy data into Data section
-    let init_data : &[u8] = mem::transmute(Slice{
-        data: (load_info.init_data_loc + start_addr as usize) as *mut u8,
-        len: load_info.init_data_size
-    });
+    let init_data : &[u8] = slice::from_raw_parts(
+        (load_info.init_data_loc + start_addr as usize) as *mut u8,
+        load_info.init_data_size);
 
-    let target_data : &mut [u8] = mem::transmute(Slice{
-        data: mem_base,
-        len: load_info.init_data_size
-    });
+    let target_data : &mut [u8] = slice::from_raw_parts_mut(
+        mem_base,
+        load_info.init_data_size);
 
     target_data.clone_from_slice(init_data);
 
