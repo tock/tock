@@ -7,7 +7,7 @@ The Nordic nRF51822 is a Cortex M0 with an integrated Bluetooth Low
 Energy (BLE) transciever. The Firestorm platform has an Atmel SAM4L as
 its application processor and an nRF51822 for BLE support.
 
-You should be using the ```nRF51822/working_blinky``` branch.
+You should be using the ```nRF51822/devel``` branch.
 
 ## Overview
 
@@ -19,6 +19,13 @@ it onto the device, named as `firmware.hex`. When you copy
 does this because it cannot store files, so wants to trick the OS to
 think that the file has disappeared. This also means that if you look
 at the device directory, you will never see your firmware.hex.
+
+## Setting up nRF51822 (OS X)
+
+When you plug in the nRF51822 EK, it'll appear as /Volumes/MBED.
+The default setting for ```make program-mbed``` is to install the
+generated binary to /Volumes/MBED, so you should be able to just
+compile and program.
 
 ## Setting up nRF51822 (Linux)
 
@@ -110,5 +117,9 @@ example, to convert the c_blinky ELF to the correct format and name:
 ```$ arm-none-eabi-objcopy -Oihex build/nrf_pca10001/c_blinky/kernel_and_app.elf firmware.hex
 ```
 
-Then, copy ```firmware.hex``` to the MBED filesystem, as above.
+Then, copy ```firmware.hex``` to the MBED filesystem, as above. You can
+also use ```make mbed-program``` to copy it automatically. If you are
+using Linux with usbmount, you'll want to change the definition of
+MOUNT_DIR in apps/Makefile.nrf_pca10001.nk to the Linux setting 
+(comments explain).
 
