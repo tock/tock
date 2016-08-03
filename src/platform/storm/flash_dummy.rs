@@ -27,7 +27,6 @@ enum FlashClientState {
 struct FlashClient { 
     state : Cell<FlashClientState>,
     page: Cell<i32>, 
-    region_unlocked: Cell<u32>,
     num_cycle_per_page: u32,
     val_data: Cell<u8>,
     cycles_finished: Cell<u32>
@@ -36,7 +35,6 @@ struct FlashClient {
 static mut FLASH_CLIENT : FlashClient = FlashClient { 
     state: Cell::new(FlashClientState::EWRCycleStart),
     page: Cell::new(53), // Page to start
-    region_unlocked: Cell::new(0),
     num_cycle_per_page: 2,  // How many times to repeat a Erase/Write/Read cycle on a page
     val_data: Cell::new(2), // Data to write to the page.
     cycles_finished: Cell::new(0)
@@ -145,15 +143,15 @@ impl Client for FlashClient {
 
 // Sets up the testing for the flash driver.
 pub fn set_read_write_test() {
-    let flashClient = unsafe { &mut FLASH_CLIENT };
+    let flash_client = unsafe { &mut FLASH_CLIENT };
     let dev = unsafe { &mut flashcalw::flash_controller };
 
-    dev.set_client(flashClient);
+    dev.set_client(flash_client);
     print!("Calling configure...");
     dev.configure();
     println!("Is the picocache on? {}", 
-        if flashcalw::pico_enabled() {"yes"} else {"no"});
-    
+        if dev.pico_enabled() {"yes"} else {"no"});
+
     // generates an interrupt which will cause a callback after initalization.
     dev.lock_page_region(0, false);
 

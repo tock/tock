@@ -15,12 +15,15 @@
 //!
 //! The driver should be configured() before use, and a Client should be set to
 //! enable a callback after a command is completed.
+//! 
+//! Almost all of the flash controller functionality is implemented (except for
+//! general purpose fuse bits, and more granular control of the cache).
+//!
 //! Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
 //! Date: 7/27/16
 //!
 
-use helpers::*;
-use core::{mem, slice};
+use core::{mem};
 use core::cell::Cell;
 use common::take_cell::TakeCell;
 use common::VolatileCell;
@@ -44,28 +47,9 @@ struct PicocacheRegisters {
     version:                      VolatileCell<u32>
 }
 
-//  Section 7 (the memory diagram) says the register starts at 0x400A0400. 
-const PICOCACHE_BASE_ADDR : usize = 0x400A0400; 
-fn PICOCACHE() -> &'static PicocacheRegisters {
-    unsafe { mem::transmute(PICOCACHE_BASE_ADDR) }
-}
+//  Section 7 (the memory diagram) says the register starts at 0x400A0400
+const PICOCACHE_OFFSET : usize = 0x400; 
 
-//  Flush the cache. Should be called after every write!
-pub fn invalidate_cache() {
-    PICOCACHE().maintenance_register_0.set(0x1);
-}
-
-pub fn enable_picocache(enable : bool) {
-    if enable {
-        PICOCACHE().control.set(0x1);
-    } else {
-        PICOCACHE().control.set(0x0);
-    }
-}
-
-pub fn pico_enabled() -> bool {
-    PICOCACHE().status.get() & 0x1 != 0
-} 
 
 // Struct of the FLASHCALW registers. Section 14.10 of the datasheet
 #[repr(C, packed)]
@@ -80,7 +64,7 @@ struct Registers {
     general_purpose_fuse_register_lo: VolatileCell<u32>,
 }
 
-const FLASHCALW_BASE_ADDRS : *mut Registers = 0x400A0000 as *mut Registers;
+const FLASHCALW_BASE_ADDRS : usize = 0x400A0000;
 
 #[allow(dead_code)]
 enum RegKey {
@@ -169,6 +153,7 @@ pub enum FlashState {
 // The FLASHCALW controller
 pub struct FLASHCALW {
     registers: *mut Registers,
+    cache: *mut PicocacheRegisters,
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
@@ -204,8 +189,6 @@ const FREQ_PS1_FWS_0_MAX_FREQ : u32 = 8000000;
 #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
 const FREQ_PS2_FWS_0_MAX_FREQ : u32 = 24000000;
 
-const GP_ALL_FUSES_ONE : u64 = !0 as u64;
-
 // Macros for getting the i-th bit.
 macro_rules! bit {
     ($w:expr) => (0x1u32 << $w);
@@ -219,10 +202,11 @@ pub trait Client {
     
 impl FLASHCALW {
     
-    const fn new(base_addr: *mut Registers, ahb_clk: pm::HSBClock,
+    const fn new(base_addr: usize, ahb_clk: pm::HSBClock,
         hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock) -> FLASHCALW {
         FLASHCALW {
-            registers:              base_addr,
+            registers:              base_addr as *mut Registers,
+            cache:                  (base_addr + PICOCACHE_OFFSET) as *mut PicocacheRegisters,
             ahb_clock:              pm::Clock::HSB(ahb_clk),
             hramc1_clock:           pm::Clock::HSB(hramc1_clk),
             pb_clock:               pm::Clock::PBB(pb_clk),
@@ -234,8 +218,31 @@ impl FLASHCALW {
             page_buffer:            TakeCell::new([0; PAGE_SIZE as usize])
         }
     }
+    
 
-    // Helper to read a flashcalw register 
+    /// Cache controlling functionality.
+    
+    //  Flush the cache. Should be called after every write!
+    fn invalidate_cache(&self) {
+        let regs : &PicocacheRegisters = unsafe { mem::transmute(self.cache) };
+        regs.maintenance_register_0.set(0x1);
+    }
+
+    pub fn enable_picocache(&self, enable : bool) {
+        let regs : &PicocacheRegisters = unsafe { mem::transmute(self.cache) };
+        if enable {
+            regs.control.set(0x1);
+        } else {
+            regs.control.set(0x0);
+        }
+    }
+
+    pub fn pico_enabled(&self) -> bool {
+        let regs : &PicocacheRegisters = unsafe { mem::transmute(self.cache) };
+        regs.status.get() & 0x1 != 0
+    } 
+
+    // Helper to read a flashcalw register (espically if your function is doing so once)
     fn read_register(&self, key : RegKey) -> u32 {
         let registers : &mut Registers = unsafe { 
             mem::transmute(self.registers)
@@ -311,7 +318,7 @@ impl FLASHCALW {
         //  Part of a command succeeded -- continue onto next steps.
          
         match self.current_command.get() {
-            Command::Write { page: page } => {
+            Command::Write { page } => {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
                         self.current_state.set(FlashState::Erasing);
@@ -331,7 +338,7 @@ impl FLASHCALW {
                     },
                     FlashState::Writing => {
                         // Flush the cache
-                        invalidate_cache();
+                        self.invalidate_cache();
                         self.current_state.set(FlashState::Locking);
                         self.lock_page_region(page, true);
                     },
@@ -343,7 +350,7 @@ impl FLASHCALW {
 
                 }
             },
-            Command::Erase { page: page } => {
+            Command::Erase { page } => {
                 match self.current_state.get() {
                     FlashState::Unlocking => {
                         self.current_state.set(FlashState::Erasing);
@@ -420,17 +427,9 @@ impl FLASHCALW {
 
 
     /// FLASHC Control
-    fn change_control_single_bit_val(&self, position : u32, enable : bool) {
-       let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
-       let mut reg_val = regs.control.get() & !bit!(position);
-       if enable {
-            reg_val |= bit!(position); 
-       }
-       
-       regs.control.set(reg_val);
-    }
-
-    pub fn get_wait_state(&self) -> u32 {
+    
+#[allow(dead_code)]
+    fn get_wait_state(&self) -> u32 {
         if self.read_register(RegKey::CONTROL) & bit!(6) == 0 {
             0
         } else{
@@ -438,22 +437,28 @@ impl FLASHCALW {
         }
     }
 
-    pub fn set_wait_state(&self, wait_state : u32) {
+    fn set_wait_state(&self, wait_state : u32) {
+        let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
         if wait_state == 1 {
-            self.change_control_single_bit_val(6, true);
+            regs.control.set(regs.control.get() | bit!(6));
         } else {
-            self.change_control_single_bit_val(6, false);
+            regs.control.set(regs.control.get() & !bit!(6));
         }
     }
     
-    pub fn enable_ws1_read_opt(&mut self, enable : bool) {
-        self.change_control_single_bit_val(7, enable);
+    fn enable_ws1_read_opt(&mut self, enable : bool) {
+        let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+        if enable {
+            regs.control.set(regs.control.get() | bit!(7));
+        } else {
+            regs.control.set(regs.control.get() | !bit!(7));
+        }
     }
     
     //  By default, we are going with High Speed Enable (based on our device running
     //  in PS2). 
     #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
-    pub fn set_flash_waitstate_and_readmode(&mut self, cpu_freq : u32, 
+    fn set_flash_waitstate_and_readmode(&mut self, cpu_freq : u32, 
         _ps_val : u32, _is_fwu_enabled : bool) {
         //ps_val and is_fwu_enabled not used in this implementation.
         if cpu_freq > FREQ_PS2_FWS_0_MAX_FREQ {
@@ -467,7 +472,7 @@ impl FLASHCALW {
 
 
     #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-    pub fn set_flash_waitstate_and_readmode(&mut self, cpu_freq : u32, 
+    fn set_flash_waitstate_and_readmode(&mut self, cpu_freq : u32, 
         ps_val : u32, is_fwu_enabled : bool) {
         if ps_val == 0 {
             if cpu_freq > FREQ_PS0_FWS_0_MAX_FREQ {
@@ -499,36 +504,60 @@ impl FLASHCALW {
     }
 
 
-    pub fn is_ready_int_enabled(&self) -> bool {
+#[allow(dead_code)]
+    fn is_ready_int_enabled(&self) -> bool {
         (self.read_register(RegKey::CONTROL) & bit!(0)) != 0
     }
 
-    pub fn enable_ready_int(&self, enable : bool) {
-        self.change_control_single_bit_val(0, enable); 
+    fn enable_ready_int(&self, enable : bool) {
+        let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+        if enable {
+            regs.control.set(regs.control.get() | bit!(0));
+        } else {
+            regs.control.set(regs.control.get() & !bit!(0));
+        }
     }
 
-    pub fn is_lock_error_int_enabled(&self) -> bool {
+#[allow(dead_code)]
+    fn is_lock_error_int_enabled(&self) -> bool {
         (self.read_register(RegKey::CONTROL) & bit!(2)) != 0
     }
 
-    pub fn enable_lock_error_int(&self, enable : bool) {
-        self.change_control_single_bit_val(2, enable);
+    fn enable_lock_error_int(&self, enable : bool) {
+        let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+        if enable {
+            regs.control.set(regs.control.get() | bit!(2));
+        } else {
+            regs.control.set(regs.control.get() & !bit!(2));
+        }
     }
 
-    pub fn is_prog_error_int_enabled(&self) -> bool {
+#[allow(dead_code)]
+    fn is_prog_error_int_enabled(&self) -> bool {
         (self.read_register(RegKey::CONTROL) & bit!(3)) != 0
     }
 
-    pub fn enable_prog_error_int(&self, enable : bool) {
-       self.change_control_single_bit_val(3, enable);
+    fn enable_prog_error_int(&self, enable : bool) {
+        let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+        if enable {
+            regs.control.set(regs.control.get() | bit!(3));
+        } else {
+            regs.control.set(regs.control.get() & !bit!(3));
+        }
     }
 
-    pub fn is_ecc_int_enabled(&self) -> bool {
+#[allow(dead_code)]
+    fn is_ecc_int_enabled(&self) -> bool {
         (self.read_register(RegKey::CONTROL) & bit!(4)) != 0
     }
 
-    pub fn enable_ecc_int(&self, enable : bool) {
-        self.change_control_single_bit_val(4, enable);
+    fn enable_ecc_int(&self, enable : bool) {
+        let regs : &mut Registers = unsafe { mem::transmute(self.registers)};
+        if enable {
+            regs.control.set(regs.control.get() | bit!(4));
+        } else {
+            regs.control.set(regs.control.get() & !bit!(4));
+        }
     }
 
     ///Flashcalw status
@@ -538,39 +567,37 @@ impl FLASHCALW {
         self.read_register(RegKey::STATUS) & bit!(0) != 0
     }
 
-    pub fn get_error_status(&self) -> u32 {
+    fn get_error_status(&self) -> u32 {
         unsafe { pm::enable_clock(self.pb_clock); }
         self.read_register(RegKey::STATUS) & ( bit!(3) | bit!(2)) 
     }
 
-    pub fn is_lock_error(&self) -> bool {
+#[allow(dead_code)]
+    fn is_lock_error(&self) -> bool {
         unsafe { pm::enable_clock(self.pb_clock); }
         self.read_register(RegKey::STATUS) & bit!(2) != 0
     }
 
-    pub fn is_programming_error(&self) -> bool {
+#[allow(dead_code)]
+    fn is_programming_error(&self) -> bool {
         unsafe { pm::enable_clock(self.pb_clock); }
         self.read_register(RegKey::STATUS) & bit!(3) != 0
     }
 
     ///Flashcalw command control
-    pub fn get_command(&self) -> u32 {
-        (self.read_register(RegKey::COMMAND) & (bit!(6) - 1))
-    }
-
-    pub fn get_page_number(&self) -> u32 {
-        //create a mask for the page number field
+    fn get_page_number(&self) -> u32 {
+        // create a mask for the page number field
         let mut page_mask : u32 = bit!(8) - 1;
         page_mask |= page_mask << 24;
         page_mask = !page_mask;
 
-        ((self.read_register(RegKey::COMMAND) & page_mask) >> 8)
+        (self.read_register(RegKey::COMMAND) & page_mask) >> 8
     }
-    
+
     pub fn issue_command(&self, command : FlashCMD, page_number : i32) {
         unsafe { pm::enable_clock(self.pb_clock); }
-        if(command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB
-            && command != FlashCMD::HSEN) {
+        if command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB
+            && command != FlashCMD::HSEN {
             //  enable ready int and mark the controller as being unavaliable.
             self.ready.set(false);
             self.enable_ready_int(true);
@@ -579,7 +606,7 @@ impl FLASHCALW {
         let cmd_regs : &mut Registers = unsafe {mem::transmute(self.registers)};
         let mut reg_val : u32 = cmd_regs.command.get();
         
-        let clear_cmd_mask : u32 = (!(bit!(6) - 1));
+        let clear_cmd_mask : u32 = !(bit!(6) - 1);
         reg_val &= clear_cmd_mask;
        
         // craft the command
@@ -593,8 +620,8 @@ impl FLASHCALW {
         
         cmd_regs.command.set(reg_val); // write the cmd
         
-        if(command == FlashCMD::QPRUP || command == FlashCMD::QPR || command == FlashCMD::CPB
-            || command == FlashCMD::HSEN) {
+        if command == FlashCMD::QPRUP || command == FlashCMD::QPR || command == FlashCMD::CPB
+            || command == FlashCMD::HSEN {
             self.error_status.set(self.get_error_status());
         }
     }
@@ -610,11 +637,13 @@ impl FLASHCALW {
     }
 
     ///FLASHCALW Protection Mechanisms
-    pub fn is_security_bit_active(&self) -> bool {
+#[allow(dead_code)]
+    fn is_security_bit_active(&self) -> bool {
         (self.read_register(RegKey::STATUS) & bit!(4)) != 0
     }
 
-    pub fn set_security_bit(&self) {
+#[allow(dead_code)]
+    fn set_security_bit(&self) {
         self.issue_command(FlashCMD::SSB, -1);
     }
 
@@ -634,210 +663,18 @@ impl FLASHCALW {
         }
     }
 
-    pub fn lock_region(&self, region : u32, lock : bool) {
+#[allow(dead_code)]
+    fn lock_region(&self, region : u32, lock : bool) {
         let first_page : i32 = self.get_region_first_page_number(region) as i32;
         self.lock_page_region(first_page, lock);
     }
 
-    ///Flashcalw General-Purpose Fuses
-    // TODO: probalby delete this section...?
-    pub fn read_gp_fuse_bit(&self, gp_fuse_bit : u32) -> bool {
-        (self.read_all_gp_fuses() & (1u64 << (gp_fuse_bit & 0x3F))) != 0    
-    }
-
-    pub fn read_gp_fuse_bitfield(&self, pos : u32, width : u32) -> u64 {
-        use core::cmp;
-        self.read_all_gp_fuses() >> (pos & 0x3F) & 
-            ((1u64 << cmp::min(width, 64)) - 1)
-    }
-
-    pub fn read_gp_fuse_byte(&self, gp_fuse_byte : u32) -> u8 {
-        (self.read_all_gp_fuses() >> ((gp_fuse_byte & 0x07) << 3)) as u8
-    }
-
-    pub fn read_all_gp_fuses(&self) -> u64 {
-        let registers : &mut Registers = unsafe {
-            mem::transmute(self.registers)  
-        };
-        let gpfrhi : u64 = self.read_register(RegKey::GPFRHI) as u64;
-        let gpfrlo : u64 = self.read_register(RegKey::GPFRLO) as u64;
-        (gpfrlo | (gpfrhi << 32))
-    }
-    
-    pub fn erase_gp_fuse_bit(&self, gp_fuse_bit : u32, check : bool) -> bool {
-        self.issue_command(FlashCMD::EGPB, (gp_fuse_bit as i32) & 0x3F);
-        if check {
-            self.read_gp_fuse_bit(gp_fuse_bit)
-        } else {
-            true    
-        }
-    }
-
-    pub fn erase_gp_fuse_bitfield(&self, mut pos : u32, mut width : u32,
-        check : bool) -> bool {
-        use core::cmp;
-        let mut error_status : u32 = 0;
-
-        pos &= 0x3F;
-        width = cmp::min(width, 64);
-        for gp_fuse_bit in pos..(pos + width) {
-            self.erase_gp_fuse_bit(gp_fuse_bit, false);
-            error_status |= self.error_status.get();
-        }
-
-        self.error_status.set(error_status);
-        if check {
-            self.read_gp_fuse_bitfield(pos, width) == ((1u64 << width) - 1)
-        } else {
-            true
-        }
-    }
-
-    pub fn erase_gp_fuse_byte(&self, gp_fuse_byte : u32, check : bool) -> bool {
-        let mut error_status : u32;
-        let mut value = self.read_all_gp_fuses();
-        let mut byte_val : u8;
-
-        self.erase_all_gp_fuses(false);
-        error_status = self.error_status.get();
-
-        for current_gp_fuse_byte in 0..8 {
-            if current_gp_fuse_byte != gp_fuse_byte {
-                byte_val = (value & ((1u64 << 8) - 1)) as u8;
-                self.write_gp_fuse_byte(current_gp_fuse_byte, byte_val);
-                error_status |= self.error_status.get();
-            }
-            value >>= 8;    
-        }
-
-        self.error_status.set(error_status);
-        
-        if check {
-            self.read_gp_fuse_byte(gp_fuse_byte) == 0xFF
-        } else {
-            true    
-        }
-    }
-
-    pub fn erase_all_gp_fuses(&self, check : bool) -> bool {
-        self.issue_command(FlashCMD::EAGPF, -1);
-        if check {
-            self.read_all_gp_fuses() == (GP_ALL_FUSES_ONE)
-        } else {
-            true
-        }
-    }
-
-    pub fn write_gp_fuse_bit(&self, gp_fuse_bit : u32, value : bool) {
-        if !value {
-            self.issue_command(FlashCMD::WGPB, (gp_fuse_bit as i32) & 0x3F)
-        }    
-    }
-
-    pub fn write_gp_fuse_bitfield(&self, mut pos : u32, mut width : u32, mut value : u64) {
-        use core::cmp;
-        let mut error_status : u32 = 0;
-
-        pos &= 0x3F;
-        width = cmp::min(width, 64);
-
-        for gp_fuse_bit in pos..(pos + width) {
-            self.write_gp_fuse_bit(gp_fuse_bit, value & 0x01 != 0);
-            error_status |= self.error_status.get();
-            value >>= 1;
-        }
-        self.error_status.set(error_status);
-    }
-
-    pub fn write_gp_fuse_byte(&self, gp_fuse_byte : u32, value : u8) {
-        self.issue_command(FlashCMD::PGPFB, ((gp_fuse_byte & 0x07) | (value as u32) << 3) as i32);    
-    }
-
-    pub fn write_all_gp_fuses(&self, mut value : u64) {
-        let mut error_status : u32 = 0;
-        let mut byte_val : u8;
-
-        for gp_fuse_byte in 0..8 {
-            //get the lower byte
-            byte_val = (value & ((1u64 << 8) - 1)) as u8;
-            self.write_gp_fuse_byte(gp_fuse_byte, byte_val);
-            error_status |= self.error_status.get();
-            value >>= 8;
-        }
-            self.error_status.set(error_status);
-    }
-
-    pub fn set_gp_fuse_bit(&self, gp_fuse_bit : u32, value : bool) {
-        if value {
-            self.erase_gp_fuse_bit(gp_fuse_bit, false);    
-        } else {
-            self.write_gp_fuse_bit(gp_fuse_bit, false);    
-        }
-    }
-
-    pub fn set_gp_fuse_bitfield(&self, mut pos: u32, mut width : u32, mut value : u64) {
-        use core::cmp;
-        let mut error_status : u32 = 0;
-
-        pos &= 0x3F;
-        width = cmp::min(width, 64);
-
-        for gp_fuse_bit in pos..(pos + width) {
-            self.set_gp_fuse_bit(gp_fuse_bit, value & 0x01 != 0);
-            error_status |= self.error_status.get();
-            value >>= 1;
-        }
-        self.error_status.set(error_status);
-    }
-
-    pub fn set_gp_fuse_byte(&self, gp_fuse_byte : u32, value : u8) {
-        let mut error_status : u32;
-        match value {
-            0xFF => {
-                self.erase_gp_fuse_byte(gp_fuse_byte, false);    
-            },
-            0x00 => {
-                self.write_gp_fuse_byte(gp_fuse_byte, 0x00);
-            },
-            _ => {
-                self.erase_gp_fuse_byte(gp_fuse_byte, false);
-                error_status = self.error_status.get();
-                self.write_gp_fuse_byte(gp_fuse_byte, value);
-                // TODO: make sure this needs no interrupts?
-                // nope this does...
-                error_status |= self.error_status.get();
-                self.error_status.set(error_status);
-            }
-        };
-
-    }
-
-    pub fn set_all_gp_fuses(&self, value : u64) {
-        let mut error_status : u32;
-
-        match value {
-            GP_ALL_FUSES_ONE => {
-                self.erase_all_gp_fuses(false);  
-            },
-            0u64 => {
-                self.write_all_gp_fuses(0u64);  
-            },
-            _ => {
-                self.erase_all_gp_fuses(false);
-                error_status = self.error_status.get();
-                self.write_all_gp_fuses(value);
-                error_status |= self.error_status.get();
-                self.error_status.set(error_status);
-            }
-        }
-    }
-    
     ///Flashcalw Access to Flash Pages
-    pub fn clear_page_buffer(&self) {
+    fn clear_page_buffer(&self) {
         self.issue_command(FlashCMD::CPB, -1);    
     }
 
-    pub fn is_page_erased(&self) -> bool {
+    fn is_page_erased(&self) -> bool {
         let registers : &mut Registers = unsafe {
             mem::transmute(self.registers)     
         };
@@ -846,12 +683,12 @@ impl FLASHCALW {
         (status & bit!(5)) != 0
     }
 
-    pub fn quick_page_read(&self, page_number : i32) -> bool {
+    fn quick_page_read(&self, page_number : i32) -> bool {
         self.issue_command(FlashCMD::QPR, page_number);
         self.is_page_erased()
     }
 
-    pub fn flashcalw_erase_page(&self, page_number : i32, check : bool) -> bool {
+    fn flashcalw_erase_page(&self, page_number : i32, check : bool) -> bool {
         let mut page_erased = true;
 
         self.issue_command(FlashCMD::EP, page_number);
@@ -867,16 +704,20 @@ impl FLASHCALW {
         page_erased
     }
 
-    pub fn flashcalw_write_page(&self, page_number : i32) {
+    fn flashcalw_write_page(&self, page_number : i32) {
         self.issue_command(FlashCMD::WP, page_number);    
     }
-
-    pub fn quick_user_page_read(&self) -> bool {
+    
+/// There's a user_page that isn't contigous with the rest of the flash. Currently
+/// it's not being used.
+#[allow(dead_code)]
+    fn quick_user_page_read(&self) -> bool {
         self.issue_command(FlashCMD::QPRUP, -1);
         self.is_page_erased()
     }
 
-    pub fn erase_user_page(&self, check : bool) -> bool {
+#[allow(dead_code)]
+    fn erase_user_page(&self, check : bool) -> bool {
         self.issue_command(FlashCMD::EUP, -1);    
         if check {
             self.quick_user_page_read()
@@ -885,13 +726,14 @@ impl FLASHCALW {
         }
     }
 
-    pub fn write_user_page(&self) {
+#[allow(dead_code)]
+    fn write_user_page(&self) {
         self.issue_command(FlashCMD::WUP, -1);    
     } 
     
     //  Instead of having several memset/memcpy functions as Atmel's ASF implementation
     //  will only have one to write to the page buffer
-    pub fn write_to_page_buffer(&self, pg_buff_addr : usize) {
+    fn write_to_page_buffer(&self, pg_buff_addr : usize) {
         let mut page_buffer : *mut u8 = pg_buff_addr as *mut u8;
        
         //   Errata 45.1.7 - Need to write a 64-bit all one word for every write to
@@ -963,7 +805,7 @@ impl FLASHCALW {
         //  By default the picocache ( a cache only for the flash) is turned off.
         //  However the bootloader turns it on. I will explicitly turn it on here.
         //  So if the bootloader changes, nothing breaks.
-        enable_picocache(true);
+        self.enable_picocache(true);
         
         self.current_state.set(FlashState::Ready);
     }
@@ -1041,7 +883,7 @@ impl FLASHCALW {
 
 ///  Assumes the only Peripheral Interrupt enabled for the FLASHCALW is the
 ///  FRDY (Flash Ready) interrupt.
-pub unsafe extern fn FLASH_Handler() {
+pub unsafe extern fn flash_handler() {
     use common::Queue;
     use chip;
     
