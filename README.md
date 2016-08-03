@@ -23,23 +23,27 @@ applications from each other and the kernel.
 
 ### Rust (nightly)
 
-We are using `rustc 1.12.0-nightly (54c0dcfd6 2016-07-28)`. Install it using rustup:
+We are using `rustc 1.12.0-nightly (54c0dcfd6 2016-07-28)`. We recommand
+installing it with [rustup](http://www.rustup.rs) so you can manage multiple
+versions of Rust and continue using stable versions for other Rust code:
 
 ```bash
-$ curl -sSf https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --date=2016-07-29
+$ curl https://sh.rustup.rs -sSf | sh
 ```
 
-Alternatively, you can use [multirust](https://github.com/brson/multirust):
+Then override the default version of Rust to use for Tock by running the
+following from the top-level Tock directory:
 
 ```bash
-$ curl -sf https://raw.githubusercontent.com/brson/multirust/master/blastoff.sh | sh
-$ multirust override nightly-2016-07-29
+$ rustup override set nightly-2016-07-29
 ```
 
 #### `arm-none-eabi` toolchain
 
-We are currently using arm-none-eabi-gcc 5.4. Using pre-5.0 versions may
-run into problems with missing intrinsics (e.g., ```__aeabi_memclr```). 
+We are currently using arm-none-eabi-gcc version 5.4 from the gcc-arm-embedded
+PPA on lauchpad. Using pre-5.0 versions from that repo, or other versions
+packaged with a newlib version earlier than 2.3 will run into problems with
+missing ARM intrinsics (e.g., ```__aeabi_memclr```).
 
 On Mac OS X, you can get the arm-none-eabi toolchain via port:
 
@@ -52,7 +56,7 @@ or via homebrew:
 ```bash
 $ brew tap PX4/homebrew-px4
 $ brew update
-$ brew install gcc-arm-none-eabi-54
+$ brew install gcc-arm-none-eabi
 ```
 
 On Linux we recommend getting packages from Launchpad
@@ -64,6 +68,9 @@ E.g.:
 ```bash
 $ curl https://launchpad.net/gcc-arm-embedded/5.0/5-2016-q2-update/+download/gcc-arm-none-eabi-5_4-2016q2-20160622-linux.tar.bz2
 ```
+
+On Arch Linux the `arm-none-eabi` package in pacman contains a sufficiently up
+to date version of newlibc.
 
 For Windows and other operating systems, download site is
 [here](https://launchpad.net/gcc-arm-embedded/+download).
