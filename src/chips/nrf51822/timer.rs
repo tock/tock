@@ -5,7 +5,6 @@ use peripheral_interrupts::NvicIdx;
 use nvic;
 use chip;
 use hil;
-use hil::alarm::{Alarm, AlarmClient, Freq16KHz};
 // The nRF51822 timer system operates off of the high frequency clock 
 // (HFCLK) and provides three timers from the clock. Timer0 is tied
 // to the radio through some hard-coded peripheral linkages (e.g., there
@@ -204,7 +203,7 @@ impl Timer {
 pub struct TimerAlarm {
     which: Location,
     nvic: NvicIdx,
-    client: TakeCell<&'static AlarmClient>,
+    client: TakeCell<&'static hil::alarm::AlarmClient>,
 }
 
 impl TimerAlarm {
@@ -222,7 +221,7 @@ impl TimerAlarm {
         self.timer().task_clear.set(1);
     }
 
-    pub fn set_client(&self, client: &'static AlarmClient) {
+    pub fn set_client(&self, client: &'static hil::alarm::AlarmClient) {
         self.client.replace(client);
     }
 
@@ -270,7 +269,7 @@ impl TimerAlarm {
 }
 
 impl hil::alarm::Alarm for TimerAlarm {
-    type Frequency = Freq16KHz;
+    type Frequency = hil::alarm::Freq16KHz;
 
     fn now(&self) -> u32 {
         self.timer().task_capture[0].set(1);

@@ -23,7 +23,7 @@ pub mod systick;
 pub struct Platform {
     chip: nrf51822::chip::Nrf51822,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
-//    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
 }
 pub struct AlarmClient {
     val: Cell<u8>,
@@ -79,7 +79,7 @@ impl Platform {
         F: FnOnce(Option<&hil::Driver>) -> R {
             match driver_num {
                 1 => f(Some(self.gpio)),
-//                3 => f(Some(self.timer)),
+                3 => f(Some(self.timer)),
                 _ => f(None)
             }
         }
@@ -101,8 +101,6 @@ macro_rules! static_init {
 
 pub unsafe fn init<'a>() -> &'a mut Platform {
     use core::mem;
-    use nrf51822::gpio::PORT;
-
     static mut PLATFORM_BUF : [u8; 1024] = [0; 1024];
 
     static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 10] = [
@@ -124,13 +122,13 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
     }
 
     let alarm = &nrf51822::timer::ALARM1;
-//    static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1));
-//    alarm.set_client(mux_alarm);
-//    static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, TimerAlarm> =
-//                 VirtualMuxAlarm::new(mux_alarm));
-//    static_init!(timer : TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>> =
-//                 TimerDriver::new(virtual_alarm1, process::Container::create()));
-//    virtual_alarm1.set_client(timer);
+    static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1));
+    alarm.set_client(mux_alarm);
+    static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, TimerAlarm> =
+                 VirtualMuxAlarm::new(mux_alarm));
+    static_init!(timer : TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>> =
+                 TimerDriver::new(virtual_alarm1, process::Container::create()));
+    virtual_alarm1.set_client(timer);
 
     nrf51822::clock::CLOCK.low_stop();
     nrf51822::clock::CLOCK.high_stop();
@@ -145,7 +143,7 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
     *platform = Platform {
         chip: nrf51822::chip::Nrf51822::new(),
         gpio: gpio,
-//        timer: timer,
+        timer: timer,
     };
 
     // The systick implementation currently directly accesses the low clock;
