@@ -98,28 +98,25 @@ pub struct Process<'a> {
 }
 
 #[inline(never)]
-pub unsafe fn load_processes(start_addr: *const u8, end_addr: *const u8) ->
+pub unsafe fn load_processes(start_addr: *const u8) ->
         &'static mut [Option<Process<'static>>] {
     let mut addr = start_addr;
     let mut process_iter = PROCS.iter_mut();
 
-    while addr < end_addr {
-        let remaining_size = end_addr as usize - addr as usize;
-        if remaining_size < mem::size_of::<LoadInfo>() {
-            panic!("Encountered truncated LoadInfo header. Expected size: {}, Available: {}",
-                   mem::size_of::<LoadInfo>(), remaining_size);
-        }
-        let load_info = &*(addr as *const LoadInfo);
-        if remaining_size < load_info.total_size {
-            panic!("Encountered truncated program image. Expected size: {}, Available: {}",
-                   load_info.total_size, remaining_size);
+    loop {
+        // The first member of the LoadInfo header contains the total size of each process image. A
+        // sentinel value of 0 (invalid because it's smaller than the header itself) is used to
+        // mark the end of the list of processes.
+        let total_size = *(addr as *const usize);
+        if total_size == 0 {
+            break;
         }
 
         let process = process_iter.next().expect("Exceeded maximum NUM_PROCS.");
-        *process = Process::create(addr, load_info.total_size);
+        *process = Process::create(addr, total_size);
         // TODO: panic if loading failed?
 
-        addr = addr.offset(load_info.total_size as isize);
+        addr = addr.offset(total_size as isize);
     }
 
     // Clear any unused process slots.

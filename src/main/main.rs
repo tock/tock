@@ -15,8 +15,6 @@ pub mod syscall;
 extern {
     /// Beginning of the ROM region containing app images.
     static _sapps : u8;
-    /// End of the ROM region containing app images.
-    static _eapps : u8;
 }
 
 #[no_mangle]
@@ -29,7 +27,7 @@ pub extern fn main() {
 
 
     let processes = unsafe {
-        process::process::load_processes(&_sapps, &_eapps)
+        process::process::load_processes(&_sapps)
     };
 
     loop {
