@@ -213,6 +213,8 @@ impl Port {
     // GPIOTE interrupt: check each of 4 GPIOTE channels, if any has
     // fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {
+        nvic::clear_pending(NvicIdx::GPIOTE);
+
         if GPIOTE().in0.get() != 0 {
             GPIOTE().in0.set(0);
             let pin = (GPIOTE().config0.get() >> 8 & 0x1F) as usize;
@@ -253,7 +255,6 @@ pub static mut PORT : Port = Port {
 #[allow(non_snake_case)]
 pub unsafe extern fn GPIOTE_Handler() {
     use common::Queue;
-
     nvic::disable(NvicIdx::GPIOTE);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::GPIOTE);
 }

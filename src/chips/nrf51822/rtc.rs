@@ -92,6 +92,7 @@ impl Rtc {
     }
 
     pub fn handle_interrupt(&self) {
+        nvic::clear_pending(NvicIdx::RTC1);
         self.callback.get().map(|cb| {
             cb.fired();
         });
@@ -128,7 +129,6 @@ impl Alarm for Rtc {
 #[allow(non_snake_case)]
 pub unsafe extern fn RTC1_Handler() {
     use common::Queue;
-    nvic::clear_pending(NvicIdx::RTC1);
     nvic::disable(NvicIdx::RTC1);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::RTC1);
 }
