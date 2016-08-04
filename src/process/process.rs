@@ -63,8 +63,9 @@ pub struct Callback {
     pub pc: usize
 }
 
-#[repr(C,packed)]
+#[repr(C)]
 struct LoadInfo {
+    total_size: usize,       /* Total padded size of the program image */
     rel_data_size: usize,
     entry_loc: usize,        /* Entry point for user application */
     init_data_loc: usize,    /* Data initialization information in flash */
@@ -97,19 +98,33 @@ pub struct Process<'a> {
 }
 
 #[inline(never)]
-pub unsafe fn load_processes(mut start_addr: *const usize) ->
+pub unsafe fn load_processes(start_addr: *const u8, end_addr: *const u8) ->
         &'static mut [Option<Process<'static>>] {
-    for op in PROCS.iter_mut() {
-        if *start_addr != 0 {
-            let prog_start = start_addr.offset(1);
-            let length = *start_addr as isize;
-            start_addr = (start_addr as *const u8).offset(length) as *const usize;
+    let mut addr = start_addr;
+    let mut process_iter = PROCS.iter_mut();
 
-            *op = Process::create(prog_start as *mut u8, length);
-        } else {
-            *op = None;
+    while addr < end_addr {
+        let remaining_size = end_addr as usize - addr as usize;
+        if remaining_size < mem::size_of::<LoadInfo>() {
+            panic!("Encountered truncated LoadInfo header. Expected size: {}, Available: {}",
+                   mem::size_of::<LoadInfo>(), remaining_size);
         }
+        let load_info = &*(addr as *const LoadInfo);
+        if remaining_size < load_info.total_size {
+            panic!("Encountered truncated program image. Expected size: {}, Available: {}",
+                   load_info.total_size, remaining_size);
+        }
+
+        let process = process_iter.next().expect("Exceeded maximum NUM_PROCS.");
+        *process = Process::create(addr, load_info.total_size);
+        // TODO: panic if loading failed?
+
+        addr = addr.offset(load_info.total_size as isize);
     }
+
+    // Clear any unused process slots.
+    for p in process_iter { *p = None; }
+
     &mut PROCS
 }
 
@@ -133,7 +148,7 @@ impl<'a> Process<'a> {
         (data_start, data_len, text_start, text_len)
     }
 
-    pub unsafe fn create(start_addr: *const u8, length: isize) -> Option<Process<'a>> {
+    pub unsafe fn create(start_addr: *const u8, length: usize) -> Option<Process<'a>> {
         let cur_idx = FREE_MEMORY_IDX;
         if cur_idx <= MEMORIES.len() {
             FREE_MEMORY_IDX += 1;
@@ -174,9 +189,7 @@ impl<'a> Process<'a> {
                 memory: memory,
                 app_memory_break: stack_bottom,
                 kernel_memory_break: kernel_memory_break,
-                text: slice::from_raw_parts(
-                    start_addr.offset(-1) as *const u8,
-                    length as usize),
+                text: slice::from_raw_parts(start_addr, length),
                 cur_stack: stack_bottom,
                 wait_pc: 0,
                 psr: 0x01000000,
@@ -351,35 +364,35 @@ struct LoadResult {
     app_mem_start: *const u8
 }
 
-unsafe fn load(mut start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
+unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     let mut result = LoadResult {
         text_start: start_addr as *const u8,
         text_len: 0,
         init_fn: 0,
-        app_mem_start: 0 as *const u8
+        app_mem_start: ptr::null(),
     };
 
-    let load_info : &LoadInfo = mem::transmute(start_addr);
-    start_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
+    let load_info = &*(start_addr as *const LoadInfo);
 
+    let rel_data_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
     let rel_data : &[usize] = slice::from_raw_parts(
-        start_addr as *const usize,
+        rel_data_addr as *const usize,
         load_info.rel_data_size / 4);
-    start_addr = start_addr.offset(load_info.rel_data_size as isize);
 
     // Update text location in self
-    result.text_start = start_addr;
+    let text_start = rel_data_addr.offset(load_info.rel_data_size as isize);
+    result.text_start = text_start;
     result.text_len = load_info.init_data_loc;
 
     // Zero out BSS
     ::core::intrinsics::write_bytes(
-        mem_base.offset(load_info.bss_start_offset as isize) as *mut u8,
+        mem_base.offset(load_info.bss_start_offset as isize),
         0,
         load_info.bss_end_offset - load_info.bss_start_offset);
 
     // Copy data into Data section
     let init_data : &[u8] = slice::from_raw_parts(
-        (load_info.init_data_loc + start_addr as usize) as *mut u8,
+        text_start.offset(load_info.init_data_loc as isize),
         load_info.init_data_size);
 
     let target_data : &mut [u8] = slice::from_raw_parts_mut(
@@ -395,7 +408,7 @@ unsafe fn load(mut start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
             *addr = entry + (mem_base as usize);
         } else {
             // rodata or function pointer (code relative)
-            *addr = (entry ^ 0x80000000) + (start_addr as usize);
+            *addr = (entry ^ 0x80000000) + (text_start as usize);
         }
     };
 
@@ -417,7 +430,7 @@ unsafe fn load(mut start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     }
 
     // Entry point is offset from app code
-    result.init_fn = start_addr as usize + load_info.entry_loc;
+    result.init_fn = text_start as usize + load_info.entry_loc;
 
     let mut aligned_mem_start = load_info.bss_end_offset as isize;
     aligned_mem_start += (8 - (aligned_mem_start % 8)) % 8;

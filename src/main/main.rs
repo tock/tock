@@ -12,9 +12,11 @@ mod sched;
 
 pub mod syscall;
 
-#[allow(improper_ctypes)]
 extern {
-    static _sapps : usize;
+    /// Beginning of the ROM region containing app images.
+    static _sapps : u8;
+    /// End of the ROM region containing app images.
+    static _eapps : u8;
 }
 
 #[no_mangle]
@@ -27,7 +29,7 @@ pub extern fn main() {
 
 
     let processes = unsafe {
-        process::process::load_processes(&_sapps)
+        process::process::load_processes(&_sapps, &_eapps)
     };
 
     loop {
