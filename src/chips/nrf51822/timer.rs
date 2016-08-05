@@ -5,6 +5,9 @@ use peripheral_interrupts::NvicIdx;
 use nvic;
 use chip;
 use hil;
+use gpio;
+use hil::gpio::GPIOPin;
+
 // The nRF51822 timer system operates off of the high frequency clock 
 // (HFCLK) and provides three timers from the clock. Timer0 is tied
 // to the radio through some hard-coded peripheral linkages (e.g., there
@@ -159,10 +162,10 @@ impl Timer {
     pub fn set_cc3(&self, val: u32) { self.timer().cc[0].set(val); }
 
     pub fn enable_interrupts(&self, interrupts: u32) {
-        self.timer().intenset.set(interrupts); 
+        self.timer().intenset.set(interrupts << 16); 
     }
     pub fn disable_interrupts(&self, interrupts: u32) {
-        self.timer().intenclr.set(interrupts); 
+        self.timer().intenclr.set(interrupts << 16); 
     }
 
     pub fn enable_nvic(&self) {
@@ -206,6 +209,12 @@ pub struct TimerAlarm {
     client: TakeCell<&'static hil::alarm::AlarmClient>,
 }
 
+// CC0 is used for capture
+// CC1 is used for compare/interrupts
+const ALARM_CAPTURE       : usize = 0;
+const ALARM_COMPARE       : usize = 1;
+const ALARM_INTERRUPT_BIT : u32   = 1 << (16 + ALARM_COMPARE);
+ 
 impl TimerAlarm {
     fn timer(&self) -> &'static Registers { TIMER(self.which) }
 
@@ -226,6 +235,8 @@ impl TimerAlarm {
     }
 
     pub fn start(&self) {
+        // Make timer 32 bits wide
+        self.timer().bitmode.set(3);
         // Clock is 16MHz, so scale down by 2^10 to 16KHz
         self.timer().prescaler.set(10);
         self.timer().task_start.set(1);
@@ -236,22 +247,22 @@ impl TimerAlarm {
     }
 
     pub fn handle_interrupt(&self) {
+        self.timer().event_compare[ALARM_COMPARE].set(0);
         nvic::clear_pending(self.nvic);
-        self.disable_interrupts(0b1111 << 16);
-        self.timer().event_compare[0].set(0);
-        self.timer().event_compare[1].set(0);
-
         self.client.map(|client| {
             client.fired();
         });
     }
 
-    pub fn enable_interrupts(&self, interrupts: u32) {
-        self.timer().intenset.set(interrupts); 
+    // Enable and disable interrupts use the bottom 4 bits
+    // for the 4 compare interrupts. These functions shift
+    // those bits to the correct place in the register.
+    pub fn enable_interrupts(&self) {
+        self.timer().intenset.set(ALARM_INTERRUPT_BIT);
     }
 
-    pub fn disable_interrupts(&self, interrupts: u32) {
-        self.timer().intenclr.set(interrupts); 
+    pub fn disable_interrupts(&self) {
+        self.timer().intenclr.set(ALARM_INTERRUPT_BIT);
     }
 
     pub fn enable_nvic(&self) {
@@ -263,8 +274,8 @@ impl TimerAlarm {
     }
 
     pub fn value(&self) -> u32 {
-        self.timer().task_capture[0].set(1);
-        self.timer().cc[0].get()
+        self.timer().task_capture[ALARM_CAPTURE].set(1);
+        self.timer().cc[ALARM_CAPTURE].get()
     }
 }
 
@@ -272,27 +283,22 @@ impl hil::alarm::Alarm for TimerAlarm {
     type Frequency = hil::alarm::Freq16KHz;
 
     fn now(&self) -> u32 {
-        self.timer().task_capture[0].set(1);
-        self.timer().cc[0].get()
+        self.value()
     }
+
     fn set_alarm(&self, tics: u32) {
-        self.disable_alarm();
+        self.disable_nvic();
+        self.timer().cc[ALARM_COMPARE].set(tics);
         self.enable_nvic();
-        // Enable interrupt on cc1
-        self.enable_interrupts(1 << 1);
-        self.timer().cc[1].set(tics);
-        self.timer().shorts.set(0b10);
     }
     fn disable_alarm(&self) {
-        // Disable interrupt on cc1
-        self.disable_interrupts(1 << 1);
-        self.timer().cc[1].set(0);
+        self.disable_nvic();
     }
     fn is_armed(&self) -> bool {
-        self.timer().cc[1].get() != 0
+        self.timer().intenset.get() == (ALARM_INTERRUPT_BIT)
     }
     fn get_alarm(&self) -> u32 {
-        self.timer().cc[1].get()
+        self.timer().cc[ALARM_COMPARE].get()
     }
 }
 

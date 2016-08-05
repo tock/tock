@@ -1195,7 +1195,7 @@ typedef struct {                                    /*!< GPIO Structure         
 /* ================================================================================ */
 /* ================              Peripheral memory map             ================ */
 /* ================================================================================ */
-
+/*
 #define NRF_POWER_BASE                  0x40000000UL
 #define NRF_CLOCK_BASE                  0x40000000UL
 #define NRF_MPU_BASE                    0x40000000UL
@@ -1229,12 +1229,13 @@ typedef struct {                                    /*!< GPIO Structure         
 #define NRF_FICR_BASE                   0x10000000UL
 #define NRF_UICR_BASE                   0x10001000UL
 #define NRF_GPIO_BASE                   0x50000000UL
-
+*/
 
 /* ================================================================================ */
 /* ================             Peripheral declaration             ================ */
 /* ================================================================================ */
 
+/*
 #define NRF_POWER                       ((NRF_POWER_Type          *) NRF_POWER_BASE)
 #define NRF_CLOCK                       ((NRF_CLOCK_Type          *) NRF_CLOCK_BASE)
 #define NRF_MPU                         ((NRF_MPU_Type            *) NRF_MPU_BASE)
@@ -1269,7 +1270,7 @@ typedef struct {                                    /*!< GPIO Structure         
 #define NRF_UICR                        ((NRF_UICR_Type           *) NRF_UICR_BASE)
 #define NRF_GPIO                        ((NRF_GPIO_Type           *) NRF_GPIO_BASE)
 
-
+*/
 /** @} */ /* End of group Device_Peripheral_Registers */
 /** @} */ /* End of group nrf51 */
 /** @} */ /* End of group Nordic Semiconductor */

@@ -28,6 +28,15 @@
 #include "controller/ble_ll.h"
 #include "mcu/nrf51_bitfields.h"
 
+NRF_RADIO_Type* NRF_RADIO = NULL;
+void     nrf_start_hfclock();
+void*    nrf_get_radio_ptr();
+void     nrf_ppi_chen_clr(uint32_t val);
+void     nrf_ppi_chen_set(uint32_t val);
+uint32_t nrf_ppi_chen();
+void     nrf_timer0_cc0_set(uint32_t val);
+uint32_t nrf_timer0_cc1_get();
+
 /*
  * XXX: need to make the copy from mbuf into the PHY data structures 32-bit
  * copies or we are screwed.
@@ -246,7 +255,7 @@ ble_phy_rx_xcvr_setup(void)
         NRF_CCM->SHORTS = 0;
         NRF_CCM->EVENTS_ERROR = 0;
         NRF_CCM->EVENTS_ENDCRYPT = 0;
-        NRF_PPI->CHENSET = PPI_CHEN_CH24_Msk | PPI_CHEN_CH25_Msk;
+	nrf_ppi_chen_set(PPI_CHEN_CH24_Msk | PPI_CHEN_CH25_Msk);
     } else {
         NRF_RADIO->PACKETPTR = (uint32_t)g_ble_phy_data.rxpdu->om_data;
     }
@@ -255,7 +264,7 @@ ble_phy_rx_xcvr_setup(void)
 #endif
 
     /* We dont want to trigger TXEN on output compare match */
-    NRF_PPI->CHENCLR = PPI_CHEN_CH20_Msk;
+    nrf_ppi_chen_clr(PPI_CHEN_CH20_Msk);
 
     /* Reset the rx started flag. Used for the wait for response */
     g_ble_phy_data.phy_rx_started = 0;
@@ -292,8 +301,8 @@ ble_phy_tx_end_isr(void)
     assert(g_ble_phy_data.phy_state == BLE_PHY_STATE_TX);
 
     /* Log the event */
-    ble_ll_log(BLE_LL_LOG_ID_PHY_TXEND, (g_ble_phy_txrx_buf[0] >> 8) & 0xFF,
-               g_ble_phy_data.phy_encrypted, NRF_TIMER0->CC[1]);
+//    ble_ll_log(BLE_LL_LOG_ID_PHY_TXEND, (g_ble_phy_txrx_buf[0] >> 8) & 0xFF,
+//               g_ble_phy_data.phy_encrypted, NRF_TIMER0->CC[1]);
 
     /* Clear events and clear interrupt on disabled event */
     NRF_RADIO->EVENTS_DISABLED = 0;
@@ -333,13 +342,13 @@ ble_phy_tx_end_isr(void)
         if (txlen && g_ble_phy_data.phy_encrypted) {
             txlen += BLE_LL_DATA_MIC_LEN;
         }
-        wfr_time = NRF_TIMER0->CC[1] - BLE_TX_LEN_USECS_M(NRF_RX_START_OFFSET);
+        wfr_time = nrf_timer0_cc1_get() - BLE_TX_LEN_USECS_M(NRF_RX_START_OFFSET);
         wfr_time += BLE_TX_DUR_USECS_M(txlen);
         wfr_time += cputime_usecs_to_ticks(BLE_LL_WFR_USECS);
         ble_ll_wfr_enable(wfr_time);
     } else {
         /* Disable automatic TXEN */
-        NRF_PPI->CHENCLR = PPI_CHEN_CH20_Msk;
+        nrf_ppi_chen_clr(PPI_CHEN_CH20_Msk);
         assert(transition == BLE_PHY_TRANSITION_NONE);
     }
 
@@ -365,7 +374,7 @@ ble_phy_rx_end_isr(void)
     NRF_RADIO->INTENCLR = RADIO_INTENCLR_END_Msk;
 
     /* Disable automatic RXEN */
-    NRF_PPI->CHENCLR = PPI_CHEN_CH21_Msk;
+    nrf_ppi_chen_clr(PPI_CHEN_CH21_Msk);
 
     /* Set RSSI and CRC status flag in header */
     ble_hdr = BLE_MBUF_HDR_PTR(g_ble_phy_data.rxpdu);
@@ -470,7 +479,7 @@ ble_phy_rx_start_isr(void)
     ble_hdr->rxinfo.flags = ble_ll_state_get();
     ble_hdr->rxinfo.channel = g_ble_phy_data.phy_chan;
     ble_hdr->rxinfo.handle = 0;
-    ble_hdr->beg_cputime = NRF_TIMER0->CC[1] -
+    ble_hdr->beg_cputime = nrf_timer0_cc1_get() -
         BLE_TX_LEN_USECS_M(NRF_RX_START_OFFSET);
 
     /* Call Link Layer receive start function */
@@ -526,13 +535,15 @@ ble_phy_isr(void)
  *
  * @return int 0: success; PHY error code otherwise
  */
-int
-ble_phy_init(void)
-{
-    int rc;
-    uint32_t os_tmo;
+int ble_phy_init(void) {
+    //int rc;
+    //uint32_t os_tmo;
+
+    nrf_start_hfclock();
+    NRF_RADIO = (NRF_RADIO_Type*)nrf_get_radio_ptr();
 
     /* Make sure HFXO is started */
+    /*
     NRF_CLOCK->EVENTS_HFCLKSTARTED = 0;
     NRF_CLOCK->TASKS_HFCLKSTART = 1;
     os_tmo = os_time_get() + (5 * (1000 / OS_TICKS_PER_SEC));
@@ -543,7 +554,7 @@ ble_phy_init(void)
         if ((int32_t)(os_time_get() - os_tmo) > 0) {
             return BLE_PHY_ERR_INIT;
         }
-    }
+    }*/
 
     /* Set phy channel to an invalid channel so first set channel works */
     g_ble_phy_data.phy_chan = BLE_PHY_NUM_CHANS;
@@ -579,7 +590,7 @@ ble_phy_init(void)
     NRF_RADIO->TIFS = BLE_LL_IFS;
 
     /* Captures tx/rx start in timer0 capture 1 */
-    NRF_PPI->CHENSET = PPI_CHEN_CH26_Msk;
+    nrf_ppi_chen_set(PPI_CHEN_CH26_Msk);
 
 #if (BLE_LL_CFG_FEAT_LE_ENCRYPTION == 1)
     NRF_CCM->INTENCLR = 0xffffffff;
@@ -643,7 +654,7 @@ ble_phy_rx(void)
     ble_phy_rx_xcvr_setup();
 
     /* Start the receive task in the radio if not automatically going to rx */
-    if ((NRF_PPI->CHEN & PPI_CHEN_CH21_Msk) == 0) {
+    if ((nrf_ppi_chen() & PPI_CHEN_CH21_Msk) == 0) {
         NRF_RADIO->TASKS_RXEN = 1;
     }
 
@@ -689,7 +700,7 @@ ble_phy_encrypt_set_pkt_cntr(uint64_t pkt_counter, int dir)
 void
 ble_phy_encrypt_disable(void)
 {
-    NRF_PPI->CHENCLR = (PPI_CHEN_CH24_Msk | PPI_CHEN_CH25_Msk);
+    nrf_ppi_chen_clr(PPI_CHEN_CH24_Msk | PPI_CHEN_CH25_Msk);
     NRF_CCM->TASKS_STOP = 1;
     NRF_CCM->EVENTS_ERROR = 0;
 
@@ -727,9 +738,9 @@ ble_phy_tx_set_start_time(uint32_t cputime)
 {
     int rc;
 
-    NRF_TIMER0->CC[0] = cputime;
-    NRF_PPI->CHENSET = PPI_CHEN_CH20_Msk;
-    NRF_PPI->CHENCLR = PPI_CHEN_CH21_Msk;
+    nrf_timer0_cc0_set(cputime);
+    nrf_ppi_chen_set(PPI_CHEN_CH20_Msk);
+    nrf_ppi_chen_clr(PPI_CHEN_CH21_Msk);
     if ((int32_t)(cputime_get32() - cputime) >= 0) {
         STATS_INC(ble_phy_stats, tx_late);
         ble_phy_disable();
@@ -758,12 +769,12 @@ ble_phy_rx_set_start_time(uint32_t cputime)
 {
     int rc;
 
-    NRF_TIMER0->CC[0] = cputime;
-    NRF_PPI->CHENCLR = PPI_CHEN_CH20_Msk;
-    NRF_PPI->CHENSET = PPI_CHEN_CH21_Msk;
+    nrf_timer0_cc0_set(cputime);
+    nrf_ppi_chen_clr(PPI_CHEN_CH20_Msk);
+    nrf_ppi_chen_set(PPI_CHEN_CH21_Msk);
     if ((int32_t)(cputime_get32() - cputime) >= 0) {
         STATS_INC(ble_phy_stats, rx_late);
-        NRF_PPI->CHENCLR = PPI_CHEN_CH21_Msk;
+        nrf_ppi_chen_clr(PPI_CHEN_CH21_Msk);
         NRF_RADIO->TASKS_RXEN = 1;
         rc =  BLE_PHY_ERR_TX_LATE;
     } else {
@@ -811,8 +822,8 @@ ble_phy_tx(struct os_mbuf *txpdu, uint8_t end_trans)
         NRF_CCM->EVENTS_ERROR = 0;
         NRF_CCM->MODE = CCM_MODE_MODE_Encryption;
         NRF_CCM->CNFPTR = (uint32_t)&g_nrf_ccm_data;
-        NRF_PPI->CHENCLR = PPI_CHEN_CH25_Msk;
-        NRF_PPI->CHENSET = PPI_CHEN_CH24_Msk;
+        nrf_ppi_chen_clr(PPI_CHEN_CH25_Msk);
+        nrf_ppi_chen_set(PPI_CHEN_CH24_Msk);
     } else {
         /* RAM representation has S0 and LENGTH fields (2 bytes) */
         dptr = (uint8_t *)&g_ble_phy_txrx_buf[0];
@@ -1017,7 +1028,7 @@ ble_phy_disable(void)
     NRF_RADIO->INTENCLR = NRF_RADIO_IRQ_MASK_ALL;
     NRF_RADIO->SHORTS = 0;
     NRF_RADIO->TASKS_DISABLE = 1;
-    NRF_PPI->CHENCLR = PPI_CHEN_CH21_Msk | PPI_CHEN_CH20_Msk;
+    nrf_ppi_chen_clr(PPI_CHEN_CH21_Msk | PPI_CHEN_CH20_Msk);
     NVIC_ClearPendingIRQ(RADIO_IRQn);
     g_ble_phy_data.phy_state = BLE_PHY_STATE_IDLE;
 }

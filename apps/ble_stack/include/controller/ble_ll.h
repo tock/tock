@@ -130,7 +130,8 @@ extern STATS_SECT_DECL(ble_ll_stats) ble_ll_stats;
 #define BLE_LL_EVENT_TX_PKT_IN      (OS_EVENT_T_PERUSER + 6)
 
 /* LL Features */
-#define BLE_LL_FEAT_LE_ENCRYPTION   (0x01)
+#define BLE_LL_FEAT_LE_ENCRYPTION   (0x00)
+// #define BLE_LL_FEAT_LE_ENCRYPTION   (0x01) /* Original val */
 #define BLE_LL_FEAT_CONN_PARM_REQ   (0x02)
 #define BLE_LL_FEAT_EXTENDED_REJ    (0x04)
 #define BLE_LL_FEAT_SLAVE_INIT      (0x08)

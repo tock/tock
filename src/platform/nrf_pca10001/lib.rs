@@ -18,12 +18,17 @@ use nrf51822::timer::TimerAlarm;
 use nrf51822::timer::ALARM1;
 use core::cell::Cell;
 
+const BOOT_PIN:  usize = 21;
+const START_PIN: usize = 22;
+const TIMER_PIN: usize = 23;
+const OTHER_PIN: usize = 24;
+
 pub mod systick;
 
 pub struct Platform {
     chip: nrf51822::chip::Nrf51822,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
+    //timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
 }
 pub struct AlarmClient {
     val: Cell<u8>,
@@ -34,17 +39,12 @@ impl hil::alarm::AlarmClient for AlarmClient {
     fn fired(&self) {
         self.val.set(self.val.get() + 1);
         unsafe {
-            let led = &nrf51822::gpio::PORT[19];
-            led.enable_output();
-            if self.val.get() & 1 == 1 {
-                led.toggle();
-            }
-            
+            let led = &nrf51822::gpio::PORT[TIMER_PIN];
+            led.toggle();
             nrf51822::timer::ALARM1.stop();
             nrf51822::timer::ALARM1.clear();
             let alarm2 = &nrf51822::timer::ALARM1 as &hil::alarm::Alarm<Frequency=hil::alarm::Freq16KHz>;
-            alarm2.set_alarm(16000);
-            nrf51822::timer::ALARM1.enable_interrupts(0b1111 << 16);
+            alarm2.set_alarm(0x3fff);
             nrf51822::timer::ALARM1.start();
         }
     }
@@ -79,7 +79,7 @@ impl Platform {
         F: FnOnce(Option<&hil::Driver>) -> R {
             match driver_num {
                 1 => f(Some(self.gpio)),
-                3 => f(Some(self.timer)),
+//                3 => f(Some(self.timer)),
                 _ => f(None)
             }
         }
@@ -104,8 +104,8 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
     static mut PLATFORM_BUF : [u8; 1024] = [0; 1024];
 
     static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 10] = [
-                 &nrf51822::gpio::PORT[18], // LED_0
-                 &nrf51822::gpio::PORT[19], // LED_1
+                 &nrf51822::gpio::PORT[OTHER_PIN], // LED_0
+                 &nrf51822::gpio::PORT[OTHER_PIN], // LED_1
                  &nrf51822::gpio::PORT[0], // Top left header on EK board
                  &nrf51822::gpio::PORT[1], //   |
                  &nrf51822::gpio::PORT[2], //   V 
@@ -122,13 +122,13 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
     }
 
     let alarm = &nrf51822::timer::ALARM1;
-    static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1));
-    alarm.set_client(mux_alarm);
-    static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, TimerAlarm> =
-                 VirtualMuxAlarm::new(mux_alarm));
-    static_init!(timer : TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>> =
-                 TimerDriver::new(virtual_alarm1, process::Container::create()));
-    virtual_alarm1.set_client(timer);
+    //static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1));
+    //alarm.set_client(mux_alarm);
+    //static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, TimerAlarm> =
+    //             VirtualMuxAlarm::new(mux_alarm));
+    //static_init!(timer : TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>> =
+    //             TimerDriver::new(virtual_alarm1, process::Container::create()));
+    //virtual_alarm1.set_client(timer);
 
     nrf51822::clock::CLOCK.low_stop();
     nrf51822::clock::CLOCK.high_stop();
@@ -143,28 +143,43 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
     *platform = Platform {
         chip: nrf51822::chip::Nrf51822::new(),
         gpio: gpio,
-        timer: timer,
+    //    timer: timer,
     };
 
     // The systick implementation currently directly accesses the low clock;
     // it should go through clock::CLOCK instead.
-    systick::reset();
-    systick::enable(true);
+    //systick::reset();
+    //systick::enable(true);
     alarm.start();
+    nrf51822::gpio::PORT[BOOT_PIN].enable_output();
+    nrf51822::gpio::PORT[START_PIN].enable_output();
+    nrf51822::gpio::PORT[TIMER_PIN].enable_output();
+    nrf51822::gpio::PORT[OTHER_PIN].enable_output();
+    nrf51822::gpio::PORT[BOOT_PIN].set();
+    nrf51822::gpio::PORT[START_PIN].set();
+    nrf51822::gpio::PORT[TIMER_PIN].set();
+    nrf51822::gpio::PORT[OTHER_PIN].set();
+    let mut count = 0;
+    while count < 10 {
+        let val = alarm.value();
+        if val > 0xfff {
+            alarm.stop();
+            alarm.clear();
+            alarm.start();
+            nrf51822::gpio::PORT[BOOT_PIN].toggle();
+            count = count + 1;
+        }
+    } 
+    alarm.stop();
+    alarm.clear();
+    let alarm2 = alarm as &hil::alarm::Alarm<Frequency=hil::alarm::Freq16KHz>;
+    alarm2.set_alarm(0x3fff);
     alarm.set_client(&ALARM_CLIENT as &'static hil::alarm::AlarmClient);
     alarm.enable_nvic();
-    alarm.enable_interrupts(0b1111 << 16);
-    let alarm2 = alarm as &hil::alarm::Alarm<Frequency=hil::alarm::Freq16KHz>;
-    alarm2.set_alarm(4000);
+    alarm.enable_interrupts();
+    alarm.start();
+    nrf51822::gpio::PORT[START_PIN].clear();
 
-    /*
-    nrf51822::gpio::PORT[19].enable_output();
-    loop {
-        let val = alarm.value();
-        if (val & 0xfff)  == 0 {
-            nrf51822::gpio::PORT[19].toggle();
-        }
-    }*/
     platform
 }
 
@@ -178,8 +193,8 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
     use support::nop;
     use hil::gpio::GPIOPin;
 
-    let led0 = &nrf51822::gpio::PORT[18];
-    let led1 = &nrf51822::gpio::PORT[19];
+    let led0 = &nrf51822::gpio::PORT[OTHER_PIN];
+    let led1 = &nrf51822::gpio::PORT[TIMER_PIN];
 
     led0.enable_output();
     led1.enable_output();

@@ -4,13 +4,32 @@
 // Capsule functions
 //   - Enable radio interrupts: priority 0
 //   - Enable/disable PPI channels 20, 21, 26
+//   - Start HFCLK
 //   - Run Timer0
 //   - Configure timer0 compare[0]
 //   - Read timer0 capture[0]
+//
+// Directly accessed peripherals:
+// RADIO
+// PPI
+// TIMER0
+// CLOCK 
+// CCM (disabled for now)
 
 struct ble_mbuf_hdr {
    uint32_t len;
 };
+
+void nrf_start_hfclock() {}
+void* nrf_get_radio_ptr() {return 0;}
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+void     nrf_ppi_chen_clr(uint32_t val) {}
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+void     nrf_ppi_chen_set(uint32_t val) {}
+uint32_t nrf_ppi_chen() {return 0;}
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+void     nrf_timer0_cc0_set(uint32_t val) {}
+uint32_t nrf_timer0_cc1_get() {return 0;}
 
 /* Enable the wait for response timer */
 #pragma GCC diagnostic ignored "-Wunused-parameter"
