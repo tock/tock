@@ -3,7 +3,7 @@ ARCH = cortex-m0
 RUSTC_FLAGS += -C opt-level=3 -Z no-landing-pads
 RUSTC_FLAGS += --target $(SRC_DIR)chips/$(CHIP)/target.json
 RUSTC_FLAGS += -Ctarget-cpu=$(ARCH) -C relocation_model=static
-RUSTC_FLAGS += -g -C no-stack-check
+RUSTC_FLAGS += -C no-stack-check
 
 CFLAGS_BASE = -mcpu=$(ARCH) -mthumb -mfloat-abi=soft
 CFLAGS += $(CFLAGS_BASE) -g -O3 -std=gnu99 -nostartfiles

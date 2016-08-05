@@ -1,6 +1,6 @@
 #![crate_name = "drivers"]
 #![crate_type = "rlib"]
-#![feature(const_fn, raw)]
+#![feature(const_fn)]
 #![no_std]
 
 extern crate common;

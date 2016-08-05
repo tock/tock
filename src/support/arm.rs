@@ -37,16 +37,8 @@ pub unsafe fn atomic<F,R>(f: F) -> R where F: FnOnce() -> R {
 }
 
 #[cfg(not(test))]
-#[lang="stack_exhausted"]
-pub extern fn stack_exhausted() {}
-
-#[cfg(not(test))]
 #[lang="eh_personality"]
 pub extern fn eh_personality() {}
-
-#[cfg(not(test))]
-#[lang="begin_unwind"]
-pub extern fn begin_unwind() {}
 
 #[doc(hidden)]
 #[no_mangle]

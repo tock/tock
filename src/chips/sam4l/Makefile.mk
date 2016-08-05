@@ -5,7 +5,7 @@ RUST_TARGET ?= $(SRC_DIR)chips/sam4l/target.json
 RUSTC_FLAGS += -C opt-level=3 -Z no-landing-pads
 RUSTC_FLAGS += --target $(RUST_TARGET)
 RUSTC_FLAGS += -Ctarget-cpu=cortex-m4 -C relocation_model=static
-RUSTC_FLAGS += -g -C no-stack-check -C soft-float -C target-feature="+soft-float"
+RUSTC_FLAGS += -C no-stack-check -C soft-float -C target-feature="+soft-float"
 
 CFLAGS_BASE = -mcpu=$(ARCH) -mthumb -mfloat-abi=soft
 CFLAGS += $(CFLAGS_BASE) -g -O3 -std=gnu99 -nostartfiles

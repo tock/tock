@@ -64,6 +64,7 @@ extern {
 }
 
 #[link_section=".vectors"]
+#[no_mangle] // Ensures that the symbol is kept until the final binary
 pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     _estack, reset_handler,
     /* NMI */           unhandled_interrupt,
@@ -81,6 +82,7 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
 ];
 
 #[link_section=".vectors"]
+#[no_mangle] // Ensures that the symbol is kept until the final binary
 pub static IRQS: [unsafe extern fn(); 80] = [generic_isr; 80];
 
 #[no_mangle]
