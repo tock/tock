@@ -309,7 +309,7 @@ pub unsafe fn init() -> &'static mut Platform {
             drivers::nrf51822_serialization::Nrf51822Serialization::new(
                 &sam4l::usart::USART2,
                 &mut drivers::nrf51822_serialization::WRITE_BUF
-            ), 124);
+            ), 68);
     sam4l::usart::USART2.set_client(nrf_serialization);
 
     let ast = &sam4l::ast::AST;
@@ -356,7 +356,7 @@ pub unsafe fn init() -> &'static mut Platform {
     // Initialize and enable SPI HAL
     static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
                      drivers::spi::Spi::new(&mut sam4l::spi::SPI),
-                 140);
+                 84);
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
     sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
 
