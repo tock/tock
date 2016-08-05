@@ -22,16 +22,12 @@ pub use container::{Container};
 pub use driver::Driver;
 pub use mem::{AppSlice, AppPtr, Private, Shared};
 pub use platform::{Chip, MPU, Platform, SysTick};
-pub use process::{Process,State, NUM_PROCS};
+pub use process::{Process,State};
 
-extern {
-    /// Beginning of the ROM region containing app images.
-    static _sapps : u8;
-}
-
-pub fn main<P: Platform, C: Chip>(platform: &mut P, chip: &mut C) {
+pub fn main<P: Platform, C: Chip>(platform: &mut P, chip: &mut C, processes: &'static mut [Option<process::Process<'static>>]) {
     let processes = unsafe {
-        process::load_processes(&_sapps)
+        process::PROCS = processes;
+        &mut process::PROCS
     };
 
     loop {

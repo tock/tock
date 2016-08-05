@@ -10,6 +10,11 @@ extern crate main;
 extern crate sam4l;
 extern crate support;
 
+extern {
+    /// Beginning of the ROM region containing app images.
+    static _sapps : u8;
+}
+
 use hil::Controller;
 use hil::spi_master::SpiMaster;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -29,6 +34,38 @@ pub mod io;
 
 static mut spi_read_buf:  [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
+
+unsafe fn load_processes() -> &'static mut [Option<main::process::Process<'static>>] {
+    const NUM_PROCS: usize = 2;
+    #[link_section = ".app_memory"]
+    static mut MEMORIES: [[u8; 8192]; NUM_PROCS] = [[0; 8192]; NUM_PROCS];
+
+    static mut processes: [Option<main::process::Process<'static>>; NUM_PROCS] = [None, None];
+
+    let mut addr = &_sapps as *const u8;
+    for i in 0..NUM_PROCS {
+        // The first member of the LoadInfo header contains the total size of each process image. A
+        // sentinel value of 0 (invalid because it's smaller than the header itself) is used to
+        // mark the end of the list of processes.
+        let total_size = *(addr as *const usize);
+        if total_size == 0 {
+            break;
+        }
+
+        let process = &mut processes[i];
+        let memory = &mut MEMORIES[i];
+        *process = Some(main::process::Process::create(addr, total_size, memory));
+        // TODO: panic if loading failed?
+
+        addr = addr.offset(total_size as isize);
+    }
+
+    if *(addr as *const usize) != 0 {
+        panic!("Exceeded maximum NUM_PROCS.");
+    }
+
+    &mut processes
+}
 
 struct Firestorm {
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
@@ -446,6 +483,7 @@ pub unsafe fn reset_handler() {
     let mut chip = sam4l::chip::Sam4l::new();
     chip.mpu().enable_mpu();
 
-    main::main(firestorm, &mut chip);
+
+    main::main(firestorm, &mut chip, load_processes());
 }
 

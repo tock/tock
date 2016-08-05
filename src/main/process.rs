@@ -14,16 +14,7 @@ extern {
     pub fn switch_to_user(user_stack: *const u8, mem_base: *const u8) -> *mut u8;
 }
 
-/// Size of each processes's memory region in bytes
-pub const PROC_MEMORY_SIZE : usize = 4096;
-pub const NUM_PROCS : usize = 2;
-
-static mut FREE_MEMORY_IDX: usize = 0;
-
-#[link_section = ".app_memory"]
-static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE]; NUM_PROCS];
-
-pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None, None];
+pub static mut PROCS : &'static mut [Option<Process<'static>>] = &mut [];
 
 pub fn schedule(callback: Callback, appid: AppId) -> bool {
     let procs = unsafe { &mut PROCS };
@@ -98,34 +89,6 @@ pub struct Process<'a> {
     pub callbacks: RingBuffer<'a, Callback>
 }
 
-#[inline(never)]
-pub unsafe fn load_processes(start_addr: *const u8) ->
-        &'static mut [Option<Process<'static>>] {
-    let mut addr = start_addr;
-    let mut process_iter = PROCS.iter_mut();
-
-    loop {
-        // The first member of the LoadInfo header contains the total size of each process image. A
-        // sentinel value of 0 (invalid because it's smaller than the header itself) is used to
-        // mark the end of the list of processes.
-        let total_size = *(addr as *const usize);
-        if total_size == 0 {
-            break;
-        }
-
-        let process = process_iter.next().expect("Exceeded maximum NUM_PROCS.");
-        *process = Process::create(addr, total_size);
-        // TODO: panic if loading failed?
-
-        addr = addr.offset(total_size as isize);
-    }
-
-    // Clear any unused process slots.
-    for p in process_iter { *p = None; }
-
-    &mut PROCS
-}
-
 impl<'a> Process<'a> {
     pub fn mem_start(&self) -> *const u8 {
         self.memory.as_ptr()
@@ -146,67 +109,59 @@ impl<'a> Process<'a> {
         (data_start, data_len, text_start, text_len)
     }
 
-    pub unsafe fn create(start_addr: *const u8, length: usize) -> Option<Process<'a>> {
-        let cur_idx = FREE_MEMORY_IDX;
-        if cur_idx <= MEMORIES.len() {
-            FREE_MEMORY_IDX += 1;
-            let memory = &mut MEMORIES[cur_idx];
+    pub unsafe fn create(start_addr: *const u8, length: usize, memory: &'static mut [u8]) -> Process<'a> {
+        let mut kernel_memory_break = {
+            // make room for container pointers
+            let psz = mem::size_of::<*const usize>();
+            let num_ctrs = volatile_load(&container::CONTAINER_COUNTER);
+            let container_ptrs_size = num_ctrs * psz;
+            let res = memory.as_mut_ptr().offset((memory.len() - container_ptrs_size) as isize);
+            // set all ptrs to null
+            let opts = slice::from_raw_parts_mut(
+                res as *mut *const usize, num_ctrs);
+            for opt in opts.iter_mut() {
+                *opt = ptr::null()
+            }
+            res
+        };
 
-            let mut kernel_memory_break = {
-                // make room for container pointers
-                let psz = mem::size_of::<*const usize>();
-                let num_ctrs = volatile_load(&container::CONTAINER_COUNTER);
-                let container_ptrs_size = num_ctrs * psz;
-                let res = memory.as_mut_ptr().offset((memory.len() - container_ptrs_size) as isize);
-                // set all ptrs to null
-                let opts = slice::from_raw_parts_mut(
-                    res as *mut *const usize, num_ctrs);
-                for opt in opts.iter_mut() {
-                    *opt = ptr::null()
-                }
-                res
-            };
+        // Take callback buffer from of memory
+        let callback_size = mem::size_of::<Option<Callback>>();
+        let callback_len = 10;
+        let callback_offset = callback_len * callback_size;
+        // Set kernel break to beginning of callback buffer
+        kernel_memory_break =
+            kernel_memory_break.offset(-(callback_offset as isize));
+        let callback_buf = slice::from_raw_parts_mut(
+            kernel_memory_break as *mut Callback, callback_len);
 
-            // Take callback buffer from of memory
-            let callback_size = mem::size_of::<Option<Callback>>();
-            let callback_len = 10;
-            let callback_offset = callback_len * callback_size;
-            // Set kernel break to beginning of callback buffer
-            kernel_memory_break =
-                kernel_memory_break.offset(-(callback_offset as isize));
-            let callback_buf = slice::from_raw_parts_mut(
-                kernel_memory_break as *mut Callback, callback_len);
+        let callbacks = RingBuffer::new(callback_buf);
 
-            let callbacks = RingBuffer::new(callback_buf);
+        let load_result = load(start_addr, memory.as_mut_ptr());
 
-            let load_result = load(start_addr, memory.as_mut_ptr());
+        let stack_bottom = load_result.app_mem_start.offset(512);
 
-            let stack_bottom = load_result.app_mem_start.offset(512);
+        let mut process = Process {
+            memory: memory,
+            app_memory_break: stack_bottom,
+            kernel_memory_break: kernel_memory_break,
+            text: slice::from_raw_parts(start_addr, length),
+            cur_stack: stack_bottom,
+            wait_pc: 0,
+            psr: 0x01000000,
+            state: State::Waiting,
+            callbacks: callbacks
+        };
 
-            let mut process = Process {
-                memory: memory,
-                app_memory_break: stack_bottom,
-                kernel_memory_break: kernel_memory_break,
-                text: slice::from_raw_parts(start_addr, length),
-                cur_stack: stack_bottom,
-                wait_pc: 0,
-                psr: 0x01000000,
-                state: State::Waiting,
-                callbacks: callbacks
-            };
+        process.callbacks.enqueue(Callback {
+            pc: load_result.init_fn,
+            r0: load_result.app_mem_start as usize,
+            r1: process.app_memory_break as usize,
+            r2: process.kernel_memory_break as usize,
+            r3: 0
+        });
 
-            process.callbacks.enqueue(Callback {
-                pc: load_result.init_fn,
-                r0: load_result.app_mem_start as usize,
-                r1: process.app_memory_break as usize,
-                r2: process.kernel_memory_break as usize,
-                r3: 0
-            });
-
-            Some(process)
-        } else {
-            None
-        }
+        process
     }
 
     pub fn sbrk(&mut self, increment: isize) -> Result<*const u8, Error> {
