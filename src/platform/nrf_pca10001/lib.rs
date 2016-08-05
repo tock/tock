@@ -18,7 +18,7 @@ use nrf51822::timer::ALARM1;
 
 pub mod systick;
 
-pub struct Firestorm {
+pub struct Platform {
     chip: nrf51822::chip::Nrf51822,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
@@ -31,7 +31,7 @@ impl DummyMPU {
     }
 }
 
-impl Firestorm {
+impl Platform {
     pub unsafe fn service_pending_interrupts(&mut self) {
         self.chip.service_pending_interrupts()
     }
@@ -80,7 +80,7 @@ macro_rules! static_init {
     }
 }
 
-pub unsafe fn init() -> &'static mut Firestorm {
+pub unsafe fn init() -> &'static mut Platform {
     use core::mem;
     use nrf51822::gpio::PORT;
 
@@ -121,7 +121,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
     while !nrf51822::clock::CLOCK.low_started() {}
     while !nrf51822::clock::CLOCK.high_started() {}
 
-    static_init!(firestorm: Firestorm = Firestorm {
+    static_init!(platform: Platform = Platform {
         chip: nrf51822::chip::Nrf51822::new(),
         gpio: gpio,
         timer: timer
@@ -131,7 +131,7 @@ pub unsafe fn init() -> &'static mut Firestorm {
     // it should go through clock::CLOCK instead.
     systick::reset();
     systick::enable(true);
-    firestorm
+    platform
 }
 
 
