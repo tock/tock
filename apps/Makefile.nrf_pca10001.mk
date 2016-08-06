@@ -17,10 +17,15 @@ $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_
 
 # XXX Temporary until new kernel build system in place
 $(TOCK_BUILD_DIR)/ctx_switch.o: kernel
+$(TOCK_BUILD_DIR)/crt1.o: kernel
 
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
 	@tput bold ; echo "Flattening $< to $@" ; tput sgr0
 	$(OBJCOPY) -O binary $< $@
+
+$(TOCK_APP_BUILD_DIR)/kernel_and_app.hex: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
+	@tput bold ; echo "Flattening $< to $@" ; tput sgr0
+	$(OBJCOPY) -O ihex $< $@
 
 all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 
@@ -30,7 +35,7 @@ all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 # 2) write firmware at address 0
 # 3) set NVMC.CONFIG to 0 (Read only access)
 .PHONY: program
-program: $(BUILD_PLATFORM_DIR)/kernel_and_app.bin
+program: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 	echo \
 	connect\\n\
 	w4 4001e504 1\\n\
@@ -55,4 +60,9 @@ erase-all:
 	w4 4001e504 0\\n\
 	r\\n\
 	exit | $(JLINK) $(JLINK_OPTIONS)
+
+MBED_DIR=/var/run/usbmount/MBED_microcontroller
+.PHONY: program-mbed
+program-mbed: $(TOCK_APP_BUILD_DIR)/kernel_and_app.hex
+	cp $^ $(MBED_DIR)/firmware.hex
 
