@@ -1,5 +1,5 @@
 use common::take_cell::TakeCell;
-use process::{AppId, Callback, AppSlice, Shared, NUM_PROCS};
+use process::{AppId, Callback, AppSlice, Shared};
 use hil::Driver;
 use hil::uart::{UART, Client};
 
@@ -24,7 +24,7 @@ pub static mut WRITE_BUF : [u8; 256] = [0; 256];
 // application.
 pub struct Nrf51822Serialization<'a, U: UART + 'a> {
     uart: &'a U,
-    apps: [TakeCell<App>; NUM_PROCS],
+    app: TakeCell<App>,
     buffer: TakeCell<&'static mut [u8]>
 }
 
@@ -32,7 +32,7 @@ impl<'a, U: UART> Nrf51822Serialization<'a, U> {
     pub fn new(uart: &'a U, buffer: &'static mut [u8]) -> Nrf51822Serialization<'a, U> {
         Nrf51822Serialization {
             uart: uart,
-            apps: [TakeCell::empty(); NUM_PROCS],
+            app: TakeCell::empty(),
             buffer: TakeCell::new(buffer)
         }
     }
@@ -51,13 +51,12 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
     /// allow_type: 1 - Provide an TX buffer
     ///
     fn allow(&self,
-             appid: AppId,
+             _appid: AppId,
              allow_type: usize,
              slice: AppSlice<Shared, u8>) -> isize {
-        let app = appid.idx();
         match allow_type {
             0 => {
-                let resapp = match self.apps[app].take() {
+                let resapp = match self.app.take() {
                     Some(mut app) => {
                         app.rx_buffer = Some(slice);
                         app.rx_recv_so_far = 0;
@@ -72,11 +71,11 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                         rx_recv_total:  0
                     }
                 };
-                self.apps[app].replace(resapp);
+                self.app.replace(resapp);
                 0
             },
             1 => {
-                let resapp = match self.apps[app].take() {
+                let resapp = match self.app.take() {
                     Some(mut app) => {
                         app.tx_buffer = Some(slice);
                         app
@@ -89,7 +88,7 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                         rx_recv_total:  0
                     }
                 };
-                self.apps[app].replace(resapp);
+                self.app.replace(resapp);
                 0
             },
             _ => -1
@@ -105,10 +104,9 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
     ///
     #[inline(never)]
     fn subscribe(&self, subscribe_type: usize, callback: Callback) -> isize {
-        let app = callback.app_id().idx();
         match subscribe_type {
             0 => {
-                let resapp = match self.apps[app].take() {
+                let resapp = match self.app.take() {
                     Some(mut app) => {
                         app.callback = Some(callback);
                         app
@@ -121,7 +119,7 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                         rx_recv_total:  0
                     }
                 };
-                self.apps[app].replace(resapp);
+                self.app.replace(resapp);
                 0
             },
             _ => -1
@@ -139,7 +137,7 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                 // On a TX, send the first byte of the TX buffer.
                 // TODO(bradjc): Need to match this to the correct app!
                 //               Can't just use 0!
-                let result = self.apps[0].map(|appst| {
+                let result = self.app.map(|appst| {
 
                     match appst.tx_buffer.take() {
                         Some(slice) => {
@@ -162,13 +160,6 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
     }
 }
 
-fn each_some<'a, T, I, F>(lst: I, mut f: F)
-        where T: 'a, I: Iterator<Item=&'a TakeCell<T>>, F: FnMut(&mut T) {
-    for item in lst {
-        item.map(|i| f(i));
-    }
-}
-
 // Callbacks from the underlying UART driver.
 impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
 
@@ -177,7 +168,7 @@ impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
         self.buffer.replace(buffer);
         // TODO(bradjc): Need to match this to the correct app!
         //               Can't just use 0!
-        self.apps[0].map(|appst| {
+        self.app.map(|appst| {
             // Call the callback after TX has finished
             appst.callback.as_mut().map(|mut cb| {
                 cb.schedule(1, 0, 0);
@@ -187,7 +178,7 @@ impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
 
     // Called when a byte is received on the UART
     fn read_done(&self, c: u8) {
-        each_some(self.apps.iter(), |appst| {
+        self.app.map(|appst| {
             // The PHY layer of the serialization protocol calls for a 16 byte
             // length field to start the packet. After we receive the first two
             // bytes we then know how long to wait for to get the rest of
