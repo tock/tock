@@ -1,6 +1,6 @@
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(asm,core_intrinsics,concat_idents,const_fn)]
+#![feature(asm,core_intrinsics,concat_idents,const_fn, clone_from_slice)]
 #![no_std]
 
 #[macro_use]
@@ -24,6 +24,7 @@ pub mod gpio;
 pub mod usart;
 pub mod scif;
 pub mod adc;
+pub mod flashcalw;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -89,7 +90,7 @@ pub static IRQS: [unsafe extern fn(); 80] = [generic_isr; 80];
 pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     // Perhipheral vectors are defined by Atmel in the SAM4L datasheet section
     // 4.7.
-    /* HFLASHC */       Option::Some(unhandled_interrupt),
+    /* HFLASHC */       Option::Some(flashcalw::flash_handler),
     /* PDCA0 */         Option::Some(dma::pdca0_handler),
     /* PDCA1 */         Option::Some(dma::pdca1_handler),
     /* PDCA2 */         Option::Some(dma::pdca2_handler),
