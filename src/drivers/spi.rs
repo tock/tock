@@ -1,6 +1,6 @@
 use common::take_cell::TakeCell;
 use core::cell::Cell;
-use process::{AppId,Callback,AppSlice,Shared,NUM_PROCS};
+use process::{AppId,Callback,AppSlice,Shared};
 use hil::Driver;
 use hil::spi_master::{SpiMaster,SpiCallback};
 use core::cmp;
@@ -28,7 +28,7 @@ struct App {
 pub struct Spi<'a, S: SpiMaster + 'a> {
     spi_master:   &'a mut S,
     busy:         Cell<bool>,
-    apps:         [TakeCell<App>; NUM_PROCS],
+    app:         TakeCell<App>,
     kernel_read:  TakeCell<&'static mut [u8]>,
     kernel_write: TakeCell<&'static mut [u8]>,
     kernel_len:   Cell<usize>
@@ -39,7 +39,7 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
-            apps: [TakeCell::empty(); NUM_PROCS],
+            app: TakeCell::empty(),
             kernel_len: Cell::new(0),
             kernel_read : TakeCell::empty(),
             kernel_write : TakeCell::empty()
@@ -77,12 +77,11 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
 }
 
 impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
-    fn allow(&self, appid: AppId,
+    fn allow(&self, _appid: AppId,
              allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
-        let app = appid.idx();
         match allow_num {
             0 => {
-                let appc = match self.apps[app].take() {
+                let appc = match self.app.take() {
                     None => App {
                         callback: None,
                         app_read: Some(slice),
@@ -95,11 +94,11 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         appc
                     }
                 };
-                self.apps[app].replace(appc);
+                self.app.replace(appc);
                 0
             },
             1 => {
-                let appc = match self.apps[app].take() {
+                let appc = match self.app.take() {
                     None => App {
                         callback: None,
                         app_read: None,
@@ -112,7 +111,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         appc
                     }
                 };
-                self.apps[app].replace(appc);
+                self.app.replace(appc);
                 0
             }
             _ => -1
@@ -123,7 +122,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 /* read_write */ => {
-                let appc = match self.apps[0].take() {
+                let appc = match self.app.take() {
                     None => App {
                         callback: Some(callback),
                         app_read: None,
@@ -136,7 +135,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         appc
                     }
                 };
-                self.apps[0].replace(appc);
+                self.app.replace(appc);
                 0
             },
             _ => -1
@@ -196,7 +195,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                     return -1;
                 }
                 let mut result = -1;
-                self.apps[0].map(|app| {
+                self.app.map(|app| {
                     let mut mlen = 0;
                     // If write buffer too small, return
                     app.app_write.as_mut().map(|w| {
@@ -271,7 +270,7 @@ impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
                        writebuf: Option<&'static mut [u8]>,
                        readbuf:  Option<&'static mut [u8]>,
                        length: usize) {
-        self.apps[0].map(|app| {
+        self.app.map(|app| {
             if app.app_read.is_some() {
                 let src = readbuf.as_ref().unwrap();
                 let dest = app.app_read.as_mut().unwrap();

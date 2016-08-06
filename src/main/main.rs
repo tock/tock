@@ -12,9 +12,9 @@ mod sched;
 
 pub mod syscall;
 
-#[allow(improper_ctypes)]
 extern {
-    static _sapps : usize;
+    /// Beginning of the ROM region containing app images.
+    static _sapps : u8;
 }
 
 #[no_mangle]

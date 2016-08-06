@@ -84,24 +84,47 @@ impl Platform {
             }
         }
 }
-
 macro_rules! static_init {
-    ($V:ident : $T:ty = $e:expr) => {
-        let $V : &mut $T = {
-            // Waiting out for size_of to be available at compile-time to avoid
-            // hardcoding an abitrary large size...
-                static mut BUF : [u8; 1024] = [0; 1024];
+    ($V:ident : $T:ty = $e:expr, $size:expr) => {
+        // Ideally we could use mem::size_of<$T> here instead of $size, however
+        // that is not currently possible in rust. Instead we write the size as
+        // a constant in the code and use compile-time verification to see that
+        // we got it right
+        let $V : &'static mut $T = {
+            use core::{mem, ptr};
+            // This is our compile-time assertion. The optimizer should be able
+            // to remove it from the generated code.
+            let assert_buf: [u8; $size] = mem::uninitialized();
+            let assert_val: $T = mem::transmute(assert_buf);
+            mem::forget(assert_val);
+
+            // Statically allocate a read-write buffer for the value, write our
+            // initial value into it (without dropping the initial zeros) and
+            // return a reference to it.
+            static mut BUF: [u8; $size] = [0; $size];
             let mut tmp : &mut $T = mem::transmute(&mut BUF);
-            *tmp = $e;
+            ptr::write(tmp as *mut $T, $e);
             tmp
         };
     }
 }
 
+//macro_rules! static_init {
+//    ($V:ident : $T:ty = $e:expr) => {
+//        let $V : &mut $T = {
+//            // Waiting out for size_of to be available at compile-time to avoid
+//            // hardcoding an abitrary large size...
+//            static mut BUF : [u8; 1024] = [0; 1024];
+//            let mut tmp : &mut $T = mem::transmute(&mut BUF);
+//            *tmp = $e;
+//            tmp
+//        };
+//    }
+//}
 
 pub unsafe fn init<'a>() -> &'a mut Platform {
     use core::mem;
-    static mut PLATFORM_BUF : [u8; 1024] = [0; 1024];
+    //static mut PLATFORM_BUF : [u8; 1024] = [0; 1024];
 
     static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 10] = [
                  &nrf51822::gpio::PORT[OTHER_PIN], // LED_0
@@ -114,12 +137,18 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
                  &nrf51822::gpio::PORT[5], // 
                  &nrf51822::gpio::PORT[6], // 
                  &nrf51822::gpio::PORT[7], // 
-                 ]);
-    static_init!(gpio : drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
-                 drivers::gpio::GPIO::new(gpio_pins));
+                 ], 4 * 10);
+    static_init!(gpio: drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
+                 drivers::gpio::GPIO::new(gpio_pins), 20);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
+
+//        static_init!(gpio : drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
+//                 drivers::gpio::GPIO::new(gpio_pins));
+//    for pin in gpio_pins.iter() {
+//        pin.set_client(gpio);
+//    }
 
     let alarm = &nrf51822::timer::ALARM1;
     //static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1));
@@ -139,12 +168,10 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
     while !nrf51822::clock::CLOCK.low_started() {}
     while !nrf51822::clock::CLOCK.high_started() {}
 
-    let platform : &'static mut Platform = mem::transmute(&mut PLATFORM_BUF);
-    *platform = Platform {
+    static_init!(platform: Platform = Platform {
         chip: nrf51822::chip::Nrf51822::new(),
         gpio: gpio,
-    //    timer: timer,
-    };
+    }, 4);
 
     // The systick implementation currently directly accesses the low clock;
     // it should go through clock::CLOCK instead.
@@ -180,6 +207,8 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
     alarm.start();
     nrf51822::gpio::PORT[START_PIN].clear();
 
+    //systick::reset();
+    //systick::enable(true); */
     platform
 }
 
