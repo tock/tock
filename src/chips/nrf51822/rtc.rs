@@ -63,7 +63,7 @@ fn wait_task() {
             bne.n 1b"
             : /* no output */
             : /* no input */
-            : "{r0}"
+            : "r0"
         );
    }
 }

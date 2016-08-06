@@ -105,9 +105,9 @@ pub unsafe fn load_processes(mut start_addr: *const usize) ->
             let length = *start_addr as isize;
             start_addr = (start_addr as *const u8).offset(length) as *const usize;
 
-            *op = Process::create(prog_start as *mut u8, length);
+            ::core::intrinsics::volatile_store(op,  Process::create(prog_start as *mut u8, length));
         } else {
-            *op = None;
+            ::core::intrinsics::volatile_store(op,  None);
         }
     }
     &mut PROCS
