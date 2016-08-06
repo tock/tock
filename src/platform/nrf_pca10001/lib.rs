@@ -85,7 +85,7 @@ pub unsafe fn init() -> &'static mut Platform {
     use nrf51822::gpio::PORT;
 
     static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 10] = [
-            &nrf51822::gpio::PORT[15], // LED_0
+            &nrf51822::gpio::PORT[18], // LED_0
             &nrf51822::gpio::PORT[19], // LED_1
             &nrf51822::gpio::PORT[0], // Top left header on EK board
             &nrf51822::gpio::PORT[1], //   |
