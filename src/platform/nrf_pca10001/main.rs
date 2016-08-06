@@ -10,7 +10,7 @@ extern crate support;
 
 pub mod systick;
 
-pub struct Platform {
+struct Platform {
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
 }
 

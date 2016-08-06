@@ -30,7 +30,7 @@ pub mod io;
 static mut spi_read_buf:  [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
 
-pub struct Firestorm {
+struct Firestorm {
     console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static drivers::timer::TimerDriver<'static,
