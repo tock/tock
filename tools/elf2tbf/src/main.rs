@@ -12,9 +12,10 @@ use std::path::Path;
 use std::slice;
 
 
-#[repr(C, packed)]
+#[repr(C)]
 #[derive(Clone, Copy, Debug)]
 struct LoadInfo {
+    total_size: u32,       /* Total padded size of the program image */
     rel_data_size: u32,
     entry_loc: u32,        /* Entry point for user application */
     init_data_loc: u32,    /* Data initialization information in flash */
@@ -96,7 +97,24 @@ fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
     let data = get_section(input, ".data");
     let bss = get_section(input, ".bss");
 
+    let mut total_len = (
+        mem::size_of::<LoadInfo>() +
+        rel_data.len() +
+        text.data.len() +
+        got.data.len() +
+        data.data.len()
+    ) as u32;
+
+    let pad = if total_len.count_ones() > 1 {
+        let power2len = 1 << (32 - total_len.leading_zeros());
+        power2len - total_len
+    } else {
+        0
+    };
+    total_len = total_len + pad;
+
     let load_info = LoadInfo {
+        total_size: total_len,
         rel_data_size: rel_data_size as u32,
         entry_loc: (input.ehdr.entry ^ 0x80000000) as u32,
         init_data_loc: text.shdr.size as u32,
@@ -107,30 +125,8 @@ fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
         bss_end_offset: (bss.shdr.addr + bss.shdr.size) as u32
     };
 
-    let load_info_bytes = unsafe { as_byte_slice(&load_info) };
-
-    let mut total_len : u32 =
-        (mem::size_of::<u32>() +
-        load_info_bytes.len() +
-        rel_data.len() +
-        text.data.len() +
-        got.data.len() +
-        data.data.len()) as u32;
-
-    let pad = if total_len.count_ones() > 1 {
-        let power2len = 1 << (32 - total_len.leading_zeros());
-        power2len - total_len
-    } else {
-        0
-    };
-    total_len = total_len + pad;
-
-    try!(output.write_all(unsafe { as_byte_slice(&total_len) }));
-
-    try!(output.write_all(load_info_bytes));
-
+    try!(output.write_all(unsafe { as_byte_slice(&load_info) }));
     try!(output.write_all(rel_data.as_ref()));
-
     try!(output.write_all(text.data.as_ref()));
     try!(output.write_all(got.data.as_ref()));
     try!(output.write_all(data.data.as_ref()));
