@@ -10,11 +10,6 @@ extern crate main;
 extern crate sam4l;
 extern crate support;
 
-extern {
-    /// Beginning of the ROM region containing app images.
-    static _sapps : u8;
-}
-
 use hil::Controller;
 use hil::spi_master::SpiMaster;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -36,7 +31,13 @@ static mut spi_read_buf:  [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
 
 unsafe fn load_processes() -> &'static mut [Option<main::process::Process<'static>>] {
+    extern {
+        /// Beginning of the ROM region containing app images.
+        static _sapps : u8;
+    }
+
     const NUM_PROCS: usize = 2;
+
     #[link_section = ".app_memory"]
     static mut MEMORIES: [[u8; 8192]; NUM_PROCS] = [[0; 8192]; NUM_PROCS];
 

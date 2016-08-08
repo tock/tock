@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items)]
+#![feature(core_intrinsics,lang_items)]
 
 extern crate drivers;
 extern crate hil;
@@ -9,6 +9,31 @@ extern crate main;
 extern crate support;
 
 pub mod systick;
+
+unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>>] {
+    use core::intrinsics::{volatile_load,volatile_store};
+    extern {
+        /// Beginning of the ROM region containing app images.
+        static _sapps : u8;
+    }
+
+
+    #[link_section = ".app_memory"]
+    static mut MEMORY: [u8; 8192] = [0; 8192];
+    static mut PROCS: [Option<main::process::Process<'static>>; 1] = [None];
+
+    let addr = &_sapps as *const u8;
+
+    // The first member of the LoadInfo header contains the total size of each process image. A
+    // sentinel value of 0 (invalid because it's smaller than the header itself) is used to
+    // mark the end of the list of processes.
+    let total_size = volatile_load(addr as *const usize);
+    if total_size != 0 {
+        volatile_store(&mut PROCS[0], Some(main::process::Process::create(addr, total_size, &mut MEMORY)));
+    }
+    &mut PROCS
+}
+
 
 struct Platform {
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
@@ -98,7 +123,7 @@ pub unsafe fn reset_handler() {
 
     static_init!(platform: Platform = Platform { gpio: gpio }, 4);
 
-    main::main(platform, &mut nrf51822::NRF51822::new());
+    main::main(platform, &mut nrf51822::NRF51822::new(), load_process());
 }
 
 use core::fmt::Arguments;
