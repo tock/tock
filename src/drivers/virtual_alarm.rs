@@ -1,6 +1,8 @@
 use core::cell::Cell;
 use hil::alarm::{Alarm, AlarmClient};
 use common::{List, ListLink, ListNode};
+use hil::gpio::GPIOPin;
+
 
 pub struct VirtualMuxAlarm<'a, Alrm: Alarm + 'a> {
     mux: &'a MuxAlarm<'a, Alrm>,
@@ -132,6 +134,8 @@ impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
 
         let now = self.alarm.now();
 
+        // Check whether to fire each alarm. At this level, alarms are one-shot,
+        // so a repeating client will set it again in the fired() callback.
         for cur in self.virtual_alarms.iter() {
             let should_fire = past_from_base(cur.when.get(),
                                          now + 100, self.prev.get());
@@ -142,6 +146,8 @@ impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
             }
         }
 
+        // Find the soonest alarm client (if any) and set the "next" underlying
+        // alarm based on it.
         let mut next = None;
         let mut min_distance : u32 = u32::max_value();
         for cur in self.virtual_alarms.iter() {
@@ -155,6 +161,7 @@ impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
         }
 
         self.prev.set(now);
+        // If there is an alarm to fire, set the underlying alarm to it
         next.map(|valrm| self.alarm.set_alarm(valrm.when.get()));
     }
 }

@@ -2,6 +2,8 @@ use core::cell::Cell;
 use process::{AppId, Container, Callback};
 use hil::Driver;
 use hil::alarm::{Alarm, AlarmClient, Frequency};
+use hil::gpio::GPIOPin;
+use nrf51822;
 
 #[derive(Copy, Clone)]
 pub struct TimerData {
@@ -57,6 +59,9 @@ impl<'a, A: Alarm + 'a> TimerDriver<'a, A> {
 
 impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
     fn subscribe(&self, _: usize, callback: Callback) -> isize {
+        //if (callback.app_id().idx() == 0) {
+            unsafe{nrf51822::gpio::PORT[22].toggle();}
+        //}
         self.app_timer.enter(callback.app_id(), |td, _allocator| {
             td.callback = Some(callback);
             0
@@ -149,6 +154,10 @@ impl<'a, A: Alarm> AlarmClient for TimerDriver<'a, A> {
                 }
 
                 timer.callback.map(|mut cb| {
+                   if (cb.app_id().idx() == 0 ||
+                        (cb.app_id().idx() & 0b111111 == 0b010011)) {
+                        unsafe {nrf51822::gpio::PORT[23].toggle();}
+                    }
                     cb.schedule(now as usize, 0, 0);
                 });
             }

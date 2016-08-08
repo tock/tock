@@ -227,7 +227,14 @@ impl TimerAlarm {
     }
 
     pub fn clear(&self) {
+        self.clear_alarm();
         self.timer().task_clear.set(1);
+    }
+
+    pub fn clear_alarm(&self) {
+        self.timer().event_compare[ALARM_COMPARE].set(0);
+        self.disable_interrupts();
+        nvic::clear_pending(self.nvic);
     }
 
     pub fn set_client(&self, client: &'static hil::alarm::AlarmClient) {
@@ -247,8 +254,7 @@ impl TimerAlarm {
     }
 
     pub fn handle_interrupt(&self) {
-        self.timer().event_compare[ALARM_COMPARE].set(0);
-        nvic::clear_pending(self.nvic);
+        self.clear_alarm();
         self.client.map(|client| {
             client.fired();
         });
@@ -263,6 +269,10 @@ impl TimerAlarm {
 
     pub fn disable_interrupts(&self) {
         self.timer().intenclr.set(ALARM_INTERRUPT_BIT);
+    }
+
+    pub fn interrupts_enabled(&self) -> bool {
+        self.timer().intenset.get() == (ALARM_INTERRUPT_BIT)
     }
 
     pub fn enable_nvic(&self) {
@@ -287,16 +297,20 @@ impl hil::alarm::Alarm for TimerAlarm {
     }
 
     fn set_alarm(&self, tics: u32) {
-        self.disable_nvic();
+        self.disable_interrupts();
         self.timer().cc[ALARM_COMPARE].set(tics);
-        self.enable_nvic();
+        self.clear_alarm();
+        self.enable_interrupts();
     }
+
     fn disable_alarm(&self) {
-        self.disable_nvic();
+        self.disable_interrupts();
     }
+
     fn is_armed(&self) -> bool {
-        self.timer().intenset.get() == (ALARM_INTERRUPT_BIT)
+        self.interrupts_enabled()
     }
+
     fn get_alarm(&self) -> u32 {
         self.timer().cc[ALARM_COMPARE].get()
     }
@@ -317,6 +331,7 @@ pub unsafe extern fn TIMER0_Handler() {
 pub unsafe extern fn TIMER1_Handler() {
     use common::Queue;
 
+//    gpio::PORT[23].toggle();
     nvic::disable(NvicIdx::TIMER1);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER1);
 }

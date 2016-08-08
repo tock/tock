@@ -84,6 +84,7 @@ static void delay_cb( __attribute__ ((unused)) int unused0,
                       __attribute__ ((unused)) int unused1,
                       __attribute__ ((unused)) int unused2,
                       void* ud) {
+  gpio_toggle(3);
   *((bool*)ud) = true;
 }
 
