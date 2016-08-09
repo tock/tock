@@ -84,7 +84,7 @@ SECTIONS
 
         . = ALIGN(4);
         _sapps = .;
-        *(.app.*)
+        KEEP(*(.app.*))
         _eapps = .;
 
         . = ALIGN(4);

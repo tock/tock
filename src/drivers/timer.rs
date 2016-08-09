@@ -1,6 +1,5 @@
 use core::cell::Cell;
-use process::{AppId, Container, Callback};
-use hil::Driver;
+use main::{AppId, Container, Callback, Driver};
 use hil::alarm::{Alarm, AlarmClient, Frequency};
 
 #[derive(Copy, Clone)]

@@ -1,6 +1,5 @@
 use core::cell::Cell;
-use process::{AppId, Callback};
-use hil::Driver;
+use main::{AppId, Callback, Driver};
 use hil::gpio::{GPIOPin,InputMode,InterruptMode,Client};
 
 pub struct GPIO<'a, G: GPIOPin + 'a> {

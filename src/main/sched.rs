@@ -1,19 +1,19 @@
-use platform::{Platform,systick};
+use platform::{Chip, Platform, MPU, SysTick};
 use process;
 use process::Process;
-use process::{AppSlice,AppId};
 use common::Queue;
 use syscall;
 
-pub unsafe fn do_process(platform: &mut Platform, process: &mut Process,
-                  appid: AppId) {
-    systick::reset();
-    systick::set_timer(10000);
-    systick::enable(true);
+pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P, chip: &mut C, process: &mut Process,
+                  appid: ::AppId) {
+    let systick = chip.systick();
+    systick.reset();
+    systick.set_timer(10000);
+    systick.enable(true);
 
     loop {
-        if platform.has_pending_interrupts() ||
-                systick::overflowed() || systick::value() <= 500 {
+        if chip.has_pending_interrupts() ||
+                systick.overflowed() || systick.value() <= 500 {
             break;
         }
 
@@ -22,14 +22,14 @@ pub unsafe fn do_process(platform: &mut Platform, process: &mut Process,
                 let (data_start, data_len, text_start, text_len) =
                         process.memory_regions();
                 // Data segment read/write/execute
-                platform.mpu().set_mpu(
+                chip.mpu().set_mpu(
                     0, data_start as u32, data_len as u32, true, 0b011);
                 // Text segment read/execute (no write)
-                platform.mpu().set_mpu(
+                chip.mpu().set_mpu(
                     1, text_start as u32, text_len as u32, true, 0b111);
-                systick::enable(true);
+                systick.enable(true);
                 process.switch_to();
-                systick::enable(false);
+                systick.enable(false);
             }
             process::State::Waiting => {
                 match process.callbacks.dequeue() {
@@ -80,7 +80,7 @@ pub unsafe fn do_process(platform: &mut Platform, process: &mut Process,
 
                 let res = platform.with_driver(driver_num, |driver| {
                     let callback =
-                        process::Callback::new(appid, appdata, callback_ptr);
+                        ::Callback::new(appid, appdata, callback_ptr);
                     match driver {
                         Some(d) => d.subscribe(subdriver_num,
                                                callback),
@@ -107,7 +107,7 @@ pub unsafe fn do_process(platform: &mut Platform, process: &mut Process,
                             let start_addr = process.r2() as *mut u8;
                             let size = process.r3();
                             if process.in_exposed_bounds(start_addr, size) {
-                                let slice = AppSlice::new(start_addr as *mut u8, size, appid);
+                                let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
                                 d.allow(appid, process.r1(), slice)
                             } else {
                                 -1
@@ -121,5 +121,5 @@ pub unsafe fn do_process(platform: &mut Platform, process: &mut Process,
             _ => {}
         }
     }
-    systick::reset();
+    systick.reset();
 }

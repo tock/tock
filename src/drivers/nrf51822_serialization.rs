@@ -1,6 +1,5 @@
 use common::take_cell::TakeCell;
-use process::{AppId, Callback, AppSlice, Shared};
-use hil::Driver;
+use main::{AppId, Callback, AppSlice, Driver, Shared};
 use hil::uart::{UART, Client};
 
 ///

@@ -7,6 +7,10 @@ pub struct VolatileCell<T> {
 
 #[allow(dead_code)]
 impl<T> VolatileCell<T> {
+    pub const fn new(value: T) -> Self {
+        VolatileCell {value: value}
+    }
+
     #[inline]
     pub fn get(&self) -> T {
         unsafe {

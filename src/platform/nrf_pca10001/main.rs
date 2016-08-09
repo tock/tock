@@ -1,43 +1,47 @@
-#![crate_name = "platform"]
-#![crate_type = "rlib"]
 #![no_std]
-#![feature(lang_items)]
+#![no_main]
+#![feature(core_intrinsics,lang_items)]
 
 extern crate drivers;
 extern crate hil;
 extern crate nrf51822;
+extern crate main;
 extern crate support;
 
 pub mod systick;
 
-pub struct Platform {
+unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>>] {
+    use core::intrinsics::{volatile_load,volatile_store};
+    extern {
+        /// Beginning of the ROM region containing app images.
+        static _sapps : u8;
+    }
+
+
+    #[link_section = ".app_memory"]
+    static mut MEMORY: [u8; 8192] = [0; 8192];
+    static mut PROCS: [Option<main::process::Process<'static>>; 1] = [None];
+
+    let addr = &_sapps as *const u8;
+
+    // The first member of the LoadInfo header contains the total size of each process image. A
+    // sentinel value of 0 (invalid because it's smaller than the header itself) is used to
+    // mark the end of the list of processes.
+    let total_size = volatile_load(addr as *const usize);
+    if total_size != 0 {
+        volatile_store(&mut PROCS[0], Some(main::process::Process::create(addr, total_size, &mut MEMORY)));
+    }
+    &mut PROCS
+}
+
+
+struct Platform {
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
 }
 
-pub struct DummyMPU;
-
-impl DummyMPU {
-    pub fn set_mpu(&mut self, _: u32, _: u32, _: u32, _: bool, _: u32) {
-    }
-}
-
-impl Platform {
-    pub unsafe fn service_pending_interrupts(&mut self) {
-    }
-
-    pub unsafe fn has_pending_interrupts(&mut self) -> bool {
-        // FIXME: The wfi call from main() blocks forever if no interrupts are generated. For now,
-        // pretend we have interrupts to avoid blocking.
-        true
-    }
-
-    pub fn mpu(&mut self) -> DummyMPU {
-        DummyMPU
-    }
-
-    #[inline(never)]
-    pub fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
-            F: FnOnce(Option<&hil::Driver>) -> R {
+impl main::Platform for Platform {
+    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
+            F: FnOnce(Option<&main::Driver>) -> R {
         match driver_num {
             1 => f(Some(self.gpio)),
             _ => f(None)
@@ -70,8 +74,10 @@ macro_rules! static_init {
     }
 }
 
-pub unsafe fn init() -> &'static mut Platform {
-    use nrf51822::gpio::PA;
+#[no_mangle]
+pub unsafe fn reset_handler() {
+
+    nrf51822::init();
 
     //XXX: this should be pared down to only give externally usable pins to the
     //  user gpio driver
@@ -117,7 +123,7 @@ pub unsafe fn init() -> &'static mut Platform {
 
     static_init!(platform: Platform = Platform { gpio: gpio }, 4);
 
-    platform
+    main::main(platform, &mut nrf51822::NRF51822::new(), load_process());
 }
 
 use core::fmt::Arguments;
