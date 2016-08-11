@@ -3,6 +3,8 @@ name = "sam4l"
 version = "0.1.0"
 authors = ["Amit Levy <amit@amitlevy.com>"]
 
+build = "build.rs"
+
 [dependencies]
 core = { path = "../../../extern/rust/rustc/src/libcore" }
 common = { path = "../../common" }
