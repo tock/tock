@@ -264,6 +264,7 @@ impl<'a> Process<'a> {
         if self.cur_stack < self.memory.as_ptr() {
             breakpoint();
         }
+        volatile_store(&mut SYSCALL_FIRED, 0);
         let psp = switch_to_user(self.cur_stack, self.memory.as_ptr());
         self.cur_stack = psp;
     }

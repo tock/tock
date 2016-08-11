@@ -9,7 +9,7 @@ RUSTC_FLAGS += -C no-stack-check -C soft-float -C target-feature="+soft-float"
 
 CFLAGS_BASE = -mcpu=$(ARCH) -mthumb -mfloat-abi=soft
 CFLAGS += $(CFLAGS_BASE) -g -O3 -std=gnu99 -nostartfiles
-LOADER = $(SRC_DIR)chips/sam4l/loader.ld
+LOADER = $(SRC_DIR)chips/sam4l/layout.ld
 LDFLAGS += -T$(LOADER) -lm
 OBJDUMP_FLAGS := --disassemble --source --disassembler-options=force-thumb
 OBJDUMP_FLAGS += -C --section-headers
