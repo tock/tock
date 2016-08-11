@@ -7,5 +7,17 @@
     "os": "none",
     "morestack": false,
     "executables": true,
-    "no-compiler-rt": true
+    "no-compiler-rt": true,
+    "relocation-model": "static",
+    "linker": "arm-none-eabi-gcc",
+    "disable-redzeon": true,
+    "pre-link-args": [
+        "-mcpu=cortex-m4", "-mthumb",
+        "-mfloat-abi=soft", "-nostartfiles",
+        "-Wl,-gc-sections",
+        "-T../../chips/sam4l/loader.ld", "../../../build/storm/ctx_switch.o"
+    ],
+    "post-link-args": [
+        "-lm", "-lgcc", "-lnosys", "-lc"
+    ]
 }

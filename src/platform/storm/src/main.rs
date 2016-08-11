@@ -1,6 +1,5 @@
-#![crate_name = "storm"]
-#![crate_type = "staticlib"]
 #![no_std]
+#![no_main]
 #![feature(const_fn,lang_items)]
 
 extern crate common;
