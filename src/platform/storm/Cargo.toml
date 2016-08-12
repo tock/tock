@@ -5,9 +5,11 @@ authors = ["Amit Levy <amit@amitlevy.com>"]
 
 [profile.dev]
 panic = "abort"
+lto = true
 
 [profile.release]
 panic = "abort"
+lto = true
 
 [dependencies]
 core = { path = "../../../extern/rust/rustc/src/libcore" }
