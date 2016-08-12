@@ -1,0 +1,80 @@
+[root]
+name = "storm"
+version = "0.1.0"
+dependencies = [
+ "common 0.1.0",
+ "core 0.0.0",
+ "cortexm4 0.1.0",
+ "drivers 0.1.0",
+ "hil 0.1.0",
+ "main 0.1.0",
+ "sam4l 0.1.0",
+ "support 0.1.0",
+]
+
+[[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "core 0.0.0",
+]
+
+[[package]]
+name = "core"
+version = "0.0.0"
+
+[[package]]
+name = "cortexm4"
+version = "0.1.0"
+dependencies = [
+ "common 0.1.0",
+ "core 0.0.0",
+ "main 0.1.0",
+]
+
+[[package]]
+name = "drivers"
+version = "0.1.0"
+dependencies = [
+ "common 0.1.0",
+ "core 0.0.0",
+ "hil 0.1.0",
+ "main 0.1.0",
+]
+
+[[package]]
+name = "hil"
+version = "0.1.0"
+dependencies = [
+ "common 0.1.0",
+ "core 0.0.0",
+ "main 0.1.0",
+]
+
+[[package]]
+name = "main"
+version = "0.1.0"
+dependencies = [
+ "common 0.1.0",
+ "core 0.0.0",
+ "support 0.1.0",
+]
+
+[[package]]
+name = "sam4l"
+version = "0.1.0"
+dependencies = [
+ "common 0.1.0",
+ "core 0.0.0",
+ "cortexm4 0.1.0",
+ "hil 0.1.0",
+ "main 0.1.0",
+]
+
+[[package]]
+name = "support"
+version = "0.1.0"
+dependencies = [
+ "core 0.0.0",
+]
+
