@@ -112,8 +112,10 @@ You can also customize the build with environment variables.
 | Variable        | Default                 | Description                             |
 |-----------------|-------------------------|-----------------------------------------|
 | `RUSTC`         | rustc                   | The Rust compiler path.                 |
-| `CC`            | arm-none-eabi-gcc       | ARM GCC compiler path.                  |
+| `RUSTDOC`       | rustdoc                 | Documentation generator for Rust.       |
+| `CARGO`         | cargo                   | Build tool for Rust packages.           |
 | `OBJCOPY`       | arm-none-eabi-objcopy   | ARM GCC objcopy path.                   |
+| `OBJDUMP`       | arm-none-eabi-objdump   | ARM GCC objdump path.                   |
 | `TOCK_PLATFORM` | storm                   | Which platform to build the kernel for. |
 
 
