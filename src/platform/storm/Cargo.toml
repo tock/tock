@@ -3,6 +3,12 @@ name = "storm"
 version = "0.1.0"
 authors = ["Amit Levy <amit@amitlevy.com>"]
 
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
 [dependencies]
 core = { path = "../../../extern/rust/rustc/src/libcore" }
 common = { path = "../../common" }

@@ -7,7 +7,7 @@ SDB_DESCRIPTION="An OS for the storm"
 
 .PHONY: target/target/release/storm
 target/target/release/storm:
-	@RUSTFLAGS="-Z no-landing-pads" cargo rustc --release --target=../../chips/sam4l/target.json -- -C lto
+	@cargo rustc --release --target=../../chips/sam4l/target.json -- -C lto
 
 target/target/release/storm.sdb: target/target/release/storm
 	@tput bold ; echo "Packing SDB..." ; tput sgr0
