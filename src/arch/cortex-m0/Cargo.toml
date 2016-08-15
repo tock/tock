@@ -1,0 +1,9 @@
+[package]
+name = "cortexm0"
+version = "0.1.0"
+authors = ["Amit Levy <amit@amitlevy.com>"]
+
+[dependencies]
+core = { path = "../../../extern/rust/rustc/src/libcore" }
+common = { path = "../../common" }
+main = { path = "../../main" }

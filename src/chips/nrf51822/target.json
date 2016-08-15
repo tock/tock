@@ -1,14 +1,24 @@
 {
+    "data-layout": "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64",
     "llvm-target": "thumbv6m-none-eabi",
     "target-endian": "little",
     "target-pointer-width": "32",
-    "os": "none",
-    "env": "eabi",
-    "vendor": "unknown",
     "arch": "arm",
-
-    "data-layout": "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64",
-    "cpu": "cortex-m0",
+    "os": "none",
+    "morestack": false,
     "executables": true,
-    "relocation-model": "static"
+    "no-compiler-rt": true,
+    "relocation-model": "static",
+    "linker": "arm-none-eabi-gcc",
+    "linker-is-gnu": true,
+    "disable-redzone": true,
+    "pre-link-args": [
+        "-mcpu=cortex-m0", "-mthumb",
+        "-mfloat-abi=soft",
+        "-Wl,-gc-sections",
+        "-Ttarget/target/release/build/layout.ld"
+    ],
+    "post-link-args": [
+        "-lm", "-lgcc", "-lc"
+    ]
 }
