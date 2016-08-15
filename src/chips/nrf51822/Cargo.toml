@@ -6,7 +6,7 @@ authors = ["Amit Levy <amit@amitlevy.com>"]
 build = "build.rs"
 
 [dependencies]
-core = { path = "../../../extern/rust/rustc/src/libcore" }
+rust-libcore = "*"
 common = { path = "../../common" }
 cortexm0 = { path = "../../arch/cortex-m0" }
 hil = { path = "../../hil" }

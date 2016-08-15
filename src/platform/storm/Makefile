@@ -5,6 +5,8 @@ SDB_VERSION=$(shell git show-ref -s HEAD)
 SDB_NAME=storm.rs
 SDB_DESCRIPTION="An OS for the storm"
 
+all: target/target/release/storm
+
 .PHONY: target/target/release/storm
 target/target/release/storm:
 	@cargo build --release --target=../../chips/sam4l/target.json

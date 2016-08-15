@@ -3,12 +3,12 @@ name = "nrf_pca10001"
 version = "0.1.0"
 dependencies = [
  "common 0.1.0",
- "core 0.0.0",
  "cortexm0 0.1.0",
  "drivers 0.1.0",
  "hil 0.1.0",
  "main 0.1.0",
  "nrf51822 0.1.0",
+ "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "support 0.1.0",
 ]
 
@@ -16,20 +16,16 @@ dependencies = [
 name = "common"
 version = "0.1.0"
 dependencies = [
- "core 0.0.0",
+ "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
-
-[[package]]
-name = "core"
-version = "0.0.0"
 
 [[package]]
 name = "cortexm0"
 version = "0.1.0"
 dependencies = [
  "common 0.1.0",
- "core 0.0.0",
  "main 0.1.0",
+ "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -37,9 +33,9 @@ name = "drivers"
 version = "0.1.0"
 dependencies = [
  "common 0.1.0",
- "core 0.0.0",
  "hil 0.1.0",
  "main 0.1.0",
+ "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -52,8 +48,8 @@ name = "hil"
 version = "0.1.0"
 dependencies = [
  "common 0.1.0",
- "core 0.0.0",
  "main 0.1.0",
+ "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -61,7 +57,7 @@ name = "main"
 version = "0.1.0"
 dependencies = [
  "common 0.1.0",
- "core 0.0.0",
+ "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "support 0.1.0",
 ]
 
@@ -70,17 +66,22 @@ name = "nrf51822"
 version = "0.1.0"
 dependencies = [
  "common 0.1.0",
- "core 0.0.0",
  "cortexm0 0.1.0",
  "gcc 0.3.32 (registry+https://github.com/rust-lang/crates.io-index)",
  "hil 0.1.0",
  "main 0.1.0",
+ "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "rust-libcore"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "support"
 version = "0.1.0"
 dependencies = [
- "core 0.0.0",
+ "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

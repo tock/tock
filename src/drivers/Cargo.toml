@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Amit Levy <amit@amitlevy.com>"]
 
 [dependencies]
-core = { path = "../../extern/rust/rustc/src/libcore" }
+rust-libcore = "*"
 common = { path = "../common" }
 hil = { path = "../hil" }
 main = { path = "../main" }
