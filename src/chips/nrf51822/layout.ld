@@ -25,7 +25,8 @@ SEARCH_DIR(.)
 
 MEMORY
 {
-  rom (rx)  : ORIGIN = 0x00000000, LENGTH = 256K
+  rom (rx)  : ORIGIN = 0x00000000, LENGTH = 128K
+  prog (rx) : ORIGIN = 0x00020000, LENGTH = 128K
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 16K
 }
 
@@ -90,6 +91,14 @@ SECTIONS
         . = ALIGN(4);
         _efixed = .;            /* End of text section */
     } > rom
+
+    .apps :
+    {
+        . = ALIGN(4);
+        _sapps = .;
+        KEEP (*(.app.*))
+        _eapps = .;
+    } > prog
 
     /* .ARM.exidx is sorted, so has to go in its own output section.  */
     PROVIDE_HIDDEN (__exidx_start = .);
