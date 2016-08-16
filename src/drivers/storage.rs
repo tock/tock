@@ -7,7 +7,7 @@ use allocator::{Allocator};
 // TODO: think of a good way to import.
 //use chips::sam4l::flashcalw::{FLASHCALW, flash_controller };
 // TODO: import buddy alloc and flash...
-
+// TODO: import buddy allocator using cargo / crates..
 /*
     TODO( in the future)
     Have my storage 'walk memory' it's declared on, on bootup so it can know
@@ -17,6 +17,10 @@ use allocator::{Allocator};
 // todo: FIGURE out storage issues...
 
 const NUM_FILE_DESCRIPTORS : usize = 5;
+// This will depend on the system...
+const ALLOCATOR_START_ADDR : usize = 0x40000;
+const ALLOCATOR_SIZE : usize = 0x40000;
+const ALLOCATOR_SMALLEST_BLOCK_SIZE : usize = 1024;
 
     
 pub enum ErrorCode {
@@ -50,17 +54,12 @@ pub struct Callback {
     offset: u32, // starting position of writing
 }
 
-//TODO implement right
-//static buffer : [Block<'a>; 5] = [ Block { slice : &[] }; 5];
-
 
 pub struct Storage <'a> {
     // todo: might modify and wrap the block up maybe with a client id / app id?
     block_table: [Option<*mut Block<'a>>; NUM_FILE_DESCRIPTORS],
-    // TODO: should really be a callback...
-    write_queue: RingBuffer<'a, Callback>,
-    // TODO add buddy alloc( in the correct place!) / using the dependcy system when
-    // it's good.
+    callback_buf: [Callback; 5], // the buffer used by the write_queue.
+    write_queue: Option<RingBuffer<'a, Callback>>,
     allocator: Allocator,
     last_fd: i32, // last used 'index' into block table. Remember to flush if
                   // a close or free is called!
@@ -71,12 +70,19 @@ pub struct Storage <'a> {
 impl<'a> Storage<'a> {
     // todo change to take in anything with allocator trait, and anything with
     // flash trait?
-    /*pub fn new() -> 'a Storage {
-        Storage {
-            block_table: [&[]; 5],
-            write_queue: RingBuffer::new(
-        }
-    }*/
+    pub fn new() -> Storage<'a> {
+        let mut s = Storage {
+            block_table: [None; 5],
+            callback_buf: [Callback { id: 0, offset: 0 }; 5],
+            write_queue: None,
+            allocator: Allocator::new(ALLOCATOR_START_ADDR, ALLOCATOR_SIZE, 
+                ALLOCATOR_SMALLEST_BLOCK_SIZE),
+            last_fd: -1,
+        };
+        s.write_queue = Some(RingBuffer::new(&mut s.callback_buf));
+        //s.write_queue = Some(RingBuffer::new(&'a mut s.callback_buf));
+        s
+    }
 
     // TODO: this needs to be able to fail ( could give an option to say why fail
     // i.e. alloc out of memory or block table full
@@ -120,6 +126,8 @@ impl<'a> Storage<'a> {
         self.allocator.free(address);
     }
 
+   // pub fn 
+
 // TODO: the client will have an interface some trait / function that they have to 
 // implement in order to use the storage and that's where I send the CB to.
 
@@ -135,7 +143,7 @@ impl<'a> Storage<'a> {
         }
         
         // Error out if this block doesn't exist or we don't have room to queue a write.
-        if id == -1 || !self.write_queue.enqueue(Callback { 
+        if id == -1 || !self.write_queue.as_mut().unwrap().enqueue(Callback { 
             id: id as usize, offset : offset})  {
             ErrorCode::failure
         } else { // the request has been successfully enqueued.
