@@ -1,4 +1,4 @@
-use nrf51822;
+use nrf51822::{self, PinCnf};
 use core::fmt::*;
 use support::nop;
 
@@ -11,7 +11,10 @@ impl Write for Writer {
         let uart = unsafe { &mut nrf51822::uart::UART::new() };
         if !self.initialized {
             self.initialized = true;
-            uart.init();
+            unsafe {
+                uart.init(PinCnf::new(9), PinCnf::new(11),
+                          PinCnf::new(8), PinCnf::new(10));
+            }
             uart.set_baudrate(115200);
         }
         uart.send_bytes(s.as_bytes());

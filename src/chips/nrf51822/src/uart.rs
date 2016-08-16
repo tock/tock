@@ -1,3 +1,4 @@
+use PinCnf;
 use core::mem;
 
 use peripheral_registers::{UART0_BASE, UART0 as Registers};
@@ -38,14 +39,13 @@ impl UART {
         regs.baudrate.set(reg_value);
     }
 
-    pub fn init(&mut self) {
+    pub fn init(&mut self, txd: PinCnf, rxd: PinCnf, rts: PinCnf, cts: PinCnf) {
 		let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
 
-		regs.enable.set(0b100);
-        regs.pselrts.set(8);
-        regs.pseltxd.set(9);
-        regs.pselcts.set(10);
-        regs.pselrxd.set(11);
+        regs.pseltxd.set(txd);
+        regs.pselrxd.set(rxd);
+        regs.pselrts.set(rts);
+        regs.pselcts.set(cts);
 	}
 
     pub fn rx_ready(&self) -> bool {
@@ -61,6 +61,8 @@ impl UART {
     pub fn send_bytes(&self, bytes: &[u8]) {
         let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
 
+		regs.enable.set(4);
+
         regs.tasks_starttx.set(1);
 
         for c in bytes.iter() {
@@ -69,6 +71,8 @@ impl UART {
             while !self.tx_ready() {}
         }
         regs.tasks_stoptx.set(1);
+
+		regs.enable.set(0);
     }
 }
 
