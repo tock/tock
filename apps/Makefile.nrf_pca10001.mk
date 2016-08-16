@@ -1,6 +1,6 @@
 CHIP := nrf51822
 ARCH := cortex-m0
-TOCK_PLATFORM_LINKER_SCRIPT = $(TOCK_DIR)/chips/$(CHIP)/loader.ld
+TOCK_PLATFORM_LINKER_SCRIPT = $(TOCK_DIR)/chips/$(CHIP)/layout.ld
 
 include $(TOCK_APPS_DIR)/Makefile.Arm-M.mk
 
@@ -9,15 +9,14 @@ JLINK_EXE ?= JLinkExe
 
 # Apps to link may grow over time so defer expanding that
 .SECONDEXPANSION:
-$(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/ctx_switch.o $(TOCK_BUILD_DIR)/kernel.o $$(APPS_TO_LINK_TO_KERNEL) $(TOCK_BUILD_DIR)/crt1.o | $(TOCK_BUILD_DIR)
+$(TOCK_APP_BUILD_DIR)/kernel_and_app.elf: $(TOCK_BUILD_DIR)/kernel.elf $(TOCK_APP_BUILD_DIR)/$(APP).bin | $(TOCK_BUILD_DIR)
 	@tput bold ; echo "Linking $@" ; tput sgr0
-	$(CC) $(CFLAGS) $(CPPFLAGS) $^ $(LDFLAGS) -Wl,-Map=$(TOCK_APP_BUILD_DIR)/kernel_and_app.Map -o $@
+	$(OBJCOPY) --add-section .$(APP)=$(TOCK_APP_BUILD_DIR)/$(APP).bin --set-section .$(APP)=alloc,load,readonly,code,contents --change-section-address=.$(APP)=0x20000 $(TOCK_BUILD_DIR)/kernel.elf $@
 	$(GENLST) $@ > $(TOCK_APP_BUILD_DIR)/kernel_and_app.lst
 	$(SIZE) $@
 
 # XXX Temporary until new kernel build system in place
-$(TOCK_BUILD_DIR)/ctx_switch.o: kernel
-$(TOCK_BUILD_DIR)/crt1.o: kernel
+$(TOCK_BUILD_DIR)/kernel.elf: kernel
 
 $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
 	@tput bold ; echo "Flattening $< to $@" ; tput sgr0
@@ -31,7 +30,7 @@ all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 # 2) write firmware at address 0
 # 3) set NVMC.CONFIG to 0 (Read only access)
 .PHONY: program
-program: $(BUILD_PLATFORM_DIR)/kernel_and_app.bin
+program: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 	echo \
 	connect\\n\
 	w4 4001e504 1\\n\

@@ -2,13 +2,12 @@
 #![no_main]
 #![feature(core_intrinsics,lang_items)]
 
+extern crate cortexm0;
 extern crate drivers;
 extern crate hil;
 extern crate nrf51822;
 extern crate main;
 extern crate support;
-
-pub mod systick;
 
 unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>>] {
     use core::intrinsics::{volatile_load,volatile_store};

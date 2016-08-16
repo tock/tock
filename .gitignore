@@ -1,3 +1,4 @@
+target
 doc/*
 build/*
 *.rlib

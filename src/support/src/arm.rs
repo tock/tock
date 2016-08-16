@@ -1,4 +1,3 @@
-use core::intrinsics::*;
 use core::ops::FnOnce;
 
 #[cfg(not(test))]
@@ -39,16 +38,4 @@ pub unsafe fn atomic<F,R>(f: F) -> R where F: FnOnce() -> R {
 #[cfg(not(test))]
 #[lang="eh_personality"]
 pub extern fn eh_personality() {}
-
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern fn __aeabi_unwind_cpp_pr0() {
-  abort();
-}
-
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern fn __aeabi_unwind_cpp_pr1() {
-  abort();
-}
 
