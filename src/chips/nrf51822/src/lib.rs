@@ -14,6 +14,7 @@ extern {
 mod peripheral_registers;
 pub mod gpio;
 mod chip;
+pub mod uart;
 
 pub use chip::NRF51822;
 
