@@ -2,7 +2,8 @@ use core::slice;
 use core::option::Option;
 use core::ops::Index;
 use main::{Driver};
-use common::{RingBuffer, Queue};
+use common::{List, ListLink, ListNode, Queue};
+//use common::{RingBuffer, Queue};
 use allocator::{Allocator};
 // TODO: think of a good way to import.
 //use chips::sam4l::flashcalw::{FLASHCALW, flash_controller };
@@ -48,18 +49,22 @@ impl<'a> Index<usize> for Block <'a> {
 }
 
 // This is enqueued...
-#[derive(Copy, Clone)]
-pub struct Callback {
+pub struct Callback <'a>{
     id: usize, // which index in the table does this relate to...
     offset: u32, // starting position of writing
+    next: ListLink<'a, Callback<'a>>
 }
 
+impl <'a> ListNode<'a, Callback<'a>> for Callback<'a> {
+    fn next(&self) -> &'a ListLink<Callback<'a>> {
+        &self.next
+    }
+}
 
 pub struct Storage <'a> {
     // todo: might modify and wrap the block up maybe with a client id / app id?
     block_table: [Option<*mut Block<'a>>; NUM_FILE_DESCRIPTORS],
-    callback_buf: [Callback; 5], // the buffer used by the write_queue.
-    write_queue: Option<RingBuffer<'a, Callback>>,
+    queued_list: List<'a, Callback<'a>>,
     allocator: Allocator,
     last_fd: i32, // last used 'index' into block table. Remember to flush if
                   // a close or free is called!
@@ -71,17 +76,13 @@ impl<'a> Storage<'a> {
     // todo change to take in anything with allocator trait, and anything with
     // flash trait?
     pub fn new() -> Storage<'a> {
-        let mut s = Storage {
+        Storage {
             block_table: [None; 5],
-            callback_buf: [Callback { id: 0, offset: 0 }; 5],
-            write_queue: None,
+            queued_list: List::new(),
             allocator: Allocator::new(ALLOCATOR_START_ADDR, ALLOCATOR_SIZE, 
                 ALLOCATOR_SMALLEST_BLOCK_SIZE),
             last_fd: -1,
-        };
-        s.write_queue = Some(RingBuffer::new(&mut s.callback_buf));
-        //s.write_queue = Some(RingBuffer::new(&'a mut s.callback_buf));
-        s
+        }
     }
 
     // TODO: this needs to be able to fail ( could give an option to say why fail
@@ -143,6 +144,7 @@ impl<'a> Storage<'a> {
         }
         
         // Error out if this block doesn't exist or we don't have room to queue a write.
+        // TODO: uncomment and use instead.
         if id == -1 || !self.write_queue.as_mut().unwrap().enqueue(Callback { 
             id: id as usize, offset : offset})  {
             ErrorCode::failure
