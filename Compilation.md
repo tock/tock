@@ -8,7 +8,7 @@ of how platforms program each onto an actual board.
 
 # Compiling the kernel
 
-The kernel is divided into four Rust crates (i.e. packages):
+The kernel is divided into five Rust crates (i.e. packages):
 
   * `main` contains the scheduler, definitions for the the process type and
     traits for drivers, platforms and chips.
@@ -16,13 +16,14 @@ The kernel is divided into four Rust crates (i.e. packages):
   * An architecture (e.g. _ARM Cortex M4_) crate that implements context
     switching, and provides memory protection and systick drivers.
 
-  * A chip-specific (e.g. _Atmel SAM4L_) crate which implements low-level
-    drivers for the chip and it's peripherals and handles interrupts.
+  * A chip-specific (e.g. _Atmel SAM4L_) crate which handles interrupts and
+    implements the hardware abstraction layer for a chip's peripherals.
 
-  * One (or more) crates for drivers and virtualization layers.
+  * One (or more) crates for hardware independnt drivers and virtualization 
+    layers.
 
   * A platform specific (e.g. _Firestorm_) crate that configures the chip and
-    it's peripehrals, assigns perpiherals to drivers, sets up virtualization
+    its peripherals, assigns perpiherals to drivers, sets up virtualization
     layers and defines a system call interface.
 
 These crates are compiled using [Cargo](http://doc.crates.io), Rust's package
@@ -47,17 +48,18 @@ so you can just type:
 $ make
 ```
 
-## Life of a compilation
+## Life of a Tock compilation
 
-When cargo begins executing in the platform crate, it first resolves all
-dependencies recursively, choosing package versions that satisfy the
+When cargo begins compiling the platform crate, it first resolves all
+dependencies recursively. It choosing package versions that satisfy the
 requirements across the dependency graph. Dependencies are defined in each
-crate's `Cargo.toml` file and refer to paths in the local file-system, a remote
-git repository or a package published on [crates.io](http://crates.io).
+crate's `Cargo.toml` file and refer to paths in the local file-system, a 
+remote git repository or a package published on [crates.io](http://crates.io).
 
-Cargo then compiles each crate in turn as dependencies are satisfied. Each crate
-is compiled as an `rlib` (an `ar` archive containing object files) and combined
-into an executable ELF file by the compilation of the platform crate.
+Second, Cargo compiles each crate in turn as dependencies are satisfied. Each 
+crate is compiled as an `rlib` (an `ar` archive containing object files) 
+and combined into an executable ELF file by the compilation of the platform 
+crate.
 
 You can see each command executed by `cargo` by passing the `--verbose`
 argument.
