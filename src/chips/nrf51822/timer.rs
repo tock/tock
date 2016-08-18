@@ -329,7 +329,6 @@ pub unsafe extern fn TIMER0_Handler() {
 pub unsafe extern fn TIMER1_Handler() {
     use common::Queue;
 
-//    gpio::PORT[23].toggle();
     nvic::disable(NvicIdx::TIMER1);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER1);
 }
