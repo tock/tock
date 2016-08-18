@@ -17,3 +17,7 @@ monitor speed auto
 # Setup GDB FOR FASTER DOWNLOADS
 set remote memory-write-packet-size 1024
 set remote memory-write-packet-size fixed
+tui enable
+layout split
+layout regs
+
