@@ -139,13 +139,13 @@ def main():
     #dump_json(parser)
     interrupts = get_peripheral_interrupts(parser)
     dump_macros(interrupts,
-            open("src/chips/nrf51822/peripheral_interrupts.h", "w"))
+            open("src/chips/nrf51822/src/peripheral_interrupts.h", "w"))
     peripherals = get_peripheral_registers(parser, ["GPIO"])
 
-    env = Environment(loader=FileSystemLoader('src/chips/nrf51822'))
+    env = Environment(loader=FileSystemLoader('src/chips/nrf51822/src'))
     template = env.get_template('peripheral_registers.rs.jinja')
     template.stream(program=PROGRAM, peripherals=peripherals).dump(
-            'src/chips/nrf51822/peripheral_registers.rs')
+            'src/chips/nrf51822/src/peripheral_registers.rs')
 
 if __name__ == "__main__":
     main()

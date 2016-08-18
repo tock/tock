@@ -22,7 +22,7 @@
 
 #![crate_name = "support"]
 #![crate_type = "rlib"]
-#![feature(asm,lang_items,core_intrinsics)]
+#![feature(asm,lang_items)]
 #![no_std]
 
 pub use arm::*;

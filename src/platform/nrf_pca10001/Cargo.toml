@@ -1,0 +1,22 @@
+[package]
+name = "nrf_pca10001"
+version = "0.1.0"
+authors = ["Amit Levy <amit@amitlevy.com>"]
+
+[profile.dev]
+panic = "abort"
+lto = true
+
+[profile.release]
+panic = "abort"
+lto = true
+
+[dependencies]
+rust-libcore = "*"
+common = { path = "../../common" }
+cortexm0 = { path = "../../arch/cortex-m0" }
+drivers = { path = "../../drivers" }
+hil = { path = "../../hil" }
+main = { path = "../../main" }
+nrf51822 = { path = "../../chips/nrf51822" }
+support = { path = "../../support" }

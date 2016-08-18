@@ -115,6 +115,14 @@ impl<'a> I2CClient for I2CDevice<'a> {
     }
 }
 
+impl<'a> PartialEq for I2CDevice<'a> {
+    // TODO: implement!
+    fn eq(&self, other: &I2CDevice) -> bool {
+        false
+    }
+}
+
+
 impl<'a> ListNode<'a, I2CDevice<'a>> for I2CDevice<'a> {
     fn next(&'a self) -> &'a ListLink<'a, I2CDevice<'a>> {
         &self.next
