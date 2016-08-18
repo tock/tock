@@ -1,3 +1,12 @@
+//! The clock peripheral of the nRF51 series (chapter 13 of
+//! the nRF51 reference manual v3.0), which manages the 
+//! low frequency and high frequency clocks. The low frequency
+//! clock drives the real time clock (RTC), while the 
+//! high frequency clocks drive the timer system.
+//!
+//! Author: Philip Levis
+//! Date: 8/16/18
+
 use common::VolatileCell;
 use common::take_cell::TakeCell;
 use core::mem;
@@ -34,7 +43,6 @@ struct Registers {
 }
 
 const CLOCK_BASE: usize = 0x40000000;
-
 
 pub enum InterruptField {
     HFCLKSTARTED = (1 << 0),
@@ -75,10 +83,10 @@ pub struct Clock {
 }
 
 pub trait ClockClient {
-    // All clock interrupts are control signals, e.g., when
-    // a clock has started etc. We don't actually handle any
-    // of them for now, but keep this trait in place for if we
-    // do need to in the future.
+    /// All clock interrupts are control signals, e.g., when
+    /// a clock has started etc. We don't actually handle any
+    /// of them for now, but keep this trait in place for if we
+    /// do need to in the future.
     fn event(&self);
 }
 
