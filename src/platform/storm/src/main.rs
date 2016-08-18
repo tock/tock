@@ -346,11 +346,11 @@ pub unsafe fn reset_handler() {
     let ast = &sam4l::ast::AST;
 
     static_init!(mux_alarm: MuxAlarm<'static, sam4l::ast::Ast> = MuxAlarm::new(&sam4l::ast::AST),
-                 16);
+                 20);
     ast.configure(mux_alarm);
 
     static_init!(mux_i2c: MuxI2C<'static> = MuxI2C::new(&sam4l::i2c::I2C2),
-                 20);
+                 24);
     sam4l::i2c::I2C2.set_client(mux_i2c);
 
     // Configure the TMP006. Device address 0x40

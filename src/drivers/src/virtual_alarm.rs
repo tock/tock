@@ -10,6 +10,14 @@ pub struct VirtualMuxAlarm<'a, Alrm: Alarm + 'a> {
     client: Cell<Option<&'a AlarmClient>>
 }
 
+impl<'a, A: Alarm + 'a>  PartialEq for VirtualMuxAlarm<'a, A> {
+    // TODO: implement
+    fn eq(&self, other: &VirtualMuxAlarm<'a, A>) -> bool {
+        false
+    }
+}
+
+
 impl<'a, A: Alarm + 'a> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
     fn next(&self) -> &'a ListLink<VirtualMuxAlarm<'a, A>> {
         &self.next
