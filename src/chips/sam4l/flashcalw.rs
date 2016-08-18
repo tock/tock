@@ -20,7 +20,7 @@
 //! general purpose fuse bits, and more granular control of the cache).
 //!
 //! Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
-//! Date: 7/27/16
+//! Date: July 27, 2016 
 //!
 
 use core::{mem};

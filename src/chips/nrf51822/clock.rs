@@ -5,7 +5,7 @@
 //! high frequency clocks drive the timer system.
 //!
 //! Author: Philip Levis
-//! Date: 8/16/18
+//! Date: August 18, 2016
 
 use common::VolatileCell;
 use common::take_cell::TakeCell;

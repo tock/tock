@@ -31,7 +31,7 @@
 //!
 //!  Author: Philip Levis <pal@cs.stanford.edu>
 //!  Author: Anderson Lizardo <anderson.lizardo@gmail.com>
-//!  Date: 8/18/16
+//!  Date: August 18, 2016
 
 #![crate_name = "platform"]
 #![crate_type = "rlib"]

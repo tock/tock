@@ -1,6 +1,7 @@
 //! GPIO and GPIOTE (task and events) for the nRF51 series.
+//!
 //! Author: Philip Levis <pal@cs.stanford.edu>
-//! Date: 8/18/16
+//! Date: August 18, 2016
 
 use core::mem;
 use core::cell::Cell;

@@ -16,7 +16,7 @@
 //! uses the high frequency clock.
 //!
 //! Author: Philip Levis <pal@cs.stanford.edu>
-//! Date: 8/18/16
+//! Date: August 18, 2016 
 
 use core::mem;
 use common::VolatileCell;

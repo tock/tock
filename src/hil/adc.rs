@@ -1,7 +1,7 @@
 /* Simplest attempt at an ADC interface.
  *
  *   Author: Philip Levis <pal@cs.stanford.edu>
- *   Date: 6/10/15
+ *   Date: June 10, 2015
 */
 
 pub trait Request {
