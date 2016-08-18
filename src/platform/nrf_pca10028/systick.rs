@@ -1,10 +1,14 @@
-/// Stub implementation of a systick timer since the NRF doesn't have the
-/// Cortex-M0 Systick. 
-///
-/// This implementation currently directly accesses the low frequency clock
-/// to drive the real-time-clock (RTC). Since Clock has been factored out to
-/// a separate module (nrf51822::clock), this module should be refactored to
-/// use it.
+//! Stub implementation of a systick timer since the NRF doesn't have the
+//! Cortex-M0 Systick. 
+//!
+//! This implementation currently directly accesses the low frequency clock
+//! to drive the real-time-clock (RTC). Since Clock has been factored out to
+//! a separate module (nrf51822::clock), this module should be refactored to
+//! use it.
+//!
+//! Author: Philip Levis <pal@cs.stanford.edu>
+//! Author: Amit Levy <amit@amitlevy.com>
+//! Date: August 18, 2016
 
 
 use common::VolatileCell;

@@ -1,3 +1,38 @@
+//! Tock kernel for the Nordic Semiconductor nRF51 development 
+//! kit (DK), a.k.a. the PCA10028. This is an nRF51422 SoC (a
+//! Cortex M0 core with a BLE transciver) with many exported
+//! pins, LEDs, and buttons. Currently the kernel provides
+//! application timers, and GPIO. It will provide a console
+//! once the UART is fully implemented and debugged. The
+//! application GPIO pins are:
+//!
+//!   0 -> LED1 (pin 21)
+//!   1 -> LED2 (pin 22)
+//!   2 -> LED3 (pin 23)
+//!   3 -> LED4 (pin 24)
+//!   5 -> BUTTON1 (pin 17)
+//!   6 -> BUTTON2 (pin 18)
+//!   7 -> BUTTON3 (pin 19)
+//!   8 -> BUTTON4 (pin 20)
+//!   9 -> P0.01   (bottom left header)
+//!  10 -> P0.02   (bottom left header)
+//!  11 -> P0.03   (bottom left header)
+//!  12 -> P0.04   (bottom left header)
+//!  12 -> P0.05   (bottom left header)
+//!  13 -> P0.06   (bottom left header)
+//!  14 -> P0.19   (mid right header)
+//!  15 -> P0.18   (mid right header)
+//!  16 -> P0.17   (mid right header)
+//!  17 -> P0.16   (mid right header)
+//!  18 -> P0.15   (mid right header)
+//!  19 -> P0.14   (mid right header)
+//!  20 -> P0.13   (mid right header)
+//!  21 -> P0.12   (mid right header)
+//!
+//!  Author: Philip Levis <pal@cs.stanford.edu>
+//!  Author: Anderson Lizardo <anderson.lizardo@gmail.com>
+//!  Date: 8/18/16
+
 #![crate_name = "platform"]
 #![crate_type = "rlib"]
 #![no_std]
@@ -12,15 +47,21 @@ extern crate process;
 extern crate common;
 
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use hil::gpio::GPIOPin;
 use drivers::timer::TimerDriver;
 use nrf51822::timer::TimerAlarm;
 use nrf51822::timer::ALARM1;
 
+// The nRF51 DK LEDs (see back of board)
 const LED1_PIN:  usize = 21;
 const LED2_PIN:  usize = 22;
 const LED3_PIN:  usize = 23;
 const LED4_PIN:  usize = 24;
+
+// The nRF51 DK buttons (see back of board)
+const BUTTON1_PIN: usize = 17;
+const BUTTON2_PIN: usize = 18;
+const BUTTON3_PIN: usize = 19;
+const BUTTON4_PIN: usize = 20;
 
 pub mod systick;
 
@@ -88,25 +129,31 @@ macro_rules! static_init {
 }
 
 pub unsafe fn init<'a>() -> &'a mut Platform {
-    // The PCA10028 has 4 LEDs; blink LED1 during boot, leaving it on when
-    // complete.
-    nrf51822::gpio::PORT[LED1_PIN].enable_output();
-    nrf51822::gpio::PORT[LED1_PIN].set();
+    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 22] = [
+                 &nrf51822::gpio::PORT[LED1_PIN], // 21
+                 &nrf51822::gpio::PORT[LED2_PIN], // 22
+                 &nrf51822::gpio::PORT[LED3_PIN], // 23
+                 &nrf51822::gpio::PORT[LED4_PIN], // 24
+                 &nrf51822::gpio::PORT[BUTTON1_PIN], // 17
+                 &nrf51822::gpio::PORT[BUTTON2_PIN], // 18
+                 &nrf51822::gpio::PORT[BUTTON3_PIN], // 19
+                 &nrf51822::gpio::PORT[BUTTON4_PIN], // 20
+                 &nrf51822::gpio::PORT[1],  // Bottom left header on DK board
+                 &nrf51822::gpio::PORT[2],  //   |
+                 &nrf51822::gpio::PORT[3],  //   V 
+                 &nrf51822::gpio::PORT[4],  // 
+                 &nrf51822::gpio::PORT[5],  //
+                 &nrf51822::gpio::PORT[6],  // -----
+                 &nrf51822::gpio::PORT[19], // Mid right header on DK board
+                 &nrf51822::gpio::PORT[18], //   |
+                 &nrf51822::gpio::PORT[17], //   V
+                 &nrf51822::gpio::PORT[16], //  
+                 &nrf51822::gpio::PORT[15], //  
+                 &nrf51822::gpio::PORT[14], //  
+                 &nrf51822::gpio::PORT[13], //  
+                 &nrf51822::gpio::PORT[12], //  
+                 ], 4 * 22);
 
-    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 12] = [
-                 &nrf51822::gpio::PORT[LED1_PIN], // LED_1
-                 &nrf51822::gpio::PORT[LED2_PIN], // LED_2
-                 &nrf51822::gpio::PORT[LED3_PIN], // LED_3
-                 &nrf51822::gpio::PORT[LED4_PIN], // LED_4
-                 &nrf51822::gpio::PORT[0], // Top left header on EK board
-                 &nrf51822::gpio::PORT[1], //   |
-                 &nrf51822::gpio::PORT[2], //   V 
-                 &nrf51822::gpio::PORT[3], // 
-                 &nrf51822::gpio::PORT[4], //
-                 &nrf51822::gpio::PORT[5], // 
-                 &nrf51822::gpio::PORT[6], // 
-                 &nrf51822::gpio::PORT[7], // 
-                 ], 4 * 12);
     static_init!(gpio: drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(gpio_pins), 20);
     for pin in gpio_pins.iter() {
@@ -120,6 +167,10 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
                                                          24);
     nrf51822::uart::UART0.set_client(console);
 
+    // The timer driver is built on top of hardware timer 1, which is implemented
+    // as an HIL Alarm. Timer 0 has some special functionality for the BLE transciever,
+    // so is reserved for that use. This should be rewritten to use the RTC (off the
+    // low frequency clock) for lower power.
     let alarm = &nrf51822::timer::ALARM1;
     static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1), 16);
     alarm.set_client(mux_alarm);
@@ -133,6 +184,8 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
     alarm.enable_nvic();
     alarm.enable_interrupts();
 
+    // Start all of the clocks. Low power operation will require a better
+    // approach than this.
     nrf51822::clock::CLOCK.low_stop();
     nrf51822::clock::CLOCK.high_stop();
 
@@ -149,12 +202,11 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
         console: console,
     }, 12);
 
-    // The systick implementation currently directly accesses the low clock;
-    // it should go through clock::CLOCK instead.
-    //systick::reset();
-    //systick::enable(true);
     alarm.start();
 
+    // The systick implementation currently directly accesses the low clock
+    // when it configures the real time clock (RTC); it should go through 
+    // clock::CLOCK instead.
     systick::reset();
     systick::enable(true); 
     platform
