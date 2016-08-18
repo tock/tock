@@ -12,6 +12,7 @@ pub mod take_cell;
 pub mod volatile_cell;
 pub mod list;
 pub mod math;
+pub mod allocator;
 
 pub use queue::Queue;
 pub use ring_buffer::RingBuffer;

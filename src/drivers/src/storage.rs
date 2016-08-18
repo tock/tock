@@ -4,7 +4,7 @@ use core::ops::Index;
 use main::{Driver};
 use common::{List, ListLink, ListNode, Queue};
 //use common::{RingBuffer, Queue};
-use allocator::{Allocator};
+use common::allocator::{Allocator};
 // TODO: think of a good way to import.
 //use chips::sam4l::flashcalw::{FLASHCALW, flash_controller };
 // TODO: import buddy alloc and flash...
@@ -44,7 +44,6 @@ impl<'a> Index<usize> for Block <'a> {
 
     fn index(&self, index : usize) -> &u8 {
         &self.slice[index] 
-        // TODO: think slice itself would handle Out of Bounds.
     }
 }
 
@@ -54,6 +53,14 @@ pub struct Callback <'a>{
     offset: u32, // starting position of writing
     next: ListLink<'a, Callback<'a>>
 }
+
+impl <'a> PartialEq for Callback<'a> {
+    fn eq(&self, other: &Callback<'a>) -> bool {
+        // TODO : think of a safer way to compare.
+        self as *const Callback<'a> == other as *const Callback<'a>
+    }
+}
+
 
 impl <'a> ListNode<'a, Callback<'a>> for Callback<'a> {
     fn next(&self) -> &'a ListLink<Callback<'a>> {
@@ -109,46 +116,75 @@ impl<'a> Storage<'a> {
     
         // Make the Block, and update the block_table index.
         self.block_table[index as usize] = Some(space.unwrap() as *mut Block<'a>);
+        /* TODO: reword...
         Some(Block {
             slice: unsafe { slice::from_raw_parts(space.unwrap() as *mut u8,size) }
         })
+        */
+        None
     }
 
-    // closes the block from being accessable.
-    pub fn close(&mut self, block : Block) -> Option<Block> {
-       unimplemented!();     
+    // closes the block from being accessable if there's no writes left...
+    // Returns None if the block is closed, or the block if there are pending
+    // writes / it's not found in the table...
+    pub fn close<'b>(&'b mut self, mut block : Block<'b>) -> Option<Block> {
+        let idx = self.find_block_in_table(&mut block);
+        if idx == -1 {
+            return Some(block) // error block not found in table... 
+        }
+        
+        // check to make sure no more queued up writes
+        let mut iter = self.queued_list.iter();
+        let mut curr = iter.next();
+        
+        while !curr.is_none() {
+            if curr.unwrap().id == (idx as usize) {
+                return Some(block)
+            }
+        }
+
+        // No more queued up writes, so lets close it.
+        self.block_table[idx as usize] = None;
+        None
     }
 
     // closes the block, and also deallocates it!
-    pub fn free(&mut self, block : Block) {
+    pub fn free<'b>(&'b mut self, mut block : Block<'b>) -> Option<Block> {
         //TODO: check address / code logic
         let address = block.slice[0] as *mut u8 as usize;
-        self.close(block);
-        self.allocator.free(address);
+        let results: Option<Block> = self.close(block);
+        // Why is it borrowing self.allocator as mut?
+        if results.is_none() {
+            self.allocator.free(address);
+            None
+        } else {
+            results
+        }
     }
 
-   // pub fn 
+    // returns the index in the block_table of a block ( or -1 on failure)
+    fn find_block_in_table(&self, block: &mut Block) -> i32 {
+        for i in 0..NUM_FILE_DESCRIPTORS {
+            if !self.block_table[i].is_none() && self.block_table[i].unwrap() 
+                == block.slice[0] as *mut Block<'a> {
+                return i as i32
+            }
+        }
+        -1 // not found in table
+    }
 
 // TODO: the client will have an interface some trait / function that they have to 
 // implement in order to use the storage and that's where I send the CB to.
 
     pub fn initiate_write<F>(&mut self, block : &mut Block, offset: u32) -> ErrorCode {
         // Find block in block table...
-        let mut id : i32 = -1;
-        for i in 0..NUM_FILE_DESCRIPTORS {
-            if !self.block_table[i].is_none() && self.block_table[i].unwrap() 
-                == block.slice[0] as *mut Block<'a> {
-                id = i as i32;
-                break;
-            }
-        }
-        
-        // Error out if this block doesn't exist or we don't have room to queue a write.
-        // TODO: uncomment and use instead.
-        if id == -1 || !self.write_queue.as_mut().unwrap().enqueue(Callback { 
-            id: id as usize, offset : offset})  {
+        let id = self.find_block_in_table(block);
+        // Error out if this block doesn't exist.
+        if id == -1 { 
             ErrorCode::failure
-        } else { // the request has been successfully enqueued.
+        } else { 
+            // the request has been successfully enqueued.
+            // TODO: insert into list!
             ErrorCode::success
         }
     }
