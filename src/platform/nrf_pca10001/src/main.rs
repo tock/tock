@@ -1,3 +1,4 @@
+#![crate_name = "nrf_pca10001"]
 #![no_std]
 #![no_main]
 #![feature(core_intrinsics,lang_items)]

@@ -47,14 +47,7 @@ include src/Makefile.mk
 
 # Generates documentation for the kernel and selected architecture and platform.
 doc: $(BUILD_PLATFORM_DIR)/kernel.o
-	@echo "Generating documentation..."
-	# Break this temporarily; we'll fix later when this is done recursively
-	#@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)chips/$(CHIP)/lib.rs
-	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)common/lib.rs
-	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)drivers/lib.rs
-	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)hil/lib.rs
-	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)main/lib.rs
-	#@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)platform/$(TOCK_PLATFORM)/lib.rs
+	@echo "Build docs with `make doc` from the platform directory"
 
 # Removes compilation artifacts for Tock, but not external dependencies.
 clean:
