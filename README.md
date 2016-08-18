@@ -130,28 +130,11 @@ or linked into it directly and programmed together. See the README file in each
 platform subdirectory for details.
 
 
-## JTAG Programming
-To connect to the board with a j-link programmer:
+## Platform-Specific Instructions
 
-```bash
-JLinkExe -device ATSAM4LC8C -speed 1200 -if swd -AutoConnect 1
-```
+For instructions on building, uploading code, and debugging on specific
+platforms, see platform specific READMEs.
 
-To debug with GDB:
+ * [Storm](src/platform/storm/README.md)
+ * [nRF](src/platform/nrf_pca10001/README.md)
 
-```bash
-JLinkGDBServer -device ATSAM4LC8C -speed 1200 -if swd -AutoConnect 1 -port 2331
-
-(open a new terminal)
-
-arm-none-eabi-gdb <ELF_FILE>
-```
-
-You also need a `.gdbinit` file:
-
-```bash
-target remote localhost:2331
-load
-mon reset
-break main
-```
