@@ -1,4 +1,4 @@
-CHIP=nrf51822
+CHIP=nrf51
 
 #all: $(BUILD_PLATFORM_DIR)/main.bin | $(BUILD_PLATFORM_DIR)
 #

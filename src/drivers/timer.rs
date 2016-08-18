@@ -149,9 +149,6 @@ impl<'a, A: Alarm> AlarmClient for TimerDriver<'a, A> {
                 }
 
                 timer.callback.map(|mut cb| {
-//                    if cb.app_id().idx() == 0 {
-//                        unsafe {nrf51822::gpio::PORT[23].toggle();}
-//                    }
                     cb.schedule(now as usize, 0, 0);
                 });
             }

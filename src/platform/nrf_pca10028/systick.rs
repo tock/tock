@@ -3,7 +3,7 @@
 //!
 //! This implementation currently directly accesses the low frequency clock
 //! to drive the real-time-clock (RTC). Since Clock has been factored out to
-//! a separate module (nrf51822::clock), this module should be refactored to
+//! a separate module (nrf51::clock), this module should be refactored to
 //! use it.
 //!
 //! Author: Philip Levis <pal@cs.stanford.edu>

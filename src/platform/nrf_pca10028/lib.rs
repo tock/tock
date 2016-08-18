@@ -41,15 +41,15 @@
 
 extern crate drivers;
 extern crate hil;
-extern crate nrf51822;
+extern crate nrf51;
 extern crate support;
 extern crate process;
 extern crate common;
 
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::timer::TimerDriver;
-use nrf51822::timer::TimerAlarm;
-use nrf51822::timer::ALARM1;
+use nrf51::timer::TimerAlarm;
+use nrf51::timer::ALARM1;
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN:  usize = 21;
@@ -66,10 +66,10 @@ const BUTTON4_PIN: usize = 20;
 pub mod systick;
 
 pub struct Platform {
-    chip: nrf51822::chip::Nrf51822,
-    gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
+    chip: nrf51::chip::Nrf51,
+    gpio: &'static drivers::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
-    console: &'static drivers::console::Console<'static, nrf51822::uart::UART>,
+    console: &'static drivers::console::Console<'static, nrf51::uart::UART>,
 }
 
 pub struct DummyMPU;
@@ -129,49 +129,49 @@ macro_rules! static_init {
 }
 
 pub unsafe fn init<'a>() -> &'a mut Platform {
-    static_init!(gpio_pins : [&'static nrf51822::gpio::GPIOPin; 22] = [
-                 &nrf51822::gpio::PORT[LED1_PIN], // 21
-                 &nrf51822::gpio::PORT[LED2_PIN], // 22
-                 &nrf51822::gpio::PORT[LED3_PIN], // 23
-                 &nrf51822::gpio::PORT[LED4_PIN], // 24
-                 &nrf51822::gpio::PORT[BUTTON1_PIN], // 17
-                 &nrf51822::gpio::PORT[BUTTON2_PIN], // 18
-                 &nrf51822::gpio::PORT[BUTTON3_PIN], // 19
-                 &nrf51822::gpio::PORT[BUTTON4_PIN], // 20
-                 &nrf51822::gpio::PORT[1],  // Bottom left header on DK board
-                 &nrf51822::gpio::PORT[2],  //   |
-                 &nrf51822::gpio::PORT[3],  //   V 
-                 &nrf51822::gpio::PORT[4],  // 
-                 &nrf51822::gpio::PORT[5],  //
-                 &nrf51822::gpio::PORT[6],  // -----
-                 &nrf51822::gpio::PORT[19], // Mid right header on DK board
-                 &nrf51822::gpio::PORT[18], //   |
-                 &nrf51822::gpio::PORT[17], //   V
-                 &nrf51822::gpio::PORT[16], //  
-                 &nrf51822::gpio::PORT[15], //  
-                 &nrf51822::gpio::PORT[14], //  
-                 &nrf51822::gpio::PORT[13], //  
-                 &nrf51822::gpio::PORT[12], //  
+    static_init!(gpio_pins : [&'static nrf51::gpio::GPIOPin; 22] = [
+                 &nrf51::gpio::PORT[LED1_PIN], // 21
+                 &nrf51::gpio::PORT[LED2_PIN], // 22
+                 &nrf51::gpio::PORT[LED3_PIN], // 23
+                 &nrf51::gpio::PORT[LED4_PIN], // 24
+                 &nrf51::gpio::PORT[BUTTON1_PIN], // 17
+                 &nrf51::gpio::PORT[BUTTON2_PIN], // 18
+                 &nrf51::gpio::PORT[BUTTON3_PIN], // 19
+                 &nrf51::gpio::PORT[BUTTON4_PIN], // 20
+                 &nrf51::gpio::PORT[1],  // Bottom left header on DK board
+                 &nrf51::gpio::PORT[2],  //   |
+                 &nrf51::gpio::PORT[3],  //   V 
+                 &nrf51::gpio::PORT[4],  // 
+                 &nrf51::gpio::PORT[5],  //
+                 &nrf51::gpio::PORT[6],  // -----
+                 &nrf51::gpio::PORT[19], // Mid right header on DK board
+                 &nrf51::gpio::PORT[18], //   |
+                 &nrf51::gpio::PORT[17], //   V
+                 &nrf51::gpio::PORT[16], //  
+                 &nrf51::gpio::PORT[15], //  
+                 &nrf51::gpio::PORT[14], //  
+                 &nrf51::gpio::PORT[13], //  
+                 &nrf51::gpio::PORT[12], //  
                  ], 4 * 22);
 
-    static_init!(gpio: drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin> =
+    static_init!(gpio: drivers::gpio::GPIO<'static, nrf51::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(gpio_pins), 20);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
 
-    static_init!(console: drivers::console::Console<nrf51822::uart::UART> =
-                          drivers::console::Console::new(&nrf51822::uart::UART0, 
+    static_init!(console: drivers::console::Console<nrf51::uart::UART> =
+                          drivers::console::Console::new(&nrf51::uart::UART0, 
                                                          &mut drivers::console::WRITE_BUF, 
                                                          process::Container::create()),
                                                          24);
-    nrf51822::uart::UART0.set_client(console);
+    nrf51::uart::UART0.set_client(console);
 
     // The timer driver is built on top of hardware timer 1, which is implemented
     // as an HIL Alarm. Timer 0 has some special functionality for the BLE transciever,
     // so is reserved for that use. This should be rewritten to use the RTC (off the
     // low frequency clock) for lower power.
-    let alarm = &nrf51822::timer::ALARM1;
+    let alarm = &nrf51::timer::ALARM1;
     static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1), 16);
     alarm.set_client(mux_alarm);
 
@@ -186,17 +186,17 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
-    nrf51822::clock::CLOCK.low_stop();
-    nrf51822::clock::CLOCK.high_stop();
+    nrf51::clock::CLOCK.low_stop();
+    nrf51::clock::CLOCK.high_stop();
 
-    nrf51822::clock::CLOCK.low_set_source(nrf51822::clock::LowClockSource::RC);
-    nrf51822::clock::CLOCK.low_start();
-    nrf51822::clock::CLOCK.high_start();
-    while !nrf51822::clock::CLOCK.low_started() {}
-    while !nrf51822::clock::CLOCK.high_started() {}
+    nrf51::clock::CLOCK.low_set_source(nrf51::clock::LowClockSource::RC);
+    nrf51::clock::CLOCK.low_start();
+    nrf51::clock::CLOCK.high_start();
+    while !nrf51::clock::CLOCK.low_started() {}
+    while !nrf51::clock::CLOCK.high_started() {}
 
     static_init!(platform: Platform = Platform {
-        chip: nrf51822::chip::Nrf51822::new(),
+        chip: nrf51::chip::Nrf51::new(),
         gpio: gpio,
         timer: timer,
         console: console,
@@ -222,8 +222,8 @@ pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
     use support::nop;
     use hil::gpio::GPIOPin;
 
-    let led0 = &nrf51822::gpio::PORT[LED1_PIN];
-    let led1 = &nrf51822::gpio::PORT[LED2_PIN];
+    let led0 = &nrf51::gpio::PORT[LED1_PIN];
+    let led1 = &nrf51::gpio::PORT[LED2_PIN];
 
     led0.enable_output();
     led1.enable_output();

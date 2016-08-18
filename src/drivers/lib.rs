@@ -6,7 +6,6 @@
 extern crate common;
 extern crate hil;
 extern crate process;
-extern crate nrf51822;
 
 pub mod console;
 pub mod gpio;

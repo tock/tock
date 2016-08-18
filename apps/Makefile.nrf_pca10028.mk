@@ -1,4 +1,4 @@
-CHIP := nrf51822
+CHIP := nrf51
 ARCH := cortex-m0
 TOCK_PLATFORM_LINKER_SCRIPT = $(TOCK_DIR)/chips/$(CHIP)/loader.ld
 

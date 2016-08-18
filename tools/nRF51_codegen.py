@@ -124,7 +124,7 @@ def main():
     }
 
     env = Environment(loader=FileSystemLoader('.'), keep_trailing_newline=True)
-    prefix = 'src/chips/nrf51822/'
+    prefix = 'src/chips/nrf51/'
     for outf in [
             'peripheral_registers.rs',
             'peripheral_interrupts.rs',
