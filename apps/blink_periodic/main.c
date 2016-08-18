@@ -1,3 +1,15 @@
+/**
+ *  This application runs a while(1) loop in which it starts
+ *  a one-shot timer then waits for it to fire. The main loop
+ *  toggles GPIO pin 0, while the event toggles GPIO pin 1.
+ *  If this application is working properly, you should see
+ *  GPIO pins 0 and 1 toggle (with one being on, one being off)
+ *  at approximately 2Hz.
+ *
+ *  Author: Philip Levis <pal@cs.stanford.edu>
+ *  Date: August 18, 2016
+ */
+
 #include <firestorm.h>
 #include <gpio.h>
 
