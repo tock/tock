@@ -1,1 +1,1 @@
-JLinkGDBServer -if swd -speed 1200 -device nrf51
+JLinkGDBServer -if swd -speed 1200 -device nRF51422

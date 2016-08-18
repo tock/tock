@@ -5,8 +5,7 @@
 # for commands on localhost at tcp port 2331
 target remote localhost:2331
 monitor speed 30
-monitor endian big
-file build/nrf_pca10001/blink_periodic/kernel_and_app.elf
+file build/nrf_pca10028/blink_periodic/kernel_and_app.elf
 monitor reset
 #
 # CPU core initialization (to be done by user)

@@ -251,6 +251,7 @@ impl TimerAlarm {
         self.timer().task_stop.set(1);
     }
 
+#[inline(never)]
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
         self.client.map(|client| {
