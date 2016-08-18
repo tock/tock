@@ -60,10 +60,8 @@ impl<'a, A: Alarm + 'a> TimerDriver<'a, A> {
 impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
 #[inline(never)]
     fn subscribe(&self, _: usize, callback: Callback) -> isize {
-      //      unsafe{nrf51822::gpio::PORT[22].toggle();}
         self.app_timer.enter(callback.app_id(), |td, _allocator| {
             td.callback = Some(callback);
-            unsafe{nrf51822::gpio::PORT[22].toggle();}
             0
         }).unwrap_or(-1)
     }
@@ -154,9 +152,9 @@ impl<'a, A: Alarm> AlarmClient for TimerDriver<'a, A> {
                 }
 
                 timer.callback.map(|mut cb| {
-                    if cb.app_id().idx() == 0 {
-                        unsafe {nrf51822::gpio::PORT[23].toggle();}
-                    }
+//                    if cb.app_id().idx() == 0 {
+//                        unsafe {nrf51822::gpio::PORT[23].toggle();}
+//                    }
                     cb.schedule(now as usize, 0, 0);
                 });
             }

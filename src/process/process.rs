@@ -23,11 +23,9 @@ static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE
 
 pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None; NUM_PROCS];
 
-
 pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
     let procs = unsafe { &mut PROCS };
     let idx = appid.idx();
-//    unsafe {*GPIO() = *GPIO() ^ (1 << 23);}
     if idx >= procs.len() {
         return false
     }
