@@ -1,8 +1,6 @@
 use core::cell::Cell;
 use hil::alarm::{Alarm, AlarmClient};
 use common::{List, ListLink, ListNode};
-use hil::gpio::GPIOPin;
-
 
 pub struct VirtualMuxAlarm<'a, Alrm: Alarm + 'a> {
     mux: &'a MuxAlarm<'a, Alrm>,

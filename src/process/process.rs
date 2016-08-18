@@ -24,12 +24,6 @@ static mut MEMORIES: [[u8; PROC_MEMORY_SIZE]; NUM_PROCS] = [[0; PROC_MEMORY_SIZE
 pub static mut PROCS : [Option<Process<'static>>; NUM_PROCS] = [None; NUM_PROCS];
 
 
-#[allow(non_snake_case)]
-fn GPIO() -> *mut u32 {
-        unsafe { mem::transmute(0x50000504 as usize) }
-}
-
-
 pub fn schedule(callback: Callback, appid: ::AppId) -> bool {
     let procs = unsafe { &mut PROCS };
     let idx = appid.idx();

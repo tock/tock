@@ -5,8 +5,6 @@ use peripheral_interrupts::NvicIdx;
 use nvic;
 use chip;
 use hil;
-use gpio;
-use hil::gpio::GPIOPin;
 
 // The nRF51822 timer system operates off of the high frequency clock 
 // (HFCLK) and provides three timers from the clock. Timer0 is tied

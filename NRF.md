@@ -1,17 +1,19 @@
 # Running Tock on the nRF51822 EK 
 
-This document describes how to install Tock on the nRF51822 evaluation
-kit (EK).
+This document describes how to install Tock on the nRF51 development
+kit (DK), also known as the PCA10028, which has an nRF51422 SoC. 
 
-The Nordic nRF51822 is a Cortex M0 with an integrated Bluetooth Low
+The Nordic nRF51$22 is a Cortex M0 with an integrated Bluetooth Low
 Energy (BLE) transciever. The Firestorm platform has an Atmel SAM4L as
-its application processor and an nRF51822 for BLE support.
+its application processor and an nRF51$22 for BLE support.
 
-You should be using the ```nRF51822/devel``` branch.
+You should be using the ```nRF51822/devel``` branch. It's named 
+nRF51822 for historical reasons (the 51822 is a prior revision of
+the 51422).
 
 ## Overview
 
-The nRF51822 EK is an ARM mbed device. This means that plugging it
+The nRF51 DK is an ARM mbed device. This means that plugging it
 into USB causes it to appear as a SCSI block storage device. To
 install a new image on it, you need to create an iHex format and copy
 it onto the device, named as `firmware.hex`. When you copy
@@ -22,21 +24,21 @@ at the device directory, you will never see your firmware.hex.
 
 ## Setting up nRF51822 (OS X)
 
-When you plug in the nRF51822 EK, it'll appear as /Volumes/MBED.
+When you plug in the nRF51 DK, it'll appear as /Volumes/MBED.
 The default setting for ```make program-mbed``` is to install the
-generated binary to /Volumes/MBED, so you should be able to just
+generated binary to /Volumes/JLINK, so you should be able to just
 compile and program.
 
 ## Setting up nRF51822 (Linux)
 
-The nRF51822 EK appears as a USB-connected SCSI device. In the Linux
+The nRF51 DK appears as a USB-connected SCSI device. In the Linux
 device hierarchy, this means /dev/sd*, where * depends on your
 existing SCSI devices.
 
 ### Which SCSI device?
 
 To see what device it is, there are two easy ways. First, plug in the
-EK. Then, either ```ls -l /dev/sd*```:
+DK. Then, either ```ls -l /dev/sd*```:
 
 ```pal@ubuntu:~/src/tock/apps/c_blinky$ ls -l /dev/sd*
 brw-rw---- 1 root disk 8,  0 Jul  7 10:01 /dev/sda
@@ -47,7 +49,7 @@ brw-rw---- 1 root disk 8, 16 Jul  7 13:55 /dev/sdb
 ```
 
 In the example above, the computer booted around 9:30AM, and the EK was
-plugged in at 1:55. So /dev/sdb is the EK, because its modification time
+plugged in at 1:55. So /dev/sdb is the DK, because its modification time
 (when it was inserted) is 1:55.
 
 Alternatively, you can look at the syslog:
@@ -77,12 +79,12 @@ device. One easy way to do this is to install the ```usbmount```
 package. This package adds several scripts that make mounting USB
 devices easier.
 
-Unplug the EK, install ```usbmount```, and plug the EK back in.
+Unplug the DK, install ```usbmount```, and plug the DK back in.
 
-You should now be able to see the EK as a file system mounted at
-```/var/run/usbmount/MBED_microcontroller```.
+You should now be able to see the DK as a file system mounted at
+```/var/run/usbmount/JLINK_microcontroller```.
 
-```pal@ubuntu:/var/run/usbmount/MBED_microcontroller$ ls
+```pal@ubuntu:/var/run/usbmount/JLINK_microcontroller$ ls
 mbed.htm  System Volume Information```.
 
 ### Test Golden Image
@@ -90,7 +92,7 @@ mbed.htm  System Volume Information```.
 Copy ```golden/nrf-golden.hex``` to the EK:
 
 ```pal@ubuntu:~/src/tock$ cd golden/
-pal@ubuntu:~/src/tock/golden$ cp nrf-golden.hex /var/run/usbmount/MBED_microcontroller/```
+pal@ubuntu:~/src/tock/golden$ cp nrf-golden.hex /var/run/usbmount/JLINK_microcontroller/```
 
 Note that this will cause the device to disconnect and reconnect,
 and you will not be able to see the file (read above).
@@ -98,28 +100,28 @@ and you will not be able to see the file (read above).
 Hit the reset button. You should see the two green LEDs blinking
 at about 1Hz.
  
-## Compiling for nRF51822
+## Compiling for nRF51422
 
 To compile an image for the EK, you need to change the TOCK_PLATFORM
-variable to ```nrf_pca10001``` (it defaults to firestorm). For
+variable to ```nrf_pca10028``` (it defaults to firestorm). For
 example, to compile the golden image above,
 
 ```pal@ubuntu:~/src/tock$ pwd
 /home/pal/src/tock
-$ make TOCK_PLATFORM=nrf_pca10001 -C apps/c_blinky
+$ make TOCK_PLATFORM=nrf_pca10028 -C apps/blink_periodic
 ```
 
-The EK expects an ihex (named ```firmware.ihex```) rather than an ELF
+The DK expects an ihex (named ```firmware.ihex```) rather than an ELF
 image. So you need to convert between the two. Standard Tock
-compilatiopn puts the image in ```build/nrf_pca10001/```. So, for
-example, to convert the c_blinky ELF to the correct format and name:
+compilatiopn puts the image in ```build/nrf_pca10028/```. So, for
+example, to convert the application ELF to the correct format and name:
 
-```$ arm-none-eabi-objcopy -Oihex build/nrf_pca10001/c_blinky/kernel_and_app.elf firmware.hex
+```$ arm-none-eabi-objcopy -Oihex build/nrf_pca10028/blink_periodic/kernel_and_app.elf firmware.hex
 ```
 
 Then, copy ```firmware.hex``` to the MBED filesystem, as above. You can
 also use ```make mbed-program``` to copy it automatically. If you are
 using Linux with usbmount, you'll want to change the definition of
-MOUNT_DIR in apps/Makefile.nrf_pca10001.nk to the Linux setting 
+MOUNT_DIR in apps/Makefile.nrf_pca10028.mk to the Linux setting 
 (comments explain).
 
