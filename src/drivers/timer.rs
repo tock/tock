@@ -2,8 +2,6 @@ use core::cell::Cell;
 use process::{AppId, Container, Callback};
 use hil::Driver;
 use hil::alarm::{Alarm, AlarmClient, Frequency};
-use hil::gpio::GPIOPin;
-use nrf51822;
 
 #[derive(Copy, Clone)]
 pub struct TimerData {
@@ -58,7 +56,6 @@ impl<'a, A: Alarm + 'a> TimerDriver<'a, A> {
 }
 
 impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
-#[inline(never)]
     fn subscribe(&self, _: usize, callback: Callback) -> isize {
         self.app_timer.enter(callback.app_id(), |td, _allocator| {
             td.callback = Some(callback);

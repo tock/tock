@@ -1,3 +1,7 @@
+//! GPIO and GPIOTE (task and events) for the nRF51 series.
+//! Author: Philip Levis <pal@cs.stanford.edu>
+//! Date: 8/18/16
+
 use core::mem;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
@@ -10,11 +14,11 @@ use nvic;
 
 use peripheral_registers::{GPIO_BASE, GPIO};
 
-// The nRF51822 doesn't automatically provide GPIO interrupts. Instead, 
-// to receive interrupts from a GPIO line, you must allocate a GPIOTE
-// (GPIO Task and Event) channel, and bind the channel to the desired 
-// pin. There are 4 channels. This means that requesting an interrupt 
-// can fail, if there are already 4 allocated.
+/// The nRF51822 doesn't automatically provide GPIO interrupts. Instead, 
+/// to receive interrupts from a GPIO line, you must allocate a GPIOTE
+/// (GPIO Task and Event) channel, and bind the channel to the desired 
+/// pin. There are 4 channels. This means that requesting an interrupt 
+/// can fail, if there are already 4 allocated.
 
 struct GpioteRegisters {
     pub out0:     VolatileCell<u32>, // 0x0
@@ -54,7 +58,7 @@ fn GPIOTE() -> &'static GpioteRegisters {
     unsafe { mem::transmute(GPIOTE_BASE as usize) }
 }
 
-// Allocate a GPIOTE channel
+/// Allocate a GPIOTE channel
 fn allocate_channel() -> i8 {
     if GPIOTE().config0.get() & 1 == 0 {
         return 0;
@@ -68,6 +72,8 @@ fn allocate_channel() -> i8 {
     return -1;
 }
 
+
+/// Return which channel is allocated to a pin, or -1 if none.
 fn find_channel(pin: u8) -> i8 {
     if (GPIOTE().config0.get() >> 8) & 0x1F == pin as u32 { 
         return 0;
@@ -210,8 +216,8 @@ impl IndexMut<usize> for Port {
 }
 
 impl Port {
-    // GPIOTE interrupt: check each of 4 GPIOTE channels, if any has
-    // fired then trigger its corresponding pin's interrupt handler.
+    /// GPIOTE interrupt: check each of 4 GPIOTE channels, if any has
+    /// fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {
         nvic::clear_pending(NvicIdx::GPIOTE);
 

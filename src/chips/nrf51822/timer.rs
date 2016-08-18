@@ -1,3 +1,23 @@
+//! The nRF51822 timer system operates off of the high frequency clock 
+//! (HFCLK) and provides three timers from the clock. Timer0 is tied
+//! to the radio through some hard-coded peripheral linkages (e.g., there
+//! are dedicated PPI connections between Timer0's compare events and
+//! radio tasks, its capture tasks and radio events).
+//! 
+//! This implementation provides a full-fledged Timer interface to
+//! timers 0 and 2, and exposes Timer1 as an HIL Alarm, for a Tock 
+//! timer system. It may be that the Tock timer system should be ultimately
+//! placed on top of the RTC (from the low frequency clock). It's currently
+//! implemented this way as a demonstration that it can be and because
+//! the full RTC/clock interface hasn't been finalized yet.
+//!
+//! This approach should be rewritten, such that the timer system uses
+//! the RTC from the low frequency clock (lower power) and the scheduler
+//! uses the high frequency clock.
+//!
+//! Author: Philip Levis <pal@cs.stanford.edu>
+//! Date: 8/18/16
+
 use core::mem;
 use common::VolatileCell;
 use common::take_cell::TakeCell;
@@ -5,19 +25,6 @@ use peripheral_interrupts::NvicIdx;
 use nvic;
 use chip;
 use hil;
-
-// The nRF51822 timer system operates off of the high frequency clock 
-// (HFCLK) and provides three timers from the clock. Timer0 is tied
-// to the radio through some hard-coded peripheral linkages (e.g., there
-// are dedicated PPI connections between Timer0's compare events and
-// radio tasks, its capture tasks and radio events).
-// 
-// This implementation provides a full-fledged Timer interface to
-// timers 0 and 2, and exposes Timer1 as an HIL Alarm, for a Tock 
-// timer system. It may be that the Tock timer system should be ultimately
-// placed on top of the RTC (from the low frequency clock). It's currently
-// implemented this way as a demonstration that it can be and because
-// the full RTC/clock interface hasn't been finalized yet.
 
 #[repr(C, packed)]
 struct Registers {
@@ -77,7 +84,7 @@ fn TIMER(location: Location) -> &'static Registers {
 }
 
 pub trait CompareClient {
-    // Passes a bitmask of which compares/captures fired
+    /// Passes a bitmask of which of the 4 compares/captures fired (0x0-0xf).
     fn compare(&self, bitmask: u8);
 }
 
@@ -118,6 +125,8 @@ impl Timer {
         self.timer().task_clear.set(1); 
     }
 
+    /// Capture the current timer value into the CC register
+    /// specified by which, and return the value.
     pub fn capture(&self, which: u8) -> u32 {
         match which {
             0 => {
@@ -139,10 +148,16 @@ impl Timer {
         }
     }
 
+    /// Capture the current value to the CC register specified by
+    /// which and do not return the value.
     pub fn capture_to(&self, which: u8) {
         let _ = self.capture(which);
     }
 
+    /// Shortcuts can automatically stop or clear the timer on a particular
+    /// compare event; refer to section 18.3 of the nRF reference manual
+    /// for details. Implementation currently provides shortcuts as the
+    /// raw bitmask.
     pub fn get_shortcuts(&self) -> u32 {
         self.timer().shorts.get() 
     }
@@ -183,6 +198,9 @@ impl Timer {
         self.timer().prescaler.get() as u8
     }
 
+    /// When an interrupt occurs, check if any of the 4 compares have
+    /// created an event, and if so, add it to the bitmask of triggered
+    /// events that is passed to the client.
     pub fn handle_interrupt(&self) {
         nvic::clear_pending(self.nvic);
         self.client.map(|client| {

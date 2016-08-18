@@ -29,7 +29,6 @@ pub struct Platform {
     gpio: &'static drivers::gpio::GPIO<'static, nrf51822::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
     console: &'static drivers::console::Console<'static, nrf51822::uart::UART>,
-
 }
 
 pub struct DummyMPU;
@@ -156,20 +155,8 @@ pub unsafe fn init<'a>() -> &'a mut Platform {
     //systick::enable(true);
     alarm.start();
 
-    let mut count = 0;
-    while count < 10 {
-        let val = alarm.value();
-        if val > 0x7ff {
-            alarm.stop();
-            alarm.clear();
-            alarm.start();
-            nrf51822::gpio::PORT[LED1_PIN].toggle();
-            count = count + 1;
-        }
-    } 
     systick::reset();
     systick::enable(true); 
-    nrf51822::gpio::PORT[LED1_PIN].clear();
     platform
 }
 
