@@ -33,12 +33,9 @@
 //!  Author: Anderson Lizardo <anderson.lizardo@gmail.com>
 //!  Date: August 18, 2016
 
-#![crate_name = "platform"]
-#![crate_type = "rlib"]
 #![no_std]
-#![feature(lang_items)]
-#![feature(const_fn)]
-#![feature(core_intrinsics)]
+#![no_main]
+#![feature(core_intrinsics,lang_items)]
 
 extern crate cortexm0;
 extern crate drivers;
@@ -51,6 +48,7 @@ use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::timer::TimerDriver;
 use nrf51::timer::TimerAlarm;
 use nrf51::timer::ALARM1;
+use hil::gpio::GPIOPin;
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN:  usize = 21;
@@ -147,6 +145,7 @@ macro_rules! static_init {
     }
 }
 
+#[no_mangle]
 pub unsafe fn reset_handler() {
     nrf51::init();
 
@@ -174,6 +173,9 @@ pub unsafe fn reset_handler() {
                  &nrf51::gpio::PORT[13], //  
                  &nrf51::gpio::PORT[12], //  
                  ], 4 * 22);
+
+    nrf51::gpio::PORT[LED1_PIN].enable_output();
+    nrf51::gpio::PORT[LED1_PIN].clear();
 
     static_init!(gpio: drivers::gpio::GPIO<'static, nrf51::gpio::GPIOPin> =
                  drivers::gpio::GPIO::new(gpio_pins), 20);
