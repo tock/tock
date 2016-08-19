@@ -1,7 +1,7 @@
 # Makefile for the Tock embedded operating system.
 #
-# Included Makfiles, in subdirectories, contain most of the build system. See
-# indiviual subdirectories and README for more specific explanation.
+# Included Makefiles, in subdirectories, contain most of the build system. See
+# individual subdirectories and README for more specific explanation.
 
 # Default platform is the Storm (http://storm.rocks). Change to any platform in
 # the `platform` directory.
@@ -53,14 +53,14 @@ doc: $(BUILD_PLATFORM_DIR)/kernel.o
 	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)common/lib.rs
 	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)drivers/lib.rs
 	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)hil/lib.rs
-	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)main/main.rs
-	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)platform/$(TOCK_PLATFORM)/lib.rs
+	@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)main/lib.rs
+	#@$(RUSTDOC) --target $(RUST_TARGET) -L$(BUILD_PLATFORM_DIR) $(SRC_DIR)platform/$(TOCK_PLATFORM)/lib.rs
 
 # Removes compilation artifacts for Tock, but not external dependencies.
 clean:
 	rm -rf $(BUILD_PLATFORM_DIR)/*.*
 
-# Remove all compilation artifacts, including for external dependencies.
+# Remove all compilation artifacts, including external dependencies.
 clean-all:
 	rm -rf $(BUILD_PLATFORM_DIR)
 
