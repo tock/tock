@@ -33,6 +33,7 @@
 //!  Author: Anderson Lizardo <anderson.lizardo@gmail.com>
 //!  Date: August 18, 2016
 
+#![crate_name = "nrf_pca10028"]
 #![no_std]
 #![no_main]
 #![feature(core_intrinsics,lang_items)]
