@@ -1,3 +1,4 @@
+#![crate_name = "storm"]
 #![no_std]
 #![no_main]
 #![feature(const_fn,lang_items)]

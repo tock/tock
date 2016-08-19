@@ -1,5 +1,4 @@
 target
-doc/*
 build/*
 *.rlib
 *.sdb
