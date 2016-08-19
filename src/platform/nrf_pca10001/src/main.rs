@@ -10,6 +10,9 @@ extern crate nrf51822;
 extern crate main;
 extern crate support;
 
+#[macro_use]
+pub mod io;
+
 unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>>] {
     use core::intrinsics::{volatile_load,volatile_store};
     extern {
@@ -123,33 +126,8 @@ pub unsafe fn reset_handler() {
 
     static_init!(platform: Platform = Platform { gpio: gpio }, 4);
 
+    println!("Welcome to Tock!");
+
     main::main(platform, &mut nrf51822::NRF51822::new(), load_process());
 }
 
-use core::fmt::Arguments;
-#[cfg(not(test))]
-#[lang="panic_fmt"]
-#[no_mangle]
-pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
-    _file: &'static str, _line: usize) -> ! {
-    use support::nop;
-    use hil::gpio::GPIOPin;
-
-    let led0 = &nrf51822::gpio::PA[18];
-    let led1 = &nrf51822::gpio::PA[19];
-
-    led0.enable_output();
-    led1.enable_output();
-    loop {
-        for _ in 0..100000 {
-            led0.set();
-            led1.set();
-            nop();
-        }
-        for _ in 0..100000 {
-            led0.clear();
-            led1.clear();
-            nop();
-        }
-    }
-}
