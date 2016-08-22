@@ -3,19 +3,15 @@ use core::option::Option;
 use core::ops::Index;
 use main::{Driver};
 use common::{List, ListLink, ListNode, Queue};
-//use common::{RingBuffer, Queue};
 use common::allocator::{Allocator};
 // TODO: think of a good way to import.
-//use chips::sam4l::flashcalw::{FLASHCALW, flash_controller };
+use chips::sam4l::flashcalw::{FLASHCALW, flash_controller};
 // TODO: import buddy alloc and flash...
-// TODO: import buddy allocator using cargo / crates..
 /*
     TODO( in the future)
     Have my storage 'walk memory' it's declared on, on bootup so it can know
     what's allocated, and what's not already.
 */
-
-// todo: FIGURE out storage issues...
 
 const NUM_FILE_DESCRIPTORS : usize = 5;
 // This will depend on the system...
@@ -29,6 +25,7 @@ pub enum ErrorCode {
     failure,
 }
 
+#[derive(Clone, Copy)]
 pub struct Block <'a> {
     slice: &'a[u8]
 }
@@ -56,7 +53,6 @@ pub struct Callback <'a>{
 
 impl <'a> PartialEq for Callback<'a> {
     fn eq(&self, other: &Callback<'a>) -> bool {
-        // TODO : think of a safer way to compare.
         self as *const Callback<'a> == other as *const Callback<'a>
     }
 }
@@ -68,9 +64,14 @@ impl <'a> ListNode<'a, Callback<'a>> for Callback<'a> {
     }
 }
 
+// Trait that any client of storage needs to implement.
+pub trait StorageClient {
+    fn write(arr : &[u8], size : usize);
+}
+
 pub struct Storage <'a> {
     // todo: might modify and wrap the block up maybe with a client id / app id?
-    block_table: [Option<*mut Block<'a>>; NUM_FILE_DESCRIPTORS],
+    block_table: [Option<*const Block<'a>>; NUM_FILE_DESCRIPTORS],
     queued_list: List<'a, Callback<'a>>,
     allocator: Allocator,
     last_fd: i32, // last used 'index' into block table. Remember to flush if
@@ -152,9 +153,30 @@ impl<'a> Storage<'a> {
     pub fn free<'b>(&'b mut self, mut block : Block<'b>) -> Option<Block> {
         //TODO: check address / code logic
         let address = block.slice[0] as *mut u8 as usize;
-        let results: Option<Block> = self.close(block);
-        // Why is it borrowing self.allocator as mut?
+        
+        // TODO: figure out how to reuse the 'close function' instead of just
+        // copying it here... and have this block be "consumed" not borrowed.
+        //let results = self.close(block);
+        
+        let mut results = None;
+        let idx = self.find_block_in_table(&mut block);
+        if idx == -1 {
+            return Some(block) // error block not found in table... 
+        }
+        
+        // check to make sure no more queued up writes
+        let mut iter = self.queued_list.iter();
+        let mut curr = iter.next();
+        
+        while !curr.is_none() {
+            if curr.unwrap().id == (idx as usize) {
+                results =  Some(block)
+            }
+        }
+        
         if results.is_none() {
+            // No more queued up writes, so lets close it.
+            self.block_table[idx as usize] = None;
             self.allocator.free(address);
             None
         } else {
@@ -162,11 +184,12 @@ impl<'a> Storage<'a> {
         }
     }
 
+
     // returns the index in the block_table of a block ( or -1 on failure)
-    fn find_block_in_table(&self, block: &mut Block) -> i32 {
+    fn find_block_in_table(&self, block: &Block) -> i32 {
         for i in 0..NUM_FILE_DESCRIPTORS {
             if !self.block_table[i].is_none() && self.block_table[i].unwrap() 
-                == block.slice[0] as *mut Block<'a> {
+                == block.slice[0] as *const Block<'a> {
                 return i as i32
             }
         }
@@ -175,17 +198,38 @@ impl<'a> Storage<'a> {
 
 // TODO: the client will have an interface some trait / function that they have to 
 // implement in order to use the storage and that's where I send the CB to.
-
-    pub fn initiate_write<F>(&mut self, block : &mut Block, offset: u32) -> ErrorCode {
-        // Find block in block table...
+    
+    // NOTE: This is a pretty big security flaw here! Which should be addressed in
+    // the future. The get_callback() function has no way to ensure that the callback
+    // is registered with initiate_write as the code is currently written. Thus someone
+    // could potentially get_callback(), close their file, have someone else open
+    // a block in the same table index and initiate_write() on the other person's
+    // block! 
+    pub fn get_callback(&self, block : &Block, offset: u32) -> Option<Callback> {
         let id = self.find_block_in_table(block);
         // Error out if this block doesn't exist.
-        if id == -1 { 
-            ErrorCode::failure
-        } else { 
-            // the request has been successfully enqueued.
-            // TODO: insert into list!
-            ErrorCode::success
+        if id == -1 {
+            None
+        } else {
+            Some(Callback {
+                id: id as usize,
+                offset: offset,
+                next: ListLink::empty() 
+            })
+        }
+    }
+
+
+    pub fn initiate_write(&mut self, callback : &'a Callback<'a>) -> ErrorCode {
+        self.queued_list.push_head(callback);
+        ErrorCode::success
+    }
+
+    // This is the function to call on the Storage in order to process any work 
+    // queued up.
+    fn run(&self) {
+        if self.queued_list.head().is_none() {
+            // do nothing
         }
     }
 
