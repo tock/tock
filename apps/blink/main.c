@@ -2,13 +2,11 @@
 #include <gpio.h>
 
 int main(void) {
-    gpio_set(0);
+    gpio_enable_output(LED_0);
+
     while(1) {
-      gpio_toggle(0);
-//      printf("Before delay.\n");
-      delay_ms(1000);
-//      printf("After delay.\n");
-//      gpio_toggle(1);
+      gpio_toggle(LED_0);
+      delay_ms(500);
     }
 }
 

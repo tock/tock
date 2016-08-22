@@ -92,24 +92,13 @@ unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>
 }
 
 pub struct Platform {
-    //chip: nrf51::chip::Nrf51,
     gpio: &'static drivers::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
     console: &'static drivers::console::Console<'static, nrf51::uart::UART>,
 }
 
-/* pub struct DummyMPU;
-
-impl DummyMPU {
-    pub fn set_mpu(&mut self, _: u32, _: u32, _: u32, _: bool, _: u32) {
-    }
-}*/
 
 impl main::Platform for Platform {
-  /*  pub fn mpu(&mut self) -> DummyMPU {
-        DummyMPU
-    } */
-
     #[inline(never)]
     fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
         F: FnOnce(Option<&main::Driver>) -> R {
@@ -220,7 +209,6 @@ pub unsafe fn reset_handler() {
     while !nrf51::clock::CLOCK.high_started() {}
 
     static_init!(platform: Platform = Platform {
-        //chip: nrf51::chip::NRF51::new(),
         gpio: gpio,
         timer: timer,
         console: console,
