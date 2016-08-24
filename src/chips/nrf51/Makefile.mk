@@ -1,7 +1,7 @@
 ARCH = cortex-m0
 
 RUSTC_FLAGS += -C opt-level=3 -Z no-landing-pads
-RUSTC_FLAGS += --target $(SRC_DIR)chips/$(CHIP)/target.json
+RUSTC_FLAGS += --target $(SRC_DIR)chips/$(CHIP)/makefile_target.json
 RUSTC_FLAGS += -Ctarget-cpu=$(ARCH) -C relocation_model=static
 RUSTC_FLAGS += -C no-stack-check
 
