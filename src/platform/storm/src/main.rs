@@ -25,13 +25,12 @@ use sam4l::usart;
 #[macro_use]
 pub mod io;
 
-// HAL unit tests. To enable a particular unit test, uncomment
-// the module here and uncomment the call to start the test in
-// the init function below.
-// mod gpio_dummy;
-// mod spi_dummy;
-// mod i2c_dummy;
-// mod flash_dummy;
+// HAL unit tests. To enable a particular unit test, uncomment the call to
+// start the test in the init function below.
+mod gpio_dummy;
+mod spi_dummy;
+mod i2c_dummy;
+mod flash_dummy;
 
 static mut spi_read_buf: [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
