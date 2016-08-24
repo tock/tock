@@ -50,6 +50,7 @@ use drivers::timer::TimerDriver;
 use nrf51::timer::TimerAlarm;
 use nrf51::timer::ALARM1;
 use hil::gpio::GPIOPin;
+use main::{Chip,SysTick};
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN:  usize = 21;
@@ -62,8 +63,6 @@ const BUTTON1_PIN: usize = 17;
 const BUTTON2_PIN: usize = 18;
 const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
-
-pub mod systick;
 
 unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>>] {
     use core::intrinsics::{volatile_load,volatile_store};
@@ -216,12 +215,10 @@ pub unsafe fn reset_handler() {
 
     alarm.start();
 
-    // The systick implementation currently directly accesses the low clock
-    // when it configures the real time clock (RTC); it should go through 
-    // clock::CLOCK instead.
-    systick::reset();
-    systick::enable(true); 
-    main::main(platform, &mut nrf51::chip::NRF51::new(), load_process());
+    let mut chip = nrf51::chip::NRF51::new();
+    chip.systick().reset();
+    chip.systick().enable(true);
+    main::main(platform, &mut chip, load_process());
 
 }
 
