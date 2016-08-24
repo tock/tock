@@ -1,11 +1,11 @@
-//! The nRF51822 timer system operates off of the high frequency clock 
+//! The nRF51822 timer system operates off of the high frequency clock
 //! (HFCLK) and provides three timers from the clock. Timer0 is tied
 //! to the radio through some hard-coded peripheral linkages (e.g., there
 //! are dedicated PPI connections between Timer0's compare events and
 //! radio tasks, its capture tasks and radio events).
-//! 
+//!
 //! This implementation provides a full-fledged Timer interface to
-//! timers 0 and 2, and exposes Timer1 as an HIL Alarm, for a Tock 
+//! timers 0 and 2, and exposes Timer1 as an HIL Alarm, for a Tock
 //! timer system. It may be that the Tock timer system should be ultimately
 //! placed on top of the RTC (from the low frequency clock). It's currently
 //! implemented this way as a demonstration that it can be and because
@@ -16,7 +16,7 @@
 //! uses the high frequency clock.
 //!
 //! Author: Philip Levis <pal@cs.stanford.edu>
-//! Date: August 18, 2016 
+//! Date: August 18, 2016
 
 use core::mem;
 use common::VolatileCell;
@@ -37,10 +37,10 @@ struct Registers {
     pub task_capture:  [VolatileCell<u32>;   4],  // 0x40
     _reserved1:        [VolatileCell<u32>;  60],  // 0x140
     pub event_compare: [VolatileCell<u32>;   4],
-    _reserved2:        [VolatileCell<u32>;  44],  // 0x150 
-    pub shorts:          VolatileCell<u32>,       // 0x200 
+    _reserved2:        [VolatileCell<u32>;  44],  // 0x150
+    pub shorts:          VolatileCell<u32>,       // 0x200
     _reserved3:        [VolatileCell<u32>;  64],  // 0x204
-    pub intenset:        VolatileCell<u32>,       // 0x304 
+    pub intenset:        VolatileCell<u32>,       // 0x304
     pub intenclr:        VolatileCell<u32>,       // 0x308
     _reserved4:        [VolatileCell<u32>; 126],  // 0x30C
     pub mode:            VolatileCell<u32>,       // 0x504
@@ -110,19 +110,19 @@ impl Timer {
     }
 
     pub fn start(&self) {
-        self.timer().task_start.set(1); 
+        self.timer().task_start.set(1);
     }
     // Stops the timer and keeps the value
     pub fn stop(&self) {
-        self.timer().task_stop.set(1); 
+        self.timer().task_stop.set(1);
     }
     // Stops the timer and clears the value
     pub fn shutdown(&self) {
-        self.timer().task_shutdown.set(1); 
+        self.timer().task_shutdown.set(1);
     }
     // Clear the value
     pub fn clear(&self) {
-        self.timer().task_clear.set(1); 
+        self.timer().task_clear.set(1);
     }
 
     /// Capture the current timer value into the CC register
@@ -159,10 +159,10 @@ impl Timer {
     /// for details. Implementation currently provides shortcuts as the
     /// raw bitmask.
     pub fn get_shortcuts(&self) -> u32 {
-        self.timer().shorts.get() 
+        self.timer().shorts.get()
     }
     pub fn set_shortcuts(&self, shortcut: u32) {
-        self.timer().shorts.set(shortcut); 
+        self.timer().shorts.set(shortcut);
     }
 
     pub fn get_cc0(&self) -> u32    { self.timer().cc[0].get() }
@@ -175,10 +175,10 @@ impl Timer {
     pub fn set_cc3(&self, val: u32) { self.timer().cc[0].set(val); }
 
     pub fn enable_interrupts(&self, interrupts: u32) {
-        self.timer().intenset.set(interrupts << 16); 
+        self.timer().intenset.set(interrupts << 16);
     }
     pub fn disable_interrupts(&self, interrupts: u32) {
-        self.timer().intenclr.set(interrupts << 16); 
+        self.timer().intenclr.set(interrupts << 16);
     }
 
     pub fn enable_nvic(&self) {
@@ -192,7 +192,7 @@ impl Timer {
     pub fn set_prescaler(&self, val: u8) {
         // Only bottom 4 bits are valid, so mask them
         // nRF51822 reference manual, page 102
-        self.timer().prescaler.set((val & 0xf) as u32); 
+        self.timer().prescaler.set((val & 0xf) as u32);
     }
     pub fn get_prescaler(&self) -> u8 {
         self.timer().prescaler.get() as u8
@@ -230,7 +230,7 @@ pub struct TimerAlarm {
 const ALARM_CAPTURE       : usize = 0;
 const ALARM_COMPARE       : usize = 1;
 const ALARM_INTERRUPT_BIT : u32   = 1 << (16 + ALARM_COMPARE);
- 
+
 impl TimerAlarm {
     fn timer(&self) -> &'static Registers { TIMER(self.which) }
 

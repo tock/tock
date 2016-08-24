@@ -1,5 +1,5 @@
 #![feature(core)]
-#![feature(rand)] 
+#![feature(rand)]
 extern crate core;
 use core::intrinsics;
 

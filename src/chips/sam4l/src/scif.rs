@@ -165,7 +165,7 @@ pub fn generic_clock_disable(clock: GenericClock) {
          };}
     }
 
-pub fn generic_clock_enable(clock: GenericClock, 
+pub fn generic_clock_enable(clock: GenericClock,
                             source: ClockSource) {
     // Oscillator field is bits 12:9, bit 0 is enable
     let val = (source as u32) << 8 | 1;
@@ -183,12 +183,12 @@ pub fn generic_clock_enable(clock: GenericClock,
         GenericClock::GCLK10 => intrinsics::volatile_store(&mut (*SCIF).gcctrl10, val),
         GenericClock::GCLK11 => intrinsics::volatile_store(&mut (*SCIF).gcctrl11, val)
      };}
-} 
+}
 
     // Note that most clocks can only support 8 bits of divider:
     // interface does not currently check this. -pal
-pub fn generic_clock_enable_divided(clock: GenericClock, 
-                                    source: ClockSource, 
+pub fn generic_clock_enable_divided(clock: GenericClock,
+                                    source: ClockSource,
                                     divider: u16) {
     // Bits 31:16 -  divider
     // Bits 12:8  -  oscillator selection

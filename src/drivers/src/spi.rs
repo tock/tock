@@ -13,7 +13,7 @@ use hil::spi_master::ClockPhase;
  * If the application buffer is larger than the kernel buffer,
  * the driver issues multiple HAL operations. The len field
  * of an application keeps track of the length of the desired
- * operation, while the index variable keeps track of the 
+ * operation, while the index variable keeps track of the
  * index an ongoing operation is at in the buffers. */
 
 struct App {
@@ -55,7 +55,7 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
     }
 
     // Assumes checks for busy/etc. already done
-    // Updates app.index to be index + length of op 
+    // Updates app.index to be index + length of op
     fn do_next_read_write(&self, app: &mut App) {
         let start = app.index;
         let len = cmp::min(app.len - start, self.kernel_len.get());
@@ -186,10 +186,10 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
 
     fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
         match cmd_num {
-            0 /* read_write_byte */ => { 
+            0 /* read_write_byte */ => {
                 self.spi_master.read_write_byte(arg1 as u8) as isize
             },
-            1 /* read_write_bytes */ => { 
+            1 /* read_write_bytes */ => {
                 if self.busy.get() {
                     return -1;
                 }

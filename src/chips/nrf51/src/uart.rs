@@ -12,7 +12,7 @@ struct Registers {
     starttx: u32,
     stoptx: u32,
     _reserved0: [u32; 62],
-    rxdrdy: u32,    
+    rxdrdy: u32,
     _reserved1: [u32; 4],
     txdrdy: u32,
     error: u32,

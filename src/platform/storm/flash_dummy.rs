@@ -24,15 +24,15 @@ enum FlashClientState {
     EWRCycleStart   /* Start of the Erase, Write, Read Cycle */
 }
 
-struct FlashClient { 
+struct FlashClient {
     state : Cell<FlashClientState>,
-    page: Cell<i32>, 
+    page: Cell<i32>,
     num_cycle_per_page: u32,
     val_data: Cell<u8>,
     cycles_finished: Cell<u32>
 }
 
-static mut FLASH_CLIENT : FlashClient = FlashClient { 
+static mut FLASH_CLIENT : FlashClient = FlashClient {
     state: Cell::new(FlashClientState::EWRCycleStart),
     page: Cell::new(53), // Page to start
     num_cycle_per_page: 2,  // How many times to repeat a Erase/Write/Read cycle on a page
@@ -44,13 +44,13 @@ const MAX_PAGE_NUM: i32 = 80;   // Page to go up to
 
 impl Client for FlashClient {
 
-    
+
     fn command_complete(&self, error : Error) {
-        
+
         print!("Client Notified that job done in state {}", self.state.get() as u32);
-        
+
         let dev = unsafe { &mut flashcalw::flash_controller };
-        
+
         match self.state.get() {
             FlashClientState::Writing => {
                 println!("\tWriting page {}", self.page.get());
@@ -62,22 +62,22 @@ impl Client for FlashClient {
                 //  The callback from completing the write will lead to this being
                 //  called.
                 let mut pass = true;
-                
-                //  Prints out any differences in the flash page. 
+
+                //  Prints out any differences in the flash page.
                 println!("\treading page {}", self.page.get());
                 let mut data : [u8; 512] = [0;512];
                 dev.read(self.page.get() as usize * 512, 512, &mut data);
-                
+
                 //verify what we expect
                 for i in 0..512 {
                     if data[i] != self.val_data.get() {
                         pass = false;
-                        println!("\t\t======bit:{} expected {}, got {}========", i, 
+                        println!("\t\t======bit:{} expected {}, got {}========", i,
                            self.val_data.get(), data[i]);
-                        
+
                     }
                 }
-                
+
                 //  If there's any discrepancies read the page 3x more and output
                 //  differences.
                 if !pass {
@@ -88,14 +88,14 @@ impl Client for FlashClient {
                         //verify what we expect
                         for i in 0..512 {
                             if data[i] != self.val_data.get() {
-                            println!("\t\t\t======bit:{} expected {}, got {}========", i, 
+                            println!("\t\t\t======bit:{} expected {}, got {}========", i,
                                self.val_data.get(), data[i]);
-                            
+
                             }
                         }
                     }
                 }
-                    
+
                 //start cycle again
                 self.state.set(FlashClientState::EWRCycleStart);
                 // call self as reading isn't a callback...
@@ -137,7 +137,7 @@ impl Client for FlashClient {
             _ => { panic!("Should never reach here!"); }
 
         }
-    } 
+    }
 
 }
 
@@ -149,7 +149,7 @@ pub fn set_read_write_test() {
     dev.set_client(flash_client);
     print!("Calling configure...");
     dev.configure();
-    println!("Is the picocache on? {}", 
+    println!("Is the picocache on? {}",
         if dev.pico_enabled() {"yes"} else {"no"});
 
     // generates an interrupt which will cause a callback after initalization.
@@ -157,8 +157,8 @@ pub fn set_read_write_test() {
 
 }
 
-/// This function primarily tests meta information for the chip on the 
-/// the FireStorm - ATSAM4LC8C. For other ATSAM4L chips, calculations using the 
+/// This function primarily tests meta information for the chip on the
+/// the FireStorm - ATSAM4LC8C. For other ATSAM4L chips, calculations using the
 /// flash size asserts might fail (as they might not have the same flash size).
 pub unsafe fn meta_test() {
     println!("Testing Meta Info...");

@@ -56,7 +56,7 @@ pub struct AdcRegisters { // From page 1005 of SAM4L manual
     ier:       usize,   // Interrupt enable      (0x30)
     idr:       usize,   // Interrupt disable     (0x34)
     imr:       usize,   // Interrupt mask        (0x38)
-    calib:     usize,   // Calibration           (0x3c) 
+    calib:     usize,   // Calibration           (0x3c)
     version:   usize,   // Version               (0x40)
     parameter: usize,   // Parameter             (0x44)
 }
@@ -142,13 +142,13 @@ impl AdcInternal for Adc {
         }
         return true;
     }
-    
+
     fn sample(&self, channel: u8, request: &'static Request) -> bool {
         if !self.enabled || self.request.get().is_some() || channel > 14 {
             return false;
         } else {
             self.request.set(Some(request));
-            self.channel.set(channel); 
+            self.channel.set(channel);
             // This configuration sets the ADC to use Pad Ground as the
             // negative input, and the ADC channel as the positive. Since
             // this is a single-ended sample, the bipolar bit is set to zero.

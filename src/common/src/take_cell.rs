@@ -48,7 +48,7 @@ impl<T> TakeCell<T> {
             let inner = &mut *self.val.get();
             inner.take()
         }
-    } 
+    }
 
     pub fn put(&self, val: Option<T>) {
         let _ = self.take();

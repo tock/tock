@@ -15,10 +15,10 @@ use nvic;
 
 use peripheral_registers::{GPIO_BASE, GPIO};
 
-/// The nRF51822 doesn't automatically provide GPIO interrupts. Instead, 
+/// The nRF51822 doesn't automatically provide GPIO interrupts. Instead,
 /// to receive interrupts from a GPIO line, you must allocate a GPIOTE
-/// (GPIO Task and Event) channel, and bind the channel to the desired 
-/// pin. There are 4 channels. This means that requesting an interrupt 
+/// (GPIO Task and Event) channel, and bind the channel to the desired
+/// pin. There are 4 channels. This means that requesting an interrupt
 /// can fail, if there are already 4 allocated.
 
 struct GpioteRegisters {
@@ -76,7 +76,7 @@ fn allocate_channel() -> i8 {
 
 /// Return which channel is allocated to a pin, or -1 if none.
 fn find_channel(pin: u8) -> i8 {
-    if (GPIOTE().config0.get() >> 8) & 0x1F == pin as u32 { 
+    if (GPIOTE().config0.get() >> 8) & 0x1F == pin as u32 {
         return 0;
     } else if ((GPIOTE().config1.get() >> 8) & 0x1F) == pin as u32 {
         return 1;
@@ -117,13 +117,13 @@ impl hil::gpio::GPIOPin for GPIOPin {
         // bit 8-10: drive configruation
         // bit 16-17: sensing
         GPIO().pin_cnf[self.pin as usize].set((1 << 0) | // set as output
-                                              (1 << 1) | // no input buf 
+                                              (1 << 1) | // no input buf
                                               (0 << 2) | // no pull
-                                              (0 << 8) | // no drive 
+                                              (0 << 8) | // no drive
                                               (0 << 16)); // no sensing
     }
 
-    // Configuration constants stolen from 
+    // Configuration constants stolen from
     // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
     fn enable_input(&self, mode: hil::gpio::InputMode) {
         let conf = match mode {

@@ -1,7 +1,7 @@
 //! The clock peripheral of the nRF51 series (chapter 13 of
-//! the nRF51 reference manual v3.0), which manages the 
+//! the nRF51 reference manual v3.0), which manages the
 //! low frequency and high frequency clocks. The low frequency
-//! clock drives the real time clock (RTC), while the 
+//! clock drives the real time clock (RTC), while the
 //! high frequency clocks drive the timer system.
 //!
 //! Author: Philip Levis
@@ -144,7 +144,7 @@ impl Clock {
     }
 
     pub fn high_running(&self) -> bool {
-        (CLK().hfclkstat.get() & ClockRunning::RUN as u32) == 
+        (CLK().hfclkstat.get() & ClockRunning::RUN as u32) ==
             ClockRunning::RUN as u32
     }
 
@@ -169,12 +169,12 @@ impl Clock {
     }
 
     pub fn low_running(&self) -> bool {
-        (CLK().lfclkstat.get() & ClockRunning::RUN as u32) == 
+        (CLK().lfclkstat.get() & ClockRunning::RUN as u32) ==
             ClockRunning::RUN as u32
     }
 
     pub fn low_set_source(&self, src: LowClockSource) {
         CLK().lfclksrc.set(src as u32);
-    
+
     }
 }

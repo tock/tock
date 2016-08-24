@@ -335,10 +335,10 @@ impl spi_master::SpiMaster for Spi {
         };
         self.write_active_csr(csr);
     }
-    
+
     fn get_clock(&self) -> ClockPolarity {
         let csr = self.read_active_csr();
-        let polarity = csr & 0x1; 
+        let polarity = csr & 0x1;
         match polarity {
             0 => ClockPolarity::IdleLow,
             _ => ClockPolarity::IdleHigh

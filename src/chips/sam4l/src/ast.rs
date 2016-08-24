@@ -2,7 +2,7 @@
  *
  * Author: Amit Levy <levya@cs.stanford.edu>
  * Author: Philip Levis <pal@cs.stanford.edu>
- * Date: July 16, 2015 
+ * Date: July 16, 2015
  */
 
 use core::cell::Cell;

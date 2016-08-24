@@ -30,7 +30,7 @@ pub trait SpiCallback {
 ///   1a. Call set_chip_select to select which peripheral and
 ///       turn on SPI
 ///   1b. Call set operations as needed to configure bus
-/// 2. Invoke read, write, read_write on SpiMaster 
+/// 2. Invoke read, write, read_write on SpiMaster
 /// 3a. Call clear_chip_select to turn off bus, or
 /// 3b. Call set_chip_select to choose another peripheral,
 ///     go to step 1b or 2.
@@ -96,7 +96,7 @@ pub trait SpiMaster {
     // complete. If release_low() is called, then the chip select
     // line is brought high after a transfer completes. A "transfer"
     // is any of the read/read_write calls. These functions
-    // allow an application to manually control when the 
+    // allow an application to manually control when the
     // CS line is high or low, such that it can issue multi-byte
     // requests with single byte oprations.
     fn hold_low(&self);
