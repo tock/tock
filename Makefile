@@ -6,7 +6,7 @@
 # Default platform is the Storm (http://storm.rocks). Change to any platform in
 # the `platform` directory.
 TOCK_PLATFORM ?= storm
-#TOCK_PLATFORM ?= nrf_pca10001
+#TOCK_PLATFORM ?= nrf_pca10028
 
 BUILD_ROOT ?= build
 BUILD_PLATFORM_DIR ?= $(BUILD_ROOT)/$(TOCK_PLATFORM)

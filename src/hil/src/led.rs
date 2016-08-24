@@ -2,7 +2,7 @@
  *  led.rs -- Drivers for LEDs that abstract away polarity and pin.
  *
  * Author: Philip Levis <pal@cs.stanford.edu>
- * Date: 7/31/15
+ * Date: July 31, 2015 
  */ 
 
 use gpio;

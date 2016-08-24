@@ -1,7 +1,6 @@
 use callback::AppId;
 use core::intrinsics::{breakpoint, volatile_load, volatile_store};
 use core::{intrinsics, mem, ptr, slice};
-
 use common::{RingBuffer, Queue};
 
 use container;
@@ -27,6 +26,7 @@ pub fn schedule(callback: Callback, appid: AppId) -> bool {
         None => false,
         Some(ref mut p) => {
             // TODO(alevy): validate appid liveness
+
             p.callbacks.enqueue(callback)
         }
     }

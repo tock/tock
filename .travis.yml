@@ -18,9 +18,9 @@ before_install:
 
 script:
   - make -C src/platform/storm
-  - make -C src/platform/nrf_pca10001
+  - make -C src/platform/nrf_pca10028
   - make -C apps/blink TOCK_PLATFORM=storm
-  - make -C apps/blink TOCK_PLATFORM=nrf_pca10001
+  - make -C apps/blink TOCK_PLATFORM=nrf_pca10028
 
 notifications:
   webhooks:

@@ -16,7 +16,7 @@
         "-mcpu=cortex-m0", "-mthumb",
         "-mfloat-abi=soft",
         "-Wl,-gc-sections",
-        "-Tsrc/chips/nrf51822/layout.ld"
+        "-Tsrc/chips/nrf51/layout.ld"
     ],
     "post-link-args": [
         "-lm", "-lgcc", "-lc"

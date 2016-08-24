@@ -6,7 +6,7 @@ pub struct {{ p.name }} {
 {%- for r in p.registers %}
     {%- if r.reserved %}
     {{ r.name }}: [u32; {{ r.array_size }}],
-    {%- elif r.array_size %}
+    {%- elif r.array_size > 1 %}
     pub {{ r.name }}: [VolatileCell<u32>; {{ r.array_size }}],
     {%- else %}
     pub {{ r.name }}: VolatileCell<u32>,

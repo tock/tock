@@ -1,4 +1,4 @@
-CHIP := nrf51822
+CHIP := nrf51
 ARCH := cortex-m0
 TOCK_PLATFORM_LINKER_SCRIPT = $(TOCK_DIR)/chips/$(CHIP)/layout.ld
 
@@ -22,6 +22,10 @@ $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin: $(TOCK_APP_BUILD_DIR)/kernel_and_app.e
 	@tput bold ; echo "Flattening $< to $@" ; tput sgr0
 	$(OBJCOPY) -O binary $< $@
 
+$(TOCK_APP_BUILD_DIR)/kernel_and_app.hex: $(TOCK_APP_BUILD_DIR)/kernel_and_app.elf
+	@tput bold ; echo "Flattening $< to $@" ; tput sgr0
+	$(OBJCOPY) -O ihex $< $@
+
 all: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 
 
@@ -38,7 +42,7 @@ program: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 	w4 4001e504 0\\n\
 	r\\n\
 	g\\n\
-	exit | $(JLINK) $(JLINK_OPTIONS)
+	exit | $(JLINK_EXE) $(JLINK_OPTIONS)
 
 # "Erase all" process:
 # 1) set NVMC.CONFIG to 2 (Erase enabled)
@@ -47,12 +51,21 @@ program: $(TOCK_APP_BUILD_DIR)/kernel_and_app.bin
 # 4) set NVMC.CONFIG to 0 (Read only access)
 .PHONY: erase-all
 erase-all:
-	echo \
+	echo -e \
 	connect\\n\
 	w4 4001e504 2\\n\
 	w4 4001e50c 1\\n\
 	sleep 100\\n\
 	w4 4001e504 0\\n\
 	r\\n\
-	exit | $(JLINK) $(JLINK_OPTIONS)
+	exit | $(JLINK_EXE) $(JLINK_OPTIONS)
+
+# Linux
+#MOUNT_DIR=/var/run/usbmount/MBED_microcontroller
+# OS X
+#MOUNT_DIR=/Volumes/MBED
+MOUNT_DIR=/Volumes/JLINK
+.PHONY: program-mbed
+program-mbed: $(TOCK_APP_BUILD_DIR)/kernel_and_app.hex
+	cp $^ $(MOUNT_DIR)/firmware.hex
 
