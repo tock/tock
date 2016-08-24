@@ -14,6 +14,7 @@ pub mod spi_master;
 pub mod timer;
 pub mod uart;
 pub mod adc;
+pub mod storage_controller;
 
 pub trait Controller {
     type Config;

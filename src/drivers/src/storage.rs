@@ -2,10 +2,13 @@ use core::slice;
 use core::option::Option;
 use core::ops::Index;
 use main::{Driver};
+use common::take_cell::TakeCell;
 use common::{List, ListLink, ListNode, Queue};
 use common::allocator::{Allocator};
+use hil::storage_controller::{StorageController, Client, Error};
+
 // TODO: think of a good way to import.
-use chips::sam4l::flashcalw::{FLASHCALW, flash_controller};
+//use chips::sam4l::flashcalw::{FLASHCALW, flash_controller};
 // TODO: import buddy alloc and flash...
 /*
     TODO( in the future)
@@ -69,28 +72,37 @@ pub trait StorageClient {
     fn write(arr : &[u8], size : usize);
 }
 
-pub struct Storage <'a> {
+pub struct Storage <'a, S: StorageController<'a> + 'a> {
     // todo: might modify and wrap the block up maybe with a client id / app id?
+    controller: &'a mut S,
     block_table: [Option<*const Block<'a>>; NUM_FILE_DESCRIPTORS],
     queued_list: List<'a, Callback<'a>>,
     allocator: Allocator,
+    buffer: TakeCell<[u8; 512]>,
+    last_offset: i32,
     last_fd: i32, // last used 'index' into block table. Remember to flush if
                   // a close or free is called!
     // todo change to a trait ( for flash driver)
 }
 
 
-impl<'a> Storage<'a> {
+impl<'a, S: StorageController<'a>> Storage<'a,S> {
     // todo change to take in anything with allocator trait, and anything with
     // flash trait?
-    pub fn new() -> Storage<'a> {
-        Storage {
-            block_table: [None; 5],
-            queued_list: List::new(),
+    
+    pub fn new(storage_controller: &'a mut S) -> Storage<'a, S> {
+        let mut s = Storage {
             allocator: Allocator::new(ALLOCATOR_START_ADDR, ALLOCATOR_SIZE, 
                 ALLOCATOR_SMALLEST_BLOCK_SIZE),
+            block_table: [None; 5],
+            controller: storage_controller,
             last_fd: -1,
-        }
+            last_offset: -1,
+            queued_list: List::new(),
+            buffer: TakeCell::new([255; 512])
+        };
+        s.controller.set_client(&s);
+        s
     }
 
     // TODO: this needs to be able to fail ( could give an option to say why fail
@@ -104,7 +116,7 @@ impl<'a> Storage<'a> {
                 index = i as i32;
                 break;
             }
-        }
+        }    
 
         if index == -1 {
             return None
@@ -225,13 +237,21 @@ impl<'a> Storage<'a> {
         ErrorCode::success
     }
 
+}
+
+impl<'a, S: StorageController<'a>> Client for Storage<'a, S>{
     // This is the function to call on the Storage in order to process any work 
     // queued up.
-    fn run(&self) {
-        if self.queued_list.head().is_none() {
+    fn command_complete(&self, err: Error) {
+        if self.queued_list.head().is_none() || !self.controller.storage_ready() {
             // do nothing
+        } else {
+            // lets handle a request to write ( for now just handling stupidly 
+            // flushing all writes but could use last_fd and last_offset to lazily
+            // write.
+            let buffer = self.buffer.take().unwrap();
+            //write_to_memory();
+            
         }
     }
-
-    
 }
