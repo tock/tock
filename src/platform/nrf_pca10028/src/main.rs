@@ -1,4 +1,4 @@
-//! Tock kernel for the Nordic Semiconductor nRF51 development 
+//! Tock kernel for the Nordic Semiconductor nRF51 development
 //! kit (DK), a.k.a. the PCA10028. This is an nRF51422 SoC (a
 //! Cortex M0 core with a BLE transciver) with many exported
 //! pins, LEDs, and buttons. Currently the kernel provides
@@ -38,6 +38,8 @@
 #![no_main]
 #![feature(core_intrinsics,lang_items)]
 
+#[macro_use(static_init)]
+extern crate common;
 extern crate cortexm0;
 extern crate drivers;
 extern crate hil;
@@ -79,8 +81,8 @@ unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>
     let addr = &_sapps as *const u8;
 
     // The first member of the LoadInfo header contains the total size of
-    // each process image. A sentinel value of 0 (invalid because it is 
-    // smaller than the header itself) is used to mark the end of the list 
+    // each process image. A sentinel value of 0 (invalid because it is
+    // smaller than the header itself) is used to mark the end of the list
     // of processes.
     let total_size = volatile_load(addr as *const usize);
     if total_size != 0 {
@@ -109,74 +111,55 @@ impl main::Platform for Platform {
             }
         }
 }
-macro_rules! static_init {
-    ($V:ident : $T:ty = $e:expr, $size:expr) => {
-        // Ideally we could use mem::size_of<$T> here instead of $size, however
-        // that is not currently possible in rust. Instead we write the size as
-        // a constant in the code and use compile-time verification to see that
-        // we got it right
-        let $V : &'static mut $T = {
-            use core::{mem, ptr};
-            // This is our compile-time assertion. The optimizer should be able
-            // to remove it from the generated code.
-            let assert_buf: [u8; $size] = mem::uninitialized();
-            let assert_val: $T = mem::transmute(assert_buf);
-            mem::forget(assert_val);
-
-            // Statically allocate a read-write buffer for the value, write our
-            // initial value into it (without dropping the initial zeros) and
-            // return a reference to it.
-            static mut BUF: [u8; $size] = [0; $size];
-            let mut tmp : &mut $T = mem::transmute(&mut BUF);
-            ptr::write(tmp as *mut $T, $e);
-            tmp
-        };
-    }
-}
 
 #[no_mangle]
 pub unsafe fn reset_handler() {
     nrf51::init();
 
-    static_init!(gpio_pins : [&'static nrf51::gpio::GPIOPin; 22] = [
-                 &nrf51::gpio::PORT[LED1_PIN], // 21
-                 &nrf51::gpio::PORT[LED2_PIN], // 22
-                 &nrf51::gpio::PORT[LED3_PIN], // 23
-                 &nrf51::gpio::PORT[LED4_PIN], // 24
-                 &nrf51::gpio::PORT[BUTTON1_PIN], // 17
-                 &nrf51::gpio::PORT[BUTTON2_PIN], // 18
-                 &nrf51::gpio::PORT[BUTTON3_PIN], // 19
-                 &nrf51::gpio::PORT[BUTTON4_PIN], // 20
-                 &nrf51::gpio::PORT[1],  // Bottom left header on DK board
-                 &nrf51::gpio::PORT[2],  //   |
-                 &nrf51::gpio::PORT[3],  //   V 
-                 &nrf51::gpio::PORT[4],  // 
-                 &nrf51::gpio::PORT[5],  //
-                 &nrf51::gpio::PORT[6],  // -----
-                 &nrf51::gpio::PORT[19], // Mid right header on DK board
-                 &nrf51::gpio::PORT[18], //   |
-                 &nrf51::gpio::PORT[17], //   V
-                 &nrf51::gpio::PORT[16], //  
-                 &nrf51::gpio::PORT[15], //  
-                 &nrf51::gpio::PORT[14], //  
-                 &nrf51::gpio::PORT[13], //  
-                 &nrf51::gpio::PORT[12], //  
-                 ], 4 * 22);
+    let gpio_pins = static_init!(
+        [&nrf51::gpio::PORT[LED1_PIN], // 21
+         &nrf51::gpio::PORT[LED2_PIN], // 22
+         &nrf51::gpio::PORT[LED3_PIN], // 23
+         &nrf51::gpio::PORT[LED4_PIN], // 24
+         &nrf51::gpio::PORT[BUTTON1_PIN], // 17
+         &nrf51::gpio::PORT[BUTTON2_PIN], // 18
+         &nrf51::gpio::PORT[BUTTON3_PIN], // 19
+         &nrf51::gpio::PORT[BUTTON4_PIN], // 20
+         &nrf51::gpio::PORT[1],  // Bottom left header on DK board
+         &nrf51::gpio::PORT[2],  //   |
+         &nrf51::gpio::PORT[3],  //   V
+         &nrf51::gpio::PORT[4],  //
+         &nrf51::gpio::PORT[5],  //
+         &nrf51::gpio::PORT[6],  // -----
+         &nrf51::gpio::PORT[19], // Mid right header on DK board
+         &nrf51::gpio::PORT[18], //   |
+         &nrf51::gpio::PORT[17], //   V
+         &nrf51::gpio::PORT[16], //
+         &nrf51::gpio::PORT[15], //
+         &nrf51::gpio::PORT[14], //
+         &nrf51::gpio::PORT[13], //
+         &nrf51::gpio::PORT[12], //
+        ],
+        [&'static nrf51::gpio::GPIOPin; 22],
+        4 * 22);
 
     nrf51::gpio::PORT[LED1_PIN].enable_output();
     nrf51::gpio::PORT[LED1_PIN].clear();
 
-    static_init!(gpio: drivers::gpio::GPIO<'static, nrf51::gpio::GPIOPin> =
-                 drivers::gpio::GPIO::new(gpio_pins), 20);
+    let gpio = static_init!(
+        drivers::gpio::GPIO::new(gpio_pins),
+        drivers::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
+        20);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
 
-    static_init!(console: drivers::console::Console<nrf51::uart::UART> =
-                 drivers::console::Console::new(&nrf51::uart::UART0, 
-                                                &mut drivers::console::WRITE_BUF, 
-                                                main::Container::create()),
-                                                24);
+    let console = static_init!(
+        drivers::console::Console::new(&nrf51::uart::UART0,
+                                       &mut drivers::console::WRITE_BUF,
+                                       main::Container::create()),
+        drivers::console::Console<nrf51::uart::UART>,
+        24);
     nrf51::uart::UART0.set_client(console);
 
     // The timer driver is built on top of hardware timer 1, which is implemented
@@ -184,14 +167,18 @@ pub unsafe fn reset_handler() {
     // so is reserved for that use. This should be rewritten to use the RTC (off the
     // low frequency clock) for lower power.
     let alarm = &nrf51::timer::ALARM1;
-    static_init!(mux_alarm : MuxAlarm<'static, TimerAlarm> = MuxAlarm::new(&ALARM1), 16);
+    let mux_alarm = static_init!(MuxAlarm::new(&ALARM1), MuxAlarm<'static, TimerAlarm>, 16);
     alarm.set_client(mux_alarm);
 
-    static_init!(virtual_alarm1 : VirtualMuxAlarm<'static, TimerAlarm> =
-                 VirtualMuxAlarm::new(mux_alarm), 24);
-    static_init!(timer : TimerDriver<'static, VirtualMuxAlarm<'static,
-                 TimerAlarm>> = TimerDriver::new(virtual_alarm1,
-                                                 main::Container::create()), 12);
+    let virtual_alarm1 = static_init!(
+        VirtualMuxAlarm::new(mux_alarm),
+        VirtualMuxAlarm<'static, TimerAlarm>,
+        24);
+    let timer = static_init!(
+        TimerDriver::new(virtual_alarm1,
+                         main::Container::create()),
+        TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
+        12);
     virtual_alarm1.set_client(timer);
     alarm.enable_nvic();
     alarm.enable_interrupts();
@@ -207,11 +194,13 @@ pub unsafe fn reset_handler() {
     while !nrf51::clock::CLOCK.low_started() {}
     while !nrf51::clock::CLOCK.high_started() {}
 
-    static_init!(platform: Platform = Platform {
-        gpio: gpio,
-        timer: timer,
-        console: console,
-    }, 12);
+    let platform = static_init!(
+        Platform {
+            gpio: gpio,
+            timer: timer,
+            console: console,
+        },
+        Platform, 12);
 
     alarm.start();
 

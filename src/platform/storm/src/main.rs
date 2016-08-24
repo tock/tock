@@ -3,6 +3,7 @@
 #![no_main]
 #![feature(const_fn,lang_items)]
 
+#[macro_use(static_init)]
 extern crate common;
 extern crate cortexm4;
 extern crate drivers;
@@ -11,11 +12,15 @@ extern crate main;
 extern crate sam4l;
 extern crate support;
 
+use drivers::console::{self, Console};
+use drivers::nrf51822_serialization::{self, Nrf51822Serialization};
+use drivers::timer::TimerDriver;
+use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use drivers::virtual_i2c::{I2CDevice, MuxI2C};
 use hil::Controller;
 use hil::spi_master::SpiMaster;
-use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use drivers::virtual_i2c::MuxI2C;
 use main::{Chip, MPU, Platform};
+use sam4l::usart;
 
 #[macro_use]
 pub mod io;
@@ -70,14 +75,13 @@ unsafe fn load_processes() -> &'static mut [Option<main::process::Process<'stati
 }
 
 struct Firestorm {
-    console: &'static drivers::console::Console<'static, sam4l::usart::USART>,
+    console: &'static Console<'static, usart::USART>,
     gpio: &'static drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static drivers::timer::TimerDriver<'static,
-                VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
     tmp006: &'static drivers::tmp006::TMP006<'static>,
     isl29035: &'static drivers::isl29035::Isl29035<'static>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
-    nrf51822: &'static drivers::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
+    nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
 }
 
 impl Platform for Firestorm {
@@ -102,30 +106,6 @@ impl Platform for Firestorm {
     }
 }
 
-macro_rules! static_init {
-    ($V:ident : $T:ty = $e:expr, $size:expr) => {
-        // Ideally we could use mem::size_of<$T> here instead of $size, however
-        // that is not currently possible in rust. Instead we write the size as
-        // a constant in the code and use compile-time verification to see that
-        // we got it right
-        let $V : &'static mut $T = {
-            use core::{mem, ptr};
-            // This is our compile-time assertion. The optimizer should be able
-            // to remove it from the generated code.
-            let assert_buf: [u8; $size] = mem::uninitialized();
-            let assert_val: $T = mem::transmute(assert_buf);
-            mem::forget(assert_val);
-
-            // Statically allocate a read-write buffer for the value, write our
-            // initial value into it (without dropping the initial zeros) and
-            // return a reference to it.
-            static mut BUF: [u8; $size] = [0; $size];
-            let mut tmp : &mut $T = mem::transmute(&mut BUF);
-            ptr::write(tmp as *mut $T, $e);
-            tmp
-        };
-    }
-}
 
 unsafe fn set_pin_primary_functions() {
     use sam4l::gpio::{PA, PB, PC};
@@ -327,92 +307,92 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
-    static_init!(console: drivers::console::Console<sam4l::usart::USART> =
-                     drivers::console::Console::new(&sam4l::usart::USART3,
-                                                    &mut drivers::console::WRITE_BUF,
-                                                    main::Container::create()),
-                 24);
-    sam4l::usart::USART3.set_client(console);
+    let console = static_init!(
+        Console::new(&usart::USART3,
+                     &mut console::WRITE_BUF,
+                     main::Container::create()),
+        Console<usart::USART>,
+        24);
+    usart::USART3.set_client(console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
-    static_init!(
-        nrf_serialization: drivers::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART> =
-            drivers::nrf51822_serialization::Nrf51822Serialization::new(
-                &sam4l::usart::USART2,
-                &mut drivers::nrf51822_serialization::WRITE_BUF
-            ), 68);
-    sam4l::usart::USART2.set_client(nrf_serialization);
+    let nrf_serialization = static_init!(
+        Nrf51822Serialization::new(&usart::USART2,
+                                   &mut nrf51822_serialization::WRITE_BUF),
+        Nrf51822Serialization<usart::USART>,
+        68);
+    usart::USART2.set_client(nrf_serialization);
 
     let ast = &sam4l::ast::AST;
 
-    static_init!(mux_alarm: MuxAlarm<'static, sam4l::ast::Ast> = MuxAlarm::new(&sam4l::ast::AST),
-                 16);
+    let mux_alarm = static_init!(
+        MuxAlarm::new(&sam4l::ast::AST),
+        MuxAlarm<'static, sam4l::ast::Ast>,
+        16);
     ast.configure(mux_alarm);
 
-    static_init!(mux_i2c: MuxI2C<'static> = MuxI2C::new(&sam4l::i2c::I2C2),
-                 20);
+    let mux_i2c = static_init!(MuxI2C::new(&sam4l::i2c::I2C2), MuxI2C<'static>, 20);
     sam4l::i2c::I2C2.set_client(mux_i2c);
 
     // Configure the TMP006. Device address 0x40
-    static_init!(tmp006_i2c: drivers::virtual_i2c::I2CDevice =
-                     drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x40),
-                 32);
-    static_init!(tmp006: drivers::tmp006::TMP006<'static> =
-                     drivers::tmp006::TMP006::new(tmp006_i2c,
-                                                  &sam4l::gpio::PA[9],
-                                                  &mut drivers::tmp006::BUFFER),
-                 52);
+    let tmp006_i2c = static_init!(I2CDevice::new(mux_i2c, 0x40), I2CDevice, 32);
+    let tmp006 = static_init!(
+        drivers::tmp006::TMP006::new(tmp006_i2c,
+                                     &sam4l::gpio::PA[9],
+                                     &mut drivers::tmp006::BUFFER),
+        drivers::tmp006::TMP006<'static>,
+        52);
     tmp006_i2c.set_client(tmp006);
     sam4l::gpio::PA[9].set_client(tmp006);
 
     // Configure the ISL29035, device address 0x44
-    static_init!(isl29035_i2c: drivers::virtual_i2c::I2CDevice =
-                     drivers::virtual_i2c::I2CDevice::new(mux_i2c, 0x44),
-                 32);
-    static_init!(isl29035: drivers::isl29035::Isl29035<'static> =
-                     drivers::isl29035::Isl29035::new(isl29035_i2c, &mut drivers::isl29035::BUF),
-                 36);
+    let isl29035_i2c = static_init!(I2CDevice::new(mux_i2c, 0x44), I2CDevice, 32);
+    let isl29035 = static_init!(
+        drivers::isl29035::Isl29035::new(isl29035_i2c, &mut drivers::isl29035::BUF),
+        drivers::isl29035::Isl29035<'static>,
+        36);
     isl29035_i2c.set_client(isl29035);
 
-    static_init!(virtual_alarm1: VirtualMuxAlarm<'static, sam4l::ast::Ast> =
-                     VirtualMuxAlarm::new(mux_alarm),
-                 24);
-    static_init!(timer: drivers::timer::TimerDriver<'static,
-                                                    VirtualMuxAlarm<'static, sam4l::ast::Ast>> =
-                     drivers::timer::TimerDriver::new(virtual_alarm1,
-                                                      main::Container::create()),
-                 12);
+    let virtual_alarm1 = static_init!(
+        VirtualMuxAlarm::new(mux_alarm),
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        24);
+    let timer = static_init!(
+        TimerDriver::new(virtual_alarm1, main::Container::create()),
+        TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        12);
     virtual_alarm1.set_client(timer);
 
     // Initialize and enable SPI HAL
-    static_init!(spi: drivers::spi::Spi<'static, sam4l::spi::Spi> =
-                     drivers::spi::Spi::new(&mut sam4l::spi::SPI),
-                 84);
+    let spi = static_init!(
+        drivers::spi::Spi::new(&mut sam4l::spi::SPI),
+        drivers::spi::Spi<'static, sam4l::spi::Spi>,
+        84);
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
     sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
 
     // set GPIO driver controlling remaining GPIO pins
-    static_init!(gpio_pins: [&'static sam4l::gpio::GPIOPin; 12] =
-                 [
-                     &sam4l::gpio::PC[10], // LED_0
-                     &sam4l::gpio::PA[16], // P2
-                     &sam4l::gpio::PA[12], // P3
-                     &sam4l::gpio::PC[9], // P4
-                     &sam4l::gpio::PA[10], // P5
-                     &sam4l::gpio::PA[11], // P6
-                     &sam4l::gpio::PA[19], // P7
-                     &sam4l::gpio::PA[13], // P8
-                     &sam4l::gpio::PA[17], /* STORM_INT (nRF51822) */
-                     &sam4l::gpio::PC[14], /* RSLP (RF233 sleep line) */
-                     &sam4l::gpio::PC[15], /* RRST (RF233 reset line) */
-                     &sam4l::gpio::PA[20], /* RIRQ (RF233 interrupt) */
-                 ],
-                 12 * 4
+    let gpio_pins = static_init!(
+        [&sam4l::gpio::PC[10], // LED_0
+         &sam4l::gpio::PA[16], // P2
+         &sam4l::gpio::PA[12], // P3
+         &sam4l::gpio::PC[9], // P4
+         &sam4l::gpio::PA[10], // P5
+         &sam4l::gpio::PA[11], // P6
+         &sam4l::gpio::PA[19], // P7
+         &sam4l::gpio::PA[13], // P8
+         &sam4l::gpio::PA[17], /* STORM_INT (nRF51822) */
+         &sam4l::gpio::PC[14], /* RSLP (RF233 sleep line) */
+         &sam4l::gpio::PC[15], /* RRST (RF233 reset line) */
+         &sam4l::gpio::PA[20]], /* RIRQ (RF233 interrupt) */
+        [&'static sam4l::gpio::GPIOPin; 12],
+        12 * 4
     );
-    static_init!(gpio: drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin> =
-                     drivers::gpio::GPIO::new(gpio_pins),
-                 20);
+    let gpio = static_init!(
+        drivers::gpio::GPIO::new(gpio_pins),
+        drivers::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+        20);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
@@ -424,19 +404,21 @@ pub unsafe fn reset_handler() {
     // &sam4l::gpio::PA[14] // No Connection
     //
 
-    static_init!(firestorm: Firestorm = Firestorm {
-                     console: console,
-                     gpio: gpio,
-                     timer: timer,
-                     tmp006: tmp006,
-                     isl29035: isl29035,
-                     spi: spi,
-                     nrf51822: nrf_serialization,
-                 },
-                 28);
+    let firestorm = static_init!(
+        Firestorm {
+            console: console,
+            gpio: gpio,
+            timer: timer,
+            tmp006: tmp006,
+            isl29035: isl29035,
+            spi: spi,
+            nrf51822: nrf_serialization,
+        },
+        Firestorm,
+        28);
 
-    sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
-        //client: &console,
+    usart::USART3.configure(usart::USARTParams {
+        // client: &console,
         baud_rate: 115200,
         data_bits: 8,
         parity: hil::uart::Parity::None,
@@ -444,7 +426,7 @@ pub unsafe fn reset_handler() {
     });
 
     // Setup USART2 for the nRF51822 connection
-    sam4l::usart::USART2.configure(sam4l::usart::USARTParams {
+    usart::USART2.configure(usart::USARTParams {
         baud_rate: 250000,
         data_bits: 8,
         parity: hil::uart::Parity::Even,
@@ -488,4 +470,3 @@ pub unsafe fn reset_handler() {
 
     main::main(firestorm, &mut chip, load_processes());
 }
-
