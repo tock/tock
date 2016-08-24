@@ -1,9 +1,8 @@
-/**
- *  led.rs -- Drivers for LEDs that abstract away polarity and pin.
- *
- * Author: Philip Levis <pal@cs.stanford.edu>
- * Date: July 31, 2015
- */
+//! led.rs -- Drivers for LEDs that abstract away polarity and pin.
+//!
+//!  Author: Philip Levis <pal@cs.stanford.edu>
+//!  Date: July 31, 2015
+//!
 
 use gpio;
 
@@ -17,34 +16,30 @@ pub trait Led {
 
 /// For LEDs in which on is when GPIO is high.
 pub struct LedHigh {
-    pub pin: &'static mut gpio::GPIOPin
+    pub pin: &'static mut gpio::GPIOPin,
 }
 
 /// For LEDs in which on is when GPIO is low.
 pub struct LedLow {
-    pub pin: &'static mut gpio::GPIOPin
+    pub pin: &'static mut gpio::GPIOPin,
 }
 
 impl LedHigh {
     pub fn new(p: &'static mut gpio::GPIOPin) -> LedHigh {
-        LedHigh {
-            pin: p
-        }
+        LedHigh { pin: p }
     }
 }
 
 impl LedLow {
     pub fn new(p: &'static mut gpio::GPIOPin) -> LedLow {
-        LedLow {
-            pin: p
-        }
+        LedLow { pin: p }
     }
 }
 
 impl Led for LedHigh {
     fn init(&mut self) {
         self.pin.enable_output();
-      }
+    }
 
     fn on(&mut self) {
         self.pin.set();
@@ -84,4 +79,3 @@ impl Led for LedLow {
         !self.pin.read()
     }
 }
-

@@ -18,63 +18,65 @@
 //! Author: Philip Levis <pal@cs.stanford.edu>
 //! Date: August 18, 2016
 
-use core::mem;
+use chip;
 use common::VolatileCell;
 use common::take_cell::TakeCell;
-use peripheral_interrupts::NvicIdx;
-use nvic;
-use chip;
+use core::mem;
 use hil;
+use nvic;
+use peripheral_interrupts::NvicIdx;
 
 #[repr(C, packed)]
 struct Registers {
-    pub task_start:      VolatileCell<u32>,
-    pub task_stop:       VolatileCell<u32>,
-    pub task_count:      VolatileCell<u32>,
-    pub task_clear:      VolatileCell<u32>,
-    pub task_shutdown:   VolatileCell<u32>,
-    _reserved0:        [VolatileCell<u32>;  11],
-    pub task_capture:  [VolatileCell<u32>;   4],  // 0x40
-    _reserved1:        [VolatileCell<u32>;  60],  // 0x140
-    pub event_compare: [VolatileCell<u32>;   4],
-    _reserved2:        [VolatileCell<u32>;  44],  // 0x150
-    pub shorts:          VolatileCell<u32>,       // 0x200
-    _reserved3:        [VolatileCell<u32>;  64],  // 0x204
-    pub intenset:        VolatileCell<u32>,       // 0x304
-    pub intenclr:        VolatileCell<u32>,       // 0x308
-    _reserved4:        [VolatileCell<u32>; 126],  // 0x30C
-    pub mode:            VolatileCell<u32>,       // 0x504
-    pub bitmode:         VolatileCell<u32>,       // 0x508
-    _reserved5:          VolatileCell<u32>,
-    pub prescaler:       VolatileCell<u32>,       // 0x510
-    _reserved6:        [VolatileCell<u32>;  11],  // 0x514
-    pub cc:            [VolatileCell<u32>;   4],  // 0x540
+    pub task_start: VolatileCell<u32>,
+    pub task_stop: VolatileCell<u32>,
+    pub task_count: VolatileCell<u32>,
+    pub task_clear: VolatileCell<u32>,
+    pub task_shutdown: VolatileCell<u32>,
+    _reserved0: [VolatileCell<u32>; 11],
+    pub task_capture: [VolatileCell<u32>; 4], // 0x40
+    _reserved1: [VolatileCell<u32>; 60], // 0x140
+    pub event_compare: [VolatileCell<u32>; 4],
+    _reserved2: [VolatileCell<u32>; 44], // 0x150
+    pub shorts: VolatileCell<u32>, // 0x200
+    _reserved3: [VolatileCell<u32>; 64], // 0x204
+    pub intenset: VolatileCell<u32>, // 0x304
+    pub intenclr: VolatileCell<u32>, // 0x308
+    _reserved4: [VolatileCell<u32>; 126], // 0x30C
+    pub mode: VolatileCell<u32>, // 0x504
+    pub bitmode: VolatileCell<u32>, // 0x508
+    _reserved5: VolatileCell<u32>,
+    pub prescaler: VolatileCell<u32>, // 0x510
+    _reserved6: [VolatileCell<u32>; 11], // 0x514
+    pub cc: [VolatileCell<u32>; 4], // 0x540
 }
 
-const SIZE:       usize = 0x1000;
+const SIZE: usize = 0x1000;
 const TIMER_BASE: usize = 0x40008000;
 
 #[derive(Copy,Clone)]
 pub enum Location {
-    TIMER0, TIMER1, TIMER2
+    TIMER0,
+    TIMER1,
+    TIMER2,
 }
 
-pub static mut TIMER0 : Timer = Timer {
+pub static mut TIMER0: Timer = Timer {
     which: Location::TIMER0,
     nvic: NvicIdx::TIMER0,
-    client: TakeCell::empty()
-};
-
-pub static mut ALARM1 : TimerAlarm = TimerAlarm {
-    which:  Location::TIMER1,
-    nvic:   NvicIdx::TIMER1,
     client: TakeCell::empty(),
 };
 
-pub static mut TIMER2 : Timer = Timer {
+pub static mut ALARM1: TimerAlarm = TimerAlarm {
+    which: Location::TIMER1,
+    nvic: NvicIdx::TIMER1,
+    client: TakeCell::empty(),
+};
+
+pub static mut TIMER2: Timer = Timer {
     which: Location::TIMER2,
     nvic: NvicIdx::TIMER2,
-    client: TakeCell::empty()
+    client: TakeCell::empty(),
 };
 
 #[allow(non_snake_case)]
@@ -95,7 +97,9 @@ pub struct Timer {
 }
 
 impl Timer {
-    fn timer(&self) -> &'static Registers { TIMER(self.which) }
+    fn timer(&self) -> &'static Registers {
+        TIMER(self.which)
+    }
 
     pub const fn new(location: Location, nvic: NvicIdx) -> Timer {
         Timer {
@@ -165,14 +169,30 @@ impl Timer {
         self.timer().shorts.set(shortcut);
     }
 
-    pub fn get_cc0(&self) -> u32    { self.timer().cc[0].get() }
-    pub fn set_cc0(&self, val: u32) { self.timer().cc[0].set(val); }
-    pub fn get_cc1(&self) -> u32    { self.timer().cc[1].get() }
-    pub fn set_cc1(&self, val: u32) { self.timer().cc[0].set(val); }
-    pub fn get_cc2(&self) -> u32    { self.timer().cc[2].get() }
-    pub fn set_cc2(&self, val: u32) { self.timer().cc[0].set(val); }
-    pub fn get_cc3(&self) -> u32    { self.timer().cc[3].get() }
-    pub fn set_cc3(&self, val: u32) { self.timer().cc[0].set(val); }
+    pub fn get_cc0(&self) -> u32 {
+        self.timer().cc[0].get()
+    }
+    pub fn set_cc0(&self, val: u32) {
+        self.timer().cc[0].set(val);
+    }
+    pub fn get_cc1(&self) -> u32 {
+        self.timer().cc[1].get()
+    }
+    pub fn set_cc1(&self, val: u32) {
+        self.timer().cc[0].set(val);
+    }
+    pub fn get_cc2(&self) -> u32 {
+        self.timer().cc[2].get()
+    }
+    pub fn set_cc2(&self, val: u32) {
+        self.timer().cc[0].set(val);
+    }
+    pub fn get_cc3(&self) -> u32 {
+        self.timer().cc[3].get()
+    }
+    pub fn set_cc3(&self, val: u32) {
+        self.timer().cc[0].set(val);
+    }
 
     pub fn enable_interrupts(&self, interrupts: u32) {
         self.timer().intenset.set(interrupts << 16);
@@ -227,12 +247,14 @@ pub struct TimerAlarm {
 
 // CC0 is used for capture
 // CC1 is used for compare/interrupts
-const ALARM_CAPTURE       : usize = 0;
-const ALARM_COMPARE       : usize = 1;
-const ALARM_INTERRUPT_BIT : u32   = 1 << (16 + ALARM_COMPARE);
+const ALARM_CAPTURE: usize = 0;
+const ALARM_COMPARE: usize = 1;
+const ALARM_INTERRUPT_BIT: u32 = 1 << (16 + ALARM_COMPARE);
 
 impl TimerAlarm {
-    fn timer(&self) -> &'static Registers { TIMER(self.which) }
+    fn timer(&self) -> &'static Registers {
+        TIMER(self.which)
+    }
 
     pub const fn new(location: Location, nvic: NvicIdx) -> TimerAlarm {
         TimerAlarm {
@@ -269,7 +291,7 @@ impl TimerAlarm {
         self.timer().task_stop.set(1);
     }
 
-#[inline(never)]
+    #[inline(never)]
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
         self.client.map(|client| {
@@ -336,7 +358,7 @@ impl hil::alarm::Alarm for TimerAlarm {
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern fn TIMER0_Handler() {
+pub unsafe extern "C" fn TIMER0_Handler() {
     use common::Queue;
 
     nvic::disable(NvicIdx::TIMER0);
@@ -345,7 +367,7 @@ pub unsafe extern fn TIMER0_Handler() {
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern fn TIMER1_Handler() {
+pub unsafe extern "C" fn TIMER1_Handler() {
     use common::Queue;
 
     nvic::disable(NvicIdx::TIMER1);
@@ -354,11 +376,9 @@ pub unsafe extern fn TIMER1_Handler() {
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern fn TIMER2_Handler() {
+pub unsafe extern "C" fn TIMER2_Handler() {
     use common::Queue;
 
     nvic::disable(NvicIdx::TIMER2);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER2);
 }
-
-

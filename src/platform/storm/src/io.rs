@@ -1,12 +1,15 @@
-use sam4l;
+
 use core::fmt::*;
-use support::nop;
 use hil::Controller;
 use hil::uart::{self, UART};
+use sam4l;
+use support::nop;
 
-pub struct Writer { initialized: bool }
+pub struct Writer {
+    initialized: bool,
+}
 
-pub static mut WRITER : Writer = Writer { initialized: false };
+pub static mut WRITER: Writer = Writer { initialized: false };
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
@@ -33,8 +36,7 @@ impl Write for Writer {
 #[cfg(not(test))]
 #[lang="panic_fmt"]
 #[no_mangle]
-pub unsafe extern fn rust_begin_unwind(args: Arguments,
-    file: &'static str, line: u32) -> ! {
+pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, line: u32) -> ! {
 
     let writer = &mut WRITER;
     let _ = writer.write_fmt(format_args!("Kernel panic at {}:{}:\r\n\t\"", file, line));

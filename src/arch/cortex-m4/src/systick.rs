@@ -2,16 +2,16 @@ use common::volatile_cell::VolatileCell;
 use main;
 
 pub struct SysTick {
-    control:     VolatileCell<u32>,
-    reload:      VolatileCell<u32>,
-    value:       VolatileCell<u32>,
-    calibration: VolatileCell<u32>
+    control: VolatileCell<u32>,
+    reload: VolatileCell<u32>,
+    value: VolatileCell<u32>,
+    calibration: VolatileCell<u32>,
 }
 
 #[no_mangle]
-pub static mut OVERFLOW_FIRED : VolatileCell<usize> = VolatileCell::new(0);
+pub static mut OVERFLOW_FIRED: VolatileCell<usize> = VolatileCell::new(0);
 
-const BASE_ADDR : *const SysTick = 0xE000E010 as *const SysTick;
+const BASE_ADDR: *const SysTick = 0xE000E010 as *const SysTick;
 
 impl SysTick {
     pub unsafe fn new() -> &'static SysTick {
@@ -20,7 +20,6 @@ impl SysTick {
 }
 
 impl main::SysTick for SysTick {
-
     fn set_timer(&self, us: u32) {
         let tenms = self.calibration.get() & 0xffffff;
         let reload = tenms * us / 10000;
@@ -58,9 +57,6 @@ impl main::SysTick for SysTick {
     }
 
     fn overflow_fired() -> bool {
-        unsafe {
-            OVERFLOW_FIRED.get() == 1
-        }
+        unsafe { OVERFLOW_FIRED.get() == 1 }
     }
 }
-

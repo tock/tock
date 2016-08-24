@@ -1,6 +1,6 @@
 use common::take_cell::TakeCell;
-use main::{AppId, Callback, AppSlice, Driver, Shared};
 use hil::uart::{UART, Client};
+use main::{AppId, Callback, AppSlice, Driver, Shared};
 
 ///
 /// Nrf51822Serialization is the kernel-level driver that provides
@@ -8,23 +8,23 @@ use hil::uart::{UART, Client};
 ///
 
 struct App {
-    callback:      Option<Callback>,
-    tx_buffer:     Option<AppSlice<Shared, u8>>,
-    rx_buffer:     Option<AppSlice<Shared, u8>>,
-    rx_recv_so_far: usize,  // How many RX bytes we have currently received.
-    rx_recv_total:   usize   // The total number of bytes we expect to receive.
+    callback: Option<Callback>,
+    tx_buffer: Option<AppSlice<Shared, u8>>,
+    rx_buffer: Option<AppSlice<Shared, u8>>,
+    rx_recv_so_far: usize, // How many RX bytes we have currently received.
+    rx_recv_total: usize, // The total number of bytes we expect to receive.
 }
 
 // Local buffer for storing data between when the application passes it to
 // use
-pub static mut WRITE_BUF : [u8; 256] = [0; 256];
+pub static mut WRITE_BUF: [u8; 256] = [0; 256];
 
 // We need two resources: a UART HW driver and driver state for each
 // application.
 pub struct Nrf51822Serialization<'a, U: UART + 'a> {
     uart: &'a U,
     app: TakeCell<App>,
-    buffer: TakeCell<&'static mut [u8]>
+    buffer: TakeCell<&'static mut [u8]>,
 }
 
 impl<'a, U: UART> Nrf51822Serialization<'a, U> {
@@ -32,7 +32,7 @@ impl<'a, U: UART> Nrf51822Serialization<'a, U> {
         Nrf51822Serialization {
             uart: uart,
             app: TakeCell::empty(),
-            buffer: TakeCell::new(buffer)
+            buffer: TakeCell::new(buffer),
         }
     }
 
@@ -43,16 +43,12 @@ impl<'a, U: UART> Nrf51822Serialization<'a, U> {
 }
 
 impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
-
     /// Pass application space memory to this driver.
     ///
     /// allow_type: 0 - Provide an RX buffer
     /// allow_type: 1 - Provide an TX buffer
     ///
-    fn allow(&self,
-             _appid: AppId,
-             allow_type: usize,
-             slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, _appid: AppId, allow_type: usize, slice: AppSlice<Shared, u8>) -> isize {
         match allow_type {
             0 => {
                 let resapp = match self.app.take() {
@@ -61,36 +57,40 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                         app.rx_recv_so_far = 0;
                         app.rx_recv_total = 0;
                         app
-                    },
-                    None => App {
-                        callback:       None,
-                        tx_buffer:      None,
-                        rx_buffer:      Some(slice),
-                        rx_recv_so_far: 0,
-                        rx_recv_total:  0
+                    }
+                    None => {
+                        App {
+                            callback: None,
+                            tx_buffer: None,
+                            rx_buffer: Some(slice),
+                            rx_recv_so_far: 0,
+                            rx_recv_total: 0,
+                        }
                     }
                 };
                 self.app.replace(resapp);
                 0
-            },
+            }
             1 => {
                 let resapp = match self.app.take() {
                     Some(mut app) => {
                         app.tx_buffer = Some(slice);
                         app
-                    },
-                    None => App {
-                        callback:       None,
-                        tx_buffer:      Some(slice),
-                        rx_buffer:      None,
-                        rx_recv_so_far: 0,
-                        rx_recv_total:  0
+                    }
+                    None => {
+                        App {
+                            callback: None,
+                            tx_buffer: Some(slice),
+                            rx_buffer: None,
+                            rx_recv_so_far: 0,
+                            rx_recv_total: 0,
+                        }
                     }
                 };
                 self.app.replace(resapp);
                 0
-            },
-            _ => -1
+            }
+            _ => -1,
         }
     }
 
@@ -109,19 +109,21 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                     Some(mut app) => {
                         app.callback = Some(callback);
                         app
-                    },
-                    None => App {
-                        callback:       Some(callback),
-                        tx_buffer:      None,
-                        rx_buffer:      None,
-                        rx_recv_so_far: 0,
-                        rx_recv_total:  0
+                    }
+                    None => {
+                        App {
+                            callback: Some(callback),
+                            tx_buffer: None,
+                            rx_buffer: None,
+                            rx_recv_so_far: 0,
+                            rx_recv_total: 0,
+                        }
                     }
                 };
                 self.app.replace(resapp);
                 0
-            },
-            _ => -1
+            }
+            _ => -1,
         }
     }
 
@@ -148,20 +150,19 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                                 self.uart.send_bytes(buffer, write_len);
                             });
                             0
-                        },
-                        None => -2
+                        }
+                        None => -2,
                     }
                 });
                 result.unwrap_or(-1)
-            },
-            _ => -1
+            }
+            _ => -1,
         }
     }
 }
 
 // Callbacks from the underlying UART driver.
 impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
-
     // Called when the UART TX has finished
     fn write_done(&self, buffer: &'static mut [u8]) {
         self.buffer.replace(buffer);
@@ -186,8 +187,7 @@ impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
             // Save a local copy of this so we can use it after we have a borrow
             let rx_count = appst.rx_recv_so_far;
 
-            if appst.rx_buffer.is_some() &&
-               rx_count < appst.rx_buffer.as_ref().unwrap().len() {
+            if appst.rx_buffer.is_some() && rx_count < appst.rx_buffer.as_ref().unwrap().len() {
 
                 // This is just some rust magic that only gets a mutable
                 // reference to the RX buffer and adds the byte if the buffer
@@ -206,8 +206,9 @@ impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
                 // Check if this was the second byte. If so, we can now
                 // compute how many total bytes we expect to receive.
                 if appst.rx_recv_so_far == 2 {
-                    appst.rx_recv_total = appst.rx_buffer.as_ref().unwrap().as_ref()[0] as usize |
-                                          ((appst.rx_buffer.as_ref().unwrap().as_ref()[1] as usize) << 8);
+                    appst.rx_recv_total =
+                        appst.rx_buffer.as_ref().unwrap().as_ref()[0] as usize |
+                        ((appst.rx_buffer.as_ref().unwrap().as_ref()[1] as usize) << 8);
 
                     // After first byte let app know that a packet is inbound!
                     let rx_recv_total = appst.rx_recv_total;

@@ -1,4 +1,4 @@
-use core::fmt::{Display,Formatter,Result};
+use core::fmt::{Display, Formatter, Result};
 
 /// The type of error encoutered during an I2C command transmission.
 #[derive(Copy,Clone)]
@@ -16,7 +16,7 @@ pub enum Error {
     ArbitrationLost,
 
     /// No error occured and the command completed successfully.
-    CommandComplete
+    CommandComplete,
 }
 
 impl Display for Error {
@@ -25,7 +25,7 @@ impl Display for Error {
             Error::AddressNak => "I2C Address Not Acknowledged",
             Error::DataNak => "I2C Data Not Acknowledged",
             Error::ArbitrationLost => "I2C Bus Arbitration Lost",
-            Error::CommandComplete => "I2C Command Completed"
+            Error::CommandComplete => "I2C Command Completed",
         };
         write!(fmt, "{}", display_str)
     }
@@ -34,8 +34,7 @@ impl Display for Error {
 pub trait I2CController {
     fn enable(&self);
     fn disable(&self);
-    fn write_read(&self, addr: u8, data: &'static mut [u8],
-                  write_len: u8, read_len: u8);
+    fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8);
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8);
     fn read(&self, addr: u8, buffer: &'static mut [u8], len: u8);
 }
@@ -43,8 +42,7 @@ pub trait I2CController {
 pub trait I2CDevice {
     fn enable(&self);
     fn disable(&self);
-    fn write_read(&self, data: &'static mut [u8],
-                  write_len: u8, read_len: u8);
+    fn write_read(&self, data: &'static mut [u8], write_len: u8, read_len: u8);
     fn write(&self, data: &'static mut [u8], len: u8);
     fn read(&self, buffer: &'static mut [u8], len: u8);
 }

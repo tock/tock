@@ -1,15 +1,15 @@
-/* chips::sam4l::ast -- Implementation of a single hardware timer.
- *
- * Author: Amit Levy <levya@cs.stanford.edu>
- * Author: Philip Levis <pal@cs.stanford.edu>
- * Date: July 16, 2015
- */
+// chips::sam4l::ast -- Implementation of a single hardware timer.
+//
+// Author: Amit Levy <levya@cs.stanford.edu>
+// Author: Philip Levis <pal@cs.stanford.edu>
+// Date: July 16, 2015
+//
 
 use core::cell::Cell;
 use core::intrinsics;
-use nvic;
-use hil::alarm::{Alarm, AlarmClient, Freq16KHz};
 use hil::Controller;
+use hil::alarm::{Alarm, AlarmClient, Freq16KHz};
+use nvic;
 use pm::{self, PBDClock};
 
 #[repr(C, packed)]
@@ -23,21 +23,20 @@ struct AstRegisters {
     idr: u32,
     imr: u32,
     wer: u32,
-    //0x20
+    // 0x20
     ar0: u32,
     ar1: u32,
     reserved0: [u32; 2],
     pir0: u32,
     pir1: u32,
     reserved1: [u32; 2],
-    //0x40
+    // 0x40
     clock: u32,
     dtr: u32,
     eve: u32,
     evd: u32,
     evm: u32,
-    calv: u32
-    //we leave out parameter and version
+    calv: u32, // we leave out parameter and version
 }
 
 pub const AST_BASE: isize = 0x400F0800;
@@ -45,12 +44,12 @@ pub const AST_BASE: isize = 0x400F0800;
 #[allow(missing_copy_implementations)]
 pub struct Ast {
     regs: *mut AstRegisters,
-    callback: Cell<Option<&'static AlarmClient>>
+    callback: Cell<Option<&'static AlarmClient>>,
 }
 
-pub static mut AST : Ast = Ast {
+pub static mut AST: Ast = Ast {
     regs: AST_BASE as *mut AstRegisters,
-    callback: Cell::new(None)
+    callback: Cell::new(None),
 };
 
 impl Controller for Ast {
@@ -75,21 +74,17 @@ pub enum Clock {
     ClockOsc32 = 1,
     ClockAPB = 2,
     ClockGclk2 = 3,
-    Clock1K = 4
+    Clock1K = 4,
 }
 
 impl Ast {
     pub fn clock_busy(&self) -> bool {
-        unsafe {
-            intrinsics::volatile_load(&(*self.regs).sr) & (1 << 28) != 0
-        }
+        unsafe { intrinsics::volatile_load(&(*self.regs).sr) & (1 << 28) != 0 }
     }
 
 
     pub fn busy(&self) -> bool {
-        unsafe {
-            intrinsics::volatile_load(&(*self.regs).sr) & (1 << 24) != 0
-        }
+        unsafe { intrinsics::volatile_load(&(*self.regs).sr) & (1 << 24) != 0 }
     }
 
     // Clears the alarm bit in the status register (indicating the alarm value
@@ -114,19 +109,19 @@ impl Ast {
 
     pub fn select_clock(&self, clock: Clock) {
         unsafe {
-          // Disable clock by setting first bit to zero
-          while self.clock_busy() {}
-          let enb = intrinsics::volatile_load(&(*self.regs).clock) & !1;
-          intrinsics::volatile_store(&mut (*self.regs).clock, enb);
-          while self.clock_busy() {}
+            // Disable clock by setting first bit to zero
+            while self.clock_busy() {}
+            let enb = intrinsics::volatile_load(&(*self.regs).clock) & !1;
+            intrinsics::volatile_store(&mut (*self.regs).clock, enb);
+            while self.clock_busy() {}
 
-          // Select clock
-          intrinsics::volatile_store(&mut (*self.regs).clock, (clock as u32) << 8);
-          while self.clock_busy() {}
+            // Select clock
+            intrinsics::volatile_store(&mut (*self.regs).clock, (clock as u32) << 8);
+            while self.clock_busy() {}
 
-          // Re-enable clock
-          let enb = intrinsics::volatile_load(&(*self.regs).clock) | 1;
-          intrinsics::volatile_store(&mut (*self.regs).clock, enb);
+            // Re-enable clock
+            let enb = intrinsics::volatile_load(&(*self.regs).clock) | 1;
+            intrinsics::volatile_store(&mut (*self.regs).clock, enb);
         }
     }
 
@@ -140,9 +135,7 @@ impl Ast {
 
     pub fn is_enabled(&self) -> bool {
         while self.busy() {}
-        unsafe {
-            intrinsics::volatile_load(&(*self.regs).cr) & 1 == 1
-        }
+        unsafe { intrinsics::volatile_load(&(*self.regs).cr) & 1 == 1 }
     }
 
     pub fn disable(&self) {
@@ -217,9 +210,7 @@ impl Ast {
 
     pub fn get_counter(&self) -> u32 {
         while self.busy() {}
-        unsafe {
-            intrinsics::volatile_load(&(*self.regs).cv)
-        }
+        unsafe { intrinsics::volatile_load(&(*self.regs).cv) }
     }
 
 
@@ -236,18 +227,14 @@ impl Ast {
             cb.fired();
         });
     }
-
 }
 
 impl Alarm for Ast {
-
     type Frequency = Freq16KHz;
 
     fn now(&self) -> u32 {
         while self.busy() {}
-        unsafe {
-            intrinsics::volatile_load(&(*self.regs).cv)
-        }
+        unsafe { intrinsics::volatile_load(&(*self.regs).cv) }
     }
 
     fn disable_alarm(&self) {
@@ -271,11 +258,8 @@ impl Alarm for Ast {
 
     fn get_alarm(&self) -> u32 {
         while self.busy() {}
-        unsafe {
-            intrinsics::volatile_load(&(*self.regs).ar0)
-        }
+        unsafe { intrinsics::volatile_load(&(*self.regs).ar0) }
     }
 }
 
 interrupt_handler!(ast_alarm_handler, ASTALARM);
-

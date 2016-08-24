@@ -1,12 +1,12 @@
 use driver::Driver;
 
 pub trait Platform {
-    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
-            F: FnOnce(Option<&Driver>) -> R;
+    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R
+        where F: FnOnce(Option<&Driver>) -> R;
 }
 
 pub trait Chip {
-    type MPU : MPU;
+    type MPU: MPU;
     type SysTick: SysTick;
 
     fn service_pending_interrupts(&mut self);
@@ -30,8 +30,7 @@ pub trait MPU {
     /// `execute`   : whether to enable code execution from this region
     /// `ap`        : access permissions as defined in Table 4.47 of the user
     ///               guide.
-    fn set_mpu(&self, region_num: u32, start_addr: u32, len: u32,
-               execute: bool, ap: u32);
+    fn set_mpu(&self, region_num: u32, start_addr: u32, len: u32, execute: bool, ap: u32);
 }
 
 /// Noop implementation of MPU trait
@@ -62,17 +61,21 @@ pub trait SysTick {
 }
 
 impl SysTick for () {
-
     fn reset(&self) {}
 
     fn set_timer(&self, _: u32) {}
 
     fn enable(&self, _: bool) {}
 
-    fn overflowed(&self) -> bool { false }
+    fn overflowed(&self) -> bool {
+        false
+    }
 
-    fn value(&self) -> u32 { !0 }
+    fn value(&self) -> u32 {
+        !0
+    }
 
-    fn overflow_fired() -> bool { false }
+    fn overflow_fired() -> bool {
+        false
+    }
 }
-

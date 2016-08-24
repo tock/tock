@@ -4,15 +4,24 @@ use core::option::Option;
 
 /// Values for the ordering of bits
 #[derive(Copy, Clone)]
-pub enum DataOrder {MSBFirst, LSBFirst}
+pub enum DataOrder {
+    MSBFirst,
+    LSBFirst,
+}
 
 /// Values for the clock polarity (idle state or CPOL)
 #[derive(Copy, Clone)]
-pub enum ClockPolarity {IdleLow, IdleHigh}
+pub enum ClockPolarity {
+    IdleLow,
+    IdleHigh,
+}
 
 /// Which clock edge values are sampled on
 #[derive(Copy, Clone)]
-pub enum ClockPhase {SampleLeading, SampleTrailing}
+pub enum ClockPhase {
+    SampleLeading,
+    SampleTrailing,
+}
 
 pub trait SpiCallback {
     /// Called when a read/write operation finishes
@@ -71,7 +80,8 @@ pub trait SpiMaster {
     fn read_write_bytes(&self,
                         mut write_buffer: Option<&'static mut [u8]>,
                         mut read_buffer: Option<&'static mut [u8]>,
-                        len: usize) -> bool;
+                        len: usize)
+                        -> bool;
     fn write_byte(&self, val: u8);
     fn read_byte(&self) -> u8;
     fn read_write_byte(&self, val: u8) -> u8;
@@ -102,4 +112,3 @@ pub trait SpiMaster {
     fn hold_low(&self);
     fn release_low(&self);
 }
-

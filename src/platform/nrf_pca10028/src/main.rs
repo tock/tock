@@ -47,18 +47,18 @@ extern crate nrf51;
 extern crate main;
 extern crate support;
 
-use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::timer::TimerDriver;
-use nrf51::timer::TimerAlarm;
-use nrf51::timer::ALARM1;
+use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use hil::gpio::GPIOPin;
-use main::{Chip,SysTick};
+use main::{Chip, SysTick};
+use nrf51::timer::ALARM1;
+use nrf51::timer::TimerAlarm;
 
 // The nRF51 DK LEDs (see back of board)
-const LED1_PIN:  usize = 21;
-const LED2_PIN:  usize = 22;
-const LED3_PIN:  usize = 23;
-const LED4_PIN:  usize = 24;
+const LED1_PIN: usize = 21;
+const LED2_PIN: usize = 22;
+const LED3_PIN: usize = 23;
+const LED4_PIN: usize = 24;
 
 // The nRF51 DK buttons (see back of board)
 const BUTTON1_PIN: usize = 17;
@@ -67,10 +67,10 @@ const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
 
 unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>>] {
-    use core::intrinsics::{volatile_load,volatile_store};
-    extern {
+    use core::intrinsics::{volatile_load, volatile_store};
+    extern "C" {
         /// Beginning of the ROM region containing app images.
-        static _sapps : u8;
+        static _sapps: u8;
     }
 
 
@@ -86,8 +86,8 @@ unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>
     // of processes.
     let total_size = volatile_load(addr as *const usize);
     if total_size != 0 {
-        volatile_store(&mut PROCS[0], Some(main::process::Process::create(addr,
-                                                                          total_size, &    mut MEMORY)));
+        volatile_store(&mut PROCS[0],
+                       Some(main::process::Process::create(addr, total_size, &mut MEMORY)));
     }
     &mut PROCS
 }
@@ -101,15 +101,16 @@ pub struct Platform {
 
 impl main::Platform for Platform {
     #[inline(never)]
-    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
-        F: FnOnce(Option<&main::Driver>) -> R {
-            match driver_num {
-                0 => f(Some(self.console)),
-                1 => f(Some(self.gpio)),
-                3 => f(Some(self.timer)),
-                _ => f(None)
-            }
+    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R
+        where F: FnOnce(Option<&main::Driver>) -> R
+    {
+        match driver_num {
+            0 => f(Some(self.console)),
+            1 => f(Some(self.gpio)),
+            3 => f(Some(self.timer)),
+            _ => f(None),
         }
+    }
 }
 
 #[no_mangle]
@@ -217,8 +218,10 @@ use core::fmt::Arguments;
 #[cfg(not(test))]
 #[lang="panic_fmt"]
 #[no_mangle]
-pub unsafe extern fn rust_begin_unwind(_args: &Arguments,
-                                       _file: &'static str, _line: usize) -> ! {
+pub unsafe extern "C" fn rust_begin_unwind(_args: &Arguments,
+                                           _file: &'static str,
+                                           _line: usize)
+                                           -> ! {
     use support::nop;
     use hil::gpio::GPIOPin;
 

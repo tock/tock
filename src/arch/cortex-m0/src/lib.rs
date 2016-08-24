@@ -9,7 +9,7 @@ extern crate main;
 #[no_mangle]
 #[naked]
 #[allow(non_snake_case)]
-pub unsafe extern fn SVC_Handler() {
+pub unsafe extern "C" fn SVC_Handler() {
     asm!("
   ldr r0, EXC_RETURN_MSP
   cmp lr, r0
@@ -34,7 +34,9 @@ EXC_RETURN_PSP:
 #[no_mangle]
 #[inline(never)]
 /// r0 is top of user stack, r1 Process GOT
-pub unsafe extern fn switch_to_user(mut user_stack: *const u8, process_got: *const u8) -> *mut u8 {
+pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
+                                        process_got: *const u8)
+                                        -> *mut u8 {
     asm!("
     /* Load non-hardware-stacked registers from Process stack */
     subs $0, #32
@@ -80,4 +82,3 @@ pub unsafe extern fn switch_to_user(mut user_stack: *const u8, process_got: *con
     : "r4","r5","r6","r7","r8","r9","r10","r11");
     user_stack as *mut u8
 }
-

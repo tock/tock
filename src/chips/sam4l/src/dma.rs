@@ -1,37 +1,38 @@
-use core::cell::Cell;
-use core::mem;
-use core::intrinsics;
+
 use common::take_cell::TakeCell;
-use pm;
-use nvic;
+use core::cell::Cell;
+use core::intrinsics;
+use core::mem;
 
 use helpers::*;
+use nvic;
+use pm;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet
 #[repr(C, packed)]
 #[allow(dead_code)]
 struct DMARegisters {
-    memory_address:           usize,
-    peripheral_select:        usize,
-    transfer_counter:         usize,
-    memory_address_reload:    usize,
-    transfer_counter_reload:  usize,
-    control:                  usize,
-    mode:                     usize,
-    status:                   usize,
-    interrupt_enable:         usize,
-    interrupt_disable:        usize,
-    interrupt_mask:           usize,
-    interrupt_status:         usize,
-    version:                  usize,
-    _unused:                  [usize; 3]
+    memory_address: usize,
+    peripheral_select: usize,
+    transfer_counter: usize,
+    memory_address_reload: usize,
+    transfer_counter_reload: usize,
+    control: usize,
+    mode: usize,
+    status: usize,
+    interrupt_enable: usize,
+    interrupt_disable: usize,
+    interrupt_mask: usize,
+    interrupt_status: usize,
+    version: usize,
+    _unused: [usize; 3],
 }
 
 /// The PDCA's base addresses in memory (Section 7.1 of manual)
-pub const DMA_BASE_ADDR : usize = 0x400A2000;
+pub const DMA_BASE_ADDR: usize = 0x400A2000;
 
 /// The number of bytes between each memory mapped DMA Channel (Section 16.6.1)
-pub const DMA_CHANNEL_SIZE : usize = 0x40;
+pub const DMA_CHANNEL_SIZE: usize = 0x40;
 
 /// Shared counter that Keeps track of how many DMA channels are currently
 /// active.
@@ -58,7 +59,7 @@ pub enum DMAChannelNum {
     DMAChannel12 = 12,
     DMAChannel13 = 13,
     DMAChannel14 = 14,
-    DMAChannel15 = 15
+    DMAChannel15 = 15,
 }
 
 
@@ -68,71 +69,70 @@ pub enum DMAChannelNum {
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone)]
 pub enum DMAPeripheral {
-    USART0_RX      = 0,
-    USART1_RX      = 1,
-    USART2_RX      = 2,
-    USART3_RX      = 3,
-    SPI_RX         = 4,
-    TWIM0_RX       = 5,
-    TWIM1_RX       = 6,
-    TWIM2_RX       = 7,
-    TWIM3_RX       = 8,
-    TWIS0_RX       = 9,
-    TWIS1_RX       = 10,
-    ADCIFE_RX      = 11,
-    CATB_RX        = 12,
-    IISC_CH0_RX    = 14,
-    IISC_CH1_RX    = 15,
-    PARC_RX        = 16,
-    AESA_RX        = 17,
-    USART0_TX      = 18,
-    USART1_TX      = 19,
-    USART2_TX      = 20,
-    USART3_TX      = 21,
-    SPI_TX         = 22,
-    TWIM0_TX       = 23,
-    TWIM1_TX       = 24,
-    TWIM2_TX       = 25,
-    TWIM3_TX       = 26,
-    TWIS0_TX       = 27,
-    TWIS1_TX       = 28,
-    ADCIFE_TX      = 29,
-    CATB_TX        = 30,
+    USART0_RX = 0,
+    USART1_RX = 1,
+    USART2_RX = 2,
+    USART3_RX = 3,
+    SPI_RX = 4,
+    TWIM0_RX = 5,
+    TWIM1_RX = 6,
+    TWIM2_RX = 7,
+    TWIM3_RX = 8,
+    TWIS0_RX = 9,
+    TWIS1_RX = 10,
+    ADCIFE_RX = 11,
+    CATB_RX = 12,
+    IISC_CH0_RX = 14,
+    IISC_CH1_RX = 15,
+    PARC_RX = 16,
+    AESA_RX = 17,
+    USART0_TX = 18,
+    USART1_TX = 19,
+    USART2_TX = 20,
+    USART3_TX = 21,
+    SPI_TX = 22,
+    TWIM0_TX = 23,
+    TWIM1_TX = 24,
+    TWIM2_TX = 25,
+    TWIM3_TX = 26,
+    TWIS0_TX = 27,
+    TWIS1_TX = 28,
+    ADCIFE_TX = 29,
+    CATB_TX = 30,
     ABDACB_SDR0_TX = 31,
     ABDACB_SDR1_TX = 32,
-    IISC_CH0_TX    = 33,
-    IISC_CH1_TX    = 34,
-    DACC_TX        = 35,
-    AESA_TX        = 36,
+    IISC_CH0_TX = 33,
+    IISC_CH1_TX = 34,
+    DACC_TX = 35,
+    AESA_TX = 36,
     LCDCA_ACMDR_TX = 37,
-    LCDCA_ABMDR_TX = 38
+    LCDCA_ABMDR_TX = 38,
 }
 
-pub static mut DMAChannels : [DMAChannel; 16] = [
-    DMAChannel::new(DMAChannelNum::DMAChannel00, nvic::NvicIdx::PDCA0),
-    DMAChannel::new(DMAChannelNum::DMAChannel01, nvic::NvicIdx::PDCA1),
-    DMAChannel::new(DMAChannelNum::DMAChannel02, nvic::NvicIdx::PDCA2),
-    DMAChannel::new(DMAChannelNum::DMAChannel03, nvic::NvicIdx::PDCA3),
-    DMAChannel::new(DMAChannelNum::DMAChannel04, nvic::NvicIdx::PDCA4),
-    DMAChannel::new(DMAChannelNum::DMAChannel05, nvic::NvicIdx::PDCA5),
-    DMAChannel::new(DMAChannelNum::DMAChannel06, nvic::NvicIdx::PDCA6),
-    DMAChannel::new(DMAChannelNum::DMAChannel07, nvic::NvicIdx::PDCA7),
-    DMAChannel::new(DMAChannelNum::DMAChannel08, nvic::NvicIdx::PDCA8),
-    DMAChannel::new(DMAChannelNum::DMAChannel09, nvic::NvicIdx::PDCA9),
-    DMAChannel::new(DMAChannelNum::DMAChannel10, nvic::NvicIdx::PDCA10),
-    DMAChannel::new(DMAChannelNum::DMAChannel11, nvic::NvicIdx::PDCA11),
-    DMAChannel::new(DMAChannelNum::DMAChannel12, nvic::NvicIdx::PDCA12),
-    DMAChannel::new(DMAChannelNum::DMAChannel13, nvic::NvicIdx::PDCA13),
-    DMAChannel::new(DMAChannelNum::DMAChannel14, nvic::NvicIdx::PDCA14),
-    DMAChannel::new(DMAChannelNum::DMAChannel15, nvic::NvicIdx::PDCA15),
-];
+pub static mut DMAChannels: [DMAChannel; 16] =
+    [DMAChannel::new(DMAChannelNum::DMAChannel00, nvic::NvicIdx::PDCA0),
+     DMAChannel::new(DMAChannelNum::DMAChannel01, nvic::NvicIdx::PDCA1),
+     DMAChannel::new(DMAChannelNum::DMAChannel02, nvic::NvicIdx::PDCA2),
+     DMAChannel::new(DMAChannelNum::DMAChannel03, nvic::NvicIdx::PDCA3),
+     DMAChannel::new(DMAChannelNum::DMAChannel04, nvic::NvicIdx::PDCA4),
+     DMAChannel::new(DMAChannelNum::DMAChannel05, nvic::NvicIdx::PDCA5),
+     DMAChannel::new(DMAChannelNum::DMAChannel06, nvic::NvicIdx::PDCA6),
+     DMAChannel::new(DMAChannelNum::DMAChannel07, nvic::NvicIdx::PDCA7),
+     DMAChannel::new(DMAChannelNum::DMAChannel08, nvic::NvicIdx::PDCA8),
+     DMAChannel::new(DMAChannelNum::DMAChannel09, nvic::NvicIdx::PDCA9),
+     DMAChannel::new(DMAChannelNum::DMAChannel10, nvic::NvicIdx::PDCA10),
+     DMAChannel::new(DMAChannelNum::DMAChannel11, nvic::NvicIdx::PDCA11),
+     DMAChannel::new(DMAChannelNum::DMAChannel12, nvic::NvicIdx::PDCA12),
+     DMAChannel::new(DMAChannelNum::DMAChannel13, nvic::NvicIdx::PDCA13),
+     DMAChannel::new(DMAChannelNum::DMAChannel14, nvic::NvicIdx::PDCA14),
+     DMAChannel::new(DMAChannelNum::DMAChannel15, nvic::NvicIdx::PDCA15)];
 
 pub struct DMAChannel {
     registers: *mut DMARegisters,
     nvic: nvic::NvicIdx,
     pub client: Option<&'static mut DMAClient>,
     enabled: Cell<bool>,
-    buffer: TakeCell<&'static mut [u8]>
+    buffer: TakeCell<&'static mut [u8]>,
 }
 
 pub trait DMAClient {
@@ -142,12 +142,11 @@ pub trait DMAClient {
 impl DMAChannel {
     const fn new(channel: DMAChannelNum, nvic: nvic::NvicIdx) -> DMAChannel {
         DMAChannel {
-            registers: (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE)
-                    as *mut DMARegisters,
+            registers: (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE) as *mut DMARegisters,
             nvic: nvic,
             client: None,
             enabled: Cell::new(false),
-            buffer: TakeCell::empty()
+            buffer: TakeCell::empty(),
         }
     }
 
@@ -164,9 +163,7 @@ impl DMAChannel {
                     pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
-            let registers : &mut DMARegisters = unsafe {
-                mem::transmute(self.registers)
-            };
+            let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
             volatile_store(&mut registers.interrupt_disable, 0xffffffff);
 
             unsafe { nvic::enable(self.nvic) };
@@ -184,9 +181,7 @@ impl DMAChannel {
                     pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
-            let registers : &mut DMARegisters = unsafe {
-                mem::transmute(self.registers)
-            };
+            let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
             volatile_store(&mut registers.control, 0x2);
             self.enabled.set(false);
             unsafe {
@@ -196,10 +191,8 @@ impl DMAChannel {
     }
 
     pub fn handle_interrupt(&mut self) {
-        let registers : &mut DMARegisters = unsafe {
-            mem::transmute(self.registers)
-        };
-        let channel : usize = volatile_load(&registers.peripheral_select);
+        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+        let channel: usize = volatile_load(&registers.peripheral_select);
 
         self.client.as_mut().map(|client| {
             client.xfer_done(channel);
@@ -207,23 +200,17 @@ impl DMAChannel {
     }
 
     pub fn start_xfer(&self) {
-        let registers : &mut DMARegisters = unsafe {
-            mem::transmute(self.registers)
-        };
+        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         volatile_store(&mut registers.control, 0x1);
     }
 
-    pub fn prepare_xfer(&self, pid: DMAPeripheral,
-                        buf: &'static mut [u8],
-                        mut len: usize) {
+    pub fn prepare_xfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
         // TODO(alevy): take care of zero length case
         if len > buf.len() {
             len = buf.len();
         }
 
-        let registers : &mut DMARegisters = unsafe {
-            mem::transmute(self.registers)
-        };
+        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         volatile_store(&mut registers.peripheral_select, pid as usize);
         volatile_store(&mut registers.memory_address_reload,
                        &buf[0] as *const u8 as usize);
@@ -236,9 +223,7 @@ impl DMAChannel {
         self.buffer.replace(buf);
     }
 
-    pub fn do_xfer(&self, pid: DMAPeripheral,
-                       buf: &'static mut [u8],
-                       len: usize) {
+    pub fn do_xfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], len: usize) {
         self.prepare_xfer(pid, buf, len);
         self.start_xfer();
     }
@@ -246,9 +231,7 @@ impl DMAChannel {
     /// Aborts any current transactions and returns the buffer used in the
     /// transaction.
     pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
-        let registers : &mut DMARegisters = unsafe {
-            mem::transmute(self.registers)
-        };
+        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         volatile_store(&mut registers.interrupt_disable, !0);
 
         // Reset counter
@@ -258,9 +241,7 @@ impl DMAChannel {
     }
 
     pub fn transfer_counter(&self) -> usize {
-        let registers : &mut DMARegisters = unsafe {
-            mem::transmute(self.registers)
-        };
+        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         volatile_load(&registers.transfer_counter)
     }
 }
@@ -278,20 +259,19 @@ macro_rules! pdca_handler {
     }
 }
 
-pdca_handler!(pdca0_handler,  PDCA0,  0);
-pdca_handler!(pdca1_handler,  PDCA1,  1);
-pdca_handler!(pdca2_handler,  PDCA2,  2);
-pdca_handler!(pdca3_handler,  PDCA3,  3);
-pdca_handler!(pdca4_handler,  PDCA4,  4);
-pdca_handler!(pdca5_handler,  PDCA5,  5);
-pdca_handler!(pdca6_handler,  PDCA6,  6);
-pdca_handler!(pdca7_handler,  PDCA7,  7);
-pdca_handler!(pdca8_handler,  PDCA8,  8);
-pdca_handler!(pdca9_handler,  PDCA9,  9);
+pdca_handler!(pdca0_handler, PDCA0, 0);
+pdca_handler!(pdca1_handler, PDCA1, 1);
+pdca_handler!(pdca2_handler, PDCA2, 2);
+pdca_handler!(pdca3_handler, PDCA3, 3);
+pdca_handler!(pdca4_handler, PDCA4, 4);
+pdca_handler!(pdca5_handler, PDCA5, 5);
+pdca_handler!(pdca6_handler, PDCA6, 6);
+pdca_handler!(pdca7_handler, PDCA7, 7);
+pdca_handler!(pdca8_handler, PDCA8, 8);
+pdca_handler!(pdca9_handler, PDCA9, 9);
 pdca_handler!(pdca10_handler, PDCA10, 10);
 pdca_handler!(pdca11_handler, PDCA11, 11);
 pdca_handler!(pdca12_handler, PDCA12, 12);
 pdca_handler!(pdca13_handler, PDCA13, 13);
 pdca_handler!(pdca14_handler, PDCA14, 14);
 pdca_handler!(pdca15_handler, PDCA15, 15);
-

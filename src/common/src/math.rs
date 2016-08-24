@@ -2,9 +2,10 @@
 //  core::intrinsics functions can be found at
 //      https://doc.rust-lang.org/core/intrinsics/
 //  add additional wrappers as needed
+
 use core::intrinsics as int;
 
-extern {
+extern "C" {
     fn __errno() -> &mut i32;
 }
 
@@ -29,4 +30,3 @@ pub fn get_errno() -> i32 {
         ret
     }
 }
-

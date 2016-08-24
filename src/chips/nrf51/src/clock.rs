@@ -12,34 +12,34 @@ use common::take_cell::TakeCell;
 use core::mem;
 
 struct Registers {
-    pub tasks_hfclkstart    : VolatileCell<u32>,
-    pub tasks_hfclkstop     : VolatileCell<u32>,
-    pub tasks_lfclkstart    : VolatileCell<u32>,
-    pub tasks_lfclkstop     : VolatileCell<u32>,
-    pub tasks_cal           : VolatileCell<u32>,
-    pub tasks_cstart        : VolatileCell<u32>,
-    pub tasks_cstop         : VolatileCell<u32>,
+    pub tasks_hfclkstart: VolatileCell<u32>,
+    pub tasks_hfclkstop: VolatileCell<u32>,
+    pub tasks_lfclkstart: VolatileCell<u32>,
+    pub tasks_lfclkstop: VolatileCell<u32>,
+    pub tasks_cal: VolatileCell<u32>,
+    pub tasks_cstart: VolatileCell<u32>,
+    pub tasks_cstop: VolatileCell<u32>,
     _reserved1: [VolatileCell<u32>; 57],
-    pub events_hfclkstarted : VolatileCell<u32>,
-    pub events_lfclkstarted : VolatileCell<u32>,
-    pub done                : VolatileCell<u32>,
-    pub ctto                : VolatileCell<u32>,
+    pub events_hfclkstarted: VolatileCell<u32>,
+    pub events_lfclkstarted: VolatileCell<u32>,
+    pub done: VolatileCell<u32>,
+    pub ctto: VolatileCell<u32>,
     _reserved2: [VolatileCell<u32>; 125],
-    pub intenset            : VolatileCell<u32>,
-    pub intenclr            : VolatileCell<u32>,
+    pub intenset: VolatileCell<u32>,
+    pub intenclr: VolatileCell<u32>,
     _reserved3: [VolatileCell<u32>; 63],
-    pub hfclkrun            : VolatileCell<u32>,
-    pub hfclkstat           : VolatileCell<u32>,
+    pub hfclkrun: VolatileCell<u32>,
+    pub hfclkstat: VolatileCell<u32>,
     _reserved4: [VolatileCell<u32>; 1],
-    pub lfclkrun            : VolatileCell<u32>,
-    pub lfclkstat           : VolatileCell<u32>,
-    pub lfclksrccopy        : VolatileCell<u32>,
+    pub lfclkrun: VolatileCell<u32>,
+    pub lfclkstat: VolatileCell<u32>,
+    pub lfclksrccopy: VolatileCell<u32>,
     _reserved5: [VolatileCell<u32>; 62],
-    pub lfclksrc            : VolatileCell<u32>,
+    pub lfclksrc: VolatileCell<u32>,
     _reserved6: [VolatileCell<u32>; 7],
-    pub ctiv                : VolatileCell<u32>,
+    pub ctiv: VolatileCell<u32>,
     _reserved7: [VolatileCell<u32>; 5],
-    pub xtalfreq            : VolatileCell<u32>,
+    pub xtalfreq: VolatileCell<u32>,
 }
 
 const CLOCK_BASE: usize = 0x40000000;
@@ -47,35 +47,35 @@ const CLOCK_BASE: usize = 0x40000000;
 pub enum InterruptField {
     HFCLKSTARTED = (1 << 0),
     LFCLKSTARTED = (1 << 1),
-    DONE         = (1 << 3),
-    CTTO         = (1 << 4),
+    DONE = (1 << 3),
+    CTTO = (1 << 4),
 }
 
 pub enum ClockTaskTriggered {
-    NO   = 0,
-    YES  = 1,
+    NO = 0,
+    YES = 1,
 }
 
 pub enum ClockRunning {
-    NORUN   = 0,
-    RUN     = (1 << 16),
+    NORUN = 0,
+    RUN = (1 << 16),
 }
 
 pub enum LowClockSource {
-    RC            = 0,
-    XTAL          = 1,
-    SYNTH         = 2,
-    MASK          = 0x3,
+    RC = 0,
+    XTAL = 1,
+    SYNTH = 2,
+    MASK = 0x3,
 }
 
 pub enum HighClockSource {
-    RC            = 0,
-    XTAL          = 1,
+    RC = 0,
+    XTAL = 1,
 }
 
 pub enum XtalFreq {
-    F16MHz         = 0xFF,
-    F32MHz         = 0,
+    F16MHz = 0xFF,
+    F32MHz = 0,
 }
 
 pub struct Clock {
@@ -90,9 +90,7 @@ pub trait ClockClient {
     fn event(&self);
 }
 
-pub static mut CLOCK : Clock = Clock {
-    client: TakeCell::empty(),
-};
+pub static mut CLOCK: Clock = Clock { client: TakeCell::empty() };
 
 #[allow(non_snake_case)]
 fn CLK() -> &'static Registers {
@@ -100,7 +98,6 @@ fn CLK() -> &'static Registers {
 }
 
 impl Clock {
-
     pub fn set_client(&self, client: &'static ClockClient) {
         self.client.replace(client);
     }
@@ -127,15 +124,15 @@ impl Clock {
 
     pub fn high_source(&self) -> HighClockSource {
         match CLK().hfclkstat.get() & 1 {
-            0b0   => HighClockSource::RC,
-            _     => HighClockSource::XTAL,
+            0b0 => HighClockSource::RC,
+            _ => HighClockSource::XTAL,
         }
     }
 
     pub fn high_freq(&self) -> XtalFreq {
         match CLK().xtalfreq.get() {
             0xff => XtalFreq::F16MHz,
-            _    => XtalFreq::F32MHz,
+            _ => XtalFreq::F32MHz,
         }
     }
 
@@ -144,8 +141,7 @@ impl Clock {
     }
 
     pub fn high_running(&self) -> bool {
-        (CLK().hfclkstat.get() & ClockRunning::RUN as u32) ==
-            ClockRunning::RUN as u32
+        (CLK().hfclkstat.get() & ClockRunning::RUN as u32) == ClockRunning::RUN as u32
     }
 
     pub fn low_start(&self) {
@@ -162,15 +158,14 @@ impl Clock {
 
     pub fn low_source(&self) -> LowClockSource {
         match CLK().lfclkstat.get() & (LowClockSource::MASK as u32) {
-            0b1    => LowClockSource::XTAL,
-            0b10   => LowClockSource::SYNTH,
-            _ => LowClockSource::RC
+            0b1 => LowClockSource::XTAL,
+            0b10 => LowClockSource::SYNTH,
+            _ => LowClockSource::RC,
         }
     }
 
     pub fn low_running(&self) -> bool {
-        (CLK().lfclkstat.get() & ClockRunning::RUN as u32) ==
-            ClockRunning::RUN as u32
+        (CLK().lfclkstat.get() & ClockRunning::RUN as u32) == ClockRunning::RUN as u32
     }
 
     pub fn low_set_source(&self, src: LowClockSource) {

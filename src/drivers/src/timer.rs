@@ -1,34 +1,38 @@
 use core::cell::Cell;
-use main::{AppId, Container, Callback, Driver};
 use hil::alarm::{Alarm, AlarmClient, Frequency};
+use main::{AppId, Container, Callback, Driver};
 
 #[derive(Copy, Clone)]
 pub struct TimerData {
     t0: u32,
     interval: u32,
     repeating: bool,
-    callback: Option<Callback>
+    callback: Option<Callback>,
 }
 
 impl Default for TimerData {
     fn default() -> TimerData {
-        TimerData { t0: 0, interval: 0, repeating: false, callback: None }
+        TimerData {
+            t0: 0,
+            interval: 0,
+            repeating: false,
+            callback: None,
+        }
     }
 }
 
 pub struct TimerDriver<'a, A: Alarm + 'a> {
     alarm: &'a A,
     num_armed: Cell<usize>,
-    app_timer: Container<TimerData>
+    app_timer: Container<TimerData>,
 }
 
 impl<'a, A: Alarm + 'a> TimerDriver<'a, A> {
-    pub const fn new(alarm: &'a A, container: Container<TimerData>)
-            -> TimerDriver<'a, A> {
+    pub const fn new(alarm: &'a A, container: Container<TimerData>) -> TimerDriver<'a, A> {
         TimerDriver {
             alarm: alarm,
             num_armed: Cell::new(0),
-            app_timer: container
+            app_timer: container,
         }
     }
 
@@ -56,14 +60,15 @@ impl<'a, A: Alarm + 'a> TimerDriver<'a, A> {
 
 impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
     fn subscribe(&self, _: usize, callback: Callback) -> isize {
-        self.app_timer.enter(callback.app_id(), |td, _allocator| {
-            td.callback = Some(callback);
-            0
-        }).unwrap_or(-1)
+        self.app_timer
+            .enter(callback.app_id(), |td, _allocator| {
+                td.callback = Some(callback);
+                0
+            })
+            .unwrap_or(-1)
     }
 
-    fn command(&self, cmd_type: usize, interval: usize, caller_id: AppId)
-            -> isize {
+    fn command(&self, cmd_type: usize, interval: usize, caller_id: AppId) -> isize {
         // First, convert from milliseconds to native clock frequency
         let interval = (interval as u32) * <A::Frequency>::frequency() / 1000;
 
@@ -73,8 +78,9 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
         // anyway, if the underlying alarm is currently disabled and we're
         // enabling the first alarm, or on an error (i.e. no change to the
         // alarms).
-        let (err_code, reset) = self.app_timer.enter(caller_id, |td, _alloc| {
-            match cmd_type {
+        let (err_code, reset) = self.app_timer
+            .enter(caller_id, |td, _alloc| {
+                match cmd_type {
                 2 /* Stop */ => {
                     if td.interval > 0 {
                         td.interval = 0;
@@ -116,7 +122,8 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                 },
                 _ => (-1, false)
             }
-        }).unwrap_or((-3, false));
+            })
+            .unwrap_or((-3, false));
         if reset {
             self.reset_active_timer();
         }
@@ -162,4 +169,3 @@ impl<'a, A: Alarm> AlarmClient for TimerDriver<'a, A> {
         }
     }
 }
-
