@@ -117,6 +117,7 @@ pub unsafe fn reset_handler() {
     nrf51::init();
 
     let gpio_pins = static_init!(
+        [&'static nrf51::gpio::GPIOPin; 22],
         [&nrf51::gpio::PORT[LED1_PIN], // 21
          &nrf51::gpio::PORT[LED2_PIN], // 22
          &nrf51::gpio::PORT[LED3_PIN], // 23
@@ -140,25 +141,24 @@ pub unsafe fn reset_handler() {
          &nrf51::gpio::PORT[13], //
          &nrf51::gpio::PORT[12], //
         ],
-        [&'static nrf51::gpio::GPIOPin; 22],
         4 * 22);
 
     nrf51::gpio::PORT[LED1_PIN].enable_output();
     nrf51::gpio::PORT[LED1_PIN].clear();
 
     let gpio = static_init!(
-        drivers::gpio::GPIO::new(gpio_pins),
         drivers::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
+        drivers::gpio::GPIO::new(gpio_pins),
         20);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
 
     let console = static_init!(
+        drivers::console::Console<nrf51::uart::UART>,
         drivers::console::Console::new(&nrf51::uart::UART0,
                                        &mut drivers::console::WRITE_BUF,
                                        main::Container::create()),
-        drivers::console::Console<nrf51::uart::UART>,
         24);
     nrf51::uart::UART0.set_client(console);
 
@@ -167,17 +167,17 @@ pub unsafe fn reset_handler() {
     // so is reserved for that use. This should be rewritten to use the RTC (off the
     // low frequency clock) for lower power.
     let alarm = &nrf51::timer::ALARM1;
-    let mux_alarm = static_init!(MuxAlarm::new(&ALARM1), MuxAlarm<'static, TimerAlarm>, 16);
+    let mux_alarm = static_init!(MuxAlarm<'static, TimerAlarm>, MuxAlarm::new(&ALARM1), 16);
     alarm.set_client(mux_alarm);
 
     let virtual_alarm1 = static_init!(
-        VirtualMuxAlarm::new(mux_alarm),
         VirtualMuxAlarm<'static, TimerAlarm>,
+        VirtualMuxAlarm::new(mux_alarm),
         24);
     let timer = static_init!(
+        TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
         TimerDriver::new(virtual_alarm1,
                          main::Container::create()),
-        TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
         12);
     virtual_alarm1.set_client(timer);
     alarm.enable_nvic();
@@ -195,12 +195,13 @@ pub unsafe fn reset_handler() {
     while !nrf51::clock::CLOCK.high_started() {}
 
     let platform = static_init!(
+        Platform,
         Platform {
             gpio: gpio,
             timer: timer,
             console: console,
         },
-        Platform, 12);
+        12);
 
     alarm.start();
 

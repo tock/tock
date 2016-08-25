@@ -19,9 +19,17 @@ pub fn init_nones<T, A: FixedSizeArray<Option<T>>>() -> A {
 /// Note that you will have to specify the array-size as an argument, but a
 /// wrong size will result in a compile-time error. This argument will be
 /// removed if `std::mem::size_of<T>` ever becomes a `const` function.
+///
+/// # Safety
+///
+/// As this macro will write directly to a global area without acquiring a lock
+/// or similar, calling this macro is inherently unsafe. The caller should take
+/// care to never call the code that initializes this buffer twice, as doing so
+/// will overwrite the value from first allocation without running its
+/// destructor.
 #[macro_export]
 macro_rules! static_init {
-    ($e:expr, $T:ty, $size:expr) => {
+    ($T:ty, $e:expr, $size:expr) => {
         // Ideally we could use mem::size_of<$T> here instead of $size, however
         // that is not currently possible in rust. Instead we write the size as
         // a constant in the code and use compile-time verification to see that
