@@ -1,7 +1,9 @@
 use core::slice;
 use core::option::Option;
 use core::ops::Index;
-use main::{Driver};
+use core::cell::Cell;
+
+use main::{Driver, AppId};
 use common::take_cell::TakeCell;
 use common::{List, ListLink, ListNode, Queue};
 use common::allocator::{Allocator};
@@ -16,7 +18,7 @@ use hil::storage_controller::{StorageController, Client, Error};
     what's allocated, and what's not already.
 */
 
-const NUM_FILE_DESCRIPTORS : usize = 5;
+const NUM_CLIENTS : usize = 5;
 // This will depend on the system...
 const ALLOCATOR_START_ADDR : usize = 0x40000;
 const ALLOCATOR_SIZE : usize = 0x40000;
@@ -26,6 +28,13 @@ const ALLOCATOR_SMALLEST_BLOCK_SIZE : usize = 1024;
 pub enum ErrorCode {
     success,
     failure,
+}
+
+pub enum RequestResponse {
+    success, // success!
+    alloc_fail, // size not available.
+    clients_full, // Too many clients, no room for you now...
+    current_pending_init // try again soon. One is currently pending to init..
 }
 
 #[derive(Clone, Copy)]
@@ -48,11 +57,13 @@ impl<'a> Index<usize> for Block <'a> {
 }
 
 // This is enqueued...
+
 pub struct Callback <'a>{
     id: usize, // which index in the table does this relate to...
     offset: u32, // starting position of writing
     next: ListLink<'a, Callback<'a>>
 }
+
 
 impl <'a> PartialEq for Callback<'a> {
     fn eq(&self, other: &Callback<'a>) -> bool {
@@ -67,22 +78,28 @@ impl <'a> ListNode<'a, Callback<'a>> for Callback<'a> {
     }
 }
 
+struct ClientInfo {
+    client_id : TakeCell<AppId>, // id of client ( None if there's no client )
+    queued_write: Cell<bool>, // whether there's a write pending for this client
+    offset: Cell<u32>, // the offset of the current request
+    inited: Cell<bool>, // whether this client has been initalized...
+    addr: Cell<usize>,
+    size: Cell<usize>,
+}
+
+
 // Trait that any client of storage needs to implement.
 pub trait StorageClient {
     fn write(arr : &[u8], size : usize);
 }
 
 pub struct Storage <'a, S: StorageController + 'a> {
-    // todo: might modify and wrap the block up maybe with a client id / app id?
     controller: &'a mut S,
-    block_table: [Option<*const Block<'a>>; NUM_FILE_DESCRIPTORS],
-    queued_list: List<'a, Callback<'a>>,
+    pending_requests: Cell<u32>, // number pending requests to write...
+    pending_init: Cell<bool>, // number of inits ( need to write after opening) 
+    clients: [ClientInfo; NUM_CLIENTS],
     allocator: Allocator,
     buffer: TakeCell<[u8; 512]>,
-    last_offset: i32,
-    last_fd: i32, // last used 'index' into block table. Remember to flush if
-                  // a close or free is called!
-    // todo change to a trait ( for flash driver)
 }
 
 
@@ -94,19 +111,92 @@ impl<'a, S: StorageController> Storage<'a,S> {
         Storage {
             allocator: Allocator::new(ALLOCATOR_START_ADDR, ALLOCATOR_SIZE, 
                 ALLOCATOR_SMALLEST_BLOCK_SIZE),
-            block_table: [None; 5],
+            // TODO: just take the reference from the storage_controller?
+            buffer: TakeCell::new([255; 512]),
+            // TODO: defn a macro for these
+            clients: [ClientInfo {
+                client_id: TakeCell::empty(),
+                queued_write: Cell::new(false),
+                offset: Cell::new(0),
+                inited: Cell::new(false),
+                addr: Cell::new(0),
+                size: Cell::new(0)
+                },
+                ClientInfo {
+                client_id: TakeCell::empty(),
+                queued_write: Cell::new(false),
+                offset: Cell::new(0),
+                inited: Cell::new(false),
+                addr: Cell::new(0),
+                size: Cell::new(0)
+                },
+                ClientInfo {
+                client_id: TakeCell::empty(),
+                queued_write: Cell::new(false),
+                offset: Cell::new(0),
+                inited: Cell::new(false),
+                addr: Cell::new(0),
+                size: Cell::new(0)
+                },
+                ClientInfo {
+                client_id: TakeCell::empty(),
+                queued_write: Cell::new(false),
+                offset: Cell::new(0),
+                inited: Cell::new(false),
+                addr: Cell::new(0),
+                size: Cell::new(0)
+                },
+                ClientInfo {
+                client_id: TakeCell::empty(),
+                queued_write: Cell::new(false),
+                offset: Cell::new(0),
+                inited: Cell::new(false),
+                addr: Cell::new(0),
+                size: Cell::new(0)
+                }],
             controller: storage_controller,
-            last_fd: -1,
-            last_offset: -1,
-            queued_list: List::new(),
-            // just take the reference from the storage_controller?
-            buffer: TakeCell::new([255; 512])
+            pending_requests: Cell::new(0),
+            pending_init: Cell::new(false),
         }
     }
+   
+   
+    pub fn request(&mut self, size : usize, id: AppId) -> RequestResponse {
+        if self.pending_init.get() {
+            return RequestResponse::current_pending_init
+        }
+        let mut index = -1;
 
+        for i in 0..NUM_CLIENTS {
+            if self.clients[i].client_id.is_none() {
+                index = i as i32;
+                break;
+            }
+        }
+        
+        if index == -1 {
+            return RequestResponse::clients_full
+        }
+
+        let base_addr = self.allocator.alloc(size);
+        if base_addr.is_none() {
+            return RequestResponse::alloc_fail
+        }
+        
+        // config the clients information
+        self.clients[index as usize].size.set(size);
+        self.clients[index as usize].addr.set(base_addr.unwrap());
+        self.clients[index as usize].inited.set(false);
+        self.clients[index as usize].client_id.replace(id);
+        self.clients[index as usize].queued_write.set(true);
+        
+        self.pending_init.set(true); // we have an init pending...
+        RequestResponse::success
+    }
+    
     // TODO: this needs to be able to fail ( could give an option to say why fail
     // i.e. alloc out of memory or block table full
-    pub fn request(&mut self, size : usize) -> Option<Block> {
+    /*pub fn request(&mut self, size : usize) -> Option<Block> {
         let mut index : i32 = -1;
         
         // If either the block table  or the allocator don't have space, then fail.
@@ -128,14 +218,14 @@ impl<'a, S: StorageController> Storage<'a,S> {
     
         // Make the Block, and update the block_table index.
         self.block_table[index as usize] = Some(space.unwrap() as *mut Block<'a>);
-        /* TODO: reword...
+        // TODO: reword...
         Some(Block {
             slice: unsafe { slice::from_raw_parts(space.unwrap() as *mut u8,size) }
         })
-        */
         None
-    }
-
+    }*/
+    
+/*
     // closes the block from being accessable if there's no writes left...
     // Returns None if the block is closed, or the block if there are pending
     // writes / it's not found in the table...
@@ -206,10 +296,10 @@ impl<'a, S: StorageController> Storage<'a,S> {
         }
         -1 // not found in table
     }
-
+*/
 // TODO: the client will have an interface some trait / function that they have to 
 // implement in order to use the storage and that's where I send the CB to.
-    
+/*    
     // NOTE: This is a pretty big security flaw here! Which should be addressed in
     // the future. The get_callback() function has no way to ensure that the callback
     // is registered with initiate_write as the code is currently written. Thus someone
@@ -229,7 +319,7 @@ impl<'a, S: StorageController> Storage<'a,S> {
             })
         }
     }
-
+*/
 
    /* pub fn initiate_write(&mut self, callback : &'a Callback<'a>) -> ErrorCode {
         self.queued_list.push_head(callback);
@@ -242,7 +332,7 @@ impl<'a, S: StorageController> Client for Storage<'a, S>{
     // This is the function to call on the Storage in order to process any work 
     // queued up.
     fn command_complete(&self, err: Error) {
-        if self.queued_list.head().is_none() || !self.controller.storage_ready() {
+/*        if self.queued_list.head().is_none() || !self.controller.storage_ready() {
             // do nothing
         } else {
             // lets handle a request to write ( for now just handling stupidly 
@@ -251,6 +341,6 @@ impl<'a, S: StorageController> Client for Storage<'a, S>{
             let buffer = self.buffer.take().unwrap();
             //write_to_memory();
             
-        }
+        } */
     }
 }

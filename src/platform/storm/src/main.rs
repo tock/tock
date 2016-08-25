@@ -422,7 +422,7 @@ pub unsafe fn reset_handler() {
     // Definately doing something wrong here...
     static_init!(storage: drivers::storage::Storage<'static, sam4l::flashcalw::FLASHCALW> = 
             drivers::storage::Storage::new(&mut sam4l::flashcalw::flash_controller),
-        840);
+        892);
     sam4l::flashcalw::flash_controller.configure();
     sam4l::flashcalw::flash_controller.set_client(storage as &hil::storage_controller::Client);
     // Note: The following GPIO pins aren't assigned to anything:
