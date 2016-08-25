@@ -101,7 +101,6 @@ pub fn i2c_tmp006_test() {
 
     unsafe {
         use sam4l;
-        use hil::gpio::GPIOPin;
         sam4l::gpio::PA[16].enable_output();
         sam4l::gpio::PA[16].set();
     }
@@ -259,7 +258,6 @@ pub fn i2c_li_test() {
 
     unsafe {
         use sam4l;
-        use hil::gpio::GPIOPin;
         sam4l::gpio::PA[16].enable_output();
         sam4l::gpio::PA[16].set();
     }

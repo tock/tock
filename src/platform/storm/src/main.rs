@@ -27,9 +27,13 @@ pub mod io;
 
 // HAL unit tests. To enable a particular unit test, uncomment the call to
 // start the test in the init function below.
+#[allow(dead_code)]
 mod gpio_dummy;
+#[allow(dead_code)]
 mod spi_dummy;
+#[allow(dead_code)]
 mod i2c_dummy;
+#[allow(dead_code)]
 mod flash_dummy;
 
 static mut spi_read_buf: [u8; 64] = [0; 64];
