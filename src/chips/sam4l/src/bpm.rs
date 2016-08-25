@@ -18,13 +18,13 @@ struct BpmRegisters {
 }
 
 const BPM_BASE: isize = 0x400F0000;
-const BPM_UNLOCK_KEY : u32 = 0xAA000000;
+const BPM_UNLOCK_KEY: u32 = 0xAA000000;
 
-static mut bpm : *mut BpmRegisters = BPM_BASE as *mut BpmRegisters;
+static mut bpm: *mut BpmRegisters = BPM_BASE as *mut BpmRegisters;
 
 pub enum CK32Source {
     OSC32K = 0,
-    RC32K = 1
+    RC32K = 1,
 }
 
 #[inline(never)]
@@ -38,4 +38,3 @@ unsafe fn unlock_register(reg: *const u32) {
     let addr = reg as u32 - bpm as u32;
     volatile_store(&mut (*bpm).unlock, BPM_UNLOCK_KEY | addr);
 }
-

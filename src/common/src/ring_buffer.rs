@@ -4,7 +4,7 @@ use queue;
 pub struct RingBuffer<'a, T: 'a> {
     ring: &'a mut [T],
     head: usize,
-    tail: usize
+    tail: usize,
 }
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
@@ -12,7 +12,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
             tail: 0,
-            ring: ring
+            ring: ring,
         }
     }
 }
@@ -27,9 +27,7 @@ impl<'a, T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
     }
 
     fn is_full(&self) -> bool {
-        unsafe {
-            volatile_load(&self.head) == ((volatile_load(&self.tail) + 1) % self.ring.len())
-        }
+        unsafe { volatile_load(&self.head) == ((volatile_load(&self.tail) + 1) % self.ring.len()) }
     }
 
     fn enqueue(&mut self, val: T) -> bool {

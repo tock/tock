@@ -4,15 +4,24 @@ use core::option::Option;
 
 /// Values for the ordering of bits
 #[derive(Copy, Clone)]
-pub enum DataOrder {MSBFirst, LSBFirst}
+pub enum DataOrder {
+    MSBFirst,
+    LSBFirst,
+}
 
 /// Values for the clock polarity (idle state or CPOL)
 #[derive(Copy, Clone)]
-pub enum ClockPolarity {IdleLow, IdleHigh}
+pub enum ClockPolarity {
+    IdleLow,
+    IdleHigh,
+}
 
 /// Which clock edge values are sampled on
 #[derive(Copy, Clone)]
-pub enum ClockPhase {SampleLeading, SampleTrailing}
+pub enum ClockPhase {
+    SampleLeading,
+    SampleTrailing,
+}
 
 pub trait SpiCallback {
     /// Called when a read/write operation finishes
@@ -30,7 +39,7 @@ pub trait SpiCallback {
 ///   1a. Call set_chip_select to select which peripheral and
 ///       turn on SPI
 ///   1b. Call set operations as needed to configure bus
-/// 2. Invoke read, write, read_write on SpiMaster 
+/// 2. Invoke read, write, read_write on SpiMaster
 /// 3a. Call clear_chip_select to turn off bus, or
 /// 3b. Call set_chip_select to choose another peripheral,
 ///     go to step 1b or 2.
@@ -71,7 +80,8 @@ pub trait SpiMaster {
     fn read_write_bytes(&self,
                         mut write_buffer: Option<&'static mut [u8]>,
                         mut read_buffer: Option<&'static mut [u8]>,
-                        len: usize) -> bool;
+                        len: usize)
+                        -> bool;
     fn write_byte(&self, val: u8);
     fn read_byte(&self) -> u8;
     fn read_write_byte(&self, val: u8) -> u8;
@@ -96,10 +106,9 @@ pub trait SpiMaster {
     // complete. If release_low() is called, then the chip select
     // line is brought high after a transfer completes. A "transfer"
     // is any of the read/read_write calls. These functions
-    // allow an application to manually control when the 
+    // allow an application to manually control when the
     // CS line is high or low, such that it can issue multi-byte
     // requests with single byte oprations.
     fn hold_low(&self);
     fn release_low(&self);
 }
-

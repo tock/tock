@@ -8,4 +8,3 @@ pub trait Timer {
 pub trait TimerClient {
     fn fired(&self, now: u32);
 }
-

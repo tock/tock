@@ -20,4 +20,3 @@ pub trait Controller {
 
     fn configure(&self, Self::Config);
 }
-

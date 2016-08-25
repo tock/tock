@@ -1,6 +1,6 @@
 use common::take_cell::TakeCell;
-use main::{AppId, AppSlice, Container, Callback, Shared, Driver};
 use hil::uart::{UART, Client};
+use main::{AppId, AppSlice, Container, Callback, Shared, Driver};
 
 pub struct App {
     read_callback: Option<Callback>,
@@ -9,7 +9,7 @@ pub struct App {
     write_buffer: Option<AppSlice<Shared, u8>>,
     write_len: usize,
     pending_write: bool,
-    read_idx: usize
+    read_idx: usize,
 }
 
 impl Default for App {
@@ -21,28 +21,30 @@ impl Default for App {
             write_buffer: None,
             write_len: 0,
             pending_write: false,
-            read_idx: 0
+            read_idx: 0,
         }
     }
 }
 
-pub static mut WRITE_BUF : [u8; 64] = [0; 64];
+pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a, U: UART + 'a> {
     uart: &'a U,
     apps: Container<App>,
     in_progress: TakeCell<AppId>,
-    buffer: TakeCell<&'static mut [u8]>
+    buffer: TakeCell<&'static mut [u8]>,
 }
 
 impl<'a, U: UART> Console<'a, U> {
-    pub fn new(uart: &'a U, buffer: &'static mut [u8],
-                     container: Container<App>) -> Console<'a, U> {
+    pub fn new(uart: &'a U,
+               buffer: &'static mut [u8],
+               container: Container<App>)
+               -> Console<'a, U> {
         Console {
             uart: uart,
             apps: container,
             in_progress: TakeCell::empty(),
-            buffer: TakeCell::new(buffer)
+            buffer: TakeCell::new(buffer),
         }
     }
 
@@ -53,23 +55,26 @@ impl<'a, U: UART> Console<'a, U> {
 }
 
 impl<'a, U: UART> Driver for Console<'a, U> {
-    fn allow(&self, appid: AppId,
-             allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
         match allow_num {
             0 => {
-                self.apps.enter(appid, |app, _| {
-                    app.read_buffer = Some(slice);
-                    app.read_idx = 0;
-                    0
-                }).unwrap_or(-1)
-            },
-            1 => {
-                self.apps.enter(appid, |app, _| {
-                    app.write_buffer = Some(slice);
-                    0
-                }).unwrap_or(-1)
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.read_buffer = Some(slice);
+                        app.read_idx = 0;
+                        0
+                    })
+                    .unwrap_or(-1)
             }
-            _ => -1
+            1 => {
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.write_buffer = Some(slice);
+                        0
+                    })
+                    .unwrap_or(-1)
+            }
+            _ => -1,
         }
     }
 
@@ -138,19 +143,22 @@ impl<'a, U: UART> Client for Console<'a, U> {
             let started_tx = cntr.enter(|app, _| {
                 if app.pending_write {
                     app.pending_write = false;
-                    app.write_buffer.as_ref().map(|slice| {
-                        self.buffer.take().map(|buffer| {
-                            for (i, c) in slice.as_ref().iter().enumerate() {
-                                if buffer.len() <= i {
-                                    break;
+                    app.write_buffer
+                        .as_ref()
+                        .map(|slice| {
+                            self.buffer.take().map(|buffer| {
+                                for (i, c) in slice.as_ref().iter().enumerate() {
+                                    if buffer.len() <= i {
+                                        break;
+                                    }
+                                    buffer[i] = *c;
                                 }
-                                buffer[i] = *c;
-                            }
-                            self.uart.send_bytes(buffer, app.write_len);
-                        });
-                        self.in_progress.replace(app.appid());
-                        true
-                    }).unwrap_or(false)
+                                self.uart.send_bytes(buffer, app.write_len);
+                            });
+                            self.in_progress.replace(app.appid());
+                            true
+                        })
+                        .unwrap_or(false)
                 } else {
                     false
                 }
@@ -163,7 +171,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
 
     fn read_done(&self, c: u8) {
         match c as char {
-            '\r' => {},
+            '\r' => {}
             '\n' => {
                 self.apps.each(|app| {
                     let idx = app.read_idx;
@@ -176,12 +184,12 @@ impl<'a, U: UART> Client for Console<'a, U> {
                     });
                     app.read_idx = 0;
                 });
-            },
+            }
             _ => {
                 self.apps.each(|app| {
                     let idx = app.read_idx;
                     if app.read_buffer.is_some() &&
-                        app.read_idx < app.read_buffer.as_ref().unwrap().len() {
+                       app.read_idx < app.read_buffer.as_ref().unwrap().len() {
 
                         app.read_buffer.as_mut().map(|buf| {
                             buf.as_mut()[idx] = c;
@@ -193,4 +201,3 @@ impl<'a, U: UART> Client for Console<'a, U> {
         }
     }
 }
-

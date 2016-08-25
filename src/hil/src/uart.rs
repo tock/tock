@@ -5,7 +5,7 @@ pub enum Parity {
     ForceZero = 2,
     ForceOne = 3,
     None = 4,
-    Multidrop = 6
+    Multidrop = 6,
 }
 
 #[derive(Copy, Clone)]
@@ -40,4 +40,3 @@ pub trait Client {
     fn read_done(&self, byte: u8);
     fn write_done(&self, buffer: &'static mut [u8]);
 }
-

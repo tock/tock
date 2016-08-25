@@ -1,5 +1,6 @@
-use core::mem;
+
 use common::VolatileCell;
+use core::mem;
 use peripheral_interrupts::NvicIdx;
 
 const NVIC_BASE: usize = 0xE000E100;

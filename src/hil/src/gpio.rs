@@ -25,4 +25,3 @@ pub trait GPIOPin {
 pub trait Client {
     fn fired(&self, identifier: usize);
 }
-

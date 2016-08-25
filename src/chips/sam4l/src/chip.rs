@@ -1,25 +1,25 @@
-use common::{RingBuffer,Queue};
-use cortexm4;
+
 use ast;
-//use adc;
+use common::{RingBuffer, Queue};
+use cortexm4;
+// use adc;
 use dma;
-use main::Chip;
-use nvic;
-use usart;
-use spi;
+use flashcalw;
 use gpio;
 use i2c;
-use flashcalw;
+use main::Chip;
+use nvic;
+use spi;
+use usart;
 
 pub struct Sam4l {
     pub mpu: cortexm4::mpu::MPU,
-    pub systick: &'static cortexm4::systick::SysTick
+    pub systick: &'static cortexm4::systick::SysTick,
 }
 
 const IQ_SIZE: usize = 100;
-static mut IQ_BUF : [nvic::NvicIdx; IQ_SIZE] =
-    [nvic::NvicIdx::HFLASHC; IQ_SIZE];
-pub static mut INTERRUPT_QUEUE : Option<RingBuffer<'static, nvic::NvicIdx>> = None;
+static mut IQ_BUF: [nvic::NvicIdx; IQ_SIZE] = [nvic::NvicIdx::HFLASHC; IQ_SIZE];
+pub static mut INTERRUPT_QUEUE: Option<RingBuffer<'static, nvic::NvicIdx>> = None;
 
 
 impl Sam4l {
@@ -41,13 +41,12 @@ impl Sam4l {
 
         Sam4l {
             mpu: cortexm4::mpu::MPU::new(),
-            systick: cortexm4::systick::SysTick::new()
+            systick: cortexm4::systick::SysTick::new(),
         }
     }
 }
 
 impl Chip for Sam4l {
-
     type MPU = cortexm4::mpu::MPU;
     type SysTick = cortexm4::systick::SysTick;
 
@@ -60,15 +59,15 @@ impl Chip for Sam4l {
                 match interrupt {
                     ASTALARM => ast::AST.handle_interrupt(),
 
-                    USART2   => usart::USART2.handle_interrupt(),
-                    USART3   => usart::USART3.handle_interrupt(),
+                    USART2 => usart::USART2.handle_interrupt(),
+                    USART3 => usart::USART3.handle_interrupt(),
 
-                    PDCA0   => dma::DMAChannels[0].handle_interrupt(),
-                    PDCA1   => dma::DMAChannels[1].handle_interrupt(),
-                    PDCA2   => dma::DMAChannels[2].handle_interrupt(),
-                    PDCA3   => dma::DMAChannels[3].handle_interrupt(),
-                    PDCA4   => dma::DMAChannels[4].handle_interrupt(),
-                    PDCA5   => dma::DMAChannels[5].handle_interrupt(),
+                    PDCA0 => dma::DMAChannels[0].handle_interrupt(),
+                    PDCA1 => dma::DMAChannels[1].handle_interrupt(),
+                    PDCA2 => dma::DMAChannels[2].handle_interrupt(),
+                    PDCA3 => dma::DMAChannels[3].handle_interrupt(),
+                    PDCA4 => dma::DMAChannels[4].handle_interrupt(),
+                    PDCA5 => dma::DMAChannels[5].handle_interrupt(),
 
                     GPIO0 => gpio::PA.handle_interrupt(),
                     GPIO1 => gpio::PA.handle_interrupt(),
@@ -89,7 +88,7 @@ impl Chip for Sam4l {
                     TWIM3 => i2c::I2C3.handle_interrupt(),
 
                     HFLASHC => flashcalw::flash_controller.handle_interrupt(),
-                    //NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
+                    // NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);
@@ -98,9 +97,7 @@ impl Chip for Sam4l {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe {
-            INTERRUPT_QUEUE.as_mut().unwrap().has_elements()
-        }
+        unsafe { INTERRUPT_QUEUE.as_mut().unwrap().has_elements() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
@@ -111,4 +108,3 @@ impl Chip for Sam4l {
         self.systick
     }
 }
-

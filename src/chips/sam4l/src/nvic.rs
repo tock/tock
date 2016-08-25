@@ -1,5 +1,6 @@
-use helpers::*;
+
 use core::intrinsics;
+use helpers::*;
 
 #[repr(C, packed)]
 struct Nvic {
@@ -9,8 +10,7 @@ struct Nvic {
     _reserved2: [u32; 25],
     ispr: [u32; 7],
     _reserved3: [u32; 25],
-    icpr: [u32; 7]
-
+    icpr: [u32; 7],
 }
 
 #[repr(C)]
@@ -95,7 +95,7 @@ pub enum NvicIdx {
     _RESERVED,
     TWIM2,
     TWIM3,
-    LCDCA
+    LCDCA,
 }
 
 impl ::core::default::Default for NvicIdx {
@@ -104,26 +104,25 @@ impl ::core::default::Default for NvicIdx {
     }
 }
 
-pub const BASE_ADDRESS : usize = 0xe000e100;
+pub const BASE_ADDRESS: usize = 0xe000e100;
 
 pub unsafe fn enable(signal: NvicIdx) {
-    let nvic : &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
+    let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
     volatile_store(&mut nvic.iser[interrupt / 32], 1 << (interrupt & 31));
 }
 
 pub unsafe fn disable(signal: NvicIdx) {
-    let nvic : &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
+    let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
     volatile_store(&mut nvic.icer[interrupt / 32], 1 << (interrupt & 31));
 }
 
 pub unsafe fn clear_pending(signal: NvicIdx) {
-    let nvic : &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
+    let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
     volatile_store(&mut nvic.icpr[interrupt / 32], 1 << (interrupt & 31));
 }
-

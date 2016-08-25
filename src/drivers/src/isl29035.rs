@@ -1,18 +1,18 @@
 //! Driver for the ISL29035 digital light sensor
 
-use main::{AppId, Callback, Driver};
-use hil::i2c::{I2CDevice, I2CClient, Error};
-use core::cell::Cell;
 use common::take_cell::TakeCell;
+use core::cell::Cell;
+use hil::i2c::{I2CDevice, I2CClient, Error};
+use main::{AppId, Callback, Driver};
 
-pub static mut BUF : [u8; 3] = [0; 3];
+pub static mut BUF: [u8; 3] = [0; 3];
 
 #[derive(Copy,Clone,PartialEq)]
 enum State {
     Disabled,
     Enabling,
     ReadingLI,
-    Disabling(usize)
+    Disabling(usize),
 }
 
 pub struct Isl29035<'a> {
@@ -23,13 +23,12 @@ pub struct Isl29035<'a> {
 }
 
 impl<'a> Isl29035<'a> {
-    pub fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8])
-            -> Isl29035<'a> {
+    pub fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8]) -> Isl29035<'a> {
         Isl29035 {
             i2c: i2c,
             state: Cell::new(State::Disabled),
             buffer: TakeCell::new(buffer),
-            callback: Cell::new(None)
+            callback: Cell::new(None),
         }
     }
 
@@ -64,7 +63,7 @@ impl<'a> Driver for Isl29035<'a> {
                 self.callback.set(Some(callback));
                 0
             }
-            _ => -1
+            _ => -1,
         }
     }
 
@@ -73,8 +72,8 @@ impl<'a> Driver for Isl29035<'a> {
             0 => {
                 self.start_read_lux();
                 0
-            },
-            _ => -1
+            }
+            _ => -1,
         }
     }
 }
@@ -87,7 +86,7 @@ impl<'a> I2CClient for Isl29035<'a> {
                 buffer[0] = 0x02 as u8;
                 self.i2c.write_read(buffer, 1, 2);
                 self.state.set(State::ReadingLI);
-            },
+            }
             State::ReadingLI => {
                 // During configuration we set the ADC resolution to 8 bits and
                 // the range to 4000.
@@ -102,15 +101,14 @@ impl<'a> I2CClient for Isl29035<'a> {
                 buffer[0] = 0;
                 self.i2c.write(buffer, 2);
                 self.state.set(State::Disabling(lux));
-            },
+            }
             State::Disabling(lux) => {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
                 self.callback.get().map(|mut cb| cb.schedule(lux, 0, 0));
-            },
+            }
             _ => {}
         }
     }
 }
-

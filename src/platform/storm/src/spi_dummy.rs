@@ -1,12 +1,12 @@
-///! A dummy SPI client to test the SPI implementation
+//! A dummy SPI client to test the SPI implementation
 
-use sam4l;
 use hil::gpio;
 use hil::spi_master::{self, SpiMaster};
+use sam4l;
 
 #[allow(unused_variables,dead_code)]
 pub struct DummyCB {
-  val: u8
+    val: u8,
 }
 
 pub static mut FLOP: bool = false;
@@ -14,8 +14,8 @@ pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 pub static mut buf2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
 
 impl spi_master::SpiCallback for DummyCB {
-#[allow(unused_variables,dead_code)]
-    fn read_write_done(&'static self, 
+    #[allow(unused_variables,dead_code)]
+    fn read_write_done(&'static self,
                        write: Option<&'static mut [u8]>,
                        read: Option<&'static mut [u8]>,
                        len: usize) {
@@ -31,7 +31,7 @@ impl spi_master::SpiCallback for DummyCB {
     }
 }
 
-pub static mut SPICB: DummyCB = DummyCB{val: 0x55 as u8};
+pub static mut SPICB: DummyCB = DummyCB { val: 0x55 as u8 };
 
 // This test first asserts the Firestorm's pin 2, then initiates a continuous
 // SPI transfer of 8 bytes.
@@ -44,7 +44,7 @@ pub static mut SPICB: DummyCB = DummyCB{val: 0x55 as u8};
 // the logic analyzer to trigger sampling on assertion of pin 2, then restart
 // the board.
 pub unsafe fn spi_dummy_test() {
-    let pin2 : &mut gpio::GPIOPin = &mut sam4l::gpio::PA[16];
+    let pin2: &mut gpio::GPIOPin = &mut sam4l::gpio::PA[16];
     pin2.enable_output();
     pin2.set();
 

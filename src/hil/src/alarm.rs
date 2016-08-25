@@ -32,8 +32,7 @@ impl Frequency for Freq1KHz {
 /// [`AlarmClient`](trait.AlarmClient.html) trait to signal when the counter has
 /// reached a pre-specified value set in [`set_alarm`](#tymethod.set_alarm).
 pub trait Alarm {
-
-    type Frequency : Frequency;
+    type Frequency: Frequency;
 
     /// Returns the current time in hardware clock units.
     fn now(&self) -> u32;
@@ -68,4 +67,3 @@ pub trait AlarmClient {
     /// [`Alarm#set_alarm`](trait.Alarm.html#tymethod.set_alarm).
     fn fired(&self);
 }
-

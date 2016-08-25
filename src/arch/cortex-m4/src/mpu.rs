@@ -16,7 +16,7 @@ pub struct MpuType {
     /// The number of instructions regions supported. Always reads 0.
     pub instruction_regions: VolatileCell<u8>,
 
-    _reserved: u8
+    _reserved: u8,
 }
 
 #[repr(C,packed)]
@@ -30,7 +30,6 @@ pub struct Registers {
     ///   * Enables the default memory map background region in privileged mode
     ///     (bit 2).
     pub control: VolatileCell<u32>,
-
 
     /// Selects the region number (zero-indexed) referenced by the region base
     /// address and region attribute and size registers.
@@ -65,7 +64,7 @@ pub struct Registers {
     /// 26:24 | AP     | Access permission field
     /// 27    |        | Unused
     /// 28    | XN     | Instruction access disable
-    pub region_attributes_and_size: VolatileCell<u32>
+    pub region_attributes_and_size: VolatileCell<u32>,
 }
 
 const MPU_BASE_ADDRESS: *const Registers = 0xE000ED90 as *const Registers;
@@ -74,25 +73,21 @@ const MPU_BASE_ADDRESS: *const Registers = 0xE000ED90 as *const Registers;
 pub struct MPU(*const Registers);
 
 impl MPU {
-
     pub const unsafe fn new() -> MPU {
         MPU(MPU_BASE_ADDRESS)
     }
 }
 
 impl main::MPU for MPU {
-
     fn enable_mpu(&self) {
         let regs = unsafe { &*self.0 };
         regs.control.set(0b101);
     }
 
-    fn set_mpu(&self, region_num: u32, start_addr: u32, len: u32,
-                  execute: bool, ap: u32) {
+    fn set_mpu(&self, region_num: u32, start_addr: u32, len: u32, execute: bool, ap: u32) {
         let regs = unsafe { &*self.0 };
         regs.region_base_address.set(region_num | 1 << 4 | start_addr);
         let xn = if execute { 0 } else { 1 };
         regs.region_attributes_and_size.set(1 | len << 1 | ap << 24 | xn << 28);
     }
 }
-

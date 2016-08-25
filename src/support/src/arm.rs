@@ -4,13 +4,14 @@ use core::ops::FnOnce;
 #[inline(always)]
 /// NOP instruction
 pub fn nop() {
-  unsafe { asm!("nop" :::: "volatile"); }
+    unsafe {
+        asm!("nop" :::: "volatile");
+    }
 }
 
 #[cfg(test)]
 /// NOP instruction (mock)
-pub fn nop() {
-}
+pub fn nop() {}
 
 #[cfg(not(test))]
 #[inline(always)]
@@ -21,10 +22,11 @@ pub unsafe fn wfi() {
 
 #[cfg(test)]
 /// WFI instruction (mock)
-pub unsafe fn wfi() {
-}
+pub unsafe fn wfi() {}
 
-pub unsafe fn atomic<F,R>(f: F) -> R where F: FnOnce() -> R {
+pub unsafe fn atomic<F, R>(f: F) -> R
+    where F: FnOnce() -> R
+{
     // Set PRIMASK
     asm!("cpsid i" :::: "volatile");
 
@@ -37,5 +39,4 @@ pub unsafe fn atomic<F,R>(f: F) -> R where F: FnOnce() -> R {
 
 #[cfg(not(test))]
 #[lang="eh_personality"]
-pub extern fn eh_personality() {}
-
+pub extern "C" fn eh_personality() {}

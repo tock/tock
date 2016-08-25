@@ -1,13 +1,14 @@
+
+use common::{List, ListLink, ListNode};
 use core::cell::Cell;
 use hil::alarm::{Alarm, AlarmClient};
-use common::{List, ListLink, ListNode};
 
 pub struct VirtualMuxAlarm<'a, Alrm: Alarm + 'a> {
     mux: &'a MuxAlarm<'a, Alrm>,
     when: Cell<u32>,
     armed: Cell<bool>,
     next: ListLink<'a, VirtualMuxAlarm<'a, Alrm>>,
-    client: Cell<Option<&'a AlarmClient>>
+    client: Cell<Option<&'a AlarmClient>>,
 }
 
 impl<'a, A: Alarm + 'a> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
@@ -23,7 +24,7 @@ impl<'a, Alrm: Alarm> VirtualMuxAlarm<'a, Alrm> {
             when: Cell::new(0),
             armed: Cell::new(false),
             next: ListLink::empty(),
-            client: Cell::new(None)
+            client: Cell::new(None),
         }
     }
 
@@ -36,7 +37,6 @@ impl<'a, Alrm: Alarm> VirtualMuxAlarm<'a, Alrm> {
 }
 
 impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
-
     type Frequency = Alrm::Frequency;
 
     fn now(&self) -> u32 {
@@ -94,19 +94,19 @@ impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
     }
 }
 
-impl <'a, Alrm: Alarm> AlarmClient for VirtualMuxAlarm<'a, Alrm> {
+impl<'a, Alrm: Alarm> AlarmClient for VirtualMuxAlarm<'a, Alrm> {
     fn fired(&self) {
-        self.client.get().map(|client| client.fired() );
+        self.client.get().map(|client| client.fired());
     }
 }
 
-/* MuxAlarm */
+// MuxAlarm
 
 pub struct MuxAlarm<'a, Alrm: Alarm + 'a> {
     virtual_alarms: List<'a, VirtualMuxAlarm<'a, Alrm>>,
     enabled: Cell<usize>,
     prev: Cell<u32>,
-    alarm: &'a Alrm
+    alarm: &'a Alrm,
 }
 
 impl<'a, Alrm: Alarm> MuxAlarm<'a, Alrm> {
@@ -115,7 +115,7 @@ impl<'a, Alrm: Alarm> MuxAlarm<'a, Alrm> {
             virtual_alarms: List::new(),
             enabled: Cell::new(0),
             prev: Cell::new(0),
-            alarm: alarm
+            alarm: alarm,
         }
     }
 }
@@ -124,7 +124,7 @@ fn past_from_base(cur: u32, now: u32, prev: u32) -> bool {
     now.wrapping_sub(prev) >= cur.wrapping_sub(prev)
 }
 
-impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
+impl<'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
     fn fired(&self) {
         // Disable the alarm. If there are remaining armed alarms at the end we
         // will enable the alarm again via `set_alarm`
@@ -135,8 +135,7 @@ impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
         // Check whether to fire each alarm. At this level, alarms are one-shot,
         // so a repeating client will set it again in the fired() callback.
         for cur in self.virtual_alarms.iter() {
-            let should_fire = past_from_base(cur.when.get(),
-                                         now + 100, self.prev.get());
+            let should_fire = past_from_base(cur.when.get(), now + 100, self.prev.get());
             if cur.armed.get() && should_fire {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
@@ -147,7 +146,7 @@ impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
         // Find the soonest alarm client (if any) and set the "next" underlying
         // alarm based on it.
         let mut next = None;
-        let mut min_distance : u32 = u32::max_value();
+        let mut min_distance: u32 = u32::max_value();
         for cur in self.virtual_alarms.iter() {
             if cur.armed.get() {
                 let distance = cur.when.get().wrapping_sub(now);
@@ -163,4 +162,3 @@ impl <'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
         next.map(|valrm| self.alarm.set_alarm(valrm.when.get()));
     }
 }
-

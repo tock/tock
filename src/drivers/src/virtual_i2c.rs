@@ -1,13 +1,14 @@
-use core::cell::Cell;
-use hil::i2c::{self, I2CClient, Error};
+
 use common::{List, ListLink, ListNode};
 use common::take_cell::TakeCell;
+use core::cell::Cell;
+use hil::i2c::{self, I2CClient, Error};
 
 pub struct MuxI2C<'a> {
     i2c: &'a i2c::I2CController,
     devices: List<'a, I2CDevice<'a>>,
     enabled: Cell<usize>,
-    inflight: TakeCell<&'a I2CDevice<'a>>
+    inflight: TakeCell<&'a I2CDevice<'a>>,
 }
 
 impl<'a> I2CClient for MuxI2C<'a> {
@@ -25,7 +26,7 @@ impl<'a> MuxI2C<'a> {
             i2c: i2c,
             devices: List::new(),
             enabled: Cell::new(0),
-            inflight: TakeCell::empty()
+            inflight: TakeCell::empty(),
         }
     }
 
@@ -47,19 +48,15 @@ impl<'a> MuxI2C<'a> {
 
     fn do_next_op(&self) {
         if self.inflight.is_none() {
-            let mnode = self.devices.iter().find(|node| {
-                 node.operation.get() != Op::Idle
-            });
+            let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
                 node.buffer.take().map(|buf| {
                     match node.operation.get() {
-                        Op::Write(len) =>
-                            self.i2c.write(node.addr, buf, len),
-                        Op::Read(len) =>
-                            self.i2c.read(node.addr, buf, len),
-                        Op::WriteRead(wlen, rlen) =>
-                            self.i2c.write_read(node.addr,
-                                        buf, wlen, rlen),
+                        Op::Write(len) => self.i2c.write(node.addr, buf, len),
+                        Op::Read(len) => self.i2c.read(node.addr, buf, len),
+                        Op::WriteRead(wlen, rlen) => {
+                            self.i2c.write_read(node.addr, buf, wlen, rlen)
+                        }
                         Op::Idle => {} // Can't get here...
                     }
                 });
@@ -75,7 +72,7 @@ enum Op {
     Idle,
     Write(u8),
     Read(u8),
-    WriteRead(u8, u8)
+    WriteRead(u8, u8),
 }
 
 pub struct I2CDevice<'a> {
@@ -85,10 +82,10 @@ pub struct I2CDevice<'a> {
     buffer: TakeCell<&'static mut [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, I2CDevice<'a>>,
-    client: Cell<Option<&'a I2CClient>>
+    client: Cell<Option<&'a I2CClient>>,
 }
 
-impl<'a> I2CDevice <'a> {
+impl<'a> I2CDevice<'a> {
     pub const fn new(mux: &'a MuxI2C<'a>, addr: u8) -> I2CDevice<'a> {
         I2CDevice {
             mux: mux,
@@ -97,7 +94,7 @@ impl<'a> I2CDevice <'a> {
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),
-            client: Cell::new(None)
+            client: Cell::new(None),
         }
     }
 
@@ -136,8 +133,7 @@ impl<'a> i2c::I2CDevice for I2CDevice<'a> {
         }
     }
 
-    fn write_read(&self,  data: &'static mut [u8],
-                    write_len: u8, read_len: u8) {
+    fn write_read(&self, data: &'static mut [u8], write_len: u8, read_len: u8) {
         self.buffer.replace(data);
         self.operation.set(Op::WriteRead(write_len, read_len));
         self.mux.do_next_op();
@@ -155,4 +151,3 @@ impl<'a> i2c::I2CDevice for I2CDevice<'a> {
         self.mux.do_next_op();
     }
 }
-

@@ -1,12 +1,13 @@
-use helpers::*;
+
+
+use common::take_cell::TakeCell;
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
+use helpers::*;
 use hil;
 use nvic;
 use nvic::NvicIdx::*;
-
-use common::take_cell::TakeCell;
 
 use self::Pin::*;
 
@@ -15,7 +16,7 @@ struct Register {
     val: u32,
     set: u32,
     clear: u32,
-    toggle: u32
+    toggle: u32,
 }
 
 #[repr(C, packed)]
@@ -23,7 +24,7 @@ struct RegisterRC {
     val: u32,
     reserved0: u32,
     clear: u32,
-    reserved1: u32
+    reserved1: u32,
 }
 
 #[repr(C, packed)]
@@ -67,7 +68,13 @@ struct Registers {
 /// [^1]: Section 3.2, pages 19-29
 #[derive(Copy,Clone)]
 pub enum PeripheralFunction {
-    A, B, C, D, E, F, G
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
 }
 
 
@@ -81,6 +88,7 @@ const SIZE: usize = 0x200;
 ///
 /// [^1]: Section 3.1, pages 10-18
 #[derive(Copy,Clone)]
+#[cfg_attr(rustfmt, rustfmt_skip)]
 pub enum Pin {
     PA00, PA01, PA02, PA03, PA04, PA05, PA06, PA07,
     PA08, PA09, PA10, PA11, PA12, PA13, PA14, PA15,
@@ -118,7 +126,7 @@ pub enum Pin {
 ///       GPIO
 pub struct Port {
     port: *mut Registers,
-    pins: [GPIOPin; 32]
+    pins: [GPIOPin; 32],
 }
 
 impl Index<usize> for Port {
@@ -137,12 +145,11 @@ impl IndexMut<usize> for Port {
 
 impl Port {
     pub fn handle_interrupt(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
 
         // Interrupt Flag Register (IFR) bits are only valid if the same bits
         // are enabled in Interrupt Enabled Register (IER).
-        let mut fired = volatile_load(&port.ifr.val) &
-                        volatile_load(&port.ier.val);
+        let mut fired = volatile_load(&port.ifr.val) & volatile_load(&port.ier.val);
 
         // About to handle all the interrupts, so just clear them now to get
         // over with it.
@@ -161,79 +168,121 @@ impl Port {
 }
 
 /// Port A
-pub static mut PA : Port = Port {
+pub static mut PA: Port = Port {
     port: (BASE_ADDRESS + 0 * SIZE) as *mut Registers,
-    pins: [
-        GPIOPin::new(PA00, GPIO0), GPIOPin::new(PA01, GPIO0),
-        GPIOPin::new(PA02, GPIO0), GPIOPin::new(PA03, GPIO0),
-        GPIOPin::new(PA04, GPIO0), GPIOPin::new(PA05, GPIO0),
-        GPIOPin::new(PA06, GPIO0), GPIOPin::new(PA07, GPIO0),
-        GPIOPin::new(PA08, GPIO1), GPIOPin::new(PA09, GPIO1),
-        GPIOPin::new(PA10, GPIO1), GPIOPin::new(PA11, GPIO1),
-        GPIOPin::new(PA12, GPIO1), GPIOPin::new(PA13, GPIO1),
-        GPIOPin::new(PA14, GPIO1), GPIOPin::new(PA15, GPIO1),
-        GPIOPin::new(PA16, GPIO2), GPIOPin::new(PA17, GPIO2),
-        GPIOPin::new(PA18, GPIO2), GPIOPin::new(PA19, GPIO2),
-        GPIOPin::new(PA20, GPIO2), GPIOPin::new(PA21, GPIO2),
-        GPIOPin::new(PA22, GPIO2), GPIOPin::new(PA23, GPIO2),
-        GPIOPin::new(PA24, GPIO3), GPIOPin::new(PA25, GPIO3),
-        GPIOPin::new(PA26, GPIO3), GPIOPin::new(PA27, GPIO3),
-        GPIOPin::new(PA28, GPIO3), GPIOPin::new(PA29, GPIO3),
-        GPIOPin::new(PA30, GPIO3), GPIOPin::new(PA31, GPIO3)
-    ]
+    pins: [GPIOPin::new(PA00, GPIO0),
+           GPIOPin::new(PA01, GPIO0),
+           GPIOPin::new(PA02, GPIO0),
+           GPIOPin::new(PA03, GPIO0),
+           GPIOPin::new(PA04, GPIO0),
+           GPIOPin::new(PA05, GPIO0),
+           GPIOPin::new(PA06, GPIO0),
+           GPIOPin::new(PA07, GPIO0),
+           GPIOPin::new(PA08, GPIO1),
+           GPIOPin::new(PA09, GPIO1),
+           GPIOPin::new(PA10, GPIO1),
+           GPIOPin::new(PA11, GPIO1),
+           GPIOPin::new(PA12, GPIO1),
+           GPIOPin::new(PA13, GPIO1),
+           GPIOPin::new(PA14, GPIO1),
+           GPIOPin::new(PA15, GPIO1),
+           GPIOPin::new(PA16, GPIO2),
+           GPIOPin::new(PA17, GPIO2),
+           GPIOPin::new(PA18, GPIO2),
+           GPIOPin::new(PA19, GPIO2),
+           GPIOPin::new(PA20, GPIO2),
+           GPIOPin::new(PA21, GPIO2),
+           GPIOPin::new(PA22, GPIO2),
+           GPIOPin::new(PA23, GPIO2),
+           GPIOPin::new(PA24, GPIO3),
+           GPIOPin::new(PA25, GPIO3),
+           GPIOPin::new(PA26, GPIO3),
+           GPIOPin::new(PA27, GPIO3),
+           GPIOPin::new(PA28, GPIO3),
+           GPIOPin::new(PA29, GPIO3),
+           GPIOPin::new(PA30, GPIO3),
+           GPIOPin::new(PA31, GPIO3)],
 };
 
 /// Port B
-pub static mut PB : Port = Port {
+pub static mut PB: Port = Port {
     port: (BASE_ADDRESS + 1 * SIZE) as *mut Registers,
-    pins: [
-        GPIOPin::new(PB00, GPIO4), GPIOPin::new(PB01, GPIO4),
-        GPIOPin::new(PB02, GPIO4), GPIOPin::new(PB03, GPIO4),
-        GPIOPin::new(PB04, GPIO4), GPIOPin::new(PB05, GPIO4),
-        GPIOPin::new(PB06, GPIO4), GPIOPin::new(PB07, GPIO4),
-        GPIOPin::new(PB08, GPIO5), GPIOPin::new(PB09, GPIO5),
-        GPIOPin::new(PB10, GPIO5), GPIOPin::new(PB11, GPIO5),
-        GPIOPin::new(PB12, GPIO5), GPIOPin::new(PB13, GPIO5),
-        GPIOPin::new(PB14, GPIO5), GPIOPin::new(PB15, GPIO5),
-        GPIOPin::new(PB16, GPIO6), GPIOPin::new(PB17, GPIO6),
-        GPIOPin::new(PB18, GPIO6), GPIOPin::new(PB19, GPIO6),
-        GPIOPin::new(PB20, GPIO6), GPIOPin::new(PB21, GPIO6),
-        GPIOPin::new(PB22, GPIO6), GPIOPin::new(PB23, GPIO6),
-        GPIOPin::new(PB24, GPIO7), GPIOPin::new(PB25, GPIO7),
-        GPIOPin::new(PB26, GPIO7), GPIOPin::new(PB27, GPIO7),
-        GPIOPin::new(PB28, GPIO7), GPIOPin::new(PB29, GPIO7),
-        GPIOPin::new(PB30, GPIO7), GPIOPin::new(PB31, GPIO7)
-    ]
+    pins: [GPIOPin::new(PB00, GPIO4),
+           GPIOPin::new(PB01, GPIO4),
+           GPIOPin::new(PB02, GPIO4),
+           GPIOPin::new(PB03, GPIO4),
+           GPIOPin::new(PB04, GPIO4),
+           GPIOPin::new(PB05, GPIO4),
+           GPIOPin::new(PB06, GPIO4),
+           GPIOPin::new(PB07, GPIO4),
+           GPIOPin::new(PB08, GPIO5),
+           GPIOPin::new(PB09, GPIO5),
+           GPIOPin::new(PB10, GPIO5),
+           GPIOPin::new(PB11, GPIO5),
+           GPIOPin::new(PB12, GPIO5),
+           GPIOPin::new(PB13, GPIO5),
+           GPIOPin::new(PB14, GPIO5),
+           GPIOPin::new(PB15, GPIO5),
+           GPIOPin::new(PB16, GPIO6),
+           GPIOPin::new(PB17, GPIO6),
+           GPIOPin::new(PB18, GPIO6),
+           GPIOPin::new(PB19, GPIO6),
+           GPIOPin::new(PB20, GPIO6),
+           GPIOPin::new(PB21, GPIO6),
+           GPIOPin::new(PB22, GPIO6),
+           GPIOPin::new(PB23, GPIO6),
+           GPIOPin::new(PB24, GPIO7),
+           GPIOPin::new(PB25, GPIO7),
+           GPIOPin::new(PB26, GPIO7),
+           GPIOPin::new(PB27, GPIO7),
+           GPIOPin::new(PB28, GPIO7),
+           GPIOPin::new(PB29, GPIO7),
+           GPIOPin::new(PB30, GPIO7),
+           GPIOPin::new(PB31, GPIO7)],
 };
 
 /// Port C
-pub static mut PC : Port = Port {
+pub static mut PC: Port = Port {
     port: (BASE_ADDRESS + 2 * SIZE) as *mut Registers,
-    pins: [
-        GPIOPin::new(PC00, GPIO8), GPIOPin::new(PC01, GPIO8),
-        GPIOPin::new(PC02, GPIO8), GPIOPin::new(PC03, GPIO8),
-        GPIOPin::new(PC04, GPIO8), GPIOPin::new(PC05, GPIO8),
-        GPIOPin::new(PC06, GPIO8), GPIOPin::new(PC07, GPIO8),
-        GPIOPin::new(PC08, GPIO9), GPIOPin::new(PC09, GPIO9),
-        GPIOPin::new(PC10, GPIO9), GPIOPin::new(PC11, GPIO9),
-        GPIOPin::new(PC12, GPIO9), GPIOPin::new(PC13, GPIO9),
-        GPIOPin::new(PC14, GPIO9), GPIOPin::new(PC15, GPIO9),
-        GPIOPin::new(PC16, GPIO10), GPIOPin::new(PC17, GPIO10),
-        GPIOPin::new(PC18, GPIO10), GPIOPin::new(PC19, GPIO10),
-        GPIOPin::new(PC20, GPIO10), GPIOPin::new(PC21, GPIO10),
-        GPIOPin::new(PC22, GPIO10), GPIOPin::new(PC23, GPIO10),
-        GPIOPin::new(PC24, GPIO10), GPIOPin::new(PC25, GPIO11),
-        GPIOPin::new(PC26, GPIO10), GPIOPin::new(PC27, GPIO11),
-        GPIOPin::new(PC28, GPIO10), GPIOPin::new(PC29, GPIO11),
-        GPIOPin::new(PC30, GPIO10), GPIOPin::new(PC31, GPIO11)
-    ]
+    pins: [GPIOPin::new(PC00, GPIO8),
+           GPIOPin::new(PC01, GPIO8),
+           GPIOPin::new(PC02, GPIO8),
+           GPIOPin::new(PC03, GPIO8),
+           GPIOPin::new(PC04, GPIO8),
+           GPIOPin::new(PC05, GPIO8),
+           GPIOPin::new(PC06, GPIO8),
+           GPIOPin::new(PC07, GPIO8),
+           GPIOPin::new(PC08, GPIO9),
+           GPIOPin::new(PC09, GPIO9),
+           GPIOPin::new(PC10, GPIO9),
+           GPIOPin::new(PC11, GPIO9),
+           GPIOPin::new(PC12, GPIO9),
+           GPIOPin::new(PC13, GPIO9),
+           GPIOPin::new(PC14, GPIO9),
+           GPIOPin::new(PC15, GPIO9),
+           GPIOPin::new(PC16, GPIO10),
+           GPIOPin::new(PC17, GPIO10),
+           GPIOPin::new(PC18, GPIO10),
+           GPIOPin::new(PC19, GPIO10),
+           GPIOPin::new(PC20, GPIO10),
+           GPIOPin::new(PC21, GPIO10),
+           GPIOPin::new(PC22, GPIO10),
+           GPIOPin::new(PC23, GPIO10),
+           GPIOPin::new(PC24, GPIO10),
+           GPIOPin::new(PC25, GPIO11),
+           GPIOPin::new(PC26, GPIO10),
+           GPIOPin::new(PC27, GPIO11),
+           GPIOPin::new(PC28, GPIO10),
+           GPIOPin::new(PC29, GPIO11),
+           GPIOPin::new(PC30, GPIO10),
+           GPIOPin::new(PC31, GPIO11)],
 };
 pub struct GPIOPin {
     port: *mut Registers,
     nvic: nvic::NvicIdx,
     pin_mask: u32,
     client_data: Cell<usize>,
-    client: TakeCell<&'static hil::gpio::Client>
+    client: TakeCell<&'static hil::gpio::Client>,
 }
 
 impl GPIOPin {
@@ -243,7 +292,7 @@ impl GPIOPin {
             nvic: nvic,
             pin_mask: 1 << ((pin as u32) % 32),
             client_data: Cell::new(0),
-            client: TakeCell::empty()
+            client: TakeCell::empty(),
         }
     }
 
@@ -254,7 +303,7 @@ impl GPIOPin {
     pub fn select_peripheral(&self, function: PeripheralFunction) {
         let f = function as u32;
         let (bit0, bit1, bit2) = (f & 0b1, (f & 0b10) >> 1, (f & 0b100) >> 2);
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
 
         // clear GPIO enable for pin
         volatile_store(&mut port.gper.clear, self.pin_mask);
@@ -278,42 +327,42 @@ impl GPIOPin {
     }
 
     pub fn enable(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.gper.set, self.pin_mask);
     }
 
     pub fn disable(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.gper.clear, self.pin_mask);
     }
 
     pub fn enable_output(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.oder.set, self.pin_mask);
     }
 
     pub fn disable_output(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.oder.clear, self.pin_mask);
     }
 
     pub fn enable_pull_down(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.pder.set, self.pin_mask);
     }
 
     pub fn disable_pull_down(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.pder.clear, self.pin_mask);
     }
 
     pub fn enable_pull_up(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.puer.set, self.pin_mask);
     }
 
     pub fn disable_pull_up(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.puer.clear, self.pin_mask);
     }
 
@@ -330,7 +379,7 @@ impl GPIOPin {
     /// | 0b10         | Falling edge   |
     ///
     pub fn set_interrupt_mode(&self, mode: u8) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         if mode & 0b01 != 0 {
             volatile_store(&mut port.imr0.set, self.pin_mask);
         } else {
@@ -346,14 +395,14 @@ impl GPIOPin {
 
     pub fn enable_interrupt(&self) {
         unsafe {
-            let port : &mut Registers = mem::transmute(self.port);
+            let port: &mut Registers = mem::transmute(self.port);
             nvic::enable(self.nvic);
             volatile_store(&mut port.ier.set, self.pin_mask);
         }
     }
 
     pub fn disable_interrupt(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ier.clear, self.pin_mask);
         if volatile_load(&mut port.ier.val) == 0 {
             unsafe {
@@ -369,32 +418,32 @@ impl GPIOPin {
     }
 
     pub fn disable_schmidtt_trigger(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ster.clear, self.pin_mask);
     }
 
     pub fn enable_schmidtt_trigger(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ster.set, self.pin_mask);
     }
 
     pub fn read(&self) -> bool {
-        let port : &Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { mem::transmute(self.port) };
         (volatile_load(&port.pvr) & self.pin_mask) > 0
     }
 
     pub fn toggle(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ovr.toggle, self.pin_mask);
     }
 
     pub fn set(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ovr.set, self.pin_mask);
     }
 
     pub fn clear(&self) {
-        let port : &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &mut Registers = unsafe { mem::transmute(self.port) };
         volatile_store(&mut port.ovr.clear, self.pin_mask);
     }
 }
@@ -429,15 +478,15 @@ impl hil::gpio::GPIOPin for GPIOPin {
             hil::gpio::InputMode::PullUp => {
                 self.disable_pull_down();
                 self.enable_pull_up();
-            },
+            }
             hil::gpio::InputMode::PullDown => {
                 self.disable_pull_up();
                 self.enable_pull_down();
-            },
+            }
             hil::gpio::InputMode::PullNone => {
                 self.disable_pull_up();
                 self.disable_pull_down();
-            },
+            }
         }
     }
 
@@ -457,12 +506,11 @@ impl hil::gpio::GPIOPin for GPIOPin {
         GPIOPin::clear(self);
     }
 
-    fn enable_interrupt(&self, client_data: usize,
-                        mode: hil::gpio::InterruptMode) {
+    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
         let mode_bits = match mode {
             hil::gpio::InterruptMode::Change => 0b00,
             hil::gpio::InterruptMode::RisingEdge => 0b01,
-            hil::gpio::InterruptMode::FallingEdge => 0b10
+            hil::gpio::InterruptMode::FallingEdge => 0b10,
         };
         self.client_data.set(client_data);
         GPIOPin::set_interrupt_mode(self, mode_bits);
@@ -486,16 +534,15 @@ macro_rules! gpio_handler {
     }
 }
 
-interrupt_handler!(gpio0_handler,  GPIO0);
-interrupt_handler!(gpio1_handler,  GPIO1);
-interrupt_handler!(gpio2_handler,  GPIO2);
-interrupt_handler!(gpio3_handler,  GPIO3);
-interrupt_handler!(gpio4_handler,  GPIO4);
-interrupt_handler!(gpio5_handler,  GPIO5);
-interrupt_handler!(gpio6_handler,  GPIO6);
-interrupt_handler!(gpio7_handler,  GPIO7);
-interrupt_handler!(gpio8_handler,  GPIO8);
-interrupt_handler!(gpio9_handler,  GPIO9);
+interrupt_handler!(gpio0_handler, GPIO0);
+interrupt_handler!(gpio1_handler, GPIO1);
+interrupt_handler!(gpio2_handler, GPIO2);
+interrupt_handler!(gpio3_handler, GPIO3);
+interrupt_handler!(gpio4_handler, GPIO4);
+interrupt_handler!(gpio5_handler, GPIO5);
+interrupt_handler!(gpio6_handler, GPIO6);
+interrupt_handler!(gpio7_handler, GPIO7);
+interrupt_handler!(gpio8_handler, GPIO8);
+interrupt_handler!(gpio9_handler, GPIO9);
 interrupt_handler!(gpio10_handler, GPIO10);
 interrupt_handler!(gpio11_handler, GPIO11);
-

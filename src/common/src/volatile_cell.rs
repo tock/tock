@@ -8,20 +8,16 @@ pub struct VolatileCell<T> {
 #[allow(dead_code)]
 impl<T> VolatileCell<T> {
     pub const fn new(value: T) -> Self {
-        VolatileCell {value: value}
+        VolatileCell { value: value }
     }
 
     #[inline]
     pub fn get(&self) -> T {
-        unsafe {
-            ::core::intrinsics::volatile_load(&self.value)
-        }
+        unsafe { ::core::intrinsics::volatile_load(&self.value) }
     }
 
     #[inline]
     pub fn set(&self, value: T) {
-        unsafe {
-            ::core::intrinsics::volatile_store(&self.value as *const T as *mut T, value)
-        }
+        unsafe { ::core::intrinsics::volatile_store(&self.value as *const T as *mut T, value) }
     }
 }

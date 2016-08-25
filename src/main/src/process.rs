@@ -1,25 +1,25 @@
 use callback::AppId;
-use core::intrinsics::{breakpoint, volatile_load, volatile_store};
-use core::{intrinsics, mem, ptr, slice};
 use common::{RingBuffer, Queue};
 
 use container;
+use core::{intrinsics, mem, ptr, slice};
+use core::intrinsics::{breakpoint, volatile_load, volatile_store};
 
 #[no_mangle]
-pub static mut SYSCALL_FIRED : usize = 0;
+pub static mut SYSCALL_FIRED: usize = 0;
 
 #[allow(improper_ctypes)]
-extern {
+extern "C" {
     pub fn switch_to_user(user_stack: *const u8, mem_base: *const u8) -> *mut u8;
 }
 
-pub static mut PROCS : &'static mut [Option<Process<'static>>] = &mut [];
+pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
 
 pub fn schedule(callback: Callback, appid: AppId) -> bool {
     let procs = unsafe { &mut PROCS };
     let idx = appid.idx();
     if idx >= procs.len() {
-        return false
+        return false;
     }
 
     match procs[idx] {
@@ -36,13 +36,13 @@ pub fn schedule(callback: Callback, appid: AppId) -> bool {
 pub enum Error {
     NoSuchApp,
     OutOfMemory,
-    AddressOutOfBounds
+    AddressOutOfBounds,
 }
 
 #[derive(Copy,Clone,PartialEq,Eq)]
 pub enum State {
     Running,
-    Waiting
+    Waiting,
 }
 
 
@@ -52,20 +52,20 @@ pub struct Callback {
     pub r1: usize,
     pub r2: usize,
     pub r3: usize,
-    pub pc: usize
+    pub pc: usize,
 }
 
 #[repr(C)]
 struct LoadInfo {
-    total_size: usize,       /* Total padded size of the program image */
+    total_size: usize, // Total padded size of the program image
     rel_data_size: usize,
-    entry_loc: usize,        /* Entry point for user application */
-    init_data_loc: usize,    /* Data initialization information in flash */
-    init_data_size: usize,    /* Size of initialization information */
-    got_start_offset: usize,  /* Offset to start of GOT */
-    got_end_offset: usize,    /* Offset to end of GOT */
-    bss_start_offset: usize,  /* Offset to start of BSS */
-    bss_end_offset: usize    /* Offset to end of BSS */
+    entry_loc: usize, // Entry point for user application
+    init_data_loc: usize, // Data initialization information in flash
+    init_data_size: usize, // Size of initialization information
+    got_start_offset: usize, // Offset to start of GOT
+    got_end_offset: usize, // Offset to end of GOT
+    bss_start_offset: usize, // Offset to start of BSS
+    bss_end_offset: usize, // Offset to end of BSS
 }
 
 pub struct Process<'a> {
@@ -86,7 +86,7 @@ pub struct Process<'a> {
 
     pub state: State,
 
-    pub callbacks: RingBuffer<'a, Callback>
+    pub callbacks: RingBuffer<'a, Callback>,
 }
 
 impl<'a> Process<'a> {
@@ -95,9 +95,7 @@ impl<'a> Process<'a> {
     }
 
     pub fn mem_end(&self) -> *const u8 {
-        unsafe {
-            self.memory.as_ptr().offset(self.memory.len() as isize)
-        }
+        unsafe { self.memory.as_ptr().offset(self.memory.len() as isize) }
     }
 
     pub fn memory_regions(&self) -> (usize, usize, usize, usize) {
@@ -109,7 +107,10 @@ impl<'a> Process<'a> {
         (data_start, data_len, text_start, text_len)
     }
 
-    pub unsafe fn create(start_addr: *const u8, length: usize, memory: &'static mut [u8]) -> Process<'a> {
+    pub unsafe fn create(start_addr: *const u8,
+                         length: usize,
+                         memory: &'static mut [u8])
+                         -> Process<'a> {
         let mut kernel_memory_break = {
             // make room for container pointers
             let psz = mem::size_of::<*const usize>();
@@ -117,8 +118,7 @@ impl<'a> Process<'a> {
             let container_ptrs_size = num_ctrs * psz;
             let res = memory.as_mut_ptr().offset((memory.len() - container_ptrs_size) as isize);
             // set all ptrs to null
-            let opts = slice::from_raw_parts_mut(
-                res as *mut *const usize, num_ctrs);
+            let opts = slice::from_raw_parts_mut(res as *mut *const usize, num_ctrs);
             for opt in opts.iter_mut() {
                 *opt = ptr::null()
             }
@@ -130,10 +130,9 @@ impl<'a> Process<'a> {
         let callback_len = 10;
         let callback_offset = callback_len * callback_size;
         // Set kernel break to beginning of callback buffer
-        kernel_memory_break =
-            kernel_memory_break.offset(-(callback_offset as isize));
-        let callback_buf = slice::from_raw_parts_mut(
-            kernel_memory_break as *mut Callback, callback_len);
+        kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
+        let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Callback,
+                                                     callback_len);
 
         let callbacks = RingBuffer::new(callback_buf);
 
@@ -150,7 +149,7 @@ impl<'a> Process<'a> {
             wait_pc: 0,
             psr: 0x01000000,
             state: State::Waiting,
-            callbacks: callbacks
+            callbacks: callbacks,
         };
 
         process.callbacks.enqueue(Callback {
@@ -158,7 +157,7 @@ impl<'a> Process<'a> {
             r0: load_result.app_mem_start as usize,
             r1: process.app_memory_break as usize,
             r2: process.kernel_memory_break as usize,
-            r3: 0
+            r3: 0,
         });
 
         process
@@ -181,8 +180,7 @@ impl<'a> Process<'a> {
         }
     }
 
-    pub fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize)
-            -> bool {
+    pub fn in_exposed_bounds(&self, buf_start_addr: *const u8, size: usize) -> bool {
 
         let buf_end_addr = unsafe { buf_start_addr.offset(size as isize) };
 
@@ -201,17 +199,15 @@ impl<'a> Process<'a> {
 
     pub unsafe fn free<T>(&mut self, _: *mut T) {}
 
-    pub unsafe fn container_for<T>(&mut self, container_num: usize)
-            -> *mut *mut T {
+    pub unsafe fn container_for<T>(&mut self, container_num: usize) -> *mut *mut T {
         let container_num = container_num as isize;
-        let ptr = (self.mem_end() as *mut usize)
-                        .offset(-(container_num + 1));
+        let ptr = (self.mem_end() as *mut usize).offset(-(container_num + 1));
         ptr as *mut *mut T
     }
 
     pub unsafe fn container_for_or_alloc<T: Default>(&mut self,
                                                      container_num: usize)
-            -> Option<*mut T> {
+                                                     -> Option<*mut T> {
         let ctr_ptr = self.container_for::<T>(container_num);
         if (*ctr_ptr).is_null() {
             self.alloc(mem::size_of::<T>()).map(|root_arr| {
@@ -231,8 +227,7 @@ impl<'a> Process<'a> {
         unsafe {
             self.wait_pc = volatile_load(pspr.offset(6));
             self.psr = volatile_load(pspr.offset(7));
-            self.cur_stack =
-                (self.cur_stack as *mut usize).offset(8) as *mut u8;
+            self.cur_stack = (self.cur_stack as *mut usize).offset(8) as *mut u8;
         }
     }
 
@@ -308,14 +303,13 @@ impl<'a> Process<'a> {
         let pspr = self.cur_stack as *const usize;
         unsafe { volatile_load(pspr.offset(3)) }
     }
-
 }
 
 struct LoadResult {
     text_start: *const u8,
     text_len: usize,
     init_fn: usize,
-    app_mem_start: *const u8
+    app_mem_start: *const u8,
 }
 
 unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
@@ -329,9 +323,8 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     let load_info = &*(start_addr as *const LoadInfo);
 
     let rel_data_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
-    let rel_data : &[usize] = slice::from_raw_parts(
-        rel_data_addr as *const usize,
-        load_info.rel_data_size / 4);
+    let rel_data: &[usize] = slice::from_raw_parts(rel_data_addr as *const usize,
+                                                   load_info.rel_data_size / 4);
 
     // Update text location in self
     let text_start = rel_data_addr.offset(load_info.rel_data_size as isize);
@@ -339,19 +332,16 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     result.text_len = load_info.init_data_loc;
 
     // Zero out BSS
-    ::core::intrinsics::write_bytes(
-        mem_base.offset(load_info.bss_start_offset as isize),
-        0,
-        load_info.bss_end_offset - load_info.bss_start_offset);
+    ::core::intrinsics::write_bytes(mem_base.offset(load_info.bss_start_offset as isize),
+                                    0,
+                                    load_info.bss_end_offset - load_info.bss_start_offset);
 
     // Copy data into Data section
-    let init_data : &[u8] = slice::from_raw_parts(
-        text_start.offset(load_info.init_data_loc as isize),
-        load_info.init_data_size);
+    let init_data: &[u8] =
+        slice::from_raw_parts(text_start.offset(load_info.init_data_loc as isize),
+                              load_info.init_data_size);
 
-    let target_data : &mut [u8] = slice::from_raw_parts_mut(
-        mem_base,
-        load_info.init_data_size);
+    let target_data: &mut [u8] = slice::from_raw_parts_mut(mem_base, load_info.init_data_size);
 
     target_data.clone_from_slice(init_data);
 
@@ -367,10 +357,8 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     };
 
     // Fixup Global Offset Table
-    let mut got_cur = mem_base.offset(
-        load_info.got_start_offset as isize) as *mut usize;
-    let got_end = mem_base.offset(
-        load_info.got_end_offset as isize) as *mut usize;
+    let mut got_cur = mem_base.offset(load_info.got_start_offset as isize) as *mut usize;
+    let got_end = mem_base.offset(load_info.got_end_offset as isize) as *mut usize;
     while got_cur != got_end {
         fixup(got_cur);
         got_cur = got_cur.offset(1);
@@ -378,7 +366,8 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
 
     // Fixup relocation data
     for (i, addr) in rel_data.iter().enumerate() {
-        if i % 2 == 0 { // Only the first of every 2 entries is an address
+        if i % 2 == 0 {
+            // Only the first of every 2 entries is an address
             fixup(mem_base.offset(*addr as isize) as *mut usize);
         }
     }
@@ -392,4 +381,3 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
 
     result
 }
-

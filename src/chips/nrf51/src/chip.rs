@@ -1,14 +1,14 @@
-use common::{RingBuffer,Queue};
-use nvic;
-use rtc;
+use common::{RingBuffer, Queue};
 use gpio;
-use timer;
 use main;
+use nvic;
 use peripheral_interrupts::NvicIdx;
+use rtc;
+use timer;
 
 const IQ_SIZE: usize = 100;
-static mut IQ_BUF : [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
-pub static mut INTERRUPT_QUEUE : Option<RingBuffer<'static, NvicIdx>> = None;
+static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
+pub static mut INTERRUPT_QUEUE: Option<RingBuffer<'static, NvicIdx>> = None;
 
 pub struct NRF51(());
 
@@ -34,21 +34,21 @@ impl main::Chip for NRF51 {
 
     fn service_pending_interrupts(&mut self) {
         unsafe {
-        INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
-            match interrupt {
-                NvicIdx::RTC1 => rtc::RTC.handle_interrupt(),
-                NvicIdx::GPIOTE  => gpio::PORT.handle_interrupt(),
-                NvicIdx::TIMER0  => timer::TIMER0.handle_interrupt(),
-                NvicIdx::TIMER1  => timer::ALARM1.handle_interrupt(),
-                NvicIdx::TIMER2  => timer::TIMER2.handle_interrupt(),
-                _ => {}
-            }
-            nvic::enable(interrupt);
-        });
+            INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
+                match interrupt {
+                    NvicIdx::RTC1 => rtc::RTC.handle_interrupt(),
+                    NvicIdx::GPIOTE => gpio::PORT.handle_interrupt(),
+                    NvicIdx::TIMER0 => timer::TIMER0.handle_interrupt(),
+                    NvicIdx::TIMER1 => timer::ALARM1.handle_interrupt(),
+                    NvicIdx::TIMER2 => timer::TIMER2.handle_interrupt(),
+                    _ => {}
+                }
+                nvic::enable(interrupt);
+            });
         }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe {INTERRUPT_QUEUE.as_mut().unwrap().has_elements()}
+        unsafe { INTERRUPT_QUEUE.as_mut().unwrap().has_elements() }
     }
 }

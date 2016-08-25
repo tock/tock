@@ -5,8 +5,8 @@ use getopts::Options;
 use std::cmp;
 use std::env;
 use std::fs::File;
-use std::io::Write;
 use std::io;
+use std::io::Write;
 use std::mem;
 use std::path::Path;
 use std::slice;
@@ -15,15 +15,15 @@ use std::slice;
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 struct LoadInfo {
-    total_size: u32,       /* Total padded size of the program image */
+    total_size: u32, // Total padded size of the program image
     rel_data_size: u32,
-    entry_loc: u32,        /* Entry point for user application */
-    init_data_loc: u32,    /* Data initialization information in flash */
-    init_data_size: u32,   /* Size of initialization information */
-    got_start_offset: u32, /* Offset in memory to start of GOT */
-    got_end_offset: u32,   /* Offset in memory to end of GOT */
-    bss_start_offset: u32, /* Offset in memory to start of BSS */
-    bss_end_offset: u32    /* Offset in memory to end of BSS */
+    entry_loc: u32, // Entry point for user application
+    init_data_loc: u32, // Data initialization information in flash
+    init_data_size: u32, // Size of initialization information
+    got_start_offset: u32, // Offset in memory to start of GOT
+    got_end_offset: u32, // Offset in memory to end of GOT
+    bss_start_offset: u32, // Offset in memory to start of BSS
+    bss_end_offset: u32, // Offset in memory to end of BSS
 }
 
 fn main() {
@@ -33,8 +33,8 @@ fn main() {
     opts.optopt("o", "", "set output file name", "OUTFILE");
 
     let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(f) => { panic!(f.to_string()) }
+        Ok(m) => m,
+        Err(f) => panic!(f.to_string()),
     };
     let output = matches.opt_str("o");
     let input = if !matches.free.is_empty() {
@@ -52,15 +52,18 @@ fn main() {
     };
 
     match output {
-        None => {
-            let mut out = io::stdout();
-            do_work(&file, &mut out)
+            None => {
+                let mut out = io::stdout();
+                do_work(&file, &mut out)
+            }
+            Some(name) => {
+                match File::create(Path::new(&name)) {
+                    Ok(mut f) => do_work(&file, &mut f),
+                    Err(e) => panic!("Error: {:?}", e),
+                }
+            }
         }
-        Some(name) => match File::create(Path::new(&name)) {
-            Ok(mut f) => do_work(&file, &mut f),
-            Err(e) => panic!("Error: {:?}", e),
-        }
-    }.expect("Failed to write output");
+        .expect("Failed to write output");
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -70,26 +73,21 @@ fn print_usage(program: &str, opts: Options) {
 
 fn get_section<'a>(input: &'a elf::File, name: &str) -> &'a elf::Section {
     match input.get_section(name) {
-        Some(s) => {
-            s
-        },
+        Some(s) => s,
         None => panic!("Failed to look up {} section", name),
     }
 }
 
 unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
-    slice::from_raw_parts(
-        input as *const T as *const u8,
-        mem::size_of::<T>())
+    slice::from_raw_parts(input as *const T as *const u8, mem::size_of::<T>())
 }
 
 fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
-    let (rel_data_size, rel_data) = match input.sections.iter()
-            .find(|section| section.shdr.name == ".rel.data".as_ref()) {
-        Some(section) => {
-            (section.shdr.size, section.data.as_ref())
-        },
-        None => (0 as u64, &[] as &[u8])
+    let (rel_data_size, rel_data) = match input.sections
+        .iter()
+        .find(|section| section.shdr.name == ".rel.data".as_ref()) {
+        Some(section) => (section.shdr.size, section.data.as_ref()),
+        None => (0 as u64, &[] as &[u8]),
 
     };
     let text = get_section(input, ".text");
@@ -97,13 +95,8 @@ fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
     let data = get_section(input, ".data");
     let bss = get_section(input, ".bss");
 
-    let mut total_len = (
-        mem::size_of::<LoadInfo>() +
-        rel_data.len() +
-        text.data.len() +
-        got.data.len() +
-        data.data.len()
-    ) as u32;
+    let mut total_len = (mem::size_of::<LoadInfo>() + rel_data.len() + text.data.len() +
+                         got.data.len() + data.data.len()) as u32;
 
     let pad = if total_len.count_ones() > 1 {
         let power2len = 1 << (32 - total_len.leading_zeros());
@@ -122,7 +115,7 @@ fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
         got_start_offset: 0,
         got_end_offset: got.shdr.size as u32,
         bss_start_offset: bss.shdr.addr as u32,
-        bss_end_offset: (bss.shdr.addr + bss.shdr.size) as u32
+        bss_end_offset: (bss.shdr.addr + bss.shdr.size) as u32,
     };
 
     try!(output.write_all(unsafe { as_byte_slice(&load_info) }));
@@ -140,4 +133,3 @@ fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
 
     Ok(())
 }
-

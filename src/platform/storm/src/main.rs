@@ -25,21 +25,20 @@ use sam4l::usart;
 #[macro_use]
 pub mod io;
 
-// HAL unit tests. To enable a particular unit test, uncomment
-// the module here and uncomment the call to start the test in
-// the init function below.
-//mod gpio_dummy;
-//mod spi_dummy;
-//mod i2c_dummy;
-//mod flash_dummy;
+// HAL unit tests. To enable a particular unit test, uncomment the call to
+// start the test in the init function below.
+mod gpio_dummy;
+mod spi_dummy;
+mod i2c_dummy;
+mod flash_dummy;
 
-static mut spi_read_buf:  [u8; 64] = [0; 64];
+static mut spi_read_buf: [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
 
 unsafe fn load_processes() -> &'static mut [Option<main::process::Process<'static>>] {
-    extern {
+    extern "C" {
         /// Beginning of the ROM region containing app images.
-        static _sapps : u8;
+        static _sapps: u8;
     }
 
     const NUM_PROCS: usize = 2;
@@ -85,13 +84,13 @@ struct Firestorm {
 }
 
 impl Platform for Firestorm {
+    // fn mpu(&mut self) -> &mut cortexm4::mpu::MPU {
+    // &mut self.chip.mpu
+    // }
 
-    /*fn mpu(&mut self) -> &mut cortexm4::mpu::MPU {
-        &mut self.chip.mpu
-    }*/
-
-    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R where
-            F: FnOnce(Option<&main::Driver>) -> R {
+    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R
+        where F: FnOnce(Option<&main::Driver>) -> R
+    {
 
         match driver_num {
             0 => f(Some(self.console)),
@@ -101,7 +100,7 @@ impl Platform for Firestorm {
             4 => f(Some(self.spi)),
             5 => f(Some(self.nrf51822)),
             6 => f(Some(self.isl29035)),
-            _ => f(None)
+            _ => f(None),
         }
     }
 }
@@ -444,22 +443,22 @@ pub unsafe fn reset_handler() {
     // Uncommenting the following line will cause the device to use the
     // SPI HAL to write [8, 7, 6, 5, 4, 3, 2, 1] once over the SPI then
     // echo the 8 bytes read from the slave continuously.
-    //spi_dummy::spi_dummy_test();
+    // spi_dummy::spi_dummy_test();
 
     // Uncommenting the following line will toggle the LED whenever the value of
     // Firestorm's pin 8 changes value (e.g., connect a push button to pin 8 and
     // press toggle it).
-    //gpio_dummy::gpio_dummy_test();
+    // gpio_dummy::gpio_dummy_test();
 
     // Uncommenting the following line will test the I2C
-    //i2c_dummy::i2c_scan_slaves();
-    //i2c_dummy::i2c_tmp006_test();
-    //i2c_dummy::i2c_accel_test();
-    //i2c_dummy::i2c_li_test();
+    // i2c_dummy::i2c_scan_slaves();
+    // i2c_dummy::i2c_tmp006_test();
+    // i2c_dummy::i2c_accel_test();
+    // i2c_dummy::i2c_li_test();
 
     // Uncommenting the following lines will test the Flash Controller
-    //flash_dummy::meta_test();
-    //flash_dummy::set_read_write_test();
+    // flash_dummy::meta_test();
+    // flash_dummy::set_read_write_test();
 
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();

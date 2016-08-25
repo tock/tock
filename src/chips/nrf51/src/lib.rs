@@ -8,7 +8,7 @@ extern crate common;
 extern crate hil;
 extern crate main;
 
-extern {
+extern "C" {
     pub fn init();
 }
 

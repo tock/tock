@@ -11,7 +11,7 @@ pub mod systick;
 
 #[no_mangle]
 #[naked]
-pub unsafe extern fn systick_handler() {
+pub unsafe extern "C" fn systick_handler() {
     asm!("
         /* Skip saving process state if not coming from user-space */
         cmp lr, #0xfffffffd
@@ -41,7 +41,7 @@ pub unsafe extern fn systick_handler() {
 #[naked]
 /// All ISRs are caught by this handler which indirects to a custom handler by
 /// indexing into `INTERRUPT_TABLE` based on the ISR number.
-pub unsafe extern fn generic_isr() {
+pub unsafe extern "C" fn generic_isr() {
     asm!("
     /* Skip saving process state if not coming from user-space */
     cmp lr, #0xfffffffd
@@ -81,7 +81,7 @@ _ggeneric_isr_no_stacking:
 #[no_mangle]
 #[naked]
 #[allow(non_snake_case)]
-pub unsafe extern fn SVC_Handler() {
+pub unsafe extern "C" fn SVC_Handler() {
     asm!("
   cmp lr, #0xfffffff9
   bne to_kernel
@@ -109,7 +109,9 @@ to_kernel:
 #[no_mangle]
 #[inline(never)]
 /// r0 is top of user stack, r1 Process GOT
-pub unsafe extern fn switch_to_user(mut user_stack: *const u8, process_got: *const u8) -> *mut u8 {
+pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
+                                        process_got: *const u8)
+                                        -> *mut u8 {
     asm!("
     /* Load non-hardware-stacked registers from Process stack */
     sub $0, #32
@@ -133,4 +135,3 @@ pub unsafe extern fn switch_to_user(mut user_stack: *const u8, process_got: *con
     : "r4","r5","r6","r7","r8","r9","r10","r11");
     user_stack as *mut u8
 }
-

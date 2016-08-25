@@ -43,7 +43,7 @@ unsafe extern "C" fn unhandled_interrupt() {
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
-extern {
+extern "C" {
     // _estack is not really a function, but it makes the types work
     // You should never actually invoke it!!
     fn _estack();
@@ -57,15 +57,16 @@ extern {
 
     fn generic_isr();
 
-    static mut _szero : u32;
-    static mut _ezero : u32;
-    static mut _etext : u32;
-    static mut _srelocate : u32;
-    static mut _erelocate : u32;
+    static mut _szero: u32;
+    static mut _ezero: u32;
+    static mut _etext: u32;
+    static mut _srelocate: u32;
+    static mut _erelocate: u32;
 }
 
 #[link_section=".vectors"]
 #[no_mangle] // Ensures that the symbol is kept until the final binary
+#[cfg_attr(rustfmt, rustfmt_skip)]
 pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     _estack, reset_handler,
     /* NMI */           unhandled_interrupt,
@@ -84,9 +85,10 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
 
 #[link_section=".vectors"]
 #[no_mangle] // Ensures that the symbol is kept until the final binary
-pub static IRQS: [unsafe extern fn(); 80] = [generic_isr; 80];
+pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 #[no_mangle]
+#[cfg_attr(rustfmt, rustfmt_skip)]
 pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     // Perhipheral vectors are defined by Atmel in the SAM4L datasheet section
     // 4.7.
@@ -177,8 +179,8 @@ pub unsafe fn init() {
     // Relocate data segment.
     // Assumes data starts right after text segment as specified by the linker
     // file.
-    let mut pdest  = &mut _srelocate as *mut u32;
-    let pend  = &mut _erelocate as *mut u32;
+    let mut pdest = &mut _srelocate as *mut u32;
+    let pend = &mut _erelocate as *mut u32;
     let mut psrc = &_etext as *const u32;
 
     if psrc != pdest {
@@ -218,20 +220,20 @@ unsafe extern "C" fn hard_fault_handler() {
         :
         );
 
-    let stacked_r0  :u32 = *offset(faulting_stack, 0);
-    let stacked_r1  :u32 = *offset(faulting_stack, 1);
-    let stacked_r2  :u32 = *offset(faulting_stack, 2);
-    let stacked_r3  :u32 = *offset(faulting_stack, 3);
-    let stacked_r12 :u32 = *offset(faulting_stack, 4);
-    let stacked_lr  :u32 = *offset(faulting_stack, 5);
-    let stacked_pc  :u32 = *offset(faulting_stack, 6);
-    let stacked_prs :u32 = *offset(faulting_stack, 7);
+    let stacked_r0: u32 = *offset(faulting_stack, 0);
+    let stacked_r1: u32 = *offset(faulting_stack, 1);
+    let stacked_r2: u32 = *offset(faulting_stack, 2);
+    let stacked_r3: u32 = *offset(faulting_stack, 3);
+    let stacked_r12: u32 = *offset(faulting_stack, 4);
+    let stacked_lr: u32 = *offset(faulting_stack, 5);
+    let stacked_pc: u32 = *offset(faulting_stack, 6);
+    let stacked_prs: u32 = *offset(faulting_stack, 7);
 
     let mode_str = if kernel_stack { "Kernel" } else { "Process" };
 
-    let shcsr : u32 = core::intrinsics::volatile_load(0xE000ED24 as *const u32);
-    let cfsr : u32 = core::intrinsics::volatile_load(0xE000ED28 as *const u32);
-    let hfsr : u32 = core::intrinsics::volatile_load(0xE000ED2C as *const u32);
+    let shcsr: u32 = core::intrinsics::volatile_load(0xE000ED24 as *const u32);
+    let cfsr: u32 = core::intrinsics::volatile_load(0xE000ED28 as *const u32);
+    let hfsr: u32 = core::intrinsics::volatile_load(0xE000ED2C as *const u32);
 
     panic!("{} HardFault.\n\
            \tr0  0x{:x}\n\
@@ -251,4 +253,3 @@ unsafe extern "C" fn hard_fault_handler() {
            stacked_r12, stacked_lr, stacked_pc, stacked_prs,
            faulting_stack as u32, shcsr, cfsr, hfsr);
 }
-

@@ -1,5 +1,3 @@
-#[allow(dead_code)]
-
 use helpers::*;
 
 #[repr(C, packed)]
@@ -43,7 +41,7 @@ struct PmRegisters {
     fastsleep: u32,
     reserved10: [u32; 2],
     config: u32, // 0x200
-    version: u32
+    version: u32,
 }
 
 const PM_BASE: isize = 0x400E0000;
@@ -55,7 +53,13 @@ const PBD_MASK_OFFSET: u32 = 0x34;
 static mut PM: *mut PmRegisters = PM_BASE as *mut PmRegisters;
 
 pub enum MainClock {
-    RCSYS, OSC0, PLL, DFLL, RC80M, RCFAST, RC1M
+    RCSYS,
+    OSC0,
+    PLL,
+    DFLL,
+    RC80M,
+    RCFAST,
+    RC1M,
 }
 
 #[derive(Copy,Clone)]
@@ -68,24 +72,65 @@ pub enum Clock {
 
 #[derive(Copy,Clone)]
 pub enum HSBClock {
-    PDCA, FLASHCALW, FLASHCALWP, USBC, CRCCU, APBA, APBB, APBC, APBD, AESA
+    PDCA,
+    FLASHCALW,
+    FLASHCALWP,
+    USBC,
+    CRCCU,
+    APBA,
+    APBB,
+    APBC,
+    APBD,
+    AESA,
 }
 
 #[derive(Copy,Clone)]
 pub enum PBAClock {
-    IISC, SPI, TC0, TC1, TWIM0, TWIS0, TWIM1, TWIS1,
-    USART0, USART1, USART2, USART3, ADCIFE, DACC, ACIFC, GLOC, ABSACB,
-    TRNG, PARC, CATB, NULL, TWIM2, TWIM3, LCDCA
+    IISC,
+    SPI,
+    TC0,
+    TC1,
+    TWIM0,
+    TWIS0,
+    TWIM1,
+    TWIS1,
+    USART0,
+    USART1,
+    USART2,
+    USART3,
+    ADCIFE,
+    DACC,
+    ACIFC,
+    GLOC,
+    ABSACB,
+    TRNG,
+    PARC,
+    CATB,
+    NULL,
+    TWIM2,
+    TWIM3,
+    LCDCA,
 }
 
 #[derive(Copy,Clone)]
 pub enum PBBClock {
-    FLASHCALW, HRAMC1, HMATRIX, PDCA, CRCCU, USBC, PEVC
+    FLASHCALW,
+    HRAMC1,
+    HMATRIX,
+    PDCA,
+    CRCCU,
+    USBC,
+    PEVC,
 }
 
 #[derive(Copy,Clone)]
 pub enum PBDClock {
-    BPM, BSCIF, AST, WDT, EIC, PICOUART
+    BPM,
+    BSCIF,
+    AST,
+    WDT,
+    EIC,
+    PICOUART,
 }
 
 unsafe fn unlock(register_offset: u32) {
@@ -121,4 +166,3 @@ pub unsafe fn disable_clock(clock: Clock) {
         Clock::PBD(v) => mask_clock!(PBD: pbdmask | !(1 << (v as u32))),
     }
 }
-

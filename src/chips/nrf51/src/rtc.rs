@@ -1,23 +1,22 @@
-use core::mem;
+
+use chip;
 use core::cell::Cell;
+use core::mem;
 use hil::Controller;
 use hil::alarm::{Alarm, AlarmClient, Freq16KHz};
-use peripheral_registers::{RTC1_BASE, RTC1};
-use peripheral_interrupts::NvicIdx;
-use chip;
 use nvic;
+use peripheral_interrupts::NvicIdx;
+use peripheral_registers::{RTC1_BASE, RTC1};
 
 fn rtc1() -> &'static RTC1 {
     unsafe { mem::transmute(RTC1_BASE as usize) }
 }
 
 pub struct Rtc {
-    callback: Cell<Option<&'static AlarmClient>>
+    callback: Cell<Option<&'static AlarmClient>>,
 }
 
-pub static mut RTC : Rtc = Rtc {
-    callback: Cell::new(None),
-};
+pub static mut RTC: Rtc = Rtc { callback: Cell::new(None) };
 
 impl Controller for Rtc {
     type Config = &'static AlarmClient;
@@ -26,7 +25,7 @@ impl Controller for Rtc {
         self.callback.set(Some(client));
 
         // FIXME: what to do here?
-        //self.start();
+        // self.start();
         // Set counter incrementing frequency to 16KHz
         // rtc1().prescaler.set(1);
     }
@@ -65,13 +64,12 @@ fn wait_task() {
             : /* no input */
             : "r0"
         );
-   }
+    }
 }
 
 const COMPARE0_EVENT: u32 = 1 << 16;
 
 impl Rtc {
-
     fn start(&self) {
         nvic::clear_pending(NvicIdx::RTC1);
         nvic::enable(NvicIdx::RTC1);
@@ -121,13 +119,13 @@ impl Alarm for Rtc {
     }
 
     fn is_armed(&self) -> bool {
-       self.is_running()
+        self.is_running()
     }
 }
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern fn RTC1_Handler() {
+pub unsafe extern "C" fn RTC1_Handler() {
     use common::Queue;
     nvic::disable(NvicIdx::RTC1);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::RTC1);
