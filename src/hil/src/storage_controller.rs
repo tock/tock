@@ -8,9 +8,9 @@ pub enum Error {
     ECC,                /* Error Correcting Code Error */
 }
 
-pub trait StorageController<'a>{
+pub trait StorageController{
     fn storage_ready(&self) -> bool;
-    fn set_client(&self, client: &'a Client); 
+    fn set_client(&self, client: &'static Client); 
 }
 
 pub trait Client {

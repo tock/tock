@@ -12,6 +12,7 @@ extern crate support;
 
 use hil::Controller;
 use hil::spi_master::SpiMaster;
+use hil::storage_controller::StorageController;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::virtual_i2c::MuxI2C;
 use main::{Chip, MPU, Platform};
@@ -77,7 +78,7 @@ struct Firestorm {
     isl29035: &'static drivers::isl29035::Isl29035<'static>,
     spi: &'static drivers::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static drivers::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
-    storage: &'static drivers::storage::Storage<'static, sam4l::flashcalw::FLASHCALW<'static>>,
+    storage: &'static drivers::storage::Storage<'static, sam4l::flashcalw::FLASHCALW>,
 }
 
 impl Platform for Firestorm {
@@ -417,12 +418,13 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
-    // TODO: change the static init to only be a mut borrow?
+    // TODO: change the static init to only be a mut borrow? 
+    // Definately doing something wrong here...
     static_init!(storage: drivers::storage::Storage<'static, sam4l::flashcalw::FLASHCALW> = 
             drivers::storage::Storage::new(&mut sam4l::flashcalw::flash_controller),
-        320);
+        840);
     sam4l::flashcalw::flash_controller.configure();
-
+    sam4l::flashcalw::flash_controller.set_client(storage as &hil::storage_controller::Client);
     // Note: The following GPIO pins aren't assigned to anything:
     // &sam4l::gpio::PC[19] // !ENSEN
     // &sam4l::gpio::PC[13] // ACC_INT1

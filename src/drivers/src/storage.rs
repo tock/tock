@@ -72,7 +72,7 @@ pub trait StorageClient {
     fn write(arr : &[u8], size : usize);
 }
 
-pub struct Storage <'a, S: StorageController<'a> + 'a> {
+pub struct Storage <'a, S: StorageController + 'a> {
     // todo: might modify and wrap the block up maybe with a client id / app id?
     controller: &'a mut S,
     block_table: [Option<*const Block<'a>>; NUM_FILE_DESCRIPTORS],
@@ -86,12 +86,12 @@ pub struct Storage <'a, S: StorageController<'a> + 'a> {
 }
 
 
-impl<'a, S: StorageController<'a>> Storage<'a,S> {
+impl<'a, S: StorageController> Storage<'a,S> {
     // todo change to take in anything with allocator trait, and anything with
     // flash trait?
     
     pub fn new(storage_controller: &'a mut S) -> Storage<'a, S> {
-        let mut s = Storage {
+        Storage {
             allocator: Allocator::new(ALLOCATOR_START_ADDR, ALLOCATOR_SIZE, 
                 ALLOCATOR_SMALLEST_BLOCK_SIZE),
             block_table: [None; 5],
@@ -99,10 +99,9 @@ impl<'a, S: StorageController<'a>> Storage<'a,S> {
             last_fd: -1,
             last_offset: -1,
             queued_list: List::new(),
+            // just take the reference from the storage_controller?
             buffer: TakeCell::new([255; 512])
-        };
-        s.controller.set_client(&s);
-        s
+        }
     }
 
     // TODO: this needs to be able to fail ( could give an option to say why fail
@@ -232,14 +231,14 @@ impl<'a, S: StorageController<'a>> Storage<'a,S> {
     }
 
 
-    pub fn initiate_write(&mut self, callback : &'a Callback<'a>) -> ErrorCode {
+   /* pub fn initiate_write(&mut self, callback : &'a Callback<'a>) -> ErrorCode {
         self.queued_list.push_head(callback);
         ErrorCode::success
-    }
+    }*/
 
 }
 
-impl<'a, S: StorageController<'a>> Client for Storage<'a, S>{
+impl<'a, S: StorageController> Client for Storage<'a, S>{
     // This is the function to call on the Storage in order to process any work 
     // queued up.
     fn command_complete(&self, err: Error) {

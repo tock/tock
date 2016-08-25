@@ -27,6 +27,7 @@ use core::{mem};
 use core::cell::Cell;
 use common::take_cell::TakeCell;
 use common::VolatileCell;
+use hil::storage_controller::{Error, StorageController, Client};
 use pm;
 use nvic;
 
@@ -79,13 +80,13 @@ enum RegKey {
 
 /// Error codes are used to inform the Client if the command completed successfully
 /// or whether there was an error and what type of error it was.
-pub enum Error {
-    CommandComplete,    /* Command Complete */
-    LockE,              /* Lock Error (i.e. tried writing to locked page) */
-    ProgE,              /* Program Error (i.e. incorrectly issued flash commands */
-    LockProgE,          /* Lock and Program Error */
-    ECC,                /* Error Correcting Code Error */
-}
+//pub enum Error {
+//    CommandComplete,    /* Command Complete */
+//    LockE,              /* Lock Error (i.e. tried writing to locked page) */
+//    ProgE,              /* Program Error (i.e. incorrectly issued flash commands */
+//    LockProgE,          /* Lock and Program Error */
+//    ECC,                /* Error Correcting Code Error */
+//}
 
 /// High level commands to issue to the flash. Usually to track the state of 
 /// a command especially if it's multiple FlashCMDs. 
@@ -195,11 +196,12 @@ macro_rules! bit {
 }
 
 /// Trait for a client of the flash controller.
+/*
 pub trait Client {
     //  Called upon a completed call
     fn command_complete(&self, err: Error);     
 }
-    
+*/  
 impl FLASHCALW {
     
     const fn new(base_addr: usize, ahb_clk: pm::HSBClock,
@@ -773,11 +775,11 @@ impl FLASHCALW {
 
 // Implementation of high level calls using the low-lv functions.
 impl FLASHCALW {
-    
+/*    
     pub fn set_client(&self, client: &'static Client) { 
         self.client.put(Some(client)); 
     }
-    
+*/   
     pub fn configure(&mut self) {
         //enable all clocks (if they aren't on already...)
         unsafe {
@@ -879,6 +881,17 @@ impl FLASHCALW {
         self.lock_page_region(page_num, false);
         0 
     }
+}
+
+impl StorageController for FLASHCALW {
+    fn storage_ready(&self) -> bool {
+        self.ready.get()
+    }
+
+    fn set_client(&self, client: &'static Client) { 
+        self.client.put(Some(client)); 
+    }
+        
 }
 
 ///  Assumes the only Peripheral Interrupt enabled for the FLASHCALW is the
