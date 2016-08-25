@@ -43,7 +43,7 @@ static mut FLASH_CLIENT: FlashClient = FlashClient {
 const MAX_PAGE_NUM: i32 = 80;   // Page to go up to
 
 impl Client for FlashClient {
-    fn command_complete(&self, error: Error) {
+    fn command_complete(&self, _error: Error) {
 
         print!("Client Notified that job done in state {}",
                self.state.get() as u32);
@@ -82,7 +82,7 @@ impl Client for FlashClient {
                 //  If there's any discrepancies read the page 3x more and output
                 //  differences.
                 if !pass {
-                    for j in 0..3 {
+                    for _ in 0..3 {
                         println!("\treading page {}", self.page.get());
                         let mut data: [u8; 512] = [0; 512];
                         dev.read(self.page.get() as usize * 512, 512, &mut data);
@@ -165,6 +165,7 @@ pub fn set_read_write_test() {
 /// This function primarily tests meta information for the chip on the
 /// the FireStorm - ATSAM4LC8C. For other ATSAM4L chips, calculations using the
 /// flash size asserts might fail (as they might not have the same flash size).
+#[allow(unused_unsafe)]
 pub unsafe fn meta_test() {
     println!("Testing Meta Info...");
     assert_eq!(flashcalw::flash_controller.get_page_size(), 512);

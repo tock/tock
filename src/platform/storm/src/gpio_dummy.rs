@@ -15,8 +15,6 @@ impl hil::gpio::Client for DummyGPIO {
 }
 
 pub fn gpio_dummy_test() {
-    use hil::gpio::GPIOPin;
-
     let led: &hil::gpio::GPIOPin = unsafe { &gpio::PC[10] };
     led.enable_output();
 
