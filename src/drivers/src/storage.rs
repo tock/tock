@@ -9,14 +9,17 @@ use common::{List, ListLink, ListNode, Queue};
 use common::allocator::{Allocator};
 use hil::storage_controller::{StorageController, Client, Error};
 
-// TODO: think of a good way to import.
-//use chips::sam4l::flashcalw::{FLASHCALW, flash_controller};
 // TODO: import buddy alloc and flash...
 /*
     TODO( in the future)
     Have my storage 'walk memory' it's declared on, on bootup so it can know
     what's allocated, and what's not already.
 */
+
+// TODO:
+// Move the allocator stuff in 'platform' and allow allocator to have access to
+// flash in some way ( that way it can do merging and so forth when there are frees / 
+// coalescing)
 
 const NUM_CLIENTS : usize = 5;
 // This will depend on the system...
@@ -98,19 +101,18 @@ pub struct Storage <'a, S: StorageController + 'a> {
     pending_requests: Cell<u32>, // number pending requests to write...
     pending_init: Cell<bool>, // number of inits ( need to write after opening) 
     clients: [ClientInfo; NUM_CLIENTS],
-    allocator: Allocator,
+    allocator: TakeCell<Allocator>,
     buffer: TakeCell<[u8; 512]>,
+    last_index: Cell<usize> // last index that was given a chance to write
 }
 
 
 impl<'a, S: StorageController> Storage<'a,S> {
-    // todo change to take in anything with allocator trait, and anything with
-    // flash trait?
     
     pub fn new(storage_controller: &'a mut S) -> Storage<'a, S> {
         Storage {
-            allocator: Allocator::new(ALLOCATOR_START_ADDR, ALLOCATOR_SIZE, 
-                ALLOCATOR_SMALLEST_BLOCK_SIZE),
+            allocator: TakeCell::new(Allocator::new(ALLOCATOR_START_ADDR, ALLOCATOR_SIZE, 
+                ALLOCATOR_SMALLEST_BLOCK_SIZE)),
             // TODO: just take the reference from the storage_controller?
             buffer: TakeCell::new([255; 512]),
             // TODO: defn a macro for these
@@ -161,7 +163,7 @@ impl<'a, S: StorageController> Storage<'a,S> {
     }
    
    
-    pub fn request(&mut self, size : usize, id: AppId) -> RequestResponse {
+    pub fn request(&self, size : usize, id: AppId) -> RequestResponse {
         if self.pending_init.get() {
             return RequestResponse::current_pending_init
         }
@@ -178,7 +180,10 @@ impl<'a, S: StorageController> Storage<'a,S> {
             return RequestResponse::clients_full
         }
 
-        let base_addr = self.allocator.alloc(size);
+        let base_addr = self.allocator.map(|value| {
+            value.alloc(size)
+        }).unwrap();
+        
         if base_addr.is_none() {
             return RequestResponse::alloc_fail
         }
@@ -193,138 +198,93 @@ impl<'a, S: StorageController> Storage<'a,S> {
         self.pending_init.set(true); // we have an init pending...
         RequestResponse::success
     }
-    
-    // TODO: this needs to be able to fail ( could give an option to say why fail
-    // i.e. alloc out of memory or block table full
-    /*pub fn request(&mut self, size : usize) -> Option<Block> {
-        let mut index : i32 = -1;
-        
-        // If either the block table  or the allocator don't have space, then fail.
-        for i in 0..NUM_FILE_DESCRIPTORS {
-            if self.block_table[i].is_none() {
-                index = i as i32;
-                break;
-            }
-        }    
 
-        if index == -1 {
-            return None
-        }
-
-        let space = self.allocator.alloc(size);
-        if space.is_none() {
-            return None
-        }
-    
-        // Make the Block, and update the block_table index.
-        self.block_table[index as usize] = Some(space.unwrap() as *mut Block<'a>);
-        // TODO: reword...
-        Some(Block {
-            slice: unsafe { slice::from_raw_parts(space.unwrap() as *mut u8,size) }
-        })
-        None
-    }*/
-    
-/*
-    // closes the block from being accessable if there's no writes left...
-    // Returns None if the block is closed, or the block if there are pending
-    // writes / it's not found in the table...
-    pub fn close<'b>(&'b mut self, mut block : Block<'b>) -> Option<Block> {
-        let idx = self.find_block_in_table(&mut block);
-        if idx == -1 {
-            return Some(block) // error block not found in table... 
-        }
-        
-        // check to make sure no more queued up writes
-        let mut iter = self.queued_list.iter();
-        let mut curr = iter.next();
-        
-        while !curr.is_none() {
-            if curr.unwrap().id == (idx as usize) {
-                return Some(block)
+    // index on success (AppId found in client info)
+    // -1 on failure
+    fn get_index_position(&self, id: AppId) -> i32 {
+        for i in 0..NUM_CLIENTS {
+            if !self.clients[i].client_id.is_none() {
+                if self.clients[i].client_id.map(|index_id| { index_id == id}) {
+                    return i as i32
+                }
             }
         }
-
-        // No more queued up writes, so lets close it.
-        self.block_table[idx as usize] = None;
-        None
+        -1 
     }
 
-    // closes the block, and also deallocates it!
-    pub fn free<'b>(&'b mut self, mut block : Block<'b>) -> Option<Block> {
-        //TODO: check address / code logic
-        let address = block.slice[0] as *mut u8 as usize;
-        
-        // TODO: figure out how to reuse the 'close function' instead of just
-        // copying it here... and have this block be "consumed" not borrowed.
-        //let results = self.close(block);
-        
-        let mut results = None;
-        let idx = self.find_block_in_table(&mut block);
-        if idx == -1 {
-            return Some(block) // error block not found in table... 
+    // -1 on failure, index of client to close otherwise
+    fn can_close(&self, id: AppId) -> i32 {
+        let index = self.get_index_position(id); 
+        // fail if AppId not found, or if there is a pending write from the client.
+        if index == -1 || self.clients[index as usize].queued_write.get() {
+            return -1
         }
-        
-        // check to make sure no more queued up writes
-        let mut iter = self.queued_list.iter();
-        let mut curr = iter.next();
-        
-        while !curr.is_none() {
-            if curr.unwrap().id == (idx as usize) {
-                results =  Some(block)
-            }
-        }
-        
-        if results.is_none() {
-            // No more queued up writes, so lets close it.
-            self.block_table[idx as usize] = None;
-            self.allocator.free(address);
-            None
+        index
+    }
+    
+    pub fn close(&self, id: AppId) -> bool {
+        let idx = self.can_close(id);
+
+        if idx != -1 {
+            self.clients[idx as usize].client_id.take(); // remove client id
+            true
         } else {
-            results
+            false
         }
     }
+   
+    // TODO: will need to change ( when allocator has access to flash because it needs for
+    // underlying writes) will need to do in order for this to work
+    pub fn free(&self, id: AppId) -> bool {
+        let idx = self.can_close(id);
 
-
-    // returns the index in the block_table of a block ( or -1 on failure)
-    fn find_block_in_table(&self, block: &Block) -> i32 {
-        for i in 0..NUM_FILE_DESCRIPTORS {
-            if !self.block_table[i].is_none() && self.block_table[i].unwrap() 
-                == block.slice[0] as *const Block<'a> {
-                return i as i32
-            }
-        }
-        -1 // not found in table
-    }
-*/
-// TODO: the client will have an interface some trait / function that they have to 
-// implement in order to use the storage and that's where I send the CB to.
-/*    
-    // NOTE: This is a pretty big security flaw here! Which should be addressed in
-    // the future. The get_callback() function has no way to ensure that the callback
-    // is registered with initiate_write as the code is currently written. Thus someone
-    // could potentially get_callback(), close their file, have someone else open
-    // a block in the same table index and initiate_write() on the other person's
-    // block! 
-    pub fn get_callback(&self, block : &Block, offset: u32) -> Option<Callback> {
-        let id = self.find_block_in_table(block);
-        // Error out if this block doesn't exist.
-        if id == -1 {
-            None
+        if idx != -1 {
+            self.clients[idx as usize].client_id.take();
+            self.allocator.map(|value| {
+                value.free(self.clients[idx as usize].addr.get())
+            });
+            true
+            // TODO: give allocator flash driver and free flash area
         } else {
-            Some(Callback {
-                id: id as usize,
-                offset: offset,
-                next: ListLink::empty() 
-            })
+            false
         }
     }
-*/
 
-   /* pub fn initiate_write(&mut self, callback : &'a Callback<'a>) -> ErrorCode {
-        self.queued_list.push_head(callback);
-        ErrorCode::success
-    }*/
+    // true if write is initiated false if it fails ( i.e. you have a pending write or
+    // you don't have write access...
+    pub fn initiate_write(&self, id: AppId, offset: u32) -> bool {
+        let idx = self.get_index_position(id);
+        // if not found or write already queued fail
+        if idx == -1 || self.clients[idx as usize].queued_write.get() {
+            return false
+        }
+        
+        // set the client writes to true, increment my counter for number_write.
+        self.clients[idx as usize].queued_write.set(true);
+        self.pending_requests.set(self.pending_requests.get() + 1);
+        
+        // if no other writes pending start a write... TODO (probably).. in order
+        // to start a chain of writes with commonad_complete...
+
+        true
+    }
+
+    // runs a particular application thats next up in use of the flash. 
+    fn run(&self) {
+        if !self.controller.storage_ready() {
+            // Do Nothing the storage isn't ready.
+        } else if pending_init.get() {
+            // Flush write... Note this is janky and might not work depending on where
+            // flash does its writes..
+            // Should pass to the allocator  itself and let it do the work and call me
+            // back ( and hand back flash :) ).
+        } else if self.pending_requests.get() != 0 {
+            //write to buffer...
+            let buffer = self.buffer.take().unwrap();
+            write_to_memory(buffer, );
+        }
+    }
+
 
 }
 
