@@ -12,14 +12,15 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa -y; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -qq gcc-arm-embedded; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cargo install rustfmt; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew tap px4/px4; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gcc-arm-none-eabi; fi
-  - cargo install rustfmt
   - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
-  - find -path ./extern -prune -o -name '*.rs' -exec rustfmt --write-mode=diff {} +
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      find -path ./extern -prune -o -name '*.rs' -exec rustfmt --write-mode=diff {} +; fi
   - make -C src/platform/storm
   - make -C src/platform/nrf_pca10028
   - make -C apps/blink TOCK_PLATFORM=storm
