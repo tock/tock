@@ -19,7 +19,7 @@ before_install:
   - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then \
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
       find -path ./extern -prune -o -name '*.rs' -exec rustfmt --write-mode=diff {} +; fi
   - make -C src/platform/storm
   - make -C src/platform/nrf_pca10028
