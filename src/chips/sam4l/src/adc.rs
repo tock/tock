@@ -31,8 +31,8 @@
 // Date: August 5, 2015
 //
 
-use core::cell::Cell;
 use core::{intrinsics, ptr};
+use core::cell::Cell;
 use hil::adc::{Request, AdcInternal};
 use nvic;
 use pm::{self, Clock, PBAClock};
@@ -139,8 +139,7 @@ impl AdcInternal for Adc {
                 //   - the max speed to be 300 ksps, and
                 //   - the reference voltage to be 1.0V
                 ptr::write_volatile(&mut (*self.registers).cfg, 0x00000030 as usize);
-                while ptr::read_volatile(&(*self.registers).sr) & (0x51000000) !=
-                      0x51000000 {}
+                while ptr::read_volatile(&(*self.registers).sr) & (0x51000000) != 0x51000000 {}
             }
         }
         return true;
