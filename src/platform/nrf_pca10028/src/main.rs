@@ -36,7 +36,7 @@
 #![crate_name = "nrf_pca10028"]
 #![no_std]
 #![no_main]
-#![feature(core_intrinsics,lang_items)]
+#![feature(lang_items)]
 
 #[macro_use(static_init)]
 extern crate common;
@@ -67,7 +67,7 @@ const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
 
 unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>>] {
-    use core::intrinsics::{volatile_load, volatile_store};
+    use core::ptr::{read_volatile, write_volatile};
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -84,9 +84,9 @@ unsafe fn load_process() -> &'static mut [Option<main::process::Process<'static>
     // each process image. A sentinel value of 0 (invalid because it is
     // smaller than the header itself) is used to mark the end of the list
     // of processes.
-    let total_size = volatile_load(addr as *const usize);
+    let total_size = read_volatile(addr as *const usize);
     if total_size != 0 {
-        volatile_store(&mut PROCS[0],
+        write_volatile(&mut PROCS[0],
                        Some(main::process::Process::create(addr, total_size, &mut MEMORY)));
     }
     &mut PROCS

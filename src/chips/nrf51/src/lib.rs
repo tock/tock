@@ -1,7 +1,6 @@
 #![crate_name = "nrf51"]
 #![crate_type = "rlib"]
 #![feature(asm,concat_idents,const_fn)]
-#![feature(core_intrinsics)]
 #![no_std]
 
 extern crate common;

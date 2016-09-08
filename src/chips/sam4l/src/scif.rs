@@ -8,7 +8,7 @@
 // Date: Aug 2, 2015
 //
 
-use core::intrinsics;
+use core::ptr;
 
 pub enum Register {
     IER = 0x00,
@@ -127,7 +127,7 @@ pub enum Clock {
 pub fn unlock(register: Register) {
     let val: u32 = 0xAA000000 | register as u32;
     unsafe {
-        intrinsics::volatile_store(&mut (*SCIF).unlock, val);
+        ptr::write_volatile(&mut (*SCIF).unlock, val);
     }
 }
 
@@ -136,32 +136,32 @@ pub fn oscillator_enable(internal: bool) {
     let val: u32 = (1 << 16) | internal as u32;
     unlock(Register::OSCCTRL0);
     unsafe {
-        intrinsics::volatile_store(&mut (*SCIF).oscctrl0, val);
+        ptr::write_volatile(&mut (*SCIF).oscctrl0, val);
     }
 }
 
 pub fn oscillator_disable() {
     unlock(Register::OSCCTRL0);
     unsafe {
-        intrinsics::volatile_store(&mut (*SCIF).oscctrl0, 0);
+        ptr::write_volatile(&mut (*SCIF).oscctrl0, 0);
     }
 }
 
 pub fn generic_clock_disable(clock: GenericClock) {
     unsafe {
         match clock {
-            GenericClock::GCLK0 => intrinsics::volatile_store(&mut (*SCIF).gcctrl0, 0),
-            GenericClock::GCLK1 => intrinsics::volatile_store(&mut (*SCIF).gcctrl1, 0),
-            GenericClock::GCLK2 => intrinsics::volatile_store(&mut (*SCIF).gcctrl2, 0),
-            GenericClock::GCLK3 => intrinsics::volatile_store(&mut (*SCIF).gcctrl3, 0),
-            GenericClock::GCLK4 => intrinsics::volatile_store(&mut (*SCIF).gcctrl4, 0),
-            GenericClock::GCLK5 => intrinsics::volatile_store(&mut (*SCIF).gcctrl5, 0),
-            GenericClock::GCLK6 => intrinsics::volatile_store(&mut (*SCIF).gcctrl6, 0),
-            GenericClock::GCLK7 => intrinsics::volatile_store(&mut (*SCIF).gcctrl7, 0),
-            GenericClock::GCLK8 => intrinsics::volatile_store(&mut (*SCIF).gcctrl8, 0),
-            GenericClock::GCLK9 => intrinsics::volatile_store(&mut (*SCIF).gcctrl9, 0),
-            GenericClock::GCLK10 => intrinsics::volatile_store(&mut (*SCIF).gcctrl10, 0),
-            GenericClock::GCLK11 => intrinsics::volatile_store(&mut (*SCIF).gcctrl11, 0),
+            GenericClock::GCLK0 => ptr::write_volatile(&mut (*SCIF).gcctrl0, 0),
+            GenericClock::GCLK1 => ptr::write_volatile(&mut (*SCIF).gcctrl1, 0),
+            GenericClock::GCLK2 => ptr::write_volatile(&mut (*SCIF).gcctrl2, 0),
+            GenericClock::GCLK3 => ptr::write_volatile(&mut (*SCIF).gcctrl3, 0),
+            GenericClock::GCLK4 => ptr::write_volatile(&mut (*SCIF).gcctrl4, 0),
+            GenericClock::GCLK5 => ptr::write_volatile(&mut (*SCIF).gcctrl5, 0),
+            GenericClock::GCLK6 => ptr::write_volatile(&mut (*SCIF).gcctrl6, 0),
+            GenericClock::GCLK7 => ptr::write_volatile(&mut (*SCIF).gcctrl7, 0),
+            GenericClock::GCLK8 => ptr::write_volatile(&mut (*SCIF).gcctrl8, 0),
+            GenericClock::GCLK9 => ptr::write_volatile(&mut (*SCIF).gcctrl9, 0),
+            GenericClock::GCLK10 => ptr::write_volatile(&mut (*SCIF).gcctrl10, 0),
+            GenericClock::GCLK11 => ptr::write_volatile(&mut (*SCIF).gcctrl11, 0),
         };
     }
 }
@@ -171,18 +171,18 @@ pub fn generic_clock_enable(clock: GenericClock, source: ClockSource) {
     let val = (source as u32) << 8 | 1;
     unsafe {
         match clock {
-            GenericClock::GCLK0 => intrinsics::volatile_store(&mut (*SCIF).gcctrl0, val),
-            GenericClock::GCLK1 => intrinsics::volatile_store(&mut (*SCIF).gcctrl1, val),
-            GenericClock::GCLK2 => intrinsics::volatile_store(&mut (*SCIF).gcctrl2, val),
-            GenericClock::GCLK3 => intrinsics::volatile_store(&mut (*SCIF).gcctrl3, val),
-            GenericClock::GCLK4 => intrinsics::volatile_store(&mut (*SCIF).gcctrl4, val),
-            GenericClock::GCLK5 => intrinsics::volatile_store(&mut (*SCIF).gcctrl5, val),
-            GenericClock::GCLK6 => intrinsics::volatile_store(&mut (*SCIF).gcctrl6, val),
-            GenericClock::GCLK7 => intrinsics::volatile_store(&mut (*SCIF).gcctrl7, val),
-            GenericClock::GCLK8 => intrinsics::volatile_store(&mut (*SCIF).gcctrl8, val),
-            GenericClock::GCLK9 => intrinsics::volatile_store(&mut (*SCIF).gcctrl9, val),
-            GenericClock::GCLK10 => intrinsics::volatile_store(&mut (*SCIF).gcctrl10, val),
-            GenericClock::GCLK11 => intrinsics::volatile_store(&mut (*SCIF).gcctrl11, val),
+            GenericClock::GCLK0 => ptr::write_volatile(&mut (*SCIF).gcctrl0, val),
+            GenericClock::GCLK1 => ptr::write_volatile(&mut (*SCIF).gcctrl1, val),
+            GenericClock::GCLK2 => ptr::write_volatile(&mut (*SCIF).gcctrl2, val),
+            GenericClock::GCLK3 => ptr::write_volatile(&mut (*SCIF).gcctrl3, val),
+            GenericClock::GCLK4 => ptr::write_volatile(&mut (*SCIF).gcctrl4, val),
+            GenericClock::GCLK5 => ptr::write_volatile(&mut (*SCIF).gcctrl5, val),
+            GenericClock::GCLK6 => ptr::write_volatile(&mut (*SCIF).gcctrl6, val),
+            GenericClock::GCLK7 => ptr::write_volatile(&mut (*SCIF).gcctrl7, val),
+            GenericClock::GCLK8 => ptr::write_volatile(&mut (*SCIF).gcctrl8, val),
+            GenericClock::GCLK9 => ptr::write_volatile(&mut (*SCIF).gcctrl9, val),
+            GenericClock::GCLK10 => ptr::write_volatile(&mut (*SCIF).gcctrl10, val),
+            GenericClock::GCLK11 => ptr::write_volatile(&mut (*SCIF).gcctrl11, val),
         };
     }
 }
@@ -197,18 +197,18 @@ pub fn generic_clock_enable_divided(clock: GenericClock, source: ClockSource, di
     let val = (divider as u32) << 16 | ((source as u32) << 8) | 2 | 1;
     unsafe {
         match clock {
-            GenericClock::GCLK0 => intrinsics::volatile_store(&mut (*SCIF).gcctrl0, val),
-            GenericClock::GCLK1 => intrinsics::volatile_store(&mut (*SCIF).gcctrl1, val),
-            GenericClock::GCLK2 => intrinsics::volatile_store(&mut (*SCIF).gcctrl2, val),
-            GenericClock::GCLK3 => intrinsics::volatile_store(&mut (*SCIF).gcctrl3, val),
-            GenericClock::GCLK4 => intrinsics::volatile_store(&mut (*SCIF).gcctrl4, val),
-            GenericClock::GCLK5 => intrinsics::volatile_store(&mut (*SCIF).gcctrl5, val),
-            GenericClock::GCLK6 => intrinsics::volatile_store(&mut (*SCIF).gcctrl6, val),
-            GenericClock::GCLK7 => intrinsics::volatile_store(&mut (*SCIF).gcctrl7, val),
-            GenericClock::GCLK8 => intrinsics::volatile_store(&mut (*SCIF).gcctrl8, val),
-            GenericClock::GCLK9 => intrinsics::volatile_store(&mut (*SCIF).gcctrl9, val),
-            GenericClock::GCLK10 => intrinsics::volatile_store(&mut (*SCIF).gcctrl10, val),
-            GenericClock::GCLK11 => intrinsics::volatile_store(&mut (*SCIF).gcctrl11, val),
+            GenericClock::GCLK0 => ptr::write_volatile(&mut (*SCIF).gcctrl0, val),
+            GenericClock::GCLK1 => ptr::write_volatile(&mut (*SCIF).gcctrl1, val),
+            GenericClock::GCLK2 => ptr::write_volatile(&mut (*SCIF).gcctrl2, val),
+            GenericClock::GCLK3 => ptr::write_volatile(&mut (*SCIF).gcctrl3, val),
+            GenericClock::GCLK4 => ptr::write_volatile(&mut (*SCIF).gcctrl4, val),
+            GenericClock::GCLK5 => ptr::write_volatile(&mut (*SCIF).gcctrl5, val),
+            GenericClock::GCLK6 => ptr::write_volatile(&mut (*SCIF).gcctrl6, val),
+            GenericClock::GCLK7 => ptr::write_volatile(&mut (*SCIF).gcctrl7, val),
+            GenericClock::GCLK8 => ptr::write_volatile(&mut (*SCIF).gcctrl8, val),
+            GenericClock::GCLK9 => ptr::write_volatile(&mut (*SCIF).gcctrl9, val),
+            GenericClock::GCLK10 => ptr::write_volatile(&mut (*SCIF).gcctrl10, val),
+            GenericClock::GCLK11 => ptr::write_volatile(&mut (*SCIF).gcctrl11, val),
         };
     }
 }

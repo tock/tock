@@ -231,9 +231,9 @@ unsafe extern "C" fn hard_fault_handler() {
 
     let mode_str = if kernel_stack { "Kernel" } else { "Process" };
 
-    let shcsr: u32 = core::intrinsics::volatile_load(0xE000ED24 as *const u32);
-    let cfsr: u32 = core::intrinsics::volatile_load(0xE000ED28 as *const u32);
-    let hfsr: u32 = core::intrinsics::volatile_load(0xE000ED2C as *const u32);
+    let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
+    let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
+    let hfsr: u32 = core::ptr::read_volatile(0xE000ED2C as *const u32);
 
     panic!("{} HardFault.\n\
            \tr0  0x{:x}\n\

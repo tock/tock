@@ -1,36 +1,36 @@
 #![feature(core)]
 #![feature(rand)]
 extern crate core;
-use core::intrinsics;
+use core::ptr;
 
 extern crate rand;
 use rand::Rng;
 
 mod queue;
 
-pub fn volatile_load<T>(item: &T) -> T {
-    unsafe { core::intrinsics::volatile_load(item) }
+pub fn read_volatile<T>(item: &T) -> T {
+    unsafe { core::ptr::read_volatile(item) }
 }
 
-pub fn volatile_store<T>(item: &mut T, val: T) {
-    unsafe { core::intrinsics::volatile_store(item, val) }
+pub fn write_volatile<T>(item: &mut T, val: T) {
+    unsafe { core::ptr::write_volatile(item, val) }
 }
 
 macro_rules! volatile {
     ($item:expr) => ({
-        ::volatile_load(&$item)
+        ::read_volatile(&$item)
     });
 
     ($item:ident = $value:expr) => ({
-        ::volatile_store(&mut $item, $value)
+        ::write_volatile(&mut $item, $value)
     });
 
     ($item:ident |= $value:expr) => ({
-        ::volatile_store(&mut $item, ::volatile_load(&$item) | $value)
+        ::write_volatile(&mut $item, ::read_volatile(&$item) | $value)
     });
 
     ($item:ident &= $value:expr) => ({
-        ::volatile_store(&mut $item, ::volatile_load(&$item) & $value)
+        ::write_volatile(&mut $item, ::read_volatile(&$item) & $value)
     });
 }
 const SIZE: usize = 10;

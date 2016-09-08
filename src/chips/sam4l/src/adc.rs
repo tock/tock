@@ -32,7 +32,7 @@
 //
 
 use core::cell::Cell;
-use core::intrinsics;
+use core::{intrinsics, ptr};
 use hil::adc::{Request, AdcInternal};
 use nvic;
 use pm::{self, Clock, PBAClock};
@@ -87,13 +87,13 @@ impl Adc {
         let val: u16;
         unsafe {
             // Clear SEOC interrupt
-            intrinsics::volatile_store(&mut (*self.registers).scr, 0x0000001);
+            ptr::write_volatile(&mut (*self.registers).scr, 0x0000001);
             // Disable SEOC interrupt
-            intrinsics::volatile_store(&mut (*self.registers).idr, 0x00000001);
+            ptr::write_volatile(&mut (*self.registers).idr, 0x00000001);
             // Read the value from the LCV register.
             // Note that since samples are left-justified (HWLA mode)
             // the sample is 16 bits wide
-            val = (intrinsics::volatile_load(&(*self.registers).lcv) & 0xffff) as u16;
+            val = (ptr::read_volatile(&(*self.registers).lcv) & 0xffff) as u16;
         }
         if self.request.get().is_none() {
             return;
@@ -118,19 +118,19 @@ impl AdcInternal for Adc {
                 scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::RCSYS);
                 // 2. Insert a fixed delay
                 for _ in 1..10000 {
-                    let _ = intrinsics::volatile_load(&(*self.registers).cr);
+                    let _ = ptr::read_volatile(&(*self.registers).cr);
                 }
 
                 // 3, Enable the ADC
-                let mut cr: usize = intrinsics::volatile_load(&(*self.registers).cr);
+                let mut cr: usize = ptr::read_volatile(&(*self.registers).cr);
                 cr |= 1 << 8;
-                intrinsics::volatile_store(&mut (*self.registers).cr, cr);
+                ptr::write_volatile(&mut (*self.registers).cr, cr);
 
                 // 4. Wait until ADC ready
-                while intrinsics::volatile_load(&(*self.registers).sr) & (1 << 24) == 0 {}
+                while ptr::read_volatile(&(*self.registers).sr) & (1 << 24) == 0 {}
                 // 5. Turn on bandgap and reference buffer
                 let cr2: usize = (1 << 10) | (1 << 8) | (1 << 4);
-                intrinsics::volatile_store(&mut (*self.registers).cr, cr2);
+                ptr::write_volatile(&mut (*self.registers).cr, cr2);
 
                 // 6. Configure the ADCIFE
                 // Setting all 0s in the configuration register sets
@@ -138,8 +138,8 @@ impl AdcInternal for Adc {
                 //   - the source to be the Generic clock,
                 //   - the max speed to be 300 ksps, and
                 //   - the reference voltage to be 1.0V
-                intrinsics::volatile_store(&mut (*self.registers).cfg, 0x00000030 as usize);
-                while intrinsics::volatile_load(&(*self.registers).sr) & (0x51000000) !=
+                ptr::write_volatile(&mut (*self.registers).cfg, 0x00000030 as usize);
+                while ptr::read_volatile(&(*self.registers).sr) & (0x51000000) !=
                       0x51000000 {}
             }
         }
@@ -174,11 +174,11 @@ impl AdcInternal for Adc {
                 cfg |= 0x00000000; // GAIN     =   0 (1x gain)
                 cfg |= 0x00000000; // BIPOLAR  =   0 (not bipolar)
                 cfg |= 0x00000001; // HWLA     =   1 (left justify value)
-                intrinsics::volatile_store(&mut (*self.registers).seqcfg, cfg);
+                ptr::write_volatile(&mut (*self.registers).seqcfg, cfg);
                 // Enable end of conversion interrupt
-                intrinsics::volatile_store(&mut (*self.registers).ier, 1);
+                ptr::write_volatile(&mut (*self.registers).ier, 1);
                 // Initiate conversion
-                intrinsics::volatile_store(&mut (*self.registers).cr, 8);
+                ptr::write_volatile(&mut (*self.registers).cr, 8);
                 return true;
             }
         }

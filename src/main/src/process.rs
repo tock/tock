@@ -2,8 +2,9 @@ use callback::AppId;
 use common::{RingBuffer, Queue};
 
 use container;
-use core::{intrinsics, mem, ptr, slice};
-use core::intrinsics::{breakpoint, volatile_load, volatile_store};
+use core::{mem, ptr, slice};
+use core::intrinsics::breakpoint;
+use core::ptr::{read_volatile, write_volatile};
 
 #[no_mangle]
 pub static mut SYSCALL_FIRED: usize = 0;
@@ -114,7 +115,7 @@ impl<'a> Process<'a> {
         let mut kernel_memory_break = {
             // make room for container pointers
             let psz = mem::size_of::<*const usize>();
-            let num_ctrs = volatile_load(&container::CONTAINER_COUNTER);
+            let num_ctrs = read_volatile(&container::CONTAINER_COUNTER);
             let container_ptrs_size = num_ctrs * psz;
             let res = memory.as_mut_ptr().offset((memory.len() - container_ptrs_size) as isize);
             // set all ptrs to null
@@ -213,7 +214,7 @@ impl<'a> Process<'a> {
             self.alloc(mem::size_of::<T>()).map(|root_arr| {
                 let root_ptr = root_arr.as_mut_ptr() as *mut T;
                 *root_ptr = Default::default();
-                volatile_store(ctr_ptr, root_ptr);
+                write_volatile(ctr_ptr, root_ptr);
                 root_ptr
             })
         } else {
@@ -225,8 +226,8 @@ impl<'a> Process<'a> {
     pub fn pop_syscall_stack(&mut self) {
         let pspr = self.cur_stack as *const usize;
         unsafe {
-            self.wait_pc = volatile_load(pspr.offset(6));
-            self.psr = volatile_load(pspr.offset(7));
+            self.wait_pc = read_volatile(pspr.offset(6));
+            self.psr = read_volatile(pspr.offset(7));
             self.cur_stack = (self.cur_stack as *mut usize).offset(8) as *mut u8;
         }
     }
@@ -236,22 +237,22 @@ impl<'a> Process<'a> {
         // Fill in initial stack expected by SVC handler
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
-        volatile_store(stack_bottom.offset(7), self.psr);
-        volatile_store(stack_bottom.offset(6), callback.pc | 1);
+        write_volatile(stack_bottom.offset(7), self.psr);
+        write_volatile(stack_bottom.offset(6), callback.pc | 1);
         // Set the LR register to the saved PC so the callback returns to
         // wherever wait was called. Set lowest bit to one because of THUMB
         // instruction requirements.
-        volatile_store(stack_bottom.offset(5), self.wait_pc | 0x1);
-        volatile_store(stack_bottom, callback.r0);
-        volatile_store(stack_bottom.offset(1), callback.r1);
-        volatile_store(stack_bottom.offset(2), callback.r2);
-        volatile_store(stack_bottom.offset(3), callback.r3);
+        write_volatile(stack_bottom.offset(5), self.wait_pc | 0x1);
+        write_volatile(stack_bottom, callback.r0);
+        write_volatile(stack_bottom.offset(1), callback.r1);
+        write_volatile(stack_bottom.offset(2), callback.r2);
+        write_volatile(stack_bottom.offset(3), callback.r3);
 
         self.cur_stack = stack_bottom as *mut u8;
     }
 
     pub unsafe fn syscall_fired(&self) -> bool {
-        intrinsics::volatile_load(&SYSCALL_FIRED) != 0
+        read_volatile(&SYSCALL_FIRED) != 0
     }
 
     /// Context switch to the process.
@@ -259,7 +260,7 @@ impl<'a> Process<'a> {
         if self.cur_stack < self.memory.as_ptr() {
             breakpoint();
         }
-        volatile_store(&mut SYSCALL_FIRED, 0);
+        write_volatile(&mut SYSCALL_FIRED, 0);
         let psp = switch_to_user(self.cur_stack, self.memory.as_ptr());
         self.cur_stack = psp;
     }
@@ -267,41 +268,41 @@ impl<'a> Process<'a> {
     pub fn svc_number(&self) -> Option<u8> {
         let psp = self.cur_stack as *const *const u16;
         unsafe {
-            let pcptr = volatile_load((psp as *const *const u16).offset(6));
-            let svc_instr = volatile_load(pcptr.offset(-1));
+            let pcptr = read_volatile((psp as *const *const u16).offset(6));
+            let svc_instr = read_volatile(pcptr.offset(-1));
             Some((svc_instr & 0xff) as u8)
         }
     }
 
     pub fn lr(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
-        unsafe { volatile_load(pspr.offset(5)) }
+        unsafe { read_volatile(pspr.offset(5)) }
     }
 
 
     pub fn r0(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
-        unsafe { volatile_load(pspr) }
+        unsafe { read_volatile(pspr) }
     }
 
     pub fn set_r0(&mut self, val: isize) {
         let pspr = self.cur_stack as *mut isize;
-        unsafe { volatile_store(pspr, val) }
+        unsafe { write_volatile(pspr, val) }
     }
 
     pub fn r1(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
-        unsafe { volatile_load(pspr.offset(1)) }
+        unsafe { read_volatile(pspr.offset(1)) }
     }
 
     pub fn r2(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
-        unsafe { volatile_load(pspr.offset(2)) }
+        unsafe { read_volatile(pspr.offset(2)) }
     }
 
     pub fn r3(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
-        unsafe { volatile_load(pspr.offset(3)) }
+        unsafe { read_volatile(pspr.offset(3)) }
     }
 }
 

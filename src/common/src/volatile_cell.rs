@@ -13,11 +13,11 @@ impl<T> VolatileCell<T> {
 
     #[inline]
     pub fn get(&self) -> T {
-        unsafe { ::core::intrinsics::volatile_load(&self.value) }
+        unsafe { ::core::ptr::read_volatile(&self.value) }
     }
 
     #[inline]
     pub fn set(&self, value: T) {
-        unsafe { ::core::intrinsics::volatile_store(&self.value as *const T as *mut T, value) }
+        unsafe { ::core::ptr::write_volatile(&self.value as *const T as *mut T, value) }
     }
 }

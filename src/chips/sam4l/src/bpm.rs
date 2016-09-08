@@ -29,12 +29,12 @@ pub enum CK32Source {
 
 #[inline(never)]
 pub unsafe fn set_ck32source(source: CK32Source) {
-    let control = volatile_load(&(*bpm).control);
+    let control = read_volatile(&(*bpm).control);
     unlock_register(&(*bpm).control);
-    volatile_store(&mut (*bpm).control, control | (source as u32) << 16);
+    write_volatile(&mut (*bpm).control, control | (source as u32) << 16);
 }
 
 unsafe fn unlock_register(reg: *const u32) {
     let addr = reg as u32 - bpm as u32;
-    volatile_store(&mut (*bpm).unlock, BPM_UNLOCK_KEY | addr);
+    write_volatile(&mut (*bpm).unlock, BPM_UNLOCK_KEY | addr);
 }

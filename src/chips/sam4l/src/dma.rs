@@ -164,7 +164,7 @@ impl DMAChannel {
                 }
             }
             let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-            volatile_store(&mut registers.interrupt_disable, 0xffffffff);
+            write_volatile(&mut registers.interrupt_disable, 0xffffffff);
 
             unsafe { nvic::enable(self.nvic) };
 
@@ -182,7 +182,7 @@ impl DMAChannel {
                 }
             }
             let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-            volatile_store(&mut registers.control, 0x2);
+            write_volatile(&mut registers.control, 0x2);
             self.enabled.set(false);
             unsafe {
                 nvic::disable(self.nvic);
@@ -192,7 +192,7 @@ impl DMAChannel {
 
     pub fn handle_interrupt(&mut self) {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-        let channel: usize = volatile_load(&registers.peripheral_select);
+        let channel: usize = read_volatile(&registers.peripheral_select);
 
         self.client.as_mut().map(|client| {
             client.xfer_done(channel);
@@ -201,7 +201,7 @@ impl DMAChannel {
 
     pub fn start_xfer(&self) {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-        volatile_store(&mut registers.control, 0x1);
+        write_volatile(&mut registers.control, 0x1);
     }
 
     pub fn prepare_xfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
@@ -211,12 +211,12 @@ impl DMAChannel {
         }
 
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-        volatile_store(&mut registers.peripheral_select, pid as usize);
-        volatile_store(&mut registers.memory_address_reload,
+        write_volatile(&mut registers.peripheral_select, pid as usize);
+        write_volatile(&mut registers.memory_address_reload,
                        &buf[0] as *const u8 as usize);
-        volatile_store(&mut registers.transfer_counter_reload, len);
+        write_volatile(&mut registers.transfer_counter_reload, len);
 
-        volatile_store(&mut registers.interrupt_enable, 1 << 1);
+        write_volatile(&mut registers.interrupt_enable, 1 << 1);
 
         // Store the buffer reference in the TakeCell so it can be returned to
         // the caller in `handle_interrupt`
@@ -232,17 +232,17 @@ impl DMAChannel {
     /// transaction.
     pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-        volatile_store(&mut registers.interrupt_disable, !0);
+        write_volatile(&mut registers.interrupt_disable, !0);
 
         // Reset counter
-        volatile_store(&mut registers.transfer_counter, 0);
+        write_volatile(&mut registers.transfer_counter, 0);
 
         self.buffer.take()
     }
 
     pub fn transfer_counter(&self) -> usize {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-        volatile_load(&registers.transfer_counter)
+        read_volatile(&registers.transfer_counter)
     }
 }
 
@@ -254,7 +254,7 @@ macro_rules! pdca_handler {
             {
                 let registers : &mut DMARegisters =
                     mem::transmute(DMAChannels[$num].registers);
-                volatile_store(&mut registers.interrupt_disable, 0xffffffff);
+                write_volatile(&mut registers.interrupt_disable, 0xffffffff);
             });
     }
 }

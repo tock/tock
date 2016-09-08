@@ -95,7 +95,7 @@ impl Spi {
         // self.dma_read.as_ref().map(|read| read.enable());
         // self.dma_write.as_ref().map(|write| write.enable());
         unsafe {
-            volatile_store(&mut (*self.regs).cr, 0b1);
+            write_volatile(&mut (*self.regs).cr, 0b1);
         }
     }
 
@@ -103,7 +103,7 @@ impl Spi {
         self.dma_read.as_ref().map(|read| read.disable());
         self.dma_write.as_ref().map(|write| write.disable());
         unsafe {
-            volatile_store(&mut (*self.regs).cr, 0b10);
+            write_volatile(&mut (*self.regs).cr, 0b10);
         }
     }
 
@@ -157,18 +157,18 @@ impl Spi {
             Peripheral::Peripheral2 => 0b1011,
             Peripheral::Peripheral3 => 0b0111,
         };
-        let mut mr = unsafe { volatile_load(&(*self.regs).mr) };
+        let mut mr = unsafe { read_volatile(&(*self.regs).mr) };
         let pcs_mask: u32 = 0xFFF0FFFF;
         mr &= pcs_mask;
         mr |= peripheral_number << 16;
         unsafe {
-            volatile_store(&mut (*self.regs).mr, mr);
+            write_volatile(&mut (*self.regs).mr, mr);
         }
     }
 
     /// Returns the currently active peripheral
     pub fn get_active_peripheral(&self) -> Peripheral {
-        let mr = unsafe { volatile_load(&(*self.regs).mr) };
+        let mr = unsafe { read_volatile(&(*self.regs).mr) };
         let pcs = (mr >> 16) & 0xF;
         // Split into bits for matching
         match pcs {
@@ -188,20 +188,20 @@ impl Spi {
     /// whichever corresponds to the active peripheral
     fn read_active_csr(&self) -> u32 {
         match self.get_active_peripheral() {
-            Peripheral::Peripheral0 => unsafe { volatile_load(&(*self.regs).csr0) },
-            Peripheral::Peripheral1 => unsafe { volatile_load(&(*self.regs).csr1) },
-            Peripheral::Peripheral2 => unsafe { volatile_load(&(*self.regs).csr2) },
-            Peripheral::Peripheral3 => unsafe { volatile_load(&(*self.regs).csr3) },
+            Peripheral::Peripheral0 => unsafe { read_volatile(&(*self.regs).csr0) },
+            Peripheral::Peripheral1 => unsafe { read_volatile(&(*self.regs).csr1) },
+            Peripheral::Peripheral2 => unsafe { read_volatile(&(*self.regs).csr2) },
+            Peripheral::Peripheral3 => unsafe { read_volatile(&(*self.regs).csr3) },
         }
     }
     /// Sets the Chip Select Register (CSR) of the active peripheral
     /// (CSR0, CSR1, CSR2, or CSR3).
     fn write_active_csr(&self, value: u32) {
         match self.get_active_peripheral() {
-            Peripheral::Peripheral0 => unsafe { volatile_store(&mut (*self.regs).csr0, value) },
-            Peripheral::Peripheral1 => unsafe { volatile_store(&mut (*self.regs).csr1, value) },
-            Peripheral::Peripheral2 => unsafe { volatile_store(&mut (*self.regs).csr2, value) },
-            Peripheral::Peripheral3 => unsafe { volatile_store(&mut (*self.regs).csr3, value) },
+            Peripheral::Peripheral0 => unsafe { write_volatile(&mut (*self.regs).csr0, value) },
+            Peripheral::Peripheral1 => unsafe { write_volatile(&mut (*self.regs).csr1, value) },
+            Peripheral::Peripheral2 => unsafe { write_volatile(&mut (*self.regs).csr2, value) },
+            Peripheral::Peripheral3 => unsafe { write_volatile(&mut (*self.regs).csr3, value) },
         };
     }
 
@@ -225,12 +225,12 @@ impl spi_master::SpiMaster for Spi {
         self.enable_clock();
 
         self.callback = Some(callback);
-        unsafe { volatile_store(&mut (*self.regs).cr, 1 << 24) };
+        unsafe { write_volatile(&mut (*self.regs).cr, 1 << 24) };
 
-        let mut mode = unsafe { volatile_load(&(*self.regs).mr) };
+        let mut mode = unsafe { read_volatile(&(*self.regs).mr) };
         mode |= 1; // Enable master mode
         mode |= 1 << 4; // Disable mode fault detection (open drain outputs not supported)
-        unsafe { volatile_store(&mut (*self.regs).mr, mode) };
+        unsafe { write_volatile(&mut (*self.regs).mr, mode) };
     }
 
     fn is_busy(&self) -> bool {
@@ -247,8 +247,8 @@ impl spi_master::SpiMaster for Spi {
         let tdr = out_byte as u32;
         // Wait for data to leave TDR and enter serializer, so TDR is free
         // for this next byte
-        while (unsafe { volatile_load(&(*self.regs).sr) } & 1 << 1) == 0 {}
-        unsafe { volatile_store(&mut (*self.regs).tdr, tdr) };
+        while (unsafe { read_volatile(&(*self.regs).sr) } & 1 << 1) == 0 {}
+        unsafe { write_volatile(&mut (*self.regs).tdr, tdr) };
     }
 
     /// Write 0 to the SPI and return the read; if an
@@ -265,9 +265,9 @@ impl spi_master::SpiMaster for Spi {
         }
         self.write_byte(val);
         // Wait for receive data register full
-        while (unsafe { volatile_load(&(*self.regs).sr) } & 1) != 1 {}
+        while (unsafe { read_volatile(&(*self.regs).sr) } & 1) != 1 {}
         // Return read value
-        unsafe { volatile_load(&(*self.regs).rdr) as u8 }
+        unsafe { read_volatile(&(*self.regs).rdr) as u8 }
     }
 
     /// Asynchonous buffer read/write of SPI.
@@ -401,7 +401,7 @@ impl spi_master::SpiMaster for Spi {
     }
 
     fn get_chip_select(&self) -> u8 {
-        let mr = unsafe { volatile_load(&(*self.regs).mr) };
+        let mr = unsafe { read_volatile(&(*self.regs).mr) };
         let cs = (mr >> 16) & 0xF;
         match cs {
             0b0000 => 0,
@@ -413,7 +413,7 @@ impl spi_master::SpiMaster for Spi {
     }
 
     fn clear_chip_select(&self) {
-        unsafe { volatile_store(&mut (*self.regs).cr, 1 << 24) };
+        unsafe { write_volatile(&mut (*self.regs).cr, 1 << 24) };
     }
 }
 

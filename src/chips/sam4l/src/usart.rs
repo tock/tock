@@ -80,7 +80,7 @@ impl Controller for USART {
         self.set_baud_rate(params.baud_rate);
         self.set_mode(mode);
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.ttgr, 4);
+        write_volatile(&mut regs.ttgr, 4);
         self.enable_rx_interrupts();
     }
 }
@@ -120,12 +120,12 @@ impl USART {
     fn set_baud_rate(&self, baud_rate: u32) {
         let cd = 48000000 / (8 * baud_rate);
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.brgr, cd);
+        write_volatile(&mut regs.brgr, cd);
     }
 
     fn set_mode(&self, mode: u32) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.mr, mode);
+        write_volatile(&mut regs.mr, mode);
     }
 
     fn enable_clock(&self) {
@@ -149,26 +149,26 @@ impl USART {
     pub fn enable_rx_interrupts(&self) {
         self.enable_nvic();
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.ier, 1 as u32);
+        write_volatile(&mut regs.ier, 1 as u32);
     }
 
     pub fn enable_tx_interrupts(&mut self) {
         self.enable_nvic();
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.ier, 2 as u32);
+        write_volatile(&mut regs.ier, 2 as u32);
     }
 
     pub fn disable_rx_interrupts(&mut self) {
         self.disable_nvic();
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.idr, 1 as u32);
+        write_volatile(&mut regs.idr, 1 as u32);
     }
 
     pub fn handle_interrupt(&mut self) {
         use hil::uart::UART;
         if self.rx_ready() {
             let regs: &Registers = unsafe { mem::transmute(self.regs) };
-            let c = volatile_load(&regs.rhr) as u8;
+            let c = read_volatile(&regs.rhr) as u8;
             match self.client {
                 Some(ref client) => client.read_done(c),
                 None => {}
@@ -178,7 +178,7 @@ impl USART {
 
     pub fn reset_rx(&mut self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.cr, 1 << 2);
+        write_volatile(&mut regs.cr, 1 << 2);
     }
 }
 
@@ -213,13 +213,13 @@ impl uart::UART for USART {
         self.set_baud_rate(params.baud_rate);
         self.set_mode(mode);
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.ttgr, 4);
+        write_volatile(&mut regs.ttgr, 4);
     }
 
     fn send_byte(&self, byte: u8) {
         while !self.tx_ready() {}
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.thr, byte as u32);
+        write_volatile(&mut regs.thr, byte as u32);
     }
 
     fn send_bytes(&self, bytes: &'static mut [u8], len: usize) {
@@ -231,39 +231,39 @@ impl uart::UART for USART {
 
     fn rx_ready(&self) -> bool {
         let regs: &Registers = unsafe { mem::transmute(self.regs) };
-        volatile_load(&regs.csr) & 0b1 != 0
+        read_volatile(&regs.csr) & 0b1 != 0
     }
 
     fn tx_ready(&self) -> bool {
         let regs: &Registers = unsafe { mem::transmute(self.regs) };
-        volatile_load(&regs.csr) & 0b10 != 0
+        read_volatile(&regs.csr) & 0b10 != 0
     }
 
 
     fn read_byte(&self) -> u8 {
         while !self.rx_ready() {}
         let regs: &Registers = unsafe { mem::transmute(self.regs) };
-        volatile_load(&regs.rhr) as u8
+        read_volatile(&regs.rhr) as u8
     }
 
     fn enable_rx(&self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.cr, 1 << 4);
+        write_volatile(&mut regs.cr, 1 << 4);
     }
 
     fn disable_rx(&mut self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.cr, 1 << 5);
+        write_volatile(&mut regs.cr, 1 << 5);
     }
 
     fn enable_tx(&self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.cr, 1 << 6);
+        write_volatile(&mut regs.cr, 1 << 6);
     }
 
     fn disable_tx(&mut self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        volatile_store(&mut regs.cr, 1 << 7);
+        write_volatile(&mut regs.cr, 1 << 7);
     }
 }
 
