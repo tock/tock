@@ -110,19 +110,19 @@ pub unsafe fn enable(signal: NvicIdx) {
     let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
-    volatile_store(&mut nvic.iser[interrupt / 32], 1 << (interrupt & 31));
+    write_volatile(&mut nvic.iser[interrupt / 32], 1 << (interrupt & 31));
 }
 
 pub unsafe fn disable(signal: NvicIdx) {
     let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
-    volatile_store(&mut nvic.icer[interrupt / 32], 1 << (interrupt & 31));
+    write_volatile(&mut nvic.icer[interrupt / 32], 1 << (interrupt & 31));
 }
 
 pub unsafe fn clear_pending(signal: NvicIdx) {
     let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
-    volatile_store(&mut nvic.icpr[interrupt / 32], 1 << (interrupt & 31));
+    write_volatile(&mut nvic.icpr[interrupt / 32], 1 << (interrupt & 31));
 }

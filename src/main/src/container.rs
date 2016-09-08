@@ -1,9 +1,8 @@
 use callback::AppId;
-use core::intrinsics::{volatile_load, volatile_store};
 use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
-use core::ptr::Unique;
+use core::ptr::{read_volatile, write_volatile, Unique};
 use process::{self, Error};
 
 pub static mut CONTAINER_COUNTER: usize = 0;
@@ -99,8 +98,8 @@ impl<'a> Allocator<'a> {
 
 impl<T: Default> Container<T> {
     pub unsafe fn create() -> Container<T> {
-        let ctr = volatile_load(&CONTAINER_COUNTER);
-        volatile_store(&mut CONTAINER_COUNTER, ctr + 1);
+        let ctr = read_volatile(&CONTAINER_COUNTER);
+        write_volatile(&mut CONTAINER_COUNTER, ctr + 1);
         Container {
             container_num: ctr,
             ptr: PhantomData,

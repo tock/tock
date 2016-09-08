@@ -1,4 +1,4 @@
-use core::intrinsics::volatile_load;
+use core::ptr::read_volatile;
 use queue;
 
 pub struct RingBuffer<'a, T: 'a> {
@@ -20,19 +20,19 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
 impl<'a, T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
     fn has_elements(&self) -> bool {
         unsafe {
-            let head = volatile_load(&self.head);
-            let tail = volatile_load(&self.tail);
+            let head = read_volatile(&self.head);
+            let tail = read_volatile(&self.tail);
             head != tail
         }
     }
 
     fn is_full(&self) -> bool {
-        unsafe { volatile_load(&self.head) == ((volatile_load(&self.tail) + 1) % self.ring.len()) }
+        unsafe { read_volatile(&self.head) == ((read_volatile(&self.tail) + 1) % self.ring.len()) }
     }
 
     fn enqueue(&mut self, val: T) -> bool {
         unsafe {
-            let head = volatile_load(&self.head);
+            let head = read_volatile(&self.head);
             if ((self.tail + 1) % self.ring.len()) == head {
                 // Incrementing tail will overwrite head
                 return false;

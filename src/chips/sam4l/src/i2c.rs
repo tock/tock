@@ -144,7 +144,7 @@ impl I2CDevice {
         let cwgr = ((exp & 0x7) << 28) | ((data & 0xF) << 24) | ((stasto & 0xFF) << 16) |
                    ((high & 0xFF) << 8) | ((low & 0xFF) << 0);
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
-        volatile_store(&mut regs.clock_waveform_generator, cwgr);
+        write_volatile(&mut regs.clock_waveform_generator, cwgr);
     }
 
     pub fn set_dma(&self, dma: &'static DMAChannel) {
@@ -159,9 +159,9 @@ impl I2CDevice {
         use hil::i2c::Error;
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
 
-        let old_status = volatile_load(&regs.status);
+        let old_status = read_volatile(&regs.status);
 
-        volatile_store(&mut regs.status_clear, !0);
+        write_volatile(&mut regs.status_clear, !0);
 
         let err = match old_status {
             x if x & (1 <<  8) != 0 /*ANACK*/  => Some(Error::AddressNak),
@@ -173,14 +173,14 @@ impl I2CDevice {
 
         match self.on_deck.take() {
             None => {
-                volatile_store(&mut regs.command, 0);
-                volatile_store(&mut regs.next_command, 0);
+                write_volatile(&mut regs.command, 0);
+                write_volatile(&mut regs.next_command, 0);
 
                 err.map(|err| {
                     // enable, reset, disable
-                    volatile_store(&mut regs.control, 0x1 << 0);
-                    volatile_store(&mut regs.control, 0x1 << 7);
-                    volatile_store(&mut regs.control, 0x1 << 1);
+                    write_volatile(&mut regs.control, 0x1 << 0);
+                    write_volatile(&mut regs.control, 0x1 << 7);
+                    write_volatile(&mut regs.control, 0x1 << 1);
 
                     self.client.map(|client| {
                         let buf = match self.dma.take() {
@@ -199,7 +199,7 @@ impl I2CDevice {
             }
             Some((dma_periph, len)) => {
                 // Enable transaction error interrupts
-                volatile_store(&mut regs.interrupt_enable,
+                write_volatile(&mut regs.interrupt_enable,
                                (1 << 3)    // CCOMP   - Command completed
                                | (1 << 8)    // ANAK   - Address not ACKd
                                | (1 << 9)    // DNAK   - Data not ACKd
@@ -217,7 +217,7 @@ impl I2CDevice {
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
 
         // disable before configuring
-        volatile_store(&mut regs.control, 0x1 << 1);
+        write_volatile(&mut regs.control, 0x1 << 1);
 
         let read = if read { 1 } else { 0 };
         let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
@@ -226,11 +226,11 @@ impl I2CDevice {
                     | (1 << 15) // VALID
                     | (len as usize) << 16 // NBYTES (at most 255)
                     | read;
-        volatile_store(&mut regs.command, command);
-        volatile_store(&mut regs.next_command, 0);
+        write_volatile(&mut regs.command, command);
+        write_volatile(&mut regs.next_command, 0);
 
         // Enable transaction error interrupts
-        volatile_store(&mut regs.interrupt_enable,
+        write_volatile(&mut regs.interrupt_enable,
                        (1 << 3)    // CCOMP   - Command completed
                        | (1 << 8)    // ANAK   - Address not ACKd
                        | (1 << 9)    // DNAK   - Data not ACKd
@@ -241,7 +241,7 @@ impl I2CDevice {
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
 
         // disable before configuring
-        volatile_store(&mut regs.control, 0x1 << 1);
+        write_volatile(&mut regs.control, 0x1 << 1);
 
         let read = if read { 1 } else { 0 };
         let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
@@ -250,17 +250,17 @@ impl I2CDevice {
                     | (1 << 15) // VALID
                     | (len as usize) << 16 // NBYTES (at most 255)
                     | read;
-        volatile_store(&mut regs.next_command, command);
+        write_volatile(&mut regs.next_command, command);
 
         // Enable
-        volatile_store(&mut regs.control, 0x1 << 0);
+        write_volatile(&mut regs.control, 0x1 << 0);
     }
 
     fn master_enable(&self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
 
         // Enable to begin transfer
-        volatile_store(&mut regs.control, 0x1 << 0);
+        write_volatile(&mut regs.control, 0x1 << 0);
 
     }
 
@@ -303,7 +303,7 @@ impl I2CDevice {
 
     fn disable_interrupts(&self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
-        volatile_store(&mut regs.interrupt_disable, !0);
+        write_volatile(&mut regs.interrupt_disable, !0);
         unsafe {
             nvic::disable(self.nvic);
         }
@@ -325,18 +325,18 @@ impl hil::i2c::I2CController for I2CDevice {
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
 
         // enable, reset, disable
-        volatile_store(&mut regs.control, 0x1 << 0);
-        volatile_store(&mut regs.control, 0x1 << 7);
-        volatile_store(&mut regs.control, 0x1 << 1);
+        write_volatile(&mut regs.control, 0x1 << 0);
+        write_volatile(&mut regs.control, 0x1 << 7);
+        write_volatile(&mut regs.control, 0x1 << 1);
 
         // Init the bus speed
         self.set_bus_speed();
 
         // slew
-        volatile_store(&mut regs.slew_rate, (0x2 << 28) | (7 << 16) | (7 << 0));
+        write_volatile(&mut regs.slew_rate, (0x2 << 28) | (7 << 16) | (7 << 0));
 
         // clear interrupts
-        volatile_store(&mut regs.status_clear, !0);
+        write_volatile(&mut regs.status_clear, !0);
 
         self.enable_interrupts();
     }
@@ -344,7 +344,7 @@ impl hil::i2c::I2CController for I2CDevice {
     /// This disables the entire I2C peripheral
     fn disable(&self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
-        volatile_store(&mut regs.control, 0x1 << 1);
+        write_volatile(&mut regs.control, 0x1 << 1);
         unsafe {
             pm::disable_clock(self.clock);
         }

@@ -134,18 +134,18 @@ pub enum PBDClock {
 }
 
 unsafe fn unlock(register_offset: u32) {
-    volatile_store(&mut (*PM).unlock, 0xAA000000 | register_offset);
+    write_volatile(&mut (*PM).unlock, 0xAA000000 | register_offset);
 }
 
 pub unsafe fn select_main_clock(clock: MainClock) {
-    volatile_store(&mut (*PM).mcctrl, clock as u32);
+    write_volatile(&mut (*PM).mcctrl, clock as u32);
 }
 
 macro_rules! mask_clock {
     ($module:ident: $field:ident | $mask:expr) => ({
         unlock(concat_idents!($module, _MASK_OFFSET));
-        let val = volatile_load(&(*PM).$field) | ($mask);
-        volatile_store(&mut (*PM).$field, val);
+        let val = read_volatile(&(*PM).$field) | ($mask);
+        write_volatile(&mut (*PM).$field, val);
     });
 }
 
