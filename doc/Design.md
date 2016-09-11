@@ -40,13 +40,13 @@ System components (an application, driver, virtualization layer, etc.) can be
 implemented in either a capsule or process, but each mechanism trades off
 concurrency and safety with memory consumption, performance, and granularity.
 
-Category               | Capsule     | Process
------------------------+-------------+----------
-Protection             | Language    | Hardware
-Memory Overhead        | None        | Separate stack
-Protection Granularity | Fine        | Coarse
-Concurrency            | Cooperative | Preemptive
-Update at Runtime      | No          | Yes
+| Category               | Capsule     | Process        |
+| ---------------------- | ----------- | -------------- |
+| Protection             | Language    | Hardware       |
+| Memory Overhead        | None        | Separate stack |
+| Protection Granularity | Fine        | Coarse         |
+| Concurrency            | Cooperative | Preemptive     |
+| Update at Runtime      | No          | Yes            |
 
 As a result, each is more appropriate for implementing different components. In
 general, drivers and virtualization layers are implemented as capsules, while
