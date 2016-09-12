@@ -1,4 +1,4 @@
-% Tock Kernel Design
+% Tock Design
 
 Most operating systems provide isolation between components using a process-like
 abstraction: each component is given it's own slice of the system memory (for
@@ -53,10 +53,6 @@ general, drivers and virtualization layers are implemented as capsules, while
 applications and complex drivers using existing code/libraries, such as
 networking stacks, are implemented as processes.
 
-# Threat Model
-
-_TODO_
-
 ## Capsules
 
 A capsule is a Rust struct and associated functions. Capsules interact with each
@@ -107,21 +103,17 @@ nor write. The grant region, discussed in , is needed for the kernel to be able
 to borrow memory from a process in order to ensure liveness and safety in
 response to system calls.
 
-### Extensible System Call Interface
-
-_TODO_
-
 ## Grants
 
-Capsules cannot dynamically allocate memory for liveness and safety reasons.
-Dynamic memory allocation in the kernel makes it hard to predict if memory will
-be exhausted, and a single capsule with poor memory management could cause the
-rest of the kernel to fail. Moreover, since it uses a single stack the kernel
-cannot easily recover from capsule failures.
+Capsules are not allowed to allocate memory dynamically since dynamic
+allocation in the kernel makes it hard to predict if memory will be exhausted.
+A single capsule with poor memory management could cause the rest of the kernel
+to fail. Moreover, since it uses a single stack, the kernel cannot easily
+recover from capsule failures.
 
 However, capsules often need to dynamically allocate memory in response to
 process requests. For example, a virtual timer driver must allocate a structure
-to hold metadata for each new timer any process creates. Therefore, allows
+to hold metadata for each new timer any process creates. Therefore, Tock allows
 capsules to dynamically allocate from the memory of a process making a request.
 
 It is unsafe, though, for a capsule to directly hold a reference to process
@@ -130,14 +122,19 @@ checks throughout the kernel code, it would not be possible to ensure that a
 reference to process memory is still valid.
 
 For a capsule to safely allocate memory from a process, the kernel must enforce
-three properties: allocated memory does not allow capsules to break the type
-system; capsules can only access pointers to process memory while the process is
-alive; and the kernel must be able to reclaim memory from a terminated process.
+three properties:
 
-Tock provides a safe memory allocation mechanism that meets these three requirements
-through memory grants. Capsules can allocate data of arbitrary type from the
-memory of processes that interact with them. This memory is allocated from the
-grant segment.
+  1. Allocated memory does not allow capsules to break the type system.
+
+  2. Capsules can only access pointers to process memory while the process is
+     alive.
+
+  3. The kernel must be able to reclaim memory from a terminated process.
+
+Tock provides a safe memory allocation mechanism that meets these three
+requirements through memory grants. Capsules can allocate data of arbitrary
+type from the memory of processes that interact with them. This memory is
+allocated from the grant segment.
 
 Just as with buffers passed through allow, references to granted memory are
 wrapped in a type-safe struct that ensures the process is still alive before
