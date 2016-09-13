@@ -1,7 +1,0 @@
-[package]
-name = "support"
-version = "0.1.0"
-authors = ["Amit Levy <amit@amitlevy.com>"]
-
-[dependencies]
-rust-libcore = "*"

@@ -1,9 +1,0 @@
-[package]
-name = "cortexm0"
-version = "0.1.0"
-authors = ["Amit Levy <amit@amitlevy.com>"]
-
-[dependencies]
-rust-libcore = "*"
-common = { path = "../../common" }
-main = { path = "../../main" }
