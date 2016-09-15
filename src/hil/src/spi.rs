@@ -25,7 +25,7 @@ pub enum ClockPhase {
 
 pub trait SpiMasterClient {
     /// Called when a read/write operation finishes
-    fn read_write_done(&'static self,
+    fn read_write_done(&self,
                        mut write_buffer: Option<&'static mut [u8]>,
                        mut read_buffer: Option<&'static mut [u8]>,
                        len: usize);

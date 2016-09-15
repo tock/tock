@@ -15,7 +15,7 @@ pub static mut buf2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
 
 impl spi::SpiMasterClient for DummyCB {
     #[allow(unused_variables,dead_code)]
-    fn read_write_done(&'static self,
+    fn read_write_done(&self,
                        write: Option<&'static mut [u8]>,
                        read: Option<&'static mut [u8]>,
                        len: usize) {
