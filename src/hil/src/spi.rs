@@ -23,7 +23,7 @@ pub enum ClockPhase {
     SampleTrailing,
 }
 
-pub trait SpiCallback {
+pub trait SpiMasterClient {
     /// Called when a read/write operation finishes
     fn read_write_done(&'static self,
                        mut write_buffer: Option<&'static mut [u8]>,
@@ -68,11 +68,13 @@ pub trait SpiCallback {
 ///   write_byte(0xaa); // Uses SampleTrailing
 ///
 pub trait SpiMaster {
-    fn init(&mut self, client: &'static SpiCallback);
+    fn set_client(&self, client: &'static SpiMasterClient);
+
+    fn init(&self);
     fn is_busy(&self) -> bool;
 
     /// Perform an asynchronous read/write operation, whose
-    /// completion is signaled by invoking SpiCallback on
+    /// completion is signaled by invoking SpiMasterClient on
     /// the initialzied client. write_buffer must be Some,
     /// read_buffer may be None. If read_buffer is Some, the
     /// length of the operation is the minimum of the size of

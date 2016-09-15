@@ -1,9 +1,9 @@
 use common::take_cell::TakeCell;
 use core::cell::Cell;
 use core::cmp;
-use hil::spi_master::{SpiMaster, SpiCallback};
-use hil::spi_master::ClockPhase;
-use hil::spi_master::ClockPolarity;
+use hil::spi::{SpiMaster, SpiMasterClient};
+use hil::spi::ClockPhase;
+use hil::spi::ClockPolarity;
 use main::{AppId, Driver, Callback, AppSlice, Shared};
 
 
@@ -263,7 +263,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     }
 }
 
-impl<'a, S: SpiMaster> SpiCallback for Spi<'a, S> {
+impl<'a, S: SpiMaster> SpiMasterClient for Spi<'a, S> {
     fn read_write_done(&self,
                        writebuf: Option<&'static mut [u8]>,
                        readbuf: Option<&'static mut [u8]>,

@@ -1,15 +1,17 @@
 
 use core::cell::Cell;
+use common::take_cell::TakeCell;
+
 use core::cmp;
 use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
 use helpers::*;
 
-use hil::spi_master;
-use hil::spi_master::ClockPhase;
-use hil::spi_master::ClockPolarity;
-use hil::spi_master::SpiCallback;
+use hil::spi;
+use hil::spi::ClockPhase;
+use hil::spi::ClockPolarity;
+use hil::spi::SpiMasterClient;
 use pm;
 
 /// Implementation of DMA-based SPI master communication for
@@ -58,7 +60,7 @@ pub enum Peripheral {
 /// The SAM4L supports four peripherals.
 pub struct Spi {
     regs: *mut SpiRegisters,
-    callback: Option<&'static SpiCallback>,
+    client: TakeCell<&'static SpiMasterClient>,
     dma_read: Option<&'static mut DMAChannel>,
     dma_write: Option<&'static mut DMAChannel>,
     // keep track of which // interrupts are pending in order
@@ -77,7 +79,7 @@ impl Spi {
     pub const fn new() -> Spi {
         Spi {
             regs: SPI_BASE as *mut SpiRegisters,
-            callback: None,
+            client: TakeCell::empty(),
             dma_read: None,
             dma_write: None,
             reading: Cell::new(false),
@@ -218,13 +220,16 @@ impl Spi {
     }
 }
 
-impl spi_master::SpiMaster for Spi {
+impl spi::SpiMaster for Spi {
+    fn set_client(&self, client: &'static SpiMasterClient) {
+        self.client.replace(client);
+    }
+
     /// By default, initialize SPI to operate at 40KHz, clock is
     /// idle on low, and sample on the leading edge.
-    fn init(&mut self, callback: &'static SpiCallback) {
+    fn init(&self) {
         self.enable_clock();
 
-        self.callback = Some(callback);
         unsafe { write_volatile(&mut (*self.regs).cr, 1 << 24) };
 
         let mut mode = unsafe { read_volatile(&(*self.regs).mr) };
@@ -274,7 +279,7 @@ impl spi_master::SpiMaster for Spi {
     /// write_buffer must  be Some; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
     /// minimum of two buffer lengths; returns true if operation
-    /// starts (will receive callback through SpiClient), returns
+    /// starts (will receive callback through SpiMasterClient), returns
     /// false if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
@@ -444,7 +449,7 @@ impl DMAClient for Spi {
                 let wb = self.write_buffer.take();
                 let len = self.dma_length.get();
                 self.dma_length.set(0);
-                self.callback.as_ref().map(|cb| cb.read_write_done(wb, rb, len));
+                self.client.map(|cb| cb.read_write_done(wb, rb, len));
             }
         } else if pid == 22 {
             // SPI TX
@@ -463,7 +468,7 @@ impl DMAClient for Spi {
                 let wb = self.write_buffer.take();
                 let len = self.dma_length.get();
                 self.dma_length.set(0);
-                self.callback.as_ref().map(|cb| cb.read_write_done(wb, rb, len));
+                self.client.map(|cb| cb.read_write_done(wb, rb, len));
             }
         }
     }

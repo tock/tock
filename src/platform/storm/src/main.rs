@@ -18,7 +18,7 @@ use drivers::timer::TimerDriver;
 use drivers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use drivers::virtual_i2c::{I2CDevice, MuxI2C};
 use hil::Controller;
-use hil::spi_master::SpiMaster;
+use hil::spi::SpiMaster;
 use main::{Chip, MPU, Platform};
 use sam4l::usart;
 
@@ -373,7 +373,8 @@ pub unsafe fn reset_handler() {
         drivers::spi::Spi::new(&mut sam4l::spi::SPI),
         84);
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
-    sam4l::spi::SPI.init(spi as &hil::spi_master::SpiCallback);
+    sam4l::spi::SPI.set_client(spi);
+    sam4l::spi::SPI.init();
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
