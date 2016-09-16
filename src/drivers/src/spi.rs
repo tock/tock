@@ -68,7 +68,7 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
             });
         });
 
-        self.spi_master.read_write_bytes(self.kernel_write.take(), self.kernel_read.take(), len);
+        self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(), self.kernel_read.take(), len);
     }
 }
 
@@ -265,10 +265,10 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
 
 impl<'a, S: SpiMaster> SpiMasterClient for Spi<'a, S> {
     fn read_write_done(&self,
-                       writebuf: Option<&'static mut [u8]>,
+                       writebuf: &'static mut [u8],
                        readbuf: Option<&'static mut [u8]>,
                        length: usize) {
-        self.app.map(|app| {
+        self.app.map(move |app| {
             if app.app_read.is_some() {
                 let src = readbuf.as_ref().unwrap();
                 let dest = app.app_read.as_mut().unwrap();
@@ -282,7 +282,7 @@ impl<'a, S: SpiMaster> SpiMasterClient for Spi<'a, S> {
             }
 
             self.kernel_read.put(readbuf);
-            self.kernel_write.put(writebuf);
+            self.kernel_write.replace(writebuf);
 
             if app.index == app.len {
                 self.busy.set(false);

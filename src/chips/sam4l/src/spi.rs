@@ -68,8 +68,6 @@ pub struct Spi {
     // to correctly issue completion event only after both complete.
     reading: Cell<bool>,
     writing: Cell<bool>,
-    read_buffer: Option<&'static mut [u8]>,
-    write_buffer: Option<&'static mut [u8]>,
     dma_length: Cell<usize>,
 }
 
@@ -85,8 +83,6 @@ impl Spi {
             dma_write: None,
             reading: Cell::new(false),
             writing: Cell::new(false),
-            read_buffer: None,
-            write_buffer: None,
             dma_length: Cell::new(0),
         }
     }
@@ -284,37 +280,30 @@ impl spi::SpiMaster for Spi {
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,
-                        write_buffer: Option<&'static mut [u8]>,
+                        write_buffer: &'static mut [u8],
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
                         -> bool {
         self.enable();
-        let writing = write_buffer.is_some();
         let reading = read_buffer.is_some();
 
         // If there is no write buffer, or busy, then don't start.
         // Need to check self.reading as well as self.writing in case
         // write interrupt comes back first.
-        if !writing || self.reading.get() || self.writing.get() {
-            panic!("SPI Busy {} {} {}",
-                   writing,
-                   self.reading.get(),
-                   self.writing.get());
+        if self.reading.get() || self.writing.get() {
+            panic!("SPI Busy {} {}", self.reading.get(), self.writing.get());
         }
 
         // Need to mark if reading or writing so we correctly
         // regenerate Options on callback
-        self.writing.set(writing);
+        self.writing.set(true);
         self.reading.set(reading);
 
         let read_len = match read_buffer {
             Some(ref buf) => buf.len(),
             None => 0,
         };
-        let write_len = match write_buffer {
-            Some(ref buf) => buf.len(),
-            None => 0,
-        };
+        let write_len = write_buffer.len();
         let buflen = if !reading {
             write_len
         } else {
@@ -455,15 +444,10 @@ impl DMAClient for Spi {
                 None => None,
             };
 
-            self.write_buffer = txbuf;
-            self.read_buffer = rxbuf;
-
-            let rb = self.read_buffer.take();
-            let wb = self.write_buffer.take();
             let len = self.dma_length.get();
             self.dma_length.set(0);
             self.client.map(|cb| {
-                cb.read_write_done(wb, rb, len);
+                cb.read_write_done(txbuf.unwrap(), rxbuf, len);
             });
         }
     }

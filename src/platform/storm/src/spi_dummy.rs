@@ -16,16 +16,16 @@ pub static mut buf2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
 impl spi::SpiMasterClient for DummyCB {
     #[allow(unused_variables,dead_code)]
     fn read_write_done(&self,
-                       write: Option<&'static mut [u8]>,
+                       write: &'static mut [u8],
                        read: Option<&'static mut [u8]>,
                        len: usize) {
         unsafe {
             FLOP = !FLOP;
             let len: usize = buf1.len();
             if FLOP {
-                sam4l::spi::SPI.read_write_bytes(Some(&mut buf1), Some(&mut buf2), len);
+                sam4l::spi::SPI.read_write_bytes(&mut buf1, Some(&mut buf2), len);
             } else {
-                sam4l::spi::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
+                sam4l::spi::SPI.read_write_bytes(&mut buf2, Some(&mut buf1), len);
             }
         }
     }
@@ -54,6 +54,6 @@ pub unsafe fn spi_dummy_test() {
     sam4l::spi::SPI.init();
     sam4l::spi::SPI.enable();
     let len = buf2.len();
-    sam4l::spi::SPI.read_write_bytes(Some(&mut buf2), Some(&mut buf1), len);
+    sam4l::spi::SPI.read_write_bytes(&mut buf2, Some(&mut buf1), len);
 
 }

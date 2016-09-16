@@ -12,7 +12,7 @@ pub struct MuxSPIMaster<'a> {
 }
 
 impl<'a> hil::spi::SpiMasterClient for MuxSPIMaster<'a> {
-    fn read_write_done(&self, write_buffer: Option<&'static mut [u8]>, read_buffer: Option<&'static mut [u8]>, len: usize) {
+    fn read_write_done(&self, write_buffer: &'static mut [u8], read_buffer: Option<&'static mut [u8]>, len: usize) {
         self.inflight.take().map(move |device| {
             device.read_write_done(write_buffer, read_buffer, len);
         });
@@ -66,7 +66,7 @@ impl<'a> MuxSPIMaster<'a> {
 
 
                         node.txbuffer.take().map(|txbuffer| {
-                            node.rxbuffer.take().map(|rxbuffer| {
+                            node.rxbuffer.take().map(move |rxbuffer| {
                                 self.spi.read_write_bytes(txbuffer, rxbuffer, len);
                             });
                         });
@@ -94,7 +94,7 @@ pub struct SPIMasterDevice<'a> {
     mux: &'a MuxSPIMaster<'a>,
     chip_select: Option<u8>,
     chip_select_gpio: Option<&'static hil::gpio::GPIOPin>,
-    txbuffer: TakeCell<Option<&'static mut [u8]>>,
+    txbuffer: TakeCell<&'static mut [u8]>,
     rxbuffer: TakeCell<Option<&'static mut [u8]>>,
     operation: Cell<Op>,
     next: ListLink<'a, SPIMasterDevice<'a>>,
@@ -122,7 +122,7 @@ impl<'a> SPIMasterDevice<'a> {
 }
 
 impl<'a> hil::spi::SpiMasterClient for SPIMasterDevice<'a> {
-    fn read_write_done(&self, write_buffer: Option<&'static mut [u8]>, read_buffer: Option<&'static mut [u8]>, len: usize) {
+    fn read_write_done(&self, write_buffer: &'static mut [u8], read_buffer: Option<&'static mut [u8]>, len: usize) {
         self.client.get().map(move |client| {
             client.read_write_done(write_buffer, read_buffer, len);
         });
@@ -142,7 +142,7 @@ impl<'a> hil::spi::SPIMasterDevice for SPIMasterDevice<'a> {
         self.mux.do_next_op();
     }
 
-    fn read_write_bytes(&self, write_buffer: Option<&'static mut [u8]>, read_buffer: Option<&'static mut [u8]>, len: usize) -> bool {
+    fn read_write_bytes(&self, write_buffer: &'static mut [u8], read_buffer: Option<&'static mut [u8]>, len: usize) -> bool {
         self.txbuffer.replace(write_buffer);
         self.rxbuffer.replace(read_buffer);
         self.operation.set(Op::ReadWriteBytes(len));
