@@ -10,14 +10,14 @@ pub enum DataOrder {
 }
 
 /// Values for the clock polarity (idle state or CPOL)
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum ClockPolarity {
     IdleLow,
     IdleHigh,
 }
 
 /// Which clock edge values are sampled on
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum ClockPhase {
     SampleLeading,
     SampleTrailing,
@@ -36,9 +36,11 @@ pub trait SpiMasterClient {
 /// Using SpiMaster normally involves three steps:
 ///
 /// 1. Configure the SPI bus for a peripheral
-///   1a. Call set_chip_select to select which peripheral and
-///       turn on SPI
-///   1b. Call set operations as needed to configure bus
+///    1a. Call set_chip_select to select which peripheral and
+///        turn on SPI
+///    1b. Call set operations as needed to configure bus
+///    NOTE: You MUST select the chip select BEFORE configuring
+///           SPI settings.
 /// 2. Invoke read, write, read_write on SpiMaster
 /// 3a. Call clear_chip_select to turn off bus, or
 /// 3b. Call set_chip_select to choose another peripheral,
