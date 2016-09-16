@@ -243,7 +243,6 @@ impl spi::SpiMaster for Spi {
         self.reading.get() || self.writing.get()
     }
 
-
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn write_byte(&self, out_byte: u8) {
@@ -292,11 +291,12 @@ impl spi::SpiMaster for Spi {
         self.enable();
         let writing = write_buffer.is_some();
         let reading = read_buffer.is_some();
+
         // If there is no write buffer, or busy, then don't start.
         // Need to check self.reading as well as self.writing in case
         // write interrupt comes back first.
         if !writing || self.reading.get() || self.writing.get() {
-            panic!("Busy {} {} {}",
+            panic!("SPI Busy {} {} {}",
                    writing,
                    self.reading.get(),
                    self.writing.get());
@@ -322,12 +322,15 @@ impl spi::SpiMaster for Spi {
         };
         let count = cmp::min(buflen, len);
         self.dma_length.set(count);
-        // The ordering of these operations matters; if you enable then
-        // perform the operation, you can read a byte early on the SPI data register
-        self.dma_write.as_ref().map(|write| {
+
+        // The ordering of these operations matters.
+        // For transfers 4 bytes or longer, this will work as expected.
+        // For shorter transfers, the first byte will be missing.
+        self.dma_write.as_ref().map(move |write| {
             write.enable();
-            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer.unwrap(), count)
+            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count)
         });
+
         if reading {
             self.dma_read.as_ref().map(|read| {
                 read.enable();
@@ -425,37 +428,16 @@ impl spi::SpiMaster for Spi {
 
 impl DMAClient for Spi {
     fn xfer_done(&mut self, pid: usize) {
-        // I don't know if there are ordering guarantees on the read and
-        // write interrupts, guessing not, so issue the callback when both
-        // reading and writing are complete. In practice it seems like
-        // the read interrupt happens second. -pal
-        //
-        // The disable calls are commented out because executing them
-        // causes subsequent operations to fail. The call to read_write_bytes
-        // calls enable(), so I don't know why. -pal
-        if pid == 4 {
-            // SPI RX
-            self.reading.set(false);
-            let buf = match self.dma_read.as_mut() {
-                Some(dma) => {
-                    let buf = dma.abort_xfer();
-                    dma.disable();
-                    buf
-                }
-                None => None,
-            };
-            self.read_buffer = buf;
-            if !self.reading.get() && !self.writing.get() {
-                let rb = self.read_buffer.take();
-                let wb = self.write_buffer.take();
-                let len = self.dma_length.get();
-                self.dma_length.set(0);
-                self.client.map(|cb| cb.read_write_done(wb, rb, len));
-            }
-        } else if pid == 22 {
+        // We ignore the RX interrupt because we are guaranteed to have TX
+        // DMA setup, but there's no guarantee RX will exist. In the case
+        // both are happening, just using TX is sufficient because SPI
+        // is full duplex.
+        if pid == 22 {
             // SPI TX
             self.writing.set(false);
-            let buf = match self.dma_write.as_mut() {
+            self.reading.set(false);
+
+            let txbuf = match self.dma_write.as_mut() {
                 Some(dma) => {
                     let buf = dma.abort_xfer();
                     dma.disable();
@@ -463,14 +445,26 @@ impl DMAClient for Spi {
                 }
                 None => None,
             };
-            self.write_buffer = buf;
-            if !self.reading.get() && !self.writing.get() {
-                let rb = self.read_buffer.take();
-                let wb = self.write_buffer.take();
-                let len = self.dma_length.get();
-                self.dma_length.set(0);
-                self.client.map(|cb| cb.read_write_done(wb, rb, len));
-            }
+
+            let rxbuf = match self.dma_read.as_mut() {
+                Some(dma) => {
+                    let buf = dma.abort_xfer();
+                    dma.disable();
+                    buf
+                }
+                None => None,
+            };
+
+            self.write_buffer = txbuf;
+            self.read_buffer = rxbuf;
+
+            let rb = self.read_buffer.take();
+            let wb = self.write_buffer.take();
+            let len = self.dma_length.get();
+            self.dma_length.set(0);
+            self.client.map(|cb| {
+                cb.read_write_done(wb, rb, len);
+            });
         }
     }
 }
