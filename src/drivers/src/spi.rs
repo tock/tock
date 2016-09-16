@@ -68,7 +68,9 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
             });
         });
 
-        self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(), self.kernel_read.take(), len);
+        self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(),
+                                         self.kernel_read.take(),
+                                         len);
     }
 }
 

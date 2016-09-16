@@ -12,7 +12,10 @@ pub struct MuxSPIMaster<'a> {
 }
 
 impl<'a> hil::spi::SpiMasterClient for MuxSPIMaster<'a> {
-    fn read_write_done(&self, write_buffer: &'static mut [u8], read_buffer: Option<&'static mut [u8]>, len: usize) {
+    fn read_write_done(&self,
+                       write_buffer: &'static mut [u8],
+                       read_buffer: Option<&'static mut [u8]>,
+                       len: usize) {
         self.inflight.take().map(move |device| {
             device.read_write_done(write_buffer, read_buffer, len);
         });
@@ -40,7 +43,7 @@ impl<'a> MuxSPIMaster<'a> {
                         match node.chip_select {
                             Some(x) => {
                                 self.spi.set_chip_select(x);
-                            },
+                            }
                             None => {}
                         }
 
@@ -60,10 +63,8 @@ impl<'a> MuxSPIMaster<'a> {
                         self.spi.set_rate(rate);
 
 
-                    },
-                      //  self.i2c.write(node.addr, buf, len),
+                    }
                     Op::ReadWriteBytes(len) => {
-
 
                         node.txbuffer.take().map(|txbuffer| {
                             node.rxbuffer.take().map(move |rxbuffer| {
@@ -74,7 +75,7 @@ impl<'a> MuxSPIMaster<'a> {
                         // Only async operations want to block by setting the devices
                         // as inflight.
                         self.inflight.replace(node);
-                    },
+                    }
                     Op::Idle => {} // Can't get here...
                 }
                 node.operation.set(Op::Idle);
@@ -102,7 +103,10 @@ pub struct SPIMasterDevice<'a> {
 }
 
 impl<'a> SPIMasterDevice<'a> {
-    pub const fn new(mux: &'a MuxSPIMaster<'a>, chip_select: Option<u8>, chip_select_gpio: Option<&'static hil::gpio::GPIOPin>) -> SPIMasterDevice<'a> {
+    pub const fn new(mux: &'a MuxSPIMaster<'a>,
+                     chip_select: Option<u8>,
+                     chip_select_gpio: Option<&'static hil::gpio::GPIOPin>)
+                     -> SPIMasterDevice<'a> {
         SPIMasterDevice {
             mux: mux,
             chip_select: chip_select,
@@ -122,7 +126,10 @@ impl<'a> SPIMasterDevice<'a> {
 }
 
 impl<'a> hil::spi::SpiMasterClient for SPIMasterDevice<'a> {
-    fn read_write_done(&self, write_buffer: &'static mut [u8], read_buffer: Option<&'static mut [u8]>, len: usize) {
+    fn read_write_done(&self,
+                       write_buffer: &'static mut [u8],
+                       read_buffer: Option<&'static mut [u8]>,
+                       len: usize) {
         self.client.get().map(move |client| {
             client.read_write_done(write_buffer, read_buffer, len);
         });
@@ -136,13 +143,16 @@ impl<'a> ListNode<'a, SPIMasterDevice<'a>> for SPIMasterDevice<'a> {
 }
 
 impl<'a> hil::spi::SPIMasterDevice for SPIMasterDevice<'a> {
-
     fn configure(&self, cpol: hil::spi::ClockPolarity, cpal: hil::spi::ClockPhase, rate: u32) {
         self.operation.set(Op::Configure(cpol, cpal, rate));
         self.mux.do_next_op();
     }
 
-    fn read_write_bytes(&self, write_buffer: &'static mut [u8], read_buffer: Option<&'static mut [u8]>, len: usize) -> bool {
+    fn read_write_bytes(&self,
+                        write_buffer: &'static mut [u8],
+                        read_buffer: Option<&'static mut [u8]>,
+                        len: usize)
+                        -> bool {
         self.txbuffer.replace(write_buffer);
         self.rxbuffer.replace(read_buffer);
         self.operation.set(Op::ReadWriteBytes(len));

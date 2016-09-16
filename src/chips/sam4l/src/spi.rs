@@ -1,6 +1,6 @@
 
-use core::cell::Cell;
 use common::take_cell::TakeCell;
+use core::cell::Cell;
 
 use core::cmp;
 use dma::DMAChannel;
@@ -21,7 +21,6 @@ use pm;
 ///
 // Driver for the SPI hardware (separate from the USARTS),
 // described in chapter 26 of the datasheet
-
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
 struct SpiRegisters {

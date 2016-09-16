@@ -121,7 +121,6 @@ pub trait SpiMaster {
 /// hardware. The interface wraps the chip select line so that chip drivers
 /// cannot communicate with different SPI devices.
 pub trait SPIMasterDevice {
-
     /// Setup the SPI settings and speed of the bus.
     fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32);
 
@@ -136,5 +135,4 @@ pub trait SPIMasterDevice {
                         mut read_buffer: Option<&'static mut [u8]>,
                         len: usize)
                         -> bool;
-
 }
