@@ -17,10 +17,11 @@ use pm;
 /// Implementation of DMA-based SPI master communication for
 /// the Atmel SAM4L CortexM4 microcontroller.
 /// Authors: Sam Crow <samcrow@uw.edu>
-///          Philip Levis <pal@cs.stanfored.edu>
+///          Philip Levis <pal@cs.stanford.edu>
 ///
-// Driver for the SPI hardware (seperate from the USARTS),
+// Driver for the SPI hardware (separate from the USARTS),
 // described in chapter 26 of the datasheet
+
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
 struct SpiRegisters {
@@ -275,7 +276,7 @@ impl spi::SpiMaster for Spi {
         unsafe { read_volatile(&(*self.regs).rdr) as u8 }
     }
 
-    /// Asynchonous buffer read/write of SPI.
+    /// Asynchronous buffer read/write of SPI.
     /// write_buffer must  be Some; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
     /// minimum of two buffer lengths; returns true if operation
