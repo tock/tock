@@ -112,7 +112,29 @@ pub trait SpiMaster {
     // is any of the read/read_write calls. These functions
     // allow an application to manually control when the
     // CS line is high or low, such that it can issue multi-byte
-    // requests with single byte oprations.
+    // requests with single byte operations.
     fn hold_low(&self);
     fn release_low(&self);
+}
+
+/// SPIMasterDevice provides a chip-specific interface to the SPI Master
+/// hardware. The interface wraps the chip select line so that chip drivers
+/// cannot communicate with different SPI devices.
+pub trait SPIMasterDevice {
+
+    /// Setup the SPI settings and speed of the bus.
+    fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32);
+
+    /// Perform an asynchronous read/write operation, whose
+    /// completion is signaled by invoking SpiMasterClient.read_write_done on
+    /// the provided client. write_buffer must be Some,
+    /// read_buffer may be None. If read_buffer is Some, the
+    /// length of the operation is the minimum of the size of
+    /// the two buffers.
+    fn read_write_bytes(&self,
+                        mut write_buffer: Option<&'static mut [u8]>,
+                        mut read_buffer: Option<&'static mut [u8]>,
+                        len: usize)
+                        -> bool;
+
 }
