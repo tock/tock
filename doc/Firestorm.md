@@ -1,1 +1,1 @@
-../src/platform/storm/README.md
+../boards/storm/README.md
