@@ -41,7 +41,7 @@ SECTIONS {
     .data :
     {
         _data = .;
-        *(.data*)
+        KEEP(*(.data*))
         _edata = .;
     } > SRAM AT > FLASH
 
@@ -49,7 +49,7 @@ SECTIONS {
     .bss :
     {
         _bss = .;
-        *(.bss*)
+        KEEP(*(.bss*))
         *(COMMON)
         _ebss = .;
     } > SRAM
