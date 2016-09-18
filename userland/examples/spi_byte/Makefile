@@ -17,3 +17,7 @@ include $(TOCK_BASE_DIR)/Makefile
 
 $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+.PHONY:
+clean:
+	rm -Rf $(BUILDDIR)

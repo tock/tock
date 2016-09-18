@@ -3,6 +3,9 @@ BUILDDIR ?= .
 
 TOOLCHAIN := arm-none-eabi
 
+# This could be replaced with an installed version of `elf2tbf`
+ELF2TBF ?= cargo run --manifest-path $(TOCK_BASE_DIR)/tools/elf2tbf/Cargo.toml --
+
 AS := $(TOOLCHAIN)-as
 ASFLAGS += -mcpu=$(ARCH) -mthumb
 
@@ -19,27 +22,15 @@ CPPFLAGS += \
 	    -g\
 	    -fPIC\
 	    -msingle-pic-base\
+	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
 
 LD := $(TOOLCHAIN)-ld
 LINKER ?= $(TOCK_BASE_DIR)/linker.ld
 LDFLAGS := -T $(LINKER)
 
-# Include an all target at the top so that all becomes the default goal
-#
-# Note that this makefile only gets as far as building/requiring the application
-# image that will be loaded into tock. The platform makefile provides further
-# dependencies to the all target such that a unified kernel+app image is built
-#
-# This makefile has rules to create up to $(APP).elf, the Common rules convert
-# a built application to the linkable monolithic object given as a target here
-.SECONDEXPANSION:
 .PHONY:	all
-all:	$(BUILDDIR)/app.elf
-
-.PHONY:	clean
-clean:
-	rm -Rf build/$(ARCH)
+all:	$(BUILDDIR)/app.bin
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
@@ -49,4 +40,7 @@ $(BUILDDIR)/stage0.elf: $(OBJS) $(LIBTOCK) $(TOCK_BASE_DIR)/newlib/libc.a | $(BU
 
 $(BUILDDIR)/app.elf: $(BUILDDIR)/stage0.elf | $(BUILDDIR)
 	$(LD) -Os $(LDFLAGS) --emit-relocs -nostdlib $^ -o $@
+
+$(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
+	$(ELF2TBF) -o $@ $<
 

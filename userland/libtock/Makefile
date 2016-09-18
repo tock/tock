@@ -18,6 +18,7 @@ CFLAGS += \
 	    -g\
 	    -fPIC\
 	    -msingle-pic-base\
+	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
 
 AR := $(TOOLCHAIN)-ar
