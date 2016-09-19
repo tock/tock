@@ -1,4 +1,3 @@
-
 use common::Queue;
 use platform::{Chip, Platform, MPU, SysTick};
 use process;

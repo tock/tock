@@ -1,4 +1,3 @@
-
 use common::take_cell::TakeCell;
 use core::cell::Cell;
 use core::intrinsics;

@@ -1,4 +1,3 @@
-
 use common::{List, ListLink, ListNode};
 use common::take_cell::TakeCell;
 use core::cell::Cell;

@@ -1,4 +1,3 @@
-
 use ast;
 use common::{RingBuffer, Queue};
 use cortexm4;

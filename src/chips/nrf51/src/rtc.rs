@@ -1,4 +1,3 @@
-
 use chip;
 use core::cell::Cell;
 use core::mem;

@@ -1,4 +1,3 @@
-
 use core::fmt::*;
 use hil::Controller;
 use hil::uart::{self, UART};

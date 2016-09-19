@@ -1,4 +1,3 @@
-
 use common::VolatileCell;
 use core::mem;
 use peripheral_interrupts::NvicIdx;

@@ -1,4 +1,3 @@
-
 use core::mem;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use helpers::*;

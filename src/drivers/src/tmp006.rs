@@ -1,4 +1,3 @@
-
 use common::math::{sqrtf32, get_errno};
 use common::take_cell::TakeCell;
 use core::cell::Cell;

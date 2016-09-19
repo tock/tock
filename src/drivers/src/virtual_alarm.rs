@@ -1,4 +1,3 @@
-
 use common::{List, ListLink, ListNode};
 use core::cell::Cell;
 use hil::alarm::{Alarm, AlarmClient};
