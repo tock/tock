@@ -22,7 +22,8 @@ script:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
       find -path ./extern -prune -o -name '*.rs' -exec rustfmt --write-mode=diff {} +; fi
   - make -C boards/storm
-  - make -C boards/nrf51
+  - make -C boards/nrf51dk
+  - make -C userland/libtock ARCH=cortex-m4
   - make -C userland/examples/blink ARCH=cortex-m4
 
 notifications:
