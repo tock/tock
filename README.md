@@ -1,5 +1,7 @@
 # Tock Embedded OS [![Build Status](https://travis-ci.org/helena-project/tock.svg?branch=master)](https://travis-ci.org/helena-project/tock)
 
+<img src="http://www.tockos.org/assets/img/logo.png" alt="TockOS" align="left" />
+
 Tock is an operating system designed for running multiple concurrent, mutually
 distrustful applications on Cortex-M based embedded platforms. Tock's design
 centers around protection, both from potentially malicious applications and
