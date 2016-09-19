@@ -27,11 +27,11 @@ echo 'ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"' > /etc/ude
 To program the Tock kernel onto the Firestorm, run:
 
 ```bash
-$ make TOCK_PLATFORM=storm program
+$ make -C boards/storm program
 ```
 
-This will build `build/storm/kernel.elf`, generate a "Storm Drop Binary"
-(`build/storm/kernel.sdb`) file, and program it on the storm using the `stormloader`.
+This will build `boards/storm/target/target/storm.elf`, generate a "Storm Drop
+Binary" file, and program it on the storm using the `stormloader`.
 
 ## Programming user-level processes
 
