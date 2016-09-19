@@ -1,23 +1,25 @@
 
+use common::take_cell::TakeCell;
 use core::cell::Cell;
+
 use core::cmp;
 use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
 use helpers::*;
 
-use hil::spi_master;
-use hil::spi_master::ClockPhase;
-use hil::spi_master::ClockPolarity;
-use hil::spi_master::SpiCallback;
+use hil::spi;
+use hil::spi::ClockPhase;
+use hil::spi::ClockPolarity;
+use hil::spi::SpiMasterClient;
 use pm;
 
 /// Implementation of DMA-based SPI master communication for
 /// the Atmel SAM4L CortexM4 microcontroller.
 /// Authors: Sam Crow <samcrow@uw.edu>
-///          Philip Levis <pal@cs.stanfored.edu>
+///          Philip Levis <pal@cs.stanford.edu>
 ///
-// Driver for the SPI hardware (seperate from the USARTS),
+// Driver for the SPI hardware (separate from the USARTS),
 // described in chapter 26 of the datasheet
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
@@ -58,15 +60,12 @@ pub enum Peripheral {
 /// The SAM4L supports four peripherals.
 pub struct Spi {
     regs: *mut SpiRegisters,
-    callback: Option<&'static SpiCallback>,
+    client: TakeCell<&'static SpiMasterClient>,
     dma_read: Option<&'static mut DMAChannel>,
     dma_write: Option<&'static mut DMAChannel>,
-    // keep track of which // interrupts are pending in order
+    // keep track of which interrupts are pending in order
     // to correctly issue completion event only after both complete.
-    reading: Cell<bool>,
-    writing: Cell<bool>,
-    read_buffer: Option<&'static mut [u8]>,
-    write_buffer: Option<&'static mut [u8]>,
+    transfer_in_progress: Cell<bool>,
     dma_length: Cell<usize>,
 }
 
@@ -77,13 +76,10 @@ impl Spi {
     pub const fn new() -> Spi {
         Spi {
             regs: SPI_BASE as *mut SpiRegisters,
-            callback: None,
+            client: TakeCell::empty(),
             dma_read: None,
             dma_write: None,
-            reading: Cell::new(false),
-            writing: Cell::new(false),
-            read_buffer: None,
-            write_buffer: None,
+            transfer_in_progress: Cell::new(false),
             dma_length: Cell::new(0),
         }
     }
@@ -218,13 +214,16 @@ impl Spi {
     }
 }
 
-impl spi_master::SpiMaster for Spi {
+impl spi::SpiMaster for Spi {
+    fn set_client(&self, client: &'static SpiMasterClient) {
+        self.client.replace(client);
+    }
+
     /// By default, initialize SPI to operate at 40KHz, clock is
     /// idle on low, and sample on the leading edge.
-    fn init(&mut self, callback: &'static SpiCallback) {
+    fn init(&self) {
         self.enable_clock();
 
-        self.callback = Some(callback);
         unsafe { write_volatile(&mut (*self.regs).cr, 1 << 24) };
 
         let mut mode = unsafe { read_volatile(&(*self.regs).mr) };
@@ -234,14 +233,13 @@ impl spi_master::SpiMaster for Spi {
     }
 
     fn is_busy(&self) -> bool {
-        self.reading.get() || self.writing.get()
+        self.transfer_in_progress.get()
     }
-
 
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn write_byte(&self, out_byte: u8) {
-        if self.reading.get() || self.writing.get() {
+        if self.transfer_in_progress.get() {
             //           return;
         }
         let tdr = out_byte as u32;
@@ -260,7 +258,7 @@ impl spi_master::SpiMaster for Spi {
     /// Write a byte to the SPI and return the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn read_write_byte(&self, val: u8) -> u8 {
-        if self.reading.get() || self.writing.get() {
+        if self.transfer_in_progress.get() {
             //          return 0;
         }
         self.write_byte(val);
@@ -270,64 +268,58 @@ impl spi_master::SpiMaster for Spi {
         unsafe { read_volatile(&(*self.regs).rdr) as u8 }
     }
 
-    /// Asynchonous buffer read/write of SPI.
+    /// Asynchronous buffer read/write of SPI.
     /// write_buffer must  be Some; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
     /// minimum of two buffer lengths; returns true if operation
-    /// starts (will receive callback through SpiClient), returns
+    /// starts (will receive callback through SpiMasterClient), returns
     /// false if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,
-                        write_buffer: Option<&'static mut [u8]>,
+                        write_buffer: &'static mut [u8],
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
                         -> bool {
         self.enable();
-        let writing = write_buffer.is_some();
-        let reading = read_buffer.is_some();
-        // If there is no write buffer, or busy, then don't start.
-        // Need to check self.reading as well as self.writing in case
-        // write interrupt comes back first.
-        if !writing || self.reading.get() || self.writing.get() {
-            panic!("Busy {} {} {}",
-                   writing,
-                   self.reading.get(),
-                   self.writing.get());
+
+        // If busy, don't start.
+        if self.transfer_in_progress.get() {
+            return false;
         }
 
-        // Need to mark if reading or writing so we correctly
-        // regenerate Options on callback
-        self.writing.set(writing);
-        self.reading.set(reading);
+        // Need to mark busy
+        self.transfer_in_progress.set(true);
 
         let read_len = match read_buffer {
             Some(ref buf) => buf.len(),
             None => 0,
         };
-        let write_len = match write_buffer {
-            Some(ref buf) => buf.len(),
-            None => 0,
-        };
-        let buflen = if !reading {
+        let write_len = write_buffer.len();
+        let buflen = if !read_buffer.is_some() {
             write_len
         } else {
             cmp::min(read_len, write_len)
         };
         let count = cmp::min(buflen, len);
         self.dma_length.set(count);
-        // The ordering of these operations matters; if you enable then
-        // perform the operation, you can read a byte early on the SPI data register
-        self.dma_write.as_ref().map(|write| {
+
+        // The ordering of these operations matters.
+        // For transfers 4 bytes or longer, this will work as expected.
+        // For shorter transfers, the first byte will be missing.
+        self.dma_write.as_ref().map(move |write| {
             write.enable();
-            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer.unwrap(), count)
+            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count)
         });
-        if reading {
-            self.dma_read.as_ref().map(|read| {
+
+        // Only setup the RX channel if we were passed a read_buffer inside
+        // of the option. `map()` checks this for us.
+        read_buffer.map(|rbuf| {
+            self.dma_read.as_ref().map(move |read| {
                 read.enable();
-                read.do_xfer(DMAPeripheral::SPI_RX, read_buffer.unwrap(), count)
+                read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
             });
-        }
+        });
 
         true
     }
@@ -419,37 +411,15 @@ impl spi_master::SpiMaster for Spi {
 
 impl DMAClient for Spi {
     fn xfer_done(&mut self, pid: usize) {
-        // I don't know if there are ordering guarantees on the read and
-        // write interrupts, guessing not, so issue the callback when both
-        // reading and writing are complete. In practice it seems like
-        // the read interrupt happens second. -pal
-        //
-        // The disable calls are commented out because executing them
-        // causes subsequent operations to fail. The call to read_write_bytes
-        // calls enable(), so I don't know why. -pal
-        if pid == 4 {
-            // SPI RX
-            self.reading.set(false);
-            let buf = match self.dma_read.as_mut() {
-                Some(dma) => {
-                    let buf = dma.abort_xfer();
-                    dma.disable();
-                    buf
-                }
-                None => None,
-            };
-            self.read_buffer = buf;
-            if !self.reading.get() && !self.writing.get() {
-                let rb = self.read_buffer.take();
-                let wb = self.write_buffer.take();
-                let len = self.dma_length.get();
-                self.dma_length.set(0);
-                self.callback.as_ref().map(|cb| cb.read_write_done(wb, rb, len));
-            }
-        } else if pid == 22 {
+        // We ignore the RX interrupt because we are guaranteed to have TX
+        // DMA setup, but there's no guarantee RX will exist. In the case
+        // both are happening, just using TX is sufficient because SPI
+        // is full duplex.
+        if pid == 22 {
             // SPI TX
-            self.writing.set(false);
-            let buf = match self.dma_write.as_mut() {
+            self.transfer_in_progress.set(false);
+
+            let txbuf = match self.dma_write.as_mut() {
                 Some(dma) => {
                     let buf = dma.abort_xfer();
                     dma.disable();
@@ -457,14 +427,23 @@ impl DMAClient for Spi {
                 }
                 None => None,
             };
-            self.write_buffer = buf;
-            if !self.reading.get() && !self.writing.get() {
-                let rb = self.read_buffer.take();
-                let wb = self.write_buffer.take();
-                let len = self.dma_length.get();
-                self.dma_length.set(0);
-                self.callback.as_ref().map(|cb| cb.read_write_done(wb, rb, len));
-            }
+
+            let rxbuf = match self.dma_read.as_mut() {
+                Some(dma) => {
+                    let buf = dma.abort_xfer();
+                    dma.disable();
+                    buf
+                }
+                None => None,
+            };
+
+            let len = self.dma_length.get();
+            self.dma_length.set(0);
+            self.client.map(|cb| {
+                txbuf.map(|txbuf| {
+                    cb.read_write_done(txbuf, rxbuf, len);
+                });
+            });
         }
     }
 }

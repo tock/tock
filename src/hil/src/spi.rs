@@ -10,23 +10,23 @@ pub enum DataOrder {
 }
 
 /// Values for the clock polarity (idle state or CPOL)
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum ClockPolarity {
     IdleLow,
     IdleHigh,
 }
 
 /// Which clock edge values are sampled on
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum ClockPhase {
     SampleLeading,
     SampleTrailing,
 }
 
-pub trait SpiCallback {
+pub trait SpiMasterClient {
     /// Called when a read/write operation finishes
-    fn read_write_done(&'static self,
-                       mut write_buffer: Option<&'static mut [u8]>,
+    fn read_write_done(&self,
+                       mut write_buffer: &'static mut [u8],
                        mut read_buffer: Option<&'static mut [u8]>,
                        len: usize);
 }
@@ -36,9 +36,11 @@ pub trait SpiCallback {
 /// Using SpiMaster normally involves three steps:
 ///
 /// 1. Configure the SPI bus for a peripheral
-///   1a. Call set_chip_select to select which peripheral and
-///       turn on SPI
-///   1b. Call set operations as needed to configure bus
+///    1a. Call set_chip_select to select which peripheral and
+///        turn on SPI
+///    1b. Call set operations as needed to configure bus
+///    NOTE: You MUST select the chip select BEFORE configuring
+///           SPI settings.
 /// 2. Invoke read, write, read_write on SpiMaster
 /// 3a. Call clear_chip_select to turn off bus, or
 /// 3b. Call set_chip_select to choose another peripheral,
@@ -68,17 +70,19 @@ pub trait SpiCallback {
 ///   write_byte(0xaa); // Uses SampleTrailing
 ///
 pub trait SpiMaster {
-    fn init(&mut self, client: &'static SpiCallback);
+    fn set_client(&self, client: &'static SpiMasterClient);
+
+    fn init(&self);
     fn is_busy(&self) -> bool;
 
     /// Perform an asynchronous read/write operation, whose
-    /// completion is signaled by invoking SpiCallback on
+    /// completion is signaled by invoking SpiMasterClient on
     /// the initialzied client. write_buffer must be Some,
     /// read_buffer may be None. If read_buffer is Some, the
     /// length of the operation is the minimum of the size of
     /// the two buffers.
     fn read_write_bytes(&self,
-                        mut write_buffer: Option<&'static mut [u8]>,
+                        mut write_buffer: &'static mut [u8],
                         mut read_buffer: Option<&'static mut [u8]>,
                         len: usize)
                         -> bool;
@@ -108,7 +112,27 @@ pub trait SpiMaster {
     // is any of the read/read_write calls. These functions
     // allow an application to manually control when the
     // CS line is high or low, such that it can issue multi-byte
-    // requests with single byte oprations.
+    // requests with single byte operations.
     fn hold_low(&self);
     fn release_low(&self);
+}
+
+/// SPIMasterDevice provides a chip-specific interface to the SPI Master
+/// hardware. The interface wraps the chip select line so that chip drivers
+/// cannot communicate with different SPI devices.
+pub trait SPIMasterDevice {
+    /// Setup the SPI settings and speed of the bus.
+    fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32);
+
+    /// Perform an asynchronous read/write operation, whose
+    /// completion is signaled by invoking SpiMasterClient.read_write_done on
+    /// the provided client. write_buffer must be Some,
+    /// read_buffer may be None. If read_buffer is Some, the
+    /// length of the operation is the minimum of the size of
+    /// the two buffers.
+    fn read_write_bytes(&self,
+                        mut write_buffer: &'static mut [u8],
+                        mut read_buffer: Option<&'static mut [u8]>,
+                        len: usize)
+                        -> bool;
 }
