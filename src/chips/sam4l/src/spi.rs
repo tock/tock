@@ -63,10 +63,9 @@ pub struct Spi {
     client: TakeCell<&'static SpiMasterClient>,
     dma_read: Option<&'static mut DMAChannel>,
     dma_write: Option<&'static mut DMAChannel>,
-    // keep track of which // interrupts are pending in order
+    // keep track of which interrupts are pending in order
     // to correctly issue completion event only after both complete.
-    reading: Cell<bool>,
-    writing: Cell<bool>,
+    transfer_in_progress: Cell<bool>,
     dma_length: Cell<usize>,
 }
 
@@ -80,8 +79,7 @@ impl Spi {
             client: TakeCell::empty(),
             dma_read: None,
             dma_write: None,
-            reading: Cell::new(false),
-            writing: Cell::new(false),
+            transfer_in_progress: Cell::new(false),
             dma_length: Cell::new(0),
         }
     }
@@ -235,13 +233,13 @@ impl spi::SpiMaster for Spi {
     }
 
     fn is_busy(&self) -> bool {
-        self.reading.get() || self.writing.get()
+        self.transfer_in_progress.get()
     }
 
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn write_byte(&self, out_byte: u8) {
-        if self.reading.get() || self.writing.get() {
+        if self.transfer_in_progress.get() {
             //           return;
         }
         let tdr = out_byte as u32;
@@ -260,7 +258,7 @@ impl spi::SpiMaster for Spi {
     /// Write a byte to the SPI and return the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn read_write_byte(&self, val: u8) -> u8 {
-        if self.reading.get() || self.writing.get() {
+        if self.transfer_in_progress.get() {
             //          return 0;
         }
         self.write_byte(val);
@@ -284,26 +282,21 @@ impl spi::SpiMaster for Spi {
                         len: usize)
                         -> bool {
         self.enable();
-        let reading = read_buffer.is_some();
 
-        // If there is no write buffer, or busy, then don't start.
-        // Need to check self.reading as well as self.writing in case
-        // write interrupt comes back first.
-        if self.reading.get() || self.writing.get() {
-            panic!("SPI Busy {} {}", self.reading.get(), self.writing.get());
+        // If busy, don't start.
+        if self.transfer_in_progress.get() {
+            return false;
         }
 
-        // Need to mark if reading or writing so we correctly
-        // regenerate Options on callback
-        self.writing.set(true);
-        self.reading.set(reading);
+        // Need to mark busy
+        self.transfer_in_progress.set(true);
 
         let read_len = match read_buffer {
             Some(ref buf) => buf.len(),
             None => 0,
         };
         let write_len = write_buffer.len();
-        let buflen = if !reading {
+        let buflen = if !read_buffer.is_some() {
             write_len
         } else {
             cmp::min(read_len, write_len)
@@ -319,12 +312,14 @@ impl spi::SpiMaster for Spi {
             write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count)
         });
 
-        if reading {
-            self.dma_read.as_ref().map(|read| {
+        // Only setup the RX channel if we were passed a read_buffer inside
+        // of the option. `map()` checks this for us.
+        read_buffer.map(|rbuf| {
+            self.dma_read.as_ref().map(move |read| {
                 read.enable();
-                read.do_xfer(DMAPeripheral::SPI_RX, read_buffer.unwrap(), count)
+                read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
             });
-        }
+        });
 
         true
     }
@@ -422,8 +417,7 @@ impl DMAClient for Spi {
         // is full duplex.
         if pid == 22 {
             // SPI TX
-            self.writing.set(false);
-            self.reading.set(false);
+            self.transfer_in_progress.set(false);
 
             let txbuf = match self.dma_write.as_mut() {
                 Some(dma) => {
@@ -446,7 +440,9 @@ impl DMAClient for Spi {
             let len = self.dma_length.get();
             self.dma_length.set(0);
             self.client.map(|cb| {
-                cb.read_write_done(txbuf.unwrap(), rxbuf, len);
+                txbuf.map(|txbuf| {
+                    cb.read_write_done(txbuf, rxbuf, len);
+                });
             });
         }
     }
