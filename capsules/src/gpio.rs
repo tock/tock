@@ -1,6 +1,6 @@
 use core::cell::Cell;
-use kernel::hil::gpio::{GPIOPin, InputMode, InterruptMode, Client};
 use kernel::{AppId, Callback, Driver};
+use kernel::hil::gpio::{GPIOPin, InputMode, InterruptMode, Client};
 
 pub struct GPIO<'a, G: GPIOPin + 'a> {
     pins: &'a [&'a G],

@@ -1,6 +1,6 @@
 use core::cell::Cell;
-use kernel::hil::alarm::{Alarm, AlarmClient, Frequency};
 use kernel::{AppId, Container, Callback, Driver};
+use kernel::hil::alarm::{Alarm, AlarmClient, Frequency};
 
 #[derive(Copy, Clone)]
 pub struct TimerData {

@@ -7,9 +7,9 @@
 //! Author: Philip Levis
 //! Date: August 18, 2016
 
+use core::mem;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
-use core::mem;
 
 struct Registers {
     pub tasks_hfclkstart: VolatileCell<u32>,

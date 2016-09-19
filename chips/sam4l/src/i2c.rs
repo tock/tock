@@ -12,10 +12,10 @@
 
 
 
-use kernel::common::take_cell::TakeCell;
 use core::mem;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use helpers::*;
+use kernel::common::take_cell::TakeCell;
 
 use kernel::hil;
 use nvic;

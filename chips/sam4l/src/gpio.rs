@@ -1,10 +1,10 @@
 
 
-use kernel::common::take_cell::TakeCell;
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
 use helpers::*;
+use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use nvic;
 use nvic::NvicIdx::*;

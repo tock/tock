@@ -4,11 +4,11 @@
 //! Date: August 18, 2016
 
 use chip;
-use kernel::common::VolatileCell;
-use kernel::common::take_cell::TakeCell;
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
+use kernel::common::VolatileCell;
+use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use nvic;
 use peripheral_interrupts::NvicIdx;

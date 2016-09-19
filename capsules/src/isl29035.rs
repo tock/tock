@@ -1,9 +1,9 @@
 //! Driver for the ISL29035 digital light sensor
 
-use kernel::common::take_cell::TakeCell;
 use core::cell::Cell;
-use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
 use kernel::{AppId, Callback, Driver};
+use kernel::common::take_cell::TakeCell;
+use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
 
 pub static mut BUF: [u8; 3] = [0; 3];
 

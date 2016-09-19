@@ -1,9 +1,9 @@
-use kernel::common::take_cell::TakeCell;
 use core::cell::Cell;
 use core::intrinsics;
 use core::mem;
 
 use helpers::*;
+use kernel::common::take_cell::TakeCell;
 use nvic;
 use pm;
 

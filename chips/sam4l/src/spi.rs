@@ -1,4 +1,3 @@
-use kernel::common::take_cell::TakeCell;
 use core::cell::Cell;
 
 use core::cmp;
@@ -6,6 +5,7 @@ use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
 use helpers::*;
+use kernel::common::take_cell::TakeCell;
 
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;

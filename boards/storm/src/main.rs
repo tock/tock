@@ -13,25 +13,26 @@ use capsules::nrf51822_serialization::{self, Nrf51822Serialization};
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use kernel::{Chip, MPU, Platform};
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
-use kernel::{Chip, MPU, Platform};
 use sam4l::usart;
 
 #[macro_use]
 pub mod io;
 
 // HAL unit tests. To enable a particular unit test, uncomment the call to
-/* start the test in the init function below.
-#[allow(dead_code)]
-mod gpio_dummy;
-#[allow(dead_code)]
-mod spi_dummy;
-#[allow(dead_code)]
-mod i2c_dummy;
-#[allow(dead_code)]
-mod flash_dummy;
-*/
+// start the test in the init function below.
+// #[allow(dead_code)]
+// mod gpio_dummy;
+// #[allow(dead_code)]
+// mod spi_dummy;
+// #[allow(dead_code)]
+// mod i2c_dummy;
+// #[allow(dead_code)]
+// mod flash_dummy;
+//
+
 
 static mut spi_read_buf: [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];

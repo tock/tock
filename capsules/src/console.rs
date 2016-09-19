@@ -1,6 +1,6 @@
+use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{UART, Client};
-use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
 
 pub struct App {
     read_callback: Option<Callback>,

@@ -1,5 +1,4 @@
 use ast;
-use kernel::common::{RingBuffer, Queue};
 use cortexm4;
 // use adc;
 use dma;
@@ -7,6 +6,7 @@ use flashcalw;
 use gpio;
 use i2c;
 use kernel::Chip;
+use kernel::common::{RingBuffer, Queue};
 use nvic;
 use spi;
 use usart;

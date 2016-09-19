@@ -45,8 +45,8 @@ extern crate nrf51;
 
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::hil::gpio::GPIOPin;
 use kernel::{Chip, SysTick};
+use kernel::hil::gpio::GPIOPin;
 use nrf51::timer::ALARM1;
 use nrf51::timer::TimerAlarm;
 

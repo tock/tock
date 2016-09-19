@@ -1,5 +1,5 @@
-use kernel::common::{List, ListLink, ListNode};
 use core::cell::Cell;
+use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::alarm::{Alarm, AlarmClient};
 
 pub struct VirtualMuxAlarm<'a, Alrm: Alarm + 'a> {

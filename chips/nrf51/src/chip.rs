@@ -1,6 +1,6 @@
-use kernel::common::{RingBuffer, Queue};
 use gpio;
 use kernel;
+use kernel::common::{RingBuffer, Queue};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use rtc;

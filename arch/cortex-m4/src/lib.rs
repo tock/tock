@@ -119,9 +119,9 @@ to_kernel:
 }
 
 #[cfg(not(target_os = "none"))]
-pub unsafe extern "C" fn switch_to_user(user_stack: *const u8,
-                                        process_got: *const u8)
-                                        -> *mut u8 { user_stack as *mut u8 }
+pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *const u8) -> *mut u8 {
+    user_stack as *mut u8
+}
 
 #[cfg(target_os = "none")]
 #[no_mangle]

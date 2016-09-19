@@ -1,5 +1,5 @@
-use core::ptr::read_volatile;
 use common::queue;
+use core::ptr::read_volatile;
 
 pub struct RingBuffer<'a, T: 'a> {
     ring: &'a mut [T],

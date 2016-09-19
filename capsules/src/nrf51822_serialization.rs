@@ -1,6 +1,6 @@
+use kernel::{AppId, Callback, AppSlice, Driver, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{UART, Client};
-use kernel::{AppId, Callback, AppSlice, Driver, Shared};
 
 ///
 /// Nrf51822Serialization is the kernel-level driver that provides

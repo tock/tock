@@ -1,6 +1,6 @@
+use core::cell::Cell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::common::take_cell::TakeCell;
-use core::cell::Cell;
 use kernel::hil::i2c::{self, I2CClient, Error};
 
 pub struct MuxI2C<'a> {

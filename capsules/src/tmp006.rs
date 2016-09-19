@@ -1,9 +1,9 @@
+use core::cell::Cell;
+use kernel::{AppId, Callback, Driver};
 use kernel::common::math::{sqrtf32, get_errno};
 use kernel::common::take_cell::TakeCell;
-use core::cell::Cell;
 use kernel::hil::gpio::{GPIOPin, InputMode, InterruptMode, Client};
 use kernel::hil::i2c;
-use kernel::{AppId, Callback, Driver};
 
 pub static mut BUFFER: [u8; 3] = [0; 3];
 

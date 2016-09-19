@@ -26,7 +26,8 @@ pub unsafe fn wfi() {}
 
 #[cfg(not(target_os = "none"))]
 pub unsafe fn atomic<F, R>(f: F) -> R
-    where F: FnOnce() -> R {
+    where F: FnOnce() -> R
+{
     f()
 }
 

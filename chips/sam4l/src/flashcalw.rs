@@ -23,10 +23,10 @@
 //! Date: July 27, 2016
 //!
 
-use kernel::common::VolatileCell;
-use kernel::common::take_cell::TakeCell;
 use core::cell::Cell;
 use core::mem;
+use kernel::common::VolatileCell;
+use kernel::common::take_cell::TakeCell;
 use nvic;
 use pm;
 
