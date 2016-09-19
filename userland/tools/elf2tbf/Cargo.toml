@@ -2,7 +2,7 @@
 name = "elf2tbf"
 version = "0.1.0"
 description = "Compiles from ELF to TBF (the Tock Binary Format)"
-authors = ["Amit Aryeh Levy <amit@amitlevy.com>"]
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
 [dependencies]
 getopts = "0.2"

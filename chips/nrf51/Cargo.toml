@@ -1,7 +1,7 @@
 [package]
 name = "nrf51"
 version = "0.1.0"
-authors = ["Amit Levy <amit@amitlevy.com>", "Philip Levis <pal@cs.stanford.edu>"]
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
 build = "build.rs"
 

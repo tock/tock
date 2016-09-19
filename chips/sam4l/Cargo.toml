@@ -1,7 +1,7 @@
 [package]
 name = "sam4l"
 version = "0.1.0"
-authors = ["Amit Levy <amit@amitlevy.com>"]
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
 build = "build.rs"
 
