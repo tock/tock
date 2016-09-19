@@ -23,7 +23,7 @@ protection units to isolate applications from each other and the kernel.
 
 #### Rust (nightly)
 
-We are using `rustc 1.12.0-nightly (54c0dcfd6 2016-07-28)`. We recommand
+We are using `rustc 1.12.0-nightly (54c0dcfd6 2016-07-28)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -45,7 +45,7 @@ $ rustup override set nightly-2016-07-29
 #### `arm-none-eabi` toolchain
 
 We are currently using arm-none-eabi-gcc version 5.4 from the gcc-arm-embedded
-PPA on lauchpad. Using pre-5.0 versions from that repo, or other versions
+PPA on launchpad. Using pre-5.0 versions from that repo, or other versions
 packaged with a newlib version earlier than 2.3 will run into problems with
 missing ARM intrinsics (e.g., `__aeabi_memclr`).
 
@@ -136,7 +136,7 @@ Now, you can compile an application, like `blink`:
 $ make -C userland/examples/blink ARCH=cortex-m4
 ```
 
-This will build the app and genearte a binary in Tock Binary Format (using the
+This will build the app and generate a binary in Tock Binary Format (using the
 `elf2tbf` utility): `userland/examples/blink/build/cortex-m4/app.bin`. This
 binary should either be programmed separately from the kernel. See the README
 file in each board subdirectory for details.
