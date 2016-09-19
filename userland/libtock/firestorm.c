@@ -87,6 +87,8 @@ static void delay_cb( __attribute__ ((unused)) int unused0,
   *((bool*)ud) = true;
 }
 
+void delay_ts() {}
+
 void delay_ms(uint32_t ms) {
   bool cond = false;
   timer_subscribe(delay_cb, &cond);

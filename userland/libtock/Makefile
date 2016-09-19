@@ -9,7 +9,7 @@ AS := $(TOOLCHAIN)-as
 ASFLAGS += -mcpu=$(ARCH) -mthumb
 
 CC := $(TOOLCHAIN)-gcc
-CFLAGS += -Wall -Werror -I$(CUR_DIR) -g -mcpu=$(ARCH) -mthumb
+CFLAGS += -O3 -Wall -Werror -I$(CUR_DIR) -g -mcpu=$(ARCH) -mthumb
 CFLAGS += \
 	    -fdata-sections -ffunction-sections\
 	    -Wall\
@@ -24,7 +24,7 @@ CFLAGS += \
 AR := $(TOOLCHAIN)-ar
 
 C_SRCS=$(wildcard *.c)
-AS_SRCS=syscalls.S
+AS_SRCS=
 OBJS := $(patsubst %.S,$(BUILDDIR)/%.o,$(AS_SRCS))
 OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
 
@@ -42,6 +42,7 @@ $(BUILDDIR)/%.o: %.S | $(BUILDDIR)
 
 $(BUILDDIR)/libtock.a: $(OBJS) | $(BUILDDIR)
 	$(AR) rc $@ $^
+	$(TOOLCHAIN)-ranlib $@
 
 .PHONY: clean
 clean:
