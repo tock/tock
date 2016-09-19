@@ -1,7 +1,7 @@
-use common::{List, ListLink, ListNode};
-use common::take_cell::TakeCell;
+use kernel::common::{List, ListLink, ListNode};
+use kernel::common::take_cell::TakeCell;
 use core::cell::Cell;
-use hil;
+use kernel::hil;
 
 /// The Mux struct manages multiple SPI clients. Each client may have
 /// at most one outstanding SPI request.
