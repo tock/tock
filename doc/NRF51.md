@@ -1,1 +1,1 @@
-../src/platform/nrf_pca10028/README.md
+../boards/nrf51dk/README.md

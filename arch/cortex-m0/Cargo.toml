@@ -1,0 +1,8 @@
+[package]
+name = "cortexm0"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[dependencies]
+rust-libcore = "*"
+kernel = { path = "../../kernel" }

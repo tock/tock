@@ -1,0 +1,14 @@
+[package]
+name = "nrf51"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+build = "build.rs"
+
+[dependencies]
+rust-libcore = "*"
+cortexm0 = { path = "../../arch/cortex-m0" }
+kernel = { path = "../../kernel" }
+
+[build-dependencies]
+gcc = "0.3"

@@ -23,7 +23,7 @@ protection units to isolate applications from each other and the kernel.
 
 #### Rust (nightly)
 
-We are using `rustc 1.12.0-nightly (54c0dcfd6 2016-07-28)`. We recommand
+We are using `rustc 1.12.0-nightly (54c0dcfd6 2016-07-28)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -45,7 +45,7 @@ $ rustup override set nightly-2016-07-29
 #### `arm-none-eabi` toolchain
 
 We are currently using arm-none-eabi-gcc version 5.4 from the gcc-arm-embedded
-PPA on lauchpad. Using pre-5.0 versions from that repo, or other versions
+PPA on launchpad. Using pre-5.0 versions from that repo, or other versions
 packaged with a newlib version earlier than 2.3 will run into problems with
 missing ARM intrinsics (e.g., `__aeabi_memclr`).
 
@@ -101,41 +101,58 @@ you can use the build scripts in the `tools` directory, in this order:
 
 ## Building the Kernel
 
+To build the kernel for a particular board (i.e. the Firestorm or NRF51 DK), navigate to that folder for that board
+
 ```bash
 $ cd tock
 $ make
 ```
 
-The Tock kernel will be in `tock/build/$(TOCK_PLATFORM)/kernel.o`.
-
-You can also customize the build with environment variables.
-
-| Variable        | Default                 | Description                             |
-|-----------------|-------------------------|-----------------------------------------|
-| `RUSTC`         | rustc                   | The Rust compiler path.                 |
-| `RUSTDOC`       | rustdoc                 | Documentation generator for Rust.       |
-| `CARGO`         | cargo                   | Build tool for Rust packages.           |
-| `OBJCOPY`       | arm-none-eabi-objcopy   | ARM GCC objcopy path.                   |
-| `OBJDUMP`       | arm-none-eabi-objdump   | ARM GCC objdump path.                   |
-| `TOCK_PLATFORM` | storm                   | Which platform to build the kernel for. |
-
-
-
 ## Building apps
 
-To build applications, change to `apps/$(APP)/` directory and invoke `make`.
+All user-level code lives in the `userland` subdirectory. This includes a
+specially compiled version of newlib, a user-level library for talking to the
+kernel and specific drivers and a variety of example applications.
+
+Userland compilation units are specific to a particular architecture (e.g.
+`cortex-m4`, `cortex-m0`) since the compiler emits slightly different code for
+each variant, but is portable across boards with the same drivers. The `ARCH`
+environment variable controls which architecture to compile to. You can set the
+`ARCH` to any architecture GCC's `-mcpu` option accepts.
+
+Before compiling an app, build the Tock user library `libtock` in
+`userland/libtock` (replace `cortex-m4` below with `cortex-m0` if you're
+compiling for the NRF51 DK):
+
+```
+$ make -C userland/libtock ARCH=cortex-m4
+```
+
+This will build `userland/libtock/build/cortex-m4/libtock.a`.
+
+Now, you can compile an application, like `blink`:
+
+```
+$ make -C userland/examples/blink ARCH=cortex-m4
+```
+
 This will build the app and generate a binary in Tock Binary Format (using the
-`elf2tbf` utility) in `build/$(PLATFORM)/$(APP)/$(APP).bin`. Depending on the
-platform, this binary should either be programmed separately from the kernel,
-or linked into it directly and programmed together. See the README file in each
-platform subdirectory for details.
+`elf2tbf` utility): `userland/examples/blink/build/cortex-m4/app.bin`. This
+binary should either be programmed separately from the kernel. See the README
+file in each board subdirectory for details.
 
+For example, on the Firestorm, pass the binary to the programming script in
+`userland/tools/programming/firestorm.py`:
 
-## Platform-Specific Instructions
+```
+$ userland/tools/program/firestorm.py userland/examples/blink/build/cortex-m4/app.bin
+```
+
+## Board-Specific Instructions
 
 For instructions on building, uploading code, and debugging on specific
-platforms, see platform specific READMEs.
+boards, see board specific READMEs.
 
- * [Storm](src/platform/storm/README.md)
- * [nRF](src/platform/nrf_pca10001/README.md)
+ * [Storm](boards/storm/README.md)
+ * [nRF](boards/nrf_pca10001/README.md)
 

@@ -1,0 +1,19 @@
+[package]
+name = "nrf51dk"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[profile.dev]
+panic = "abort"
+lto = true
+
+[profile.release]
+panic = "abort"
+lto = true
+
+[dependencies]
+rust-libcore = "*"
+cortexm0 = { path = "../../arch/cortex-m0" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+nrf51 = { path = "../../chips/nrf51" }
