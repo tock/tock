@@ -73,24 +73,28 @@ fn print_usage(program: &str, opts: Options) {
 
 fn get_section<'a>(input: &'a elf::File, name: &str) -> elf::Section {
     match input.get_section(name) {
-        Some(section) => elf::Section {
-            data: section.data.clone(),
-            shdr: section.shdr.clone(),
-        },
-        None => elf::Section {
-            data: Vec::new(),
-            shdr: elf::types::SectionHeader {
-                name:      String::from(name),
-                shtype:    elf::types::SHT_NULL,
-                flags:     elf::types::SHF_NONE,
-                addr:      0,
-                offset:    0,
-                size:      0,
-                link:      0,
-                info:      0,
-                addralign: 0,
-                entsize:   0,
-            },
+        Some(section) => {
+            elf::Section {
+                data: section.data.clone(),
+                shdr: section.shdr.clone(),
+            }
+        }
+        None => {
+            elf::Section {
+                data: Vec::new(),
+                shdr: elf::types::SectionHeader {
+                    name: String::from(name),
+                    shtype: elf::types::SHT_NULL,
+                    flags: elf::types::SHF_NONE,
+                    addr: 0,
+                    offset: 0,
+                    size: 0,
+                    link: 0,
+                    info: 0,
+                    addralign: 0,
+                    entsize: 0,
+                },
+            }
         }
     }
 }
