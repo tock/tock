@@ -2,6 +2,7 @@
 
 import time
 import stormloader
+import sys
 from stormloader import sl_api
 from sys import argv
 
