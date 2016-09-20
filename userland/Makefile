@@ -40,11 +40,8 @@ $(LIBTOCK):
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
 
-$(BUILDDIR)/stage0.elf: $(OBJS) $(TOCK_BASE_DIR)/newlib/libc.a $(LIBTOCK) | $(BUILDDIR)
-	$(LD) -r --gc-sections --entry=_start $(LDFLAGS) -nostdlib $(OBJS) --start-group $(TOCK_BASE_DIR)/newlib/libc.a $(LIBTOCK) --end-group -o $@
-
-$(BUILDDIR)/app.elf: $(BUILDDIR)/stage0.elf | $(BUILDDIR)
-	$(LD) -Os $(LDFLAGS) --emit-relocs -nostdlib $^ -o $@
+$(BUILDDIR)/app.elf: $(OBJS) $(TOCK_BASE_DIR)/newlib/libc.a $(LIBTOCK) | $(BUILDDIR)
+	$(LD) --gc-sections --emit-relocs --entry=_start $(LDFLAGS) -nostdlib $(OBJS) --start-group $(TOCK_BASE_DIR)/newlib/libc.a $(LIBTOCK) --end-group -o $@
 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 	$(ELF2TBF) -o $@ $<

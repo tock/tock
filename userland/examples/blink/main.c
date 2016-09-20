@@ -3,7 +3,6 @@
 #include <stdio.h>
 
 int main(void) {
-    printf("Blinkin...\n");
     gpio_enable_output(LED_0);
 
     while(1) {
