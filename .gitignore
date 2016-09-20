@@ -1,5 +1,6 @@
 target
 build/*
+build
 *.rlib
 *.sdb
 *.bin
