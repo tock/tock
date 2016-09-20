@@ -1,5 +1,7 @@
 TOCK_BASE_DIR ?= .
 BUILDDIR ?= .
+ARCH ?= cortex-m0
+LIBTOCK ?= $(TOCK_BASE_DIR)/libtock/build/$(ARCH)/libtock.a
 
 TOOLCHAIN := arm-none-eabi
 
@@ -31,6 +33,9 @@ LDFLAGS := -T $(LINKER)
 
 .PHONY:	all
 all:	$(BUILDDIR)/app.bin
+
+$(LIBTOCK):
+	make -C $(TOCK_BASE_DIR)/libtock ARCH=$(ARCH)
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)

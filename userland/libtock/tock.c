@@ -13,7 +13,7 @@ void wait_for(bool *cond) {
 }
 
 void __attribute__((naked)) wait() {
-  asm volatile("push {lr}\nsvc 0\npop {lr}\nbx lr" ::: "memory", "r0");
+  asm volatile("push {lr}\nsvc 0\npop {pc}" ::: "memory", "r0");
 }
 
 int __attribute__((naked)) subscribe(uint32_t driver, uint32_t subscribe,
