@@ -1,7 +1,7 @@
 TOCK_BASE_DIR ?= .
 BUILDDIR ?= .
-ARCH ?= cortex-m0
-LIBTOCK ?= $(TOCK_BASE_DIR)/libtock/build/$(ARCH)/libtock.a
+TOCK_ARCH ?= cortex-m0
+LIBTOCK ?= $(TOCK_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
 
 TOOLCHAIN := arm-none-eabi
 
@@ -9,13 +9,13 @@ TOOLCHAIN := arm-none-eabi
 ELF2TBF ?= cargo run --manifest-path $(TOCK_BASE_DIR)/tools/elf2tbf/Cargo.toml --
 
 AS := $(TOOLCHAIN)-as
-ASFLAGS += -mcpu=$(ARCH) -mthumb
+ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
 
 CC := $(TOOLCHAIN)-gcc
 CXX := $(TOOLCHAIN)-g++
 # n.b. make convention is that CPPFLAGS are shared for C and C++ sources
 # [CFLAGS is C only, CXXFLAGS is C++ only]
-CPPFLAGS += -I$(TOCK_BASE_DIR)/libtock -g -mcpu=$(ARCH) -mthumb -mfloat-abi=soft
+CPPFLAGS += -I$(TOCK_BASE_DIR)/libtock -g -mcpu=$(TOCK_ARCH) -mthumb -mfloat-abi=soft
 CPPFLAGS += \
 	    -fdata-sections -ffunction-sections\
 	    -Wall\
@@ -35,7 +35,7 @@ LDFLAGS := -T $(LINKER)
 all:	$(BUILDDIR)/app.bin
 
 $(LIBTOCK):
-	make -C $(TOCK_BASE_DIR)/libtock ARCH=$(ARCH)
+	make -C $(TOCK_BASE_DIR)/libtock TOCK_ARCH=$(TOCK_ARCH)
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)

@@ -1,6 +1,6 @@
 TOCK_BASE_DIR = ../..
-LIBTOCK ?= $(TOCK_BASE_DIR)/libtock/build/$(ARCH)/libtock.a
-BUILDDIR ?= build/$(ARCH)
+LIBTOCK ?= $(TOCK_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
+BUILDDIR ?= build/$(TOCK_ARCH)
 
 PROJECT_NAME = $(shell basename "$(realpath ./)")
 

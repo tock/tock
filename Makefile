@@ -1,29 +1,29 @@
 # default board and architecture
-BOARD ?= storm
-ARCH ?= cortex-m4
+TOCK_BOARD ?= storm
+TOCK_ARCH ?= cortex-m4
 
 
 # rules for making the kernel
 .PHONY: all
-all: $(BOARD)
+all: $(TOCK_BOARD)
 
-$(BOARD): boards/$(BOARD)/
+$(TOCK_BOARD): boards/$(TOCK_BOARD)/
 	$(MAKE) -C $<
 
-clean: boards/$(BOARD)/
+clean: boards/$(TOCK_BOARD)/
 	$(MAKE) clean -C $<
 
-doc: boards/$(BOARD)/
+doc: boards/$(TOCK_BOARD)/
 	$(MAKE) doc -C $<
 
-program: boards/$(BOARD)/
+program: boards/$(TOCK_BOARD)/
 	$(MAKE) program -C $<
 
-flash: boards/$(BOARD)/
+flash: boards/$(TOCK_BOARD)/
 	$(MAKE) flash -C $<
 
 
 # rule for making userland example applications
 examples/%: userland/examples/%
-	$(MAKE) -C $< ARCH=$(ARCH)
+	$(MAKE) -C $< TOCK_ARCH=$(TOCK_ARCH)
 

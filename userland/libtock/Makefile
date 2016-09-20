@@ -1,15 +1,15 @@
 MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 CUR_DIR := $(dir $(MKFILE_PATH))
 
-BUILDDIR ?= build/$(ARCH)
+BUILDDIR ?= build/$(TOCK_ARCH)
 
 TOOLCHAIN ?= arm-none-eabi
 
 AS := $(TOOLCHAIN)-as
-ASFLAGS += -mcpu=$(ARCH) -mthumb
+ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
 
 CC := $(TOOLCHAIN)-gcc
-CFLAGS += -O3 -Wall -Werror -I$(CUR_DIR) -g -mcpu=$(ARCH) -mthumb
+CFLAGS += -O3 -Wall -Werror -I$(CUR_DIR) -g -mcpu=$(TOCK_ARCH) -mthumb
 CFLAGS += \
 	    -fdata-sections -ffunction-sections\
 	    -Wall\
