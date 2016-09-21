@@ -10,7 +10,7 @@ of how platforms program each onto an actual board.
 
 The kernel is divided into five Rust crates (i.e. packages):
 
-  * `main` contains the scheduler, definitions for the the process type and
+  * `main` contains the scheduler, definitions for the process type and
     traits for drivers, platforms and chips.
 
   * An architecture (e.g. _ARM Cortex M4_) crate that implements context
@@ -19,11 +19,11 @@ The kernel is divided into five Rust crates (i.e. packages):
   * A chip-specific (e.g. _Atmel SAM4L_) crate which handles interrupts and
     implements the hardware abstraction layer for a chip's peripherals.
 
-  * One (or more) crates for hardware independnt drivers and virtualization 
+  * One (or more) crates for hardware independent drivers and virtualization 
     layers.
 
   * A platform specific (e.g. _Firestorm_) crate that configures the chip and
-    its peripherals, assigns perpiherals to drivers, sets up virtualization
+    its peripherals, assigns peripherals to drivers, sets up virtualization
     layers and defines a system call interface.
 
 These crates are compiled using [Cargo](http://doc.crates.io), Rust's package
@@ -37,7 +37,7 @@ $ cargo build --release --target=target.json
 
 The `--release` argument tells cargo to invoke the Rust compiler with
 optimizations turned on and without debug symbols. `--target` points cargo to
-the target specification which includes the an LLVM data-layout definition,
+the target specification which includes the LLVM data-layout definition,
 architecture definitions for the compiler, arguments to pass to the linker and
 compilation options such as floating-point support.
 
