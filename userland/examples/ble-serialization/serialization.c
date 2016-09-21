@@ -398,7 +398,7 @@ void ser_app_power_system_off_enter () {
 // Essentially sleep this process
 uint32_t sd_app_evt_wait () {
   nrf_serialization_done = false;
-  wait_for(&nrf_serialization_done);
+  yield_for(&nrf_serialization_done);
   return NRF_SUCCESS;
 }
 

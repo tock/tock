@@ -49,7 +49,7 @@ void putnstr(const char *str, size_t len) {
     putstr_tail = data;
   }
 
-  wait_for(&data->called);
+  yield_for(&data->called);
 
   free(data->buf);
   free(data);
@@ -93,7 +93,7 @@ void delay_ms(uint32_t ms) {
   bool cond = false;
   timer_subscribe(delay_cb, &cond);
   timer_oneshot(ms);
-  wait_for(&cond);
+  yield_for(&cond);
 }
 int spi_init() {return 0;}
 int spi_set_chip_select(unsigned char cs) {return command(4, 2, cs);}
@@ -153,7 +153,7 @@ int spi_write_sync(const char* write,
 		   size_t  len) {
   bool cond = false;
   spi_write(write, len, spi_cb, &cond);
-  wait_for(&cond);
+  yield_for(&cond);
   return 0;
 }
 
@@ -165,7 +165,7 @@ int spi_read_write_sync(const char* write,
   if (err < 0) {
     return err;
   }
-  wait_for(&cond);
+  yield_for(&cond);
   return 0;
 }
 

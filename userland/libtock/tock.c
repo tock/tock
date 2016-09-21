@@ -6,13 +6,13 @@
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-void wait_for(bool *cond) {
+void yield_for(bool *cond) {
   while(!*cond) {
-    wait();
+    yield();
   }
 }
 
-void __attribute__((naked)) wait() {
+void __attribute__((naked)) yield() {
   asm volatile("push {lr}\nsvc 0\npop {pc}" ::: "memory", "r0");
 }
 

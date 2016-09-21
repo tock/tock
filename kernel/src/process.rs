@@ -43,7 +43,7 @@ pub enum Error {
 #[derive(Copy,Clone,PartialEq,Eq)]
 pub enum State {
     Running,
-    Waiting,
+    Yielded,
 }
 
 
@@ -82,7 +82,7 @@ pub struct Process<'a> {
     /// The offset in `memory` to use for the process stack.
     cur_stack: *const u8,
 
-    wait_pc: usize,
+    yield_pc: usize,
     psr: usize,
 
     pub state: State,
@@ -147,9 +147,9 @@ impl<'a> Process<'a> {
             kernel_memory_break: kernel_memory_break,
             text: slice::from_raw_parts(start_addr, length),
             cur_stack: stack_bottom,
-            wait_pc: 0,
+            yield_pc: 0,
             psr: 0x01000000,
-            state: State::Waiting,
+            state: State::Yielded,
             callbacks: callbacks,
         };
 
@@ -226,7 +226,7 @@ impl<'a> Process<'a> {
     pub fn pop_syscall_stack(&mut self) {
         let pspr = self.cur_stack as *const usize;
         unsafe {
-            self.wait_pc = read_volatile(pspr.offset(6));
+            self.yield_pc = read_volatile(pspr.offset(6));
             self.psr = read_volatile(pspr.offset(7));
             self.cur_stack = (self.cur_stack as *mut usize).offset(8) as *mut u8;
         }
@@ -242,7 +242,7 @@ impl<'a> Process<'a> {
         // Set the LR register to the saved PC so the callback returns to
         // wherever wait was called. Set lowest bit to one because of THUMB
         // instruction requirements.
-        write_volatile(stack_bottom.offset(5), self.wait_pc | 0x1);
+        write_volatile(stack_bottom.offset(5), self.yield_pc | 0x1);
         write_volatile(stack_bottom, callback.r0);
         write_volatile(stack_bottom.offset(1), callback.r1);
         write_volatile(stack_bottom.offset(2), callback.r2);

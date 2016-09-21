@@ -29,7 +29,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
                 process.switch_to();
                 systick.enable(false);
             }
-            process::State::Waiting => {
+            process::State::Yielded => {
                 match process.callbacks.dequeue() {
                     None => break,
                     Some(cb) => {
@@ -63,8 +63,8 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
                 };
                 process.set_r0(res);
             }
-            Some(syscall::WAIT) => {
-                process.state = process::State::Waiting;
+            Some(syscall::YIELD) => {
+                process.state = process::State::Yielded;
                 process.pop_syscall_stack();
 
                 // There might be already enqueued callbacks
