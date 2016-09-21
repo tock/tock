@@ -11,8 +11,8 @@ extern "C" {
 
 typedef void (subscribe_cb)(int, int, int,void*);
 
-void wait();
-void wait_for(bool*);
+void yield();
+void yield_for(bool*);
 int command(uint32_t driver, uint32_t command, int data);
 int subscribe(uint32_t driver, uint32_t subscribe,
               subscribe_cb cb, void* userdata);

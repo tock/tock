@@ -48,6 +48,6 @@ void _start(void* mem_start,
 
   main();
 
-  while(1) { wait(); }
+  while(1) { yield(); }
 }
 

@@ -54,7 +54,7 @@ void temp_callback(int temp_value, int error_code, int unused, void* callback_ar
 }
 
 // start periodic temperature sampling, then print data, sleeping in between
-//  samples. Note that you MUST wait() or else callbacks will never be serviced
+//  samples. Note that you MUST yield() or else callbacks will never be serviced
 void read_periodic (void) {
   int err;
 
@@ -70,7 +70,7 @@ void read_periodic (void) {
   while (1) {
     // yield for callbacks
     putstr("Sleeping...\n");
-    wait();
+    yield_for();
 
     // print new temp reading
     {
