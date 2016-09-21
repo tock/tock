@@ -24,6 +24,8 @@ flash: boards/$(TOCK_BOARD)/
 
 
 # rule for making userland example applications
+# 	automatically upload after making
 examples/%: userland/examples/%
 	$(MAKE) -C $< TOCK_ARCH=$(TOCK_ARCH)
+	$(MAKE) program -C $< TOCK_ARCH=$(TOCK_ARCH)
 

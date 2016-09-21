@@ -1,0 +1,26 @@
+# Makefile for loading applications for the storm platform
+
+STORM_APP_ADDR ?= 0x30000
+
+APP_SLOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/storm.py
+
+JLINK = JLinkExe
+JLINK_OPTIONS = -device ATSAM4LC8C -if swd -speed 1200 -AutoConnect 1
+JLINK_SCRIPT := $(BUILDDIR)/flash-app.jtag
+
+# upload programs over uart with stormloader
+.PHONY: program
+program: $(BUILDDIR)/app.bin
+	$(APP_SLOAD) $(BUILDDIR)/app.bin
+
+# upload programs over JTAG
+.PHONY: flash
+flash: $(BUILDDIR)/app.bin $(JLINK_SCRIPT)
+	$(JLINK) $(JLINK_OPTIONS) $(JLINK_SCRIPT)
+
+$(JLINK_SCRIPT):
+	printf "r\n" > $(JLINK_SCRIPT)
+	printf "loadbin $(BUILDDIR)/app.bin, $(STORM_APP_ADDR)\n" >> $(JLINK_SCRIPT)
+	printf "verifybin $(BUILDDIR)/app.bin, $(STORM_APP_ADDR)\n" >> $(JLINK_SCRIPT)
+	printf "r\ng\nq\n" >> $(JLINK_SCRIPT)
+
