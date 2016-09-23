@@ -8,7 +8,8 @@ radio, a Nordic NRF51822 BLE radio, a light sensor, accelerometer and
 temperature sensor.
 
 To program the Tock kernel and apps onto the Firestorm, you need to have the
-stormloader python library installed (see [below](#stormloader) for detailed
+stormloader python library installed. This requires 
+libftdi to be installed as well. (see [below](#stormloader) for detailed
 instructions):
 
 ```bash
@@ -120,10 +121,24 @@ prereqs via homebrew:
 brew install libusb libusb-compat
 ```
 
+On Ubuntu you can satisfy this requirement by installing libusb and libftdi
+(tested on Ubuntu 16.04).
+
+```bash
+sudo apt-get install libusb-1.0-0-dev
+sudo apt-get install libftdi-dev
+```
+
 You can obtain stormloader via pip (python2 only, currently):
 
 ```bash
 sudo pip install stormloader
+```
+
+Note that you may need to execute this command with the sudo -H option.
+
+```bash
+sudo -H pip install stormloader
 ```
 
 You can update stormloader via pip as well:
