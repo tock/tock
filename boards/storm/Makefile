@@ -5,17 +5,17 @@ SDB_VERSION=$(shell git show-ref -s HEAD)
 SDB_NAME=storm.rs
 SDB_DESCRIPTION="An OS for the storm"
 
-all: target/target/release/storm
+all: build/sam4l/release/storm
 
 .PHONY: doc
 doc:
-	@cargo doc --release --target=../../chips/sam4l/target.json
+	@cargo doc --release --target=../../chips/sam4l/sam4l.json
 
-.PHONY: target/target/release/storm
-target/target/release/storm:
-	@cargo build --release --target=../../chips/sam4l/target.json
+.PHONY: build/sam4l/release/storm
+build/sam4l/release/storm:
+	@cargo build --release --target=../../chips/sam4l/sam4l.json
 
-target/target/release/storm.sdb: target/target/release/storm
+build/sam4l/release/storm.sdb: build/sam4l/release/storm
 	@tput bold ; echo "Packing SDB..." ; tput sgr0
 	@$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
 
@@ -24,6 +24,6 @@ clean:
 	@cargo clean
 
 .PHONY: program
-program: target/target/release/storm.sdb
+program: build/sam4l/release/storm.sdb
 	$(SLOAD) flash $<
 

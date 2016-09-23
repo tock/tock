@@ -1,13 +1,13 @@
 .PHONY: all
-all: target/target/release/nrf_pca10028
+all: build/nrf51/release/nrf_pca10028
 
 .PHONY: doc
 doc:
-	@cargo doc --release --target=../../chips/nrf51/target.json
+	@cargo doc --release --target=../../chips/nrf51/nrf51.json
 
-.PHONY: target/target/release/nrf_pca10028
-target/target/release/nrf_pca10028:
-	@cargo build --release --target=../../chips/nrf51/target.json
+.PHONY: build/nrf51/release/nrf_pca10028
+build/nrf51/release/nrf_pca10028:
+	@cargo build --release --target=../../chips/nrf51/nrf51.json
 
 .PHONY: clean
 clean:
