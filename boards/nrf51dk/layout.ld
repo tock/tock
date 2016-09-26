@@ -1,0 +1,1 @@
+../../chips/nrf51/layout.ld
