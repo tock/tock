@@ -16,8 +16,7 @@
         "-mcpu=cortex-m0", "-mthumb",
         "-mfloat-abi=soft",
         "-Wl,-gc-sections",
-        "-Wl,-Map=target/target/release/kernel.Map",
-        "-Ttarget/target/release/build/layout.ld"
+        "-Tlayout.ld"
     ],
     "post-link-args": [
         "-lm", "-lgcc", "-lc"
