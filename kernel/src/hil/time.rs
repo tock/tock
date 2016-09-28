@@ -1,9 +1,20 @@
-//! Hardware agnostic interfaces for counter-like resources (e.g. an AST).
+//! Hardware agnostic interfaces for counter-like resources
 
+pub trait Time {
+    fn disable(&self);
+
+    fn is_armed(&self) -> bool;
+}
+
+/// Trait to represent clock frequency in Hz
+///
+/// This trait is used as an associated type for `Alarm` so clients can portably
+/// convert native cycles to real-time values.
 pub trait Frequency {
     fn frequency() -> u32;
 }
 
+/// 16MHz `Frequency`
 pub struct Freq16MHz;
 impl Frequency for Freq16MHz {
     fn frequency() -> u32 {
@@ -11,6 +22,7 @@ impl Frequency for Freq16MHz {
     }
 }
 
+/// 16KHz `Frequency`
 pub struct Freq16KHz;
 impl Frequency for Freq16KHz {
     fn frequency() -> u32 {
@@ -18,6 +30,7 @@ impl Frequency for Freq16KHz {
     }
 }
 
+/// 1KHz `Frequency`
 pub struct Freq1KHz;
 impl Frequency for Freq1KHz {
     fn frequency() -> u32 {
@@ -25,13 +38,14 @@ impl Frequency for Freq1KHz {
     }
 }
 
-/// The `Alarm` trait keeps track of a counter such as a hardware AST.
+/// The `Alarm` trait models a wrapping counter capapable of notifying when the
+/// counter reaches a certain value.
 ///
 /// Alarms represent a resource that keeps track of time in some fixed unit
 /// (usually clock tics). Implementors should use the
-/// [`AlarmClient`](trait.AlarmClient.html) trait to signal when the counter has
+/// [`Client`](trait.Client.html) trait to signal when the counter has
 /// reached a pre-specified value set in [`set_alarm`](#tymethod.set_alarm).
-pub trait Alarm {
+pub trait Alarm: Time {
     type Frequency: Frequency;
 
     /// Returns the current time in hardware clock units.
@@ -39,7 +53,7 @@ pub trait Alarm {
 
     /// Sets a one-shot alarm fire when the clock reaches `tics`.
     ///
-    /// [`AlarmClient#fired`](trait.AlarmClient.html#tymethod.fired) is signaled
+    /// [`Client#fired`](trait.Client.html#tymethod.fired) is signaled
     /// when `tics` is reached.
     ///
     /// # Examples
@@ -51,19 +65,22 @@ pub trait Alarm {
     /// ```
     fn set_alarm(&self, tics: u32);
 
-    /// Disables the alarm.
-    fn disable_alarm(&self);
-
-    /// Returns true if the alarm is armed
-    fn is_armed(&self) -> bool;
-
     /// Returns the value set in [`set_alarm`](#tymethod.set_alarm)
     fn get_alarm(&self) -> u32;
 }
 
 /// A client of an implementor of the [`Alarm`](trait.Alarm.html) trait.
-pub trait AlarmClient {
+pub trait Client {
     /// Callback signaled when the alarm's clock reaches the value set in
     /// [`Alarm#set_alarm`](trait.Alarm.html#tymethod.set_alarm).
     fn fired(&self);
+}
+
+/// The `Timer` trait models a timer that can notify when a particular interval
+/// has elapsed.
+pub trait Timer: Time {
+    /// Sets a one-shot timer to fire in `interval` clock-tics.
+    fn oneshot(&self, interval: u32);
+    /// Sets repeating timer to fire every `interval` clock-tics.
+    fn repeat(&self, interval: u32);
 }
