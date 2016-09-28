@@ -5,15 +5,15 @@ OBJDUMP?=arm-none-eabi-objdump
 OBJDUMP_FLAGS+= --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
 
 .PHONY: all
-all: target/target/release/nrf51dk target/target/release/nrf51dk.lst
+all: target/nrf51/release/nrf51dk target/nrf51/release/nrf51dk.lst
 
 .PHONY: doc
 doc:
-	@cargo doc --release --target=../../chips/nrf51/target.json
+	@cargo doc --release --target=nrf51.json
 
 .PHONY: target/target/release/nrf51dk
-target/target/release/nrf51dk:
-	@cargo build --release --target=../../chips/nrf51/target.json
+target/nrf51/release/nrf51dk:
+	@cargo build --release --target=nrf51.json
 
 target/target/release/nrf51dk.lst: target/target/release/nrf51dk
 	@$(OBJDUMP) $(OBJDUMP_FLAGS) $^ > $@

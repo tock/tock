@@ -529,7 +529,7 @@ int rf233_transmit() {
   RF233_COMMAND(TRXCMD_TX_START);
 
   PRINTF("RF233:: Issued TX_START, wait for completion interrupt.\n");
-  wait_for(&radio_tx);
+  yield_for(&radio_tx);
   PRINTF("RF233: tx ok\n\n");
   
   return RADIO_TX_OK;
@@ -736,7 +736,7 @@ int on(void) {
   PRINTF("RF233: State is %s, transitioning to PLL_ON.\n", state_str(rf233_status()));
   radio_pll = false;
   RF233_COMMAND(TRXCMD_PLL_ON);
-  wait_for(&radio_pll);
+  yield_for(&radio_pll);
   delay_ms(1);
   PRINTF("RF233: State is %s, transitioning to RX_ON.\n", state_str(rf233_status()));
   /* go to RX_ON state */

@@ -11,7 +11,7 @@ isolation granularity and resource consumption.
 Tock's architecture resolves this trade-off by using a language sandbox to
 isolated components and a cooperative scheduling model for concurrency in the
 kernel. As a result, isolation is (more or less) free in terms of resource
-consumption at the expense of preemtive scheduling (so a malicious component
+consumption at the expense of preemptive scheduling (so a malicious component
 could block the system by, e.g., spinning in an infinite loop).
 
 To first order, all component in Tock, including those in the kernel, are
@@ -94,7 +94,7 @@ explicitly by the hardware Memory Protection Unit (MPU). The MPU limits which
 memory addresses a process can access. Accesses outside of a process’s permitted
 region result in a fault and trap to the kernel.
 
-shows how a process is laid out in memory. Code, stored in flash, is made
+Code, stored in flash, is made
 accessible with a read-only memory protection region. Each process is allocated
 a contiguous region of RAM. One novel aspect of a process is the presence of a
 “grant” region at the top of the address space. This is memory allocated to the

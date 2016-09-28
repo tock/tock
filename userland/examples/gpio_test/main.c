@@ -26,7 +26,7 @@ void gpio_output() {
 
   while (1) {
     gpio_toggle(LED_0);
-    wait();
+    yield();
   }
 }
 
@@ -51,7 +51,7 @@ void gpio_input() {
       sprintf(buf, "\tValue(%d)\n", pin_val);
       putstr(buf);
     }
-    wait();
+    yield();
   }
 }
 
@@ -72,7 +72,7 @@ void gpio_interrupt() {
   gpio_enable_interrupt(LED_0, PullDown, Change);
 
   while (1) {
-    wait();
+    yield();
     putstr("\tGPIO Interrupt!\n");
   }
 }

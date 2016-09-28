@@ -3,8 +3,6 @@ name = "sam4l"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
-build = "build.rs"
-
 [dependencies]
 rust-libcore = "*"
 cortexm4 = { path = "../../arch/cortex-m4" }

@@ -31,7 +31,7 @@ int tmp006_read_sync(int16_t* temp_reading) {
 
     // wait for result
     readtemp = false;
-    wait_for(&readtemp);
+    yield_for(&readtemp);
 
     // write value for user
     *temp_reading = (int16_t)callback_vals[0];

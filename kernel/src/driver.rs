@@ -4,7 +4,7 @@
 //!
 //! # System-call Overview
 //!
-//! Tock supports four system calls. The `wait` system call is handled entirely
+//! Tock supports four system calls. The `yield` system call is handled entirely
 //! by the scheduler, while three others are passed along to drivers:
 //!
 //!   * `subscribe` lets an application pass a callback to the driver to be
@@ -25,9 +25,9 @@
 //! determined by a particular platform, while the _driver minor number_ is
 //! driver-specific.
 //!
-//! # The `wait` System-call
+//! # The `yield` System-call
 //!
-//! While drivers to handle the `wait` system call, it's important to understand
+//! While drivers to handle the `yield` system call, it's important to understand
 //! it's function and it interacts with `subscribe`.
 
 /// `Driver`s implement the three driver-specific system calls: `subscribe`,
