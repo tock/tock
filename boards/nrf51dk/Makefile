@@ -19,7 +19,6 @@ target/nrf51/release/nrf51dk:
 
 .PHONY: target/nrf51/debug/nrf51dk
 target/nrf51/debug/nrf51dk:
-	@echo $(RUSTFLAGS)
 	@cargo build --target=nrf51.json
 	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/nrf51/debug/nrf51dk.lst
 	@$(SIZE) $@
