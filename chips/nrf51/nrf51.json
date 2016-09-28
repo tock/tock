@@ -16,7 +16,7 @@
         "-mcpu=cortex-m0", "-mthumb",
         "-mfloat-abi=soft",
         "-Wl,-gc-sections",
-        "-Ttarget/target/release/build/layout.ld"
+        "-Tlayout.ld"
     ],
     "post-link-args": [
         "-lm", "-lgcc", "-lc"

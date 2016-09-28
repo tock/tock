@@ -1,4 +1,9 @@
 /*
+ * This is an example linker script. Copy this into your Tock board repository
+ * and modify as needed.
+ */
+
+/*
  * This file is part of StormLoader, the Storm Bootloader
  *
  * StormLoader is free software: you can redistribute it and/or modify

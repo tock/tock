@@ -13,22 +13,22 @@ JLINK=JLinkExe
 JLINK_OPTIONS=-device ATSAM4LC8C -if swd -speed 1200 -AutoConnect 1
 JLINK_SCRIPTS=jtag/
 
-all: target/target/release/storm
+all: target/sam4l/release/storm
 
 .PHONY: doc
 doc:
-	@cargo doc --release --target=../../chips/sam4l/target.json
+	@cargo doc --release --target=sam4l.json
 
-.PHONY: target/target/release/storm
-target/target/release/storm:
-	@cargo build --release --target=../../chips/sam4l/target.json
-	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/target/release/storm.lst
+.PHONY: target/sam4l/release/storm
+target/sam4l/release/storm:
+	@cargo build --release --target=sam4l.json
+	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/sam4l/release/storm.lst
 
-target/target/release/storm.sdb: target/target/release/storm
+target/sam4l/release/storm.sdb: target/sam4l/release/storm
 	@tput bold ; echo "Packing SDB..." ; tput sgr0
 	@$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
 
-target/target/release/storm.hex: target/target/release/storm
+target/sam4l/release/storm.hex: target/sam4l/release/storm
 	@$(OBJCOPY) -Oihex $^ $@
 
 .PHONY: clean
@@ -36,11 +36,11 @@ clean:
 	@cargo clean
 
 .PHONY: program
-program: target/target/release/storm.sdb
+program: target/sam4l/release/storm.sdb
 	$(SLOAD) flash $<
 
 .PHONY: flash
-flash: target/target/release/storm.hex
+flash: target/sam4l/release/storm.hex
 	$(JLINK) $(JLINK_OPTIONS) $(JLINK_SCRIPTS)flash-kernel.jlink
 
 # special command for the firestorm. Flashes the stormloader bootloader onto
