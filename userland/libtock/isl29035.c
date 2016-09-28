@@ -30,7 +30,7 @@ int isl29035_read_light_intensity() {
     return err;
   }
 
-  wait_for(&result.fired);
+  yield_for(&result.fired);
 
   return result.intensity;
 }

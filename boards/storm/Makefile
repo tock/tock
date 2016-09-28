@@ -56,7 +56,7 @@ debug: target/sam4l/debug/storm
 
 # upload programs over uart with stormloader
 .PHONY: program
-program: target/target/release/storm.sdb
+program: target/sam4l/release/storm.sdb
 	$(SLOAD) flash $<
 
 # upload kernel over JTAG
