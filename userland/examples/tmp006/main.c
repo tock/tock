@@ -70,7 +70,7 @@ void read_periodic (void) {
   while (1) {
     // yield for callbacks
     putstr("Sleeping...\n");
-    yield_for();
+    yield();
 
     // print new temp reading
     {
