@@ -4,42 +4,40 @@ use helpers::*;
 struct PmRegisters {
     mcctrl: u32,
     cpusel: u32,
-    reserved0: u32,
+    _reserved1: u32,
     pbasel: u32,
     pbbsel: u32,
     pbcsel: u32,
     pbdsel: u32,
-    reserved1: u32,
+    _reserved2: u32,
     cpumask: u32, // 0x020
     hsbmask: u32,
     pbamask: u32,
     pbbmask: u32,
     pbcmask: u32,
     pbdmask: u32,
-    reserved2: [u32; 2],
+    _reserved3: [u32; 2],
     pbadivmask: u32, // 0x040
-    reserved3: [u32; 4],
+    _reserved4: [u32; 4],
     cfdctrl: u32,
     unlock: u32,
-    reserved4: u32,
-    reserved5: [u32; 24], // 0x60
+    _reserved5: [u32; 25], // 0x60
     ier: u32, // 0xC0
     idr: u32,
     imr: u32,
     isr: u32,
     icr: u32,
     sr: u32,
-    reserved6: [u32; 2],
-    reserved7: [u32; 24], // 0x100
+    _reserved6: [u32; 34], // 0x100
     ppcr: u32, // 0x160
-    reserved8: [u32; 7],
+    _reserved7: [u32; 7],
     rcause: u32, // 0x180
     wcause: u32,
     awen: u32,
     protctrl: u32,
-    reserved9: u32,
+    _reserved8: u32,
     fastsleep: u32,
-    reserved10: [u32; 2],
+    _reserved9: [u32; 152],
     config: u32, // 0x200
     version: u32,
 }
