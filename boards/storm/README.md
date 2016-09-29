@@ -25,39 +25,65 @@ echo 'ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"' > /etc/ude
 
 ## Programming the kernel
 
-To program the Tock kernel onto the Firestorm, run:
+To program the Tock kernel onto the Firestorm, `cd` into the `boards/storm` directory and run:
 
 ```bash
-$ make -C boards/storm program
+$ make program
 ```
 
 This will build `boards/storm/target/target/storm.elf`, generate a "Storm Drop
 Binary" file, and program it on the storm using the `stormloader`.
 
-## Programming user-level processes
+The Tock kernel can also be flashed over JTAG using `make flash`.
 
-Apps are programmed to the Firestorm independently of the kernel, using the
-Python script in `tools/program/firestorm.py`. The programming utility takes a
-list binaries in Tock Binary Format (tbf), generated from `elf2tbf`.
+## Programming apps
 
-To build an application, simply run `make` from the application's directory
-(`make`'s `-C` flag tells it which directory to build from):
+All user-level code lives in the `userland` subdirectory. This includes a
+specially compiled version of newlib, a user-level library for talking to the
+kernel and specific drivers and a variety of example applications.
+
+Userland compilation units are specific to a particular architecture (e.g.
+`cortex-m4`, `cortex-m0`) since the compiler emits slightly different code for
+each variant, but is portable across boards with the same drivers. The `TOCK_ARCH`
+environment variable controls which architecture to compile to. You can set the
+`TOCK_ARCH` to any architecture GCC's `-mcpu` option accepts. By default, `TOCK_ARCH`
+is set to `cortex-m4` for the `storm` board.
+
+To compile an app, `cd` to the desired app and `make`. For example:
 
 ```bash
-$ make -C apps/blink
+$ cd userland/examples/blink/
+$ make
 ```
 
-This will generate the file `build/storm/blink/blink.bin`, which you can then
-pass to the program utility:
+This will build the app and generate a binary in Tock Binary Format (using the
+`elf2tbf` utility): `userland/examples/blink/build/cortex-m4/app.bin`. This
+binary should either be programmed separately from the kernel. See the README
+file in each board subdirectory for details.
+
+Apps can be built and automatically uploaded from the root directory of Tock.
 
 ```bash
-$ tools/program/firestorm.py build/storm/blink/blink.bin
+$ make examples/blink
 ```
 
-You can pass multiple binaries to program multiple apps:
+Like the kernel, apps can be uploaded with `make program` or `make flash`.
+```bash
+$ cd userland/examples/blink/
+$ make program
+```
+
+This builds and loads only a single app. Tock is capable of running multiple apps
+concurrently. In order to load multiple apps, you can use the application upload
+tools manually. They are located in `userland/tools/`, are separated by upload method
+(`flash` or `program`) and take `.bin` files as input arguments.
+
+Example
 
 ```bash
-$ tools/program/firestorm.py build/storm/blink/blink.bin build/storm/sensors/sensors.bin
+$ make -C userland/examples/blink
+$ make -C userland/examples/c_hello
+$ userland/tools/program/storm.py userland/examples/blink/build/cortex-m4/app.bin userland/examples/c_hello/build/cortex-m4/app.bin
 ```
 
 ## Console support
@@ -153,3 +179,4 @@ Then add a udev rule (Ubuntu) for the FTDI chip:
 sudo su
 echo 'ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"' > /etc/udev/rules.d/99-storm.rules
 ```
+
