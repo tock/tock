@@ -57,7 +57,7 @@ int spi_init();
 /* All SPI operations depend on which peripheral is
  * active, determined by set_chip_select. Configuration
  * of a peripheral is persistent; e.g., setting the rate R
- * for peripheral 3, then switching to peripheral 2, 
+ * for peripheral 3, then switching to peripheral 2,
  * peripheral 2 will not necessarily have rate R. Then
  * back to peripheral 3, it still has rate R.*/
 int spi_set_chip_select(unsigned char cs);

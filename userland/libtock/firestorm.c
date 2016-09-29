@@ -99,11 +99,11 @@ int spi_init() {return 0;}
 int spi_set_chip_select(unsigned char cs) {return command(4, 2, cs);}
 int spi_get_chip_select()                 {return command(4, 3, 0);}
 int spi_set_rate(int rate)                {return command(4, 4, rate);}
-int spi_get_rate()                        {return command(4, 5, 0);} 
-int spi_set_phase(bool phase)             {return command(4, 6, (unsigned char)phase);} 
-int spi_get_phase()                       {return command(4, 7, 0);} 
-int spi_set_polarity(bool pol)            {return command(4, 8, (unsigned char)pol);} 
-int spi_get_polarity()                    {return command(4, 9, 0);} 
+int spi_get_rate()                        {return command(4, 5, 0);}
+int spi_set_phase(bool phase)             {return command(4, 6, (unsigned char)phase);}
+int spi_get_phase()                       {return command(4, 7, 0);}
+int spi_set_polarity(bool pol)            {return command(4, 8, (unsigned char)pol);}
+int spi_get_polarity()                    {return command(4, 9, 0);}
 int spi_hold_low()                        {return command(4, 10, 0);}
 int spi_release_low()                     {return command(4, 11, 0);}
 
