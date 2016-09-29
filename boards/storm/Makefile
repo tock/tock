@@ -38,9 +38,6 @@ target/sam4l/release/storm.sdb: target/sam4l/release/storm
 	@tput bold ; echo "Packing SDB..." ; tput sgr0
 	@$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
 
-target/sam4l/release/storm.lst: target/sam4l/release/storm
-	@$(OBJDUMP) $(OBJDUMP_FLAGS) $^ > $@
-
 target/sam4l/release/storm.hex: target/sam4l/release/storm
 	@$(OBJCOPY) -Oihex $^ $@
 
