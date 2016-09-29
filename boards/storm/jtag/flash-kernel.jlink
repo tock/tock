@@ -1,5 +1,5 @@
 r
-loadfile target/target/release/storm.hex, 0x10000
+loadfile target/sam4l/release/storm.hex
 r
 g
 q

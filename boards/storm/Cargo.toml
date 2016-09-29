@@ -6,6 +6,12 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 [profile.dev]
 panic = "abort"
 lto = true
+opt-level = 0
+debug = false
+# Would prefer to have debug symbols, but there is a Rust bug
+#	https://github.com/rust-lang/rust/issues/25270
+#	https://github.com/rust-lang/rust/issues/34434
+#debug = true
 
 [profile.release]
 panic = "abort"

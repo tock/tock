@@ -1,5 +1,9 @@
-TOCK_BASE_DIR = ../..
-LIBTOCK ?= $(TOCK_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
+# makefile for user application
+
+CURRENT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+TOCK_USERLAND_BASE_DIR = $(CURRENT_DIR)/../..
+TOCK_BASE_DIR = $(CURRENT_DIR)/../../../
 BUILDDIR ?= build/$(TOCK_ARCH)
 
 PROJECT_NAME = $(shell basename "$(realpath ./)")
@@ -339,8 +343,11 @@ else
 	TRACE_LST = @echo " LST       " $<
 endif
 
+CPPFLAGS += -DSTACK_SIZE=2048
 
-include $(TOCK_BASE_DIR)/Makefile
+# include userland master makefile. Contains rules and flags for actually
+# 	building the application
+include $(TOCK_USERLAND_BASE_DIR)/Makefile
 
 $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
