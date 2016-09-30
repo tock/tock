@@ -278,8 +278,7 @@ pub unsafe fn configure_48mhz_dfll() {
 
     // Check to see if the DFLL is already setup.
     //
-    if (((*SCIF).dfll0conf.get() & 0x03) == 0) ||
-       (((*SCIF).pclksr.get() & (1 << 2)) == 0) {
+    if (((*SCIF).dfll0conf.get() & 0x03) == 0) || (((*SCIF).pclksr.get() & (1 << 2)) == 0) {
 
         // Enable the GENCLK_SRC_RC32K
         //
