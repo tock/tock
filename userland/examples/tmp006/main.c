@@ -8,6 +8,7 @@
 #include <stdbool.h>
 
 #include <tock.h>
+#include <tock_str.h>
 #include <firestorm.h>
 #include <tmp006.h>
 
@@ -70,7 +71,7 @@ void read_periodic (void) {
   while (1) {
     // yield for callbacks
     putstr("Sleeping...\n");
-    yield_for();
+    yield();
 
     // print new temp reading
     {

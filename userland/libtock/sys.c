@@ -6,6 +6,7 @@
 #include <inttypes.h>
 
 #include <firestorm.h>
+#include <tock_str.h>
 
 // XXX Suppress unused parameter warnings for this file as the implementations
 // are currently all just stubs

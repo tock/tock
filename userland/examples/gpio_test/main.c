@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <tock.h>
+#include <tock_str.h>
 #include <firestorm.h>
 #include <gpio.h>
 
