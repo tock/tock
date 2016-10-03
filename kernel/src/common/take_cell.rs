@@ -27,6 +27,10 @@ impl<T> TakeCell<T> {
         unsafe { (&*self.val.get()).is_none() }
     }
 
+    pub fn is_some(&self) -> bool {
+        unsafe { (&*self.val.get()).is_some() }
+    }
+
     /// Takes the value out of the `TakeCell` leaving a `None` in it's place. If
     /// the value has already been taken elsewhere (and not `replace`ed), the
     /// returned `Option` will be empty.
