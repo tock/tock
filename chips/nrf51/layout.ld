@@ -88,22 +88,11 @@ SECTIONS
         KEEP (*(SORT(.dtors.*)))
         KEEP (*crtend.o(.dtors))
 
-        . = ALIGN(4);
-        _sapps = .;
-        KEEP(*(.app.*))
-        _eapps = .;
+        *(.got*)
 
         . = ALIGN(4);
         _efixed = .;            /* End of text section */
     } > rom
-
-    .apps :
-    {
-        . = ALIGN(4);
-        _sapps = .;
-        KEEP (*(.app.*))
-        _eapps = .;
-    } > prog
 
     /* .ARM.exidx is sorted, so has to go in its own output section.  */
     PROVIDE_HIDDEN (__exidx_start = .);
@@ -117,7 +106,7 @@ SECTIONS
     _etext = .;
     _textend = .;
 
-    .relocate : AT (_etext)
+    .relocate :
     {
         . = ALIGN(4);
         _srelocate = .;
@@ -127,6 +116,12 @@ SECTIONS
         . = ALIGN(4);
         _erelocate = .;
     } > ram
+
+    .apps 0x20000 :
+    {
+        _sapps = .;
+        LONG(0)
+    } > prog
 
     /* .bss section which is used for uninitialized data */
     .bss (NOLOAD) :
