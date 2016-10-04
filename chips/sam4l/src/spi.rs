@@ -409,12 +409,12 @@ impl spi::SpiMaster for Spi {
 }
 
 impl DMAClient for Spi {
-    fn xfer_done(&mut self, pid: usize) {
+    fn xfer_done(&mut self, pid: DMAPeripheral) {
         // We ignore the RX interrupt because we are guaranteed to have TX
         // DMA setup, but there's no guarantee RX will exist. In the case
         // both are happening, just using TX is sufficient because SPI
         // is full duplex.
-        if pid == 22 {
+        if pid == DMAPeripheral::SPI_TX {
             // SPI TX
             self.transfer_in_progress.set(false);
 

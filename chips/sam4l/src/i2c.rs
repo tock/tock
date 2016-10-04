@@ -311,7 +311,7 @@ impl I2CDevice {
 }
 
 impl DMAClient for I2CDevice {
-    fn xfer_done(&mut self, _pid: usize) {}
+    fn xfer_done(&mut self, _pid: DMAPeripheral) {}
 }
 
 impl hil::i2c::I2CController for I2CDevice {

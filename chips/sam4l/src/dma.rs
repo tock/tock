@@ -66,7 +66,7 @@ pub enum DMAChannelNum {
 /// *_RX means transfer data from peripheral to memory, *_TX means transfer data
 /// from memory to peripheral.
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum DMAPeripheral {
     USART0_RX = 0,
     USART1_RX = 1,
@@ -135,7 +135,7 @@ pub struct DMAChannel {
 }
 
 pub trait DMAClient {
-    fn xfer_done(&mut self, pid: usize);
+    fn xfer_done(&mut self, pid: DMAPeripheral);
 }
 
 impl DMAChannel {
@@ -191,7 +191,8 @@ impl DMAChannel {
 
     pub fn handle_interrupt(&mut self) {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-        let channel: usize = read_volatile(&registers.peripheral_select);
+        let channel_num: usize = read_volatile(&registers.peripheral_select);
+        let channel: DMAPeripheral = unsafe { mem::transmute(channel_num as u8) };
 
         self.client.as_mut().map(|client| {
             client.xfer_done(channel);
