@@ -89,6 +89,9 @@ impl Chip for Sam4l {
                     TWIM2 => i2c::I2C2.handle_interrupt(),
                     TWIM3 => i2c::I2C3.handle_interrupt(),
 
+                    TWIS0 => i2c::I2C0.handle_slave_interrupt(),
+                    TWIS1 => i2c::I2C1.handle_slave_interrupt(),
+
                     HFLASHC => flashcalw::flash_controller.handle_interrupt(),
                     // NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
                     _ => {}
