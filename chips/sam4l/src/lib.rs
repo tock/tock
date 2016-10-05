@@ -198,9 +198,6 @@ pub unsafe fn init() {
         *pdest = 0;
         pdest = pdest.offset(1);
     }
-
-    // Setup the clock to run at 48 MHz
-    pm::configure_48mhz_dfll();
 }
 
 unsafe extern "C" fn hard_fault_handler() {
