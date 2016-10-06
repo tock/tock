@@ -3,17 +3,17 @@
 //! This implementation of the flash controller for at sam4l flash controller
 //! uses interrupts to handle main tasks of a flash -- write, reads, and erases.
 //! If modifying this file, you should check whether the flash commands (issued
-//! via issue_command) generates and interrupt and design a higher level function
+//! via issue_command) generates an interrupt and design a higher level function
 //! based off of that.
 //!
-//! Although the datasheet says that when the FRDY interrupt is on, a interrupt will
+//! Although the datasheet says that when the FRDY interrupt is on, an interrupt will
 //! be generated after a command is complete, it doesn't appear to occur for some
 //! commands.
 //!
-//! A clean interface for reading from flash, writing pages and erasing pages are
+//! A clean interface for reading from flash, writing pages and erasing pages is
 //! defined below and should be used to handle the complexity of these tasks.
 //!
-//! The driver should be configured() before use, and a Client should be set to
+//! The driver should be configure()'d before use, and a Client should be set to
 //! enable a callback after a command is completed.
 //!
 //! Almost all of the flash controller functionality is implemented (except for
