@@ -1,0 +1,6 @@
+r
+loadfile target/nrf51/release/nrf51dk.hex
+r
+g
+q
+
