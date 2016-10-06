@@ -459,21 +459,8 @@ impl hil::Controller for GPIOPin {
     }
 }
 
-impl hil::gpio::GPIOPin for GPIOPin {
-    fn disable(&self) {
-        GPIOPin::disable(self);
-    }
-
-    fn enable_output(&self) {
-        self.enable();
-        GPIOPin::enable_output(self);
-        self.disable_schmidtt_trigger();
-    }
-
-    fn enable_input(&self, mode: hil::gpio::InputMode) {
-        self.enable();
-        GPIOPin::disable_output(self);
-        self.enable_schmidtt_trigger();
+impl hil::gpio::PinCtl for GPIOPin {
+    fn set_input_mode(&self, mode: hil::gpio::InputMode) {
         match mode {
             hil::gpio::InputMode::PullUp => {
                 self.disable_pull_down();
@@ -488,6 +475,24 @@ impl hil::gpio::GPIOPin for GPIOPin {
                 self.disable_pull_down();
             }
         }
+    }
+}
+
+impl hil::gpio::Pin for GPIOPin {
+    fn disable(&self) {
+        GPIOPin::disable(self);
+    }
+
+    fn make_output(&self) {
+        self.enable();
+        GPIOPin::enable_output(self);
+        self.disable_schmidtt_trigger();
+    }
+
+    fn make_input(&self) {
+        self.enable();
+        GPIOPin::disable_output(self);
+        self.enable_schmidtt_trigger();
     }
 
     fn read(&self) -> bool {
@@ -508,7 +513,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
 
     fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
         let mode_bits = match mode {
-            hil::gpio::InterruptMode::Change => 0b00,
+            hil::gpio::InterruptMode::EitherEdge => 0b00,
             hil::gpio::InterruptMode::RisingEdge => 0b01,
             hil::gpio::InterruptMode::FallingEdge => 0b10,
         };

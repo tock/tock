@@ -108,34 +108,32 @@ impl GPIOPin {
     }
 }
 
-impl hil::gpio::GPIOPin for GPIOPin {
-    fn enable_output(&self) {
-        // bit 0: set as output
-        // bit 1: disconnect input buffer (1 is disconnect)
-        // bit 2-3: no pullup/down
-        // bit 8-10: drive configruation
-        // bit 16-17: sensing
-        GPIO().pin_cnf[self.pin as usize].set((1 << 0) | // set as output
-                                              (1 << 1) | // no input buf
-                                              (0 << 2) | // no pull
-                                              (0 << 8) | // no drive
-                                              (0 << 16)); // no sensing
+impl hil::gpio::PinCtl for GPIOPin {
+    fn set_input_mode(&self, mode: hil::gpio::InputMode) {
+        let conf = match mode {
+            hil::gpio::InputMode::PullUp => 0x3,
+            hil::gpio::InputMode::PullDown => 0x1,
+            hil::gpio::InputMode::PullNone => 0,
+        };
+        let pin_cnf = GPIO().pin_cnf[self.pin as usize];
+        pin_cnf.set((pin_cnf.get() & !(0b11 << 2)) | (conf << 2));
+    }
+}
+
+impl hil::gpio::Pin for GPIOPin {
+    fn make_output(&self) {
+        GPIO().dirset.set(1 << self.pin);
     }
 
     // Configuration constants stolen from
     // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
-    fn enable_input(&self, mode: hil::gpio::InputMode) {
-        let conf = match mode {
-            hil::gpio::InputMode::PullUp => 0x3 << 2,
-            hil::gpio::InputMode::PullDown => 0x1 << 2,
-            hil::gpio::InputMode::PullNone => 0,
-        };
-        GPIO().pin_cnf[self.pin as usize].set(conf);
+    fn make_input(&self) {
+        GPIO().dirclr.set(1 << self.pin);
     }
 
     // Not clk
     fn disable(&self) {
-        self.enable_input(hil::gpio::InputMode::PullNone);
+        hil::gpio::PinCtl::set_input_mode(self, hil::gpio::InputMode::PullNone);
     }
 
     fn set(&self) {
@@ -158,7 +156,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
         self.client_data.set(_client_data);
         let mut mode_bits: u32 = 1; // Event
         mode_bits |= match _mode {
-            hil::gpio::InterruptMode::Change => 3 << 16,
+            hil::gpio::InterruptMode::EitherEdge => 3 << 16,
             hil::gpio::InterruptMode::RisingEdge => 1 << 16,
             hil::gpio::InterruptMode::FallingEdge => 2 << 16,
         };

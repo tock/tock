@@ -94,7 +94,7 @@ enum Op {
 pub struct SPIMasterDevice<'a> {
     mux: &'a MuxSPIMaster<'a>,
     chip_select: Option<u8>,
-    chip_select_gpio: Option<&'static hil::gpio::GPIOPin>,
+    chip_select_gpio: Option<&'static hil::gpio::Pin>,
     txbuffer: TakeCell<&'static mut [u8]>,
     rxbuffer: TakeCell<Option<&'static mut [u8]>>,
     operation: Cell<Op>,
@@ -105,7 +105,7 @@ pub struct SPIMasterDevice<'a> {
 impl<'a> SPIMasterDevice<'a> {
     pub const fn new(mux: &'a MuxSPIMaster<'a>,
                      chip_select: Option<u8>,
-                     chip_select_gpio: Option<&'static hil::gpio::GPIOPin>)
+                     chip_select_gpio: Option<&'static hil::gpio::Pin>)
                      -> SPIMasterDevice<'a> {
         SPIMasterDevice {
             mux: mux,
