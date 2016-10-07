@@ -11,10 +11,24 @@ impl Frequency for Freq16MHz {
     }
 }
 
+pub struct Freq32KHz;
+impl Frequency for Freq32KHz {
+    fn frequency() -> u32 {
+        32768
+    }
+}
+
 pub struct Freq16KHz;
 impl Frequency for Freq16KHz {
     fn frequency() -> u32 {
         16000
+    }
+}
+
+pub struct Freq10KHz;
+impl Frequency for Freq10KHz {
+    fn frequency() -> u32 {
+        10000
     }
 }
 

@@ -2,7 +2,7 @@ use chip;
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::Controller;
-use kernel::hil::alarm::{Alarm, AlarmClient, Freq16KHz};
+use kernel::hil::alarm::{Alarm, AlarmClient, Freq10KHz};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{RTC1_BASE, RTC1};
@@ -69,11 +69,24 @@ fn wait_task() {
 const COMPARE0_EVENT: u32 = 1 << 16;
 
 impl Rtc {
-    fn start(&self) {
+    pub fn start(&self) {
         nvic::clear_pending(NvicIdx::RTC1);
         nvic::enable(NvicIdx::RTC1);
         rtc1().tasks_start.set(1);
-        wait_task();
+//        rtc1().prescaler.set(0);
+//        wait_task();
+    }
+
+    pub fn enable_nvic(&self) {
+        nvic::enable(NvicIdx::RTC1);
+    }
+
+    pub fn disable_interrupts(&self) {
+        rtc1().intenset.set(COMPARE0_EVENT);
+    }
+
+    pub fn enable_interrupts(&self) {
+        rtc1().intenclr.set(COMPARE0_EVENT);
     }
 
     fn stop(&self) {
@@ -94,10 +107,14 @@ impl Rtc {
             cb.fired();
         });
     }
+
+    pub fn set_client(&self, client: &'static AlarmClient) {
+        self.callback.set(Some(client));
+    }
 }
 
 impl Alarm for Rtc {
-    type Frequency = Freq16KHz;
+    type Frequency = Freq10KHz;
 
     fn now(&self) -> u32 {
         rtc1().counter.get()

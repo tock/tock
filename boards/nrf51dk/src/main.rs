@@ -47,7 +47,7 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
 use kernel::hil::gpio::GPIOPin;
-use nrf51::timer::ALARM1;
+use nrf51::rtc::{RTC, Rtc};
 use nrf51::timer::TimerAlarm;
 
 // The nRF51 DK LEDs (see back of board)
@@ -90,7 +90,7 @@ unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'stati
 
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
 }
 
@@ -163,16 +163,16 @@ pub unsafe fn reset_handler() {
     // as an HIL Alarm. Timer 0 has some special functionality for the BLE transciever,
     // so is reserved for that use. This should be rewritten to use the RTC (off the
     // low frequency clock) for lower power.
-    let alarm = &nrf51::timer::ALARM1;
-    let mux_alarm = static_init!(MuxAlarm<'static, TimerAlarm>, MuxAlarm::new(&ALARM1), 16);
+    let alarm = &nrf51::rtc::RTC;
+    let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
     alarm.set_client(mux_alarm);
 
     let virtual_alarm1 = static_init!(
-        VirtualMuxAlarm<'static, TimerAlarm>,
+        VirtualMuxAlarm<'static, Rtc>,
         VirtualMuxAlarm::new(mux_alarm),
         24);
     let timer = static_init!(
-        TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
+        TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
         TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
         12);
