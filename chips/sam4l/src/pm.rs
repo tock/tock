@@ -289,7 +289,7 @@ pub unsafe fn configure_48mhz_dfll() {
         // Write the BSCIF::RC32KCR register.
         // Enable the generic clock source, the temperature compensation, and the
         // 32k output.
-        (*BSCIF).rc32kcr.set(bscif_rc32kcr | (1 >> 1) | (1 << 2) | (1 << 0));
+        (*BSCIF).rc32kcr.set(bscif_rc32kcr | (1 << 1) | (1 << 2) | (1 << 0));
         // Wait for it to be ready, although it feels like this won't do anything
         while (*BSCIF).rc32kcr.get() & (1 << 0) == 0 {}
 

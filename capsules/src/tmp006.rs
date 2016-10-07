@@ -2,7 +2,7 @@ use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 use kernel::common::math::{sqrtf32, get_errno};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::gpio::{GPIOPin, InputMode, InterruptMode, Client};
+use kernel::hil::gpio::{Pin, InterruptMode, Client};
 use kernel::hil::i2c;
 
 pub static mut BUFFER: [u8; 3] = [0; 3];
@@ -87,7 +87,7 @@ enum ProtocolState {
 
 pub struct TMP006<'a> {
     i2c: &'a i2c::I2CDevice,
-    interrupt_pin: &'a GPIOPin,
+    interrupt_pin: &'a Pin,
     sampling_period: Cell<u8>,
     repeated_mode: Cell<bool>,
     callback: Cell<Option<Callback>>,
@@ -96,8 +96,9 @@ pub struct TMP006<'a> {
 }
 
 impl<'a> TMP006<'a> {
+    /// The `interrupt_pin` must be pulled-up since the TMP006 is open-drain.
     pub fn new(i2c: &'a i2c::I2CDevice,
-               interrupt_pin: &'a GPIOPin,
+               interrupt_pin: &'a Pin,
                buffer: &'static mut [u8])
                -> TMP006<'a> {
         // setup and return struct
@@ -144,7 +145,7 @@ impl<'a> TMP006<'a> {
 
     fn enable_interrupts(&self) {
         // setup interrupts from the sensor
-        self.interrupt_pin.enable_input(InputMode::PullUp);
+        self.interrupt_pin.make_input();
         self.interrupt_pin.enable_interrupt(0, InterruptMode::FallingEdge);
     }
 

@@ -201,3 +201,16 @@ boards, see board specific READMEs.
  * [Storm](boards/storm/README.md)
  * [nRF](boards/nrf_pca10001/README.md)
 
+
+## Formatting Rust Source Code
+
+Rust includes a tool for automatically formatting Rust source code. This requires
+a `cargo` tool:
+
+	`$ cargo install rustfmt`
+
+Then run:
+
+    `make format`
+
+to format the repository.

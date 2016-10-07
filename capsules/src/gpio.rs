@@ -1,13 +1,13 @@
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
-use kernel::hil::gpio::{GPIOPin, InputMode, InterruptMode, Client};
+use kernel::hil::gpio::{Pin, PinCtl, InputMode, InterruptMode, Client};
 
-pub struct GPIO<'a, G: GPIOPin + 'a> {
+pub struct GPIO<'a, G: Pin + 'a> {
     pins: &'a [&'a G],
     callback: Cell<Option<Callback>>,
 }
 
-impl<'a, G: GPIOPin> GPIO<'a, G> {
+impl<'a, G: Pin + PinCtl> GPIO<'a, G> {
     pub fn new(pins: &'a [&'a G]) -> GPIO<'a, G> {
         GPIO {
             pins: pins,
@@ -16,20 +16,21 @@ impl<'a, G: GPIOPin> GPIO<'a, G> {
     }
 
     fn configure_input_pin(&self, pin_num: usize, config: usize) -> isize {
-        let pins = self.pins.as_ref();
+        let pin = self.pins[pin_num];
+        pin.make_input();
         match config {
             0 => {
-                pins[pin_num].enable_input(InputMode::PullUp);
+                pin.set_input_mode(InputMode::PullUp);
                 0
             }
 
             1 => {
-                pins[pin_num].enable_input(InputMode::PullDown);
+                pin.set_input_mode(InputMode::PullDown);
                 0
             }
 
             2 => {
-                pins[pin_num].enable_input(InputMode::PullNone);
+                pin.set_input_mode(InputMode::PullNone);
                 0
             }
 
@@ -41,7 +42,7 @@ impl<'a, G: GPIOPin> GPIO<'a, G> {
         let pins = self.pins.as_ref();
         match config {
             0 => {
-                pins[pin_num].enable_interrupt(pin_num, InterruptMode::Change);
+                pins[pin_num].enable_interrupt(pin_num, InterruptMode::EitherEdge);
                 0
             }
 
@@ -60,7 +61,7 @@ impl<'a, G: GPIOPin> GPIO<'a, G> {
     }
 }
 
-impl<'a, G: GPIOPin> Client for GPIO<'a, G> {
+impl<'a, G: Pin> Client for GPIO<'a, G> {
     fn fired(&self, pin_num: usize) {
         // read the value of the pin
         let pins = self.pins.as_ref();
@@ -73,7 +74,7 @@ impl<'a, G: GPIOPin> Client for GPIO<'a, G> {
     }
 }
 
-impl<'a, G: GPIOPin> Driver for GPIO<'a, G> {
+impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             // subscribe to all pin interrupts
@@ -96,7 +97,7 @@ impl<'a, G: GPIOPin> Driver for GPIO<'a, G> {
                 if data >= pins.len() {
                     -1
                 } else {
-                    pins[data].enable_output();
+                    pins[data].make_output();
                     0
                 }
             }
