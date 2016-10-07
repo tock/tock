@@ -208,6 +208,9 @@ impl uart::UART for UART {
             ptr::write_volatile(&mut regs.starttx, 1 as u32);
         }
         unsafe {
+            ptr::write_volatile(&mut regs.txdrdy, 0 as u32);
+        }
+        unsafe {
             ptr::write_volatile(&mut regs.txd, byte as u32);
         }
         while !self.tx_ready() {}
