@@ -15,6 +15,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::{Chip, MPU, Platform};
 use kernel::hil::Controller;
+use kernel::hil::gpio::PinCtl;
 use kernel::hil::spi::SpiMaster;
 use sam4l::usart;
 
@@ -338,6 +339,7 @@ pub unsafe fn reset_handler() {
 
     // Configure the TMP006. Device address 0x40
     let tmp006_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x40), 32);
+    sam4l::gpio::PA[9].set_input_mode(kernel::hil::gpio::InputMode::PullUp);
     let tmp006 = static_init!(
         capsules::tmp006::TMP006<'static>,
         capsules::tmp006::TMP006::new(tmp006_i2c,

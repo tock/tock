@@ -96,6 +96,7 @@ pub struct TMP006<'a> {
 }
 
 impl<'a> TMP006<'a> {
+    /// The `interrupt_pin` must be pulled-up since the TMP006 is open-drain.
     pub fn new(i2c: &'a i2c::I2CDevice,
                interrupt_pin: &'a Pin,
                buffer: &'static mut [u8])
@@ -144,7 +145,6 @@ impl<'a> TMP006<'a> {
 
     fn enable_interrupts(&self) {
         // setup interrupts from the sensor
-        // TODO(alevy): do we need to make sure it's a pull up?
         self.interrupt_pin.make_input();
         self.interrupt_pin.enable_interrupt(0, InterruptMode::FallingEdge);
     }
