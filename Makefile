@@ -4,7 +4,7 @@ TOCK_ARCH ?= cortex-m4
 
 
 # rules for making the kernel
-.PHONY: all
+.PHONY: all fmt format
 all: $(TOCK_BOARD)
 
 $(TOCK_BOARD): boards/$(TOCK_BOARD)/
@@ -24,6 +24,9 @@ program: boards/$(TOCK_BOARD)/
 
 flash: boards/$(TOCK_BOARD)/
 	$(MAKE) flash -C $<
+
+fmt format:
+	./tools/run_cargo_fmt.sh
 
 
 # rule for making userland example applications
