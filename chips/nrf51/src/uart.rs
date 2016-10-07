@@ -1,9 +1,18 @@
 use core::mem;
-use kernel::common::VolatileCell;
 use kernel::hil::uart;
+use core::cell::Cell;
+use kernel::common::VolatileCell;
 use peripheral_interrupts::NvicIdx;
+use kernel::common::take_cell::TakeCell;
+use kernel::hil::gpio::GPIOPin;
 use chip;
 use nvic;
+use gpio;
+
+// configure pins 
+// print from user space
+// handle interrupt -> better send_bytes  
+    // buffer 
 
 #[repr(C, packed)]
 pub struct Registers {
@@ -52,6 +61,9 @@ const UART_BASE: u32 = 0x40002000;
 pub struct UART {
     regs: *mut Registers,
     client: Option<&'static uart::Client>,
+    buffer: TakeCell<&'static mut [u8]>,
+    index: Cell<usize>,
+    len: Cell<usize>
 }
 
 #[derive(Copy, Clone)]
@@ -71,6 +83,9 @@ impl UART {
         UART {
             regs: UART_BASE as *mut Registers,
             client: None,
+            buffer: TakeCell::empty(),
+            len: Cell::new(0),
+            index: Cell::new(0)
         }
     }
 
@@ -82,6 +97,14 @@ impl UART {
         regs.pseltxd.set(9); 
         regs.pselcts.set(10); 
         regs.pselrxd.set(11); 
+    }
+
+    pub fn enable_nvic(&self) {
+        nvic::enable(NvicIdx::UART0);
+    }
+
+    pub fn disable_nvic(&self) {
+        nvic::disable(NvicIdx::UART0);
     }
 
     pub fn set_client<C: uart::Client>(&mut self, client: &'static C) {
@@ -172,10 +195,23 @@ impl uart::UART for UART {
     }
 
     fn send_bytes(&self, bytes: &'static mut [u8], len: usize) {
-        for i in 0..len {
-            self.send_byte(bytes[i]);
+        let regs : &mut Registers = unsafe { mem::transmute(self.regs) };
+        let mut real_len = 0;
+
+        if len == 0 {
+            return; 
         }
+        if len == self.index.get() {
+            // Done sending the string 
+            // TODO how to indicate done? 
+            self.index.set(0); 
+            return; 
+        }
+        self.send_byte(bytes[self.index.get()]); 
+        let next_index = self.index.get() + 1; 
+        self.index.set(next_index); 
     }
+
 
     fn read_byte(&self) -> u8 {
         let regs: &Registers = unsafe { mem::transmute(self.regs) };
