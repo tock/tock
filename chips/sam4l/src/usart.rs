@@ -182,7 +182,7 @@ impl USART {
 }
 
 impl DMAClient for USART {
-    fn xfer_done(&mut self, _pid: usize) {
+    fn xfer_done(&mut self, _pid: DMAPeripheral) {
         let buffer = match self.dma.as_mut() {
             Some(dma) => {
                 let buf = dma.abort_xfer();
