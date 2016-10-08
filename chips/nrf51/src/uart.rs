@@ -1,4 +1,3 @@
-
 use chip;
 use core::mem;
 use kernel::common::VolatileCell;
