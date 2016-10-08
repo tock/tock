@@ -164,6 +164,7 @@ pub unsafe fn reset_handler() {
     // so is reserved for that use. This should be rewritten to use the RTC (off the
     // low frequency clock) for lower power.
     let alarm = &nrf51::rtc::RTC;
+    alarm.set_prescaler(0);
     let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
     alarm.set_client(mux_alarm);
 
