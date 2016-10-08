@@ -11,7 +11,10 @@ pub static mut SYSCALL_FIRED: usize = 0;
 
 #[allow(improper_ctypes)]
 extern "C" {
-    pub fn switch_to_user(user_stack: *const u8, mem_base: *const u8) -> *mut u8;
+    pub fn switch_to_user(user_stack: *const u8,
+                          mem_base: *const u8,
+                          process_regs: &mut [usize; 8])
+                          -> *mut u8;
 }
 
 pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
@@ -82,6 +85,8 @@ pub struct Process<'a> {
     /// The offset in `memory` to use for the process stack.
     cur_stack: *const u8,
 
+    stored_regs: [usize; 8],
+
     yield_pc: usize,
     psr: usize,
 
@@ -147,6 +152,7 @@ impl<'a> Process<'a> {
             kernel_memory_break: kernel_memory_break,
             text: slice::from_raw_parts(start_addr, length),
             cur_stack: stack_bottom,
+            stored_regs: [0; 8],
             yield_pc: 0,
             psr: 0x01000000,
             state: State::Yielded,
@@ -261,7 +267,7 @@ impl<'a> Process<'a> {
             breakpoint();
         }
         write_volatile(&mut SYSCALL_FIRED, 0);
-        let psp = switch_to_user(self.cur_stack, self.memory.as_ptr());
+        let psp = switch_to_user(self.cur_stack, self.memory.as_ptr(), &mut self.stored_regs);
         self.cur_stack = psp;
     }
 
