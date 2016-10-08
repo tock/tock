@@ -1,6 +1,7 @@
 use core::mem;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use helpers::*;
+use kernel::common::take_cell::TakeCell;
 use kernel::hil::{uart, Controller};
 use kernel::hil::uart::{Parity, Mode};
 use nvic;
@@ -50,7 +51,7 @@ pub struct USART {
     clock: Clock,
     nvic: nvic::NvicIdx,
     dma_peripheral: DMAPeripheral,
-    dma: Option<&'static mut DMAChannel>,
+    dma: TakeCell<&'static mut DMAChannel>,
 }
 
 pub struct USARTParams {
@@ -99,7 +100,7 @@ impl USART {
             regs: (BASE_ADDRESS + (location as usize) * SIZE) as *mut Registers,
             clock: Clock::PBA(clock),
             nvic: nvic,
-            dma: None,
+            dma: TakeCell::empty(),
             dma_peripheral: DMAPeripheral::USART0_RX, // Set to some default.
             // This is updated when a
             // real DMA is configured.
@@ -112,7 +113,7 @@ impl USART {
     }
 
     pub fn set_dma(&mut self, dma: &'static mut DMAChannel, dma_peripheral: DMAPeripheral) {
-        self.dma = Some(dma);
+        self.dma.replace(dma);
         self.dma_peripheral = dma_peripheral;
     }
 
@@ -182,15 +183,12 @@ impl USART {
 }
 
 impl DMAClient for USART {
-    fn xfer_done(&mut self, _pid: DMAPeripheral) {
-        let buffer = match self.dma.as_mut() {
-            Some(dma) => {
-                let buf = dma.abort_xfer();
-                dma.disable();
-                buf
-            }
-            None => None,
-        };
+    fn xfer_done(&self, _pid: DMAPeripheral) {
+        let buffer = self.dma.map_or(None, |dma| {
+            let buf = dma.abort_xfer();
+            dma.disable();
+            buf
+        });
         self.client.as_ref().map(move |c| {
             buffer.map(|buf| c.write_done(buf));
         });
@@ -222,7 +220,7 @@ impl uart::UART for USART {
     }
 
     fn send_bytes(&self, bytes: &'static mut [u8], len: usize) {
-        self.dma.as_ref().map(move |dma| {
+        self.dma.map(move |dma| {
             dma.enable();
             dma.do_xfer(self.dma_peripheral, bytes, len);
         });
