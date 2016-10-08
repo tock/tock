@@ -1,6 +1,6 @@
 use kernel::{AppId, Callback, AppSlice, Driver, Shared};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::uart::{UART, Client};
+use kernel::hil::uart::{self, UART, Client};
 
 ///
 /// Nrf51822Serialization is the kernel-level driver that provides
@@ -18,27 +18,40 @@ struct App {
 // Local buffer for storing data between when the application passes it to
 // use
 pub static mut WRITE_BUF: [u8; 256] = [0; 256];
+pub static mut READ_BUF: [u8; 1] = [0];
 
 // We need two resources: a UART HW driver and driver state for each
 // application.
 pub struct Nrf51822Serialization<'a, U: UART + 'a> {
     uart: &'a U,
     app: TakeCell<App>,
-    buffer: TakeCell<&'static mut [u8]>,
+    tx_buffer: TakeCell<&'static mut [u8]>,
+    rx_buffer: TakeCell<&'static mut [u8]>,
 }
 
 impl<'a, U: UART> Nrf51822Serialization<'a, U> {
-    pub fn new(uart: &'a U, buffer: &'static mut [u8]) -> Nrf51822Serialization<'a, U> {
+    pub fn new(uart: &'a U,
+               tx_buffer: &'static mut [u8],
+               rx_buffer: &'static mut [u8])
+               -> Nrf51822Serialization<'a, U> {
         Nrf51822Serialization {
             uart: uart,
             app: TakeCell::empty(),
-            buffer: TakeCell::new(buffer),
+            tx_buffer: TakeCell::new(tx_buffer),
+            rx_buffer: TakeCell::new(rx_buffer),
         }
     }
 
     pub fn initialize(&self) {
-        self.uart.enable_tx();
-        self.uart.enable_rx();
+        self.uart.init(uart::UARTParams {
+            baud_rate: 250000,
+            stop_bits: uart::StopBits::One,
+            parity: uart::Parity::Even,
+            hw_flow_control: true,
+        });
+        self.rx_buffer.take().map(|buffer| {
+            self.uart.receive(buffer, 1);
+        });
     }
 }
 
@@ -143,11 +156,11 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                     match appst.tx_buffer.take() {
                         Some(slice) => {
                             let write_len = slice.len();
-                            self.buffer.take().map(|buffer| {
+                            self.tx_buffer.take().map(|buffer| {
                                 for (i, c) in slice.as_ref().iter().enumerate() {
                                     buffer[i] = *c;
                                 }
-                                self.uart.send_bytes(buffer, write_len);
+                                self.uart.transmit(buffer, write_len);
                             });
                             0
                         }
@@ -164,8 +177,8 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
 // Callbacks from the underlying UART driver.
 impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
     // Called when the UART TX has finished
-    fn write_done(&self, buffer: &'static mut [u8]) {
-        self.buffer.replace(buffer);
+    fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
+        self.tx_buffer.replace(buffer);
         // TODO(bradjc): Need to match this to the correct app!
         //               Can't just use 0!
         self.app.map(|appst| {
@@ -177,7 +190,8 @@ impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
     }
 
     // Called when a byte is received on the UART
-    fn read_done(&self, c: u8) {
+    fn receive_complete(&self, buffer: &'static mut [u8], _rx_len: usize, _error: uart::Error) {
+        let c = buffer[0];
         self.app.map(|appst| {
             // The PHY layer of the serialization protocol calls for a 16 byte
             // length field to start the packet. After we receive the first two
@@ -234,5 +248,6 @@ impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
                 }
             }
         });
+        self.uart.receive(buffer, 1);
     }
 }

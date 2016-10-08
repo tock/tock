@@ -317,8 +317,9 @@ pub unsafe fn reset_handler() {
         Console<usart::USART>,
         Console::new(&usart::USART3,
                      &mut console::WRITE_BUF,
+                     &mut console::READ_BUF,
                      kernel::Container::create()),
-        24);
+        256/8);
     usart::USART3.set_client(console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
@@ -326,8 +327,9 @@ pub unsafe fn reset_handler() {
     let nrf_serialization = static_init!(
         Nrf51822Serialization<usart::USART>,
         Nrf51822Serialization::new(&usart::USART2,
-                                   &mut nrf51822_serialization::WRITE_BUF),
-        68);
+                                   &mut nrf51822_serialization::WRITE_BUF,
+                                   &mut nrf51822_serialization::READ_BUF),
+        608/8);
     usart::USART2.set_client(nrf_serialization);
 
     let ast = &sam4l::ast::AST;
@@ -445,21 +447,6 @@ pub unsafe fn reset_handler() {
         },
         288/8);
 
-    usart::USART3.configure(usart::USARTParams {
-        // client: &console,
-        baud_rate: 115200,
-        data_bits: 8,
-        parity: kernel::hil::uart::Parity::None,
-        mode: kernel::hil::uart::Mode::Normal,
-    });
-
-    // Setup USART2 for the nRF51822 connection
-    usart::USART2.configure(usart::USARTParams {
-        baud_rate: 250000,
-        data_bits: 8,
-        parity: kernel::hil::uart::Parity::Even,
-        mode: kernel::hil::uart::Mode::FlowControl,
-    });
     // Configure USART2 Pins for connection to nRF51822
     // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
     //  that it is because RX DMA is not set up. For now, just having it always
