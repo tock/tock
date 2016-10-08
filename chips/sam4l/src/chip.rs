@@ -25,30 +25,34 @@ impl Sam4l {
     pub unsafe fn new() -> Sam4l {
         INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
 
-        usart::USART0.set_dma(&mut dma::DMAChannels[0], dma::DMAPeripheral::USART0_TX);
+        usart::USART0.set_dma(&mut dma::DMAChannels[0], &mut dma::DMAChannels[1]);
         dma::DMAChannels[0].client = Some(&mut usart::USART0);
+        dma::DMAChannels[1].client = Some(&mut usart::USART0);
 
-        usart::USART1.set_dma(&mut dma::DMAChannels[1], dma::DMAPeripheral::USART1_TX);
-        dma::DMAChannels[1].client = Some(&mut usart::USART1);
+        usart::USART1.set_dma(&mut dma::DMAChannels[2], &mut dma::DMAChannels[3]);
+        dma::DMAChannels[2].client = Some(&mut usart::USART1);
+        dma::DMAChannels[3].client = Some(&mut usart::USART1);
 
-        usart::USART2.set_dma(&mut dma::DMAChannels[2], dma::DMAPeripheral::USART2_TX);
-        dma::DMAChannels[2].client = Some(&mut usart::USART2);
+        usart::USART2.set_dma(&mut dma::DMAChannels[4], &mut dma::DMAChannels[5]);
+        dma::DMAChannels[4].client = Some(&mut usart::USART2);
+        dma::DMAChannels[5].client = Some(&mut usart::USART2);
 
-        usart::USART3.set_dma(&mut dma::DMAChannels[3], dma::DMAPeripheral::USART3_TX);
-        dma::DMAChannels[3].client = Some(&mut usart::USART3);
+        usart::USART3.set_dma(&mut dma::DMAChannels[6], &mut dma::DMAChannels[7]);
+        dma::DMAChannels[6].client = Some(&mut usart::USART3);
+        dma::DMAChannels[7].client = Some(&mut usart::USART3);
 
-        spi::SPI.set_dma(&mut dma::DMAChannels[4], &mut dma::DMAChannels[5]);
-        dma::DMAChannels[4].client = Some(&mut spi::SPI);
-        dma::DMAChannels[5].client = Some(&mut spi::SPI);
+        spi::SPI.set_dma(&mut dma::DMAChannels[8], &mut dma::DMAChannels[9]);
+        dma::DMAChannels[8].client = Some(&mut spi::SPI);
+        dma::DMAChannels[9].client = Some(&mut spi::SPI);
 
-        i2c::I2C0.set_dma(&dma::DMAChannels[6]);
-        dma::DMAChannels[6].client = Some(&mut i2c::I2C0);
+        i2c::I2C0.set_dma(&dma::DMAChannels[10]);
+        dma::DMAChannels[10].client = Some(&mut i2c::I2C0);
 
-        i2c::I2C1.set_dma(&dma::DMAChannels[7]);
-        dma::DMAChannels[7].client = Some(&mut i2c::I2C1);
+        i2c::I2C1.set_dma(&dma::DMAChannels[11]);
+        dma::DMAChannels[11].client = Some(&mut i2c::I2C1);
 
-        i2c::I2C2.set_dma(&dma::DMAChannels[8]);
-        dma::DMAChannels[8].client = Some(&mut i2c::I2C2);
+        i2c::I2C2.set_dma(&dma::DMAChannels[12]);
+        dma::DMAChannels[12].client = Some(&mut i2c::I2C2);
 
         Sam4l {
             mpu: cortexm4::mpu::MPU::new(),
