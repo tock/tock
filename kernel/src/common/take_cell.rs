@@ -102,6 +102,17 @@ impl<T> TakeCell<T> {
         })
     }
 
+    pub fn map_or<F, R>(&self, default: R, closure: F) -> R
+        where F: FnOnce(&mut T) -> R
+    {
+        let maybe_val = self.take();
+        maybe_val.map_or(default, |mut val| {
+            let res = closure(&mut val);
+            self.replace(val);
+            res
+        })
+    }
+
     pub fn modify_or_replace<F, G>(&self, modify: F, mkval: G)
         where F: FnOnce(&mut T),
               G: FnOnce() -> T
