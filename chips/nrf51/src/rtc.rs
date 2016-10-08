@@ -96,7 +96,6 @@ impl Rtc {
         rtc1().intenclr.set(COMPARE0_EVENT);
         rtc1().cc[0].set(0);
         rtc1().tasks_stop.set(1);
-//        wait_task();
     }
 
     fn is_running(&self) -> bool {
