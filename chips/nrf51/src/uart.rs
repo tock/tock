@@ -204,8 +204,8 @@ impl uart::UART for UART {
             return;
         }
 
-        self.index.set(1); 
-        self.len.set(len); 
+        self.index.set(1);
+        self.len.set(len);
 
         regs.event_txdrdy.set(0 as u32);
         self.enable_tx_interrupts();
