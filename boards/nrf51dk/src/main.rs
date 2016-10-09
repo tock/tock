@@ -158,11 +158,7 @@ pub unsafe fn reset_handler() {
                                        kernel::Container::create()),
         24);
     nrf51::uart::UART0.set_client(console);
-
-    // The timer driver is built on top of hardware timer 1, which is implemented
-    // as an HIL Alarm. Timer 0 has some special functionality for the BLE transciever,
-    // so is reserved for that use. This should be rewritten to use the RTC (off the
-    // low frequency clock) for lower power.
+    
     let alarm = &nrf51::rtc::RTC;
     alarm.start();
     let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
