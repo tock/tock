@@ -28,17 +28,19 @@ pub struct Spi<'a, S: SpiMaster + 'a> {
     spi_master: &'a mut S,
     busy: Cell<bool>,
     app: TakeCell<App>,
+    chip_selects: &'a [S::ChipSelect],
     kernel_read: TakeCell<&'static mut [u8]>,
     kernel_write: TakeCell<&'static mut [u8]>,
     kernel_len: Cell<usize>,
 }
 
 impl<'a, S: SpiMaster> Spi<'a, S> {
-    pub fn new(spi_master: &'a mut S) -> Spi<S> {
+    pub fn new(spi_master: &'a mut S, chip_selects: &'a [S::ChipSelect]) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
             app: TakeCell::empty(),
+            chip_selects: chip_selects,
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
             kernel_write: TakeCell::empty(),
@@ -215,16 +217,16 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                 return result;
             }
             2 /* set chip select */ => {
-                let cs = arg1 as u8;
-                if cs <= 3 {
-                    self.spi_master.set_chip_select(cs);
+                let cs = arg1;
+                if cs <= self.chip_selects.len() {
+                    self.spi_master.specify_chip_select(self.chip_selects[cs]);
                     0
                 } else {
                     -1
                 }
             }
             3 /* get chip select */ => {
-                self.spi_master.get_chip_select() as isize
+                0
             }
             4 /* set baud rate */ => {
                 self.spi_master.set_rate(arg1 as u32) as isize
