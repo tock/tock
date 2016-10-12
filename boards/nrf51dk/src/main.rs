@@ -63,8 +63,6 @@ const BUTTON2_PIN: usize = 18;
 const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
 
-static mut bytes: [u8; 6] = [0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x21];
-
 unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'static>>] {
     use core::ptr::{read_volatile, write_volatile};
     extern "C" {
@@ -168,12 +166,6 @@ pub unsafe fn reset_handler() {
         parity: kernel::hil::uart::Parity::None,
         mode: kernel::hil::uart::Mode::Normal,
     });
-    nrf51::uart::UART0.enable_tx();
-
-    // loop {
-    //     // nrf51::uart::UART0.send_byte('h' as u8);
-    //     nrf51::uart::UART0.send_bytes(&mut bytes, bytes.len());
-    // }
 
     // The timer driver is built on top of hardware timer 1, which is implemented
     // as an HIL Alarm. Timer 0 has some special functionality for the BLE transciever,
@@ -221,8 +213,6 @@ pub unsafe fn reset_handler() {
     let mut chip = nrf51::chip::NRF51::new();
     chip.systick().reset();
     chip.systick().enable(true);
-
-    nrf51::uart::UART0.send_bytes(&mut bytes, bytes.len());
 
     kernel::main(platform, &mut chip, load_process());
 
