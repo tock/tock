@@ -153,10 +153,9 @@ impl UART {
 
         if rx {
             let val = regs.rxd.get();
-            match self.client {
-                Some(ref client) => client.read_done(val as u8),
-                None => {}
-            }
+            self.client.map(|client| {
+                client.read_done(val as u8);
+            });
         }
         if tx {
             regs.event_txdrdy.set(0 as u32);
