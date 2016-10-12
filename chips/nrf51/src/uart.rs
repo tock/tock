@@ -165,14 +165,12 @@ impl UART {
                 regs.task_stoptx.set(1 as u32);
 
                 // Signal client write done
-                match self.client {
-                    Some(ref client) => {
-                        self.buffer.take().map(|buffer| {
-                            client.write_done(buffer);
-                        });
-                    }
-                    None => {}
-                }
+                self.client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        client.write_done(buffer);
+                    });
+                });
+
                 return;
             }
 
