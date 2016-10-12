@@ -166,7 +166,11 @@ impl UART {
 
                 // Signal client write done
                 match self.client {
-                    Some(ref client) => client.write_done(self.buffer.take().unwrap()),
+                    Some(ref client) => {
+                        self.buffer.take().map(|buffer| {
+                            client.write_done(buffer);
+                        }); 
+                    },
                     None => {}
                 }
                 return;
