@@ -169,8 +169,8 @@ impl UART {
                     Some(ref client) => {
                         self.buffer.take().map(|buffer| {
                             client.write_done(buffer);
-                        }); 
-                    },
+                        });
+                    }
                     None => {}
                 }
                 return;
