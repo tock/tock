@@ -159,10 +159,19 @@ impl UART {
             }
         }
         if tx {
+            regs.event_txdrdy.set(0 as u32);
+
             if self.len.get() == self.index.get() {
                 regs.task_stoptx.set(1 as u32);
+
+                // Signal client write done
+                match self.client {
+                    Some(ref client) => client.write_done(self.buffer.take().unwrap()),
+                    None => {}
+                }
                 return;
             }
+
             self.buffer.map(|buffer| {
                 regs.event_txdrdy.set(0 as u32);
                 regs.txd.set(buffer[self.index.get()] as u32);
