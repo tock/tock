@@ -47,6 +47,7 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
 use kernel::hil::gpio::Pin;
+use kernel::hil::uart::UART;
 use nrf51::timer::ALARM1;
 use nrf51::timer::TimerAlarm;
 
@@ -159,6 +160,13 @@ pub unsafe fn reset_handler() {
         24);
     nrf51::uart::UART0.set_client(console);
 
+    nrf51::uart::UART0.init(kernel::hil::uart::UARTParams {
+        baud_rate: 115200,
+        data_bits: 8,
+        parity: kernel::hil::uart::Parity::None,
+        mode: kernel::hil::uart::Mode::Normal,
+    });
+
     // The timer driver is built on top of hardware timer 1, which is implemented
     // as an HIL Alarm. Timer 0 has some special functionality for the BLE transciever,
     // so is reserved for that use. This should be rewritten to use the RTC (off the
@@ -205,6 +213,7 @@ pub unsafe fn reset_handler() {
     let mut chip = nrf51::chip::NRF51::new();
     chip.systick().reset();
     chip.systick().enable(true);
+
     kernel::main(platform, &mut chip, load_process());
 
 }

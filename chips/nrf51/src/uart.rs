@@ -1,6 +1,8 @@
 use chip;
+use core::cell::Cell;
 use core::mem;
 use kernel::common::VolatileCell;
+use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart;
 use nvic;
 use peripheral_interrupts::NvicIdx;
@@ -52,6 +54,9 @@ const UART_BASE: u32 = 0x40002000;
 pub struct UART {
     regs: *mut Registers,
     client: Option<&'static uart::Client>,
+    buffer: TakeCell<&'static mut [u8]>,
+    len: Cell<usize>,
+    index: Cell<usize>,
 }
 
 #[derive(Copy, Clone)]
@@ -71,6 +76,9 @@ impl UART {
         UART {
             regs: UART_BASE as *mut Registers,
             client: None,
+            buffer: TakeCell::empty(),
+            len: Cell::new(0),
+            index: Cell::new(0),
         }
     }
 
@@ -110,6 +118,14 @@ impl UART {
         }
     }
 
+    pub fn enable_nvic(&self) {
+        nvic::enable(NvicIdx::UART0);
+    }
+
+    pub fn disable_nvic(&self) {
+        nvic::disable(NvicIdx::UART0);
+    }
+
     pub fn enable_rx_interrupts(&self) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
         regs.intenset.set(1 << 3 as u32);
@@ -134,15 +150,35 @@ impl UART {
         let regs: &Registers = unsafe { mem::transmute(self.regs) };
         let rx = regs.event_rxdrdy.get() != 0;
         let tx = regs.event_txdrdy.get() != 0;
+
         if rx {
             let val = regs.rxd.get();
-            match self.client {
-                Some(ref client) => client.read_done(val as u8),
-                None => {}
-            }
+            self.client.map(|client| {
+                client.read_done(val as u8);
+            });
         }
         if tx {
-            // Should never execute!
+            regs.event_txdrdy.set(0 as u32);
+
+            if self.len.get() == self.index.get() {
+                regs.task_stoptx.set(1 as u32);
+
+                // Signal client write done
+                self.client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        client.write_done(buffer);
+                    });
+                });
+
+                return;
+            }
+
+            self.buffer.map(|buffer| {
+                regs.event_txdrdy.set(0 as u32);
+                regs.txd.set(buffer[self.index.get()] as u32);
+                let next_index = self.index.get() + 1;
+                self.index.set(next_index);
+            });
         }
     }
 }
@@ -172,9 +208,21 @@ impl uart::UART for UART {
     }
 
     fn send_bytes(&self, bytes: &'static mut [u8], len: usize) {
-        for i in 0..len {
-            self.send_byte(bytes[i]);
+        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+
+        if len == 0 {
+            return;
         }
+
+        self.index.set(1);
+        self.len.set(len);
+
+        regs.event_txdrdy.set(0 as u32);
+        self.enable_tx_interrupts();
+        regs.task_starttx.set(1 as u32);
+        regs.txd.set(bytes[0] as u32);
+        self.buffer.replace(bytes);
+        self.enable_nvic();
     }
 
     fn read_byte(&self) -> u8 {
