@@ -31,6 +31,9 @@ CPPFLAGS += \
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
 
+$(BUILDDIR)/%.o: %.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+
 LD := $(TOOLCHAIN)-ld
 LINKER ?= $(TOCK_USERLAND_BASE_DIR)/linker.ld
 LDFLAGS := -T $(LINKER)

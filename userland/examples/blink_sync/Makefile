@@ -15,9 +15,6 @@ CPPFLAGS += -DSTACK_SIZE=2048
 # 	building the application
 include $(TOCK_USERLAND_BASE_DIR)/Makefile
 
-$(BUILDDIR)/%.o: %.c | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-
 .PHONY:
 clean::
 	rm -Rf $(BUILDDIR)
