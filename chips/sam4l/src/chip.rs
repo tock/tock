@@ -1,6 +1,6 @@
+use adc;
 use ast;
 use cortexm4;
-// use adc;
 use dma;
 use flashcalw;
 use gpio;
@@ -90,7 +90,7 @@ impl Chip for Sam4l {
                     TWIM3 => i2c::I2C3.handle_interrupt(),
 
                     HFLASHC => flashcalw::flash_controller.handle_interrupt(),
-                    // NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
+                    ADCIFE => adc::ADC.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);
