@@ -19,6 +19,6 @@ $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 .PHONY:
-clean:
+clean::
 	rm -Rf $(BUILDDIR)
 
