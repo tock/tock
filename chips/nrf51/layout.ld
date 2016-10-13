@@ -88,6 +88,8 @@ SECTIONS
         KEEP (*(SORT(.dtors.*)))
         KEEP (*crtend.o(.dtors))
 
+        *(.got*)
+
         . = ALIGN(4);
         _efixed = .;            /* End of text section */
     } > rom
