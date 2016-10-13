@@ -1,16 +1,16 @@
 use core::cell::Cell;
 use kernel::common::{List, ListLink, ListNode};
-use kernel::hil::alarm::{Alarm, AlarmClient};
+use kernel::hil::time::{self, Alarm, Time};
 
 pub struct VirtualMuxAlarm<'a, Alrm: Alarm + 'a> {
     mux: &'a MuxAlarm<'a, Alrm>,
     when: Cell<u32>,
     armed: Cell<bool>,
     next: ListLink<'a, VirtualMuxAlarm<'a, Alrm>>,
-    client: Cell<Option<&'a AlarmClient>>,
+    client: Cell<Option<&'a time::Client>>,
 }
 
-impl<'a, A: Alarm + 'a> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
+impl<'a, A: Alarm> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
     fn next(&self) -> &'a ListLink<VirtualMuxAlarm<'a, A>> {
         &self.next
     }
@@ -27,11 +27,34 @@ impl<'a, Alrm: Alarm> VirtualMuxAlarm<'a, Alrm> {
         }
     }
 
-    pub fn set_client(&'a self, client: &'a AlarmClient) {
+    pub fn set_client(&'a self, client: &'a time::Client) {
         self.mux.virtual_alarms.push_head(self);
         self.when.set(0);
         self.armed.set(false);
         self.client.set(Some(client));
+    }
+}
+
+impl<'a, Alrm: Alarm> Time for VirtualMuxAlarm<'a, Alrm> {
+    fn disable(&self) {
+        if !self.armed.get() {
+            return;
+        }
+
+        self.armed.set(false);
+
+        let enabled = self.mux.enabled.get() - 1;
+        self.mux.enabled.set(enabled);
+
+        // If there are not more enabled alarms, disable the underlying alarm
+        // completely.
+        if enabled == 0 {
+            self.mux.alarm.disable();
+        }
+    }
+
+    fn is_armed(&self) -> bool {
+        self.armed.get()
     }
 }
 
@@ -70,30 +93,9 @@ impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
     fn get_alarm(&self) -> u32 {
         self.when.get()
     }
-
-    fn disable_alarm(&self) {
-        if !self.armed.get() {
-            return;
-        }
-
-        self.armed.set(false);
-
-        let enabled = self.mux.enabled.get() - 1;
-        self.mux.enabled.set(enabled);
-
-        // If there are not more enabled alarms, disable the underlying alarm
-        // completely.
-        if enabled == 0 {
-            self.mux.alarm.disable_alarm();
-        }
-    }
-
-    fn is_armed(&self) -> bool {
-        self.armed.get()
-    }
 }
 
-impl<'a, Alrm: Alarm> AlarmClient for VirtualMuxAlarm<'a, Alrm> {
+impl<'a, Alrm: Alarm> time::Client for VirtualMuxAlarm<'a, Alrm> {
     fn fired(&self) {
         self.client.get().map(|client| client.fired());
     }
@@ -123,11 +125,11 @@ fn past_from_base(cur: u32, now: u32, prev: u32) -> bool {
     now.wrapping_sub(prev) >= cur.wrapping_sub(prev)
 }
 
-impl<'a, Alrm: Alarm> AlarmClient for MuxAlarm<'a, Alrm> {
+impl<'a, Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
     fn fired(&self) {
         // Disable the alarm. If there are remaining armed alarms at the end we
         // will enable the alarm again via `set_alarm`
-        self.alarm.disable_alarm();
+        self.alarm.disable();
 
         let now = self.alarm.now();
 

@@ -8,7 +8,7 @@
 use core::cell::Cell;
 use core::ptr;
 use kernel::hil::Controller;
-use kernel::hil::alarm::{Alarm, AlarmClient, Freq16KHz};
+use kernel::hil::time::{self, Alarm, Time, Freq16KHz};
 use nvic;
 use pm::{self, PBDClock};
 
@@ -42,20 +42,20 @@ struct AstRegisters {
 pub const AST_BASE: isize = 0x400F0800;
 
 #[allow(missing_copy_implementations)]
-pub struct Ast {
+pub struct Ast<'a> {
     regs: *mut AstRegisters,
-    callback: Cell<Option<&'static AlarmClient>>,
+    callback: Cell<Option<&'a time::Client>>,
 }
 
-pub static mut AST: Ast = Ast {
+pub static mut AST: Ast<'static> = Ast {
     regs: AST_BASE as *mut AstRegisters,
     callback: Cell::new(None),
 };
 
-impl Controller for Ast {
-    type Config = &'static AlarmClient;
+impl<'a> Controller for Ast<'a> {
+    type Config = &'static time::Client;
 
-    fn configure(&self, client: &'static AlarmClient) {
+    fn configure(&self, client: &'a time::Client) {
         self.callback.set(Some(client));
 
         unsafe {
@@ -77,11 +77,14 @@ pub enum Clock {
     Clock1K = 4,
 }
 
-impl Ast {
+impl<'a> Ast<'a> {
     pub fn clock_busy(&self) -> bool {
         unsafe { ptr::read_volatile(&(*self.regs).sr) & (1 << 28) != 0 }
     }
 
+    pub fn set_client(&self, client: &'a time::Client) {
+        self.callback.set(Some(client));
+    }
 
     pub fn busy(&self) -> bool {
         unsafe { ptr::read_volatile(&(*self.regs).sr) & (1 << 24) != 0 }
@@ -229,20 +232,22 @@ impl Ast {
     }
 }
 
-impl Alarm for Ast {
-    type Frequency = Freq16KHz;
-
-    fn now(&self) -> u32 {
-        while self.busy() {}
-        unsafe { ptr::read_volatile(&(*self.regs).cv) }
-    }
-
-    fn disable_alarm(&self) {
+impl<'a> Time for Ast<'a> {
+    fn disable(&self) {
         self.disable_alarm_irq();
     }
 
     fn is_armed(&self) -> bool {
         self.is_enabled()
+    }
+}
+
+impl<'a> Alarm for Ast<'a> {
+    type Frequency = Freq16KHz;
+
+    fn now(&self) -> u32 {
+        while self.busy() {}
+        unsafe { ptr::read_volatile(&(*self.regs).cv) }
     }
 
     fn set_alarm(&self, tics: u32) {
