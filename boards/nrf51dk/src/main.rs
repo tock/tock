@@ -46,9 +46,8 @@ extern crate nrf51;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
-use kernel::hil::gpio::Pin;
-use nrf51::rtc::{RTC, Rtc};
 use kernel::hil::uart::UART;
+use nrf51::rtc::{RTC, Rtc};
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN: usize = 21;
@@ -140,9 +139,6 @@ pub unsafe fn reset_handler() {
         ],
         4 * 22);
 
-    nrf51::gpio::PORT[LED1_PIN].make_output();
-    nrf51::gpio::PORT[LED1_PIN].clear();
-
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
@@ -182,8 +178,6 @@ pub unsafe fn reset_handler() {
                          kernel::Container::create()),
         12);
     virtual_alarm1.set_client(timer);
-    alarm.enable_nvic();
-    alarm.enable_interrupts();
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.

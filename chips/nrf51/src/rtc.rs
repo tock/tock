@@ -36,24 +36,20 @@ impl Rtc {
     pub fn start(&self) {
         // This function takes a nontrivial amount of time
         // So it should only be called during initialization, not each tick
-        nvic::clear_pending(NvicIdx::RTC1);
         rtc1().prescaler.set(0);
         rtc1().tasks_start.set(1);
     }
 
-    pub fn enable_nvic(&self) {
-        nvic::enable(NvicIdx::RTC1);
-    }
-
     pub fn disable_interrupts(&self) {
-        rtc1().intenset.set(COMPARE0_EVENT);
+        nvic::disable(NvicIdx::RTC1);
     }
 
     pub fn enable_interrupts(&self) {
-        rtc1().intenclr.set(COMPARE0_EVENT);
+        nvic::enable(NvicIdx::RTC1);
     }
 
     pub fn stop(&self) {
+        self.disable_interrupts();
         rtc1().cc[0].set(0);
         rtc1().tasks_stop.set(1);
     }
@@ -63,7 +59,7 @@ impl Rtc {
     }
 
     pub fn handle_interrupt(&self) {
-        nvic::clear_pending(NvicIdx::RTC1);
+        rtc1().intenclr.set(COMPARE0_EVENT);
         self.callback.get().map(|cb| {
             cb.fired();
         });
@@ -96,7 +92,6 @@ impl Alarm for Rtc {
         // Instead, we just listen for it again
         rtc1().cc[0].set(tics);
         rtc1().intenset.set(COMPARE0_EVENT);
-        nvic::clear_pending(NvicIdx::RTC1);
     }
 
     fn get_alarm(&self) -> u32 {
