@@ -38,6 +38,7 @@ impl Rtc {
         // So it should only be called during initialization, not each tick
         rtc1().prescaler.set(0);
         rtc1().tasks_start.set(1);
+        self.enable_interrupts();
     }
 
     pub fn disable_interrupts(&self) {
@@ -72,7 +73,7 @@ impl Rtc {
 
 impl Time for Rtc {
     fn disable(&self) {
-        self.stop();
+        rtc1().intenclr.set(COMPARE0_EVENT);
     }
 
     fn is_armed(&self) -> bool {
