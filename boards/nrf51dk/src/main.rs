@@ -48,6 +48,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
 use kernel::hil::gpio::Pin;
 use nrf51::rtc::{RTC, Rtc};
+use kernel::hil::uart::UART;
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN: usize = 21;
@@ -163,6 +164,14 @@ pub unsafe fn reset_handler() {
     let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
     alarm.set_client(mux_alarm);
 
+    nrf51::uart::UART0.init(kernel::hil::uart::UARTParams {
+        baud_rate: 115200,
+        data_bits: 8,
+        parity: kernel::hil::uart::Parity::None,
+        mode: kernel::hil::uart::Mode::Normal,
+    });
+
+
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
         VirtualMuxAlarm::new(mux_alarm),
@@ -201,6 +210,7 @@ pub unsafe fn reset_handler() {
     let mut chip = nrf51::chip::NRF51::new();
     chip.systick().reset();
     chip.systick().enable(true);
+
     kernel::main(platform, &mut chip, load_process());
 
 }

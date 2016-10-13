@@ -79,7 +79,7 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
 struct Firestorm {
     console: &'static Console<'static, usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     tmp006: &'static capsules::tmp006::TMP006<'static>,
     isl29035: &'static capsules::isl29035::Isl29035<'static>,
     spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,

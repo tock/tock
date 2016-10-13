@@ -60,8 +60,8 @@ pub enum Peripheral {
 pub struct Spi {
     regs: *mut SpiRegisters,
     client: TakeCell<&'static SpiMasterClient>,
-    dma_read: Option<&'static mut DMAChannel>,
-    dma_write: Option<&'static mut DMAChannel>,
+    dma_read: TakeCell<&'static mut DMAChannel>,
+    dma_write: TakeCell<&'static mut DMAChannel>,
     // keep track of which interrupts are pending in order
     // to correctly issue completion event only after both complete.
     transfer_in_progress: Cell<bool>,
@@ -76,8 +76,8 @@ impl Spi {
         Spi {
             regs: SPI_BASE as *mut SpiRegisters,
             client: TakeCell::empty(),
-            dma_read: None,
-            dma_write: None,
+            dma_read: TakeCell::empty(),
+            dma_write: TakeCell::empty(),
             transfer_in_progress: Cell::new(false),
             dma_length: Cell::new(0),
         }
@@ -95,8 +95,8 @@ impl Spi {
     }
 
     pub fn disable(&self) {
-        self.dma_read.as_ref().map(|read| read.disable());
-        self.dma_write.as_ref().map(|write| write.disable());
+        self.dma_read.map(|read| read.disable());
+        self.dma_write.map(|write| write.disable());
         unsafe {
             write_volatile(&mut (*self.regs).cr, 0b10);
         }
@@ -202,8 +202,8 @@ impl Spi {
 
     /// Set the DMA channels used for reading and writing.
     pub fn set_dma(&mut self, read: &'static mut DMAChannel, write: &'static mut DMAChannel) {
-        self.dma_read = Some(read);
-        self.dma_write = Some(write);
+        self.dma_read.replace(read);
+        self.dma_write.replace(write);
     }
 
     fn enable_clock(&self) {
@@ -306,7 +306,7 @@ impl spi::SpiMaster for Spi {
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
-        self.dma_write.as_ref().map(move |write| {
+        self.dma_write.map(move |write| {
             write.enable();
             write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count)
         });
@@ -314,7 +314,7 @@ impl spi::SpiMaster for Spi {
         // Only setup the RX channel if we were passed a read_buffer inside
         // of the option. `map()` checks this for us.
         read_buffer.map(|rbuf| {
-            self.dma_read.as_ref().map(move |read| {
+            self.dma_read.map(move |read| {
                 read.enable();
                 read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
             });
@@ -409,7 +409,7 @@ impl spi::SpiMaster for Spi {
 }
 
 impl DMAClient for Spi {
-    fn xfer_done(&mut self, pid: DMAPeripheral) {
+    fn xfer_done(&self, pid: DMAPeripheral) {
         // We ignore the RX interrupt because we are guaranteed to have TX
         // DMA setup, but there's no guarantee RX will exist. In the case
         // both are happening, just using TX is sufficient because SPI
@@ -418,23 +418,17 @@ impl DMAClient for Spi {
             // SPI TX
             self.transfer_in_progress.set(false);
 
-            let txbuf = match self.dma_write.as_mut() {
-                Some(dma) => {
-                    let buf = dma.abort_xfer();
-                    dma.disable();
-                    buf
-                }
-                None => None,
-            };
+            let txbuf = self.dma_write.map_or(None, |dma| {
+                let buf = dma.abort_xfer();
+                dma.disable();
+                buf
+            });
 
-            let rxbuf = match self.dma_read.as_mut() {
-                Some(dma) => {
-                    let buf = dma.abort_xfer();
-                    dma.disable();
-                    buf
-                }
-                None => None,
-            };
+            let rxbuf = self.dma_read.map_or(None, |dma| {
+                let buf = dma.abort_xfer();
+                dma.disable();
+                buf
+            });
 
             let len = self.dma_length.get();
             self.dma_length.set(0);

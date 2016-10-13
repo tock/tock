@@ -45,10 +45,16 @@ pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, 
     led.enable_output();
     loop {
         for _ in 0..1000000 {
+            led.clear();
+        }
+        for _ in 0..100000 {
             led.set();
         }
         for _ in 0..1000000 {
             led.clear();
+        }
+        for _ in 0..500000 {
+            led.set();
         }
     }
 }

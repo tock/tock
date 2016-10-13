@@ -1,9 +1,8 @@
 pub mod led;
-pub mod alarm;
+pub mod time;
 pub mod gpio;
 pub mod i2c;
 pub mod spi;
-pub mod timer;
 pub mod uart;
 pub mod adc;
 

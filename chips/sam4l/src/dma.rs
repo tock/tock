@@ -136,7 +136,7 @@ pub struct DMAChannel {
 }
 
 pub trait DMAClient {
-    fn xfer_done(&mut self, pid: DMAPeripheral);
+    fn xfer_done(&self, pid: DMAPeripheral);
 }
 
 impl DMAChannel {

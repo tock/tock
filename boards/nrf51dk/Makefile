@@ -26,7 +26,7 @@ target/nrf51/debug/nrf51dk:
 	@$(SIZE) $@
 
 .PHONY: clean
-clean:
+clean::
 	@cargo clean
 
 .PHONY: debug

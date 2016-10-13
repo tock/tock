@@ -2,7 +2,7 @@ use chip;
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::Controller;
-use kernel::hil::alarm::{Alarm, AlarmClient, Freq32KHz};
+use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{RTC1_BASE, RTC1};
@@ -12,15 +12,15 @@ fn rtc1() -> &'static RTC1 {
 }
 
 pub struct Rtc {
-    callback: Cell<Option<&'static AlarmClient>>,
+    callback: Cell<Option<&'static time::Client>>,
 }
 
 pub static mut RTC: Rtc = Rtc { callback: Cell::new(None) };
 
 impl Controller for Rtc {
-    type Config = &'static AlarmClient;
+    type Config = &'static time::Client;
 
-    fn configure(&self, client: &'static AlarmClient) {
+    fn configure(&self, client: &'static time::Client) {
         self.callback.set(Some(client));
 
         // FIXME: what to do here?
@@ -69,8 +69,18 @@ impl Rtc {
         });
     }
 
-    pub fn set_client(&self, client: &'static AlarmClient) {
+    pub fn set_client(&self, client: &'static time::Client) {
         self.callback.set(Some(client));
+    }
+}
+
+impl Time for Rtc {
+    fn disable(&self) {
+        self.stop();
+    }
+
+    fn is_armed(&self) -> bool {
+        self.is_running()
     }
 }
 
@@ -79,14 +89,6 @@ impl Alarm for Rtc {
 
     fn now(&self) -> u32 {
         rtc1().counter.get()
-    }
-
-    fn disable_alarm(&self) {
-        // Rather than stopping the timer itself, we just stop listening for it
-        // If we were to turn it off entirely, it would add a large amount of overhead each tick
-        rtc1().cc[0].set(0);
-        nvic::disable(NvicIdx::RTC1);
-        rtc1().intenclr.set(COMPARE0_EVENT);
     }
 
     fn set_alarm(&self, tics: u32) {
@@ -99,10 +101,6 @@ impl Alarm for Rtc {
 
     fn get_alarm(&self) -> u32 {
         rtc1().cc[0].get()
-    }
-
-    fn is_armed(&self) -> bool {
-        self.is_running()
     }
 }
 

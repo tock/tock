@@ -45,6 +45,6 @@ $(BUILDDIR)/libtock.a: $(OBJS) | $(BUILDDIR)
 	$(TOOLCHAIN)-ranlib $@
 
 .PHONY: clean
-clean:
+clean::
 	rm -Rf $(BUILDDIR)
 
