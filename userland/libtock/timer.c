@@ -29,3 +29,7 @@ int timer_start_repeating(uint32_t interval_ms) {
 int timer_stop() {
   return command(3, 2, 0);
 }
+
+unsigned int timer_read() {
+  return (unsigned int) command(3, 3, 0);
+}
