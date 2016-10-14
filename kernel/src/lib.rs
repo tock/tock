@@ -39,7 +39,7 @@ pub fn main<P: Platform, C: Chip>(platform: &mut P,
             let mut running_left = false;
             for (i, p) in processes.iter_mut().enumerate() {
                 p.as_mut().map(|process| {
-                    sched::do_process(platform, chip, process, AppId::new(i));
+                    sched::do_process(platform, chip, process, AppId::new(i), &mut running_left);
                     if process.state == process::State::Running {
                         running_left = true;
                     }

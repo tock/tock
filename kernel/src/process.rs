@@ -1,6 +1,7 @@
 use callback::AppId;
 use common::{RingBuffer, Queue};
 
+use mem::{AppSlice, Shared};
 use container;
 use core::{mem, ptr, slice};
 use core::intrinsics::breakpoint;
@@ -28,7 +29,7 @@ pub fn schedule(callback: Callback, appid: AppId) -> bool {
         Some(ref mut p) => {
             // TODO(alevy): validate appid liveness
 
-            p.callbacks.enqueue(callback)
+            p.callbacks.enqueue(GCallback::Callback(callback))
         }
     }
 }
@@ -47,7 +48,13 @@ pub enum State {
 }
 
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone)]
+pub enum GCallback {
+    Callback(Callback),
+    IPCCallback(AppId)
+}
+
+#[derive(Copy, Clone)]
 pub struct Callback {
     pub r0: usize,
     pub r1: usize,
@@ -87,7 +94,11 @@ pub struct Process<'a> {
 
     pub state: State,
 
-    pub callbacks: RingBuffer<'a, Callback>,
+    pub callbacks: RingBuffer<'a, GCallback>,
+
+    pub ipc_mem: container::Container<[Option<AppSlice<Shared, u8>>; 8]>,
+
+    pub ipc_callback: Option<::callback::Callback>
 }
 
 impl<'a> Process<'a> {
@@ -127,12 +138,12 @@ impl<'a> Process<'a> {
         };
 
         // Take callback buffer from of memory
-        let callback_size = mem::size_of::<Option<Callback>>();
+        let callback_size = mem::size_of::<GCallback>();
         let callback_len = 10;
         let callback_offset = callback_len * callback_size;
         // Set kernel break to beginning of callback buffer
         kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
-        let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Callback,
+        let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut GCallback,
                                                      callback_len);
 
         let callbacks = RingBuffer::new(callback_buf);
@@ -151,15 +162,17 @@ impl<'a> Process<'a> {
             psr: 0x01000000,
             state: State::Yielded,
             callbacks: callbacks,
+            ipc_mem: container::Container::from(container::IPC_CONTAINER),
+            ipc_callback: None,
         };
 
-        process.callbacks.enqueue(Callback {
+        process.callbacks.enqueue(GCallback::Callback(Callback {
             pc: load_result.init_fn,
             r0: load_result.app_mem_start as usize,
             r1: process.app_memory_break as usize,
             r2: process.kernel_memory_break as usize,
             r3: 0,
-        });
+        }));
 
         process
     }

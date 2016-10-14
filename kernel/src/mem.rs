@@ -67,6 +67,10 @@ impl<L, T> AppSlice<L, T> {
     pub fn len(&self) -> usize {
         self.len
     }
+
+    pub unsafe fn ptr(&self) -> *const T {
+        self.ptr.ptr.get() as *const T
+    }
 }
 
 impl<L, T> AsRef<[T]> for AppSlice<L, T> {

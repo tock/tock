@@ -7,7 +7,8 @@ use syscall;
 pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
                                                chip: &mut C,
                                                process: &mut Process,
-                                               appid: ::AppId) {
+                                               appid: ::AppId,
+                                               running_left: &mut bool) {
     let systick = chip.systick();
     systick.reset();
     systick.set_timer(10000);
@@ -33,8 +34,25 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
                 match process.callbacks.dequeue() {
                     None => break,
                     Some(cb) => {
-                        process.state = process::State::Running;
-                        process.push_callback(cb);
+                        match cb {
+                            process::GCallback::Callback(ccb) => {
+                                process.state = process::State::Running;
+                                process.push_callback(ccb);
+                            },
+                            process::GCallback::IPCCallback(otherapp) => {
+                                process.state = process::State::Running;
+                                process.ipc_callback.map(|mut mycb| {
+                                    process.ipc_mem.enter(otherapp, |cntr , _| {
+                                        match cntr[appid.idx()] {
+                                            Some(ref slice) => {
+                                                mycb.schedule(otherapp.idx(), slice.len(), slice.ptr() as usize);
+                                            }
+                                            None => { mycb.schedule(appid.idx(), 0, 0); }
+                                        }
+                                    }).unwrap_or(())
+                                }).unwrap_or(process.state = process::State::Yielded)
+                            }
+                        }
                         continue;
                     }
                 }
@@ -76,40 +94,68 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
                 let callback_ptr = process.r2() as *mut ();
                 let appdata = process.r3();
 
-                let res = platform.with_driver(driver_num, |driver| {
+                let res = if process.r0() == 0x4c {
                     let callback = ::Callback::new(appid, appdata, callback_ptr);
-                    match driver {
-                        Some(d) => d.subscribe(subdriver_num, callback),
-                        None => -1,
-                    }
-                });
+                    process.ipc_callback = Some(callback);
+                    0
+                } else {
+                    platform.with_driver(driver_num, |driver| {
+                        let callback = ::Callback::new(appid, appdata, callback_ptr);
+                        match driver {
+                            Some(d) => d.subscribe(subdriver_num, callback),
+                            None => -1,
+                        }
+                    })
+                };
                 process.set_r0(res);
             }
             Some(syscall::COMMAND) => {
-                let res = platform.with_driver(process.r0(), |driver| {
-                    match driver {
-                        Some(d) => d.command(process.r1(), process.r2(), appid),
-                        None => -1,
-                    }
-                });
+                let res = if process.r0() == 0x4c {
+                    process::PROCS[process.r1()].as_mut().map(|target| {
+                        target.callbacks.enqueue(process::GCallback::IPCCallback(appid));
+                        *running_left = true;
+                        0
+                    }).unwrap_or(-1)
+                } else {
+                    platform.with_driver(process.r0(), |driver| {
+                        match driver {
+                            Some(d) => d.command(process.r1(), process.r2(), appid),
+                            None => -1,
+                        }
+                    })
+                };
                 process.set_r0(res);
             }
             Some(syscall::ALLOW) => {
-                let res = platform.with_driver(process.r0(), |driver| {
-                    match driver {
-                        Some(d) => {
-                            let start_addr = process.r2() as *mut u8;
-                            let size = process.r3();
-                            if process.in_exposed_bounds(start_addr, size) {
-                                let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
-                                d.allow(appid, process.r1(), slice)
-                            } else {
-                                -1
-                            }
-                        }
-                        None => -1,
+                let res = if process.r0() == 0x4c {
+                    let start_addr = process.r2() as *mut u8;
+                    let size = process.r3();
+                    if process.in_exposed_bounds(start_addr, size) {
+                        let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
+                        process.ipc_mem.enter(appid, |ctr, _| {
+                            ctr[process.r1()] = Some(slice);
+                            0
+                        }).unwrap_or(-2)
+                    } else {
+                        -1
                     }
-                });
+                } else {
+                    platform.with_driver(process.r0(), |driver| {
+                        match driver {
+                            Some(d) => {
+                                let start_addr = process.r2() as *mut u8;
+                                let size = process.r3();
+                                if process.in_exposed_bounds(start_addr, size) {
+                                    let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
+                                    d.allow(appid, process.r1(), slice)
+                                } else {
+                                    -1
+                                }
+                            }
+                            None => -1,
+                        }
+                    })
+                };
                 process.set_r0(res);
             }
             _ => {}
