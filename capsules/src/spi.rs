@@ -218,12 +218,10 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
             }
             2 /* set chip select */ => {
                 let cs = arg1;
-                if cs <= self.chip_selects.len() {
-                    self.spi_master.specify_chip_select(self.chip_selects[cs]);
+                self.chip_selects.get(cs).map_or(-1, |cs_line| {
+                    self.spi_master.specify_chip_select(*cs_line);
                     0
-                } else {
-                    -1
-                }
+                })
             }
             3 /* get chip select */ => {
                 0
