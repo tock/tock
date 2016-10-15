@@ -1,20 +1,20 @@
-use helpers::*;
+use kernel::common::volatile_cell::VolatileCell;
 
 #[repr(C, packed)]
 struct BpmRegisters {
-    interrupt_enable: u32,
-    interrupt_disable: u32,
-    interrupt_mask: u32,
-    interrupt_status: u32,
-    interrupt_clear: u32,
-    status: u32,
-    unlock: u32,
-    control: u32,
+    interrupt_enable: VolatileCell<u32>,
+    interrupt_disable: VolatileCell<u32>,
+    interrupt_mask: VolatileCell<u32>,
+    interrupt_status: VolatileCell<u32>,
+    interrupt_clear: VolatileCell<u32>,
+    status: VolatileCell<u32>,
+    unlock: VolatileCell<u32>,
+    control: VolatileCell<u32>,
     _reserved0: [u32; 2],
-    backup_wake_cause: u32,
-    backup_wake_enable: u32,
-    backup_pin_mux: u32,
-    io_retention: u32,
+    backup_wake_cause: VolatileCell<u32>,
+    backup_wake_enable: VolatileCell<u32>,
+    backup_pin_mux: VolatileCell<u32>,
+    io_retention: VolatileCell<u32>,
 }
 
 const BPM_BASE: isize = 0x400F0000;
@@ -29,12 +29,11 @@ pub enum CK32Source {
 
 #[inline(never)]
 pub unsafe fn set_ck32source(source: CK32Source) {
-    let control = read_volatile(&(*bpm).control);
-    unlock_register(&(*bpm).control);
-    write_volatile(&mut (*bpm).control, control | (source as u32) << 16);
+    let control = (*bpm).control.get();
+    unlock_register(0x1c); // Control
+    (*bpm).control.set(control | (source as u32) << 16);
 }
 
-unsafe fn unlock_register(reg: *const u32) {
-    let addr = reg as u32 - bpm as u32;
-    write_volatile(&mut (*bpm).unlock, BPM_UNLOCK_KEY | addr);
+unsafe fn unlock_register(register_offset: u32) {
+    (*bpm).unlock.set(BPM_UNLOCK_KEY | register_offset);
 }
