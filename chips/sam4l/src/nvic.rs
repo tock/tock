@@ -1,15 +1,15 @@
 use core::intrinsics;
-use helpers::*;
+use kernel::common::volatile_cell::VolatileCell;
 
 #[repr(C, packed)]
 struct Nvic {
-    iser: [u32; 7],
+    iser: [VolatileCell<u32>; 7],
+    _reserved0: [u32; 25],
+    icer: [VolatileCell<u32>; 7],
     _reserved1: [u32; 25],
-    icer: [u32; 7],
+    ispr: [VolatileCell<u32>; 7],
     _reserved2: [u32; 25],
-    ispr: [u32; 7],
-    _reserved3: [u32; 25],
-    icpr: [u32; 7],
+    icpr: [VolatileCell<u32>; 7],
 }
 
 #[repr(C)]
@@ -109,19 +109,19 @@ pub unsafe fn enable(signal: NvicIdx) {
     let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
-    write_volatile(&mut nvic.iser[interrupt / 32], 1 << (interrupt & 31));
+    nvic.iser[interrupt / 32].set(1 << (interrupt & 31));
 }
 
 pub unsafe fn disable(signal: NvicIdx) {
     let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
-    write_volatile(&mut nvic.icer[interrupt / 32], 1 << (interrupt & 31));
+    nvic.icer[interrupt / 32].set(1 << (interrupt & 31));
 }
 
 pub unsafe fn clear_pending(signal: NvicIdx) {
     let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);
     let interrupt = signal as usize;
 
-    write_volatile(&mut nvic.icpr[interrupt / 32], 1 << (interrupt & 31));
+    nvic.icpr[interrupt / 32].set(1 << (interrupt & 31));
 }
