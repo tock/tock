@@ -84,6 +84,7 @@ struct Firestorm {
     isl29035: &'static capsules::isl29035::Isl29035<'static>,
     spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
+    adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
 }
 
 impl Platform for Firestorm {
@@ -103,6 +104,7 @@ impl Platform for Firestorm {
             4 => f(Some(self.spi)),
             5 => f(Some(self.nrf51822)),
             6 => f(Some(self.isl29035)),
+            7 => f(Some(self.adc)),
             _ => f(None),
         }
     }
@@ -377,6 +379,13 @@ pub unsafe fn reset_handler() {
     sam4l::spi::SPI.set_client(spi);
     sam4l::spi::SPI.init();
 
+    // Setup ADC
+    let adc = static_init!(
+        capsules::adc::ADC<'static, sam4l::adc::Adc>,
+        capsules::adc::ADC::new(&mut sam4l::adc::ADC),
+        160/8);
+    sam4l::adc::ADC.set_client(adc);
+
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 12],
@@ -419,8 +428,9 @@ pub unsafe fn reset_handler() {
             isl29035: isl29035,
             spi: spi,
             nrf51822: nrf_serialization,
+            adc: adc,
         },
-        28);
+        256/8);
 
     usart::USART3.configure(usart::USARTParams {
         // client: &console,
