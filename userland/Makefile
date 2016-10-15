@@ -32,6 +32,7 @@ CPPFLAGS += \
 	    -mno-pic-data-is-text-relative
 
 $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 LD := $(TOOLCHAIN)-ld
@@ -56,3 +57,6 @@ $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 # for programming individual apps, include platform app makefile
 #	conditionally included in case it doesn't exist for a board
 -include $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/Makefile-app
+
+# Include dependency rules for picking up header changes
+-include $(OBJS:.o=.d)
