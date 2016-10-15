@@ -50,17 +50,17 @@ pub trait SpiMasterClient {
 /// a particular peripheral persists across chip select. For
 /// example, with this set of calls:
 ///
-///   set_chip_select(1);
+///   specify_chip_select(1);
 ///   set_phase(SampleLeading);
-///   set_chip_select(2);
+///   specify_chip_select(2);
 ///   set_phase(SampleTrailing);
-///   set_chip_select(1);
+///   specify_chip_select(1);
 ///   write_byte(0); // Uses SampleLeading
 ///
 /// If additional chip selects are needed, they can be performed
 /// with GPIO and manual re-initialization of settings.
 ///
-///   set_chip_select(0);
+///   specify_chip_select(0);
 ///   set_phase(SampleLeading);
 ///   pin_a.set();
 ///   write_byte(0xaa); // Uses SampleLeading
@@ -70,6 +70,8 @@ pub trait SpiMasterClient {
 ///   write_byte(0xaa); // Uses SampleTrailing
 ///
 pub trait SpiMaster {
+    type ChipSelect: Copy;
+
     fn set_client(&self, client: &'static SpiMasterClient);
 
     fn init(&self);
@@ -77,7 +79,7 @@ pub trait SpiMaster {
 
     /// Perform an asynchronous read/write operation, whose
     /// completion is signaled by invoking SpiMasterClient on
-    /// the initialzied client. write_buffer must be Some,
+    /// the initialized client. write_buffer must be Some,
     /// read_buffer may be None. If read_buffer is Some, the
     /// length of the operation is the minimum of the size of
     /// the two buffers.
@@ -90,11 +92,10 @@ pub trait SpiMaster {
     fn read_byte(&self) -> u8;
     fn read_write_byte(&self, val: u8) -> u8;
 
-    /// Returns whether this chip select is valid and was
-    /// applied, 0 is always valid.
-    fn set_chip_select(&self, cs: u8) -> bool;
-    fn clear_chip_select(&self);
-    fn get_chip_select(&self) -> u8;
+    /// Tell the SPI peripheral what to use as a chip select pin.
+    /// The type of the argument is based on what makes sense for the
+    /// peripheral when this trait is implemented.
+    fn specify_chip_select(&self, cs: Self::ChipSelect);
 
     /// Returns the actual rate set
     fn set_rate(&self, rate: u32) -> u32;
