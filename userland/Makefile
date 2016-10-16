@@ -32,6 +32,8 @@ CPPFLAGS += \
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
 
+# First step doesn't actually compile, just generate header dependency information
+# More info on our approach here: http://stackoverflow.com/questions/97338
 $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
 	$(TRACE_DEP)
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
