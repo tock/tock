@@ -1,9 +1,8 @@
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <tock_str.h>
+#include "console.h"
 
 typedef struct putstr_data {
   char* buf;
@@ -63,20 +62,4 @@ void putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata)
 
 void putstr(const char *str) {
   putnstr(str, strlen(str));
-}
-
-int timer_subscribe(subscribe_cb cb, void *userdata) {
-  return subscribe(3, 0, cb, userdata);
-}
-
-int timer_oneshot(uint32_t interval) {
-  return command(3, 0, (int)interval);
-}
-
-int timer_start_repeating(uint32_t interval) {
-  return command(3, 1, (int)interval);
-}
-
-int timer_stop() {
-  return command(3, 2, 0);
 }

@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "tock.h"
-#include "firestorm.h"
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 

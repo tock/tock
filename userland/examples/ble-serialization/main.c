@@ -12,9 +12,9 @@
 #include <simple_adv.h>
 #include <eddystone.h>
 
-#include <firestorm.h>
 #include <tmp006.h>
 #include <isl29035.h>
+#include <nrf51_serialization.h>
 
 #include "nrf.h"
 #include "env_sense_service.h"

@@ -1,7 +1,9 @@
 #include <firestorm.h>
 #include <gpio.h>
+#include <spi.h>
+#include <timer.h>
 
-void main(void)
+int main(void)
 {
         int i;
 	gpio_enable_output(LED_0);
@@ -16,4 +18,5 @@ void main(void)
 
 		delay_ms(25);
 	}
+        return 0;
 }

@@ -1,7 +1,8 @@
-#include <firestorm.h>
 #include <isl29035.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <timer.h>
+#include <tmp006.h>
 
 void print_intensity(int intensity) {
   printf("Intensity: %d\n", intensity);
