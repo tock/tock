@@ -1,12 +1,8 @@
-#include <stdint.h>
 #include <sys/stat.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <inttypes.h>
+#include <sys/types.h>
 
-#include <firestorm.h>
-#include <tock_str.h>
+#include "console.h"
+#include "tock.h"
 
 // XXX Suppress unused parameter warnings for this file as the implementations
 // are currently all just stubs
@@ -52,13 +48,13 @@ int _read(int fd, void *buf, uint32_t count)
 {
     return 0; //k_read(fd, (uint8_t*) buf, count);
 }
-void _exit(int status)
+void _exit(int __status)
 {
-  while(666);
+  while(666) {}
 }
 void abort()
 {
-  while(666);
+  while(666) {}
 }
 int _getpid()
 {
@@ -67,5 +63,10 @@ int _getpid()
 int _kill(pid_t pid, int sig)
 {
   return -1;
+}
+
+caddr_t _sbrk(int incr)
+{
+  return (void*)memop(1, incr);
 }
 

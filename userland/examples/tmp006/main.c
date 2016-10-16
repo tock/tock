@@ -8,8 +8,7 @@
 #include <stdbool.h>
 
 #include <tock.h>
-#include <tock_str.h>
-#include <firestorm.h>
+#include <console.h>
 #include <tmp006.h>
 
 

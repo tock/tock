@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #include <tock.h>
-#include <tock_str.h>
+#include <console.h>
 #include <firestorm.h>
 #include <gpio.h>
 
@@ -45,8 +45,8 @@ int main() {
   // configure pins
   gpio_interrupt_callback(gpio_cb, NULL);
   gpio_enable_output(LED_0);
-  gpio_enable_interrupt(P2, PullNone, Change);
-  gpio_enable_interrupt(P3, PullUp, Change);
+  gpio_enable_interrupt(1, PullNone, Change);
+  gpio_enable_interrupt(2, PullUp, Change);
 
   // configure accelerometer
   //TODO
@@ -55,7 +55,7 @@ int main() {
   //TODO
 
   while (1) {
-    wait();
+    yield();
     gpio_toggle(LED_0);
 
     {

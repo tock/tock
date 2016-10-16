@@ -1,25 +1,5 @@
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <firestorm.h>
-#include <tock.h>
+#include "spi.h"
 
-
-static void delay_cb( __attribute__ ((unused)) int unused0,
-                      __attribute__ ((unused)) int unused1,
-                      __attribute__ ((unused)) int unused2,
-                      void* ud) {
-  *((bool*)ud) = true;
-}
-
-void delay_ts() {}
-
-void delay_ms(uint32_t ms) {
-  bool cond = false;
-  timer_subscribe(delay_cb, &cond);
-  timer_oneshot(ms);
-  yield_for(&cond);
-}
 int spi_init() {return 0;}
 int spi_set_chip_select(unsigned char cs) {return command(4, 2, cs);}
 int spi_get_chip_select()                 {return command(4, 3, 0);}
@@ -94,20 +74,3 @@ int spi_read_write_sync(const char* write,
   return 0;
 }
 
-void nrf51822_serialization_subscribe (subscribe_cb cb) {
-  // get some callback love
-  subscribe(5, 0, cb, NULL);
-}
-
-void nrf51822_serialization_setup_rx_buffer (char* rx, int rx_len) {
-  // Pass the RX buffer for the UART module to use.
-  allow(5, 0, rx, rx_len);
-}
-
-void nrf51822_serialization_write (char* tx, int tx_len) {
-  // Pass in the TX buffer.
-  allow(5, 1, tx, tx_len);
-
-  // Do the write!!!!!
-  command(5, 0, 0);
-}

@@ -9,7 +9,7 @@ AS := $(TOOLCHAIN)-as
 ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
 
 CC := $(TOOLCHAIN)-gcc
-CFLAGS += -O3 -Wall -Werror -I$(CUR_DIR) -g -mcpu=$(TOCK_ARCH) -mthumb
+CFLAGS += -std=gnu11 -O3 -Wall -Werror -I$(CUR_DIR) -g -mcpu=$(TOCK_ARCH) -mthumb
 CFLAGS += \
 	    -fdata-sections -ffunction-sections\
 	    -Wall\

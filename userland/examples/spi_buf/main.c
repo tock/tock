@@ -1,6 +1,7 @@
 #include <stdbool.h>
-#include <firestorm.h>
 #include <gpio.h>
+#include <firestorm.h>
+#include <spi.h>
 
 #define BUF_SIZE 200
 char rbuf[BUF_SIZE];

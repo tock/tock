@@ -6,9 +6,10 @@
 #include <unistd.h>
 
 #include <tock.h>
-#include <tock_str.h>
+#include <console.h>
 #include <firestorm.h>
 #include <gpio.h>
+#include <timer.h>
 
 // callback for timers
 timer_cb (int arg0, int arg2, int arg3, void* userdata) {
@@ -79,7 +80,7 @@ void gpio_interrupt() {
 }
 
 
-void main() {
+int main() {
   putstr("*********************\n");
   putstr("GPIO Test Application\n");
 
@@ -87,5 +88,7 @@ void main() {
   //gpio_output();
   //gpio_input();
   gpio_interrupt();
+
+  return 0;
 }
 
