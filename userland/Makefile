@@ -44,8 +44,14 @@ LD := $(TOOLCHAIN)-ld
 LINKER ?= $(TOCK_USERLAND_BASE_DIR)/linker.ld
 LDFLAGS := -T $(LINKER)
 
+SIZE := $(TOOLCHAIN)-size
+
 .PHONY:	all
-all:	$(BUILDDIR)/app.bin
+all:	$(BUILDDIR)/app.bin size
+
+.PHONY: size
+size:	$(BUILDDIR)/app.elf
+	@$(SIZE) $<
 
 # Include the libtock makefile. Adds rules that will rebuild library when needed
 include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
