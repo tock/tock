@@ -40,9 +40,7 @@ $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
 	$(TRACE_CC)
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-LD := $(TOOLCHAIN)-ld
 LINKER ?= $(TOCK_USERLAND_BASE_DIR)/linker.ld
-LDFLAGS := -T $(LINKER)
 
 SIZE := $(TOOLCHAIN)-size
 
@@ -61,7 +59,7 @@ $(BUILDDIR):
 
 $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) | $(BUILDDIR)
 	$(TRACE_LD)
-	$(Q)$(LD) --gc-sections --emit-relocs --entry=_start $(LDFLAGS) -nostdlib $(OBJS) --start-group $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) --end-group -o $@
+	$(Q)$(CC) -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib $(OBJS) -Wl,--start-group $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) -lm -lgcc -Wl,--end-group -o $@
 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 	$(TRACE_BIN)
