@@ -12,6 +12,7 @@
     "linker": "arm-none-eabi-gcc",
     "linker-is-gnu": true,
     "disable-redzone": true,
+    "features": "+strict-align",
     "pre-link-args": [
         "-mcpu=cortex-m0", "-mthumb",
         "-mfloat-abi=soft",
