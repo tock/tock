@@ -16,8 +16,6 @@ SECTIONS {
   .apps :
   {
     _sapps = .;
-    KEEP(*(.app.*))
-    LONG(0) /* Marks the end of the app list with a sentinel value. */
   } > prog
 
   /* .ARM.exidx is sorted, so has to go in its own output section.  */

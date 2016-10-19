@@ -15,7 +15,7 @@ all: target/sam4l/release/imix
 doc:
 	@cargo doc --release --target=sam4l.json
 
-.PHONY: target/sam4l/release/imis
+.PHONY: target/sam4l/release/imix
 target/sam4l/release/imix:
 	@cargo build --release --target=sam4l.json
 	@$(SIZE) $@
@@ -42,7 +42,8 @@ debug: target/sam4l/debug/imix
 # upload kernel with openocd
 .PHONY: flash
 flash: target/sam4l/release/imix
-	$(OPENOCD) -f $(OPENOCD_CONF) -c "init; reset halt; load_image $<; reset; shutdown"
+	#$(OPENOCD) -f $(OPENOCD_CONF) -c "program $< verify reset exit"
+	$(OPENOCD) -f $(OPENOCD_CONF) -c "init; reset halt; flash write_image $< 0x0 elf; reset; shutdown"
 
 .PHONY: flash-debug
 flash-debug: target/sam4l/debug/imix
