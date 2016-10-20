@@ -17,7 +17,7 @@ struct BpmRegisters {
     io_retention: VolatileCell<u32>,
 }
 
-const BPM_BASE: isize = 0x400F0000;
+const BPM_BASE: usize = 0x400F0000;
 const BPM_UNLOCK_KEY: u32 = 0xAA000000;
 
 static mut bpm: *mut BpmRegisters = BPM_BASE as *mut BpmRegisters;

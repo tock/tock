@@ -38,7 +38,7 @@ struct AstRegisters {
     calv: VolatileCell<u32>, // we leave out parameter and version
 }
 
-pub const AST_BASE: isize = 0x400F0800;
+const AST_BASE: usize = 0x400F0800;
 
 pub struct Ast<'a> {
     regs: *mut AstRegisters,

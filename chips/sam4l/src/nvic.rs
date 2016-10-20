@@ -103,7 +103,7 @@ impl ::core::default::Default for NvicIdx {
     }
 }
 
-pub const BASE_ADDRESS: usize = 0xe000e100;
+const BASE_ADDRESS: usize = 0xe000e100;
 
 pub unsafe fn enable(signal: NvicIdx) {
     let nvic: &mut Nvic = intrinsics::transmute(BASE_ADDRESS);

@@ -158,10 +158,10 @@ struct FlashcalwRegisters {
     pvr: VolatileCell<u32>,
 }
 
-const PM_BASE: isize = 0x400E0000;
-const BSCIF_BASE: isize = 0x400F0400;
-const SCIF_BASE: isize = 0x400E0800;
-const FLASHCALW_BASE: isize = 0x400A0000;
+const PM_BASE: usize = 0x400E0000;
+const BSCIF_BASE: usize = 0x400F0400;
+const SCIF_BASE: usize = 0x400E0800;
+const FLASHCALW_BASE: usize = 0x400A0000;
 
 const HSB_MASK_OFFSET: u32 = 0x24;
 const PBA_MASK_OFFSET: u32 = 0x28;

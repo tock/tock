@@ -64,7 +64,7 @@ pub struct AdcRegisters { // From page 1005 of SAM4L manual
 }
 
 // Page 59 of SAM4L data sheet
-pub const BASE_ADDRESS: usize = 0x40038000;
+const BASE_ADDRESS: usize = 0x40038000;
 
 pub struct Adc {
     registers: *mut AdcRegisters,
