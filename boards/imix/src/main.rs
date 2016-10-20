@@ -7,12 +7,17 @@ extern crate capsules;
 extern crate kernel;
 extern crate sam4l;
 
+use capsules::timer::TimerDriver;
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::hil::Controller;
+use kernel::{Chip, MPU};
 
 mod io;
 
 struct Imix {
-    console: &'static capsules::console::Console<'static, sam4l::usart::USART>
+    console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
+    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
 }
 
 impl kernel::Platform for Imix {
@@ -20,6 +25,9 @@ impl kernel::Platform for Imix {
         where F: FnOnce(Option<&kernel::Driver>) -> R {
             match driver_num {
                 0 => f(Some(self.console)),
+                1 => f(Some(self.gpio)),
+
+                3 => f(Some(self.timer)),
                 _ => f(None)
             }
     }
@@ -217,6 +225,9 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
+
+    /*** CONSOLE ***/
+
     let console = static_init!(
         capsules::console::Console<sam4l::usart::USART>,
         capsules::console::Console::new(&sam4l::usart::USART3,
@@ -234,11 +245,59 @@ pub unsafe fn reset_handler() {
 
     console.initialize();
 
+    /*** TIMER ***/
+
+    let ast = &sam4l::ast::AST;
+
+    let mux_alarm = static_init!(
+        MuxAlarm<'static, sam4l::ast::Ast>,
+        MuxAlarm::new(&sam4l::ast::AST),
+        16);
+    ast.configure(mux_alarm);
+
+    let virtual_alarm1 = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm),
+        24);
+    let timer = static_init!(
+        TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        TimerDriver::new(virtual_alarm1, kernel::Container::create()),
+        12);
+    virtual_alarm1.set_client(timer);
+
+    /*** GPIO ***/
+    let gpio_pins = static_init!(
+        [&'static sam4l::gpio::GPIOPin; 12],
+        [&sam4l::gpio::PC[10], // LED_0
+         &sam4l::gpio::PA[16], // P2
+         &sam4l::gpio::PA[12], // P3
+         &sam4l::gpio::PC[9], // P4
+         &sam4l::gpio::PA[10], // P5
+         &sam4l::gpio::PA[11], // P6
+         &sam4l::gpio::PA[19], // P7
+         &sam4l::gpio::PA[13], // P8
+         &sam4l::gpio::PA[17], /* STORM_INT (nRF51822) */
+         &sam4l::gpio::PC[14], /* RSLP (RF233 sleep line) */
+         &sam4l::gpio::PC[15], /* RRST (RF233 reset line) */
+         &sam4l::gpio::PA[20]], /* RIRQ (RF233 interrupt) */
+        12 * 4
+    );
+    let gpio = static_init!(
+        capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+        capsules::gpio::GPIO::new(gpio_pins),
+        20);
+    for pin in gpio_pins.iter() {
+        pin.set_client(gpio);
+    }
+
     let mut imix = Imix {
-        console: console
+        console: console,
+        timer: timer,
+        gpio: gpio,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
+    chip.mpu().enable_mpu();
     kernel::main(&mut imix, &mut chip, load_processes());
 }
 
@@ -248,12 +307,12 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
         static _sapps: u8;
     }
 
-    const NUM_PROCS: usize = 1;
+    const NUM_PROCS: usize = 2;
 
     #[link_section = ".app_memory"]
     static mut MEMORIES: [[u8; 8192]; NUM_PROCS] = [[0; 8192]; NUM_PROCS];
 
-    static mut processes: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None];
+    static mut processes: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None, None];
 
     let mut addr = &_sapps as *const u8;
     for i in 0..NUM_PROCS {
