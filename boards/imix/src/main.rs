@@ -9,8 +9,8 @@ extern crate sam4l;
 
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::hil::Controller;
 use kernel::{Chip, MPU};
+use kernel::hil::Controller;
 
 mod io;
 
@@ -22,14 +22,15 @@ struct Imix {
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R
-        where F: FnOnce(Option<&kernel::Driver>) -> R {
-            match driver_num {
-                0 => f(Some(self.console)),
-                1 => f(Some(self.gpio)),
+        where F: FnOnce(Option<&kernel::Driver>) -> R
+    {
+        match driver_num {
+            0 => f(Some(self.console)),
+            1 => f(Some(self.gpio)),
 
-                3 => f(Some(self.timer)),
-                _ => f(None)
-            }
+            3 => f(Some(self.timer)),
+            _ => f(None),
+        }
     }
 }
 
@@ -226,7 +227,7 @@ pub unsafe fn reset_handler() {
     set_pin_primary_functions();
 
 
-    /*** CONSOLE ***/
+    // # CONSOLE
 
     let console = static_init!(
         capsules::console::Console<sam4l::usart::USART>,
@@ -245,7 +246,7 @@ pub unsafe fn reset_handler() {
 
     console.initialize();
 
-    /*** TIMER ***/
+    // # TIMER
 
     let ast = &sam4l::ast::AST;
 
@@ -265,7 +266,8 @@ pub unsafe fn reset_handler() {
         12);
     virtual_alarm1.set_client(timer);
 
-    /*** GPIO ***/
+    // # GPIO
+
     let gpio_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 12],
         [&sam4l::gpio::PC[10], // LED_0
@@ -338,4 +340,3 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
 
     &mut processes
 }
-
