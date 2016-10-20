@@ -110,7 +110,7 @@ struct Registers {
     gcctrl11: VolatileCell<u32>, // we leave out versions
 }
 
-pub const SCIF_BASE: isize = 0x400E0800;
+const SCIF_BASE: usize = 0x400E0800;
 static mut SCIF: *mut Registers = SCIF_BASE as *mut Registers;
 
 #[repr(usize)]
