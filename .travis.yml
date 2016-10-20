@@ -22,6 +22,7 @@ script:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
       find -path ./extern -prune -o -name '*.rs' -exec rustfmt --write-mode=diff {} +; fi
   - make -C boards/storm
+  - make -C boards/imix
   - make -C boards/nrf51dk
   - pushd userland/examples && ./build_all.sh
 
