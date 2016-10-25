@@ -84,6 +84,7 @@ struct Firestorm {
     isl29035: &'static capsules::isl29035::Isl29035<'static>,
     spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
+    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
 }
 
 impl Platform for Firestorm {
@@ -103,6 +104,7 @@ impl Platform for Firestorm {
             4 => f(Some(self.spi)),
             5 => f(Some(self.nrf51822)),
             6 => f(Some(self.isl29035)),
+            8 => f(Some(self.led)),
             _ => f(None),
         }
     }
@@ -377,11 +379,20 @@ pub unsafe fn reset_handler() {
     sam4l::spi::SPI.set_client(spi);
     sam4l::spi::SPI.init();
 
+    // LEDs
+    let led_pins = static_init!(
+        [&'static sam4l::gpio::GPIOPin; 1],
+        [&sam4l::gpio::PC[10]],
+        1 * 4);
+    let led = static_init!(
+        capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
+        96/8);
+
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 12],
-        [&sam4l::gpio::PC[10], // LED_0
-         &sam4l::gpio::PA[16], // P2
+        [&'static sam4l::gpio::GPIOPin; 11],
+        [&sam4l::gpio::PA[16], // P2
          &sam4l::gpio::PA[12], // P3
          &sam4l::gpio::PC[9], // P4
          &sam4l::gpio::PA[10], // P5
@@ -392,7 +403,7 @@ pub unsafe fn reset_handler() {
          &sam4l::gpio::PC[14], /* RSLP (RF233 sleep line) */
          &sam4l::gpio::PC[15], /* RRST (RF233 reset line) */
          &sam4l::gpio::PA[20]], /* RIRQ (RF233 interrupt) */
-        12 * 4
+        11 * 4
     );
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -419,8 +430,9 @@ pub unsafe fn reset_handler() {
             isl29035: isl29035,
             spi: spi,
             nrf51822: nrf_serialization,
+            led: led,
         },
-        28);
+        256/8);
 
     usart::USART3.configure(usart::USARTParams {
         // client: &console,

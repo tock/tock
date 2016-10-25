@@ -6,6 +6,7 @@ extern crate kernel;
 pub mod console;
 pub mod gpio;
 pub mod isl29035;
+pub mod led;
 pub mod nrf51822_serialization;
 pub mod timer;
 pub mod tmp006;

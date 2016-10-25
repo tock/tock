@@ -91,6 +91,7 @@ pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
+    led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
 }
 
 
@@ -103,6 +104,7 @@ impl kernel::Platform for Platform {
             0 => f(Some(self.console)),
             1 => f(Some(self.gpio)),
             3 => f(Some(self.timer)),
+            8 => f(Some(self.led)),
             _ => f(None),
         }
     }
@@ -112,13 +114,23 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     nrf51::init();
 
-    let gpio_pins = static_init!(
-        [&'static nrf51::gpio::GPIOPin; 22],
+    // LEDs
+    let led_pins = static_init!(
+        [&'static nrf51::gpio::GPIOPin; 4],
         [&nrf51::gpio::PORT[LED1_PIN], // 21
          &nrf51::gpio::PORT[LED2_PIN], // 22
          &nrf51::gpio::PORT[LED3_PIN], // 23
          &nrf51::gpio::PORT[LED4_PIN], // 24
-         &nrf51::gpio::PORT[BUTTON1_PIN], // 17
+        ],
+        4 * 4);
+    let led = static_init!(
+        capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
+        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveLow),
+        96/8);
+
+    let gpio_pins = static_init!(
+        [&'static nrf51::gpio::GPIOPin; 18],
+        [&nrf51::gpio::PORT[BUTTON1_PIN], // 17
          &nrf51::gpio::PORT[BUTTON2_PIN], // 18
          &nrf51::gpio::PORT[BUTTON3_PIN], // 19
          &nrf51::gpio::PORT[BUTTON4_PIN], // 20
@@ -137,7 +149,7 @@ pub unsafe fn reset_handler() {
          &nrf51::gpio::PORT[13], //
          &nrf51::gpio::PORT[12], //
         ],
-        4 * 22);
+        4 * 18);
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
@@ -196,8 +208,9 @@ pub unsafe fn reset_handler() {
             gpio: gpio,
             timer: timer,
             console: console,
+            led: led,
         },
-        12);
+        128/8);
 
     alarm.start();
 

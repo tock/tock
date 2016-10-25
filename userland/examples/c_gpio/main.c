@@ -2,20 +2,15 @@
  * This application is for testing GPIO interrupts in the nRF51822 EK.
  * To run this application, hook up a button connected to VDD to GPIO pin 1
  * (the top right pin on the top left header).
- *  
+ *
  * When it boots, you should see one of the two LEDs blink 5 times, then
  * go silent. This is to show that the app has booted correctly.
- *  
- * Then, when you push the button, the other LED should blink.
  *
- * Note that to an application, pin 0 is LED0 (GPIO pin 18), pin 1 is 
- * LED1 (GPIO pin 19), and pin 3 is GPIO pin 0.
+ * Then, when you push the button, the other LED should blink.
  */
 
-#include <firestorm.h>
-#include <gpio.h>
-
-#define LED_1 1
+#include "led.h"
+#include "gpio.h"
 
 /* Delay for for the given microseconds (approximately).
  *
@@ -55,21 +50,19 @@ static void busy_delay_ms(int duration) {
 }
 
 void interrupt_callback() {
-    gpio_toggle(LED_1); 
+    led_toggle(1);
 }
 
 int main(void) {
-    gpio_enable_output(LED_0);
-    gpio_enable_output(LED_1);
-    gpio_set(LED_1);
-    // Application pin 3 is HW GPIO pin 0, see nrf_pc10001/lib.rs
-    gpio_enable_input(3, PullDown);
-    gpio_enable_interrupt(3, PullDown, RisingEdge);
+    led_on(1);
+    // Application pin 0 is Button 1
+    gpio_enable_input(0, PullDown);
+    gpio_enable_interrupt(0, PullDown, RisingEdge);
     gpio_interrupt_callback(interrupt_callback, NULL);
 
     int i;
     for (i = 0; i < 10; i++) {
-      gpio_toggle(LED_0);
+      led_toggle(0);
       busy_delay_ms(200);
     }
     return 1;
