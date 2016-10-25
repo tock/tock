@@ -1,7 +1,7 @@
-/// Provide capsule driver for controlling LEDs on a board.
-/// This allows for much more cross platform controlling of LEDs
-/// without having to know which of the GPIO pins exposed across
-/// the syscall interface are LEDs.
+//! Provide capsule driver for controlling LEDs on a board.
+//! This allows for much more cross platform controlling of LEDs
+//! without having to know which of the GPIO pins exposed across
+//! the syscall interface are LEDs.
 
 use kernel::{AppId, Driver};
 use kernel::hil;
