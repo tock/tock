@@ -4,10 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <tock.h>
-#include <console.h>
-#include <firestorm.h>
-#include <gpio.h>
+#include "tock.h"
+#include "console.h"
+#include "gpio.h"
+#include "led.h"
 
 typedef struct {
   uint8_t pir;
@@ -20,7 +20,10 @@ static SensorData_t sensor_data = {
 };
 
 // callback for gpio interrupts
-void gpio_cb (int pin_num, int pin_val, int unused, void* userdata) {
+void gpio_cb (int pin_num,
+              int pin_val,
+              __attribute__ ((unused)) int unused,
+              __attribute__ ((unused)) void* userdata) {
 
   // save sensor data
   if (pin_num == 1) {
@@ -44,9 +47,8 @@ int main() {
 
   // configure pins
   gpio_interrupt_callback(gpio_cb, NULL);
-  gpio_enable_output(LED_0);
-  gpio_enable_interrupt(1, PullNone, Change);
-  gpio_enable_interrupt(2, PullUp, Change);
+  gpio_enable_interrupt(0, PullNone, Change);
+  gpio_enable_interrupt(1, PullUp, Change);
 
   // configure accelerometer
   //TODO
@@ -56,7 +58,7 @@ int main() {
 
   while (1) {
     yield();
-    gpio_toggle(LED_0);
+    led_toggle(0);
 
     {
       char buf[64];

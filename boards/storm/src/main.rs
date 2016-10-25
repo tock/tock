@@ -85,6 +85,7 @@ struct Firestorm {
     spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
+    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
 }
 
 impl Platform for Firestorm {
@@ -105,6 +106,7 @@ impl Platform for Firestorm {
             5 => f(Some(self.nrf51822)),
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
+            8 => f(Some(self.led)),
             _ => f(None),
         }
     }
@@ -379,6 +381,16 @@ pub unsafe fn reset_handler() {
     sam4l::spi::SPI.set_client(spi);
     sam4l::spi::SPI.init();
 
+    // LEDs
+    let led_pins = static_init!(
+        [&'static sam4l::gpio::GPIOPin; 1],
+        [&sam4l::gpio::PC[10]],
+        1 * 4);
+    let led = static_init!(
+        capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
+        96/8);
+
     // Setup ADC
     let adc = static_init!(
         capsules::adc::ADC<'static, sam4l::adc::Adc>,
@@ -386,11 +398,11 @@ pub unsafe fn reset_handler() {
         160/8);
     sam4l::adc::ADC.set_client(adc);
 
+
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 12],
-        [&sam4l::gpio::PC[10], // LED_0
-         &sam4l::gpio::PA[16], // P2
+        [&'static sam4l::gpio::GPIOPin; 11],
+        [&sam4l::gpio::PA[16], // P2
          &sam4l::gpio::PA[12], // P3
          &sam4l::gpio::PC[9], // P4
          &sam4l::gpio::PA[10], // P5
@@ -401,7 +413,7 @@ pub unsafe fn reset_handler() {
          &sam4l::gpio::PC[14], /* RSLP (RF233 sleep line) */
          &sam4l::gpio::PC[15], /* RRST (RF233 reset line) */
          &sam4l::gpio::PA[20]], /* RIRQ (RF233 interrupt) */
-        12 * 4
+        11 * 4
     );
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -429,8 +441,9 @@ pub unsafe fn reset_handler() {
             spi: spi,
             nrf51822: nrf_serialization,
             adc: adc,
+            led: led,
         },
-        256/8);
+        288/8);
 
     usart::USART3.configure(usart::USARTParams {
         // client: &console,

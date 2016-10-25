@@ -1,5 +1,4 @@
-#include <firestorm.h>
-#include <gpio.h>
+#include "led.h"
 
 /* Delay for for the given microseconds (approximately).
  *
@@ -39,12 +38,9 @@ static void busy_delay_ms(int duration)
 	}
 }
 
-void main(void) {
-    gpio_enable_output(LED_0);
-
+int main(void) {
     while(1) {
-      gpio_toggle(LED_0);
+      led_toggle(0);
       busy_delay_ms(500);
     }
 }
-
