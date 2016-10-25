@@ -1,14 +1,28 @@
-//! Simplest attempt at an ADC interface.
-//!
-//!  Author: Philip Levis <pal@cs.stanford.edu>
-//!  Date: June 10, 2015
-//!
-
-pub trait Request {
-    fn sample_done(&self, val: u16, request: &'static Request);
+/// Trait for handling callbacks from ADC module.
+pub trait Client {
+    /// Called when a sample is ready.
+    fn sample_done(&self, sample: u16);
 }
 
-pub trait AdcInternal {
-    fn initialize(&'static mut self) -> bool;
-    fn sample(&self, channel: u8, callback: &'static Request) -> bool;
+/// Simple interface for reading a single ADC sample on any channel.
+pub trait AdcSingle {
+    /// Initialize must be called before taking a sample.
+    /// Returns true on success.
+    fn initialize(&self) -> bool;
+
+    /// Request a single ADC sample on a particular channel.
+    /// Returns true on success.
+    fn sample(&self, channel: u8) -> bool;
+    // fn cancel_sample(&self) -> bool;
 }
+
+// pub trait Frequency {
+//    fn frequency() -> u32;
+// }
+//
+// pub trait AdcContinuous {
+//    type Frequency: Frequency;
+//    fn compute_interval(&self, interval:u32) -> u32;
+//    fn sample_continuous(&self, channel: u8, interval:u32);
+//    fn cancel_sampling(&self);
+// }
