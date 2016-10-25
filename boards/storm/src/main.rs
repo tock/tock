@@ -84,6 +84,7 @@ struct Firestorm {
     isl29035: &'static capsules::isl29035::Isl29035<'static>,
     spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
+    adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
 }
 
@@ -104,6 +105,7 @@ impl Platform for Firestorm {
             4 => f(Some(self.spi)),
             5 => f(Some(self.nrf51822)),
             6 => f(Some(self.isl29035)),
+            7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             _ => f(None),
         }
@@ -389,6 +391,14 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
         96/8);
 
+    // Setup ADC
+    let adc = static_init!(
+        capsules::adc::ADC<'static, sam4l::adc::Adc>,
+        capsules::adc::ADC::new(&mut sam4l::adc::ADC),
+        160/8);
+    sam4l::adc::ADC.set_client(adc);
+
+
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 11],
@@ -430,9 +440,10 @@ pub unsafe fn reset_handler() {
             isl29035: isl29035,
             spi: spi,
             nrf51822: nrf_serialization,
+            adc: adc,
             led: led,
         },
-        256/8);
+        288/8);
 
     usart::USART3.configure(usart::USARTParams {
         // client: &console,
