@@ -1,11 +1,11 @@
-/// Driver for the FM25CL FRAM chip (http://www.cypress.com/part/fm25cl64b-dg)
+//! Driver for the FM25CL FRAM chip (http://www.cypress.com/part/fm25cl64b-dg)
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::{AppId, AppSlice, Callback, Driver, Shared};
 
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use kernel::{AppId, AppSlice, Callback, Driver, Shared};
 
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];
@@ -77,13 +77,15 @@ impl<'a> FM25CL<'a> {
         }
     }
 
-    pub fn set_client<C: FM25CLClient>(&self, client: &'static C, ) {
+    pub fn set_client<C: FM25CLClient>(&self, client: &'static C) {
         self.client.replace(client);
     }
 
     /// Setup SPI for this chip
     fn configure_spi(&self) {
-        self.spi.configure(hil::spi::ClockPolarity::IdleLow, hil::spi::ClockPhase::SampleLeading, SPI_SPEED);
+        self.spi.configure(hil::spi::ClockPolarity::IdleLow,
+                           hil::spi::ClockPhase::SampleLeading,
+                           SPI_SPEED);
     }
 
     pub fn read_status(&self) {
@@ -134,17 +136,20 @@ impl<'a> FM25CL<'a> {
                 // Save the user buffer for later
                 self.client_buffer.replace(buffer);
 
-                let read_len = cmp::min(rxbuffer.len()-3, len as usize);
+                let read_len = cmp::min(rxbuffer.len() - 3, len as usize);
 
                 self.state.set(State::ReadMemory);
-                self.spi.read_write_bytes(txbuffer, Some(rxbuffer), read_len+3);
+                self.spi.read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3);
             });
         });
     }
 }
 
 impl<'a> hil::spi::SpiMasterClient for FM25CL<'a> {
-    fn read_write_done(&self, write_buffer: &'static mut [u8], read_buffer: Option<&'static mut [u8]>, len: usize) {
+    fn read_write_done(&self,
+                       write_buffer: &'static mut [u8],
+                       read_buffer: Option<&'static mut [u8]>,
+                       len: usize) {
 
         match self.state.get() {
             State::ReadStatus => {
@@ -163,7 +168,7 @@ impl<'a> hil::spi::SpiMasterClient for FM25CL<'a> {
                         client.status(status);
                     });
                 });
-            },
+            }
             State::WriteEnable => {
                 self.state.set(State::WriteMemory);
 
@@ -172,15 +177,16 @@ impl<'a> hil::spi::SpiMasterClient for FM25CL<'a> {
                     write_buffer[1] = ((self.client_write_address.get() >> 8) & 0xFF) as u8;
                     write_buffer[2] = (self.client_write_address.get() & 0xFF) as u8;
 
-                    let write_len = cmp::min(write_buffer.len(), self.client_write_len.get() as usize);
+                    let write_len = cmp::min(write_buffer.len(),
+                                             self.client_write_len.get() as usize);
 
                     for i in 0..write_len {
-                        write_buffer[(i+3) as usize] = buffer[i as usize];
+                        write_buffer[(i + 3) as usize] = buffer[i as usize];
                     }
 
-                    self.spi.read_write_bytes(write_buffer, read_buffer, write_len+3);
+                    self.spi.read_write_bytes(write_buffer, read_buffer, write_len + 3);
                 });
-            },
+            }
             State::WriteMemory => {
                 self.state.set(State::Idle);
 
@@ -196,7 +202,7 @@ impl<'a> hil::spi::SpiMasterClient for FM25CL<'a> {
                         client.done(buffer);
                     });
                 });
-            },
+            }
             State::ReadMemory => {
                 self.state.set(State::Idle);
 
@@ -207,8 +213,8 @@ impl<'a> hil::spi::SpiMasterClient for FM25CL<'a> {
                     self.client_buffer.take().map(move |buffer| {
                         let read_len = cmp::min(buffer.len(), len);
 
-                        for i in 0..(read_len-3) {
-                            buffer[i] = read_buffer[i+3];
+                        for i in 0..(read_len - 3) {
+                            buffer[i] = read_buffer[i + 3];
                         }
 
                         self.rxbuffer.replace(read_buffer);
@@ -218,7 +224,7 @@ impl<'a> hil::spi::SpiMasterClient for FM25CL<'a> {
                         });
                     });
                 });
-            },
+            }
             _ => {}
         }
     }
@@ -241,7 +247,10 @@ pub struct FM25CLDriver<'a> {
 }
 
 impl<'a> FM25CLDriver<'a> {
-    pub fn new(fm25: &'a FM25CL, write_buf: &'static mut [u8], read_buf: &'static mut [u8]) -> FM25CLDriver<'a> {
+    pub fn new(fm25: &'a FM25CL,
+               write_buf: &'static mut [u8],
+               read_buf: &'static mut [u8])
+               -> FM25CLDriver<'a> {
         FM25CLDriver {
             fm25cl: fm25,
             app_state: TakeCell::empty(),
