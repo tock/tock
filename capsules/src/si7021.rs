@@ -2,9 +2,9 @@ use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::alarm;
-use kernel::hil::alarm::Frequency;
 use kernel::hil::i2c;
+use kernel::hil::time;
+use kernel::hil::time::Frequency;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 14] = [0; 14];
@@ -47,7 +47,7 @@ enum State {
     GotMeasurement,
 }
 
-pub struct SI7021<'a, A: alarm::Alarm + 'a> {
+pub struct SI7021<'a, A: time::Alarm + 'a> {
     i2c: &'a i2c::I2CDevice,
     alarm: &'a A,
     callback: Cell<Option<Callback>>,
@@ -55,7 +55,7 @@ pub struct SI7021<'a, A: alarm::Alarm + 'a> {
     buffer: TakeCell<&'static mut [u8]>,
 }
 
-impl<'a, A: alarm::Alarm + 'a> SI7021<'a, A> {
+impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {
     pub fn new(i2c: &'a i2c::I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> SI7021<'a, A> {
         // setup and return struct
         SI7021 {
@@ -91,7 +91,7 @@ impl<'a, A: alarm::Alarm + 'a> SI7021<'a, A> {
     }
 }
 
-impl<'a, A: alarm::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
+impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
         match self.state.get() {
             State::SelectElectronicId1 => {
@@ -165,7 +165,7 @@ impl<'a, A: alarm::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
     }
 }
 
-impl<'a, A: alarm::Alarm + 'a> alarm::AlarmClient for SI7021<'a, A> {
+impl<'a, A: time::Alarm + 'a> time::Client for SI7021<'a, A> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
@@ -177,7 +177,7 @@ impl<'a, A: alarm::Alarm + 'a> alarm::AlarmClient for SI7021<'a, A> {
     }
 }
 
-impl<'a, A: alarm::Alarm + 'a> Driver for SI7021<'a, A> {
+impl<'a, A: time::Alarm + 'a> Driver for SI7021<'a, A> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             // Set a callback
