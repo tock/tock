@@ -4,6 +4,7 @@
 extern crate kernel;
 
 pub mod console;
+pub mod fm25cl;
 pub mod gpio;
 pub mod isl29035;
 pub mod nrf51822_serialization;
