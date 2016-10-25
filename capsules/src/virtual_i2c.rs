@@ -1,16 +1,16 @@
 use core::cell::Cell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::i2c::{self, I2CClient, Error};
+use kernel::hil::i2c::{self, I2CClient, I2CHwMasterClient, Error};
 
 pub struct MuxI2C<'a> {
-    i2c: &'a i2c::I2CController,
+    i2c: &'a i2c::I2CMaster,
     devices: List<'a, I2CDevice<'a>>,
     enabled: Cell<usize>,
     inflight: TakeCell<&'a I2CDevice<'a>>,
 }
 
-impl<'a> I2CClient for MuxI2C<'a> {
+impl<'a> I2CHwMasterClient for MuxI2C<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
         self.inflight.take().map(move |device| {
             device.command_complete(buffer, error);
@@ -20,7 +20,7 @@ impl<'a> I2CClient for MuxI2C<'a> {
 }
 
 impl<'a> MuxI2C<'a> {
-    pub const fn new(i2c: &'a i2c::I2CController) -> MuxI2C<'a> {
+    pub const fn new(i2c: &'a i2c::I2CMaster) -> MuxI2C<'a> {
         MuxI2C {
             i2c: i2c,
             devices: List::new(),

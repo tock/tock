@@ -339,7 +339,7 @@ pub unsafe fn reset_handler() {
     ast.configure(mux_alarm);
 
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2), 20);
-    sam4l::i2c::I2C2.set_client(mux_i2c);
+    sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
     // Configure the TMP006. Device address 0x40
     let tmp006_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x40), 32);
