@@ -28,7 +28,7 @@ int main() {
   timer_subscribe(timer_fired, NULL);
   timer_start_repeating(1000);
 
-  tmp006_start_sampling(0x2, temp_callback, NULL);
+  //tmp006_start_sampling(0x2, temp_callback, NULL);
 
   return 0;
 }

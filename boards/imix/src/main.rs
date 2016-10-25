@@ -8,6 +8,7 @@ extern crate kernel;
 extern crate sam4l;
 
 use capsules::timer::TimerDriver;
+use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, MPU};
 use kernel::hil::Controller;
@@ -18,6 +19,7 @@ struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    isl29035: &'static capsules::isl29035::Isl29035<'static>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
 }
@@ -32,6 +34,7 @@ impl kernel::Platform for Imix {
 
             3 => f(Some(self.timer)),
 
+            6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             _ => f(None),
@@ -75,14 +78,17 @@ unsafe fn set_pin_primary_functions() {
     // PWM 0    --  GPIO pin
     PA[08].configure(None);
 
-    // PWM 1    --  GPIO pin
+    // SENSE_PWR --  GPIO pin
     PC[16].configure(None);
 
-    // PWM 2    --  GPIO pin
+    // NRF_PWR   --  GPIO pin
     PC[17].configure(None);
 
-    // PWM 3    --  GPIO pin
+    // RF233_PWR --  GPIO pin
     PC[18].configure(None);
+
+    // TRNG_PWR  -- GPIO Pin
+    PC[19].configure(None);
 
     // AD5      --  ADCIFE AD1
     PA[05].configure(Some(A));
@@ -215,8 +221,6 @@ unsafe fn set_pin_primary_functions() {
     PA[09].configure(None);
     // ACC_INT1 -- GPIO Pin
     PC[13].configure(None);
-    // ENSEN    -- GPIO Pin
-    PC[19].configure(None);
     // LED0     -- GPIO Pin
     PC[10].configure(None);
 }
@@ -271,7 +275,25 @@ pub unsafe fn reset_handler() {
         12);
     virtual_alarm1.set_client(timer);
 
-    // LEDs
+    // # I2C Sensors
+
+    let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2), 20);
+    sam4l::i2c::I2C2.set_master_client(mux_i2c);
+
+    // Configure the ISL29035, device address 0x44
+    let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x44), 32);
+    let isl29035 = static_init!(
+        capsules::isl29035::Isl29035<'static>,
+        capsules::isl29035::Isl29035::new(isl29035_i2c, &mut capsules::isl29035::BUF),
+        36);
+    isl29035_i2c.set_client(isl29035);
+
+    // Clear sensors enable pin to enable sensor rail
+    sam4l::gpio::PC[16].enable_output();
+    sam4l::gpio::PC[16].clear();
+
+    // # LEDs
+
     let led_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 1],
         [&sam4l::gpio::PC[10]],
@@ -320,6 +342,7 @@ pub unsafe fn reset_handler() {
         console: console,
         timer: timer,
         gpio: gpio,
+        isl29035: isl29035,
         adc: adc,
         led: led,
     };
