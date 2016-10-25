@@ -8,8 +8,8 @@ extern crate kernel;
 extern crate sam4l;
 
 use capsules::timer::TimerDriver;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::{Chip, MPU};
 use kernel::hil::Controller;
 
@@ -302,7 +302,7 @@ pub unsafe fn reset_handler() {
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
         capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
         96/8);
-    
+
     // # ADC
 
     // Setup ADC
