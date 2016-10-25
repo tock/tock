@@ -18,6 +18,8 @@ struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
+    led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
 }
 
 impl kernel::Platform for Imix {
@@ -29,6 +31,9 @@ impl kernel::Platform for Imix {
             1 => f(Some(self.gpio)),
 
             3 => f(Some(self.timer)),
+
+            7 => f(Some(self.adc)),
+            8 => f(Some(self.led)),
             _ => f(None),
         }
     }
@@ -266,12 +271,31 @@ pub unsafe fn reset_handler() {
         12);
     virtual_alarm1.set_client(timer);
 
+    // LEDs
+    let led_pins = static_init!(
+        [&'static sam4l::gpio::GPIOPin; 1],
+        [&sam4l::gpio::PC[10]],
+        1 * 4);
+    let led = static_init!(
+        capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
+        96/8);
+    
+    // # ADC
+
+    // Setup ADC
+    let adc = static_init!(
+        capsules::adc::ADC<'static, sam4l::adc::Adc>,
+        capsules::adc::ADC::new(&mut sam4l::adc::ADC),
+        160/8);
+    sam4l::adc::ADC.set_client(adc);
+
     // # GPIO
 
+    // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 12],
-        [&sam4l::gpio::PC[10], // LED_0
-         &sam4l::gpio::PA[16], // P2
+        [&'static sam4l::gpio::GPIOPin; 11],
+        [&sam4l::gpio::PA[16], // P2
          &sam4l::gpio::PA[12], // P3
          &sam4l::gpio::PC[9], // P4
          &sam4l::gpio::PA[10], // P5
@@ -282,7 +306,7 @@ pub unsafe fn reset_handler() {
          &sam4l::gpio::PC[14], /* RSLP (RF233 sleep line) */
          &sam4l::gpio::PC[15], /* RRST (RF233 reset line) */
          &sam4l::gpio::PA[20]], /* RIRQ (RF233 interrupt) */
-        12 * 4
+        11 * 4
     );
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -296,6 +320,8 @@ pub unsafe fn reset_handler() {
         console: console,
         timer: timer,
         gpio: gpio,
+        adc: adc,
+        led: led,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
