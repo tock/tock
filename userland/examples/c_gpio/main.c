@@ -9,62 +9,22 @@
  * Then, when you push the button, the other LED should blink.
  */
 
-#include "led.h"
-#include "gpio.h"
+#include <button.h>
+#include <led.h>
 
-/* Delay for for the given microseconds (approximately).
- *
- * For a 16 MHz CPU, 1us == 16 instructions (assuming each instruction takes
- * one cycle). */
-static void busy_delay_us(int duration)
-{
-	// The inner loop instructions are: 14 NOPs + 1 SUBS/ADDS + 1 CMP
-	while (duration-- != 0) {
-		__asm volatile (
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-			"nop\n"
-		);
-	}
-}
-
-/* Delay for for the given milliseconds (approximately).
- *
- * Note that this is not precise as there are 2 extra instructions on the inner
- * loop. Therefore, there is 1us added every 8 iterations. */
-static void busy_delay_ms(int duration) {
-	while (duration-- != 0) {
-		busy_delay_us(1000);
-	}
-}
-
-void interrupt_callback() {
-    led_toggle(1);
+void interrupt_callback(int pin_num, int val) {
+  if (val == 0) {
+    led_toggle(pin_num);
+  }
 }
 
 int main(void) {
-    led_on(1);
-    // Application pin 0 is Button 1
-    gpio_enable_input(0, PullDown);
-    gpio_enable_interrupt(0, PullDown, RisingEdge);
-    gpio_interrupt_callback(interrupt_callback, NULL);
+  button_subscribe(interrupt_callback, 0);
+  int j = 0;
+  for (int i = 0; i < 4 && j >= 0; i++) {
+    j = button_enable_interrupt(i);
+  }
 
-    int i;
-    for (i = 0; i < 10; i++) {
-      led_toggle(0);
-      busy_delay_ms(200);
-    }
-    return 1;
+  return 0;
 }
 
