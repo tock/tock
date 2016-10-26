@@ -266,13 +266,13 @@ pub static mut PC: Port = Port {
            GPIOPin::new(PC21, GPIO10),
            GPIOPin::new(PC22, GPIO10),
            GPIOPin::new(PC23, GPIO10),
-           GPIOPin::new(PC24, GPIO10),
+           GPIOPin::new(PC24, GPIO11),
            GPIOPin::new(PC25, GPIO11),
-           GPIOPin::new(PC26, GPIO10),
+           GPIOPin::new(PC26, GPIO11),
            GPIOPin::new(PC27, GPIO11),
-           GPIOPin::new(PC28, GPIO10),
+           GPIOPin::new(PC28, GPIO11),
            GPIOPin::new(PC29, GPIO11),
-           GPIOPin::new(PC30, GPIO10),
+           GPIOPin::new(PC30, GPIO11),
            GPIOPin::new(PC31, GPIO11)],
 };
 pub struct GPIOPin {

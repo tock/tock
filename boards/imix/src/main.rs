@@ -22,6 +22,7 @@ struct Imix {
     isl29035: &'static capsules::isl29035::Isl29035<'static>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
 }
 
 impl kernel::Platform for Imix {
@@ -37,6 +38,7 @@ impl kernel::Platform for Imix {
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
+            9 => f(Some(self.button)),
             _ => f(None),
         }
     }
@@ -331,6 +333,21 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
         96/8);
 
+    // # BUTTONs
+
+    let button_pins = static_init!(
+        [&'static sam4l::gpio::GPIOPin; 1],
+        [&sam4l::gpio::PC[24]],
+        1 * 4);
+
+    let button = static_init!(
+        capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+        capsules::button::Button::new(button_pins, kernel::Container::create()),
+        96/8);
+    for btn in button_pins.iter() {
+        btn.set_client(button);
+    }
+
     let mut imix = Imix {
         console: console,
         timer: timer,
@@ -338,6 +355,7 @@ pub unsafe fn reset_handler() {
         isl29035: isl29035,
         adc: adc,
         led: led,
+        button: button,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();

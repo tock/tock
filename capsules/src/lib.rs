@@ -3,6 +3,7 @@
 
 extern crate kernel;
 
+pub mod button;
 pub mod console;
 pub mod fm25cl;
 pub mod gpio;
