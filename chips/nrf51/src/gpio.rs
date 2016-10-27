@@ -111,8 +111,8 @@ impl GPIOPin {
 impl hil::gpio::PinCtl for GPIOPin {
     fn set_input_mode(&self, mode: hil::gpio::InputMode) {
         let conf = match mode {
-            hil::gpio::InputMode::PullUp => 0x3,
-            hil::gpio::InputMode::PullDown => 0x1,
+            hil::gpio::InputMode::PullUp => 3,
+            hil::gpio::InputMode::PullDown => 1,
             hil::gpio::InputMode::PullNone => 0,
         };
         let pin_cnf = GPIO().pin_cnf[self.pin as usize];
@@ -129,6 +129,8 @@ impl hil::gpio::Pin for GPIOPin {
     // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
     fn make_input(&self) {
         GPIO().dirclr.set(1 << self.pin);
+        let pin_cnf = GPIO().pin_cnf[self.pin as usize];
+        pin_cnf.set(0b1100);
     }
 
     // Not clk
@@ -152,15 +154,15 @@ impl hil::gpio::Pin for GPIOPin {
         GPIO().in_.get() & (1 << self.pin) != 0
     }
 
-    fn enable_interrupt(&self, _client_data: usize, _mode: hil::gpio::InterruptMode) {
-        self.client_data.set(_client_data);
+    fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
+        self.client_data.set(client_data);
         let mut mode_bits: u32 = 1; // Event
-        mode_bits |= match _mode {
+        mode_bits |= match mode {
             hil::gpio::InterruptMode::EitherEdge => 3 << 16,
             hil::gpio::InterruptMode::RisingEdge => 1 << 16,
             hil::gpio::InterruptMode::FallingEdge => 2 << 16,
         };
-        let pin = self.pin as u32;
+        let pin = (self.pin & 0b11111) as u32;
         mode_bits |= pin << 8;
         let channel = allocate_channel();
         match channel {
