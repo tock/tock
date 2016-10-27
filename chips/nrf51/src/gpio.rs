@@ -115,7 +115,7 @@ impl hil::gpio::PinCtl for GPIOPin {
             hil::gpio::InputMode::PullDown => 1,
             hil::gpio::InputMode::PullNone => 0,
         };
-        let pin_cnf = GPIO().pin_cnf[self.pin as usize];
+        let pin_cnf = &GPIO().pin_cnf[self.pin as usize];
         pin_cnf.set((pin_cnf.get() & !(0b11 << 2)) | (conf << 2));
     }
 }
@@ -129,8 +129,6 @@ impl hil::gpio::Pin for GPIOPin {
     // mynewt/hw/mcu/nordic/nrf51xxx/include/mcu/nrf51_bitfields.h
     fn make_input(&self) {
         GPIO().dirclr.set(1 << self.pin);
-        let pin_cnf = GPIO().pin_cnf[self.pin as usize];
-        pin_cnf.set(0b1100);
     }
 
     // Not clk
