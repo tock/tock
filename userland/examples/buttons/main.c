@@ -1,27 +1,28 @@
-/**
- * This application is for testing GPIO interrupts in the nRF51822 EK.
- * To run this application, hook up a button connected to VDD to GPIO pin 1
- * (the top right pin on the top left header).
- *
- * When it boots, you should see one of the two LEDs blink 5 times, then
- * go silent. This is to show that the app has booted correctly.
- *
- * Then, when you push the button, the other LED should blink.
- */
+// \file
+// This program waits for button presses on each of the buttons attached
+// to a board and toggles the LED with the same index. For example, if the first
+// button is pressed, the first LED is toggled. If the third button is pressed,
+// the third LED is toggled.
 
 #include <button.h>
 #include <led.h>
 
-void interrupt_callback(int pin_num, int val) {
+// Callback for button presses.
+//   btn_num: The index of the button associated with the callback
+//   val: 0 if pressed, 1 if depressed
+static void button_callback(int btn_num, int val, int arg2, void *ud) {
   if (val == 0) {
-    led_toggle(pin_num);
+    led_toggle(btn_num);
   }
 }
 
 int main(void) {
-  button_subscribe(interrupt_callback, 0);
+  button_subscribe(button_callback, NULL);
+
+  // Enable interrupts on each button successively until we run into a button
+  // that doesn't exist (negative return value).
   int j = 0;
-  for (int i = 0; i < 4 && j >= 0; i++) {
+  for (int i = 0; j >= 0; i++) {
     j = button_enable_interrupt(i);
   }
 
