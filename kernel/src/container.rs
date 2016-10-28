@@ -7,7 +7,7 @@ use process::{self, Error};
 
 pub static IPC_CONTAINER: usize = 1;
 
-pub static mut CONTAINER_COUNTER: usize = 1;
+pub static mut CONTAINER_COUNTER: usize = 2;
 
 pub struct Container<T: Default> {
     container_num: usize,

@@ -390,7 +390,7 @@ pub unsafe fn reset_handler() {
     firestorm.nrf51822.initialize();
 
     let mut chip = sam4l::chip::Sam4l::new();
-    //chip.mpu().enable_mpu();
+    chip.mpu().enable_mpu();
 
 
     kernel::main(firestorm, &mut chip, load_processes());

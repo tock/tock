@@ -45,11 +45,13 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
                                     process.ipc_mem.enter(otherapp, |cntr , _| {
                                         match cntr[appid.idx()] {
                                             Some(ref slice) => {
-                                                mycb.schedule(otherapp.idx(), slice.len(), slice.ptr() as usize);
+                                                let size = slice.len().trailing_zeros() - 1;
+                                                chip.mpu().set_mpu(2, slice.ptr() as u32, size, true, 0b011);
+                                                mycb.schedule(otherapp.idx(), slice.len(), slice.ptr() as usize)
                                             }
-                                            None => { mycb.schedule(appid.idx(), 0, 0); }
+                                            None => mycb.schedule(appid.idx(), 0, 0),
                                         }
-                                    }).unwrap_or(())
+                                    }).unwrap_or(false);
                                 }).unwrap_or(process.state = process::State::Yielded)
                             }
                         }
