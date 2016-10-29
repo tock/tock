@@ -1,16 +1,33 @@
-# Mutable References in Tock
+# Mutable References in Tock - Memory Containers
 
-Ownership and Borrowing are two of the most fundamental design choices in Rust as it,by nature, prevents race
-conditions and makes prevents the dangaling pointer problem. To read more about these concepts, I'd recommend 
-[this](http://words.steveklabnik.com/a-30-minute-introduction-to-rust).
+- [Brief Overview of Borrowing in Rust](#borrowing_overview)
+- [Issues with borrowing in event-driven code without a heap](#issues)
+- [The TakeCell abstraction](#takecell)
+  - [Description of the struct](#structure_of_takecell)
+  - [How it solves the problem](#takecell_solution)
+- [Example](#example)
 
-In Rust, you can either have one mutable reference to a place in memory or an "infinite" amount of read-only references.
-It's also used to simply reference large segments of memory (that you wouldn't want to move or copy often). 
-Given that read and write are mutally exclusive for borrows, it's simple impossible to run into a race condition using safe rust.
+Borrows are critical to Rust's design, however it raises issues in event-driven code without 
+a heap (can't dynamically allocate objects). We subvert Rust's systems by using memory 
+containers such as the TakeCell abstraction.
 
-But, what does this mean for Tock? It's a single-threaded enviroment right now, so clearly we won't have race-conditions
-anyway. The problem with the Tock and the borrowing system arises when we consider memory use in Tock, and event driven code
-without a heap...
+## <a href="#borrowing_overview"></a> Brief Overview of Borrowing in Rust 
+Ownership and Borrowing are two of the most fundamental design choices in Rust as it,by nature, 
+prevents race conditions and makes it impossible to write code that'll produce the dangaling pointer
+problem. 
+
+Borrowing is Rust's mechanism to allow references to a part of memory. So similar to C++, and other
+languages, it makes it possible to pass large structures simply by using a reference to that structure.
+However, Rust's compiler limits your borrows so that we it doesn't run into the reader-writer problem,
+meaning you can either have one mutable reference to part of memory or an "infinite" amount of 
+read-only references. Given that read and write are mutally exclusive for borrows, it's impossible
+to run into a race condition using safe rust.
+
+But, what does this mean for Tock? It's a single-threaded enviroment right now, so clearly we won't 
+have race-conditions anyway. A problem arises when the borrowing system of Rust clashes with
+event-driven code without a Heap. 
+
+## <a href="#issues"></a> Issues with Borrowing in Event-Driven code without a Heap 
 
 In Tock, both the Capsules and the Kernal don't have a heap because we don't want to allow dynamic memory allocation. If we did,
 we could run into the problem of the Kernal/Capsules leaking memory, exhausting memory, and crashing. For this reason, everything
@@ -19,7 +36,7 @@ is statically allocated for the two.
 But what if a Capsule needs more memory because it's handling more clients? A janky solution would be always reserving 
 space for all of the potential clients, but that's a huge waste of space that we don't have on microcontrollers. 
 
-## The TakeCell abstraction
+## <a href="#takecell"></a> The TakeCell abstraction 
 
 We want to avoid making everything mutable in Tock, because if we did make everything mutable, how could we pass out references? We'd only be able to have one mutable reference. We can solve this issue by having variables declared immutable, but we might still want to modify those "immutable" variable. Thus the question becomes, how can we subvert the type system of rust, by having both multiple read-only borrows, while also making it mutable? We do this with the TakeCell.
 
@@ -37,7 +54,3 @@ room for one buffer in the UART Driver ( as of now drivers < capsules )?
 One solution for this could be giving whoever comes first exclusive access to the UART, and blocking the second process. 
 A drawback to this would be starving out the other process entirely, making it not function properly. We solve this issue of needing
 more space to save state for drivers with the `allow()` system call. This way when the process needs more
-
-
-3) Mutable references in Tock. Since borrows are so critical in Rust, and they raise issues in 
-event-driven code without a heap, we need to explain how Tock structures its code (memory containers).
