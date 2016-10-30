@@ -68,6 +68,13 @@ pub struct Spi {
     // keep track of which interrupts are pending in order
     // to correctly issue completion event only after both complete.
     transfer_in_progress: Cell<bool>,
+    // keep track of if we're waiting for both a read and write in
+    // progress. Don't want to abort the software 'read' if 'write'
+    // finishes before it.
+    rw_in_progress: Cell<bool>,
+    // keep track of if either of the channels completed. (For the channels
+    // to be sync... if both read and write regardless of who finishes first)
+    channel_completed: Cell<bool>,
     dma_length: Cell<usize>,
 }
 
@@ -82,6 +89,8 @@ impl Spi {
             dma_read: TakeCell::empty(),
             dma_write: TakeCell::empty(),
             transfer_in_progress: Cell::new(false),
+            rw_in_progress: Cell::new(false),
+            channel_completed: Cell::new(false),
             dma_length: Cell::new(0),
         }
     }
@@ -318,6 +327,10 @@ impl spi::SpiMaster for Spi {
         let count = cmp::min(buflen, len);
         self.dma_length.set(count);
 
+        if read_buffer.is_some() {
+            self.rw_in_progress.set(true);
+        }
+
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
@@ -325,7 +338,7 @@ impl spi::SpiMaster for Spi {
             write.enable();
             write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count)
         });
-
+        
         // Only setup the RX channel if we were passed a read_buffer inside
         // of the option. `map()` checks this for us.
         read_buffer.map(|rbuf| {
@@ -412,9 +425,21 @@ impl DMAClient for Spi {
         // DMA setup, but there's no guarantee RX will exist. In the case
         // both are happening, just using TX is sufficient because SPI
         // is full duplex.
-        if pid == DMAPeripheral::SPI_TX {
+        if self.rw_in_progress.get() {
+            if !self.channel_completed.get() {
+                self.channel_completed.set(true);
+                return;
+            }
+        }         
+       
+        // only callback done if it was just a write and that completed
+        // or it was rw, and both read and write have completed.
+        if pid == DMAPeripheral::SPI_TX || 
+            (self.rw_in_progress.get() && self.channel_completed.get()) {
             // SPI TX
             self.transfer_in_progress.set(false);
+            self.channel_completed.set(false);
+            self.rw_in_progress.set(false);
 
             let txbuf = self.dma_write.map_or(None, |dma| {
                 let buf = dma.abort_xfer();
