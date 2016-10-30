@@ -28,29 +28,61 @@ have race-conditions anyway. A problem arises when the borrowing system of Rust 
 event-driven code without a Heap. 
 
 ## <a href="#issues"></a> Issues with Borrowing in Event-Driven code without a Heap 
+Embedded Devices are often low-resource device -- they don't have resources, such as space to waste.
+Thus it is extremely common to share buffers between drivers, and applications using those drivers
+normally with a pointer to the memory. But, with pointers how can we 'revoke' access when the driver
+is done sharing its buffer? How can we prevent one process from mangaling the data of another?
 
-In Tock, both the Capsules and the Kernal don't have a heap because we don't want to allow dynamic memory allocation. If we did,
-we could run into the problem of the Kernal/Capsules leaking memory, exhausting memory, and crashing. For this reason, everything
-is statically allocated for the two.
+We solve this issue of uniquely sharing memory with the memory container abstraction, TakeCell which
+will be explained below.
 
-But what if a Capsule needs more memory because it's handling more clients? A janky solution would be always reserving 
-space for all of the potential clients, but that's a huge waste of space that we don't have on microcontrollers. 
+Besides the difficulty of sharing memory safey, it's difficult to have an overall dynamic memory 
+manager for these devices, the differences between the needs of the memory manager would make it 
+such that no one is happy. Furthermore, what would happen if we try to dynamically allocate memory
+in the Kernal or Drivers and memory exhausted... crashing seems like a bad idea.
 
-## <a href="#takecell"></a> The TakeCell abstraction 
+For this reason, in Tock both the Capsules and the Kernal don't have a heap. If we did, we could run into 
+the problem of the Kernal/Capsules leaking memory, exhausting memory, and crashing. Thus, everything is 
+statically allocated for the two.
 
-We want to avoid making everything mutable in Tock, because if we did make everything mutable, how could we pass out references? We'd only be able to have one mutable reference. We can solve this issue by having variables declared immutable, but we might still want to modify those "immutable" variable. Thus the question becomes, how can we subvert the type system of rust, by having both multiple read-only borrows, while also making it mutable? We do this with the TakeCell.
+But, we might run into the issue of a Capsule Driver (code written in Rust, with the Driver trait implemented)
+needing more space, perhaps, because it is handling more clients. A janky solution to this would be always 
+reserving space for all of the potential clients, but that's a huge waste of space that we don't have. We
+solve this conundrum with the `allow()` system call which you can read about [INSERT_LINK](#).
 
-Once a TakeCell has been taken to perform a particular function (or, when TakeCell.take has been called), the TakeCell no longer owns a location in memory as ownership has been transferred. Using the map function and a closure, an operation may be performed on a TakeCell that takes and returns a block of memory. 
+## <a href="#takecell"></a> The TakeCell abstraction
+As described above, we run into several problems on microcontrollers regarding sharing buffers.
+Another problem we encounter with the Rust's type system is borrowing in regards to mutability. 
+We might need multiple references because of interactions with multiple clients. Thus, we want to avoid making
+everything mutable in Tock, because if we did make everything mutable, how could we pass out references? 
+We'd only be able to have one mutable reference. We can solve this issue by having variables declared immutable,
+but we might still want to modify those "immutable" variable. Thus the question becomes, how can we subvert the
+type system of rust, by having both multiple read-only borrows, while also making it mutable?
+We do this with the TakeCell, a critical component to shared buffers.
 
-TakeCells are also critically important for accessing larger pieces of data as multiple functions can be performed with a single TakeCell. For example, when writing a buffer to UART, a TakeCell would allow a process to temporarily transfer ownership of a buffer while writing a byte before retaking ownership. It is more space efficient, since all processes can share the same buffer, instead of all having individual ones. 
+### <a href="#structure_of_takecell"></a> TakeCell structure
+From tock/kernal/src/common/take_cell.rs:
+> A `TakeCell` is a potential reference to mutable memory. Borrow rules are
+> enforced by forcing clients to either move the memory out of the cell or
+> operate on a borrow within a closure.
 
-Transferring ownership with TakeCell is safer than just giving out a reference, since it makes use of Rust’s memory safety guarantees. For example, if it gave out references to the same object, then two processes could clobber each other’s data. Since with TakeCell only one thing can have access at a time, this is impossible. 
 
+### <a href="#takecell_solution"></a> TakeCell solution
+Essentially, you can either use `TakeCell.map()` which would take wrap some clousure given between a
+`TakeCell.take()` and `TakeCell.replace()`. When `TakeCell.take()` is called, ownership of a location in memory 
+moves out of the cell. It can then be freely used by whoever took it (as they own it) and then put back with
+`TakeCell.put()` or `TakeCell.replace()`.
 
+Thus we can share a driver's buffer, among multiple clients one at a time ensuring no one can mutate another
+clients information as they're no pointers involved. 
 
+Transferring ownership with TakeCell is safer than just giving out a reference, since it makes use 
+of Rust’s memory safety guarantees. For example, if it gave out references to the same object, then 
+two processes could clobber each other’s data. With TakeCell there's only one borrower,so, this is impossible. 
 
-However, a down side to this could be what if two processes, A and B, want to use the UART to print to serial, but we only allocated
-room for one buffer in the UART Driver ( as of now drivers < capsules )? 
-One solution for this could be giving whoever comes first exclusive access to the UART, and blocking the second process. 
-A drawback to this would be starving out the other process entirely, making it not function properly. We solve this issue of needing
-more space to save state for drivers with the `allow()` system call. This way when the process needs more
+## <a href="#example"></a>Example
+
+TakeCells are also critically important for accessing larger pieces of data as multiple functions can be 
+performed with a single TakeCell. For example, when writing a buffer to UART, a TakeCell would allow a 
+process to temporarily transfer ownership of a buffer while writing a byte before retaking ownership. 
+It is more space efficient, since all processes can share the same buffer, instead of all having individual ones. 
