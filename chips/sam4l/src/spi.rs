@@ -426,16 +426,24 @@ impl DMAClient for Spi {
         // both are happening, just using TX is sufficient because SPI
         // is full duplex.
         if self.rw_in_progress.get() {
-            if !self.channel_completed.get() {
+            /*if !self.channel_completed.get() && 
+                (pid == DMAPeripheral::SPI_TX || pid == DMAPeripheral::SPI_RX){
                 self.channel_completed.set(true);
                 return;
+            } */
+            if pid == DMAPeripheral::SPI_TX {
+                return; // making crude version where assumes TX finishes first
             }
+               
         }         
        
         // only callback done if it was just a write and that completed
         // or it was rw, and both read and write have completed.
-        if pid == DMAPeripheral::SPI_TX || 
-            (self.rw_in_progress.get() && self.channel_completed.get()) {
+//        if pid == DMAPeripheral::SPI_TX || 
+//            (self.rw_in_progress.get() && self.channel_completed.get()) {
+            if pid == DMAPeripheral::SPI_TX || 
+                (self.rw_in_progress.get() && pid == DMAPeripheral::SPI_RX) {
+            //panic!("DMA transfer compelte!!");
             // SPI TX
             self.transfer_in_progress.set(false);
             self.channel_completed.set(false);
