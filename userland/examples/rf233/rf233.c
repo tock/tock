@@ -50,6 +50,7 @@ int rf233_prepare(const void *payload, unsigned short payload_len);
 int rf233_transmit();
 int rf233_send(const void *data, unsigned short len);
 int rf233_read(void *buf, unsigned short bufsize);
+int rf233_channel_clear(void); // TODO: implement
 int rf233_receiving_packet(void);
 int rf233_pending_packet(void);
 int rf233_on(void);
@@ -69,12 +70,21 @@ int rf233_sleep(void);
 
 /*---------------------------------------------------------------------------*/
 #define _DEBUG_                 1
-#define DEBUG_PRINTDATA       0    /* print frames to/from the radio; requires DEBUG == 1 */
+#define DEBUG_PRINTDATA       1    /* print frames to/from the radio; requires DEBUG == 1 */
 #if _DEBUG_
 #define PRINTF(...)       printf(__VA_ARGS__)
 #else
 #define PRINTF(...)       1
 #endif
+
+// Used for debugging
+void output_short_addr() {
+    uint16_t zero = 0;
+    uint8_t loBits = trx_reg_read(0x20);
+    uint8_t hiBits = trx_reg_read(0x21);
+    PRINTF("Short Address is 0x%u%u\n", hiBits, loBits);
+    PRINTF("Done PRINTING SHORT ADDR");
+}
 
 // Used for debugging output
 char* state_str(uint8_t state) {
@@ -121,16 +131,19 @@ void calibrate_filters() {
 }
 
 int main() {
-  char buf[10] = {0x61, 0xAA, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xdd};
+  char buf[10] = {0x61, 0xAA, 0x00, 0xBC, 0xBB, 0xFF, 0xFF, 0xFF, 0xFF, 0xdd};
  
   rf233_init();
   while (1) {
+    PRINTF("RF233 CYCLE START\n-----------------\n");
     rf233_send(buf, 10);
-    delay_ms(10);
+    output_short_addr();
+    /*delay_ms(10);
     rf233_sleep();
     delay_ms(1000);
-    rf233_on();
+    rf233_on(); */
     delay_ms(10000);
+    PRINTF("RF233 CYCLE COMPLETE\n-----------------\n");
   }
   //while(1) {}
 }
@@ -151,6 +164,7 @@ void packetbuf_clear() {
 uint8_t trx_reg_read(uint8_t addr) {
 	uint8_t command = addr | READ_ACCESS_COMMAND;
         char buf[2];
+        
         buf[0] = command;
         buf[1] = 0;
         spi_read_write_sync(buf, buf, 2);
@@ -298,10 +312,13 @@ void interrupt_callback() {
   if (irq_source & IRQ_PLL_LOCK) {
     PRINTF("RF233: PLL locked.\n");
     radio_pll = true;
-    return;
-  } else if (irq_source == IRQ_RX_START) {
+  //  return;
+  } 
+ 
+  // TODO: made this NON-exclusive!
+  if (irq_source & IRQ_RX_START) {
     PRINTF("RF233: Interrupt receive start.\n");
-  } else if (irq_source == IRQ_TRX_DONE) {
+  } else if (irq_source & IRQ_TRX_DONE) {
     PRINTF("RF233: TRX_DONE handler.\n");
     // Completed a transmission
     if (flag_transmit != 0) {
@@ -367,7 +384,10 @@ int rf233_init(void) {
    * working/responding. Could check in software, I just look at
    * the bus. If this is working, the first write should be 0x9C x00
    * and the return bytes should be 0x00 0x0B. - pal*/
+  PRINTF("Reading part num...\n");
   regtemp = trx_reg_read(RF233_REG_PART_NUM);
+  PRINTF("RegTemp Is: %u\n", regtemp); // on the wire thing right, but in
+                                        // something is off by one.
 
   /* before enabling interrupts, make sure we have cleared IRQ status */
   regtemp = trx_reg_read(RF233_REG_IRQ_STATUS);
@@ -397,6 +417,7 @@ int rf233_init(void) {
   trx_bit_write(SR_MAX_CSMA_RETRIES, 0);
   PRINTF("RF233: Configured transciever.\n");
   {
+    PRINTF("Configuring Addresses...\n");
     uint8_t addr[8];
     addr[0] = 0x22;
     addr[1] = 0x22;
@@ -407,9 +428,16 @@ int rf233_init(void) {
     addr[6] = 0x22;
     addr[7] = 0x22;
     SetPanId(IEEE802154_CONF_PANID);
+   
+    // TODO: confirm addresses:
+    //output_short_addr(); 
     
-    SetIEEEAddr(addr);
+    PRINTF("READ THE ADDR\n");
+    SetIEEEAddr(addr); // I think it breaks here
+    PRINTF("SET THE ADDR\n");
     SetShortAddr(0x2222);
+
+    //output_short_addr(); 
   }
   rf_generate_random_seed();
   
@@ -418,8 +446,8 @@ int rf233_init(void) {
   }
 
   /* 11_09_rel */
-  trx_reg_write(RF233_REG_TRX_RPC, 0xFF); /* Enable RPC feature by default */
-  PRINTF("RF233: Installed addresses. Turning on radio.");
+  //trx_reg_write(RF233_REG_TRX_RPC, 0xFF); /* Enable RPC feature by default */
+  PRINTF("RF233: Installed addresses. Turning on radio.\n");
   rf233_on();
   return 0;
 }
@@ -527,6 +555,7 @@ int rf233_transmit() {
   radio_tx = false;
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
   RF233_COMMAND(TRXCMD_TX_START);
+
 
   PRINTF("RF233:: Issued TX_START, wait for completion interrupt.\n");
   yield_for(&radio_tx);
@@ -680,7 +709,7 @@ int rf233_off(void) {
 void SetIEEEAddr(uint8_t *ieee_addr) {
 	uint8_t *ptr_to_reg = ieee_addr;
 	//for (uint8_t i = 0; i < 8; i++) {
-		trx_reg_write((0x2b), *ptr_to_reg);
+		trx_reg_write((0x2b), *ptr_to_reg); // TODO: breaks on here!
 		ptr_to_reg++;
 		trx_reg_write((0x2a), *ptr_to_reg);
 		ptr_to_reg++;
@@ -711,6 +740,7 @@ void SetShortAddr(uint16_t addr) {
   
   trx_reg_write(0x20, d[0]);
   trx_reg_write(0x21, d[1]);
+  PRINTF("Setting ShortAddr to:%u%u", d[1],d[0]);
   trx_reg_write(0x2d, d[0] + d[1]);
 }
 

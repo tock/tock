@@ -160,7 +160,6 @@ impl<'a> Process<'a> {
             r2: process.kernel_memory_break as usize,
             r3: 0,
         });
-
         process
     }
 

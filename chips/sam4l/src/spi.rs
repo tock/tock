@@ -301,6 +301,7 @@ impl spi::SpiMaster for Spi {
             cmp::min(read_len, write_len)
         };
         let count = cmp::min(buflen, len);
+        //panic!("buflen is {}, and we're reading / operating on {} bytes", buflen, count);
         self.dma_length.set(count);
 
         // The ordering of these operations matters.
@@ -417,7 +418,7 @@ impl DMAClient for Spi {
         if pid == 22 {
             // SPI TX
             self.transfer_in_progress.set(false);
-
+            /*
             let txbuf = match self.dma_write.as_mut() {
                 Some(dma) => {
                     let buf = dma.abort_xfer();
@@ -426,7 +427,7 @@ impl DMAClient for Spi {
                 }
                 None => None,
             };
-
+            
             let rxbuf = match self.dma_read.as_mut() {
                 Some(dma) => {
                     let buf = dma.abort_xfer();
@@ -435,7 +436,39 @@ impl DMAClient for Spi {
                 }
                 None => None,
             };
-
+        
+            //panic!("Reading buffer.... txbuf[1]:{}, rxbuf[1]:{}", txbuf.unwrap()[1], rxbuf.unwrap()[1]);
+            let len = self.dma_length.get();
+            self.dma_length.set(0);
+            self.client.map(|cb| {
+                txbuf.map(|txbuf| {
+                    cb.read_write_done(txbuf, rxbuf, len);
+                });
+            }); */
+        } else if pid == 4 && !self.transfer_in_progress.get() {
+            // TODO: this is not an ideal solution, but should work... for the 
+            // time being...
+            
+            let txbuf = match self.dma_write.as_mut() {
+                Some(dma) => {
+                    let buf = dma.abort_xfer();
+                    dma.disable();
+                    buf
+                }
+                None => None,
+            };
+            // compeleted RX...
+            let rxbuf = match self.dma_read.as_mut() {
+                Some(dma) => {
+                    let buf = dma.abort_xfer();
+                    dma.disable();
+                    buf
+                }
+                None => None,
+            };
+            
+          //  panic!("Reading buffer.... txbuf[1]:{}, rxbuf[1]:{}", txbuf.unwrap()[1], rxbuf.unwrap()[1]);
+            
             let len = self.dma_length.get();
             self.dma_length.set(0);
             self.client.map(|cb| {
@@ -443,6 +476,8 @@ impl DMAClient for Spi {
                     cb.read_write_done(txbuf, rxbuf, len);
                 });
             });
+            
+
         }
     }
 }

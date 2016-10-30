@@ -192,7 +192,8 @@ impl DMAChannel {
     pub fn handle_interrupt(&mut self) {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         let channel: usize = read_volatile(&registers.peripheral_select);
-
+       // unsafe { panic!("we are serving... {} DMAs", NUM_ENABLED); }
+        // TODO(kbaichoo) panic here and see if any left!
         self.client.as_mut().map(|client| {
             client.xfer_done(channel);
         });
