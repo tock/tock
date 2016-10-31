@@ -24,7 +24,7 @@ limiting you to either a single mutable reference to a part of memory or an "inf
 read-only references. Given that read and write are mutally exclusive for borrows, it's impossible
 to run into a race condition using safe rust.
 
-But what does this mean for Tock? As it is currently in a single-threaded enviroment, we clearly will not 
+But what does this mean for Tock? As Tock is a single-threaded enviroment, we clearly will not 
 have race-conditions. A problem arises when the borrowing system of Rust clashes with
 event-driven code without a Heap. 
 
@@ -40,15 +40,15 @@ will be explained below.
 
 Besides the difficulty of sharing memory safely, it's also difficult to have an overall dynamic memory 
 manager for these devices, as the differences between the needs of the memory manager would make it 
-such that no one is happy. Furthermore, if we dynamically allocated memory in the Kernel or for the Drivers and 
-memory were to become exhausted... crashing seems like a bad idea.
+such that no one is happy. Furthermore, what would happen if we tried to dynamically allocate memory
+in the Kernel or Drivers and memory exhausted... crashing seems like a bad idea.
 
 For this reason, in Tock both the Capsules and the Kernel don't have a heap. If we did, we could run into 
 the problem of the Kernel or Capsules leaking memory, exhausting memory, and crashing. Thus, everything is 
 statically allocated for both the Kernel and Capsules.
 
 However, we might run into the issue of a Capsule Driver (code written in Rust, with the Driver trait implemented)
-needing more space, perhaps, because it is handling more clients. A suboptimal solution to this would be always 
+needing more space, perhaps, because it is handling more clients. A janky solution to this would be always 
 reserving space for all of the potential clients, but that would waste space that we don't have. We
 solve this conundrum with the `allow()` system call which you can read about [INSERT_LINK](#).
 
@@ -71,7 +71,7 @@ From tock/kernel/src/common/take_cell.rs:
 
 
 ### <a href="#takecell_solution"></a> TakeCell solution
-Although it is sometimes more manually, Tock typically uses `TakeCell.map()`, which wraps the provided closure 
+Although it can also be done directly, Tock typically uses `TakeCell.map()`, which wraps the provided closure 
 between a `TakeCell.take()` and `TakeCell.replace()`. When `TakeCell.take()` is called, ownership of a location 
 in memory moves out of the cell. It can then be freely used by whoever took it (as they own it) and then put 
 back with `TakeCell.put()` or `TakeCell.replace()`.
