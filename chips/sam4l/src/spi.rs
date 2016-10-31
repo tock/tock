@@ -425,23 +425,64 @@ impl DMAClient for Spi {
         // DMA setup, but there's no guarantee RX will exist. In the case
         // both are happening, just using TX is sufficient because SPI
         // is full duplex.
+        
+       
+        
+        if pid == DMAPeripheral::SPI_TX {
+            self.transfer_in_progress.set(false);
+        } else if pid == DMAPeripheral::SPI_RX && !self.transfer_in_progress.get() {
+            self.channel_completed.set(false);
+            self.rw_in_progress.set(false);
+
+            let txbuf = self.dma_write.map_or(None, |dma| {
+                let buf = dma.abort_xfer();
+                dma.disable();
+                buf
+            });
+
+            let mut rxbuf = self.dma_read.map_or(None, |dma| {
+                let buf = dma.abort_xfer();
+                dma.disable();
+                buf
+            });
+            
+            {
+                let res = rxbuf.unwrap();
+                for i in 0..res.len() {
+                    if(res[i] != 0) {
+                       panic!("rx buf [{}]: {}, tx_buf[1]:{} \n", i, res[i], txbuf.unwrap()[1]);
+                    }
+                }
+                rxbuf = Some(res);
+            }
+    
+            
+
+            let len = self.dma_length.get();
+            self.dma_length.set(0);
+            self.client.map(|cb| {
+                txbuf.map(|txbuf| {
+                    cb.read_write_done(txbuf, rxbuf, len);
+                });
+            });
+           
+        }
+
+
+/*
         if self.rw_in_progress.get() {
-            /*if !self.channel_completed.get() && 
+            if !self.channel_completed.get() && 
                 (pid == DMAPeripheral::SPI_TX || pid == DMAPeripheral::SPI_RX){
                 self.channel_completed.set(true);
                 return;
-            } */
-            if pid == DMAPeripheral::SPI_TX {
-                return; // making crude version where assumes TX finishes first
             }
-               
         }         
        
         // only callback done if it was just a write and that completed
         // or it was rw, and both read and write have completed.
-//        if pid == DMAPeripheral::SPI_TX || 
-//            (self.rw_in_progress.get() && self.channel_completed.get()) {
-            if pid == DMAPeripheral::SPI_TX || 
+        //if pid == DMAPeripheral::SPI_TX || 
+        //    (self.rw_in_progress.get() && self.channel_completed.get()) {
+        if pid == DMAPeripheral::SPI_RX || 
                 (self.rw_in_progress.get() && pid == DMAPeripheral::SPI_RX) {
             //panic!("DMA transfer compelte!!");
             // SPI TX
@@ -460,6 +501,8 @@ impl DMAClient for Spi {
                 dma.disable();
                 buf
             });
+            
+            panic!("rx buf [1]: {}, tx_buf[1]:{} \n", rxbuf.unwrap()[1], txbuf.unwrap()[1]);
 
             let len = self.dma_length.get();
             self.dma_length.set(0);
@@ -468,6 +511,7 @@ impl DMAClient for Spi {
                     cb.read_write_done(txbuf, rxbuf, len);
                 });
             });
-        }
+        } */
     }
+    
 }
