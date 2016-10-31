@@ -44,7 +44,7 @@ impl<L, T> Drop for AppPtr<L, T> {
     fn drop(&mut self) {
         unsafe {
             let ps = &mut process::PROCS;
-            if ps.len() < self.process.idx() {
+            if ps.len() > self.process.idx() {
                 ps[self.process.idx()].as_mut().map(|process| process.free(self.ptr.get_mut()));
             }
         }
@@ -70,6 +70,17 @@ impl<L, T> AppSlice<L, T> {
 
     pub unsafe fn ptr(&self) -> *const T {
         self.ptr.ptr.get() as *const T
+    }
+
+    pub unsafe fn expose_to(&self, appid: AppId) -> bool {
+        let ps = &mut process::PROCS;
+        if appid.idx() != self.ptr.process.idx() && ps.len() > appid.idx() {
+            ps[appid.idx()].as_ref().map(|process| {
+                process.add_mpu_region(self.ptr() as *const u8, self.len())
+            }).unwrap_or(false)
+        } else {
+            false
+        }
     }
 }
 

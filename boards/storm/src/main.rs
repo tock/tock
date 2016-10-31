@@ -87,14 +87,11 @@ struct Firestorm {
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+    ipc: kernel::ipc::IPC,
 }
 
 impl Platform for Firestorm {
-    // fn mpu(&mut self) -> &mut cortexm4::mpu::MPU {
-    // &mut self.chip.mpu
-    // }
-
-    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
 
@@ -108,6 +105,8 @@ impl Platform for Firestorm {
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
+
+            0x4c => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -354,8 +353,9 @@ pub unsafe fn reset_handler() {
             nrf51822: nrf_serialization,
             adc: adc,
             led: led,
+            ipc: kernel::ipc::IPC::new(),
         },
-        288/8);
+        320/8);
 
     // Configure USART2 Pins for connection to nRF51822
     // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
@@ -393,5 +393,5 @@ pub unsafe fn reset_handler() {
     chip.mpu().enable_mpu();
 
 
-    kernel::main(firestorm, &mut chip, load_processes());
+    kernel::main(firestorm, &mut chip, load_processes(), &firestorm.ipc);
 }

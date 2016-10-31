@@ -5,9 +5,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::{read_volatile, write_volatile, Unique};
 use process::{self, Error};
 
-pub static IPC_CONTAINER: usize = 1;
-
-pub static mut CONTAINER_COUNTER: usize = 2;
+pub static mut CONTAINER_COUNTER: usize = 0;
 
 pub struct Container<T: Default> {
     container_num: usize,
@@ -99,13 +97,6 @@ impl<'a> Allocator<'a> {
 }
 
 impl<T: Default> Container<T> {
-    pub unsafe fn from(num: usize) -> Container<T> {
-        Container {
-            container_num: num,
-            ptr: PhantomData,
-        }
-    }
-
     pub unsafe fn create() -> Container<T> {
         let ctr = read_volatile(&CONTAINER_COUNTER);
         write_volatile(&mut CONTAINER_COUNTER, ctr + 1);

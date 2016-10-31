@@ -1,8 +1,8 @@
 use callback::AppId;
 use common::{RingBuffer, Queue};
 
-use mem::{AppSlice, Shared};
 use container;
+use core::cell::Cell;
 use core::{mem, ptr, slice};
 use core::intrinsics::breakpoint;
 use core::ptr::{read_volatile, write_volatile};
@@ -92,13 +92,34 @@ pub struct Process<'a> {
     yield_pc: usize,
     psr: usize,
 
+    /// MPU regions are saved as a pointer-size pair.
+    ///
+    /// size is encoded as X where
+    /// SIZE = 2^(X + 1) and X >= 4.
+    ///
+    /// A null pointer represents an empty region.
+    ///
+    /// # Invariants
+    ///
+    /// The pointer must be aligned to the size. E.g. if the size is 32 bytes, the pointer must be
+    /// 32-byte aligned.
+    ///
+    mpu_regions: [Cell<(*const u8, usize)>; 5],
+
     pub state: State,
 
     pub callbacks: RingBuffer<'a, GCallback>,
+}
 
-    pub ipc_mem: container::Container<[Option<AppSlice<Shared, u8>>; 8]>,
-
-    pub ipc_callback: Option<::callback::Callback>
+fn closest_power_of_two(mut num: u32) -> u32 {
+    num -= 1;
+    num |= num >> 1;
+    num |= num >> 2;
+    num |= num >> 4;
+    num |= num >> 8;
+    num |= num >> 16;
+    num += 1;
+    num
 }
 
 impl<'a> Process<'a> {
@@ -110,13 +131,55 @@ impl<'a> Process<'a> {
         unsafe { self.memory.as_ptr().offset(self.memory.len() as isize) }
     }
 
-    pub fn memory_regions(&self) -> (usize, usize, usize, usize) {
+    pub fn setup_mpu(&self, mpu: &::platform::MPU) {
         let data_start = self.memory.as_ptr() as usize;
         let data_len = 12;
 
         let text_start = self.text.as_ptr() as usize;
-        let text_len = ((32 - self.text.len().leading_zeros()) - 2) as usize;
-        (data_start, data_len, text_start, text_len)
+        let text_len = ((32 - self.text.len().leading_zeros()) - 2) as u32;
+
+        let mut grant_size = unsafe {
+                self.memory.as_ptr().offset(self.memory.len() as isize) as u32
+                    - (self.kernel_memory_break as u32)
+        };
+        grant_size = closest_power_of_two(grant_size);
+        let grant_base = unsafe {
+                self.memory.as_ptr().offset(self.memory.len() as isize)
+                    .offset(-(grant_size as isize))
+        };
+        let mgrant_size = grant_size.trailing_zeros() - 1;
+        
+        // Data segment read/write/execute
+        mpu.set_mpu(0, data_start as u32, data_len, true, 0b011);
+        // Text segment read/execute (no write)
+        mpu.set_mpu(1, text_start as u32, text_len, true, 0b111);
+
+        // Disallow access to grant region
+        mpu.set_mpu(2, grant_base as u32, mgrant_size, false, 0b001);
+
+        for (i,region) in self.mpu_regions.iter().enumerate() {
+            mpu.set_mpu((i + 3) as u32, region.get().0 as u32, region.get().1 as u32, true, 0b011);
+        }
+    }
+
+
+    pub fn add_mpu_region(&self, base: *const u8, size: usize) -> bool {
+        if size >= 16 && size.count_ones() == 1 &&
+            (base as usize) % size == 0 {
+                let mpu_size = (size.trailing_zeros() - 1) as usize;
+                for region in self.mpu_regions.iter() {
+                    if region.get().0 == ptr::null() {
+                        region.set((base, mpu_size));
+                        return true;
+                    } else if region.get().0 == base {
+                        if region.get().1 < mpu_size {
+                            region.set((base, mpu_size));
+                        }
+                        return true;
+                    }
+                }
+        }
+        return false;
     }
 
     pub unsafe fn create(start_addr: *const u8,
@@ -160,10 +223,11 @@ impl<'a> Process<'a> {
             cur_stack: stack_bottom,
             yield_pc: 0,
             psr: 0x01000000,
+            mpu_regions: [Cell::new((ptr::null(), 0)), Cell::new((ptr::null(), 0)),
+                          Cell::new((ptr::null(), 0)), Cell::new((ptr::null(), 0)),
+                          Cell::new((ptr::null(), 0))],
             state: State::Yielded,
             callbacks: callbacks,
-            ipc_mem: container::Container::from(container::IPC_CONTAINER),
-            ipc_callback: None,
         };
 
         process.callbacks.enqueue(GCallback::Callback(Callback {
