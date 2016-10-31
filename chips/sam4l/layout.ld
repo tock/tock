@@ -3,27 +3,6 @@
  * and modify as needed.
  */
 
-/*
- * This file is part of StormLoader, the Storm Bootloader
- *
- * StormLoader is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * StormLoader is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
- *
- * Copyright 2014, Michael Andersen <m.andersen@eecs.berkeley.edu>
- *
- * This file is largely copied from the Atmel supplied linker scripts
- */
-
 OUTPUT_FORMAT("elf32-littlearm", "elf32-littlearm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
 SEARCH_DIR(.)
