@@ -127,12 +127,11 @@ non-zero, loads the process code there, then checks the length at `_sapps`
 plus the length of the first process. This continues until it finds a
 length of zero or it reaches the maximum number of processes.
 
-------------------------
-|   length (4 bytes)   |
-|  code (length bytes) |
-|   length (4 bytes)   |
-|  code (length bytes) |
-------------------------
+
+| length | (4 bytes)      |
+|  code  | (length bytes) |
+| length | (4 bytes)      |
+|  code  | (length bytes) |
 
 Note that this means a linker script needs to set the first unused word
 of the application code region to 0; otherwise, if there is uncleared flash
