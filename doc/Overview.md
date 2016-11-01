@@ -93,11 +93,12 @@ appliation code.
 ### Kernel code
 
 The kernel code space is subdivided into five regions:
-    * `.vectors`: the Cortex-M interrupt vectors, starting at 0x0
-    * `.irqs`: the peripheral interrupt vectors, starting at 0x40
-    * `.text`: kernel code
-    * `.rodata`: read-only data (constants, etc.)
-    * `.ARM.extab`: C++ exception handling table
+
+* `.vectors`: the Cortex-M interrupt vectors, starting at 0x0
+* `.irqs`: the peripheral interrupt vectors, starting at 0x40
+* `.text`: kernel code
+* `.rodata`: read-only data (constants, etc.)
+* `.ARM.extab`: C++ exception handling table
 
 The first two
 ([vectors](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BABIFJFG.html) and
@@ -141,10 +142,11 @@ memory the kernel might conclude there are applications there.
 ### RAM
 
 RAM contains four major regions:
-    * kernel data (initialized memory),
-    * kernel BSS (uninitialized memory, zero at boot),
-    * the kernel stack,
-    * process memory.
+
+* kernel data (initialized memory),
+* kernel BSS (uninitialized memory, zero at boot),
+* the kernel stack,
+* process memory.
 
 ## Tock Directory Structure
 
