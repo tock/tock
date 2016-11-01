@@ -68,29 +68,144 @@ implement the system call
 # Tock Memory Map
 
 Tock is intended to run on Cortex-M microcontrollers, which have
-non-volatile flash memory (for code) and RAM (for stack and data)
-in a single address space. While the Cortex-M architecture specifies
-a high-level layout of the address space, the exact layout of Tock
-can differ from chip to chip. The layout is defined in a `layout.ld`
-file in a chip's directory. This section describes Tock's layout
-on the SAM4L series of Cortex-M4 microcontrollers (the application
-MCU on the Firestorm and imix platforms).
+non-volatile flash memory (for code) and RAM (for stack and data) in a
+single address space. While the Cortex-M architecture specifies a
+high-level layout of the address space, the exact layout of Tock can
+differ from chip to chip. The layout is defined in a `layout.ld` file
+in a chip's directory. This section describes
+[../boards/imix/layout.ld](Tock's layout on the Atmel SAM4L 
+Cortex-M4 microcontroller on the imix platform), which is the application
+processor.
 
-Processes are isolated from each other, the kernel, and the underlying hardware
-explicitly by the hardware Memory Protection Unit (MPU). The MPU limits which
-memory addresses a process can access. Accesses outside of a process’s permitted
-region result in a fault and trap to the kernel.
+Tock's memory has three major regions: kernel code, process code, and
+RAM: For the SAM4L, these are laid out as follows. This allocation assumes
+the SAM4L which has 512kB of flash and 64kB of RAM:
 
-Code, stored in flash, is made
-accessible with a read-only memory protection region. Each process is allocated
-a contiguous region of RAM. One novel aspect of a process is the presence of a
-"grants" region at the top of the address space. This is memory allocated to the
-process covered by a memory protection region that the process can neither read
-nor write. The grant region, discussed in , is needed for the kernel to be able
-to borrow memory from a process in order to ensure liveness and safety in
-response to system calls.
+| Region  | Start Address | Length |
+| ------- | ------------- | ------ |
+| kernel  | 0x00000000    |  192kB |
+| process | 0x00030000    |  320kB |
+| RAM     | 0x20000000    |   64kB |
 
+So Tock allocates 192kB of flash for kernel code and 320kB of flash for
+appliation code.
 
+## Kernel code
+
+The kernel code space is subdivided into five regions:
+
+    * `.vectors`: the Cortex-M interrupt vectors, starting at 0x0
+    * `.irqs`: the peripheral interrupt vectors, starting at 0x40
+    * `.text`: kernel code
+    * `.rodata`: read-only data (constants, etc.)
+    * `.ARM.extab`: C++ exception handling table
+
+The first two
+([vectors](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BABIFJFG.html) and
+[irqs](http://www.atmel.com/Images/Atmel-42023-ARM-Microcontroller-ATSAM4L-Low-Power-LCD_Datasheet.pdf))
+are defined by the chip; the other 3 are under control of software.
+
+After the kernel code, but before process code, is a special
+section `.ARM.exidx`. This contains compiler-generated support for
+unwinding the stack, [consisting of key-value pairs](https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf)
+of function addresses and information on how to unwind stack frames.
+
+## Process code
+
+Processes can either be statically compiled into a Tock image,
+or dynamically loaded onto the microcontroller. The symbol `_sapps`
+denotes the start of the process code section. The process code section
+has one or more process code blocks in it; the kernel defines a static
+limit for how many processes can be supported. Imix, for example, currently
+supports two processes. This is a static number so that the kernel does
+not have to dynamically allocate memory.
+
+The first word of a process code block is the length of the block. So the
+first word of the process code section is the length of the code of the
+first process (including this size field). If the length is zero, there is
+no process. So on boot, the kernel checks the length at `_sapps`, if it is
+non-zero, loads the process code there, then checks the length at `_sapps`
+plus the length of the first process. This continues until it finds a
+length of zero or it reaches the maximum number of processes.
+
+------------------------
+|   length (4 bytes)   |
+------------------------
+|  code (length bytes) |
+------------------------
+|   length (4 bytes)   |
+------------------------
+|  code (length bytes) |
+------------------------
+
+Note that this means a linker script needs to set the first unused word
+of the application code region to 0; otherwise, if there is uncleared flash
+memory the kernel might conclude there are applications there.
+
+## RAM
+
+RAM contains four major regions:
+
+    * kernel data (initialized memory),
+    * kernel BSS (uninitialized memory, zero at boot),
+    * the kernel stack,
+    * process memory.
 
 # Tock Directory Structure
+
+Tock has seven principal code directories.
+
+The *arch* directory stores architecture-specific code. I.e., code that
+is Cortex-M0 and Cortex-M4 specific. This includes code for performing
+context switches and making system calls (trapping from user code to
+kernel code).
+
+The *boards* directory contains code for specific Tock platforms, such as
+the imix, the Firestorm, and the nrf51dk. This is typically the structure
+that defines all of the capsules the kernel has, the code to configure the
+MCU's IO pins into the proper states, initializing the kernel and loading
+processes. The principal file in this directory is `main.rs`, and the
+principal initialization function is `reset_handler` (which executes
+when the MCU resets). The board code also defines how system call device
+identifiers map to capsules, in the `with_driver` function.
+
+The *capsules* directory contains MCU-independent kernel extensions that
+can build on top of chip-specific implementations of particular peripherals.
+Some capsules provide system calls. For example, the `spi` module in capsules
+builds on top of a chip's SPI implementation to provide system calls on
+top of it.
+
+The *chips* directory contains microcontroller-specific code, such as the
+implementations of SPI, I2C, GPIO, UART, and other microcontroller-specific
+code. The distinction between chips and boards is the difference between
+a microcontroller and a full platform. For example, many microcontrollers
+have multiple UARTs. Which UART is the principal way to communicate with
+Tock, or which is used to control another chip, is defined by how the chip
+is placed on board and which pins are exposed. So a chip provides the UART
+implementation, but a board defines which UART is used for what.
+
+The *extern* directory contains external code that is not part of the Tock
+operating system, such as the Rust compiler.
+
+The *kernel* directory contains microcontroller-independent kernel code,
+such as the scheduler, processes, and memory management. This directory
+and arch are were where all core kernel code reside.
+
+The *tools* directory are associated tools to help in compilation and
+code maintenance, such as checking code formatting, converting binaries,
+and build scripts.
+
+The *userland* directory contains process code, including example
+applications, userland drivers, and the userland system call functions
+that translate friendly API calls such as `led_on(int led_num)` into
+underlying system calls such as `command(DRIVER_NUM_LEDS, 0, led_num)`.
+
+
+
+
+
+
+
+
+
 
