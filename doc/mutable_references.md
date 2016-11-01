@@ -7,29 +7,33 @@
   - [How it solves the problem](#takecell_solution)
 - [Example](#example)
 
-Borrows are critical to Rust's design, however it raises issues in event-driven code without 
-a heap (can't dynamically allocate objects). We subvert Rust's systems by using memory 
-containers such as the TakeCell abstraction.
+Borrows are a critical part of the Rust language that help provide its
+safety guarantees. However, they can complicate event-driven code without  
+a heap (no dynamic allocation objects). Tock uses memory containers
+such as the TakeCell abstraction to allow simple code to keep
+the safety properties Rust provides.
 
 ## <a href="#borrowing_overview"></a> Brief Overview of Borrowing in Rust 
-Ownership and Borrowing are two of the most fundamental design choices in Rust as it, by nature, 
-prevents race conditions and makes it impossible to write code that produces the dangling pointer
-problem. 
+Ownership and Borrowing are two design features in Rust which 
+prevent race conditions and make it impossible to write code that produces
+dangling pointers.
 
-Borrowing is Rust's mechanism to allow references to a part of memory. Similarly to C++ and other
-languages, it makes it possible to pass large structures simply by passing a reference to that structure, 
-rather than being forced to copy over the entire structure.
-However, Rust's compiler limits your borrows so that it doesn't run into the reader-writer problem,
-limiting you to either a single mutable reference to a part of memory or an "infinite" amount of 
-read-only references. Given that read and write are mutally exclusive for borrows, it's impossible
-to run into a race condition using safe rust.
+Borrowing is the Rust mechanism to allow references to memory. Similarly references in
+C++ and other
+languages, borrows makes it possible to efficiently pass large structures by passing pointer
+rather than copying the entire structure.
+The Rust compiler, however, limits borrows so that they cannot create race conditions,
+which are caused
+by concurrent writes or concurrent reads and writes to memory. Rust limits code
+to either a single mutable (writeable) reference or an "infinite" number of 
+read-only references. 
 
-But what does this mean for Tock? As Tock is a single-threaded enviroment, we clearly will not 
-have race-conditions. A problem arises when the borrowing system of Rust clashes with
-event-driven code without a Heap. 
+But what does this mean for Tock? As the Tock kernel is single threaded, it doesn't have
+race conditions. However, Rust doesn't know this so its rules still hold. In practice,
+Rust's rules cause problems in event-driven code when there isn't a heap.
 
-## <a href="#issues"></a> Issues with Borrowing in Event-Driven code without a Heap 
-Embedded Devices are often low-resource devices -- they don't have resources, such as space to waste.
+<a href="#issues"></a> Issues with Borrowing in Event-Driven code without a Heap 
+Embedded Devices are often low-resource devices -- they don't have RAM to waste.
 Thus it is extremely common to share buffers between drivers, and applications using those drivers
 normally do so with a pointer to the memory that holds the buffer. However, this raises several potential 
 problems. With pointers, how can we "revoke" access when the driver is done sharing its buffer? How can we prevent one 
