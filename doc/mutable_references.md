@@ -1,15 +1,14 @@
 # Mutable References in Tock - Memory Containers
 
 - [Brief Overview of Borrowing in Rust](#borrowing_overview)
-- [Issues with borrowing in event-driven code without a heap](#issues)
+- [Issues with Borrowing in Event-driven Code](#issues)
 - [The TakeCell abstraction](#takecell)
-  - [Description of the struct](#structure_of_takecell)
-  - [How it solves the problem](#takecell_solution)
-- [Example](#example)
+  - [Example use of take and replace](#take_and_put_example)
+  - [Example use of map](#map_example)
 
 Borrows are a critical part of the Rust language that help provide its
 safety guarantees. However, they can complicate event-driven code without  
-a heap (no dynamic allocation objects). Tock uses memory containers
+a heap (no dynamic allocation). Tock uses memory containers
 such as the TakeCell abstraction to allow simple code to keep
 the safety properties Rust provides.
 
@@ -18,78 +17,154 @@ Ownership and Borrowing are two design features in Rust which
 prevent race conditions and make it impossible to write code that produces
 dangling pointers.
 
-Borrowing is the Rust mechanism to allow references to memory. Similarly references in
-C++ and other
-languages, borrows makes it possible to efficiently pass large structures by passing pointer
-rather than copying the entire structure.
-The Rust compiler, however, limits borrows so that they cannot create race conditions,
-which are caused
-by concurrent writes or concurrent reads and writes to memory. Rust limits code
-to either a single mutable (writeable) reference or an "infinite" number of 
-read-only references. 
+Borrowing is the Rust mechanism to allow references to
+memory. Similarly references in C++ and other languages, borrows makes
+it possible to efficiently pass large structures by passing pointer
+rather than copying the entire structure.  The Rust compiler, however,
+limits borrows so that they cannot create race conditions, which are
+caused by concurrent writes or concurrent reads and writes to
+memory. Rust limits code to either a single mutable (writeable)
+reference or any number of read-only references.
 
-But what does this mean for Tock? As the Tock kernel is single threaded, it doesn't have
-race conditions. However, Rust doesn't know this so its rules still hold. In practice,
-Rust's rules cause problems in event-driven code when there isn't a heap.
+If a piece of code has a mutable reference to a piece of memory, it's
+also important that other code does not have any references within
+that memory. Otherwise, the language is not safe. For example, consider
+this case of an `enum` which can either be a pointer or a value:
 
-<a href="#issues"></a> Issues with Borrowing in Event-Driven code without a Heap 
-Embedded Devices are often low-resource devices -- they don't have RAM to waste.
-Thus it is extremely common to share buffers between drivers, and applications using those drivers
-normally do so with a pointer to the memory that holds the buffer. However, this raises several potential 
-problems. With pointers, how can we "revoke" access when the driver is done sharing its buffer? How can we prevent one 
-process from mangling the data of another?
+>enum NumOrPointer {
+>  Num(u32),
+>  Pointer(&'static mut u32)
+>}
 
-We solve this issue of uniquely sharing memory with the memory container abstraction, TakeCell, which
-will be explained below.
+A Rust `enum` is like a type-safe C union. Suppose that code has
+both a mutable reference to a `NumOrPointer` and a read-only reference
+to the encapsulated `Pointer`. If the code the `NumOrPointer` reference
+changes it to be a `Num`, it can then set the `Num` to be any value.
+However, the reference to `Pointer` can still access the memory as a
+pointer. As these two representations use the same memory, this means
+that the reference to `Num` can create any pointer it wants, breaking
+Rust's type safety:
 
-Besides the difficulty of sharing memory safely, it's also difficult to have an overall dynamic memory 
-manager for these devices, as the differences between the needs of the memory manager would make it 
-such that no one is happy. Furthermore, what would happen if we tried to dynamically allocate memory
-in the Kernel or Drivers and memory exhausted... crashing seems like a bad idea.
+>  // n.b. illegal example
+>  let external : &mut NumOrPointer;
+>  match external {
+>    &mut Pointer(ref mut internal) => {
+>      // This would violate safety and
+>      // write to memory at 0xdeadbeef
+>      *external = Num(0xdeadbeef);
+>      *internal = 12345;
+>    },
+>    ...
+>  }
 
-For this reason, in Tock both the Capsules and the Kernel don't have a heap. If we did, we could run into 
-the problem of the Kernel or Capsules leaking memory, exhausting memory, and crashing. Thus, everything is 
-statically allocated for both the Kernel and Capsules.
+But what does this mean for Tock? As the Tock kernel is single
+threaded, it doesn't have race conditions and so it can in some
+cases be safe for there to be multiple references, as long as they
+do not reference inside each other (as in the number/pointer example).
+However, Rust doesn't know this so its rules still hold. In practice,
+Rust's rules cause problems in event-driven code.
 
-However, we might run into the issue of a Capsule Driver (code written in Rust, with the Driver trait implemented)
-needing more space, perhaps, because it is handling more clients. A janky solution to this would be always 
-reserving space for all of the potential clients, but that would waste space that we don't have. We
-solve this conundrum with the `allow()` system call which you can read about [INSERT_LINK](#).
+<a href="#issues"></a> ## Issues with Borrowing in Event-Driven code
+
+Event-driven code often requires multiple writeable references to
+the same object. Consider, for example, an event-driven embedded
+application that periodically samples a sensor and receives commands
+over a serial port. At any given time, this application can have two
+or three event callbacks registered: a timer, sensor data acquisition,
+and receiving a command. Each callback is registered with a different
+component in the kernel, and component requires a reference to the
+object to issue a callback on. That is, the generator of each callback
+requires its own writeable reference to the application. Rust's
+rules, however, do not allow multiple mutable references.
 
 ## <a href="#takecell"></a> The TakeCell abstraction
-As described above, we run into several problems on microcontrollers regarding sharing buffers.
-Another problem we encounter with the Rust's type system is borrowing in regards to mutability: 
-with multiple clients, each of which needs access to the features of a capsule, we might need multiple references. 
-Thus, we must avoid making everything mutable in Tock, because if we did make everything mutable, we 
-would be unable pass out references (recall that Rust allows at most a single mutable reference).
-We could solve this issue by having variables declared immutable, but we might still want to modify 
-those "immutable" variables. Thus the question becomes one of how to subvert the
-type system of Rust so that we can have both multiple read-only borrows as well as making it mutable.
-We do this with the TakeCell, a critical component to shared buffers.
 
-### <a href="#structure_of_takecell"></a> TakeCell structure
+Tock solves this issue of uniquely sharing memory with a memory
+container abstraction, TakeCell.
 From tock/kernel/src/common/take_cell.rs:
+
 > A `TakeCell` is a potential reference to mutable memory. Borrow rules are
 > enforced by forcing clients to either move the memory out of the cell or
 > operate on a borrow within a closure.
 
+A TakeCell can be full or empty: it is like a safe pointer that can be
+null. If code wants to operate on the data contained in the TakeCell,
+it must either move the data out of the TakeCell (making it empty), or
+it must do so within a closure with a `map` call. Using `map` passes a
+block of code for the TakeCell to execute.  Using a closure allows
+code to modify the contents of the TakeCell inline, without any danger
+of a control path accidentally not replacing the value. However,
+because it is a closure, a reference to the contents of the TakeCell
+cannot escape.
 
-### <a href="#takecell_solution"></a> TakeCell solution
-Although it can also be done directly, Tock typically uses `TakeCell.map()`, which wraps the provided closure 
-between a `TakeCell.take()` and `TakeCell.replace()`. When `TakeCell.take()` is called, ownership of a location 
-in memory moves out of the cell. It can then be freely used by whoever took it (as they own it) and then put 
-back with `TakeCell.put()` or `TakeCell.replace()`.
+### <a href="#take_and_put_example"></a> Example use of `take` and `replace`
 
-Thus we can share a driver's buffer among multiple clients one at a time while still ensuring no client can mutate
-another's information (as there are no pointers involved). 
+When `TakeCell.take()` is called, ownership of a location in memory
+moves out of the cell. It can then be freely used by whoever took it
+(as they own it) and then put back with `TakeCell.put()` or
+`TakeCell.replace()`.
 
-Transferring ownership with TakeCell is safer than just giving out a reference, since it makes use 
-of Rust’s memory safety guarantees. For example, if it gave out references to the same object, then 
-two processes could clobber each other’s data. With TakeCell there's only one borrower, so this is impossible. 
+For example, this piece of code from `chips/nrf51/src/clock.rs`
+sets the callback client for a hardware clock:
 
-## <a href="#example"></a>Example
+>    pub fn set_client(&self, client: &'static ClockClient) {
+>        self.client.replace(client);
+>    }
 
-TakeCells are also critically important for accessing larger pieces of data, as multiple functions can be 
-performed with a single TakeCell. For example, when writing a buffer to UART, a TakeCell would allow a 
-process to temporarily transfer ownership of a buffer so that writing a byte before retaking ownership. 
-It is more space efficient, since all processes can share the same buffer, instead of all having individual ones. 
+If there is a current client, it's replaced with `client`. If
+`self.client` is empty, then it's filled with `client`.
+
+This piece of code from `chips/sam4l/src/dma.rs` cancels a
+current direct memory access (DMA) operation, removing the
+buffer in the current transaction from the TakeCell with a
+call to `take`:
+
+>    pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
+>        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+>        registers.interrupt_disable.set(!0);
+>        // Reset counter
+>        registers.transfer_counter.set(0);
+>        self.buffer.take()
+>    }
+
+
+### <a href="#map_example"></a> Example use of `map`
+
+Although the contents of a TakeCell can be directly accessed through
+a combination of `take` and `replace`, Tock code typically uses
+`TakeCell.map()`, which wraps the provided closure between a
+`TakeCell.take()` and `TakeCell.replace()`. This approach has the
+advantage that a bug in control flow can't that doesn't correctly
+`replace` won't accidentally leave the TakeCell empty.
+
+Here is a simple use of `map`, taken from `chips/sam4l/src/dma.rs`:
+
+>    pub fn disable(&self) {
+>        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+>
+>        self.dma_read.map(|read| read.disable());
+>        self.dma_write.map(|write| write.disable());
+>        regs.cr.set(0b10);
+>    }
+
+Both `dma_read` and `dma_write` are of type `TakeCell<&'static mut DMAChannel>`,
+that is, a TakeCell for a mutable reference to a DMA channel. By calling `map`,
+the function can access the reference and call the `disable` function. If
+the TakeCell has no reference (it is empty), then `map` does nothing.
+
+Here is a more complex example use of `map`, taken from `chips/sam4l/src/spi.rs`:
+
+>             self.client.map(|cb| {
+>                txbuf.map(|txbuf| {
+>                    cb.read_write_done(txbuf, rxbuf, len);
+>                });
+>            });
+
+In this example, `client` is a `TakeCell<&'static SpiMasterClient>`.
+The closure passed to `map` has a single argument, the value which the
+TakeCell contains. So in this case, `cb` is the reference to an
+`SpiMasterClient`. Note that the closure passed to `client.map` then
+itself contains a closure, which uses `cb` to invoke a callback passing
+`txbuf`.
+
+
