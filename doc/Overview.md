@@ -1,4 +1,4 @@
-% Tock Overview
+# Tock Overview
 
 Tock is a secure, embedded operating system for Cortex-M microcontrollers.
 While it could potentially be ported to other architectures, its current
@@ -19,7 +19,7 @@ This document gives an overview of Tock's architecture, the different
 classes of code in Tock, the protection mechanisms it uses, and how this
 structure is reflected in the software's directory structure.
 
-# Tock Architecture
+## Tock Architecture
 
 ![Tock architecture](architecture.png)
 
@@ -65,7 +65,7 @@ ID as their first parameter. This indicates which driver in the
 kernel that system call is intended for. Drivers are capsules that
 implement the system call 
 
-# Tock Memory Map
+## Tock Memory Map
 
 Tock is intended to run on Cortex-M microcontrollers, which have
 non-volatile flash memory (for code) and RAM (for stack and data) in a
@@ -90,10 +90,9 @@ the SAM4L which has 512kB of flash and 64kB of RAM:
 So Tock allocates 192kB of flash for kernel code and 320kB of flash for
 appliation code.
 
-## Kernel code
+### Kernel code
 
 The kernel code space is subdivided into five regions:
-
     * `.vectors`: the Cortex-M interrupt vectors, starting at 0x0
     * `.irqs`: the peripheral interrupt vectors, starting at 0x40
     * `.text`: kernel code
@@ -110,7 +109,7 @@ section `.ARM.exidx`. This contains compiler-generated support for
 unwinding the stack, [consisting of key-value pairs](https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf)
 of function addresses and information on how to unwind stack frames.
 
-## Process code
+### Process code
 
 Processes can either be statically compiled into a Tock image,
 or dynamically loaded onto the microcontroller. The symbol `_sapps`
@@ -130,11 +129,8 @@ length of zero or it reaches the maximum number of processes.
 
 ------------------------
 |   length (4 bytes)   |
-------------------------
 |  code (length bytes) |
-------------------------
 |   length (4 bytes)   |
-------------------------
 |  code (length bytes) |
 ------------------------
 
@@ -142,16 +138,15 @@ Note that this means a linker script needs to set the first unused word
 of the application code region to 0; otherwise, if there is uncleared flash
 memory the kernel might conclude there are applications there.
 
-## RAM
+### RAM
 
 RAM contains four major regions:
-
     * kernel data (initialized memory),
     * kernel BSS (uninitialized memory, zero at boot),
     * the kernel stack,
     * process memory.
 
-# Tock Directory Structure
+## Tock Directory Structure
 
 Tock has seven principal code directories.
 
