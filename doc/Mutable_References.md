@@ -1,18 +1,12 @@
 # Mutable References in Tock - Memory Containers
 
-- [Brief Overview of Borrowing in Rust](#borrowing_overview)
-- [Issues with Borrowing in Event-driven Code](#issues)
-- [The TakeCell abstraction](#takecell)
-  - [Example use of take and replace](#take_and_put_example)
-  - [Example use of map](#map_example)
-
 Borrows are a critical part of the Rust language that help provide its
 safety guarantees. However, they can complicate event-driven code without  
 a heap (no dynamic allocation). Tock uses memory containers
 such as the TakeCell abstraction to allow simple code to keep
 the safety properties Rust provides.
 
-## <a href="#borrowing_overview"></a> Brief Overview of Borrowing in Rust 
+## Brief Overview of Borrowing in Rust 
 Ownership and Borrowing are two design features in Rust which 
 prevent race conditions and make it impossible to write code that produces
 dangling pointers.
@@ -64,7 +58,7 @@ do not reference inside each other (as in the number/pointer example).
 However, Rust doesn't know this so its rules still hold. In practice,
 Rust's rules cause problems in event-driven code.
 
-<a href="#issues"></a> ## Issues with Borrowing in Event-Driven code
+## Issues with Borrowing in Event-Driven code
 
 Event-driven code often requires multiple writeable references to
 the same object. Consider, for example, an event-driven embedded
@@ -77,7 +71,7 @@ object to issue a callback on. That is, the generator of each callback
 requires its own writeable reference to the application. Rust's
 rules, however, do not allow multiple mutable references.
 
-## <a href="#takecell"></a> The TakeCell abstraction
+## The TakeCell abstraction
 
 Tock solves this issue of uniquely sharing memory with a memory
 container abstraction, TakeCell.
@@ -105,8 +99,7 @@ of the TakeCell and therefore modify the structure. Therefore,
 it is possible for multiple callbacks to have references to
 the structure and modify its state.
 
-
-### <a href="#take_and_put_example"></a> Example use of `take` and `replace`
+### Example use of `take` and `replace`
 
 When `TakeCell.take()` is called, ownership of a location in memory
 moves out of the cell. It can then be freely used by whoever took it
@@ -137,7 +130,7 @@ call to `take`:
 >    }
 
 
-### <a href="#map_example"></a> Example use of `map`
+### Example use of `map`
 
 Although the contents of a TakeCell can be directly accessed through
 a combination of `take` and `replace`, Tock code typically uses
@@ -175,5 +168,4 @@ TakeCell contains. So in this case, `cb` is the reference to an
 `SpiMasterClient`. Note that the closure passed to `client.map` then
 itself contains a closure, which uses `cb` to invoke a callback passing
 `txbuf`.
-
 
