@@ -97,6 +97,15 @@ of a control path accidentally not replacing the value. However,
 because it is a closure, a reference to the contents of the TakeCell
 cannot escape.
 
+TakeCell allows code to modify its contents when it has a normal
+(non-mutable) reference. This in turn means that if a structure
+stores its state in TakeCells, then code which has a regular
+(non-mutable) reference to the structure can change the contents
+of the TakeCell and therefore modify the structure. Therefore,
+it is possible for multiple callbacks to have references to
+the structure and modify its state.
+
+
 ### <a href="#take_and_put_example"></a> Example use of `take` and `replace`
 
 When `TakeCell.take()` is called, ownership of a location in memory
