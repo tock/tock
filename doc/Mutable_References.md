@@ -105,7 +105,6 @@ of the TakeCell and therefore modify the structure. Therefore,
 it is possible for multiple callbacks to have references to
 the structure and modify its state.
 
-
 ### <a href="#take_and_put_example"></a> Example use of `take` and `replace`
 
 When `TakeCell.take()` is called, ownership of a location in memory
