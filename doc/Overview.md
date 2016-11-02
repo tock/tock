@@ -73,8 +73,8 @@ single address space. While the Cortex-M architecture specifies a
 high-level layout of the address space, the exact layout of Tock can
 differ from chip to chip. The layout is defined in a `layout.ld` file
 in a chip's directory. This section describes
-[../boards/imix/layout.ld](Tock's layout on the Atmel SAM4L 
-Cortex-M4 microcontroller on the imix platform), which is the application
+[Tock's layout on the Atmel SAM4L Cortex-M4 microcontroller on the imix
+platform](../boards/imix/layout.ld), which is the application
 processor.
 
 Tock's memory has three major regions: kernel code, process code, and
