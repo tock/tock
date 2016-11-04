@@ -1,4 +1,3 @@
-use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
@@ -26,14 +25,13 @@ impl Default for App {
 }
 
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
-pub static mut READ_BUF: [u8; 1] = [0];
 
 pub struct Console<'a, U: UART + 'a> {
     uart: &'a U,
     apps: Container<App>,
     in_progress: TakeCell<AppId>,
     tx_buffer: TakeCell<&'static mut [u8]>,
-    baud_rate: Cell<u32>,
+    baud_rate: u32,
 }
 
 impl<'a, U: UART> Console<'a, U> {
@@ -47,13 +45,13 @@ impl<'a, U: UART> Console<'a, U> {
             apps: container,
             in_progress: TakeCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),
-            baud_rate: Cell::new(baud_rate),
+            baud_rate: baud_rate,
         }
     }
 
     pub fn initialize(&self) {
         self.uart.init(uart::UARTParams {
-            baud_rate: self.baud_rate.get(),
+            baud_rate: self.baud_rate,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,
             hw_flow_control: false,
