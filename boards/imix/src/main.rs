@@ -240,18 +240,12 @@ pub unsafe fn reset_handler() {
     let console = static_init!(
         capsules::console::Console<sam4l::usart::USART>,
         capsules::console::Console::new(&sam4l::usart::USART3,
+                     115200,
                      &mut capsules::console::WRITE_BUF,
+                     &mut capsules::console::READ_BUF,
                      kernel::Container::create()),
-        24);
+        288/8);
     sam4l::usart::USART3.set_client(console);
-
-    sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
-        baud_rate: 115200,
-        data_bits: 8,
-        parity: kernel::hil::uart::Parity::None,
-        mode: kernel::hil::uart::Mode::Normal,
-    });
-
     console.initialize();
 
     // # TIMER
