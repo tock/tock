@@ -70,6 +70,8 @@ impl Chip for Sam4l {
                 match interrupt {
                     ASTALARM => ast::AST.handle_interrupt(),
 
+                    USART0 => usart::USART0.handle_interrupt(),
+                    USART1 => usart::USART1.handle_interrupt(),
                     USART2 => usart::USART2.handle_interrupt(),
                     USART3 => usart::USART3.handle_interrupt(),
 
