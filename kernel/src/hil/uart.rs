@@ -55,6 +55,20 @@ pub trait UART {
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
 }
 
+pub trait UARTAdvanced : UART {
+    /// Receive data until `interbyte_timeout` bit periods have passed since the last byte
+    /// or buffer is full. Does not timeout until at least one byte has been
+    /// received
+    ///
+    /// * `interbyte_timeout` - number of bit periods since last data received
+    fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8);
+
+    /// Receive data until `terminator` data byte has been received or buffer
+    /// is full
+    ///
+    /// * `terminator` - data byte terminating a reception
+    fn receive_until_terminator(&self, rx_buffer: &'static mut [u8], terminator: u8);
+}
 
 /// Implement Client to receive callbacks from UART
 pub trait Client {

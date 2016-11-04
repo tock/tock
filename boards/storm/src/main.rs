@@ -316,10 +316,11 @@ pub unsafe fn reset_handler() {
     let console = static_init!(
         Console<usart::USART>,
         Console::new(&usart::USART3,
+                     115200,
                      &mut console::WRITE_BUF,
                      &mut console::READ_BUF,
                      kernel::Container::create()),
-        256/8);
+        288/8);
     usart::USART3.set_client(console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
