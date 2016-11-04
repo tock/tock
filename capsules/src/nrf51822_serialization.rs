@@ -1,7 +1,6 @@
 use kernel::{AppId, Callback, AppSlice, Driver, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UARTAdvanced, Client};
-use core::cell::Cell;
 
 ///
 /// Nrf51822Serialization is the kernel-level driver that provides
@@ -205,7 +204,7 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
     }
 
     // Called when a byte is received on the UART
-    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, error: uart::Error) {
+    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, _error: uart::Error) {
 
         self.rx_buffer.replace(buffer);
 

@@ -43,6 +43,10 @@ pub enum Error {
 }
 
 pub trait UART {
+    /// Set the client for this UART peripheral. The client will be
+    /// called when events finish.
+    fn set_client(&self, client: &'static Client);
+
     /// Initialize UART
     ///
     /// # Panics if UARTParams are invalid for the current chip
@@ -55,7 +59,7 @@ pub trait UART {
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
 }
 
-pub trait UARTAdvanced : UART {
+pub trait UARTAdvanced: UART {
     /// Receive data until `interbyte_timeout` bit periods have passed since the last byte
     /// or buffer is full. Does not timeout until at least one byte has been
     /// received
