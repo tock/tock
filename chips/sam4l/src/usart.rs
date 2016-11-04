@@ -59,6 +59,21 @@ pub enum USARTStateTX {
     Transfer_Completing, // DMA finished, but not all bytes sent
 }
 
+pub trait UartAdvanced {
+    /// Receive data until `interbyte_timeout` bit periods have passed since the last byte
+    /// or buffer is full. Does not timeout until at least one byte has been
+    /// received
+    ///
+    /// * `interbyte_timeout` - number of bit periods since last data received
+    fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8);
+
+    /// Receive data until `terminator` data byte has been received or buffer
+    /// is full
+    ///
+    /// * `terminator` - data byte terminating a reception
+    fn receive_until_terminator(&self, rx_buffer: &'static mut [u8], terminator: u8);
+}
+
 pub struct USART {
     registers: *mut USARTRegisters,
     clock: pm::Clock,
@@ -168,6 +183,7 @@ impl USART {
         if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
             self.disable_rx();
             self.disable_rx_interrupts();
+            self.usart_rx_state.set(USARTStateRX::Idle);
 
             // get buffer
             let mut length = 0;
@@ -177,6 +193,7 @@ impl USART {
                 rx_dma.disable();
                 buf
             });
+            self.rx_len.set(0);
 
             // alert client
             self.client.map(|c| {
@@ -184,8 +201,6 @@ impl USART {
                     c.receive_complete(buf, length, error);
                 });
             });
-            self.rx_len.set(0);
-            self.usart_rx_state.set(USARTStateRX::Idle);
         }
     }
 
@@ -193,6 +208,7 @@ impl USART {
         if self.usart_tx_state.get() == USARTStateTX::DMA_Transmitting {
             self.disable_tx();
             self.disable_tx_interrupts();
+            self.usart_tx_state.set(USARTStateTX::Idle);
 
             // get buffer
             let mut length = 0;
@@ -202,6 +218,7 @@ impl USART {
                 tx_dma.disable();
                 buf
             });
+            self.tx_len.set(0);
 
             // alert client
             self.client.map(|c| {
@@ -209,8 +226,6 @@ impl USART {
                     c.receive_complete(buf, length, error);
                 });
             });
-            self.tx_len.set(0);
-            self.usart_tx_state.set(USARTStateTX::Idle);
         }
     }
 
@@ -291,17 +306,6 @@ impl USART {
         } else if status & (1 << 5) != 0 {
             // OVRE
             self.abort_rx(hil::uart::Error::OverrunError);
-
-        } else {
-            if status != 0x0 {
-                // XXX: I end up getting interrupt calls with no bits set in the status register
-                //  not sure why. Ignoring them for now
-                panic!("unhandled interrupt. Status: 0x{:x}, IMR: 0x{:x}\n States RX: {} TX: {}",
-                       status,
-                       regs.imr.get(),
-                       self.usart_rx_state.get() as u32,
-                       self.usart_tx_state.get() as u32);
-            }
         }
 
         // reset status registers
@@ -329,6 +333,12 @@ impl USART {
     fn set_mode(&self, mode: u32) {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         regs.mr.set(mode);
+    }
+
+    fn set_baud_rate(&self, baud_rate: u32) {
+        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let cd = 48000000 / (8 * baud_rate);
+        self.set_baud_rate_divider(cd as u16);
     }
 
     fn set_baud_rate_divider(&self, clock_divider: u16) {
@@ -533,7 +543,9 @@ impl hil::uart::UART for USART {
             self.rx_len.set(rx_len);
         });
     }
+}
 
+impl UartAdvanced for USART {
     fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8) {
 
         // quit current reception if any
