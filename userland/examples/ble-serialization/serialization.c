@@ -10,9 +10,10 @@
 #include "nordic_common.h"
 #include "app_timer.h"
 
+#include "nrf51_serialization.h"
 #include "firestorm.h"
 
-// Buffer to receive packets from the nRF51822 in.
+// Buffer to receive packets from the nrf51 in.
 // The upper layer also has a buffer, which we could use, but to make
 // the timing work out better we just keep a buffer around that the kernel
 // can keep a pointer to.
@@ -32,6 +33,8 @@ static ser_phy_events_handler_t _ser_phy_event_handler;
 static ser_phy_evt_t _ser_phy_rx_event;
 // Data structure for TX events.
 static ser_phy_evt_t _ser_phy_tx_event;
+
+static int saved_rx_len = 0;
 
 
 /*******************************************************************************
@@ -90,6 +93,38 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
             }
         }
 
+    } else if (callback_type == 4) {
+        // RX entire buffer
+
+        saved_rx_len = rx_len;
+
+        // Need a dummy request for a buffer to keep the state machines
+        // in the serialization library happy. We do use this buffer, but
+        // we don't block packet receive until we get it.
+        _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_BUF_REQUEST;
+        _ser_phy_rx_event.evt_params.rx_buf_request.num_of_bytes = (rx[0] | rx[1] << 8) - SER_PHY_HEADER_SIZE;
+
+        if (_ser_phy_event_handler) {
+            _ser_phy_event_handler(_ser_phy_rx_event);
+        }
+
+    } else if (callback_type == 17) {
+        // great, we're awake
+
+        // Check that we actually have a buffer to pass to the upper layers.
+        // This buffer MUST be the same buffer that it passed us.
+        if (hal_rx_buf) {
+            // Copy our buffer into the upper layer's buffer.
+            memcpy(hal_rx_buf, rx+2, saved_rx_len - SER_PHY_HEADER_SIZE);
+
+            _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_PKT_RECEIVED;
+            _ser_phy_rx_event.evt_params.rx_pkt_received.num_of_bytes = saved_rx_len - SER_PHY_HEADER_SIZE;
+            _ser_phy_rx_event.evt_params.rx_pkt_received.p_buffer = hal_rx_buf;
+
+            if (_ser_phy_event_handler) {
+                _ser_phy_event_handler(_ser_phy_rx_event);
+            }
+        }
     }
 }
 
@@ -149,8 +184,8 @@ uint32_t ser_phy_open (ser_phy_events_handler_t events_handler) {
     }
 
     // Configure the serialization layer in the kernel
-    nrf51822_serialization_subscribe(ble_serialization_callback);
-    nrf51822_serialization_setup_rx_buffer((char*) rx, SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE);
+    nrf51_serialization_subscribe(ble_serialization_callback);
+    nrf51_serialization_setup_rx_buffer((char*) rx, SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE);
 
     // Save the callback handler
     _ser_phy_event_handler = events_handler;
@@ -184,7 +219,7 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
         tx_len = num_of_bytes + SER_PHY_HEADER_SIZE;
 
         // Call tx procedure to start transmission of a packet
-        nrf51822_serialization_write((char*) tx, tx_len);
+        nrf51_serialization_write((char*) tx, tx_len);
     } else {
         return NRF_ERROR_BUSY;
     }
@@ -196,6 +231,8 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
 uint32_t ser_phy_rx_buf_set (uint8_t* p_buffer) {
     // Save a pointer to the buffer we can use.
     hal_rx_buf = p_buffer;
+
+    nrf51_wakeup();
 
     return NRF_SUCCESS;
 }

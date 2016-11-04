@@ -59,21 +59,6 @@ pub enum USARTStateTX {
     Transfer_Completing, // DMA finished, but not all bytes sent
 }
 
-pub trait UartAdvanced {
-    /// Receive data until `interbyte_timeout` bit periods have passed since the last byte
-    /// or buffer is full. Does not timeout until at least one byte has been
-    /// received
-    ///
-    /// * `interbyte_timeout` - number of bit periods since last data received
-    fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8);
-
-    /// Receive data until `terminator` data byte has been received or buffer
-    /// is full
-    ///
-    /// * `terminator` - data byte terminating a reception
-    fn receive_until_terminator(&self, rx_buffer: &'static mut [u8], terminator: u8);
-}
-
 pub struct USART {
     registers: *mut USARTRegisters,
     clock: pm::Clock,
@@ -545,7 +530,7 @@ impl hil::uart::UART for USART {
     }
 }
 
-impl UartAdvanced for USART {
+impl hil::uart::UARTAdvanced for USART {
     fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8) {
 
         // quit current reception if any

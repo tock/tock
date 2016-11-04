@@ -1,3 +1,4 @@
+use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
@@ -35,10 +36,12 @@ pub struct Console<'a, U: UART + 'a> {
     in_progress: TakeCell<AppId>,
     tx_buffer: TakeCell<&'static mut [u8]>,
     rx_buffer: TakeCell<&'static mut [u8]>,
+    baud_rate: Cell<u32>,
 }
 
 impl<'a, U: UART> Console<'a, U> {
     pub fn new(uart: &'a U,
+               baud_rate: u32,
                tx_buffer: &'static mut [u8],
                rx_buffer: &'static mut [u8],
                container: Container<App>)
@@ -49,18 +52,16 @@ impl<'a, U: UART> Console<'a, U> {
             in_progress: TakeCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),
             rx_buffer: TakeCell::new(rx_buffer),
+            baud_rate: Cell::new(baud_rate),
         }
     }
 
     pub fn initialize(&self) {
         self.uart.init(uart::UARTParams {
-            baud_rate: 115200,
+            baud_rate: self.baud_rate.get(),
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,
             hw_flow_control: false,
-        });
-        self.rx_buffer.take().map(|buffer| {
-            self.uart.receive(buffer, 1);
         });
     }
 }
@@ -92,10 +93,8 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 /* read line */ => {
-                self.apps.enter(callback.app_id(), |app, _| {
-                    app.read_callback = Some(callback);
-                    0
-                }).unwrap_or(-1)
+                // read line is not implemented for console at this time
+                -1
             },
             1 /* putstr/write_done */ => {
                 self.apps.enter(callback.app_id(), |app, _| {
@@ -187,36 +186,6 @@ impl<'a, U: UART> Client for Console<'a, U> {
     }
 
     fn receive_complete(&self, rx_buffer: &'static mut [u8], _rx_len: usize, _error: uart::Error) {
-        let c = rx_buffer[0];
-        match c as char {
-            '\r' => {}
-            '\n' => {
-                self.apps.each(|app| {
-                    let idx = app.read_idx;
-                    app.read_buffer = app.read_buffer.take().map(|mut rb| {
-                        app.read_callback.as_mut().map(|cb| {
-                            let buf = rb.as_mut();
-                            cb.schedule(idx, (buf.as_ptr() as usize), 0);
-                        });
-                        rb
-                    });
-                    app.read_idx = 0;
-                });
-            }
-            _ => {
-                self.apps.each(|app| {
-                    let idx = app.read_idx;
-                    if app.read_buffer.is_some() &&
-                       app.read_idx < app.read_buffer.as_ref().unwrap().len() {
-
-                        app.read_buffer.as_mut().map(|buf| {
-                            buf.as_mut()[idx] = c;
-                        });
-                        app.read_idx += 1;
-                    }
-                });
-            }
-        }
-        self.uart.receive(rx_buffer, 1);
+        // this is currently unimplemented for console
     }
 }
