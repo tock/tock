@@ -1,0 +1,1 @@
+../chips/kernel_layout.ld
