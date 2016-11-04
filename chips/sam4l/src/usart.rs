@@ -379,7 +379,6 @@ impl dma::DMAClient for USART {
     fn xfer_done(&self, pid: dma::DMAPeripheral) {
         // determine if it was an RX or TX transfer
         if pid == self.rx_dma_peripheral {
-
             // RX transfer was completed
 
             // disable RX and RX interrupts
@@ -404,12 +403,10 @@ impl dma::DMAClient for USART {
             self.rx_len.set(0);
 
         } else if pid == self.tx_dma_peripheral {
-
             // TX transfer was completed
 
             // note that the DMA has finished but TX cannot be disabled yet
             self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
-            // self.enable_tx_complete_interrupt();
 
             // get buffer
             let buffer = self.tx_dma.map_or(None, |tx_dma| {
@@ -446,25 +443,25 @@ impl hil::uart::UART for USART {
 
         // set USART mode register
         let mut mode = 0x00000000;
-        mode |= 0x1 << 19;  //OVER: oversample at 8 times baud rate
-        mode |= 0x3 << 6;  //CHRL: 8-bit characters
-        mode |= 0x0 << 4;  //USCLKS: select CLK_USART
+        mode |= 0x1 << 19; // OVER: oversample at 8 times baud rate
+        mode |= 0x3 << 6;  // CHRL: 8-bit characters
+        mode |= 0x0 << 4;  // USCLKS: select CLK_USART
 
         match params.stop_bits {
-            hil::uart::StopBits::One => mode |= 0x0 << 12,   //NBSTOP: 1 stop bit
-            hil::uart::StopBits::Two => mode |= 0x2 << 12,   //NBSTOP: 2 stop bits
+            hil::uart::StopBits::One => mode |= 0x0 << 12, // NBSTOP: 1 stop bit
+            hil::uart::StopBits::Two => mode |= 0x2 << 12, // NBSTOP: 2 stop bits
         };
 
         match params.parity {
-            hil::uart::Parity::None => mode |= 0x4 << 9,    //PAR: no parity
-            hil::uart::Parity::Odd => mode |= 0x1 << 9,    //PAR: odd parity
-            hil::uart::Parity::Even => mode |= 0x0 << 9,    //PAR: even parity
+            hil::uart::Parity::None => mode |= 0x4 << 9,   // PAR: no parity
+            hil::uart::Parity::Odd => mode |= 0x1 << 9,    // PAR: odd parity
+            hil::uart::Parity::Even => mode |= 0x0 << 9,   // PAR: even parity
         };
 
         if params.hw_flow_control {
-            mode |= 0x2 << 0;   //MODE: hardware handshaking
+            mode |= 0x2 << 0;  // MODE: hardware handshaking
         } else {
-            mode |= 0x0 << 0;   //MODE: normal
+            mode |= 0x0 << 0;  // MODE: normal
         }
 
         self.set_mode(mode);
@@ -474,7 +471,6 @@ impl hil::uart::UART for USART {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-
         // quit current transmission if any
         self.abort_tx(hil::uart::Error::RepeatCallError);
 
@@ -491,7 +487,6 @@ impl hil::uart::UART for USART {
     }
 
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
-
         // quit current reception if any
         self.abort_rx(hil::uart::Error::RepeatCallError);
 
@@ -517,7 +512,6 @@ impl hil::uart::UART for USART {
 
 impl hil::uart::UARTAdvanced for USART {
     fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8) {
-
         // quit current reception if any
         self.abort_rx(hil::uart::Error::RepeatCallError);
 
@@ -539,7 +533,6 @@ impl hil::uart::UARTAdvanced for USART {
     }
 
     fn receive_until_terminator(&self, rx_buffer: &'static mut [u8], terminator: u8) {
-
         // quit current reception if any
         self.abort_rx(hil::uart::Error::RepeatCallError);
 
