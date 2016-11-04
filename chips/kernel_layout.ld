@@ -24,6 +24,7 @@ SECTIONS
 
         /* Place vector table at the beginning of ROM */
         KEEP(*(.vectors .vectors.*))
+        KEEP(*(.irqs))
 
         /* .text and .rodata hold most program code and immutable constants */
         /* .gnu.linkonce hold C++ elements with vague linkage
