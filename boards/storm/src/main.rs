@@ -14,6 +14,7 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::{Chip, MPU, Platform};
+use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::gpio::PinCtl;
 use kernel::hil::spi::SpiMaster;
@@ -318,10 +319,9 @@ pub unsafe fn reset_handler() {
         Console::new(&usart::USART3,
                      115200,
                      &mut console::WRITE_BUF,
-                     &mut console::READ_BUF,
                      kernel::Container::create()),
-        288/8);
-    usart::USART3.set_client(console);
+        224/8);
+    hil::uart::UART::set_client(&usart::USART3, console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
@@ -331,7 +331,7 @@ pub unsafe fn reset_handler() {
                                    &mut nrf51822_serialization::WRITE_BUF,
                                    &mut nrf51822_serialization::READ_BUF),
         608/8);
-    usart::USART2.set_client(nrf_serialization);
+    hil::uart::UART::set_client(&usart::USART2, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
 

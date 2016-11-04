@@ -4,7 +4,6 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
 
 pub struct App {
-    read_callback: Option<Callback>,
     write_callback: Option<Callback>,
     read_buffer: Option<AppSlice<Shared, u8>>,
     write_buffer: Option<AppSlice<Shared, u8>>,
@@ -16,7 +15,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            read_callback: None,
             write_callback: None,
             read_buffer: None,
             write_buffer: None,
@@ -35,7 +33,6 @@ pub struct Console<'a, U: UART + 'a> {
     apps: Container<App>,
     in_progress: TakeCell<AppId>,
     tx_buffer: TakeCell<&'static mut [u8]>,
-    rx_buffer: TakeCell<&'static mut [u8]>,
     baud_rate: Cell<u32>,
 }
 
@@ -43,7 +40,6 @@ impl<'a, U: UART> Console<'a, U> {
     pub fn new(uart: &'a U,
                baud_rate: u32,
                tx_buffer: &'static mut [u8],
-               rx_buffer: &'static mut [u8],
                container: Container<App>)
                -> Console<'a, U> {
         Console {
@@ -51,7 +47,6 @@ impl<'a, U: UART> Console<'a, U> {
             apps: container,
             in_progress: TakeCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),
-            rx_buffer: TakeCell::new(rx_buffer),
             baud_rate: Cell::new(baud_rate),
         }
     }
@@ -185,7 +180,10 @@ impl<'a, U: UART> Client for Console<'a, U> {
         }
     }
 
-    fn receive_complete(&self, rx_buffer: &'static mut [u8], _rx_len: usize, _error: uart::Error) {
+    fn receive_complete(&self,
+                        _rx_buffer: &'static mut [u8],
+                        _rx_len: usize,
+                        _error: uart::Error) {
         // this is currently unimplemented for console
     }
 }

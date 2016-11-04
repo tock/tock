@@ -127,10 +127,6 @@ impl USART {
         }
     }
 
-    pub fn set_client(&self, client: &'static hil::uart::Client) {
-        self.client.replace(client);
-    }
-
     pub fn set_dma(&self, rx_dma: &'static dma::DMAChannel, tx_dma: &'static dma::DMAChannel) {
         self.rx_dma.replace(rx_dma);
         self.tx_dma.replace(tx_dma);
@@ -320,8 +316,9 @@ impl USART {
         regs.mr.set(mode);
     }
 
+    // NOTE: dependent on oversampling rate
+    // XXX: how do you determine the current clock frequency?
     fn set_baud_rate(&self, baud_rate: u32) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         let cd = 48000000 / (8 * baud_rate);
         self.set_baud_rate_divider(cd as u16);
     }
@@ -330,12 +327,6 @@ impl USART {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         let brgr_val: u32 = 0x00000000 | clock_divider as u32;
         regs.brgr.set(brgr_val);
-    }
-
-    fn set_tx_timeguard(&self, timeguard: u8) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
-        let ttgr_val: u32 = 0x00000000 | timeguard as u32;
-        regs.ttgr.set(ttgr_val);
     }
 
     fn enable_rx_timeout(&self, timeout: u8) {
@@ -359,14 +350,7 @@ impl USART {
         regs.idr.set((1 << 8)); // TIMEOUT
     }
 
-    fn enable_rx_terminator(&self, terminator: u8) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
-        // XXX: implement me
-        panic!("didn't write terminator stuff yet");
-    }
-
-    fn disable_rx_terminator(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+    fn enable_rx_terminator(&self, _terminator: u8) {
         // XXX: implement me
         panic!("didn't write terminator stuff yet");
     }
@@ -445,6 +429,10 @@ impl dma::DMAClient for USART {
 
 /// Implementation of kernel::hil::UART
 impl hil::uart::UART for USART {
+    fn set_client(&self, client: &'static hil::uart::Client) {
+        self.client.replace(client);
+    }
+
     fn init(&self, params: hil::uart::UARTParams) {
         // enable USART clock
         //  must do this before writing any registers
@@ -481,11 +469,8 @@ impl hil::uart::UART for USART {
 
         self.set_mode(mode);
 
-        // set baud rate
-        // NOTE: dependent on oversampling rate
-        // XXX: how do you determine the current clock frequency?
-        let clock_divider = 48000000 / (8 * params.baud_rate);
-        self.set_baud_rate_divider(clock_divider as u16);
+        // Set baud rate
+        self.set_baud_rate(params.baud_rate);
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

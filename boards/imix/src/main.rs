@@ -11,6 +11,7 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::{Chip, MPU};
+use kernel::hil;
 use kernel::hil::Controller;
 
 mod io;
@@ -242,10 +243,9 @@ pub unsafe fn reset_handler() {
         capsules::console::Console::new(&sam4l::usart::USART3,
                      115200,
                      &mut capsules::console::WRITE_BUF,
-                     &mut capsules::console::READ_BUF,
                      kernel::Container::create()),
-        288/8);
-    sam4l::usart::USART3.set_client(console);
+        224/8);
+    hil::uart::UART::set_client(&sam4l::usart::USART3, console);
     console.initialize();
 
     // # TIMER
