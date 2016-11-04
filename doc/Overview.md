@@ -71,11 +71,9 @@ Tock is intended to run on Cortex-M microcontrollers, which have
 non-volatile flash memory (for code) and RAM (for stack and data) in a
 single address space. While the Cortex-M architecture specifies a
 high-level layout of the address space, the exact layout of Tock can
-differ from chip to chip. The layout is defined in a `layout.ld` file
-in a chip's directory. This section describes
-[Tock's layout on the Atmel SAM4L Cortex-M4 microcontroller on the imix
-platform](../boards/imix/layout.ld), which is the application
-processor.
+differ from chip to chip. Most chips simply define the beginning and
+end of flash and SRAM in their `layout.ld` file and then include the
+[generic Tock memory map](../chips/kernel_layout.ld).
 
 Tock's memory has three major regions: kernel code, process code, and
 RAM: For the SAM4L, these are laid out as follows. This allocation assumes
@@ -92,23 +90,13 @@ appliation code.
 
 ### Kernel code
 
-The kernel code space is subdivided into five regions:
+The kernel code is split into two major regions, `.text` which holds the
+vector table, program code, initialization routines, and other read-only data.
+This section is written to the beginning of flash.
 
-* `.vectors`: the Cortex-M interrupt vectors, starting at 0x0
-* `.irqs`: the peripheral interrupt vectors, starting at 0x40
-* `.text`: kernel code
-* `.rodata`: read-only data (constants, etc.)
-* `.ARM.extab`: C++ exception handling table
-
-The first two
-([vectors](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BABIFJFG.html) and
-[irqs](http://www.atmel.com/Images/Atmel-42023-ARM-Microcontroller-ATSAM4L-Low-Power-LCD_Datasheet.pdf))
-are defined by the chip; the other 3 are under control of software.
-
-After the kernel code, but before process code, is a special
-section `.ARM.exidx`. This contains compiler-generated support for
-unwinding the stack, [consisting of key-value pairs](https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf)
-of function addresses and information on how to unwind stack frames.
+This is immediately followed by the `.relocate` region, which holds values the
+need to exist in SRAM, but have non-zero initial values that Tock copies from
+flash to SRAM as part of its initialization (see [Startup](Startup.md)).
 
 ### Process code
 
@@ -143,8 +131,8 @@ memory the kernel might conclude there are applications there.
 
 RAM contains four major regions:
 
-* kernel data (initialized memory),
-* kernel BSS (uninitialized memory, zero at boot),
+* kernel data (initialized memory, copied from flash at boot),
+* kernel BSS (uninitialized memory, zeroed at boot),
 * the kernel stack,
 * process memory.
 

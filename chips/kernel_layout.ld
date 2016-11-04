@@ -3,6 +3,28 @@
  * be sufficient to define {ROM/PROG/RAM}_{ORIGIN/LENGTH} (6 variables, the
  * start and length for each) and MPU_MIN_ALIGN (the minimum alignment
  * granularity supported by the MPU).
+ *
+ * --------------------------------------------------------------------------
+ *
+ * If you wish to create your own linker script from scratch, you must define
+ * the following symbols:
+ *
+ * `_etext`, `_srelocate`, `_erelocate`
+ *    The `_etext` symbol marks the end of data stored in flash that should
+ *    stay in flash. `_srelocate` and `_erelocate` mark the address range in
+ *    SRAM that mutable program data is copied to.
+ *
+ *    Tock will copy `_erelocate` - `_srelocate` bytes of data from the
+ *    `_etext` pointer to the `_srelocate` pointer.
+ *
+ * `_szero`, `_ezero`
+ *
+ *    The `_szero` and `_ezero` symbols define the range of the BSS, SRAM that
+ *    Tock will zero on boot.
+ *
+ * `_sapps`
+ *
+ *    The `_sapps` symbol marks the beginning of application memory in flash.
  */
 
 MEMORY
@@ -22,7 +44,14 @@ SECTIONS
         . = ALIGN(4);
         _textstart = .;         /* Symbol expected by some MS build toolchains */
 
-        /* Place vector table at the beginning of ROM */
+        /* Place vector table at the beginning of ROM.
+         *
+         * The first 16 entries in the ARM vector table are defined by ARM and
+         * are common among all ARM chips. The remaining entries are
+         * chip-specific, which Tock defines in a separate .irqs section
+         *
+         * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BABIFJFG.html
+         */
         KEEP(*(.vectors .vectors.*))
         KEEP(*(.irqs))
 
@@ -89,7 +118,15 @@ SECTIONS
     } > rom
 
 
-    /* .ARM.exidx is sorted, so has to go in its own output section.  */
+    /* ARM Exception support
+     *
+     * This contains compiler-generated support for unwinding the stack,
+     * consisting of key-value pairs of function addresses and information on
+     * how to unwind stack frames.
+     * https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf
+     *
+     * .ARM.exidx is sorted, so has to go in its own output section.
+     */
     PROVIDE_HIDDEN (__exidx_start = .);
     .ARM.exidx :
     {
