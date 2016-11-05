@@ -2,6 +2,7 @@
 name = "nrf51dk"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
 
 [profile.dev]
 panic = "abort"
