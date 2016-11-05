@@ -1,5 +1,3 @@
-
-
 use AppId;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
@@ -81,6 +79,10 @@ impl<L, T> AppSlice<L, T> {
         } else {
             false
         }
+    }
+
+    pub fn iter(&self) -> slice::Iter<T> {
+        self.as_ref().iter()
     }
 }
 

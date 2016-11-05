@@ -35,11 +35,17 @@ impl IPC {
         self.data.enter(appid, |mydata, _| {
             mydata.callback.map(|mut callback| {
                 self.data.enter(otherapp, |otherdata , _| {
+                    if appid.idx() >= otherdata.shared_memory.len() {
+                        return
+                    }
                     match otherdata.shared_memory[appid.idx()] {
-                        None => { callback.schedule(appid.idx(), 0, 0) ; }
                         Some(ref slice) => {
                             slice.expose_to(appid);
-                            callback.schedule(otherapp.idx(), slice.len(), slice.ptr() as usize);
+                            callback.schedule(otherapp.idx() + 1, slice.len(),
+                                              slice.ptr() as usize);
+                        }
+                        None => {
+                            callback.schedule(appid.idx() + 1, 0, 0);
                         }
                     }
                 }).unwrap_or(());
@@ -64,17 +70,43 @@ impl Driver for IPC {
 
     fn command(&self, target_id: usize, _: usize, appid: AppId) -> isize {
         let procs = unsafe { &mut process::PROCS };
-        procs[target_id].as_mut().map(|target| {
+        if target_id == 0 || target_id > procs.len() {
+            return -1;
+        }
+        procs[target_id - 1].as_mut().map(|target| {
             target.callbacks.enqueue(process::GCallback::IPCCallback(appid));
             0
         }).unwrap_or(-1)
     }
 
-    fn allow(&self, appid: AppId, target_id: usize, slice: AppSlice<Shared, u8>) -> isize {
-        self.data.enter(appid, |data, _| {
-            data.shared_memory[target_id] = Some(slice);
-            0
-        }).unwrap_or(-2)
+    fn allow(&self, appid: AppId, target_id: usize,
+                                  slice: AppSlice<Shared, u8>) -> isize {
+        if target_id == 0 {
+            if slice.len() > 0 {
+                let procs = unsafe { &mut process::PROCS };
+                for (i, process) in procs.iter().enumerate() {
+                    match process {
+                        &Some(ref p) => {
+                            // are slices equal?
+                            if  p.pkg_name.len() == slice.len() &&
+                                p.pkg_name.iter()
+                                          .zip(slice.iter())
+                                          .all(|(c1, c2)| c1 == c2) {
+                                return (i as isize) + 1;
+                            }
+                        }
+                        &None => {}
+                    }
+                }
+            }
+            return -1;
+        }
+        return self.data.enter(appid, |data, _| {
+            data.shared_memory.get_mut(target_id - 1).map(|smem| {
+                *smem = Some(slice);
+                0
+            }).unwrap_or(-1)
+        }).unwrap_or(-2);
     }
 }
 
