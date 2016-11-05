@@ -16,6 +16,7 @@ use std::slice;
 #[derive(Clone, Copy, Debug)]
 struct LoadInfo {
     total_size: u32, // Total padded size of the program image
+    pkg_name_size: u32, // Size of the package name string in bytes
     rel_data_size: u32,
     entry_loc: u32, // Entry point for user application
     init_data_loc: u32, // Data initialization information in flash
@@ -31,12 +32,14 @@ fn main() {
     let program = args[0].clone();
     let mut opts = Options::new();
     opts.optopt("o", "", "set output file name", "OUTFILE");
+    opts.optopt("n", "", "set package name", "PKG_NAME");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
         Err(f) => panic!(f.to_string()),
     };
     let output = matches.opt_str("o");
+    let pkg_name = matches.opt_str("n");
     let input = if !matches.free.is_empty() {
         matches.free[0].clone()
     } else {
@@ -54,11 +57,11 @@ fn main() {
     match output {
             None => {
                 let mut out = io::stdout();
-                do_work(&file, &mut out)
+                do_work(&file, &mut out, pkg_name)
             }
             Some(name) => {
                 match File::create(Path::new(&name)) {
-                    Ok(mut f) => do_work(&file, &mut f),
+                    Ok(mut f) => do_work(&file, &mut f, pkg_name),
                     Err(e) => panic!("Error: {:?}", e),
                 }
             }
@@ -103,7 +106,8 @@ unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
     slice::from_raw_parts(input as *const T as *const u8, mem::size_of::<T>())
 }
 
-fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
+fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> io::Result<()> {
+    let pkg_name = pkg_name.unwrap_or(String::new());
     let (rel_data_size, rel_data) = match input.sections
         .iter()
         .find(|section| section.shdr.name == ".rel.data".as_ref()) {
@@ -129,6 +133,7 @@ fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
 
     let load_info = LoadInfo {
         total_size: total_len,
+        pkg_name_size: pkg_name.len() as u32,
         rel_data_size: rel_data_size as u32,
         entry_loc: (input.ehdr.entry ^ 0x80000000) as u32,
         init_data_loc: text.shdr.size as u32,
@@ -140,6 +145,7 @@ fn do_work(input: &elf::File, output: &mut Write) -> io::Result<()> {
     };
 
     try!(output.write_all(unsafe { as_byte_slice(&load_info) }));
+    try!(output.write_all(pkg_name.as_ref()));
     try!(output.write_all(rel_data.as_ref()));
     try!(output.write_all(text.data.as_ref()));
     try!(output.write_all(got.data.as_ref()));

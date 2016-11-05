@@ -11,6 +11,9 @@ TOOLCHAIN := arm-none-eabi
 
 # This could be replaced with an installed version of `elf2tbf`
 ELF2TBF ?= cargo run --manifest-path $(TOCK_USERLAND_BASE_DIR)/tools/elf2tbf/Cargo.toml --
+ifdef PKG_NAME
+ELF2TBF_ARGS = -n $(PKG_NAME)
+endif
 
 AS := $(TOOLCHAIN)-as
 ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
@@ -63,7 +66,7 @@ $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) 
 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 	$(TRACE_BIN)
-	$(Q)$(ELF2TBF) -o $@ $<
+	$(Q)$(ELF2TBF) $(ELF2TBF_ARGS) -o $@ $<
 
 # for programming individual apps, include platform app makefile
 #	conditionally included in case it doesn't exist for a board

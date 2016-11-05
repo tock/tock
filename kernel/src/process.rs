@@ -66,6 +66,7 @@ pub struct Callback {
 #[repr(C)]
 struct LoadInfo {
     total_size: usize, // Total padded size of the program image
+    pkg_name_size: usize,
     rel_data_size: usize,
     entry_loc: usize, // Entry point for user application
     init_data_loc: usize, // Data initialization information in flash
@@ -105,6 +106,8 @@ pub struct Process<'a> {
     /// 32-byte aligned.
     ///
     mpu_regions: [Cell<(*const u8, usize)>; 5],
+
+    pub pkg_name: &'static [u8],
 
     pub state: State,
 
@@ -226,9 +229,14 @@ impl<'a> Process<'a> {
             mpu_regions: [Cell::new((ptr::null(), 0)), Cell::new((ptr::null(), 0)),
                           Cell::new((ptr::null(), 0)), Cell::new((ptr::null(), 0)),
                           Cell::new((ptr::null(), 0))],
+            pkg_name: load_result.pkg_name,
             state: State::Yielded,
             callbacks: callbacks,
         };
+
+        if (load_result.init_fn - 1) % 8 != 0 {
+            panic!("{}", (load_result.init_fn - 1) % 8);
+        }
 
         process.callbacks.enqueue(GCallback::Callback(Callback {
             pc: load_result.init_fn,
@@ -388,10 +396,12 @@ struct LoadResult {
     text_len: usize,
     init_fn: usize,
     app_mem_start: *const u8,
+    pkg_name: &'static [u8]
 }
 
 unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     let mut result = LoadResult {
+        pkg_name: &[],
         text_start: start_addr as *const u8,
         text_len: 0,
         init_fn: 0,
@@ -400,7 +410,14 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
 
     let load_info = &*(start_addr as *const LoadInfo);
 
-    let rel_data_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
+    if load_info.pkg_name_size > 0 {
+        let pkg_name_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
+        result.pkg_name = slice::from_raw_parts(pkg_name_addr as *const u8,
+                                                 load_info.pkg_name_size);
+    }
+
+    let rel_data_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize)
+                                  .offset(load_info.pkg_name_size as isize);
     let rel_data: &[usize] = slice::from_raw_parts(rel_data_addr as *const usize,
                                                    load_info.rel_data_size / 4);
 

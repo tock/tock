@@ -11,6 +11,8 @@ OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
 
 CPPFLAGS += -DSTACK_SIZE=2048
 
+PKG_NAME = org.tockos.examples.rot13_service
+
 # include userland master makefile. Contains rules and flags for actually
 # 	building the application
 include $(TOCK_USERLAND_BASE_DIR)/Makefile
