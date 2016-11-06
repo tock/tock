@@ -445,7 +445,8 @@ impl DMAClient for Spi {
                 dma.disable();
                 buf
             });
-            
+           
+          /* Used to debug to see if we get a non-zero val...
             {
                 let res = rxbuf.unwrap();
                 for i in 0..res.len() {
@@ -455,7 +456,7 @@ impl DMAClient for Spi {
                 }
                 rxbuf = Some(res);
             }
-    
+           */
             
 
             let len = self.dma_length.get();
