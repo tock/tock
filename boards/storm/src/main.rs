@@ -341,9 +341,7 @@ pub unsafe fn reset_handler() {
     // &sam4l::gpio::PA[14] // No Connection
     //
 
-    let firestorm = static_init!(
-        Firestorm,
-        Firestorm {
+    let firestorm = Firestorm {
             console: console,
             gpio: gpio,
             timer: timer,
@@ -354,8 +352,7 @@ pub unsafe fn reset_handler() {
             adc: adc,
             led: led,
             ipc: kernel::ipc::IPC::new(),
-        },
-        320/8);
+    };
 
     // Configure USART2 Pins for connection to nRF51822
     // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
@@ -393,5 +390,5 @@ pub unsafe fn reset_handler() {
     chip.mpu().enable_mpu();
 
 
-    kernel::main(firestorm, &mut chip, load_processes(), &firestorm.ipc);
+    kernel::main(&firestorm, &mut chip, load_processes(), &firestorm.ipc);
 }
