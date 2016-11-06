@@ -20,6 +20,8 @@ struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    si7021: &'static capsules::si7021::SI7021<'static,
+                                              VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     isl29035: &'static capsules::isl29035::Isl29035<'static>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
@@ -40,6 +42,7 @@ impl kernel::Platform for Imix {
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            10 => f(Some(self.si7021)),
             _ => f(None),
         }
     }
@@ -281,6 +284,19 @@ pub unsafe fn reset_handler() {
         36);
     isl29035_i2c.set_client(isl29035);
 
+    // Configure the SI7021, device address 0x40
+    let si7021_alarm = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm),
+        24);
+    let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x40), 32);
+    let si7021 = static_init!(
+        capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+        capsules::si7021::SI7021::new(si7021_i2c, si7021_alarm, &mut capsules::si7021::BUFFER),
+        36);
+    si7021_i2c.set_client(si7021);
+    si7021_alarm.set_client(si7021);
+
     // Clear sensors enable pin to enable sensor rail
     sam4l::gpio::PC[16].enable_output();
     sam4l::gpio::PC[16].clear();
@@ -346,6 +362,7 @@ pub unsafe fn reset_handler() {
         console: console,
         timer: timer,
         gpio: gpio,
+        si7021: si7021,
         isl29035: isl29035,
         adc: adc,
         led: led,
