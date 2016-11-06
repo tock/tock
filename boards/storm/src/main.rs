@@ -342,16 +342,16 @@ pub unsafe fn reset_handler() {
     //
 
     let firestorm = Firestorm {
-            console: console,
-            gpio: gpio,
-            timer: timer,
-            tmp006: tmp006,
-            isl29035: isl29035,
-            spi: spi,
-            nrf51822: nrf_serialization,
-            adc: adc,
-            led: led,
-            ipc: kernel::ipc::IPC::new(),
+        console: console,
+        gpio: gpio,
+        timer: timer,
+        tmp006: tmp006,
+        isl29035: isl29035,
+        spi: spi,
+        nrf51822: nrf_serialization,
+        adc: adc,
+        led: led,
+        ipc: kernel::ipc::IPC::new(),
     };
 
     // Configure USART2 Pins for connection to nRF51822

@@ -1,8 +1,7 @@
 use driver::Driver;
 
 pub trait Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-        where F: FnOnce(Option<&Driver>) -> R;
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R where F: FnOnce(Option<&Driver>) -> R;
 }
 
 pub trait Chip {

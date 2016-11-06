@@ -73,9 +73,10 @@ impl<L, T> AppSlice<L, T> {
     pub unsafe fn expose_to(&self, appid: AppId) -> bool {
         let ps = &mut process::PROCS;
         if appid.idx() != self.ptr.process.idx() && ps.len() > appid.idx() {
-            ps[appid.idx()].as_ref().map(|process| {
-                process.add_mpu_region(self.ptr() as *const u8, self.len())
-            }).unwrap_or(false)
+            ps[appid.idx()]
+                .as_ref()
+                .map(|process| process.add_mpu_region(self.ptr() as *const u8, self.len()))
+                .unwrap_or(false)
         } else {
             false
         }

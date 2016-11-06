@@ -2,8 +2,8 @@ use callback::AppId;
 use common::{RingBuffer, Queue};
 
 use container;
-use core::cell::Cell;
 use core::{mem, ptr, slice};
+use core::cell::Cell;
 use core::intrinsics::breakpoint;
 use core::ptr::{read_volatile, write_volatile};
 
@@ -51,7 +51,7 @@ pub enum State {
 #[derive(Copy, Clone)]
 pub enum GCallback {
     Callback(Callback),
-    IPCCallback(AppId)
+    IPCCallback(AppId),
 }
 
 #[derive(Copy, Clone)]
@@ -142,16 +142,18 @@ impl<'a> Process<'a> {
         let text_len = ((32 - self.text.len().leading_zeros()) - 2) as u32;
 
         let mut grant_size = unsafe {
-                self.memory.as_ptr().offset(self.memory.len() as isize) as u32
-                    - (self.kernel_memory_break as u32)
+            self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
+            (self.kernel_memory_break as u32)
         };
         grant_size = closest_power_of_two(grant_size);
         let grant_base = unsafe {
-                self.memory.as_ptr().offset(self.memory.len() as isize)
-                    .offset(-(grant_size as isize))
+            self.memory
+                .as_ptr()
+                .offset(self.memory.len() as isize)
+                .offset(-(grant_size as isize))
         };
         let mgrant_size = grant_size.trailing_zeros() - 1;
-        
+
         // Data segment read/write/execute
         mpu.set_mpu(0, data_start as u32, data_len, true, 0b011);
         // Text segment read/execute (no write)
@@ -160,27 +162,30 @@ impl<'a> Process<'a> {
         // Disallow access to grant region
         mpu.set_mpu(2, grant_base as u32, mgrant_size, false, 0b001);
 
-        for (i,region) in self.mpu_regions.iter().enumerate() {
-            mpu.set_mpu((i + 3) as u32, region.get().0 as u32, region.get().1 as u32, true, 0b011);
+        for (i, region) in self.mpu_regions.iter().enumerate() {
+            mpu.set_mpu((i + 3) as u32,
+                        region.get().0 as u32,
+                        region.get().1 as u32,
+                        true,
+                        0b011);
         }
     }
 
 
     pub fn add_mpu_region(&self, base: *const u8, size: usize) -> bool {
-        if size >= 16 && size.count_ones() == 1 &&
-            (base as usize) % size == 0 {
-                let mpu_size = (size.trailing_zeros() - 1) as usize;
-                for region in self.mpu_regions.iter() {
-                    if region.get().0 == ptr::null() {
+        if size >= 16 && size.count_ones() == 1 && (base as usize) % size == 0 {
+            let mpu_size = (size.trailing_zeros() - 1) as usize;
+            for region in self.mpu_regions.iter() {
+                if region.get().0 == ptr::null() {
+                    region.set((base, mpu_size));
+                    return true;
+                } else if region.get().0 == base {
+                    if region.get().1 < mpu_size {
                         region.set((base, mpu_size));
-                        return true;
-                    } else if region.get().0 == base {
-                        if region.get().1 < mpu_size {
-                            region.set((base, mpu_size));
-                        }
-                        return true;
                     }
+                    return true;
                 }
+            }
         }
         return false;
     }
@@ -226,8 +231,10 @@ impl<'a> Process<'a> {
             cur_stack: stack_bottom,
             yield_pc: 0,
             psr: 0x01000000,
-            mpu_regions: [Cell::new((ptr::null(), 0)), Cell::new((ptr::null(), 0)),
-                          Cell::new((ptr::null(), 0)), Cell::new((ptr::null(), 0)),
+            mpu_regions: [Cell::new((ptr::null(), 0)),
+                          Cell::new((ptr::null(), 0)),
+                          Cell::new((ptr::null(), 0)),
+                          Cell::new((ptr::null(), 0)),
                           Cell::new((ptr::null(), 0))],
             pkg_name: load_result.pkg_name,
             state: State::Yielded,
@@ -396,7 +403,7 @@ struct LoadResult {
     text_len: usize,
     init_fn: usize,
     app_mem_start: *const u8,
-    pkg_name: &'static [u8]
+    pkg_name: &'static [u8],
 }
 
 unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
@@ -413,11 +420,11 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     if load_info.pkg_name_size > 0 {
         let pkg_name_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
         result.pkg_name = slice::from_raw_parts(pkg_name_addr as *const u8,
-                                                 load_info.pkg_name_size);
+                                                load_info.pkg_name_size);
     }
 
     let rel_data_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize)
-                                  .offset(load_info.pkg_name_size as isize);
+        .offset(load_info.pkg_name_size as isize);
     let rel_data: &[usize] = slice::from_raw_parts(rel_data_addr as *const usize,
                                                    load_info.rel_data_size / 4);
 

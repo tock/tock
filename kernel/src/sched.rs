@@ -34,7 +34,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                             process::GCallback::Callback(ccb) => {
                                 process.state = process::State::Running;
                                 process.push_callback(ccb);
-                            },
+                            }
                             process::GCallback::IPCCallback(otherapp) => {
                                 ipc.schedule_callback(appid, otherapp);
                             }
