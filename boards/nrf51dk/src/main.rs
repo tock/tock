@@ -180,6 +180,7 @@ pub unsafe fn reset_handler() {
                                         kernel::Container::create()),
         224/8);
     UART::set_client(&nrf51::uart::UART0, console);
+    console.initialize();
 
     let alarm = &nrf51::rtc::RTC;
     alarm.start();
