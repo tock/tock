@@ -266,7 +266,7 @@ static mut BSCIF: *mut BscifRegisters = BSCIF_BASE as *mut BscifRegisters;
 static mut SCIF: *mut ScifRegisters = SCIF_BASE as *mut ScifRegisters;
 static mut FLASHCALW: *mut FlashcalwRegisters = FLASHCALW_BASE as *mut FlashcalwRegisters;
 
-static mut SYSTEM_FREQUENCY: u32 = 0;
+static mut SYSTEM_FREQUENCY: VolatileCell<u32> = VolatileCell::new(0);
 
 unsafe fn unlock(register_offset: u32) {
     (*PM).unlock.set(0xAA000000 | register_offset);
@@ -424,7 +424,7 @@ unsafe fn configure_external_oscillator() {
 }
 
 pub unsafe fn setup_system_clock(clock_source: SystemClockSource, frequency: u32) {
-    SYSTEM_FREQUENCY = frequency;
+    SYSTEM_FREQUENCY.set(frequency);
 
     match clock_source {
         SystemClockSource::DfllRc32k => {
@@ -438,7 +438,7 @@ pub unsafe fn setup_system_clock(clock_source: SystemClockSource, frequency: u32
 }
 
 pub unsafe fn get_system_frequency() -> u32 {
-    SYSTEM_FREQUENCY
+    SYSTEM_FREQUENCY.get()
 }
 
 macro_rules! mask_clock {
