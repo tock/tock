@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 set -e
-for dir in `find . -maxdepth 1 -type d`; do
+for mkfile in `find . -maxdepth 3 -name Makefile`; do
+        dir=`dirname $mkfile`
 	if [ $dir == "." ]; then continue; fi
 	pushd $dir
 	make
