@@ -316,17 +316,12 @@ impl USART {
         regs.mr.set(mode);
     }
 
-    // NOTE: dependent on oversampling rate
-    // XXX: how do you determine the current clock frequency?
     fn set_baud_rate(&self, baud_rate: u32) {
-        let cd = 48000000 / (8 * baud_rate);
-        self.set_baud_rate_divider(cd as u16);
-    }
-
-    fn set_baud_rate_divider(&self, clock_divider: u16) {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
-        let brgr_val: u32 = 0x00000000 | clock_divider as u32;
-        regs.brgr.set(brgr_val);
+
+        let system_frequency = unsafe { pm::get_system_frequency() };
+        let cd = system_frequency / (8 * baud_rate);
+        regs.brgr.set(cd);
     }
 
     fn enable_rx_timeout(&self, timeout: u8) {

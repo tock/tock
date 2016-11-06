@@ -158,21 +158,6 @@ struct FlashcalwRegisters {
     pvr: VolatileCell<u32>,
 }
 
-const PM_BASE: usize = 0x400E0000;
-const BSCIF_BASE: usize = 0x400F0400;
-const SCIF_BASE: usize = 0x400E0800;
-const FLASHCALW_BASE: usize = 0x400A0000;
-
-const HSB_MASK_OFFSET: u32 = 0x24;
-const PBA_MASK_OFFSET: u32 = 0x28;
-const PBB_MASK_OFFSET: u32 = 0x2C;
-const PBD_MASK_OFFSET: u32 = 0x34;
-
-static mut PM: *mut PmRegisters = PM_BASE as *mut PmRegisters;
-static mut BSCIF: *mut BscifRegisters = BSCIF_BASE as *mut BscifRegisters;
-static mut SCIF: *mut ScifRegisters = SCIF_BASE as *mut ScifRegisters;
-static mut FLASHCALW: *mut FlashcalwRegisters = FLASHCALW_BASE as *mut FlashcalwRegisters;
-
 pub enum MainClock {
     RCSYS,
     OSC0,
@@ -254,20 +239,46 @@ pub enum PBDClock {
     PICOUART,
 }
 
+/// Which source the system clock should be generated from.
+pub enum SystemClockSource {
+    /// Use the internal digital frequency locked loop (DFLL) sourced from
+    /// the internal RC32K clock. Note this typically requires calibration
+    /// of the RC32K to have a consistent clock.
+    DfllRc32k,
+
+    /// Use an external crystal oscillator as the direct source for the
+    /// system clock.
+    ExternalOscillator,
+}
+
+const PM_BASE: usize = 0x400E0000;
+const BSCIF_BASE: usize = 0x400F0400;
+const SCIF_BASE: usize = 0x400E0800;
+const FLASHCALW_BASE: usize = 0x400A0000;
+
+const HSB_MASK_OFFSET: u32 = 0x24;
+const PBA_MASK_OFFSET: u32 = 0x28;
+const PBB_MASK_OFFSET: u32 = 0x2C;
+const PBD_MASK_OFFSET: u32 = 0x34;
+
+static mut PM: *mut PmRegisters = PM_BASE as *mut PmRegisters;
+static mut BSCIF: *mut BscifRegisters = BSCIF_BASE as *mut BscifRegisters;
+static mut SCIF: *mut ScifRegisters = SCIF_BASE as *mut ScifRegisters;
+static mut FLASHCALW: *mut FlashcalwRegisters = FLASHCALW_BASE as *mut FlashcalwRegisters;
+
+static mut SYSTEM_FREQUENCY: VolatileCell<u32> = VolatileCell::new(0);
+
 unsafe fn unlock(register_offset: u32) {
     (*PM).unlock.set(0xAA000000 | register_offset);
 }
 
-pub unsafe fn select_main_clock(clock: MainClock) {
+unsafe fn select_main_clock(clock: MainClock) {
     unlock(0);
     (*PM).mcctrl.set(clock as u32);
 }
 
-/// Configure the system clock to use the DFLL with the RC32K as the source.
-/// Run at 48 MHz.
-pub unsafe fn configure_48mhz_dfll() {
-    // Enable HCACHE
-    //
+/// Enable HCACHE
+unsafe fn enable_cache() {
     enable_clock(Clock::HSB(HSBClock::FLASHCALWP));
     enable_clock(Clock::PBB(PBBClock::HRAMC1));
     // Enable cache
@@ -275,23 +286,57 @@ pub unsafe fn configure_48mhz_dfll() {
 
     // Wait for the cache controller to be enabled.
     while (*FLASHCALW).sr.get() & (1 << 0) == 0 {}
+}
+
+/// Configure high-speed flash mode. This is taken from the ASF code
+unsafe fn enable_high_speed_flash() {
+    // Since we are running at a fast speed we have to set a clock delay
+    // for flash, as well as enable fast flash mode.
+    let flashcalw_fcr = (*FLASHCALW).fcr.get();
+    (*FLASHCALW).fcr.set(flashcalw_fcr | (1 << 6));
+
+    // Enable high speed mode for flash
+    let flashcalw_fcmd = (*FLASHCALW).fcmd.get();
+    let flashcalw_fcmd_new1 = flashcalw_fcmd & (!(0x3F << 0));
+    let flashcalw_fcmd_new2 = flashcalw_fcmd_new1 | (0xA5 << 24) | (0x10 << 0);
+    (*FLASHCALW).fcmd.set(flashcalw_fcmd_new2);
+
+    // And wait for the flash to be ready
+    while (*FLASHCALW).fsr.get() & (1 << 0) == 0 {}
+}
+
+/// Setup the internal 32kHz RC oscillator.
+unsafe fn enable_rc32k() {
+    let bscif_rc32kcr = (*BSCIF).rc32kcr.get();
+    // Unlock the BSCIF::RC32KCR register
+    (*BSCIF).unlock.set(0xAA000024);
+    // Write the BSCIF::RC32KCR register.
+    // Enable the generic clock source, the temperature compensation, and the
+    // 32k output.
+    (*BSCIF).rc32kcr.set(bscif_rc32kcr | (1 << 2) | (1 << 1) | (1 << 0));
+    // Wait for it to be ready, although it feels like this won't do anything
+    while (*BSCIF).rc32kcr.get() & (1 << 0) == 0 {}
+
+    // Load magic calibration value for the 32KHz RC oscillator
+    //
+    // Unlock the BSCIF::RC32KTUNE register
+    (*BSCIF).unlock.set(0xAA000028);
+    // Write the BSCIF::RC32KTUNE register
+    (*BSCIF).rc32ktune.set(0x001d0015);
+}
+
+/// Configure the system clock to use the DFLL with the RC32K as the source.
+/// Run at 48 MHz.
+unsafe fn configure_48mhz_dfll() {
+    // Enable HCACHE
+    enable_cache();
 
     // Check to see if the DFLL is already setup.
     //
     if (((*SCIF).dfll0conf.get() & 0x03) == 0) || (((*SCIF).pclksr.get() & (1 << 2)) == 0) {
 
         // Enable the GENCLK_SRC_RC32K
-        //
-        // Get the original value
-        let bscif_rc32kcr = (*BSCIF).rc32kcr.get();
-        // Unlock the BSCIF::RC32KCR register
-        (*BSCIF).unlock.set(0xAA000024);
-        // Write the BSCIF::RC32KCR register.
-        // Enable the generic clock source, the temperature compensation, and the
-        // 32k output.
-        (*BSCIF).rc32kcr.set(bscif_rc32kcr | (1 << 1) | (1 << 2) | (1 << 0));
-        // Wait for it to be ready, although it feels like this won't do anything
-        while (*BSCIF).rc32kcr.get() & (1 << 0) == 0 {}
+        enable_rc32k();
 
         // Next init closed loop mode.
         //
@@ -350,31 +395,50 @@ pub unsafe fn configure_48mhz_dfll() {
 
     // Since we are running at a fast speed we have to set a clock delay
     // for flash, as well as enable fast flash mode.
-    //
-    let flashcalw_fcr = (*FLASHCALW).fcr.get();
-    (*FLASHCALW).fcr.set(flashcalw_fcr | (1 << 6));
-
-    // Enable high speed mode for flash
-    let flashcalw_fcmd = (*FLASHCALW).fcmd.get();
-    let flashcalw_fcmd_new1 = flashcalw_fcmd & (!(0x3F << 0));
-    let flashcalw_fcmd_new2 = flashcalw_fcmd_new1 | (0xA5 << 24) | (0x10 << 0);
-    (*FLASHCALW).fcmd.set(flashcalw_fcmd_new2);
-
-    // And wait for the flash to be ready
-    while (*FLASHCALW).fsr.get() & (1 << 0) == 0 {}
-
-    // TODO: run bpm_configure_power_scaling()
+    enable_high_speed_flash();
 
     // Choose the main clock
-    //
     select_main_clock(MainClock::DFLL);
+}
 
-    // Load magic calibration value for the 32KHz RC oscillator
-    //
-    // Unlock the BSCIF::RC32KTUNE register
-    (*BSCIF).unlock.set(0xAA000028);
-    // Write the BSCIF::RC32KTUNE register
-    (*BSCIF).rc32ktune.set(0x001d0015);
+/// Configure the system clock to use the DFLL with the 16 MHz external crystal.
+unsafe fn configure_external_oscillator() {
+    // Use the cache
+    enable_cache();
+
+    // Need the 32k RC oscillator for things like BPM module and AST.
+    enable_rc32k();
+
+    // Enable the OSC0
+    (*SCIF).unlock.set(0xAA000020);
+    // enable, 557 us startup time, gain level 4 (sortof), is crystal.
+    (*SCIF).oscctrl0.set((1 << 16) | (1 << 8) | (4 << 1) | (1 << 0));
+    // Wait for oscillator to be ready
+    while (*SCIF).pclksr.get() & (1 << 0) == 0 {}
+
+    // Go to high speed flash mode
+    enable_high_speed_flash();
+
+    // Set the main clock to be the external oscillator
+    select_main_clock(MainClock::OSC0);
+}
+
+pub unsafe fn setup_system_clock(clock_source: SystemClockSource, frequency: u32) {
+    SYSTEM_FREQUENCY.set(frequency);
+
+    match clock_source {
+        SystemClockSource::DfllRc32k => {
+            configure_48mhz_dfll();
+        }
+
+        SystemClockSource::ExternalOscillator => {
+            configure_external_oscillator();
+        }
+    }
+}
+
+pub unsafe fn get_system_frequency() -> u32 {
+    SYSTEM_FREQUENCY.get()
 }
 
 macro_rules! mask_clock {
