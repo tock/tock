@@ -1,4 +1,4 @@
-# Tock Startup
+# Tock Startup & Memory Map
 
 This document walks through how all of the components of Tock start up. It's
 broken into four major sections
@@ -17,17 +17,16 @@ broken into four major sections
 While Tock initially focuses on Cortex-M processors, the only real assumption
 it makes is the ability to place a function at an entry point on bootup.
 
-### Vector Table
+### Vector Table and IRQ table
 
 When a microcontroller boots (or resets, or services an interrupt) it loads an
 address for a function from a table indexed by interrupt type known as the
-_vector table_.
+_vector table_.  The location of the vector table in memory is chip-specific,
+thus it is placed in a special section for linking.
 
-The location of the vector table in memory is chip-specific, thus it is placed
-in a special `.vectors` section for linking. Each chip specifies its own memory
-layout file at `chips/<chip>/layout.ld`. Each layout includes something like
-`KEEP(*(.vectors .vectors.*))` that specifies where in memory the vector table
-should be placed.
+Tock splits the vector table into two sections, `.vectors` which hold the first
+16 entries, common to all ARM cores, and `.irqs`, which is appended to the end
+and holds chip-specific interrupts.
 
 In the source code then, the vector table will appear as an array that is
 marked to be placed into the `.vectors` section.
@@ -37,9 +36,9 @@ In Rust, a vector table will look something like this:
 #[link_section=".vectors"]
 #[no_mangle] // Ensures that the symbol is kept until the final binary
 pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
-    _estack,         // Initial stack pointer value
-    reset_handler,   // Reset handler function
-    /* NMI */           unhandled_interrupt,  // Generic handler function
+    _estack,                        // Initial stack pointer value
+    tock_kernel_reset_handler,      // Tock's reset handler function
+    /* NMI */ unhandled_interrupt,  // Generic handler function
     ...
 ```
 
@@ -48,7 +47,7 @@ In C, a vector table will look something like this:
 __attribute__ ((section(".vectors")))
 interrupt_function_t interrupt_table[] = {
 	(interrupt_function_t) (&_estack),
-	reset_handler,
+	tock_kernel_reset_handler,
 	NMI_Handler,
 ```
 
