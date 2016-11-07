@@ -1,6 +1,6 @@
 use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver};
-use kernel::hil::alarm::{Alarm, AlarmClient, Frequency};
+use kernel::hil::time::{self, Alarm, Frequency};
 
 #[derive(Copy, Clone)]
 pub struct TimerData {
@@ -27,7 +27,7 @@ pub struct TimerDriver<'a, A: Alarm + 'a> {
     app_timer: Container<TimerData>,
 }
 
-impl<'a, A: Alarm + 'a> TimerDriver<'a, A> {
+impl<'a, A: Alarm> TimerDriver<'a, A> {
     pub const fn new(alarm: &'a A, container: Container<TimerData>) -> TimerDriver<'a, A> {
         TimerDriver {
             alarm: alarm,
@@ -81,6 +81,10 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
         let (err_code, reset) = self.app_timer
             .enter(caller_id, |td, _alloc| {
                 match cmd_type {
+                3 /* capture time */ => {
+		    let curr_time: u32 = self.alarm.now();
+		    (curr_time as isize, true)
+                },
                 2 /* Stop */ => {
                     if td.interval > 0 {
                         td.interval = 0;
@@ -88,7 +92,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                         let num_armed = self.num_armed.get();
                         self.num_armed.set(num_armed - 1);
                         if num_armed == 1 {
-                            self.alarm.disable_alarm();
+                            self.alarm.disable();
                             (0, false)
                         } else {
                             (0, true)
@@ -131,7 +135,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
     }
 }
 
-impl<'a, A: Alarm> AlarmClient for TimerDriver<'a, A> {
+impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
 
@@ -165,7 +169,7 @@ impl<'a, A: Alarm> AlarmClient for TimerDriver<'a, A> {
         if self.num_armed.get() > 0 {
             self.reset_active_timer();
         } else {
-            self.alarm.disable_alarm();
+            self.alarm.disable();
         }
     }
 }

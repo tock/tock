@@ -1,13 +1,11 @@
-#include <firestorm.h>
-#include <gpio.h>
 #include <stdio.h>
 
-int main(void) {
-    gpio_enable_output(LED_0);
+#include "led.h"
+#include "timer.h"
 
+int main(void) {
     while(1) {
-      gpio_toggle(LED_0);
+      led_toggle(0);
       delay_ms(500);
     }
 }
-

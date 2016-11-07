@@ -1,50 +1,43 @@
-MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
-CUR_DIR := $(dir $(MKFILE_PATH))
+LIBTOCK_MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+LIBTOCK_DIR := $(abspath $(dir $(LIBTOCK_MKFILE_PATH)))
 
-BUILDDIR ?= build/$(TOCK_ARCH)
+ifeq ($(LIBTOCK_DIR),$(CURDIR)/)
+$(error Do not run make from the libtock directory)
+endif
+
+LIBTOCK_BUILDDIR ?= $(abspath $(LIBTOCK_DIR)/build/$(TOCK_ARCH))
 
 TOOLCHAIN ?= arm-none-eabi
 
-AS := $(TOOLCHAIN)-as
-ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
-
-CC := $(TOOLCHAIN)-gcc
-CFLAGS += -O3 -Wall -Werror -I$(CUR_DIR) -g -mcpu=$(TOCK_ARCH) -mthumb
-CFLAGS += \
-	    -fdata-sections -ffunction-sections\
-	    -Wall\
-	    -Wextra\
-	    -Wl,-gc-sections\
-	    -g\
-	    -fPIC\
-	    -msingle-pic-base\
-	    -mpic-register=r9\
-	    -mno-pic-data-is-text-relative
+CFLAGS += -I$(LIBTOCK_DIR)
 
 AR := $(TOOLCHAIN)-ar
 
-C_SRCS=$(wildcard *.c)
-AS_SRCS=
-OBJS := $(patsubst %.S,$(BUILDDIR)/%.o,$(AS_SRCS))
-OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
+LIBTOCK_C_SRCS=$(wildcard $(LIBTOCK_DIR)/*.c)
+LIBTOCK_AS_SRCS=$(wildcard $(LIBTOCK_DIR)/*.s)
+LIBTOCK_OBJS := $(patsubst $(LIBTOCK_DIR)/%.s,$(LIBTOCK_BUILDDIR)/%.o,$(LIBTOCK_AS_SRCS))
+LIBTOCK_OBJS += $(patsubst $(LIBTOCK_DIR)/%.c,$(LIBTOCK_BUILDDIR)/%.o,$(LIBTOCK_C_SRCS))
 
 .PHONY: all
-all: $(BUILDDIR)/libtock.a
+all: $(LIBTOCK_BUILDDIR)/libtock.a
 
-$(BUILDDIR):
-	mkdir -p $@
+$(LIBTOCK_BUILDDIR):
+	$(Q)mkdir -p $@
 
-$(BUILDDIR)/%.o: %.c | $(BUILDDIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(LIBTOCK_BUILDDIR)/%.o: $(LIBTOCK_DIR)/%.c | $(LIBTOCK_BUILDDIR)
+	$(TRACE_CC)
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-$(BUILDDIR)/%.o: %.S | $(BUILDDIR)
-	$(AS) $(ASFLAGS) -c -o $@ $<
+$(LIBTOCK_BUILDDIR)/%.o: %.S | $(LIBTOCK_BUILDDIR)
+	$(TRACE_AS)
+	$(Q)$(AS) $(ASFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-$(BUILDDIR)/libtock.a: $(OBJS) | $(BUILDDIR)
-	$(AR) rc $@ $^
-	$(TOOLCHAIN)-ranlib $@
+$(LIBTOCK_BUILDDIR)/libtock.a: $(LIBTOCK_OBJS) | $(LIBTOCK_BUILDDIR)
+	$(TRACE_AR)
+	$(Q)$(AR) rc $@ $^
+	$(Q)$(TOOLCHAIN)-ranlib $@
 
 .PHONY: clean
-clean:
-	rm -Rf $(BUILDDIR)
+clean::
+	rm -Rf $(LIBTOCK_BUILDDIR)
 

@@ -1,6 +1,6 @@
+use adc;
 use ast;
 use cortexm4;
-// use adc;
 use dma;
 use flashcalw;
 use gpio;
@@ -25,21 +25,34 @@ impl Sam4l {
     pub unsafe fn new() -> Sam4l {
         INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
 
-        usart::USART2.set_dma(&mut dma::DMAChannels[0], dma::DMAPeripheral::USART2_TX);
-        dma::DMAChannels[0].client = Some(&mut usart::USART2);
+        usart::USART0.set_dma(&mut dma::DMAChannels[0], &mut dma::DMAChannels[1]);
+        dma::DMAChannels[0].client = Some(&mut usart::USART0);
+        dma::DMAChannels[1].client = Some(&mut usart::USART0);
 
-        usart::USART3.set_dma(&mut dma::DMAChannels[1], dma::DMAPeripheral::USART3_TX);
-        dma::DMAChannels[1].client = Some(&mut usart::USART3);
+        usart::USART1.set_dma(&mut dma::DMAChannels[2], &mut dma::DMAChannels[3]);
+        dma::DMAChannels[2].client = Some(&mut usart::USART1);
+        dma::DMAChannels[3].client = Some(&mut usart::USART1);
 
-        spi::SPI.set_dma(&mut dma::DMAChannels[2], &mut dma::DMAChannels[3]);
-        dma::DMAChannels[2].client = Some(&mut spi::SPI);
-        dma::DMAChannels[3].client = Some(&mut spi::SPI);
+        usart::USART2.set_dma(&mut dma::DMAChannels[4], &mut dma::DMAChannels[5]);
+        dma::DMAChannels[4].client = Some(&mut usart::USART2);
+        dma::DMAChannels[5].client = Some(&mut usart::USART2);
 
-        i2c::I2C2.set_dma(&dma::DMAChannels[4]);
-        dma::DMAChannels[4].client = Some(&mut i2c::I2C2);
+        usart::USART3.set_dma(&mut dma::DMAChannels[6], &mut dma::DMAChannels[7]);
+        dma::DMAChannels[6].client = Some(&mut usart::USART3);
+        dma::DMAChannels[7].client = Some(&mut usart::USART3);
 
-        i2c::I2C1.set_dma(&dma::DMAChannels[5]);
-        dma::DMAChannels[5].client = Some(&mut i2c::I2C1);
+        spi::SPI.set_dma(&mut dma::DMAChannels[8], &mut dma::DMAChannels[9]);
+        dma::DMAChannels[8].client = Some(&mut spi::SPI);
+        dma::DMAChannels[9].client = Some(&mut spi::SPI);
+
+        i2c::I2C0.set_dma(&dma::DMAChannels[10]);
+        dma::DMAChannels[10].client = Some(&mut i2c::I2C0);
+
+        i2c::I2C1.set_dma(&dma::DMAChannels[11]);
+        dma::DMAChannels[11].client = Some(&mut i2c::I2C1);
+
+        i2c::I2C2.set_dma(&dma::DMAChannels[12]);
+        dma::DMAChannels[12].client = Some(&mut i2c::I2C2);
 
         Sam4l {
             mpu: cortexm4::mpu::MPU::new(),
@@ -61,6 +74,8 @@ impl Chip for Sam4l {
                 match interrupt {
                     ASTALARM => ast::AST.handle_interrupt(),
 
+                    USART0 => usart::USART0.handle_interrupt(),
+                    USART1 => usart::USART1.handle_interrupt(),
                     USART2 => usart::USART2.handle_interrupt(),
                     USART3 => usart::USART3.handle_interrupt(),
 
@@ -70,6 +85,16 @@ impl Chip for Sam4l {
                     PDCA3 => dma::DMAChannels[3].handle_interrupt(),
                     PDCA4 => dma::DMAChannels[4].handle_interrupt(),
                     PDCA5 => dma::DMAChannels[5].handle_interrupt(),
+                    PDCA6 => dma::DMAChannels[6].handle_interrupt(),
+                    PDCA7 => dma::DMAChannels[7].handle_interrupt(),
+                    PDCA8 => dma::DMAChannels[8].handle_interrupt(),
+                    PDCA9 => dma::DMAChannels[9].handle_interrupt(),
+                    PDCA10 => dma::DMAChannels[10].handle_interrupt(),
+                    PDCA11 => dma::DMAChannels[11].handle_interrupt(),
+                    PDCA12 => dma::DMAChannels[12].handle_interrupt(),
+                    PDCA13 => dma::DMAChannels[13].handle_interrupt(),
+                    PDCA14 => dma::DMAChannels[14].handle_interrupt(),
+                    PDCA15 => dma::DMAChannels[15].handle_interrupt(),
 
                     GPIO0 => gpio::PA.handle_interrupt(),
                     GPIO1 => gpio::PA.handle_interrupt(),
@@ -89,8 +114,11 @@ impl Chip for Sam4l {
                     TWIM2 => i2c::I2C2.handle_interrupt(),
                     TWIM3 => i2c::I2C3.handle_interrupt(),
 
+                    TWIS0 => i2c::I2C0.handle_slave_interrupt(),
+                    TWIS1 => i2c::I2C1.handle_slave_interrupt(),
+
                     HFLASHC => flashcalw::flash_controller.handle_interrupt(),
-                    // NvicIdx::ADCIFE   => self.adc.handle_interrupt(),
+                    ADCIFE => adc::ADC.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);

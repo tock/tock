@@ -1,6 +1,3 @@
-#include <errno.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <tock.h>
 
 extern unsigned int* _etext;
@@ -9,19 +6,7 @@ extern unsigned int* _got;
 extern unsigned int* _egot;
 extern unsigned int* _bss;
 extern unsigned int* _ebss;
-
-void main();
-
-void _start();
-
-caddr_t _sbrk(int incr)
-{
-  return (void*)memop(1, incr);
-}
-
-int brk(void* memory_break) {
-  return memop(0, (int)memory_break);
-}
+extern int main();
 
 #ifndef STACK_SIZE
 #define STACK_SIZE 2048
@@ -31,7 +16,6 @@ __attribute__ ((section(".start"), used, naked))
 void _start(void* mem_start,
     __attribute__((unused))void* app_memory_break,
     __attribute__((unused))void* kernel_memory_break) {
-  void main();
 
   /* Setup the stack and heap.
    * We setup the stack at the bottom of memory (directory after the GOT, data
@@ -42,7 +26,7 @@ void _start(void* mem_start,
    * kernel borrowed heap (which grows downwards from the top of memory).
    */
   void* stack_bottom = mem_start + STACK_SIZE;
-  brk(stack_bottom);
+  memop(0, (int)stack_bottom);
 
   __asm volatile ("mov sp, %0\n\t" : : "r" (stack_bottom));
 

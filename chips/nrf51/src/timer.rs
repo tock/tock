@@ -242,7 +242,7 @@ impl Timer {
 pub struct TimerAlarm {
     which: Location,
     nvic: NvicIdx,
-    client: TakeCell<&'static hil::alarm::AlarmClient>,
+    client: TakeCell<&'static hil::time::Client>,
 }
 
 // CC0 is used for capture
@@ -275,7 +275,7 @@ impl TimerAlarm {
         nvic::clear_pending(self.nvic);
     }
 
-    pub fn set_client(&self, client: &'static hil::alarm::AlarmClient) {
+    pub fn set_client(&self, client: &'static hil::time::Client) {
         self.client.replace(client);
     }
 
@@ -328,8 +328,18 @@ impl TimerAlarm {
     }
 }
 
-impl hil::alarm::Alarm for TimerAlarm {
-    type Frequency = hil::alarm::Freq16KHz;
+impl hil::time::Time for TimerAlarm {
+    fn disable(&self) {
+        self.disable_interrupts();
+    }
+
+    fn is_armed(&self) -> bool {
+        self.interrupts_enabled()
+    }
+}
+
+impl hil::time::Alarm for TimerAlarm {
+    type Frequency = hil::time::Freq16KHz;
 
     fn now(&self) -> u32 {
         self.value()
@@ -340,14 +350,6 @@ impl hil::alarm::Alarm for TimerAlarm {
         self.timer().cc[ALARM_COMPARE].set(tics);
         self.clear_alarm();
         self.enable_interrupts();
-    }
-
-    fn disable_alarm(&self) {
-        self.disable_interrupts();
-    }
-
-    fn is_armed(&self) -> bool {
-        self.interrupts_enabled()
     }
 
     fn get_alarm(&self) -> u32 {

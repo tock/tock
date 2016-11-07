@@ -1,7 +1,8 @@
-#include <firestorm.h>
 #include <isl29035.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <timer.h>
+#include <tmp006.h>
 
 void print_intensity(int intensity) {
   printf("Intensity: %d\n", intensity);
@@ -27,7 +28,7 @@ int main() {
   timer_subscribe(timer_fired, NULL);
   timer_start_repeating(1000);
 
-  tmp006_start_sampling(0x2, temp_callback, NULL);
+  //tmp006_start_sampling(0x2, temp_callback, NULL);
 
   return 0;
 }

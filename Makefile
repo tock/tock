@@ -10,7 +10,7 @@ all: $(TOCK_BOARD)
 $(TOCK_BOARD): boards/$(TOCK_BOARD)/
 	$(MAKE) -C $<
 
-clean: boards/$(TOCK_BOARD)/
+clean:: boards/$(TOCK_BOARD)/
 	$(MAKE) clean -C $<
 
 doc: boards/$(TOCK_BOARD)/

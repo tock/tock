@@ -1,6 +1,4 @@
-#include <firestorm.h>
-#include <tock.h>
-#include <tmp006.h>
+#include "tmp006.h"
 
 static bool readtemp;
 

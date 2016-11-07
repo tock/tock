@@ -1,22 +1,25 @@
-Platform-Specific Instructions: Storm
+Storm: Platform-Specific Instructions
 =====================================
 
 The [Firestorm](http://storm.rocks/ref/firestorm.html) is a platform from UC
 Berkeley's [Software Defined Buildings](http://sdb.cs.berkeley.edu/sdb/)
-research group. It is based on the Atmel SAM4L and includes an RF233 802.15.4
-radio, a Nordic NRF51822 BLE radio, a light sensor, accelerometer and
-temperature sensor.
+research group. It is based on the [Atmel SAM4L](http://www.atmel.com/products/microcontrollers/ARM/SAM4L.aspx)
+and includes an [RF233 802.15.4](http://www.atmel.com/devices/AT86RF233.aspx)
+radio, a [Nordic nRF51822 BLE radio](https://www.nordicsemi.com/eng/Products/Bluetooth-low-energy/nRF51822),
+a [light sensor](https://www.intersil.com/en/products/optoelectronics/ambient-light-sensors/light-to-digital-sensors/ISL29035.html),
+[accelerometer](http://www.nxp.com/products/sensors/6-axis-sensors/digital-sensor-3d-accelerometer-2g-4g-8g-plus-3d-magnetometer:FXOS8700CQ)
+and [temperature sensor](http://www.ti.com/product/TMP006).
 
 To program the Tock kernel and apps onto the Firestorm, you need to have the
 stormloader python library installed. This requires 
-libftdi to be installed as well. (see [below](#stormloader) for detailed
+`libftdi` to be installed as well. (see [below](#stormloader) for detailed
 instructions):
 
 ```bash
 $ pip install stormloader
 ```
 
-You also need to add the following udev rule for the Firestorm's FTDI chip:
+You also need to add the following `udev` rule for the Firestorm's FTDI chip:
 
 ```bash
 sudo su
@@ -95,7 +98,7 @@ sload tail
 ```
 
 This will restart the storm and print console output to the terminal. To avoid
-restarting, add the `-n` (for "**_n**o restart") command line flag:
+restarting, add the `-n` (for "**n**o restart") command line flag:
 
 ```bash
 sload tail -n
@@ -110,7 +113,7 @@ sload tail -i
 
 ## JTAG Programming
 
-To connect to the board with a j-link programmer:
+To connect to the board with a J-Link programmer:
 
 ```bash
 JLinkExe -device ATSAM4LC8C -speed 1200 -if swd -AutoConnect 1
@@ -139,15 +142,15 @@ break main
 
 You'll need to install
 [libftdi-0.20.tar.gz](http://www.intra2net.com/en/developer/libftdi/download/libftdi-0.20.tar.gz)
-for stormloader to function; newer versions will not work. In turn, libftdi
-depends on libusb and libusb-config. On OS X, you can satisfy the libftdi
-prereqs via homebrew:
+for stormloader to function; newer versions will not work. In turn, `libftdi`
+depends on `libusb` and `libusb-config`. On OS X, you can satisfy the `libftdi`
+prerequisites via homebrew:
 
 ```bash
 brew install libusb libusb-compat
 ```
 
-On Ubuntu you can satisfy this requirement by installing libusb and libftdi
+On Ubuntu you can satisfy this requirement by installing `libusb` and `libftdi`
 (tested on Ubuntu 16.04).
 
 ```bash

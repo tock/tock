@@ -1,9 +1,7 @@
 #ifndef _GPIO_H
 #define _GPIO_H
 
-#include <unistd.h>
-#include "tock.h"
-#include "firestorm.h"
+#include <tock.h>
 
 #define GPIO_DRIVER_NUM 1
 
@@ -12,8 +10,7 @@ extern "C" {
 #endif
 
 // GPIO pin enum is defined externally in platform headers
-enum GPIO_Pin_enum;
-typedef enum GPIO_Pin_enum GPIO_Pin_t;
+typedef uint32_t GPIO_Pin_t;
 
 typedef enum {
   PullUp=0,

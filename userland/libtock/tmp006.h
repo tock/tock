@@ -1,7 +1,7 @@
 #ifndef _TMP006_H
 #define _TMP006_H
 
-#include "tock.h"
+#include <tock.h>
 
 #ifdef __cplusplus
 extern "C" {

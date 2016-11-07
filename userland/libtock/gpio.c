@@ -1,5 +1,4 @@
 #include "gpio.h"
-#include "tock.h"
 
 int gpio_enable_output(GPIO_Pin_t pin) {
   return command(GPIO_DRIVER_NUM, 0, pin);

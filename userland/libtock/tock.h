@@ -1,8 +1,8 @@
 #ifndef _TOCK_H
 #define _TOCK_H
 
-#include <inttypes.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <unistd.h>
 
 #ifdef __cplusplus
@@ -22,6 +22,7 @@ int allow(uint32_t driver, uint32_t allow, void* ptr, size_t size);
 // 0: brk, arg1 is pointer to new memory break
 // 1: sbrk, arg1 is increment to increase/decrease memory break
 int memop(uint32_t op_type, int arg1);
+
 
 #ifdef __cplusplus
 }
