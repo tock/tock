@@ -5,9 +5,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "tock.h"
-#include "console.h"
-#include "lps25hb.h"
+#include <tock.h>
+#include <console.h>
+#include <lps25hb.h>
 
 int main () {
   printf("[LPS25HB] Test\n");
