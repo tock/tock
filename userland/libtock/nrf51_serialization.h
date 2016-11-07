@@ -17,6 +17,9 @@ void nrf51_serialization_setup_rx_buffer (char* rx, int rx_len);
 // Write a packet to the BLE Serialization connectivity processor.
 void nrf51_serialization_write (char* tx, int tx_len);
 
+// Generate an event to wake the app from a yield
+void nrf51_wakeup (void);
+
 #ifdef __cplusplus
 }
 #endif
