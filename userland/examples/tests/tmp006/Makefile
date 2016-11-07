@@ -2,8 +2,8 @@
 
 CURRENT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-TOCK_USERLAND_BASE_DIR = $(abspath $(CURRENT_DIR)/../..)
-TOCK_BASE_DIR = $(abspath $(CURRENT_DIR)/../../../)
+TOCK_USERLAND_BASE_DIR = $(abspath $(CURRENT_DIR)/../../..)
+TOCK_BASE_DIR = $(abspath $(CURRENT_DIR)/../../../../)
 BUILDDIR ?= $(abspath build/$(TOCK_ARCH))
 
 C_SRCS   := $(wildcard *.c)
