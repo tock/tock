@@ -14,6 +14,7 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::{Chip, MPU, Platform};
+use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::gpio::PinCtl;
 use kernel::hil::spi::SpiMaster;
@@ -131,173 +132,82 @@ unsafe fn set_pin_primary_functions() {
     PA[20].disable_output();
     PA[20].disable_interrupt();
     // PA00 is RCLK
-    // PC14 is RSLP
-    // PC15 is RRST
+    // RSLP
+    PC[14].configure(None);
     PC[14].enable();
     PC[14].disable_output();
+    // RRST
+    PC[15].configure(None);
     PC[15].enable();
     PC[15].disable_output();
 
     // Right column: Firestorm pin name
     // Left  column: SAM4L peripheral function
-    // LI_INT   --  EIC EXTINT2
-    PA[04].configure(Some(C));
-
-    // EXTINT1  --  EIC EXTINT1
-    PA[06].configure(Some(C));
-
-    // PWM 0    --  GPIO pin
-    PA[08].configure(None);
-
-    // PWM 1    --  GPIO pin
-    PC[16].configure(None);
-
-    // PWM 2    --  GPIO pin
-    PC[17].configure(None);
-
-    // PWM 3    --  GPIO pin
-    PC[18].configure(None);
-
-    // AD5      --  ADCIFE AD1
-    PA[05].configure(Some(A));
-
-    // AD4      --  ADCIFE AD2
-    PA[07].configure(Some(A));
-
-    // AD3      --  ADCIFE AD3
-    PB[02].configure(Some(A));
-
-    // AD2      --  ADCIFE AD4
-    PB[03].configure(Some(A));
-
-    // AD1      --  ADCIFE AD5
-    PB[04].configure(Some(A));
-
-    // AD0      --  ADCIFE AD6
-    PB[05].configure(Some(A));
-
-
-    // BL_SEL   --  USART3 RTS
-    PB[06].configure(Some(A));
-
-    //          --  USART3 CTS
-    PB[07].configure(Some(A));
-
-    //          --  USART3 CLK
-    PB[08].configure(Some(A));
-
-    // PRI_RX   --  USART3 RX
-    PB[09].configure(Some(A));
-
-    // PRI_TX   --  USART3 TX
-    PB[10].configure(Some(A));
-
-    // U1_CTS   --  USART0 CTS
-    PB[11].configure(Some(A));
-
-    // U1_RTS   --  USART0 RTS
-    PB[12].configure(Some(A));
-
-    // U1_CLK   --  USART0 CLK
-    PB[13].configure(Some(A));
-
-    // U1_RX    --  USART0 RX
-    PB[14].configure(Some(A));
-
-    // U1_TX    --  USART0 TX
-    PB[15].configure(Some(A));
-
-    // STORMRTS --  USART2 RTS
-    PC[07].configure(Some(B));
-
-    // STORMCTS --  USART2 CTS
-    PC[08].configure(Some(E));
-
-    // STORMRX  --  USART2 RX
-    PC[11].configure(Some(B));
-
-    // STORMTX  --  USART2 TX
-    PC[12].configure(Some(B));
-
-    // STORMCLK --  USART2 CLK
-    PA[18].configure(Some(A));
-
-    // ESDA     --  TWIMS1 TWD
-    PB[00].configure(Some(A));
-
-    // ESCL     --  TWIMS1 TWCK
-    PB[01].configure(Some(A));
-
-    // SDA      --  TWIM2 TWD
-    PA[21].configure(Some(E));
-
-    // SCL      --  TWIM2 TWCK
-    PA[22].configure(Some(E));
-
-    // EPCLK    --  USBC DM
-    PA[25].configure(Some(A));
-
-    // EPDAT    --  USBC DP
-    PA[26].configure(Some(A));
-
-    // PCLK     --  PARC PCCK
-    PC[21].configure(Some(D));
-    // PCEN1    --  PARC PCEN1
-    PC[22].configure(Some(D));
-    // EPGP     --  PARC PCEN2
-    PC[23].configure(Some(D));
-    // PCD0     --  PARC PCDATA0
-    PC[24].configure(Some(D));
-    // PCD1     --  PARC PCDATA1
-    PC[25].configure(Some(D));
-    // PCD2     --  PARC PCDATA2
-    PC[26].configure(Some(D));
-    // PCD3     --  PARC PCDATA3
-    PC[27].configure(Some(D));
-    // PCD4     --  PARC PCDATA4
-    PC[28].configure(Some(D));
-    // PCD5     --  PARC PCDATA5
-    PC[29].configure(Some(D));
-    // PCD6     --  PARC PCDATA6
-    PC[30].configure(Some(D));
-    // PCD7     --  PARC PCDATA7
-    PC[31].configure(Some(D));
-
-    // P2       -- GPIO Pin
-    PA[16].configure(None);
-    // P3       -- GPIO Pin
-    PA[12].configure(None);
-    // P4       -- GPIO Pin
-    PC[09].configure(None);
-    // P5       -- GPIO Pin
-    PA[10].configure(None);
-    // P6       -- GPIO Pin
-    PA[11].configure(None);
-    // P7       -- GPIO Pin
-    PA[19].configure(None);
-    // P8       -- GPIO Pin
-    PA[13].configure(None);
-
-    // none     -- GPIO Pin
-    PA[14].configure(None);
-
-    // ACC_INT2 -- GPIO Pin
-    PC[20].configure(None);
-    // STORMINT -- GPIO Pin
-    PA[17].configure(None);
-    // TMP_DRDY -- GPIO Pin
-    PA[09].configure(None);
-    // ACC_INT1 -- GPIO Pin
-    PC[13].configure(None);
-    // ENSEN    -- GPIO Pin
-    PC[19].configure(None);
-    // LED0     -- GPIO Pin
-    PC[10].configure(None);
+    PA[04].configure(Some(C));  // LI_INT   --  EIC EXTINT2
+    PA[06].configure(Some(C));  // EXTINT1  --  EIC EXTINT1
+    PA[08].configure(None);     // PWM 0    --  GPIO pin
+    PC[16].configure(None);     // PWM 1    --  GPIO pin
+    PC[17].configure(None);     // PWM 2    --  GPIO pin
+    PC[18].configure(None);     // PWM 3    --  GPIO pin
+    PA[05].configure(Some(A));  // AD5      --  ADCIFE AD1
+    PA[07].configure(Some(A));  // AD4      --  ADCIFE AD2
+    PB[02].configure(Some(A));  // AD3      --  ADCIFE AD3
+    PB[03].configure(Some(A));  // AD2      --  ADCIFE AD4
+    PB[04].configure(Some(A));  // AD1      --  ADCIFE AD5
+    PB[05].configure(Some(A));  // AD0      --  ADCIFE AD6
+    PB[06].configure(Some(A));  // BL_SEL   --  USART3 RTS
+    PB[07].configure(Some(A));  //          --  USART3 CTS
+    PB[08].configure(Some(A));  //          --  USART3 CLK
+    PB[09].configure(Some(A));  // PRI_RX   --  USART3 RX
+    PB[10].configure(Some(A));  // PRI_TX   --  USART3 TX
+    PB[11].configure(Some(A));  // U1_CTS   --  USART0 CTS
+    PB[12].configure(Some(A));  // U1_RTS   --  USART0 RTS
+    PB[13].configure(Some(A));  // U1_CLK   --  USART0 CLK
+    PB[14].configure(Some(A));  // U1_RX    --  USART0 RX
+    PB[15].configure(Some(A));  // U1_TX    --  USART0 TX
+    PC[07].configure(Some(B));  // STORMRTS --  USART2 RTS
+    PC[08].configure(Some(E));  // STORMCTS --  USART2 CTS
+    PC[11].configure(Some(B));  // STORMRX  --  USART2 RX
+    PC[12].configure(Some(B));  // STORMTX  --  USART2 TX
+    PA[18].configure(Some(A));  // STORMCLK --  USART2 CLK
+    PB[00].configure(Some(A));  // ESDA     --  TWIMS1 TWD
+    PB[01].configure(Some(A));  // ESCL     --  TWIMS1 TWCK
+    PA[21].configure(Some(E));  // SDA      --  TWIM2 TWD
+    PA[22].configure(Some(E));  // SCL      --  TWIM2 TWCK
+    PA[25].configure(Some(A));  // EPCLK    --  USBC DM
+    PA[26].configure(Some(A));  // EPDAT    --  USBC DP
+    PC[21].configure(Some(D));  // PCLK     --  PARC PCCK
+    PC[22].configure(Some(D));  // PCEN1    --  PARC PCEN1
+    PC[23].configure(Some(D));  // EPGP     --  PARC PCEN2
+    PC[24].configure(Some(D));  // PCD0     --  PARC PCDATA0
+    PC[25].configure(Some(D));  // PCD1     --  PARC PCDATA1
+    PC[26].configure(Some(D));  // PCD2     --  PARC PCDATA2
+    PC[27].configure(Some(D));  // PCD3     --  PARC PCDATA3
+    PC[28].configure(Some(D));  // PCD4     --  PARC PCDATA4
+    PC[29].configure(Some(D));  // PCD5     --  PARC PCDATA5
+    PC[30].configure(Some(D));  // PCD6     --  PARC PCDATA6
+    PC[31].configure(Some(D));  // PCD7     --  PARC PCDATA7
+    PA[16].configure(None);     // P2       -- GPIO Pin
+    PA[12].configure(None);     // P3       -- GPIO Pin
+    PC[09].configure(None);     // P4       -- GPIO Pin
+    PA[10].configure(None);     // P5       -- GPIO Pin
+    PA[11].configure(None);     // P6       -- GPIO Pin
+    PA[19].configure(None);     // P7       -- GPIO Pin
+    PA[13].configure(None);     // P8       -- GPIO Pin
+    PA[14].configure(None);     // none     -- GPIO Pin
+    PC[20].configure(None);     // ACC_INT2 -- GPIO Pin
+    PA[17].configure(None);     // STORMINT -- GPIO Pin
+    PA[09].configure(None);     // TMP_DRDY -- GPIO Pin
+    PC[13].configure(None);     // ACC_INT1 -- GPIO Pin
+    PC[19].configure(None);     // ENSEN    -- GPIO Pin
+    PC[10].configure(None);     // LED0     -- GPIO Pin
 }
 
 #[no_mangle]
 pub unsafe fn reset_handler() {
     sam4l::init();
+
+    sam4l::pm::setup_system_clock(sam4l::pm::SystemClockSource::DfllRc32k, 48000000);
 
     // Workaround for SB.02 hardware bug
     // TODO(alevy): Get rid of this when we think SB.02 are out of circulation
@@ -316,19 +226,21 @@ pub unsafe fn reset_handler() {
     let console = static_init!(
         Console<usart::USART>,
         Console::new(&usart::USART3,
+                     115200,
                      &mut console::WRITE_BUF,
                      kernel::Container::create()),
-        24);
-    usart::USART3.set_client(console);
+        224/8);
+    hil::uart::UART::set_client(&usart::USART3, console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
     let nrf_serialization = static_init!(
         Nrf51822Serialization<usart::USART>,
         Nrf51822Serialization::new(&usart::USART2,
-                                   &mut nrf51822_serialization::WRITE_BUF),
-        68);
-    usart::USART2.set_client(nrf_serialization);
+                                   &mut nrf51822_serialization::WRITE_BUF,
+                                   &mut nrf51822_serialization::READ_BUF),
+        608/8);
+    hil::uart::UART::set_client(&usart::USART2, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
 
@@ -445,21 +357,6 @@ pub unsafe fn reset_handler() {
         },
         288/8);
 
-    usart::USART3.configure(usart::USARTParams {
-        // client: &console,
-        baud_rate: 115200,
-        data_bits: 8,
-        parity: kernel::hil::uart::Parity::None,
-        mode: kernel::hil::uart::Mode::Normal,
-    });
-
-    // Setup USART2 for the nRF51822 connection
-    usart::USART2.configure(usart::USARTParams {
-        baud_rate: 250000,
-        data_bits: 8,
-        parity: kernel::hil::uart::Parity::Even,
-        mode: kernel::hil::uart::Mode::FlowControl,
-    });
     // Configure USART2 Pins for connection to nRF51822
     // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
     //  that it is because RX DMA is not set up. For now, just having it always

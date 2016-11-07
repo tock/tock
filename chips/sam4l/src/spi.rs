@@ -115,7 +115,7 @@ impl Spi {
     /// Sets the approximate baud rate for the active peripheral,
     /// and return the actual baud rate set.
     ///
-    /// Since the only supported baud rates are 48 MHz / n where n
+    /// Since the only supported baud rates are (system clock / n) where n
     /// is an integer from 1 to 255, the exact baud rate may not
     /// be available. In that case, the next lower baud rate will
     /// be selected.
@@ -125,7 +125,7 @@ impl Spi {
     pub fn set_baud_rate(&self, rate: u32) -> u32 {
         // Main clock frequency
         let mut real_rate = rate;
-        let clock = 48000000;
+        let clock = unsafe { pm::get_system_frequency() };
 
         if real_rate < 188235 {
             real_rate = 188235;

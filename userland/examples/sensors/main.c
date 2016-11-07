@@ -1,22 +1,32 @@
-#include <isl29035.h>
 #include <stdio.h>
 #include <stdbool.h>
+
 #include <timer.h>
+#include <isl29035.h>
 #include <tmp006.h>
 
 void print_intensity(int intensity) {
   printf("Intensity: %d\n", intensity);
 }
 
-void intensity_cb(int intensity, int unused1, int unused2, void* ud) {
+void intensity_cb(int intensity,
+                  __attribute__ ((unused)) int unused1,
+                  __attribute__ ((unused)) int unused2,
+                  __attribute__ ((unused)) void* ud) {
   print_intensity(intensity);
 }
 
-void temp_callback(int temp_value, int err, int unused, void* ud) {
+void temp_callback(int temp_value,
+                   int err,
+                   __attribute__ ((unused)) int unused,
+                   __attribute__ ((unused)) void* ud) {
   printf("Current Temp (%d) [0x%X]\n", temp_value, err);
 }
 
-void timer_fired(int arg0, int arg1, int arg2, void* ud) {
+void timer_fired(__attribute__ ((unused)) int arg0,
+                 __attribute__ ((unused)) int arg1,
+                 __attribute__ ((unused)) int arg2,
+                 __attribute__ ((unused)) void* ud) {
   isl29035_start_intensity_reading();
 }
 

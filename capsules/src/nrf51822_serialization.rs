@@ -1,6 +1,6 @@
 use kernel::{AppId, Callback, AppSlice, Driver, Shared};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::uart::{UART, Client};
+use kernel::hil::uart::{self, UARTAdvanced, Client};
 
 ///
 /// Nrf51822Serialization is the kernel-level driver that provides
@@ -18,31 +18,41 @@ struct App {
 // Local buffer for storing data between when the application passes it to
 // use
 pub static mut WRITE_BUF: [u8; 256] = [0; 256];
+pub static mut READ_BUF: [u8; 600] = [0; 600];
 
 // We need two resources: a UART HW driver and driver state for each
 // application.
-pub struct Nrf51822Serialization<'a, U: UART + 'a> {
+pub struct Nrf51822Serialization<'a, U: UARTAdvanced + 'a> {
     uart: &'a U,
     app: TakeCell<App>,
-    buffer: TakeCell<&'static mut [u8]>,
+    tx_buffer: TakeCell<&'static mut [u8]>,
+    rx_buffer: TakeCell<&'static mut [u8]>,
 }
 
-impl<'a, U: UART> Nrf51822Serialization<'a, U> {
-    pub fn new(uart: &'a U, buffer: &'static mut [u8]) -> Nrf51822Serialization<'a, U> {
+impl<'a, U: UARTAdvanced> Nrf51822Serialization<'a, U> {
+    pub fn new(uart: &'a U,
+               tx_buffer: &'static mut [u8],
+               rx_buffer: &'static mut [u8])
+               -> Nrf51822Serialization<'a, U> {
         Nrf51822Serialization {
             uart: uart,
             app: TakeCell::empty(),
-            buffer: TakeCell::new(buffer),
+            tx_buffer: TakeCell::new(tx_buffer),
+            rx_buffer: TakeCell::new(rx_buffer),
         }
     }
 
     pub fn initialize(&self) {
-        self.uart.enable_tx();
-        self.uart.enable_rx();
+        self.uart.init(uart::UARTParams {
+            baud_rate: 250000,
+            stop_bits: uart::StopBits::One,
+            parity: uart::Parity::Even,
+            hw_flow_control: true,
+        });
     }
 }
 
-impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
+impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     /// Pass application space memory to this driver.
     ///
     /// allow_type: 0 - Provide an RX buffer
@@ -111,6 +121,12 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                         app
                     }
                     None => {
+                        // can't start receiving until DMA has been set up
+                        //  we'll start here when subscribe is first called
+                        self.rx_buffer.take().map(|buffer| {
+                            self.uart.receive_automatic(buffer, 250);
+                        });
+
                         App {
                             callback: Some(callback),
                             tx_buffer: None,
@@ -121,6 +137,7 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                     }
                 };
                 self.app.replace(resapp);
+
                 0
             }
             _ => -1,
@@ -143,11 +160,11 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                     match appst.tx_buffer.take() {
                         Some(slice) => {
                             let write_len = slice.len();
-                            self.buffer.take().map(|buffer| {
+                            self.tx_buffer.take().map(|buffer| {
                                 for (i, c) in slice.as_ref().iter().enumerate() {
                                     buffer[i] = *c;
                                 }
-                                self.uart.send_bytes(buffer, write_len);
+                                self.uart.transmit(buffer, write_len);
                             });
                             0
                         }
@@ -156,16 +173,26 @@ impl<'a, U: UART> Driver for Nrf51822Serialization<'a, U> {
                 });
                 result.unwrap_or(-1)
             }
+            9001 => {
+                self.app.map(|appst| {
+                    appst.callback.as_mut().map(|mut cb| {
+                        // schedule an event just to wake up from yield
+                        cb.schedule(17, 0, 0);
+                    });
+                });
+
+                0
+            }
             _ => -1,
         }
     }
 }
 
 // Callbacks from the underlying UART driver.
-impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
+impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
     // Called when the UART TX has finished
-    fn write_done(&self, buffer: &'static mut [u8]) {
-        self.buffer.replace(buffer);
+    fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
+        self.tx_buffer.replace(buffer);
         // TODO(bradjc): Need to match this to the correct app!
         //               Can't just use 0!
         self.app.map(|appst| {
@@ -177,62 +204,38 @@ impl<'a, U: UART> Client for Nrf51822Serialization<'a, U> {
     }
 
     // Called when a byte is received on the UART
-    fn read_done(&self, c: u8) {
+    fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, _error: uart::Error) {
+
+        self.rx_buffer.replace(buffer);
+
         self.app.map(|appst| {
-            // The PHY layer of the serialization protocol calls for a 16 byte
-            // length field to start the packet. After we receive the first two
-            // bytes we then know how long to wait for to get the rest of
-            // the packet.
+            appst.rx_buffer = appst.rx_buffer.take().map(|mut rb| {
 
-            // Save a local copy of this so we can use it after we have a borrow
-            let rx_count = appst.rx_recv_so_far;
+                // figure out length to copy
+                let mut max_len = rx_len;
+                if rb.len() < rx_len {
+                    max_len = rb.len();
+                }
 
-            if appst.rx_buffer.is_some() && rx_count < appst.rx_buffer.as_ref().unwrap().len() {
-
-                // This is just some rust magic that only gets a mutable
-                // reference to the RX buffer and adds the byte if the buffer
-                // actually exists.
-                // Yes, we did already check that the buffer exists above,
-                // but I don't know what to do about that....
-                appst.rx_buffer.as_mut().map(|buf| {
-                    // Record the received byte
-                    buf.as_mut()[rx_count] = c;
-
+                // copy over data to app buffer
+                self.rx_buffer.map(|buffer| {
+                    for idx in 0..max_len {
+                        rb.as_mut()[idx] = buffer[idx];
+                    }
                 });
 
-                // Increment our counter since we got another byte.
-                appst.rx_recv_so_far += 1;
+                appst.callback.as_mut().map(|cb| {
+                    // send the whole darn buffer to the serialization layer
+                    cb.schedule(4, rx_len, 0);
+                });
 
-                // Check if this was the second byte. If so, we can now
-                // compute how many total bytes we expect to receive.
-                if appst.rx_recv_so_far == 2 {
-                    appst.rx_recv_total =
-                        appst.rx_buffer.as_ref().unwrap().as_ref()[0] as usize |
-                        ((appst.rx_buffer.as_ref().unwrap().as_ref()[1] as usize) << 8);
+                rb
+            });
+        });
 
-                    // After first byte let app know that a packet is inbound!
-                    let rx_recv_total = appst.rx_recv_total;
-                    appst.callback.as_mut().map(|mut cb| {
-                        cb.schedule(2, rx_recv_total, 0);
-                    });
-
-                } else if appst.rx_recv_so_far > 2 {
-                    // Check to see if we have gotten all of the data
-                    // we want.
-                    if appst.rx_recv_so_far == appst.rx_recv_total + 2 {
-                        // we did!
-
-                        // Callback the app with an RX done signal
-                        let rx_recv_so_far = appst.rx_recv_so_far;
-                        appst.callback.as_mut().map(|mut cb| {
-                            cb.schedule(3, rx_recv_so_far, 0);
-                        });
-
-                        // Reset this for the next RX
-                        appst.rx_recv_so_far = 0;
-                    }
-                }
-            }
+        // restart the uart receive
+        self.rx_buffer.take().map(|buffer| {
+            self.uart.receive_automatic(buffer, 250);
         });
     }
 }

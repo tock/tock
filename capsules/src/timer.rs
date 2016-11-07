@@ -81,6 +81,10 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
         let (err_code, reset) = self.app_timer
             .enter(caller_id, |td, _alloc| {
                 match cmd_type {
+                3 /* capture time */ => {
+		    let curr_time: u32 = self.alarm.now();
+		    (curr_time as isize, true)
+                },
                 2 /* Stop */ => {
                     if td.interval > 0 {
                         td.interval = 0;

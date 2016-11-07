@@ -11,6 +11,7 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::{Chip, MPU};
+use kernel::hil;
 use kernel::hil::Controller;
 
 mod io;
@@ -19,6 +20,8 @@ struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    si7021: &'static capsules::si7021::SI7021<'static,
+                                              VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     isl29035: &'static capsules::isl29035::Isl29035<'static>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
@@ -39,6 +42,7 @@ impl kernel::Platform for Imix {
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            10 => f(Some(self.si7021)),
             _ => f(None),
         }
     }
@@ -50,184 +54,71 @@ unsafe fn set_pin_primary_functions() {
 
     // Right column: Imix pin name
     // Left  column: SAM4L peripheral function
-
-    // LI_INT   --  EIC EXTINT2
-    PA[04].configure(Some(C));
-
-    // AD0      --  ADCIFE AD1
-    PA[05].configure(Some(A));
-
-    // EXTINT1  --  EIC EXTINT1
-    PA[06].configure(Some(C));
-
-    // AD1      --  ADCIFE AD2
-    PA[07].configure(Some(A));
-
-    // RF233 IRQ --  GPIO pin
-    PA[08].configure(None);
-
-    // RF233 RST --  GPIO pin
-    PA[09].configure(None);
-
-    // RF233 SLP --  GPIO pin
-    PA[10].configure(None);
-
-    // TRNG EN   --  GPIO pin
-    PA[13].configure(None);
-
-    // TRNG_OUT  --  GPIO pin
-    PA[14].configure(None);
-
-    // NRF INT   -- GPIO pin
-    PA[17].configure(None);
-
-    // NRF CLK   -- USART2_CLK
-    PA[18].configure(Some(A));
-
-    // TWI2 SDA  -- TWIM2_SDA
-    PA[21].configure(Some(E));
-
-    // TWI2 SCL  --  TWIM2 TWCK
-    PA[22].configure(Some(E));
-
-    // USB_N     --  USB DM
-    PA[25].configure(Some(A));
-
-    // USB_P     --  USB DP
-    PA[26].configure(Some(A));
-
-    // TWI1_SDA  --  TWIMS1 TWD
-    PB[00].configure(Some(A));
-
-    // TWI1_SCL  --  TWIMS1 TWCK
-    PB[01].configure(Some(A));
-
-    // AD2      --  ADCIFE AD3
-    PB[02].configure(Some(A));
-
-    // AD3      --  ADCIFE AD4
-    PB[03].configure(Some(A));
-
-    // AD4      --  ADCIFE AD5
-    PB[04].configure(Some(A));
-
-    // AD5      --  ADCIFE AD6
-    PB[05].configure(Some(A));
-
-    // RTS3     --  USART3 RTS
-    PB[06].configure(Some(A));
-
-    // NRF RESET --  GPIO
-    PB[07].configure(None);
-
-    // RX3      --  USART3 RX
-    PB[09].configure(Some(A));
-
-    // TX3      --  USART3 TX
-    PB[10].configure(Some(A));
-
-    // CTS0     --  USART0 CTS
-    PB[11].configure(Some(A));
-
-    // RTS0     --  USART0 RTS
-    PB[12].configure(Some(A));
-
-    // CLK0     --  USART0 CLK
-    PB[13].configure(Some(A));
-
-    // RX0      --  USART0 RX
-    PB[14].configure(Some(A));
-
-    // TX0      --  USART0 TX
-    PB[15].configure(Some(A));
-
-
-    // CS2      --  SPI NPCS2
-    PC[00].configure(Some(A));
-
-    // CS3 (RF233) -- SPI NPCS3
-    PC[01].configure(Some(A));
-
-    // CS1      --  SPI NPCS1
-    PC[02].configure(Some(A));
-
-    // CS0      --  SPI NPCS0
-    PC[03].configure(Some(A));
-
-    // MISO     --  SPI MISO
-    PC[04].configure(Some(A));
-
-    // MOSI     --  SPI MOSI
-    PC[05].configure(Some(A));
-
-    // SCK      --  SPI CLK
-    PC[06].configure(Some(A));
-
-    // RTS2 (BLE) -- USART2_RTS
-    PC[07].configure(Some(B));
-
-    // CTS2 (BLE) -- USART2_CTS
-    PC[08].configure(Some(B));
-
-    // NRF GPIO   -- GPIO
-    PC[09].configure(None);
-
-    // USER LED   -- GPIO
-    PC[10].configure(None);
-
-    // RX2 (BLE)  -- USART2_RX
-    PC[11].configure(Some(B));
-
-    // TX2 (BLE)  -- USART2_TX
-    PC[12].configure(Some(B));
-
-    // ACC_INT1   -- GPIO
-    PC[13].configure(None);
-
-    // ACC_INT2   -- GPIO
-    PC[14].configure(None);
-
-    // SENSE_PWR --  GPIO pin
-    PC[16].configure(None);
-
-    // NRF_PWR   --  GPIO pin
-    PC[17].configure(None);
-
-    // RF233_PWR --  GPIO pin
-    PC[18].configure(None);
-
-    // TRNG_PWR  -- GPIO Pin
-    PC[19].configure(None);
-
-    // USER_BTN  -- GPIO Pin
-    PC[24].configure(None);
-
-    // D8        -- GPIO Pin
-    PC[25].configure(None);
-
-    // D7        -- GPIO Pin
-    PC[26].configure(None);
-
-    // D6        -- GPIO Pin
-    PC[27].configure(None);
-
-    // D5        -- GPIO Pin
-    PC[28].configure(None);
-
-    // D4        -- GPIO Pin
-    PC[29].configure(None);
-
-    // D3        -- GPIO Pin
-    PC[30].configure(None);
-
-    // D2        -- GPIO Pin
-    PC[31].configure(None);
+    PA[04].configure(Some(C));  // LI_INT      --  EIC EXTINT2
+    PA[05].configure(Some(A));  // AD0         --  ADCIFE AD1
+    PA[06].configure(Some(C));  // EXTINT1     --  EIC EXTINT1
+    PA[07].configure(Some(A));  // AD1         --  ADCIFE AD2
+    PA[08].configure(None);     // RF233 IRQ   --  GPIO pin
+    PA[09].configure(None);     // RF233 RST   --  GPIO pin
+    PA[10].configure(None);     // RF233 SLP   --  GPIO pin
+    PA[13].configure(None);     // TRNG EN     --  GPIO pin
+    PA[14].configure(None);     // TRNG_OUT    --  GPIO pin
+    PA[17].configure(None);     // NRF INT     -- GPIO pin
+    PA[18].configure(Some(A));  // NRF CLK     -- USART2_CLK
+    PA[21].configure(Some(E));  // TWI2 SDA    -- TWIM2_SDA
+    PA[22].configure(Some(E));  // TWI2 SCL    --  TWIM2 TWCK
+    PA[25].configure(Some(A));  // USB_N       --  USB DM
+    PA[26].configure(Some(A));  // USB_P       --  USB DP
+    PB[00].configure(Some(A));  // TWI1_SDA    --  TWIMS1 TWD
+    PB[01].configure(Some(A));  // TWI1_SCL    --  TWIMS1 TWCK
+    PB[02].configure(Some(A));  // AD2         --  ADCIFE AD3
+    PB[03].configure(Some(A));  // AD3         --  ADCIFE AD4
+    PB[04].configure(Some(A));  // AD4         --  ADCIFE AD5
+    PB[05].configure(Some(A));  // AD5         --  ADCIFE AD6
+    PB[06].configure(Some(A));  // RTS3        --  USART3 RTS
+    PB[07].configure(None);     // NRF RESET   --  GPIO
+    PB[09].configure(Some(A));  // RX3         --  USART3 RX
+    PB[10].configure(Some(A));  // TX3         --  USART3 TX
+    PB[11].configure(Some(A));  // CTS0        --  USART0 CTS
+    PB[12].configure(Some(A));  // RTS0        --  USART0 RTS
+    PB[13].configure(Some(A));  // CLK0        --  USART0 CLK
+    PB[14].configure(Some(A));  // RX0         --  USART0 RX
+    PB[15].configure(Some(A));  // TX0         --  USART0 TX
+    PC[00].configure(Some(A));  // CS2         --  SPI NPCS2
+    PC[01].configure(Some(A));  // CS3 (RF233) -- SPI NPCS3
+    PC[02].configure(Some(A));  // CS1         --  SPI NPCS1
+    PC[03].configure(Some(A));  // CS0         --  SPI NPCS0
+    PC[04].configure(Some(A));  // MISO        --  SPI MISO
+    PC[05].configure(Some(A));  // MOSI        --  SPI MOSI
+    PC[06].configure(Some(A));  // SCK         --  SPI CLK
+    PC[07].configure(Some(B));  // RTS2 (BLE)  -- USART2_RTS
+    PC[08].configure(Some(B));  // CTS2 (BLE)  -- USART2_CTS
+    PC[09].configure(None);     // NRF GPIO    -- GPIO
+    PC[10].configure(None);     // USER LED    -- GPIO
+    PC[11].configure(Some(B));  // RX2 (BLE)   -- USART2_RX
+    PC[12].configure(Some(B));  // TX2 (BLE)   -- USART2_TX
+    PC[13].configure(None);     // ACC_INT1    -- GPIO
+    PC[14].configure(None);     // ACC_INT2    -- GPIO
+    PC[16].configure(None);     // SENSE_PWR   --  GPIO pin
+    PC[17].configure(None);     // NRF_PWR     --  GPIO pin
+    PC[18].configure(None);     // RF233_PWR   --  GPIO pin
+    PC[19].configure(None);     // TRNG_PWR    -- GPIO Pin
+    PC[24].configure(None);     // USER_BTN    -- GPIO Pin
+    PC[25].configure(None);     // D8          -- GPIO Pin
+    PC[26].configure(None);     // D7          -- GPIO Pin
+    PC[27].configure(None);     // D6          -- GPIO Pin
+    PC[28].configure(None);     // D5          -- GPIO Pin
+    PC[29].configure(None);     // D4          -- GPIO Pin
+    PC[30].configure(None);     // D3          -- GPIO Pin
+    PC[31].configure(None);     // D2          -- GPIO Pin
 }
 
 
 #[no_mangle]
 pub unsafe fn reset_handler() {
     sam4l::init();
+
+    sam4l::pm::setup_system_clock(sam4l::pm::SystemClockSource::DfllRc32k, 48000000);
 
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
@@ -240,18 +131,11 @@ pub unsafe fn reset_handler() {
     let console = static_init!(
         capsules::console::Console<sam4l::usart::USART>,
         capsules::console::Console::new(&sam4l::usart::USART3,
+                     115200,
                      &mut capsules::console::WRITE_BUF,
                      kernel::Container::create()),
-        24);
-    sam4l::usart::USART3.set_client(console);
-
-    sam4l::usart::USART3.configure(sam4l::usart::USARTParams {
-        baud_rate: 115200,
-        data_bits: 8,
-        parity: kernel::hil::uart::Parity::None,
-        mode: kernel::hil::uart::Mode::Normal,
-    });
-
+        224/8);
+    hil::uart::UART::set_client(&sam4l::usart::USART3, console);
     console.initialize();
 
     // # TIMER
@@ -286,6 +170,19 @@ pub unsafe fn reset_handler() {
         capsules::isl29035::Isl29035::new(isl29035_i2c, &mut capsules::isl29035::BUF),
         36);
     isl29035_i2c.set_client(isl29035);
+
+    // Configure the SI7021, device address 0x40
+    let si7021_alarm = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm),
+        24);
+    let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x40), 32);
+    let si7021 = static_init!(
+        capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+        capsules::si7021::SI7021::new(si7021_i2c, si7021_alarm, &mut capsules::si7021::BUFFER),
+        36);
+    si7021_i2c.set_client(si7021);
+    si7021_alarm.set_client(si7021);
 
     // Clear sensors enable pin to enable sensor rail
     sam4l::gpio::PC[16].enable_output();
@@ -352,6 +249,7 @@ pub unsafe fn reset_handler() {
         console: console,
         timer: timer,
         gpio: gpio,
+        si7021: si7021,
         isl29035: isl29035,
         adc: adc,
         led: led,

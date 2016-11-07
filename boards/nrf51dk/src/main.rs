@@ -175,22 +175,17 @@ pub unsafe fn reset_handler() {
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
-                                       &mut capsules::console::WRITE_BUF,
-                                       kernel::Container::create()),
-        24);
-    nrf51::uart::UART0.set_client(console);
+                                        115200,
+                                        &mut capsules::console::WRITE_BUF,
+                                        kernel::Container::create()),
+        224/8);
+    UART::set_client(&nrf51::uart::UART0, console);
+    console.initialize();
 
     let alarm = &nrf51::rtc::RTC;
     alarm.start();
     let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
     alarm.set_client(mux_alarm);
-
-    nrf51::uart::UART0.init(kernel::hil::uart::UARTParams {
-        baud_rate: 115200,
-        data_bits: 8,
-        parity: kernel::hil::uart::Parity::None,
-        mode: kernel::hil::uart::Mode::Normal,
-    });
 
 
     let virtual_alarm1 = static_init!(
