@@ -284,7 +284,7 @@ pub unsafe fn reset_handler() {
     virtual_alarm1.set_client(timer);
 
     // Initialize and enable SPI HAL
-    let chip_selects = static_init!([u8; 3], [0, 1, 2], 3);
+    let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
     let spi = static_init!(
         capsules::spi::Spi<'static, sam4l::spi::Spi>,
         capsules::spi::Spi::new(&mut sam4l::spi::SPI, chip_selects),
