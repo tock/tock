@@ -10,7 +10,10 @@
 // Callback for button presses.
 //   btn_num: The index of the button associated with the callback
 //   val: 0 if pressed, 1 if depressed
-static void button_callback(int btn_num, int val, int arg2, void *ud) {
+static void button_callback(int btn_num,
+                            int val,
+                            __attribute__ ((unused)) int arg2,
+                            __attribute__ ((unused)) void *ud) {
   if (val == 0) {
     led_toggle(btn_num);
   }
@@ -28,4 +31,3 @@ int main(void) {
 
   return 0;
 }
-
