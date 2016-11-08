@@ -16,9 +16,9 @@ calls](https://en.wikipedia.org/wiki/System_call).
 Since applications are not a part of the kernel, they may be written in any
 language that can be compiled into code capable of running on ARM Cortex-M
 processors. While the Tock kernel is written in Rust, applications are commonly
-written in C. Additionally, Tock supports running multiple applications concurrently.
-Co-operatively multiprogramming is the default, but applications may also be
-time sliced. Applications may talk to each other via Inter-Process
+written in C. Additionally, Tock supports running multiple applications
+concurrently. Co-operatively multiprogramming is the default, but applications
+may also be time sliced. Applications may talk to each other via Inter-Process
 Communication (IPC) through system calls.
 
 Applications do not have compile-time knowledge of the address at which they
@@ -61,7 +61,8 @@ command(uint32_t driver, uint32_t command, int data) {
 }
 ```
 
-A more in-depth discussion of can be found in the [system call documentation](./Syscalls.md).
+A more in-depth discussion of can be found in the [system call
+documentation](./Syscalls.md).
 
 
 ## Callbacks
@@ -85,12 +86,13 @@ return from execution (for example, an application that returns from `main`).
 
 
 ## Inter-Process Communication
- * how does this work?
+ * **TODO:** how does this work?
 
 
 ## Libraries
 Application code does not need to stand alone, libraries are available that can
 be utilized! 
+
 
 ### Newlib
 Application code written in C has access to most of the [C standard
@@ -103,10 +105,25 @@ specified in [build.sh](../userland/newlib/build.sh).
 
 
 ### libtock
- * These are the libraries wrapping syscalls
+In order to interact with the Tock kernel, application code can use the
+`libtock` library. The majority of `libtock` are wrappers for interacting
+with Tock drivers through system calls. They provide the user a meaningful
+function name and arguments and then internally translate these into a
+`command`, `subscribe`, etc. Where it makes sense, the libraries also provide
+a synchronous interface to a driver using an internal callback and `yield_for`
+(example:
+[`tmp006_read_sync`](https://github.com/helena-project/tock/blob/master/userland/libtock/tmp006.c#L20))
 
-## Tock Binary Format
- * list the header for the top of code
- * talk about rel data section
- * point to elf2tbf rs tool
+`libtock` also provides the startup code for applications
+([`crt1.c`](https://github.com/helena-project/tock/blob/master/userland/libtock/crt1.c)),
+an implementation for the system calls
+([`tock.c`](https://github.com/helena-project/tock/blob/master/userland/libtock/tock.c)),
+and pin definitions for platforms.
+
+
+## Related
+
+ * For general information on Tock: [Overview](./Overview.md)
+ * For more information on system calls: [Syscalls](./Syscalls.md)
+ * For more information on compiling app and app binary format: [Compilation](./Compilation.md)
 
