@@ -4,7 +4,7 @@
 
 #define IPC_DRIVER 0x4c
 
-static char* rot13_service_name = "org.tockos.examples.rot1";
+static char* rot13_service_name = "org.tockos.examples.rot13";
 int rot13_svc_num = 0;
 
 char buf[64] __attribute__((aligned(64)));

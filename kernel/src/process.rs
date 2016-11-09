@@ -64,17 +64,22 @@ pub struct Callback {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Debug)]
 struct LoadInfo {
-    total_size: usize, // Total padded size of the program image
-    pkg_name_size: usize,
-    rel_data_size: usize,
-    entry_loc: usize, // Entry point for user application
-    init_data_loc: usize, // Data initialization information in flash
-    init_data_size: usize, // Size of initialization information
-    got_start_offset: usize, // Offset to start of GOT
-    got_end_offset: usize, // Offset to end of GOT
-    bss_start_offset: usize, // Offset to start of BSS
-    bss_end_offset: usize, // Offset to end of BSS
+    total_size: u32,
+    entry_offset: u32,
+    rel_data_offset: u32,
+    rel_data_size: u32,
+    text_offset: u32,
+    text_size: u32,
+    got_offset: u32,
+    got_size: u32,
+    data_offset: u32,
+    data_size: u32,
+    bss_start_offset: u32,
+    bss_size: u32,
+    pkg_name_offset: u32,
+    pkg_name_size: u32,
 }
 
 pub struct Process<'a> {
@@ -398,88 +403,85 @@ impl<'a> Process<'a> {
     }
 }
 
+#[derive(Debug)]
 struct LoadResult {
-    text_start: *const u8,
-    text_len: usize,
     init_fn: usize,
     app_mem_start: *const u8,
     pkg_name: &'static [u8],
 }
 
 unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
+
+    let load_info = &*(start_addr as *const LoadInfo);
+
     let mut result = LoadResult {
-        pkg_name: &[],
-        text_start: start_addr as *const u8,
-        text_len: 0,
+        pkg_name: slice::from_raw_parts(start_addr.offset(load_info.pkg_name_offset as isize),
+                                        load_info.pkg_name_size as usize),
         init_fn: 0,
         app_mem_start: ptr::null(),
     };
 
-    let load_info = &*(start_addr as *const LoadInfo);
+    let text_start = start_addr.offset(load_info.text_offset as isize);
 
-    if load_info.pkg_name_size > 0 {
-        let pkg_name_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
-        result.pkg_name = slice::from_raw_parts(pkg_name_addr as *const u8,
-                                                load_info.pkg_name_size);
+    let rel_data: &[u32] =
+        slice::from_raw_parts(start_addr.offset(load_info.rel_data_offset as isize) as *const u32,
+                              (load_info.rel_data_size as usize) / mem::size_of::<u32>());
+
+    let got: &[u8] =
+        slice::from_raw_parts(start_addr.offset(load_info.got_offset as isize),
+                              load_info.got_size as usize) as &[u8];
+
+    let data: &[u8] = slice::from_raw_parts(start_addr.offset(load_info.data_offset as isize),
+                                            load_info.data_size as usize);
+
+    let target_data: &mut [u8] =
+        slice::from_raw_parts_mut(mem_base,
+                                  (load_info.data_size + load_info.got_size) as usize);
+
+    for (orig, dest) in got.iter().chain(data.iter()).zip(target_data.iter_mut()) {
+        *dest = *orig
     }
-
-    let rel_data_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize)
-        .offset(load_info.pkg_name_size as isize);
-    let rel_data: &[usize] = slice::from_raw_parts(rel_data_addr as *const usize,
-                                                   load_info.rel_data_size / 4);
-
-    // Update text location in self
-    let text_start = rel_data_addr.offset(load_info.rel_data_size as isize);
-    result.text_start = text_start;
-    result.text_len = load_info.init_data_loc;
 
     // Zero out BSS
     ::core::intrinsics::write_bytes(mem_base.offset(load_info.bss_start_offset as isize),
                                     0,
-                                    load_info.bss_end_offset - load_info.bss_start_offset);
+                                    load_info.bss_size as usize);
 
-    // Copy data into Data section
-    let init_data: &[u8] =
-        slice::from_raw_parts(text_start.offset(load_info.init_data_loc as isize),
-                              load_info.init_data_size);
 
-    let target_data: &mut [u8] = slice::from_raw_parts_mut(mem_base, load_info.init_data_size);
-
-    target_data.clone_from_slice(init_data);
-
-    let fixup = |addr: *mut usize| {
+    let fixup = |addr: &mut u32| {
         let entry = *addr;
         if (entry & 0x80000000) == 0 {
             // Regular data (memory relative)
-            *addr = entry + (mem_base as usize);
+            *addr = entry + (mem_base as u32);
         } else {
             // rodata or function pointer (code relative)
-            *addr = (entry ^ 0x80000000) + (text_start as usize);
+            *addr = (entry ^ 0x80000000) + (text_start as u32);
         }
     };
 
     // Fixup Global Offset Table
-    let mut got_cur = mem_base.offset(load_info.got_start_offset as isize) as *mut usize;
-    let got_end = mem_base.offset(load_info.got_end_offset as isize) as *mut usize;
-    while got_cur != got_end {
+    let mem_got: &mut [u32] = slice::from_raw_parts_mut(mem_base as *mut u32,
+                                                        (load_info.got_size as usize) /
+                                                        mem::size_of::<u32>());
+
+    for got_cur in mem_got {
         fixup(got_cur);
-        got_cur = got_cur.offset(1);
     }
 
     // Fixup relocation data
     for (i, addr) in rel_data.iter().enumerate() {
         if i % 2 == 0 {
             // Only the first of every 2 entries is an address
-            fixup(mem_base.offset(*addr as isize) as *mut usize);
+            fixup(&mut *(mem_base.offset(*addr as isize) as *mut u32));
         }
     }
 
     // Entry point is offset from app code
-    result.init_fn = text_start as usize + load_info.entry_loc;
+    result.init_fn = start_addr.offset(load_info.entry_offset as isize) as usize;
 
-    let mut aligned_mem_start = load_info.bss_end_offset as isize;
+    let mut aligned_mem_start = load_info.bss_start_offset + load_info.bss_size;
     aligned_mem_start += (8 - (aligned_mem_start % 8)) % 8;
-    result.app_mem_start = mem_base.offset(aligned_mem_start);
+    result.app_mem_start = mem_base.offset(aligned_mem_start as isize);
 
     result
 }

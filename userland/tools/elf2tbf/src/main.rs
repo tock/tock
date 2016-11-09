@@ -15,16 +15,20 @@ use std::slice;
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 struct LoadInfo {
-    total_size: u32, // Total padded size of the program image
-    pkg_name_size: u32, // Size of the package name string in bytes
+    total_size: u32,
+    entry_offset: u32,
+    rel_data_offset: u32,
     rel_data_size: u32,
-    entry_loc: u32, // Entry point for user application
-    init_data_loc: u32, // Data initialization information in flash
-    init_data_size: u32, // Size of initialization information
-    got_start_offset: u32, // Offset in memory to start of GOT
-    got_end_offset: u32, // Offset in memory to end of GOT
-    bss_start_offset: u32, // Offset in memory to start of BSS
-    bss_end_offset: u32, // Offset in memory to end of BSS
+    text_offset: u32,
+    text_size: u32,
+    got_offset: u32,
+    got_size: u32,
+    data_offset: u32,
+    data_size: u32,
+    bss_start_offset: u32,
+    bss_size: u32,
+    pkg_name_offset: u32,
+    pkg_name_size: u32,
 }
 
 fn main() {
@@ -121,7 +125,8 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> i
     let bss = get_section(input, ".bss");
 
     let mut total_len = (mem::size_of::<LoadInfo>() + rel_data.len() + text.data.len() +
-                         got.data.len() + data.data.len()) as u32;
+                         got.data.len() + data.data.len() +
+                         pkg_name.len()) as u32;
 
     let pad = if total_len.count_ones() > 1 {
         let power2len = 1 << (32 - total_len.leading_zeros());
@@ -131,25 +136,40 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> i
     };
     total_len = total_len + pad;
 
+    let rel_data_offset = mem::size_of::<LoadInfo>() as u32;
+    let text_offset = rel_data_offset + (rel_data_size as u32);
+    let text_size = text.shdr.size as u32;
+    let entry_offset = (input.ehdr.entry ^ 0x80000000) as u32 + text_offset;
+    let got_offset = text_offset + text_size;
+    let got_size = got.shdr.size as u32;
+    let data_offset = got_offset + got_size;
+    let data_size = data.shdr.size as u32;
+    let pkg_name_offset = got_offset + got_size;
+    let pkg_name_size = pkg_name.len() as u32;
+
     let load_info = LoadInfo {
         total_size: total_len,
-        pkg_name_size: pkg_name.len() as u32,
+        entry_offset: entry_offset,
+        rel_data_offset: rel_data_offset,
         rel_data_size: rel_data_size as u32,
-        entry_loc: (input.ehdr.entry ^ 0x80000000) as u32,
-        init_data_loc: text.shdr.size as u32,
-        init_data_size: (data.shdr.size + got.shdr.size) as u32,
-        got_start_offset: 0,
-        got_end_offset: got.shdr.size as u32,
+        text_offset: text_offset,
+        text_size: text_size,
+        got_offset: got_offset,
+        got_size: got_size,
+        data_offset: data_offset,
+        data_size: data_size,
         bss_start_offset: bss.shdr.addr as u32,
-        bss_end_offset: (bss.shdr.addr + bss.shdr.size) as u32,
+        bss_size: bss.shdr.size as u32,
+        pkg_name_offset: pkg_name_offset,
+        pkg_name_size: pkg_name_size,
     };
 
     try!(output.write_all(unsafe { as_byte_slice(&load_info) }));
-    try!(output.write_all(pkg_name.as_ref()));
     try!(output.write_all(rel_data.as_ref()));
     try!(output.write_all(text.data.as_ref()));
     try!(output.write_all(got.data.as_ref()));
     try!(output.write_all(data.data.as_ref()));
+    try!(output.write_all(pkg_name.as_ref()));
 
     let mut pad = pad as usize;
     let zero_buf = [0u8; 512];
