@@ -38,13 +38,9 @@ pub fn main<P: Platform, C: Chip>(platform: &P,
         unsafe {
             chip.service_pending_interrupts();
 
-            let mut running_left = true;
             for (i, p) in processes.iter_mut().enumerate() {
                 p.as_mut().map(|process| {
                     sched::do_process(platform, chip, process, AppId::new(i), ipc);
-                    if process.state == process::State::Running {
-                        running_left = true;
-                    }
                 });
                 if chip.has_pending_interrupts() {
                     break;
@@ -52,7 +48,7 @@ pub fn main<P: Platform, C: Chip>(platform: &P,
             }
 
             support::atomic(|| {
-                if !chip.has_pending_interrupts() && !running_left {
+                if !chip.has_pending_interrupts() && process::processes_blocked() {
                     support::wfi();
                 }
             })

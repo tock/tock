@@ -3,7 +3,6 @@
 //! the syscall interface are buttons.
 
 use ::{AppId, AppSlice, Container, Callback, Driver, Shared};
-use ::common::queue::Queue;
 use ::process;
 
 struct IPCData {
@@ -81,7 +80,7 @@ impl Driver for IPC {
         procs[target_id - 1]
             .as_mut()
             .map(|target| {
-                target.callbacks.enqueue(process::GCallback::IPCCallback(appid));
+                target.schedule_ipc(appid);
                 0
             })
             .unwrap_or(-1)

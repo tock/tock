@@ -1,5 +1,5 @@
 use callback::AppId;
-use common::{RingBuffer, Queue};
+use common::{RingBuffer, Queue, VolatileCell};
 
 use container;
 use core::{mem, ptr, slice};
@@ -28,6 +28,9 @@ pub fn schedule(callback: Callback, appid: AppId) -> bool {
         None => false,
         Some(ref mut p) => {
             // TODO(alevy): validate appid liveness
+            unsafe {
+                HAVE_WORK.set(HAVE_WORK.get() + 1);
+            }
 
             p.callbacks.enqueue(GCallback::Callback(callback))
         }
@@ -98,6 +101,8 @@ pub struct Process<'a> {
     yield_pc: usize,
     psr: usize,
 
+    state: State,
+
     /// MPU regions are saved as a pointer-size pair.
     ///
     /// size is encoded as X where
@@ -112,11 +117,9 @@ pub struct Process<'a> {
     ///
     mpu_regions: [Cell<(*const u8, usize)>; 5],
 
+    callbacks: RingBuffer<'a, GCallback>,
+
     pub pkg_name: &'static [u8],
-
-    pub state: State,
-
-    pub callbacks: RingBuffer<'a, GCallback>,
 }
 
 fn closest_power_of_two(mut num: u32) -> u32 {
@@ -130,7 +133,43 @@ fn closest_power_of_two(mut num: u32) -> u32 {
     num
 }
 
+// Stores the current number of callbacks enqueued + processes in Running state
+static mut HAVE_WORK: VolatileCell<usize> = VolatileCell::new(0);
+
+pub fn processes_blocked() -> bool {
+    unsafe { HAVE_WORK.get() == 0 }
+}
+
 impl<'a> Process<'a> {
+    pub fn schedule_ipc(&mut self, from: AppId) {
+        unsafe {
+            HAVE_WORK.set(HAVE_WORK.get() + 1);
+        }
+        self.callbacks.enqueue(GCallback::IPCCallback(from));
+    }
+
+    pub fn current_state(&self) -> State {
+        self.state
+    }
+
+    pub fn yield_state(&mut self) {
+        if self.state == State::Running {
+            self.state = State::Yielded;
+            unsafe {
+                HAVE_WORK.set(HAVE_WORK.get() - 1);
+            }
+        }
+    }
+
+    pub fn dequeue_callback(&mut self) -> Option<GCallback> {
+        self.callbacks.dequeue().map(|cb| {
+            unsafe {
+                HAVE_WORK.set(HAVE_WORK.get() - 1);
+            }
+            cb
+        })
+    }
+
     pub fn mem_start(&self) -> *const u8 {
         self.memory.as_ptr()
     }
@@ -258,6 +297,8 @@ impl<'a> Process<'a> {
             r3: 0,
         }));
 
+        HAVE_WORK.set(HAVE_WORK.get() + 1);
+
         process
     }
 
@@ -331,6 +372,9 @@ impl<'a> Process<'a> {
 
     /// Context switch to the process.
     pub unsafe fn push_callback(&mut self, callback: Callback) {
+        HAVE_WORK.set(HAVE_WORK.get() + 1);
+
+        self.state = State::Running;
         // Fill in initial stack expected by SVC handler
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);

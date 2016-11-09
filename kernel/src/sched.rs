@@ -1,4 +1,3 @@
-use common::Queue;
 use platform::{Chip, Platform, SysTick};
 use process;
 use process::Process;
@@ -19,7 +18,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
             break;
         }
 
-        match process.state {
+        match process.current_state() {
             process::State::Running => {
                 process.setup_mpu(chip.mpu());
                 systick.enable(true);
@@ -27,12 +26,11 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 systick.enable(false);
             }
             process::State::Yielded => {
-                match process.callbacks.dequeue() {
+                match process.dequeue_callback() {
                     None => break,
                     Some(cb) => {
                         match cb {
                             process::GCallback::Callback(ccb) => {
-                                process.state = process::State::Running;
                                 process.push_callback(ccb);
                             }
                             process::GCallback::IPCCallback(otherapp) => {
@@ -68,7 +66,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 process.set_r0(res);
             }
             Some(syscall::YIELD) => {
-                process.state = process::State::Yielded;
+                process.yield_state();
                 process.pop_syscall_stack();
 
                 // There might be already enqueued callbacks
