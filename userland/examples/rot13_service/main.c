@@ -1,6 +1,5 @@
+#include <ipc.h>
 #include <tock.h>
-
-#define IPC_DRIVER 0x4c
 
 struct rot13_buf {
   int8_t length;
@@ -20,11 +19,11 @@ static void rot13_callback(int pid, int len, int buf, void* ud) {
       rb->buf[i] = (((rb->buf[i] - 'A') + 13) % 26) + 'A';
     }
   }
-  command(IPC_DRIVER, pid, 0);
+  ipc_notify(pid);
 }
 
 int main() {
-  subscribe(IPC_DRIVER, 0, rot13_callback, NULL);
+  ipc_register_svc(rot13_callback, NULL);
   return 0;
 }
 
