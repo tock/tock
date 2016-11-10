@@ -5,13 +5,13 @@ use kernel::hil;
 
 /// The Mux struct manages multiple SPI clients. Each client may have
 /// at most one outstanding SPI request.
-pub struct MuxSPIMaster<'a> {
-    spi: &'a hil::spi::SpiMaster,
-    devices: List<'a, SPIMasterDevice<'a>>,
-    inflight: TakeCell<&'a SPIMasterDevice<'a>>,
+pub struct MuxSPIMaster<'a, SPI: hil::spi::SpiMaster + 'a> {
+    spi: &'a SPI,
+    devices: List<'a, SPIMasterDevice<'a, SPI>>,
+    inflight: TakeCell<&'a SPIMasterDevice<'a, SPI>>,
 }
 
-impl<'a> hil::spi::SpiMasterClient for MuxSPIMaster<'a> {
+impl<'a, SPI: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSPIMaster<'a, SPI> {
     fn read_write_done(&self,
                        write_buffer: &'static mut [u8],
                        read_buffer: Option<&'static mut [u8]>,
@@ -23,8 +23,8 @@ impl<'a> hil::spi::SpiMasterClient for MuxSPIMaster<'a> {
     }
 }
 
-impl<'a> MuxSPIMaster<'a> {
-    pub const fn new(spi: &'a hil::spi::SpiMaster) -> MuxSPIMaster<'a> {
+impl<'a, SPI: hil::spi::SpiMaster> MuxSPIMaster<'a, SPI> {
+    pub const fn new(spi: &'a SPI) -> MuxSPIMaster<'a, SPI> {
         MuxSPIMaster {
             spi: spi,
             devices: List::new(),
@@ -40,29 +40,13 @@ impl<'a> MuxSPIMaster<'a> {
                 match node.operation.get() {
                     Op::Configure(cpol, cpal, rate) => {
 
-                        match node.chip_select {
-                            Some(x) => {
-                                self.spi.set_chip_select(x);
-                            }
-                            None => {}
-                        }
-
-                        // In theory, the SPI interface should support
-                        // using a GPIO in lieu of a hardware CS line.
-                        // This is particularly important for the SAM4L
-                        // if using a USART, but might be relevant
-                        // for other platforms as well.
-                        // TODO: make this do something if given GPIO pin
-                        // match node.chip_select_gpio {
-                        //     Some() => { },
-                        //     None => {}
-                        // }
+                        // The `chip_select` type will be correct based on
+                        // what implemented `SpiMaster`.
+                        self.spi.specify_chip_select(node.chip_select.get());
 
                         self.spi.set_clock(cpol);
                         self.spi.set_phase(cpal);
                         self.spi.set_rate(rate);
-
-
                     }
                     Op::ReadWriteBytes(len) => {
 
@@ -91,26 +75,23 @@ enum Op {
     ReadWriteBytes(usize),
 }
 
-pub struct SPIMasterDevice<'a> {
-    mux: &'a MuxSPIMaster<'a>,
-    chip_select: Option<u8>,
-    chip_select_gpio: Option<&'static hil::gpio::GPIOPin>,
+pub struct SPIMasterDevice<'a, SPI: hil::spi::SpiMaster + 'a> {
+    mux: &'a MuxSPIMaster<'a, SPI>,
+    chip_select: Cell<SPI::ChipSelect>,
     txbuffer: TakeCell<&'static mut [u8]>,
     rxbuffer: TakeCell<Option<&'static mut [u8]>>,
     operation: Cell<Op>,
-    next: ListLink<'a, SPIMasterDevice<'a>>,
+    next: ListLink<'a, SPIMasterDevice<'a, SPI>>,
     client: Cell<Option<&'a hil::spi::SpiMasterClient>>,
 }
 
-impl<'a> SPIMasterDevice<'a> {
-    pub const fn new(mux: &'a MuxSPIMaster<'a>,
-                     chip_select: Option<u8>,
-                     chip_select_gpio: Option<&'static hil::gpio::GPIOPin>)
-                     -> SPIMasterDevice<'a> {
+impl<'a, SPI: hil::spi::SpiMaster> SPIMasterDevice<'a, SPI> {
+    pub const fn new(mux: &'a MuxSPIMaster<'a, SPI>,
+                     chip_select: SPI::ChipSelect)
+                     -> SPIMasterDevice<'a, SPI> {
         SPIMasterDevice {
             mux: mux,
-            chip_select: chip_select,
-            chip_select_gpio: chip_select_gpio,
+            chip_select: Cell::new(chip_select),
             txbuffer: TakeCell::empty(),
             rxbuffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
@@ -125,7 +106,7 @@ impl<'a> SPIMasterDevice<'a> {
     }
 }
 
-impl<'a> hil::spi::SpiMasterClient for SPIMasterDevice<'a> {
+impl<'a, SPI: hil::spi::SpiMaster> hil::spi::SpiMasterClient for SPIMasterDevice<'a, SPI> {
     fn read_write_done(&self,
                        write_buffer: &'static mut [u8],
                        read_buffer: Option<&'static mut [u8]>,
@@ -136,13 +117,14 @@ impl<'a> hil::spi::SpiMasterClient for SPIMasterDevice<'a> {
     }
 }
 
-impl<'a> ListNode<'a, SPIMasterDevice<'a>> for SPIMasterDevice<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, SPIMasterDevice<'a>> {
+impl<'a, SPI: hil::spi::SpiMaster> ListNode<'a, SPIMasterDevice<'a, SPI>>
+    for SPIMasterDevice<'a, SPI> {
+    fn next(&'a self) -> &'a ListLink<'a, SPIMasterDevice<'a, SPI>> {
         &self.next
     }
 }
 
-impl<'a> hil::spi::SPIMasterDevice for SPIMasterDevice<'a> {
+impl<'a, SPI: hil::spi::SpiMaster> hil::spi::SPIMasterDevice for SPIMasterDevice<'a, SPI> {
     fn configure(&self, cpol: hil::spi::ClockPolarity, cpal: hil::spi::ClockPhase, rate: u32) {
         self.operation.set(Op::Configure(cpol, cpal, rate));
         self.mux.do_next_op();

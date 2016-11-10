@@ -7,8 +7,12 @@
 // Date: April 18 2016
 
 
-#include "firestorm.h"
+#include <firestorm.h>
+#include <gpio.h>
+#include <spi.h>
 #include <stdint.h>
+#include <timer.h>
+
 #include "rf233-const.h"
 #include "rf233-config.h"
 #include "rf233-arch.h"
@@ -26,14 +30,6 @@ static uint8_t ack_status = 0;
 static volatile int radio_is_on = 0;
 static volatile int pending_frame = 0;
 static volatile int sleep_on = 0;
-
-#define PC14 9
-#define PC15 10
-#define PA20 11
-
-#define SLP_PIN PC14
-#define RST_PIN PC15
-#define RADIO_IRQ PA20
 
 #define IEEE802154_CONF_PANID 0x1111
 
@@ -372,12 +368,12 @@ int rf233_init(void) {
 
     /* reset will put us into TRX_OFF state */
   /* reset the radio core */
-  gpio_enable_output(RST_PIN);
-  gpio_enable_output(SLP_PIN);
-  gpio_clear(RST_PIN);
+  gpio_enable_output(RADIO_RST);
+  gpio_enable_output(RADIO_SLP);
+  gpio_clear(RADIO_RST);
   delay_ms(1);
-  gpio_set(RST_PIN);
-  gpio_clear(SLP_PIN); /* be awake from sleep*/
+  gpio_set(RADIO_RST);
+  gpio_clear(RADIO_SLP); /* be awake from sleep*/
 
   
   /* Read the PART_NUM register to verify that the radio is
@@ -750,7 +746,7 @@ int on(void) {
   /* Check whether radio is in sleep */
   if (sleep_on) {
     /* Wake the radio. It'll move to TRX_OFF state */
-    gpio_clear(SLP_PIN);
+    gpio_clear(RADIO_SLP);
     delay_ms(1);
     printf("RF233: Wake from sleep\n");
     sleep_on = 0;
@@ -801,7 +797,7 @@ int rf233_sleep(void) {
     /* Turn off the Radio */
     rf233_off();
     /* Set the SLP_PIN to high */
-    gpio_set(SLP_PIN);
+    gpio_set(RADIO_SLP);
   }
   
   return 0;

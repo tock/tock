@@ -12,19 +12,18 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa -y; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -qq gcc-arm-embedded; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cargo install rustfmt; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew tap px4/px4; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew tap ARMmbed/homebrew-formulae; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gcc-arm-none-eabi; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install arm-none-eabi-gcc; fi
+  - cargo install rustfmt
   - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
-      find -path ./extern -prune -o -name '*.rs' -exec rustfmt --write-mode=diff {} +; fi
+  - tools/run_cargo_fmt.sh diff
   - make -C boards/storm
+  - make -C boards/imix
   - make -C boards/nrf51dk
-  - make -C userland/libtock TOCK_ARCH=cortex-m4
-  - make -C userland/examples/blink TOCK_ARCH=cortex-m4
+  - pushd userland/examples && ./build_all.sh
 
 notifications:
   webhooks:

@@ -27,6 +27,10 @@ impl<T> TakeCell<T> {
         unsafe { (&*self.val.get()).is_none() }
     }
 
+    pub fn is_some(&self) -> bool {
+        unsafe { (&*self.val.get()).is_some() }
+    }
+
     /// Takes the value out of the `TakeCell` leaving a `None` in it's place. If
     /// the value has already been taken elsewhere (and not `replace`ed), the
     /// returned `Option` will be empty.
@@ -92,6 +96,17 @@ impl<T> TakeCell<T> {
     {
         let maybe_val = self.take();
         maybe_val.map(|mut val| {
+            let res = closure(&mut val);
+            self.replace(val);
+            res
+        })
+    }
+
+    pub fn map_or<F, R>(&self, default: R, closure: F) -> R
+        where F: FnOnce(&mut T) -> R
+    {
+        let maybe_val = self.take();
+        maybe_val.map_or(default, |mut val| {
             let res = closure(&mut val);
             self.replace(val);
             res

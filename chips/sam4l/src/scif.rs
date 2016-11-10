@@ -8,7 +8,7 @@
 // Date: Aug 2, 2015
 //
 
-use core::ptr;
+use kernel::common::volatile_cell::VolatileCell;
 
 pub enum Register {
     IER = 0x00,
@@ -64,57 +64,55 @@ pub enum GenericClock {
 }
 
 #[repr(C, packed)]
-#[allow(missing_copy_implementations)]
 struct Registers {
-    ier: u32,
-    idr: u32,
-    imr: u32,
-    isr: u32,
-    icr: u32,
-    pclksr: u32,
-    unlock: u32,
-    cscr: u32,
+    ier: VolatileCell<u32>,
+    idr: VolatileCell<u32>,
+    imr: VolatileCell<u32>,
+    isr: VolatileCell<u32>,
+    icr: VolatileCell<u32>,
+    pclksr: VolatileCell<u32>,
+    unlock: VolatileCell<u32>,
+    cscr: VolatileCell<u32>,
     // 0x20
-    oscctrl0: u32,
-    pll0: u32,
-    dfll0conf: u32,
-    dfll0val: u32,
-    dfll0mul: u32,
-    dfll0step: u32,
-    dfll0ssg: u32,
-    dfll0ratio: u32,
+    oscctrl0: VolatileCell<u32>,
+    pll0: VolatileCell<u32>,
+    dfll0conf: VolatileCell<u32>,
+    dfll0val: VolatileCell<u32>,
+    dfll0mul: VolatileCell<u32>,
+    dfll0step: VolatileCell<u32>,
+    dfll0ssg: VolatileCell<u32>,
+    dfll0ratio: VolatileCell<u32>,
     // 0x40
-    dfll0sync: u32,
-    rccr: u32,
-    rcfastcfg: u32,
-    rfcastsr: u32,
-    rc80mcr: u32,
-    reserved0: [u32; 4],
+    dfll0sync: VolatileCell<u32>,
+    rccr: VolatileCell<u32>,
+    rcfastcfg: VolatileCell<u32>,
+    rfcastsr: VolatileCell<u32>,
+    rc80mcr: VolatileCell<u32>,
+    _reserved0: [u32; 4],
     // 0x64
-    hrpcr: u32,
-    fpcr: u32,
-    fpmul: u32,
-    fpdiv: u32,
-    gcctrl0: u32,
-    gcctrl1: u32,
-    gcctrl2: u32,
+    hrpcr: VolatileCell<u32>,
+    fpcr: VolatileCell<u32>,
+    fpmul: VolatileCell<u32>,
+    fpdiv: VolatileCell<u32>,
+    gcctrl0: VolatileCell<u32>,
+    gcctrl1: VolatileCell<u32>,
+    gcctrl2: VolatileCell<u32>,
     // 0x80
-    gcctrl3: u32,
-    gcctrl4: u32,
-    gcctrl5: u32,
-    gcctrl6: u32,
-    gcctrl7: u32,
-    gcctrl8: u32,
-    gcctrl9: u32,
-    gcctrl10: u32,
+    gcctrl3: VolatileCell<u32>,
+    gcctrl4: VolatileCell<u32>,
+    gcctrl5: VolatileCell<u32>,
+    gcctrl6: VolatileCell<u32>,
+    gcctrl7: VolatileCell<u32>,
+    gcctrl8: VolatileCell<u32>,
+    gcctrl9: VolatileCell<u32>,
+    gcctrl10: VolatileCell<u32>,
     // 0xa0
-    gcctrl11: u32, // we leave out versions
+    gcctrl11: VolatileCell<u32>, // we leave out versions
 }
 
-pub const SCIF_BASE: isize = 0x400E0800;
+const SCIF_BASE: usize = 0x400E0800;
 static mut SCIF: *mut Registers = SCIF_BASE as *mut Registers;
 
-#[allow(missing_copy_implementations)]
 #[repr(usize)]
 pub enum Clock {
     ClockRCSys = 0,
@@ -127,7 +125,7 @@ pub enum Clock {
 pub fn unlock(register: Register) {
     let val: u32 = 0xAA000000 | register as u32;
     unsafe {
-        ptr::write_volatile(&mut (*SCIF).unlock, val);
+        (*SCIF).unlock.set(val);
     }
 }
 
@@ -136,32 +134,32 @@ pub fn oscillator_enable(internal: bool) {
     let val: u32 = (1 << 16) | internal as u32;
     unlock(Register::OSCCTRL0);
     unsafe {
-        ptr::write_volatile(&mut (*SCIF).oscctrl0, val);
+        (*SCIF).oscctrl0.set(val);
     }
 }
 
 pub fn oscillator_disable() {
     unlock(Register::OSCCTRL0);
     unsafe {
-        ptr::write_volatile(&mut (*SCIF).oscctrl0, 0);
+        (*SCIF).oscctrl0.set(0);
     }
 }
 
 pub fn generic_clock_disable(clock: GenericClock) {
     unsafe {
         match clock {
-            GenericClock::GCLK0 => ptr::write_volatile(&mut (*SCIF).gcctrl0, 0),
-            GenericClock::GCLK1 => ptr::write_volatile(&mut (*SCIF).gcctrl1, 0),
-            GenericClock::GCLK2 => ptr::write_volatile(&mut (*SCIF).gcctrl2, 0),
-            GenericClock::GCLK3 => ptr::write_volatile(&mut (*SCIF).gcctrl3, 0),
-            GenericClock::GCLK4 => ptr::write_volatile(&mut (*SCIF).gcctrl4, 0),
-            GenericClock::GCLK5 => ptr::write_volatile(&mut (*SCIF).gcctrl5, 0),
-            GenericClock::GCLK6 => ptr::write_volatile(&mut (*SCIF).gcctrl6, 0),
-            GenericClock::GCLK7 => ptr::write_volatile(&mut (*SCIF).gcctrl7, 0),
-            GenericClock::GCLK8 => ptr::write_volatile(&mut (*SCIF).gcctrl8, 0),
-            GenericClock::GCLK9 => ptr::write_volatile(&mut (*SCIF).gcctrl9, 0),
-            GenericClock::GCLK10 => ptr::write_volatile(&mut (*SCIF).gcctrl10, 0),
-            GenericClock::GCLK11 => ptr::write_volatile(&mut (*SCIF).gcctrl11, 0),
+            GenericClock::GCLK0 => (*SCIF).gcctrl0.set(0),
+            GenericClock::GCLK1 => (*SCIF).gcctrl1.set(0),
+            GenericClock::GCLK2 => (*SCIF).gcctrl2.set(0),
+            GenericClock::GCLK3 => (*SCIF).gcctrl3.set(0),
+            GenericClock::GCLK4 => (*SCIF).gcctrl4.set(0),
+            GenericClock::GCLK5 => (*SCIF).gcctrl5.set(0),
+            GenericClock::GCLK6 => (*SCIF).gcctrl6.set(0),
+            GenericClock::GCLK7 => (*SCIF).gcctrl7.set(0),
+            GenericClock::GCLK8 => (*SCIF).gcctrl8.set(0),
+            GenericClock::GCLK9 => (*SCIF).gcctrl9.set(0),
+            GenericClock::GCLK10 => (*SCIF).gcctrl10.set(0),
+            GenericClock::GCLK11 => (*SCIF).gcctrl11.set(0),
         };
     }
 }
@@ -171,18 +169,18 @@ pub fn generic_clock_enable(clock: GenericClock, source: ClockSource) {
     let val = (source as u32) << 8 | 1;
     unsafe {
         match clock {
-            GenericClock::GCLK0 => ptr::write_volatile(&mut (*SCIF).gcctrl0, val),
-            GenericClock::GCLK1 => ptr::write_volatile(&mut (*SCIF).gcctrl1, val),
-            GenericClock::GCLK2 => ptr::write_volatile(&mut (*SCIF).gcctrl2, val),
-            GenericClock::GCLK3 => ptr::write_volatile(&mut (*SCIF).gcctrl3, val),
-            GenericClock::GCLK4 => ptr::write_volatile(&mut (*SCIF).gcctrl4, val),
-            GenericClock::GCLK5 => ptr::write_volatile(&mut (*SCIF).gcctrl5, val),
-            GenericClock::GCLK6 => ptr::write_volatile(&mut (*SCIF).gcctrl6, val),
-            GenericClock::GCLK7 => ptr::write_volatile(&mut (*SCIF).gcctrl7, val),
-            GenericClock::GCLK8 => ptr::write_volatile(&mut (*SCIF).gcctrl8, val),
-            GenericClock::GCLK9 => ptr::write_volatile(&mut (*SCIF).gcctrl9, val),
-            GenericClock::GCLK10 => ptr::write_volatile(&mut (*SCIF).gcctrl10, val),
-            GenericClock::GCLK11 => ptr::write_volatile(&mut (*SCIF).gcctrl11, val),
+            GenericClock::GCLK0 => (*SCIF).gcctrl0.set(val),
+            GenericClock::GCLK1 => (*SCIF).gcctrl1.set(val),
+            GenericClock::GCLK2 => (*SCIF).gcctrl2.set(val),
+            GenericClock::GCLK3 => (*SCIF).gcctrl3.set(val),
+            GenericClock::GCLK4 => (*SCIF).gcctrl4.set(val),
+            GenericClock::GCLK5 => (*SCIF).gcctrl5.set(val),
+            GenericClock::GCLK6 => (*SCIF).gcctrl6.set(val),
+            GenericClock::GCLK7 => (*SCIF).gcctrl7.set(val),
+            GenericClock::GCLK8 => (*SCIF).gcctrl8.set(val),
+            GenericClock::GCLK9 => (*SCIF).gcctrl9.set(val),
+            GenericClock::GCLK10 => (*SCIF).gcctrl10.set(val),
+            GenericClock::GCLK11 => (*SCIF).gcctrl11.set(val),
         };
     }
 }
@@ -197,18 +195,18 @@ pub fn generic_clock_enable_divided(clock: GenericClock, source: ClockSource, di
     let val = (divider as u32) << 16 | ((source as u32) << 8) | 2 | 1;
     unsafe {
         match clock {
-            GenericClock::GCLK0 => ptr::write_volatile(&mut (*SCIF).gcctrl0, val),
-            GenericClock::GCLK1 => ptr::write_volatile(&mut (*SCIF).gcctrl1, val),
-            GenericClock::GCLK2 => ptr::write_volatile(&mut (*SCIF).gcctrl2, val),
-            GenericClock::GCLK3 => ptr::write_volatile(&mut (*SCIF).gcctrl3, val),
-            GenericClock::GCLK4 => ptr::write_volatile(&mut (*SCIF).gcctrl4, val),
-            GenericClock::GCLK5 => ptr::write_volatile(&mut (*SCIF).gcctrl5, val),
-            GenericClock::GCLK6 => ptr::write_volatile(&mut (*SCIF).gcctrl6, val),
-            GenericClock::GCLK7 => ptr::write_volatile(&mut (*SCIF).gcctrl7, val),
-            GenericClock::GCLK8 => ptr::write_volatile(&mut (*SCIF).gcctrl8, val),
-            GenericClock::GCLK9 => ptr::write_volatile(&mut (*SCIF).gcctrl9, val),
-            GenericClock::GCLK10 => ptr::write_volatile(&mut (*SCIF).gcctrl10, val),
-            GenericClock::GCLK11 => ptr::write_volatile(&mut (*SCIF).gcctrl11, val),
+            GenericClock::GCLK0 => (*SCIF).gcctrl0.set(val),
+            GenericClock::GCLK1 => (*SCIF).gcctrl1.set(val),
+            GenericClock::GCLK2 => (*SCIF).gcctrl2.set(val),
+            GenericClock::GCLK3 => (*SCIF).gcctrl3.set(val),
+            GenericClock::GCLK4 => (*SCIF).gcctrl4.set(val),
+            GenericClock::GCLK5 => (*SCIF).gcctrl5.set(val),
+            GenericClock::GCLK6 => (*SCIF).gcctrl6.set(val),
+            GenericClock::GCLK7 => (*SCIF).gcctrl7.set(val),
+            GenericClock::GCLK8 => (*SCIF).gcctrl8.set(val),
+            GenericClock::GCLK9 => (*SCIF).gcctrl9.set(val),
+            GenericClock::GCLK10 => (*SCIF).gcctrl10.set(val),
+            GenericClock::GCLK11 => (*SCIF).gcctrl11.set(val),
         };
     }
 }

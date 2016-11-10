@@ -45,7 +45,7 @@ target/sam4l/debug/storm.hex: target/sam4l/debug/storm
 	@$(OBJCOPY) -Oihex $^ $@
 
 .PHONY: clean
-clean:
+clean::
 	@cargo clean
 
 .PHONY: debug

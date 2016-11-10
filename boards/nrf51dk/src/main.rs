@@ -46,9 +46,8 @@ extern crate nrf51;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
-use kernel::hil::gpio::GPIOPin;
-use nrf51::timer::ALARM1;
-use nrf51::timer::TimerAlarm;
+use kernel::hil::uart::UART;
+use nrf51::rtc::{RTC, Rtc};
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN: usize = 21;
@@ -90,8 +89,10 @@ unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'stati
 
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
+    led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
 }
 
 
@@ -104,6 +105,8 @@ impl kernel::Platform for Platform {
             0 => f(Some(self.console)),
             1 => f(Some(self.gpio)),
             3 => f(Some(self.timer)),
+            8 => f(Some(self.led)),
+            9 => f(Some(self.button)),
             _ => f(None),
         }
     }
@@ -113,35 +116,53 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     nrf51::init();
 
-    let gpio_pins = static_init!(
-        [&'static nrf51::gpio::GPIOPin; 22],
+    // LEDs
+    let led_pins = static_init!(
+        [&'static nrf51::gpio::GPIOPin; 4],
         [&nrf51::gpio::PORT[LED1_PIN], // 21
          &nrf51::gpio::PORT[LED2_PIN], // 22
          &nrf51::gpio::PORT[LED3_PIN], // 23
          &nrf51::gpio::PORT[LED4_PIN], // 24
-         &nrf51::gpio::PORT[BUTTON1_PIN], // 17
+        ],
+        4 * 4);
+    let led = static_init!(
+        capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
+        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveLow),
+        96/8);
+
+    let button_pins = static_init!(
+        [&'static nrf51::gpio::GPIOPin; 4],
+        [&nrf51::gpio::PORT[BUTTON1_PIN], // 17
          &nrf51::gpio::PORT[BUTTON2_PIN], // 18
          &nrf51::gpio::PORT[BUTTON3_PIN], // 19
          &nrf51::gpio::PORT[BUTTON4_PIN], // 20
-         &nrf51::gpio::PORT[1],  // Bottom left header on DK board
+        ],
+        4 * 4);
+    let button = static_init!(
+        capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
+        capsules::button::Button::new(button_pins, kernel::Container::create()),
+        96/8);
+    for btn in button_pins.iter() {
+        use kernel::hil::gpio::PinCtl;
+        btn.set_input_mode(kernel::hil::gpio::InputMode::PullUp);
+        btn.set_client(button);
+    }
+
+    let gpio_pins = static_init!(
+        [&'static nrf51::gpio::GPIOPin; 11],
+        [&nrf51::gpio::PORT[1],  // Bottom left header on DK board
          &nrf51::gpio::PORT[2],  //   |
          &nrf51::gpio::PORT[3],  //   V
          &nrf51::gpio::PORT[4],  //
          &nrf51::gpio::PORT[5],  //
          &nrf51::gpio::PORT[6],  // -----
-         &nrf51::gpio::PORT[19], // Mid right header on DK board
-         &nrf51::gpio::PORT[18], //   |
-         &nrf51::gpio::PORT[17], //   V
          &nrf51::gpio::PORT[16], //
          &nrf51::gpio::PORT[15], //
          &nrf51::gpio::PORT[14], //
          &nrf51::gpio::PORT[13], //
          &nrf51::gpio::PORT[12], //
         ],
-        4 * 22);
-
-    nrf51::gpio::PORT[LED1_PIN].enable_output();
-    nrf51::gpio::PORT[LED1_PIN].clear();
+        4 * 11);
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
@@ -154,38 +175,36 @@ pub unsafe fn reset_handler() {
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
-                                       &mut capsules::console::WRITE_BUF,
-                                       kernel::Container::create()),
-        24);
-    nrf51::uart::UART0.set_client(console);
+                                        115200,
+                                        &mut capsules::console::WRITE_BUF,
+                                        kernel::Container::create()),
+        224/8);
+    UART::set_client(&nrf51::uart::UART0, console);
+    console.initialize();
 
-    // The timer driver is built on top of hardware timer 1, which is implemented
-    // as an HIL Alarm. Timer 0 has some special functionality for the BLE transciever,
-    // so is reserved for that use. This should be rewritten to use the RTC (off the
-    // low frequency clock) for lower power.
-    let alarm = &nrf51::timer::ALARM1;
-    let mux_alarm = static_init!(MuxAlarm<'static, TimerAlarm>, MuxAlarm::new(&ALARM1), 16);
+    let alarm = &nrf51::rtc::RTC;
+    alarm.start();
+    let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
     alarm.set_client(mux_alarm);
 
+
     let virtual_alarm1 = static_init!(
-        VirtualMuxAlarm<'static, TimerAlarm>,
+        VirtualMuxAlarm<'static, Rtc>,
         VirtualMuxAlarm::new(mux_alarm),
         24);
     let timer = static_init!(
-        TimerDriver<'static, VirtualMuxAlarm<'static, TimerAlarm>>,
+        TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
         TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
         12);
     virtual_alarm1.set_client(timer);
-    alarm.enable_nvic();
-    alarm.enable_interrupts();
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();
     nrf51::clock::CLOCK.high_stop();
 
-    nrf51::clock::CLOCK.low_set_source(nrf51::clock::LowClockSource::RC);
+    nrf51::clock::CLOCK.low_set_source(nrf51::clock::LowClockSource::XTAL);
     nrf51::clock::CLOCK.low_start();
     nrf51::clock::CLOCK.high_start();
     while !nrf51::clock::CLOCK.low_started() {}
@@ -197,14 +216,17 @@ pub unsafe fn reset_handler() {
             gpio: gpio,
             timer: timer,
             console: console,
+            led: led,
+            button: button,
         },
-        12);
+        160/8);
 
     alarm.start();
 
     let mut chip = nrf51::chip::NRF51::new();
     chip.systick().reset();
     chip.systick().enable(true);
+
     kernel::main(platform, &mut chip, load_process());
 
 }
@@ -218,13 +240,13 @@ pub unsafe extern "C" fn rust_begin_unwind(_args: &Arguments,
                                            _file: &'static str,
                                            _line: usize)
                                            -> ! {
-    use kernel::hil::gpio::GPIOPin;
+    use kernel::hil::gpio::Pin;
 
     let led0 = &nrf51::gpio::PORT[LED1_PIN];
     let led1 = &nrf51::gpio::PORT[LED2_PIN];
 
-    led0.enable_output();
-    led1.enable_output();
+    led0.make_output();
+    led1.make_output();
     loop {
         for _ in 0..100000 {
             led0.set();

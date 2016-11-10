@@ -5,13 +5,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <firestorm.h>
+#include <console.h>
 
 char hello[] = "Hello World!\r\n";
 
-void nop(int x, int y, int z, void *ud) {}
+void nop() {}
 
-void main() {
+int main() {
   putnstr_async(hello, sizeof(hello), nop, NULL);
+  return 0;
 }
-

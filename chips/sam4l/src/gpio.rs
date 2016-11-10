@@ -1,10 +1,8 @@
-
-
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
-use helpers::*;
 use kernel::common::take_cell::TakeCell;
+use kernel::common::volatile_cell::VolatileCell;
 use kernel::hil;
 use nvic;
 use nvic::NvicIdx::*;
@@ -13,17 +11,17 @@ use self::Pin::*;
 
 #[repr(C, packed)]
 struct Register {
-    val: u32,
-    set: u32,
-    clear: u32,
-    toggle: u32,
+    val: VolatileCell<u32>,
+    set: VolatileCell<u32>,
+    clear: VolatileCell<u32>,
+    toggle: VolatileCell<u32>,
 }
 
 #[repr(C, packed)]
 struct RegisterRC {
-    val: u32,
+    val: VolatileCell<u32>,
     reserved0: u32,
-    clear: u32,
+    clear: VolatileCell<u32>,
     reserved1: u32,
 }
 
@@ -35,8 +33,8 @@ struct Registers {
     pmr2: Register,
     oder: Register,
     ovr: Register,
-    pvr: u32,
-    _reserverd0: [u32; 3],
+    pvr: VolatileCell<u32>,
+    _reserved0: [u32; 3],
     puer: Register,
     pder: Register,
     ier: Register,
@@ -149,11 +147,11 @@ impl Port {
 
         // Interrupt Flag Register (IFR) bits are only valid if the same bits
         // are enabled in Interrupt Enabled Register (IER).
-        let mut fired = read_volatile(&port.ifr.val) & read_volatile(&port.ier.val);
+        let mut fired = port.ifr.val.get() & port.ier.val.get();
 
         // About to handle all the interrupts, so just clear them now to get
         // over with it.
-        write_volatile(&mut port.ifr.clear, !0);
+        port.ifr.clear.set(!0);
 
         loop {
             let pin = fired.trailing_zeros() as usize;
@@ -268,13 +266,13 @@ pub static mut PC: Port = Port {
            GPIOPin::new(PC21, GPIO10),
            GPIOPin::new(PC22, GPIO10),
            GPIOPin::new(PC23, GPIO10),
-           GPIOPin::new(PC24, GPIO10),
+           GPIOPin::new(PC24, GPIO11),
            GPIOPin::new(PC25, GPIO11),
-           GPIOPin::new(PC26, GPIO10),
+           GPIOPin::new(PC26, GPIO11),
            GPIOPin::new(PC27, GPIO11),
-           GPIOPin::new(PC28, GPIO10),
+           GPIOPin::new(PC28, GPIO11),
            GPIOPin::new(PC29, GPIO11),
-           GPIOPin::new(PC30, GPIO10),
+           GPIOPin::new(PC30, GPIO11),
            GPIOPin::new(PC31, GPIO11)],
 };
 pub struct GPIOPin {
@@ -306,64 +304,64 @@ impl GPIOPin {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
 
         // clear GPIO enable for pin
-        write_volatile(&mut port.gper.clear, self.pin_mask);
+        port.gper.clear.set(self.pin_mask);
 
         // Set PMR0-2 according to passed in peripheral
         if bit0 == 0 {
-            write_volatile(&mut port.pmr0.clear, self.pin_mask);
+            port.pmr0.clear.set(self.pin_mask);
         } else {
-            write_volatile(&mut port.pmr0.set, self.pin_mask);
+            port.pmr0.set.set(self.pin_mask);
         }
         if bit1 == 0 {
-            write_volatile(&mut port.pmr1.clear, self.pin_mask);
+            port.pmr1.clear.set(self.pin_mask);
         } else {
-            write_volatile(&mut port.pmr1.set, self.pin_mask);
+            port.pmr1.set.set(self.pin_mask);
         }
         if bit2 == 0 {
-            write_volatile(&mut port.pmr2.clear, self.pin_mask);
+            port.pmr2.clear.set(self.pin_mask);
         } else {
-            write_volatile(&mut port.pmr2.set, self.pin_mask);
+            port.pmr2.set.set(self.pin_mask);
         }
     }
 
     pub fn enable(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.gper.set, self.pin_mask);
+        port.gper.set.set(self.pin_mask);
     }
 
     pub fn disable(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.gper.clear, self.pin_mask);
+        port.gper.clear.set(self.pin_mask);
     }
 
     pub fn enable_output(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.oder.set, self.pin_mask);
+        port.oder.set.set(self.pin_mask);
     }
 
     pub fn disable_output(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.oder.clear, self.pin_mask);
+        port.oder.clear.set(self.pin_mask);
     }
 
     pub fn enable_pull_down(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.pder.set, self.pin_mask);
+        port.pder.set.set(self.pin_mask);
     }
 
     pub fn disable_pull_down(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.pder.clear, self.pin_mask);
+        port.pder.clear.set(self.pin_mask);
     }
 
     pub fn enable_pull_up(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.puer.set, self.pin_mask);
+        port.puer.set.set(self.pin_mask);
     }
 
     pub fn disable_pull_up(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.puer.clear, self.pin_mask);
+        port.puer.clear.set(self.pin_mask);
     }
 
     /// Sets the interrupt mode registers. Interrupts may fire on the rising or
@@ -381,15 +379,15 @@ impl GPIOPin {
     pub fn set_interrupt_mode(&self, mode: u8) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
         if mode & 0b01 != 0 {
-            write_volatile(&mut port.imr0.set, self.pin_mask);
+            port.imr0.set.set(self.pin_mask);
         } else {
-            write_volatile(&mut port.imr0.clear, self.pin_mask);
+            port.imr0.clear.set(self.pin_mask);
         }
 
         if mode & 0b10 != 0 {
-            write_volatile(&mut port.imr1.set, self.pin_mask);
+            port.imr1.set.set(self.pin_mask);
         } else {
-            write_volatile(&mut port.imr1.clear, self.pin_mask);
+            port.imr1.clear.set(self.pin_mask);
         }
     }
 
@@ -397,14 +395,14 @@ impl GPIOPin {
         unsafe {
             let port: &mut Registers = mem::transmute(self.port);
             nvic::enable(self.nvic);
-            write_volatile(&mut port.ier.set, self.pin_mask);
+            port.ier.set.set(self.pin_mask);
         }
     }
 
     pub fn disable_interrupt(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.ier.clear, self.pin_mask);
-        if read_volatile(&mut port.ier.val) == 0 {
+        port.ier.clear.set(self.pin_mask);
+        if port.ier.val.get() == 0 {
             unsafe {
                 nvic::disable(self.nvic);
             }
@@ -419,32 +417,32 @@ impl GPIOPin {
 
     pub fn disable_schmidtt_trigger(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.ster.clear, self.pin_mask);
+        port.ster.clear.set(self.pin_mask);
     }
 
     pub fn enable_schmidtt_trigger(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.ster.set, self.pin_mask);
+        port.ster.set.set(self.pin_mask);
     }
 
     pub fn read(&self) -> bool {
         let port: &Registers = unsafe { mem::transmute(self.port) };
-        (read_volatile(&port.pvr) & self.pin_mask) > 0
+        (port.pvr.get() & self.pin_mask) > 0
     }
 
     pub fn toggle(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.ovr.toggle, self.pin_mask);
+        port.ovr.toggle.set(self.pin_mask);
     }
 
     pub fn set(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.ovr.set, self.pin_mask);
+        port.ovr.set.set(self.pin_mask);
     }
 
     pub fn clear(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        write_volatile(&mut port.ovr.clear, self.pin_mask);
+        port.ovr.clear.set(self.pin_mask);
     }
 }
 
@@ -459,21 +457,8 @@ impl hil::Controller for GPIOPin {
     }
 }
 
-impl hil::gpio::GPIOPin for GPIOPin {
-    fn disable(&self) {
-        GPIOPin::disable(self);
-    }
-
-    fn enable_output(&self) {
-        self.enable();
-        GPIOPin::enable_output(self);
-        self.disable_schmidtt_trigger();
-    }
-
-    fn enable_input(&self, mode: hil::gpio::InputMode) {
-        self.enable();
-        GPIOPin::disable_output(self);
-        self.enable_schmidtt_trigger();
+impl hil::gpio::PinCtl for GPIOPin {
+    fn set_input_mode(&self, mode: hil::gpio::InputMode) {
         match mode {
             hil::gpio::InputMode::PullUp => {
                 self.disable_pull_down();
@@ -488,6 +473,24 @@ impl hil::gpio::GPIOPin for GPIOPin {
                 self.disable_pull_down();
             }
         }
+    }
+}
+
+impl hil::gpio::Pin for GPIOPin {
+    fn disable(&self) {
+        GPIOPin::disable(self);
+    }
+
+    fn make_output(&self) {
+        self.enable();
+        GPIOPin::enable_output(self);
+        self.disable_schmidtt_trigger();
+    }
+
+    fn make_input(&self) {
+        self.enable();
+        GPIOPin::disable_output(self);
+        self.enable_schmidtt_trigger();
     }
 
     fn read(&self) -> bool {
@@ -508,7 +511,7 @@ impl hil::gpio::GPIOPin for GPIOPin {
 
     fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
         let mode_bits = match mode {
-            hil::gpio::InterruptMode::Change => 0b00,
+            hil::gpio::InterruptMode::EitherEdge => 0b00,
             hil::gpio::InterruptMode::RisingEdge => 0b01,
             hil::gpio::InterruptMode::FallingEdge => 0b10,
         };

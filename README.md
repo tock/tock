@@ -119,18 +119,18 @@ To build for a different platform, multiple options exist:
 
  * You can add an environment variable for the `TOCK_BOARD` and `TOCK_ARCH`.
     `TOCK_BOARD` is the directory name inside `boards/`.
-	`TOCK_ARCH` is the gcc architecture name. Ex: `cortex-m4` or `cortex-m0`.
+    `TOCK_ARCH` is the gcc architecture name. Ex: `cortex-m4` or `cortex-m0`.
 
-```bash
-$ make TOCK_BOARD=nrf51dk
-```
+    ```bash
+    $ make TOCK_BOARD=nrf51dk
+    ```
 
  * You can also build the kernel for a specific board by entering the board's directory
 
-```bash
-$ cd boards/nrf51dk/
-$ make
-```
+    ```bash
+    $ cd boards/nrf51dk/
+    $ make
+    ```
 
 Board specific Makefiles are located in `boards/<BOARD>/`. Some boards have
 special build options that can only be used within the board's directory.
@@ -199,5 +199,18 @@ For instructions on building, uploading code, and debugging on specific
 boards, see board specific READMEs.
 
  * [Storm](boards/storm/README.md)
- * [nRF](boards/nrf_pca10001/README.md)
+ * [nRF](boards/nrf51dk/README.md)
 
+
+## Formatting Rust Source Code
+
+Rust includes a tool for automatically formatting Rust source code. This requires
+a `cargo` tool:
+
+    $ cargo install rustfmt
+
+Then run:
+
+    $ make format
+
+to format the repository.
