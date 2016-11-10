@@ -144,7 +144,7 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> i
     let got_size = got.shdr.size as u32;
     let data_offset = got_offset + got_size;
     let data_size = data.shdr.size as u32;
-    let pkg_name_offset = got_offset + got_size;
+    let pkg_name_offset = data_offset + data_size;
     let pkg_name_size = pkg_name.len() as u32;
 
     let load_info = LoadInfo {
