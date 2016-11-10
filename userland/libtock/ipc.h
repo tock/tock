@@ -44,8 +44,11 @@ int ipc_register_svc(subscribe_cb callback, void *ud);
 //   void* ud  - `userdata`. same as the argument to this function.
 int ipc_register_client_cb(int svc_id, subscribe_cb callback, void *ud);
 
-// Send a notify to the given process id (either service or client)
-int ipc_notify(int pid);
+// Send a notify to the client at the given process id
+int ipc_notify_client(int pid);
+
+// Send a notify to the service at the given process id
+int ipc_notify_svc(int pid);
 
 // Share a buffer with the given process (either service or client)
 //

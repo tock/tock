@@ -7,6 +7,7 @@ use ::process;
 
 struct IPCData {
     shared_memory: [Option<AppSlice<Shared, u8>>; 8],
+    client_callbacks: [Option<Callback>; 8],
     callback: Option<Callback>,
 }
 
@@ -14,6 +15,7 @@ impl Default for IPCData {
     fn default() -> IPCData {
         IPCData {
             shared_memory: [None, None, None, None, None, None, None, None],
+            client_callbacks: [None, None, None, None, None, None, None, None],
             callback: None,
         }
     }
@@ -28,11 +30,19 @@ impl IPC {
         IPC { data: Container::create() }
     }
 
-    pub unsafe fn schedule_callback(&self, appid: AppId, otherapp: AppId) {
+    pub unsafe fn schedule_callback(&self,
+                                    appid: AppId,
+                                    otherapp: AppId,
+                                    cb_type: process::IPCType) {
         self.data
             .enter(appid, |mydata, _| {
-                mydata.callback
-                    .map(|mut callback| {
+                let callback = match cb_type {
+                    process::IPCType::Service => mydata.callback,
+                    process::IPCType::Client => {
+                        *mydata.client_callbacks.get(otherapp.idx()).unwrap_or(&None)
+                    }
+                };
+                callback.map(|mut callback| {
                         self.data
                             .enter(otherapp, |otherdata, _| {
                                 if appid.idx() >= otherdata.shared_memory.len() {
@@ -66,21 +76,36 @@ impl Driver for IPC {
                     data.callback = Some(callback);
                     0
                 }).unwrap_or(-2)
-            },
-            // default
-            _ => -1,
+            }
+            svc_id /* Client callback */ => {
+                if svc_id - 1 >= 8 {
+                    -1
+                } else {
+                    self.data.enter(callback.app_id(), |data, _| {
+                        data.client_callbacks[svc_id - 1] = Some(callback);
+                        0
+                    }).unwrap_or(-2)
+                }
+            }
         }
     }
 
-    fn command(&self, target_id: usize, _: usize, appid: AppId) -> isize {
+    fn command(&self, target_id: usize, client_or_svc: usize, appid: AppId) -> isize {
         let procs = unsafe { &mut process::PROCS };
         if target_id == 0 || target_id > procs.len() {
             return -1;
         }
+
+        let cb_type = if client_or_svc == 0 {
+            process::IPCType::Service
+        } else {
+            process::IPCType::Client
+        };
+
         procs[target_id - 1]
             .as_mut()
             .map(|target| {
-                target.schedule_ipc(appid);
+                target.schedule_ipc(appid, cb_type);
                 0
             })
             .unwrap_or(-1)

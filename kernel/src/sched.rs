@@ -33,8 +33,8 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                             process::GCallback::Callback(ccb) => {
                                 process.push_callback(ccb);
                             }
-                            process::GCallback::IPCCallback(otherapp) => {
-                                ipc.schedule_callback(appid, otherapp);
+                            process::GCallback::IPCCallback((otherapp, ipc_type)) => {
+                                ipc.schedule_callback(appid, otherapp, ipc_type);
                             }
                         }
                         continue;

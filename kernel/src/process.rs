@@ -50,11 +50,16 @@ pub enum State {
     Yielded,
 }
 
+#[derive(Copy, Clone)]
+pub enum IPCType {
+    Service,
+    Client,
+}
 
 #[derive(Copy, Clone)]
 pub enum GCallback {
     Callback(Callback),
-    IPCCallback(AppId),
+    IPCCallback((AppId, IPCType)),
 }
 
 #[derive(Copy, Clone)]
@@ -141,11 +146,11 @@ pub fn processes_blocked() -> bool {
 }
 
 impl<'a> Process<'a> {
-    pub fn schedule_ipc(&mut self, from: AppId) {
+    pub fn schedule_ipc(&mut self, from: AppId, cb_type: IPCType) {
         unsafe {
             HAVE_WORK.set(HAVE_WORK.get() + 1);
         }
-        self.callbacks.enqueue(GCallback::IPCCallback(from));
+        self.callbacks.enqueue(GCallback::IPCCallback((from, cb_type)));
     }
 
     pub fn current_state(&self) -> State {

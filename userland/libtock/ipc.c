@@ -17,11 +17,15 @@ int ipc_register_client_cb(int svc_id, subscribe_cb callback, void *ud) {
   if (svc_id <= 0) {
     return -1;
   }
-  return subscribe(IPC_DRIVER_NUM, 0, callback, ud);
+  return subscribe(IPC_DRIVER_NUM, svc_id, callback, ud);
 }
 
-int ipc_notify(int pid) {
+int ipc_notify_svc(int pid) {
   return command(IPC_DRIVER_NUM, pid, 0);
+}
+
+int ipc_notify_client(int pid) {
+  return command(IPC_DRIVER_NUM, pid, 1);
 }
 
 int ipc_share(int pid, void* base, int len) {

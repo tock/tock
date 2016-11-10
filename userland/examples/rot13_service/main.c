@@ -19,7 +19,7 @@ static void rot13_callback(int pid, int len, int buf, void* ud) {
       rb->buf[i] = (((rb->buf[i] - 'A') + 13) % 26) + 'A';
     }
   }
-  ipc_notify(pid);
+  ipc_notify_client(pid);
 }
 
 int main() {
