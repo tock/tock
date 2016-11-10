@@ -68,12 +68,9 @@ pub struct Spi {
     // keep track of which interrupts are pending in order
     // to correctly issue completion event only after both complete.
     transfer_in_progress: Cell<bool>,
-    // keep track of if we're waiting for both a read and write in
-    // progress. Don't want to abort the software 'read' if 'write'
-    // finishes before it.
+    // track whether we have just a write or a write/read
     rw_in_progress: Cell<bool>,
-    // keep track of if either of the channels completed. (For the channels
-    // to be sync... if both read and write regardless of who finishes first)
+    // track whether a read or write finished if doing a write/read
     channel_completed: Cell<bool>,
     dma_length: Cell<usize>,
 }
@@ -421,56 +418,12 @@ impl spi::SpiMaster for Spi {
 
 impl DMAClient for Spi {
     fn xfer_done(&self, pid: DMAPeripheral) {
-        // We ignore the RX interrupt because we are guaranteed to have TX
-        // DMA setup, but there's no guarantee RX will exist. In the case
-        // both are happening, just using TX is sufficient because SPI
-        // is full duplex.
+        // Only callback that the transfer is done if either:
+        // 1) The transfer was TX only and TX finished
+        // 2) The transfer was TX and RX, in that case wait for both of them to
+        //    complete. Although they're synchronous in Hardware, in Software
+        //    they aren't, so we don't want to abruptly abort.
         
-       
-        
-        if pid == DMAPeripheral::SPI_TX {
-            self.transfer_in_progress.set(false);
-        } else if pid == DMAPeripheral::SPI_RX && !self.transfer_in_progress.get() {
-            self.channel_completed.set(false);
-            self.rw_in_progress.set(false);
-
-            let txbuf = self.dma_write.map_or(None, |dma| {
-                let buf = dma.abort_xfer();
-                dma.disable();
-                buf
-            });
-
-            let mut rxbuf = self.dma_read.map_or(None, |dma| {
-                let buf = dma.abort_xfer();
-                dma.disable();
-                buf
-            });
-           
-          /* Used to debug to see if we get a non-zero val...
-            {
-                let res = rxbuf.unwrap();
-                for i in 0..res.len() {
-                    if(res[i] != 0) {
-                       panic!("rx buf [{}]: {}, tx_buf[1]:{} \n", i, res[i], txbuf.unwrap()[1]);
-                    }
-                }
-                rxbuf = Some(res);
-            }
-           */
-            
-
-            let len = self.dma_length.get();
-            self.dma_length.set(0);
-            self.client.map(|cb| {
-                txbuf.map(|txbuf| {
-                    cb.read_write_done(txbuf, rxbuf, len);
-                });
-            });
-           
-        }
-
-
-/*
         if self.rw_in_progress.get() {
             if !self.channel_completed.get() && 
                 (pid == DMAPeripheral::SPI_TX || pid == DMAPeripheral::SPI_RX){
@@ -479,14 +432,8 @@ impl DMAClient for Spi {
             }
         }         
        
-        // only callback done if it was just a write and that completed
-        // or it was rw, and both read and write have completed.
-        //if pid == DMAPeripheral::SPI_TX || 
-        //    (self.rw_in_progress.get() && self.channel_completed.get()) {
-        if pid == DMAPeripheral::SPI_RX || 
-                (self.rw_in_progress.get() && pid == DMAPeripheral::SPI_RX) {
-            //panic!("DMA transfer compelte!!");
-            // SPI TX
+        if pid == DMAPeripheral::SPI_TX || 
+            (self.rw_in_progress.get() && self.channel_completed.get()) {
             self.transfer_in_progress.set(false);
             self.channel_completed.set(false);
             self.rw_in_progress.set(false);
@@ -503,8 +450,6 @@ impl DMAClient for Spi {
                 buf
             });
             
-            panic!("rx buf [1]: {}, tx_buf[1]:{} \n", rxbuf.unwrap()[1], txbuf.unwrap()[1]);
-
             let len = self.dma_length.get();
             self.dma_length.set(0);
             self.client.map(|cb| {
@@ -512,7 +457,7 @@ impl DMAClient for Spi {
                     cb.read_write_done(txbuf, rxbuf, len);
                 });
             });
-        } */
+        }
     }
     
 }
