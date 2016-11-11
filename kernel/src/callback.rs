@@ -33,7 +33,7 @@ impl Callback {
     }
 
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        process::schedule(process::Callback {
+        process::schedule(process::FunctionCall {
                               r0: r0,
                               r1: r1,
                               r2: r2,

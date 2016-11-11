@@ -1,6 +1,6 @@
 use platform::{Chip, Platform, SysTick};
 use process;
-use process::Process;
+use process::{Process, Task};
 use syscall;
 
 pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
@@ -26,14 +26,14 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 systick.enable(false);
             }
             process::State::Yielded => {
-                match process.dequeue_callback() {
+                match process.dequeue_task() {
                     None => break,
                     Some(cb) => {
                         match cb {
-                            process::GCallback::Callback(ccb) => {
-                                process.push_callback(ccb);
+                            Task::FunctionCall(ccb) => {
+                                process.push_function_call(ccb);
                             }
-                            process::GCallback::IPCCallback((otherapp, ipc_type)) => {
+                            Task::IPC((otherapp, ipc_type)) => {
                                 ipc.schedule_callback(appid, otherapp, ipc_type);
                             }
                         }

@@ -17,7 +17,7 @@ extern "C" {
 
 pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
 
-pub fn schedule(callback: Callback, appid: AppId) -> bool {
+pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
     let procs = unsafe { &mut PROCS };
     let idx = appid.idx();
     if idx >= procs.len() {
@@ -32,7 +32,7 @@ pub fn schedule(callback: Callback, appid: AppId) -> bool {
                 HAVE_WORK.set(HAVE_WORK.get() + 1);
             }
 
-            p.callbacks.enqueue(GCallback::Callback(callback))
+            p.tasks.enqueue(Task::FunctionCall(callback))
         }
     }
 }
@@ -57,13 +57,13 @@ pub enum IPCType {
 }
 
 #[derive(Copy, Clone)]
-pub enum GCallback {
-    Callback(Callback),
-    IPCCallback((AppId, IPCType)),
+pub enum Task {
+    FunctionCall(FunctionCall),
+    IPC((AppId, IPCType)),
 }
 
 #[derive(Copy, Clone)]
-pub struct Callback {
+pub struct FunctionCall {
     pub r0: usize,
     pub r1: usize,
     pub r2: usize,
@@ -122,7 +122,7 @@ pub struct Process<'a> {
     ///
     mpu_regions: [Cell<(*const u8, usize)>; 5],
 
-    callbacks: RingBuffer<'a, GCallback>,
+    tasks: RingBuffer<'a, Task>,
 
     pub pkg_name: &'static [u8],
 }
@@ -150,7 +150,7 @@ impl<'a> Process<'a> {
         unsafe {
             HAVE_WORK.set(HAVE_WORK.get() + 1);
         }
-        self.callbacks.enqueue(GCallback::IPCCallback((from, cb_type)));
+        self.tasks.enqueue(Task::IPC((from, cb_type)));
     }
 
     pub fn current_state(&self) -> State {
@@ -166,8 +166,8 @@ impl<'a> Process<'a> {
         }
     }
 
-    pub fn dequeue_callback(&mut self) -> Option<GCallback> {
-        self.callbacks.dequeue().map(|cb| {
+    pub fn dequeue_task(&mut self) -> Option<Task> {
+        self.tasks.dequeue().map(|cb| {
             unsafe {
                 HAVE_WORK.set(HAVE_WORK.get() - 1);
             }
@@ -258,15 +258,16 @@ impl<'a> Process<'a> {
         };
 
         // Take callback buffer from of memory
-        let callback_size = mem::size_of::<GCallback>();
+        let callback_size = mem::size_of::<Task>();
         let callback_len = 10;
         let callback_offset = callback_len * callback_size;
         // Set kernel break to beginning of callback buffer
         kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
-        let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut GCallback,
-                                                     callback_len);
+        let callback_buf = slice::from_raw_parts_mut(
+                            kernel_memory_break as *mut Task,
+                            callback_len);
 
-        let callbacks = RingBuffer::new(callback_buf);
+        let tasks = RingBuffer::new(callback_buf);
 
         let load_result = load(start_addr, memory.as_mut_ptr());
 
@@ -287,14 +288,14 @@ impl<'a> Process<'a> {
                           Cell::new((ptr::null(), 0))],
             pkg_name: load_result.pkg_name,
             state: State::Yielded,
-            callbacks: callbacks,
+            tasks: tasks,
         };
 
         if (load_result.init_fn - 1) % 8 != 0 {
             panic!("{}", (load_result.init_fn - 1) % 8);
         }
 
-        process.callbacks.enqueue(GCallback::Callback(Callback {
+        process.tasks.enqueue(Task::FunctionCall(FunctionCall {
             pc: load_result.init_fn,
             r0: load_result.app_mem_start as usize,
             r1: process.app_memory_break as usize,
@@ -376,7 +377,7 @@ impl<'a> Process<'a> {
     }
 
     /// Context switch to the process.
-    pub unsafe fn push_callback(&mut self, callback: Callback) {
+    pub unsafe fn push_function_call(&mut self, callback: FunctionCall) {
         HAVE_WORK.set(HAVE_WORK.get() + 1);
 
         self.state = State::Running;
