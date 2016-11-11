@@ -4,7 +4,7 @@ use common::{RingBuffer, Queue, VolatileCell};
 use container;
 use core::{mem, ptr, slice};
 use core::cell::Cell;
-use core::intrinsics::breakpoint;
+use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile};
 
 #[no_mangle]
@@ -84,7 +84,7 @@ struct LoadInfo {
     got_size: u32,
     data_offset: u32,
     data_size: u32,
-    bss_start_offset: u32,
+    bss_mem_offset: u32,
     bss_size: u32,
     pkg_name_offset: u32,
     pkg_name_size: u32,
@@ -263,9 +263,8 @@ impl<'a> Process<'a> {
         let callback_offset = callback_len * callback_size;
         // Set kernel break to beginning of callback buffer
         kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
-        let callback_buf = slice::from_raw_parts_mut(
-                            kernel_memory_break as *mut Task,
-                            callback_len);
+        let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task,
+                                                     callback_len);
 
         let tasks = RingBuffer::new(callback_buf);
 
@@ -404,9 +403,6 @@ impl<'a> Process<'a> {
 
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
-        if self.cur_stack < self.memory.as_ptr() {
-            breakpoint();
-        }
         write_volatile(&mut SYSCALL_FIRED, 0);
         let psp = switch_to_user(self.cur_stack, self.memory.as_ptr());
         self.cur_stack = psp;
@@ -493,9 +489,9 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     }
 
     // Zero out BSS
-    ::core::intrinsics::write_bytes(mem_base.offset(load_info.bss_start_offset as isize),
-                                    0,
-                                    load_info.bss_size as usize);
+    intrinsics::write_bytes(mem_base.offset(load_info.bss_mem_offset as isize),
+                            0,
+                            load_info.bss_size as usize);
 
 
     let fixup = |addr: &mut u32| {
@@ -529,7 +525,7 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
     // Entry point is offset from app code
     result.init_fn = start_addr.offset(load_info.entry_offset as isize) as usize;
 
-    let mut aligned_mem_start = load_info.bss_start_offset + load_info.bss_size;
+    let mut aligned_mem_start = load_info.bss_mem_offset + load_info.bss_size;
     aligned_mem_start += (8 - (aligned_mem_start % 8)) % 8;
     result.app_mem_start = mem_base.offset(aligned_mem_start as isize);
 
