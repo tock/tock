@@ -4,7 +4,7 @@
 #include <string.h>
 #include <tock.h>
 
-#define IPC_DRIVER_NUM 0x4c
+#define IPC_DRIVER_NUM 0xff
 
 #ifdef __cplusplus
 extern "C" {

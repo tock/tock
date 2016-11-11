@@ -45,7 +45,7 @@ impl kernel::Platform for Imix {
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
 
-            0x4c => f(Some(&self.ipc)),
+            0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
     }

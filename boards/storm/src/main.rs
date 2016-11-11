@@ -106,7 +106,7 @@ impl Platform for Firestorm {
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
 
-            0x4c => f(Some(&self.ipc)),
+            0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
