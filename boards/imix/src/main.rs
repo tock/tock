@@ -13,8 +13,15 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::{Chip, MPU};
 use kernel::hil;
 use kernel::hil::Controller;
+use kernel::hil::spi::SpiMaster;
+use kernel::hil::gpio::Pin;
 
 mod io;
+
+// unit test for the HW
+#[allow(dead_code)]
+mod spi_dummy;
+
 
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
@@ -26,6 +33,7 @@ struct Imix {
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
 }
 
 impl kernel::Platform for Imix {
@@ -37,7 +45,7 @@ impl kernel::Platform for Imix {
             1 => f(Some(self.gpio)),
 
             3 => f(Some(self.timer)),
-
+            4 => f(Some(self.spi)), 
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
@@ -111,6 +119,18 @@ unsafe fn set_pin_primary_functions() {
     PC[29].configure(None);     // D4          -- GPIO Pin
     PC[30].configure(None);     // D3          -- GPIO Pin
     PC[31].configure(None);     // D2          -- GPIO Pin
+
+    // Enable, and disable output for RF233 pins
+    // IRQ
+    PA[08].enable();
+    PA[08].disable_output();
+    PA[08].disable_interrupt();
+    // RST
+    PA[09].enable();
+    PA[09].disable_output();
+    // SLP 
+    PA[10].enable();
+    PA[10].disable_output();
 }
 
 
@@ -124,8 +144,8 @@ pub unsafe fn reset_handler() {
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
 
     set_pin_primary_functions();
-
-
+    
+    
     // # CONSOLE
 
     let console = static_init!(
@@ -171,6 +191,20 @@ pub unsafe fn reset_handler() {
         36);
     isl29035_i2c.set_client(isl29035);
 
+    static mut spi_read_buf: [u8; 64] = [0; 64];
+    static mut spi_write_buf: [u8; 64] = [0; 64];
+    
+    // Initialize and enable SPI HAL
+    let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
+    let spi = static_init!(
+        capsules::spi::Spi<'static, sam4l::spi::Spi>,
+        capsules::spi::Spi::new(&mut sam4l::spi::SPI, chip_selects),
+        92);
+    spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    sam4l::spi::SPI.set_client(spi);
+    sam4l::spi::SPI.init();
+
+
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
@@ -201,15 +235,19 @@ pub unsafe fn reset_handler() {
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 7],
+        [&'static sam4l::gpio::GPIOPin; 11],
         [&sam4l::gpio::PC[31], // P2
          &sam4l::gpio::PC[30], // P3
          &sam4l::gpio::PC[29], // P4
          &sam4l::gpio::PC[28], // P5
          &sam4l::gpio::PC[27], // P6
          &sam4l::gpio::PC[26], // P7
-         &sam4l::gpio::PC[25]], // P8
-        7 * 4
+         &sam4l::gpio::PC[25], // P8
+         &sam4l::gpio::PC[25], // Dummy Pin (regular GPIO)
+         &sam4l::gpio::PA[08], // RIRQ
+         &sam4l::gpio::PA[09], // RRST
+         &sam4l::gpio::PA[10]], // RSLP 
+        11 * 4
     );
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -229,7 +267,6 @@ pub unsafe fn reset_handler() {
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
         capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
         96/8);
-
     // # BUTTONs
 
     let button_pins = static_init!(
@@ -245,6 +282,7 @@ pub unsafe fn reset_handler() {
         btn.set_client(button);
     }
 
+
     let mut imix = Imix {
         console: console,
         timer: timer,
@@ -254,7 +292,10 @@ pub unsafe fn reset_handler() {
         adc: adc,
         led: led,
         button: button,
+        spi: spi,
     };
+
+    spi_dummy::spi_dummy_test(); 
 
     let mut chip = sam4l::chip::Sam4l::new();
     chip.mpu().enable_mpu();

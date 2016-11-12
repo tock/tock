@@ -5,7 +5,8 @@ OBJCOPY?=arm-none-eabi-objcopy
 OBJDUMP?=arm-none-eabi-objdump
 OBJDUMP_FLAGS+= --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
 
-OPENOCD=openocd
+#OPENOCD=openocd
+OPENOCD=/opt/gnuarmeclipse/openocd/0.10.0-201610281609-dev/bin/openocd
 OPENOCD_CONF=connect.cfg
 
 .PHONY: all
