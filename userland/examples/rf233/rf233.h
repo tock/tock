@@ -36,14 +36,15 @@
 #include <stdint.h>
 /*---------------------------------------------------------------------------*/
 
-typedef struct {
-  uint16_t fcf;
-  uint8_t  seq;
-  uint16_t pan;
-  uint16_t dest;
-  uint16_t src;
-  char payload[];
-} __attribute__((packed)) header_t;
+int rf233_init(uint16_t channel, uint16_t from_addr, uint16_t pan_id); 
+int rf233_tx_data(uint16_t to_addr, void* payload, int payload_len); 
+int rf233_rx_data(int (*callback)(void*, int)); // callback when buffer has been filled 
+// TODO assume callback passes buffer that is long enough? 
+
+// TODO moved to .h 
+int rf233_on(void);
+int rf233_off(void);
+int rf233_sleep(void);
 
 int rf233_interrupt_poll(void);
 int rf_get_channel(void);
