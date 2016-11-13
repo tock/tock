@@ -203,6 +203,7 @@ pub unsafe fn reset_handler() {
     spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
     sam4l::spi::SPI.set_client(spi);
     sam4l::spi::SPI.init();
+    sam4l::spi::SPI.enable();
 
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
@@ -296,7 +297,7 @@ pub unsafe fn reset_handler() {
 
 
     let mut chip = sam4l::chip::Sam4l::new();
-    spi_dummy::spi_dummy_test(); 
+    //spi_dummy::spi_dummy_test(); 
     chip.mpu().enable_mpu();
     kernel::main(&mut imix, &mut chip, load_processes());
 }
