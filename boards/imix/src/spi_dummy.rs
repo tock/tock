@@ -53,15 +53,22 @@ pub unsafe fn spi_dummy_test() {
     sam4l::gpio::PC[10].make_output();
     &sam4l::gpio::PC[10].set();
     
-    //let pin2: &mut gpio::GPIOPin = &mut sam4l::gpio::PA[16];
     let pin2: &mut gpio::Pin = &mut sam4l::gpio::PC[31]; // It's on D2 of the IMIX
     pin2.make_output();
     pin2.set();
-/*
+
     sam4l::spi::SPI.set_active_peripheral(sam4l::spi::Peripheral::Peripheral1);
     sam4l::spi::SPI.set_client(&SPICB);
     sam4l::spi::SPI.init();
     sam4l::spi::SPI.enable();
+    sam4l::spi::SPI.set_baud_rate(1000000);
     let len = buf2.len();
-    sam4l::spi::SPI.read_write_bytes(&mut buf2, Some(&mut buf1), len); */
+    if sam4l::spi::SPI.read_write_bytes(&mut buf2, Some(&mut buf1), len) == false { 
+        loop {
+             sam4l::spi::SPI.write_byte(0xA5);
+        }
+    }
+
+    pin2.clear();
+
 }
