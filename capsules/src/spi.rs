@@ -260,10 +260,6 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                 self.spi_master.release_low();
                 0
             }
-            12 /* toggle spi */ => {
-                self.spi_master.software_reset();
-                0
-            }
             _ => -1
         }
     }

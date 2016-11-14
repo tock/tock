@@ -677,8 +677,6 @@ impl hil::spi::SpiMaster for USART {
     type ChipSelect = &'static hil::gpio::Pin;
 
     
-    fn software_reset(&self) {}
-
     fn init(&self) {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
 
