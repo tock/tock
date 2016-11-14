@@ -9,6 +9,7 @@ extern "C" {
 
 /* SPI system calls */
 int spi_init();
+int spi_toggle() {return command(4, 12, 0);} // disables and enables spi 
 /* All SPI operations depend on which peripheral is
  * active, determined by set_chip_select. Configuration
  * of a peripheral is persistent; e.g., setting the rate R

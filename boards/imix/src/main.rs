@@ -244,9 +244,9 @@ pub unsafe fn reset_handler() {
          &sam4l::gpio::PC[26], // P7
          &sam4l::gpio::PC[25], // P8
          &sam4l::gpio::PC[25], // Dummy Pin (regular GPIO)
-         &sam4l::gpio::PA[08], // RIRQ
+         &sam4l::gpio::PA[10], // RSLP 
          &sam4l::gpio::PA[09], // RRST
-         &sam4l::gpio::PA[10]], // RSLP 
+         &sam4l::gpio::PA[08]], // RIRQ
         11 * 4
     );
     let gpio = static_init!(

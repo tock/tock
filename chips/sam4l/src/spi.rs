@@ -91,7 +91,7 @@ impl Spi {
             dma_length: Cell::new(0),
         }
     }
-
+    
     pub fn enable(&self) {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
@@ -108,7 +108,6 @@ impl Spi {
         self.dma_write.map(|write| write.disable());
         regs.cr.set(0b10);
     }
-
     /// Sets the approximate baud rate for the active peripheral,
     /// and return the actual baud rate set.
     ///
@@ -228,6 +227,15 @@ impl Spi {
 
 impl spi::SpiMaster for Spi {
     type ChipSelect = u8;
+
+
+    fn software_reset(&self) {
+        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let mut cr = regs.cr.get();
+        cr = 1 << 6; // reset
+        regs.cr.set(cr);
+        self.init(); // init again
+    }
 
     fn set_client(&self, client: &'static SpiMasterClient) {
         self.client.replace(client);

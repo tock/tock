@@ -116,6 +116,9 @@ pub trait SpiMaster {
     // requests with single byte operations.
     fn hold_low(&self);
     fn release_low(&self);
+
+    // DEBUG fxn
+    fn software_reset(&self);
 }
 
 /// SPIMasterDevice provides a chip-specific interface to the SPI Master

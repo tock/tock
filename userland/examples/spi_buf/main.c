@@ -43,6 +43,7 @@ void write_cb(__attribute__ ((unused)) int arg0,
 
 int main(void) {
   int i;
+ // spi_set_chip_select(0);
   for (i = 0; i < 200; i++) {
     wbuf[i] = i;
   }

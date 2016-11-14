@@ -20,7 +20,7 @@ transport select swd
 source [find target/at91sam4lXX.cfg]
 EOF
 
-openocd -f $TMPCONF -c "init; reset halt; flash write_image $TMPAPP $APP_BASE_ADDR bin; reset; shutdown"
+/opt/gnuarmeclipse/openocd/0.10.0-201610281609-dev/bin/openocd -f $TMPCONF -c "init; reset halt; flash write_image $TMPAPP $APP_BASE_ADDR bin; reset; shutdown"
 
 rm $TMPCONF
 rm $TMPAPP

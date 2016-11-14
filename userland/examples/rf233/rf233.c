@@ -19,6 +19,9 @@
 #include "trx_access.h"
 #include "rf233.h"
 
+// TODO: remove only for debugging
+#include <led.h>
+
 #define RF233_STATUS()                    rf233_status()
 /*---------------------------------------------------------------------------*/
 static int on(void);
@@ -138,7 +141,9 @@ int main() {
     rf233_sleep();
     delay_ms(1000);
     rf233_on(); */
-    delay_ms(10000);
+    //spi_toggle();
+    //gpio_clear(RADIO_RST);
+    delay_ms(30);
     PRINTF("RF233 CYCLE COMPLETE\n-----------------\n");
   }
   //while(1) {}
@@ -355,12 +360,15 @@ int rf233_init(void) {
   PRINTF("RF233: init.\n");
 
   /* init SPI and GPIOs, wake up from sleep/power up. */
-
-  spi_init();
+  spi_init(); // really does nothing... but oh well.
   // RF233 expects line low for CS, this is default SAM4L behavior
   //spi_set_chip_select(3);
   // POL = 0 means idle is low
-  spi_set_chip_select(3);
+  led_toggle(0);
+  spi_set_chip_select(3); 
+  //spi_set_chip_select(0); 
+  delay_ms(500);
+  led_toggle(0);
   spi_set_polarity(0);
   // PHASE = 0 means sample leading edge
   spi_set_phase(0);
@@ -444,6 +452,7 @@ int rf233_init(void) {
   /* 11_09_rel */
   //trx_reg_write(RF233_REG_TRX_RPC, 0xFF); /* Enable RPC feature by default */
   PRINTF("RF233: Installed addresses. Turning on radio.\n");
+  delay_ms(1);
   rf233_on();
   return 0;
 }
