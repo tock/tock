@@ -3,6 +3,7 @@
 
 extern crate kernel;
 
+pub mod ble_adv;
 pub mod button;
 pub mod console;
 pub mod fm25cl;
