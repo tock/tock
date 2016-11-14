@@ -1,3 +1,6 @@
+//! The SPI capsule provides userspace applications with the ability
+//! to communicate over the SPI bus.
+
 use core::cell::Cell;
 use core::cmp;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};

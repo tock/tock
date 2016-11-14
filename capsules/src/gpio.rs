@@ -1,3 +1,9 @@
+//! GPIO Capsule
+//!
+//! Provides a driver for userspace applications to control GPIO pins.
+//! GPIOs are presented through a driver interface with synchronous comands
+//! and a callback for interrupts.
+
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 use kernel::hil::gpio::{Pin, PinCtl, InputMode, InterruptMode, Client};

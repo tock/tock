@@ -1,3 +1,7 @@
+//! ST LPS25HB Pressure Sensor Driver
+//!
+//! http://www.st.com/en/mems-and-sensors/lps25hb.html
+
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 

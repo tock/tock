@@ -1,3 +1,7 @@
+//! Timer Capsule
+//!
+//! Provides userspace applications with a timer API.
+
 use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver};
 use kernel::hil::time::{self, Alarm, Frequency};
