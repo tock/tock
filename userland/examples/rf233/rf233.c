@@ -19,9 +19,6 @@
 #include "trx_access.h"
 #include "rf233.h"
 
-// TODO: remove only for debugging
-#include <led.h>
-
 #define RF233_STATUS()                    rf233_status()
 /*---------------------------------------------------------------------------*/
 static int on(void);
@@ -87,14 +84,6 @@ int rf233_pending_packet(void);
 #define PRINTF(...)       1
 #endif
 
-// Used for debugging
-void output_short_addr() {
-    uint16_t zero = 0;
-    uint8_t loBits = trx_reg_read(0x20);
-    uint8_t hiBits = trx_reg_read(0x21);
-    PRINTF("Short Address is 0x%u%u\n", hiBits, loBits);
-    PRINTF("Done PRINTING SHORT ADDR");
-}
 
 // Used for debugging output
 char* state_str(uint8_t state) {
@@ -138,19 +127,6 @@ void calibrate_filters() {
   PRINTF("RF233: Calibrating filters.\n");
   trx_reg_write(RF233_REG_FTN_CTRL, 0x80);
   while (trx_reg_read(RF233_REG_FTN_CTRL) & 0x80);
-}
-
-int main() {
-  char buf[10] = {0x61, 0xAA, 0x00, 0xBC, 0xBB, 0xFF, 0xFF, 0xFF, 0xFF, 0xdd};
- 
-  rf233_init();
-  while (1) {
-    PRINTF("RF233 CYCLE START\n-----------------\n");
-    rf233_send(buf, 10);
-    output_short_addr();
-    delay_ms(1000);
-    PRINTF("RF233 CYCLE COMPLETE\n-----------------\n");
-  }
 }
 
 uint8_t recv_data[PACKETBUF_SIZE]; 

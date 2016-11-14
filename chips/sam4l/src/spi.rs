@@ -319,10 +319,6 @@ impl spi::SpiMaster for Spi {
         //panic!("buflen is {}, and we're reading / operating on {} bytes", buflen, count);
         self.dma_length.set(count);
 
-        if read_buffer.is_some() {
-            self.rw_in_progress.set(true);
-        }
-
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
