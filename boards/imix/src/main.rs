@@ -25,6 +25,7 @@ mod spi_dummy;
 
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
+    ble_adv: &'static capsules::ble_adv::BleAdv<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     si7021: &'static capsules::si7021::SI7021<'static,
@@ -51,6 +52,8 @@ impl kernel::Platform for Imix {
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
+
+            0xbe => f(Some(self.ble_adv)),
             _ => f(None),
         }
     }
@@ -157,6 +160,21 @@ pub unsafe fn reset_handler() {
         224/8);
     hil::uart::UART::set_client(&sam4l::usart::USART3, console);
     console.initialize();
+
+    let ble_adv = static_init!(
+        capsules::ble_adv::BleAdv<sam4l::usart::USART>,
+        capsules::ble_adv::BleAdv::new(&sam4l::usart::USART2,
+                     &sam4l::gpio::PA[17],
+                     &mut capsules::ble_adv::BUF,
+                     kernel::Container::create()),
+        192/8);
+    hil::uart::UART::set_client(&sam4l::usart::USART2, ble_adv);
+    ble_adv.initialize();
+    {
+        use kernel::hil::gpio::Pin;
+        sam4l::gpio::PC[17].make_output();
+        sam4l::gpio::PC[17].clear();
+    }
 
     // # TIMER
 
@@ -285,6 +303,7 @@ pub unsafe fn reset_handler() {
 
     let mut imix = Imix {
         console: console,
+        ble_adv: ble_adv,
         timer: timer,
         gpio: gpio,
         si7021: si7021,

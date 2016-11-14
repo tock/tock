@@ -44,7 +44,7 @@ debug: target/sam4l/debug/imix
 .PHONY: flash
 flash: target/sam4l/release/imix
 	#$(OPENOCD) -f $(OPENOCD_CONF) -c "program $< verify reset exit"
-	$(OPENOCD) -f $(OPENOCD_CONF) -c "init; reset halt; flash write_image $< 0x0 elf; reset; shutdown"
+	$(OPENOCD) -f $(OPENOCD_CONF) -c "init; reset halt; flash protect 0 0 10 off; flash write_image $< 0x0 elf; reset; shutdown"
 
 .PHONY: flash-debug
 flash-debug: target/sam4l/debug/imix
