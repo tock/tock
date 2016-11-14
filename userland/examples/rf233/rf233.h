@@ -38,7 +38,7 @@
 
 int rf233_init(uint16_t channel, uint16_t from_addr, uint16_t pan_id); 
 int rf233_tx_data(uint16_t to_addr, void* payload, int payload_len); 
-int rf233_rx_data(int (*callback)(void*, int)); // callback when buffer has been filled 
+int rf233_rx_data(int (*callback)(void*, int, uint16_t, uint16_t, uint16_t)); 
 // TODO assume callback passes buffer that is long enough? 
 
 // TODO moved to .h 
