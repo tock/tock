@@ -1,15 +1,19 @@
 #include <stdbool.h>
-#include <firestorm.h>
-#include <gpio.h>
+
+#include "led.h"
+#include "spi.h"
 
 #define BUF_SIZE 200
 char rbuf[BUF_SIZE];
 char wbuf[BUF_SIZE];
 bool toggle = true;
 
-void write_cb(int arg0, int arg2, int arg3, void* userdata) {
-    gpio_toggle(LED_0);
-    if (toggle) { 
+void write_cb(__attribute__ ((unused)) int arg0,
+              __attribute__ ((unused)) int arg2,
+              __attribute__ ((unused)) int arg3,
+              __attribute__ ((unused)) void* userdata) {
+    led_toggle(0);
+    if (toggle) {
         spi_read_write(rbuf, wbuf, BUF_SIZE, write_cb, NULL);
     } else {
         spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
@@ -27,23 +31,21 @@ void write_cb(int arg0, int arg2, int arg3, void* userdata) {
 // In both cases, the calls alternate on which of two
 // buffers is used as the write buffer. The first call
 // uses the buffer initialized to 0..199. The
-// 2n calls use the buffer initialized to 0. 
+// 2n calls use the buffer initialized to 0.
 //
 // If you use back-to-back operations, the calls
 // both read and write. Periodic operations only
 // write. Therefore, if you set SPI to loopback
-// and use back-to-back // loopback, then the read buffer 
-// on the first call will read in the data written. As a 
-// result, you can check if reads work properly: all writes 
+// and use back-to-back // loopback, then the read buffer
+// on the first call will read in the data written. As a
+// result, you can check if reads work properly: all writes
 // will be 0..n rather than all 0s.
 
 int main(void) {
-        int i;
-	gpio_enable_output(LED_0);
+  int i;
+  for (i = 0; i < 200; i++) {
+    wbuf[i] = i;
+  }
 
-	for (i = 0; i < 200; i++) {
-		wbuf[i] = i;
-	}
-
-        spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
+  spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
 }

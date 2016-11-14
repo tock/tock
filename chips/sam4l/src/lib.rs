@@ -23,6 +23,7 @@ pub mod usart;
 pub mod scif;
 pub mod adc;
 pub mod flashcalw;
+pub mod wdt;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -152,9 +153,9 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* TC11 */          Option::Some(unhandled_interrupt),
     /* TC12 */          Option::Some(unhandled_interrupt),
     /* TWIM0 */         Option::Some(i2c::twim0_handler),
-    /* TWIS0 */         Option::Some(unhandled_interrupt),
+    /* TWIS0 */         Option::Some(i2c::twis0_handler),
     /* TWIM1 */         Option::Some(i2c::twim1_handler),
-    /* TWIS1 */         Option::Some(unhandled_interrupt),
+    /* TWIS1 */         Option::Some(i2c::twis1_handler),
     /* USART0 */        Option::Some(usart::usart0_handler),
     /* USART1 */        Option::Some(usart::usart1_handler),
     /* USART2 */        Option::Some(usart::usart2_handler),
@@ -197,9 +198,6 @@ pub unsafe fn init() {
         *pdest = 0;
         pdest = pdest.offset(1);
     }
-
-    // Setup the clock to run at 48 MHz
-    pm::configure_48mhz_dfll();
 }
 
 unsafe extern "C" fn hard_fault_handler() {

@@ -91,6 +91,8 @@ pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
+    led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
+    button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
 }
 
 
@@ -103,6 +105,8 @@ impl kernel::Platform for Platform {
             0 => f(Some(self.console)),
             1 => f(Some(self.gpio)),
             3 => f(Some(self.timer)),
+            8 => f(Some(self.led)),
+            9 => f(Some(self.button)),
             _ => f(None),
         }
     }
@@ -112,32 +116,53 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     nrf51::init();
 
-    let gpio_pins = static_init!(
-        [&'static nrf51::gpio::GPIOPin; 22],
+    // LEDs
+    let led_pins = static_init!(
+        [&'static nrf51::gpio::GPIOPin; 4],
         [&nrf51::gpio::PORT[LED1_PIN], // 21
          &nrf51::gpio::PORT[LED2_PIN], // 22
          &nrf51::gpio::PORT[LED3_PIN], // 23
          &nrf51::gpio::PORT[LED4_PIN], // 24
-         &nrf51::gpio::PORT[BUTTON1_PIN], // 17
+        ],
+        4 * 4);
+    let led = static_init!(
+        capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
+        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveLow),
+        96/8);
+
+    let button_pins = static_init!(
+        [&'static nrf51::gpio::GPIOPin; 4],
+        [&nrf51::gpio::PORT[BUTTON1_PIN], // 17
          &nrf51::gpio::PORT[BUTTON2_PIN], // 18
          &nrf51::gpio::PORT[BUTTON3_PIN], // 19
          &nrf51::gpio::PORT[BUTTON4_PIN], // 20
-         &nrf51::gpio::PORT[1],  // Bottom left header on DK board
+        ],
+        4 * 4);
+    let button = static_init!(
+        capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
+        capsules::button::Button::new(button_pins, kernel::Container::create()),
+        96/8);
+    for btn in button_pins.iter() {
+        use kernel::hil::gpio::PinCtl;
+        btn.set_input_mode(kernel::hil::gpio::InputMode::PullUp);
+        btn.set_client(button);
+    }
+
+    let gpio_pins = static_init!(
+        [&'static nrf51::gpio::GPIOPin; 11],
+        [&nrf51::gpio::PORT[1],  // Bottom left header on DK board
          &nrf51::gpio::PORT[2],  //   |
          &nrf51::gpio::PORT[3],  //   V
          &nrf51::gpio::PORT[4],  //
          &nrf51::gpio::PORT[5],  //
          &nrf51::gpio::PORT[6],  // -----
-         &nrf51::gpio::PORT[19], // Mid right header on DK board
-         &nrf51::gpio::PORT[18], //   |
-         &nrf51::gpio::PORT[17], //   V
          &nrf51::gpio::PORT[16], //
          &nrf51::gpio::PORT[15], //
          &nrf51::gpio::PORT[14], //
          &nrf51::gpio::PORT[13], //
          &nrf51::gpio::PORT[12], //
         ],
-        4 * 22);
+        4 * 11);
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
@@ -150,22 +175,17 @@ pub unsafe fn reset_handler() {
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
-                                       &mut capsules::console::WRITE_BUF,
-                                       kernel::Container::create()),
-        24);
-    nrf51::uart::UART0.set_client(console);
+                                        115200,
+                                        &mut capsules::console::WRITE_BUF,
+                                        kernel::Container::create()),
+        224/8);
+    UART::set_client(&nrf51::uart::UART0, console);
+    console.initialize();
 
     let alarm = &nrf51::rtc::RTC;
     alarm.start();
     let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
     alarm.set_client(mux_alarm);
-
-    nrf51::uart::UART0.init(kernel::hil::uart::UARTParams {
-        baud_rate: 115200,
-        data_bits: 8,
-        parity: kernel::hil::uart::Parity::None,
-        mode: kernel::hil::uart::Mode::Normal,
-    });
 
 
     let virtual_alarm1 = static_init!(
@@ -196,8 +216,10 @@ pub unsafe fn reset_handler() {
             gpio: gpio,
             timer: timer,
             console: console,
+            led: led,
+            button: button,
         },
-        12);
+        160/8);
 
     alarm.start();
 

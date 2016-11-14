@@ -1,6 +1,4 @@
-#include <firestorm.h>
-#include <tock.h>
-#include <isl29035.h>
+#include "isl29035.h"
 
 struct isl_data {
   int intensity;
