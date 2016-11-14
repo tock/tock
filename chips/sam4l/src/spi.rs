@@ -316,7 +316,6 @@ impl spi::SpiMaster for Spi {
             cmp::min(read_len, write_len)
         };
         let count = cmp::min(buflen, len);
-        //panic!("buflen is {}, and we're reading / operating on {} bytes", buflen, count);
         self.dma_length.set(count);
 
         // The ordering of these operations matters.
@@ -440,7 +439,6 @@ impl DMAClient for Spi {
                 });
             });
             
-
         }
     }
     

@@ -34,7 +34,6 @@
 #define _RF233_CONFIG_H_
 /*---------------------------------------------------------------------------*/
 /* Set radio channel, default channel 26 as it is not overlapping with Wi-Fi */
-//#define PHY_CC_CCA_CONF      (25 | PHY_CC_CCA_MODE_CS_OR_ED)
 #define PHY_CC_CCA_CONF      (26 | PHY_CC_CCA_MODE_CS_OR_ED)
 /*---------------------------------------------------------------------------*/
 /* 

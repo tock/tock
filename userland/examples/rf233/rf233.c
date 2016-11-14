@@ -60,7 +60,6 @@ static header_t radio_header;
 
 /*---------------------------------------------------------------------------*/
 int rf233_read(void *buf, unsigned short bufsize);
-int rf233_channel_clear(void); // TODO: implement
 int rf233_receiving_packet(void);
 int rf233_pending_packet(void);
 
@@ -385,7 +384,6 @@ int rf233_setup(void) {
   // RF233 expects line low for CS, this is default SAM4L behavior
   //spi_set_chip_select(3);
   // POL = 0 means idle is low
-  led_toggle(0);
   spi_set_chip_select(3); 
   spi_set_polarity(0);
   // PHASE = 0 means sample leading edge
@@ -451,15 +449,10 @@ int rf233_setup(void) {
     addr[7] = 0x22;
     SetPanId(IEEE802154_CONF_PANID);
    
-    // TODO: confirm addresses:
-    //output_short_addr(); 
     
-    PRINTF("READ THE ADDR\n");
     SetIEEEAddr(addr); // I think it breaks here
-    PRINTF("SET THE ADDR\n");
     SetShortAddr(0x2222);
 
-    //output_short_addr(); 
   }
   rf_generate_random_seed();
   
@@ -468,7 +461,7 @@ int rf233_setup(void) {
   }
 
   /* 11_09_rel */
-  //trx_reg_write(RF233_REG_TRX_RPC, 0xFF); /* Enable RPC feature by default */
+  trx_reg_write(RF233_REG_TRX_RPC, 0xFF); /* Enable RPC feature by default */
   PRINTF("RF233: Installed addresses. Turning on radio.\n");
   rf233_on();
   return 0;
@@ -778,7 +771,7 @@ int rf233_off(void) {
 void SetIEEEAddr(uint8_t *ieee_addr) {
 	uint8_t *ptr_to_reg = ieee_addr;
 	//for (uint8_t i = 0; i < 8; i++) {
-		trx_reg_write((0x2b), *ptr_to_reg); // TODO: breaks on here!
+		trx_reg_write((0x2b), *ptr_to_reg);
 		ptr_to_reg++;
 		trx_reg_write((0x2a), *ptr_to_reg);
 		ptr_to_reg++;
@@ -809,7 +802,6 @@ void SetShortAddr(uint16_t addr) {
   
   trx_reg_write(0x20, d[0]);
   trx_reg_write(0x21, d[1]);
-  PRINTF("Setting ShortAddr to:%u%u", d[1],d[0]);
   trx_reg_write(0x2d, d[0] + d[1]);
 }
 
