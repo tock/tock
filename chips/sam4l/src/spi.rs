@@ -65,13 +65,9 @@ pub struct Spi {
     client: TakeCell<&'static SpiMasterClient>,
     dma_read: TakeCell<&'static mut DMAChannel>,
     dma_write: TakeCell<&'static mut DMAChannel>,
-    // keep track of which interrupts are pending in order
-    // to correctly issue completion event only after both complete.
-    transfer_in_progress: Cell<bool>,
-    // track whether we have just a write or a write/read
-    rw_in_progress: Cell<bool>,
-    // track whether a read or write finished if doing a write/read
-    channel_completed: Cell<bool>,
+    // keep track of which how many DMA transfers are pending to correctly
+    // issue completion event only after both complete.
+    transfers_in_progress: Cell<u8>,
     dma_length: Cell<usize>,
 }
 
@@ -85,9 +81,7 @@ impl Spi {
             client: TakeCell::empty(),
             dma_read: TakeCell::empty(),
             dma_write: TakeCell::empty(),
-            transfer_in_progress: Cell::new(false),
-            rw_in_progress: Cell::new(false),
-            channel_completed: Cell::new(false),
+            transfers_in_progress: Cell::new(0),
             dma_length: Cell::new(0),
         }
     }
@@ -248,7 +242,7 @@ impl spi::SpiMaster for Spi {
     }
 
     fn is_busy(&self) -> bool {
-        self.transfer_in_progress.get()
+        self.transfers_in_progress.get() != 0
     }
 
     /// Write a byte to the SPI and discard the read; if an
@@ -256,9 +250,10 @@ impl spi::SpiMaster for Spi {
     fn write_byte(&self, out_byte: u8) {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
-        if self.transfer_in_progress.get() {
+        if self.is_busy() {
             //           return;
         }
+
         let tdr = out_byte as u32;
         // Wait for data to leave TDR and enter serializer, so TDR is free
         // for this next byte
@@ -277,7 +272,7 @@ impl spi::SpiMaster for Spi {
     fn read_write_byte(&self, val: u8) -> u8 {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
-        if self.transfer_in_progress.get() {
+        if self.is_busy() {
             //          return 0;
         }
         self.write_byte(val);
@@ -303,12 +298,12 @@ impl spi::SpiMaster for Spi {
         self.enable();
 
         // If busy, don't start.
-        if self.transfer_in_progress.get() {
+        if self.is_busy() {
             return false;
         }
 
-        // Need to mark busy
-        self.transfer_in_progress.set(true);
+        // We will have at least a write transfer in progress
+        self.transfers_in_progress.set(1);
 
         let read_len = match read_buffer {
             Some(ref buf) => buf.len(),
@@ -339,6 +334,7 @@ impl spi::SpiMaster for Spi {
         // Only setup the RX channel if we were passed a read_buffer inside
         // of the option. `map()` checks this for us.
         read_buffer.map(|rbuf| {
+            self.transfers_in_progress.set(2);
             self.dma_read.map(move |read| {
                 read.enable();
                 read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
@@ -417,27 +413,17 @@ impl spi::SpiMaster for Spi {
 }
 
 impl DMAClient for Spi {
-    fn xfer_done(&self, pid: DMAPeripheral) {
+    fn xfer_done(&self, _pid: DMAPeripheral) {
         // Only callback that the transfer is done if either:
         // 1) The transfer was TX only and TX finished
-        // 2) The transfer was TX and RX, in that case wait for both of them to
-        //    complete. Although they're synchronous in Hardware, in Software
-        //    they aren't, so we don't want to abruptly abort.
-        
-        if self.rw_in_progress.get() {
-            if !self.channel_completed.get() && 
-                (pid == DMAPeripheral::SPI_TX || pid == DMAPeripheral::SPI_RX){
-                self.channel_completed.set(true);
-                return;
-            }
-        }         
-       
-        if pid == DMAPeripheral::SPI_TX || 
-            (self.rw_in_progress.get() && self.channel_completed.get()) {
-            self.transfer_in_progress.set(false);
-            self.channel_completed.set(false);
-            self.rw_in_progress.set(false);
+        // 2) The transfer was TX and RX, in that case wait for both of them to complete. Although
+        //    both transactions happen simultaneously over the wire, the DMA may not finish copying
+        //    data over to/from the controller at the same time, so we don't want to abort
+        //    prematurely.
 
+        self.transfers_in_progress.set(self.transfers_in_progress.get() - 1);
+
+        if self.transfers_in_progress.get() == 0 {
             let txbuf = self.dma_write.map_or(None, |dma| {
                 let buf = dma.abort_xfer();
                 dma.disable();
