@@ -17,7 +17,7 @@
 #include "rf233.h"
 
 // Callback function supplied by user 
-int callback(void*, int); 
+int callback(void*, int, uint16_t, uint16_t, uint16_t); 
 
 int main() { 
   char buf[2] = { 0xde, 0xad }; 
@@ -35,7 +35,7 @@ int main() {
   }
 }
 
-int callback(void* buffer, int buffer_len) {
+int callback(void* buffer, int buffer_len, uint16_t src, uint16_t dest, uint16_t pan_id) {
 	printf("Rx callback!\n"); 
   uint8_t* bytes = (uint8_t*) buffer; 
   for (int i = 0; i < buffer_len; i ++) {

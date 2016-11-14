@@ -34,8 +34,7 @@ static int rf233_prepare_without_header(const uint8_t *data, unsigned short data
 static int rf233_setup(void);
 static int rf233_prepare(const void *payload, unsigned short payload_len);
 static int rf233_transmit();
-static int rf233_send(const void *data, unsigned short len);
-static int (*rx_callback)(void*, int);
+static int (*rx_callback)(void*, int, uint16_t, uint16_t, uint16_t);
 static int set_callback = 0; 
 
 #define IEEE802154_CONF_PANID 0x1111
@@ -346,7 +345,7 @@ int rf233_init(uint16_t channel, uint16_t from_addr, uint16_t pan_id) {
  * \return     Returns success/fail
  * \retval 0   Success
  */
-int rf233_rx_data(int (*callback)(void*, int)) {
+int rf233_rx_data(int (*callback)(void*, int, uint16_t, uint16_t, uint16_t)) {
   rx_callback = callback; 
   set_callback = 1;  
   return 0; 
@@ -599,20 +598,6 @@ int rf233_transmit() {
 
 /*---------------------------------------------------------------------------*/
 /**
- * \brief      Send data: first prepares, then transmits
- * \param payload         Pointer to data to copy/send
- * \param payload_len     length of data to copy
- * \return     Returns success/fail, refer to radio.h for explanation
- */
-int rf233_send(const void *payload, unsigned short payload_len) {
-  PRINTF("RF233: send %u\n", payload_len);
-  if (rf233_prepare(payload, payload_len) != RADIO_TX_OK) {
-    return RADIO_TX_ERR;
-  } 
-  return rf233_transmit();
-}
-/*---------------------------------------------------------------------------*/
-/**
  * \brief      read a received frame out of the radio buffer 
  * \param buf         pointer to where to copy received data
  * \param bufsize     Maximum size we can copy into bufsize
@@ -627,10 +612,6 @@ int rf233_read(void *buf, unsigned short bufsize) {
   // uint8_t ed;       /* frame metadata */
   uint8_t frame_len = 0;
   uint8_t len = 0;
-  char wbuf[PACKETBUF_SIZE];
-  for (int i = 0; i < bufsize; i++) {
-    wbuf[i] = 0;
-  }
 
   PRINTF("RF233: Receiving.\n");
   
@@ -696,7 +677,7 @@ int rf233_read(void *buf, unsigned short bufsize) {
     }
     // Call user callback function 
     if (set_callback) {
-      rx_callback(recv_data, len); 
+      rx_callback(recv_data, len, header->src, header->dest, header->pan); 
     } 
   }
   // PRINTF("RF233: Final state = %s = %i\n", state_str(rf233_status()), rf233_status()); 
