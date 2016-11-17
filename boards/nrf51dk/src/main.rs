@@ -97,8 +97,7 @@ pub struct Platform {
 
 
 impl kernel::Platform for Platform {
-    #[inline(never)]
-    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
         match driver_num {
@@ -210,16 +209,13 @@ pub unsafe fn reset_handler() {
     while !nrf51::clock::CLOCK.low_started() {}
     while !nrf51::clock::CLOCK.high_started() {}
 
-    let platform = static_init!(
-        Platform,
-        Platform {
-            gpio: gpio,
-            timer: timer,
-            console: console,
-            led: led,
-            button: button,
-        },
-        160/8);
+    let platform = Platform {
+        gpio: gpio,
+        timer: timer,
+        console: console,
+        led: led,
+        button: button,
+    };
 
     alarm.start();
 
@@ -227,7 +223,10 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
-    kernel::main(platform, &mut chip, load_process());
+    kernel::main(&platform,
+                 &mut chip,
+                 load_process(),
+                 &kernel::ipc::IPC::new());
 
 }
 
