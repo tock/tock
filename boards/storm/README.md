@@ -142,7 +142,10 @@ break main
 
 You'll need to install
 [libftdi-0.20.tar.gz](http://www.intra2net.com/en/developer/libftdi/download/libftdi-0.20.tar.gz)
-for stormloader to function; newer versions will not work. In turn, `libftdi`
+for stormloader to function; newer versions will not work. On OS X, you can install it via `brew install libftdi0`. 
+
+
+In turn, `libftdi`
 depends on `libusb` and `libusb-config`. On OS X, you can satisfy the `libftdi`
 prerequisites via homebrew:
 
@@ -183,3 +186,9 @@ sudo su
 echo 'ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"' > /etc/udev/rules.d/99-storm.rules
 ```
 
+On OS X, if it is unable to claim usb device, first verify that you have the libftdi 0.20 installed with 
+`brew list --versions | grep libftdi`. 
+Then unload the kernel extension that has the usb device claimed with
+ `sudo kextunload -b com.FTDI.driver.FTDIUSBSerialDriver` 
+ (note: this bundle id was found by looking at the output of `kextstat`). 
+ If the kext fails to terminate, you may also need to restart your computer.

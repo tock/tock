@@ -33,10 +33,11 @@ struct Imix {
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
+    ipc: kernel::ipc::IPC,
 }
 
 impl kernel::Platform for Imix {
-    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
         match driver_num {
@@ -50,6 +51,8 @@ impl kernel::Platform for Imix {
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
+
+            0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -269,8 +272,7 @@ pub unsafe fn reset_handler() {
         btn.set_client(button);
     }
 
-
-    let mut imix = Imix {
+    let imix = Imix {
         console: console,
         timer: timer,
         gpio: gpio,
@@ -280,12 +282,13 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         spi: spi,
+        ipc: kernel::ipc::IPC::new(),
     };
 
 
     let mut chip = sam4l::chip::Sam4l::new();
     chip.mpu().enable_mpu();
-    kernel::main(&mut imix, &mut chip, load_processes());
+    kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);
 }
 
 unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'static>>] {
