@@ -35,14 +35,17 @@ impl spi::SpiMasterClient for DummyCB {
 
 pub static mut SPICB: DummyCB = DummyCB { val: 0x55 as u8 };
 
-// This test first asserts the Firestorm's pin 2, then initiates a continuous
-// SPI transfer of 8 bytes.
+// This test first turns on the Imix's User led, asserts pin D2 and then 
+// initiates a continuous SPI transfer of 8 bytes.
+//
+// If the SPI transfer of multiple bytes fail, then the test will loop writing
+// 0xA5.
 //
 // The first SPI transfer outputs [8, 7, 6, 5, 4, 3, 2, 1] then echoes whatever
 // input it recieves from the slave on peripheral 1 continuously.
 //
-// To test with a logic analyzer, connect probes to pin 2 on the Firestorm, and
-// the SPI MOSI and CLK pins (exposed on the Firestorm's 22-pin header). Setup
+// To test with a logic analyzer, connect probes to pin D2 on the Imix, and
+// the SPI MOSI and CLK pins (exposed on the Imix's 20-pin header). Setup
 // the logic analyzer to trigger sampling on assertion of pin 2, then restart
 // the board.
 #[no_mangle]

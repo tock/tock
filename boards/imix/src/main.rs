@@ -18,10 +18,9 @@ use kernel::hil::gpio::Pin;
 
 mod io;
 
-// unit test for the HW
-#[allow(dead_code)]
-mod spi_dummy;
-
+// Unit Tests for drivers.
+//#[allow(dead_code)]
+//mod spi_dummy;
 
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
@@ -119,18 +118,6 @@ unsafe fn set_pin_primary_functions() {
     PC[29].configure(None);     // D4          -- GPIO Pin
     PC[30].configure(None);     // D3          -- GPIO Pin
     PC[31].configure(None);     // D2          -- GPIO Pin
-
-    // Enable, and disable output for RF233 pins
-    // IRQ
-    PA[08].enable();
-    PA[08].disable_output();
-    PA[08].disable_interrupt();
-    // RST
-    PA[09].enable();
-    PA[09].disable_output();
-    // SLP 
-    PA[10].enable();
-    PA[10].disable_output();
 }
 
 
@@ -297,7 +284,6 @@ pub unsafe fn reset_handler() {
 
 
     let mut chip = sam4l::chip::Sam4l::new();
-    //spi_dummy::spi_dummy_test(); 
     chip.mpu().enable_mpu();
     kernel::main(&mut imix, &mut chip, load_processes());
 }

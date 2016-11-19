@@ -75,8 +75,8 @@ int rf233_pending_packet(void);
 #define HEADER_SIZE                       9 /* bytes */
 
 /*---------------------------------------------------------------------------*/
-#define _DEBUG_               1
-#define DEBUG_PRINTDATA       1    /* print frames to/from the radio; requires DEBUG == 1 */
+#define _DEBUG_               0
+#define DEBUG_PRINTDATA       0    /* print frames to/from the radio; requires DEBUG == 1 */
 #if _DEBUG_
 #define PRINTF(...)       printf(__VA_ARGS__)
 #else

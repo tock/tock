@@ -85,7 +85,7 @@ impl Spi {
             dma_length: Cell::new(0),
         }
     }
-    
+
     pub fn enable(&self) {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
@@ -102,6 +102,7 @@ impl Spi {
         self.dma_write.map(|write| write.disable());
         regs.cr.set(0b10);
     }
+    
     /// Sets the approximate baud rate for the active peripheral,
     /// and return the actual baud rate set.
     ///
@@ -232,7 +233,6 @@ impl spi::SpiMaster for Spi {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
         self.enable_clock();
-        self.set_baud_rate(40000);
         regs.cr.set(1 << 24);
 
         let mut mode = regs.mr.get();
@@ -325,7 +325,7 @@ impl spi::SpiMaster for Spi {
             write.enable();
             write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count)
         });
-        
+
         // Only setup the RX channel if we were passed a read_buffer inside
         // of the option. `map()` checks this for us.
         read_buffer.map(|rbuf| {
@@ -430,7 +430,7 @@ impl DMAClient for Spi {
                 dma.disable();
                 buf
             });
-            
+
             let len = self.dma_length.get();
             self.dma_length.set(0);
             self.client.map(|cb| {
@@ -438,8 +438,6 @@ impl DMAClient for Spi {
                     cb.read_write_done(txbuf, rxbuf, len);
                 });
             });
-            
         }
     }
-    
 }
