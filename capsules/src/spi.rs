@@ -69,7 +69,7 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
                 }
             });
         });
-        
+
         self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(),
                                          self.kernel_read.take(),
                                          len);
@@ -282,7 +282,7 @@ impl<'a, S: SpiMaster> SpiMasterClient for Spi<'a, S> {
                     d[i] = *c;
                 }
             }
-            
+
             self.kernel_read.put(readbuf);
             self.kernel_write.replace(writebuf);
 

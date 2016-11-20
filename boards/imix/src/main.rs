@@ -13,14 +13,14 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::{Chip, MPU};
 use kernel::hil;
 use kernel::hil::Controller;
-use kernel::hil::spi::SpiMaster;
 use kernel::hil::gpio::Pin;
+use kernel::hil::spi::SpiMaster;
 
 mod io;
 
 // Unit Tests for drivers.
-//#[allow(dead_code)]
-//mod spi_dummy;
+// [allow(dead_code)]
+// mod spi_dummy;
 
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
@@ -134,8 +134,8 @@ pub unsafe fn reset_handler() {
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
 
     set_pin_primary_functions();
-    
-    
+
+
     // # CONSOLE
 
     let console = static_init!(
@@ -183,7 +183,7 @@ pub unsafe fn reset_handler() {
 
     static mut spi_read_buf: [u8; 64] = [0; 64];
     static mut spi_write_buf: [u8; 64] = [0; 64];
-    
+
     // Initialize and enable SPI HAL
     let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
     let spi = static_init!(

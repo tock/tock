@@ -102,7 +102,7 @@ impl Spi {
         self.dma_write.map(|write| write.disable());
         regs.cr.set(0b10);
     }
-    
+
     /// Sets the approximate baud rate for the active peripheral,
     /// and return the actual baud rate set.
     ///
