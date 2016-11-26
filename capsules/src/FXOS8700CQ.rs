@@ -20,15 +20,7 @@ enum Registers {
     Ctrl_Reg1 = 0x2a, 
 }
 
-pub struct FXOS8700CQ<'a> {
-    i2c: &'a i2c::I2CDevice,
-    scale: Cell<u8>,
-    repeated_mode: Cell<bool>,
-    callback: Cell<Option<Callback>>,
-    protocol_state: Cell<ProtocolState>,
-    buffer: TakeCell<&'static mut [u8]>,
-}
-
+#[derive(Clone,Copy,PartialEq)]
 enum ProtocolState {
     Idle,
 
@@ -40,6 +32,15 @@ enum ProtocolState {
 
     /// Reading acceleration 
     ReadingAcceleration,
+}
+
+pub struct FXOS8700CQ<'a> {
+    i2c: &'a i2c::I2CDevice,
+    scale: Cell<u8>,
+    repeated_mode: Cell<bool>,
+    callback: Cell<Option<Callback>>,
+    protocol_state: Cell<ProtocolState>,
+    buffer: TakeCell<&'static mut [u8]>,
 }
 
 impl<'a> FXOS8700CQ<'a> {
