@@ -5,6 +5,8 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio::{Pin, InterruptMode, Client};
 use kernel::hil::i2c;
 
+pub static mut BUFFER: [u8; 6] = [0; 6];
+
 const DEFAULT_SCALE: u8 = 0x0;
 
 #[allow(dead_code)]
@@ -16,21 +18,21 @@ enum Registers {
     Out_Y_LSB = 0x04,
     Out_Z_MSB = 0x05,
     Out_Z_LSB = 0x06,
-    XYZ_Data_CFG = 0x0e, 
-    Ctrl_Reg1 = 0x2a, 
+    XYZ_Data_CFG = 0x0e,
+    Ctrl_Reg1 = 0x2a,
 }
 
 #[derive(Clone,Copy,PartialEq)]
 enum ProtocolState {
     Idle,
 
-    /// Enable sensor 
+    /// Enable sensor
     Active,
 
     /// Set accel register
-    SetRegAcceleration, 
+    SetRegAcceleration,
 
-    /// Reading acceleration 
+    /// Reading acceleration
     ReadingAcceleration,
 }
 
@@ -44,9 +46,7 @@ pub struct FXOS8700CQ<'a> {
 }
 
 impl<'a> FXOS8700CQ<'a> {
-    pub fn new(i2c: &'a i2c::I2CDevice,
-               buffer: &'static mut [u8])
-               -> FXOS8700CQ<'a> {
+    pub fn new(i2c: &'a i2c::I2CDevice, buffer: &'static mut [u8]) -> FXOS8700CQ<'a> {
         // setup and return struct
         FXOS8700CQ {
             i2c: i2c,
@@ -61,35 +61,36 @@ impl<'a> FXOS8700CQ<'a> {
     fn enable_sensor(&self, scale: u8) {
         // enable and configure FXOS8700CQ
         self.buffer.take().map(|buf| {
-            // turn on i2c 
+            // turn on i2c
             self.i2c.enable();
-            // configure accelerometer scale 
-            buf[0] = Registers::XYZ_Data_CFG as u8; 
-            buf[1] = scale as u8; 
+            // configure accelerometer scale
+            // TODO
+            buf[0] = Registers::XYZ_Data_CFG as u8;
+            buf[1] = scale as u8;
             self.i2c.write(buf, 2);
 
             // TODO configure magnetometer
 
-            // set to active mode 
-            buf[0] = Registers::Ctrl_Reg1 as u8; 
+            // set to active mode
+            buf[0] = Registers::Ctrl_Reg1 as u8;
             self.i2c.read(buf, 2);
-            buf[1] = buf[1] | 0x01; 
-			self.i2c.write(buf, 2);
+            buf[1] = buf[1] | 0x01;
+            self.i2c.write(buf, 2);
 
-			self.protocol_state.set(ProtocolState::Active);
+            self.protocol_state.set(ProtocolState::Active);
         });
     }
 
     fn disable_sensor(&self, temperature: Option<f32>) {
-        // TODO set to inactive 
+        // TODO set to inactive
     }
 
     fn enable_interrupts(&self) {
-    	// ???
+        // ???
     }
 
     fn disable_interrupts(&self) {
-    	// ???
+        // ???
     }
 }
 
@@ -99,28 +100,28 @@ fn calculate_acceleration() -> f32 {
 
 impl<'a> i2c::I2CClient for FXOS8700CQ<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
-    	match self.protocol_state.get() { 
-    		ProtocolState::SetRegAcceleration => {
-    			buffer[0] = Registers::Out_X_LSB as u8;
-                self.i2c.write(buffer, 1); // write byte of register we want to read from 
-    			self.protocol_state.set(ProtocolState::ReadingAcceleration);
-    		}
-    		ProtocolState::ReadingAcceleration => {
-    			self.i2c.read(buffer, 6); // read 6 bytes for accel 
-    		}
-    		_ => {}
-    	}
+        match self.protocol_state.get() { 
+            ProtocolState::SetRegAcceleration => {
+                buffer[0] = Registers::Out_X_LSB as u8;
+                self.i2c.write(buffer, 1); // write byte of register we want to read from
+                self.protocol_state.set(ProtocolState::ReadingAcceleration);
+            }
+            ProtocolState::ReadingAcceleration => {
+                self.i2c.read(buffer, 6); // read 6 bytes for accel
+            }
+            _ => {}
+        }
     }
 }
 
 impl<'a> Client for FXOS8700CQ<'a> {
-	fn fired(&self, _: usize) {
-		self.buffer.take().map(|buf| {
-			// do we need to do an i2c write here? 
+    fn fired(&self, _: usize) {
+        self.buffer.take().map(|buf| {
+            // do we need to do an i2c write here?
             // self.i2c.enable();
             self.protocol_state.set(ProtocolState::SetRegAcceleration);
         });
-	}
+    }
 }
 
 impl<'a> Driver for FXOS8700CQ<'a> {
@@ -163,12 +164,13 @@ impl<'a> Driver for FXOS8700CQ<'a> {
         match command_num {
             // set period for sensing
             0 => {
-                // bounds check on the scale 
-                // scale can be 0, 1, or 2? 
-                if (data & 0xFFFFFFF8) != 0 { // TODO redo this 
-                    return -1; // ERR_BAD_VAL 
+                // bounds check on the scale
+                // scale can be 0, 1, or 2?
+                if (data & 0xFFFFFFF8) != 0 {
+                    // TODO redo this
+                    return -1; // ERR_BAD_VAL
                 }
-                // TODO 
+                // TODO
                 // self.scale.set((data & 0x7) as u8);
 
                 0
