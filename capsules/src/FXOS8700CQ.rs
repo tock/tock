@@ -25,7 +25,21 @@ pub struct FXOS8700CQ<'a> {
     scale: Cell<u8>,
     repeated_mode: Cell<bool>,
     callback: Cell<Option<Callback>>,
+    protocol_state: Cell<ProtocolState>,
     buffer: TakeCell<&'static mut [u8]>,
+}
+
+enum ProtocolState {
+    Idle,
+
+    /// Enable sensor 
+    Active,
+
+    /// Set accel register
+    SetRegAcceleration, 
+
+    /// Reading acceleration 
+    ReadingAcceleration,
 }
 
 impl<'a> FXOS8700CQ<'a> {
@@ -38,6 +52,7 @@ impl<'a> FXOS8700CQ<'a> {
             scale: Cell::new(DEFAULT_SCALE),
             repeated_mode: Cell::new(false),
             callback: Cell::new(None),
+            protocol_state: Cell::new(ProtocolState::Idle),
             buffer: TakeCell::new(buffer),
         }
     }
@@ -55,10 +70,12 @@ impl<'a> FXOS8700CQ<'a> {
             // TODO configure magnetometer
 
             // set to active mode 
-            buffer[0] = Registers::Ctrl_Reg1 as u8; 
-            self.i2c.read(buffer, 2);
-            buffer[1] = buffer[1] | 0x01; 
+            buf[0] = Registers::Ctrl_Reg1 as u8; 
+            self.i2c.read(buf, 2);
+            buf[1] = buf[1] | 0x01; 
 			self.i2c.write(buf, 2);
+
+			self.protocol_state.set(ProtocolState::Active);
         });
     }
 
@@ -76,87 +93,33 @@ impl<'a> FXOS8700CQ<'a> {
 }
 
 fn calculate_acceleration() -> f32 {
-    0 
+    0 as f32
 }
 
 impl<'a> i2c::I2CClient for FXOS8700CQ<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
-        // TODO(alevy): handle protocol errors
-        match self.protocol_state.get() {
-            ProtocolState::Configure => {
-                self.buffer.replace(buffer);
-                self.enable_interrupts();
-                self.i2c.disable();
-                self.protocol_state.set(ProtocolState::Idle);
-            }
-            ProtocolState::Deconfigure(temperature) => {
-                self.buffer.replace(buffer);
-                self.disable_interrupts();
-                self.i2c.disable();
-                self.protocol_state.set(ProtocolState::Idle);
-                temperature.map(|temp_val| {
-                    self.callback
-                        .get()
-                        .map(|mut cb| cb.schedule(temp_val as usize, get_errno() as usize, 0));
-                    self.callback.set(None);
-                });
-            }
-            ProtocolState::SetRegSensorVoltage => {
-                // Read sensor voltage register
-                self.i2c.read(buffer, 2);
-                self.protocol_state.set(ProtocolState::ReadingSensorVoltage);
-            }
-            ProtocolState::ReadingSensorVoltage => {
-                let sensor_voltage = (((buffer[0] as u16) << 8) | buffer[1] as u16) as i16;
-
-                // Select die temperature register
-                buffer[0] = Registers::DieTemperature as u8;
-                self.i2c.write(buffer, 1);
-
-                self.protocol_state.set(ProtocolState::SetRegDieTemperature(sensor_voltage));
-            }
-            ProtocolState::SetRegDieTemperature(sensor_voltage) => {
-                // Read die temperature register
-                self.i2c.read(buffer, 2);
-                self.protocol_state.set(ProtocolState::ReadingDieTemperature(sensor_voltage));
-            }
-            ProtocolState::ReadingDieTemperature(sensor_voltage) => {
-                let die_temperature = (((buffer[0] as u16) << 8) | buffer[1] as u16) as i16;
-                self.buffer.replace(buffer);
-
-                let temp_val = calculate_temperature(sensor_voltage, die_temperature);
-
-                // disable callback and sensing if in single-shot mode
-                if self.repeated_mode.get() == false {
-                    // disable temperature sensor. When disabling is finished, we will give the
-                    // temperature to the callback.
-                    self.disable_sensor(Some(temp_val));
-                } else {
-                    // send value to callback
-                    self.callback
-                        .get()
-                        .map(|mut cb| cb.schedule(temp_val as usize, get_errno() as usize, 0));
-
-                    self.i2c.disable();
-                }
-            }
-            _ => {}
-        }
+    	match self.protocol_state.get() { 
+    		ProtocolState::SetRegAcceleration => {
+    			buffer[0] = Registers::Out_X_LSB as u8;
+                self.i2c.write(buffer, 1); // write byte of register we want to read from 
+    			self.protocol_state.set(ProtocolState::ReadingAcceleration);
+    		}
+    		ProtocolState::ReadingAcceleration => {
+    			self.i2c.read(buffer, 6); // read 6 bytes for accel 
+    		}
+    		_ => {}
+    	}
     }
 }
 
 impl<'a> Client for FXOS8700CQ<'a> {
-    // fn fired(&self, _: usize) {
-    //     self.buffer.take().map(|buf| {
-    //         // turn on i2c to send commands
-    //         self.i2c.enable();
-
-    //         // select sensor voltage register and read it
-    //         buf[0] = Registers::SensorVoltage as u8;
-    //         self.i2c.write(buf, 1);
-    //         self.protocol_state.set(ProtocolState::SetRegSensorVoltage);
-    //     });
-    // }
+	fn fired(&self, _: usize) {
+		self.buffer.take().map(|buf| {
+			// do we need to do an i2c write here? 
+            // self.i2c.enable();
+            self.protocol_state.set(ProtocolState::SetRegAcceleration);
+        });
+	}
 }
 
 impl<'a> Driver for FXOS8700CQ<'a> {
@@ -199,12 +162,11 @@ impl<'a> Driver for FXOS8700CQ<'a> {
         match command_num {
             // set period for sensing
             0 => {
-                // bounds check on the period
-                if (data & 0xFFFFFFF8) != 0 {
-                    return ERR_BAD_VALUE;
+                // bounds check on the scale 
+                // scale can be 0, 1, or 2? 
+                if (data & 0xFFFFFFF8) != 0 { // TODO redo this 
+                    return -1; // ERR_BAD_VAL 
                 }
-
-                // set period value
                 // TODO 
                 // self.scale.set((data & 0x7) as u8);
 
