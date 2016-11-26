@@ -45,7 +45,7 @@ impl kernel::Platform for Imix {
             1 => f(Some(self.gpio)),
 
             3 => f(Some(self.timer)),
-            4 => f(Some(self.spi)), 
+            4 => f(Some(self.spi)),
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
@@ -234,7 +234,7 @@ pub unsafe fn reset_handler() {
          &sam4l::gpio::PC[26], // P7
          &sam4l::gpio::PC[25], // P8
          &sam4l::gpio::PC[25], // Dummy Pin (regular GPIO)
-         &sam4l::gpio::PA[10], // RSLP 
+         &sam4l::gpio::PA[10], // RSLP
          &sam4l::gpio::PA[09], // RRST
          &sam4l::gpio::PA[08]], // RIRQ
         11 * 4
