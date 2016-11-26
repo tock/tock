@@ -26,12 +26,14 @@ int main() {
   rf233_rx_data(callback);
 
   while (1) {
+    printf("--------Cycle Start----\n");
     rf233_tx_data(0x00, buf, 2);
     delay_ms(10);
     rf233_sleep();
     delay_ms(1000);
     rf233_on();
     delay_ms(10000);
+    printf("--------Cycle End----\n");
   }
 }
 
