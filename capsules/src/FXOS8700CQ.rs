@@ -96,15 +96,16 @@ impl<'a> I2CClient for FXOS8700CQ<'a> {
                 // let x = (((buffer[0] as usize) << 8) + buffer[1]) as usize;
                 // let y = (((buffer[2] as usize) << 8) + buffer[3]) as usize;
                 // let z = (((buffer[4] as usize) << 8) + buffer[5]) as usize;
-                self.state.set(State::Disabling(buffer[0] as usize,
+                /*self.state.set(State::Disabling(buffer[0] as usize,
                                                 buffer[2] as usize,
-                                                buffer[4] as usize));
+                                                buffer[4] as usize));*/
+                self.state.set(State::Disabling(0 as usize, 1 as usize, 2 as usize)); 
             }
             State::Disabling(x, y, z) => {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.callback.get().map(|mut cb| cb.schedule(x, y, z));
+                // self.callback.get().map(|mut cb| cb.schedule(x, y, z));
             }
             _ => {}
         }
@@ -125,7 +126,7 @@ impl<'a> Driver for FXOS8700CQ<'a> {
     fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> isize {
         match command_num {
             0 => {
-                // self.start_read_accel(DEFAULT_SCALE);
+                self.start_read_accel(DEFAULT_SCALE);
                 0
             }
             _ => -1,
