@@ -87,13 +87,11 @@ impl<'a> I2CClient for FXOS8700CQ<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         match self.state.get() { 
             State::Enabling => {
-                println!("enabling"); 
                 buffer[0] = Registers::OutXLSB as u8;
                 self.i2c.write_read(buffer, 1, 6); // write byte of register we want to read from
                 self.state.set(State::ReadingAcceleration);
             }
             State::ReadingAcceleration => {
-                println!("read accel"); 
                 // self.i2c.read(buffer, 6); // read 6 bytes for accel
                 // let x = (((buffer[0] as usize) << 8) + buffer[1]) as usize;
                 // let y = (((buffer[2] as usize) << 8) + buffer[3]) as usize;
@@ -103,11 +101,10 @@ impl<'a> I2CClient for FXOS8700CQ<'a> {
                                                 buffer[4] as usize));
             }
             State::Disabling(x, y, z) => {
-                println!("disabling"); 
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                // self.callback.get().map(|mut cb| cb.schedule(x, y, z));
+                self.callback.get().map(|mut fn| fn.schedule(x, y, z));
             }
             _ => {}
         }
@@ -128,7 +125,7 @@ impl<'a> Driver for FXOS8700CQ<'a> {
     fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> isize {
         match command_num {
             0 => {
-                self.start_read_accel(DEFAULT_SCALE);
+                // self.start_read_accel(DEFAULT_SCALE);
                 0
             }
             _ => -1,
