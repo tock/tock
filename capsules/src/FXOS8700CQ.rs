@@ -104,7 +104,7 @@ impl<'a> I2CClient for FXOS8700CQ<'a> {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.callback.get().map(|mut fn| fn.schedule(x, y, z));
+                self.callback.get().map(|mut cb| cb.schedule(x, y, z));
             }
             _ => {}
         }
