@@ -3,7 +3,7 @@ use kernel::{AppId, Callback, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
 
-pub static mut BUFFER: [u8; 6] = [0; 6];
+pub static mut BUF: [u8; 6] = [0; 6];
 
 const DEFAULT_SCALE: u8 = 0x0;
 
@@ -96,16 +96,15 @@ impl<'a> I2CClient for FXOS8700CQ<'a> {
                 // let x = (((buffer[0] as usize) << 8) + buffer[1]) as usize;
                 // let y = (((buffer[2] as usize) << 8) + buffer[3]) as usize;
                 // let z = (((buffer[4] as usize) << 8) + buffer[5]) as usize;
-                /*self.state.set(State::Disabling(buffer[0] as usize,
+                self.state.set(State::Disabling(buffer[0] as usize,
                                                 buffer[2] as usize,
-                                                buffer[4] as usize));*/
-                self.state.set(State::Disabling(0 as usize, 1 as usize, 2 as usize)); 
+                                                buffer[4] as usize));
             }
             State::Disabling(x, y, z) => {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                // self.callback.get().map(|mut cb| cb.schedule(x, y, z));
+                self.callback.get().map(|mut cb| cb.schedule(x, y, z));
             }
             _ => {}
         }

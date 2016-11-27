@@ -87,6 +87,7 @@ struct Firestorm {
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+    FXOS8700CQ: &'static capsules::FXOS8700CQ::FXOS8700CQ<'static>,
 }
 
 impl Platform for Firestorm {
@@ -303,6 +304,14 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
         96/8);
 
+    // accelerometer on 0x1C, 0x1D, 0x1E, or 0x1F?? 
+    let fx0_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1C), 32);
+    let fx0 = static_init!(
+        capsules::FXOS8700CQ::FXOS8700CQ<'static>,
+        capsules::FXOS8700CQ::FXOS8700CQ::new(fx0_i2c, &mut capsules::FXOS8700CQ::BUF),
+        48);
+    fx0_i2c.set_client(fx0);
+
     // Setup ADC
     let adc = static_init!(
         capsules::adc::ADC<'static, sam4l::adc::Adc>,
@@ -354,8 +363,9 @@ pub unsafe fn reset_handler() {
             nrf51822: nrf_serialization,
             adc: adc,
             led: led,
+            FXOS8700CQ: fx0,
         },
-        288/8);
+        320/8);
 
     // Configure USART2 Pins for connection to nRF51822
     // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
