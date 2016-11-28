@@ -305,7 +305,7 @@ pub unsafe fn reset_handler() {
         96/8);
 
     // accelerometer on 0x1C, 0x1D, 0x1E, or 0x1F?? 
-    let fx0_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1D), 32);
+    let fx0_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1E), 32);
     let fx0 = static_init!(
         capsules::FXOS8700CQ::FXOS8700CQ<'static>,
         capsules::FXOS8700CQ::FXOS8700CQ::new(fx0_i2c, &mut capsules::FXOS8700CQ::BUF),
