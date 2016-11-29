@@ -16,8 +16,8 @@ enum Registers {
     OutYLSB = 0x04,
     OutZMSB = 0x05,
     OutZLSB = 0x06,
-    XyzDataCfg = 0x0e,
-    CtrlReg1 = 0x2a,
+    XyzDataCfg = 0x0E,
+    CtrlReg1 = 0x2A,
 }
 
 #[derive(Clone,Copy,PartialEq)]
@@ -57,29 +57,32 @@ impl<'a> FXOS8700CQ<'a> {
         }
     }
 
-    fn start_read_accel(&self, scale: u8) {
+    fn start_read_accel(&self) {
         // enable and configure FXOS8700CQ
         if self.state.get() == State::Disabled {
             self.buffer.take().map(|buf| {
                 // turn on i2c
                 self.i2c.enable();
-                // configure accelerometer scale
-                // TODO
-                // buf[0] = Registers::XYZ_Data_CFG as u8;
-                // buf[1] = scale as u8;
-                // self.i2c.write(buf, 2);
-
-                // TODO configure magnetometer
-
                 // set to active mode
                 buf[0] = Registers::CtrlReg1 as u8;
                 // self.i2c.read(buf, 2);
                 // buf[1] = buf[1] | 0x01;
                 buf[1] = 0x01;
                 self.i2c.write(buf, 2);
-                self.state.set(State::Active);
+                self.state.set(State::Enabling);
             });
         }
+    }
+
+    fn set_scale(&self, scale: u8) {
+        self.buffer.take().map(|buf| {
+            self.i2c.enable();
+            buf[0] = Registers::XyzDataCfg as u8;
+            buf[1] = scale as u8;
+            self.scale.set(scale); 
+            self.i2c.write(buf, 2);
+            // disable i2c here? 
+        }); 
     }
 }
 
@@ -125,7 +128,13 @@ impl<'a> Driver for FXOS8700CQ<'a> {
     fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> isize {
         match command_num {
             0 => {
-                self.start_read_accel(DEFAULT_SCALE);
+                // read acceleration 
+                self.start_read_accel();
+                0
+            }
+            1 => {
+                // set scale 
+                self.set_scale(_arg1 as u8); 
                 0
             }
             _ => -1,

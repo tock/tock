@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
+#include <timer.h>
 
 #include <tock.h>
 #include <console.h>
@@ -27,10 +28,8 @@ int main() {
 
 		double accel_mag = FXOS8700CQ_read_accel_mag(); //sqrt(accel_x * accel_x + accel_y * accel_y + accel_z * accel_z); 
 		printf("accel mag = %f\n", accel_mag); 
-		for (int jj = 0; jj < 100000; jj ++) {
-			accel_mags[num_measurements] = -1; 
-		}
 		accel_mags[ii] = accel_mag + g;
+		delay_ms(500); 
 	}
 
 	unsigned steps = 0; 
