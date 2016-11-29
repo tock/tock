@@ -1,0 +1,10 @@
+# Makefile for loading applications for the nrf51dk platform
+
+NRF_PROGRAM = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf51dk.py
+
+# upload programs to nrf
+.PHONY: flash
+.PHONY: program
+program: $(BUILDDIR)/app.bin
+	$(NRF_PROGRAM) $(BUILDDIR)/app.bin
+
