@@ -2,9 +2,8 @@
 
 NRF_PROGRAM = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf51dk.py
 
-# upload programs over JTAG
+# upload programs to nrf
 .PHONY: flash
-# upload program to nrf
 .PHONY: program
 program: $(BUILDDIR)/app.bin
 	$(NRF_PROGRAM) $(BUILDDIR)/app.bin
