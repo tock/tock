@@ -233,7 +233,6 @@ impl spi::SpiMaster for Spi {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
         self.enable_clock();
-
         regs.cr.set(1 << 24);
 
         let mut mode = regs.mr.get();

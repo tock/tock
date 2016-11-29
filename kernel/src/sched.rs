@@ -1,13 +1,13 @@
-use common::Queue;
-use platform::{Chip, Platform, MPU, SysTick};
+use platform::{Chip, Platform, SysTick};
 use process;
-use process::Process;
+use process::{Process, Task};
 use syscall;
 
-pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
+pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                                                chip: &mut C,
                                                process: &mut Process,
-                                               appid: ::AppId) {
+                                               appid: ::AppId,
+                                               ipc: &::ipc::IPC) {
     let systick = chip.systick();
     systick.reset();
     systick.set_timer(10000);
@@ -18,23 +18,25 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
             break;
         }
 
-        match process.state {
+        match process.current_state() {
             process::State::Running => {
-                let (data_start, data_len, text_start, text_len) = process.memory_regions();
-                // Data segment read/write/execute
-                chip.mpu().set_mpu(0, data_start as u32, data_len as u32, true, 0b011);
-                // Text segment read/execute (no write)
-                chip.mpu().set_mpu(1, text_start as u32, text_len as u32, true, 0b111);
+                process.setup_mpu(chip.mpu());
                 systick.enable(true);
                 process.switch_to();
                 systick.enable(false);
             }
             process::State::Yielded => {
-                match process.callbacks.dequeue() {
+                match process.dequeue_task() {
                     None => break,
                     Some(cb) => {
-                        process.state = process::State::Running;
-                        process.push_callback(cb);
+                        match cb {
+                            Task::FunctionCall(ccb) => {
+                                process.push_function_call(ccb);
+                            }
+                            Task::IPC((otherapp, ipc_type)) => {
+                                ipc.schedule_callback(appid, otherapp, ipc_type);
+                            }
+                        }
                         continue;
                     }
                 }
@@ -64,7 +66,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
                 process.set_r0(res);
             }
             Some(syscall::YIELD) => {
-                process.state = process::State::Yielded;
+                process.yield_state();
                 process.pop_syscall_stack();
 
                 // There might be already enqueued callbacks
@@ -76,8 +78,8 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &mut P,
                 let callback_ptr = process.r2() as *mut ();
                 let appdata = process.r3();
 
+                let callback = ::Callback::new(appid, appdata, callback_ptr);
                 let res = platform.with_driver(driver_num, |driver| {
-                    let callback = ::Callback::new(appid, appdata, callback_ptr);
                     match driver {
                         Some(d) => d.subscribe(subdriver_num, callback),
                         None => -1,

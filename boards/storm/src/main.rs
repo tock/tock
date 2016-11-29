@@ -87,15 +87,11 @@ struct Firestorm {
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-    FXOS8700CQ: &'static capsules::FXOS8700CQ::FXOS8700CQ<'static>,
+    ipc: kernel::ipc::IPC,
 }
 
 impl Platform for Firestorm {
-    // fn mpu(&mut self) -> &mut cortexm4::mpu::MPU {
-    // &mut self.chip.mpu
-    // }
-
-    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
 
@@ -109,6 +105,8 @@ impl Platform for Firestorm {
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
+
+            0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -304,14 +302,6 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
         96/8);
 
-    // accelerometer on 0x1C, 0x1D, 0x1E, or 0x1F??
-    let fx0_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1E), 32);
-    let fx0 = static_init!(
-        capsules::FXOS8700CQ::FXOS8700CQ<'static>,
-        capsules::FXOS8700CQ::FXOS8700CQ::new(fx0_i2c, &mut capsules::FXOS8700CQ::BUF),
-        48);
-    fx0_i2c.set_client(fx0);
-
     // Setup ADC
     let adc = static_init!(
         capsules::adc::ADC<'static, sam4l::adc::Adc>,
@@ -351,21 +341,18 @@ pub unsafe fn reset_handler() {
     // &sam4l::gpio::PA[14] // No Connection
     //
 
-    let firestorm = static_init!(
-        Firestorm,
-        Firestorm {
-            console: console,
-            gpio: gpio,
-            timer: timer,
-            tmp006: tmp006,
-            isl29035: isl29035,
-            spi: spi,
-            nrf51822: nrf_serialization,
-            adc: adc,
-            led: led,
-            FXOS8700CQ: fx0,
-        },
-        320/8);
+    let firestorm = Firestorm {
+        console: console,
+        gpio: gpio,
+        timer: timer,
+        tmp006: tmp006,
+        isl29035: isl29035,
+        spi: spi,
+        nrf51822: nrf_serialization,
+        adc: adc,
+        led: led,
+        ipc: kernel::ipc::IPC::new(),
+    };
 
     // Configure USART2 Pins for connection to nRF51822
     // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
@@ -403,5 +390,5 @@ pub unsafe fn reset_handler() {
     chip.mpu().enable_mpu();
 
 
-    kernel::main(firestorm, &mut chip, load_processes());
+    kernel::main(&firestorm, &mut chip, load_processes(), &firestorm.ipc);
 }
