@@ -451,11 +451,27 @@ impl<'a> Process<'a> {
 
 #[derive(Debug)]
 struct LoadResult {
+    /// The absolute address of the process entry point (i.e. `_start`).
     init_fn: usize,
+
+    /// The lowest free address in process memory after loading the GOT, data
+    /// and BSS.
     app_mem_start: *const u8,
+
+    /// The process's package name (used for IPC)
     pkg_name: &'static [u8],
 }
 
+/// Loads the process into memory
+///
+/// Loads the process whos binary starts at `start_addr` into the memory region beginning at
+/// `mem_base`. The process binary must begin with a `LoadInfo` struct.
+///
+/// This function will copy the GOT and data segment into memory as well as zero out the BSS
+/// section. It performs relocation on the GOT and on variables named in the relocation section of
+/// the binary.
+///
+/// The function returns a `LoadResult` containing metadata about the loaded process.
 unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
 
     let load_info = &*(start_addr as *const LoadInfo);
@@ -484,6 +500,7 @@ unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
         slice::from_raw_parts_mut(mem_base,
                                   (load_info.data_size + load_info.got_size) as usize);
 
+    // Copy the GOT and data into base memory
     for (orig, dest) in got.iter().chain(data.iter()).zip(target_data.iter_mut()) {
         *dest = *orig
     }
