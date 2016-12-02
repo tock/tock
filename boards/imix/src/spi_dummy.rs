@@ -35,7 +35,7 @@ impl spi::SpiMasterClient for DummyCB {
 
 pub static mut SPICB: DummyCB = DummyCB { val: 0x55 as u8 };
 
-// This test first turns on the Imix's User led, asserts pin D2 and then 
+// This test first turns on the Imix's User led, asserts pin D2 and then
 // initiates a continuous SPI transfer of 8 bytes.
 //
 // If the SPI transfer of multiple bytes fail, then the test will loop writing
@@ -48,14 +48,13 @@ pub static mut SPICB: DummyCB = DummyCB { val: 0x55 as u8 };
 // the SPI MOSI and CLK pins (exposed on the Imix's 20-pin header). Setup
 // the logic analyzer to trigger sampling on assertion of pin 2, then restart
 // the board.
-#[no_mangle]
 #[inline(never)]
 pub unsafe fn spi_dummy_test() {
 
     // set the LED to mark that we've programmed.
     sam4l::gpio::PC[10].make_output();
     &sam4l::gpio::PC[10].set();
-    
+
     let pin2: &mut gpio::Pin = &mut sam4l::gpio::PC[31]; // It's on D2 of the IMIX
     pin2.make_output();
     pin2.set();
@@ -66,9 +65,9 @@ pub unsafe fn spi_dummy_test() {
     sam4l::spi::SPI.enable();
     sam4l::spi::SPI.set_baud_rate(1000000);
     let len = buf2.len();
-    if sam4l::spi::SPI.read_write_bytes(&mut buf2, Some(&mut buf1), len) == false { 
+    if sam4l::spi::SPI.read_write_bytes(&mut buf2, Some(&mut buf1), len) == false {
         loop {
-             sam4l::spi::SPI.write_byte(0xA5);
+            sam4l::spi::SPI.write_byte(0xA5);
         }
     }
 

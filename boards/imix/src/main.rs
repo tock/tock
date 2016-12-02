@@ -13,14 +13,16 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::{Chip, MPU};
 use kernel::hil;
 use kernel::hil::Controller;
-use kernel::hil::gpio::Pin;
 use kernel::hil::spi::SpiMaster;
 
+#[macro_use]
 mod io;
 
 // Unit Tests for drivers.
-// [allow(dead_code)]
-// mod spi_dummy;
+#[allow(dead_code)]
+mod i2c_dummy;
+#[allow(dead_code)]
+mod spi_dummy;
 
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
