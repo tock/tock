@@ -185,7 +185,7 @@ impl<'a> Process<'a> {
 
     pub fn setup_mpu(&self, mpu: &::platform::MPU) {
         let data_start = self.memory.as_ptr() as usize;
-        let data_len = 12;
+        let data_len = closest_power_of_two(self.memory.len() as u32).trailing_zeros() - 1;
 
         let text_start = self.text.as_ptr() as usize;
         let text_len = ((32 - self.text.len().leading_zeros()) - 2) as u32;
