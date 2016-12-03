@@ -92,12 +92,12 @@ impl<'a> I2CClient for FXOS8700CQ<'a> {
                 let y = ((y >> 2) * 976) / 1000;
                 let z = ((z >> 2) * 976) / 1000;
 
-                buffer[0] = 0; 
-                self.i2c.write(buffer, 2); 
+                buffer[0] = 0;
+                self.i2c.write(buffer, 2);
                 self.state.set(State::Deactivating(x, y, z));
             }
             State::Deactivating(x, y, z) => {
-                self.i2c.disable(); 
+                self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
                 self.callback.get().map(|mut cb| cb.schedule(x, y, z));
