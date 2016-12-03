@@ -34,7 +34,7 @@ struct Imix {
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
     ipc: kernel::ipc::IPC,
-    FXOS8700CQ: &'static capsules::FXOS8700CQ::FXOS8700CQ<'static>,
+    fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
 }
 
 impl kernel::Platform for Imix {
@@ -52,7 +52,7 @@ impl kernel::Platform for Imix {
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
-            11 => f(Some(self.FXOS8700CQ)),
+            11 => f(Some(self.fxos8700_cq)),
 
             0xff => f(Some(&self.ipc)),
             _ => f(None),
@@ -213,8 +213,8 @@ pub unsafe fn reset_handler() {
     // FXOS8700CQ accelerometer
     let fx0_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e), 32);
     let fx0 = static_init!(
-        capsules::FXOS8700CQ::FXOS8700CQ<'static>,
-        capsules::FXOS8700CQ::FXOS8700CQ::new(fx0_i2c, &mut capsules::FXOS8700CQ::BUF),
+        capsules::fxos8700_cq::Fxos8700cq<'static>,
+        capsules::fxos8700_cq::Fxos8700cq::new(fx0_i2c, &mut capsules::fxos8700_cq::BUF),
         44);
     fx0_i2c.set_client(fx0);
 
@@ -293,7 +293,7 @@ pub unsafe fn reset_handler() {
         button: button,
         spi: spi,
         ipc: kernel::ipc::IPC::new(),
-        FXOS8700CQ: fx0,
+        fxos8700_cq: fx0,
     };
 
 

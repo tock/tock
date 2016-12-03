@@ -12,7 +12,6 @@ struct fx0_data {
 // internal callback for faking synchronous reads
 static void FXOS8700CQ_cb(int x, int y, int z, void* ud) {
   struct fx0_data* result = (struct fx0_data*) ud;
-  printf("callback x= %i y = %i z = %i\n", x, y, z); 
   result->x = x;
   result->y = y; 
   result->z = z; 
@@ -35,7 +34,8 @@ double FXOS8700CQ_read_accel_mag() {
 
   yield_for(&result.fired);
 
-  // TODO add sqrt 
+  // TODO add sqrt of accel magnitude once software floating point supported in userspace
+  // adding sqrt(...) currently causes crash 
   return (result.x * result.x + result.y * result.y + result.z * result.z);
 }
 

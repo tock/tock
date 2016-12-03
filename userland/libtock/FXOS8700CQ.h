@@ -1,5 +1,4 @@
-#ifndef _FXOS8700CQ_H
-#define _FXOS8700CQ_H
+#pragma once
 
 #include <tock.h>
 
@@ -9,13 +8,14 @@ extern "C" {
 
 #define DRIVER_NUM_FXO 11
 
+// Proivide a callback function for acceleration readings 
 int FXOS8700CQ_subscribe(subscribe_cb callback, void* userdata);
+// Read acceleration and relay to callback function 
 int FXOS8700CQ_start_accel_reading();
-
+// Read square of magnitude of acceleration (blocking)
 double FXOS8700CQ_read_accel_mag();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // _FXOS8700CQ_H

@@ -1,11 +1,13 @@
+//! Driver for the FXOS8700CQ accelerometer - http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf
+//! The driver provides x, y, and z acceleration data to a callback function. 
+//! To use readings from the sensor in userland, see FXOS8700CQ.h in libtock. 
+
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
 
 pub static mut BUF: [u8; 6] = [0; 6];
-
-const DEFAULT_SCALE: u8 = 0x0;
 
 #[allow(dead_code)]
 enum Registers {
@@ -23,32 +25,32 @@ enum Registers {
 
 #[derive(Clone,Copy,PartialEq)]
 enum State {
-    /// Sensor is disabled (but on)
+    /// Sensor does not take acceleration readings
     Disabled,
 
-    /// Reading that sensor is present
+    /// Verifying that sensor is present
     Enabling,
 
-    /// Activate sensor for readings
+    /// Activate sensor to take readings
     Activating,
-
-    /// Deactivate sensor from readings
-    Deactivating(usize, usize, usize),
 
     /// Reading accelerometer data
     ReadingAcceleration,
+
+    /// Deactivate sensor 
+    Deactivating(usize, usize, usize),
 }
 
-pub struct FXOS8700CQ<'a> {
+pub struct Fxos8700cq<'a> {
     i2c: &'a I2CDevice,
     state: Cell<State>,
     buffer: TakeCell<&'static mut [u8]>,
     callback: Cell<Option<Callback>>,
 }
 
-impl<'a> FXOS8700CQ<'a> {
-    pub fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8]) -> FXOS8700CQ<'a> {
-        FXOS8700CQ {
+impl<'a> Fxos8700cq<'a> {
+    pub fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8]) -> Fxos8700cq<'a> {
+        Fxos8700cq {
             i2c: i2c,
             state: Cell::new(State::Enabling),
             buffer: TakeCell::new(buffer),
@@ -66,7 +68,7 @@ impl<'a> FXOS8700CQ<'a> {
     }
 }
 
-impl<'a> I2CClient for FXOS8700CQ<'a> {
+impl<'a> I2CClient for Fxos8700cq<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         match self.state.get() {
             State::Disabled => {
@@ -106,7 +108,7 @@ impl<'a> I2CClient for FXOS8700CQ<'a> {
     }
 }
 
-impl<'a> Driver for FXOS8700CQ<'a> {
+impl<'a> Driver for Fxos8700cq<'a> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 => {
