@@ -39,8 +39,11 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
     fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         let pins = self.pins.as_ref();
         match command_num {
+            // get number of LEDs
+            0 => pins.len() as isize,
+
             // on
-            0 => {
+            1 => {
                 if data >= pins.len() {
                     -1
                 } else {
@@ -53,7 +56,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
             }
 
             // off
-            1 => {
+            2 => {
                 if data >= pins.len() {
                     -1
                 } else {
@@ -66,7 +69,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
             }
 
             // toggle
-            2 => {
+            3 => {
                 if data >= pins.len() {
                     -1
                 } else {
