@@ -1,0 +1,6 @@
+r
+loadbin bootloader/bootloader.bin, 0x0000
+r
+g
+q
+

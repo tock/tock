@@ -1,0 +1,15 @@
+# Makefile for loading applications for the Hail platform
+
+APP_SLOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/storm.py
+APP_FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/flash/storm-flash-app.py
+
+# upload programs over uart with stormloader
+.PHONY: program
+program: $(BUILDDIR)/app.bin
+	$(APP_SLOAD) $(BUILDDIR)/app.bin
+
+# upload programs over JTAG
+.PHONY: flash
+flash: $(BUILDDIR)/app.bin
+	$(APP_FLASH) $(BUILDDIR)/app.bin
+
