@@ -10,6 +10,7 @@ use kernel::common::{RingBuffer, Queue};
 use nvic;
 use spi;
 use usart;
+use trng;
 
 pub struct Sam4l {
     pub mpu: cortexm4::mpu::MPU,
@@ -119,6 +120,8 @@ impl Chip for Sam4l {
 
                     HFLASHC => flashcalw::flash_controller.handle_interrupt(),
                     ADCIFE => adc::ADC.handle_interrupt(),
+
+                    TRNG => trng::TRNG.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);
