@@ -13,3 +13,44 @@ type safety and strict aliasing. Tock uses Rust to protect the kernel (e.g. the
 scheduler and hardware abstraction layer) from platform specific device drivers
 as well as isolate device drivers from each other. Second, Tock uses memory
 protection units to isolate applications from each other and the kernel.
+
+
+Learn More
+----------
+
+How would you like to get started?
+
+### Use Tock
+
+First, follow our [getting started guide](doc/Getting_Started.md) to setup
+your system to compile Tock and Tock applications.
+
+Second, head to the [tutorials](doc/tutorials) to get started running
+apps with TockOS.
+
+
+### Develop Tock
+
+Read our [getting started guide](doc/Getting_Started.md) to get the correct
+version of the Rust compiler, then look through the `/kernel`, `/capsules`,
+`/chips`, and `/boards` directories.
+
+We're happy to accept pull requests and look forward to seeing how Tock grows.
+
+
+### Learn How Tock Works
+
+Both the design and implementation of Tock are documented in the
+[docs](doc) folder. Read through the guides there to learn about the kernel,
+Tock's use of Rust, the build system, and applications.
+
+
+### Keep Up To Date
+
+Check out the [blog](http://www.tockos.org/blog/) where the **Talking Tock**
+post series highlights what's new in Tock. Also, follow
+[@talkingtock](https://twitter.com/talkingtock) on Twitter.
+
+You can also browse our
+[email group](https://groups.google.com/forum/#!forum/tock-dev) to see
+discussions on Tock development.
