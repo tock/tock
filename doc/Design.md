@@ -1,4 +1,5 @@
-% Tock Design
+Tock Design
+===========
 
 Most operating systems provide isolation between components using a process-like
 abstraction: each component is given it's own slice of the system memory (for
@@ -25,7 +26,7 @@ In addition, Tock is designed with other embedded systems-specific goals in
 mind. Tock favors overall reliability of the system and discourages components
 (prevents when possible) from preventing system progress when buggy.
 
-# Architecture
+## Architecture
 
 ![Tock architecture](architecture.png)
 
@@ -53,7 +54,7 @@ general, drivers and virtualization layers are implemented as capsules, while
 applications and complex drivers using existing code/libraries, such as
 networking stacks, are implemented as processes.
 
-## Capsules
+### Capsules
 
 A capsule is a Rust struct and associated functions. Capsules interact with each
 other directly, accessing exposed fields and calling functions in other
@@ -78,7 +79,7 @@ single-threaded event loop as the kernel, they must be trusted for system
 liveness. If a capsule panics, or does not yield back to the event handler, the
 system can only recover by restarting.
 
-## Processes
+### Processes
 
 Processes are independent applications that are isolated from the kernel and run
 with reduced privileges in separate execution threads from the kernel. The
@@ -87,7 +88,7 @@ liveness guarantees than capsules. Moreover, uses hardware protection to enforce
 process isolation at runtime. This allows processes to be written in any
 language and to be safely loaded at runtime.
 
-### Memory Layout
+#### Memory Layout
 
 Processes are isolated from each other, the kernel, and the underlying hardware
 explicitly by the hardware Memory Protection Unit (MPU). The MPU limits which
@@ -103,7 +104,7 @@ nor write. The grant region, discussed in , is needed for the kernel to be able
 to borrow memory from a process in order to ensure liveness and safety in
 response to system calls.
 
-## Grants
+### Grants
 
 Capsules are not allowed to allocate memory dynamically since dynamic
 allocation in the kernel makes it hard to predict if memory will be exhausted.
