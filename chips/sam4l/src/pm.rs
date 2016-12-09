@@ -249,6 +249,10 @@ pub enum SystemClockSource {
     /// Use an external crystal oscillator as the direct source for the
     /// system clock.
     ExternalOscillator,
+
+    /// Use an external crystal oscillator as the input to the internal
+    /// PLL for the system clock. This expects a 16 MHz crystal.
+    ExternalOscillatorPll,
 }
 
 const PM_BASE: usize = 0x400E0000;
@@ -423,6 +427,36 @@ unsafe fn configure_external_oscillator() {
     select_main_clock(MainClock::OSC0);
 }
 
+/// Configure the system clock to use the DFLL with the 16 MHz external crystal.
+unsafe fn configure_external_oscillator_pll() {
+    // Use the cache
+    enable_cache();
+
+    // Need the 32k RC oscillator for things like BPM module and AST.
+    enable_rc32k();
+
+    // Enable the OSC0
+    (*SCIF).unlock.set(0xAA000020);
+    // enable, 557 us startup time, gain level 4 (sortof), is crystal.
+    (*SCIF).oscctrl0.set((1 << 16) | (1 << 8) | (4 << 1) | (1 << 0));
+    // Wait for oscillator to be ready
+    while (*SCIF).pclksr.get() & (1 << 0) == 0 {}
+
+    // Setup the PLL
+    // Enable the PLL0 register
+    (*SCIF).unlock.set(0xAA000024);
+    // Maximum startup time, multiply by 5, divide=1, divide output by 2, enable.
+    (*SCIF).pll0.set((0x3F << 24) | (5 << 16) | (1 << 8) | (1 << 4) | (1 << 0));
+    // Wait for the PLL to be ready
+    while (*SCIF).pclksr.get() & (1 << 6) == 0 {}
+
+    // Go to high speed flash mode
+    enable_high_speed_flash();
+
+    // Set the main clock to be the PLL
+    select_main_clock(MainClock::PLL);
+}
+
 pub unsafe fn setup_system_clock(clock_source: SystemClockSource, frequency: u32) {
     SYSTEM_FREQUENCY.set(frequency);
 
@@ -433,6 +467,10 @@ pub unsafe fn setup_system_clock(clock_source: SystemClockSource, frequency: u32
 
         SystemClockSource::ExternalOscillator => {
             configure_external_oscillator();
+        }
+
+        SystemClockSource::ExternalOscillatorPll => {
+            configure_external_oscillator_pll();
         }
     }
 }
