@@ -77,6 +77,7 @@ pub struct FunctionCall {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 struct LoadInfo {
+    version: u32,
     total_size: u32,
     entry_offset: u32,
     rel_data_offset: u32,
@@ -91,6 +92,34 @@ struct LoadInfo {
     bss_size: u32,
     pkg_name_offset: u32,
     pkg_name_size: u32,
+    checksum: u32,
+}
+
+/// Converts a pointer to memory to a LoadInfo struct
+///
+/// This function takes a pointer to arbitrary memory and Optionally returns a
+/// LoadInfo struct. This function will validate the header checksum, but does
+/// not perform sanity or security checking on the structure
+unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static LoadInfo> {
+    let load_info = &*(address as *const LoadInfo);
+
+    if load_info.version != 1 {
+        return None;
+    }
+
+    let checksum =
+        load_info.version ^ load_info.total_size ^ load_info.entry_offset ^
+        load_info.rel_data_offset ^ load_info.rel_data_size ^ load_info.text_offset ^
+        load_info.text_size ^ load_info.got_offset ^
+        load_info.got_size ^ load_info.data_offset ^ load_info.data_size ^
+        load_info.bss_mem_offset ^ load_info.bss_size ^ load_info.pkg_name_offset ^
+        load_info.pkg_name_size;
+
+    if checksum != load_info.checksum {
+        return None;
+    }
+
+    Some(load_info)
 }
 
 pub struct Process<'a> {
@@ -245,72 +274,75 @@ impl<'a> Process<'a> {
     }
 
     pub unsafe fn create(start_addr: *const u8,
-                         length: usize,
                          memory: &'static mut [u8])
-                         -> Process<'a> {
-        let mut kernel_memory_break = {
-            // make room for container pointers
-            let psz = mem::size_of::<*const usize>();
-            let num_ctrs = read_volatile(&container::CONTAINER_COUNTER);
-            let container_ptrs_size = num_ctrs * psz;
-            let res = memory.as_mut_ptr().offset((memory.len() - container_ptrs_size) as isize);
-            // set all ptrs to null
-            let opts = slice::from_raw_parts_mut(res as *mut *const usize, num_ctrs);
-            for opt in opts.iter_mut() {
-                *opt = ptr::null()
+                         -> (Option<Process<'a>>, u32) {
+        if let Some(load_info) = parse_and_validate_load_info(start_addr) {
+            let mut kernel_memory_break = {
+                // make room for container pointers
+                let psz = mem::size_of::<*const usize>();
+                let num_ctrs = read_volatile(&container::CONTAINER_COUNTER);
+                let container_ptrs_size = num_ctrs * psz;
+                let res = memory.as_mut_ptr().offset((memory.len() - container_ptrs_size) as isize);
+                // set all ptrs to null
+                let opts = slice::from_raw_parts_mut(res as *mut *const usize, num_ctrs);
+                for opt in opts.iter_mut() {
+                    *opt = ptr::null()
+                }
+                res
+            };
+
+            // Take callback buffer from of memory
+            let callback_size = mem::size_of::<Task>();
+            let callback_len = 10;
+            let callback_offset = callback_len * callback_size;
+            // Set kernel break to beginning of callback buffer
+            kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
+            let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task,
+                                                         callback_len);
+
+            let tasks = RingBuffer::new(callback_buf);
+
+            let load_result = load(load_info, start_addr, memory.as_mut_ptr());
+
+            let stack_bottom = load_result.app_mem_start.offset(512);
+
+            let mut process = Process {
+                memory: memory,
+                app_memory_break: stack_bottom,
+                kernel_memory_break: kernel_memory_break,
+                text: slice::from_raw_parts(start_addr, load_info.total_size as usize),
+                cur_stack: stack_bottom,
+                stored_regs: [0; 8],
+                yield_pc: 0,
+                psr: 0x01000000,
+                mpu_regions: [Cell::new((ptr::null(), 0)),
+                              Cell::new((ptr::null(), 0)),
+                              Cell::new((ptr::null(), 0)),
+                              Cell::new((ptr::null(), 0)),
+                              Cell::new((ptr::null(), 0))],
+                pkg_name: load_result.pkg_name,
+                state: State::Yielded,
+                tasks: tasks,
+            };
+
+            if (load_result.init_fn - 1) % 8 != 0 {
+                panic!("{}", (load_result.init_fn - 1) % 8);
             }
-            res
-        };
 
-        // Take callback buffer from of memory
-        let callback_size = mem::size_of::<Task>();
-        let callback_len = 10;
-        let callback_offset = callback_len * callback_size;
-        // Set kernel break to beginning of callback buffer
-        kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
-        let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task,
-                                                     callback_len);
+            process.tasks.enqueue(Task::FunctionCall(FunctionCall {
+                pc: load_result.init_fn,
+                r0: load_result.app_mem_start as usize,
+                r1: process.app_memory_break as usize,
+                r2: process.kernel_memory_break as usize,
+                r3: 0,
+            }));
 
-        let tasks = RingBuffer::new(callback_buf);
+            HAVE_WORK.set(HAVE_WORK.get() + 1);
 
-        let load_result = load(start_addr, memory.as_mut_ptr());
-
-        let stack_bottom = load_result.app_mem_start.offset(512);
-
-        let mut process = Process {
-            memory: memory,
-            app_memory_break: stack_bottom,
-            kernel_memory_break: kernel_memory_break,
-            text: slice::from_raw_parts(start_addr, length),
-            cur_stack: stack_bottom,
-            stored_regs: [0; 8],
-            yield_pc: 0,
-            psr: 0x01000000,
-            mpu_regions: [Cell::new((ptr::null(), 0)),
-                          Cell::new((ptr::null(), 0)),
-                          Cell::new((ptr::null(), 0)),
-                          Cell::new((ptr::null(), 0)),
-                          Cell::new((ptr::null(), 0))],
-            pkg_name: load_result.pkg_name,
-            state: State::Yielded,
-            tasks: tasks,
-        };
-
-        if (load_result.init_fn - 1) % 8 != 0 {
-            panic!("{}", (load_result.init_fn - 1) % 8);
+            (Some(process), load_info.total_size)
+        } else {
+            (None, 0)
         }
-
-        process.tasks.enqueue(Task::FunctionCall(FunctionCall {
-            pc: load_result.init_fn,
-            r0: load_result.app_mem_start as usize,
-            r1: process.app_memory_break as usize,
-            r2: process.kernel_memory_break as usize,
-            r3: 0,
-        }));
-
-        HAVE_WORK.set(HAVE_WORK.get() + 1);
-
-        process
     }
 
     pub fn sbrk(&mut self, increment: isize) -> Result<*const u8, Error> {
@@ -478,9 +510,10 @@ struct LoadResult {
 /// the binary.
 ///
 /// The function returns a `LoadResult` containing metadata about the loaded process.
-unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
-
-    let load_info = &*(start_addr as *const LoadInfo);
+unsafe fn load(load_info: &'static LoadInfo,
+               start_addr: *const u8,
+               mem_base: *mut u8)
+               -> LoadResult {
 
     let mut result = LoadResult {
         pkg_name: slice::from_raw_parts(start_addr.offset(load_info.pkg_name_offset as isize),

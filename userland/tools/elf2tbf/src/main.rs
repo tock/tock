@@ -15,6 +15,7 @@ use std::slice;
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 struct LoadInfo {
+    version: u32,
     total_size: u32,
     entry_offset: u32,
     rel_data_offset: u32,
@@ -29,6 +30,7 @@ struct LoadInfo {
     bss_size: u32,
     pkg_name_offset: u32,
     pkg_name_size: u32,
+    checksum: u32,
 }
 
 fn main() {
@@ -124,17 +126,17 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> i
     let data = get_section(input, ".data");
     let bss = get_section(input, ".bss");
 
-    let mut total_len = (mem::size_of::<LoadInfo>() + rel_data.len() + text.data.len() +
-                         got.data.len() + data.data.len() +
-                         pkg_name.len()) as u32;
+    let mut total_size = (mem::size_of::<LoadInfo>() + rel_data.len() + text.data.len() +
+                          got.data.len() + data.data.len() +
+                          pkg_name.len()) as u32;
 
-    let pad = if total_len.count_ones() > 1 {
-        let power2len = 1 << (32 - total_len.leading_zeros());
-        power2len - total_len
+    let pad = if total_size.count_ones() > 1 {
+        let power2len = 1 << (32 - total_size.leading_zeros());
+        power2len - total_size
     } else {
         0
     };
-    total_len = total_len + pad;
+    total_size = total_size + pad;
 
     let rel_data_offset = mem::size_of::<LoadInfo>() as u32;
     let text_offset = rel_data_offset + (rel_data_size as u32);
@@ -148,7 +150,8 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> i
     let pkg_name_size = pkg_name.len() as u32;
 
     let load_info = LoadInfo {
-        total_size: total_len,
+        version: 1,
+        total_size: total_size,
         entry_offset: entry_offset,
         rel_data_offset: rel_data_offset,
         rel_data_size: rel_data_size as u32,
@@ -162,6 +165,11 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> i
         bss_size: bss.shdr.size as u32,
         pkg_name_offset: pkg_name_offset,
         pkg_name_size: pkg_name_size,
+        checksum: 1 ^ total_size ^ entry_offset ^ rel_data_offset ^ rel_data_size as u32 ^
+                  text_offset ^ text_size ^
+                  got_offset ^ got_size ^ data_offset ^ data_size ^
+                  bss.shdr.addr as u32 ^ bss.shdr.size as u32 ^ pkg_name_offset ^
+                  pkg_name_size,
     };
 
     try!(output.write_all(unsafe { as_byte_slice(&load_info) }));

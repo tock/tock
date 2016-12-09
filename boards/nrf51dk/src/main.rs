@@ -79,15 +79,11 @@ unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'stati
 
     let addr = &_sapps as *const u8;
 
-    // The first member of the LoadInfo header contains the total size of
-    // each process image. A sentinel value of 0 (invalid because it is
-    // smaller than the header itself) is used to mark the end of the list
-    // of processes.
-    let total_size = read_volatile(addr as *const usize);
-    if total_size != 0 {
-        write_volatile(&mut PROCS[0],
-                       Some(kernel::process::Process::create(addr, total_size, &mut MEMORY)));
+    let (process, _) = kernel::process::Process::create(addr, &mut MEMORY);
+    if process.is_some() {
+        write_volatile(&mut PROCS[0], process);
     }
+
     &mut PROCS
 }
 

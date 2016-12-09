@@ -329,24 +329,16 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
 
     let mut addr = &_sapps as *const u8;
     for i in 0..NUM_PROCS {
-        // The first member of the LoadInfo header contains the total size of each process image. A
-        // sentinel value of 0 (invalid because it's smaller than the header itself) is used to
-        // mark the end of the list of processes.
-        let total_size = *(addr as *const usize);
-        if total_size == 0 {
+        let process_pointer = &mut processes[i];
+        let memory = &mut MEMORIES[i];
+        let (process, offset) = kernel::process::Process::create(addr, memory);
+
+        if process.is_none() {
             break;
         }
 
-        let process = &mut processes[i];
-        let memory = &mut MEMORIES[i];
-        *process = Some(kernel::process::Process::create(addr, total_size, memory));
-        // TODO: panic if loading failed?
-
-        addr = addr.offset(total_size as isize);
-    }
-
-    if *(addr as *const usize) != 0 {
-        panic!("Exceeded maximum NUM_PROCS. {:#x}", *(addr as *const usize));
+        *process_pointer = process;
+        addr = addr.offset(offset as isize);
     }
 
     &mut processes
