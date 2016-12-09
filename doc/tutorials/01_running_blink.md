@@ -8,7 +8,7 @@ Setup
 -----
 
 You need to be able to compile and load Tock.
-See the [getting started README](../../README.md) on how to get setup.
+See the [getting started README](../Getting_Started.md) on how to get setup.
 
 You also need hardware that supports Tock.
 
