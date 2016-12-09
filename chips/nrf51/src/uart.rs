@@ -6,6 +6,7 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart;
 use nvic;
 use peripheral_interrupts::NvicIdx;
+use pinmux::Pinmux;
 
 #[repr(C, packed)]
 pub struct Registers {
@@ -35,10 +36,10 @@ pub struct Registers {
     _reserved9: [u32; 31],
     pub enable: VolatileCell<u32>,
     _reserved10: [u32; 1],
-    pub pselrts: VolatileCell<u32>,
-    pub pseltxd: VolatileCell<u32>,
-    pub pselcts: VolatileCell<u32>,
-    pub pselrxd: VolatileCell<u32>,
+    pub pselrts: VolatileCell<Pinmux>,
+    pub pseltxd: VolatileCell<Pinmux>,
+    pub pselcts: VolatileCell<Pinmux>,
+    pub pselrxd: VolatileCell<Pinmux>,
     pub rxd: VolatileCell<u32>,
     pub txd: VolatileCell<u32>,
     _reserved11: [u32; 1],
@@ -82,14 +83,13 @@ impl UART {
         }
     }
 
-    fn configure(&self, baud_rate: u32) {
+    pub fn configure(&self, tx: Pinmux, rx: Pinmux, cts: Pinmux, rts: Pinmux) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        regs.enable.set(0b100);
-        self.set_baud_rate(baud_rate);
-        regs.pselrts.set(8);
-        regs.pseltxd.set(9);
-        regs.pselcts.set(10);
-        regs.pselrxd.set(11);
+
+        regs.pseltxd.set(tx);
+        regs.pselrxd.set(rx);
+        regs.pselcts.set(cts);
+        regs.pselrts.set(rts);
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
@@ -112,6 +112,11 @@ impl UART {
             1000000 => regs.baudrate.set(0x10000000),
             _ => regs.baudrate.set(0x01D7E000), //setting default to 115200
         }
+    }
+
+    pub fn enable(&self) {
+        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        regs.enable.set(0b100);
     }
 
     pub fn enable_nvic(&self) {
@@ -190,7 +195,8 @@ impl uart::UART for UART {
     }
 
     fn init(&self, params: uart::UARTParams) {
-        self.configure(params.baud_rate);
+        self.enable();
+        self.set_baud_rate(params.baud_rate);
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
