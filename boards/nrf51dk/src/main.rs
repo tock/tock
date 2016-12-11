@@ -50,7 +50,7 @@ use kernel::hil::uart::UART;
 use nrf51::pinmux::Pinmux;
 use nrf51::rtc::{RTC, Rtc};
 
-#[macro_use] 
+#[macro_use]
 pub mod io;
 
 // The nRF51 DK LEDs (see back of board)
