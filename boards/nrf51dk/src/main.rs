@@ -37,6 +37,9 @@
 #![no_main]
 #![feature(lang_items)]
 
+#[macro_use]
+pub mod io;
+
 extern crate cortexm0;
 extern crate capsules;
 #[macro_use(static_init)]
@@ -47,7 +50,6 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
 use kernel::hil::uart::UART;
-use nrf51::pinmux::Pinmux;
 use nrf51::rtc::{RTC, Rtc};
 
 // The nRF51 DK LEDs (see back of board)
@@ -172,10 +174,6 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
-    nrf51::uart::UART0.configure(Pinmux::new(9),
-                                 Pinmux::new(11),
-                                 Pinmux::new(10),
-                                 Pinmux::new(8));
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
