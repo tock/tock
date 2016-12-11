@@ -183,8 +183,8 @@ impl UART {
         }
     }
 
-    pub fn send_byte(&self, byte: u8) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+    pub unsafe fn send_byte(&self, byte: u8) {
+        let regs: &mut Registers = mem::transmute(self.regs);
 
         self.index.set(1);
         self.len.set(1);
