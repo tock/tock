@@ -22,11 +22,10 @@ static void button_callback(int btn_num,
 int main(void) {
   button_subscribe(button_callback, NULL);
 
-  // Enable interrupts on each button successively until we run into a button
-  // that doesn't exist (negative return value).
-  int j = 0;
-  for (int i = 0; j >= 0; i++) {
-    j = button_enable_interrupt(i);
+  // Enable interrupts on each button.
+  int count = button_count();
+  for (int i = 0; i < count; i++) {
+    button_enable_interrupt(i);
   }
 
   return 0;
