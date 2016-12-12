@@ -2,7 +2,7 @@
 
 #include "tock.h"
 
-#define DRIVER_NUM_I2CMASTERSLAVE 12
+#define DRIVER_NUM_I2CMASTERSLAVE 13
 
 #define CB_SLAVE_READ_REQUEST   2
 #define CB_SLAVE_READ_COMPLETE  4
