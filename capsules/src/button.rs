@@ -52,8 +52,10 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
     fn command(&self, command_num: usize, data: usize, appid: AppId) -> isize {
         let pins = self.pins.as_ref();
         match command_num {
+            // return pin count
+            0 => pins.len() as isize,
             // enable interrupts on pin
-            0 => {
+            1 => {
                 if data < pins.len() {
                     self.callback
                         .enter(appid, |cntr, _| {
@@ -68,7 +70,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
 
             // disable interrupts on pin
             // (no affect or reliance on registered callback)
-            1 => {
+            2 => {
                 if data >= pins.len() {
                     -2
                 } else {
@@ -82,7 +84,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
             }
 
             // read input
-            2 => {
+            3 => {
                 if data >= pins.len() {
                     -1
                 } else {
