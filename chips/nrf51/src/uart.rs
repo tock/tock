@@ -183,6 +183,24 @@ impl UART {
         }
     }
 
+    pub unsafe fn send_byte(&self, byte: u8) {
+        let regs: &mut Registers = mem::transmute(self.regs);
+
+        self.index.set(1);
+        self.len.set(1);
+
+        regs.event_txdrdy.set(0);
+        self.enable_tx_interrupts();
+        regs.task_starttx.set(1);
+        regs.txd.set(byte as u32);
+        self.enable_nvic();
+    }
+
+    pub fn tx_ready(&self) -> bool {
+        let regs: &Registers = unsafe { mem::transmute(self.regs) };
+        regs.event_txdrdy.get() & 0b1 != 0
+    }
+
     fn rx_ready(&self) -> bool {
         let regs: &Registers = unsafe { mem::transmute(self.regs) };
         regs.event_rxdrdy.get() & 0b1 != 0
