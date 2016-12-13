@@ -104,4 +104,5 @@ endif
 
 #########################################################################################
 # Include dependency rules for picking up header changes (by convention at bottom of makefile)
--include $(OBJS:.o=.d)
+OBJS_NO_ARCHIVES=$(filter %.o,$(OBJS))
+-include $(OBJS_NO_ARCHIVES:.o=.d)
