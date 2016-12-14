@@ -97,5 +97,21 @@ functionality that is handled by the kernel. `command`, `subscribe`, and
 
 ## Allocated Driver Numbers
 
- * Point to a separate document
+| Driver Number | Driver           | Description                                |
+|---------------|------------------|--------------------------------------------|
+| 0             | Console          | UART console                               |
+| 1             | GPIO             |                                            |
+| 2             | TMP006           | Temperature sensor                         |
+| 3             | Timer            |                                            |
+| 4             | SPI              | Raw SPI interface                          |
+| 5             | nRF51822         | nRF serialization link to nRF51822 BLE SoC |
+| 6             | ISL29035         | Light sensor                               |
+| 7             | ADC              |                                            |
+| 8             | LED              |                                            |
+| 9             | Button           |                                            |
+| 10            | SI7021           | Temperature sensor                         |
+| 11            | FXOS8100CQ       | Accelerometer                              |
+| 12            | TSL2561          | Light sensor                               |
+| 13            | I2C Master/Slave | Raw I2C interface                          |
+| 255           | IPC              | Inter-process communication                |
 
