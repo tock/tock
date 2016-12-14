@@ -4,6 +4,7 @@ use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
+use kernel::hil::time::{self, Frequency};
 
 pub static mut BUF: [u8; 3] = [0; 3];
 
@@ -11,21 +12,24 @@ pub static mut BUF: [u8; 3] = [0; 3];
 enum State {
     Disabled,
     Enabling,
+    Integrating,
     ReadingLI,
     Disabling(usize),
 }
 
-pub struct Isl29035<'a> {
+pub struct Isl29035<'a, A: time::Alarm + 'a> {
     i2c: &'a I2CDevice,
+    alarm: &'a A,
     state: Cell<State>,
     buffer: TakeCell<&'static mut [u8]>,
     callback: Cell<Option<Callback>>,
 }
 
-impl<'a> Isl29035<'a> {
-    pub fn new(i2c: &'a I2CDevice, buffer: &'static mut [u8]) -> Isl29035<'a> {
+impl<'a, A: time::Alarm + 'a> Isl29035<'a, A> {
+    pub fn new(i2c: &'a I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> Isl29035<'a, A> {
         Isl29035 {
             i2c: i2c,
+            alarm: alarm,
             state: Cell::new(State::Disabled),
             buffer: TakeCell::new(buffer),
             callback: Cell::new(None),
@@ -56,7 +60,7 @@ impl<'a> Isl29035<'a> {
     }
 }
 
-impl<'a> Driver for Isl29035<'a> {
+impl<'a, A: time::Alarm + 'a> Driver for Isl29035<'a, A> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
         match subscribe_num {
             0 => {
@@ -78,14 +82,34 @@ impl<'a> Driver for Isl29035<'a> {
     }
 }
 
-impl<'a> I2CClient for Isl29035<'a> {
+impl<'a, A: time::Alarm + 'a> time::Client for Isl29035<'a, A> {
+    fn fired(&self) {
+        self.buffer.take().map(|buffer| {
+            // Turn on i2c to send commands.
+            self.i2c.enable();
+
+            buffer[0] = 0x02 as u8;
+            self.i2c.write_read(buffer, 1, 2);
+            self.state.set(State::ReadingLI);
+        });
+    }
+}
+
+impl<'a, A: time::Alarm + 'a> I2CClient for Isl29035<'a, A> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: Error) {
         // TODO(alevy): handle I2C errors
         match self.state.get() {
             State::Enabling => {
-                buffer[0] = 0x02 as u8;
-                self.i2c.write_read(buffer, 1, 2);
-                self.state.set(State::ReadingLI);
+                // Set a timer to wait for the conversion to be done.
+                // For 8 bits, thats 410 us (per Table 11 in the datasheet).
+                let interval = (410 as u32) * <A::Frequency>::frequency() / 1000000;
+                let tics = self.alarm.now().wrapping_add(interval);
+                self.alarm.set_alarm(tics);
+
+                // Now wait for timer to expire
+                self.buffer.replace(buffer);
+                self.i2c.disable();
+                self.state.set(State::Integrating);
             }
             State::ReadingLI => {
                 // During configuration we set the ADC resolution to 8 bits and
