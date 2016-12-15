@@ -82,7 +82,9 @@ struct Firestorm {
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     tmp006: &'static capsules::tmp006::TMP006<'static>,
-    isl29035: &'static capsules::isl29035::Isl29035<'static>,
+    isl29035: &'static capsules::isl29035::Isl29035<'static,
+                                                    VirtualMuxAlarm<'static,
+                                                                    sam4l::ast::Ast<'static>>>,
     spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
@@ -266,11 +268,19 @@ pub unsafe fn reset_handler() {
 
     // Configure the ISL29035, device address 0x44
     let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x44), 32);
+    let isl29035_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm),
+        192/8);
     let isl29035 = static_init!(
-        capsules::isl29035::Isl29035<'static>,
-        capsules::isl29035::Isl29035::new(isl29035_i2c, &mut capsules::isl29035::BUF),
-        36);
+        capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        capsules::isl29035::Isl29035::new(
+            isl29035_i2c,
+            isl29035_virtual_alarm,
+            &mut capsules::isl29035::BUF),
+        320/8);
     isl29035_i2c.set_client(isl29035);
+    isl29035_virtual_alarm.set_client(isl29035);
 
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
