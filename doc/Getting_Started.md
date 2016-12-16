@@ -43,18 +43,18 @@ missing ARM intrinsics (e.g., `__aeabi_memclr`).
 
 ##### Mac OS X
 
-With [MacPorts](https://www.macports.org/):
-
-```bash
-$ port install arm-none-eabi-gcc
-```
-
-or with [Homebrew](http://brew.sh/):
+With [Homebrew](http://brew.sh/) (preferred):
 
 ```bash
 $ brew tap ARMmbed/homebrew-formulae
 $ brew update
 $ brew install arm-none-eabi-gcc
+```
+
+or with [MacPorts](https://www.macports.org/):
+
+```bash
+$ port install arm-none-eabi-gcc
 ```
 
 ##### Linux
