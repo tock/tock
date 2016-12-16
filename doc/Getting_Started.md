@@ -52,9 +52,9 @@ $ port install arm-none-eabi-gcc
 or with [Homebrew](http://brew.sh/):
 
 ```bash
-$ brew tap PX4/homebrew-px4
+$ brew tap ARMmbed/homebrew-formulae
 $ brew update
-$ brew install gcc-arm-none-eabi
+$ brew install arm-none-eabi-gcc
 ```
 
 ##### Linux
