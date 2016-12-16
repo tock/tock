@@ -1,15 +1,17 @@
 # Makefile for loading applications for the Hail platform
 
-APP_SLOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/storm.py
+APP_TOCKLOADER = tockloader
 APP_FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/flash/storm-flash-app.py
 
-# upload programs over uart with stormloader
+# Location in flash on the SAM4L to put applications
+APP_ADDRESS = 0x30000
+
+# Upload programs over UART with tockloader
 .PHONY: program
 program: $(BUILDDIR)/app.bin
-	$(APP_SLOAD) $(BUILDDIR)/app.bin
+	$(APP_TOCKLOADER) flash --address $(APP_ADDRESS) $(BUILDDIR)/app.bin
 
-# upload programs over JTAG
+# Upload programs over JTAG
 .PHONY: flash
 flash: $(BUILDDIR)/app.bin
 	$(APP_FLASH) $(BUILDDIR)/app.bin
-

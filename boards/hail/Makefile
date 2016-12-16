@@ -1,12 +1,6 @@
 # Makefile for building the tock kernel for the Hail platform
 
-SLOAD=sload
-SDB=$(TOCK_BUILD_DIR)/kernel.sdb
-SDB_MAINTAINER=$(shell whoami)
-SDB_VERSION=$(shell git show-ref -s HEAD)
-SDB_NAME=hail.rs
-SDB_DESCRIPTION="An OS for the Hail IoT module"
-
+TOCKLOADER=tockloader
 SIZE?=arm-none-eabi-size
 OBJCOPY?=arm-none-eabi-objcopy
 OBJDUMP?=arm-none-eabi-objdump
@@ -14,52 +8,56 @@ OBJDUMP_FLAGS+= --disassemble-all --source --disassembler-options=force-thumb -C
 
 JLINK=JLinkExe
 JLINK_OPTIONS+=-device ATSAM4LC8C -if swd -speed 1200 -AutoConnect 1
-JLINK_SCRIPTS_DIR=jtag/
+JLINK_SCRIPTS_DIR =jtag/
 
 PLATFORM=hail
 
+# Where in the SAM4L flash to load the kernel with `tockloader`
+KERNEL_ADDRESS=0x10000
+
 .PHONY: all
-all: target/sam4l/release/$(PLATFORM) target/sam4l/release/$(PLATFORM).bin
+all: target/sam4l/release/$(PLATFORM).bin
 
 .PHONY: doc
 doc:
 	@cargo doc --release --target=sam4l.json
 
-.PHONY: target/sam4l/release/$(PLATFORM)
-target/sam4l/release/$(PLATFORM):
+.PHONY: target/sam4l/release/$(PLATFORM).elf
+target/sam4l/release/$(PLATFORM).elf:
 	@cargo build --release --target=sam4l.json
+	@mv target/sam4l/release/$(PLATFORM) target/sam4l/release/$(PLATFORM).elf
 	@$(SIZE) $@
 
-.PHONY: target/sam4l/debug/$(PLATFORM)
-target/sam4l/debug/$(PLATFORM):
+.PHONY: target/sam4l/debug/$(PLATFORM).elf
+target/sam4l/debug/$(PLATFORM).elf:
 	@cargo build --target=sam4l.json
+	@mv target/sam4l/debug/$(PLATFORM) target/sam4l/debug/$(PLATFORM).elf
 	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/sam4l/debug/$(PLATFORM).lst
 	@$(SIZE) $@
 
-target/sam4l/release/$(PLATFORM).sdb: target/sam4l/release/$(PLATFORM)
-	@tput bold ; echo "Packing SDB..." ; tput sgr0
-	@$(SLOAD) pack -m "$(SDB_MAINTAINER)" -v "$(SDB_VERSION)" -n "$(SDB_NAME)" -d $(SDB_DESCRIPTION) -o $@ $<
-
-target/sam4l/release/$(PLATFORM).hex: target/sam4l/release/$(PLATFORM)
+target/sam4l/release/$(PLATFORM).hex: target/sam4l/release/$(PLATFORM).elf
 	@$(OBJCOPY) -Oihex $^ $@
 
-target/sam4l/release/$(PLATFORM).bin: target/sam4l/release/$(PLATFORM)
+target/sam4l/debug/$(PLATFORM).hex: target/sam4l/debug/$(PLATFORM).elf
+	@$(OBJCOPY) -Oihex $^ $@
+
+target/sam4l/release/$(PLATFORM).bin: target/sam4l/release/$(PLATFORM).elf
 	@$(OBJCOPY) -Obinary $^ $@
 
-target/sam4l/debug/$(PLATFORM).hex: target/sam4l/debug/$(PLATFORM)
-	@$(OBJCOPY) -Oihex $^ $@
+target/sam4l/debug/$(PLATFORM).bin: target/sam4l/debug/$(PLATFORM).elf
+	@$(OBJCOPY) -Obinary $^ $@
 
 .PHONY: clean
 clean::
 	@cargo clean
 
 .PHONY: debug
-debug: target/sam4l/debug/$(PLATFORM)
+debug: target/sam4l/debug/$(PLATFORM).elf
 
 # upload programs over uart with $(PLATFORM)loader
 .PHONY: program
-program: target/sam4l/release/$(PLATFORM).sdb
-	$(SLOAD) flash $<
+program: target/sam4l/release/$(PLATFORM).bin
+	$(TOCKLOADER) flash --address $(KERNEL_ADDRESS) $<
 
 # upload kernel over JTAG
 .PHONY: flash

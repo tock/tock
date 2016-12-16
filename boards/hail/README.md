@@ -10,9 +10,27 @@ It is programmable over USB, uses BLE for wireless, includes
 temperature, humidity, and light sensors, and has an onboard accelerometer.
 Further, it conforms to the Particle Photon form-factor.
 
-Programming the kernel and apps
-------------------
+Setup
+-----
+
+Programming Hail over USB requires the `tockloader` utility. To install:
+
+    sudo pip3 install tockloader
+
+
+Programming the Tock Kernel and Apps
+------------------------------------
+
+To program the kernel for Hail:
 
 ```bash
+cd tock/boards/hail
 make program
+```
+
+To program an application:
+
+```bash
+cd tock/userland/examples/blink
+make TOCK_BOARD=hail program
 ```
