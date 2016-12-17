@@ -327,13 +327,11 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(),
     };
 
-    // // Configure USART2 Pins for connection to nRF51822
-    // // NOTE: the SAM RTS pin is not working for some reason. Our hypothesis is
-    // //  that it is because RX DMA is not set up. For now, just having it always
-    // //  enabled works just fine
-    // sam4l::gpio::PC[07].enable();
-    // sam4l::gpio::PC[07].enable_output();
-    // sam4l::gpio::PC[07].clear();
+    // Need to reset the nRF on boot
+    sam4l::gpio::PA[17].enable();
+    sam4l::gpio::PA[17].enable_output();
+    sam4l::gpio::PA[17].clear();
+    sam4l::gpio::PA[17].set();
 
     hail.console.initialize();
     hail.nrf51822.initialize();
