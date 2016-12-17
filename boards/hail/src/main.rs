@@ -148,8 +148,8 @@ unsafe fn set_pin_primary_functions() {
     PB[03].configure(Some(A)); // A3 - ADC4
     PB[04].configure(Some(A)); // A4 - ADC5
     PB[05].configure(Some(A)); // A5 - ADC6
-    PB[06].configure(Some(A)); // NRF_RTS - USART3 RTS
-    PB[07].configure(Some(A)); // NRF_CTS - USART3 CTS
+    PB[06].configure(Some(A)); // NRF_CTS - USART3 RTS
+    PB[07].configure(Some(A)); // NRF_RTS - USART3 CTS
     PB[08].configure(None);    // NRF_INT - Interrupt line nRF->SAM4L
     PB[09].configure(Some(A)); // NRF_OUT - USART3 RXD
     PB[10].configure(Some(A)); // NRF_IN - USART3 TXD
