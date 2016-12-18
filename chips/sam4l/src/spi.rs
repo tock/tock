@@ -65,9 +65,9 @@ pub struct Spi {
     client: TakeCell<&'static SpiMasterClient>,
     dma_read: TakeCell<&'static mut DMAChannel>,
     dma_write: TakeCell<&'static mut DMAChannel>,
-    // keep track of which interrupts are pending in order
-    // to correctly issue completion event only after both complete.
-    transfer_in_progress: Cell<bool>,
+    // keep track of which how many DMA transfers are pending to correctly
+    // issue completion event only after both complete.
+    transfers_in_progress: Cell<u8>,
     dma_length: Cell<usize>,
 }
 
@@ -81,7 +81,7 @@ impl Spi {
             client: TakeCell::empty(),
             dma_read: TakeCell::empty(),
             dma_write: TakeCell::empty(),
-            transfer_in_progress: Cell::new(false),
+            transfers_in_progress: Cell::new(0),
             dma_length: Cell::new(0),
         }
     }
@@ -106,7 +106,7 @@ impl Spi {
     /// Sets the approximate baud rate for the active peripheral,
     /// and return the actual baud rate set.
     ///
-    /// Since the only supported baud rates are 48 MHz / n where n
+    /// Since the only supported baud rates are (system clock / n) where n
     /// is an integer from 1 to 255, the exact baud rate may not
     /// be available. In that case, the next lower baud rate will
     /// be selected.
@@ -116,7 +116,7 @@ impl Spi {
     pub fn set_baud_rate(&self, rate: u32) -> u32 {
         // Main clock frequency
         let mut real_rate = rate;
-        let clock = 48000000;
+        let clock = unsafe { pm::get_system_frequency() };
 
         if real_rate < 188235 {
             real_rate = 188235;
@@ -233,7 +233,6 @@ impl spi::SpiMaster for Spi {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
         self.enable_clock();
-
         regs.cr.set(1 << 24);
 
         let mut mode = regs.mr.get();
@@ -243,7 +242,7 @@ impl spi::SpiMaster for Spi {
     }
 
     fn is_busy(&self) -> bool {
-        self.transfer_in_progress.get()
+        self.transfers_in_progress.get() != 0
     }
 
     /// Write a byte to the SPI and discard the read; if an
@@ -251,9 +250,10 @@ impl spi::SpiMaster for Spi {
     fn write_byte(&self, out_byte: u8) {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
-        if self.transfer_in_progress.get() {
+        if self.is_busy() {
             //           return;
         }
+
         let tdr = out_byte as u32;
         // Wait for data to leave TDR and enter serializer, so TDR is free
         // for this next byte
@@ -272,7 +272,7 @@ impl spi::SpiMaster for Spi {
     fn read_write_byte(&self, val: u8) -> u8 {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
-        if self.transfer_in_progress.get() {
+        if self.is_busy() {
             //          return 0;
         }
         self.write_byte(val);
@@ -298,12 +298,12 @@ impl spi::SpiMaster for Spi {
         self.enable();
 
         // If busy, don't start.
-        if self.transfer_in_progress.get() {
+        if self.is_busy() {
             return false;
         }
 
-        // Need to mark busy
-        self.transfer_in_progress.set(true);
+        // We will have at least a write transfer in progress
+        self.transfers_in_progress.set(1);
 
         let read_len = match read_buffer {
             Some(ref buf) => buf.len(),
@@ -329,6 +329,7 @@ impl spi::SpiMaster for Spi {
         // Only setup the RX channel if we were passed a read_buffer inside
         // of the option. `map()` checks this for us.
         read_buffer.map(|rbuf| {
+            self.transfers_in_progress.set(2);
             self.dma_read.map(move |read| {
                 read.enable();
                 read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
@@ -407,15 +408,17 @@ impl spi::SpiMaster for Spi {
 }
 
 impl DMAClient for Spi {
-    fn xfer_done(&self, pid: DMAPeripheral) {
-        // We ignore the RX interrupt because we are guaranteed to have TX
-        // DMA setup, but there's no guarantee RX will exist. In the case
-        // both are happening, just using TX is sufficient because SPI
-        // is full duplex.
-        if pid == DMAPeripheral::SPI_TX {
-            // SPI TX
-            self.transfer_in_progress.set(false);
+    fn xfer_done(&self, _pid: DMAPeripheral) {
+        // Only callback that the transfer is done if either:
+        // 1) The transfer was TX only and TX finished
+        // 2) The transfer was TX and RX, in that case wait for both of them to complete. Although
+        //    both transactions happen simultaneously over the wire, the DMA may not finish copying
+        //    data over to/from the controller at the same time, so we don't want to abort
+        //    prematurely.
 
+        self.transfers_in_progress.set(self.transfers_in_progress.get() - 1);
+
+        if self.transfers_in_progress.get() == 0 {
             let txbuf = self.dma_write.map_or(None, |dma| {
                 let buf = dma.abort_xfer();
                 dma.disable();

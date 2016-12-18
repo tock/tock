@@ -10,7 +10,10 @@
 // Callback for button presses.
 //   btn_num: The index of the button associated with the callback
 //   val: 0 if pressed, 1 if depressed
-static void button_callback(int btn_num, int val, int arg2, void *ud) {
+static void button_callback(int btn_num,
+                            int val,
+                            __attribute__ ((unused)) int arg2,
+                            __attribute__ ((unused)) void *ud) {
   if (val == 0) {
     led_toggle(btn_num);
   }
@@ -19,13 +22,11 @@ static void button_callback(int btn_num, int val, int arg2, void *ud) {
 int main(void) {
   button_subscribe(button_callback, NULL);
 
-  // Enable interrupts on each button successively until we run into a button
-  // that doesn't exist (negative return value).
-  int j = 0;
-  for (int i = 0; j >= 0; i++) {
-    j = button_enable_interrupt(i);
+  // Enable interrupts on each button.
+  int count = button_count();
+  for (int i = 0; i < count; i++) {
+    button_enable_interrupt(i);
   }
 
   return 0;
 }
-

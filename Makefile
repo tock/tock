@@ -26,8 +26,10 @@ flash: boards/$(TOCK_BOARD)/
 	$(MAKE) flash -C $<
 
 fmt format:
-	./tools/run_cargo_fmt.sh
+	@./tools/run_cargo_fmt.sh
 
+list list-boards list-platforms:
+	@./tools/list_boards.sh
 
 # rule for making userland example applications
 # 	automatically upload after making

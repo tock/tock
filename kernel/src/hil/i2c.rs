@@ -1,7 +1,7 @@
 use core::fmt::{Display, Formatter, Result};
 
 /// The type of error encoutered during an I2C command transmission.
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug,Eq,PartialEq)]
 pub enum Error {
     /// The slave did not acknowledge the chip address. Most likely the address
     /// is incorrect or the slave is not properly connected.

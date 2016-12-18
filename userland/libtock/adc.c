@@ -35,6 +35,7 @@ int adc_single_sample(uint8_t channel) {
 int adc_read_single_sample(uint8_t channel) {
   int err;
 
+  result.fired = false;
   err = adc_set_callback(adc_cb, (void*) &result);
   if (err < 0) return err;
 

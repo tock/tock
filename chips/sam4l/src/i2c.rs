@@ -198,21 +198,30 @@ impl I2CHw {
     /// Set the clock prescaler and the time widths of the I2C signals
     /// in the CWGR register to make the bus run at a particular I2C speed.
     fn set_bus_speed(&self) {
+        // Set I2C waveform timing parameters based on ASF code
+        let system_frequency = unsafe { pm::get_system_frequency() };
+        let mut exp = 0;
+        let mut f_prescaled = system_frequency / 400000 / 2;
+        while (f_prescaled > 0xff) && (exp <= 0x7) {
+            // Increase the prescale factor, and update our frequency
+            exp += 1;
+            f_prescaled /= 2;
+        }
 
-        // These parameters are copied from the Michael's TinyOS implementation. Are they correct?
-        // Who knows... Michael probably knows. We were originally copying the parameters from the
-        // Atmel Software Framework, but those parameters didn't agree with the accelerometer and
-        // nearly burned my fingers. Michael's parameters seem to work without danger of injury.
-        //
-        // Ultimately we should understand what the heck these parameters actually mean and either
-        // confirm them or replace them. They almost certainly depend on the clock speed of the
-        // CPU, so we'll need to change them if we change the CPU clock speed.
-        let (exp, data, stasto, high, low) = (3, 4, 10, 10, 10);
+        // Check that we have a valid setting
+        if exp > 0x7 {
+            panic!("Cannot setup I2C waveform timing with given system clock.");
+        }
+
+        let low = f_prescaled / 2;
+        let high = f_prescaled - low;
+        let data = 0;
+        let stasto = f_prescaled;
 
         let cwgr = ((exp & 0x7) << 28) | ((data & 0xF) << 24) | ((stasto & 0xFF) << 16) |
                    ((high & 0xFF) << 8) | ((low & 0xFF) << 0);
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
-        write_volatile(&mut regs.clock_waveform_generator, cwgr);
+        write_volatile(&mut regs.clock_waveform_generator, cwgr as usize);
     }
 
     pub fn set_dma(&self, dma: &'static DMAChannel) {

@@ -1,9 +1,10 @@
 use callback::AppId;
-use common::{RingBuffer, Queue};
+use common::{RingBuffer, Queue, VolatileCell};
 
 use container;
 use core::{mem, ptr, slice};
-use core::intrinsics::breakpoint;
+use core::cell::Cell;
+use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile};
 
 #[no_mangle]
@@ -11,12 +12,15 @@ pub static mut SYSCALL_FIRED: usize = 0;
 
 #[allow(improper_ctypes)]
 extern "C" {
-    pub fn switch_to_user(user_stack: *const u8, mem_base: *const u8) -> *mut u8;
+    pub fn switch_to_user(user_stack: *const u8,
+                          mem_base: *const u8,
+                          process_regs: &mut [usize; 8])
+                          -> *mut u8;
 }
 
 pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
 
-pub fn schedule(callback: Callback, appid: AppId) -> bool {
+pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
     let procs = unsafe { &mut PROCS };
     let idx = appid.idx();
     if idx >= procs.len() {
@@ -27,8 +31,11 @@ pub fn schedule(callback: Callback, appid: AppId) -> bool {
         None => false,
         Some(ref mut p) => {
             // TODO(alevy): validate appid liveness
+            unsafe {
+                HAVE_WORK.set(HAVE_WORK.get() + 1);
+            }
 
-            p.callbacks.enqueue(callback)
+            p.tasks.enqueue(Task::FunctionCall(callback))
         }
     }
 }
@@ -46,9 +53,20 @@ pub enum State {
     Yielded,
 }
 
+#[derive(Copy, Clone)]
+pub enum IPCType {
+    Service,
+    Client,
+}
 
-#[derive(Copy,Clone,Debug)]
-pub struct Callback {
+#[derive(Copy, Clone)]
+pub enum Task {
+    FunctionCall(FunctionCall),
+    IPC((AppId, IPCType)),
+}
+
+#[derive(Copy, Clone)]
+pub struct FunctionCall {
     pub r0: usize,
     pub r1: usize,
     pub r2: usize,
@@ -57,16 +75,22 @@ pub struct Callback {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Debug)]
 struct LoadInfo {
-    total_size: usize, // Total padded size of the program image
-    rel_data_size: usize,
-    entry_loc: usize, // Entry point for user application
-    init_data_loc: usize, // Data initialization information in flash
-    init_data_size: usize, // Size of initialization information
-    got_start_offset: usize, // Offset to start of GOT
-    got_end_offset: usize, // Offset to end of GOT
-    bss_start_offset: usize, // Offset to start of BSS
-    bss_end_offset: usize, // Offset to end of BSS
+    total_size: u32,
+    entry_offset: u32,
+    rel_data_offset: u32,
+    rel_data_size: u32,
+    text_offset: u32,
+    text_size: u32,
+    got_offset: u32,
+    got_size: u32,
+    data_offset: u32,
+    data_size: u32,
+    bss_mem_offset: u32,
+    bss_size: u32,
+    pkg_name_offset: u32,
+    pkg_name_size: u32,
 }
 
 pub struct Process<'a> {
@@ -82,15 +106,80 @@ pub struct Process<'a> {
     /// The offset in `memory` to use for the process stack.
     cur_stack: *const u8,
 
+    stored_regs: [usize; 8],
+
     yield_pc: usize,
     psr: usize,
 
-    pub state: State,
+    state: State,
 
-    pub callbacks: RingBuffer<'a, Callback>,
+    /// MPU regions are saved as a pointer-size pair.
+    ///
+    /// size is encoded as X where
+    /// SIZE = 2^(X + 1) and X >= 4.
+    ///
+    /// A null pointer represents an empty region.
+    ///
+    /// # Invariants
+    ///
+    /// The pointer must be aligned to the size. E.g. if the size is 32 bytes, the pointer must be
+    /// 32-byte aligned.
+    ///
+    mpu_regions: [Cell<(*const u8, usize)>; 5],
+
+    tasks: RingBuffer<'a, Task>,
+
+    pub pkg_name: &'static [u8],
+}
+
+fn closest_power_of_two(mut num: u32) -> u32 {
+    num -= 1;
+    num |= num >> 1;
+    num |= num >> 2;
+    num |= num >> 4;
+    num |= num >> 8;
+    num |= num >> 16;
+    num += 1;
+    num
+}
+
+// Stores the current number of callbacks enqueued + processes in Running state
+static mut HAVE_WORK: VolatileCell<usize> = VolatileCell::new(0);
+
+pub fn processes_blocked() -> bool {
+    unsafe { HAVE_WORK.get() == 0 }
 }
 
 impl<'a> Process<'a> {
+    pub fn schedule_ipc(&mut self, from: AppId, cb_type: IPCType) {
+        unsafe {
+            HAVE_WORK.set(HAVE_WORK.get() + 1);
+        }
+        self.tasks.enqueue(Task::IPC((from, cb_type)));
+    }
+
+    pub fn current_state(&self) -> State {
+        self.state
+    }
+
+    pub fn yield_state(&mut self) {
+        if self.state == State::Running {
+            self.state = State::Yielded;
+            unsafe {
+                HAVE_WORK.set(HAVE_WORK.get() - 1);
+            }
+        }
+    }
+
+    pub fn dequeue_task(&mut self) -> Option<Task> {
+        self.tasks.dequeue().map(|cb| {
+            unsafe {
+                HAVE_WORK.set(HAVE_WORK.get() - 1);
+            }
+            cb
+        })
+    }
+
     pub fn mem_start(&self) -> *const u8 {
         self.memory.as_ptr()
     }
@@ -99,13 +188,60 @@ impl<'a> Process<'a> {
         unsafe { self.memory.as_ptr().offset(self.memory.len() as isize) }
     }
 
-    pub fn memory_regions(&self) -> (usize, usize, usize, usize) {
+    pub fn setup_mpu(&self, mpu: &::platform::MPU) {
         let data_start = self.memory.as_ptr() as usize;
         let data_len = 12;
 
         let text_start = self.text.as_ptr() as usize;
-        let text_len = ((32 - self.text.len().leading_zeros()) - 2) as usize;
-        (data_start, data_len, text_start, text_len)
+        let text_len = ((32 - self.text.len().leading_zeros()) - 2) as u32;
+
+        let mut grant_size = unsafe {
+            self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
+            (self.kernel_memory_break as u32)
+        };
+        grant_size = closest_power_of_two(grant_size);
+        let grant_base = unsafe {
+            self.memory
+                .as_ptr()
+                .offset(self.memory.len() as isize)
+                .offset(-(grant_size as isize))
+        };
+        let mgrant_size = grant_size.trailing_zeros() - 1;
+
+        // Data segment read/write/execute
+        mpu.set_mpu(0, data_start as u32, data_len, true, 0b011);
+        // Text segment read/execute (no write)
+        mpu.set_mpu(1, text_start as u32, text_len, true, 0b111);
+
+        // Disallow access to grant region
+        mpu.set_mpu(2, grant_base as u32, mgrant_size, false, 0b001);
+
+        for (i, region) in self.mpu_regions.iter().enumerate() {
+            mpu.set_mpu((i + 3) as u32,
+                        region.get().0 as u32,
+                        region.get().1 as u32,
+                        true,
+                        0b011);
+        }
+    }
+
+
+    pub fn add_mpu_region(&self, base: *const u8, size: usize) -> bool {
+        if size >= 16 && size.count_ones() == 1 && (base as usize) % size == 0 {
+            let mpu_size = (size.trailing_zeros() - 1) as usize;
+            for region in self.mpu_regions.iter() {
+                if region.get().0 == ptr::null() {
+                    region.set((base, mpu_size));
+                    return true;
+                } else if region.get().0 == base {
+                    if region.get().1 < mpu_size {
+                        region.set((base, mpu_size));
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     pub unsafe fn create(start_addr: *const u8,
@@ -127,15 +263,15 @@ impl<'a> Process<'a> {
         };
 
         // Take callback buffer from of memory
-        let callback_size = mem::size_of::<Option<Callback>>();
+        let callback_size = mem::size_of::<Task>();
         let callback_len = 10;
         let callback_offset = callback_len * callback_size;
         // Set kernel break to beginning of callback buffer
         kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
-        let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Callback,
+        let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task,
                                                      callback_len);
 
-        let callbacks = RingBuffer::new(callback_buf);
+        let tasks = RingBuffer::new(callback_buf);
 
         let load_result = load(start_addr, memory.as_mut_ptr());
 
@@ -147,19 +283,32 @@ impl<'a> Process<'a> {
             kernel_memory_break: kernel_memory_break,
             text: slice::from_raw_parts(start_addr, length),
             cur_stack: stack_bottom,
+            stored_regs: [0; 8],
             yield_pc: 0,
             psr: 0x01000000,
+            mpu_regions: [Cell::new((ptr::null(), 0)),
+                          Cell::new((ptr::null(), 0)),
+                          Cell::new((ptr::null(), 0)),
+                          Cell::new((ptr::null(), 0)),
+                          Cell::new((ptr::null(), 0))],
+            pkg_name: load_result.pkg_name,
             state: State::Yielded,
-            callbacks: callbacks,
+            tasks: tasks,
         };
 
-        process.callbacks.enqueue(Callback {
+        if (load_result.init_fn - 1) % 8 != 0 {
+            panic!("{}", (load_result.init_fn - 1) % 8);
+        }
+
+        process.tasks.enqueue(Task::FunctionCall(FunctionCall {
             pc: load_result.init_fn,
             r0: load_result.app_mem_start as usize,
             r1: process.app_memory_break as usize,
             r2: process.kernel_memory_break as usize,
             r3: 0,
-        });
+        }));
+
+        HAVE_WORK.set(HAVE_WORK.get() + 1);
 
         process
     }
@@ -233,7 +382,10 @@ impl<'a> Process<'a> {
     }
 
     /// Context switch to the process.
-    pub unsafe fn push_callback(&mut self, callback: Callback) {
+    pub unsafe fn push_function_call(&mut self, callback: FunctionCall) {
+        HAVE_WORK.set(HAVE_WORK.get() + 1);
+
+        self.state = State::Running;
         // Fill in initial stack expected by SVC handler
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
@@ -257,11 +409,8 @@ impl<'a> Process<'a> {
 
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
-        if self.cur_stack < self.memory.as_ptr() {
-            breakpoint();
-        }
         write_volatile(&mut SYSCALL_FIRED, 0);
-        let psp = switch_to_user(self.cur_stack, self.memory.as_ptr());
+        let psp = switch_to_user(self.cur_stack, self.memory.as_ptr(), &mut self.stored_regs);
         self.cur_stack = psp;
     }
 
@@ -306,79 +455,102 @@ impl<'a> Process<'a> {
     }
 }
 
+#[derive(Debug)]
 struct LoadResult {
-    text_start: *const u8,
-    text_len: usize,
+    /// The absolute address of the process entry point (i.e. `_start`).
     init_fn: usize,
+
+    /// The lowest free address in process memory after loading the GOT, data
+    /// and BSS.
     app_mem_start: *const u8,
+
+    /// The process's package name (used for IPC)
+    pkg_name: &'static [u8],
 }
 
+/// Loads the process into memory
+///
+/// Loads the process whos binary starts at `start_addr` into the memory region beginning at
+/// `mem_base`. The process binary must begin with a `LoadInfo` struct.
+///
+/// This function will copy the GOT and data segment into memory as well as zero out the BSS
+/// section. It performs relocation on the GOT and on variables named in the relocation section of
+/// the binary.
+///
+/// The function returns a `LoadResult` containing metadata about the loaded process.
 unsafe fn load(start_addr: *const u8, mem_base: *mut u8) -> LoadResult {
+
+    let load_info = &*(start_addr as *const LoadInfo);
+
     let mut result = LoadResult {
-        text_start: start_addr as *const u8,
-        text_len: 0,
+        pkg_name: slice::from_raw_parts(start_addr.offset(load_info.pkg_name_offset as isize),
+                                        load_info.pkg_name_size as usize),
         init_fn: 0,
         app_mem_start: ptr::null(),
     };
 
-    let load_info = &*(start_addr as *const LoadInfo);
+    let text_start = start_addr.offset(load_info.text_offset as isize);
 
-    let rel_data_addr = start_addr.offset(mem::size_of::<LoadInfo>() as isize);
-    let rel_data: &[usize] = slice::from_raw_parts(rel_data_addr as *const usize,
-                                                   load_info.rel_data_size / 4);
+    let rel_data: &[u32] =
+        slice::from_raw_parts(start_addr.offset(load_info.rel_data_offset as isize) as *const u32,
+                              (load_info.rel_data_size as usize) / mem::size_of::<u32>());
 
-    // Update text location in self
-    let text_start = rel_data_addr.offset(load_info.rel_data_size as isize);
-    result.text_start = text_start;
-    result.text_len = load_info.init_data_loc;
+    let got: &[u8] =
+        slice::from_raw_parts(start_addr.offset(load_info.got_offset as isize),
+                              load_info.got_size as usize) as &[u8];
+
+    let data: &[u8] = slice::from_raw_parts(start_addr.offset(load_info.data_offset as isize),
+                                            load_info.data_size as usize);
+
+    let target_data: &mut [u8] =
+        slice::from_raw_parts_mut(mem_base,
+                                  (load_info.data_size + load_info.got_size) as usize);
+
+    // Copy the GOT and data into base memory
+    for (orig, dest) in got.iter().chain(data.iter()).zip(target_data.iter_mut()) {
+        *dest = *orig
+    }
 
     // Zero out BSS
-    ::core::intrinsics::write_bytes(mem_base.offset(load_info.bss_start_offset as isize),
-                                    0,
-                                    load_info.bss_end_offset - load_info.bss_start_offset);
+    intrinsics::write_bytes(mem_base.offset(load_info.bss_mem_offset as isize),
+                            0,
+                            load_info.bss_size as usize);
 
-    // Copy data into Data section
-    let init_data: &[u8] =
-        slice::from_raw_parts(text_start.offset(load_info.init_data_loc as isize),
-                              load_info.init_data_size);
 
-    let target_data: &mut [u8] = slice::from_raw_parts_mut(mem_base, load_info.init_data_size);
-
-    target_data.clone_from_slice(init_data);
-
-    let fixup = |addr: *mut usize| {
+    let fixup = |addr: &mut u32| {
         let entry = *addr;
         if (entry & 0x80000000) == 0 {
             // Regular data (memory relative)
-            *addr = entry + (mem_base as usize);
+            *addr = entry + (mem_base as u32);
         } else {
             // rodata or function pointer (code relative)
-            *addr = (entry ^ 0x80000000) + (text_start as usize);
+            *addr = (entry ^ 0x80000000) + (text_start as u32);
         }
     };
 
     // Fixup Global Offset Table
-    let mut got_cur = mem_base.offset(load_info.got_start_offset as isize) as *mut usize;
-    let got_end = mem_base.offset(load_info.got_end_offset as isize) as *mut usize;
-    while got_cur != got_end {
+    let mem_got: &mut [u32] = slice::from_raw_parts_mut(mem_base as *mut u32,
+                                                        (load_info.got_size as usize) /
+                                                        mem::size_of::<u32>());
+
+    for got_cur in mem_got {
         fixup(got_cur);
-        got_cur = got_cur.offset(1);
     }
 
     // Fixup relocation data
     for (i, addr) in rel_data.iter().enumerate() {
         if i % 2 == 0 {
             // Only the first of every 2 entries is an address
-            fixup(mem_base.offset(*addr as isize) as *mut usize);
+            fixup(&mut *(mem_base.offset(*addr as isize) as *mut u32));
         }
     }
 
     // Entry point is offset from app code
-    result.init_fn = text_start as usize + load_info.entry_loc;
+    result.init_fn = start_addr.offset(load_info.entry_offset as isize) as usize;
 
-    let mut aligned_mem_start = load_info.bss_end_offset as isize;
+    let mut aligned_mem_start = load_info.bss_mem_offset + load_info.bss_size;
     aligned_mem_start += (8 - (aligned_mem_start % 8)) % 8;
-    result.app_mem_start = mem_base.offset(aligned_mem_start);
+    result.app_mem_start = mem_base.offset(aligned_mem_start as isize);
 
     result
 }

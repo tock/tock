@@ -15,4 +15,3 @@ int main() {
   putnstr_async(hello, sizeof(hello), nop, NULL);
   return 0;
 }
-

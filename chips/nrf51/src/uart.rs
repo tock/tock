@@ -6,6 +6,7 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart;
 use nvic;
 use peripheral_interrupts::NvicIdx;
+use pinmux::Pinmux;
 
 #[repr(C, packed)]
 pub struct Registers {
@@ -35,10 +36,10 @@ pub struct Registers {
     _reserved9: [u32; 31],
     pub enable: VolatileCell<u32>,
     _reserved10: [u32; 1],
-    pub pselrts: VolatileCell<u32>,
-    pub pseltxd: VolatileCell<u32>,
-    pub pselcts: VolatileCell<u32>,
-    pub pselrxd: VolatileCell<u32>,
+    pub pselrts: VolatileCell<Pinmux>,
+    pub pseltxd: VolatileCell<Pinmux>,
+    pub pselcts: VolatileCell<Pinmux>,
+    pub pselrxd: VolatileCell<Pinmux>,
     pub rxd: VolatileCell<u32>,
     pub txd: VolatileCell<u32>,
     _reserved11: [u32; 1],
@@ -53,7 +54,7 @@ const UART_BASE: u32 = 0x40002000;
 
 pub struct UART {
     regs: *mut Registers,
-    client: Option<&'static uart::Client>,
+    client: TakeCell<&'static uart::Client>,
     buffer: TakeCell<&'static mut [u8]>,
     len: Cell<usize>,
     index: Cell<usize>,
@@ -75,25 +76,20 @@ impl UART {
     pub const fn new() -> UART {
         UART {
             regs: UART_BASE as *mut Registers,
-            client: None,
+            client: TakeCell::empty(),
             buffer: TakeCell::empty(),
             len: Cell::new(0),
             index: Cell::new(0),
         }
     }
 
-    fn configure(&mut self, baud_rate: u32) {
+    pub fn configure(&self, tx: Pinmux, rx: Pinmux, cts: Pinmux, rts: Pinmux) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        regs.enable.set(0b100);
-        self.set_baud_rate(baud_rate);
-        regs.pselrts.set(8);
-        regs.pseltxd.set(9);
-        regs.pselcts.set(10);
-        regs.pselrxd.set(11);
-    }
 
-    pub fn set_client<C: uart::Client>(&mut self, client: &'static C) {
-        self.client = Some(client);
+        regs.pseltxd.set(tx);
+        regs.pselrxd.set(rx);
+        regs.pselcts.set(cts);
+        regs.pselrts.set(rts);
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
@@ -116,6 +112,11 @@ impl UART {
             1000000 => regs.baudrate.set(0x10000000),
             _ => regs.baudrate.set(0x01D7E000), //setting default to 115200
         }
+    }
+
+    pub fn enable(&self) {
+        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        regs.enable.set(0b100);
     }
 
     pub fn enable_nvic(&self) {
@@ -148,15 +149,15 @@ impl UART {
 
     pub fn handle_interrupt(&mut self) {
         let regs: &Registers = unsafe { mem::transmute(self.regs) };
-        let rx = regs.event_rxdrdy.get() != 0;
+        // let rx = regs.event_rxdrdy.get() != 0;
         let tx = regs.event_txdrdy.get() != 0;
 
-        if rx {
-            let val = regs.rxd.get();
-            self.client.map(|client| {
-                client.read_done(val as u8);
-            });
-        }
+        // if rx {
+        //     let val = regs.rxd.get();
+        //     self.client.map(|client| {
+        //         client.read_done(val as u8);
+        //     });
+        // }
         if tx {
             regs.event_txdrdy.set(0 as u32);
 
@@ -166,7 +167,7 @@ impl UART {
                 // Signal client write done
                 self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
-                        client.write_done(buffer);
+                        client.transmit_complete(buffer, uart::Error::CommandComplete);
                     });
                 });
 
@@ -181,75 +182,68 @@ impl UART {
             });
         }
     }
-}
 
-impl uart::UART for UART {
-    fn init(&mut self, params: uart::UARTParams) {
-        self.configure(params.baud_rate);
+    pub unsafe fn send_byte(&self, byte: u8) {
+        let regs: &mut Registers = mem::transmute(self.regs);
+
+        self.index.set(1);
+        self.len.set(1);
+
+        regs.event_txdrdy.set(0);
+        self.enable_tx_interrupts();
+        regs.task_starttx.set(1);
+        regs.txd.set(byte as u32);
+        self.enable_nvic();
+    }
+
+    pub fn tx_ready(&self) -> bool {
+        let regs: &Registers = unsafe { mem::transmute(self.regs) };
+        regs.event_txdrdy.get() & 0b1 != 0
     }
 
     fn rx_ready(&self) -> bool {
         let regs: &Registers = unsafe { mem::transmute(self.regs) };
         regs.event_rxdrdy.get() & 0b1 != 0
     }
+}
 
-    fn tx_ready(&self) -> bool {
-        let regs: &Registers = unsafe { mem::transmute(self.regs) };
-        regs.event_txdrdy.get() == 1
+impl uart::UART for UART {
+    fn set_client(&self, client: &'static uart::Client) {
+        self.client.replace(client);
     }
 
-    fn send_byte(&self, byte: u8) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        regs.task_starttx.set(1 as u32);
-        regs.event_txdrdy.set(0 as u32);
-        regs.txd.set(byte as u32);
-        while !self.tx_ready() {}
-        regs.task_stoptx.set(1 as u32);
+    fn init(&self, params: uart::UARTParams) {
+        self.enable();
+        self.set_baud_rate(params.baud_rate);
     }
 
-    fn send_bytes(&self, bytes: &'static mut [u8], len: usize) {
+    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
         let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
 
-        if len == 0 {
+        if tx_len == 0 {
             return;
         }
 
         self.index.set(1);
-        self.len.set(len);
+        self.len.set(tx_len);
 
-        regs.event_txdrdy.set(0 as u32);
+        regs.event_txdrdy.set(0);
         self.enable_tx_interrupts();
-        regs.task_starttx.set(1 as u32);
-        regs.txd.set(bytes[0] as u32);
-        self.buffer.replace(bytes);
+        regs.task_starttx.set(1);
+        regs.txd.set(tx_data[0] as u32);
+        self.buffer.replace(tx_data);
         self.enable_nvic();
     }
 
-    fn read_byte(&self) -> u8 {
+    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
         let regs: &Registers = unsafe { mem::transmute(self.regs) };
-        regs.task_startrx.set(1 as u32);
-        while !self.rx_ready() {}
-        regs.rxd.get() as u8
-    }
-
-    fn enable_rx(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
         regs.task_startrx.set(1);
-    }
-
-    fn disable_rx(&mut self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        regs.task_stoprx.set(1);
-    }
-
-    fn enable_tx(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        regs.task_starttx.set(1);
-    }
-
-    fn disable_tx(&mut self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
-        regs.task_stoptx.set(1);
+        let mut i = 0;
+        while i < rx_len {
+            while !self.rx_ready() {}
+            rx_buffer[i] = regs.rxd.get() as u8;
+            i += 1;
+        }
     }
 }
 

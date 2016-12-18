@@ -6,9 +6,10 @@ TOCK_USERLAND_BASE_DIR = $(abspath $(CURRENT_DIR)/../..)
 TOCK_BASE_DIR = $(abspath $(CURRENT_DIR)/../../../)
 BUILDDIR ?= $(abspath build/$(TOCK_ARCH))
 
-C_SRCS   := $(wildcard *.c)
+C_SRCS := $(wildcard *.c)
 OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
 
+CFLAGS += -std=c11 
 CPPFLAGS += -DSTACK_SIZE=2048
 
 # include userland master makefile. Contains rules and flags for actually

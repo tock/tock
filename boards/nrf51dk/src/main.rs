@@ -47,7 +47,11 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
 use kernel::hil::uart::UART;
+use nrf51::pinmux::Pinmux;
 use nrf51::rtc::{RTC, Rtc};
+
+#[macro_use]
+pub mod io;
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN: usize = 21;
@@ -97,8 +101,7 @@ pub struct Platform {
 
 
 impl kernel::Platform for Platform {
-    #[inline(never)]
-    fn with_driver<F, R>(&mut self, driver_num: usize, f: F) -> R
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
         match driver_num {
@@ -172,25 +175,24 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
+    nrf51::uart::UART0.configure(Pinmux::new(9),
+                                 Pinmux::new(11),
+                                 Pinmux::new(10),
+                                 Pinmux::new(8));
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
-                                       &mut capsules::console::WRITE_BUF,
-                                       kernel::Container::create()),
-        24);
-    nrf51::uart::UART0.set_client(console);
+                                        115200,
+                                        &mut capsules::console::WRITE_BUF,
+                                        kernel::Container::create()),
+        224/8);
+    UART::set_client(&nrf51::uart::UART0, console);
+    console.initialize();
 
     let alarm = &nrf51::rtc::RTC;
     alarm.start();
     let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
     alarm.set_client(mux_alarm);
-
-    nrf51::uart::UART0.init(kernel::hil::uart::UARTParams {
-        baud_rate: 115200,
-        data_bits: 8,
-        parity: kernel::hil::uart::Parity::None,
-        mode: kernel::hil::uart::Mode::Normal,
-    });
 
 
     let virtual_alarm1 = static_init!(
@@ -215,16 +217,13 @@ pub unsafe fn reset_handler() {
     while !nrf51::clock::CLOCK.low_started() {}
     while !nrf51::clock::CLOCK.high_started() {}
 
-    let platform = static_init!(
-        Platform,
-        Platform {
-            gpio: gpio,
-            timer: timer,
-            console: console,
-            led: led,
-            button: button,
-        },
-        160/8);
+    let platform = Platform {
+        gpio: gpio,
+        timer: timer,
+        console: console,
+        led: led,
+        button: button,
+    };
 
     alarm.start();
 
@@ -232,7 +231,10 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
-    kernel::main(platform, &mut chip, load_process());
+    kernel::main(&platform,
+                 &mut chip,
+                 load_process(),
+                 &kernel::ipc::IPC::new());
 
 }
 

@@ -30,6 +30,12 @@ static uint8_t ack_status = 0;
 static volatile int radio_is_on = 0;
 static volatile int pending_frame = 0;
 static volatile int sleep_on = 0;
+static int rf233_prepare_without_header(const uint8_t *data, unsigned short data_len);
+static int rf233_setup(void);
+static int rf233_prepare(const void *payload, unsigned short payload_len);
+static int rf233_transmit();
+static int (*rx_callback)(void*, int, uint16_t, uint16_t, uint16_t);
+static int set_callback = 0;
 
 #define IEEE802154_CONF_PANID 0x1111
 
@@ -40,18 +46,21 @@ enum {
   RADIO_TX_COLLISION = 3
 };
 
+typedef struct {
+  uint16_t fcf;
+  uint8_t  seq;
+  uint16_t pan;
+  uint16_t dest;
+  uint16_t src;
+  char payload[];
+} __attribute__((packed)) header_t;
+
+static header_t radio_header;
+
 /*---------------------------------------------------------------------------*/
-int rf233_init(void);
-int rf233_prepare(const void *payload, unsigned short payload_len);
-int rf233_transmit();
-int rf233_send(const void *data, unsigned short len);
 int rf233_read(void *buf, unsigned short bufsize);
 int rf233_receiving_packet(void);
 int rf233_pending_packet(void);
-int rf233_on(void);
-int rf233_off(void);
-int rf233_sleep(void);
-
 
 /*---------------------------------------------------------------------------*/
 /* convenience macros */
@@ -62,15 +71,17 @@ int rf233_sleep(void);
 #define FOOTER_LEN                        3   /* bytes */
 #define MAX_PACKET_LEN                    127 /* bytes, excluding the length (first) byte */
 #define PACKETBUF_SIZE                    128 /* bytes, for even int writes */
+#define HEADER_SIZE                       9 /* bytes */
 
 /*---------------------------------------------------------------------------*/
-#define _DEBUG_                 1
+#define _DEBUG_               0
 #define DEBUG_PRINTDATA       0    /* print frames to/from the radio; requires DEBUG == 1 */
 #if _DEBUG_
 #define PRINTF(...)       printf(__VA_ARGS__)
 #else
 #define PRINTF(...)       1
 #endif
+
 
 // Used for debugging output
 char* state_str(uint8_t state) {
@@ -116,21 +127,7 @@ void calibrate_filters() {
   while (trx_reg_read(RF233_REG_FTN_CTRL) & 0x80);
 }
 
-int main() {
-  char buf[10] = {0x61, 0xAA, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xdd};
- 
-  rf233_init();
-  while (1) {
-    rf233_send(buf, 10);
-    delay_ms(10);
-    rf233_sleep();
-    delay_ms(1000);
-    rf233_on();
-    delay_ms(10000);
-  }
-  //while(1) {}
-}
-
+uint8_t recv_data[PACKETBUF_SIZE];
 uint8_t packetbuf[PACKETBUF_SIZE];
 
 void* packetbuf_dataptr() {
@@ -170,9 +167,9 @@ void trx_reg_write(uint8_t addr, uint8_t data) {
         return;
 }
 
-void trx_bit_write(uint8_t reg_addr, 
-		   uint8_t mask, 
-		   uint8_t pos, 
+void trx_bit_write(uint8_t reg_addr,
+		   uint8_t mask,
+		   uint8_t pos,
 		   uint8_t new_value) {
         uint8_t current_reg_value;
         current_reg_value = trx_reg_read(reg_addr);
@@ -189,7 +186,6 @@ void trx_sram_read(uint8_t addr, uint8_t *data, uint8_t length)  {
   uint8_t tmp1 = spi_write_byte(TRX_CMD_SR);
   /* Send the command byte */
   uint8_t tmp2 = spi_write_byte(addr);
-  
   PRINTF("RF233: SRAM read");
   PRINTF("0x%x 0x%x, ", tmp1, tmp2);
   /* Send the address from which the read operation should start */
@@ -258,7 +254,7 @@ int rf_set_channel(uint8_t ch) {
 /**
  * \brief      Get transmission power
  * \return     The transmission power
- */ 
+ */
 int rf233_get_txp(void) {
   PRINTF("RF233: get txp\n");
   return trx_reg_read(RF233_REG_PHY_TX_PWR_CONF) & PHY_TX_PWR_TXP;
@@ -294,10 +290,11 @@ void interrupt_callback() {
   if (irq_source & IRQ_PLL_LOCK) {
     PRINTF("RF233: PLL locked.\n");
     radio_pll = true;
-    return;
-  } else if (irq_source == IRQ_RX_START) {
+  }
+
+  if (irq_source & IRQ_RX_START) {
     PRINTF("RF233: Interrupt receive start.\n");
-  } else if (irq_source == IRQ_TRX_DONE) {
+  } else if (irq_source & IRQ_TRX_DONE) {
     PRINTF("RF233: TRX_DONE handler.\n");
     // Completed a transmission
     if (flag_transmit != 0) {
@@ -328,26 +325,66 @@ void interrupt_callback() {
 
 /*---------------------------------------------------------------------------*/
 /**
- * \brief      Init the radio
+ * \brief      Initialize the radio library
  * \return     Returns success/fail
  * \retval 0   Success
  */
-int rf233_init(void) {
+int rf233_init(uint16_t channel, uint16_t from_addr, uint16_t pan_id) {
+  PRINTF("RF233: init.\n");
+  // 0x61 0xAA
+  radio_header.dest = channel; // TODO ??
+  radio_header.fcf = 0xAA61; // TODO verify
+  radio_header.src = from_addr;
+  radio_header.pan = pan_id;
+  return rf233_setup();
+}
+
+/*---------------------------------------------------------------------------*/
+/**
+ * \brief      Sets callback function for radio receive
+ * \return     Returns success/fail
+ * \retval 0   Success
+ */
+int rf233_rx_data(int (*callback)(void*, int, uint16_t, uint16_t, uint16_t)) {
+  rx_callback = callback;
+  set_callback = 1;
+  return 0;
+}
+
+/*---------------------------------------------------------------------------*/
+/**
+ * \brief      Send data over radio
+ * \return     Returns success/fail
+ * \retval 0   Success
+ */
+int rf233_tx_data(uint16_t to_addr, void* payload, int payload_len) {
+  PRINTF("RF233: send %u\n", payload_len);
+  radio_header.dest = to_addr;
+  if (rf233_prepare_without_header(payload, payload_len) != RADIO_TX_OK) {
+    return RADIO_TX_ERR;
+  }
+  return rf233_transmit();
+}
+
+/*---------------------------------------------------------------------------*/
+/**
+ * \brief      Setup and turn on the radio
+ * \return     Returns success/fail
+ * \retval 0   Success
+ */
+int rf233_setup(void) {
   volatile uint8_t regtemp;
   volatile uint8_t radio_state;  /* don't optimize this away, it's important */
-  PRINTF("RF233: init.\n");
 
   /* init SPI and GPIOs, wake up from sleep/power up. */
-
   spi_init();
   // RF233 expects line low for CS, this is default SAM4L behavior
-  //spi_set_chip_select(3);
   // POL = 0 means idle is low
   spi_set_chip_select(3);
+  spi_set_rate(400000);
   spi_set_polarity(0);
   // PHASE = 0 means sample leading edge
   spi_set_phase(0);
-  spi_set_rate(400000);
 
     /* reset will put us into TRX_OFF state */
   /* reset the radio core */
@@ -358,12 +395,14 @@ int rf233_init(void) {
   gpio_set(RADIO_RST);
   gpio_clear(RADIO_SLP); /* be awake from sleep*/
 
-  
   /* Read the PART_NUM register to verify that the radio is
    * working/responding. Could check in software, I just look at
    * the bus. If this is working, the first write should be 0x9C x00
    * and the return bytes should be 0x00 0x0B. - pal*/
+  PRINTF("Reading part num...\n");
   regtemp = trx_reg_read(RF233_REG_PART_NUM);
+  PRINTF("RegTemp Is: %u\n", regtemp); // on the wire thing right, but in
+                                        // something is off by one.
 
   /* before enabling interrupts, make sure we have cleared IRQ status */
   regtemp = trx_reg_read(RF233_REG_IRQ_STATUS);
@@ -373,7 +412,7 @@ int rf233_init(void) {
   calibrate_filters();
   if (radio_state == STATE_P_ON) {
     trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);
-  } 
+  }
   /* Assign regtemp to regtemp to avoid compiler warnings */
   regtemp = regtemp;
   // Set up interrupts
@@ -393,6 +432,7 @@ int rf233_init(void) {
   trx_bit_write(SR_MAX_CSMA_RETRIES, 0);
   PRINTF("RF233: Configured transciever.\n");
   {
+    PRINTF("Configuring Addresses...\n");
     uint8_t addr[8];
     addr[0] = 0x22;
     addr[1] = 0x22;
@@ -403,19 +443,20 @@ int rf233_init(void) {
     addr[6] = 0x22;
     addr[7] = 0x22;
     SetPanId(IEEE802154_CONF_PANID);
-    
-    SetIEEEAddr(addr);
+
+    SetIEEEAddr(addr); // I think it breaks here
     SetShortAddr(0x2222);
+
   }
   rf_generate_random_seed();
-  
+
   for (uint8_t i = 0; i < 8; i++)   {
     regtemp = trx_reg_read(0x24 + i);
   }
 
   /* 11_09_rel */
   trx_reg_write(RF233_REG_TRX_RPC, 0xFF); /* Enable RPC feature by default */
-  PRINTF("RF233: Installed addresses. Turning on radio.");
+  PRINTF("RF233: Installed addresses. Turning on radio.\n");
   rf233_on();
   return 0;
 }
@@ -429,28 +470,54 @@ static void rf_generate_random_seed(void) {
 }
 
 /*---------------------------------------------------------------------------*/
+// Append header with FCF, sequence number,
+static int rf233_prepare_without_header(const uint8_t *data, unsigned short data_len) {
+  // append mac header with length 9
+  uint8_t data_with_header[data_len + HEADER_SIZE];
+  data_with_header[0] = 0x61;
+  data_with_header[1] = 0xAA;
+  data_with_header[2] = radio_header.seq & 0xFF;
+  // note: sequence number is incremented in rf233_prepare
+  *((uint16_t *)(data_with_header + 3)) = radio_header.pan;
+  *((uint16_t *)(data_with_header + 5)) = radio_header.dest;
+  *((uint16_t *)(data_with_header + 7)) = radio_header.src;
+
+  int i;
+  // Copy over data into new buffer with header
+  for (i = 0; i < data_len; i ++) {
+    data_with_header[i + HEADER_SIZE] = ((uint8_t*)data)[i];
+  }
+
+  for (i = 0; i < data_len + HEADER_SIZE; i ++) {
+    PRINTF("   data[%i] = %x\n", i, (uint8_t) data_with_header[i]);
+  }
+  // first 9 bytes are now MAC header
+  return rf233_prepare(data_with_header, data_len + HEADER_SIZE);
+}
+
+/*---------------------------------------------------------------------------*/
 /**
- * \brief      prepare a frame and the radio for immediate transmission 
+ * \brief      prepare a frame and the radio for immediate transmission
  * \param payload         Pointer to data to copy/send
  * \param payload_len     length of data to copy
  * \return     Returns success/fail, refer to radio.h for explanation
  */
-
-static int counter = 0;
 int rf233_prepare(const void *payload, unsigned short payload_len) {
   int i;
+  // Frame length is number of bytes in MPDU
   uint8_t templen;
   uint8_t radio_status;
   uint8_t data[130];
 
   /* Add length of the FCS (2 bytes) */
-  templen = payload_len + 2; 
+  templen = payload_len + 2;
   data[0] = templen;
   for (i = 0; i < templen; i++) {
     data[i + 1] = ((uint8_t*)payload)[i];
   }
-  data[3] = (uint8_t)(counter & 0xff);
-  counter++;
+  // TODO verify this is unnecessary bc of append_header?
+  data[3] = (uint8_t)(radio_header.seq & 0xff);
+  radio_header.seq ++;
 
 #if DEBUG_PRINTDATA
   PRINTF("RF233 prepare (%u/%u): 0x", payload_len, templen);
@@ -459,7 +526,7 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   }
   PRINTF("\n");
 #endif  /* DEBUG_PRINTDATA */
-   
+
   PRINTF("RF233: prepare %u\n", payload_len);
   if(payload_len > MAX_PACKET_LEN) {
     PRINTF("RF233: error, frame too large to tx\n");
@@ -469,15 +536,15 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   /* check that the FIFO is clear to access */
   radio_status = rf233_status();
   if (radio_status == STATE_BUSY_RX_AACK ||
-      radio_status == STATE_BUSY_RX || 
+      radio_status == STATE_BUSY_RX ||
       radio_status == STATE_BUSY_TX_ARET) {
     PRINTF("RF233: TRX buffer unavailable: prep when state %s\n", state_str(radio_status));
     return RADIO_TX_ERR;
   }
 
   /* Write packet to TX FIFO. */
-  PRINTF("RF233: sqno: %02x len = %u\n", counter, payload_len);
-  trx_frame_write((uint8_t *)data, templen+1);
+  PRINTF("RF233: sqno: %02x len = %u\n", radio_header.seq, payload_len);
+  trx_frame_write((uint8_t *)data, templen + 1);
   return RADIO_TX_OK;
 }
 /*---------------------------------------------------------------------------*/
@@ -498,14 +565,14 @@ int rf233_transmit() {
     /* NOTE: to avoid loops */
     return RADIO_TX_ERR;;
   }
-  
+
   if (status_now != STATE_PLL_ON) {
     trx_reg_write(RF233_REG_TRX_STATE, STATE_PLL_ON);
     do { // I think this code is broken, does nothing -pal
       status_now = trx_bit_read(RF233_REG_TRX_STATUS, 0x1F, 0);
     } while (status_now == 0x1f);
   }
-  
+
   if (rf233_status() != STATE_PLL_ON) {
     /* failed moving into PLL_ON state, gracefully try to recover */
     PRINTF("RF233: failed going to STATE_PLL_ON\n");
@@ -517,36 +584,24 @@ int rf233_transmit() {
       return RADIO_TX_ERR;
     }
   }
-  
+
   /* perform transmission */
   flag_transmit = 1;
   radio_tx = false;
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
   RF233_COMMAND(TRXCMD_TX_START);
 
+
   PRINTF("RF233:: Issued TX_START, wait for completion interrupt.\n");
   yield_for(&radio_tx);
   PRINTF("RF233: tx ok\n\n");
-  
+
   return RADIO_TX_OK;
 }
+
 /*---------------------------------------------------------------------------*/
 /**
- * \brief      Send data: first prepares, then transmits
- * \param payload         Pointer to data to copy/send
- * \param payload_len     length of data to copy
- * \return     Returns success/fail, refer to radio.h for explanation
- */
-int rf233_send(const void *payload, unsigned short payload_len) {
-  PRINTF("RF233: send %u\n", payload_len);
-  if (rf233_prepare(payload, payload_len) != RADIO_TX_OK) {
-    return RADIO_TX_ERR;
-  } 
-  return rf233_transmit();
-}
-/*---------------------------------------------------------------------------*/
-/**
- * \brief      read a received frame out of the radio buffer 
+ * \brief      read a received frame out of the radio buffer
  * \param buf         pointer to where to copy received data
  * \param bufsize     Maximum size we can copy into bufsize
  * \return     Returns length of data read (> 0) if successful
@@ -556,23 +611,19 @@ int rf233_send(const void *payload, unsigned short payload_len) {
  * \retval -4  Failed, CRC/FCS failed (if USE_HW_FCS_CHECK is true)
  */
 int rf233_read(void *buf, unsigned short bufsize) {
-//  uint8_t radio_state;
-  //uint8_t ed;       /* frame metadata */
+  //uint8_t radio_state;
+  // uint8_t ed;       /* frame metadata */
   uint8_t frame_len = 0;
   uint8_t len = 0;
-  char wbuf[PACKETBUF_SIZE];
-  for (int i = 0; i < bufsize; i++) {
-    wbuf[i] = 0;
-  }
 
   PRINTF("RF233: Receiving.\n");
-  
+
   if (pending_frame == 0) {
     PRINTF("RF233: No frame pending, abort.\n");
     return 0;
   }
   pending_frame = 0;
-  
+
   /* get length of data in FIFO */
   spi_hold_low();
   spi_write_byte(TRX_CMD_FR);
@@ -595,11 +646,11 @@ int rf233_read(void *buf, unsigned short bufsize) {
 
     return 0;
   }
-  PRINTF("RF233 read %u bytes:\n", frame_len);
 
   /* read out the data into the buffer, disregarding the length and metadata bytes */
   //spi_read_write_sync(wbuf, (char*)buf, len - 1);
-  for (uint8_t i = 0; i < len - 1; i++) {
+  // TODO len or len - 1
+  for (uint8_t i = 0; i < len; i ++) {
     uint8_t val = spi_write_byte(0);
     ((uint8_t*)buf)[i] = val;
     PRINTF("%02x ", ((uint8_t*)buf)[i]);
@@ -607,10 +658,10 @@ int rf233_read(void *buf, unsigned short bufsize) {
       PRINTF("\n");
     }
   }
-  
+
   PRINTF("\n");
   spi_release_low();
-  
+
   //trx_sram_read(1, (uint8_t *)buf, len);
   if (len >= 10) {
     header_t* header = (header_t*)buf;
@@ -619,20 +670,40 @@ int rf233_read(void *buf, unsigned short bufsize) {
     PRINTF("  PAN: %x\n", header->pan);
     PRINTF("  DST: %x\n", header->dest);
     PRINTF("  SRC: %x\n", header->src);
+
+    // skip first 9 bytes of header
+    for (int i = 0; i < PACKETBUF_SIZE; i ++) {
+      recv_data[i] = 0;
+    }
+    for (int i = 0; i < len; i ++) {
+      recv_data[i] = header->payload[i];
+    }
+    // Call user callback function
+    if (set_callback) {
+      rx_callback(recv_data, len, header->src, header->dest, header->pan);
+    }
   }
+  // PRINTF("RF233: Final state = %s = %i\n", state_str(rf233_status()), rf233_status());
 
   flush_buffer();
+
+  rf233_off();
+  delay_ms(100);
+  rf233_sleep();
+  delay_ms(100);
+  rf233_on();
+  delay_ms(100);
 
   return len;
 }
 
 /*---------------------------------------------------------------------------*/
 /**
- * \brief      check whether we are currently receiving a frame 
- * \retval >0  we are currently receiving a frame 
- * \retval 0   we are not currently receiving a frame 
+ * \brief      check whether we are currently receiving a frame
+ * \retval >0  we are currently receiving a frame
+ * \retval 0   we are not currently receiving a frame
  */
-int rf233_receiving_packet(void) { 
+int rf233_receiving_packet(void) {
   uint8_t trx_state;
   trx_state = rf233_status();
   if (trx_state == STATE_BUSY_RX_AACK) {
@@ -644,9 +715,9 @@ int rf233_receiving_packet(void) {
 }
 /*---------------------------------------------------------------------------*/
 /**
- * \brief      check whether we have a frame awaiting processing 
- * \retval >0  we have a frame awaiting processing 
- * \retval 0   we have not a frame awaiting processing 
+ * \brief      check whether we have a frame awaiting processing
+ * \retval >0  we have a frame awaiting processing
+ * \retval 0   we have not a frame awaiting processing
  */
 int rf233_pending_packet(void) {
   PRINTF("RF233: Frame %spending\n", pending_frame ? "" : "not ");
@@ -654,7 +725,7 @@ int rf233_pending_packet(void) {
 }
 /*---------------------------------------------------------------------------*/
 /**
- * \brief      switch the radio on to listen (rx) mode 
+ * \brief      switch the radio on to listen (rx) mode
  * \retval 0   Success
  */
 int rf233_on(void) {
@@ -664,7 +735,7 @@ int rf233_on(void) {
 }
 /*---------------------------------------------------------------------------*/
 /**
- * \brief      switch the radio off 
+ * \brief      switch the radio off
  * \retval 0   Success
  */
 int rf233_off(void) {
@@ -672,7 +743,7 @@ int rf233_off(void) {
   off();
   return 0;
 }
- 
+
 void SetIEEEAddr(uint8_t *ieee_addr) {
 	uint8_t *ptr_to_reg = ieee_addr;
 	//for (uint8_t i = 0; i < 8; i++) {
@@ -697,14 +768,14 @@ void SetIEEEAddr(uint8_t *ieee_addr) {
 
 void SetPanId(uint16_t panId) {
   uint8_t *d = (uint8_t *)&panId;
-  
+
   trx_reg_write(0x22, d[0]);
   trx_reg_write(0x23, d[1]);
 }
- 
+
 void SetShortAddr(uint16_t addr) {
   uint8_t *d = (uint8_t *)&addr;
-  
+
   trx_reg_write(0x20, d[0]);
   trx_reg_write(0x21, d[1]);
   trx_reg_write(0x2d, d[0] + d[1]);
@@ -718,7 +789,7 @@ int on(void) {
     /* Wake the radio. It'll move to TRX_OFF state */
     gpio_clear(RADIO_SLP);
     delay_ms(1);
-    printf("RF233: Wake from sleep\n");
+    PRINTF("RF233: Wake from sleep\n");
     sleep_on = 0;
   }
   uint8_t state_now = rf233_status();
@@ -743,7 +814,7 @@ int on(void) {
 }
 /*---------------------------------------------------------------------------*/
 /* switch the radio off */
-int off(void) { 
+int off(void) {
   if(rf233_status() != STATE_RX_ON ) {
     /* fail, we need the radio transceiver to be in this state */
     return -1;
@@ -751,7 +822,6 @@ int off(void) {
 
   /* turn off the radio transceiver */
   RF233_COMMAND(TRXCMD_TRX_OFF);
-  
   radio_is_on = 0;
   return 0;
 }
@@ -769,12 +839,12 @@ int rf233_sleep(void) {
     /* Set the SLP_PIN to high */
     gpio_set(RADIO_SLP);
   }
-  
+
   return 0;
 }
 
 /*---------------------------------------------------------------------------*/
-/* 
+/*
  * Crude way of flushing the Tx/Rx FIFO: write the first byte as 0, indicating
  * a zero-length frame in the buffer. This is interpreted by the driver as an
  * empty buffer.
@@ -790,11 +860,11 @@ void goto_sleep(void) {
 }
 
 void wake_from_sleep(void) {
-  /* 
+  /*
    * Triggers a radio state transition - assumes that the radio already is in
    * state SLEEP or DEEP_SLEEP and SLP pin is low. Refer to datasheet 6.6.
-   * 
-   * Note: this is the only thing that can get the radio from state SLEEP or 
+   *
+   * Note: this is the only thing that can get the radio from state SLEEP or
    * state DEEP_SLEEP!
    */
 
@@ -838,33 +908,33 @@ uint8_t rf233_status() {
  */
 /**
 * Copyright (c) 2015 Atmel Corporation and
-* 2012 - 2013, Thingsquare, http://www.thingsquare.com/. All rights reserved. 
-*  
-* Redistribution and use in source and binary forms, with or without 
+* 2012 - 2013, Thingsquare, http://www.thingsquare.com/. All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are met:
-* 
+*
 * 1. Redistributions of source code must retain the above copyright notice, this
 * list of conditions and the following disclaimer.
-* 
-* 2. Redistributions in binary form must reproduce the above copyright notice, 
-* this list of conditions and the following disclaimer in the documentation 
+*
+* 2. Redistributions in binary form must reproduce the above copyright notice,
+* this list of conditions and the following disclaimer in the documentation
 * and/or other materials provided with the distribution.
-* 
+*
 * 3. Neither the name of Atmel nor the name of Thingsquare nor the names of its
-* contributors may be used to endorse or promote products derived 
-* from this software without specific prior written permission.  
-* 
-* 4. This software may only be redistributed and used in connection with an 
+* contributors may be used to endorse or promote products derived
+* from this software without specific prior written permission.
+*
+* 4. This software may only be redistributed and used in connection with an
 * Atmel microcontroller or Atmel wireless product.
-* 
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-* ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
-* LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
-* CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
-* GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
-* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
-* STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY 
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+* ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+* LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+* CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+* GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+* STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */

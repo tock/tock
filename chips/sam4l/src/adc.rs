@@ -93,16 +93,20 @@ impl Adc {
     pub fn handle_interrupt(&mut self) {
         let val: u16;
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
-        // Clear SEOC interrupt
-        regs.scr.set(0x0000001);
-        // Disable SEOC interrupt
-        regs.idr.set(0x00000001);
-        // Read the value from the LCV register.
-        // The sample is 16 bits wide
-        val = (regs.lcv.get() & 0xffff) as u16;
-        self.client.get().map(|client| {
-            client.sample_done(val);
-        });
+        // Make sure this is the SEOC (Sequencer end-of-conversion) interrupt
+        let status = regs.sr.get();
+        if status & 0x01 == 0x01 {
+            // Clear SEOC interrupt
+            regs.scr.set(0x0000001);
+            // Disable SEOC interrupt
+            regs.idr.set(0x00000001);
+            // Read the value from the LCV register.
+            // The sample is 16 bits wide
+            val = (regs.lcv.get() & 0xffff) as u16;
+            self.client.get().map(|client| {
+                client.sample_done(val);
+            });
+        }
     }
 }
 

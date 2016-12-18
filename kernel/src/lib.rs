@@ -6,6 +6,7 @@ pub mod common;
 pub mod callback;
 pub mod container;
 pub mod driver;
+pub mod ipc;
 pub mod mem;
 pub mod process;
 pub mod hil;
@@ -24,9 +25,10 @@ pub use mem::{AppSlice, AppPtr, Private, Shared};
 pub use platform::{Chip, MPU, Platform, SysTick};
 pub use process::{Process, State};
 
-pub fn main<P: Platform, C: Chip>(platform: &mut P,
+pub fn main<P: Platform, C: Chip>(platform: &P,
                                   chip: &mut C,
-                                  processes: &'static mut [Option<process::Process<'static>>]) {
+                                  processes: &'static mut [Option<process::Process<'static>>],
+                                  ipc: &ipc::IPC) {
     let processes = unsafe {
         process::PROCS = processes;
         &mut process::PROCS
@@ -36,13 +38,9 @@ pub fn main<P: Platform, C: Chip>(platform: &mut P,
         unsafe {
             chip.service_pending_interrupts();
 
-            let mut running_left = false;
             for (i, p) in processes.iter_mut().enumerate() {
                 p.as_mut().map(|process| {
-                    sched::do_process(platform, chip, process, AppId::new(i));
-                    if process.state == process::State::Running {
-                        running_left = true;
-                    }
+                    sched::do_process(platform, chip, process, AppId::new(i), ipc);
                 });
                 if chip.has_pending_interrupts() {
                     break;
@@ -50,7 +48,7 @@ pub fn main<P: Platform, C: Chip>(platform: &mut P,
             }
 
             support::atomic(|| {
-                if !chip.has_pending_interrupts() && !running_left {
+                if !chip.has_pending_interrupts() && process::processes_blocked() {
                     support::wfi();
                 }
             })

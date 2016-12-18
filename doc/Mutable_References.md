@@ -1,25 +1,19 @@
 # Mutable References in Tock - Memory Containers
 
-- [Brief Overview of Borrowing in Rust](#borrowing_overview)
-- [Issues with Borrowing in Event-driven Code](#issues)
-- [The TakeCell abstraction](#takecell)
-  - [Example use of take and replace](#take_and_put_example)
-  - [Example use of map](#map_example)
-
 Borrows are a critical part of the Rust language that help provide its
-safety guarantees. However, they can complicate event-driven code without  
+safety guarantees. However, they can complicate event-driven code without
 a heap (no dynamic allocation). Tock uses memory containers
 such as the TakeCell abstraction to allow simple code to keep
 the safety properties Rust provides.
 
-## <a href="#borrowing_overview"></a> Brief Overview of Borrowing in Rust 
-Ownership and Borrowing are two design features in Rust which 
+## Brief Overview of Borrowing in Rust
+Ownership and Borrowing are two design features in Rust which
 prevent race conditions and make it impossible to write code that produces
 dangling pointers.
 
 Borrowing is the Rust mechanism to allow references to
-memory. Similarly references in C++ and other languages, borrows makes
-it possible to efficiently pass large structures by passing pointer
+memory. Similarly references in C++ and other languages, borrows make
+it possible to efficiently pass large structures by passing pointers
 rather than copying the entire structure.  The Rust compiler, however,
 limits borrows so that they cannot create race conditions, which are
 caused by concurrent writes or concurrent reads and writes to
@@ -31,10 +25,12 @@ also important that other code does not have any references within
 that memory. Otherwise, the language is not safe. For example, consider
 this case of an `enum` which can either be a pointer or a value:
 
->enum NumOrPointer {
->  Num(u32),
->  Pointer(&'static mut u32)
->}
+```rust
+enum NumOrPointer {
+  Num(u32),
+  Pointer(&'static mut u32)
+}
+```
 
 A Rust `enum` is like a type-safe C union. Suppose that code has
 both a mutable reference to a `NumOrPointer` and a read-only reference
@@ -45,17 +41,19 @@ pointer. As these two representations use the same memory, this means
 that the reference to `Num` can create any pointer it wants, breaking
 Rust's type safety:
 
->  // n.b. illegal example
->  let external : &mut NumOrPointer;
->  match external {
->    &mut Pointer(ref mut internal) => {
->      // This would violate safety and
->      // write to memory at 0xdeadbeef
->      *external = Num(0xdeadbeef);
->      *internal = 12345;
->    },
->    ...
->  }
+```rust
+// n.b. illegal example
+let external : &mut NumOrPointer;
+match external {
+  &mut Pointer(ref mut internal) => {
+    // This would violate safety and
+    // write to memory at 0xdeadbeef
+    *external = Num(0xdeadbeef);
+    *internal = 12345;
+  },
+  ...
+}
+```
 
 But what does this mean for Tock? As the Tock kernel is single
 threaded, it doesn't have race conditions and so it can in some
@@ -64,7 +62,7 @@ do not reference inside each other (as in the number/pointer example).
 However, Rust doesn't know this so its rules still hold. In practice,
 Rust's rules cause problems in event-driven code.
 
-<a href="#issues"></a> ## Issues with Borrowing in Event-Driven code
+## Issues with Borrowing in Event-Driven code
 
 Event-driven code often requires multiple writeable references to
 the same object. Consider, for example, an event-driven embedded
@@ -77,11 +75,11 @@ object to issue a callback on. That is, the generator of each callback
 requires its own writeable reference to the application. Rust's
 rules, however, do not allow multiple mutable references.
 
-## <a href="#takecell"></a> The TakeCell abstraction
+## The TakeCell abstraction
 
 Tock solves this issue of uniquely sharing memory with a memory
 container abstraction, TakeCell.
-From tock/kernel/src/common/take_cell.rs:
+From `tock/kernel/src/common/take_cell.rs`:
 
 > A `TakeCell` is a potential reference to mutable memory. Borrow rules are
 > enforced by forcing clients to either move the memory out of the cell or
@@ -105,7 +103,7 @@ of the TakeCell and therefore modify the structure. Therefore,
 it is possible for multiple callbacks to have references to
 the structure and modify its state.
 
-### <a href="#take_and_put_example"></a> Example use of `take` and `replace`
+### Example use of `take` and `replace`
 
 When `TakeCell.take()` is called, ownership of a location in memory
 moves out of the cell. It can then be freely used by whoever took it
@@ -115,9 +113,11 @@ moves out of the cell. It can then be freely used by whoever took it
 For example, this piece of code from `chips/nrf51/src/clock.rs`
 sets the callback client for a hardware clock:
 
->    pub fn set_client(&self, client: &'static ClockClient) {
->        self.client.replace(client);
->    }
+```rust
+pub fn set_client(&self, client: &'static ClockClient) {
+    self.client.replace(client);
+}
+```
 
 If there is a current client, it's replaced with `client`. If
 `self.client` is empty, then it's filled with `client`.
@@ -127,16 +127,18 @@ current direct memory access (DMA) operation, removing the
 buffer in the current transaction from the TakeCell with a
 call to `take`:
 
->    pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
->        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
->        registers.interrupt_disable.set(!0);
->        // Reset counter
->        registers.transfer_counter.set(0);
->        self.buffer.take()
->    }
+```rust
+pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
+    let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+    registers.interrupt_disable.set(!0);
+    // Reset counter
+    registers.transfer_counter.set(0);
+    self.buffer.take()
+}
+```
 
 
-### <a href="#map_example"></a> Example use of `map`
+### Example use of `map`
 
 Although the contents of a TakeCell can be directly accessed through
 a combination of `take` and `replace`, Tock code typically uses
@@ -147,13 +149,15 @@ advantage that a bug in control flow can't that doesn't correctly
 
 Here is a simple use of `map`, taken from `chips/sam4l/src/dma.rs`:
 
->    pub fn disable(&self) {
->        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
->
->        self.dma_read.map(|read| read.disable());
->        self.dma_write.map(|write| write.disable());
->        regs.cr.set(0b10);
->    }
+```rust
+pub fn disable(&self) {
+    let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+
+    self.dma_read.map(|read| read.disable());
+    self.dma_write.map(|write| write.disable());
+    regs.cr.set(0b10);
+}
+```
 
 Both `dma_read` and `dma_write` are of type `TakeCell<&'static mut DMAChannel>`,
 that is, a TakeCell for a mutable reference to a DMA channel. By calling `map`,
@@ -162,11 +166,13 @@ the TakeCell has no reference (it is empty), then `map` does nothing.
 
 Here is a more complex example use of `map`, taken from `chips/sam4l/src/spi.rs`:
 
->             self.client.map(|cb| {
->                txbuf.map(|txbuf| {
->                    cb.read_write_done(txbuf, rxbuf, len);
->                });
->            });
+```rust
+self.client.map(|cb| {
+    txbuf.map(|txbuf| {
+        cb.read_write_done(txbuf, rxbuf, len);
+    });
+});
+```
 
 In this example, `client` is a `TakeCell<&'static SpiMasterClient>`.
 The closure passed to `map` has a single argument, the value which the
@@ -174,5 +180,4 @@ TakeCell contains. So in this case, `cb` is the reference to an
 `SpiMasterClient`. Note that the closure passed to `client.map` then
 itself contains a closure, which uses `cb` to invoke a callback passing
 `txbuf`.
-
 
