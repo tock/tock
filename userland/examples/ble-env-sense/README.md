@@ -1,7 +1,7 @@
 BLE Serialization App
 =====================
 
-This app makes it possible to provide a BLE interface on the Sam4l.
+This app makes it possible to provide a BLE interface on the SAM4L.
 It does this by using Nordic's BLE Serialization format where BLE commands
 can be communicated over UART to the nRF51822 radio. This serialization
 protocol allows for otherwise normal nRF51822 BLE apps to be executed on
@@ -16,9 +16,7 @@ Usage
 [Firestorm BLE serialization app](https://github.com/helena-project/storm-ble/tree/master/nrf51822/apps/firestorm-ble-serialization-uart-peripheral)
 to the nRF51822.
 
-2. Make sure the submodule in the `ble_example` application is up to date.
-
-3. Install this app on Storm.
+3. Install this Tock app on Storm.
 
 
 
