@@ -34,9 +34,7 @@ double FXOS8700CQ_read_accel_mag() {
 
   yield_for(&result.fired);
 
-  // TODO add sqrt of accel magnitude once software floating point supported in userspace
-  // adding sqrt(...) currently causes crash
-  return (result.x * result.x + result.y * result.y + result.z * result.z);
+  return sqrt(result.x * result.x + result.y * result.y + result.z * result.z);
 }
 
 int FXOS8700CQ_subscribe(subscribe_cb callback, void* userdata) {
