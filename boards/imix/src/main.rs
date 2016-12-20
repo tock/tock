@@ -227,7 +227,7 @@ pub unsafe fn reset_handler() {
     let fx0 = static_init!(
         capsules::fxos8700_cq::Fxos8700cq<'static>,
         capsules::fxos8700_cq::Fxos8700cq::new(fx0_i2c, &mut capsules::fxos8700_cq::BUF),
-        44);
+        288/8);
     fx0_i2c.set_client(fx0);
 
     // Clear sensors enable pin to enable sensor rail
