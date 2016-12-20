@@ -13,6 +13,8 @@ void critical_region_exit (void);
 #define CRITICAL_REGION_ENTER() critical_region_enter()
 #define CRITICAL_REGION_EXIT() critical_region_exit()
 
-static __INLINE uint8_t current_int_priority_get(void) { }
+static __INLINE uint8_t current_int_priority_get(void) {
+	return 4; // APP_IRQ_PRIORITY_THREAD
+}
 
 #endif
