@@ -39,7 +39,7 @@ enum State {
     ReadingAcceleration,
 
     /// Deactivate sensor
-    Deactivating(usize, usize, usize),
+    Deactivating(i16, i16, i16),
 }
 
 pub struct Fxos8700cq<'a> {
@@ -87,23 +87,23 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
                 self.state.set(State::ReadingAcceleration);
             }
             State::ReadingAcceleration => {
-                let x = (((buffer[0] as u16) << 8) | buffer[1] as u16) as usize;
-                let y = (((buffer[2] as u16) << 8) | buffer[3] as u16) as usize;
-                let z = (((buffer[4] as u16) << 8) | buffer[5] as u16) as usize;
+                let x = (((buffer[0] as i16) << 8) | buffer[1] as i16) >> 2;
+                let y = (((buffer[2] as i16) << 8) | buffer[3] as i16) >> 2;
+                let z = (((buffer[4] as i16) << 8) | buffer[5] as i16) >> 2;
 
-                let x = ((x >> 2) * 976) / 1000;
-                let y = ((y >> 2) * 976) / 1000;
-                let z = ((z >> 2) * 976) / 1000;
+                let x = ((x as isize) * 244) / 1000;
+                let y = ((y as isize) * 244) / 1000;
+                let z = ((z as isize) * 244) / 1000;
 
                 buffer[0] = 0;
                 self.i2c.write(buffer, 2);
-                self.state.set(State::Deactivating(x, y, z));
+                self.state.set(State::Deactivating(x as i16, y as i16, z as i16));
             }
             State::Deactivating(x, y, z) => {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.callback.get().map(|mut cb| cb.schedule(x, y, z));
+                self.callback.get().map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
             }
         }
     }

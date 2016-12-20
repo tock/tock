@@ -250,7 +250,7 @@ pub unsafe fn reset_handler() {
     let fxos8700 = static_init!(
         capsules::fxos8700_cq::Fxos8700cq<'static>,
         capsules::fxos8700_cq::Fxos8700cq::new(fxos8700_i2c, &mut capsules::fxos8700_cq::BUF),
-        44);
+        288/8);
     fxos8700_i2c.set_client(fxos8700);
 
     // Initialize and enable SPI HAL
