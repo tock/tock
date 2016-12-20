@@ -1,6 +1,7 @@
 use core::fmt::*;
 use kernel::hil::uart::{self, UART};
 use sam4l;
+use kernel::process;
 
 pub struct Writer {
     initialized: bool,
@@ -43,6 +44,8 @@ pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, 
     let _ = write(writer, args);
     let _ = writer.write_str("\"\r\n");
 
+    print_app_statistics(writer);
+
     let led = &sam4l::gpio::PA[13];
     led.enable_output();
     loop {
@@ -58,6 +61,19 @@ pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, 
         for _ in 0..500000 {
             led.set();
         }
+    }
+}
+
+unsafe fn print_app_statistics(writer: &mut Writer) {
+    let _ = writer.write_fmt(format_args!("\r\n---| App Statistics |---\r\n"));
+
+    // iterate through each process
+    let procs = &mut process::PROCS;
+    for idx in 0..procs.len() {
+        procs[idx].as_ref().map(|process| {
+            let _ = writer.write_fmt(format_args!("App {}\r\n", idx));
+            process.statistics_str(writer);
+        });
     }
 }
 
