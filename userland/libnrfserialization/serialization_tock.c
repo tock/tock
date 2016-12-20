@@ -1,7 +1,10 @@
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
+
+#include <timer.h>
+#include <gpio.h>
 
 #include "nrf.h"
 #include "ser_phy.h"
@@ -33,7 +36,10 @@ static ser_phy_events_handler_t _ser_phy_event_handler;
 static ser_phy_evt_t _ser_phy_rx_event;
 // Data structure for TX events.
 static ser_phy_evt_t _ser_phy_tx_event;
-
+// Flag so we don't overwhelm the serialization library
+static bool _receiving_packet = false;
+// Keep track of how much data the kernel got between receiving the buffer
+// and passing it to the serialization layer.
 static int saved_rx_len = 0;
 
 
@@ -62,67 +68,74 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
             _ser_phy_event_handler(_ser_phy_tx_event);
         }
 
-    } else if (callback_type == 2) {
-        // RX STARTED
-
-        // Need a dummy request for a buffer to keep the state machines
-        // in the serialization library happy. We do use this buffer, but
-        // we don't block packet receive until we get it.
-        _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_BUF_REQUEST;
-        _ser_phy_rx_event.evt_params.rx_buf_request.num_of_bytes = rx_len - SER_PHY_HEADER_SIZE;
-
-        if (_ser_phy_event_handler) {
-            _ser_phy_event_handler(_ser_phy_rx_event);
-        }
-
-    } else if (callback_type == 3) {
-        // RX DONE
-
-        // Check that we actually have a buffer to pass to the upper layers.
-        // This buffer MUST be the same buffer that it passed us.
-        if (hal_rx_buf) {
-            // Copy our buffer into the upper layer's buffer.
-            memcpy(hal_rx_buf, rx+2, rx_len - SER_PHY_HEADER_SIZE);
-
-            _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_PKT_RECEIVED;
-            _ser_phy_rx_event.evt_params.rx_pkt_received.num_of_bytes = rx_len - SER_PHY_HEADER_SIZE;
-            _ser_phy_rx_event.evt_params.rx_pkt_received.p_buffer = hal_rx_buf;
-
-            if (_ser_phy_event_handler) {
-                _ser_phy_event_handler(_ser_phy_rx_event);
-            }
-        }
-
     } else if (callback_type == 4) {
         // RX entire buffer
 
-        saved_rx_len = rx_len;
+        // Make sure we received at 3 bytes (two length and then at least
+        // some payload). If not, this packet is not worth looking at.
+        if (rx_len < 3) {
+            return;
+        }
 
-        // Need a dummy request for a buffer to keep the state machines
-        // in the serialization library happy. We do use this buffer, but
-        // we don't block packet receive until we get it.
-        _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_BUF_REQUEST;
-        _ser_phy_rx_event.evt_params.rx_buf_request.num_of_bytes = (rx[0] | rx[1] << 8) - SER_PHY_HEADER_SIZE;
+        // Only pass this buffer up if we don't have any others in flight.
+        // Ideally this would be a queue at some point.
+        if (!_receiving_packet) {
 
-        if (_ser_phy_event_handler) {
-            _ser_phy_event_handler(_ser_phy_rx_event);
+            // Make sure the packet is not too big. If it is, the upper layer
+            // is going to reject it, so lets just skip that and drop it now.
+            uint16_t buf_len = (rx[0] | rx[1] << 8) - SER_PHY_HEADER_SIZE;
+            if (buf_len < SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE) {
+                saved_rx_len = rx_len;
+
+                // Need a dummy request for a buffer to keep the state machines
+                // in the serialization library happy. We do use this buffer, but
+                // we don't block packet receive until we get it.
+                _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_BUF_REQUEST;
+                _ser_phy_rx_event.evt_params.rx_buf_request.num_of_bytes = buf_len;
+
+                if (_ser_phy_event_handler) {
+                    // Need to mark things as busy on this end. The serialization state
+                    // machine does not like it if you do things out of order, so
+                    // just enforce some sanity on our end.
+                    _receiving_packet = true;
+                    _ser_phy_event_handler(_ser_phy_rx_event);
+                }
+            }
         }
 
     } else if (callback_type == 17) {
-        // great, we're awake
+        // Great, we're awake.
 
         // Check that we actually have a buffer to pass to the upper layers.
         // This buffer MUST be the same buffer that it passed us.
         if (hal_rx_buf) {
+
+            uint16_t first_pkt_len = rx[0] | (((uint16_t) rx[1]) << 8);
+            if (first_pkt_len > saved_rx_len - SER_PHY_HEADER_SIZE) {
+                first_pkt_len = saved_rx_len - SER_PHY_HEADER_SIZE;
+            }
+
             // Copy our buffer into the upper layer's buffer.
-            memcpy(hal_rx_buf, rx+2, saved_rx_len - SER_PHY_HEADER_SIZE);
+            memcpy(hal_rx_buf, rx+2, first_pkt_len);
 
             _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_PKT_RECEIVED;
-            _ser_phy_rx_event.evt_params.rx_pkt_received.num_of_bytes = saved_rx_len - SER_PHY_HEADER_SIZE;
+            _ser_phy_rx_event.evt_params.rx_pkt_received.num_of_bytes = first_pkt_len;
             _ser_phy_rx_event.evt_params.rx_pkt_received.p_buffer = hal_rx_buf;
+
+            hal_rx_buf = NULL;
 
             if (_ser_phy_event_handler) {
                 _ser_phy_event_handler(_ser_phy_rx_event);
+                _receiving_packet = false;
+            }
+        } else {
+            // Buffer is NULL
+            // That means we have to drop this packet. We also need to notify
+            // the serialization library that we did so.
+            _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_PKT_DROPPED;
+            if (_ser_phy_event_handler) {
+                _ser_phy_event_handler(_ser_phy_rx_event);
+                _receiving_packet = false;
             }
         }
     }
@@ -194,16 +207,12 @@ uint32_t ser_phy_open (ser_phy_events_handler_t events_handler) {
 }
 
 uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
-
-
     // Error checks
     if (p_buffer == NULL) {
         return NRF_ERROR_NULL;
     } else if (num_of_bytes == 0) {
         return NRF_ERROR_INVALID_PARAM;
     }
-
-
 
     // Check if there is no ongoing transmission at the moment
     if (tx_len == 0) {
@@ -238,6 +247,7 @@ uint32_t ser_phy_rx_buf_set (uint8_t* p_buffer) {
 }
 
 void ser_phy_close () {
+    printf("close\n");
     _ser_phy_event_handler = NULL;
 }
 
@@ -245,7 +255,17 @@ void ser_phy_interrupts_enable () { }
 
 void ser_phy_interrupts_disable () { }
 
-// TODO: implement timers!
+
+// Essentially sleep this process
+uint32_t sd_app_evt_wait () {
+  nrf_serialization_done = false;
+  yield_for(&nrf_serialization_done);
+  return NRF_SUCCESS;
+}
+
+
+
+
 
 /**@brief Timer node type. The nodes will be used form a linked list of running timers. */
 typedef struct
@@ -432,13 +452,6 @@ void ser_app_power_system_off_enter () {
 
 }
 
-// Essentially sleep this process
-uint32_t sd_app_evt_wait () {
-  nrf_serialization_done = false;
-  yield_for(&nrf_serialization_done);
-  return NRF_SUCCESS;
-}
-
 void critical_region_enter () {
 
 }
@@ -447,7 +460,5 @@ void critical_region_exit () {
 
 }
 
-uint32_t sd_nvic_EnableIRQ (IRQn_Type IRQn) {
-    UNUSED_PARAMETER(IRQn);
-    return NRF_SUCCESS;
-}
+
+

@@ -1,4 +1,5 @@
 language: rust
+cache: cargo
 
 os:
   - linux
@@ -15,10 +16,11 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew tap ARMmbed/homebrew-formulae; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install arm-none-eabi-gcc; fi
-  - cargo install rustfmt
-  - export PATH=$HOME/.cargo/bin:$PATH
+
+before_script: (cargo install rustfmt || true)
 
 script:
+  - export PATH=$HOME/.cargo/bin:$PATH
   - tools/run_cargo_fmt.sh diff
   - make -C boards/storm
   - make -C boards/imix

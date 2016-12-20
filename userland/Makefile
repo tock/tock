@@ -62,7 +62,7 @@ $(BUILDDIR):
 
 $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) | $(BUILDDIR)
 	$(TRACE_LD)
-	$(Q)$(CC) -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib $(OBJS) -Wl,--start-group $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a -lgcc -Wl,--end-group -o $@
+	$(Q)$(CC) -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib $(OBJS) -Wl,--start-group $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) $(OTHERLIBS) $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a -lgcc -Wl,--end-group -o $@
 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 	$(TRACE_BIN)

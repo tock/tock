@@ -54,10 +54,14 @@ clean::
 .PHONY: debug
 debug: target/sam4l/debug/$(PLATFORM).elf
 
-# upload programs over uart with $(PLATFORM)loader
+# Upload programs over uart with tockloader
+ifdef PORT
+  TOCKLOADER_GENERAL_FLAGS += --port $(PORT)
+endif
+
 .PHONY: program
 program: target/sam4l/release/$(PLATFORM).bin
-	$(TOCKLOADER) flash --address $(KERNEL_ADDRESS) $<
+	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(KERNEL_ADDRESS) $<
 
 # upload kernel over JTAG
 .PHONY: flash
