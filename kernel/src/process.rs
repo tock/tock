@@ -6,6 +6,7 @@ use core::{mem, ptr, slice};
 use core::cell::Cell;
 use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile};
+use core::fmt::Write;
 
 /// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
@@ -557,6 +558,37 @@ impl<'a> Process<'a> {
     pub fn r3(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
         unsafe { read_volatile(pspr.offset(3)) }
+    }
+
+    pub unsafe fn statistics_str<W: Write>(&self, writer: &mut W) {
+
+        let mut state_str = "Yielded";
+        if self.state == State::Running {
+            state_str = "Running";
+        }
+
+        let text_start = self.text.as_ptr() as usize;
+        let text_end = self.text.as_ptr().offset(self.text.len() as isize) as usize;
+
+        let mem_start = self.mem_start() as usize;
+        let mem_end = self.mem_end() as usize;
+
+        let stack_pointer = self.cur_stack as usize;
+
+        let app_break = self.app_memory_break as usize;
+        let kernel_break = self.kernel_memory_break as usize;
+
+        let events_queued = self.tasks.len();
+
+        let _ = writer.write_fmt(format_args!("\
+            \tState: {}\r\n\
+            \tCode: 0x{:X} to 0x{:X}\r\n\
+            \tMemory: 0x{:X} to 0x{:X}\r\n\
+            \tStack: 0x{:X}\r\n\
+            \tBreaks: app 0x{:X} kernel 0x{:X}\r\n\
+            \tQueue Length: {}\r\n\
+            ", state_str, text_start, text_end, mem_start, mem_end,
+            stack_pointer, app_break, kernel_break, events_queued));
     }
 }
 
