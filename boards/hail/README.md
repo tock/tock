@@ -34,3 +34,9 @@ To program an application:
 cd tock/userland/examples/blink
 make TOCK_BOARD=hail program
 ```
+
+You can also specify the serial port to use:
+
+```bash
+make program PORT=/dev/ttyUSB0
+```
