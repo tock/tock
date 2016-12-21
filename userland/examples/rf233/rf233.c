@@ -79,7 +79,7 @@ int rf233_pending_packet(void);
 #if _DEBUG_
 #define PRINTF(...)       printf(__VA_ARGS__)
 #else
-#define PRINTF(...)       1
+#define PRINTF(...)
 #endif
 
 
@@ -183,9 +183,9 @@ void trx_bit_write(uint8_t reg_addr,
 void trx_sram_read(uint8_t addr, uint8_t *data, uint8_t length)  {
   spi_hold_low();
   /* Send the command byte */
-  uint8_t tmp1 = spi_write_byte(TRX_CMD_SR);
+  uint8_t __attribute__ ((unused)) tmp1 = spi_write_byte(TRX_CMD_SR);
   /* Send the command byte */
-  uint8_t tmp2 = spi_write_byte(addr);
+  uint8_t __attribute__ ((unused)) tmp2 = spi_write_byte(addr);
   PRINTF("RF233: SRAM read");
   PRINTF("0x%x 0x%x, ", tmp1, tmp2);
   /* Send the address from which the read operation should start */
