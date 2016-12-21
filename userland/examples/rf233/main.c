@@ -1,7 +1,7 @@
 /*
- * Example rf233 send/receive application. 
- * Callback function is supplied by user 
- * and is called by rf233 interrupt handler. 
+ * Example rf233 send/receive application.
+ * Callback function is supplied by user
+ * and is called by rf233 interrupt handler.
  */
 
 #include <firestorm.h>
@@ -16,12 +16,12 @@
 #include "trx_access.h"
 #include "rf233.h"
 
-// Callback function supplied by user 
-int callback(void*, int, uint16_t, uint16_t, uint16_t); 
+// Callback function supplied by user
+int callback(void*, int, uint16_t, uint16_t, uint16_t);
 
-int main() { 
-  char buf[2] = { 0xde, 0xad }; 
- 
+int main() {
+  char buf[2] = { 0xde, 0xad };
+
   rf233_init(0xab, 0xbc, 0xcd);
   rf233_rx_data(callback);
 
@@ -37,11 +37,15 @@ int main() {
   }
 }
 
-int callback(void* buffer, int buffer_len, uint16_t src, uint16_t dest, uint16_t pan_id) {
-	printf("Rx callback!\n"); 
-  uint8_t* bytes = (uint8_t*) buffer; 
+int callback(void* buffer,
+             int buffer_len,
+             __attribute__ ((unused)) uint16_t src,
+             __attribute__ ((unused)) uint16_t dest,
+             __attribute__ ((unused)) uint16_t pan_id) {
+	printf("Rx callback!\n");
+  uint8_t* bytes = (uint8_t*) buffer;
   for (int i = 0; i < buffer_len; i ++) {
-    printf("  Byte %i = %02x\n", i, bytes[i]); 
+    printf("  Byte %i = %02x\n", i, bytes[i]);
   }
-  return 0; 
+  return 0;
 }

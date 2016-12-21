@@ -6,7 +6,7 @@ struct rot13_buf {
   char buf[31];
 };
 
-static void rot13_callback(int pid, int len, int buf, void* ud) {
+static void rot13_callback(int pid, int len, int buf, __attribute__ ((unused)) void* ud) {
   struct rot13_buf *rb = (struct rot13_buf*)buf;
   int length = rb->length;
   if (length > len - 1) {

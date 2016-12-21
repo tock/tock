@@ -12,7 +12,9 @@ struct rot13_buf {
   char buf[31];
 };
 
-static void rot13_callback(int pid, int len, int arg2, void* ud) {
+static void rot13_callback(__attribute__ ((unused)) int pid,
+                           __attribute__ ((unused)) int len,
+                           __attribute__ ((unused)) int arg2, void* ud) {
   struct rot13_buf *rb = (struct rot13_buf*)ud;
   printf("%d: %.*s\n", rb->length, rb->length, rb->buf);
   delay_ms(500);
