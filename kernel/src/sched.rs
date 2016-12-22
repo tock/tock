@@ -41,10 +41,25 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                     }
                 }
             }
+            process::State::Fault => {
+                //XXX: really need to deal with the app
+                panic!("OH NO. Trying to schedule a Faulty app");
+            }
         }
 
         if !process.syscall_fired() {
             break;
+        }
+
+        // check if the app had a fault
+        if process.app_fault() {
+            process.fault_state();
+            process.pop_syscall_stack();
+
+            //XXX: Start doing something about it
+            panic!("AHHHHH!!! App errored");
+
+            continue
         }
 
         match process.svc_number() {
