@@ -40,6 +40,7 @@ CPPFLAGS += \
 	    -msingle-pic-base\
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
+OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
 
 LIBS =  $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) $(OTHERLIBS)
 LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
@@ -64,6 +65,7 @@ $(BUILDDIR)/%.o: %.cc | $(BUILDDIR)
 LINKER ?= $(TOCK_USERLAND_BASE_DIR)/linker.ld
 
 SIZE := $(TOOLCHAIN)-size
+OBJDUMP := $(TOOLCHAIN)-objdump
 
 .PHONY:	all
 all:	$(BUILDDIR)/app.bin size
@@ -71,6 +73,11 @@ all:	$(BUILDDIR)/app.bin size
 .PHONY: size
 size:	$(BUILDDIR)/app.elf
 	@$(SIZE) $<
+
+.PHONY: debug
+debug: $(BUILDDIR)/app.elf
+	$(TRACE_LST)
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $(BUILDDIR)/app.lst
 
 # Include the libtock makefile. Adds rules that will rebuild library when needed
 include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile

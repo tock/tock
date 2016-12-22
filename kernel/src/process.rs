@@ -164,6 +164,10 @@ pub struct Process<'a> {
     /// Process text segment
     text: &'static [u8],
 
+    /// The beginning of process code after the LoadInfo and RelData sections.
+    /// Note that unlike most pointers, this is to the flash image, not loaded sram
+    app_flash_code_start: *const u8,
+
     stored_regs: [usize; 8],
 
     yield_pc: usize,
@@ -377,8 +381,10 @@ impl<'a> Process<'a> {
 
                     text: slice::from_raw_parts(app_flash_address, app_flash_size),
 
+                    app_flash_code_start: load_result.app_flash_code_start,
+
                     stored_regs: [0; 8],
-                    yield_pc: 0,
+                    yield_pc: load_result.init_fn,
                     // Set the Thumb bit and clear everything else
                     psr: 0x01000000,
 
@@ -562,33 +568,73 @@ impl<'a> Process<'a> {
 
     pub unsafe fn statistics_str<W: Write>(&self, writer: &mut W) {
 
+        // determine app state
+        //  the actual app PC depends on whether it has yielded or is still
+        //  "running" (i.e. in a syscall)
         let mut state_str = "Yielded";
+        let mut pc_addr = self.yield_pc;
         if self.state == State::Running {
             state_str = "Running";
+            pc_addr = self.lr() as usize;
         }
 
+        // memory region
+        let mem_end = self.mem_end() as usize;
+        let mem_start = self.mem_start() as usize;
+
+        // grant region size
+        let grant_start = self.kernel_memory_break as usize;
+        let grant_size = mem_end - grant_start;
+
+        // unallocated space
+        let heap_top = self.app_memory_break as usize;
+        let unallocated_size = grant_start - heap_top;
+
+        // heap plus stack region
+        let stack_bottom = self.cur_stack as usize;
+        let heapstack_size = heap_top - stack_bottom;
+
+        // remaining stack space
+        let data_end = self.app_mem_start as usize;
+        let stack_remaining_size = stack_bottom - data_end;
+
+        // static data region (GOT, Data, and BSS)
+        let static_data_size = data_end - mem_start;
+
+        // text region
         let text_start = self.text.as_ptr() as usize;
         let text_end = self.text.as_ptr().offset(self.text.len() as isize) as usize;
+        let text_size = text_end - text_start;
 
-        let mem_start = self.mem_start() as usize;
-        let mem_end = self.mem_end() as usize;
+        // PC address in app lst file
+        let pc_addr_relative = 0x80000000 | (0xFFFFFFFE & (pc_addr - self.app_flash_code_start as usize));
 
-        let stack_pointer = self.cur_stack as usize;
-
-        let app_break = self.app_memory_break as usize;
-        let kernel_break = self.kernel_memory_break as usize;
-
+        // number of events queued
         let events_queued = self.tasks.len();
 
         let _ = writer.write_fmt(format_args!("\
-            \tState: {}\r\n\
-            \tCode: 0x{:X} to 0x{:X}\r\n\
-            \tMemory: 0x{:X} to 0x{:X}\r\n\
-            \tStack: 0x{:X}\r\n\
-            \tBreaks: app 0x{:X} kernel 0x{:X}\r\n\
-            \tQueue Length: {}\r\n\
-            ", state_str, text_start, text_end, mem_start, mem_end,
-            stack_pointer, app_break, kernel_break, events_queued));
+        [{}]  -  Events Queued: {}\
+          \r\n  {:#010X} |========\
+        \r\n             | Grant       [{:5} bytes]\
+          \r\n  {:#010X} | ---\
+        \r\n             | Unallocated [{:5} bytes]\
+          \r\n  {:#010X} | ---\
+        \r\n             | Heap+Stack  [{:5} bytes]\
+          \r\n  {:#010X} | ---\
+        \r\n             | Unallocated [{:5} bytes]\
+          \r\n  {:#010X} | ---\
+        \r\n             | Data        [{:5} bytes]\
+          \r\n  {:#010X} |========\
+        \r\n             .....\
+          \r\n  {:#010X} |========\
+        \r\n             | Text        [{:5} bytes]\
+          \r\n  {:#010X} |========\
+        \r\n\
+          \r\n  PC: {:#010X} [{:#010X} in lst file]\
+        \r\n\r\n", state_str, events_queued, mem_end, grant_size, grant_start,
+        unallocated_size, heap_top, heapstack_size, stack_bottom,
+        stack_remaining_size, data_end, static_data_size, mem_start, text_end,
+        text_size, text_start, pc_addr, pc_addr_relative));
     }
 }
 
@@ -603,6 +649,9 @@ struct LoadResult {
 
     /// The length of the data segment
     data_len: u32,
+
+    /// The beginning of process code in Flash after LoadInfo and RelData
+    app_flash_code_start: *const u8,
 
     /// The process's package name (used for IPC)
     package_name: &'static [u8],
@@ -635,9 +684,11 @@ unsafe fn load(load_info: &'static LoadInfo,
         init_fn: 0,
         app_mem_start: ptr::null(),
         data_len: 0,
+        app_flash_code_start: ptr::null(),
     };
 
     let text_start = flash_start_addr.offset(load_info.text_offset as isize);
+    load_result.app_flash_code_start = text_start;
 
     let rel_data: &[u32] =
         slice::from_raw_parts(flash_start_addr.offset(
