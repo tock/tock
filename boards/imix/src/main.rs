@@ -323,22 +323,25 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
     const NUM_PROCS: usize = 2;
 
     #[link_section = ".app_memory"]
-    static mut MEMORIES: [[u8; 8192]; NUM_PROCS] = [[0; 8192]; NUM_PROCS];
+    static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
     static mut processes: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None, None];
 
-    let mut addr = &_sapps as *const u8;
+    let mut apps_in_flash_ptr = &_sapps as *const u8;
+    let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
+    let mut app_memory_size = APP_MEMORY.len();
     for i in 0..NUM_PROCS {
-        let process_pointer = &mut processes[i];
-        let memory = &mut MEMORIES[i];
-        let (process, offset) = kernel::process::Process::create(addr, memory);
+        let (process, flash_offset, memory_offset) =
+            kernel::process::Process::create(apps_in_flash_ptr, app_memory_ptr, app_memory_size);
 
         if process.is_none() {
             break;
         }
 
-        *process_pointer = process;
-        addr = addr.offset(offset as isize);
+        processes[i] = process;
+        apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
+        app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
+        app_memory_size -= memory_offset;
     }
 
     &mut processes

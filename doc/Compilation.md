@@ -148,22 +148,25 @@ Each Tock application begins with a header that is today defined as:
 
 ```rust
 struct LoadInfo {
-    version: u32,         // Version of the Tock Binary Format (currently 1)
-    total_size: u32,      // Total padded size of the program image in bytes
-    entry_offset: u32,    // The function to call to start the application
-    rel_data_offset: u32, // Offset in memory to start of relocation data
-    rel_data_size: u32,   // Length of relocation data segment in bytes
-    text_offset: u32,     // Offset in memory to start of text segment
-    text_size: u32,       // Length of text segment in bytes
-    got_offset: u32,      // Offset in memory to start of GOT
-    got_size: u32,        // Length of GOT segment in bytes
-    data_offset: u32,     // Offset in memory to start of data
-    data_size: u32,       // Length of data segment in bytes
-    bss_mem_offset: u32,  // Offset in memory to start of BSS
-    bss_size: u32,        // Length of BSS segment in bytes
-    pkg_name_offset: u32, // Offset in memory to a string with package name
-    pkg_name_size: u32,   // Length of package name in bytes
-    checksum: u32,        // XOR of all previous fields
+    version: u32,            // Version of the Tock Binary Format (currently 1)
+    total_size: u32,         // Total padded size of the program image in bytes
+    entry_offset: u32,       // The function to call to start the application
+    rel_data_offset: u32,    // Offset in memory to start of relocation data
+    rel_data_size: u32,      // Length of relocation data segment in bytes
+    text_offset: u32,        // Offset in memory to start of text segment
+    text_size: u32,          // Length of text segment in bytes
+    got_offset: u32,         // Offset in memory to start of GOT
+    got_size: u32,           // Length of GOT segment in bytes
+    data_offset: u32,        // Offset in memory to start of data
+    data_size: u32,          // Length of data segment in bytes
+    bss_mem_offset: u32,     // Offset in memory to start of BSS
+    bss_size: u32,           // Length of BSS segment in bytes
+    min_stack_len: u32,      // Minimum stack size
+    min_app_heap_len: u32    // Minimum size for the application heap
+    min_kernel_heap_len: u32 // Minimum size for kernel's borrow heap
+    pkg_name_offset: u32,    // Offset in memory to a string with package name
+    pkg_name_size: u32,      // Length of package name in bytes
+    checksum: u32,           // XOR of all previous fields
 }
 ```
 

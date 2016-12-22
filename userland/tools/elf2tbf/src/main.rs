@@ -4,6 +4,7 @@ extern crate getopts;
 use getopts::Options;
 use std::cmp;
 use std::env;
+use std::fmt;
 use std::fs::File;
 use std::io;
 use std::io::Write;
@@ -28,9 +29,58 @@ struct LoadInfo {
     data_size: u32,
     bss_mem_offset: u32,
     bss_size: u32,
+    min_stack_len: u32,
+    min_app_heap_len: u32,
+    min_kernel_heap_len: u32,
     pkg_name_offset: u32,
     pkg_name_size: u32,
     checksum: u32,
+}
+
+impl fmt::Display for LoadInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "
+            version: {:>8} {:>#10X}
+         total_size: {:>8} {:>#10X}
+       entry_offset: {:>8} {:>#10X}
+    rel_data_offset: {:>8} {:>#10X}
+      rel_data_size: {:>8} {:>#10X}
+        text_offset: {:>8} {:>#10X}
+          text_size: {:>8} {:>#10X}
+         got_offset: {:>8} {:>#10X}
+           got_size: {:>8} {:>#10X}
+        data_offset: {:>8} {:>#10X}
+          data_size: {:>8} {:>#10X}
+     bss_mem_offset: {:>8} {:>#10X}
+           bss_size: {:>8} {:>#10X}
+      min_stack_len: {:>8} {:>#10X}
+   min_app_heap_len: {:>8} {:>#10X}
+min_kernel_heap_len: {:>8} {:>#10X}
+    pkg_name_offset: {:>8} {:>#10X}
+      pkg_name_size: {:>8} {:>#10X}
+           checksum: {:>8} {:>#10X}
+",
+        self.version, self.version,
+        self.total_size, self.total_size,
+        self.entry_offset, self.entry_offset,
+        self.rel_data_offset, self.rel_data_offset,
+        self.rel_data_size, self.rel_data_size,
+        self.text_offset, self.text_offset,
+        self.text_size, self.text_size,
+        self.got_offset, self.got_offset,
+        self.got_size, self.got_size,
+        self.data_offset, self.data_offset,
+        self.data_size, self.data_size,
+        self.bss_mem_offset, self.bss_mem_offset,
+        self.bss_size, self.bss_size,
+        self.min_stack_len, self.min_stack_len,
+        self.min_app_heap_len, self.min_app_heap_len,
+        self.min_kernel_heap_len, self.min_kernel_heap_len,
+        self.pkg_name_offset, self.pkg_name_offset,
+        self.pkg_name_size, self.pkg_name_size,
+        self.checksum, self.checksum,
+        )
+    }
 }
 
 fn main() {
@@ -39,6 +89,7 @@ fn main() {
     let mut opts = Options::new();
     opts.optopt("o", "", "set output file name", "OUTFILE");
     opts.optopt("n", "", "set package name", "PKG_NAME");
+    opts.optflag("v", "verbose", "be verbose");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -46,6 +97,7 @@ fn main() {
     };
     let output = matches.opt_str("o");
     let pkg_name = matches.opt_str("n");
+    let verbose = matches.opt_present("v");
     let input = if !matches.free.is_empty() {
         matches.free[0].clone()
     } else {
@@ -63,11 +115,11 @@ fn main() {
     match output {
             None => {
                 let mut out = io::stdout();
-                do_work(&file, &mut out, pkg_name)
+                do_work(&file, &mut out, pkg_name, verbose)
             }
             Some(name) => {
                 match File::create(Path::new(&name)) {
-                    Ok(mut f) => do_work(&file, &mut f, pkg_name),
+                    Ok(mut f) => do_work(&file, &mut f, pkg_name, verbose),
                     Err(e) => panic!("Error: {:?}", e),
                 }
             }
@@ -112,7 +164,7 @@ unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
     slice::from_raw_parts(input as *const T as *const u8, mem::size_of::<T>())
 }
 
-fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> io::Result<()> {
+fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>, verbose: bool) -> io::Result<()> {
     let pkg_name = pkg_name.unwrap_or(String::new());
     let (rel_data_size, rel_data) = match input.sections
         .iter()
@@ -125,6 +177,11 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> i
     let got = get_section(input, ".got");
     let data = get_section(input, ".data");
     let bss = get_section(input, ".bss");
+
+    // For these, we only care about the length
+    let stack_len = get_section(input, ".stack").data.len() as u32;
+    let app_heap_len = get_section(input, ".app_heap").data.len() as u32;
+    let kernel_heap_len = get_section(input, ".kernel_heap").data.len() as u32;
 
     let mut total_size = (mem::size_of::<LoadInfo>() + rel_data.len() + text.data.len() +
                           got.data.len() + data.data.len() +
@@ -163,14 +220,21 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>) -> i
         data_size: data_size,
         bss_mem_offset: bss.shdr.addr as u32,
         bss_size: bss.shdr.size as u32,
+        min_stack_len: stack_len,
+        min_app_heap_len: app_heap_len,
+        min_kernel_heap_len: kernel_heap_len,
         pkg_name_offset: pkg_name_offset,
         pkg_name_size: pkg_name_size,
-        checksum: 1 ^ total_size ^ entry_offset ^ rel_data_offset ^ rel_data_size as u32 ^
-                  text_offset ^ text_size ^
-                  got_offset ^ got_size ^ data_offset ^ data_size ^
-                  bss.shdr.addr as u32 ^ bss.shdr.size as u32 ^ pkg_name_offset ^
-                  pkg_name_size,
+        checksum: 1 ^ total_size ^ entry_offset ^ rel_data_offset ^
+            rel_data_size as u32 ^ text_offset ^ text_size ^ got_offset ^
+            got_size ^ data_offset ^ data_size ^ bss.shdr.addr as u32 ^
+            bss.shdr.size as u32 ^ stack_len ^ app_heap_len ^ kernel_heap_len ^
+            pkg_name_offset ^ pkg_name_size,
     };
+
+    if verbose {
+        print!("{}", load_info);
+    }
 
     try!(output.write_all(unsafe { as_byte_slice(&load_info) }));
     try!(output.write_all(rel_data.as_ref()));

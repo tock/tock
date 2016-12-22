@@ -7,6 +7,11 @@ use core::cell::Cell;
 use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile};
 
+/// Takes a value and rounds it up to be aligned % 8
+macro_rules! align8 {
+    ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
+}
+
 #[no_mangle]
 pub static mut SYSCALL_FIRED: usize = 0;
 
@@ -90,6 +95,9 @@ struct LoadInfo {
     data_size: u32,
     bss_mem_offset: u32,
     bss_size: u32,
+    min_stack_len: u32,
+    min_app_heap_len: u32,
+    min_kernel_heap_len: u32,
     pkg_name_offset: u32,
     pkg_name_size: u32,
     checksum: u32,
@@ -109,11 +117,12 @@ unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static Lo
 
     let checksum =
         load_info.version ^ load_info.total_size ^ load_info.entry_offset ^
-        load_info.rel_data_offset ^ load_info.rel_data_size ^ load_info.text_offset ^
-        load_info.text_size ^ load_info.got_offset ^
+        load_info.rel_data_offset ^ load_info.rel_data_size ^
+        load_info.text_offset ^ load_info.text_size ^ load_info.got_offset ^
         load_info.got_size ^ load_info.data_offset ^ load_info.data_size ^
-        load_info.bss_mem_offset ^ load_info.bss_size ^ load_info.pkg_name_offset ^
-        load_info.pkg_name_size;
+        load_info.bss_mem_offset ^ load_info.bss_size ^ load_info.min_stack_len
+        ^ load_info.min_app_heap_len ^ load_info.min_kernel_heap_len ^
+        load_info.pkg_name_offset ^ load_info.pkg_name_size;
 
     if checksum != load_info.checksum {
         return None;
@@ -123,17 +132,37 @@ unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static Lo
 }
 
 pub struct Process<'a> {
+    /// Application memory layout:
+    ///
+    ///  |======== <- memory[memory.len()]
+    ///  | Grant
+    ///  |   ↓
+    ///  |  ----   <- kernel_memory_break
+    ///  |
+    ///  |  ----   <- app_memory_break
+    ///  |   ↑
+    ///  |  Heap
+    ///  |  ----   <- stack_heap_boundary
+    ///  | Stack
+    ///  |   ↓
+    ///  |  ----   <- cur_stack
+    ///  |
+    ///  |  ----   <- app_mem_start
+    ///  |  Data
+    ///  |======== <- memory[0]
+
     /// The process's memory.
     memory: &'static mut [u8],
 
-    app_memory_break: *const u8,
     kernel_memory_break: *const u8,
+    app_memory_break: *const u8,
+    stack_heap_boundary: *const u8,
+    cur_stack: *const u8,
+    app_mem_start: *const u8,
 
     /// Process text segment
     text: &'static [u8],
 
-    /// The offset in `memory` to use for the process stack.
-    cur_stack: *const u8,
 
     stored_regs: [usize; 8],
 
@@ -158,7 +187,7 @@ pub struct Process<'a> {
 
     tasks: RingBuffer<'a, Task>,
 
-    pub pkg_name: &'static [u8],
+    pub package_name: &'static [u8],
 }
 
 fn closest_power_of_two(mut num: u32) -> u32 {
@@ -219,7 +248,7 @@ impl<'a> Process<'a> {
 
     pub fn setup_mpu(&self, mpu: &::platform::MPU) {
         let data_start = self.memory.as_ptr() as usize;
-        let data_len = closest_power_of_two(self.memory.len() as u32).trailing_zeros() - 1;
+        let data_len = (32 - self.memory.len().leading_zeros()) as u32;
 
         let text_start = self.text.as_ptr() as usize;
         let text_len = ((32 - self.text.len().leading_zeros()) - 2) as u32;
@@ -273,76 +302,104 @@ impl<'a> Process<'a> {
         return false;
     }
 
-    pub unsafe fn create(start_addr: *const u8,
-                         memory: &'static mut [u8])
-                         -> (Option<Process<'a>>, u32) {
-        if let Some(load_info) = parse_and_validate_load_info(start_addr) {
-            let mut kernel_memory_break = {
+    pub unsafe fn create(app_flash_address: *const u8,
+                         remaining_app_memory: *mut u8,
+                         remaining_app_memory_size: usize)
+                         -> (Option<Process<'a>>, usize, usize) {
+        if let Some(load_info) = parse_and_validate_load_info(app_flash_address) {
+            let app_flash_size = load_info.total_size as usize;
+
+            // Load the process into memory
+            if let Some(load_result) = load(load_info, app_flash_address,
+                                   remaining_app_memory,
+                                   remaining_app_memory_size) {
+                let stack_len = align8!(load_info.min_stack_len);
+                let app_heap_len = align8!(load_info.min_app_heap_len);
+                let kernel_heap_len = align8!(load_info.min_kernel_heap_len);
+
+                let app_slice_size = (load_result.data_len + stack_len + app_heap_len + kernel_heap_len) as usize;
+                // TODO round app_slice_size up to MPU unit?
+
+                if app_slice_size > remaining_app_memory_size {
+                    panic!("{:?} failed to load. Insufficient memory. Requested {} have {}",
+                           load_result.package_name, app_slice_size, remaining_app_memory_size);
+                }
+
+                let app_memory = slice::from_raw_parts_mut(remaining_app_memory, app_slice_size);
+                let stack_heap_boundary = app_memory.as_mut_ptr().offset((load_result.data_len + stack_len) as isize);
+                let app_memory_break = stack_heap_boundary;
+
+                // Set up initial grant region
+                let mut kernel_memory_break = app_memory.as_mut_ptr().offset(app_memory.len() as isize);
+
                 // make room for container pointers
-                let psz = mem::size_of::<*const usize>();
+                let pointer_size = mem::size_of::<*const usize>();
                 let num_ctrs = read_volatile(&container::CONTAINER_COUNTER);
-                let container_ptrs_size = num_ctrs * psz;
-                let res = memory.as_mut_ptr().offset((memory.len() - container_ptrs_size) as isize);
-                // set all ptrs to null
-                let opts = slice::from_raw_parts_mut(res as *mut *const usize, num_ctrs);
+                let container_ptrs_size = num_ctrs * pointer_size;
+                kernel_memory_break = kernel_memory_break.offset(-(container_ptrs_size as isize));
+
+                // set all pointers to null
+                let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize, num_ctrs);
                 for opt in opts.iter_mut() {
                     *opt = ptr::null()
                 }
-                res
-            };
 
-            // Take callback buffer from of memory
-            let callback_size = mem::size_of::<Task>();
-            let callback_len = 10;
-            let callback_offset = callback_len * callback_size;
-            // Set kernel break to beginning of callback buffer
-            kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
-            let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task,
-                                                         callback_len);
+                // Allocate memory for callback ring buffer
+                let callback_size = mem::size_of::<Task>();
+                let callback_len = 10;
+                let callback_offset = callback_len * callback_size;
+                kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
 
-            let tasks = RingBuffer::new(callback_buf);
+                // Set up ring buffer
+                let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
+                let tasks = RingBuffer::new(callback_buf);
 
-            let load_result = load(load_info, start_addr, memory.as_mut_ptr());
+                let mut process = Process {
+                    memory: app_memory,
 
-            let stack_bottom = load_result.app_mem_start.offset(512);
+                    kernel_memory_break: kernel_memory_break,
+                    app_memory_break: app_memory_break,
+                    stack_heap_boundary: stack_heap_boundary,
+                    cur_stack: stack_heap_boundary,
+                    app_mem_start: load_result.app_mem_start,
 
-            let mut process = Process {
-                memory: memory,
-                app_memory_break: stack_bottom,
-                kernel_memory_break: kernel_memory_break,
-                text: slice::from_raw_parts(start_addr, load_info.total_size as usize),
-                cur_stack: stack_bottom,
-                stored_regs: [0; 8],
-                yield_pc: 0,
-                psr: 0x01000000,
-                mpu_regions: [Cell::new((ptr::null(), 0)),
-                              Cell::new((ptr::null(), 0)),
-                              Cell::new((ptr::null(), 0)),
-                              Cell::new((ptr::null(), 0)),
-                              Cell::new((ptr::null(), 0))],
-                pkg_name: load_result.pkg_name,
-                state: State::Yielded,
-                tasks: tasks,
-            };
+                    text: slice::from_raw_parts(app_flash_address, app_flash_size),
 
-            if (load_result.init_fn - 1) % 8 != 0 {
-                panic!("{}", (load_result.init_fn - 1) % 8);
+                    stored_regs: [0; 8],
+                    yield_pc: 0,
+                    // Set the Thumb bit and clear everything else
+                    psr: 0x01000000,
+
+                    state: State::Yielded,
+
+                    mpu_regions: [Cell::new((ptr::null(), 0)),
+                                  Cell::new((ptr::null(), 0)),
+                                  Cell::new((ptr::null(), 0)),
+                                  Cell::new((ptr::null(), 0)),
+                                  Cell::new((ptr::null(), 0))],
+                    tasks: tasks,
+                    package_name: load_result.package_name,
+                };
+
+                if (load_result.init_fn & 0x1) != 1 {
+                    panic!("{:?} process image invalid. init_fn address must end in 1 to be Thumb, got {:#X}",
+                           load_result.package_name, load_result.init_fn);
+                }
+
+                process.tasks.enqueue(Task::FunctionCall(FunctionCall {
+                    pc: load_result.init_fn,
+                    r0: load_result.app_mem_start as usize,
+                    r1: process.app_memory_break as usize,
+                    r2: process.kernel_memory_break as usize,
+                    r3: 0,
+                }));
+
+                HAVE_WORK.set(HAVE_WORK.get() + 1);
+
+                return (Some(process), app_flash_size, app_slice_size);
             }
-
-            process.tasks.enqueue(Task::FunctionCall(FunctionCall {
-                pc: load_result.init_fn,
-                r0: load_result.app_mem_start as usize,
-                r1: process.app_memory_break as usize,
-                r2: process.kernel_memory_break as usize,
-                r3: 0,
-            }));
-
-            HAVE_WORK.set(HAVE_WORK.get() + 1);
-
-            (Some(process), load_info.total_size)
-        } else {
-            (None, 0)
         }
+        (None, 0, 0)
     }
 
     pub fn sbrk(&mut self, increment: isize) -> Result<*const u8, Error> {
@@ -496,48 +553,66 @@ struct LoadResult {
     /// and BSS.
     app_mem_start: *const u8,
 
+    /// The length of the data segment
+    data_len: u32,
+
     /// The process's package name (used for IPC)
-    pkg_name: &'static [u8],
+    package_name: &'static [u8],
 }
 
 /// Loads the process into memory
 ///
-/// Loads the process whos binary starts at `start_addr` into the memory region beginning at
-/// `mem_base`. The process binary must begin with a `LoadInfo` struct.
+/// Loads the process whos binary starts at `flash_start_addr` into the memory
+/// region beginning at `mem_base`. The process binary must fit within
+/// `mem_size` bytes.
 ///
-/// This function will copy the GOT and data segment into memory as well as zero out the BSS
-/// section. It performs relocation on the GOT and on variables named in the relocation section of
-/// the binary.
+/// This function will copy the GOT and data segment into memory as well as
+/// zero out the BSS section. It performs relocation on the GOT and on
+/// variables named in the relocation section of the binary.
 ///
-/// The function returns a `LoadResult` containing metadata about the loaded process.
+/// The function returns a `LoadResult` containing metadata about the loaded
+/// process or None if loading failed.
 unsafe fn load(load_info: &'static LoadInfo,
-               start_addr: *const u8,
-               mem_base: *mut u8)
-               -> LoadResult {
+               flash_start_addr: *const u8,
+               mem_base: *mut u8,
+               mem_size: usize)
+               -> Option<LoadResult> {
+//unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static LoadInfo> {
+    let mem_end = mem_base.offset(mem_size as isize);
 
-    let mut result = LoadResult {
-        pkg_name: slice::from_raw_parts(start_addr.offset(load_info.pkg_name_offset as isize),
+    let mut load_result = LoadResult {
+        package_name: slice::from_raw_parts(flash_start_addr.offset(load_info.pkg_name_offset as isize),
                                         load_info.pkg_name_size as usize),
         init_fn: 0,
         app_mem_start: ptr::null(),
+        data_len: 0,
     };
 
-    let text_start = start_addr.offset(load_info.text_offset as isize);
+    let text_start = flash_start_addr.offset(load_info.text_offset as isize);
 
     let rel_data: &[u32] =
-        slice::from_raw_parts(start_addr.offset(load_info.rel_data_offset as isize) as *const u32,
+        slice::from_raw_parts(flash_start_addr.offset(load_info.rel_data_offset as isize) as *const u32,
                               (load_info.rel_data_size as usize) / mem::size_of::<u32>());
 
     let got: &[u8] =
-        slice::from_raw_parts(start_addr.offset(load_info.got_offset as isize),
+        slice::from_raw_parts(flash_start_addr.offset(load_info.got_offset as isize),
                               load_info.got_size as usize) as &[u8];
 
-    let data: &[u8] = slice::from_raw_parts(start_addr.offset(load_info.data_offset as isize),
+    let data: &[u8] = slice::from_raw_parts(flash_start_addr.offset(load_info.data_offset as isize),
                                             load_info.data_size as usize);
 
     let target_data: &mut [u8] =
         slice::from_raw_parts_mut(mem_base,
                                   (load_info.data_size + load_info.got_size) as usize);
+
+    // Verify target data fits in memory
+    if target_data.len() > mem_size {
+        // When a kernel warning mechanism exists, this panic should be
+        // replaced with that, but for now it seems more useful to bail out to
+        // alert developers of why the app failed to load
+        panic!("{:?} failed to load. Data + GOT ({}) exceeded available memory ({})",
+               load_result.package_name, target_data.len(), mem_size);
+    }
 
     // Copy the GOT and data into base memory
     for (orig, dest) in got.iter().chain(data.iter()).zip(target_data.iter_mut()) {
@@ -545,6 +620,10 @@ unsafe fn load(load_info: &'static LoadInfo,
     }
 
     // Zero out BSS
+    let bss = mem_base.offset(load_info.bss_mem_offset as isize);
+    if bss.offset(load_info.bss_size as isize) > mem_end {
+        panic!("{:?} failed to load. BSS overran available memory", load_result.package_name);
+    }
     intrinsics::write_bytes(mem_base.offset(load_info.bss_mem_offset as isize),
                             0,
                             load_info.bss_size as usize);
@@ -562,6 +641,7 @@ unsafe fn load(load_info: &'static LoadInfo,
     };
 
     // Fixup Global Offset Table
+    // No need to validate size here, covered by target_data check above
     let mem_got: &mut [u32] = slice::from_raw_parts_mut(mem_base as *mut u32,
                                                         (load_info.got_size as usize) /
                                                         mem::size_of::<u32>());
@@ -579,11 +659,11 @@ unsafe fn load(load_info: &'static LoadInfo,
     }
 
     // Entry point is offset from app code
-    result.init_fn = start_addr.offset(load_info.entry_offset as isize) as usize;
+    load_result.init_fn = flash_start_addr.offset(load_info.entry_offset as isize) as usize;
 
-    let mut aligned_mem_start = load_info.bss_mem_offset + load_info.bss_size;
-    aligned_mem_start += (8 - (aligned_mem_start % 8)) % 8;
-    result.app_mem_start = mem_base.offset(aligned_mem_start as isize);
+    let aligned_mem_start = align8!(load_info.bss_mem_offset + load_info.bss_size);
+    load_result.app_mem_start = mem_base.offset(aligned_mem_start as isize);
+    load_result.data_len = aligned_mem_start;
 
-    result
+    Some(load_result)
 }

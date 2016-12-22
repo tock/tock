@@ -23,6 +23,8 @@ SECTIONS {
         _etext = .;
     } > FLASH =0xFF
 
+    _sram_start = .;
+
 /* Global Offset Table */
     .got :
     {
@@ -53,4 +55,27 @@ SECTIONS {
         *(COMMON)
         _ebss = .;
     } > SRAM
+
+    .stack :
+    {
+        _stack = .;
+        KEEP(*(.stack*))
+        _estack = .;
+    } > SRAM
+
+    .app_heap :
+    {
+        _app_heap = .;
+        KEEP(*(.app_heap*))
+        _eapp_heap = .;
+    } > SRAM
+
+    .kernel_heap :
+    {
+        _kernel_heap = .;
+        KEEP(*(.kernel_heap*))
+        _ekernel_heap = .;
+    } > SRAM
+
+    _sram_end = .;
 }
