@@ -67,6 +67,10 @@ On Linux we recommend getting packages from the [Launchpad repo](https://launchp
 $ curl https://launchpad.net/gcc-arm-embedded/5.0/5-2016-q2-update/+download/gcc-arm-none-eabi-5_4-2016q2-20160622-linux.tar.bz2
 ```
 
+If you install the binaries but get a "no such file or directory" error
+when trying to run them, then you are most likely missing needed libraries.
+Check that you have a 64-bit version of libc installed.
+
 ###### Ubuntu
 
 ```bash
