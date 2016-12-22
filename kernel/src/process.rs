@@ -56,7 +56,7 @@ pub enum Error {
     AddressOutOfBounds,
 }
 
-#[derive(Copy,Clone,PartialEq,Eq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
 pub enum State {
     Running,
     Yielded,
@@ -136,6 +136,18 @@ unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static Lo
     Some(load_info)
 }
 
+#[derive(Default)]
+struct StoredRegs {
+    r4:  usize,
+    r5:  usize,
+    r6:  usize,
+    r7:  usize,
+    r8:  usize,
+    r9:  usize,
+    r10: usize,
+    r11: usize,
+}
+
 pub struct Process<'a> {
     /// Application memory layout:
     ///
@@ -172,7 +184,7 @@ pub struct Process<'a> {
     /// Note that unlike most pointers, this is to the flash image, not loaded sram
     app_flash_code_start: *const u8,
 
-    stored_regs: [usize; 8],
+    stored_regs: StoredRegs,
 
     yield_pc: usize,
     psr: usize,
@@ -394,7 +406,7 @@ impl<'a> Process<'a> {
 
                     app_flash_code_start: load_result.app_flash_code_start,
 
-                    stored_regs: [0; 8],
+                    stored_regs: Default::default(),
                     yield_pc: load_result.init_fn,
                     // Set the Thumb bit and clear everything else
                     psr: 0x01000000,
@@ -500,7 +512,6 @@ impl<'a> Process<'a> {
         unsafe {
             self.yield_pc = read_volatile(pspr.offset(6));
             self.psr = read_volatile(pspr.offset(7));
-            self.cur_stack = (self.cur_stack as *mut usize).offset(8) as *mut u8;
         }
     }
 
@@ -511,7 +522,7 @@ impl<'a> Process<'a> {
         self.state = State::Running;
         // Fill in initial stack expected by SVC handler
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
-        let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
+        let stack_bottom = self.cur_stack as *mut usize;
         write_volatile(stack_bottom.offset(7), self.psr);
         write_volatile(stack_bottom.offset(6), callback.pc | 1);
         // Set the LR register to the saved PC so the callback returns to
@@ -537,7 +548,8 @@ impl<'a> Process<'a> {
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
         write_volatile(&mut SYSCALL_FIRED, 0);
-        let psp = switch_to_user(self.cur_stack, self.memory.as_ptr(), &mut self.stored_regs);
+        let psp = switch_to_user(self.cur_stack, self.memory.as_ptr(),
+                                mem::transmute(&mut self.stored_regs));
         self.cur_stack = psp;
     }
 
@@ -555,6 +567,10 @@ impl<'a> Process<'a> {
         unsafe { read_volatile(pspr.offset(5)) }
     }
 
+    pub fn pc(&self) -> usize {
+        let pspr = self.cur_stack as *const usize;
+        unsafe { read_volatile(pspr.offset(6)) }
+    }
 
     pub fn r0(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
@@ -581,26 +597,22 @@ impl<'a> Process<'a> {
         unsafe { read_volatile(pspr.offset(3)) }
     }
 
-    pub unsafe fn statistics_str<W: Write>(&self, writer: &mut W) {
+    pub fn r12(&self) -> usize {
+        let pspr = self.cur_stack as *const usize;
+        unsafe { read_volatile(pspr.offset(3)) }
+    }
+
+    pub unsafe fn statistics_str<W: Write>(&mut self, writer: &mut W) {
 
         // get app name
         let mut app_name_str = "";
-        let _ = str::from_utf8(self.pkg_name).map(|name_str| {
+        let _ = str::from_utf8(self.package_name).map(|name_str| {
             app_name_str = name_str;
         });
 
-        // determine app state
-        //  the actual app PC depends on whether it has yielded or is still
-        //  "running" (i.e. in a syscall)
-        let mut state_str = "Yielded";
-        let mut pc_addr = self.yield_pc;
-        if self.state == State::Running {
-            state_str = "Running";
-            pc_addr = self.lr() as usize;
-        } else if self.state == State::Fault {
-            state_str = "Fault";
-            pc_addr = self.yield_pc;
-        }
+        let (r0, r1, r2, r3, r12, pc, lr) =
+                (self.r0(), self.r1(), self.r2(), self.r12(),
+                 self.r3(), self.pc(), self.lr());
 
         // memory region
         let mem_end = self.mem_end() as usize;
@@ -631,14 +643,15 @@ impl<'a> Process<'a> {
         let text_size = text_end - text_start;
 
         // PC address in app lst file
-        let pc_addr_relative = 0x80000000 | (0xFFFFFFFE & (pc_addr - self.app_flash_code_start as usize));
+        let pc_addr_relative = 0x80000000 | (0xFFFFFFFE & (pc - self.app_flash_code_start as usize));
+        let lr_addr_relative = 0x80000000 | (0xFFFFFFFE & (lr - self.app_flash_code_start as usize));
 
         // number of events queued
         let events_queued = self.tasks.len();
 
         let _ = writer.write_fmt(format_args!("\
         App: {}\
-        \r\n[{}]  -  Events Queued: {}\
+        \r\n[{:?}]  -  Events Queued: {}\
           \r\n  {:#010X} |========\
         \r\n             | Grant       [{:5} bytes]\
           \r\n  {:#010X} | ---\
@@ -655,12 +668,31 @@ impl<'a> Process<'a> {
         \r\n             | Text        [{:5} bytes]\
           \r\n  {:#010X} |========\
         \r\n\
-          \r\n  PC: {:#010X} [{:#010X} in lst file]\
-        \r\n\r\n", app_name_str, state_str, events_queued, mem_end,
+          \r\n  R0 : {:#010X}\
+          \r\n  R1 : {:#010X}\
+          \r\n  R2 : {:#010X}\
+          \r\n  R3 : {:#010X}\
+          \r\n  R4 : {:#010X}\
+          \r\n  R5 : {:#010X}\
+          \r\n  R6 : {:#010X}\
+          \r\n  R7 : {:#010X}\
+          \r\n  R8 : {:#010X}\
+          \r\n  R9 : {:#010X}\
+          \r\n  R10: {:#010X}\
+          \r\n  R11: {:#010X}\
+          \r\n  R12: {:#010X}\
+          \r\n  PC : {:#010X} [{:#010X} in lst file]\
+          \r\n  LR : {:#010X} [{:#010X} in lst file]\
+        \r\n\r\n", app_name_str, self.state, events_queued, mem_end,
         grant_size, grant_start, unallocated_size, heap_top, heapstack_size,
         stack_bottom, stack_remaining_size, data_end, static_data_size,
-        mem_start, text_end, text_size, text_start, pc_addr,
-        pc_addr_relative));
+        mem_start, text_end, text_size, text_start,
+        r0, r1, r2, r3,
+        self.stored_regs.r4, self.stored_regs.r5, self.stored_regs.r6,
+        self.stored_regs.r7, self.stored_regs.r8, self.stored_regs.r9,
+        self.stored_regs.r10, self.stored_regs.r11,
+        r12,
+        pc, pc_addr_relative, lr, lr_addr_relative));
     }
 }
 
