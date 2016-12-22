@@ -71,7 +71,6 @@ unsafe fn print_app_statistics(writer: &mut Writer) {
     let procs = &mut process::PROCS;
     for idx in 0..procs.len() {
         procs[idx].as_ref().map(|process| {
-            let _ = writer.write_fmt(format_args!("App {}\r\n", idx));
             process.statistics_str(writer);
         });
     }
