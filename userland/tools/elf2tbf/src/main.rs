@@ -206,8 +206,10 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>, verb
     let pkg_name_offset = data_offset + data_size;
     let pkg_name_size = pkg_name.len() as u32;
 
+    let load_info_version = 1;
+
     let load_info = LoadInfo {
-        version: 1,
+        version: load_info_version,
         total_size: total_size,
         entry_offset: entry_offset,
         rel_data_offset: rel_data_offset,
@@ -225,7 +227,7 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>, verb
         min_kernel_heap_len: kernel_heap_len,
         pkg_name_offset: pkg_name_offset,
         pkg_name_size: pkg_name_size,
-        checksum: 1 ^ total_size ^ entry_offset ^ rel_data_offset ^
+        checksum: load_info_version ^ total_size ^ entry_offset ^ rel_data_offset ^
             rel_data_size as u32 ^ text_offset ^ text_size ^ got_offset ^
             got_size ^ data_offset ^ data_size ^ bss.shdr.addr as u32 ^
             bss.shdr.size as u32 ^ stack_len ^ app_heap_len ^ kernel_heap_len ^
