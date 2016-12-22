@@ -16,6 +16,9 @@ macro_rules! align8 {
 #[no_mangle]
 pub static mut SYSCALL_FIRED: usize = 0;
 
+#[no_mangle]
+pub static mut APP_FAULT: usize = 0;
+
 #[allow(improper_ctypes)]
 extern "C" {
     pub fn switch_to_user(user_stack: *const u8,
@@ -57,6 +60,7 @@ pub enum Error {
 pub enum State {
     Running,
     Yielded,
+    Fault,
 }
 
 #[derive(Copy, Clone)]
@@ -230,6 +234,13 @@ impl<'a> Process<'a> {
             unsafe {
                 HAVE_WORK.set(HAVE_WORK.get() - 1);
             }
+        }
+    }
+
+    pub fn fault_state(&mut self) {
+        self.state = State::Fault;
+        unsafe {
+            HAVE_WORK.set(HAVE_WORK.get() - 1);
         }
     }
 
@@ -515,6 +526,10 @@ impl<'a> Process<'a> {
         self.cur_stack = stack_bottom as *mut u8;
     }
 
+    pub unsafe fn app_fault(&self) -> bool {
+        read_volatile(&APP_FAULT) != 0
+    }
+
     pub unsafe fn syscall_fired(&self) -> bool {
         read_volatile(&SYSCALL_FIRED) != 0
     }
@@ -582,6 +597,9 @@ impl<'a> Process<'a> {
         if self.state == State::Running {
             state_str = "Running";
             pc_addr = self.lr() as usize;
+        } else if self.state == State::Fault {
+            state_str = "Fault";
+            pc_addr = self.yield_pc;
         }
 
         // memory region
