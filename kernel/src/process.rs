@@ -2,7 +2,7 @@ use callback::AppId;
 use common::{RingBuffer, Queue, VolatileCell};
 
 use container;
-use core::{mem, ptr, slice};
+use core::{mem, ptr, slice, str};
 use core::cell::Cell;
 use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile};
@@ -568,6 +568,12 @@ impl<'a> Process<'a> {
 
     pub unsafe fn statistics_str<W: Write>(&self, writer: &mut W) {
 
+        // get app name
+        let mut app_name_str = "";
+        let _ = str::from_utf8(self.pkg_name).map(|name_str| {
+            app_name_str = name_str;
+        });
+
         // determine app state
         //  the actual app PC depends on whether it has yielded or is still
         //  "running" (i.e. in a syscall)
@@ -613,7 +619,8 @@ impl<'a> Process<'a> {
         let events_queued = self.tasks.len();
 
         let _ = writer.write_fmt(format_args!("\
-        [{}]  -  Events Queued: {}\
+        App: {}\
+        \r\n[{}]  -  Events Queued: {}\
           \r\n  {:#010X} |========\
         \r\n             | Grant       [{:5} bytes]\
           \r\n  {:#010X} | ---\
@@ -631,10 +638,11 @@ impl<'a> Process<'a> {
           \r\n  {:#010X} |========\
         \r\n\
           \r\n  PC: {:#010X} [{:#010X} in lst file]\
-        \r\n\r\n", state_str, events_queued, mem_end, grant_size, grant_start,
-        unallocated_size, heap_top, heapstack_size, stack_bottom,
-        stack_remaining_size, data_end, static_data_size, mem_start, text_end,
-        text_size, text_start, pc_addr, pc_addr_relative));
+        \r\n\r\n", app_name_str, state_str, events_queued, mem_end,
+        grant_size, grant_start, unallocated_size, heap_top, heapstack_size,
+        stack_bottom, stack_remaining_size, data_end, static_data_size,
+        mem_start, text_end, text_size, text_start, pc_addr,
+        pc_addr_relative));
     }
 }
 

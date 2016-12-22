@@ -6,6 +6,8 @@ TOCK_USERLAND_BASE_DIR = ../..
 # Which files to compile.
 C_SRCS := $(wildcard *.c)
 
-# Include userland master makefile. Contains rules and flags for actually
-# building the application.
+PKG_NAME = C_HELLO
+
+# include userland master makefile. Contains rules and flags for actually
+# 	building the application
 include $(TOCK_USERLAND_BASE_DIR)/Makefile
