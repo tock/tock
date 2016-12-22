@@ -70,7 +70,7 @@ unsafe fn print_app_statistics(writer: &mut Writer) {
     // iterate through each process
     let procs = &mut process::PROCS;
     for idx in 0..procs.len() {
-        procs[idx].as_ref().map(|process| {
+        procs[idx].as_mut().map(|process| {
             process.statistics_str(writer);
         });
     }

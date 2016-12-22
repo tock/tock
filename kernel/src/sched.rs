@@ -54,7 +54,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
         // check if the app had a fault
         if process.app_fault() {
             process.fault_state();
-            process.pop_syscall_stack();
+            //process.pop_syscall_stack();
 
             //XXX: Start doing something about it
             panic!("AHHHHH!!! App errored");
