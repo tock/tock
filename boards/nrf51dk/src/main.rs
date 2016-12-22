@@ -76,7 +76,7 @@ unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'stati
     #[link_section = ".app_memory"]
     static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-    static mut processes: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None,];
+    static mut processes: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None];
 
     let mut apps_in_flash_ptr = &_sapps as *const u8;
     let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();

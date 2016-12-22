@@ -109,7 +109,8 @@ impl kernel::MPU for MPU {
         let mpu_type = regs.mpu_type.get();
         let regions = mpu_type.data_regions.get();
         if regions != 8 {
-            panic!("Tock currently assumes 8 MPU regions. This chip has {}", regions);
+            panic!("Tock currently assumes 8 MPU regions. This chip has {}",
+                   regions);
         }
     }
 

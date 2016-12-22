@@ -164,7 +164,11 @@ unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
     slice::from_raw_parts(input as *const T as *const u8, mem::size_of::<T>())
 }
 
-fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>, verbose: bool) -> io::Result<()> {
+fn do_work(input: &elf::File,
+           output: &mut Write,
+           pkg_name: Option<String>,
+           verbose: bool)
+           -> io::Result<()> {
     let pkg_name = pkg_name.unwrap_or(String::new());
     let (rel_data_size, rel_data) = match input.sections
         .iter()
@@ -228,10 +232,11 @@ fn do_work(input: &elf::File, output: &mut Write, pkg_name: Option<String>, verb
         pkg_name_offset: pkg_name_offset,
         pkg_name_size: pkg_name_size,
         checksum: load_info_version ^ total_size ^ entry_offset ^ rel_data_offset ^
-            rel_data_size as u32 ^ text_offset ^ text_size ^ got_offset ^
-            got_size ^ data_offset ^ data_size ^ bss.shdr.addr as u32 ^
-            bss.shdr.size as u32 ^ stack_len ^ app_heap_len ^ kernel_heap_len ^
-            pkg_name_offset ^ pkg_name_size,
+                  rel_data_size as u32 ^ text_offset ^ text_size ^
+                  got_offset ^ got_size ^ data_offset ^ data_size ^
+                  bss.shdr.addr as u32 ^
+                  bss.shdr.size as u32 ^ stack_len ^ app_heap_len ^
+                  kernel_heap_len ^ pkg_name_offset ^ pkg_name_size,
     };
 
     if verbose {

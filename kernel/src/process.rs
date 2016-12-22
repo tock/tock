@@ -117,12 +117,12 @@ unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static Lo
 
     let checksum =
         load_info.version ^ load_info.total_size ^ load_info.entry_offset ^
-        load_info.rel_data_offset ^ load_info.rel_data_size ^
-        load_info.text_offset ^ load_info.text_size ^ load_info.got_offset ^
+        load_info.rel_data_offset ^ load_info.rel_data_size ^ load_info.text_offset ^
+        load_info.text_size ^ load_info.got_offset ^
         load_info.got_size ^ load_info.data_offset ^ load_info.data_size ^
-        load_info.bss_mem_offset ^ load_info.bss_size ^ load_info.min_stack_len
-        ^ load_info.min_app_heap_len ^ load_info.min_kernel_heap_len ^
-        load_info.pkg_name_offset ^ load_info.pkg_name_size;
+        load_info.bss_mem_offset ^ load_info.bss_size ^ load_info.min_stack_len ^
+        load_info.min_app_heap_len ^
+        load_info.min_kernel_heap_len ^ load_info.pkg_name_offset ^ load_info.pkg_name_size;
 
     if checksum != load_info.checksum {
         return None;
@@ -162,7 +162,6 @@ pub struct Process<'a> {
 
     /// Process text segment
     text: &'static [u8],
-
 
     stored_regs: [usize; 8],
 
@@ -310,27 +309,34 @@ impl<'a> Process<'a> {
             let app_flash_size = load_info.total_size as usize;
 
             // Load the process into memory
-            if let Some(load_result) = load(load_info, app_flash_address,
-                                   remaining_app_memory,
-                                   remaining_app_memory_size) {
+            if let Some(load_result) =
+                load(load_info,
+                     app_flash_address,
+                     remaining_app_memory,
+                     remaining_app_memory_size) {
                 let stack_len = align8!(load_info.min_stack_len);
                 let app_heap_len = align8!(load_info.min_app_heap_len);
                 let kernel_heap_len = align8!(load_info.min_kernel_heap_len);
 
-                let app_slice_size = (load_result.data_len + stack_len + app_heap_len + kernel_heap_len) as usize;
+                let app_slice_size =
+                    (load_result.data_len + stack_len + app_heap_len + kernel_heap_len) as usize;
                 // TODO round app_slice_size up to MPU unit?
 
                 if app_slice_size > remaining_app_memory_size {
                     panic!("{:?} failed to load. Insufficient memory. Requested {} have {}",
-                           load_result.package_name, app_slice_size, remaining_app_memory_size);
+                           load_result.package_name,
+                           app_slice_size,
+                           remaining_app_memory_size);
                 }
 
                 let app_memory = slice::from_raw_parts_mut(remaining_app_memory, app_slice_size);
-                let stack_heap_boundary = app_memory.as_mut_ptr().offset((load_result.data_len + stack_len) as isize);
+                let stack_heap_boundary = app_memory.as_mut_ptr()
+                    .offset((load_result.data_len + stack_len) as isize);
                 let app_memory_break = stack_heap_boundary;
 
                 // Set up initial grant region
-                let mut kernel_memory_break = app_memory.as_mut_ptr().offset(app_memory.len() as isize);
+                let mut kernel_memory_break = app_memory.as_mut_ptr()
+                    .offset(app_memory.len() as isize);
 
                 // make room for container pointers
                 let pointer_size = mem::size_of::<*const usize>();
@@ -339,7 +345,8 @@ impl<'a> Process<'a> {
                 kernel_memory_break = kernel_memory_break.offset(-(container_ptrs_size as isize));
 
                 // set all pointers to null
-                let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize, num_ctrs);
+                let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize,
+                                                     num_ctrs);
                 for opt in opts.iter_mut() {
                     *opt = ptr::null()
                 }
@@ -351,7 +358,8 @@ impl<'a> Process<'a> {
                 kernel_memory_break = kernel_memory_break.offset(-(callback_offset as isize));
 
                 // Set up ring buffer
-                let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task, callback_len);
+                let callback_buf = slice::from_raw_parts_mut(kernel_memory_break as *mut Task,
+                                                             callback_len);
                 let tasks = RingBuffer::new(callback_buf);
 
                 let mut process = Process {
@@ -382,8 +390,10 @@ impl<'a> Process<'a> {
                 };
 
                 if (load_result.init_fn & 0x1) != 1 {
-                    panic!("{:?} process image invalid. init_fn address must end in 1 to be Thumb, got {:#X}",
-                           load_result.package_name, load_result.init_fn);
+                    panic!("{:?} process image invalid. \
+                           init_fn address must end in 1 to be Thumb, got {:#X}",
+                           load_result.package_name,
+                           load_result.init_fn);
                 }
 
                 process.tasks.enqueue(Task::FunctionCall(FunctionCall {
@@ -577,12 +587,13 @@ unsafe fn load(load_info: &'static LoadInfo,
                mem_base: *mut u8,
                mem_size: usize)
                -> Option<LoadResult> {
-//unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static LoadInfo> {
+    // unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static LoadInfo> {
     let mem_end = mem_base.offset(mem_size as isize);
 
     let mut load_result = LoadResult {
-        package_name: slice::from_raw_parts(flash_start_addr.offset(load_info.pkg_name_offset as isize),
-                                        load_info.pkg_name_size as usize),
+        package_name:
+            slice::from_raw_parts(flash_start_addr.offset(load_info.pkg_name_offset as isize),
+                                  load_info.pkg_name_size as usize),
         init_fn: 0,
         app_mem_start: ptr::null(),
         data_len: 0,
@@ -591,15 +602,17 @@ unsafe fn load(load_info: &'static LoadInfo,
     let text_start = flash_start_addr.offset(load_info.text_offset as isize);
 
     let rel_data: &[u32] =
-        slice::from_raw_parts(flash_start_addr.offset(load_info.rel_data_offset as isize) as *const u32,
-                              (load_info.rel_data_size as usize) / mem::size_of::<u32>());
+        slice::from_raw_parts(flash_start_addr.offset(
+                load_info.rel_data_offset as isize) as *const u32,
+                (load_info.rel_data_size as usize) / mem::size_of::<u32>());
 
     let got: &[u8] =
         slice::from_raw_parts(flash_start_addr.offset(load_info.got_offset as isize),
                               load_info.got_size as usize) as &[u8];
 
-    let data: &[u8] = slice::from_raw_parts(flash_start_addr.offset(load_info.data_offset as isize),
-                                            load_info.data_size as usize);
+    let data: &[u8] =
+        slice::from_raw_parts(flash_start_addr.offset(load_info.data_offset as isize),
+                              load_info.data_size as usize);
 
     let target_data: &mut [u8] =
         slice::from_raw_parts_mut(mem_base,
@@ -611,7 +624,9 @@ unsafe fn load(load_info: &'static LoadInfo,
         // replaced with that, but for now it seems more useful to bail out to
         // alert developers of why the app failed to load
         panic!("{:?} failed to load. Data + GOT ({}) exceeded available memory ({})",
-               load_result.package_name, target_data.len(), mem_size);
+               load_result.package_name,
+               target_data.len(),
+               mem_size);
     }
 
     // Copy the GOT and data into base memory
@@ -622,7 +637,8 @@ unsafe fn load(load_info: &'static LoadInfo,
     // Zero out BSS
     let bss = mem_base.offset(load_info.bss_mem_offset as isize);
     if bss.offset(load_info.bss_size as isize) > mem_end {
-        panic!("{:?} failed to load. BSS overran available memory", load_result.package_name);
+        panic!("{:?} failed to load. BSS overran available memory",
+               load_result.package_name);
     }
     intrinsics::write_bytes(mem_base.offset(load_info.bss_mem_offset as isize),
                             0,
