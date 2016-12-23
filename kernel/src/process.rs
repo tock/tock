@@ -334,19 +334,31 @@ impl<'a> Process<'a> {
         let mgrant_size = grant_size.trailing_zeros() - 1;
 
         // Data segment read/write/execute
-        mpu.set_mpu(0, data_start as u32, data_len, true, 0b011);
+        mpu.set_mpu(0,
+                    data_start as u32,
+                    data_len,
+                    ::platform::ExecutePermission::ExecutionPermitted,
+                    ::platform::AccessPermission::ReadWrite);
         // Text segment read/execute (no write)
-        mpu.set_mpu(1, text_start as u32, text_len, true, 0b111);
+        mpu.set_mpu(1,
+                    text_start as u32,
+                    text_len,
+                    ::platform::ExecutePermission::ExecutionPermitted,
+                    ::platform::AccessPermission::ReadOnly);
 
         // Disallow access to grant region
-        mpu.set_mpu(2, grant_base as u32, mgrant_size, false, 0b001);
+        mpu.set_mpu(2,
+                    grant_base as u32,
+                    mgrant_size,
+                    ::platform::ExecutePermission::ExecutionNotPermitted,
+                    ::platform::AccessPermission::PrivilegedOnly);
 
         for (i, region) in self.mpu_regions.iter().enumerate() {
             mpu.set_mpu((i + 3) as u32,
                         region.get().0 as u32,
                         region.get().1 as u32,
-                        true,
-                        0b011);
+                        ::platform::ExecutePermission::ExecutionPermitted,
+                        ::platform::AccessPermission::ReadWrite);
         }
     }
 

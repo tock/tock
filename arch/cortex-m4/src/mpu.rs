@@ -87,6 +87,7 @@ pub struct Registers {
     pub region_attributes_and_size: VolatileCell<u32>,
 }
 
+
 const MPU_BASE_ADDRESS: *const Registers = 0xE000ED90 as *const Registers;
 
 /// Constructor field is private to limit who can create a new MPU
@@ -114,10 +115,16 @@ impl kernel::MPU for MPU {
         }
     }
 
-    fn set_mpu(&self, region_num: u32, start_addr: u32, len: u32, execute: bool, ap: u32) {
+    fn set_mpu(&self,
+               region_num: u32,
+               start_addr: u32,
+               len: u32,
+               execute: kernel::ExecutePermission,
+               access: kernel::AccessPermission) {
         let regs = unsafe { &*self.0 };
         regs.region_base_address.set(region_num | 1 << 4 | start_addr);
-        let xn = if execute { 0 } else { 1 };
+        let xn = execute as u32;
+        let ap = access as u32;
         regs.region_attributes_and_size.set(1 | len << 1 | ap << 24 | xn << 28);
     }
 }
