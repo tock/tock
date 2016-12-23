@@ -12,7 +12,7 @@ TOOLCHAIN := arm-none-eabi
 # This could be replaced with an installed version of `elf2tbf`
 ELF2TBF ?= cargo run --manifest-path $(TOCK_USERLAND_BASE_DIR)/tools/elf2tbf/Cargo.toml --
 ifdef PKG_NAME
-ELF2TBF_ARGS = -n $(PKG_NAME)
+ELF2TBF_ARGS += -n $(PKG_NAME)
 endif
 
 AS := $(TOOLCHAIN)-as
@@ -88,6 +88,7 @@ TRACE_LD  =
 TRACE_AR  =
 TRACE_AS  =
 TRACE_LST =
+ELF2TBF_ARGS += -v
 else
 Q=@
 TRACE_BIN = @echo " BIN       " $@
