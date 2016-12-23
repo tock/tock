@@ -9,8 +9,8 @@ use kernel::Chip;
 use kernel::common::{RingBuffer, Queue};
 use nvic;
 use spi;
-use usart;
 use trng;
+use usart;
 
 pub struct Sam4l {
     pub mpu: cortexm4::mpu::MPU,

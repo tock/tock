@@ -25,7 +25,7 @@
 //!     rng: &'a RNG,
 //!     alarm: &'a A
 //! }
-//! 
+//!
 //! impl<'a, A: Alarm> RngTest<'a, A> {
 //!     pub fn initialize(&self) {
 //!         let interval = 1 * <A::Frequency>::frequency();
