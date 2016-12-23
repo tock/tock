@@ -6,6 +6,6 @@ TOCK_USERLAND_BASE_DIR = ../..
 # Which files to compile.
 C_SRCS := $(wildcard *.c)
 
-# Include userland master makefile. Contains rules and flags for actually
-# building the application.
+PACKAGE_NAME = org.tockos.examples.rot13
+
 include $(TOCK_USERLAND_BASE_DIR)/Makefile

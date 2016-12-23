@@ -32,8 +32,8 @@ struct LoadInfo {
     min_stack_len: u32,
     min_app_heap_len: u32,
     min_kernel_heap_len: u32,
-    pkg_name_offset: u32,
-    pkg_name_size: u32,
+    package_name_offset: u32,
+    package_name_size: u32,
     checksum: u32,
 }
 
@@ -56,8 +56,8 @@ impl fmt::Display for LoadInfo {
       min_stack_len: {:>8} {:>#10X}
    min_app_heap_len: {:>8} {:>#10X}
 min_kernel_heap_len: {:>8} {:>#10X}
-    pkg_name_offset: {:>8} {:>#10X}
-      pkg_name_size: {:>8} {:>#10X}
+package_name_offset: {:>8} {:>#10X}
+  package_name_size: {:>8} {:>#10X}
            checksum: {:>8} {:>#10X}
 ",
         self.version, self.version,
@@ -76,8 +76,8 @@ min_kernel_heap_len: {:>8} {:>#10X}
         self.min_stack_len, self.min_stack_len,
         self.min_app_heap_len, self.min_app_heap_len,
         self.min_kernel_heap_len, self.min_kernel_heap_len,
-        self.pkg_name_offset, self.pkg_name_offset,
-        self.pkg_name_size, self.pkg_name_size,
+        self.package_name_offset, self.package_name_offset,
+        self.package_name_size, self.package_name_size,
         self.checksum, self.checksum,
         )
     }
@@ -88,7 +88,7 @@ fn main() {
     let program = args[0].clone();
     let mut opts = Options::new();
     opts.optopt("o", "", "set output file name", "OUTFILE");
-    opts.optopt("n", "", "set package name", "PKG_NAME");
+    opts.optopt("n", "", "set package name", "PACKAGE_NAME");
     opts.optflag("v", "verbose", "be verbose");
 
     let matches = match opts.parse(&args[1..]) {
@@ -96,7 +96,7 @@ fn main() {
         Err(f) => panic!(f.to_string()),
     };
     let output = matches.opt_str("o");
-    let pkg_name = matches.opt_str("n");
+    let package_name = matches.opt_str("n");
     let verbose = matches.opt_present("v");
     let input = if !matches.free.is_empty() {
         matches.free[0].clone()
@@ -115,11 +115,11 @@ fn main() {
     match output {
             None => {
                 let mut out = io::stdout();
-                do_work(&file, &mut out, pkg_name, verbose)
+                do_work(&file, &mut out, package_name, verbose)
             }
             Some(name) => {
                 match File::create(Path::new(&name)) {
-                    Ok(mut f) => do_work(&file, &mut f, pkg_name, verbose),
+                    Ok(mut f) => do_work(&file, &mut f, package_name, verbose),
                     Err(e) => panic!("Error: {:?}", e),
                 }
             }
@@ -166,10 +166,10 @@ unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
 
 fn do_work(input: &elf::File,
            output: &mut Write,
-           pkg_name: Option<String>,
+           package_name: Option<String>,
            verbose: bool)
            -> io::Result<()> {
-    let pkg_name = pkg_name.unwrap_or(String::new());
+    let package_name = package_name.unwrap_or(String::new());
     let (rel_data_size, rel_data) = match input.sections
         .iter()
         .find(|section| section.shdr.name == ".rel.data".as_ref()) {
@@ -189,7 +189,7 @@ fn do_work(input: &elf::File,
 
     let mut total_size = (mem::size_of::<LoadInfo>() + rel_data.len() + text.data.len() +
                           got.data.len() + data.data.len() +
-                          pkg_name.len()) as u32;
+                          package_name.len()) as u32;
 
     let pad = if total_size.count_ones() > 1 {
         let power2len = 1 << (32 - total_size.leading_zeros());
@@ -207,8 +207,8 @@ fn do_work(input: &elf::File,
     let got_size = got.shdr.size as u32;
     let data_offset = got_offset + got_size;
     let data_size = data.shdr.size as u32;
-    let pkg_name_offset = data_offset + data_size;
-    let pkg_name_size = pkg_name.len() as u32;
+    let package_name_offset = data_offset + data_size;
+    let package_name_size = package_name.len() as u32;
 
     let load_info_version = 1;
 
@@ -229,14 +229,14 @@ fn do_work(input: &elf::File,
         min_stack_len: stack_len,
         min_app_heap_len: app_heap_len,
         min_kernel_heap_len: kernel_heap_len,
-        pkg_name_offset: pkg_name_offset,
-        pkg_name_size: pkg_name_size,
+        package_name_offset: package_name_offset,
+        package_name_size: package_name_size,
         checksum: load_info_version ^ total_size ^ entry_offset ^ rel_data_offset ^
                   rel_data_size as u32 ^ text_offset ^ text_size ^
                   got_offset ^ got_size ^ data_offset ^ data_size ^
-                  bss.shdr.addr as u32 ^
-                  bss.shdr.size as u32 ^ stack_len ^ app_heap_len ^
-                  kernel_heap_len ^ pkg_name_offset ^ pkg_name_size,
+                  bss.shdr.addr as u32 ^ bss.shdr.size as u32 ^
+                  stack_len ^ app_heap_len ^ kernel_heap_len ^
+                  package_name_offset ^ package_name_size,
     };
 
     if verbose {
@@ -248,7 +248,7 @@ fn do_work(input: &elf::File,
     try!(output.write_all(text.data.as_ref()));
     try!(output.write_all(got.data.as_ref()));
     try!(output.write_all(data.data.as_ref()));
-    try!(output.write_all(pkg_name.as_ref()));
+    try!(output.write_all(package_name.as_ref()));
 
     let mut pad = pad as usize;
     let zero_buf = [0u8; 512];
