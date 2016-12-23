@@ -4,9 +4,9 @@ use common::{RingBuffer, Queue, VolatileCell};
 use container;
 use core::{mem, ptr, slice, str};
 use core::cell::Cell;
+use core::fmt::Write;
 use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile};
-use core::fmt::Write;
 
 /// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
@@ -138,12 +138,12 @@ unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static Lo
 
 #[derive(Default)]
 struct StoredRegs {
-    r4:  usize,
-    r5:  usize,
-    r6:  usize,
-    r7:  usize,
-    r8:  usize,
-    r9:  usize,
+    r4: usize,
+    r5: usize,
+    r6: usize,
+    r7: usize,
+    r8: usize,
+    r9: usize,
     r10: usize,
     r11: usize,
 }
@@ -548,8 +548,9 @@ impl<'a> Process<'a> {
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
         write_volatile(&mut SYSCALL_FIRED, 0);
-        let psp = switch_to_user(self.cur_stack, self.memory.as_ptr(),
-                                mem::transmute(&mut self.stored_regs));
+        let psp = switch_to_user(self.cur_stack,
+                                 self.memory.as_ptr(),
+                                 mem::transmute(&mut self.stored_regs));
         self.cur_stack = psp;
     }
 
@@ -611,8 +612,7 @@ impl<'a> Process<'a> {
         });
 
         let (r0, r1, r2, r3, r12, pc, lr) =
-                (self.r0(), self.r1(), self.r2(), self.r12(),
-                 self.r3(), self.pc(), self.lr());
+            (self.r0(), self.r1(), self.r2(), self.r12(), self.r3(), self.pc(), self.lr());
 
         // memory region
         let mem_end = self.mem_end() as usize;
@@ -643,8 +643,10 @@ impl<'a> Process<'a> {
         let text_size = text_end - text_start;
 
         // PC address in app lst file
-        let pc_addr_relative = 0x80000000 | (0xFFFFFFFE & (pc - self.app_flash_code_start as usize));
-        let lr_addr_relative = 0x80000000 | (0xFFFFFFFE & (lr - self.app_flash_code_start as usize));
+        let pc_addr_relative = 0x80000000 |
+                               (0xFFFFFFFE & (pc - self.app_flash_code_start as usize));
+        let lr_addr_relative = 0x80000000 |
+                               (0xFFFFFFFE & (lr - self.app_flash_code_start as usize));
 
         // number of events queued
         let events_queued = self.tasks.len();
@@ -683,16 +685,41 @@ impl<'a> Process<'a> {
           \r\n  R12: {:#010X}\
           \r\n  PC : {:#010X} [{:#010X} in lst file]\
           \r\n  LR : {:#010X} [{:#010X} in lst file]\
-        \r\n\r\n", app_name_str, self.state, events_queued, mem_end,
-        grant_size, grant_start, unallocated_size, heap_top, heapstack_size,
-        stack_bottom, stack_remaining_size, data_end, static_data_size,
-        mem_start, text_end, text_size, text_start,
-        r0, r1, r2, r3,
-        self.stored_regs.r4, self.stored_regs.r5, self.stored_regs.r6,
-        self.stored_regs.r7, self.stored_regs.r8, self.stored_regs.r9,
-        self.stored_regs.r10, self.stored_regs.r11,
-        r12,
-        pc, pc_addr_relative, lr, lr_addr_relative));
+        \r\n\r\n",
+                                              app_name_str,
+                                              self.state,
+                                              events_queued,
+                                              mem_end,
+                                              grant_size,
+                                              grant_start,
+                                              unallocated_size,
+                                              heap_top,
+                                              heapstack_size,
+                                              stack_bottom,
+                                              stack_remaining_size,
+                                              data_end,
+                                              static_data_size,
+                                              mem_start,
+                                              text_end,
+                                              text_size,
+                                              text_start,
+                                              r0,
+                                              r1,
+                                              r2,
+                                              r3,
+                                              self.stored_regs.r4,
+                                              self.stored_regs.r5,
+                                              self.stored_regs.r6,
+                                              self.stored_regs.r7,
+                                              self.stored_regs.r8,
+                                              self.stored_regs.r9,
+                                              self.stored_regs.r10,
+                                              self.stored_regs.r11,
+                                              r12,
+                                              pc,
+                                              pc_addr_relative,
+                                              lr,
+                                              lr_addr_relative));
     }
 }
 

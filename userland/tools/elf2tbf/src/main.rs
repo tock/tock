@@ -234,9 +234,9 @@ fn do_work(input: &elf::File,
         checksum: load_info_version ^ total_size ^ entry_offset ^ rel_data_offset ^
                   rel_data_size as u32 ^ text_offset ^ text_size ^
                   got_offset ^ got_size ^ data_offset ^ data_size ^
-                  bss.shdr.addr as u32 ^ bss.shdr.size as u32 ^
-                  stack_len ^ app_heap_len ^ kernel_heap_len ^
-                  package_name_offset ^ package_name_size,
+                  bss.shdr.addr as u32 ^
+                  bss.shdr.size as u32 ^ stack_len ^ app_heap_len ^
+                  kernel_heap_len ^ package_name_offset ^ package_name_size,
     };
 
     if verbose {

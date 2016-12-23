@@ -1,7 +1,7 @@
 use core::fmt::*;
 use kernel::hil::uart::{self, UART};
-use sam4l;
 use kernel::process;
+use sam4l;
 
 pub struct Writer {
     initialized: bool,

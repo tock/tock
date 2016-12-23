@@ -37,7 +37,7 @@ impl<'a, T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
         if tail > head {
             tail - head
         } else if tail < head {
-            (self.ring.len()-head) + tail
+            (self.ring.len() - head) + tail
         } else {
             // head equals tail, length is zero
             0
