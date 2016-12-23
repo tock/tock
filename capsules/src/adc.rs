@@ -6,6 +6,7 @@
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 use kernel::hil::adc::{Client, AdcSingle};
+use kernel::returncode::ReturnCode;
 
 pub struct ADC<'a, A: AdcSingle + 'a> {
     adc: &'a A,
@@ -22,13 +23,13 @@ impl<'a, A: AdcSingle + 'a> ADC<'a, A> {
         }
     }
 
-    fn initialize(&self) {
-        self.adc.initialize();
+    fn initialize(&self) -> ReturnCode {
+        self.adc.initialize()
     }
 
-    fn sample(&self, channel: u8) {
+    fn sample(&self, channel: u8) -> ReturnCode {
         self.channel.set(channel);
-        self.adc.sample(channel);
+        self.adc.sample(channel)
     }
 }
 
@@ -60,13 +61,17 @@ impl<'a, A: AdcSingle + 'a> Driver for ADC<'a, A> {
             0 /* check if present */ => 0,
             // Initialize ADC
             1 => {
-                self.initialize();
-                0
+                match self.initialize() {
+                    ReturnCode::SUCCESS => 0,
+                    _ => -1,
+                }
             }
             // Sample on channel
             2 => {
-                self.sample(data as u8);
-                0
+                match self.sample(data as u8) {
+                    ReturnCode::SUCCESS => 0,
+                    _ => -1,
+                }
             }
 
             // default
