@@ -11,8 +11,8 @@ TOOLCHAIN := arm-none-eabi
 
 # This could be replaced with an installed version of `elf2tbf`
 ELF2TBF ?= cargo run --manifest-path $(abspath $(TOCK_USERLAND_BASE_DIR))/tools/elf2tbf/Cargo.toml --
-ifdef PKG_NAME
-ELF2TBF_ARGS += -n $(PKG_NAME)
+ifdef PACKAGE_NAME
+ELF2TBF_ARGS += -n $(PACKAGE_NAME)
 endif
 
 # Collect all desired built output.
