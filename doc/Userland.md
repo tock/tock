@@ -47,7 +47,7 @@ from [gpio.c](../userland/libtock/gpio.c):
 
 ```c
 int gpio_set(GPIO_Pin_t pin) {
-  return command(GPIO_DRIVER_NUM, 1, pin);
+  return command(GPIO_DRIVER_NUM, 2, pin);
 }
 ```
 
@@ -91,7 +91,7 @@ return from execution (for example, an application that returns from `main`).
 
 ## Libraries
 Application code does not need to stand alone, libraries are available that can
-be utilized! 
+be utilized!
 
 
 ### Newlib

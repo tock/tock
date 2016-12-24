@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 #define ERR_NONE 0
+#define DRIVER_NUM_TMP006 2
 
 int tmp006_read_sync(int16_t* temp_reading);
 int tmp006_read_async(subscribe_cb callback, void* callback_args);

@@ -92,8 +92,11 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         let pins = self.pins.as_ref();
         match command_num {
+            // number of pins
+            0 => pins.len() as isize,
+
             // enable output
-            0 => {
+            1 => {
                 if data >= pins.len() {
                     -1
                 } else {
@@ -103,7 +106,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
             }
 
             // set pin
-            1 => {
+            2 => {
                 if data >= pins.len() {
                     -1
                 } else {
@@ -113,7 +116,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
             }
 
             // clear pin
-            2 => {
+            3 => {
                 if data >= pins.len() {
                     -1
                 } else {
@@ -123,7 +126,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
             }
 
             // toggle pin
-            3 => {
+            4 => {
                 if data >= pins.len() {
                     -1
                 } else {
@@ -133,7 +136,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
             }
 
             // enable and configure input
-            4 => {
+            5 => {
                 // XXX: this is clunky
                 // data == ((pin_config << 8) | pin)
                 // this allows two values to be passed into a command interface
@@ -148,7 +151,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
             }
 
             // read input
-            5 => {
+            6 => {
                 if data >= pins.len() {
                     -1
                 } else {
@@ -159,7 +162,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
 
             // enable and configure interrupts on pin, also sets pin as input
             // (no affect or reliance on registered callback)
-            6 => {
+            7 => {
                 // TODO(brghena): this is clunky
                 // data == ((irq_config << 16) | (pin_config << 8) | pin)
                 // this allows three values to be passed into a command interface
@@ -179,7 +182,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
 
             // disable interrupts on pin, also disables pin
             // (no affect or reliance on registered callback)
-            7 => {
+            8 => {
                 if data >= pins.len() {
                     -1
                 } else {
@@ -190,7 +193,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
             }
 
             // disable pin
-            8 => {
+            9 => {
                 if data >= pins.len() {
                     -1
                 } else {

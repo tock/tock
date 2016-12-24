@@ -151,7 +151,8 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     fn command(&self, command_type: usize, _: usize, _: AppId) -> isize {
 
         match command_type {
-            0 => {
+            0 /* check if present */ => 0,
+            1 => {
                 // On a TX, send the first byte of the TX buffer.
                 // TODO(bradjc): Need to match this to the correct app!
                 //               Can't just use 0!

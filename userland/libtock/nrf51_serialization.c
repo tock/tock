@@ -15,7 +15,7 @@ void nrf51_serialization_write (char* tx, int tx_len) {
   allow(5, 1, tx, tx_len);
 
   // Do the write!!!!!
-  command(5, 0, 0);
+  command(5, 1, 0);
 }
 
 void nrf51_wakeup (void) {
