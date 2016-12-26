@@ -250,8 +250,9 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
 
     fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         match command_num {
+            0 /* check if present */ => 0,
             // Do a write to another I2C device
-            0 => {
+            1 => {
                 let address = (data & 0xFFFF) as u8;
                 let len = (data >> 16) & 0xFFFF;
 
@@ -282,7 +283,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
             }
 
             // Do a read to another I2C device
-            1 => {
+            2 => {
                 let address = (data & 0xFFFF) as u8;
                 let len = (data >> 16) & 0xFFFF;
 
@@ -311,7 +312,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
             }
 
             // Listen for messages to this device as a slave.
-            2 => {
+            3 => {
                 // We can always handle a write since this module has a buffer.
                 // .map will handle if we have already done this.
                 self.slave_buffer1.take().map(|buffer| {
@@ -330,7 +331,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
 
             // Prepare for a read from another Master by passing what's
             // in the shared slice to the lower level I2C hardware driver.
-            3 => {
+            4 => {
                 self.app_state.map(|app_state| {
                     app_state.slave_tx_buffer.map(|app_tx| {
                         self.slave_buffer2.take().map(|kernel_tx| {
@@ -353,7 +354,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
             }
 
             // Stop listening for messages as an I2C slave
-            4 => {
+            5 => {
                 hil::i2c::I2CSlave::disable(self.i2c);
 
                 // We are no longer listening for I2C messages from a different
@@ -363,7 +364,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
             }
 
             // Setup this device's slave address.
-            5 => {
+            6 => {
                 let address = data as u8;
                 hil::i2c::I2CSlave::set_address(self.i2c, address);
                 0

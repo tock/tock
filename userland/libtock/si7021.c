@@ -25,7 +25,7 @@ int si7021_set_callback (subscribe_cb callback, void* callback_args) {
 }
 
 int si7021_get_temperature_humidity () {
-    return command(DRIVER_NUM_SI7021, 0, 0);
+    return command(DRIVER_NUM_SI7021, 1, 0);
 }
 
 int si7021_get_temperature_humidity_sync (int* temperature, int* humidity) {

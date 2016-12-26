@@ -73,7 +73,8 @@ impl<'a, A: time::Alarm + 'a> Driver for Isl29035<'a, A> {
 
     fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> isize {
         match command_num {
-            0 => {
+            0 /* check if present */ => 0,
+            1 => {
                 self.start_read_lux();
                 0
             }

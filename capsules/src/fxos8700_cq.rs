@@ -122,7 +122,8 @@ impl<'a> Driver for Fxos8700cq<'a> {
 
     fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> isize {
         match command_num {
-            0 => {
+            0 /* check if present */ => 0,
+            1 => {
                 // read acceleration
                 self.start_read_accel();
                 0

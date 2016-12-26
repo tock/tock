@@ -295,8 +295,9 @@ impl<'a> Driver for TMP006<'a> {
 
     fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         match command_num {
+            0 /* check if present */ => 0,
             // set period for sensing
-            0 => {
+            1 => {
                 // bounds check on the period
                 if (data & 0xFFFFFFF8) != 0 {
                     return ERR_BAD_VALUE;
@@ -309,7 +310,7 @@ impl<'a> Driver for TMP006<'a> {
             }
 
             // unsubscribe callback
-            1 => {
+            2 => {
                 // clear callback function
                 self.callback.set(None);
 

@@ -371,14 +371,15 @@ impl<'a> Driver for FM25CLDriver<'a> {
 
     fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         match command_num {
+            0 /* check if present */ => 0,
             // get status
-            0 => {
+            1 => {
                 self.fm25cl.read_status();
                 0
             }
 
             // read
-            1 => {
+            2 => {
                 let address = (data & 0xFFFF) as u16;
                 let len = (data >> 16) & 0xFFFF;
 
@@ -391,7 +392,7 @@ impl<'a> Driver for FM25CLDriver<'a> {
             }
 
             // write
-            2 => {
+            3 => {
                 let address = (data & 0xFFFF) as u16;
                 let len = ((data >> 16) & 0xFFFF) as usize;
 

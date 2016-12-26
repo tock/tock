@@ -51,13 +51,15 @@ impl<'a, A: AdcSingle + 'a> Driver for ADC<'a, A> {
 
     fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
         match command_num {
+            // TODO: This should return the number of valid ADC channels.
+            0 /* check if present */ => 0,
             // Initialize ADC
-            0 => {
+            1 => {
                 self.initialize();
                 0
             }
             // Sample on channel
-            1 => {
+            2 => {
                 self.sample(data as u8);
                 0
             }

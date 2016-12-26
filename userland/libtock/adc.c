@@ -25,11 +25,11 @@ int adc_set_callback(subscribe_cb callback, void* callback_args) {
 }
 
 int adc_initialize() {
-    return command(DRIVER_NUM_ADC, 0, 0);
+    return command(DRIVER_NUM_ADC, 1, 0);
 }
 
 int adc_single_sample(uint8_t channel) {
-    return command(DRIVER_NUM_ADC, 1, channel);
+    return command(DRIVER_NUM_ADC, 2, channel);
 }
 
 int adc_read_single_sample(uint8_t channel) {

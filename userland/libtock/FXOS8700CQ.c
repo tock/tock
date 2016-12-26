@@ -44,7 +44,7 @@ int FXOS8700CQ_subscribe(subscribe_cb callback, void* userdata) {
 }
 
 int FXOS8700CQ_start_accel_reading() {
-  return command(11, 0, 0);
+  return command(11, 1, 0);
 }
 
 int FXOS8700CQ_read_acceleration_sync(int* x, int* y, int* z) {

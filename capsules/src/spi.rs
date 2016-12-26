@@ -189,10 +189,11 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
 
     fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
         match cmd_num {
-            0 /* read_write_byte */ => {
+            0 /* check if present */ => 0,
+            1 /* read_write_byte */ => {
                 self.spi_master.read_write_byte(arg1 as u8) as isize
             },
-            1 /* read_write_bytes */ => {
+            2 /* read_write_bytes */ => {
                 if self.busy.get() {
                     return -1;
                 }
@@ -216,47 +217,47 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                 });
                 return result;
             }
-            2 /* set chip select */ => {
+            3 /* set chip select */ => {
                 let cs = arg1;
                 self.chip_selects.get(cs).map_or(-1, |cs_line| {
                     self.spi_master.specify_chip_select(*cs_line);
                     0
                 })
             }
-            3 /* get chip select */ => {
+            4 /* get chip select */ => {
                 0
             }
-            4 /* set baud rate */ => {
+            5 /* set baud rate */ => {
                 self.spi_master.set_rate(arg1 as u32) as isize
             }
-            5 /* get baud rate */ => {
+            6 /* get baud rate */ => {
                 self.spi_master.get_rate() as isize
             }
-            6 /* set phase */ => {
+            7 /* set phase */ => {
                 match arg1 {
                     0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
                 };
                 0
             }
-            7 /* get phase */ => {
+            8 /* get phase */ => {
                 self.spi_master.get_phase() as isize
             }
-            8 /* set polarity */ => {
+            9 /* set polarity */ => {
                 match arg1 {
                     0 => self.spi_master.set_clock(ClockPolarity::IdleLow),
                     _ => self.spi_master.set_clock(ClockPolarity::IdleHigh),
                 };
                 0
             }
-            9 /* get polarity */ => {
+            10 /* get polarity */ => {
                 self.spi_master.get_clock() as isize
             }
-            10 /* hold low */ => {
+            11 /* hold low */ => {
                 self.spi_master.hold_low();
                 0
             }
-            11 /* release low */ => {
+            12 /* release low */ => {
                 self.spi_master.release_low();
                 0
             }

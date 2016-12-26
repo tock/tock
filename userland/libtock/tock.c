@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include "tock.h"
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -35,3 +36,7 @@ int __attribute__((naked)) memop(uint32_t op_type, int arg1) {
   asm volatile("svc 4\nbx lr" ::: "memory", "r0");
 }
 
+bool driver_exists(uint32_t driver) {
+  int ret = command(driver, 0, 0);
+  return ret >= 0;
+}

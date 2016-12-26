@@ -39,6 +39,27 @@ version uploaded, all without modifying the kernel running on a platform.
 
 ### Command
 
+The `command` syscall instructs the driver to perform a specific action.
+`command` syscsalls take two arguments: the command number and a 32 bit
+argument. The command number tells the driver which command was called from
+userspace, and the argument is driver and command number specific. One example
+of the argument being used is in the `led` driver, where the command to turn
+an LED on uses the argument to select which LED.
+
+Each `command` syscall returns a `int32_t` type. This is commonly used as an
+error code (where a negative value indicates an error), but is also used to
+return synchronous data. For example, in the `gpio` driver, the command for
+reading the value of a pin returns 0 or 1 based on the status of the pin.
+
+One Tock convention with the `command` syscall is that command number 0 will always
+return a value of 0 or greater if the driver is supported by the running kernel.
+This means that any application can call command number 0 on any driver number
+to determine if the driver is present and the related functionality is supported.
+In most cases this command number will return 0, indicating that the driver
+is present. In other cases, however, the return value can have an additional
+meaning such as the number of devices present, as is the case in the `led` driver
+to indicate how many LEDs are present on the board.
+
 ### Subscribe
 
 ### Allow

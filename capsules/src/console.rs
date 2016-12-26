@@ -134,7 +134,8 @@ impl<'a, U: UART> Driver for Console<'a, U> {
 
     fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
         match cmd_num {
-            0 /* putc */ => {
+            0 /* check if present */ => 0,
+            1 /* putc */ => {
                 self.tx_buffer.take().map(|buffer| {
                     buffer[0] = arg1 as u8;
                     self.uart.transmit(buffer, 1);
