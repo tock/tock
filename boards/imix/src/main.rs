@@ -10,6 +10,7 @@ extern crate sam4l;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules::virtual_spi::{SPIMasterDevice, MuxSPIMaster};
 use kernel::{Chip, MPU};
 use kernel::hil;
 use kernel::hil::Controller;
@@ -39,6 +40,7 @@ struct Imix {
     spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
     ipc: kernel::ipc::IPC,
     fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
+    rf233: &'static capsules::rf233::RF233<'static, SPIMasterDevice<'static, sam4l::spi::Spi>>,
 }
 
 impl kernel::Platform for Imix {
@@ -195,20 +197,6 @@ pub unsafe fn reset_handler() {
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
-    static mut spi_read_buf: [u8; 64] = [0; 64];
-    static mut spi_write_buf: [u8; 64] = [0; 64];
-
-    // Initialize and enable SPI HAL
-    let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
-    let spi = static_init!(
-        capsules::spi::Spi<'static, sam4l::spi::Spi>,
-        capsules::spi::Spi::new(&mut sam4l::spi::SPI, chip_selects),
-        92);
-    spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
-    sam4l::spi::SPI.set_client(spi);
-    sam4l::spi::SPI.init();
-    sam4l::spi::SPI.enable();
-
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
@@ -221,6 +209,41 @@ pub unsafe fn reset_handler() {
         36);
     si7021_i2c.set_client(si7021);
     si7021_alarm.set_client(si7021);
+
+    static mut spi_read_buf: [u8; 64] = [0; 64];
+    static mut spi_write_buf: [u8; 64] = [0; 64];
+    sam4l::spi::SPI.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+
+    let mux_spi = static_init!(
+        MuxSPIMaster<'static, hil::spi::SpiMaster<ChipSelect=u8>>,
+        MuxSPIMaster::new(&sam4l::spi::SPI),
+        20);
+    sam4l::spi::SPI.set_client(mux_spi);
+
+    // Initialize and enable SPI HAL
+    let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
+    let spi = static_init!(
+        capsules::spi::Spi<'static, sam4l::spi::Spi>,
+        capsules::spi::Spi::new(&mut mux_spi, chip_selects),
+        92);
+
+    sam4l::spi::SPI.init();
+    sam4l::spi::SPI.enable();
+
+
+    let rf233_spi = static_init!(SPIMasterDevice<'static, hil::spi::SpiMaster<ChipSelect=u8>>,
+                                 SPIMasterDevice::new(mux_spi, 0),
+                                 8);
+    let rf233 = static_init!(
+        capsules::rf233::RF233<'static, SPIMasterDevice<'static, hil::spi::SpiMaster<ChipSelect=u8>>>,
+        capsules::rf233::RF233::new(rf233_spi,
+                                    &sam4l::gpio::PA[10],
+                                    &sam4l::gpio::PA[9]),
+        18);
+
+
+
+
 
     // FXOS8700CQ accelerometer
     let fx0_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e), 32);
@@ -306,6 +329,7 @@ pub unsafe fn reset_handler() {
         spi: spi,
         ipc: kernel::ipc::IPC::new(),
         fxos8700_cq: fx0,
+        rf233: rf233,
     };
 
 

@@ -22,3 +22,4 @@ pub mod i2c_master_slave_driver;
 pub mod lps25hb;
 pub mod tsl2561;
 pub mod fxos8700_cq;
+pub mod rf233;
