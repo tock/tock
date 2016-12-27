@@ -1,19 +1,19 @@
-//! Virtualize a SPI Master bus to enable multiple users of the SPI bus.
+//! Virtualize a Spi Master bus to enable multiple users of the Spi bus.
 
 use core::cell::Cell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 
-/// The Mux struct manages multiple SPI clients. Each client may have
-/// at most one outstanding SPI request.
-pub struct MuxSPIMaster<'a, SPI: hil::spi::SpiMaster + 'a> {
-    spi: &'a SPI,
-    devices: List<'a, SPIMasterDevice<'a, SPI>>,
-    inflight: TakeCell<&'a SPIMasterDevice<'a, SPI>>,
+/// The Mux struct manages multiple Spi clients. Each client may have
+/// at most one outstanding Spi request.
+pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster + 'a> {
+    spi: &'a Spi,
+    devices: List<'a, SpiMasterDevice<'a, Spi>>,
+    inflight: TakeCell<&'a SpiMasterDevice<'a, Spi>>,
 }
 
-impl<'a, SPI: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSPIMaster<'a, SPI> {
+impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a, Spi> {
     fn read_write_done(&self,
                        write_buffer: &'static mut [u8],
                        read_buffer: Option<&'static mut [u8]>,
@@ -25,9 +25,9 @@ impl<'a, SPI: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSPIMaster<'a
     }
 }
 
-impl<'a, SPI: hil::spi::SpiMaster> MuxSPIMaster<'a, SPI> {
-    pub const fn new(spi: &'a SPI) -> MuxSPIMaster<'a, SPI> {
-        MuxSPIMaster {
+impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
+    pub const fn new(spi: &'a Spi) -> MuxSpiMaster<'a, Spi> {
+        MuxSpiMaster {
             spi: spi,
             devices: List::new(),
             inflight: TakeCell::empty(),
@@ -62,6 +62,18 @@ impl<'a, SPI: hil::spi::SpiMaster> MuxSPIMaster<'a, SPI> {
                         // as inflight.
                         self.inflight.replace(node);
                     }
+                    Op::SetPolarity(pol) => {
+                        self.spi.set_clock(pol);
+                    }
+                    Op::SetPhase(pal) => {
+                        self.spi.set_phase(pal);
+                    }
+                    Op::SetRate(rate) => {
+                        self.spi.set_rate(rate);
+                    }
+                    Op::SetChipSelect(cs) => {
+                        self.spi.specify_chip_select(cs);
+                    }
                     Op::Idle => {} // Can't get here...
                 }
                 node.operation.set(Op::Idle);
@@ -70,28 +82,41 @@ impl<'a, SPI: hil::spi::SpiMaster> MuxSPIMaster<'a, SPI> {
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
-enum Op {
+#[derive(Copy, Clone)]
+enum Op<CS> {
     Idle,
     Configure(hil::spi::ClockPolarity, hil::spi::ClockPhase, u32),
     ReadWriteBytes(usize),
+    SetPolarity(hil::spi::ClockPolarity),
+    SetPhase(hil::spi::ClockPhase),
+    SetRate(u32),
+    SetChipSelect(CS),
 }
 
-pub struct SPIMasterDevice<'a, SPI: hil::spi::SpiMaster + 'a> {
-    mux: &'a MuxSPIMaster<'a, SPI>,
-    chip_select: Cell<SPI::ChipSelect>,
+impl<CS> PartialEq for Op<CS> {
+    fn eq(&self, other: &Op<CS>) -> bool {
+        match (self, other) {
+            (&Op::Idle, &Op::Idle) => true,
+             _ => false,
+        }
+    }
+}
+
+pub struct SpiMasterDevice<'a, Spi: hil::spi::SpiMaster + 'a> {
+    mux: &'a MuxSpiMaster<'a, Spi>,
+    chip_select: Cell<Spi::ChipSelect>,
     txbuffer: TakeCell<&'static mut [u8]>,
     rxbuffer: TakeCell<Option<&'static mut [u8]>>,
-    operation: Cell<Op>,
-    next: ListLink<'a, SPIMasterDevice<'a, SPI>>,
+    operation: Cell<Op<Spi::ChipSelect>>,
+    next: ListLink<'a, SpiMasterDevice<'a, Spi>>,
     client: Cell<Option<&'a hil::spi::SpiMasterClient>>,
 }
 
-impl<'a, SPI: hil::spi::SpiMaster> SPIMasterDevice<'a, SPI> {
-    pub const fn new(mux: &'a MuxSPIMaster<'a, SPI>,
-                     chip_select: SPI::ChipSelect)
-                     -> SPIMasterDevice<'a, SPI> {
-        SPIMasterDevice {
+impl<'a, Spi: hil::spi::SpiMaster> SpiMasterDevice<'a, Spi> {
+    pub const fn new(mux: &'a MuxSpiMaster<'a, Spi>,
+                     chip_select: Spi::ChipSelect)
+                     -> SpiMasterDevice<'a, Spi> {
+        SpiMasterDevice {
             mux: mux,
             chip_select: Cell::new(chip_select),
             txbuffer: TakeCell::empty(),
@@ -106,9 +131,18 @@ impl<'a, SPI: hil::spi::SpiMaster> SPIMasterDevice<'a, SPI> {
         self.mux.devices.push_head(self);
         self.client.set(Some(client));
     }
+
+    // Binding virtualization and configuration causes problems,
+    // because it implies that a virtualized client never wants to
+    // use more than one chip select line. Counter-example is the
+    // system call driver. It's good to have a default, but
+    // we also need to be able to reconfigure.
+    pub fn set_chip_select(&'a self, cs: Spi::ChipSelect) {
+        self.chip_select.set(cs);
+    }
 }
 
-impl<'a, SPI: hil::spi::SpiMaster> hil::spi::SpiMasterClient for SPIMasterDevice<'a, SPI> {
+impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for SpiMasterDevice<'a, Spi> {
     fn read_write_done(&self,
                        write_buffer: &'static mut [u8],
                        read_buffer: Option<&'static mut [u8]>,
@@ -119,14 +153,16 @@ impl<'a, SPI: hil::spi::SpiMaster> hil::spi::SpiMasterClient for SPIMasterDevice
     }
 }
 
-impl<'a, SPI: hil::spi::SpiMaster> ListNode<'a, SPIMasterDevice<'a, SPI>>
-    for SPIMasterDevice<'a, SPI> {
-    fn next(&'a self) -> &'a ListLink<'a, SPIMasterDevice<'a, SPI>> {
+impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, SpiMasterDevice<'a, Spi>>
+    for SpiMasterDevice<'a, Spi> {
+    fn next(&'a self) -> &'a ListLink<'a, SpiMasterDevice<'a, Spi>> {
         &self.next
     }
 }
 
-impl<'a, SPI: hil::spi::SpiMaster> hil::spi::SPIMasterDevice for SPIMasterDevice<'a, SPI> {
+impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for SpiMasterDevice<'a, Spi> {
+    type ChipSelect = Spi::ChipSelect;
+
     fn configure(&self, cpol: hil::spi::ClockPolarity, cpal: hil::spi::ClockPhase, rate: u32) {
         self.operation.set(Op::Configure(cpol, cpal, rate));
         self.mux.do_next_op();
@@ -143,5 +179,37 @@ impl<'a, SPI: hil::spi::SpiMaster> hil::spi::SPIMasterDevice for SPIMasterDevice
         self.mux.do_next_op();
 
         true
+    }
+
+    fn set_polarity(&self, cpol: hil::spi::ClockPolarity) {
+        self.operation.set(Op::SetPolarity(cpol));
+        self.mux.do_next_op();
+    }
+
+    fn set_phase(&self, cpal: hil::spi::ClockPhase) {
+        self.operation.set(Op::SetPhase(cpal));
+        self.mux.do_next_op();
+    }
+
+    fn set_rate(&self, rate: u32) {
+        self.operation.set(Op::SetRate(rate));
+        self.mux.do_next_op();
+    }
+
+    fn get_polarity(&self) -> hil::spi::ClockPolarity {
+        hil::spi::ClockPolarity::IdleLow
+    }
+
+    fn get_phase(&self) -> hil::spi::ClockPhase {
+        hil::spi::ClockPhase::SampleLeading
+    }
+
+    fn get_rate(&self) -> u32 {
+        0
+    }
+
+    fn set_chip_select(&self, cs: Self::ChipSelect) {
+        self.operation.set(Op::SetChipSelect(cs));
+        self.mux.do_next_op();
     }
 }

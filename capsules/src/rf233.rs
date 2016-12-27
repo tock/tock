@@ -1,10 +1,10 @@
 use core::cell::Cell;
 use kernel::hil::gpio::Pin;
 use kernel::hil::spi;
-use virtual_spi::SPIMasterDevice;
+use virtual_spi::SpiMasterDevice;
 use kernel::returncode::ReturnCode;
 
-pub struct RF233 <'a, S: spi::SPIMasterDevice + 'a> {
+pub struct RF233 <'a, S: spi::SpiMasterDevice + 'a> {
     spi: &'a S,
     radio_on: Cell<bool>,
     transmitting: Cell<bool>,
@@ -12,7 +12,7 @@ pub struct RF233 <'a, S: spi::SPIMasterDevice + 'a> {
     sleep_pin: &'a Pin,
 }
 
-impl<'a, S: spi::SPIMasterDevice + 'a> RF233 <'a, S> {
+impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
     pub fn new(spi: &'a S,
                reset: &'a Pin,
                sleep: &'a Pin) -> RF233<'a, S> {

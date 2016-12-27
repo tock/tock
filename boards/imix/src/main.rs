@@ -10,7 +10,7 @@ extern crate sam4l;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use capsules::virtual_spi::{SPIMasterDevice, MuxSPIMaster};
+use capsules::virtual_spi::{SpiMasterDevice, MuxSpiMaster};
 use kernel::{Chip, MPU};
 use kernel::hil;
 use kernel::hil::Controller;
@@ -37,10 +37,10 @@ struct Imix {
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-    spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
+    spi: &'static capsules::spi::Spi<'static, SpiMasterDevice<'static, sam4l::spi::Spi>>,
     ipc: kernel::ipc::IPC,
     fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
-    rf233: &'static capsules::rf233::RF233<'static, SPIMasterDevice<'static, sam4l::spi::Spi>>,
+    rf233: &'static capsules::rf233::RF233<'static, SpiMasterDevice<'static, sam4l::spi::Spi>>,
 }
 
 impl kernel::Platform for Imix {
@@ -212,34 +212,39 @@ pub unsafe fn reset_handler() {
 
     static mut spi_read_buf: [u8; 64] = [0; 64];
     static mut spi_write_buf: [u8; 64] = [0; 64];
-    sam4l::spi::SPI.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    //sam4l::spi::Spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
 
     let mux_spi = static_init!(
-        MuxSPIMaster<'static, hil::spi::SpiMaster<ChipSelect=u8>>,
-        MuxSPIMaster::new(&sam4l::spi::SPI),
-        20);
+        MuxSpiMaster<'static, sam4l::spi::Spi>,
+        MuxSpiMaster::new(&sam4l::spi::SPI),
+        12);
     sam4l::spi::SPI.set_client(mux_spi);
+
+    let capsule_device = static_init!(
+        SpiMasterDevice<'static, sam4l::spi::Spi>,
+        SpiMasterDevice::new(mux_spi, 0),
+        48);
 
     // Initialize and enable SPI HAL
     let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
     let spi = static_init!(
-        capsules::spi::Spi<'static, sam4l::spi::Spi>,
-        capsules::spi::Spi::new(&mut mux_spi, chip_selects),
+        capsules::spi::Spi<'static, SpiMasterDevice<'static, sam4l::spi::Spi>>,
+        capsules::spi::Spi::new(capsule_device, chip_selects),
         92);
 
     sam4l::spi::SPI.init();
     sam4l::spi::SPI.enable();
 
 
-    let rf233_spi = static_init!(SPIMasterDevice<'static, hil::spi::SpiMaster<ChipSelect=u8>>,
-                                 SPIMasterDevice::new(mux_spi, 0),
-                                 8);
+    let rf233_spi = static_init!(SpiMasterDevice<'static, sam4l::spi::Spi>,
+                                 SpiMasterDevice::new(mux_spi, 0),
+                                 48);
     let rf233 = static_init!(
-        capsules::rf233::RF233<'static, SPIMasterDevice<'static, hil::spi::SpiMaster<ChipSelect=u8>>>,
+        capsules::rf233::RF233<'static, SpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::rf233::RF233::new(rf233_spi,
                                     &sam4l::gpio::PA[10],
                                     &sam4l::gpio::PA[9]),
-        18);
+        24);
 
 
 

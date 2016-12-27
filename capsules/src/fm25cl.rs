@@ -49,7 +49,7 @@ pub trait FM25CLClient {
 }
 
 pub struct FM25CL<'a> {
-    spi: &'a hil::spi::SPIMasterDevice,
+    spi: &'a hil::spi::SpiMasterDevice<ChipSelect=u8>,
     state: Cell<State>,
     txbuffer: TakeCell<&'static mut [u8]>,
     rxbuffer: TakeCell<&'static mut [u8]>,
@@ -60,7 +60,7 @@ pub struct FM25CL<'a> {
 }
 
 impl<'a> FM25CL<'a> {
-    pub fn new(spi: &'a hil::spi::SPIMasterDevice,
+    pub fn new(spi: &'a hil::spi::SpiMasterDevice<ChipSelect=u8>,
                txbuffer: &'static mut [u8],
                rxbuffer: &'static mut [u8])
                -> FM25CL<'a> {
