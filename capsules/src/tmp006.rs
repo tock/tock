@@ -1,3 +1,7 @@
+//! Driver for the TI TMP006 Infrared Thermopile Contactless Temperature Sensor
+//!
+//! http://www.ti.com/product/TMP006
+
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 use kernel::common::math::{sqrtf32, get_errno};

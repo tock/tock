@@ -1,3 +1,7 @@
+//! Silicon Labs SI7021 Temperature/Humidity Sensor
+//!
+//! https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx
+
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 

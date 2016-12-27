@@ -1,3 +1,6 @@
+//! Virtualize the Alarm interface to enable multiple users of an underlying
+//! alarm hardware peripheral.
+
 use core::cell::Cell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Time};

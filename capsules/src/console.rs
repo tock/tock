@@ -1,3 +1,8 @@
+//! Console Capsule
+//!
+//! Console provides userspace with the ability to print text via a serial
+//! interface.
+
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};

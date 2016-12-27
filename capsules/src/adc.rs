@@ -1,3 +1,8 @@
+//! ADC Capsule
+//!
+//! Provides userspace applications with the ability to sample
+//! ADC channels.
+
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 use kernel::hil::adc::{Client, AdcSingle};
