@@ -1,10 +1,10 @@
-//! result.rs -- Standard return type for invoking operations, returning
+//! returncode.rs -- Standard return type for invoking operations, returning
 //! success or an error code.
 //!
 //!  Author: Philip Levis <pal@cs.stanford.edu>
-//!  Date: Nov 21, 2016
+//!  Date: Dec 22, 2016
 
-enum Result {
+pub enum ReturnCode {
     SUCCESS,
     FAIL, // Generic failure condition
     EBUSY, // Underlying system is busy; retry

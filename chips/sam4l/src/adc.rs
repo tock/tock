@@ -35,11 +35,11 @@ use core::cell::Cell;
 use core::mem;
 use kernel::common::volatile_cell::VolatileCell;
 use kernel::hil;
-use kernel::hil::adc::AdcSingle;
+use kernel::hil::adc;
+use kernel::returncode::ReturnCode;
 use nvic;
 use pm::{self, Clock, PBAClock};
 use scif;
-
 
 #[repr(C, packed)]
 pub struct AdcRegisters {
@@ -110,14 +110,15 @@ impl Adc {
     }
 }
 
-impl AdcSingle for Adc {
-    fn initialize(&self) -> bool {
+impl adc::AdcSingle for Adc {
+    fn initialize(&self) -> ReturnCode {
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
         if !self.enabled.get() {
             self.enabled.set(true);
             // This logic is from 38.6.1 "Initializing the ADCIFE" of
             // the SAM4L data sheet
-            // 1. Start the clocks
+            // 1. Start the clocks, ADC uses GCLK10, choose to
+            // source it from RCSYS (115Khz)
             unsafe {
                 pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
                 nvic::enable(nvic::NvicIdx::ADCIFE);
@@ -148,13 +149,15 @@ impl AdcSingle for Adc {
             regs.cfg.set(0x00000008);
             while regs.sr.get() & (0x51000000) != 0x51000000 {}
         }
-        return true;
+        return ReturnCode::SUCCESS;
     }
 
-    fn sample(&self, channel: u8) -> bool {
+    fn sample(&self, channel: u8) -> ReturnCode {
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
-        if !self.enabled.get() || channel > 14 {
-            return false;
+        if !self.enabled.get() {
+            return ReturnCode::EOFF;
+        } else if channel > 14 {
+            return ReturnCode::EINVAL;
         } else {
             self.channel.set(channel);
             // This configuration sets the ADC to use Pad Ground as the
@@ -179,8 +182,29 @@ impl AdcSingle for Adc {
             regs.ier.set(1);
             // Initiate conversion
             regs.cr.set(8);
-            return true;
+            return ReturnCode::SUCCESS;
         }
+    }
+
+    fn cancel_sample(&self) -> ReturnCode {
+        return ReturnCode::FAIL;
+    }
+}
+
+/// Not implemented yet. -pal 12/22/16
+impl adc::AdcContinuous for Adc {
+    type Frequency = adc::Freq1KHz;
+
+    fn compute_interval(&self, interval: u32) -> u32 {
+        interval
+    }
+
+    fn sample_continuous(&self, _channel: u8, _interval: u32) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+
+    fn cancel_sampling(&self) -> ReturnCode {
+        ReturnCode::FAIL
     }
 }
 

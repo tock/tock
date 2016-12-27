@@ -10,6 +10,7 @@ pub mod ipc;
 pub mod mem;
 pub mod process;
 pub mod hil;
+pub mod returncode;
 
 pub mod support;
 
