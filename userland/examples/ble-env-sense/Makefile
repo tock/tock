@@ -1,24 +1,14 @@
-# makefile for user application
+# Makefile for user application
 
-CURRENT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+# Specify this directory relative to the current application.
+TOCK_USERLAND_BASE_DIR = ../..
 
-TOCK_USERLAND_BASE_DIR = $(abspath $(CURRENT_DIR)/../..)
-TOCK_BASE_DIR = $(abspath $(CURRENT_DIR)/../../..)
-BUILDDIR ?= $(abspath build/$(TOCK_ARCH))
-
-
+# Which files to compile.
 C_SRCS := $(wildcard *.c)
-OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
-
-CPPFLAGS += -DSTACK_SIZE=2048
 
 # Include the makefile for using BLE serialization.
 include $(TOCK_USERLAND_BASE_DIR)/libnrfserialization/Makefile.app
 
-# include userland master makefile. Contains rules and flags for actually
-# 	building the application
+# Include userland master makefile. Contains rules and flags for actually
+# building the application.
 include $(TOCK_USERLAND_BASE_DIR)/Makefile
-
-.PHONY:
-clean::
-	rm -Rf $(BUILDDIR)
