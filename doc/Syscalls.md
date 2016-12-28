@@ -231,6 +231,7 @@ functionality that is handled by the kernel. `command`, `subscribe`, and
 | 15            | SDCard           | Raw block access to an SD card             |
 | 16            | CRC              | Cyclic Redundancy Check computation        |
 | 17            | AES              | AES encryption and decryption              |
+| 18            | LTC294X          | Battery gauge IC                           |
 | 22            | LPS25HB          | Pressure sensor                            |
 | 154           | Radio            | 15.4 radio interface                       |
 | 255           | IPC              | Inter-process communication                |
