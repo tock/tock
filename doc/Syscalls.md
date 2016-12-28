@@ -233,6 +233,7 @@ functionality that is handled by the kernel. `command`, `subscribe`, and
 | 16            | CRC              | Cyclic Redundancy Check computation        |
 | 17            | AES              | AES encryption and decryption              |
 | 18            | LTC294X          | Battery gauge IC                           |
+| 19            | PCA9544A         | I2C address multiplexing                   |
 | 20            | GPIO Async       | Asynchronous GPIO pins                     |
 | 21            | MAX17205         | Battery gauge IC                           |
 | 22            | LPS25HB          | Pressure sensor                            |
