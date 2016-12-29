@@ -10,11 +10,23 @@ extern crate sam4l;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use capsules::virtual_spi::{SpiMasterDevice, MuxSpiMaster};
+use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
 use kernel::{Chip, MPU};
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
+use kernel::hil::spi::SpiMasterDevice;
+use capsules::rf233::RF233;
+
+#[allow(unused_imports)]
+use core::mem;
+
+macro_rules! pinc_toggle {
+    ($x:expr) => {
+        let toggle_reg: &mut u32 =  mem::transmute(0x400E1000 + (2 * 0x200) + 0x5c);
+        *toggle_reg = 1 << $x;
+    }
+}
 
 #[macro_use]
 mod io;
@@ -37,10 +49,38 @@ struct Imix {
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-    spi: &'static capsules::spi::Spi<'static, SpiMasterDevice<'static, sam4l::spi::Spi>>,
+    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     ipc: kernel::ipc::IPC,
     fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
-    rf233: &'static capsules::rf233::RF233<'static, SpiMasterDevice<'static, sam4l::spi::Spi>>,
+    rf233: &'static capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+}
+
+#[allow(unused_variables)]
+#[allow(dead_code)]
+pub struct SpiClientTest<'a> {
+    rf233: Option<&'a VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+}
+
+pub static mut SPITEST: SpiClientTest<'static> = SpiClientTest {
+    rf233: None,
+};
+
+static mut spi_read_buf: [u8; 64] =  [0xde; 64];
+static mut spi_write_buf: [u8; 64] = [0xad; 64];
+
+
+#[allow(unused_variables)]
+impl <'a> hil::spi::SpiMasterClient for SpiClientTest<'a> {
+    fn read_write_done(&self,
+                       write: &'static mut [u8],
+                       read: Option<&'static mut [u8]>,
+                       len: usize) {
+        self.rf233.map(|rf| {
+            unsafe {
+                rf.read_write_bytes(&mut spi_write_buf, Some(&mut spi_read_buf), len);
+            }
+        });
+    }
 }
 
 impl kernel::Platform for Imix {
@@ -55,8 +95,8 @@ impl kernel::Platform for Imix {
             4 => f(Some(self.spi)),
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
-            8 => f(Some(self.led)),
-            9 => f(Some(self.button)),
+            //8 => f(Some(self.led)),
+            //9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
             11 => f(Some(self.fxos8700_cq)),
 
@@ -130,7 +170,6 @@ unsafe fn set_pin_primary_functions() {
     PC[30].configure(None);     // D3          -- GPIO Pin
     PC[31].configure(None);     // D2          -- GPIO Pin
 }
-
 
 #[no_mangle]
 pub unsafe fn reset_handler() {
@@ -210,44 +249,40 @@ pub unsafe fn reset_handler() {
     si7021_i2c.set_client(si7021);
     si7021_alarm.set_client(si7021);
 
-    static mut spi_read_buf: [u8; 64] = [0; 64];
-    static mut spi_write_buf: [u8; 64] = [0; 64];
-    //sam4l::spi::Spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    // Initialize and enable SPI HAL
 
+    // Set up an SPI mux, so there can be multiple clients
     let mux_spi = static_init!(
         MuxSpiMaster<'static, sam4l::spi::Spi>,
         MuxSpiMaster::new(&sam4l::spi::SPI),
         12);
     sam4l::spi::SPI.set_client(mux_spi);
-
-    let capsule_device = static_init!(
-        SpiMasterDevice<'static, sam4l::spi::Spi>,
-        SpiMasterDevice::new(mux_spi, 0),
-        48);
-
-    // Initialize and enable SPI HAL
-    let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
-    let spi = static_init!(
-        capsules::spi::Spi<'static, SpiMasterDevice<'static, sam4l::spi::Spi>>,
-        capsules::spi::Spi::new(capsule_device, chip_selects),
-        92);
-
     sam4l::spi::SPI.init();
     sam4l::spi::SPI.enable();
 
+    // Create a virtualized client for the SPI system call interface
+    let capsule_device = static_init!(
+        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+        VirtualSpiMasterDevice::new(mux_spi, 0),
+        48);
 
-    let rf233_spi = static_init!(SpiMasterDevice<'static, sam4l::spi::Spi>,
-                                 SpiMasterDevice::new(mux_spi, 0),
+    // Create the SPI system call capsule, passing the client
+    let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
+    let spi = static_init!(
+        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+        capsules::spi::Spi::new(capsule_device, chip_selects),
+        92);
+
+    // Create a second virtualized client, for the RF233
+    let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+                                 VirtualSpiMasterDevice::new(mux_spi, 3),
                                  48);
-    let rf233 = static_init!(
-        capsules::rf233::RF233<'static, SpiMasterDevice<'static, sam4l::spi::Spi>>,
-        capsules::rf233::RF233::new(rf233_spi,
-                                    &sam4l::gpio::PA[10],
-                                    &sam4l::gpio::PA[9]),
-        24);
 
-
-
+    let rf233 = static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+                             RF233::new(rf233_spi,
+                                        &sam4l::gpio::PA[09],
+                                        &sam4l::gpio::PA[10]),
+                             36);
 
 
     // FXOS8700CQ accelerometer
@@ -259,8 +294,8 @@ pub unsafe fn reset_handler() {
     fx0_i2c.set_client(fx0);
 
     // Clear sensors enable pin to enable sensor rail
-    sam4l::gpio::PC[16].enable_output();
-    sam4l::gpio::PC[16].clear();
+    //sam4l::gpio::PC[16].enable_output();
+    //sam4l::gpio::PC[16].clear();
 
     // # ADC
 
@@ -270,6 +305,15 @@ pub unsafe fn reset_handler() {
         capsules::adc::ADC::new(&mut sam4l::adc::ADC),
         160/8);
     sam4l::adc::ADC.set_client(adc);
+
+    sam4l::gpio::PC[10].enable_output();
+    sam4l::gpio::PC[25].enable_output();
+    sam4l::gpio::PC[26].enable_output();
+    sam4l::gpio::PC[27].enable_output();
+    sam4l::gpio::PC[28].enable_output();
+    sam4l::gpio::PC[29].enable_output();
+    sam4l::gpio::PC[30].enable_output();
+    sam4l::gpio::PC[31].enable_output();
 
     // # GPIO
 
@@ -289,16 +333,17 @@ pub unsafe fn reset_handler() {
          &sam4l::gpio::PA[08]], // RIRQ
         11 * 4
     );
+
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
         20);
+
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
 
     // # LEDs
-
     let led_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 1],
         [&sam4l::gpio::PC[10]],
@@ -307,9 +352,10 @@ pub unsafe fn reset_handler() {
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
         capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
         96/8);
+
     // # BUTTONs
 
-    let button_pins = static_init!(
+     let button_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 1],
         [&sam4l::gpio::PC[24]],
         1 * 4);
@@ -337,9 +383,17 @@ pub unsafe fn reset_handler() {
         rf233: rf233,
     };
 
-
     let mut chip = sam4l::chip::Sam4l::new();
+
     chip.mpu().enable_mpu();
+
+    rf233_spi.set_client(&rf233);
+    rf233.initialize();
+    rf233.reset();
+    rf233.start();
+
+    //rf233_spi.send_byte(0xA5);
+    //rf233_spi.read_write_bytes(&mut spi_write_buf, None, 2);
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);
 }
 

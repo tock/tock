@@ -149,4 +149,6 @@ pub trait SpiMasterDevice {
     fn get_rate(&self) -> u32;
 
     fn set_chip_select(&self, cs: Self::ChipSelect);
+
+    fn send_byte(&self, val: u8);
 }

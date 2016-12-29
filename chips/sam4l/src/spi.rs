@@ -15,6 +15,14 @@ use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use pm;
 
+macro_rules! pinc_toggle {
+    ($x:expr) => {
+        unsafe {
+            let toggle_reg: &mut u32 =  mem::transmute(0x400E1000 + (2 * 0x200) + 0x5c);
+            *toggle_reg = 1 << $x;
+        }
+    }
+}
 
 /// Implementation of DMA-based SPI master communication for
 /// the Atmel SAM4L CortexM4 microcontroller.
@@ -296,7 +304,7 @@ impl spi::SpiMaster for Spi {
                         len: usize)
                         -> bool {
         self.enable();
-
+        pinc_toggle!(31); // Yellow
         // If busy, don't start.
         if self.is_busy() {
             return false;
@@ -317,13 +325,14 @@ impl spi::SpiMaster for Spi {
         };
         let count = cmp::min(buflen, len);
         self.dma_length.set(count);
+        pinc_toggle!(30); // Green
 
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
         self.dma_write.map(move |write| {
             write.enable();
-            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count)
+            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count);
         });
 
         // Only setup the RX channel if we were passed a read_buffer inside
@@ -335,7 +344,6 @@ impl spi::SpiMaster for Spi {
                 read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
             });
         });
-
         true
     }
 
