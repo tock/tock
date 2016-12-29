@@ -1,11 +1,12 @@
 use core::cell::Cell;
 use kernel::hil::gpio::Pin;
 use kernel::hil::spi;
-use virtual_spi::VirtualSpiMasterDevice;
+//use virtual_spi::VirtualSpiMasterDevice;
 use kernel::returncode::ReturnCode;
 use rf233_const::{RF233Register, RF233BusCommand};
 
-#[allow(unused_variables,dead_code,non_camel_case_types)]
+#[allow(unused_variables, dead_code,non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq)]
 enum InternalState {
     START,
     START_PART_READ,
@@ -58,9 +59,9 @@ static mut write_buf: [u8; 2] = [0x0; 2];
 
 impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
     fn read_write_done(&self,
-                       write: &'static mut [u8],
-                       read: Option<&'static mut [u8]>,
-                       len: usize) {
+                       _write: &'static mut [u8],
+                       _read: Option<&'static mut [u8]>,
+                       _len: usize) {
         match self.state {
             InternalState::START => {}
             InternalState::START_PART_READ => {}
@@ -130,12 +131,16 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
         self.radio_on.set(true);
         ReturnCode::SUCCESS
     }
-
+#[allow(dead_code)]
     pub fn start(&self) -> ReturnCode {
+        if self.state != InternalState::START {
+            return ReturnCode::FAIL;
+        }
         self.register_read(RF233Register::PART_NUM);
         ReturnCode::SUCCESS
     }
 
+#[allow(dead_code)]
     fn register_write(&self,
                       reg: RF233Register,
                       val: u8) -> ReturnCode {

@@ -278,11 +278,11 @@ pub unsafe fn reset_handler() {
                                  VirtualSpiMasterDevice::new(mux_spi, 3),
                                  48);
 
-    let rf233 = static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> = static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
                              RF233::new(rf233_spi,
                                         &sam4l::gpio::PA[09],
                                         &sam4l::gpio::PA[10]),
-                             36);
+                             28);
 
 
     // FXOS8700CQ accelerometer
@@ -387,7 +387,7 @@ pub unsafe fn reset_handler() {
 
     chip.mpu().enable_mpu();
 
-    rf233_spi.set_client(&rf233);
+    rf233_spi.set_client(rf233);
     rf233.initialize();
     rf233.reset();
     rf233.start();

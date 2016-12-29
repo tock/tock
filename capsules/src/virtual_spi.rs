@@ -231,6 +231,7 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
         self.mux.do_next_op();
     }
 
+#[allow(unused_variables)]
     fn set_chip_select(&self, cs: Self::ChipSelect) {
         //self.operation.set(Op::SetChipSelect(cs));
         //self.mux.do_next_op();
