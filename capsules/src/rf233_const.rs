@@ -1,4 +1,4 @@
-#![allow(non_camel_case_types)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum RF233Register {
     MIN           = 0x00,
     TRX_STATUS    = 0x01,
@@ -55,6 +55,50 @@ pub enum RF233Register {
     MAX           = 0x3E,
 }
 
+pub const TRX_CTRL_1_DIG34_RXTX_INDICATOR: u8 = 1 << 7;
+pub const TRX_CTRL_1_SPI_CMD_TRX_STATUS: u8   = 1 << 2;
+pub const TRX_CTRL_1_AUTO_CRC: u8             = 1 << 5;
+pub const PHY_TX_PWR_4: u8                    = 0;
+pub const PHY_CC_CCA_MODE_CS_OR_ED: u8        = 0 << 5;
+pub const PHY_CC_CCA_MODE_ED: u8              = 1 << 5;
+pub const PHY_CC_CCA_MODE_CS: u8              = 2 << 5;
+pub const PHY_CC_CCA_MODE_CS_AND_ED: u8       = 3 << 5;
+pub const TRX_CTRL_2_RX_SAFE_MODE: u8         = 1 << 7;
+pub const TRX_CTRL_2_DATA_RATE_250: u8        = 0;
+pub const IRQ_TRXBUF_ACCESS_VIOLATION: u8     = 1 << 6;
+pub const IRQ_TRX_DONE: u8                    = 1 << 3;
+pub const IRQ_PLL_LOCK: u8                    = 0;
+pub const XAH_CTRL_1_AACK_PROM_MODE: u8       = 1 << 1;
+
+
+pub const TRX_CTRL_1:u8   = (TRX_CTRL_1_DIG34_RXTX_INDICATOR |
+                         TRX_CTRL_1_SPI_CMD_TRX_STATUS |
+                         TRX_CTRL_1_AUTO_CRC);
+pub const TRX_CTRL_2:u8   = (TRX_CTRL_2_RX_SAFE_MODE |
+                      TRX_CTRL_2_DATA_RATE_250);
+pub const PHY_CC_CCA:u8   = 26 | PHY_CC_CCA_MODE_CS_OR_ED;
+pub const PHY_TX_PWR:u8   = PHY_TX_PWR_4;
+pub const IRQ_MASK:u8     = (IRQ_TRXBUF_ACCESS_VIOLATION |
+                      IRQ_TRX_DONE |
+                      IRQ_PLL_LOCK);
+pub const XAH_CTRL_1:u8   = XAH_CTRL_1_AACK_PROM_MODE;
+pub const XAH_CTRL_0:u8   = 0;
+pub const PAN_ID_0:u8     = 0x22;
+pub const PAN_ID_1:u8     = 0x22;
+pub const IEEE_ADDR_0:u8  = 0x11;
+pub const IEEE_ADDR_1:u8  = 0x22;
+pub const IEEE_ADDR_2:u8  = 0x33;
+pub const IEEE_ADDR_3:u8  = 0x44;
+pub const IEEE_ADDR_4:u8  = 0x55;
+pub const IEEE_ADDR_5:u8  = 0x66;
+pub const IEEE_ADDR_6:u8  = 0x77;
+pub const IEEE_ADDR_7:u8  = 0x88;
+pub const SHORT_ADDR_0:u8 = 0x11;
+pub const SHORT_ADDR_1:u8 = 0x22;
+pub const TRX_RPC:u8      = 0xFF;
+pub const TRX_PLL_ON:u8   = 0x09;
+
+#[derive(PartialEq, Copy, Clone)]
 pub enum RF233BusCommand {
     REGISTER_READ     = 0x80,
     REGISTER_WRITE    = 0xB0,
@@ -62,4 +106,25 @@ pub enum RF233BusCommand {
     FRAME_WRITE  = 0x60,
     SRAM_READ    = 0x00,
     SRAM_WRITE   = 0x40,
+}
+#[derive(PartialEq, Copy, Clone)]
+pub enum ExternalState {
+    ON              = 0x00,
+    BUSY_RX         = 0x01,
+    BUSY_TX         = 0x02,
+    RX_ON           = 0x06,
+    TRX_OFF         = 0x08,
+    PLL_ON          = 0x09,
+    SLEEP           = 0x0F,
+    PREP_DEEP_SLEEP = 0x10,
+    BUSY_RX_AACK    = 0x11,
+    BUSY_TX_ARET    = 0x12,
+    RX_AACK_ON      = 0x16,
+    TX_ARET_ON      = 0x19,
+    STATE_TRANSITION_IN_PROGRESS   = 0x1F,
+
+}
+
+pub enum RF233TrxCmd {
+    OFF = 0x08,
 }
