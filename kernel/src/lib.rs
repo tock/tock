@@ -23,7 +23,8 @@ pub use callback::{AppId, Callback};
 pub use container::Container;
 pub use driver::Driver;
 pub use mem::{AppSlice, AppPtr, Private, Shared};
-pub use platform::{Chip, MPU, AccessPermission, ExecutePermission, Platform, SysTick};
+pub use platform::{Chip, mpu, Platform, systick};
+pub use platform::systick::SysTick;
 pub use process::{Process, State};
 
 pub fn main<P: Platform, C: Chip>(platform: &P,

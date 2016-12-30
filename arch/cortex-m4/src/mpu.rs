@@ -99,7 +99,7 @@ impl MPU {
     }
 }
 
-impl kernel::MPU for MPU {
+impl kernel::mpu::MPU for MPU {
     fn enable_mpu(&self) {
         let regs = unsafe { &*self.0 };
 
@@ -119,8 +119,8 @@ impl kernel::MPU for MPU {
                region_num: u32,
                start_addr: u32,
                len: u32,
-               execute: kernel::ExecutePermission,
-               access: kernel::AccessPermission) {
+               execute: kernel::mpu::ExecutePermission,
+               access: kernel::mpu::AccessPermission) {
         let regs = unsafe { &*self.0 };
         regs.region_base_address.set(region_num | 1 << 4 | start_addr);
         let xn = execute as u32;

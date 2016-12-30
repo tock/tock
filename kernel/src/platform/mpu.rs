@@ -1,18 +1,3 @@
-use driver::Driver;
-
-pub trait Platform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R where F: FnOnce(Option<&Driver>) -> R;
-}
-
-pub trait Chip {
-    type MPU: MPU;
-    type SysTick: SysTick;
-
-    fn service_pending_interrupts(&mut self);
-    fn has_pending_interrupts(&self) -> bool;
-    fn mpu(&self) -> &Self::MPU;
-    fn systick(&self) -> &Self::SysTick;
-}
 
 pub enum AccessPermission {
     //                                 Privileged  Unprivileged
@@ -61,44 +46,4 @@ impl MPU for () {
     fn enable_mpu(&self) {}
 
     fn set_mpu(&self, _: u32, _: u32, _: u32, _: ExecutePermission, _: AccessPermission) {}
-}
-
-pub trait SysTick {
-    /// Sets the timer as close as possible to the given interval in
-    /// microseconds.  The clock is 24-bits wide and specific timing is
-    /// dependent on the driving clock. Increments of 10ms are most accurate
-    /// and, in practice 466ms is the approximate maximum.
-    fn set_timer(&self, us: u32);
-
-    /// Returns the time left in approximate microseconds
-    fn value(&self) -> u32;
-
-
-    fn overflowed(&self) -> bool;
-
-    fn reset(&self);
-
-    fn enable(&self, with_interrupt: bool);
-
-    fn overflow_fired() -> bool;
-}
-
-impl SysTick for () {
-    fn reset(&self) {}
-
-    fn set_timer(&self, _: u32) {}
-
-    fn enable(&self, _: bool) {}
-
-    fn overflowed(&self) -> bool {
-        false
-    }
-
-    fn value(&self) -> u32 {
-        !0
-    }
-
-    fn overflow_fired() -> bool {
-        false
-    }
 }
