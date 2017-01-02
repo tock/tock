@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 #[derive(PartialEq, Copy, Clone)]
 pub enum RF233Register {
     MIN           = 0x00,
@@ -101,7 +103,7 @@ pub const TRX_PLL_ON:u8   = 0x09;
 #[derive(PartialEq, Copy, Clone)]
 pub enum RF233BusCommand {
     REGISTER_READ     = 0x80,
-    REGISTER_WRITE    = 0xB0,
+    REGISTER_WRITE    = 0xC0,
     FRAME_READ   = 0x20,
     FRAME_WRITE  = 0x60,
     SRAM_READ    = 0x00,

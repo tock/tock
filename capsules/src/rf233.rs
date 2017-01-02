@@ -4,6 +4,16 @@ use kernel::hil::spi;
 //use virtual_spi::VirtualSpiMasterDevice;
 use kernel::returncode::ReturnCode;
 use rf233_const::*;
+use core::mem;
+
+macro_rules! pinc_toggle {
+    ($x:expr) => {
+        unsafe {
+            let toggle_reg: &mut u32 = mem::transmute(0x400E1000 + (2 * 0x200) + 0x5c);
+            *toggle_reg = 1 << $x;
+        }
+    }
+}
 
 #[allow(unused_variables, dead_code,non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
@@ -61,6 +71,7 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                        _write: &'static mut [u8],
                        _read: Option<&'static mut [u8]>,
                        _len: usize) {
+        self.spi_busy.set(false);
         match self.state.get() {
             InternalState::START => {
                 self.state_transition_read(RF233Register::IRQ_STATUS,
@@ -72,19 +83,19 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             }
             InternalState::START_STATUS_READ => {
                 unsafe {
-                let val = read_buf[0];
-                if val == ExternalState::ON as u8{
-                    self.state_transition_write(RF233Register::TRX_STATE,
-                                                RF233TrxCmd::OFF as u8,
-                                                InternalState::START_TURNING_OFF);
-                } else {
-                    // enable IRQ input
-                    // clear IRQ
-                    // enable IRQ interrrupt
-                    self.state_transition_write(RF233Register::TRX_CTRL_1,
-                                                TRX_CTRL_1,
-                                                InternalState::START_CTRL1_SET);
-                }
+                    let val = read_buf[0];
+                    if val == ExternalState::ON as u8{
+                        self.state_transition_write(RF233Register::TRX_STATE,
+                                                    RF233TrxCmd::OFF as u8,
+                                                    InternalState::START_TURNING_OFF);
+                    } else {
+                        // enable IRQ input
+                        // clear IRQ
+                        // enable IRQ interrrupt
+                        self.state_transition_write(RF233Register::TRX_CTRL_1,
+                                                    TRX_CTRL_1,
+                                                    InternalState::START_CTRL1_SET);
+                    }
                 }
             }
             InternalState::START_TURNING_OFF => {
@@ -201,10 +212,10 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             }
             InternalState::ON_STATUS_READ => {
                 unsafe {
-                let val = read_buf[1];
-                self.state_transition_write(RF233Register::TRX_STATE,
-                                            TRX_PLL_ON,
-                                            InternalState::ON_PLL_SET);
+                    let val = read_buf[1];
+                    self.state_transition_write(RF233Register::TRX_STATE,
+                                                TRX_PLL_ON,
+                                                InternalState::ON_PLL_SET);
                 }
             }
             InternalState::ON_PLL_SET => {
@@ -269,7 +280,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
         unsafe {
             write_buf[0] = (reg as u8) | RF233BusCommand::REGISTER_WRITE as u8;
             write_buf[1] = val;
-            self.spi.read_write_bytes(&mut write_buf, None, 2);
+            self.spi.read_write_bytes(&mut write_buf, Some(& mut read_buf), 2);
             self.spi_busy.set(true);
         }
         ReturnCode::SUCCESS
@@ -292,15 +303,15 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
                               reg: RF233Register,
                               val: u8,
                               state: InternalState) {
-        self.register_write(reg, val);
         self.state.set(state);
+        self.register_write(reg, val);
     }
 
     fn state_transition_read(&self,
                              reg: RF233Register,
                              state: InternalState) {
+        self.state.set(state);
         self.register_read(reg);
-        self.state.set(state);;
     }
 
 

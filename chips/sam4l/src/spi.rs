@@ -304,7 +304,6 @@ impl spi::SpiMaster for Spi {
                         len: usize)
                         -> bool {
         self.enable();
-        pinc_toggle!(31); // Yellow
         // If busy, don't start.
         if self.is_busy() {
             return false;
@@ -325,7 +324,6 @@ impl spi::SpiMaster for Spi {
         };
         let count = cmp::min(buflen, len);
         self.dma_length.set(count);
-        pinc_toggle!(30); // Green
 
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.

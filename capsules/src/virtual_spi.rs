@@ -29,9 +29,9 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a
                        read_buffer: Option<&'static mut [u8]>,
                        len: usize) {
         self.inflight.take().map(move |device| {
+            self.do_next_op();
             device.read_write_done(write_buffer, read_buffer, len);
         });
-        self.do_next_op();
     }
 }
 
@@ -50,7 +50,10 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
             let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
                 self.spi.specify_chip_select(node.chip_select.get());
-                match node.operation.get() {
+                let op = node.operation.get();
+                // Need to set idle here in case callback changes state
+                node.operation.set(Op::Idle);
+                match op {
                     Op::Configure(cpol, cpal, rate) => {
 
                         // The `chip_select` type will be correct based on
@@ -86,7 +89,6 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                     //}
                     Op::Idle => {} // Can't get here...
                 }
-                node.operation.set(Op::Idle);
             });
         }
     }
