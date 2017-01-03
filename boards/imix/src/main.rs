@@ -68,21 +68,6 @@ pub static mut SPITEST: SpiClientTest<'static> = SpiClientTest {
 static mut spi_read_buf: [u8; 64] =  [0xde; 64];
 static mut spi_write_buf: [u8; 64] = [0xad; 64];
 
-
-#[allow(unused_variables)]
-impl <'a> hil::spi::SpiMasterClient for SpiClientTest<'a> {
-    fn read_write_done(&self,
-                       write: &'static mut [u8],
-                       read: Option<&'static mut [u8]>,
-                       len: usize) {
-        self.rf233.map(|rf| {
-            unsafe {
-                rf.read_write_bytes(&mut spi_write_buf, Some(&mut spi_read_buf), len);
-            }
-        });
-    }
-}
-
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
@@ -95,8 +80,8 @@ impl kernel::Platform for Imix {
             4 => f(Some(self.spi)),
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
-            //8 => f(Some(self.led)),
-            //9 => f(Some(self.button)),
+            8 => f(Some(self.led)),
+            9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
             11 => f(Some(self.fxos8700_cq)),
 
@@ -268,11 +253,12 @@ pub unsafe fn reset_handler() {
 
     // Create the SPI system call capsule, passing the client
     let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
-    let spi = static_init!(
+    let spi_capsule = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(capsule_device, chip_selects),
         92);
-
+    spi_capsule.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    capsule_device.set_client(spi_capsule);
     // Create a second virtualized client, for the RF233
     let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
                                  VirtualSpiMasterDevice::new(mux_spi, 3),
@@ -280,10 +266,13 @@ pub unsafe fn reset_handler() {
 
     let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> = static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
                              RF233::new(rf233_spi,
-                                        &sam4l::gpio::PA[09],
-                                        &sam4l::gpio::PA[10]),
-                             28);
+                                        &sam4l::gpio::PA[09],    // reset
+                                        &sam4l::gpio::PA[10],    // sleep
+                                        &sam4l::gpio::PA[08],    // irq
+                                        &sam4l::gpio::PA[08]),   // irq_ctl
+                             44);
 
+    sam4l::gpio::PA[08].set_client(rf233);
 
     // FXOS8700CQ accelerometer
     let fx0_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e), 32);
@@ -377,7 +366,7 @@ pub unsafe fn reset_handler() {
         adc: adc,
         led: led,
         button: button,
-        spi: spi,
+        spi: spi_capsule,
         ipc: kernel::ipc::IPC::new(),
         fxos8700_cq: fx0,
         rf233: rf233,
@@ -387,10 +376,11 @@ pub unsafe fn reset_handler() {
 
     chip.mpu().enable_mpu();
 
-    rf233_spi.set_client(rf233);
-    rf233.initialize();
-    rf233.reset();
-    rf233.start();
+    //rf233_spi.set_client(rf233);
+
+    //rf233.initialize();
+    //rf233.reset();
+    //rf233.start();
 
     //rf233_spi.send_byte(0xA5);
     //rf233_spi.read_write_bytes(&mut spi_write_buf, None, 2);

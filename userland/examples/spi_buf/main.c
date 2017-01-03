@@ -46,6 +46,13 @@ int main(void) {
   for (i = 0; i < 200; i++) {
     wbuf[i] = i;
   }
-
-  spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
+  spi_set_chip_select(0);
+  spi_set_rate(400000);
+  spi_set_polarity(false);
+  spi_set_phase(false);
+  if (spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL) != 0) {
+    while (1) {
+      led_toggle(0);
+    }
+  }
 }

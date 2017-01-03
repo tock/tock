@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use kernel::hil::gpio::Pin;
+use kernel::hil::gpio;
 use kernel::hil::spi;
 //use virtual_spi::VirtualSpiMasterDevice;
 use kernel::returncode::ReturnCode;
@@ -57,8 +57,10 @@ pub struct RF233 <'a, S: spi::SpiMasterDevice + 'a> {
     radio_on: Cell<bool>,
     transmitting: Cell<bool>,
     spi_busy: Cell<bool>,
-    reset_pin: &'a Pin,
-    sleep_pin: &'a Pin,
+    reset_pin: &'a gpio::Pin,
+    sleep_pin: &'a gpio::Pin,
+    irq_pin:   &'a gpio::Pin,
+    irq_ctl:   &'a gpio::PinCtl,
     state: Cell<InternalState>,
 }
 
@@ -99,9 +101,10 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                 }
             }
             InternalState::START_TURNING_OFF => {
-                // enable IRQ input
-                // clear IRQ
-                // enable IRQ interrrupt
+                self.irq_pin.make_input();
+                self.irq_ctl.set_input_mode(gpio::InputMode::PullNone);
+                self.irq_pin.clear();
+                self.irq_pin.enable_interrupt(0, gpio::InterruptMode::RisingEdge);
                 self.state_transition_write(RF233Register::TRX_CTRL_1,
                                             TRX_CTRL_1,
                                             InternalState::START_CTRL1_SET);
@@ -228,14 +231,30 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
     }
 }
 
+impl<'a, S: spi::SpiMasterDevice + 'a> gpio::Client for  RF233 <'a, S> {
+    fn fired(&self, identifier: usize) {
+        pinc_toggle!(30); // green
+        match self.state.get() {
+            InternalState::ON_PLL_SET => {
+                pinc_toggle!(29); // blue
+            }
+            _ => {}
+        }
+    }
+}
+
 impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
     pub fn new(spi: &'a S,
-               reset: &'a Pin,
-               sleep: &'a Pin) -> RF233<'a, S> {
+               reset: &'a gpio::Pin,
+               sleep: &'a gpio::Pin,
+               irq: &'a gpio::Pin,
+               ctl: &'a gpio::PinCtl) -> RF233<'a, S> {
         RF233 {
             spi: spi,
             reset_pin: reset,
             sleep_pin: sleep,
+            irq_pin: irq,
+            irq_ctl: ctl,
             radio_on: Cell::new(false),
             transmitting: Cell::new(false),
             spi_busy: Cell::new(false),
@@ -244,7 +263,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
     }
 
     pub fn initialize(&self) -> ReturnCode {
-        //self.spi.spi.set_client(&self.spi);
         self.spi.configure(spi::ClockPolarity::IdleLow,
                            spi::ClockPhase::SampleLeading,
                            100000);
@@ -254,8 +272,9 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
     pub fn reset(&self) -> ReturnCode {
         self.reset_pin.make_output();
         self.sleep_pin.make_output();
-        self.reset_pin.clear();
-        // delay 1 ms
+        for i in 0..10000 {
+            self.reset_pin.clear();
+        }
         self.reset_pin.set();
         self.sleep_pin.clear();
         self.transmitting.set(false);
@@ -313,7 +332,4 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
         self.state.set(state);
         self.register_read(reg);
     }
-
-
-
 }

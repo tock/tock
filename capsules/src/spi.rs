@@ -3,6 +3,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::mem;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::spi::{SpiMasterDevice, SpiMasterClient};
@@ -27,7 +28,7 @@ struct App {
 }
 
 pub struct Spi<'a, S: SpiMasterDevice + 'a> {
-    spi_master: &'a mut S,
+    spi_master: &'a S,
     busy: Cell<bool>,
     app: TakeCell<App>,
     chip_selects: &'a [S::ChipSelect],
@@ -37,7 +38,7 @@ pub struct Spi<'a, S: SpiMasterDevice + 'a> {
 }
 
 impl<'a, S: SpiMasterDevice> Spi<'a, S> {
-    pub fn new(spi_master: &'a mut S, chip_selects: &'a [S::ChipSelect]) -> Spi<'a, S> {
+    pub fn new(spi_master: &'a S, chip_selects: &'a [S::ChipSelect]) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
@@ -71,7 +72,6 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
                 }
             });
         });
-
         self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(),
                                          self.kernel_read.take(),
                                          len);

@@ -14,6 +14,10 @@ macro_rules! pinc_toggle {
         }
     }
 }
+const C_BLACK:  u32 = 26;
+const C_GREEN:  u32 = 30;
+const C_BLUE:   u32 = 29;
+const C_PURPLE: u32 = 28;
 
 /// The Mux struct manages multiple Spi clients. Each client may have
 /// at most one outstanding Spi request.
@@ -45,12 +49,14 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
     }
 
     fn do_next_op(&self) {
-        pinc_toggle!(26); // Black
+        pinc_toggle!(C_BLACK); // Black
         if self.inflight.is_none() {
             let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
+            pinc_toggle!(C_GREEN);
             mnode.map(|node| {
                 self.spi.specify_chip_select(node.chip_select.get());
                 let op = node.operation.get();
+                pinc_toggle!(C_BLUE);
                 // Need to set idle here in case callback changes state
                 node.operation.set(Op::Idle);
                 match op {
@@ -63,6 +69,7 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                         self.spi.set_rate(rate);
                     }
                     Op::ReadWriteBytes(len) => {
+                        pinc_toggle!(C_PURPLE);
                         // Only async operations want to block by setting
                         // the devices as inflight.
                         self.inflight.replace(node);
