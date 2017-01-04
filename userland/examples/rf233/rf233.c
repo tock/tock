@@ -336,6 +336,10 @@ int rf233_init(uint16_t channel, uint16_t from_addr, uint16_t pan_id) {
   radio_header.fcf = 0xAA61; // TODO verify
   radio_header.src = from_addr;
   radio_header.pan = pan_id;
+  spi_set_chip_select(1);
+  spi_set_rate(1000000);
+  spi_set_phase(0);
+  spi_set_polarity(0);
   return rf233_setup();
 }
 
@@ -409,7 +413,7 @@ int rf233_setup(void) {
   PRINTF("RF233: After wake from sleep\n");
   radio_state = rf233_status();
   PRINTF("RF233: Radio state 0x%04x\n", radio_state);
-  calibrate_filters();
+  //calibrate_filters();
   if (radio_state == STATE_P_ON) {
     trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);
   }

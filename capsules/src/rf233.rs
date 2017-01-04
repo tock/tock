@@ -15,6 +15,12 @@ macro_rules! pinc_toggle {
     }
 }
 
+const D5: u32 = 28;
+const D4: u32 = 29;
+const C_BLUE: u32 = 29;
+const C_PURPLE: u32 = 28;
+const C_BLACK: u32 = 26;
+
 #[allow(unused_variables, dead_code,non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
 enum InternalState {
@@ -41,9 +47,11 @@ enum InternalState {
     START_IEEE7_SET,
     START_SHORT0_SET,
     START_SHORT1_SET,
+    START_CSMA_SEEDED,
     START_RPC_SET,
 
     ON_STATUS_READ,
+    ON_PLL_WAITING,
     ON_PLL_SET,
 
     READY,
@@ -57,6 +65,8 @@ pub struct RF233 <'a, S: spi::SpiMasterDevice + 'a> {
     radio_on: Cell<bool>,
     transmitting: Cell<bool>,
     spi_busy: Cell<bool>,
+    interrupt_handling: Cell<bool>,
+    interrupt_pending:  Cell<bool>,
     reset_pin: &'a gpio::Pin,
     sleep_pin: &'a gpio::Pin,
     irq_pin:   &'a gpio::Pin,
@@ -74,6 +84,26 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                        _read: Option<&'static mut [u8]>,
                        _len: usize) {
         self.spi_busy.set(false);
+        // This first case is when an interrupt fired during an SPI operation:
+        // we wait for the SPI operation to complete then handle the
+        // interrupt by reading the IRQ_STATUS register over the SPI.
+        // Since itself is an SPI operation, return.
+        if self.interrupt_pending.get() == true {
+            self.interrupt_pending.set(false);
+            self.handle_interrupt();
+            return;
+        }
+        // This second case is when the SPI operation is reading the
+        // IRQ_STATUS register from handling an interrupt. Note that
+        // we're done handling the interrupt and continue with the
+        // state machine.
+        if self.interrupt_handling.get() == true {
+            self.interrupt_handling.set(false);
+            if self.state.get() == InternalState::ON_PLL_WAITING {
+                self.state.set(InternalState::ON_PLL_SET);
+            }
+        }
+
         match self.state.get() {
             InternalState::START => {
                 self.state_transition_read(RF233Register::IRQ_STATUS,
@@ -102,9 +132,10 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             }
             InternalState::START_TURNING_OFF => {
                 self.irq_pin.make_input();
-                self.irq_ctl.set_input_mode(gpio::InputMode::PullNone);
                 self.irq_pin.clear();
+                self.irq_ctl.set_input_mode(gpio::InputMode::PullNone);
                 self.irq_pin.enable_interrupt(0, gpio::InterruptMode::RisingEdge);
+
                 self.state_transition_write(RF233Register::TRX_CTRL_1,
                                             TRX_CTRL_1,
                                             InternalState::START_CTRL1_SET);
@@ -204,6 +235,11 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                                             InternalState::START_SHORT1_SET);
             }
             InternalState::START_SHORT1_SET => {
+                self.state_transition_write(RF233Register::CSMA_SEED_0,
+                                            SHORT_ADDR_0 + SHORT_ADDR_1,
+                                            InternalState::START_CSMA_SEEDED);
+            }
+            InternalState::START_CSMA_SEEDED => {
                 self.state_transition_write(RF233Register::TRX_RPC,
                                             TRX_RPC,
                                             InternalState::START_RPC_SET);
@@ -218,12 +254,20 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                     let val = read_buf[1];
                     self.state_transition_write(RF233Register::TRX_STATE,
                                                 TRX_PLL_ON,
-                                                InternalState::ON_PLL_SET);
+                                                InternalState::ON_PLL_WAITING);
                 }
             }
+            InternalState::ON_PLL_WAITING => {
+                // Waiting for the PLL interrupt, do nothing
+            }
             InternalState::ON_PLL_SET => {
-                // We handle an interrupt to denote the PLL is good,
-                // so do nothing here
+                // We've completed the SPI operation to read the
+                // IRQ_STATUS register, triggered by an interrupt
+                // denoting moving to the PLL_ON state, so move
+                // to RX_ON (see Sec 7, pg 36 of RF233 datasheet
+                self.state_transition_write(RF233Register::TRX_STATE,
+                                            TRX_RX_ON,
+                                            InternalState::READY);
             }
             InternalState::READY => {}
             InternalState::UNKNOWN => {}
@@ -233,13 +277,8 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
 
 impl<'a, S: spi::SpiMasterDevice + 'a> gpio::Client for  RF233 <'a, S> {
     fn fired(&self, identifier: usize) {
-        pinc_toggle!(30); // green
-        match self.state.get() {
-            InternalState::ON_PLL_SET => {
-                pinc_toggle!(29); // blue
-            }
-            _ => {}
-        }
+        pinc_toggle!(C_PURPLE);
+        self.handle_interrupt();
     }
 }
 
@@ -259,6 +298,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
             transmitting: Cell::new(false),
             spi_busy: Cell::new(false),
             state: Cell::new(InternalState::START),
+            interrupt_handling: Cell::new(false),
+            interrupt_pending: Cell::new(false),
         }
     }
 
@@ -288,6 +329,18 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
         }
         self.register_read(RF233Register::PART_NUM);
         ReturnCode::SUCCESS
+    }
+
+    fn handle_interrupt(&self) {
+        // Because the first thing we do on handling an interrupt is
+        // read the IRQ status, we defer handling the state transition
+        // to the SPI handler
+        if self.spi_busy.get() == false {
+            self.interrupt_handling.set(true);
+            self.register_read(RF233Register::IRQ_STATUS);
+        } else {
+            self.interrupt_pending.set(true);
+        }
     }
 
 #[allow(dead_code)]

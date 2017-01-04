@@ -65,7 +65,7 @@ pub enum RF233Fields {
     TRX_CTRL_2_RX_SAFE_MODE         = 1 << 7,
     TRX_CTRL_2_DATA_RATE_250        = 0,
     IRQ_TRXBUF_ACCESS_VIOLATION     = 1 << 6,
-    IRW_TRX_DONE                    = 1 << 3,
+    IRQ_TRX_DONE                    = 1 << 3,
     IRQ_PLL_LOCK                    = 0,
     XAH_CTRL_1_AACK_PROM_MODE       = 1 << 1,
 }
@@ -92,4 +92,5 @@ pub enum RF233Conf {
     SHORT_ADDR_1 = 0x22,
     TRX_RPC      = 0xFF,
     TRX_PLL_ON   = 0x09,
+    TRX_RX_ON    = 0x06,
 }

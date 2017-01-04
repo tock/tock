@@ -259,18 +259,19 @@ pub unsafe fn reset_handler() {
         92);
     spi_capsule.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
     capsule_device.set_client(spi_capsule);
+
     // Create a second virtualized client, for the RF233
     let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
                                  VirtualSpiMasterDevice::new(mux_spi, 3),
                                  48);
-
+    // Create the RF233 driver, passing its pins and SPI client
     let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> = static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
                              RF233::new(rf233_spi,
                                         &sam4l::gpio::PA[09],    // reset
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                             44);
+                                        48);
 
     sam4l::gpio::PA[08].set_client(rf233);
 
@@ -308,7 +309,7 @@ pub unsafe fn reset_handler() {
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 11],
+        [&'static sam4l::gpio::GPIOPin; 8],
         [&sam4l::gpio::PC[31], // P2
          &sam4l::gpio::PC[30], // P3
          &sam4l::gpio::PC[29], // P4
@@ -316,11 +317,8 @@ pub unsafe fn reset_handler() {
          &sam4l::gpio::PC[27], // P6
          &sam4l::gpio::PC[26], // P7
          &sam4l::gpio::PC[25], // P8
-         &sam4l::gpio::PC[25], // Dummy Pin (regular GPIO)
-         &sam4l::gpio::PA[10], // RSLP
-         &sam4l::gpio::PA[09], // RRST
-         &sam4l::gpio::PA[08]], // RIRQ
-        11 * 4
+         &sam4l::gpio::PC[25]], // Dummy Pin (regular GPIO)
+        8 * 4
     );
 
     let gpio = static_init!(
@@ -376,11 +374,10 @@ pub unsafe fn reset_handler() {
 
     chip.mpu().enable_mpu();
 
-    //rf233_spi.set_client(rf233);
-
-    //rf233.initialize();
-    //rf233.reset();
-    //rf233.start();
+    rf233_spi.set_client(rf233);
+    rf233.initialize();
+    rf233.reset();
+    rf233.start();
 
     //rf233_spi.send_byte(0xA5);
     //rf233_spi.read_write_bytes(&mut spi_write_buf, None, 2);
