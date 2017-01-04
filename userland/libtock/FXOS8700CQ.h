@@ -18,6 +18,9 @@ double FXOS8700CQ_read_accel_mag();
 // Get the magnitude of acceleration in the X,Y,Z directions. Blocking.
 int FXOS8700CQ_read_acceleration_sync(int* x, int* y, int* z);
 
+// Get a reading from the magnetometer. Blocking.
+int FXOS8700CQ_read_magenetometer_sync(int* x, int* y, int* z);
+
 #ifdef __cplusplus
 }
 #endif
