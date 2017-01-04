@@ -52,11 +52,9 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
         pinc_toggle!(C_BLACK); // Black
         if self.inflight.is_none() {
             let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
-            pinc_toggle!(C_GREEN);
             mnode.map(|node| {
                 self.spi.specify_chip_select(node.chip_select.get());
                 let op = node.operation.get();
-                pinc_toggle!(C_BLUE);
                 // Need to set idle here in case callback changes state
                 node.operation.set(Op::Idle);
                 match op {
@@ -69,7 +67,6 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                         self.spi.set_rate(rate);
                     }
                     Op::ReadWriteBytes(len) => {
-                        pinc_toggle!(C_PURPLE);
                         // Only async operations want to block by setting
                         // the devices as inflight.
                         self.inflight.replace(node);
@@ -242,7 +239,6 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
 
 #[allow(unused_variables)]
     fn set_chip_select(&self, cs: Self::ChipSelect) {
-        //self.operation.set(Op::SetChipSelect(cs));
-        //self.mux.do_next_op();
+        self.chip_select.set(cs);
     }
 }
