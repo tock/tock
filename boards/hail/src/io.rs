@@ -65,7 +65,7 @@ pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, 
 }
 
 unsafe fn print_app_statistics(writer: &mut Writer) {
-    let _ = writer.write_fmt(format_args!("\r\n---| App Statistics |---\r\n"));
+    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
 
     // iterate through each process
     let procs = &mut process::PROCS;

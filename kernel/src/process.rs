@@ -63,6 +63,12 @@ pub enum State {
     Fault,
 }
 
+#[derive(Copy,Clone,PartialEq,Eq)]
+pub enum FaultResponse {
+    Panic,
+    Restart,
+}
+
 #[derive(Copy, Clone)]
 pub enum IPCType {
     Service,
@@ -177,6 +183,11 @@ pub struct Process<'a> {
     cur_stack: *const u8,
     app_mem_start: *const u8,
 
+    /// Requested length of memory segments
+    min_grant_len: usize,
+    min_heap_len: usize,
+    min_stack_len: usize,
+
     /// Process text segment
     text: &'static [u8],
 
@@ -190,6 +201,9 @@ pub struct Process<'a> {
     psr: usize,
 
     state: State,
+
+    /// How to deal with Faults occuring in the process
+    fault_response: FaultResponse,
 
     /// MPU regions are saved as a pointer-size pair.
     ///
@@ -249,10 +263,30 @@ impl<'a> Process<'a> {
         }
     }
 
-    pub fn fault_state(&mut self) {
+    pub unsafe fn fault_state(&mut self) {
+        write_volatile(&mut APP_FAULT, 0);
         self.state = State::Fault;
-        unsafe {
-            HAVE_WORK.set(HAVE_WORK.get() - 1);
+
+        // get app name
+        let mut app_name_str = "";
+        let _ = str::from_utf8(self.package_name).map(|name_str| {
+            app_name_str = name_str;
+        });
+
+        match self.fault_response {
+            FaultResponse::Panic => {
+                //XXX: distinguish between fault causes here
+                panic!("Process {} had a fault", app_name_str);
+            }
+            FaultResponse::Restart => {
+                //XXX: unimplemented
+                panic!("Process {} had a fault and could not be restarted", app_name_str);
+                /*
+                // HAVE_WORK is really screwed up in this case
+                // the tasks ring buffer needs to be cleared
+                // need to re-load() the app
+                */
+            }
         }
     }
 
@@ -331,7 +365,8 @@ impl<'a> Process<'a> {
 
     pub unsafe fn create(app_flash_address: *const u8,
                          remaining_app_memory: *mut u8,
-                         remaining_app_memory_size: usize)
+                         remaining_app_memory_size: usize,
+                         fault_response: FaultResponse)
                          -> (Option<Process<'a>>, usize, usize) {
         if let Some(load_info) = parse_and_validate_load_info(app_flash_address) {
             let app_flash_size = load_info.total_size as usize;
@@ -402,6 +437,10 @@ impl<'a> Process<'a> {
                     cur_stack: stack_heap_boundary,
                     app_mem_start: load_result.app_mem_start,
 
+                    min_stack_len: load_info.min_stack_len as usize,
+                    min_heap_len: load_info.min_app_heap_len as usize,
+                    min_grant_len: load_info.min_kernel_heap_len as usize,
+
                     text: slice::from_raw_parts(app_flash_address, app_flash_size),
 
                     app_flash_code_start: load_result.app_flash_code_start,
@@ -412,6 +451,7 @@ impl<'a> Process<'a> {
                     psr: 0x01000000,
 
                     state: State::Yielded,
+                    fault_response: fault_response,
 
                     mpu_regions: [Cell::new((ptr::null(), 0)),
                                   Cell::new((ptr::null(), 0)),
@@ -621,18 +661,26 @@ impl<'a> Process<'a> {
         // grant region size
         let grant_start = self.kernel_memory_break as usize;
         let grant_size = mem_end - grant_start;
+        let requested_grant_len = self.min_grant_len as usize;
 
         // unallocated space
         let heap_top = self.app_memory_break as usize;
-        let unallocated_size = grant_start - heap_top;
+        //let unallocated_size = grant_start - heap_top;
+        let heap_grant_split = mem_end - requested_grant_len;
 
-        // heap plus stack region
+        // used heap space
+        let stack_top = self.stack_heap_boundary as usize;
+        let heap_size = heap_top - stack_top;
+        let requested_heap_len = self.min_heap_len as usize;
+
+        // used stack space
         let stack_bottom = self.cur_stack as usize;
-        let heapstack_size = heap_top - stack_bottom;
+        let stack_used_size = stack_top - stack_bottom;
+        let requested_stack_len = self.min_stack_len as usize;
 
         // remaining stack space
         let data_end = self.app_mem_start as usize;
-        let stack_remaining_size = stack_bottom - data_end;
+        //let stack_remaining_size = stack_bottom - data_end;
 
         // static data region (GOT, Data, and BSS)
         let static_data_size = data_end - mem_start;
@@ -654,20 +702,25 @@ impl<'a> Process<'a> {
         let _ = writer.write_fmt(format_args!("\
         App: {}\
         \r\n[{:?}]  -  Events Queued: {}\
+        \r\n    Address  | Region Name [  Used | Allocated (bytes)]
           \r\n  {:#010X} |========\
-        \r\n             | Grant       [{:5} bytes]\
+        \r\n             | Grant       [{:6} | {:6}]\
           \r\n  {:#010X} | ---\
-        \r\n             | Unallocated [{:5} bytes]\
+        \r\n             | Unused Grant\
           \r\n  {:#010X} | ---\
-        \r\n             | Heap+Stack  [{:5} bytes]\
+        \r\n             | Unused Heap\
           \r\n  {:#010X} | ---\
-        \r\n             | Unallocated [{:5} bytes]\
+        \r\n             | Heap        [{:6} | {:6}]\
           \r\n  {:#010X} | ---\
-        \r\n             | Data        [{:5} bytes]\
+        \r\n             | Stack       [{:6} | {:6}]\
+          \r\n  {:#010X} | ---\
+        \r\n             | Unused Stack\
+          \r\n  {:#010X} | ---\
+        \r\n             | Data        [{:6} | {:6}]\
           \r\n  {:#010X} |========\
         \r\n             .....\
           \r\n  {:#010X} |========\
-        \r\n             | Text        [{:5} bytes]\
+        \r\n             | Text        [     ? | {:6}]\
           \r\n  {:#010X} |========\
         \r\n\
           \r\n  R0 : {:#010X}\
@@ -691,13 +744,18 @@ impl<'a> Process<'a> {
                                               events_queued,
                                               mem_end,
                                               grant_size,
+                                              requested_grant_len,
                                               grant_start,
-                                              unallocated_size,
+                                              heap_grant_split,
                                               heap_top,
-                                              heapstack_size,
+                                              heap_size,
+                                              requested_heap_len,
+                                              stack_top,
+                                              stack_used_size,
+                                              requested_stack_len,
                                               stack_bottom,
-                                              stack_remaining_size,
                                               data_end,
+                                              static_data_size,
                                               static_data_size,
                                               mem_start,
                                               text_end,
