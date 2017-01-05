@@ -44,6 +44,14 @@ pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, 
     let _ = write(writer, args);
     let _ = writer.write_str("\"\r\n");
 
+    // Print fault status once
+    let procs = &mut process::PROCS;
+    if procs.len() > 0 {
+        procs[0].as_mut().map(|process| {
+            process.fault_str(writer);
+        });
+    }
+
     print_app_statistics(writer);
 
     let led = &sam4l::gpio::PA[13];
