@@ -69,7 +69,7 @@ pub const TRX_CTRL_2_RX_SAFE_MODE: u8         = 1 << 7;
 pub const TRX_CTRL_2_DATA_RATE_250: u8        = 0;
 pub const IRQ_TRXBUF_ACCESS_VIOLATION: u8     = 1 << 6;
 pub const IRQ_TRX_DONE: u8                    = 1 << 3;
-pub const IRQ_PLL_LOCK: u8                    = 0;
+pub const IRQ_PLL_LOCK: u8                    = 1 << 0;
 pub const XAH_CTRL_1_AACK_PROM_MODE: u8       = 1 << 1;
 
 
