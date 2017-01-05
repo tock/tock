@@ -1,11 +1,10 @@
-LIBTOCK_MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
-LIBTOCK_DIR := $(abspath $(dir $(LIBTOCK_MKFILE_PATH)))
+LIBTOCK_DIR := $(TOCK_USERLAND_BASE_DIR)/libtock
 
-ifeq ($(LIBTOCK_DIR),$(CURDIR)/)
+ifeq ($(LIBTOCK_DIR),/libtock)
 $(error Do not run make from the libtock directory)
 endif
 
-LIBTOCK_BUILDDIR ?= $(abspath $(LIBTOCK_DIR)/build/$(TOCK_ARCH))
+LIBTOCK_BUILDDIR ?= $(LIBTOCK_DIR)/build/$(TOCK_ARCH)
 
 TOOLCHAIN ?= arm-none-eabi
 
@@ -40,4 +39,3 @@ $(LIBTOCK_BUILDDIR)/libtock.a: $(LIBTOCK_OBJS) | $(LIBTOCK_BUILDDIR)
 .PHONY: clean
 clean::
 	rm -Rf $(LIBTOCK_BUILDDIR)
-

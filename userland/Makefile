@@ -1,8 +1,8 @@
 # userland master makefile. Included by application makefiles
 
-TOCK_USERLAND_BASE_DIR ?= $(abspath .)
-TOCK_BASE_DIR ?= $(abspath ../)
-BUILDDIR ?= $(abspath .)
+TOCK_USERLAND_BASE_DIR ?= ..
+TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
+BUILDDIR ?= build/$(TOCK_ARCH)
 TOCK_BOARD ?= storm
 TOCK_ARCH ?= cortex-m4
 LIBTOCK ?= $(TOCK_USERLAND_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
@@ -10,10 +10,16 @@ LIBTOCK ?= $(TOCK_USERLAND_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
 TOOLCHAIN := arm-none-eabi
 
 # This could be replaced with an installed version of `elf2tbf`
-ELF2TBF ?= cargo run --manifest-path $(TOCK_USERLAND_BASE_DIR)/tools/elf2tbf/Cargo.toml --
+ELF2TBF ?= cargo run --manifest-path $(abspath $(TOCK_USERLAND_BASE_DIR))/tools/elf2tbf/Cargo.toml --
 ifdef PKG_NAME
 ELF2TBF_ARGS += -n $(PKG_NAME)
 endif
+
+# Collect all desired built output.
+OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
+OBJS += $(patsubst %.cc,$(BUILDDIR)/%.o,$(CXX_SRCS))
+
+CPPFLAGS += -DSTACK_SIZE=2048
 
 AS := $(TOOLCHAIN)-as
 ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
@@ -79,6 +85,10 @@ $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 	$(TRACE_BIN)
 	$(Q)$(ELF2TBF) $(ELF2TBF_ARGS) -o $@ $<
+
+.PHONY:
+clean::
+	rm -Rf $(BUILDDIR)
 
 # for programming individual apps, include platform app makefile
 #	conditionally included in case it doesn't exist for a board
