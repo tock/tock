@@ -34,10 +34,10 @@ int isl29035_read_light_intensity() {
 }
 
 int isl29035_subscribe(subscribe_cb callback, void* userdata) {
-  return subscribe(6, 0, callback, userdata);
+  return subscribe(DRIVER_NUM_ISL29035, 0, callback, userdata);
 }
 
 int isl29035_start_intensity_reading() {
-  return command(6, 0, 0);
+  return command(DRIVER_NUM_ISL29035, 1, 0);
 }
 

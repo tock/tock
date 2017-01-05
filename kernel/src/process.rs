@@ -448,16 +448,19 @@ impl<'a> Process<'a> {
 
     pub unsafe fn free<T>(&mut self, _: *mut T) {}
 
-    pub unsafe fn container_for<T>(&mut self, container_num: usize) -> *mut *mut T {
+    unsafe fn container_ptr<T>(&self, container_num: usize) -> *mut *mut T {
         let container_num = container_num as isize;
-        let ptr = (self.mem_end() as *mut usize).offset(-(container_num + 1));
-        ptr as *mut *mut T
+        (self.mem_end() as *mut *mut T).offset(-(container_num + 1))
+    }
+
+    pub unsafe fn container_for<T>(&mut self, container_num: usize) -> *mut T {
+        *self.container_ptr(container_num)
     }
 
     pub unsafe fn container_for_or_alloc<T: Default>(&mut self,
                                                      container_num: usize)
                                                      -> Option<*mut T> {
-        let ctr_ptr = self.container_for::<T>(container_num);
+        let ctr_ptr = self.container_ptr::<T>(container_num);
         if (*ctr_ptr).is_null() {
             self.alloc(mem::size_of::<T>()).map(|root_arr| {
                 let root_ptr = root_arr.as_mut_ptr() as *mut T;

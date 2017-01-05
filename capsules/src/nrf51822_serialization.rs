@@ -1,11 +1,12 @@
+//! Nrf51822Serialization is the kernel-level driver that provides
+//! the UART API that the nRF51822 serialization library requires.
+//!
+//! This capsule handles interfacing with the UART driver, and includes
+//! some nuances that keep the Nordic BLE serialization library happy.
+
 use kernel::{AppId, Callback, AppSlice, Driver, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UARTAdvanced, Client};
-
-///
-/// Nrf51822Serialization is the kernel-level driver that provides
-/// the UART API that the nRF51822 serialization library requires.
-///
 
 struct App {
     callback: Option<Callback>,
@@ -54,12 +55,9 @@ impl<'a, U: UARTAdvanced> Nrf51822Serialization<'a, U> {
 
 impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     /// Pass application space memory to this driver.
-    ///
-    /// allow_type: 0 - Provide an RX buffer
-    /// allow_type: 1 - Provide an TX buffer
-    ///
     fn allow(&self, _appid: AppId, allow_type: usize, slice: AppSlice<Shared, u8>) -> isize {
         match allow_type {
+            // Provide an RX buffer.
             0 => {
                 let resapp = match self.app.take() {
                     Some(mut app) => {
@@ -81,6 +79,8 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                 self.app.replace(resapp);
                 0
             }
+
+            // Provide a TX buffer.
             1 => {
                 let resapp = match self.app.take() {
                     Some(mut app) => {
@@ -108,12 +108,10 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     ///
     /// The callback will be called when a TX finishes and when
     /// RX data is available.
-    ///
-    /// subscribe_type: 0 - add the callback
-    ///
     #[inline(never)]
     fn subscribe(&self, subscribe_type: usize, callback: Callback) -> isize {
         match subscribe_type {
+            // Add a callback
             0 => {
                 let resapp = match self.app.take() {
                     Some(mut app) => {
@@ -145,13 +143,13 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     }
 
     /// Issue a command to the Nrf51822Serialization driver.
-    ///
-    /// command_type: 0 - Write a byte to the UART.
-    ///
     fn command(&self, command_type: usize, _: usize, _: AppId) -> isize {
 
         match command_type {
-            0 => {
+            0 /* check if present */ => 0,
+
+            // Send a buffer to the nRF51822 over UART.
+            1 => {
                 // On a TX, send the first byte of the TX buffer.
                 // TODO(bradjc): Need to match this to the correct app!
                 //               Can't just use 0!
@@ -173,6 +171,12 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                 });
                 result.unwrap_or(-1)
             }
+
+            // Ask the kernel to callback the application. This is used to
+            // keep the state machine in the Nordic BLE serialization library
+            // happy so that events look like they are occuring as the library
+            // expects, since it doesn't expect there to be an underlying
+            // kernel.
             9001 => {
                 self.app.map(|appst| {
                     appst.callback.as_mut().map(|mut cb| {
@@ -203,7 +207,7 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         });
     }
 
-    // Called when a byte is received on the UART
+    // Called when a buffer is received on the UART
     fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, _error: uart::Error) {
 
         self.rx_buffer.replace(buffer);

@@ -35,6 +35,12 @@ CPPFLAGS += \
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
 
+LIBS =  $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) $(OTHERLIBS)
+LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
+LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
+LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
+LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
+
 # First step doesn't actually compile, just generate header dependency information
 # More info on our approach here: http://stackoverflow.com/questions/97338
 $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
@@ -42,6 +48,12 @@ $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
 	$(TRACE_CC)
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+$(BUILDDIR)/%.o: %.cc | $(BUILDDIR)
+	$(TRACE_DEP)
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
+	$(TRACE_CXX)
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 LINKER ?= $(TOCK_USERLAND_BASE_DIR)/linker.ld
 
@@ -62,7 +74,7 @@ $(BUILDDIR):
 
 $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) | $(BUILDDIR)
 	$(TRACE_LD)
-	$(Q)$(CC) -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib $(OBJS) -Wl,--start-group $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) $(OTHERLIBS) $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a -lgcc -Wl,--end-group -o $@
+	$(Q)$(CC) -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib $(OBJS) -Wl,--start-group $(LIBS) -Wl,--end-group -o $@
 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 	$(TRACE_BIN)

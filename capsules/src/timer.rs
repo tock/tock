@@ -1,3 +1,7 @@
+//! Timer Capsule
+//!
+//! Provides userspace applications with a timer API.
+
 use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver};
 use kernel::hil::time::{self, Alarm, Frequency};
@@ -81,11 +85,11 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
         let (err_code, reset) = self.app_timer
             .enter(caller_id, |td, _alloc| {
                 match cmd_type {
-                3 /* capture time */ => {
-		    let curr_time: u32 = self.alarm.now();
-		    (curr_time as isize, true)
+                4 /* capture time */ => {
+                    let curr_time: u32 = self.alarm.now();
+                    (curr_time as isize, true)
                 },
-                2 /* Stop */ => {
+                3 /* Stop */ => {
                     if td.interval > 0 {
                         td.interval = 0;
                         td.t0 = 0;
@@ -101,8 +105,8 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                         (-2, false)
                     }
                 },
-                /* 0 for Oneshot, 1 for Repeat */
-                cmd_type if cmd_type <= 1 => {
+                /* 1 for Oneshot, 2 for Repeat */
+                cmd_type if cmd_type <= 2 && cmd_type > 0 => {
                     if interval == 0 {
                         return (-2, false);
                     }
@@ -115,8 +119,8 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                     td.t0 = self.alarm.now();
                     td.interval = interval;
 
-                    // Repeat if cmd_type was 1
-                    td.repeating = cmd_type == 1;
+                    // Repeat if cmd_type was 2
+                    td.repeating = cmd_type == 2;
                     if self.alarm.is_armed() {
                         (0, true)
                     } else {
@@ -124,6 +128,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                         (0, false)
                     }
                 },
+                0 /* check if present */ => (0, false),
                 _ => (-1, false)
             }
             })

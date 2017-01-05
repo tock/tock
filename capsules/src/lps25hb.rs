@@ -1,3 +1,7 @@
+//! ST LPS25HB Pressure Sensor Driver
+//!
+//! http://www.st.com/en/mems-and-sensors/lps25hb.html
+
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 
@@ -209,8 +213,9 @@ impl<'a> Driver for LPS25HB<'a> {
 
     fn command(&self, command_num: usize, _: usize, _: AppId) -> isize {
         match command_num {
+            0 /* check if present */ => 0,
             // Take a pressure measurement
-            0 => {
+            1 => {
                 self.take_measurement();
 
                 0

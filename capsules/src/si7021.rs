@@ -1,3 +1,7 @@
+//! Silicon Labs SI7021 Temperature/Humidity Sensor
+//!
+//! https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx
+
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 
@@ -193,8 +197,9 @@ impl<'a, A: time::Alarm + 'a> Driver for SI7021<'a, A> {
 
     fn command(&self, command_num: usize, _: usize, _: AppId) -> isize {
         match command_num {
+            0 /* check if present */ => 0,
             // Take a pressure measurement
-            0 => {
+            1 => {
                 self.take_measurement();
                 0
             }

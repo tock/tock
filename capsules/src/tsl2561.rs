@@ -439,8 +439,9 @@ impl<'a> Driver for TSL2561<'a> {
 
     fn command(&self, command_num: usize, _: usize, _: AppId) -> isize {
         match command_num {
-            // Take a pressure measurement
-            0 => {
+            0 /* check if present */ => 0,
+            // Take a measurement
+            1 => {
                 self.take_measurement();
                 0
             }
