@@ -46,7 +46,10 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
     let mut app_memory_size = APP_MEMORY.len();
     for i in 0..NUM_PROCS {
         let (process, flash_offset, memory_offset) =
-            kernel::process::Process::create(apps_in_flash_ptr, app_memory_ptr, app_memory_size, FAULT_RESPONSE);
+            kernel::process::Process::create(apps_in_flash_ptr,
+                                             app_memory_ptr,
+                                             app_memory_size,
+                                             FAULT_RESPONSE);
 
         if process.is_none() {
             break;

@@ -278,7 +278,7 @@ impl<'a> Process<'a> {
 
         match self.fault_response {
             FaultResponse::Panic => {
-                //XXX: distinguish between fault causes here
+                // XXX: distinguish between fault causes here
                 panic!("Process {} had a fault", app_name_str);
             }
             FaultResponse::Restart => {
@@ -682,78 +682,115 @@ impl<'a> Process<'a> {
         let _ = writer.write_fmt(format_args!("\r\n---| Fault Status |---\r\n"));
 
         if iaccviol {
-            let _ = writer.write_fmt(format_args!("Instruction Access Violation:       {}\r\n", iaccviol));
+            let _ =
+                writer.write_fmt(format_args!("Instruction Access Violation:       {}\r\n",
+                                              iaccviol));
         }
         if daccviol {
-            let _ = writer.write_fmt(format_args!("Data Access Violation:              {}\r\n", daccviol));
+            let _ =
+                writer.write_fmt(format_args!("Data Access Violation:              {}\r\n",
+                                              daccviol));
         }
         if munstkerr {
-            let _ = writer.write_fmt(format_args!("Memory Management Unstacking Fault: {}\r\n", munstkerr));
+            let _ =
+                writer.write_fmt(format_args!("Memory Management Unstacking Fault: {}\r\n",
+                                              munstkerr));
         }
         if mstkerr {
-            let _ = writer.write_fmt(format_args!("Memory Management Stacking Fault:   {}\r\n", mstkerr));
+            let _ = writer.write_fmt(format_args!("Memory Management Stacking Fault:   {}\r\n",
+                                                  mstkerr));
         }
         if mlsperr {
-            let _ = writer.write_fmt(format_args!("Memory Management Lazy FP Fault:    {}\r\n", mlsperr));
+            let _ = writer.write_fmt(format_args!("Memory Management Lazy FP Fault:    {}\r\n",
+                                                  mlsperr));
         }
 
         if ibuserr {
-            let _ = writer.write_fmt(format_args!("Instruction Bus Error:              {}\r\n", ibuserr));
+            let _ = writer.write_fmt(format_args!("Instruction Bus Error:              {}\r\n",
+                                                  ibuserr));
         }
         if preciserr {
-            let _ = writer.write_fmt(format_args!("Precise Data Bus Error:             {}\r\n", preciserr));
+            let _ =
+                writer.write_fmt(format_args!("Precise Data Bus Error:             {}\r\n",
+                                              preciserr));
         }
         if impreciserr {
-            let _ = writer.write_fmt(format_args!("Imprecise Data Bus Error:           {}\r\n", impreciserr));
+            let _ =
+                writer.write_fmt(format_args!("Imprecise Data Bus Error:           {}\r\n",
+                                              impreciserr));
         }
         if unstkerr {
-            let _ = writer.write_fmt(format_args!("Bus Unstacking Fault:               {}\r\n", unstkerr));
+            let _ =
+                writer.write_fmt(format_args!("Bus Unstacking Fault:               {}\r\n",
+                                              unstkerr));
         }
         if stkerr {
-            let _ = writer.write_fmt(format_args!("Bus Stacking Fault:                 {}\r\n", stkerr));
+            let _ = writer.write_fmt(format_args!("Bus Stacking Fault:                 {}\r\n",
+                                                  stkerr));
         }
         if lsperr {
-            let _ = writer.write_fmt(format_args!("Bus Lazy FP Fault:                  {}\r\n", lsperr));
+            let _ = writer.write_fmt(format_args!("Bus Lazy FP Fault:                  {}\r\n",
+                                                  lsperr));
         }
 
         if undefinstr {
-            let _ = writer.write_fmt(format_args!("Undefined Instruction Usage Fault:  {}\r\n", undefinstr));
+            let _ =
+                writer.write_fmt(format_args!("Undefined Instruction Usage Fault:  {}\r\n",
+                                              undefinstr));
         }
         if invstate {
-            let _ = writer.write_fmt(format_args!("Invalid State Usage Fault:          {}\r\n", invstate));
+            let _ =
+                writer.write_fmt(format_args!("Invalid State Usage Fault:          {}\r\n",
+                                              invstate));
         }
         if invpc {
-            let _ = writer.write_fmt(format_args!("Invalid PC Load Usage Fault:        {}\r\n", invpc));
+            let _ =
+                writer.write_fmt(format_args!("Invalid PC Load Usage Fault:        {}\r\n", invpc));
         }
         if nocp {
-            let _ = writer.write_fmt(format_args!("No Coprocessor Usage Fault:         {}\r\n", nocp));
+            let _ =
+                writer.write_fmt(format_args!("No Coprocessor Usage Fault:         {}\r\n", nocp));
         }
         if unaligned {
-            let _ = writer.write_fmt(format_args!("Unaligned Access Usage Fault:       {}\r\n", unaligned));
+            let _ =
+                writer.write_fmt(format_args!("Unaligned Access Usage Fault:       {}\r\n",
+                                              unaligned));
         }
         if divbysero {
-            let _ = writer.write_fmt(format_args!("Divide By Zero:                     {}\r\n", divbysero));
+            let _ =
+                writer.write_fmt(format_args!("Divide By Zero:                     {}\r\n",
+                                              divbysero));
         }
 
         if vecttbl {
-            let _ = writer.write_fmt(format_args!("Bus Fault on Vector Table Read:     {}\r\n", vecttbl));
+            let _ = writer.write_fmt(format_args!("Bus Fault on Vector Table Read:     {}\r\n",
+                                                  vecttbl));
         }
         if forced {
-            let _ = writer.write_fmt(format_args!("Forced Hard Fault:                  {}\r\n", forced));
+            let _ = writer.write_fmt(format_args!("Forced Hard Fault:                  {}\r\n",
+                                                  forced));
         }
 
         if mmfarvalid {
-            let _ = writer.write_fmt(format_args!("Faulting Memory Address:            {:#010X}\r\n", mmfar));
+            let _ =
+                writer.write_fmt(format_args!("Faulting Memory Address:            {:#010X}\r\n",
+                                              mmfar));
         }
         if bfarvalid {
-            let _ = writer.write_fmt(format_args!("Bus Fault Address:                  {:#010X}\r\n", bfar));
+            let _ =
+                writer.write_fmt(format_args!("Bus Fault Address:                  {:#010X}\r\n",
+                                              bfar));
         }
 
         if cfsr == 0 && hfsr == 0 {
             let _ = writer.write_fmt(format_args!("No faults detected.\r\n"));
         } else {
-            let _ = writer.write_fmt(format_args!("Fault Status Register (CFSR):       {:#010X}\r\n", cfsr));
-            let _ = writer.write_fmt(format_args!("Hard Fault Status Register (HFSR):  {:#010X}\r\n", hfsr));
+            let _ =
+                writer.write_fmt(format_args!("Fault Status Register (CFSR):       {:#010X}\r\n",
+                                              cfsr));
+            let _ =
+                writer.write_fmt(format_args!("Hard Fault Status Register (HFSR):  {:#010X}\r\n",
+                                              hfsr));
         }
     }
 
