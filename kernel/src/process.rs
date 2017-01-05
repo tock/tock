@@ -191,6 +191,9 @@ pub struct Process<'a> {
     min_heap_len: usize,
     min_stack_len: usize,
 
+    /// How many syscalls have occurred since the process started
+    syscall_count: Cell<usize>,
+
     /// Process text segment
     text: &'static [u8],
 
@@ -278,7 +281,7 @@ impl<'a> Process<'a> {
 
         match self.fault_response {
             FaultResponse::Panic => {
-                // XXX: distinguish between fault causes here
+                // process faulted. Panic and print status
                 panic!("Process {} had a fault", app_name_str);
             }
             FaultResponse::Restart => {
@@ -444,6 +447,8 @@ impl<'a> Process<'a> {
                     min_heap_len: load_info.min_app_heap_len as usize,
                     min_grant_len: load_info.min_kernel_heap_len as usize,
 
+                    syscall_count: Cell::new(0),
+
                     text: slice::from_raw_parts(app_flash_address, app_flash_size),
 
                     app_flash_code_start: load_result.app_flash_code_start,
@@ -569,6 +574,7 @@ impl<'a> Process<'a> {
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
         write_volatile(stack_bottom.offset(7), self.psr);
         write_volatile(stack_bottom.offset(6), callback.pc | 1);
+
         // Set the LR register to the saved PC so the callback returns to
         // wherever wait was called. Set lowest bit to one because of THUMB
         // instruction requirements.
@@ -605,6 +611,10 @@ impl<'a> Process<'a> {
             let svc_instr = read_volatile(pcptr.offset(-1));
             Some((svc_instr & 0xff) as u8)
         }
+    }
+
+    pub fn incr_syscall_count(&self) {
+        self.syscall_count.set(self.syscall_count.get() + 1);
     }
 
     pub fn lr(&self) -> usize {
@@ -804,7 +814,7 @@ impl<'a> Process<'a> {
         });
 
         let (r0, r1, r2, r3, r12, pc, lr) =
-            (self.r0(), self.r1(), self.r2(), self.r12(), self.r3(), self.pc(), self.lr());
+            (self.r0(), self.r1(), self.r2(), self.r3(), self.r12(), self.pc(), self.lr());
 
         // memory region
         let mem_end = self.mem_end() as usize;
@@ -849,9 +859,12 @@ impl<'a> Process<'a> {
         // number of events queued
         let events_queued = self.tasks.len();
 
+        // number of syscalls that have occurred
+        let syscall_count = self.syscall_count.get();
+
         let _ = writer.write_fmt(format_args!("\
         App: {}\
-        \r\n[{:?}]  -  Events Queued: {}\
+        \r\n[{:?}]  -  Events Queued: {}  Syscall Count: {}\
         \r\n    Address  | Region Name [  Used | Allocated (bytes)]
           \r\n  {:#010X} |========\
         \r\n             | Grant       [{:6} | {:6}]\
@@ -892,6 +905,7 @@ impl<'a> Process<'a> {
                                               app_name_str,
                                               self.state,
                                               events_queued,
+                                              syscall_count,
                                               mem_end,
                                               grant_size,
                                               requested_grant_len,
