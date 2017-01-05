@@ -9,11 +9,12 @@ LIBTOCK ?= $(TOCK_USERLAND_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
 
 TOOLCHAIN := arm-none-eabi
 
+# PACKAGE_NAME is used to identify the application for IPC and for error reporting
+PACKAGE_NAME ?= $(notdir $(shell pwd))
+
 # This could be replaced with an installed version of `elf2tbf`
 ELF2TBF ?= cargo run --manifest-path $(abspath $(TOCK_USERLAND_BASE_DIR))/tools/elf2tbf/Cargo.toml --
-ifdef PKG_NAME
-ELF2TBF_ARGS += -n $(PKG_NAME)
-endif
+ELF2TBF_ARGS += -n $(PACKAGE_NAME)
 
 # Collect all desired built output.
 OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
