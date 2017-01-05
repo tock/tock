@@ -59,6 +59,8 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
             continue;
         }
 
+        // process had a system call, count it
+        process.incr_syscall_count();
         match process.svc_number() {
             Some(syscall::MEMOP) => {
                 let brk_type = process.r0();
