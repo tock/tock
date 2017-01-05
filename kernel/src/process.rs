@@ -779,7 +779,6 @@ impl<'a> Process<'a> {
 
         // unallocated space
         let heap_top = self.app_memory_break as usize;
-        //let unallocated_size = grant_start - heap_top;
         let heap_grant_split = mem_end - requested_grant_len;
 
         // used heap space
@@ -794,7 +793,6 @@ impl<'a> Process<'a> {
 
         // remaining stack space
         let data_end = self.app_mem_start as usize;
-        //let stack_remaining_size = stack_bottom - data_end;
 
         // static data region (GOT, Data, and BSS)
         let static_data_size = data_end - mem_start;
