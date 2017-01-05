@@ -99,6 +99,7 @@ pub const SHORT_ADDR_0:u8 = 0x11;
 pub const SHORT_ADDR_1:u8 = 0x22;
 pub const TRX_RPC:u8      = 0xFF;
 pub const TRX_PLL_ON:u8   = 0x09;
+pub const TRX_RX_ON:u8   = 0x06;
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum RF233BusCommand {
