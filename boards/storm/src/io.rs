@@ -36,16 +36,31 @@ impl Write for Writer {
 
 #[cfg(not(test))]
 #[lang="panic_fmt"]
-#[no_mangle]
-pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, line: u32) -> ! {
+pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
 
     let writer = &mut WRITER;
     let _ = writer.write_fmt(format_args!("Kernel panic at {}:{}:\r\n\t\"", file, line));
     let _ = write(writer, args);
     let _ = writer.write_str("\"\r\n");
 
-    print_app_statistics(writer);
+    // Print fault status once
+    let procs = &mut process::PROCS;
+    if procs.len() > 0 {
+        procs[0].as_mut().map(|process| {
+            process.fault_str(writer);
+        });
+    }
 
+    // print data about each process
+    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+    let procs = &mut process::PROCS;
+    for idx in 0..procs.len() {
+        procs[idx].as_mut().map(|process| {
+            process.statistics_str(writer);
+        });
+    }
+
+    // blink the panic signal
     let led = &sam4l::gpio::PC[10];
     led.enable_output();
     loop {
@@ -64,17 +79,6 @@ pub unsafe extern "C" fn rust_begin_unwind(args: Arguments, file: &'static str, 
     }
 }
 
-unsafe fn print_app_statistics(writer: &mut Writer) {
-    let _ = writer.write_fmt(format_args!("\r\n---| App Statistics |---\r\n"));
-
-    // iterate through each process
-    let procs = &mut process::PROCS;
-    for idx in 0..procs.len() {
-        procs[idx].as_mut().map(|process| {
-            process.statistics_str(writer);
-        });
-    }
-}
 
 #[macro_export]
 macro_rules! print {
