@@ -319,8 +319,11 @@ impl<'a> Process<'a> {
                 let kernel_heap_len = align8!(load_info.min_kernel_heap_len);
 
                 let app_slice_size =
-                    (load_result.data_len + stack_len + app_heap_len + kernel_heap_len) as usize;
-                // TODO round app_slice_size up to MPU unit?
+                    closest_power_of_two(load_result.data_len + stack_len + app_heap_len +
+                                         kernel_heap_len) as usize;
+                // TODO round app_slice_size up to a closer MPU unit.
+                // This is a very conservative approach that rounds up to power of
+                // two. We should be able to make this closer to what we actually need.
 
                 if app_slice_size > remaining_app_memory_size {
                     panic!("{:?} failed to load. Insufficient memory. Requested {} have {}",
