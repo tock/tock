@@ -122,13 +122,14 @@ dynamically loading applications can be found on the Tock website:
 [Dynamic Code Loading on a MCU](http://www.tockos.org/blog/2016/dynamic-loading/).
 
 For applications compiled with `arm-none-eabi-gcc`, building PIC code for Tock
-requires four flags: `-fPIC`, `-msingle-pic-base`, `-mpic-register=r9`, and
-`-mno-pic-data-is-text-relative`. `-fPIC` makes the compiler only emit code
-that uses relative addresses. `-msingle-pic-base` and `-mpic-register=r9` force
-the use of a `base register` for the data sections and set it to `r9` so the OS
-knows which register to set up before running the applications.
-`-mno-pic-data-is-text-relative` stops the compiler from assuming that the data
-segment is placed at a constant offset from the text segment.
+requires four flags:
+
+ - `-fPIC` - only emit code that uses relative addresses.
+ - `-msingle-pic-base` - force the use of a consistent _base register_ for the
+   data sections
+ - `-mpic-register=r9` - use register r9 as the base register
+ - `-mno-pic-data-is-text-relative` - do not assume that the data segment is
+   placed at a constant offset from the text segment
 
 
 ### Tock Binary Format
@@ -147,15 +148,25 @@ Each Tock application begins with a header that is today defined as:
 
 ```rust
 struct LoadInfo {
-    total_size: u32, // Total padded size of the program image
-    rel_data_size: u32,
-    entry_loc: u32, // Entry point for user application
-    init_data_loc: u32, // Data initialization information in flash
-    init_data_size: u32, // Size of initialization information
-    got_start_offset: u32, // Offset in memory to start of GOT
-    got_end_offset: u32, // Offset in memory to end of GOT
-    bss_start_offset: u32, // Offset in memory to start of BSS
-    bss_end_offset: u32, // Offset in memory to end of BSS
+    version: u32,            // Version of the Tock Binary Format (currently 1)
+    total_size: u32,         // Total padded size of the program image in bytes
+    entry_offset: u32,       // The function to call to start the application
+    rel_data_offset: u32,    // Offset in memory to start of relocation data
+    rel_data_size: u32,      // Length of relocation data segment in bytes
+    text_offset: u32,        // Offset in memory to start of text segment
+    text_size: u32,          // Length of text segment in bytes
+    got_offset: u32,         // Offset in memory to start of GOT
+    got_size: u32,           // Length of GOT segment in bytes
+    data_offset: u32,        // Offset in memory to start of data
+    data_size: u32,          // Length of data segment in bytes
+    bss_mem_offset: u32,     // Offset in memory to start of BSS
+    bss_size: u32,           // Length of BSS segment in bytes
+    min_stack_len: u32,      // Minimum stack size
+    min_app_heap_len: u32    // Minimum size for the application heap
+    min_kernel_heap_len: u32 // Minimum size for kernel's borrow heap
+    pkg_name_offset: u32,    // Offset in memory to a string with package name
+    pkg_name_size: u32,      // Length of package name in bytes
+    checksum: u32,           // XOR of all previous fields
 }
 ```
 

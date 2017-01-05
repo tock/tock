@@ -2,7 +2,7 @@ ENTRY(_start)
 
 MEMORY {
     FLASH (rx) : ORIGIN = 0x80000000, LENGTH = 0x00080000
-    SRAM (RWX) : ORIGIN = 0x00000000, LENGTH = 0x00002000
+    SRAM (RWX) : ORIGIN = 0x00000000, LENGTH = 0x00004000
 }
 
 SECTIONS {
@@ -40,6 +40,9 @@ SECTIONS {
     } > FLASH
     PROVIDE_HIDDEN (__exidx_end = .);
 
+/* Beginning of SRAM */
+    _sram_start = .;
+
 /* Global Offset Table */
     .got :
     {
@@ -70,4 +73,27 @@ SECTIONS {
         *(COMMON)
         _ebss = .;
     } > SRAM
+
+    .stack :
+    {
+        _stack = .;
+        KEEP(*(.stack*))
+        _estack = .;
+    } > SRAM
+
+    .app_heap :
+    {
+        _app_heap = .;
+        KEEP(*(.app_heap*))
+        _eapp_heap = .;
+    } > SRAM
+
+    .kernel_heap :
+    {
+        _kernel_heap = .;
+        KEEP(*(.kernel_heap*))
+        _ekernel_heap = .;
+    } > SRAM
+
+    _sram_end = .;
 }

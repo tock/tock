@@ -119,8 +119,8 @@ impl Driver for IPC {
                     match process {
                         &Some(ref p) => {
                             // are slices equal?
-                            if p.pkg_name.len() == slice.len() &&
-                               p.pkg_name
+                            if p.package_name.len() == slice.len() &&
+                               p.package_name
                                 .iter()
                                 .zip(slice.iter())
                                 .all(|(c1, c2)| c1 == c2) {
