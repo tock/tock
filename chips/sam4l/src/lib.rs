@@ -264,6 +264,20 @@ unsafe extern "C" fn hard_fault_handler() {
              ldr r0, =APP_FAULT
              str r1, [r0, #0]
 
+             /* Read the SCB registers. */
+             ldr r0, =SCB_REGISTERS
+             ldr r1, =0xE000ED14
+             ldr r2, [r1, #0] /* CCR */
+             str r2, [r0, #0]
+             ldr r2, [r1, #20] /* CFSR */
+             str r2, [r0, #4]
+             ldr r2, [r1, #24] /* HFSR */
+             str r2, [r0, #8]
+             ldr r2, [r1, #32] /* MMFAR */
+             str r2, [r0, #12]
+             ldr r2, [r1, #36] /* BFAR */
+             str r2, [r0, #16]
+
              /* Set thread mode to privileged */
              mov r0, #0
              msr CONTROL, r0
