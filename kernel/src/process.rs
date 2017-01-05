@@ -555,6 +555,7 @@ impl<'a> Process<'a> {
         unsafe {
             self.yield_pc = read_volatile(pspr.offset(6));
             self.psr = read_volatile(pspr.offset(7));
+            self.cur_stack = (self.cur_stack as *mut usize).offset(8) as *mut u8;
         }
     }
 
@@ -565,7 +566,7 @@ impl<'a> Process<'a> {
         self.state = State::Running;
         // Fill in initial stack expected by SVC handler
         // Top minus 8 u32s for r0-r3, r12, lr, pc and xPSR
-        let stack_bottom = self.cur_stack as *mut usize;
+        let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
         write_volatile(stack_bottom.offset(7), self.psr);
         write_volatile(stack_bottom.offset(6), callback.pc | 1);
         // Set the LR register to the saved PC so the callback returns to
