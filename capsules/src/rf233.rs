@@ -55,8 +55,11 @@ enum InternalState {
     ON_PLL_WAITING,
     ON_PLL_SET,
 
+
+    // Radio is in the RX_ON state, ready to receive packets
     READY,
 
+    // States pertaining to packe transmission
     TX_STATUS_PRECHECK1,
     TX_WRITING_FRAME,
     TX_STATUS_PRECHECK2,
@@ -66,6 +69,11 @@ enum InternalState {
     TX_TRANSMITTING,
     TX_DONE,
     TX_RETURN_TO_RX,
+
+    // Intermediate states when setting the short address
+    // and PAN ID.
+    CONFIG_SHORT0_SET,
+    CONFIG_PAN0_SET,
 
     TX_PENDING,          // Used to denote a TX is pending while receiving,
                          // to be sent when RX complete
@@ -386,6 +394,16 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             }
             InternalState::TX_PENDING => {}
 
+            InternalState::CONFIG_SHORT0_SET => {
+                self.state_transition_write(RF233Register::SHORT_ADDR_1,
+                                            (self.addr.get() >> 8) as u8,
+                                            InternalState::READY);
+            }
+            InternalState::CONFIG_PAN0_SET => {
+                self.state_transition_write(RF233Register::PAN_ID_1,
+                                            (self.pan.get() >> 8) as u8,
+                                            InternalState::READY);
+            }
             InternalState::UNKNOWN => {}
         }
     }
@@ -565,13 +583,31 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233 <'a, S> {
         self.rx_client.set(Some(client));
     }
 
-    fn set_address(&self, addr: u16) {
-        self.addr.set(addr);
+    fn set_address(&self, addr: u16) -> ReturnCode {
+        if self.state.get() != InternalState::READY {
+            ReturnCode::EBUSY
+        } else {
+            self.addr.set(addr);
+            self.state_transition_write(RF233Register::SHORT_ADDR_0,
+                                        (self.addr.get() & 0xff) as u8,
+                                        InternalState::CONFIG_SHORT0_SET);
+            ReturnCode::SUCCESS
+        }
     }
 
-    fn set_pan(&self, addr: u16) {
-        self.pan.set(addr);
+    fn set_pan(&self, addr: u16) -> ReturnCode {
+        if self.state.get() != InternalState::READY {
+            ReturnCode::EBUSY
+        } else {
+            self.pan.set(addr);
+            self.state_transition_write(RF233Register::PAN_ID_0,
+                                        (self.pan.get() & 0xff) as u8,
+                                        InternalState::CONFIG_PAN0_SET);
+            ReturnCode::SUCCESS
+        }
+
     }
+
     fn payload_offset(&self) -> u8 {
         radio::HEADER_SIZE
     }

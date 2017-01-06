@@ -18,8 +18,8 @@ pub trait Radio {
     fn set_transmit_client(&self, client: &'static TxClient);
     fn set_receive_client(&self, client: &'static RxClient);
 
-    fn set_address(&self, addr: u16);
-    fn set_pan(&self, addr: u16);
+    fn set_address(&self, addr: u16) -> ReturnCode;
+    fn set_pan(&self, addr: u16) -> ReturnCode;
     fn payload_offset(&self) -> u8;
     fn header_size(&self) -> u8;
 
