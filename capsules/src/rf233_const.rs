@@ -99,7 +99,18 @@ pub const SHORT_ADDR_0:u8 = 0x11;
 pub const SHORT_ADDR_1:u8 = 0x22;
 pub const TRX_RPC:u8      = 0xFF;
 pub const TRX_PLL_ON:u8   = 0x09;
-pub const TRX_RX_ON:u8   = 0x06;
+pub const TRX_RX_ON:u8    = 0x06;
+pub const TRX_TX_ARET_ON:u8  = 0x19;
+pub const TRX_TX_START:u8 = 0x02;
+
+pub const IRQ_7_BAT_LOW:u8     = 0x80;
+pub const IRQ_6_TRX_UR:u8      = 0x40;
+pub const IRQ_5_AMI:u8         = 0x20;
+pub const IRQ_4_CCA_ED_DONE:u8 = 0x10;
+pub const IRQ_3_TRX_END:u8     = 0x08;
+pub const IRQ_2_RX_START:u8    = 0x04;
+pub const IRQ_1_PLL_UNLOCK:u8  = 0x02;
+pub const IRQ_0_PLL_LOCK:u8    = 0x01;
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum RF233BusCommand {

@@ -15,8 +15,8 @@ use kernel::{Chip, MPU};
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
-use kernel::hil::spi::SpiMasterDevice;
 use capsules::rf233::RF233;
+use kernel::hil::radio::Radio;
 
 #[allow(unused_imports)]
 use core::mem;
@@ -271,7 +271,7 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        48);
+                                        84);
 
     sam4l::gpio::PA[08].set_client(rf233);
 

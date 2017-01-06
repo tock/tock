@@ -7,6 +7,7 @@ pub mod uart;
 pub mod rng;
 pub mod adc;
 pub mod watchdog;
+pub mod radio;
 
 pub trait Controller {
     type Config;
