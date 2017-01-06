@@ -2,8 +2,9 @@ use callback::AppId;
 use common::{RingBuffer, Queue, VolatileCell};
 
 use container;
-use core::{mem, ptr, slice};
+use core::{mem, ptr, slice, str};
 use core::cell::Cell;
+use core::fmt::Write;
 use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile};
 
@@ -14,6 +15,12 @@ macro_rules! align8 {
 
 #[no_mangle]
 pub static mut SYSCALL_FIRED: usize = 0;
+
+#[no_mangle]
+pub static mut APP_FAULT: usize = 0;
+
+#[no_mangle]
+pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 
 #[allow(improper_ctypes)]
 extern "C" {
@@ -52,10 +59,17 @@ pub enum Error {
     AddressOutOfBounds,
 }
 
-#[derive(Copy,Clone,PartialEq,Eq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
 pub enum State {
     Running,
     Yielded,
+    Fault,
+}
+
+#[derive(Copy,Clone,PartialEq,Eq)]
+pub enum FaultResponse {
+    Panic,
+    Restart,
 }
 
 #[derive(Copy, Clone)]
@@ -131,6 +145,18 @@ unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static Lo
     Some(load_info)
 }
 
+#[derive(Default)]
+struct StoredRegs {
+    r4: usize,
+    r5: usize,
+    r6: usize,
+    r7: usize,
+    r8: usize,
+    r9: usize,
+    r10: usize,
+    r11: usize,
+}
+
 pub struct Process<'a> {
     /// Application memory layout:
     ///
@@ -160,15 +186,30 @@ pub struct Process<'a> {
     cur_stack: *const u8,
     app_mem_start: *const u8,
 
+    /// Requested length of memory segments
+    min_grant_len: usize,
+    min_heap_len: usize,
+    min_stack_len: usize,
+
+    /// How many syscalls have occurred since the process started
+    syscall_count: Cell<usize>,
+
     /// Process text segment
     text: &'static [u8],
 
-    stored_regs: [usize; 8],
+    /// The beginning of process code after the LoadInfo and RelData sections.
+    /// Note that unlike most pointers, this is to the flash image, not loaded sram
+    app_flash_code_start: *const u8,
+
+    stored_regs: StoredRegs,
 
     yield_pc: usize,
     psr: usize,
 
     state: State,
+
+    /// How to deal with Faults occuring in the process
+    fault_response: FaultResponse,
 
     /// MPU regions are saved as a pointer-size pair.
     ///
@@ -224,6 +265,33 @@ impl<'a> Process<'a> {
             self.state = State::Yielded;
             unsafe {
                 HAVE_WORK.set(HAVE_WORK.get() - 1);
+            }
+        }
+    }
+
+    pub unsafe fn fault_state(&mut self) {
+        write_volatile(&mut APP_FAULT, 0);
+        self.state = State::Fault;
+
+        // get app name
+        let mut app_name_str = "";
+        let _ = str::from_utf8(self.package_name).map(|name_str| {
+            app_name_str = name_str;
+        });
+
+        match self.fault_response {
+            FaultResponse::Panic => {
+                // process faulted. Panic and print status
+                panic!("Process {} had a fault", app_name_str);
+            }
+            FaultResponse::Restart => {
+                //XXX: unimplemented
+                panic!("Process {} had a fault and could not be restarted", app_name_str);
+                /*
+                // HAVE_WORK is really screwed up in this case
+                // the tasks ring buffer needs to be cleared
+                // need to re-load() the app
+                */
             }
         }
     }
@@ -303,7 +371,8 @@ impl<'a> Process<'a> {
 
     pub unsafe fn create(app_flash_address: *const u8,
                          remaining_app_memory: *mut u8,
-                         remaining_app_memory_size: usize)
+                         remaining_app_memory_size: usize,
+                         fault_response: FaultResponse)
                          -> (Option<Process<'a>>, usize, usize) {
         if let Some(load_info) = parse_and_validate_load_info(app_flash_address) {
             let app_flash_size = load_info.total_size as usize;
@@ -374,14 +443,23 @@ impl<'a> Process<'a> {
                     cur_stack: stack_heap_boundary,
                     app_mem_start: load_result.app_mem_start,
 
+                    min_stack_len: load_info.min_stack_len as usize,
+                    min_heap_len: load_info.min_app_heap_len as usize,
+                    min_grant_len: load_info.min_kernel_heap_len as usize,
+
+                    syscall_count: Cell::new(0),
+
                     text: slice::from_raw_parts(app_flash_address, app_flash_size),
 
-                    stored_regs: [0; 8],
-                    yield_pc: 0,
+                    app_flash_code_start: load_result.app_flash_code_start,
+
+                    stored_regs: Default::default(),
+                    yield_pc: load_result.init_fn,
                     // Set the Thumb bit and clear everything else
                     psr: 0x01000000,
 
                     state: State::Yielded,
+                    fault_response: fault_response,
 
                     mpu_regions: [Cell::new((ptr::null(), 0)),
                                   Cell::new((ptr::null(), 0)),
@@ -496,6 +574,7 @@ impl<'a> Process<'a> {
         let stack_bottom = (self.cur_stack as *mut usize).offset(-8);
         write_volatile(stack_bottom.offset(7), self.psr);
         write_volatile(stack_bottom.offset(6), callback.pc | 1);
+
         // Set the LR register to the saved PC so the callback returns to
         // wherever wait was called. Set lowest bit to one because of THUMB
         // instruction requirements.
@@ -508,6 +587,10 @@ impl<'a> Process<'a> {
         self.cur_stack = stack_bottom as *mut u8;
     }
 
+    pub unsafe fn app_fault(&self) -> bool {
+        read_volatile(&APP_FAULT) != 0
+    }
+
     pub unsafe fn syscall_fired(&self) -> bool {
         read_volatile(&SYSCALL_FIRED) != 0
     }
@@ -515,7 +598,9 @@ impl<'a> Process<'a> {
     /// Context switch to the process.
     pub unsafe fn switch_to(&mut self) {
         write_volatile(&mut SYSCALL_FIRED, 0);
-        let psp = switch_to_user(self.cur_stack, self.memory.as_ptr(), &mut self.stored_regs);
+        let psp = switch_to_user(self.cur_stack,
+                                 self.memory.as_ptr(),
+                                 mem::transmute(&mut self.stored_regs));
         self.cur_stack = psp;
     }
 
@@ -528,11 +613,19 @@ impl<'a> Process<'a> {
         }
     }
 
+    pub fn incr_syscall_count(&self) {
+        self.syscall_count.set(self.syscall_count.get() + 1);
+    }
+
     pub fn lr(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
         unsafe { read_volatile(pspr.offset(5)) }
     }
 
+    pub fn pc(&self) -> usize {
+        let pspr = self.cur_stack as *const usize;
+        unsafe { read_volatile(pspr.offset(6)) }
+    }
 
     pub fn r0(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
@@ -558,6 +651,322 @@ impl<'a> Process<'a> {
         let pspr = self.cur_stack as *const usize;
         unsafe { read_volatile(pspr.offset(3)) }
     }
+
+    pub fn r12(&self) -> usize {
+        let pspr = self.cur_stack as *const usize;
+        unsafe { read_volatile(pspr.offset(3)) }
+    }
+
+    pub unsafe fn fault_str<W: Write>(&mut self, writer: &mut W) {
+        let _ccr = SCB_REGISTERS[0];
+        let cfsr = SCB_REGISTERS[1];
+        let hfsr = SCB_REGISTERS[2];
+        let mmfar = SCB_REGISTERS[3];
+        let bfar = SCB_REGISTERS[4];
+
+        let iaccviol = (cfsr & 0x01) == 0x01;
+        let daccviol = (cfsr & 0x02) == 0x02;
+        let munstkerr = (cfsr & 0x08) == 0x08;
+        let mstkerr = (cfsr & 0x10) == 0x10;
+        let mlsperr = (cfsr & 0x20) == 0x20;
+        let mmfarvalid = (cfsr & 0x80) == 0x80;
+
+        let ibuserr = ((cfsr >> 8) & 0x01) == 0x01;
+        let preciserr = ((cfsr >> 8) & 0x02) == 0x02;
+        let impreciserr = ((cfsr >> 8) & 0x04) == 0x04;
+        let unstkerr = ((cfsr >> 8) & 0x08) == 0x08;
+        let stkerr = ((cfsr >> 8) & 0x10) == 0x10;
+        let lsperr = ((cfsr >> 8) & 0x20) == 0x20;
+        let bfarvalid = ((cfsr >> 8) & 0x80) == 0x80;
+
+        let undefinstr = ((cfsr >> 16) & 0x01) == 0x01;
+        let invstate = ((cfsr >> 16) & 0x02) == 0x02;
+        let invpc = ((cfsr >> 16) & 0x04) == 0x04;
+        let nocp = ((cfsr >> 16) & 0x08) == 0x08;
+        let unaligned = ((cfsr >> 16) & 0x100) == 0x100;
+        let divbysero = ((cfsr >> 16) & 0x200) == 0x200;
+
+        let vecttbl = (hfsr & 0x02) == 0x02;
+        let forced = (hfsr & 0x40000000) == 0x40000000;
+
+
+        let _ = writer.write_fmt(format_args!("\r\n---| Fault Status |---\r\n"));
+
+        if iaccviol {
+            let _ =
+                writer.write_fmt(format_args!("Instruction Access Violation:       {}\r\n",
+                                              iaccviol));
+        }
+        if daccviol {
+            let _ =
+                writer.write_fmt(format_args!("Data Access Violation:              {}\r\n",
+                                              daccviol));
+        }
+        if munstkerr {
+            let _ =
+                writer.write_fmt(format_args!("Memory Management Unstacking Fault: {}\r\n",
+                                              munstkerr));
+        }
+        if mstkerr {
+            let _ = writer.write_fmt(format_args!("Memory Management Stacking Fault:   {}\r\n",
+                                                  mstkerr));
+        }
+        if mlsperr {
+            let _ = writer.write_fmt(format_args!("Memory Management Lazy FP Fault:    {}\r\n",
+                                                  mlsperr));
+        }
+
+        if ibuserr {
+            let _ = writer.write_fmt(format_args!("Instruction Bus Error:              {}\r\n",
+                                                  ibuserr));
+        }
+        if preciserr {
+            let _ =
+                writer.write_fmt(format_args!("Precise Data Bus Error:             {}\r\n",
+                                              preciserr));
+        }
+        if impreciserr {
+            let _ =
+                writer.write_fmt(format_args!("Imprecise Data Bus Error:           {}\r\n",
+                                              impreciserr));
+        }
+        if unstkerr {
+            let _ =
+                writer.write_fmt(format_args!("Bus Unstacking Fault:               {}\r\n",
+                                              unstkerr));
+        }
+        if stkerr {
+            let _ = writer.write_fmt(format_args!("Bus Stacking Fault:                 {}\r\n",
+                                                  stkerr));
+        }
+        if lsperr {
+            let _ = writer.write_fmt(format_args!("Bus Lazy FP Fault:                  {}\r\n",
+                                                  lsperr));
+        }
+
+        if undefinstr {
+            let _ =
+                writer.write_fmt(format_args!("Undefined Instruction Usage Fault:  {}\r\n",
+                                              undefinstr));
+        }
+        if invstate {
+            let _ =
+                writer.write_fmt(format_args!("Invalid State Usage Fault:          {}\r\n",
+                                              invstate));
+        }
+        if invpc {
+            let _ =
+                writer.write_fmt(format_args!("Invalid PC Load Usage Fault:        {}\r\n", invpc));
+        }
+        if nocp {
+            let _ =
+                writer.write_fmt(format_args!("No Coprocessor Usage Fault:         {}\r\n", nocp));
+        }
+        if unaligned {
+            let _ =
+                writer.write_fmt(format_args!("Unaligned Access Usage Fault:       {}\r\n",
+                                              unaligned));
+        }
+        if divbysero {
+            let _ =
+                writer.write_fmt(format_args!("Divide By Zero:                     {}\r\n",
+                                              divbysero));
+        }
+
+        if vecttbl {
+            let _ = writer.write_fmt(format_args!("Bus Fault on Vector Table Read:     {}\r\n",
+                                                  vecttbl));
+        }
+        if forced {
+            let _ = writer.write_fmt(format_args!("Forced Hard Fault:                  {}\r\n",
+                                                  forced));
+        }
+
+        if mmfarvalid {
+            let _ =
+                writer.write_fmt(format_args!("Faulting Memory Address:            {:#010X}\r\n",
+                                              mmfar));
+        }
+        if bfarvalid {
+            let _ =
+                writer.write_fmt(format_args!("Bus Fault Address:                  {:#010X}\r\n",
+                                              bfar));
+        }
+
+        if cfsr == 0 && hfsr == 0 {
+            let _ = writer.write_fmt(format_args!("No faults detected.\r\n"));
+        } else {
+            let _ =
+                writer.write_fmt(format_args!("Fault Status Register (CFSR):       {:#010X}\r\n",
+                                              cfsr));
+            let _ =
+                writer.write_fmt(format_args!("Hard Fault Status Register (HFSR):  {:#010X}\r\n",
+                                              hfsr));
+        }
+    }
+
+    pub unsafe fn statistics_str<W: Write>(&mut self, writer: &mut W) {
+
+        // get app name
+        let mut app_name_str = "";
+        let _ = str::from_utf8(self.package_name).map(|name_str| {
+            app_name_str = name_str;
+        });
+
+        let (r0, r1, r2, r3, r12, pc, lr) =
+            (self.r0(), self.r1(), self.r2(), self.r3(), self.r12(), self.pc(), self.lr());
+
+        // memory region
+        let mem_end = self.mem_end() as usize;
+        let mem_start = self.mem_start() as usize;
+
+        // grant region size
+        let grant_start = self.kernel_memory_break as usize;
+        let grant_size = mem_end - grant_start;
+        let requested_grant_len = self.min_grant_len as usize;
+        let mut grant_error_str = "          ";
+        if grant_size > requested_grant_len {
+            grant_error_str = " EXCEEDED!";
+        }
+
+        // unallocated space
+        let heap_top = self.app_memory_break as usize;
+
+        // used heap space
+        let stack_top = self.stack_heap_boundary as usize;
+        let heap_size = heap_top - stack_top;
+        let requested_heap_len = self.min_heap_len as usize;
+        let mut heap_error_str = "          ";
+        if heap_size > requested_heap_len {
+            heap_error_str = " EXCEEDED!";
+        }
+
+        // used stack space
+        let stack_bottom = self.cur_stack as usize;
+        let stack_size = stack_top - stack_bottom;
+        let requested_stack_len = self.min_stack_len as usize;
+        let mut stack_error_str = "          ";
+        if stack_size > requested_stack_len {
+            stack_error_str = " EXCEEDED!";
+        }
+
+        // remaining stack space
+        let data_end = self.app_mem_start as usize;
+
+        // static data region (GOT, Data, and BSS)
+        let static_data_size = data_end - mem_start;
+
+        // text region
+        let text_start = self.text.as_ptr() as usize;
+        let text_end = self.text.as_ptr().offset(self.text.len() as isize) as usize;
+        let text_size = text_end - text_start;
+
+        // PC address in app lst file
+        let pc_addr_relative = 0x80000000 |
+                               (0xFFFFFFFE & (pc - self.app_flash_code_start as usize));
+        let lr_addr_relative = 0x80000000 |
+                               (0xFFFFFFFE & (lr - self.app_flash_code_start as usize));
+
+        // number of events queued
+        let events_queued = self.tasks.len();
+
+        // number of syscalls that have occurred
+        let syscall_count = self.syscall_count.get();
+
+        // You can thank the piece of garbage rustfmt for this.
+        let _ = writer.write_fmt(format_args!("\
+        App: {}\
+        \r\n[{:?}]  -  Events Queued: {}  Syscall Count: {}\
+        \r\n\
+        \r\n ╔═══════════╤══════════════\
+════════════════════════════╗\
+        \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
+          \r\n ╚{:#010X}═╪══════════════\
+════════════════════════════╝\
+        \r\n             │ ▼ Grant      {:6} | {:6}{}\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
+        \r\n             │ Unused\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
+        \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈  R\
+        \r\n             │ ▼ Stack      {:6} | {:6}{}     A\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈  M\
+        \r\n             │ Unused\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
+        \r\n             │ Data         {:6} | {:6}\
+          \r\n  {:#010X} ┴───────────────\
+────────────────────────────\
+        \r\n             .....                                        F\
+          \r\n  {:#010X} ┬───────────────\
+──────────────────────────── l\
+        \r\n             │ Text              ? | {:6}               a\
+          \r\n  {:#010X} ┴───────────────\
+──────────────────────────── s\
+        \r\n                                                          h\
+          \r\n  R0 : {:#010X}\
+          \r\n  R1 : {:#010X}\
+          \r\n  R2 : {:#010X}\
+          \r\n  R3 : {:#010X}\
+          \r\n  R4 : {:#010X}\
+          \r\n  R5 : {:#010X}\
+          \r\n  R6 : {:#010X}\
+          \r\n  R7 : {:#010X}\
+          \r\n  R8 : {:#010X}\
+          \r\n  R9 : {:#010X}\
+          \r\n  R10: {:#010X}\
+          \r\n  R11: {:#010X}\
+          \r\n  R12: {:#010X}\
+          \r\n  PC : {:#010X} [{:#010X} in lst file]\
+          \r\n  LR : {:#010X} [{:#010X} in lst file]\
+        \r\n\r\n",
+                                              app_name_str,
+                                              self.state,
+                                              events_queued,
+                                              syscall_count,
+                                              mem_end,
+                                              grant_size,
+                                              requested_grant_len,
+                                              grant_error_str,
+                                              grant_start,
+                                              heap_top,
+                                              heap_size,
+                                              requested_heap_len,
+                                              heap_error_str,
+                                              stack_top,
+                                              stack_size,
+                                              requested_stack_len,
+                                              stack_error_str,
+                                              stack_bottom,
+                                              data_end,
+                                              static_data_size,
+                                              static_data_size,
+                                              mem_start,
+                                              text_end,
+                                              text_size,
+                                              text_start,
+                                              r0,
+                                              r1,
+                                              r2,
+                                              r3,
+                                              self.stored_regs.r4,
+                                              self.stored_regs.r5,
+                                              self.stored_regs.r6,
+                                              self.stored_regs.r7,
+                                              self.stored_regs.r8,
+                                              self.stored_regs.r9,
+                                              self.stored_regs.r10,
+                                              self.stored_regs.r11,
+                                              r12,
+                                              pc,
+                                              pc_addr_relative,
+                                              lr,
+                                              lr_addr_relative));
+    }
 }
 
 #[derive(Debug)]
@@ -571,6 +980,9 @@ struct LoadResult {
 
     /// The length of the data segment
     data_len: u32,
+
+    /// The beginning of process code in Flash after LoadInfo and RelData
+    app_flash_code_start: *const u8,
 
     /// The process's package name (used for IPC)
     package_name: &'static [u8],
@@ -603,9 +1015,11 @@ unsafe fn load(load_info: &'static LoadInfo,
         init_fn: 0,
         app_mem_start: ptr::null(),
         data_len: 0,
+        app_flash_code_start: ptr::null(),
     };
 
     let text_start = flash_start_addr.offset(load_info.text_offset as isize);
+    load_result.app_flash_code_start = text_start;
 
     let rel_data: &[u32] =
         slice::from_raw_parts(flash_start_addr.offset(

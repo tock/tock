@@ -6,6 +6,8 @@ TOCK_USERLAND_BASE_DIR = ../..
 # Which files to compile.
 C_SRCS := $(wildcard *.c)
 
+CPPFLAGS += -DAPP_HEAP_SIZE=2048
+
 # Include userland master makefile. Contains rules and flags for actually
 # building the application.
 include $(TOCK_USERLAND_BASE_DIR)/Makefile
