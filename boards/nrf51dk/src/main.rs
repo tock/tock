@@ -66,29 +66,42 @@ const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
 
 unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'static>>] {
-    use core::ptr::{read_volatile, write_volatile};
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
 
+    const NUM_PROCS: usize = 1;
+
+    // how should the kernel respond when a process faults
+    const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
     #[link_section = ".app_memory"]
-    static mut MEMORY: [u8; 8192] = [0; 8192];
-    static mut PROCS: [Option<kernel::process::Process<'static>>; 1] = [None];
+    static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-    let addr = &_sapps as *const u8;
+    static mut processes: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None];
 
-    // The first member of the LoadInfo header contains the total size of
-    // each process image. A sentinel value of 0 (invalid because it is
-    // smaller than the header itself) is used to mark the end of the list
-    // of processes.
-    let total_size = read_volatile(addr as *const usize);
-    if total_size != 0 {
-        write_volatile(&mut PROCS[0],
-                       Some(kernel::process::Process::create(addr, total_size, &mut MEMORY)));
+    let mut apps_in_flash_ptr = &_sapps as *const u8;
+    let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
+    let mut app_memory_size = APP_MEMORY.len();
+    for i in 0..NUM_PROCS {
+        let (process, flash_offset, memory_offset) =
+            kernel::process::Process::create(apps_in_flash_ptr,
+                                             app_memory_ptr,
+                                             app_memory_size,
+                                             FAULT_RESPONSE);
+
+        if process.is_none() {
+            break;
+        }
+
+        processes[i] = process;
+        apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
+        app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
+        app_memory_size -= memory_offset;
     }
-    &mut PROCS
+
+    &mut processes
 }
 
 pub struct Platform {

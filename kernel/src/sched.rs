@@ -41,12 +41,26 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                     }
                 }
             }
+            process::State::Fault => {
+                // we should never be scheduling a process in fault
+                panic!("Attempted to schedule a faulty process");
+            }
         }
 
         if !process.syscall_fired() {
             break;
         }
 
+        // check if the app had a fault
+        if process.app_fault() {
+
+            // let process deal with it as appropriate
+            process.fault_state();
+            continue;
+        }
+
+        // process had a system call, count it
+        process.incr_syscall_count();
         match process.svc_number() {
             Some(syscall::MEMOP) => {
                 let brk_type = process.r0();

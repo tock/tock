@@ -10,7 +10,8 @@ pub struct MpuType {
     /// Cortex-M4.
     pub is_separate: VolatileCell<u8>,
 
-    /// The number of data regions supported. Always reads 8.
+    /// The number of data regions supported. If this field reads-as-zero the
+    /// processor does not implement an MPU
     pub data_regions: VolatileCell<u8>,
 
     /// The number of instructions regions supported. Always reads 0.
@@ -29,10 +30,22 @@ pub struct Registers {
     ///     FAULTMASK escalated handlers (bit 1).
     ///   * Enables the default memory map background region in privileged mode
     ///     (bit 2).
+    ///
+    /// Bit   | Name       | Function
+    /// ----- | ---------- | -----------------------------
+    /// 0     | ENABLE     | Enable the MPU (1=enabled)
+    /// 1     | HFNMIENA   | 0=MPU disabled during HardFault, NMI, and FAULTMASK
+    ///       |            | regardless of bit 0. 1 leaves enabled.
+    /// 2     | PRIVDEFENA | 0=Any memory access not explicitly enabled causes fault
+    ///       |            | 1=Privledged mode code can read any memory address
     pub control: VolatileCell<u32>,
 
     /// Selects the region number (zero-indexed) referenced by the region base
     /// address and region attribute and size registers.
+    ///
+    /// Bit   | Name     | Function
+    /// ----- | -------- | -----------------------------
+    /// [7:0] | REGION   | Region for writes to MPU_RBAR or MPU_RASR. Range 0-7.
     pub region_number: VolatileCell<u32>,
 
     /// Defines the base address of the currently selected MPU region.
@@ -45,6 +58,13 @@ pub struct Registers {
     ///
     ///   N = Log2(Region size in bytes)
     ///
+    /// Bit       | Name    | Function
+    /// --------- | ------- | -----------------------------
+    /// [31:N]    | ADDR    | Region base address
+    /// [(N-1):5] |         | Reserved
+    /// [4]       | VALID   | {RZ} 0=Use region_number reg, 1=Use REGION
+    ///           |         |      Update base address for chosen region
+    /// [3:0]     | REGION  | {W} (see VALID) ; {R} return region_number reg
     pub region_base_address: VolatileCell<u32>,
 
     /// Defines the region size and memory attributes of the selected MPU
@@ -81,7 +101,17 @@ impl MPU {
 impl kernel::MPU for MPU {
     fn enable_mpu(&self) {
         let regs = unsafe { &*self.0 };
+
+        // Enable the MPU, disable it during HardFault/NMI handlers, disable it
+        // when privileged code runs
         regs.control.set(0b101);
+
+        let mpu_type = regs.mpu_type.get();
+        let regions = mpu_type.data_regions.get();
+        if regions != 8 {
+            panic!("Tock currently assumes 8 MPU regions. This chip has {}",
+                   regions);
+        }
     }
 
     fn set_mpu(&self, region_num: u32, start_addr: u32, len: u32, execute: bool, ap: u32) {

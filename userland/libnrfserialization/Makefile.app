@@ -1,5 +1,4 @@
-LIBNRFSER_MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
-LIBNRFSER_DIR := $(abspath $(dir $(LIBNRFSER_MKFILE_PATH)))
+LIBNRFSER_DIR := $(TOCK_USERLAND_BASE_DIR)/libnrfserialization
 
 # So it doesn't think it's on the nRF and try to include nRF code.
 CFLAGS += -D__TOCK__

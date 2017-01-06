@@ -1,19 +1,26 @@
 # userland master makefile. Included by application makefiles
 
-TOCK_USERLAND_BASE_DIR ?= $(abspath .)
-TOCK_BASE_DIR ?= $(abspath ../)
-BUILDDIR ?= $(abspath .)
+TOCK_USERLAND_BASE_DIR ?= ..
+TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
+BUILDDIR ?= build/$(TOCK_ARCH)
 TOCK_BOARD ?= storm
 TOCK_ARCH ?= cortex-m4
 LIBTOCK ?= $(TOCK_USERLAND_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
 
 TOOLCHAIN := arm-none-eabi
 
+# PACKAGE_NAME is used to identify the application for IPC and for error reporting
+PACKAGE_NAME ?= $(notdir $(shell pwd))
+
 # This could be replaced with an installed version of `elf2tbf`
-ELF2TBF ?= cargo run --manifest-path $(TOCK_USERLAND_BASE_DIR)/tools/elf2tbf/Cargo.toml --
-ifdef PKG_NAME
-ELF2TBF_ARGS = -n $(PKG_NAME)
-endif
+ELF2TBF ?= cargo run --manifest-path $(abspath $(TOCK_USERLAND_BASE_DIR))/tools/elf2tbf/Cargo.toml --
+ELF2TBF_ARGS += -n $(PACKAGE_NAME)
+
+# Collect all desired built output.
+OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
+OBJS += $(patsubst %.cc,$(BUILDDIR)/%.o,$(CXX_SRCS))
+
+CPPFLAGS += -DSTACK_SIZE=2048
 
 AS := $(TOOLCHAIN)-as
 ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
@@ -34,6 +41,7 @@ CPPFLAGS += \
 	    -msingle-pic-base\
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
+OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
 
 LIBS =  $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) $(OTHERLIBS)
 LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
@@ -58,6 +66,7 @@ $(BUILDDIR)/%.o: %.cc | $(BUILDDIR)
 LINKER ?= $(TOCK_USERLAND_BASE_DIR)/linker.ld
 
 SIZE := $(TOOLCHAIN)-size
+OBJDUMP := $(TOOLCHAIN)-objdump
 
 .PHONY:	all
 all:	$(BUILDDIR)/app.bin size
@@ -65,6 +74,11 @@ all:	$(BUILDDIR)/app.bin size
 .PHONY: size
 size:	$(BUILDDIR)/app.elf
 	@$(SIZE) $<
+
+.PHONY: debug
+debug: $(BUILDDIR)/app.elf
+	$(TRACE_LST)
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $(BUILDDIR)/app.lst
 
 # Include the libtock makefile. Adds rules that will rebuild library when needed
 include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
@@ -79,6 +93,10 @@ $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 	$(TRACE_BIN)
 	$(Q)$(ELF2TBF) $(ELF2TBF_ARGS) -o $@ $<
+
+.PHONY:
+clean::
+	rm -Rf $(BUILDDIR)
 
 # for programming individual apps, include platform app makefile
 #	conditionally included in case it doesn't exist for a board
@@ -100,6 +118,7 @@ TRACE_LD  =
 TRACE_AR  =
 TRACE_AS  =
 TRACE_LST =
+ELF2TBF_ARGS += -v
 else
 Q=@
 TRACE_BIN = @echo " BIN       " $@
