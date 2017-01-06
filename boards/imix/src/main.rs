@@ -375,6 +375,8 @@ pub unsafe fn reset_handler() {
     chip.mpu().enable_mpu();
 
     rf233_spi.set_client(rf233);
+    rf233.set_pan(0xABCD);
+    rf233.set_address(0x1008);
     rf233.initialize();
     rf233.start();
 

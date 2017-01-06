@@ -216,12 +216,12 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             }
             InternalState::START_XAH0_SET => {
                 self.state_transition_write(RF233Register::PAN_ID_0,
-                                            PAN_ID_0,
+                                            (self.pan.get() >> 8) as u8,
                                             InternalState::START_PANID0_SET);
             }
             InternalState::START_PANID0_SET => {
                 self.state_transition_write(RF233Register::PAN_ID_1,
-                                            PAN_ID_1,
+                                            (self.pan.get() & 0xff) as u8,
                                             InternalState::START_PANID1_SET);
             }
             InternalState::START_PANID1_SET => {
@@ -266,12 +266,12 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             }
             InternalState::START_IEEE7_SET => {
                 self.state_transition_write(RF233Register::SHORT_ADDR_0,
-                                            SHORT_ADDR_0,
+                                            (self.addr.get() >> 8) as u8,
                                             InternalState::START_SHORT0_SET);
             }
             InternalState::START_SHORT0_SET => {
                 self.state_transition_write(RF233Register::SHORT_ADDR_1,
-                                            SHORT_ADDR_1,
+                                            (self.addr.get() & 0xff) as u8,
                                             InternalState::START_SHORT1_SET);
             }
             InternalState::START_SHORT1_SET => {
@@ -530,12 +530,12 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
         buf[2] = 0xAA;
         buf[3] = self.seq.get();
         self.seq.set(self.seq.get() + 1);
-        buf[4] = (self.pan.get() >> 8) as u8;
-        buf[5] = (self.pan.get() & 0xFF) as u8;
-        buf[6] = (dest >> 8) as u8;
-        buf[7] = (dest & 0xff) as u8;
-        buf[8] = (self.addr.get() >> 8) as u8;
-        buf[9] = (self.addr.get() & 0xFF) as u8;
+        buf[4] = (self.pan.get() & 0xFF) as u8;
+        buf[5] = (self.pan.get() >> 8) as u8;
+        buf[6] = (dest & 0xff) as u8;
+        buf[7] = (dest >> 8) as u8;
+        buf[8] = (self.addr.get() & 0xFF) as u8;
+        buf[9] = (self.addr.get() >> 8) as u8;
 
         self.tx_buf.replace(buf);
         self.tx_len.set(len);
@@ -584,28 +584,41 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233 <'a, S> {
     }
 
     fn set_address(&self, addr: u16) -> ReturnCode {
-        if self.state.get() != InternalState::READY {
-            ReturnCode::EBUSY
-        } else {
+        let state = self.state.get();
+        // The start state will push addr into hardware on initialization;
+        // the ready state needs to do so immediately.
+        if (state == InternalState::READY ||
+            state == InternalState::START) {
             self.addr.set(addr);
-            self.state_transition_write(RF233Register::SHORT_ADDR_0,
-                                        (self.addr.get() & 0xff) as u8,
-                                        InternalState::CONFIG_SHORT0_SET);
+            if (state == InternalState::READY) {
+                self.state_transition_write(RF233Register::SHORT_ADDR_0,
+                                            (self.addr.get() & 0xff) as u8,
+                                            InternalState::CONFIG_SHORT0_SET);
+            }
             ReturnCode::SUCCESS
+        }
+        else {
+            ReturnCode::EBUSY
         }
     }
 
     fn set_pan(&self, addr: u16) -> ReturnCode {
-        if self.state.get() != InternalState::READY {
-            ReturnCode::EBUSY
-        } else {
+        let state = self.state.get();
+        // The start state will push addr into hardware on initialization;
+        // the ready state needs to do so immediately.
+        if (state == InternalState::READY ||
+            state == InternalState::START) {
             self.pan.set(addr);
-            self.state_transition_write(RF233Register::PAN_ID_0,
-                                        (self.pan.get() & 0xff) as u8,
-                                        InternalState::CONFIG_PAN0_SET);
+            if (state == InternalState::READY) {
+                self.state_transition_write(RF233Register::PAN_ID_0,
+                                            (self.pan.get() & 0xff) as u8,
+                                            InternalState::CONFIG_PAN0_SET);
+            }
             ReturnCode::SUCCESS
         }
-
+        else {
+            ReturnCode::EBUSY
+        }
     }
 
     fn payload_offset(&self) -> u8 {
