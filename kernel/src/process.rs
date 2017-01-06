@@ -824,7 +824,7 @@ impl<'a> Process<'a> {
         let grant_start = self.kernel_memory_break as usize;
         let grant_size = mem_end - grant_start;
         let requested_grant_len = self.min_grant_len as usize;
-        let mut grant_error_str = "";
+        let mut grant_error_str = "          ";
         if grant_size > requested_grant_len {
             grant_error_str = " EXCEEDED!";
         }
@@ -836,7 +836,7 @@ impl<'a> Process<'a> {
         let stack_top = self.stack_heap_boundary as usize;
         let heap_size = heap_top - stack_top;
         let requested_heap_len = self.min_heap_len as usize;
-        let mut heap_error_str = "";
+        let mut heap_error_str = "          ";
         if heap_size > requested_heap_len {
             heap_error_str = " EXCEEDED!";
         }
@@ -845,7 +845,7 @@ impl<'a> Process<'a> {
         let stack_bottom = self.cur_stack as usize;
         let stack_size = stack_top - stack_bottom;
         let requested_stack_len = self.min_stack_len as usize;
-        let mut stack_error_str = "";
+        let mut stack_error_str = "          ";
         if stack_size > requested_stack_len {
             stack_error_str = " EXCEEDED!";
         }
@@ -877,25 +877,26 @@ impl<'a> Process<'a> {
         App: {}\
         \r\n[{:?}]  -  Events Queued: {}  Syscall Count: {}\
         \r\n\
-        \r\n    Address  | Region Name [  Used | Allocated (bytes)]\
-          \r\n  {:#010X} |========\
-        \r\n             | Grant       [{:6} | {:6}]{}\
-          \r\n  {:#010X} | -v-\
-        \r\n             | Unused\
-          \r\n  {:#010X} | -^-\
-        \r\n             | Heap        [{:6} | {:6}]{}\
-          \r\n  {:#010X} | ---\
-        \r\n             | Stack       [{:6} | {:6}]{}\
-          \r\n  {:#010X} | -v-\
-        \r\n             | Unused\
-          \r\n  {:#010X} | ---\
-        \r\n             | Data        [{:6} | {:6}]\
-          \r\n  {:#010X} |========\
-        \r\n             .....\
-          \r\n  {:#010X} |========\
-        \r\n             | Text        [     ? | {:6}]\
-          \r\n  {:#010X} |========\
-        \r\n\
+        \r\n ╔═══════════╤══════════════════════════════════════════╗\
+        \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
+          \r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
+        \r\n             │ ▼ Grant      {:6} | {:6}{}\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
+        \r\n             │ Unused\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
+        \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈  R\
+        \r\n             │ ▼ Stack      {:6} | {:6}{}     A\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈  M\
+        \r\n             │ Unused\
+          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
+        \r\n             │ Data         {:6} | {:6}\
+          \r\n  {:#010X} ┴───────────────────────────────────────────\
+        \r\n             .....                                        F\
+          \r\n  {:#010X} ┬─────────────────────────────────────────── l\
+        \r\n             │ Text              ? | {:6}               a\
+          \r\n  {:#010X} ┴─────────────────────────────────────────── s\
+        \r\n                                                          h\
           \r\n  R0 : {:#010X}\
           \r\n  R1 : {:#010X}\
           \r\n  R2 : {:#010X}\
