@@ -376,7 +376,6 @@ pub unsafe fn reset_handler() {
 
     rf233_spi.set_client(rf233);
     rf233.initialize();
-    rf233.reset();
     rf233.start();
 
     //rf233_spi.send_byte(0xA5);
