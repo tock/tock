@@ -4,11 +4,14 @@ TOCK_ARCH ?= cortex-m4
 
 
 # rules for making the kernel
-.PHONY: all fmt format
+.PHONY: all allboards fmt format
 all: $(TOCK_BOARD)
 
 $(TOCK_BOARD): boards/$(TOCK_BOARD)/
 	$(MAKE) -C $<
+
+allboards:
+	@for f in `./tools/list_boards.sh -1`; do echo "$$(tput bold)Build $$f"; $(MAKE) -C "boards/$$f" || exit 1; done
 
 clean:: boards/$(TOCK_BOARD)/
 	$(MAKE) clean -C $<
