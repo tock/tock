@@ -15,15 +15,6 @@ use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use pm;
 
-macro_rules! pinc_toggle {
-    ($x:expr) => {
-        unsafe {
-            let toggle_reg: &mut u32 =  mem::transmute(0x400E1000 + (2 * 0x200) + 0x5c);
-            *toggle_reg = 1 << $x;
-        }
-    }
-}
-
 /// Implementation of DMA-based SPI master communication for
 /// the Atmel SAM4L CortexM4 microcontroller.
 /// Authors: Sam Crow <samcrow@uw.edu>

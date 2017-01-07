@@ -6,19 +6,6 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use core::mem;
 
-macro_rules! pinc_toggle {
-    ($x:expr) => {
-        unsafe {
-            let toggle_reg: &mut u32 = mem::transmute(0x400E1000 + (2 * 0x200) + 0x5c);
-            *toggle_reg = 1 << $x;
-        }
-    }
-}
-const C_BLACK:  u32 = 26;
-const C_GREEN:  u32 = 30;
-const C_BLUE:   u32 = 29;
-const C_PURPLE: u32 = 28;
-
 /// The Mux struct manages multiple Spi clients. Each client may have
 /// at most one outstanding Spi request.
 pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster + 'a> {
@@ -49,7 +36,6 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
     }
 
     fn do_next_op(&self) {
-        pinc_toggle!(C_BLACK); // Black
         if self.inflight.is_none() {
             let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
