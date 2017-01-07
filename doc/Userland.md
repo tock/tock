@@ -88,6 +88,64 @@ return from execution (for example, an application that returns from `main`).
 ## Inter-Process Communication
  * **TODO:** how does this work?
 
+## Debugging
+
+If an application crashes, Tock can provide a lot of useful information.
+By default, when an application crashes Tock prints a crash dump over the
+platform's default console interface.
+
+Note that because an applicaiton is relocated when it is loaded, this trace
+will print both relocated addresses and the original symbol address where
+appropriate.
+
+```
+---| Fault Status |---
+Data Access Violation:              true
+Forced Hard Fault:                  true
+Faulting Memory Address:            0x00000006
+Fault Status Register (CFSR):       0x00000082
+Hard Fault Status Register (HFSR):  0x40000000
+
+---| App Status |---
+App: sensors
+[Fault]  -  Events Queued: 0  Syscall Count: 57
+
+╔═══════════╤══════════════════════════════════════════╗
+║  Address  │ Region Name    Used | Allocated (bytes)  ║
+╚0x20006000═╪══════════════════════════════════════════╝
+            │ ▼ Grant         340 |   1024          
+ 0x20005EAC ┼───────────────────────────────────────────
+            │ Unused
+ 0x20004FE8 ┼───────────────────────────────────────────
+            │ ▲ Heap         1608 |   1024 EXCEEDED!     S
+ 0x200049A0 ┼─────────────────────────────────────────── R
+            │ ▼ Stack         104 |   2048               A
+ 0x20004938 ┼─────────────────────────────────────────── M
+            │ Unused
+ 0x200041A0 ┼───────────────────────────────────────────
+            │ Data            416 |    416
+ 0x20004000 ┴───────────────────────────────────────────
+            .....                                        F
+ 0x00034000 ┬─────────────────────────────────────────── l
+            │ Text              ? |  16384               a
+ 0x00030000 ┴─────────────────────────────────────────── s
+                                                         h
+ R0 : 0x0000000A
+ R1 : 0x00000003
+ R2 : 0x20004000
+ R3 : 0x00000006
+ R4 : 0x00000000
+ R5 : 0x00000000
+ R6 : 0x00000000
+ R7 : 0x2000495C
+ R8 : 0x00000000
+ R9 : 0x20004000
+ R10: 0x00000000
+ R11: 0x00000000
+ R12: 0x00000006
+ PC : 0x00030234 [0x800001B8 in lst file]
+ LR : 0x00031CF7 [0x80001C7A in lst file]
+```
 
 ## Libraries
 Application code does not need to stand alone, libraries are available that can
