@@ -220,7 +220,7 @@ pub struct Process<'a> {
 
     tasks: RingBuffer<'a, Task>,
 
-    pub package_name: &'static [u8],
+    pub package_name: &'static str,
 }
 
 fn closest_power_of_two(mut num: u32) -> u32 {
@@ -266,20 +266,14 @@ impl<'a> Process<'a> {
         write_volatile(&mut APP_FAULT, 0);
         self.state = State::Fault;
 
-        // get app name
-        let mut app_name_str = "";
-        let _ = str::from_utf8(self.package_name).map(|name_str| {
-            app_name_str = name_str;
-        });
-
         match self.fault_response {
             FaultResponse::Panic => {
                 // process faulted. Panic and print status
-                panic!("Process {} had a fault", app_name_str);
+                panic!("Process {} had a fault", self.package_name);
             }
             FaultResponse::Restart => {
                 //XXX: unimplemented
-                panic!("Process {} had a fault and could not be restarted", app_name_str);
+                panic!("Process {} had a fault and could not be restarted", self.package_name);
                 /*
                 // HAVE_WORK is really screwed up in this case
                 // the tasks ring buffer needs to be cleared
@@ -862,12 +856,6 @@ impl<'a> Process<'a> {
             let events_queued = self.tasks.len();
             let syscall_count = self.syscall_count.get();
 
-            // get app name
-            let mut app_name_str = "";
-            let _ = str::from_utf8(self.package_name).map(|name_str| {
-                app_name_str = name_str;
-            });
-
             // register values
             let (r0, r1, r2, r3, r12, pc, lr) =
                 (self.r0(), self.r1(), self.r2(), self.r3(), self.r12(), self.pc(), self.lr());
@@ -931,7 +919,7 @@ impl<'a> Process<'a> {
               \r\n  PC : {:#010X} [{:#010X} in lst file]\
               \r\n  LR : {:#010X} [{:#010X} in lst file]\
             \r\n\r\n",
-                                                  app_name_str,
+                                                  self.package_name,
                                                   self.state,
                                                   events_queued,
                                                   syscall_count,
@@ -997,7 +985,7 @@ struct LoadResult {
     data_len: u32,
 
     /// The process's package name (used for IPC)
-    package_name: &'static [u8],
+    package_name: &'static str,
 }
 
 /// Loads the process into memory
@@ -1019,10 +1007,16 @@ unsafe fn load(load_info: &'static LoadInfo,
                -> Option<LoadResult> {
     let mem_end = mem_base.offset(mem_size as isize);
 
+    let package_name_byte_array =
+        slice::from_raw_parts(flash_start_addr.offset(load_info.pkg_name_offset as isize),
+                              load_info.pkg_name_size as usize);
+    let mut app_name_str = "";
+    let _ = str::from_utf8(package_name_byte_array).map(|name_str| {
+        app_name_str = name_str;
+    });
+
     let mut load_result = LoadResult {
-        package_name:
-            slice::from_raw_parts(flash_start_addr.offset(load_info.pkg_name_offset as isize),
-                                  load_info.pkg_name_size as usize),
+        package_name: app_name_str,
         init_fn: 0,
         app_mem_start: ptr::null(),
         data_len: 0,
