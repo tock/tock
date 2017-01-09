@@ -42,7 +42,7 @@ __attribute__ ((section(".kernel_heap")))
 unsigned char _dont_use_kernel_heap[KERNEL_HEAP_SIZE];
 
 
-__attribute__ ((section(".start"), used, naked))
+__attribute__ ((section(".start"), used))
 void _start(
     __attribute__((unused))void* mem_start,
     __attribute__((unused))void* app_memory_break,
