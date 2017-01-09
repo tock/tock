@@ -16,7 +16,9 @@ pub trait Radio {
     fn reset(&self) -> ReturnCode;
 
     fn set_transmit_client(&self, client: &'static TxClient);
-    fn set_receive_client(&self, client: &'static RxClient);
+    fn set_receive_client(&self, client:
+                          &'static RxClient,
+                          receive_buffer: &'static mut [u8]);
 
     fn set_address(&self, addr: u16) -> ReturnCode;
     fn set_pan(&self, addr: u16) -> ReturnCode;

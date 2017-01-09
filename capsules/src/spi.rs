@@ -3,7 +3,6 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::mem;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::spi::{SpiMasterDevice, SpiMasterClient};

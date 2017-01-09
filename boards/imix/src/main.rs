@@ -271,7 +271,7 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        84);
+                                        92);
 
     sam4l::gpio::PA[08].set_client(rf233);
 
@@ -376,7 +376,7 @@ pub unsafe fn reset_handler() {
 
     rf233_spi.set_client(rf233);
     rf233.set_pan(0xABCD);
-    rf233.set_address(0x1008);
+    rf233.set_address(0x7777);
     rf233.initialize();
     rf233.start();
 
