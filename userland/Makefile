@@ -32,6 +32,7 @@ CXX := $(TOOLCHAIN)-g++
 CFLAGS   += -std=gnu11
 CPPFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/libtock -g -mcpu=$(TOCK_ARCH) -mthumb -mfloat-abi=soft
 CPPFLAGS += \
+	    -Os\
 	    -fdata-sections -ffunction-sections\
 	    -Wall\
 	    -Wextra\
