@@ -583,8 +583,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
     fn frame_read(&self,
                   buf: &mut [u8],
                   buf_len: u8) {
-        let mut op_len: usize = buf_len + 1; // Add one for the frame command
-        let op_len = buf_len - 1;
+        let mut op_len: usize = buf_len as usize + 1; // Add one for the frame command
         unsafe {
             write_buf[0] = RF233BusCommand::FRAME_READ as u8;
             for i in 1..buf_len as usize {
@@ -614,7 +613,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
     /// Generate the 802.15.4 header and set up the radio's state to
     /// be able to send the packet (store reference, etc.).
     fn prepare_packet(&self, buf: &'static mut [u8], len: u8, dest: u16) {
-        buf[0] = len + 2; // plus 2 for CRC?? 1/6/17 PAL
+
+        buf[0] = len + 2 - 1; // plus 2 for CRC, - 1 for length byte  1/6/17 PAL
         buf[1] = 0x61;
         buf[2] = 0xAA;
         buf[3] = self.seq.get();
