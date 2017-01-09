@@ -121,8 +121,6 @@ pub struct RF233 <'a, S: spi::SpiMasterDevice + 'a> {
 static mut read_buf: [u8; 129] =  [0x0; 129];
 static mut write_buf: [u8; 129] = [0x0; 129];
 
-static mut app_buf: [u8; 128] = [0xAA; 128];
-
 impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
 
     fn read_write_done(&self,
@@ -177,6 +175,11 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
         }
 
         match self.state.get() {
+            // Default on state; wait for transmit() call or receive
+            // interrupt
+            InternalState::READY => { }
+
+            // Starting state, begin start sequence.
             InternalState::START => {
                 self.state_transition_read(RF233Register::IRQ_STATUS,
                                             InternalState::START_PART_READ);
@@ -332,6 +335,8 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             InternalState::ON_PLL_WAITING => {
                 // Waiting for the PLL interrupt, do nothing
             }
+
+            // Final startup state, transition to READY and turn radio on.
             InternalState::ON_PLL_SET => {
                 // We've completed the SPI operation to read the
                 // IRQ_STATUS register, triggered by an interrupt
@@ -340,12 +345,6 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                 self.state_transition_write(RF233Register::TRX_STATE,
                                             RF233TrxCmd::RX_ON as u8,
                                             InternalState::READY);
-            }
-            InternalState::READY => {
-                unsafe {
-                    let r = self as &radio::Radio;
-                    r.transmit(0xFFFF, &mut app_buf, 20);
-                }
             }
             InternalState::TX_STATUS_PRECHECK1 => {
                 unsafe {
@@ -410,7 +409,9 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                                             InternalState::TX_TRANSMITTING);
             }
             InternalState::TX_TRANSMITTING => {
-                // Do nothing, wait for interrupt
+                // Do nothing, wait for TRX_END interrupt denoting transmission
+                // completed. The code at the top of this SPI handler for
+                // interrupt handling will transition to the TX_DONE state.
             }
             InternalState::TX_DONE => {
                 self.state_transition_write(RF233Register::TRX_STATE,
@@ -436,7 +437,11 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                 }
             }
 
-
+            // This state occurs when, in the midst of starting a
+            // transmission, we discovered that the radio had moved into
+            // a receive state. Since this will trigger interrupts,
+            // we enter this dead state and just wait for the interrupt
+            // handlers.
             InternalState::TX_PENDING => {}
 
             // No operations in the RX state, an SFD interrupt should
@@ -482,6 +487,11 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                     self.state_transition_read(RF233Register::TRX_STATUS,
                                                InternalState::READY);
                 }
+                self.rx_client.get().map(|client| {
+                    unsafe {
+                        client.receive(&read_buf, read_buf[0], ReturnCode::SUCCESS);
+                    }
+                });
             }
 
             InternalState::CONFIG_SHORT0_SET => {

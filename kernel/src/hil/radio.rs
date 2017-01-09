@@ -6,7 +6,7 @@ pub trait TxClient {
 }
 
 pub trait RxClient {
-    fn receive(&self, buf: &'static mut [u8]);
+    fn receive(&self, buf: &'static [u8], len: u8, result: ReturnCode);
 }
 
 pub trait Radio {
