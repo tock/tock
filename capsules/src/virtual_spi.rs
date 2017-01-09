@@ -70,12 +70,6 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                     Op::SetRate(rate) => {
                         self.spi.set_rate(rate);
                     }
-                    Op::SendByte(byte) => {
-                        self.spi.write_byte(byte);
-                    }
-                    //Op::SetChipSelect(cs) => {
-                    //    self.spi.specify_chip_select(cs);
-                    //}
                     Op::Idle => {} // Can't get here...
                 }
             });
@@ -91,24 +85,8 @@ enum Op {
     SetPolarity(hil::spi::ClockPolarity),
     SetPhase(hil::spi::ClockPhase),
     SetRate(u32),
-    SendByte(u8),
 }
-/*
-impl<CS> PartialEq for Op<CS> {
-    fn eq(&self, other: &Op<CS>) -> bool {
-        match (self, other) {
-            (&Op::Idle, &Op::Idle) => true,
-            (&Op::Configure(p1,s1,r1), &Op::Configure(p2,s2,r2)) => true,
-            (&Op::ReadWriteBytes(s1), &Op::ReadWriteBytes(s2)) => true,
-            (&Op::SetPolarity(p1), &Op::SetPolarity(p2)) => true,
-            (&Op::SetPhase(s1), &Op::SetPhase(s2)) => true,
-            (&Op::SetRate(r1), &Op::SetRate(r2)) => true,
-            //(&Op::SetChipSelect(c1), &Op::SetChipSelect(c2)) => true,
-             _ => false,
-        }
-    }
-}
-*/
+
 pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster + 'a> {
     mux: &'a MuxSpiMaster<'a, Spi>,
     chip_select: Cell<Spi::ChipSelect>,
@@ -138,15 +116,6 @@ impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
         self.mux.devices.push_head(self);
         self.client.set(Some(client));
     }
-
-    // Binding virtualization and configuration causes problems,
-    // because it implies that a virtualized client never wants to
-    // use more than one chip select line. Counter-example is the
-    // system call driver. It's good to have a default, but
-    // we also need to be able to reconfigure.
-    pub fn set_chip_select(&'a self, cs: Spi::ChipSelect) {
-        self.chip_select.set(cs);
-    }
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMasterDevice<'a, Spi> {
@@ -170,7 +139,6 @@ impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
 // Shouldn't operations set the chip select based on the client?
 
 impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDevice<'a, Spi> {
-    type ChipSelect = Spi::ChipSelect;
 
     fn configure(&self, cpol: hil::spi::ClockPolarity, cpal: hil::spi::ClockPhase, rate: u32) {
         self.operation.set(Op::Configure(cpol, cpal, rate));
@@ -214,15 +182,5 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
 
     fn get_rate(&self) -> u32 {
         self.mux.spi.get_rate()
-    }
-
-    fn send_byte(&self, val: u8) {
-        self.operation.set(Op::SendByte(val));
-        self.mux.do_next_op();
-    }
-
-#[allow(unused_variables)]
-    fn set_chip_select(&self, cs: Self::ChipSelect) {
-        self.chip_select.set(cs);
     }
 }

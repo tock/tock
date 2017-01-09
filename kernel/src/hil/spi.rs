@@ -122,8 +122,6 @@ pub trait SpiMaster {
 /// hardware. The interface wraps the chip select line so that chip drivers
 /// cannot communicate with different SPI devices.
 pub trait SpiMasterDevice {
-    type ChipSelect: Copy;
-
     /// Setup the SPI settings and speed of the bus.
     fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32);
 
@@ -146,8 +144,4 @@ pub trait SpiMasterDevice {
     fn get_polarity(&self) -> ClockPolarity;
     fn get_phase(&self) -> ClockPhase;
     fn get_rate(&self) -> u32;
-
-    fn set_chip_select(&self, cs: Self::ChipSelect);
-
-    fn send_byte(&self, val: u8);
 }

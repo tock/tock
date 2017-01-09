@@ -213,15 +213,14 @@ pub unsafe fn reset_handler() {
     // Create a virtualized client for SPI system call interface
     let syscall_spi_device = static_init!(
         VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
-        VirtualSpiMasterDevice::new(mux_spi, 0),
+        VirtualSpiMasterDevice::new(mux_spi, 3),
         48);
 
     // Create the SPI systemc call capsule, passing the client
-    let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
-        capsules::spi::Spi::new(syscall_spi_device, chip_selects),
-        92);
+        capsules::spi::Spi::new(syscall_spi_device),
+        84);
 
     spi_syscalls.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
     syscall_spi_device.set_client(spi_syscalls);

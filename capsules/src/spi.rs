@@ -30,19 +30,17 @@ pub struct Spi<'a, S: SpiMasterDevice + 'a> {
     spi_master: &'a S,
     busy: Cell<bool>,
     app: TakeCell<App>,
-    chip_selects: &'a [S::ChipSelect],
     kernel_read: TakeCell<&'static mut [u8]>,
     kernel_write: TakeCell<&'static mut [u8]>,
     kernel_len: Cell<usize>,
 }
 
 impl<'a, S: SpiMasterDevice> Spi<'a, S> {
-    pub fn new(spi_master: &'a S, chip_selects: &'a [S::ChipSelect]) -> Spi<'a, S> {
+    pub fn new(spi_master: &'a S) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
             app: TakeCell::empty(),
-            chip_selects: chip_selects,
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
             kernel_write: TakeCell::empty(),
@@ -221,11 +219,8 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                 return result;
             }
             3 /* set chip select */ => {
-                let cs = arg1;
-                self.chip_selects.get(cs).map_or(-1, |cs_line| {
-                    self.spi_master.set_chip_select(*cs_line);
-                    0
-                })
+                -1 // do nothing, for now, until we fix interface
+                   // so virtual instances can use multiple chip selects
             }
             4 /* get chip select */ => {
                 0
@@ -256,14 +251,6 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
             }
             10 /* get polarity */ => {
                 self.spi_master.get_polarity() as isize
-            }
-            11 /* hold low */ => {
-//                self.spi_master.hold_low();
-                0
-            }
-            12 /* release low */ => {
- //               self.spi_master.release_low();
-                0
             }
             _ => -1
         }
