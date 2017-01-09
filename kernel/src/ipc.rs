@@ -118,10 +118,10 @@ impl Driver for IPC {
                 for (i, process) in procs.iter().enumerate() {
                     match process {
                         &Some(ref p) => {
+                            let s = p.package_name.as_bytes();
                             // are slices equal?
-                            if p.package_name.len() == slice.len() &&
-                               p.package_name
-                                .iter()
+                            if s.len() == slice.len() &&
+                               s.iter()
                                 .zip(slice.iter())
                                 .all(|(c1, c2)| c1 == c2) {
                                 return (i as isize) + 1;
