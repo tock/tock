@@ -69,6 +69,7 @@ pub const TRX_CTRL_2_RX_SAFE_MODE: u8         = 1 << 7;
 pub const TRX_CTRL_2_DATA_RATE_250: u8        = 0;
 pub const IRQ_TRXBUF_ACCESS_VIOLATION: u8     = 1 << 6;
 pub const IRQ_TRX_DONE: u8                    = 1 << 3;
+pub const IRQ_RX_START: u8                    = 1 << 2;
 pub const IRQ_PLL_LOCK: u8                    = 1 << 0;
 pub const XAH_CTRL_1_AACK_PROM_MODE: u8       = 1 << 1;
 
@@ -81,8 +82,9 @@ pub const TRX_CTRL_2:u8   = (TRX_CTRL_2_RX_SAFE_MODE |
 pub const PHY_CC_CCA:u8   = 26 | PHY_CC_CCA_MODE_CS_OR_ED;
 pub const PHY_TX_PWR:u8   = PHY_TX_PWR_4;
 pub const IRQ_MASK:u8     = (IRQ_TRXBUF_ACCESS_VIOLATION |
-                      IRQ_TRX_DONE |
-                      IRQ_PLL_LOCK);
+                             IRQ_TRX_DONE |
+                             IRQ_PLL_LOCK |
+                             IRQ_RX_START);
 pub const XAH_CTRL_1:u8   = XAH_CTRL_1_AACK_PROM_MODE;
 pub const XAH_CTRL_0:u8   = 0;
 pub const PAN_ID_0:u8     = 0x22;
@@ -98,10 +100,6 @@ pub const IEEE_ADDR_7:u8  = 0x88;
 pub const SHORT_ADDR_0:u8 = 0x11;
 pub const SHORT_ADDR_1:u8 = 0x22;
 pub const TRX_RPC:u8      = 0xFF;
-pub const TRX_PLL_ON:u8   = 0x09;
-pub const TRX_RX_ON:u8    = 0x06;
-pub const TRX_TX_ARET_ON:u8  = 0x19;
-pub const TRX_TX_START:u8 = 0x02;
 
 pub const IRQ_7_BAT_LOW:u8     = 0x80;
 pub const IRQ_6_TRX_UR:u8      = 0x40;
@@ -140,5 +138,9 @@ pub enum ExternalState {
 }
 
 pub enum RF233TrxCmd {
-    OFF = 0x08,
+    TX_START   = 0x02,
+    RX_ON      = 0x06,
+    OFF        = 0x08,
+    PLL_ON     = 0x09,
+    TX_ARET_ON = 0x19,
 }

@@ -130,6 +130,8 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                        _read: Option<&'static mut [u8]>,
                        _len: usize) {
         self.spi_busy.set(false);
+        let handling = self.interrupt_handling.get();
+        pinc_toggle!(C_BLUE);
         // This first case is when an interrupt fired during an SPI operation:
         // we wait for the SPI operation to complete then handle the
         // interrupt by reading the IRQ_STATUS register over the SPI.
@@ -142,8 +144,9 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
         // This second case is when the SPI operation is reading the
         // IRQ_STATUS register from handling an interrupt. Note that
         // we're done handling the interrupt and continue with the
-        // state machine.
-        if self.interrupt_handling.get() == true {
+        // state machine. This is an else because handle_interrupt
+        // sets interrupt_handling to true.
+        if handling {
             self.interrupt_handling.set(false);
             let state = self.state.get();
             let interrupt = unsafe {
@@ -167,7 +170,6 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
 
             if (self.receiving.get() &&
                 interrupt & IRQ_3_TRX_END == IRQ_3_TRX_END) {
-                pinc_toggle!(C_BLUE);
                 self.receiving.set(false);
                 self.state.set(InternalState::RX_READING);
             }
@@ -323,7 +325,7 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                 unsafe {
                     let val = read_buf[1];
                     self.state_transition_write(RF233Register::TRX_STATE,
-                                                TRX_PLL_ON,
+                                                RF233TrxCmd::PLL_ON as u8,
                                                 InternalState::ON_PLL_WAITING);
                 }
             }
@@ -336,7 +338,7 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                 // denoting moving to the PLL_ON state, so move
                 // to RX_ON (see Sec 7, pg 36 of RF233 datasheet
                 self.state_transition_write(RF233Register::TRX_STATE,
-                                            TRX_RX_ON,
+                                            RF233TrxCmd::RX_ON as u8,
                                             InternalState::READY);
             }
             InternalState::READY => {
@@ -374,7 +376,7 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                         self.state.set(InternalState::RX);
                     } else {
                         self.state_transition_write(RF233Register::TRX_STATE,
-                                                    TRX_PLL_ON,
+                                                    RF233TrxCmd:: PLL_ON as u8,
                                                     InternalState::TX_PLL_START);
                     }
                 }
@@ -392,19 +394,19 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                                                    InternalState::TX_PLL_WAIT);
                     } else if status != ExternalState::PLL_ON as u8{
                         self.state_transition_write(RF233Register::TRX_STATE,
-                                                    TRX_PLL_ON,
+                                                    RF233TrxCmd::PLL_ON as u8,
                                                     InternalState::TX_PLL_WAIT);
 
                     } else {
                         self.state_transition_write(RF233Register::TRX_STATE,
-                                                    TRX_TX_ARET_ON,
+                                                    RF233TrxCmd::TX_ARET_ON as u8,
                                                     InternalState::TX_ARET_ON);
                     }
                 }
             }
             InternalState::TX_ARET_ON => {
                 self.state_transition_write(RF233Register::TRX_STATE,
-                                            TRX_TX_START,
+                                            RF233TrxCmd::TX_START as u8,
                                             InternalState::TX_TRANSMITTING);
             }
             InternalState::TX_TRANSMITTING => {
@@ -412,12 +414,12 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             }
             InternalState::TX_DONE => {
                 self.state_transition_write(RF233Register::TRX_STATE,
-                                            TRX_RX_ON,
+                                            RF233TrxCmd::RX_ON as u8,
                                             InternalState::TX_RETURN_TO_RX);
             }
             InternalState::TX_RETURN_TO_RX => {
                 unsafe {
-                    let state = read_buf[1];
+                    let state = read_buf[0];
                     if state == ExternalState::RX_ON as u8 {
                         self.transmitting.set(false);
                         let buf = self.tx_buf.take();
@@ -460,7 +462,6 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             }
 
             InternalState::RX_READ => {
-                pinc_toggle!(C_PURPLE);
                 unsafe {
                     // Because the first byte of a frame read is
                     // the status of the chip, the first byte of the
@@ -472,6 +473,15 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                     }
                 }
                 self.receiving.set(false);
+                // Just read a packet: if a transmission is pending,
+                // start the transmission state machine
+                if self.transmitting.get() {
+                    self.state_transition_read(RF233Register::TRX_STATUS,
+                                               InternalState::TX_STATUS_PRECHECK1);
+                } else {
+                    self.state_transition_read(RF233Register::TRX_STATUS,
+                                               InternalState::READY);
+                }
             }
 
             InternalState::CONFIG_SHORT0_SET => {
@@ -528,6 +538,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
         // Because the first thing we do on handling an interrupt is
         // read the IRQ status, we defer handling the state transition
         // to the SPI handler
+        pinc_toggle!(C_PURPLE);
         if self.spi_busy.get() == false {
             self.interrupt_handling.set(true);
             self.register_read(RF233Register::IRQ_STATUS);
@@ -566,7 +577,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
 
     fn frame_write(&self,
                    buf: &mut [u8],
-                   buf_len: u8) {
+                   buf_len: u8) -> ReturnCode {
+        if self.spi_busy.get() {return ReturnCode::EBUSY;}
         let write_len = (buf_len + 2) as usize;
         unsafe {
             write_buf[0] = RF233BusCommand::FRAME_WRITE as u8;
@@ -577,12 +589,15 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
                 }
             }
             self.spi.read_write_bytes(&mut write_buf, Some(&mut read_buf), write_len);
+            self.spi_busy.set(true);
         }
+        ReturnCode::SUCCESS
     }
 
     fn frame_read(&self,
                   buf: &mut [u8],
-                  buf_len: u8) {
+                  buf_len: u8) -> ReturnCode {
+        if self.spi_busy.get() {return ReturnCode::EBUSY;}
         let mut op_len: usize = buf_len as usize + 1; // Add one for the frame command
         unsafe {
             write_buf[0] = RF233BusCommand::FRAME_READ as u8;
@@ -590,8 +605,9 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
                 write_buf[i] = 0x00; // clear write buf for easier debugging
             }
             self.spi.read_write_bytes(&mut write_buf, Some(&mut read_buf), op_len);
+            self.spi_busy.set(true);
         }
-
+        ReturnCode::SUCCESS
     }
 
 
