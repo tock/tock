@@ -32,7 +32,8 @@ pub trait Radio {
 }
 
 pub const HEADER_SIZE: u8 = 10;
-
+pub const MAX_PACKET_SIZE: u8 = 127;
+pub const MIN_PACKET_SIZE: u8 = HEADER_SIZE + 2; // +2 for CRC
 #[repr(C, packed)]
 pub struct Header {
     len: u8,

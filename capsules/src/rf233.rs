@@ -462,12 +462,25 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             }
 
             InternalState::RX_LEN_READ => {
-                self.state.set(InternalState::RX_READ);
-                unsafe {
-                    // Because the first byte of a frame read is
-                    // the status of the chip, the first byte of the
-                    // packet, the length field, is at index 1
-                    self.frame_read(&mut read_buf, read_buf[1]);
+                // Because the first byte of a frame read is
+                // the status of the chip, the first byte of the
+                // packet, the length field, is at index 1
+                let len = unsafe {read_buf[1]};
+                // If the packet isn't too long, read it
+                if len <= radio::MAX_PACKET_SIZE &&
+                   len >= radio::MIN_PACKET_SIZE {
+                       self.state.set(InternalState::RX_READ);
+                       unsafe {self.frame_read(&mut read_buf, len);}
+                } else if self.transmitting.get() {
+                    // Packet was too long and a transmission is pending,
+                    // start the transmission
+                    self.state_transition_read(RF233Register::TRX_STATUS,
+                                               InternalState::TX_STATUS_PRECHECK1);
+                } else {
+                    // Packet was too long and no pending transmission,
+                    // return to waiting for packets.
+                    self.state_transition_read(RF233Register::TRX_STATUS,
+                                               InternalState::READY);
                 }
             }
 
@@ -494,7 +507,7 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                 }
                 self.rx_client.get().map(|client| {
                     unsafe {
-                        client.receive(&read_buf, read_buf[0], ReturnCode::SUCCESS);
+                        client.receive(self.rx_buf.take().unwrap(), read_buf[0], ReturnCode::SUCCESS);
                     }
                 });
             }
