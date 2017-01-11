@@ -17,6 +17,7 @@ use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
 use capsules::rf233::RF233;
 use kernel::hil::radio::Radio;
+use kernel::hil::radio;
 
 #[allow(unused_imports)]
 use core::mem;
@@ -67,6 +68,9 @@ pub static mut SPITEST: SpiClientTest<'static> = SpiClientTest {
 
 static mut spi_read_buf: [u8; 64] =  [0xde; 64];
 static mut spi_write_buf: [u8; 64] = [0xad; 64];
+static mut rf233_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut rf233_reg_write: [u8; 2] = [0x00; 2];
+static mut rf233_reg_read: [u8; 2] = [0x00; 2];
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -271,7 +275,7 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        92);
+                                        116);
 
     sam4l::gpio::PA[08].set_client(rf233);
 
@@ -376,8 +380,8 @@ pub unsafe fn reset_handler() {
 
     rf233_spi.set_client(rf233);
     rf233.set_pan(0xABCD);
-    rf233.set_address(0x7777);
-    rf233.initialize();
+    rf233.set_address(0x1008);
+    rf233.initialize(&mut rf233_buf, &mut rf233_reg_write, &mut rf233_reg_read);
     rf233.start();
 
     //rf233_spi.send_byte(0xA5);

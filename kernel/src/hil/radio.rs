@@ -9,8 +9,20 @@ pub trait RxClient {
     fn receive(&self, buf: &'static [u8], len: u8, result: ReturnCode);
 }
 
+pub const HEADER_SIZE: u8        = 10;
+pub const MAX_PACKET_SIZE: u8    = 128;
+pub const MAX_BUF_SIZE: usize    = 129;    // +1 for opcode
+pub const MIN_PACKET_SIZE: u8    = HEADER_SIZE + 2; // +2 for CRC
+
+
 pub trait Radio {
-    fn initialize(&self) -> ReturnCode;
+
+    /// buf must be at least MAX_BUF_SIZE in length
+    /// reg_read and reg_write must be 2 bytes
+    fn initialize(&self,
+                  spi_buf: &'static mut [u8],
+                  reg_write: &'static mut [u8],
+                  reg_read: &'static mut [u8]) -> ReturnCode;
     fn start(&self) -> ReturnCode;
     fn stop(&self) -> ReturnCode;
     fn reset(&self) -> ReturnCode;
@@ -31,9 +43,6 @@ pub trait Radio {
                 tx_len: u8) -> ReturnCode;
 }
 
-pub const HEADER_SIZE: u8 = 10;
-pub const MAX_PACKET_SIZE: u8 = 127;
-pub const MIN_PACKET_SIZE: u8 = HEADER_SIZE + 2; // +2 for CRC
 #[repr(C, packed)]
 pub struct Header {
     len: u8,
