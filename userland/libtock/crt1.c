@@ -24,21 +24,21 @@ extern int main();
 #define STACK_SIZE 2048
 #endif
 
-__attribute__ ((section(".stack")))
+__attribute__ ((section(".stack"), used))
 unsigned char _dont_use_stack[STACK_SIZE];
 
 #ifndef APP_HEAP_SIZE
 #define APP_HEAP_SIZE 1024
 #endif
 
-__attribute__ ((section(".app_heap")))
+__attribute__ ((section(".app_heap"), used))
 unsigned char _dont_use_app_heap[APP_HEAP_SIZE];
 
 #ifndef KERNEL_HEAP_SIZE
 #define KERNEL_HEAP_SIZE 1024
 #endif
 
-__attribute__ ((section(".kernel_heap")))
+__attribute__ ((section(".kernel_heap"), used))
 unsigned char _dont_use_kernel_heap[KERNEL_HEAP_SIZE];
 
 
