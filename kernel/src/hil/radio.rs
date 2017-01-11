@@ -26,6 +26,7 @@ pub trait Radio {
     fn start(&self) -> ReturnCode;
     fn stop(&self) -> ReturnCode;
     fn reset(&self) -> ReturnCode;
+    fn ready(&self) -> bool;
 
     fn set_transmit_client(&self, client: &'static TxClient);
     fn set_receive_client(&self, client:

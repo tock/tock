@@ -54,6 +54,7 @@ struct Imix {
     ipc: kernel::ipc::IPC,
     fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
     rf233: &'static capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    radio: &'static capsules::radio::RadioDriver<'static, capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
 }
 
 #[allow(unused_variables)]
@@ -71,6 +72,7 @@ static mut spi_write_buf: [u8; 64] = [0xad; 64];
 static mut rf233_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut rf233_reg_write: [u8; 2] = [0x00; 2];
 static mut rf233_reg_read: [u8; 2] = [0x00; 2];
+static mut radio_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -88,7 +90,7 @@ impl kernel::Platform for Imix {
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
             11 => f(Some(self.fxos8700_cq)),
-
+            154 => f(Some(self.radio)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -261,6 +263,7 @@ pub unsafe fn reset_handler() {
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(capsule_device, chip_selects),
         92);
+
     spi_capsule.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
     capsule_device.set_client(spi_capsule);
 
@@ -359,6 +362,16 @@ pub unsafe fn reset_handler() {
         btn.set_client(button);
     }
 
+    rf233_spi.set_client(rf233);
+    rf233.initialize(&mut rf233_buf, &mut rf233_reg_write, &mut rf233_reg_read);
+
+    let radio_capsule = static_init!(
+        capsules::radio::RadioDriver<'static, RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
+        capsules::radio::RadioDriver::new(rf233),
+        64);
+    radio_capsule.config_buffer(&mut radio_buf);
+    rf233.set_transmit_client(radio_capsule);
+
     let imix = Imix {
         console: console,
         timer: timer,
@@ -372,20 +385,17 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(),
         fxos8700_cq: fx0,
         rf233: rf233,
+        radio: radio_capsule,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
 
     chip.mpu().enable_mpu();
 
-    rf233_spi.set_client(rf233);
+    rf233.reset();
     rf233.set_pan(0xABCD);
     rf233.set_address(0x1008);
-    rf233.initialize(&mut rf233_buf, &mut rf233_reg_write, &mut rf233_reg_read);
     rf233.start();
-
-    //rf233_spi.send_byte(0xA5);
-    //rf233_spi.read_write_bytes(&mut spi_write_buf, None, 2);
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);
 }
 
