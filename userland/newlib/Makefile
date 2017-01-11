@@ -1,10 +1,11 @@
-NEWLIB_VERSION ?= 2.2.0.20150423
+NEWLIB_VERSION ?= 2.5.0
 
 all: rebuild-newlib
 
 newlib-$(NEWLIB_VERSION).tar.gz:
 	@echo "Downloading newlib source $(@F)"
 	@wget -q -O $@ ftp://sourceware.org/pub/newlib/newlib-$(NEWLIB_VERSION).tar.gz
+	patch -p0 < newlib-lto.patch
 
 newlib-$(NEWLIB_VERSION): newlib-$(NEWLIB_VERSION).tar.gz
 	@echo "Extracting $(<F)"

@@ -1,0 +1,44 @@
+--- newlib-2.5.0/newlib/libc/machine/arm/arm_asm.h	2011-10-18 13:35:17.000000000 +0200
++++ newlib-2.5.0/newlib/libc/machine/arm/arm_asm.h	2012-06-19 14:07:37.000000000 +0200
+@@ -63,6 +63,7 @@
+ 
+ /* Now some macros for common instruction sequences.  */
+ #ifdef __ASSEMBLER__
++
+ .macro  RETURN     cond=
+ #if defined (_ISA_ARM_4T) || defined (_ISA_THUMB_1)
+ 	bx\cond	lr
+@@ -78,20 +79,29 @@
+ .endm
+ 
+ #else
+-asm(".macro  RETURN	cond=\n\t"
++
++// Guards for LTO
++asm(".ifndef _ARM_ASM_C_MACRO_GUARD_RETURN\n\t"
++    ".set _ARM_ASM_C_MACRO_GUARD_RETURN,1\n\t"
++    ".macro  RETURN	cond=\n\t"
+ #if defined (_ISA_ARM_4T) || defined (_ISA_THUMB_1)
+     "bx\\cond	lr\n\t"
+ #else
+     "mov\\cond	pc, lr\n\t"
+ #endif
+-    ".endm"
++    ".endm\n\t"
++    ".endif"
+     );
+ 
+-asm(".macro optpld	base, offset=#0\n\t"
++// Guards for LTO
++asm(".ifndef _ARM_ASM_C_MACRO_GUARD_OPTPLD\n\t"
++    ".set _ARM_ASM_C_MACRO_GUARD_OPTPLD,1\n\t"
++    ".macro optpld	base, offset=#0\n\t"
+ #if defined (_ISA_ARM_7)
+     "pld	[\\base, \\offset]\n\t"
+ #endif
+-    ".endm"
++    ".endm\n\t"
++    ".endif"
+     );
+ #endif
+ 
