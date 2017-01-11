@@ -36,7 +36,6 @@ CPPFLAGS += \
 	    -fdata-sections -ffunction-sections\
 	    -Wall\
 	    -Wextra\
-	    -Wl,-gc-sections\
 	    -g\
 	    -fPIC\
 	    -msingle-pic-base\
