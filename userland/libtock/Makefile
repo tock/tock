@@ -33,8 +33,8 @@ $(LIBTOCK_BUILDDIR)/%.o: %.S | $(LIBTOCK_BUILDDIR)
 
 $(LIBTOCK_BUILDDIR)/libtock.a: $(LIBTOCK_OBJS) | $(LIBTOCK_BUILDDIR)
 	$(TRACE_AR)
-	$(Q)$(AR) rc $@ $^
-	$(Q)$(TOOLCHAIN)-ranlib $@
+	$(Q)$(AR) rc $@ $^ --plugin=$$($(CC) --print-file-name=liblto_plugin.so)
+	$(Q)$(TOOLCHAIN)-ranlib $@ --plugin=$$($(CC) --print-file-name=liblto_plugin.so)
 
 .PHONY: clean
 clean::
