@@ -13,10 +13,10 @@ Usage
 -----
 
 1. Flash the
-[Firestorm BLE serialization app](https://github.com/helena-project/storm-ble/tree/master/nrf51822/apps/firestorm-ble-serialization-uart-peripheral)
+[BLE serialization app](https://github.com/helena-project/tock-nrf-serialization/tree/master/nrf51822/apps/tock-nrf51822-serialization-sdk11-s130-uart-conn)
 to the nRF51822.
 
-3. Install this Tock app on Storm.
+2. Install this Tock app on Storm.
 
 
 
