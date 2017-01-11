@@ -14,16 +14,7 @@ Usage
 
 1. Flash the
 [BLE serialization app](https://github.com/helena-project/tock-nrf-serialization/tree/master/nrf51822/apps/tock-nrf51822-serialization-sdk11-s130-uart-conn)
-to the nRF51822.
+to the nRF51822, following the instructions in that folder to specify the platform you are on.
 
 2. Install this Tock app on Storm.
 
-
-
-
-TODO
-----
-
-1. Add ability to set BLE address.
-2. Implement app_timer for the Nordic stack.
-3. Verify that services/connections work after adding timers.
