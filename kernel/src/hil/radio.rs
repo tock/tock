@@ -6,7 +6,7 @@ pub trait TxClient {
 }
 
 pub trait RxClient {
-    fn receive(&self, buf: &'static [u8], len: u8, result: ReturnCode);
+    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
 }
 
 pub const HEADER_SIZE: u8        = 10;
@@ -29,9 +29,9 @@ pub trait Radio {
     fn ready(&self) -> bool;
 
     fn set_transmit_client(&self, client: &'static TxClient);
-    fn set_receive_client(&self, client:
-                          &'static RxClient,
+    fn set_receive_client(&self, client: &'static RxClient,
                           receive_buffer: &'static mut [u8]);
+    fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
     fn set_address(&self, addr: u16) -> ReturnCode;
     fn set_pan(&self, addr: u16) -> ReturnCode;

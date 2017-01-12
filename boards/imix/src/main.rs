@@ -62,15 +62,19 @@ struct Imix {
 static mut spi_read_buf: [u8; 64] =  [0xde; 64];
 static mut spi_write_buf: [u8; 64] = [0xad; 64];
 
-// The RF233 radio requires three buffers for its SPI operations: a
-// packet-sized buffer which is used as the read buffer when it writes
-// a packet passed to it and the write buffer when it reads a packet
-// into a buffer passed to it. It also requires two small buffers for
-// performing registers operations (one read, one write).
+// The RF233 radio requires our buffers for its SPI operations:
+//
+//   1. buf: a packet-sized buffer for SPI operations, which is used as
+//      the read buffer when it writes a packet passed to it and the write
+//      buffer when it reads a packet into a buffer passed to it.
+//   2. rx_buf: the receive buffer for packets.
+//   3 + 4: It also requires two small buffers for performing registers
+//      operations (one read, one write).
+
 static mut rf233_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut rf233_rx_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut rf233_reg_write: [u8; 2] = [0x00; 2];
 static mut rf233_reg_read: [u8; 2] = [0x00; 2];
-
 // The RF233 system call interface ("radio") requires one buffer, which it
 // copies application transmissions into or copies out to application buffers
 // for reception.
@@ -370,9 +374,10 @@ pub unsafe fn reset_handler() {
     let radio_capsule = static_init!(
         capsules::radio::RadioDriver<'static, RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
         capsules::radio::RadioDriver::new(rf233),
-        64);
+        76);
     radio_capsule.config_buffer(&mut radio_buf);
     rf233.set_transmit_client(radio_capsule);
+    rf233.set_receive_client(radio_capsule, &mut rf233_rx_buf);
 
     let imix = Imix {
         console: console,

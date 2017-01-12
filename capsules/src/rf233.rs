@@ -520,7 +520,8 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                 }
                 self.rx_client.get().map(|client| {
                     let rbuf = self.rx_buf.take().unwrap();
-                    client.receive(rbuf, rbuf[1], ReturnCode::SUCCESS);
+                    let len = rbuf[1];
+                    client.receive(rbuf, len, ReturnCode::SUCCESS);
                 });
             }
 
@@ -747,6 +748,13 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233 <'a, S> {
         self.rx_client.set(Some(client));
         self.rx_buf.replace(buffer);
     }
+
+    fn set_receive_buffer(&self,
+                          buffer: &'static mut [u8]) {
+        self.rx_buf.replace(buffer);
+    }
+
+
 
     fn set_address(&self, addr: u16) -> ReturnCode {
         let state = self.state.get();
