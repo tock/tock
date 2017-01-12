@@ -1,29 +1,14 @@
-#![allow(unused_parens)] // I like them -pal
+#![allow(unused_parens)] // I like them sometimes, for formatting -pal
 
 use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::spi;
 use kernel::hil::radio;
-use kernel::hil::radio::Radio;
 use kernel::returncode::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use rf233_const::*;
-use core::mem;
 
-macro_rules! pinc_toggle {
-    ($x:expr) => {
-        unsafe {
-            let toggle_reg: &mut u32 = mem::transmute(0x400E1000 + (2 * 0x200) + 0x5c);
-            *toggle_reg = 1 << $x;
-        }
-    }
-}
-
-const C_BLUE: u32 = 29;
-const C_PURPLE: u32 = 28;
-const C_BLACK: u32 = 26;
-
-const INTERRUPT_ID: usize = 0x4444;
+const INTERRUPT_ID: usize = 0x2154;
 
 #[allow(unused_variables, dead_code,non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
@@ -125,12 +110,8 @@ pub struct RF233 <'a, S: spi::SpiMasterDevice + 'a> {
     spi_buf: TakeCell<&'static mut [u8]>,
 }
 
-// 129 bytes because the max frame length is 128 and we need a byte for
-// the SPI command/status code
-static mut app_buf: [u8; 32] = [0xAA; 32];
-
 fn interrupt_included(mask: u8, interrupt: u8) -> bool {
-    (mask & interrupt)  == interrupt
+    (mask & interrupt) == interrupt
 }
 
 impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
@@ -193,7 +174,6 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
         // state machine. This is an else because handle_interrupt
         // sets interrupt_handling to true.
         if handling {
-            //pinc_toggle!(C_BLACK);
             self.interrupt_handling.set(false);
             let state = self.state.get();
             let interrupt = result;
@@ -604,7 +584,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233 <'a, S> {
         // Because the first thing we do on handling an interrupt is
         // read the IRQ status, we defer handling the state transition
         // to the SPI handler
-        //pinc_toggle!(C_PURPLE);
         if self.spi_busy.get() == false {
             self.interrupt_handling.set(true);
             self.register_read(RF233Register::IRQ_STATUS);
@@ -826,7 +805,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233 <'a, S> {
                 dest: u16,
                 payload: &'static mut [u8],
                 len: u8) -> ReturnCode {
-        pinc_toggle!(C_BLUE);
         let state = self.state.get();
         if !self.radio_on.get() {
             return ReturnCode::EOFF;

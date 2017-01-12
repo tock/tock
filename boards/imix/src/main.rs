@@ -53,25 +53,27 @@ struct Imix {
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     ipc: kernel::ipc::IPC,
     fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
-    rf233: &'static capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     radio: &'static capsules::radio::RadioDriver<'static, capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
 }
 
-#[allow(unused_variables)]
-#[allow(dead_code)]
-pub struct SpiClientTest<'a> {
-    rf233: Option<&'a VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
-}
-
-pub static mut SPITEST: SpiClientTest<'static> = SpiClientTest {
-    rf233: None,
-};
-
+// The SPI system call interface requires static buffers so it can
+// perform DMA operations. The driver transfers data between application
+// buffers and these kernel buffers.
 static mut spi_read_buf: [u8; 64] =  [0xde; 64];
 static mut spi_write_buf: [u8; 64] = [0xad; 64];
+
+// The RF233 radio requires three buffers for its SPI operations: a
+// packet-sized buffer which is used as the read buffer when it writes
+// a packet passed to it and the write buffer when it reads a packet
+// into a buffer passed to it. It also requires two small buffers for
+// performing registers operations (one read, one write).
 static mut rf233_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut rf233_reg_write: [u8; 2] = [0x00; 2];
 static mut rf233_reg_read: [u8; 2] = [0x00; 2];
+
+// The RF233 system call interface ("radio") requires one buffer, which it
+// copies application transmissions into or copies out to application buffers
+// for reception.
 static mut radio_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 
 impl kernel::Platform for Imix {
@@ -384,7 +386,6 @@ pub unsafe fn reset_handler() {
         spi: spi_capsule,
         ipc: kernel::ipc::IPC::new(),
         fxos8700_cq: fx0,
-        rf233: rf233,
         radio: radio_capsule,
     };
 
