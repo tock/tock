@@ -10,7 +10,7 @@
 #include <tock.h>
 #include <console.h>
 
-#include "fxos8700cq.h"
+#include "ninedof.h"
 
 const double g = -9.8;
 
@@ -22,7 +22,7 @@ int main(void) {
   double accel_mags[num_measurements];
 
   for (unsigned ii = 0; ii < num_measurements; ii++) {
-    unsigned accel_mag = fxos8700cq_read_accel_mag();
+    unsigned accel_mag = ninedof_read_accel_mag();
     printf("accel square = %u\n", accel_mag);
     printf("********************\n");
     accel_mags[ii] = accel_mag + g;

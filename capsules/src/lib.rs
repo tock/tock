@@ -32,3 +32,4 @@ pub mod radio;
 pub mod rng;
 pub mod temp_nrf51dk;
 pub mod symmetric_encryption;
+pub mod ninedof;

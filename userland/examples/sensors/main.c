@@ -8,14 +8,14 @@
 #include <tsl2561.h>
 #include <lps25hb.h>
 #include <si7021.h>
-#include <fxos8700cq.h>
+#include <ninedof.h>
 
 static bool isl29035 = false;
 static bool tmp006 = false;
 static bool tsl2561 = false;
 static bool lps25hb = false;
 static bool si7021 = false;
-static bool fxos8700cq = false;
+static bool ninedof = false;
 
 static void timer_fired(__attribute__ ((unused)) int arg0,
                  __attribute__ ((unused)) int arg1,
@@ -27,14 +27,14 @@ static void timer_fired(__attribute__ ((unused)) int arg0,
   int lps25hb_pressure;
   int si7021_temp;
   unsigned si7021_humi;
-  int fxos8700cq_x, fxos8700cq_y, fxos8700cq_z;
+  int ninedof_x, ninedof_y, ninedof_z;
 
   if (isl29035)   light = isl29035_read_light_intensity();
   if (tmp006)     tmp006_read_sync(&tmp006_temp);
   if (tsl2561)    tsl2561_lux = tsl2561_get_lux_sync();
   if (lps25hb)    lps25hb_pressure = lps25hb_get_pressure_sync();
   if (si7021)     si7021_get_temperature_humidity_sync(&si7021_temp, &si7021_humi);
-  if (fxos8700cq) fxos8700cq_read_acceleration_sync(&fxos8700cq_x, &fxos8700cq_y, &fxos8700cq_z);
+  if (ninedof)    ninedof_read_acceleration_sync(&ninedof_x, &ninedof_y, &ninedof_z);
 
 
   if (isl29035)   printf("ISL29035:   Light Intensity: %d\n", light);
@@ -43,9 +43,9 @@ static void timer_fired(__attribute__ ((unused)) int arg0,
   if (lps25hb)    printf("LPS25HB:    Pressure:        %d\n", lps25hb_pressure);
   if (si7021)     printf("SI7021:     Temperature:     %d deg C\n", si7021_temp/100);
   if (si7021)     printf("SI7021:     Humidity:        %u%%\n", si7021_humi/100);
-  if (fxos8700cq) printf("FXOS8700CQ: X:               %d\n", fxos8700cq_x);
-  if (fxos8700cq) printf("FXOS8700CQ: Y:               %d\n", fxos8700cq_y);
-  if (fxos8700cq) printf("FXOS8700CQ: Z:               %d\n", fxos8700cq_z);
+  if (ninedof)    printf("FXOS8700CQ: X:               %d\n", ninedof_x);
+  if (ninedof)    printf("FXOS8700CQ: Y:               %d\n", ninedof_y);
+  if (ninedof)    printf("FXOS8700CQ: Z:               %d\n", ninedof_z);
 
   printf("\n");
 }
@@ -59,7 +59,7 @@ int main(void) {
   tsl2561 = driver_exists(DRIVER_NUM_TSL2561);
   lps25hb = driver_exists(DRIVER_NUM_LPS25HB);
   si7021 = driver_exists(DRIVER_NUM_SI7021);
-  fxos8700cq = driver_exists(DRIVER_NUM_FXO);
+  ninedof = driver_exists(DRIVER_NUM_NINEDOF);
 
   // Setup periodic timer to sample the sensors.
   timer_subscribe(timer_fired, NULL);
