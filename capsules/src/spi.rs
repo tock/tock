@@ -189,11 +189,8 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
         match cmd_num {
             0 /* check if present */ => 0,
-            1 /* read_write_byte */ => {
-                // No longer supported, wrap inside a read_write_bytes
-                0
-                    //self.spi_master.read_write_byte(arg1 as u8) as isize
-            },
+            // No longer supported, wrap inside a read_write_bytes
+            1 /* read_write_byte */ => -1,
             2 /* read_write_bytes */ => {
                 if self.busy.get() {
                     return -1;
