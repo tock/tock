@@ -5,10 +5,9 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::spi::{SpiMaster, SpiMasterClient};
+use kernel::hil::spi::{SpiMasterDevice, SpiMasterClient};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
-
 
 // SPI operations are handled by coping into a kernel buffer for
 // writes and copying out of a kernel buffer for reads.
@@ -27,23 +26,21 @@ struct App {
     index: usize,
 }
 
-pub struct Spi<'a, S: SpiMaster + 'a> {
-    spi_master: &'a mut S,
+pub struct Spi<'a, S: SpiMasterDevice + 'a> {
+    spi_master: &'a S,
     busy: Cell<bool>,
     app: TakeCell<App>,
-    chip_selects: &'a [S::ChipSelect],
     kernel_read: TakeCell<&'static mut [u8]>,
     kernel_write: TakeCell<&'static mut [u8]>,
     kernel_len: Cell<usize>,
 }
 
-impl<'a, S: SpiMaster> Spi<'a, S> {
-    pub fn new(spi_master: &'a mut S, chip_selects: &'a [S::ChipSelect]) -> Spi<'a, S> {
+impl<'a, S: SpiMasterDevice> Spi<'a, S> {
+    pub fn new(spi_master: &'a S) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
             app: TakeCell::empty(),
-            chip_selects: chip_selects,
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
             kernel_write: TakeCell::empty(),
@@ -72,14 +69,13 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
                 }
             });
         });
-
         self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(),
                                          self.kernel_read.take(),
                                          len);
     }
 }
 
-impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
+impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
         match allow_num {
             0 => {
@@ -193,9 +189,8 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
         match cmd_num {
             0 /* check if present */ => 0,
-            1 /* read_write_byte */ => {
-                self.spi_master.read_write_byte(arg1 as u8) as isize
-            },
+            // No longer supported, wrap inside a read_write_bytes
+            1 /* read_write_byte */ => -1,
             2 /* read_write_bytes */ => {
                 if self.busy.get() {
                     return -1;
@@ -221,17 +216,15 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                 return result;
             }
             3 /* set chip select */ => {
-                let cs = arg1;
-                self.chip_selects.get(cs).map_or(-1, |cs_line| {
-                    self.spi_master.specify_chip_select(*cs_line);
-                    0
-                })
+                -1 // do nothing, for now, until we fix interface
+                   // so virtual instances can use multiple chip selects
             }
             4 /* get chip select */ => {
                 0
             }
             5 /* set baud rate */ => {
-                self.spi_master.set_rate(arg1 as u32) as isize
+                self.spi_master.set_rate(arg1 as u32);
+                0
             }
             6 /* get baud rate */ => {
                 self.spi_master.get_rate() as isize
@@ -248,28 +241,20 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
             }
             9 /* set polarity */ => {
                 match arg1 {
-                    0 => self.spi_master.set_clock(ClockPolarity::IdleLow),
-                    _ => self.spi_master.set_clock(ClockPolarity::IdleHigh),
+                    0 => self.spi_master.set_polarity(ClockPolarity::IdleLow),
+                    _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
                 };
                 0
             }
             10 /* get polarity */ => {
-                self.spi_master.get_clock() as isize
-            }
-            11 /* hold low */ => {
-                self.spi_master.hold_low();
-                0
-            }
-            12 /* release low */ => {
-                self.spi_master.release_low();
-                0
+                self.spi_master.get_polarity() as isize
             }
             _ => -1
         }
     }
 }
 
-impl<'a, S: SpiMaster> SpiMasterClient for Spi<'a, S> {
+impl<'a, S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
     fn read_write_done(&self,
                        writebuf: &'static mut [u8],
                        readbuf: Option<&'static mut [u8]>,

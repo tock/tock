@@ -37,7 +37,7 @@ void write_cb(__attribute__ ((unused)) int arg0,
 // both read and write. Periodic operations only
 // write. Therefore, if you set SPI to loopback
 // and use back-to-back // loopback, then the read buffer
-// on the first call will read in the data written. As a
+// on the first call will read in the data written.  As a
 // result, you can check if reads work properly: all writes
 // will be 0..n rather than all 0s.
 
@@ -46,6 +46,9 @@ int main(void) {
   for (i = 0; i < 200; i++) {
     wbuf[i] = i;
   }
-
+  spi_set_chip_select(0);
+  spi_set_rate(400000);
+  spi_set_polarity(false);
+  spi_set_phase(false);
   spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
 }

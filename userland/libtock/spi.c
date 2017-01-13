@@ -28,14 +28,14 @@ static void spi_cb( __attribute__ ((unused)) int unused0,
 }
 
 int spi_write(const char* str,
-   	      size_t len,
-	      subscribe_cb cb, bool* cond) {
+              size_t len,
+              subscribe_cb cb, bool* cond) {
   int err;
   err = allow(4, 1, (void*)str, len);
   if (err < 0 ) {
     return err;
   }
-  err = subscribe(4, 1, cb, cond);
+  err = subscribe(4, 0, cb, cond);
   if (err < 0 ) {
     return err;
   }
@@ -43,9 +43,9 @@ int spi_write(const char* str,
 }
 
 int spi_read_write(const char* write,
-		   char* read,
-		   size_t  len,
-		   subscribe_cb cb, bool* cond) {
+                   char* read,
+                   size_t  len,
+                   subscribe_cb cb, bool* cond) {
 
   int err = allow(4, 0, (void*)read, len);
   if (err < 0) {
@@ -55,7 +55,7 @@ int spi_read_write(const char* write,
 }
 
 int spi_write_sync(const char* write,
-		   size_t  len) {
+                   size_t  len) {
   bool cond = false;
   spi_write(write, len, spi_cb, &cond);
   yield_for(&cond);
@@ -63,8 +63,8 @@ int spi_write_sync(const char* write,
 }
 
 int spi_read_write_sync(const char* write,
-		        char* read,
-		        size_t  len) {
+                        char* read,
+                        size_t  len) {
   bool cond = false;
   int err = spi_read_write(write, read, len, spi_cb, &cond);
   if (err < 0) {
@@ -73,4 +73,3 @@ int spi_read_write_sync(const char* write,
   yield_for(&cond);
   return 0;
 }
-

@@ -10,6 +10,7 @@ extern crate sam4l;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
 use kernel::Chip;
 use kernel::hil;
 use kernel::hil::Controller;
@@ -37,7 +38,7 @@ struct Imix {
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-    spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
+    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     ipc: kernel::ipc::IPC,
     fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
 }
@@ -200,15 +201,31 @@ pub unsafe fn reset_handler() {
     static mut spi_write_buf: [u8; 64] = [0; 64];
 
     // Initialize and enable SPI HAL
-    let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
-    let spi = static_init!(
-        capsules::spi::Spi<'static, sam4l::spi::Spi>,
-        capsules::spi::Spi::new(&mut sam4l::spi::SPI, chip_selects),
-        92);
-    spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
-    sam4l::spi::SPI.set_client(spi);
+    // Set up an SPI MUX, so there can be multiple clients
+    let mux_spi = static_init!(
+        MuxSpiMaster<'static, sam4l::spi::Spi>,
+        MuxSpiMaster::new(&sam4l::spi::SPI),
+        12);
+
+    sam4l::spi::SPI.set_client(mux_spi);
     sam4l::spi::SPI.init();
     sam4l::spi::SPI.enable();
+
+    // Create a virtualized client for SPI system call interface
+    let syscall_spi_device = static_init!(
+        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+        VirtualSpiMasterDevice::new(mux_spi, 3),
+        48);
+
+    // Create the SPI systemc call capsule, passing the client
+    let spi_syscalls = static_init!(
+        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+        capsules::spi::Spi::new(syscall_spi_device),
+        84);
+
+    spi_syscalls.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    syscall_spi_device.set_client(spi_syscalls);
+
 
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
@@ -245,7 +262,6 @@ pub unsafe fn reset_handler() {
     sam4l::adc::ADC.set_client(adc);
 
     // # GPIO
-
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 11],
@@ -304,11 +320,10 @@ pub unsafe fn reset_handler() {
         adc: adc,
         led: led,
         button: button,
-        spi: spi,
+        spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(),
         fxos8700_cq: fx0,
     };
-
 
     let mut chip = sam4l::chip::Sam4l::new();
     chip.mpu().enable_mpu();
