@@ -22,10 +22,7 @@ before_script: (cargo install rustfmt || true)
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then tools/run_cargo_fmt.sh diff; fi
-  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then make -C boards/storm; fi
-  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then make -C boards/imix; fi
-  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then make -C boards/nrf51dk; fi
-  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then make -C boards/hail; fi
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then make allboards; fi
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then pushd userland/examples && ./build_all.sh; fi
 
 notifications:

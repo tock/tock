@@ -13,11 +13,12 @@ use capsules::nrf51822_serialization::{self, Nrf51822Serialization};
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use kernel::{Chip, MPU, Platform};
+use kernel::{Chip, Platform};
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::gpio::PinCtl;
 use kernel::hil::spi::SpiMaster;
+use kernel::mpu::MPU;
 use sam4l::usart;
 
 #[macro_use]
