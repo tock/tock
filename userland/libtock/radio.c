@@ -1,5 +1,13 @@
 #include "radio.h"
 
+/*
+ * Userland library for sending and receiving 802.15.4 packets.
+ *
+ * Author: Philip Levis
+ * Date: Jan 12 2017
+ */
+
+
 const int SYS_RADIO = 154;
 
 const int BUF_RX = 0;

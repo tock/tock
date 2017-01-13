@@ -1,5 +1,23 @@
 #![allow(unused_parens)] // I like them sometimes, for formatting -pal
 
+/*
+ * Capsule for sending 802.15.4 packets with an Atmel RF233.
+ *
+ * This implementation is completely non-blocking. This means that
+ * the state machine is somewhat complex, as it must interleave interrupt
+ * handling with requests and radio state management. See the SPI
+ * read_write_done handler for details.
+ *
+ * To do items:
+ *    - Support TX power control
+ *    - Support channel selection
+ *    - Support link-layer acknowledgements
+ *    - Support power management (turning radio off)
+ *
+ * Author: Philip Levis
+ * Date: Jan 12 2017
+ */
+
 use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::spi;
@@ -7,13 +25,20 @@ use kernel::hil::radio;
 use kernel::returncode::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use rf233_const::*;
-use core::mem;
 
 const INTERRUPT_ID: usize = 0x2154;
 
 #[allow(unused_variables, dead_code,non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
 enum InternalState {
+
+    // There are 6 high-level states:
+    // START -- the initialization sequence
+    // ON    -- turning the radio on to receive
+    // READY -- waiting to receive packets
+    // RX    -- receiving a packet
+    // TX    -- transmitting a packet
+    // CONFIG -- reconfiguring the radio
     START,
     START_PART_READ,
     START_STATUS_READ,
@@ -115,19 +140,6 @@ pub struct RF233 <'a, S: spi::SpiMasterDevice + 'a> {
 fn interrupt_included(mask: u8, interrupt: u8) -> bool {
     (mask & interrupt) == interrupt
 }
-macro_rules! pinc_toggle {
-    ($x:expr) => {
-        unsafe {
-            let toggle_reg: &mut u32 = mem::transmute(0x400E1000 + (2 * 0x200) + 0x5c);
-            *toggle_reg = 1 << $x;
-        }
-    }
-}
-
-const C_BLUE: u32 = 29;
-const C_PURPLE: u32 = 28;
-const C_BLACK: u32 = 26;
-
 
 impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
 
@@ -135,7 +147,6 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                        mut _write: &'static mut [u8],
                        mut read: Option<&'static mut [u8]>,
                        _len: usize) {
-        pinc_toggle!(C_PURPLE);
         self.spi_busy.set(false);
         let rbuf = read.take().unwrap();
         let status = rbuf[0] & 0x1f;
