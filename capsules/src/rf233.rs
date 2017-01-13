@@ -7,6 +7,7 @@ use kernel::hil::radio;
 use kernel::returncode::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use rf233_const::*;
+use core::mem;
 
 const INTERRUPT_ID: usize = 0x2154;
 
@@ -69,6 +70,7 @@ enum InternalState {
     // Intermediate states when setting the short address
     // and PAN ID.
     CONFIG_SHORT0_SET,
+    CONFIG_SHORT1_SET,
     CONFIG_PAN0_SET,
 
     // This is a short-lived state for when software has detected
@@ -113,6 +115,19 @@ pub struct RF233 <'a, S: spi::SpiMasterDevice + 'a> {
 fn interrupt_included(mask: u8, interrupt: u8) -> bool {
     (mask & interrupt) == interrupt
 }
+macro_rules! pinc_toggle {
+    ($x:expr) => {
+        unsafe {
+            let toggle_reg: &mut u32 = mem::transmute(0x400E1000 + (2 * 0x200) + 0x5c);
+            *toggle_reg = 1 << $x;
+        }
+    }
+}
+
+const C_BLUE: u32 = 29;
+const C_PURPLE: u32 = 28;
+const C_BLACK: u32 = 26;
+
 
 impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
 
@@ -120,6 +135,7 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                        mut _write: &'static mut [u8],
                        mut read: Option<&'static mut [u8]>,
                        _len: usize) {
+        pinc_toggle!(C_PURPLE);
         self.spi_busy.set(false);
         let rbuf = read.take().unwrap();
         let status = rbuf[0] & 0x1f;
@@ -485,8 +501,9 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             InternalState::RX_READING_FRAME_LEN_DONE => {
                 // Because the first byte of a frame read is
                 // the status of the chip, the first byte of the
-                // packet, the length field, is at index 1
-                let len = result;
+                // packet, the length field, is at index 1.
+                // Subtract 2 for CRC, 1 for length byte.
+                let len = result - 2 + 1;
                 // If the packet isn't too long, read it
                 if (len <= radio::MAX_PACKET_SIZE &&
                     len >= radio::MIN_PACKET_SIZE) {
@@ -520,7 +537,8 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
                 }
                 self.rx_client.get().map(|client| {
                     let rbuf = self.rx_buf.take().unwrap();
-                    let len = rbuf[1];
+                    // Subtract the CRC and add the length byte
+                    let len = rbuf[1] - 2 + 1;
                     client.receive(rbuf, len, ReturnCode::SUCCESS);
                 });
             }
@@ -528,7 +546,12 @@ impl <'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233 <'a, S> {
             InternalState::CONFIG_SHORT0_SET => {
                 self.state_transition_write(RF233Register::SHORT_ADDR_1,
                                             (self.addr.get() >> 8) as u8,
-                                            InternalState::READY);
+                                            InternalState::CONFIG_SHORT1_SET);
+            }
+            InternalState::CONFIG_SHORT1_SET => {
+                self.state_transition_write(RF233Register::PAN_ID_0,
+                                            (self.pan.get() & 0xff) as u8,
+                                            InternalState::CONFIG_PAN0_SET);
             }
             InternalState::CONFIG_PAN0_SET => {
                 self.state_transition_write(RF233Register::PAN_ID_1,
@@ -755,7 +778,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233 <'a, S> {
     }
 
 
-
+    // Setting the address also sets the panx
     fn set_address(&self, addr: u16) -> ReturnCode {
         let state = self.state.get();
         // The start state will push addr into hardware on initialization;
@@ -774,18 +797,17 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233 <'a, S> {
             ReturnCode::EBUSY
         }
     }
-
+    // Setting the PAN also sets the address
     fn set_pan(&self, addr: u16) -> ReturnCode {
         let state = self.state.get();
         // The start state will push addr into hardware on initialization;
         // the ready state needs to do so immediately.
-        if state == InternalState::READY ||
-           state == InternalState::START {
+        if state == InternalState::READY || state == InternalState::START {
             self.pan.set(addr);
-               if state == InternalState::READY {
-                self.state_transition_write(RF233Register::PAN_ID_0,
-                                            (self.pan.get() & 0xff) as u8,
-                                            InternalState::CONFIG_PAN0_SET);
+            if state == InternalState::READY {
+                self.state_transition_write(RF233Register::SHORT_ADDR_0,
+                                            (self.addr.get() & 0xff) as u8,
+                                            InternalState::CONFIG_SHORT0_SET);
             }
             ReturnCode::SUCCESS
         }
