@@ -157,8 +157,9 @@ App: sensors
  R4 : 0x00000000    R11: 0x00000000
  R5 : 0x00000000    R12: 0x00000000
  R9 : 0x20004000 (Static Base Register)
- PC : 0x0003036A [0x800002EE in lst file]
+ SP : 0x20004070 (Process Stack Pointer)
  LR : 0x00031667 [0x800015EA in lst file]
+ PC : 0x0003036A [0x800002EE in lst file]
 ```
 
 ## Libraries

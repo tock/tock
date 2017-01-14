@@ -610,6 +610,10 @@ impl<'a> Process<'a> {
         self.syscall_count.set(self.syscall_count.get() + 1);
     }
 
+    pub fn sp(&self) -> usize {
+        self.cur_stack as usize
+    }
+
     pub fn lr(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
         unsafe { read_volatile(pspr.offset(5)) }
@@ -857,12 +861,21 @@ impl<'a> Process<'a> {
             let syscall_count = self.syscall_count.get();
 
             // register values
-            let (r0, r1, r2, r3, r12, pc, lr) =
-                (self.r0(), self.r1(), self.r2(), self.r3(), self.r12(), self.pc(), self.lr());
+            let (r0, r1, r2, r3, r12, sp, lr, pc) = (self.r0(),
+                                                     self.r1(),
+                                                     self.r2(),
+                                                     self.r3(),
+                                                     self.r12(),
+                                                     self.sp(),
+                                                     self.lr(),
+                                                     self.pc());
 
-            // lst-file relative PC and LR
-            let pc_lst_relative = 0x80000000 | (0xFFFFFFFE & (pc - flash_text_start as usize));
+            // lst-file relative LR and PC
             let lr_lst_relative = 0x80000000 | (0xFFFFFFFE & (lr - flash_text_start as usize));
+            let pc_lst_relative = 0x80000000 | (0xFFFFFFFE & (pc - flash_text_start as usize));
+
+            let ypc_lst_relative = 0x80000000 |
+                                   (0xFFFFFFFE & (self.yield_pc - flash_text_size as usize));
 
 
             // You can thank the piece of garbage rustfmt for this.
@@ -916,8 +929,10 @@ impl<'a> Process<'a> {
               \r\n  R4 : {:#010X}    R11: {:#010X}\
               \r\n  R5 : {:#010X}    R12: {:#010X}\
               \r\n  R9 : {:#010X} (Static Base Register)\
-              \r\n  PC : {:#010X} [{:#010X} in lst file]\
+              \r\n  SP : {:#010X} (Process Stack Pointer)\
               \r\n  LR : {:#010X} [{:#010X} in lst file]\
+              \r\n  PC : {:#010X} [{:#010X} in lst file]\
+              \r\n YPC : {:#010X} [{:#010X} in lst file]\
             \r\n\r\n",
                                                   self.package_name,
                                                   self.state,
@@ -962,10 +977,14 @@ impl<'a> Process<'a> {
                                                   self.stored_regs.r5,
                                                   r12,
                                                   self.stored_regs.r9,
+                                                  sp,
+                                                  lr,
+                                                  lr_lst_relative,
                                                   pc,
                                                   pc_lst_relative,
-                                                  lr,
-                                                  lr_lst_relative));
+                                                  self.yield_pc,
+                                                  ypc_lst_relative,
+                                                  ));
         } else {
             let _ = writer.write_fmt(format_args!("Unknown Load Info\r\n"));
         }
