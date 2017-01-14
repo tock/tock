@@ -874,6 +874,9 @@ impl<'a> Process<'a> {
             let lr_lst_relative = 0x80000000 | (0xFFFFFFFE & (lr - flash_text_start as usize));
             let pc_lst_relative = 0x80000000 | (0xFFFFFFFE & (pc - flash_text_start as usize));
 
+            let ypc_lst_relative = 0x80000000 |
+                                   (0xFFFFFFFE & (self.yield_pc - flash_text_size as usize));
+
 
             // You can thank the piece of garbage rustfmt for this.
             let _ = writer.write_fmt(format_args!("\
@@ -929,6 +932,7 @@ impl<'a> Process<'a> {
               \r\n  SP : {:#010X} (Process Stack Pointer)\
               \r\n  LR : {:#010X} [{:#010X} in lst file]\
               \r\n  PC : {:#010X} [{:#010X} in lst file]\
+              \r\n YPC : {:#010X} [{:#010X} in lst file]\
             \r\n\r\n",
                                                   self.package_name,
                                                   self.state,
@@ -978,6 +982,8 @@ impl<'a> Process<'a> {
                                                   lr_lst_relative,
                                                   pc,
                                                   pc_lst_relative,
+                                                  self.yield_pc,
+                                                  ypc_lst_relative,
                                                   ));
         } else {
             let _ = writer.write_fmt(format_args!("Unknown Load Info\r\n"));
