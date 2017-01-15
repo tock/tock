@@ -136,10 +136,16 @@ impl<'a, Alrm: Alarm> time::Client for MuxAlarm<'a, Alrm> {
 
         let now = self.alarm.now();
 
+        // Capture this before the loop because it can change while checking
+        // each alarm. If a timer fires, it can immediately set a new timer
+        // by calling `VirtualMuxAlarm.set_alarm()` which can change `self.prev`
+        // to the current timer time.
+        let prev = self.prev.get();
+
         // Check whether to fire each alarm. At this level, alarms are one-shot,
         // so a repeating client will set it again in the fired() callback.
         for cur in self.virtual_alarms.iter() {
-            let should_fire = past_from_base(cur.when.get(), now + 100, self.prev.get());
+            let should_fire = past_from_base(cur.when.get(), now + 100, prev);
             if cur.armed.get() && should_fire {
                 cur.armed.set(false);
                 self.enabled.set(self.enabled.get() - 1);
