@@ -10,6 +10,7 @@ use core::ptr::{read_volatile, write_volatile};
 
 use platform::mpu;
 use returncode::ReturnCode;
+use syscall::Syscall;
 
 /// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
@@ -191,6 +192,9 @@ pub struct Process<'a> {
 
     /// How many syscalls have occurred since the process started
     syscall_count: Cell<usize>,
+
+    /// What was the most recent syscall
+    last_syscall: Cell<Option<Syscall>>,
 
     /// Process text segment
     text: &'static [u8],
@@ -444,6 +448,7 @@ impl<'a> Process<'a> {
                     app_mem_start: load_result.app_mem_start,
 
                     syscall_count: Cell::new(0),
+                    last_syscall: Cell::new(None),
 
                     text: slice::from_raw_parts(app_flash_address, app_flash_size),
 
@@ -598,17 +603,26 @@ impl<'a> Process<'a> {
         self.cur_stack = psp;
     }
 
-    pub fn svc_number(&self) -> Option<u8> {
+    pub fn svc_number(&self) -> Option<Syscall> {
         let psp = self.cur_stack as *const *const u16;
         unsafe {
             let pcptr = read_volatile((psp as *const *const u16).offset(6));
             let svc_instr = read_volatile(pcptr.offset(-1));
-            Some((svc_instr & 0xff) as u8)
+            let svc_num = (svc_instr & 0xff) as u8;
+            match svc_num {
+                0 => Some(Syscall::YIELD),
+                1 => Some(Syscall::SUBSCRIBE),
+                2 => Some(Syscall::COMMAND),
+                3 => Some(Syscall::ALLOW),
+                4 => Some(Syscall::MEMOP),
+                _ => None,
+            }
         }
     }
 
     pub fn incr_syscall_count(&self) {
         self.syscall_count.set(self.syscall_count.get() + 1);
+        self.last_syscall.set(self.svc_number());
     }
 
     pub fn sp(&self) -> usize {
@@ -865,6 +879,7 @@ impl<'a> Process<'a> {
             // application statistics
             let events_queued = self.tasks.len();
             let syscall_count = self.syscall_count.get();
+            let last_syscall = self.last_syscall.get();
 
             // register values
             let (r0, r1, r2, r3, r12, sp, lr, pc) = (self.r0(),
@@ -886,8 +901,8 @@ impl<'a> Process<'a> {
 
             // You can thank the piece of garbage rustfmt for this.
             let _ = writer.write_fmt(format_args!("\
-            App: {}\
-            \r\n [{:?}]  -  Events Queued: {}  Syscall Count: {}\
+            App: {}   -   [{:?}]\
+            \r\n Events Queued: {}   Syscall Count: {}   Last Syscall: {:?}\
             \r\n\
             \r\n ╔═══════════╤══════════════\
 ════════════════════════════╗\
@@ -944,6 +959,7 @@ impl<'a> Process<'a> {
                                                   self.state,
                                                   events_queued,
                                                   syscall_count,
+                                                  last_syscall,
                                                   sram_end,
                                                   sram_grant_size,
                                                   sram_grant_allocated,

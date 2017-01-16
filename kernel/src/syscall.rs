@@ -1,5 +1,8 @@
-pub const YIELD: u8 = 0;
-pub const SUBSCRIBE: u8 = 1;
-pub const COMMAND: u8 = 2;
-pub const ALLOW: u8 = 3;
-pub const MEMOP: u8 = 4;
+#[derive(Copy, Clone, Debug)]
+pub enum Syscall {
+    YIELD = 0,
+    SUBSCRIBE = 1,
+    COMMAND = 2,
+    ALLOW = 3,
+    MEMOP = 4,
+}

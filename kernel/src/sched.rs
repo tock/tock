@@ -4,7 +4,7 @@ use platform::systick::SysTick;
 use process;
 use process::{Process, Task};
 use returncode::ReturnCode;
-use syscall;
+use syscall::Syscall;
 
 pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                                                chip: &mut C,
@@ -65,7 +65,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
         // process had a system call, count it
         process.incr_syscall_count();
         match process.svc_number() {
-            Some(syscall::MEMOP) => {
+            Some(Syscall::MEMOP) => {
                 let brk_type = process.r0();
                 let r1 = process.r1();
 
@@ -84,14 +84,14 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 };
                 process.set_return_code(res);
             }
-            Some(syscall::YIELD) => {
+            Some(Syscall::YIELD) => {
                 process.yield_state();
                 process.pop_syscall_stack();
 
                 // There might be already enqueued callbacks
                 continue;
             }
-            Some(syscall::SUBSCRIBE) => {
+            Some(Syscall::SUBSCRIBE) => {
                 let driver_num = process.r0();
                 let subdriver_num = process.r1();
                 let callback_ptr_raw = process.r2() as *mut ();
@@ -112,7 +112,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 };
                 process.set_return_code(res);
             }
-            Some(syscall::COMMAND) => {
+            Some(Syscall::COMMAND) => {
                 let res = platform.with_driver(process.r0(), |driver| {
                     match driver {
                         Some(d) => d.command(process.r1(), process.r2(), appid),
@@ -121,7 +121,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 });
                 process.set_return_code(res);
             }
-            Some(syscall::ALLOW) => {
+            Some(Syscall::ALLOW) => {
                 let res = platform.with_driver(process.r0(), |driver| {
                     match driver {
                         Some(d) => {
