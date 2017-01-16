@@ -81,6 +81,7 @@ struct Hail {
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
     ipc: kernel::ipc::IPC,
 }
 
@@ -102,6 +103,8 @@ impl Platform for Hail {
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
             11 => f(Some(self.fxos8700)),
+
+            14 => f(Some(self.rng)),
 
             0xff => f(Some(&self.ipc)),
             _ => f(None),
@@ -315,6 +318,13 @@ pub unsafe fn reset_handler() {
         160/8);
     sam4l::adc::ADC.set_client(adc);
 
+    // Setup RNG
+    let rng = static_init!(
+            capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
+            capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Container::create()),
+            96/8);
+    sam4l::trng::TRNG.set_client(rng);
+
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
@@ -345,6 +355,7 @@ pub unsafe fn reset_handler() {
         adc: adc,
         led: led,
         button: button,
+        rng: rng,
         ipc: kernel::ipc::IPC::new(),
     };
 
