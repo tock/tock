@@ -279,17 +279,54 @@ impl I2CHw {
                 });
             }
             Some((dma_periph, len)) => {
-                // Enable transaction error interrupts
-                write_volatile(&mut regs.interrupt_enable,
-                               (1 << 3)    // CCOMP   - Command completed
-                               | (1 << 8)    // ANAK   - Address not ACKd
-                               | (1 << 9)    // DNAK   - Data not ACKd
-                               | (1 << 10)); // ARBLST - Abitration lost
-                self.dma.get().map(|dma| {
-                    let buf = dma.abort_xfer().unwrap();
-                    dma.prepare_xfer(dma_periph, buf, len);
-                    dma.start_xfer();
-                });
+                // Check to see if we are only trying to get one byte. If we
+                // are, and the RXRDY bit is already set, then we already have
+                // that byte in the RHR register. If we setup DMA after we
+                // have the single byte we are looking for, everything breaks
+                // because we will never get another byte and therefore
+                // no more interrupts. So, we just read the byte we have
+                // and call this I2C command complete.
+                if (len == 1) && (old_status & 0x01 != 0) {
+                    write_volatile(&mut regs.command, 0);
+                    write_volatile(&mut regs.next_command, 0);
+
+                    err.map(|err| {
+                        // enable, reset, disable
+                        write_volatile(&mut regs.control, 0x1 << 0);
+                        write_volatile(&mut regs.control, 0x1 << 7);
+                        write_volatile(&mut regs.control, 0x1 << 1);
+
+                        self.master_client.get().map(|client| {
+                            let buf = match self.dma.get() {
+                                Some(dma) => {
+                                    let b = dma.abort_xfer();
+                                    self.dma.set(Some(dma));
+                                    b
+                                }
+                                None => None,
+                            };
+                            buf.map(|buf| {
+                                // Save the already read byte.
+                                buf[0] = read_volatile(&mut regs.receive_holding) as u8;
+                                client.command_complete(buf, err);
+                            });
+                        });
+                    });
+
+
+                } else {
+                    // Enable transaction error interrupts
+                    write_volatile(&mut regs.interrupt_enable,
+                                   (1 << 3)    // CCOMP   - Command completed
+                                   | (1 << 8)    // ANAK   - Address not ACKd
+                                   | (1 << 9)    // DNAK   - Data not ACKd
+                                   | (1 << 10)); // ARBLST - Arbitration lost
+                    self.dma.get().map(|dma| {
+                        let buf = dma.abort_xfer().unwrap();
+                        dma.prepare_xfer(dma_periph, buf, len);
+                        dma.start_xfer();
+                    });
+                }
             }
         }
     }
