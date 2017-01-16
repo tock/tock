@@ -52,6 +52,17 @@ LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
 LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
 LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
 
+# The compiler can emit calls to a few functions during its transformations.
+# With aggressive function sections, gc-sections, and LTO, somehow the compiler
+# will occasionaly delete our (newlib's) implementation of a function that it
+# will later emit a call to. These force the listed symbols to be kept around,
+# working around this issue
+LD_FORCE_FNS := \
+	-Wl,--undefined=memcmp\
+	-Wl,--undefined=memcpy\
+	-Wl,--undefined=memset\
+	-Wl,--undefined=memmove
+
 # First step doesn't actually compile, just generate header dependency information
 # More info on our approach here: http://stackoverflow.com/questions/97338
 $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
@@ -91,7 +102,7 @@ $(BUILDDIR):
 
 $(BUILDDIR)/app.elf: $(OBJS) $(LIBS) | $(BUILDDIR)
 	$(TRACE_LD)
-	$(Q)$(CC) -Wl,-pie -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib -Wl,--start-group $(OBJS) $(LIBS) -Wl,--end-group -Wl,-Map=$(BUILDDIR)/app.Map -o $@
+	$(Q)$(CC) -Wl,-pie -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib $(LD_FORCE_FNS) -Wl,--start-group $(OBJS) $(LIBS) -Wl,--end-group -Wl,-Map=$(BUILDDIR)/app.Map -o $@
 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 	$(TRACE_BIN)
