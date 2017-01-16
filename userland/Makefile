@@ -77,7 +77,9 @@ size:	$(BUILDDIR)/app.elf
 	@$(SIZE) $<
 
 .PHONY: debug
-debug: $(BUILDDIR)/app.elf
+debug:	$(BUILDDIR)/app.lst
+
+$(BUILDDIR)/app.lst: $(BUILDDIR)/app.elf
 	$(TRACE_LST)
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $(BUILDDIR)/app.lst
 
