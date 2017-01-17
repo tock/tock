@@ -1,5 +1,13 @@
 # userland master makefile. Included by application makefiles
 
+# Check for a ~/ at the beginning of a path variable (TOCK_USERLAND_BASE_DIR).
+# Make will not properly expand this.
+ifdef TOCK_USERLAND_BASE_DIR
+    ifneq (,$(findstring BEGINNINGOFVARIABLE~/,BEGINNINGOFVARIABLE$(TOCK_USERLAND_BASE_DIR)))
+        $(error Hi! Using "~" in Makefile variables is not supported. Use "$$(HOME)" instead)
+    endif
+endif
+
 TOCK_USERLAND_BASE_DIR ?= ..
 TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
 BUILDDIR ?= build/$(TOCK_ARCH)
