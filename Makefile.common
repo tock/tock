@@ -17,6 +17,15 @@ ifndef TARGET
 TARGET := $(CHIP).json
 endif
 
+# If environment variable V is non-empty, be verbose
+ifneq ($(V),)
+Q=
+VERBOSE = --verbose
+else
+Q=@
+VERBOSE =
+endif
+
 .PHONY: all
 all:	target/$(CHIP)/release/$(PLATFORM).bin
 
@@ -25,40 +34,40 @@ debug:	target/$(CHIP)/debug/$(PLATFORM).bin
 
 .PHONY: doc
 doc:
-	@cargo doc --release --target=$(TARGET)
+	$(Q)cargo doc $(VERBOSE) --release --target=$(TARGET)
 
 target/$(CHIP)/release/$(PLATFORM).elf: target/$(CHIP)/release/$(PLATFORM)
-	@cp target/$(CHIP)/release/$(PLATFORM) target/$(CHIP)/release/$(PLATFORM).elf
+	$(Q)cp target/$(CHIP)/release/$(PLATFORM) target/$(CHIP)/release/$(PLATFORM).elf
 
 .PHONY: target/$(CHIP)/release/$(PLATFORM)
 target/$(CHIP)/release/$(PLATFORM):
-	@cargo build --release --target=$(TARGET)
-	@$(SIZE) $@
+	$(Q)cargo build $(VERBOSE) --release --target=$(TARGET)
+	$(Q)$(SIZE) $@
 
 target/$(CHIP)/debug/$(PLATFORM).elf: target/$(CHIP)/debug/$(PLATFORM)
-	@cp target/$(CHIP)/debug/$(PLATFORM) target/$(CHIP)/debug/$(PLATFORM).elf
+	$(Q)cp target/$(CHIP)/debug/$(PLATFORM) target/$(CHIP)/debug/$(PLATFORM).elf
 
 .PHONY: target/$(CHIP)/debug/$(PLATFORM)
 target/$(CHIP)/debug/$(PLATFORM):
-	@cargo build --target=$(TARGET)
-	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/$(CHIP)/debug/$(PLATFORM).lst
-	@$(SIZE) $@
+	$(Q)cargo build $(VERBOSE) --target=$(TARGET)
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/$(CHIP)/debug/$(PLATFORM).lst
+	$(Q)$(SIZE) $@
 
 target/$(CHIP)/release/$(PLATFORM).hex: target/$(CHIP)/release/$(PLATFORM).elf
-	@$(OBJCOPY) -Oihex $^ $@
+	$(Q)$(OBJCOPY) -Oihex $^ $@
 
 target/$(CHIP)/debug/$(PLATFORM).hex: target/$(CHIP)/debug/$(PLATFORM).elf
-	@$(OBJCOPY) -Oihex $^ $@
+	$(Q)$(OBJCOPY) -Oihex $^ $@
 
 target/$(CHIP)/release/$(PLATFORM).bin: target/$(CHIP)/release/$(PLATFORM).elf
-	@$(OBJCOPY) -Obinary $^ $@
+	$(Q)$(OBJCOPY) -Obinary $^ $@
 
 target/$(CHIP)/debug/$(PLATFORM).bin: target/$(CHIP)/debug/$(PLATFORM).elf
-	@$(OBJCOPY) -Obinary $^ $@
+	$(Q)$(OBJCOPY) -Obinary $^ $@
 
 .PHONY: clean
 clean::
-	@cargo clean
+	$(Q)cargo clean $(VERBOSE)
 
 .PHONY: debug
 debug: target/$(CHIP)/debug/$(PLATFORM).elf
