@@ -1,0 +1,64 @@
+TOOLCHAIN ?= arm-none-eabi
+
+SIZE      ?= $(TOOLCHAIN)-size
+OBJCOPY   ?= $(TOOLCHAIN)-objcopy
+OBJDUMP   ?= $(TOOLCHAIN)-objdump
+OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
+
+ifndef PLATFORM
+$(error Required make vairable PLATFORM is not defined)
+endif
+
+ifndef CHIP
+$(error Required make variable CHIP is not defined)
+endif
+
+ifndef TARGET
+TARGET := $(CHIP).json
+endif
+
+.PHONY: all
+all:	target/$(CHIP)/release/$(PLATFORM).bin
+
+.PHONY: debug
+debug:	target/$(CHIP)/debug/$(PLATFORM).bin
+
+.PHONY: doc
+doc:
+	@cargo doc --release --target=$(TARGET)
+
+target/$(CHIP)/release/$(PLATFORM).elf: target/$(CHIP)/release/$(PLATFORM)
+	@cp target/$(CHIP)/release/$(PLATFORM) target/$(CHIP)/release/$(PLATFORM).elf
+
+.PHONY: target/$(CHIP)/release/$(PLATFORM)
+target/$(CHIP)/release/$(PLATFORM):
+	@cargo build --release --target=$(TARGET)
+	@$(SIZE) $@
+
+target/$(CHIP)/debug/$(PLATFORM).elf: target/$(CHIP)/debug/$(PLATFORM)
+	@cp target/$(CHIP)/debug/$(PLATFORM) target/$(CHIP)/debug/$(PLATFORM).elf
+
+.PHONY: target/$(CHIP)/debug/$(PLATFORM)
+target/$(CHIP)/debug/$(PLATFORM):
+	@cargo build --target=$(TARGET)
+	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/$(CHIP)/debug/$(PLATFORM).lst
+	@$(SIZE) $@
+
+target/$(CHIP)/release/$(PLATFORM).hex: target/$(CHIP)/release/$(PLATFORM).elf
+	@$(OBJCOPY) -Oihex $^ $@
+
+target/$(CHIP)/debug/$(PLATFORM).hex: target/$(CHIP)/debug/$(PLATFORM).elf
+	@$(OBJCOPY) -Oihex $^ $@
+
+target/$(CHIP)/release/$(PLATFORM).bin: target/$(CHIP)/release/$(PLATFORM).elf
+	@$(OBJCOPY) -Obinary $^ $@
+
+target/$(CHIP)/debug/$(PLATFORM).bin: target/$(CHIP)/debug/$(PLATFORM).elf
+	@$(OBJCOPY) -Obinary $^ $@
+
+.PHONY: clean
+clean::
+	@cargo clean
+
+.PHONY: debug
+debug: target/$(CHIP)/debug/$(PLATFORM).elf
