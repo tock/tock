@@ -53,7 +53,6 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                 // Check if this app needs and random values.
                 if app.remaining > 0 && app.callback.is_some() && app.buffer.is_some() {
                     app.buffer.take().map(|mut buffer| {
-
                         // Check that the app is not asking for more than can
                         // fit in the provided buffer.
                         if buffer.len() < app.idx + app.remaining {
@@ -62,22 +61,33 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
 
                         {
                             // Add all available and requested randomness to the app buffer.
-                            let buf_len = buffer.len();
-                            let d = &mut buffer.as_mut()[0..buf_len];
-                            for (_, a) in randomness.enumerate() {
-                                for j in 0..4 {
-                                    if app.remaining == 0 {
-                                        break;
-                                    }
-                                    d[app.idx] = ((a >> j * 8) & 0xff) as u8;
-                                    app.idx += 1;
+
+                            // 1. Slice buffer to start from current idx
+                            let buf = &mut buffer.as_mut()[app.idx..];
+
+                            // 2. Take at most as many random samples as needed to fill the buffer
+                            //    (if app.remaining is not word-sized, take an extra one).
+                            let remaining_ints = if app.remaining % 4 == 0 {
+                                                     app.remaining / 4
+                                                 } else {
+                                                     app.remaining / 4 + 1
+                                                 };
+
+                            // 3. Zip over the randomness iterator and chunks
+                            //    of up to 4 bytes from the buffer.
+                            for (inp, outs) in randomness.take(remaining_ints)
+                                                .zip(buf.chunks_mut(4)) {
+
+                                // 4. For each word of randomness input, update
+                                //    the remaining and idx and add to buffer.
+                                for (i, b) in outs.iter_mut().enumerate() {
+                                    *b = ((inp >> i * 8) & 0xff) as u8;
                                     app.remaining -= 1;
-                                }
-                                if app.remaining == 0 {
-                                    break;
+                                    app.idx += 1;
                                 }
                             }
                         }
+
                         // Replace taken buffer
                         app.buffer = Some(buffer);
 
