@@ -63,7 +63,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                             // Add all available and requested randomness to the app buffer.
 
                             // 1. Slice buffer to start from current idx
-                            let buf = &mut buffer.as_mut()[app.idx..];
+                            let buf = &mut buffer.as_mut()[app.idx..(app.idx + app.remaining)];
 
                             // 2. Take at most as many random samples as needed to fill the buffer
                             //    (if app.remaining is not word-sized, take an extra one).
