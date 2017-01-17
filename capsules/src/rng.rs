@@ -50,7 +50,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
 
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
-                // Check if this app needs and random values.
+                // Check if this app needs random values.
                 if app.remaining > 0 && app.callback.is_some() && app.buffer.is_some() {
                     app.buffer.take().map(|mut buffer| {
                         // Check that the app is not asking for more than can
@@ -160,14 +160,18 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
             1 => {
                 self.apps
                     .enter(appid, |app, _| {
+                        let mut ret = 0;
                         app.remaining = data;
                         app.idx = 0;
 
-                        if !self.getting_randomness.get() {
-                            self.getting_randomness.set(true);
-                            self.rng.get();
+                        if app.callback.is_some() && app.buffer.is_some() {
+                          if !self.getting_randomness.get() {
+                              self.getting_randomness.set(true);
+                              self.rng.get();
+                          }
                         }
-                        0
+                        else { ret = -1 }
+                        ret
                     })
                     .unwrap_or(-1)
             }
