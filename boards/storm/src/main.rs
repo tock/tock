@@ -21,6 +21,7 @@ use kernel::hil::gpio::PinCtl;
 use kernel::hil::spi::SpiMaster;
 use kernel::mpu::MPU;
 use sam4l::usart;
+use sam4l::trng;
 
 #[macro_use]
 pub mod io;
@@ -93,6 +94,7 @@ struct Firestorm {
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     ipc: kernel::ipc::IPC,
+    rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
 }
 
 impl Platform for Firestorm {
@@ -110,6 +112,7 @@ impl Platform for Firestorm {
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
+            14 => f(Some(self.rng)),
 
             0xff => f(Some(&self.ipc)),
             _ => f(None),
@@ -339,6 +342,15 @@ pub unsafe fn reset_handler() {
         160/8);
     sam4l::adc::ADC.set_client(adc);
 
+    //
+    // RNG
+    //
+    let rng_driver = static_init!(
+        capsules::rng::SimpleRng<'static, trng::Trng>,
+        capsules::rng::SimpleRng::new(&trng::TRNG, kernel::Container::create()),
+        96/8);
+    trng::TRNG.set_client(rng_driver);
+
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
@@ -382,6 +394,7 @@ pub unsafe fn reset_handler() {
         adc: adc,
         led: led,
         ipc: kernel::ipc::IPC::new(),
+        rng: rng_driver,
     };
 
     // Configure USART2 Pins for connection to nRF51822

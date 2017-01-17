@@ -1,3 +1,10 @@
+//! RNG Capsule
+//!
+//! Provides a simple driver for userspace applications to request randomness.
+//! The RNG accepts a user-defined callback and buffer to hold received randomness.
+//! A single command starts the RNG, the callback is called when the requested
+//! amount of randomness is received, or the buffer is filled.
+
 
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
@@ -80,7 +87,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                         done = false;
                     } else {
                         app.callback.map(|mut cb| {
-                            cb.schedule(0, 0, 0);
+                            cb.schedule(0, app.idx, 0);
                         });
                     }
                 }
