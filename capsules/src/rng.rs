@@ -68,15 +68,15 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                             // 2. Take at most as many random samples as needed to fill the buffer
                             //    (if app.remaining is not word-sized, take an extra one).
                             let remaining_ints = if app.remaining % 4 == 0 {
-                                                     app.remaining / 4
-                                                 } else {
-                                                     app.remaining / 4 + 1
-                                                 };
+                                app.remaining / 4
+                            } else {
+                                app.remaining / 4 + 1
+                            };
 
                             // 3. Zip over the randomness iterator and chunks
                             //    of up to 4 bytes from the buffer.
                             for (inp, outs) in randomness.take(remaining_ints)
-                                                .zip(buf.chunks_mut(4)) {
+                                .zip(buf.chunks_mut(4)) {
 
                                 // 4. For each word of randomness input, update
                                 //    the remaining and idx and add to buffer.

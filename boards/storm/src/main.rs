@@ -20,8 +20,8 @@ use kernel::hil::Controller;
 use kernel::hil::gpio::PinCtl;
 use kernel::hil::spi::SpiMaster;
 use kernel::mpu::MPU;
-use sam4l::usart;
 use sam4l::trng;
+use sam4l::usart;
 
 #[macro_use]
 pub mod io;
@@ -342,7 +342,6 @@ pub unsafe fn reset_handler() {
         160/8);
     sam4l::adc::ADC.set_client(adc);
 
-    //
     // RNG
     //
     let rng_driver = static_init!(
