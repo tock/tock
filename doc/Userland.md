@@ -108,7 +108,7 @@ If an application crashes, Tock can provide a lot of useful information.
 By default, when an application crashes Tock prints a crash dump over the
 platform's default console interface.
 
-Note that because an applicaiton is relocated when it is loaded, this trace
+Note that because an application is relocated when it is loaded, this trace
 will print both relocated addresses and the original symbol address where
 appropriate.
 
