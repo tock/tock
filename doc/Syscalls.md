@@ -134,5 +134,6 @@ functionality that is handled by the kernel. `command`, `subscribe`, and
 | 11            | FXOS8100CQ       | Accelerometer                              |
 | 12            | TSL2561          | Light sensor                               |
 | 13            | I2C Master/Slave | Raw I2C interface                          |
+| 14            | RNG              | Random number generator                    |
 | 255           | IPC              | Inter-process communication                |
 
