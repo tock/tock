@@ -24,11 +24,11 @@ pub struct Callback {
 }
 
 impl Callback {
-    pub unsafe fn new(appid: AppId, appdata: usize, fn_ptr: *mut ()) -> Callback {
+    pub fn new(appid: AppId, appdata: usize, fn_ptr: NonZero<*mut ()>) -> Callback {
         Callback {
             app_id: appid,
             appdata: appdata,
-            fn_ptr: NonZero::new(fn_ptr),
+            fn_ptr: fn_ptr,
         }
     }
 
