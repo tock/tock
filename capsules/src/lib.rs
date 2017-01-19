@@ -25,3 +25,4 @@ pub mod fxos8700_cq;
 pub mod rf233;
 pub mod rf233_const;
 pub mod radio;
+pub mod rng;

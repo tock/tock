@@ -8,6 +8,8 @@ use core::fmt::Write;
 use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile};
 
+use platform::mpu;
+
 /// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
     ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
@@ -186,20 +188,11 @@ pub struct Process<'a> {
     cur_stack: *const u8,
     app_mem_start: *const u8,
 
-    /// Requested length of memory segments
-    min_grant_len: usize,
-    min_heap_len: usize,
-    min_stack_len: usize,
-
     /// How many syscalls have occurred since the process started
     syscall_count: Cell<usize>,
 
     /// Process text segment
     text: &'static [u8],
-
-    /// The beginning of process code after the LoadInfo and RelData sections.
-    /// Note that unlike most pointers, this is to the flash image, not loaded sram
-    app_flash_code_start: *const u8,
 
     stored_regs: StoredRegs,
 
@@ -227,7 +220,7 @@ pub struct Process<'a> {
 
     tasks: RingBuffer<'a, Task>,
 
-    pub package_name: &'static [u8],
+    pub package_name: &'static str,
 }
 
 fn closest_power_of_two(mut num: u32) -> u32 {
@@ -273,20 +266,14 @@ impl<'a> Process<'a> {
         write_volatile(&mut APP_FAULT, 0);
         self.state = State::Fault;
 
-        // get app name
-        let mut app_name_str = "";
-        let _ = str::from_utf8(self.package_name).map(|name_str| {
-            app_name_str = name_str;
-        });
-
         match self.fault_response {
             FaultResponse::Panic => {
                 // process faulted. Panic and print status
-                panic!("Process {} had a fault", app_name_str);
+                panic!("Process {} had a fault", self.package_name);
             }
             FaultResponse::Restart => {
                 //XXX: unimplemented
-                panic!("Process {} had a fault and could not be restarted", app_name_str);
+                panic!("Process {} had a fault and could not be restarted", self.package_name);
                 /*
                 // HAVE_WORK is really screwed up in this case
                 // the tasks ring buffer needs to be cleared
@@ -313,7 +300,7 @@ impl<'a> Process<'a> {
         unsafe { self.memory.as_ptr().offset(self.memory.len() as isize) }
     }
 
-    pub fn setup_mpu(&self, mpu: &::platform::MPU) {
+    pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {
         let data_start = self.memory.as_ptr() as usize;
         let data_len = (32 - self.memory.len().leading_zeros()) as u32;
 
@@ -334,19 +321,31 @@ impl<'a> Process<'a> {
         let mgrant_size = grant_size.trailing_zeros() - 1;
 
         // Data segment read/write/execute
-        mpu.set_mpu(0, data_start as u32, data_len, true, 0b011);
+        mpu.set_mpu(0,
+                    data_start as u32,
+                    data_len,
+                    mpu::ExecutePermission::ExecutionPermitted,
+                    mpu::AccessPermission::ReadWrite);
         // Text segment read/execute (no write)
-        mpu.set_mpu(1, text_start as u32, text_len, true, 0b111);
+        mpu.set_mpu(1,
+                    text_start as u32,
+                    text_len,
+                    mpu::ExecutePermission::ExecutionPermitted,
+                    mpu::AccessPermission::ReadOnly);
 
         // Disallow access to grant region
-        mpu.set_mpu(2, grant_base as u32, mgrant_size, false, 0b001);
+        mpu.set_mpu(2,
+                    grant_base as u32,
+                    mgrant_size,
+                    mpu::ExecutePermission::ExecutionNotPermitted,
+                    mpu::AccessPermission::PrivilegedOnly);
 
         for (i, region) in self.mpu_regions.iter().enumerate() {
             mpu.set_mpu((i + 3) as u32,
                         region.get().0 as u32,
                         region.get().1 as u32,
-                        true,
-                        0b011);
+                        mpu::ExecutePermission::ExecutionPermitted,
+                        mpu::AccessPermission::ReadWrite);
         }
     }
 
@@ -443,15 +442,9 @@ impl<'a> Process<'a> {
                     cur_stack: stack_heap_boundary,
                     app_mem_start: load_result.app_mem_start,
 
-                    min_stack_len: load_info.min_stack_len as usize,
-                    min_heap_len: load_info.min_app_heap_len as usize,
-                    min_grant_len: load_info.min_kernel_heap_len as usize,
-
                     syscall_count: Cell::new(0),
 
                     text: slice::from_raw_parts(app_flash_address, app_flash_size),
-
-                    app_flash_code_start: load_result.app_flash_code_start,
 
                     stored_regs: Default::default(),
                     yield_pc: load_result.init_fn,
@@ -615,6 +608,10 @@ impl<'a> Process<'a> {
 
     pub fn incr_syscall_count(&self) {
         self.syscall_count.set(self.syscall_count.get() + 1);
+    }
+
+    pub fn sp(&self) -> usize {
+        self.cur_stack as usize
     }
 
     pub fn lr(&self) -> usize {
@@ -807,165 +804,190 @@ impl<'a> Process<'a> {
 
     pub unsafe fn statistics_str<W: Write>(&mut self, writer: &mut W) {
 
-        // get app name
-        let mut app_name_str = "";
-        let _ = str::from_utf8(self.package_name).map(|name_str| {
-            app_name_str = name_str;
-        });
+        if let Some(load_info) = parse_and_validate_load_info(self.text.as_ptr()) {
+            // Flash addresses
+            let flash_end = self.text.as_ptr().offset(self.text.len() as isize) as usize;
+            let flash_data_end = self.text
+                .as_ptr()
+                .offset(load_info.pkg_name_offset as isize +
+                        load_info.pkg_name_size as isize) as usize;
+            let flash_data_start =
+                self.text.as_ptr().offset(load_info.got_offset as isize) as usize;
+            let flash_text_start =
+                self.text.as_ptr().offset(load_info.text_offset as isize) as usize;
+            let flash_start = self.text.as_ptr() as usize;
 
-        let (r0, r1, r2, r3, r12, pc, lr) =
-            (self.r0(), self.r1(), self.r2(), self.r3(), self.r12(), self.pc(), self.lr());
+            // Flash sizes
+            let flash_data_size = load_info.got_size + load_info.data_size +
+                                  load_info.pkg_name_size;
+            let flash_text_size = load_info.text_size;
+            let flash_header_size = mem::size_of::<LoadInfo>() + load_info.rel_data_size as usize;
 
-        // memory region
-        let mem_end = self.mem_end() as usize;
-        let mem_start = self.mem_start() as usize;
+            // SRAM addresses
+            let sram_end = self.memory.as_ptr().offset(self.memory.len() as isize) as usize;
+            let sram_grant_start = self.kernel_memory_break as usize;
+            let sram_heap_end = self.app_memory_break as usize;
+            let sram_heap_start = self.stack_heap_boundary as usize;
+            let sram_stack_start = self.cur_stack as usize;
+            let sram_data_end = self.app_mem_start as usize;
+            let sram_start = self.memory.as_ptr() as usize;
 
-        // grant region size
-        let grant_start = self.kernel_memory_break as usize;
-        let grant_size = mem_end - grant_start;
-        let requested_grant_len = self.min_grant_len as usize;
-        let mut grant_error_str = "          ";
-        if grant_size > requested_grant_len {
-            grant_error_str = " EXCEEDED!";
-        }
+            // SRAM sizes
+            let sram_grant_size = sram_end - sram_grant_start;
+            let sram_heap_size = sram_heap_end - sram_heap_start;
+            let sram_stack_size = sram_heap_start - sram_stack_start;
+            let sram_data_size = sram_data_end - sram_start;
+            let sram_grant_allocated = load_info.min_kernel_heap_len as usize;
+            let sram_heap_allocated = load_info.min_app_heap_len as usize;
+            let sram_stack_allocated = load_info.min_stack_len as usize;
+            let sram_data_allocated = sram_data_size as usize;
 
-        // unallocated space
-        let heap_top = self.app_memory_break as usize;
+            // checking on sram
+            let mut sram_grant_error_str = "          ";
+            if sram_grant_size > sram_grant_allocated {
+                sram_grant_error_str = " EXCEEDED!"
+            }
+            let mut sram_heap_error_str = "          ";
+            if sram_heap_size > sram_heap_allocated {
+                sram_heap_error_str = " EXCEEDED!"
+            }
+            let mut sram_stack_error_str = "          ";
+            if sram_stack_size > sram_stack_allocated {
+                sram_stack_error_str = " EXCEEDED!"
+            }
 
-        // used heap space
-        let stack_top = self.stack_heap_boundary as usize;
-        let heap_size = heap_top - stack_top;
-        let requested_heap_len = self.min_heap_len as usize;
-        let mut heap_error_str = "          ";
-        if heap_size > requested_heap_len {
-            heap_error_str = " EXCEEDED!";
-        }
+            // application statistics
+            let events_queued = self.tasks.len();
+            let syscall_count = self.syscall_count.get();
 
-        // used stack space
-        let stack_bottom = self.cur_stack as usize;
-        let stack_size = stack_top - stack_bottom;
-        let requested_stack_len = self.min_stack_len as usize;
-        let mut stack_error_str = "          ";
-        if stack_size > requested_stack_len {
-            stack_error_str = " EXCEEDED!";
-        }
+            // register values
+            let (r0, r1, r2, r3, r12, sp, lr, pc) = (self.r0(),
+                                                     self.r1(),
+                                                     self.r2(),
+                                                     self.r3(),
+                                                     self.r12(),
+                                                     self.sp(),
+                                                     self.lr(),
+                                                     self.pc());
 
-        // remaining stack space
-        let data_end = self.app_mem_start as usize;
+            // lst-file relative LR and PC
+            let lr_lst_relative = 0x80000000 | (0xFFFFFFFE & (lr - flash_text_start as usize));
+            let pc_lst_relative = 0x80000000 | (0xFFFFFFFE & (pc - flash_text_start as usize));
 
-        // static data region (GOT, Data, and BSS)
-        let static_data_size = data_end - mem_start;
+            let ypc_lst_relative = 0x80000000 |
+                                   (0xFFFFFFFE & (self.yield_pc - flash_text_size as usize));
 
-        // text region
-        let text_start = self.text.as_ptr() as usize;
-        let text_end = self.text.as_ptr().offset(self.text.len() as isize) as usize;
-        let text_size = text_end - text_start;
 
-        // PC address in app lst file
-        let pc_addr_relative = 0x80000000 |
-                               (0xFFFFFFFE & (pc - self.app_flash_code_start as usize));
-        let lr_addr_relative = 0x80000000 |
-                               (0xFFFFFFFE & (lr - self.app_flash_code_start as usize));
-
-        // number of events queued
-        let events_queued = self.tasks.len();
-
-        // number of syscalls that have occurred
-        let syscall_count = self.syscall_count.get();
-
-        // You can thank the piece of garbage rustfmt for this.
-        let _ = writer.write_fmt(format_args!("\
-        App: {}\
-        \r\n[{:?}]  -  Events Queued: {}  Syscall Count: {}\
-        \r\n\
-        \r\n ╔═══════════╤══════════════\
+            // You can thank the piece of garbage rustfmt for this.
+            let _ = writer.write_fmt(format_args!("\
+            App: {}\
+            \r\n [{:?}]  -  Events Queued: {}  Syscall Count: {}\
+            \r\n\
+            \r\n ╔═══════════╤══════════════\
 ════════════════════════════╗\
-        \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
-          \r\n ╚{:#010X}═╪══════════════\
+            \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
+              \r\n ╚{:#010X}═╪══════════════\
 ════════════════════════════╝\
-        \r\n             │ ▼ Grant      {:6} | {:6}{}\
-          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+            \r\n             │ ▼ Grant      {:6} | {:6}{}\
+              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
 ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
-        \r\n             │ Unused\
-          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+            \r\n             │ Unused\
+              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
 ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
-        \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
-          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈  R\
-        \r\n             │ ▼ Stack      {:6} | {:6}{}     A\
-          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈  M\
-        \r\n             │ Unused\
-          \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+            \r\n             │ ▲ Heap       {:6} | {:6}{}    S\
+              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ R\
+            \r\n             │ ▼ Stack      {:6} | {:6}{}    A\
+              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ M\
+            \r\n             │ Unused\
+              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
 ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
-        \r\n             │ Data         {:6} | {:6}\
-          \r\n  {:#010X} ┴───────────────\
+            \r\n             │ Data         {:6} | {:6}\
+              \r\n  {:#010X} ┴───────────────\
 ────────────────────────────\
-        \r\n             .....                                        F\
-          \r\n  {:#010X} ┬───────────────\
-──────────────────────────── l\
-        \r\n             │ Text              ? | {:6}               a\
-          \r\n  {:#010X} ┴───────────────\
-──────────────────────────── s\
-        \r\n                                                          h\
-          \r\n  R0 : {:#010X}\
-          \r\n  R1 : {:#010X}\
-          \r\n  R2 : {:#010X}\
-          \r\n  R3 : {:#010X}\
-          \r\n  R4 : {:#010X}\
-          \r\n  R5 : {:#010X}\
-          \r\n  R6 : {:#010X}\
-          \r\n  R7 : {:#010X}\
-          \r\n  R8 : {:#010X}\
-          \r\n  R9 : {:#010X}\
-          \r\n  R10: {:#010X}\
-          \r\n  R11: {:#010X}\
-          \r\n  R12: {:#010X}\
-          \r\n  PC : {:#010X} [{:#010X} in lst file]\
-          \r\n  LR : {:#010X} [{:#010X} in lst file]\
-        \r\n\r\n",
-                                              app_name_str,
-                                              self.state,
-                                              events_queued,
-                                              syscall_count,
-                                              mem_end,
-                                              grant_size,
-                                              requested_grant_len,
-                                              grant_error_str,
-                                              grant_start,
-                                              heap_top,
-                                              heap_size,
-                                              requested_heap_len,
-                                              heap_error_str,
-                                              stack_top,
-                                              stack_size,
-                                              requested_stack_len,
-                                              stack_error_str,
-                                              stack_bottom,
-                                              data_end,
-                                              static_data_size,
-                                              static_data_size,
-                                              mem_start,
-                                              text_end,
-                                              text_size,
-                                              text_start,
-                                              r0,
-                                              r1,
-                                              r2,
-                                              r3,
-                                              self.stored_regs.r4,
-                                              self.stored_regs.r5,
-                                              self.stored_regs.r6,
-                                              self.stored_regs.r7,
-                                              self.stored_regs.r8,
-                                              self.stored_regs.r9,
-                                              self.stored_regs.r10,
-                                              self.stored_regs.r11,
-                                              r12,
-                                              pc,
-                                              pc_addr_relative,
-                                              lr,
-                                              lr_addr_relative));
+            \r\n             .....\
+              \r\n  {:#010X} ┬───────────────\
+────────────────────────────\
+            \r\n             │ Unused\
+              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ F\
+            \r\n             │ Data         {:6}                       L\
+              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ A\
+            \r\n             │ Text         {:6}                       S\
+              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
+┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ H\
+            \r\n             │ Header       {:6}\
+              \r\n  {:#010X} ┴───────────────\
+────────────────────────────\
+            \r\n\
+              \r\n  R0 : {:#010X}    R6 : {:#010X}\
+              \r\n  R1 : {:#010X}    R7 : {:#010X}\
+              \r\n  R2 : {:#010X}    R8 : {:#010X}\
+              \r\n  R3 : {:#010X}    R10: {:#010X}\
+              \r\n  R4 : {:#010X}    R11: {:#010X}\
+              \r\n  R5 : {:#010X}    R12: {:#010X}\
+              \r\n  R9 : {:#010X} (Static Base Register)\
+              \r\n  SP : {:#010X} (Process Stack Pointer)\
+              \r\n  LR : {:#010X} [{:#010X} in lst file]\
+              \r\n  PC : {:#010X} [{:#010X} in lst file]\
+              \r\n YPC : {:#010X} [{:#010X} in lst file]\
+            \r\n\r\n",
+                                                  self.package_name,
+                                                  self.state,
+                                                  events_queued,
+                                                  syscall_count,
+                                                  sram_end,
+                                                  sram_grant_size,
+                                                  sram_grant_allocated,
+                                                  sram_grant_error_str,
+                                                  sram_grant_start,
+                                                  sram_heap_end,
+                                                  sram_heap_size,
+                                                  sram_heap_allocated,
+                                                  sram_heap_error_str,
+                                                  sram_heap_start,
+                                                  sram_stack_size,
+                                                  sram_stack_allocated,
+                                                  sram_stack_error_str,
+                                                  sram_stack_start,
+                                                  sram_data_end,
+                                                  sram_data_size,
+                                                  sram_data_allocated,
+                                                  sram_start,
+                                                  flash_end,
+                                                  flash_data_end,
+                                                  flash_data_size,
+                                                  flash_data_start,
+                                                  flash_text_size,
+                                                  flash_text_start,
+                                                  flash_header_size,
+                                                  flash_start,
+                                                  r0,
+                                                  self.stored_regs.r6,
+                                                  r1,
+                                                  self.stored_regs.r7,
+                                                  r2,
+                                                  self.stored_regs.r8,
+                                                  r3,
+                                                  self.stored_regs.r10,
+                                                  self.stored_regs.r4,
+                                                  self.stored_regs.r11,
+                                                  self.stored_regs.r5,
+                                                  r12,
+                                                  self.stored_regs.r9,
+                                                  sp,
+                                                  lr,
+                                                  lr_lst_relative,
+                                                  pc,
+                                                  pc_lst_relative,
+                                                  self.yield_pc,
+                                                  ypc_lst_relative,
+                                                  ));
+        } else {
+            let _ = writer.write_fmt(format_args!("Unknown Load Info\r\n"));
+        }
     }
 }
 
@@ -981,11 +1003,8 @@ struct LoadResult {
     /// The length of the data segment
     data_len: u32,
 
-    /// The beginning of process code in Flash after LoadInfo and RelData
-    app_flash_code_start: *const u8,
-
     /// The process's package name (used for IPC)
-    package_name: &'static [u8],
+    package_name: &'static str,
 }
 
 /// Loads the process into memory
@@ -1005,21 +1024,24 @@ unsafe fn load(load_info: &'static LoadInfo,
                mem_base: *mut u8,
                mem_size: usize)
                -> Option<LoadResult> {
-    // unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static LoadInfo> {
     let mem_end = mem_base.offset(mem_size as isize);
 
+    let package_name_byte_array =
+        slice::from_raw_parts(flash_start_addr.offset(load_info.pkg_name_offset as isize),
+                              load_info.pkg_name_size as usize);
+    let mut app_name_str = "";
+    let _ = str::from_utf8(package_name_byte_array).map(|name_str| {
+        app_name_str = name_str;
+    });
+
     let mut load_result = LoadResult {
-        package_name:
-            slice::from_raw_parts(flash_start_addr.offset(load_info.pkg_name_offset as isize),
-                                  load_info.pkg_name_size as usize),
+        package_name: app_name_str,
         init_fn: 0,
         app_mem_start: ptr::null(),
         data_len: 0,
-        app_flash_code_start: ptr::null(),
     };
 
     let text_start = flash_start_addr.offset(load_info.text_offset as isize);
-    load_result.app_flash_code_start = text_start;
 
     let rel_data: &[u32] =
         slice::from_raw_parts(flash_start_addr.offset(

@@ -1,4 +1,5 @@
-use platform::{Chip, Platform, SysTick};
+use platform::{Chip, Platform};
+use platform::systick::SysTick;
 use process;
 use process::{Process, Task};
 use syscall;

@@ -13,10 +13,12 @@ use capsules::nrf51822_serialization::{self, Nrf51822Serialization};
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use kernel::{Chip, MPU, Platform};
+use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
+use kernel::{Chip, Platform};
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
+use kernel::mpu::MPU;
 use sam4l::usart;
 
 #[macro_use]
@@ -74,11 +76,12 @@ struct Hail {
     si7021: &'static capsules::si7021::SI7021<'static,
                                               VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     fxos8700: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
-    spi: &'static capsules::spi::Spi<'static, sam4l::spi::Spi>,
+    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+    rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
     ipc: kernel::ipc::IPC,
 }
 
@@ -100,6 +103,8 @@ impl Platform for Hail {
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
             11 => f(Some(self.fxos8700)),
+
+            14 => f(Some(self.rng)),
 
             0xff => f(Some(&self.ipc)),
             _ => f(None),
@@ -133,7 +138,7 @@ unsafe fn set_pin_primary_functions() {
     PA[21].configure(Some(A)); // D3 - SPI MISO
     PA[22].configure(Some(A)); // D2 - SPI MOSI
     PA[23].configure(Some(A)); // D4 - SPI SCK
-    PA[24].configure(Some(A)); // D5 - SPI CS
+    PA[24].configure(Some(A)); // D5 - SPI CS0
     // // I2C MODE
     // PA[21].configure(None); // D3
     // PA[22].configure(None); // D2
@@ -255,14 +260,31 @@ pub unsafe fn reset_handler() {
     fxos8700_i2c.set_client(fxos8700);
 
     // Initialize and enable SPI HAL
-    let chip_selects = static_init!([u8; 1], [0], 1);
-    let spi = static_init!(
-        capsules::spi::Spi<'static, sam4l::spi::Spi>,
-        capsules::spi::Spi::new(&mut sam4l::spi::SPI, chip_selects),
-        92);
-    spi.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
-    sam4l::spi::SPI.set_client(spi);
+    // Set up an SPI MUX, so there can be multiple clients
+    let mux_spi = static_init!(
+        MuxSpiMaster<'static, sam4l::spi::Spi>,
+        MuxSpiMaster::new(&sam4l::spi::SPI),
+        96/8);
+
+    sam4l::spi::SPI.set_client(mux_spi);
     sam4l::spi::SPI.init();
+    sam4l::spi::SPI.enable();
+
+    // Create a virtualized client for SPI system call interface
+    // CS line is CS0
+    let syscall_spi_device = static_init!(
+        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+        VirtualSpiMasterDevice::new(mux_spi, 0),
+        384/8);
+
+    // Create the SPI systemc call capsule, passing the client
+    let spi_syscalls = static_init!(
+        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+        capsules::spi::Spi::new(syscall_spi_device),
+        672/8);
+
+    spi_syscalls.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    syscall_spi_device.set_client(spi_syscalls);
 
     // LEDs
     let led_pins = static_init!(
@@ -296,6 +318,13 @@ pub unsafe fn reset_handler() {
         160/8);
     sam4l::adc::ADC.set_client(adc);
 
+    // Setup RNG
+    let rng = static_init!(
+            capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
+            capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Container::create()),
+            96/8);
+    sam4l::trng::TRNG.set_client(rng);
+
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
@@ -321,11 +350,12 @@ pub unsafe fn reset_handler() {
         si7021: si7021,
         isl29035: isl29035,
         fxos8700: fxos8700,
-        spi: spi,
+        spi: spi_syscalls,
         nrf51822: nrf_serialization,
         adc: adc,
         led: led,
         button: button,
+        rng: rng,
         ipc: kernel::ipc::IPC::new(),
     };
 

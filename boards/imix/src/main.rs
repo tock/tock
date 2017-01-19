@@ -11,23 +11,14 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
-use kernel::{Chip, MPU};
+use kernel::Chip;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
+use kernel::mpu::MPU;
 use capsules::rf233::RF233;
 use kernel::hil::radio::Radio;
 use kernel::hil::radio;
-
-#[allow(unused_imports)]
-use core::mem;
-
-macro_rules! pinc_toggle {
-    ($x:expr) => {
-        let toggle_reg: &mut u32 =  mem::transmute(0x400E1000 + (2 * 0x200) + 0x5c);
-        *toggle_reg = 1 << $x;
-    }
-}
 
 #[macro_use]
 mod io;
@@ -55,12 +46,6 @@ struct Imix {
     fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
     radio: &'static capsules::radio::RadioDriver<'static, capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
 }
-
-// The SPI system call interface requires static buffers so it can
-// perform DMA operations. The driver transfers data between application
-// buffers and these kernel buffers.
-static mut spi_read_buf: [u8; 64] =  [0xde; 64];
-static mut spi_write_buf: [u8; 64] = [0xad; 64];
 
 // The RF233 radio requires our buffers for its SPI operations:
 //
@@ -233,6 +218,34 @@ pub unsafe fn reset_handler() {
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
+    // Set up an SPI MUX, so there can be multiple clients
+    let mux_spi = static_init!(
+        MuxSpiMaster<'static, sam4l::spi::Spi>,
+        MuxSpiMaster::new(&sam4l::spi::SPI),
+        12);
+    sam4l::spi::SPI.set_client(mux_spi);
+    sam4l::spi::SPI.init();
+    sam4l::spi::SPI.enable();
+
+    // Create a virtualized client for SPI system call interface,
+    // then the system call capsule
+    let syscall_spi_device = static_init!(
+        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+        VirtualSpiMasterDevice::new(mux_spi, 3),
+        48);
+    let spi_syscalls = static_init!(
+        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+        capsules::spi::Spi::new(syscall_spi_device),
+        84);
+
+    // System call capsule requires static buffers so it can
+    // copy from application slices to DMA
+    static mut spi_read_buf: [u8; 64] = [0; 64];
+    static mut spi_write_buf: [u8; 64] = [0; 64];
+    spi_syscalls.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    syscall_spi_device.set_client(spi_syscalls);
+
+
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
@@ -246,34 +259,7 @@ pub unsafe fn reset_handler() {
     si7021_i2c.set_client(si7021);
     si7021_alarm.set_client(si7021);
 
-    // Initialize and enable SPI HAL
-
-    // Set up an SPI mux, so there can be multiple clients
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::Spi>,
-        MuxSpiMaster::new(&sam4l::spi::SPI),
-        12);
-    sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
-    sam4l::spi::SPI.enable();
-
-    // Create a virtualized client for the SPI system call interface
-    let capsule_device = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
-        VirtualSpiMasterDevice::new(mux_spi, 0),
-        48);
-
-    // Create the SPI system call capsule, passing the client
-    let chip_selects = static_init!([u8; 4], [0, 1, 2, 3], 4);
-    let spi_capsule = static_init!(
-        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
-        capsules::spi::Spi::new(capsule_device, chip_selects),
-        92);
-
-    spi_capsule.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
-    capsule_device.set_client(spi_capsule);
-
-    // Create a second virtualized client, for the RF233
+    // Create a second virtualized SPI client, for the RF233
     let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
                                  VirtualSpiMasterDevice::new(mux_spi, 3),
                                  48);
@@ -319,7 +305,6 @@ pub unsafe fn reset_handler() {
     sam4l::gpio::PC[31].enable_output();
 
     // # GPIO
-
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 8],
@@ -388,7 +373,7 @@ pub unsafe fn reset_handler() {
         adc: adc,
         led: led,
         button: button,
-        spi: spi_capsule,
+        spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(),
         fxos8700_cq: fx0,
         radio: radio_capsule,

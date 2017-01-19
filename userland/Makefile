@@ -1,5 +1,13 @@
 # userland master makefile. Included by application makefiles
 
+# Check for a ~/ at the beginning of a path variable (TOCK_USERLAND_BASE_DIR).
+# Make will not properly expand this.
+ifdef TOCK_USERLAND_BASE_DIR
+    ifneq (,$(findstring BEGINNINGOFVARIABLE~/,BEGINNINGOFVARIABLE$(TOCK_USERLAND_BASE_DIR)))
+        $(error Hi! Using "~" in Makefile variables is not supported. Use "$$(HOME)" instead)
+    endif
+endif
+
 TOCK_USERLAND_BASE_DIR ?= ..
 TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
 BUILDDIR ?= build/$(TOCK_ARCH)
@@ -32,6 +40,7 @@ CXX := $(TOOLCHAIN)-g++
 CFLAGS   += -std=gnu11
 CPPFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/libtock -g -mcpu=$(TOCK_ARCH) -mthumb -mfloat-abi=soft
 CPPFLAGS += \
+	    -Os\
 	    -fdata-sections -ffunction-sections\
 	    -Wall\
 	    -Wextra\
@@ -76,7 +85,9 @@ size:	$(BUILDDIR)/app.elf
 	@$(SIZE) $<
 
 .PHONY: debug
-debug: $(BUILDDIR)/app.elf
+debug:	$(BUILDDIR)/app.lst
+
+$(BUILDDIR)/app.lst: $(BUILDDIR)/app.elf
 	$(TRACE_LST)
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $(BUILDDIR)/app.lst
 
@@ -88,7 +99,7 @@ $(BUILDDIR):
 
 $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) | $(BUILDDIR)
 	$(TRACE_LD)
-	$(Q)$(CC) -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib $(OBJS) -Wl,--start-group $(LIBS) -Wl,--end-group -o $@
+	$(Q)$(CC) -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib -Wl,--start-group $(OBJS) $(LIBS) -Wl,--end-group -Wl,-Map=$(BUILDDIR)/app.Map -o $@
 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR)
 	$(TRACE_BIN)

@@ -51,7 +51,7 @@ impl<T: ?Sized> Owned<T> {
     }
 
     pub fn appid(&self) -> AppId {
-        unsafe { AppId::new(self.app_id) }
+        AppId::new(self.app_id)
     }
 }
 
@@ -190,7 +190,7 @@ impl<'a, T: Default> Iterator for Iter<'a, T> {
         while self.index < self.len {
             let idx = self.index;
             self.index += 1;
-            let res = self.container.container(unsafe { AppId::new(idx) });
+            let res = self.container.container(AppId::new(idx));
             if res.is_some() {
                 return res;
             }

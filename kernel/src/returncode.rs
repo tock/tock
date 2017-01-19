@@ -16,4 +16,6 @@ pub enum ReturnCode {
     ESIZE, // Parameter passed was too large
     ECANCEL, // Operation cancelled by a call
     ENOMEM, // Memory required not available
+    ENOSUPPORT, // Operation or command is unsupported
+    ENODEVICE, // Device does not exist
 }
