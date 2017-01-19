@@ -96,7 +96,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 let appdata = process.r3();
 
                 let res = if callback_ptr_raw as usize == 0 {
-                    ReturnCode::EINVAL as isize * -1
+                    ReturnCode::EINVAL as isize
                 } else {
                     let callback_ptr = NonZero::new(callback_ptr_raw);
 
@@ -104,7 +104,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                     platform.with_driver(driver_num, |driver| {
                         match driver {
                             Some(d) => d.subscribe(subdriver_num, callback),
-                            None => ReturnCode::ENODEVICE as isize * -1,
+                            None => ReturnCode::ENODEVICE as isize,
                         }
                     })
                 };

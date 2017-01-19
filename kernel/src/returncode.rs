@@ -5,16 +5,16 @@
 //!  Date: Dec 22, 2016
 
 pub enum ReturnCode {
-    SUCCESS,
-    FAIL, // Generic failure condition
-    EBUSY, // Underlying system is busy; retry
-    EALREADY, // The state requested is already set
-    EOFF, // The component is powered down
-    ERESERVE, // Reservation required before use
-    EINVAL, // An invalid parameter was passed
-    ESIZE, // Parameter passed was too large
-    ECANCEL, // Operation cancelled by a call
-    ENOMEM, // Memory required not available
-    ENOSUPPORT, // Operation or command is unsupported
-    ENODEVICE, // Device does not exist
+    SUCCESS = 0,
+    FAIL = -1, //.......... Generic failure condition
+    EBUSY = -2, //......... Underlying system is busy; retry
+    EALREADY = -3, //...... The state requested is already set
+    EOFF = -4, //.......... The component is powered down
+    ERESERVE = -5, //...... Reservation required before use
+    EINVAL = -6, //........ An invalid parameter was passed
+    ESIZE = -7, //......... Parameter passed was too large
+    ECANCEL = -8, //....... Operation cancelled by a call
+    ENOMEM = -9, //........ Memory required not available
+    ENOSUPPORT = -10, //... Operation or command is unsupported
+    ENODEVICE = -11, //.... Device does not exist
 }
