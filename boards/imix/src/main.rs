@@ -7,6 +7,7 @@ extern crate capsules;
 extern crate kernel;
 extern crate sam4l;
 
+use capsules::rf233::RF233;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
@@ -14,11 +15,10 @@ use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
 use kernel::Chip;
 use kernel::hil;
 use kernel::hil::Controller;
+use kernel::hil::radio;
+use kernel::hil::radio::Radio;
 use kernel::hil::spi::SpiMaster;
 use kernel::mpu::MPU;
-use capsules::rf233::RF233;
-use kernel::hil::radio::Radio;
-use kernel::hil::radio;
 
 #[macro_use]
 mod io;
@@ -44,7 +44,9 @@ struct Imix {
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     ipc: kernel::ipc::IPC,
     fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
-    radio: &'static capsules::radio::RadioDriver<'static, capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
+    radio: &'static capsules::radio::RadioDriver<'static,
+                                                 capsules::rf233::RF233<'static,
+                                                 VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
 }
 
 // The RF233 radio requires our buffers for its SPI operations:
@@ -264,7 +266,8 @@ pub unsafe fn reset_handler() {
                                  VirtualSpiMasterDevice::new(mux_spi, 3),
                                  48);
     // Create the RF233 driver, passing its pins and SPI client
-    let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> = static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> =
+        static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
                              RF233::new(rf233_spi,
                                         &sam4l::gpio::PA[09],    // reset
                                         &sam4l::gpio::PA[10],    // sleep
@@ -283,8 +286,8 @@ pub unsafe fn reset_handler() {
     fx0_i2c.set_client(fx0);
 
     // Clear sensors enable pin to enable sensor rail
-    //sam4l::gpio::PC[16].enable_output();
-    //sam4l::gpio::PC[16].clear();
+    // sam4l::gpio::PC[16].enable_output();
+    // sam4l::gpio::PC[16].clear();
 
     // # ADC
 
@@ -294,15 +297,6 @@ pub unsafe fn reset_handler() {
         capsules::adc::ADC::new(&mut sam4l::adc::ADC),
         160/8);
     sam4l::adc::ADC.set_client(adc);
-
-    sam4l::gpio::PC[10].enable_output();
-    sam4l::gpio::PC[25].enable_output();
-    sam4l::gpio::PC[26].enable_output();
-    sam4l::gpio::PC[27].enable_output();
-    sam4l::gpio::PC[28].enable_output();
-    sam4l::gpio::PC[29].enable_output();
-    sam4l::gpio::PC[30].enable_output();
-    sam4l::gpio::PC[31].enable_output();
 
     // # GPIO
     // set GPIO driver controlling remaining GPIO pins
@@ -340,7 +334,7 @@ pub unsafe fn reset_handler() {
 
     // # BUTTONs
 
-     let button_pins = static_init!(
+    let button_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 1],
         [&sam4l::gpio::PC[24]],
         1 * 4);
@@ -357,7 +351,9 @@ pub unsafe fn reset_handler() {
     rf233.initialize(&mut rf233_buf, &mut rf233_reg_write, &mut rf233_reg_read);
 
     let radio_capsule = static_init!(
-        capsules::radio::RadioDriver<'static, RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
+        capsules::radio::RadioDriver<'static,
+                                     RF233<'static,
+                                           VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
         capsules::radio::RadioDriver::new(rf233),
         76);
     radio_capsule.config_buffer(&mut radio_buf);

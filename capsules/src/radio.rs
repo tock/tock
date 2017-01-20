@@ -1,12 +1,11 @@
 //! The radio capsule provides userspace applications with the ability
 //! to send and receive 802.15.4 packets
 
-/*
- * System call interface for sending and receiving 802.15.4 packets.
- *
- * Author: Philip Levis
- * Date: Jan 12 2017
- */
+// System call interface for sending and receiving 802.15.4 packets.
+//
+// Author: Philip Levis
+// Date: Jan 12 2017
+//
 
 #![allow(dead_code)]
 
@@ -43,7 +42,6 @@ impl<'a, R: radio::Radio> RadioDriver<'a, R> {
     pub fn config_buffer(&mut self, tx_buf: &'static mut [u8]) {
         self.kernel_tx.replace(tx_buf);
     }
-
 }
 
 impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
@@ -221,7 +219,7 @@ impl<'a, R: radio::Radio> radio::TxClient for RadioDriver<'a, R> {
     }
 }
 
-impl <'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
+impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
     fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         if self.app.is_some() {
             self.app.map(move |app| {
