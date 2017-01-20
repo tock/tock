@@ -196,7 +196,7 @@ pub unsafe fn reset_handler() {
         Nrf51822Serialization::new(&usart::USART3,
                                    &mut nrf51822_serialization::WRITE_BUF,
                                    &mut nrf51822_serialization::READ_BUF),
-        544/8);
+        608/8);
     hil::uart::UART::set_client(&usart::USART3, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
@@ -224,7 +224,7 @@ pub unsafe fn reset_handler() {
         capsules::si7021::SI7021::new(si7021_i2c,
             si7021_virtual_alarm,
             &mut capsules::si7021::BUFFER),
-        288/8);
+        352/8);
     si7021_i2c.set_client(si7021);
     si7021_virtual_alarm.set_client(si7021);
 
@@ -238,7 +238,7 @@ pub unsafe fn reset_handler() {
         capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         capsules::isl29035::Isl29035::new(isl29035_i2c, isl29035_virtual_alarm,
                                           &mut capsules::isl29035::BUF),
-        320/8);
+        384/8);
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
@@ -258,7 +258,7 @@ pub unsafe fn reset_handler() {
     let fxos8700 = static_init!(
         capsules::fxos8700_cq::Fxos8700cq<'static>,
         capsules::fxos8700_cq::Fxos8700cq::new(fxos8700_i2c, &mut capsules::fxos8700_cq::BUF),
-        288/8);
+        352/8);
     fxos8700_i2c.set_client(fxos8700);
 
     // Initialize and enable SPI HAL
@@ -283,7 +283,7 @@ pub unsafe fn reset_handler() {
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(syscall_spi_device),
-        608/8);
+        672/8);
 
     spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
     syscall_spi_device.set_client(spi_syscalls);
@@ -317,7 +317,7 @@ pub unsafe fn reset_handler() {
     let adc = static_init!(
         capsules::adc::ADC<'static, sam4l::adc::Adc>,
         capsules::adc::ADC::new(&mut sam4l::adc::ADC),
-        160/8);
+        224/8);
     sam4l::adc::ADC.set_client(adc);
 
     // Setup RNG
@@ -340,7 +340,7 @@ pub unsafe fn reset_handler() {
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
-        20);
+        224/8);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }

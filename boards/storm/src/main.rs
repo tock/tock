@@ -246,7 +246,7 @@ pub unsafe fn reset_handler() {
         Nrf51822Serialization::new(&usart::USART2,
                                    &mut nrf51822_serialization::WRITE_BUF,
                                    &mut nrf51822_serialization::READ_BUF),
-        544/8);
+        608/8);
     hil::uart::UART::set_client(&usart::USART2, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
@@ -268,7 +268,7 @@ pub unsafe fn reset_handler() {
         capsules::tmp006::TMP006::new(tmp006_i2c,
                                      &sam4l::gpio::PA[9],
                                      &mut capsules::tmp006::BUFFER),
-        52);
+        480/8);
     tmp006_i2c.set_client(tmp006);
     sam4l::gpio::PA[9].set_client(tmp006);
 
@@ -284,7 +284,7 @@ pub unsafe fn reset_handler() {
             isl29035_i2c,
             isl29035_virtual_alarm,
             &mut capsules::isl29035::BUF),
-        320/8);
+        384/8);
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
@@ -320,7 +320,7 @@ pub unsafe fn reset_handler() {
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(syscall_spi_device),
-        608/8);
+        672/8);
 
     spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
     syscall_spi_device.set_client(spi_syscalls);
@@ -339,7 +339,7 @@ pub unsafe fn reset_handler() {
     let adc = static_init!(
         capsules::adc::ADC<'static, sam4l::adc::Adc>,
         capsules::adc::ADC::new(&mut sam4l::adc::ADC),
-        160/8);
+        224/8);
     sam4l::adc::ADC.set_client(adc);
 
     // RNG
@@ -370,7 +370,7 @@ pub unsafe fn reset_handler() {
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
-        20);
+        224/8);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }

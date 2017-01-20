@@ -216,7 +216,7 @@ pub unsafe fn reset_handler() {
             isl29035_i2c,
             isl29035_virtual_alarm,
             &mut capsules::isl29035::BUF),
-        320/8);
+        384/8);
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
@@ -240,7 +240,7 @@ pub unsafe fn reset_handler() {
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(syscall_spi_device),
-        608/8);
+        672/8);
 
     // System call capsule requires static buffers so it can
     // copy from application slices to DMA
@@ -259,7 +259,7 @@ pub unsafe fn reset_handler() {
     let si7021 = static_init!(
         capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         capsules::si7021::SI7021::new(si7021_i2c, si7021_alarm, &mut capsules::si7021::BUFFER),
-        36);
+        352/8);
     si7021_i2c.set_client(si7021);
     si7021_alarm.set_client(si7021);
 
@@ -284,7 +284,7 @@ pub unsafe fn reset_handler() {
     let fx0 = static_init!(
         capsules::fxos8700_cq::Fxos8700cq<'static>,
         capsules::fxos8700_cq::Fxos8700cq::new(fx0_i2c, &mut capsules::fxos8700_cq::BUF),
-        288/8);
+        352/8);
     fx0_i2c.set_client(fx0);
 
     // Clear sensors enable pin to enable sensor rail
@@ -297,7 +297,7 @@ pub unsafe fn reset_handler() {
     let adc = static_init!(
         capsules::adc::ADC<'static, sam4l::adc::Adc>,
         capsules::adc::ADC::new(&mut sam4l::adc::ADC),
-        160/8);
+        224/8);
     sam4l::adc::ADC.set_client(adc);
 
     // # GPIO
@@ -318,8 +318,7 @@ pub unsafe fn reset_handler() {
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
-        20);
-
+        224/8);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
@@ -357,7 +356,7 @@ pub unsafe fn reset_handler() {
                                      RF233<'static,
                                            VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
         capsules::radio::RadioDriver::new(rf233),
-        544/8);
+        672/8);
     radio_capsule.config_buffer(&mut RADIO_BUF);
     rf233.set_transmit_client(radio_capsule);
     rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);

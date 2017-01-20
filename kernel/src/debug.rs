@@ -1,8 +1,7 @@
 
 
-use callback::{AppId, Callback};
+use callback::{AppId, Callback, RustOrRawFnPtr};
 use core::fmt::{Arguments, Result, Write, write};
-use core::nonzero::NonZero;
 use core::str;
 use driver::Driver;
 use mem::AppSlice;
@@ -67,7 +66,7 @@ impl DebugWriter {
             }
         }
     }
-    fn callback() {
+    fn callback(bytes_written: usize, _: usize, _: usize, _: usize) {
         unimplemented!();
     }
 }
@@ -77,10 +76,10 @@ impl DebugWriter {
 // inappropriate way?
 unsafe impl Sync for Callback {}
 
-pub static KERNEL_CONSOLE_CALLBACK: Callback = Callback {
+static KERNEL_CONSOLE_CALLBACK: Callback = Callback {
     app_id: AppId::kernel_new(APPID_IDX),
     appdata: 0,
-    fn_ptr: unsafe { NonZero::new(DebugWriter::callback as *mut ()) },
+    fn_ptr: RustOrRawFnPtr::Rust { func: DebugWriter::callback },
 };
 
 impl Write for DebugWriter {

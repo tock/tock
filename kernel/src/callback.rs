@@ -19,12 +19,12 @@ impl AppId {
         AppId { idx: idx }
     }
 
-    pub const fn is_kernel(appid: AppId) -> bool {
-        appid.idx >= KERNEL_APPID_BOUNDARY
+    pub const fn is_kernel(self) -> bool {
+        self.idx >= KERNEL_APPID_BOUNDARY
     }
 
-    pub const fn is_kernel_idx(appid: usize) -> bool {
-        appid >= KERNEL_APPID_BOUNDARY
+    pub const fn is_kernel_idx(idx: usize) -> bool {
+        idx >= KERNEL_APPID_BOUNDARY
     }
 
     pub fn idx(&self) -> usize {
@@ -33,10 +33,16 @@ impl AppId {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub enum RustOrRawFnPtr {
+    Raw { ptr: NonZero<*mut ()> },
+    Rust { func: fn(usize, usize, usize, usize), },
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Callback {
     pub app_id: AppId,
     pub appdata: usize,
-    pub fn_ptr: NonZero<*mut ()>,
+    pub fn_ptr: RustOrRawFnPtr,
 }
 
 impl Callback {
@@ -44,20 +50,33 @@ impl Callback {
         Callback {
             app_id: appid,
             appdata: appdata,
-            fn_ptr: fn_ptr,
+            fn_ptr: RustOrRawFnPtr::Raw { ptr: fn_ptr },
         }
     }
 
     pub fn schedule(&mut self, r0: usize, r1: usize, r2: usize) -> bool {
-        if AppId::is_kernel(self.app_id) {
-            unimplemented!();
+        if self.app_id.is_kernel() {
+            let fn_ptr = match self.fn_ptr {
+                RustOrRawFnPtr::Raw { ptr } => {
+                    panic!("Attempt to rust_call a raw function pointer: ptr {:?}", ptr)
+                }
+                RustOrRawFnPtr::Rust { func } => func,
+            };
+            fn_ptr(r0, r1, r2, self.appdata);
+            true
         } else {
+            let fn_ptr = match self.fn_ptr {
+                RustOrRawFnPtr::Raw { ptr } => ptr,
+                RustOrRawFnPtr::Rust { func } => {
+                    panic!("Attempt to schedule rust function: func {:?}", func)
+                }
+            };
             process::schedule(process::FunctionCall {
                                   r0: r0,
                                   r1: r1,
                                   r2: r2,
                                   r3: self.appdata,
-                                  pc: *self.fn_ptr as usize,
+                                  pc: *fn_ptr as usize,
                               },
                               self.app_id)
         }
