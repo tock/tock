@@ -122,11 +122,13 @@ enum InternalState {
 // minimize the different buffers it uses. It needs to be able to
 // send 2-byte register reads and writes on initialization. So it
 // needs 2 2-byte buffers for these. When it is transmitting a packet,
-// it performs one long write over SPIto move the packet to the radio.
+// it performs one long write over SPI to move the packet to the radio.
 // It needs a read buffer of equal length so it can check the radio state.
 // Similarly, when it reads a packet out of RAM into a buffer, it needs
-// an equal length buffer for the SPI write. Therefore, the structure needs
-// three buffers: 2 2-byte buffers and one packet-length buffer.
+// an equal length buffer for the SPI write. Finally, it needs a buffer to
+// receive packets into, so it doesn't drop a packet just because an application
+// didn't read in time. Therefore, the structure needs
+// four buffers: 2 2-byte buffers and two packet-length buffers.
 // Since the SPI callback does not distinguish which buffers are being used,
 // the read_write_done callback checks which state the stack is in and places
 // the buffers back accodingly. A bug here would mean a memory leak and later

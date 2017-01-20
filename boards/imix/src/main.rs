@@ -49,13 +49,13 @@ struct Imix {
                                                  VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
 }
 
-// The RF233 radio requires our buffers for its SPI operations:
+// The RF233 radio stack requires our buffers for its SPI operations:
 //
-//   1. buf: a packet-sized buffer for SPI operations, which is used as
-//      the read buffer when it writes a packet passed to it and the write
+//   1. buf: a packet-sized buffer for SPI operations, which is 
+//      used as the read buffer when it writes a packet passed to it and the write
 //      buffer when it reads a packet into a buffer passed to it.
-//   2. rx_buf: the receive buffer for packets.
-//   3 + 4: It also requires two small buffers for performing registers
+//   2. rx_buf: buffer to receive packets into
+//   3 + 4: two small buffers for performing registers
 //      operations (one read, one write).
 
 static mut rf233_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
