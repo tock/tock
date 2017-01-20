@@ -57,6 +57,7 @@ pub enum RF233Register {
     MAX = 0x3E,
 }
 
+// These are particular flags of different registers.
 pub const TRX_CTRL_1_DIG34_RXTX_INDICATOR: u8 = 1 << 7;
 pub const TRX_CTRL_1_SPI_CMD_TRX_STATUS: u8 = 1 << 2;
 pub const TRX_CTRL_1_AUTO_CRC: u8 = 1 << 5;
@@ -73,7 +74,7 @@ pub const IRQ_RX_START: u8 = 1 << 2;
 pub const IRQ_PLL_LOCK: u8 = 1 << 0;
 pub const XAH_CTRL_1_AACK_PROM_MODE: u8 = 1 << 1;
 
-
+// Flag combinations that are used in initialization.
 pub const TRX_CTRL_1: u8 = (TRX_CTRL_1_DIG34_RXTX_INDICATOR | TRX_CTRL_1_SPI_CMD_TRX_STATUS |
                             TRX_CTRL_1_AUTO_CRC);
 pub const TRX_CTRL_2: u8 = (TRX_CTRL_2_RX_SAFE_MODE | TRX_CTRL_2_DATA_RATE_250);
@@ -82,6 +83,9 @@ pub const PHY_TX_PWR: u8 = PHY_TX_PWR_4;
 pub const IRQ_MASK: u8 = (IRQ_TRXBUF_ACCESS_VIOLATION | IRQ_TRX_DONE | IRQ_PLL_LOCK | IRQ_RX_START);
 pub const XAH_CTRL_1: u8 = XAH_CTRL_1_AACK_PROM_MODE;
 pub const XAH_CTRL_0: u8 = 0;
+pub const TRX_RPC: u8 = 0xFF;
+
+// Default address settings.
 pub const PAN_ID_0: u8 = 0x22;
 pub const PAN_ID_1: u8 = 0x22;
 pub const IEEE_ADDR_0: u8 = 0x11;
@@ -94,8 +98,8 @@ pub const IEEE_ADDR_6: u8 = 0x77;
 pub const IEEE_ADDR_7: u8 = 0x88;
 pub const SHORT_ADDR_0: u8 = 0x11;
 pub const SHORT_ADDR_1: u8 = 0x22;
-pub const TRX_RPC: u8 = 0xFF;
 
+// Interrupt flags.
 pub const IRQ_7_BAT_LOW: u8 = 0x80;
 pub const IRQ_6_TRX_UR: u8 = 0x40;
 pub const IRQ_5_AMI: u8 = 0x20;
@@ -105,6 +109,7 @@ pub const IRQ_2_RX_START: u8 = 0x04;
 pub const IRQ_1_PLL_UNLOCK: u8 = 0x02;
 pub const IRQ_0_PLL_LOCK: u8 = 0x01;
 
+// The commands issued over SPI (first 2-3 bits).
 #[derive(PartialEq, Copy, Clone)]
 pub enum RF233BusCommand {
     REGISTER_READ = 0x80,
@@ -114,6 +119,8 @@ pub enum RF233BusCommand {
     SRAM_READ = 0x00,
     SRAM_WRITE = 0x40,
 }
+// The values of the radio's internal state, fetched
+// from SPI operations or TRX_STATUS.
 #[derive(PartialEq, Copy, Clone)]
 pub enum ExternalState {
     ON = 0x00,
@@ -131,6 +138,8 @@ pub enum ExternalState {
     STATE_TRANSITION_IN_PROGRESS = 0x1F,
 }
 
+// Some of the values written in TRX_STATE to change
+// radio state.
 pub enum RF233TrxCmd {
     TX_START = 0x02,
     RX_ON = 0x06,
