@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(const_fn,lang_items)]
+#![feature(asm,const_fn,lang_items)]
 
 extern crate capsules;
 #[macro_use(static_init)]
