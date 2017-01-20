@@ -9,6 +9,7 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
+use kernel::returncode::ReturnCode;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 14] = [0; 14];
@@ -182,29 +183,29 @@ impl<'a, A: time::Alarm + 'a> time::Client for SI7021<'a, A> {
 }
 
 impl<'a, A: time::Alarm + 'a> Driver for SI7021<'a, A> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // Set a callback
             0 => {
                 // Set callback function
                 self.callback.set(Some(callback));
-                0
+                ReturnCode::SUCCESS
             }
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 /* check if present */ => 0,
+            0 /* check if present */ => ReturnCode::SUCCESS,
             // Take a pressure measurement
             1 => {
                 self.take_measurement();
-                0
+                ReturnCode::SUCCESS
             }
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
 
     }

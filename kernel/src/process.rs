@@ -9,6 +9,7 @@ use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile};
 
 use platform::mpu;
+use returncode::ReturnCode;
 
 /// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
@@ -627,6 +628,11 @@ impl<'a> Process<'a> {
     pub fn r0(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
         unsafe { read_volatile(pspr) }
+    }
+
+    pub fn set_return_code(&mut self, return_code: ReturnCode) {
+        let r: isize = return_code.into();
+        self.set_r0(r);
     }
 
     pub fn set_r0(&mut self, val: isize) {

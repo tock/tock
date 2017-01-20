@@ -8,11 +8,9 @@ use kernel::common::math::{sqrtf32, get_errno};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio::{Pin, InterruptMode, Client};
 use kernel::hil::i2c;
+use kernel::returncode::ReturnCode;
 
 pub static mut BUFFER: [u8; 3] = [0; 3];
-
-// error codes for this driver
-const ERR_BAD_VALUE: isize = -2;
 
 const MAX_SAMPLING_RATE: u8 = 0x0;
 const DEFAULT_SAMPLING_RATE: u8 = 0x02;
@@ -261,7 +259,7 @@ impl<'a> Client for TMP006<'a> {
 }
 
 impl<'a> Driver for TMP006<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // single temperature reading with callback
             0 => {
@@ -275,7 +273,7 @@ impl<'a> Driver for TMP006<'a> {
                 //  turn up the sampling rate so we get the sample faster
                 self.enable_sensor(MAX_SAMPLING_RATE);
 
-                0
+                ReturnCode::SUCCESS
             }
 
             // periodic temperature reading subscription
@@ -289,28 +287,28 @@ impl<'a> Driver for TMP006<'a> {
                 // enable temperature sensor
                 self.enable_sensor(self.sampling_period.get());
 
-                0
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 /* check if present */ => 0,
+            0 /* check if present */ => ReturnCode::SUCCESS,
             // set period for sensing
             1 => {
                 // bounds check on the period
                 if (data & 0xFFFFFFF8) != 0 {
-                    return ERR_BAD_VALUE;
+                    return ReturnCode::EINVAL;
                 }
 
                 // set period value
                 self.sampling_period.set((data & 0x7) as u8);
 
-                0
+                ReturnCode::SUCCESS
             }
 
             // unsubscribe callback
@@ -321,11 +319,11 @@ impl<'a> Driver for TMP006<'a> {
                 // disable temperature sensor
                 self.disable_sensor(None);
 
-                0
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

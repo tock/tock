@@ -16,6 +16,7 @@ use kernel::{AppId, AppSlice, Callback, Driver, Shared};
 
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::returncode::ReturnCode;
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -199,7 +200,7 @@ impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
 
 
 impl<'a> Driver for I2CMasterSlaveDriver<'a> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             // Pass in a buffer for transmitting a `write` to another
             // I2C device.
@@ -207,50 +208,50 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                 self.app_state.map(|app_state| {
                     app_state.master_tx_buffer.replace(slice);
                 });
-                0
+                ReturnCode::SUCCESS
             }
             // Pass in a buffer for doing a read from another I2C device.
             1 => {
                 self.app_state.map(|app_state| {
                     app_state.master_rx_buffer.replace(slice);
                 });
-                0
+                ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a read issued by another I2C master.
             2 => {
                 self.app_state.map(|app_state| {
                     app_state.slave_tx_buffer.replace(slice);
                 });
-                0
+                ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a write issued by another I2C master.
             3 => {
                 self.app_state.map(|app_state| {
                     app_state.slave_rx_buffer.replace(slice);
                 });
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
                 self.app_state.map(|app_state| {
                     app_state.callback.replace(callback);
                 });
-                0
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 /* check if present */ => 0,
+            0 /* check if present */ => ReturnCode::SUCCESS,
             // Do a write to another I2C device
             1 => {
                 let address = (data & 0xFFFF) as u8;
@@ -279,7 +280,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                     });
                 });
 
-                0
+                ReturnCode::SUCCESS
             }
 
             // Do a read to another I2C device
@@ -307,8 +308,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                     });
                 });
 
-
-                0
+                ReturnCode::SUCCESS
             }
 
             // Listen for messages to this device as a slave.
@@ -326,7 +326,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                 // Note that we have enabled listening, so that if we switch
                 // to Master mode to send a message we can go back to listening.
                 self.listening.set(true);
-                0
+                ReturnCode::SUCCESS
             }
 
             // Prepare for a read from another Master by passing what's
@@ -350,7 +350,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                     });
                 });
 
-                0
+                ReturnCode::SUCCESS
             }
 
             // Stop listening for messages as an I2C slave
@@ -360,18 +360,18 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                 // We are no longer listening for I2C messages from a different
                 // master device.
                 self.listening.set(false);
-                0
+                ReturnCode::SUCCESS
             }
 
             // Setup this device's slave address.
             6 => {
                 let address = data as u8;
                 hil::i2c::I2CSlave::set_address(self.i2c, address);
-                0
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }
