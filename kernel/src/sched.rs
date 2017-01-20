@@ -1,7 +1,9 @@
+use core::nonzero::NonZero;
 use platform::{Chip, Platform};
 use platform::systick::SysTick;
 use process;
 use process::{Process, Task};
+use returncode::ReturnCode;
 use syscall;
 
 pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
@@ -90,16 +92,22 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
             Some(syscall::SUBSCRIBE) => {
                 let driver_num = process.r0();
                 let subdriver_num = process.r1();
-                let callback_ptr = process.r2() as *mut ();
+                let callback_ptr_raw = process.r2() as *mut ();
                 let appdata = process.r3();
 
-                let callback = ::Callback::new(appid, appdata, callback_ptr);
-                let res = platform.with_driver(driver_num, |driver| {
-                    match driver {
-                        Some(d) => d.subscribe(subdriver_num, callback),
-                        None => -1,
-                    }
-                });
+                let res = if callback_ptr_raw as usize == 0 {
+                    ReturnCode::EINVAL as isize * -1
+                } else {
+                    let callback_ptr = NonZero::new(callback_ptr_raw);
+
+                    let callback = ::Callback::new(appid, appdata, callback_ptr);
+                    platform.with_driver(driver_num, |driver| {
+                        match driver {
+                            Some(d) => d.subscribe(subdriver_num, callback),
+                            None => ReturnCode::ENODEVICE as isize * -1,
+                        }
+                    })
+                };
                 process.set_r0(res);
             }
             Some(syscall::COMMAND) => {
