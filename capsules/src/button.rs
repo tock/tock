@@ -5,6 +5,8 @@
 use kernel::{AppId, Container, Callback, Driver};
 use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
+use kernel::process::Error;
+use kernel::returncode::ReturnCode;
 
 pub type SubscribeMap = u32;
 
@@ -31,7 +33,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
 }
 
 impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // set callback for pin interrupts (no affect or reliance on individual pins being
             // configured as interrupts)
@@ -39,32 +41,44 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                 self.callback
                     .enter(callback.app_id(), |cntr, _| {
                         cntr.0 = Some(callback);
-                        0
+                        ReturnCode::SUCCESS
                     })
-                    .unwrap_or(-2)
+                    .unwrap_or_else(|err| {
+                        match err {
+                            Error::OutOfMemory => ReturnCode::ENOMEM,
+                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                            Error::NoSuchApp => ReturnCode::EINVAL,
+                        }
+                    })
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, appid: AppId) -> isize {
+    fn command(&self, command_num: usize, data: usize, appid: AppId) -> ReturnCode {
         let pins = self.pins.as_ref();
         match command_num {
             // return pin count
-            0 => pins.len() as isize,
+            0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
             // enable interrupts on pin
             1 => {
                 if data < pins.len() {
                     self.callback
                         .enter(appid, |cntr, _| {
                             cntr.1 |= 1 << data;
-                            0
+                            ReturnCode::SUCCESS
                         })
-                        .unwrap_or(-3)
+                        .unwrap_or_else(|err| {
+                            match err {
+                                Error::OutOfMemory => ReturnCode::ENOMEM,
+                                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                Error::NoSuchApp => ReturnCode::EINVAL,
+                            }
+                        })
                 } else {
-                    -2
+                    ReturnCode::EINVAL /* impossible pin */
                 }
             }
 
@@ -72,29 +86,35 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
             // (no affect or reliance on registered callback)
             2 => {
                 if data >= pins.len() {
-                    -2
+                    ReturnCode::EINVAL /* impossible pin */
                 } else {
                     self.callback
                         .enter(appid, |cntr, _| {
                             cntr.1 &= !(1 << data);
-                            0
+                            ReturnCode::SUCCESS
                         })
-                        .unwrap_or(-3)
+                        .unwrap_or_else(|err| {
+                            match err {
+                                Error::OutOfMemory => ReturnCode::ENOMEM,
+                                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                Error::NoSuchApp => ReturnCode::EINVAL,
+                            }
+                        })
                 }
             }
 
             // read input
             3 => {
                 if data >= pins.len() {
-                    -1
+                    ReturnCode::EINVAL /* impossible pin */
                 } else {
                     let pin_state = pins[data].read();
-                    pin_state as isize
+                    ReturnCode::SuccessWithValue { value: pin_state as usize }
                 }
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

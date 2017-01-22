@@ -72,15 +72,17 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 let res = match brk_type {
                     0 /* BRK */ => {
                         process.brk(r1 as *const u8)
-                            .map(|_| 0).unwrap_or(-1)
+                            .map(|_| ReturnCode::SUCCESS)
+                            .unwrap_or(ReturnCode::ENOMEM)
                     },
                     1 /* SBRK */ => {
                         process.sbrk(r1 as isize)
-                            .map(|addr| addr as isize).unwrap_or(-1)
+                            .map(|addr| ReturnCode::SuccessWithValue { value: addr as usize })
+                            .unwrap_or(ReturnCode::ENOMEM)
                     },
-                    _ => -2
+                    _ => ReturnCode::ENOSUPPORT
                 };
-                process.set_r0(res);
+                process.set_return_code(res);
             }
             Some(syscall::YIELD) => {
                 process.yield_state();
@@ -96,7 +98,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 let appdata = process.r3();
 
                 let res = if callback_ptr_raw as usize == 0 {
-                    ReturnCode::EINVAL as isize * -1
+                    ReturnCode::EINVAL
                 } else {
                     let callback_ptr = NonZero::new(callback_ptr_raw);
 
@@ -104,20 +106,20 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                     platform.with_driver(driver_num, |driver| {
                         match driver {
                             Some(d) => d.subscribe(subdriver_num, callback),
-                            None => ReturnCode::ENODEVICE as isize * -1,
+                            None => ReturnCode::ENODEVICE,
                         }
                     })
                 };
-                process.set_r0(res);
+                process.set_return_code(res);
             }
             Some(syscall::COMMAND) => {
                 let res = platform.with_driver(process.r0(), |driver| {
                     match driver {
                         Some(d) => d.command(process.r1(), process.r2(), appid),
-                        None => -1,
+                        None => ReturnCode::ENODEVICE,
                     }
                 });
-                process.set_r0(res);
+                process.set_return_code(res);
             }
             Some(syscall::ALLOW) => {
                 let res = platform.with_driver(process.r0(), |driver| {
@@ -129,13 +131,13 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                                 let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
                                 d.allow(appid, process.r1(), slice)
                             } else {
-                                -1
+                                ReturnCode::EINVAL /* memory not allocated to process */
                             }
                         }
-                        None => -1,
+                        None => ReturnCode::ENODEVICE,
                     }
                 });
-                process.set_r0(res);
+                process.set_return_code(res);
             }
             _ => {}
         }

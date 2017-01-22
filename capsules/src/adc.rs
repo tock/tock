@@ -42,40 +42,30 @@ impl<'a, A: AdcSingle + 'a> Client for ADC<'a, A> {
 }
 
 impl<'a, A: AdcSingle + 'a> Driver for ADC<'a, A> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // subscribe to ADC sample done
             0 => {
                 self.callback.set(Some(callback));
-                0
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
             // TODO: This should return the number of valid ADC channels.
-            0 /* check if present */ => 0,
+            0 /* check if present */ => ReturnCode::SUCCESS,
             // Initialize ADC
-            1 => {
-                match self.initialize() {
-                    ReturnCode::SUCCESS => 0,
-                    _ => -1,
-                }
-            }
+            1 => self.initialize(),
             // Sample on channel
-            2 => {
-                match self.sample(data as u8) {
-                    ReturnCode::SUCCESS => 0,
-                    _ => -1,
-                }
-            }
+            2 => self.sample(data as u8),
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }
