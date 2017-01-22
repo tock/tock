@@ -47,14 +47,12 @@ impl<'a, A: Alarm> TimerDriver<'a, A> {
         let mut next_alarm = u32::max_value();
         let mut next_dist = u32::max_value();
         for timer in self.app_timer.iter() {
-            timer.enter(|timer, _| {
-                if timer.interval > 0 {
-                    let t_alarm = timer.t0.wrapping_add(timer.interval);
-                    let t_dist = t_alarm.wrapping_sub(now);
-                    if next_dist > t_dist {
-                        next_alarm = t_alarm;
-                        next_dist = t_dist;
-                    }
+            timer.enter(|timer, _| if timer.interval > 0 {
+                let t_alarm = timer.t0.wrapping_add(timer.interval);
+                let t_dist = t_alarm.wrapping_sub(now);
+                if next_dist > t_dist {
+                    next_alarm = t_alarm;
+                    next_dist = t_dist;
                 }
             });
         }
@@ -71,12 +69,10 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                 td.callback = Some(callback);
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|err| {
-                match err {
-                    Error::OutOfMemory => ReturnCode::ENOMEM,
-                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                    Error::NoSuchApp => ReturnCode::EINVAL,
-                }
+            .unwrap_or_else(|err| match err {
+                Error::OutOfMemory => ReturnCode::ENOMEM,
+                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                Error::NoSuchApp => ReturnCode::EINVAL,
             })
     }
 
@@ -180,9 +176,7 @@ impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
                     self.num_armed.set(self.num_armed.get() - 1);
                 }
 
-                timer.callback.map(|mut cb| {
-                    cb.schedule(now as usize, 0, 0);
-                });
+                timer.callback.map(|mut cb| { cb.schedule(now as usize, 0, 0); });
             }
         });
 

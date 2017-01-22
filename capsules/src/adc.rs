@@ -35,9 +35,9 @@ impl<'a, A: AdcSingle + 'a> ADC<'a, A> {
 
 impl<'a, A: AdcSingle + 'a> Client for ADC<'a, A> {
     fn sample_done(&self, sample: u16) {
-        self.callback.get().map(|mut cb| {
-            cb.schedule(0, self.channel.get() as usize, sample as usize);
-        });
+        self.callback
+            .get()
+            .map(|mut cb| { cb.schedule(0, self.channel.get() as usize, sample as usize); });
     }
 }
 

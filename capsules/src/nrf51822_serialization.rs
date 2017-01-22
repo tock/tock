@@ -122,9 +122,9 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                     None => {
                         // can't start receiving until DMA has been set up
                         //  we'll start here when subscribe is first called
-                        self.rx_buffer.take().map(|buffer| {
-                            self.uart.receive_automatic(buffer, 250);
-                        });
+                        self.rx_buffer
+                            .take()
+                            .map(|buffer| { self.uart.receive_automatic(buffer, 250); });
 
                         App {
                             callback: Some(callback),
@@ -206,9 +206,7 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         //               Can't just use 0!
         self.app.map(|appst| {
             // Call the callback after TX has finished
-            appst.callback.as_mut().map(|mut cb| {
-                cb.schedule(1, 0, 0);
-            });
+            appst.callback.as_mut().map(|mut cb| { cb.schedule(1, 0, 0); });
         });
     }
 
@@ -227,10 +225,8 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
                 }
 
                 // copy over data to app buffer
-                self.rx_buffer.map(|buffer| {
-                    for idx in 0..max_len {
-                        rb.as_mut()[idx] = buffer[idx];
-                    }
+                self.rx_buffer.map(|buffer| for idx in 0..max_len {
+                    rb.as_mut()[idx] = buffer[idx];
                 });
 
                 appst.callback.as_mut().map(|cb| {
@@ -243,8 +239,6 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         });
 
         // restart the uart receive
-        self.rx_buffer.take().map(|buffer| {
-            self.uart.receive_automatic(buffer, 250);
-        });
+        self.rx_buffer.take().map(|buffer| { self.uart.receive_automatic(buffer, 250); });
     }
 }

@@ -433,11 +433,8 @@ impl DMAClient for Spi {
 
             let len = self.dma_length.get();
             self.dma_length.set(0);
-            self.client.map(|cb| {
-                txbuf.map(|txbuf| {
-                    cb.read_write_done(txbuf, rxbuf, len);
-                });
-            });
+            self.client
+                .map(|cb| { txbuf.map(|txbuf| { cb.read_write_done(txbuf, rxbuf, len); }); });
         }
     }
 }

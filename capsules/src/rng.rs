@@ -98,9 +98,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                     if app.remaining > 0 {
                         done = false;
                     } else {
-                        app.callback.map(|mut cb| {
-                            cb.schedule(0, app.idx, 0);
-                        });
+                        app.callback.map(|mut cb| { cb.schedule(0, app.idx, 0); });
                     }
                 }
             });
@@ -132,12 +130,10 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                         app.buffer = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| {
-                        match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        }
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -152,12 +148,10 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                         app.callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| {
-                        match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        }
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
 

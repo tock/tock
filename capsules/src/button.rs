@@ -43,12 +43,10 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                         cntr.0 = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| {
-                        match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        }
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
 
@@ -70,12 +68,10 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                             cntr.1 |= 1 << data;
                             ReturnCode::SUCCESS
                         })
-                        .unwrap_or_else(|err| {
-                            match err {
-                                Error::OutOfMemory => ReturnCode::ENOMEM,
-                                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                Error::NoSuchApp => ReturnCode::EINVAL,
-                            }
+                        .unwrap_or_else(|err| match err {
+                            Error::OutOfMemory => ReturnCode::ENOMEM,
+                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                            Error::NoSuchApp => ReturnCode::EINVAL,
                         })
                 } else {
                     ReturnCode::EINVAL /* impossible pin */
@@ -93,12 +89,10 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                             cntr.1 &= !(1 << data);
                             ReturnCode::SUCCESS
                         })
-                        .unwrap_or_else(|err| {
-                            match err {
-                                Error::OutOfMemory => ReturnCode::ENOMEM,
-                                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                Error::NoSuchApp => ReturnCode::EINVAL,
-                            }
+                        .unwrap_or_else(|err| match err {
+                            Error::OutOfMemory => ReturnCode::ENOMEM,
+                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                            Error::NoSuchApp => ReturnCode::EINVAL,
                         })
                 }
             }
@@ -127,10 +121,8 @@ impl<'a, G: hil::gpio::Pin> Client for Button<'a, G> {
 
         // schedule callback with the pin number and value
         self.callback.each(|cntr| {
-            cntr.0.map(|mut callback| {
-                if cntr.1 & (1 << pin_num) != 0 {
-                    callback.schedule(pin_num, pin_state as usize, 0);
-                }
+            cntr.0.map(|mut callback| if cntr.1 & (1 << pin_num) != 0 {
+                callback.schedule(pin_num, pin_state as usize, 0);
             });
         });
     }

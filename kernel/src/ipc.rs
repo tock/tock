@@ -2,8 +2,8 @@
 //! platform controlling of buttons without having to know which of the GPIO pins exposed across
 //! the syscall interface are buttons.
 
-use ::{AppId, AppSlice, Container, Callback, Driver, Shared};
-use ::process;
+use {AppId, AppSlice, Container, Callback, Driver, Shared};
+use process;
 use returncode::ReturnCode;
 
 struct IPCData {

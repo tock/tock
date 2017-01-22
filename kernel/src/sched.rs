@@ -103,21 +103,17 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                     let callback_ptr = NonZero::new(callback_ptr_raw);
 
                     let callback = ::Callback::new(appid, appdata, callback_ptr);
-                    platform.with_driver(driver_num, |driver| {
-                        match driver {
-                            Some(d) => d.subscribe(subdriver_num, callback),
-                            None => ReturnCode::ENODEVICE,
-                        }
+                    platform.with_driver(driver_num, |driver| match driver {
+                        Some(d) => d.subscribe(subdriver_num, callback),
+                        None => ReturnCode::ENODEVICE,
                     })
                 };
                 process.set_return_code(res);
             }
             Some(Syscall::COMMAND) => {
-                let res = platform.with_driver(process.r0(), |driver| {
-                    match driver {
-                        Some(d) => d.command(process.r1(), process.r2(), appid),
-                        None => ReturnCode::ENODEVICE,
-                    }
+                let res = platform.with_driver(process.r0(), |driver| match driver {
+                    Some(d) => d.command(process.r1(), process.r2(), appid),
+                    None => ReturnCode::ENODEVICE,
                 });
                 process.set_return_code(res);
             }

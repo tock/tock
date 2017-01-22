@@ -65,8 +65,9 @@ extern "C" {
 }
 
 #[link_section=".vectors"]
-#[no_mangle] // Ensures that the symbol is kept until the final binary
 #[cfg_attr(rustfmt, rustfmt_skip)]
+// no_mangle Ensures that the symbol is kept until the final binary
+#[no_mangle]
 pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     _estack, reset_handler,
     /* NMI */           unhandled_interrupt,
@@ -249,40 +250,49 @@ unsafe extern "C" fn hard_fault_handler() {
                \tSHCSR 0x{:x}\n\
                \tCFSR  0x{:x}\n\
                \tHSFR  0x{:x}\n\
-               ", mode_str,
-               stacked_r0, stacked_r1, stacked_r2, stacked_r3,
-               stacked_r12, stacked_lr, stacked_pc, stacked_prs,
-               faulting_stack as u32, shcsr, cfsr, hfsr);
+               ",
+               mode_str,
+               stacked_r0,
+               stacked_r1,
+               stacked_r2,
+               stacked_r3,
+               stacked_r12,
+               stacked_lr,
+               stacked_pc,
+               stacked_prs,
+               faulting_stack as u32,
+               shcsr,
+               cfsr,
+               hfsr);
     } else {
         // hard fault occurred in an app, not the kernel. The app should be
         //  marked as in an error state and handled by the kernel
-        asm!(
-            "ldr r0, =SYSCALL_FIRED
-             mov r1, #1
-             str r1, [r0, #0]
+        asm!("ldr r0, =SYSCALL_FIRED
+              mov r1, #1
+              str r1, [r0, #0]
 
-             ldr r0, =APP_FAULT
-             str r1, [r0, #0]
+              ldr r0, =APP_FAULT
+              str r1, [r0, #0]
 
-             /* Read the SCB registers. */
-             ldr r0, =SCB_REGISTERS
-             ldr r1, =0xE000ED14
-             ldr r2, [r1, #0] /* CCR */
-             str r2, [r0, #0]
-             ldr r2, [r1, #20] /* CFSR */
-             str r2, [r0, #4]
-             ldr r2, [r1, #24] /* HFSR */
-             str r2, [r0, #8]
-             ldr r2, [r1, #32] /* MMFAR */
-             str r2, [r0, #12]
-             ldr r2, [r1, #36] /* BFAR */
-             str r2, [r0, #16]
+              /* Read the SCB registers. */
+              ldr r0, =SCB_REGISTERS
+              ldr r1, =0xE000ED14
+              ldr r2, [r1, #0] /* CCR */
+              str r2, [r0, #0]
+              ldr r2, [r1, #20] /* CFSR */
+              str r2, [r0, #4]
+              ldr r2, [r1, #24] /* HFSR */
+              str r2, [r0, #8]
+              ldr r2, [r1, #32] /* MMFAR */
+              str r2, [r0, #12]
+              ldr r2, [r1, #36] /* BFAR */
+              str r2, [r0, #16]
 
-             /* Set thread mode to privileged */
-             mov r0, #0
-             msr CONTROL, r0
+              /* Set thread mode to privileged */
+              mov r0, #0
+              msr CONTROL, r0
 
-             movw LR, #0xFFF9
-             movt LR, #0xFFFF");
+              movw LR, #0xFFF9
+              movt LR, #0xFFFF");
     }
 }
