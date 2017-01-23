@@ -119,38 +119,43 @@ enum InternalState {
 // and the finite state machine.
 //
 // Buffer management is tricky because the implementation tries to
-// minimize the different buffers it uses. It needs to be able to
-// send 2-byte register reads and writes on initialization. So it
-// needs 2 2-byte buffers for these. When it is transmitting a packet,
-// it performs one long write over SPI to move the packet to the radio.
-// It needs a read buffer of equal length so it can check the radio state.
-// Similarly, when it reads a packet out of RAM into a buffer, it needs
-// an equal length buffer for the SPI write. Finally, it needs a buffer to
-// receive packets into, so it doesn't drop a packet just because an application
-// didn't read in time. Therefore, the structure needs
-// four buffers: 2 2-byte buffers and two packet-length buffers.
-// Since the SPI callback does not distinguish which buffers are being used,
-// the read_write_done callback checks which state the stack is in and places
-// the buffers back accodingly. A bug here would mean a memory leak and later
-// panic when a buffer that should be present has been lost.
+// minimize the different buffers it uses. It needs to be able to send
+// 2-byte register reads and writes on initialization. So it needs 2
+// 2-byte buffers for these. When it is transmitting a packet, it
+// performs one long write over SPI to move the packet to the radio.
+// It needs a read buffer of equal length so it can check the radio
+// state.  Similarly, when it reads a packet out of RAM into a buffer,
+// it needs an equal length buffer for the SPI write. Finally, it
+// needs a buffer to receive packets into, so it doesn't drop a packet
+// just because an application didn't read in time. Therefore, the
+// structure needs four buffers: 2 2-byte buffers and two
+// packet-length buffers.  Since the SPI callback does not distinguish
+// which buffers are being used, the read_write_done callback checks
+// which state the stack is in and places the buffers back
+// accodingly. A bug here would mean a memory leak and later panic
+// when a buffer that should be present has been lost.
 //
-// The finite state machine is tricky for two reasons. First, the radio can
-// issue an interrupt at any time, and the stack handles the interrupt (clearing
-// it) by reading the IRQ_STATUS register. Therefore, when an interrupt occurs,
-// the next SPI operation needs to read IRQ_STATUS (and potentially change self.state)
-// before returning to the main state machine. self.interrupt_pending indicates if an
-// interrupt has fired and therefore must be handled by reading IRQ_STATUS and
-// acting accordingly. self.interrupt_handling indicates that a read of IRQ_STATUS
-// is pending and so the read_write_done should enact state transitions based
-// on the interrupt.
+// The finite state machine is tricky for two reasons. First, the
+// radio can issue an interrupt at any time, and the stack handles the
+// interrupt (clearing it) by reading the IRQ_STATUS
+// register. Therefore, when an interrupt occurs, the next SPI
+// operation needs to read IRQ_STATUS (and potentially change
+// self.state) before returning to the main state
+// machine. self.interrupt_pending indicates if an interrupt has fired
+// and therefore must be handled by reading IRQ_STATUS and acting
+// accordingly. self.interrupt_handling indicates that a read of
+// IRQ_STATUS is pending and so the read_write_done should enact state
+// transitions based on the interrupt.
 //
-// Second, it is possible that a packet starts arriving while the stack is preparing
-// a transmission. In this case, the transmission needs to be aborted, but restarted
-// once the reception completes. The stack keeps track of this with self.transmitting.
-// The final state before transmission is TX_ARET_ON; the next step is to start
-// transmission. If a start-of-frame interrupt is handled at any point in the TX
-// state machine, the stack moves to the RX state and waits for the interrupt specifying
-// the entire packet has been received.
+// Second, it is possible that a packet starts arriving while the
+// stack is preparing a transmission. In this case, the transmission
+// needs to be aborted, but restarted once the reception
+// completes. The stack keeps track of this with self.transmitting.
+// The final state before transmission is TX_ARET_ON; the next step is
+// to start transmission. If a start-of-frame interrupt is handled at
+// any point in the TX state machine, the stack moves to the RX state
+// and waits for the interrupt specifying the entire packet has been
+// received.
 
 pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     spi: &'a S,
