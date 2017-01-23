@@ -283,19 +283,13 @@ impl FLASHCALW {
             // call command complete with error
             match error_status {
                 4 => {
-                    self.client.map(|value| {
-                        value.command_complete(Error::LockE);
-                    });
+                    self.client.map(|value| { value.command_complete(Error::LockE); });
                 }
                 8 => {
-                    self.client.map(|value| {
-                        value.command_complete(Error::ProgE);
-                    });
+                    self.client.map(|value| { value.command_complete(Error::ProgE); });
                 }
                 12 => {
-                    self.client.map(|value| {
-                        value.command_complete(Error::LockProgE);
-                    });
+                    self.client.map(|value| { value.command_complete(Error::LockProgE); });
                 }
                 _ => {}
             }
@@ -366,9 +360,7 @@ impl FLASHCALW {
         //  If the command is finished call the complete CB.
         if self.current_command.get() == Command::None &&
            self.current_state.get() == FlashState::Ready {
-            self.client.map(|value| {
-                value.command_complete(Error::CommandComplete);
-            });
+            self.client.map(|value| { value.command_complete(Error::CommandComplete); });
         }
     }
 
@@ -778,7 +770,7 @@ impl FLASHCALW {
 
         // configure all other interrupts explicitly.
         self.enable_ready_int(false); // note the issue_command function turns this
-                                      // on when need be.
+        // on when need be.
         self.enable_lock_error_int(false);
         self.enable_prog_error_int(false);
         self.enable_ecc_int(false);
@@ -849,9 +841,7 @@ impl FLASHCALW {
             return -1;
         }
 
-        self.page_buffer.map(|value| {
-            value.clone_from_slice(&data);
-        });
+        self.page_buffer.map(|value| { value.clone_from_slice(&data); });
 
         self.current_state.set(FlashState::Unlocking);
         self.current_command.set(Command::Write { page: page_num });

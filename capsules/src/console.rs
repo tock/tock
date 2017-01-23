@@ -78,12 +78,10 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                         app.read_idx = 0;
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| {
-                        match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        }
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
             1 => {
@@ -92,12 +90,10 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                         app.write_buffer = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| {
-                        match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        }
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -189,10 +185,10 @@ impl<'a, U: UART> Client for Console<'a, U> {
                             app.write_len = app.write_remaining;
                             self.in_progress.replace(appid);
                             self.tx_buffer.take().map(|buffer| {
-                                for (i, c) in
-                                    slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
-                                        .iter()
-                                        .enumerate() {
+                                for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..
+                                              slice.len()]
+                                    .iter()
+                                    .enumerate() {
                                     if buffer.len() <= i {
                                         break;
                                     }
@@ -217,9 +213,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
 
                 } else {
                     // Go ahead and signal the application
-                    app.write_callback.map(|mut cb| {
-                        cb.schedule(app.write_len, 0, 0);
-                    });
+                    app.write_callback.map(|mut cb| { cb.schedule(app.write_len, 0, 0); });
                     app.write_len = 0;
                 }
             })

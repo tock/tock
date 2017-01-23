@@ -64,11 +64,11 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
         app.index = end;
 
         self.kernel_write.map(|kwbuf| {
-            app.app_write.as_mut().map(|src| {
-                for (i, c) in src.as_ref()[start..end].iter().enumerate() {
+            app.app_write
+                .as_mut()
+                .map(|src| for (i, c) in src.as_ref()[start..end].iter().enumerate() {
                     kwbuf[i] = *c;
-                }
-            });
+                });
         });
         self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(),
                                          self.kernel_read.take(),
@@ -283,9 +283,7 @@ impl<'a, S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
                 self.busy.set(false);
                 app.len = 0;
                 app.index = 0;
-                app.callback.take().map(|mut cb| {
-                    cb.schedule(app.len, 0, 0);
-                });
+                app.callback.take().map(|mut cb| { cb.schedule(app.len, 0, 0); });
             } else {
                 self.do_next_read_write(app);
             }
