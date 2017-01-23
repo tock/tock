@@ -54,7 +54,8 @@ CPPFLAGS += \
 	    -mno-pic-data-is-text-relative
 OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
 
-LIBS =  $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) $(OTHERLIBS)
+LIBS += $(LIBTOCK)
+LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
 LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
 LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
 LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
