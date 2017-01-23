@@ -151,9 +151,12 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
             5 /* tx packet */ => {
                 // Don't transmit if we're busy, the radio is off, or
                 // we don't have a buffer yet.
-                if self.busy.get() || !self.radio.ready() ||
-                   self.kernel_tx.is_none() {
-                       return ReturnCode::ENOMEM
+                if self.busy.get() {
+                    return ReturnCode::EBUSY;
+                } else if !self.radio.ready() {
+                    return ReturnCode::EOFF;
+                } else if self.kernel_tx.is_none() {
+                    return ReturnCode::ENOMEM;
                 }
 
                 // The argument packs the 16-bit destination address
