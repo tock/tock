@@ -182,7 +182,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
                 if app.write_remaining > 0 {
                     match app.write_buffer.take() {
                         Some(slice) => {
-                            app.write_len = app.write_remaining;
+                            let mut transaction_len = app.write_remaining;
                             self.in_progress.replace(appid);
                             self.tx_buffer.take().map(|buffer| {
                                 for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..
@@ -197,14 +197,14 @@ impl<'a, U: UART> Client for Console<'a, U> {
 
                                 // Check to see if we need to keep going.
                                 if app.write_remaining > buffer.len() {
-                                    app.write_len = buffer.len();
+                                    transaction_len = buffer.len();
                                     app.write_remaining = app.write_remaining - buffer.len();
                                     app.write_buffer = Some(slice);
                                 } else {
                                     app.write_remaining = 0;
                                 }
 
-                                self.uart.transmit(buffer, app.write_len);
+                                self.uart.transmit(buffer, transaction_len);
                             });
                             0
                         }
