@@ -904,7 +904,19 @@ impl<'a> Process<'a> {
             // You can thank the piece of garbage rustfmt for this.
             let _ = writer.write_fmt(format_args!("\
             App: {}   -   [{:?}]\
-            \r\n Events Queued: {}   Syscall Count: {}   Last Syscall: {:?}\
+            \r\n Events Queued: {}   Syscall Count: {}   ",
+                                                  self.package_name,
+                                                  self.state,
+                                                  events_queued,
+                                                  syscall_count,
+                                                  ));
+
+            let _ = match last_syscall {
+                Some(syscall) => writer.write_fmt(format_args!("Last Syscall: {:?}", syscall)),
+                None => writer.write_fmt(format_args!("Last Syscall: None")),
+            };
+
+            let _ = writer.write_fmt(format_args!("\
             \r\n\
             \r\n ╔═══════════╤══════════════\
 ════════════════════════════╗\
@@ -957,11 +969,6 @@ impl<'a> Process<'a> {
               \r\n  PC : {:#010X} [{:#010X} in lst file]\
               \r\n YPC : {:#010X} [{:#010X} in lst file]\
             \r\n\r\n",
-                                                  self.package_name,
-                                                  self.state,
-                                                  events_queued,
-                                                  syscall_count,
-                                                  last_syscall,
                                                   sram_end,
                                                   sram_grant_size,
                                                   sram_grant_allocated,
