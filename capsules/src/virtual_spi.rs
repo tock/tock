@@ -123,14 +123,15 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMaste
                        write_buffer: &'static mut [u8],
                        read_buffer: Option<&'static mut [u8]>,
                        len: usize) {
-        self.client.get().map(move |client| {
-            client.read_write_done(write_buffer, read_buffer, len);
-        });
+        self.client
+            .get()
+            .map(move |client| { client.read_write_done(write_buffer, read_buffer, len); });
     }
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
-    for VirtualSpiMasterDevice<'a, Spi> {
+    for
+    VirtualSpiMasterDevice<'a, Spi> {
     fn next(&'a self) -> &'a ListLink<'a, VirtualSpiMasterDevice<'a, Spi>> {
         &self.next
     }

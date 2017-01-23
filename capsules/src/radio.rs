@@ -45,7 +45,7 @@ impl<'a, R: radio::Radio> RadioDriver<'a, R> {
 }
 
 impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
                 let appc = match self.app.take() {
@@ -63,7 +63,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             }
             1 => {
                 let appc = match self.app.take() {
@@ -81,14 +81,14 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
     #[inline(never)]
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* transmit done*/  => {
                 let appc = match self.app.take() {
@@ -104,7 +104,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             },
             1 /* receive */ => {
                 let appc = match self.app.take() {
@@ -120,9 +120,9 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             },
-            _ => -1
+            _ => ReturnCode::ENOSUPPORT
         }
     }
 
@@ -133,35 +133,27 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
     // 4: set tx power
     // 5: transmit packet
 
-    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
+    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
         match cmd_num {
-            0 /* check if present */ => 0,
+            0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* set 16-bit address */ => {
-                if self.radio.set_address(arg1 as u16) == ReturnCode::SUCCESS {
-                    0
-                } else {
-                    -1
-                }
+                self.radio.set_address(arg1 as u16)
             },
             2 /* set PAN id */ => {
-                if self.radio.set_pan(arg1 as u16) == ReturnCode::SUCCESS {
-                    0
-                } else {
-                    -1
-                }
+                self.radio.set_pan(arg1 as u16)
             },
             3 /* set channel */ => { // not yet supported
-                -1
+                ReturnCode::ENOSUPPORT
             },
             4 /* set tx power */ => { // not yet supported
-                -1
+                ReturnCode::ENOSUPPORT
             },
             5 /* tx packet */ => {
                 // Don't transmit if we're busy, the radio is off, or
                 // we don't have a buffer yet.
                 if self.busy.get() || !self.radio.ready() ||
                    self.kernel_tx.is_none() {
-                    return -1;
+                       return ReturnCode::ENOMEM
                 }
 
                 // The argument packs the 16-bit destination address
@@ -176,7 +168,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     let len: usize = (arg1 >> 16) & 0xff;
                     let addr: u16 = (arg1 & 0xffff) as u16;
                     if blen < len {
-                        return -1;
+                        return ReturnCode::ESIZE;
                     }
                     let offset = self.radio.payload_offset() as usize;
                     // Copy the packet into the kernel buffer
@@ -193,16 +185,20 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     let rval = self.radio.transmit(addr, kbuf, transmit_len);
                     if rval == ReturnCode::SUCCESS {
                         self.busy.set(true);
-                        return 0;
+                        return ReturnCode::SUCCESS
                     }
-                    return -1;
+                    return rval;
                 });
-                return -1;
+                return ReturnCode::ENOMEM;
             },
             6 /* check if on */ => {
-                return self.radio.ready() as isize;
+                if self.radio.ready() {
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EOFF
+                }
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }
@@ -213,7 +209,7 @@ impl<'a, R: radio::Radio> radio::TxClient for RadioDriver<'a, R> {
             self.kernel_tx.replace(buf);
             self.busy.set(false);
             app.tx_callback.take().map(|mut cb| {
-                cb.schedule(result as usize, 0, 0);
+                cb.schedule(usize::from(result), 0, 0);
             });
         });
     }
@@ -228,11 +224,11 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
                     let dest = app.app_read.as_mut().unwrap();
                     let d = &mut dest.as_mut();
                     for (i, c) in buf[offset..len as usize].iter().enumerate() {
-                        // Should subtract header length and move payload
+                        // Should  subtract header length and move payload
                         d[i] = *c;
                     }
                     app.rx_callback.take().map(|mut cb| {
-                        cb.schedule(result as usize, 0, 0);
+                        cb.schedule(usize::from(result), 0, 0);
                     });
                 }
                 self.radio.set_receive_buffer(buf);

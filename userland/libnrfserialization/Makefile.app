@@ -7,7 +7,7 @@ CFLAGS += -DSOFTDEVICE_s130
 
 CFLAGS += -I$(LIBNRFSER_DIR)/headers
 
-OTHERLIBS += $(LIBNRFSER_DIR)/libnrfserialization.a
+LIBS += $(LIBNRFSER_DIR)/libnrfserialization.a
 
 # If environment variable V is non-empty, be verbose
 ifneq ($(V),)

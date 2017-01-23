@@ -189,9 +189,7 @@ impl hil::gpio::Pin for GPIOPin {
 
 impl GPIOPin {
     pub fn handle_interrupt(&self) {
-        self.client.map(|client| {
-            client.fired(self.client_data.get());
-        });
+        self.client.map(|client| { client.fired(self.client_data.get()); });
     }
 }
 

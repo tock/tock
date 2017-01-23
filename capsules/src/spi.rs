@@ -8,6 +8,7 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::spi::{SpiMasterDevice, SpiMasterClient};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
+use kernel::returncode::ReturnCode;
 
 // SPI operations are handled by coping into a kernel buffer for
 // writes and copying out of a kernel buffer for reads.
@@ -63,11 +64,11 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
         app.index = end;
 
         self.kernel_write.map(|kwbuf| {
-            app.app_write.as_mut().map(|src| {
-                for (i, c) in src.as_ref()[start..end].iter().enumerate() {
+            app.app_write
+                .as_mut()
+                .map(|src| for (i, c) in src.as_ref()[start..end].iter().enumerate() {
                     kwbuf[i] = *c;
-                }
-            });
+                });
         });
         self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(),
                                          self.kernel_read.take(),
@@ -76,7 +77,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
 }
 
 impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
                 let appc = match self.app.take() {
@@ -95,7 +96,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             }
             1 => {
                 let appc = match self.app.take() {
@@ -114,14 +115,14 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
     #[inline(never)]
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* read_write */ => {
                 let appc = match self.app.take() {
@@ -138,9 +139,9 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             },
-            _ => -1
+            _ => ReturnCode::ENOSUPPORT
         }
     }
     // 0: read/write a single byte (blocking)
@@ -186,19 +187,17 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     //   - does nothing if lock not held
     //
 
-    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
+    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
         match cmd_num {
-            0 /* check if present */ => 0,
+            0 /* check if present */ => ReturnCode::SUCCESS,
             // No longer supported, wrap inside a read_write_bytes
-            1 /* read_write_byte */ => -1,
+            1 /* read_write_byte */ => ReturnCode::ENOSUPPORT,
             2 /* read_write_bytes */ => {
                 if self.busy.get() {
-                    return -1;
+                    return ReturnCode::EBUSY;
                 }
-                let mut result = -1;
-                self.app.map(|app| {
+                self.app.map_or(ReturnCode::FAIL /* XXX app is null? */, |app| {
                     let mut mlen = 0;
-                    // If write buffer too small, return
                     app.app_write.as_mut().map(|w| {
                         mlen = w.len();
                     });
@@ -210,46 +209,51 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                         app.index = 0;
                         self.busy.set(true);
                         self.do_next_read_write(app);
-                        result = 0;
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::EINVAL /* write buffer too small */
                     }
-                });
-                return result;
+                })
             }
             3 /* set chip select */ => {
-                -1 // do nothing, for now, until we fix interface
-                   // so virtual instances can use multiple chip selects
+                // do nothing, for now, until we fix interface
+                // so virtual instances can use multiple chip selects
+                ReturnCode::ENOSUPPORT
             }
             4 /* get chip select */ => {
-                0
+                //XXX Was a naked, uncommented zero. I'm assuming that's
+                //    because the only valid chip select for now is 0,
+                //    and wrapping it appropriately -Pat, ReturnCode fixes
+                ReturnCode::SuccessWithValue { value: 0 }
             }
             5 /* set baud rate */ => {
                 self.spi_master.set_rate(arg1 as u32);
-                0
+                ReturnCode::SUCCESS
             }
             6 /* get baud rate */ => {
-                self.spi_master.get_rate() as isize
+                ReturnCode::SuccessWithValue { value: self.spi_master.get_rate() as usize }
             }
             7 /* set phase */ => {
                 match arg1 {
                     0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
                 };
-                0
+                ReturnCode::SUCCESS
             }
             8 /* get phase */ => {
-                self.spi_master.get_phase() as isize
+                ReturnCode::SuccessWithValue { value: self.spi_master.get_phase() as usize }
             }
             9 /* set polarity */ => {
                 match arg1 {
                     0 => self.spi_master.set_polarity(ClockPolarity::IdleLow),
                     _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
                 };
-                0
+                ReturnCode::SUCCESS
             }
             10 /* get polarity */ => {
-                self.spi_master.get_polarity() as isize
+                ReturnCode::SuccessWithValue { value: self.spi_master.get_polarity() as usize }
             }
-            _ => -1
+            _ => ReturnCode::ENOSUPPORT
         }
     }
 }
@@ -279,9 +283,7 @@ impl<'a, S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
                 self.busy.set(false);
                 app.len = 0;
                 app.index = 0;
-                app.callback.take().map(|mut cb| {
-                    cb.schedule(app.len, 0, 0);
-                });
+                app.callback.take().map(|mut cb| { cb.schedule(app.len, 0, 0); });
             } else {
                 self.do_next_read_write(app);
             }

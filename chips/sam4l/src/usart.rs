@@ -200,13 +200,11 @@ impl USART {
 
             // alert client
             self.client.map(|usartclient| {
-                buffer.map(|buf| {
-                    match usartclient {
-                        &mut UsartClient::Uart(client) => {
-                            client.receive_complete(buf, length, error);
-                        }
-                        &mut UsartClient::SpiMaster(_) => {}
+                buffer.map(|buf| match usartclient {
+                    &mut UsartClient::Uart(client) => {
+                        client.receive_complete(buf, length, error);
                     }
+                    &mut UsartClient::SpiMaster(_) => {}
                 });
             });
         }
@@ -230,13 +228,11 @@ impl USART {
 
             // alert client
             self.client.map(|usartclient| {
-                buffer.map(|buf| {
-                    match usartclient {
-                        &mut UsartClient::Uart(client) => {
-                            client.receive_complete(buf, length, error);
-                        }
-                        &mut UsartClient::SpiMaster(_) => {}
+                buffer.map(|buf| match usartclient {
+                    &mut UsartClient::Uart(client) => {
+                        client.receive_complete(buf, length, error);
                     }
+                    &mut UsartClient::SpiMaster(_) => {}
                 });
             });
         }
@@ -248,7 +244,7 @@ impl USART {
         let ier_val = 0x00000000 |
             (1 <<  7) | // PARE
             (1 <<  6) | // FRAME
-            (1 <<  5);  // OVRE
+            (1 <<  5); //. OVRE
         regs.ier.set(ier_val);
     }
 
@@ -260,7 +256,7 @@ impl USART {
             (1 <<  7) | // PARE
             (1 <<  6) | // FRAME
             (1 <<  5) | // OVRE
-            (1 << 1);   // RXRDY
+            (1 << 1); //.. RXRDY
         regs.idr.set(idr_val);
 
         // XXX: disable nvic if no interrupts are enabled
@@ -270,7 +266,7 @@ impl USART {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         let idr_val = 0x00000000 |
             (1 << 9) | // TXEMPTY
-            (1 << 1);  // TXREADY
+            (1 << 1); //. TXREADY
         regs.idr.set(idr_val);
 
         // XXX: disable nvic if no interrupts are enabled
@@ -289,7 +285,7 @@ impl USART {
         let cr_val = 0x00000000 |
             (1 << 8) | // RSTSTA
             (1 << 3) | // RSTTX
-            (1 <<2);   // RSTRX
+            (1 <<2); //.. RSTRX
         regs.cr.set(cr_val);
 
         self.abort_rx(hil::uart::Error::ResetError);
@@ -475,14 +471,11 @@ impl dma::DMAClient for USART {
 
                     // alert client
                     self.client.map(|usartclient| {
-                        buffer.map(|buf| {
-                            match usartclient {
-                                &mut UsartClient::Uart(client) => {
-                                    client.transmit_complete(buf,
-                                                             hil::uart::Error::CommandComplete);
-                                }
-                                &mut UsartClient::SpiMaster(_) => {}
+                        buffer.map(|buf| match usartclient {
+                            &mut UsartClient::Uart(client) => {
+                                client.transmit_complete(buf, hil::uart::Error::CommandComplete);
                             }
+                            &mut UsartClient::SpiMaster(_) => {}
                         });
                     });
                     self.tx_len.set(0);
@@ -520,12 +513,10 @@ impl dma::DMAClient for USART {
 
                     // alert client
                     self.client.map(|usartclient| {
-                        txbuf.map(|tbuf| {
-                            match usartclient {
-                                &mut UsartClient::Uart(_) => {}
-                                &mut UsartClient::SpiMaster(client) => {
-                                    client.read_write_done(tbuf, rxbuf, len);
-                                }
+                        txbuf.map(|tbuf| match usartclient {
+                            &mut UsartClient::Uart(_) => {}
+                            &mut UsartClient::SpiMaster(client) => {
+                                client.read_write_done(tbuf, rxbuf, len);
                             }
                         });
                     });
@@ -561,8 +552,8 @@ impl hil::uart::UART for USART {
         // set USART mode register
         let mut mode = 0x00000000;
         mode |= 0x1 << 19; // OVER: oversample at 8 times baud rate
-        mode |= 0x3 << 6;  // CHRL: 8-bit characters
-        mode |= 0x0 << 4;  // USCLKS: select CLK_USART
+        mode |= 0x3 << 6; // CHRL: 8-bit characters
+        mode |= 0x0 << 4; // USCLKS: select CLK_USART
 
         match params.stop_bits {
             hil::uart::StopBits::One => mode |= 0x0 << 12, // NBSTOP: 1 stop bit
@@ -576,9 +567,9 @@ impl hil::uart::UART for USART {
         };
 
         if params.hw_flow_control {
-            mode |= 0x2 << 0;  // MODE: hardware handshaking
+            mode |= 0x2 << 0; // MODE: hardware handshaking
         } else {
-            mode |= 0x0 << 0;  // MODE: normal
+            mode |= 0x0 << 0; // MODE: normal
         }
 
         self.set_mode(mode);

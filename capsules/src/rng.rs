@@ -9,6 +9,8 @@
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
 use kernel::hil::rng;
+use kernel::process::Error;
+use kernel::returncode::ReturnCode;
 
 pub struct App {
     callback: Option<Callback>,
@@ -96,9 +98,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                     if app.remaining > 0 {
                         done = false;
                     } else {
-                        app.callback.map(|mut cb| {
-                            cb.schedule(0, app.idx, 0);
-                        });
+                        app.callback.map(|mut cb| { cb.schedule(0, app.idx, 0); });
                     }
                 }
             });
@@ -121,61 +121,76 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
 }
 
 impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         // pass buffer in from application
         match allow_num {
             0 => {
                 self.apps
                     .enter(appid, |app, _| {
                         app.buffer = Some(slice);
-                        0
+                        ReturnCode::SUCCESS
                     })
-                    .unwrap_or(-1)
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
                 self.apps
                     .enter(callback.app_id(), |app, _| {
                         app.callback = Some(callback);
-                        0
+                        ReturnCode::SUCCESS
                     })
-                    .unwrap_or(-1)
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, appid: AppId) -> isize {
+    fn command(&self, command_num: usize, data: usize, appid: AppId) -> ReturnCode {
         match command_num {
-            0 => /* Check if exists */ 0,
+            0 => /* Check if exists */ ReturnCode::SUCCESS,
 
             // Ask for a given number of random bytes.
             1 => {
                 self.apps
                     .enter(appid, |app, _| {
-                        let mut ret = 0;
                         app.remaining = data;
                         app.idx = 0;
 
                         if app.callback.is_some() && app.buffer.is_some() {
-                          if !self.getting_randomness.get() {
-                              self.getting_randomness.set(true);
-                              self.rng.get();
-                          }
+                            if !self.getting_randomness.get() {
+                                self.getting_randomness.set(true);
+                                self.rng.get();
+                            }
+                            ReturnCode::SUCCESS
                         }
-                        else { ret = -1 }
-                        ret
+                        else {
+                            ReturnCode::FAIL /* FIXME */
+                        }
                     })
-                    .unwrap_or(-1)
+                    .unwrap_or_else(|err| {
+                        match err {
+                            Error::OutOfMemory => ReturnCode::ENOMEM,
+                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                            Error::NoSuchApp => ReturnCode::EINVAL,
+                        }
+                    })
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

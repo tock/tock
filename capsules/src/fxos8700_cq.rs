@@ -7,6 +7,7 @@ use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
+use kernel::returncode::ReturnCode;
 
 pub static mut BUF: [u8; 6] = [0; 6];
 
@@ -249,32 +250,32 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
 }
 
 impl<'a> Driver for Fxos8700cq<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
                 self.callback.set(Some(callback));
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 /* check if present */ => 0,
+            0 /* check if present */ => ReturnCode::SUCCESS,
 
             // Read acceleration.
             1 => {
                 self.start_read_accel();
-                0
+                ReturnCode::SUCCESS
             }
 
             // Read the magnetometer.
             2 => {
                 self.start_read_magnetometer();
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

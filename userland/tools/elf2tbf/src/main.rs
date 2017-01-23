@@ -188,8 +188,8 @@ fn do_work(input: &elf::File,
     let kernel_heap_len = get_section(input, ".kernel_heap").data.len() as u32;
 
     let mut total_size = (mem::size_of::<LoadInfo>() + rel_data.len() + text.data.len() +
-                          got.data.len() + data.data.len() +
-                          package_name.len()) as u32;
+                          got.data.len() +
+                          data.data.len() + package_name.len()) as u32;
 
     let pad = if total_size.count_ones() > 1 {
         let power2len = 1 << (32 - total_size.leading_zeros());
@@ -232,10 +232,11 @@ fn do_work(input: &elf::File,
         package_name_offset: package_name_offset,
         package_name_size: package_name_size,
         checksum: load_info_version ^ total_size ^ entry_offset ^ rel_data_offset ^
-                  rel_data_size as u32 ^ text_offset ^ text_size ^
-                  got_offset ^ got_size ^ data_offset ^ data_size ^
-                  bss.shdr.addr as u32 ^
-                  bss.shdr.size as u32 ^ stack_len ^ app_heap_len ^
+                  rel_data_size as u32 ^ text_offset ^ text_size ^ got_offset ^
+                  got_size ^
+                  data_offset ^ data_size ^ bss.shdr.addr as u32 ^
+                  bss.shdr.size as u32 ^
+                  stack_len ^ app_heap_len ^
                   kernel_heap_len ^ package_name_offset ^ package_name_size,
     };
 

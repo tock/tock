@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tock.h"
+
 #define DRIVER_NUM_RNG 14
 
 /*  rng_async

@@ -6,6 +6,7 @@ use kernel::{AppId, AppSlice, Callback, Driver, Shared};
 
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::returncode::ReturnCode;
 
 
 
@@ -165,9 +166,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
                     // Also replace this buffer
                     self.rxbuffer.replace(read_buffer);
 
-                    self.client.map(|client| {
-                        client.status(status);
-                    });
+                    self.client.map(|client| { client.status(status); });
                 });
             }
             State::WriteEnable => {
@@ -193,9 +192,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
 
                 // Replace these buffers
                 self.txbuffer.replace(write_buffer);
-                read_buffer.map(|read_buffer| {
-                    self.rxbuffer.replace(read_buffer);
-                });
+                read_buffer.map(|read_buffer| { self.rxbuffer.replace(read_buffer); });
 
                 // Call done with the write() buffer
                 self.client_buffer.take().map(move |buffer| {
@@ -220,9 +217,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
 
                         self.rxbuffer.replace(read_buffer);
 
-                        self.client.map(move |client| {
-                            client.read(buffer, read_len);
-                        });
+                        self.client.map(move |client| { client.read(buffer, read_len); });
                     });
                 });
             }
@@ -264,9 +259,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLDriver<'a, S> {
 impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S> {
     fn status(&self, status: u8) {
         self.app_state.map(|app_state| {
-            app_state.callback.get().map(|mut cb| {
-                cb.schedule(0, status as usize, 0);
-            });
+            app_state.callback.get().map(|mut cb| { cb.schedule(0, status as usize, 0); });
         });
     }
 
@@ -285,25 +278,20 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
                 self.kernel_read.replace(data);
             });
 
-            app_state.callback.get().map(|mut cb| {
-                cb.schedule(1, read_len, 0);
-            });
+            app_state.callback.get().map(|mut cb| { cb.schedule(1, read_len, 0); });
         });
     }
 
     fn done(&self, buffer: &'static mut [u8]) {
         self.kernel_write.replace(buffer);
 
-        self.app_state.map(|app_state| {
-            app_state.callback.get().map(|mut cb| {
-                cb.schedule(2, 0, 0);
-            });
-        });
+        self.app_state
+            .map(|app_state| { app_state.callback.get().map(|mut cb| { cb.schedule(2, 0, 0); }); });
     }
 }
 
 impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             // Pass read buffer in from application
             0 => {
@@ -321,7 +309,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
                     }
                 };
                 self.app_state.replace(appst);
-                0
+                ReturnCode::SUCCESS
             }
             // Pass write buffer in from application
             1 => {
@@ -339,13 +327,13 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
                     }
                 };
                 self.app_state.replace(appst);
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
                 let appst = match self.app_state.take() {
@@ -362,21 +350,21 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
                     }
                 };
                 self.app_state.replace(appst);
-                0
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 /* check if present */ => 0,
+            0 /* check if present */ => ReturnCode::SUCCESS,
             // get status
             1 => {
                 self.fm25cl.read_status();
-                0
+                ReturnCode::SUCCESS
             }
 
             // read
@@ -389,7 +377,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
 
                     self.fm25cl.read(address, kernel_read, read_len as u16);
                 });
-                0
+                ReturnCode::SUCCESS
             }
 
             // write
@@ -413,11 +401,11 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
                         });
                     });
                 });
-                0
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

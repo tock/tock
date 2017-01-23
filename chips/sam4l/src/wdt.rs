@@ -76,7 +76,7 @@ impl Wdt {
                       (scaler << 8) | // Set PSEL to based on period
                       (1 << 7)  |     // Flash calibration done (set to default)
                       (1 << 1)  |     // Disable after reset
-                      (1 << 0);       // Enable
+                      (1 << 0); //...... Enable
 
         // Need to write twice for it to work
         regs.cr.set((0x55 << 24) | control);

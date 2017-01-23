@@ -6,6 +6,8 @@
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
+use kernel::process::Error;
+use kernel::returncode::ReturnCode;
 
 pub struct App {
     write_callback: Option<Callback>,
@@ -67,34 +69,42 @@ impl<'a, U: UART> Console<'a, U> {
 }
 
 impl<'a, U: UART> Driver for Console<'a, U> {
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
                 self.apps
                     .enter(appid, |app, _| {
                         app.read_buffer = Some(slice);
                         app.read_idx = 0;
-                        0
+                        ReturnCode::SUCCESS
                     })
-                    .unwrap_or(-1)
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
             1 => {
                 self.apps
                     .enter(appid, |app, _| {
                         app.write_buffer = Some(slice);
-                        0
+                        ReturnCode::SUCCESS
                     })
-                    .unwrap_or(-1)
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* read line */ => {
                 // read line is not implemented for console at this time
-                -1
+                ReturnCode::ENOSUPPORT
             },
             1 /* putstr/write_done */ => {
                 self.apps.enter(callback.app_id(), |app, _| {
@@ -127,27 +137,35 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                                 app.pending_write = true;
                                 app.write_buffer = Some(slice);
                             }
-                            0
+                            ReturnCode::SUCCESS
                         },
-                        None => -1
+                        None => ReturnCode::FAIL
+                        // XXX  ^^^^^^^^^^^^^^^^-- When can we fail to take the write_buffer
+                        //                         which return code is best here?
                     }
-                }).unwrap_or(-1)
+                }).unwrap_or_else(|err| {
+                    match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    }
+                })
             },
-            _ => -1
+            _ => ReturnCode::ENOSUPPORT
         }
     }
 
-    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
+    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
         match cmd_num {
-            0 /* check if present */ => 0,
+            0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* putc */ => {
                 self.tx_buffer.take().map(|buffer| {
                     buffer[0] = arg1 as u8;
                     self.uart.transmit(buffer, 1);
                 });
-                1
+                ReturnCode::SuccessWithValue { value: 1 }
             },
-            _ => -1
+            _ => ReturnCode::ENOSUPPORT
         }
     }
 }
@@ -167,10 +185,10 @@ impl<'a, U: UART> Client for Console<'a, U> {
                             app.write_len = app.write_remaining;
                             self.in_progress.replace(appid);
                             self.tx_buffer.take().map(|buffer| {
-                                for (i, c) in
-                                    slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
-                                        .iter()
-                                        .enumerate() {
+                                for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..
+                                              slice.len()]
+                                    .iter()
+                                    .enumerate() {
                                     if buffer.len() <= i {
                                         break;
                                     }
@@ -195,9 +213,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
 
                 } else {
                     // Go ahead and signal the application
-                    app.write_callback.map(|mut cb| {
-                        cb.schedule(app.write_len, 0, 0);
-                    });
+                    app.write_callback.map(|mut cb| { cb.schedule(app.write_len, 0, 0); });
                     app.write_len = 0;
                 }
             })

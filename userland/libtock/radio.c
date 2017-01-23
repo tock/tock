@@ -94,5 +94,5 @@ int radio_receive(const char* packet, unsigned char len) {
 }
 
 int radio_ready() {
-  return command(SYS_RADIO, COM_READY, 0);
+  return command(SYS_RADIO, COM_READY, 0) == 0;
 }
