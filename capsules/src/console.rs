@@ -83,17 +83,17 @@ impl<'a, U: UART> Console<'a, U> {
 
     /// Internal helper function for continuing a previously set up transaction
     /// Returns true if this send is still active, or false if it has completed
-    fn send_continue(&self, app_id: AppId, app: &mut App) -> bool {
+    fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, ReturnCode> {
         if app.write_remaining > 0 {
             match app.write_buffer.take() {
                 Some(slice) => {
                     self.send(app_id, app, slice);
+                    Ok(true)
                 }
-                None => panic!("Consistency error. In-progress write had no write_buffer?"),
-            };
-            true
+                None => Err(ReturnCode::FAIL),
+            }
         } else {
-            false
+            Ok(false)
         }
     }
 
@@ -205,13 +205,23 @@ impl<'a, U: UART> Client for Console<'a, U> {
         self.tx_buffer.replace(buffer);
         self.in_progress.take().map(|appid| {
             self.apps.enter(appid, |app, _| {
-                let finished = ! self.send_continue(appid, app);
-
-                if finished {
-                    // Go ahead and signal the application
-                    let written = app.write_len;
-                    app.write_len = 0;
-                    app.write_callback.map(|mut cb| { cb.schedule(written, 0, 0); });
+                match self.send_continue(appid, app) {
+                    Ok(more_to_send) => {
+                        if ! more_to_send {
+                            // Go ahead and signal the application
+                            let written = app.write_len;
+                            app.write_len = 0;
+                            app.write_callback.map(|mut cb| { cb.schedule(written, 0, 0); });
+                        }
+                    }
+                    Err(return_code) => {
+                        // XXX This shouldn't ever happen?
+                        app.write_len = 0;
+                        app.write_remaining = 0;
+                        app.pending_write = false;
+                        let r0 = isize::from(return_code) as usize;
+                        app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
+                    }
                 }
             })
         });
@@ -223,7 +233,18 @@ impl<'a, U: UART> Client for Console<'a, U> {
                 let started_tx = cntr.enter(|app, _| {
                     if app.pending_write {
                         app.pending_write = false;
-                        self.send_continue(app.appid(), app)
+                        match self.send_continue(app.appid(), app) {
+                            Ok(more_to_send) => more_to_send,
+                            Err(return_code) => {
+                                // XXX This shouldn't ever happen?
+                                app.write_len = 0;
+                                app.write_remaining = 0;
+                                app.pending_write = false;
+                                let r0 = isize::from(return_code) as usize;
+                                app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
+                                false
+                            }
+                        }
                     } else {
                         false
                     }
