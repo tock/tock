@@ -76,7 +76,7 @@ impl<'a, U: UART> Console<'a, U> {
                 app.write_callback = Some(callback);
                 self.send(app_id, app, slice);
                 ReturnCode::SUCCESS
-            },
+            }
             None => ReturnCode::EBUSY,
         }
     }
@@ -104,7 +104,9 @@ impl<'a, U: UART> Console<'a, U> {
             self.in_progress.replace(app_id);
             self.tx_buffer.take().map(|buffer| {
                 let mut transaction_len = app.write_remaining;
-                for (i, c) in slice.as_ref()[slice.len() - app.write_remaining .. slice.len()].iter().enumerate() {
+                for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
+                    .iter()
+                    .enumerate() {
                     if buffer.len() <= i {
                         break;
                     }
@@ -207,7 +209,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
             self.apps.enter(appid, |app, _| {
                 match self.send_continue(appid, app) {
                     Ok(more_to_send) => {
-                        if ! more_to_send {
+                        if !more_to_send {
                             // Go ahead and signal the application
                             let written = app.write_len;
                             app.write_len = 0;
