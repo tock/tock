@@ -3,21 +3,21 @@
 use core::option::Option;
 
 /// Values for the ordering of bits
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum DataOrder {
     MSBFirst,
     LSBFirst,
 }
 
 /// Values for the clock polarity (idle state or CPOL)
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ClockPolarity {
     IdleLow,
     IdleHigh,
 }
 
 /// Which clock edge values are sampled on
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ClockPhase {
     SampleLeading,
     SampleTrailing,
