@@ -15,6 +15,7 @@ pub trait Frequency {
 }
 
 /// 32KHz `Frequency`
+#[derive(Debug)]
 pub struct Freq32KHz;
 impl Frequency for Freq32KHz {
     fn frequency() -> u32 {
@@ -23,6 +24,7 @@ impl Frequency for Freq32KHz {
 }
 
 /// 16KHz `Frequency`
+#[derive(Debug)]
 pub struct Freq16KHz;
 impl Frequency for Freq16KHz {
     fn frequency() -> u32 {
@@ -31,6 +33,7 @@ impl Frequency for Freq16KHz {
 }
 
 /// 1KHz `Frequency`
+#[derive(Debug)]
 pub struct Freq1KHz;
 impl Frequency for Freq1KHz {
     fn frequency() -> u32 {

@@ -1,7 +1,7 @@
 use core::nonzero::NonZero;
 use process;
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct AppId {
     idx: usize,
 }
@@ -16,7 +16,7 @@ impl AppId {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Callback {
     app_id: AppId,
     appdata: usize,

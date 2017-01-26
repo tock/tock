@@ -56,39 +56,39 @@ pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
     }
 }
 
-#[derive(Copy,Clone,PartialEq,Eq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     NoSuchApp,
     OutOfMemory,
     AddressOutOfBounds,
 }
 
-#[derive(Copy,Clone,Debug,PartialEq,Eq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
     Running,
     Yielded,
     Fault,
 }
 
-#[derive(Copy,Clone,PartialEq,Eq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum FaultResponse {
     Panic,
     Restart,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum IPCType {
     Service,
     Client,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Task {
     FunctionCall(FunctionCall),
     IPC((AppId, IPCType)),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct FunctionCall {
     pub r0: usize,
     pub r1: usize,

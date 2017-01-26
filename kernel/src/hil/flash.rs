@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     PageBoundary,
     WordBoundary,
