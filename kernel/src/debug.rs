@@ -256,29 +256,34 @@ impl Write for DebugWriter {
     }
 }
 
-pub unsafe fn begin_debug_fmt(args: Arguments, file_line: &(&'static str, u32)) {
-    let count = read_volatile(&DEBUG_WRITER.count);
-    write_volatile(&mut DEBUG_WRITER.count, count + 1);
+pub fn begin_debug_fmt(args: Arguments, file_line: &(&'static str, u32)) {
+    unsafe {
+        let count = read_volatile(&DEBUG_WRITER.count);
+        write_volatile(&mut DEBUG_WRITER.count, count + 1);
 
-    let writer = &mut DEBUG_WRITER;
-    let (file, line) = *file_line;
-    let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
-    let _ = write(writer, args);
-    let _ = writer.write_str("\n");
-    writer.publish_str();
+        let writer = &mut DEBUG_WRITER;
+        let (file, line) = *file_line;
+        let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
+        let _ = write(writer, args);
+        let _ = writer.write_str("\n");
+        writer.publish_str();
+    }
 }
 
-pub unsafe fn begin_debug(msg: &str, file_line: &(&'static str, u32)) {
-    let count = read_volatile(&DEBUG_WRITER.count);
-    write_volatile(&mut DEBUG_WRITER.count, count + 1);
+pub fn begin_debug(msg: &str, file_line: &(&'static str, u32)) {
+    unsafe {
+        let count = read_volatile(&DEBUG_WRITER.count);
+        write_volatile(&mut DEBUG_WRITER.count, count + 1);
 
-    let writer = &mut DEBUG_WRITER;
-    let (file, line) = *file_line;
-    let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
-    let _ = writer.write_fmt(format_args!("{}\n", msg));
-    writer.publish_str();
+        let writer = &mut DEBUG_WRITER;
+        let (file, line) = *file_line;
+        let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
+        let _ = writer.write_fmt(format_args!("{}\n", msg));
+        writer.publish_str();
+    }
 }
 
+#[macro_export]
 macro_rules! debug {
     () => ({
         // Allow an empty debug!() to print the location when hit
