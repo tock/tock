@@ -370,6 +370,13 @@ pub unsafe fn reset_handler() {
     sam4l::gpio::PA[17].set();
 
     hail.console.initialize();
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(
+        capsules::console::App,
+        capsules::console::App::default(),
+        480/8);
+    kernel::debug::assign_console_driver(Some(hail.console), kc);
+
     hail.nrf51822.initialize();
 
     let mut chip = sam4l::chip::Sam4l::new();

@@ -5,6 +5,8 @@ pub mod common;
 
 pub mod callback;
 pub mod container;
+#[macro_use]
+pub mod debug;
 pub mod driver;
 pub mod ipc;
 pub mod mem;
