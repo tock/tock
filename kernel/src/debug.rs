@@ -17,7 +17,8 @@ pub struct DebugWriter {
     output_buffer: [u8; 1024],
     output_head: usize,
     output_tail: usize,
-    output_active: bool,
+    output_active_len: usize,
+    count: usize,
 }
 
 static mut DEBUG_WRITER: DebugWriter = DebugWriter {
@@ -26,7 +27,8 @@ static mut DEBUG_WRITER: DebugWriter = DebugWriter {
     output_buffer: [0; 1024],
     output_head: 0, // ........ first valid index in output_buffer
     output_tail: 0, // ........ one past last valid index (wraps to 0)
-    output_active: false, //... is there an outstanding syscall?
+    output_active_len: 0, //... how big is the current transaction?
+    count: 0, // .............. how many debug! calls
 };
 
 pub unsafe fn assign_console_driver<T>(driver: Option<&'static Driver>, container: &mut T) {
@@ -57,7 +59,7 @@ impl DebugWriter {
 
     fn publish_str(&mut self) {
         unsafe {
-            if read_volatile(&self.output_active) {
+            if read_volatile(&self.output_active_len) != 0 {
                 // Cannot publish now, there is already an outstanding request
                 // the callback will call publish_str again to finish
                 return;
@@ -98,9 +100,11 @@ impl DebugWriter {
                         AppSlice::new(self.output_buffer.as_mut_ptr().offset(start as isize),
                                       end - start,
                                       AppId::kernel_new(APPID_IDX));
+                    let slice_len = slice.len();
                     if driver.allow(AppId::kernel_new(APPID_IDX), 1, slice) != ReturnCode::SUCCESS {
                         panic!("Debug print allow fail");
                     }
+                    write_volatile(&mut DEBUG_WRITER.output_active_len, slice_len);
                     if driver.subscribe(1, KERNEL_CONSOLE_CALLBACK) != ReturnCode::SUCCESS {
                         panic!("Debug print subscribe fail");
                     }
@@ -112,6 +116,14 @@ impl DebugWriter {
         }
     }
     fn callback(bytes_written: usize, _: usize, _: usize, _: usize) {
+        let active = unsafe { read_volatile(&DEBUG_WRITER.output_active_len) };
+        if active != bytes_written {
+            let count = unsafe { read_volatile(&DEBUG_WRITER.count) };
+            panic!("active {} bytes_written {} count {}",
+                   active,
+                   bytes_written,
+                   count);
+        }
         let len = unsafe { DEBUG_WRITER.output_buffer.len() };
         let head = unsafe { read_volatile(&DEBUG_WRITER.output_head) };
         let mut tail = unsafe { read_volatile(&DEBUG_WRITER.output_tail) };
@@ -124,14 +136,14 @@ impl DebugWriter {
             // Empty. As an optimization, reset the head and tail pointers to 0
             // to maximize the buffer length available before fragmentation
             unsafe {
-                write_volatile(&mut DEBUG_WRITER.output_active, false);
+                write_volatile(&mut DEBUG_WRITER.output_active_len, 0);
                 write_volatile(&mut DEBUG_WRITER.output_head, 0);
                 write_volatile(&mut DEBUG_WRITER.output_tail, 0);
             }
         } else {
             // Buffer not empty, go around again
             unsafe {
-                write_volatile(&mut DEBUG_WRITER.output_active, false);
+                write_volatile(&mut DEBUG_WRITER.output_active_len, 0);
                 write_volatile(&mut DEBUG_WRITER.output_tail, tail);
                 DEBUG_WRITER.publish_str();
             }
@@ -212,10 +224,22 @@ impl Write for DebugWriter {
             let start = head;
             let end = tail;
             if (tail == 0) && (head == len - 1) {
-                panic!("Debug buffer full");
+                let active = unsafe { read_volatile(&DEBUG_WRITER.output_active_len) };
+                panic!("Debug buffer full. Head {} tail {} len {} active {} remaining {}",
+                       head,
+                       tail,
+                       len,
+                       active,
+                       remaining_bytes.len());
             }
             if remaining_bytes.len() > end - start {
-                panic!("Debug buffer out of room");
+                let active = unsafe { read_volatile(&DEBUG_WRITER.output_active_len) };
+                panic!("Debug buffer out of room. Head {} tail {} len {} active {} remaining {}",
+                       head,
+                       tail,
+                       len,
+                       active,
+                       remaining_bytes.len());
             }
             DebugWriter::write_buffer(start, end, remaining_bytes);
             let written = min(end - start, remaining_bytes.len());
@@ -233,18 +257,24 @@ impl Write for DebugWriter {
 }
 
 pub unsafe fn begin_debug_fmt(args: Arguments, file_line: &(&'static str, u32)) {
+    let count = read_volatile(&DEBUG_WRITER.count);
+    write_volatile(&mut DEBUG_WRITER.count, count + 1);
+
     let writer = &mut DEBUG_WRITER;
     let (file, line) = *file_line;
-    let _ = writer.write_fmt(format_args!("TOCK_DEBUG: {}:{}: ", file, line));
+    let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
     let _ = write(writer, args);
     let _ = writer.write_str("\n");
     writer.publish_str();
 }
 
 pub unsafe fn begin_debug(msg: &str, file_line: &(&'static str, u32)) {
+    let count = read_volatile(&DEBUG_WRITER.count);
+    write_volatile(&mut DEBUG_WRITER.count, count + 1);
+
     let writer = &mut DEBUG_WRITER;
     let (file, line) = *file_line;
-    let _ = writer.write_fmt(format_args!("TOCK_DEBUG: {}:{}: ", file, line));
+    let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
     let _ = writer.write_fmt(format_args!("{}\n", msg));
     writer.publish_str();
 }
