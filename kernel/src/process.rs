@@ -488,9 +488,12 @@ impl<'a> Process<'a> {
 
                 HAVE_WORK.set(HAVE_WORK.get() + 1);
 
+                debug!("Loaded process: {}", process.package_name);
+
                 return (Some(process), app_flash_size, app_slice_size);
             }
         }
+        debug!("Finished loading processes");
         (None, 0, 0)
     }
 
