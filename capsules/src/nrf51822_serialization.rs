@@ -4,10 +4,9 @@
 //! This capsule handles interfacing with the UART driver, and includes
 //! some nuances that keep the Nordic BLE serialization library happy.
 
-use kernel::{AppId, Callback, AppSlice, Driver, Shared};
+use kernel::{AppId, Callback, AppSlice, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UARTAdvanced, Client};
-use kernel::returncode::ReturnCode;
 
 struct App {
     callback: Option<Callback>,

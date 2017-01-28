@@ -5,9 +5,8 @@
 //! and a callback for interrupts.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::hil::gpio::{Pin, PinCtl, InputMode, InterruptMode, Client};
-use kernel::returncode::ReturnCode;
 
 pub struct GPIO<'a, G: Pin + 'a> {
     pins: &'a [&'a G],

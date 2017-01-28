@@ -26,6 +26,7 @@ pub use mem::{AppSlice, AppPtr, Private, Shared};
 pub use platform::{Chip, mpu, Platform, systick};
 pub use platform::systick::SysTick;
 pub use process::{Process, State};
+pub use returncode::ReturnCode;
 
 pub fn main<P: Platform, C: Chip>(platform: &P,
                                   chip: &mut C,

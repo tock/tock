@@ -3,11 +3,10 @@
 //! Console provides userspace with the ability to print text via a serial
 //! interface.
 
-use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
+use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
 use kernel::process::Error;
-use kernel::returncode::ReturnCode;
 
 pub struct App {
     write_callback: Option<Callback>,

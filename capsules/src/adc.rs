@@ -4,9 +4,8 @@
 //! ADC channels.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::hil::adc::{Client, AdcSingle};
-use kernel::returncode::ReturnCode;
 
 pub struct ADC<'a, A: AdcSingle + 'a> {
     adc: &'a A,

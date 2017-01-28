@@ -12,11 +12,10 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use kernel::returncode::ReturnCode;
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
