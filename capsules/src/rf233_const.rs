@@ -145,5 +145,6 @@ pub enum RF233TrxCmd {
     RX_ON = 0x06,
     OFF = 0x08,
     PLL_ON = 0x09,
+    RX_AACK_ON = 0x16,
     TX_ARET_ON = 0x19,
 }

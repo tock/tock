@@ -1,5 +1,5 @@
 #include "radio.h"
-
+#include "gpio.h"
 /*
  * Userland library for sending and receiving 802.15.4 packets.
  *
@@ -51,16 +51,20 @@ int radio_send(unsigned short addr, const char* packet, unsigned char len) {
     return err;
   }
   err = subscribe(SYS_RADIO, EVT_TX, cb_tx, &cond);
+  if (err < 0) {
+    return err;
+  }
   // The send system call packs the length and destination address in
   // the 32-bit argument.
   unsigned int param = addr;
   param |= (len << 16);
-  if (command(SYS_RADIO, COM_TX, param) != 0) {
-    yield_for(&cond); // This should return -1, but for some reason
-                      // successful calls don't return 0! radio.rs:208
+  err = command(SYS_RADIO, COM_TX, param);
+  if (err != 0) {
+    gpio_toggle(0);
+    return err; // yield here too?
   } else {
-    yield_for(&cond);
-  }
+    yield_for(&cond); // This should return -1, but for some reason
+  }                   // successful calls don't return 0! radio.rs:208
   return 0;
 }
 
@@ -94,5 +98,5 @@ int radio_receive(const char* packet, unsigned char len) {
 }
 
 int radio_ready() {
-  return command(SYS_RADIO, COM_READY, 0) == 0;
+  return command(SYS_RADIO, COM_READY, 0) == SUCCESS;
 }

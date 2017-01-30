@@ -70,7 +70,7 @@ enum InternalState {
     ON_PLL_WAITING,
     ON_PLL_SET,
 
-    // Radio is in the RX_ON state, ready to receive packets.
+    // Radio is in the RX_AACK_ON state, ready to receive packets.
     READY,
 
     // States pertaining to packet transmission.
@@ -449,7 +449,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                 // denoting moving to the PLL_ON state, so move
                 // to RX_ON (see Sec 7, pg 36 of RF233 datasheet
                 self.state_transition_write(RF233Register::TRX_STATE,
-                                            RF233TrxCmd::RX_ON as u8,
+                                            RF233TrxCmd::RX_AACK_ON as u8,
                                             InternalState::READY);
             }
             InternalState::TX_STATUS_PRECHECK1 => {
@@ -512,11 +512,11 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             }
             InternalState::TX_DONE => {
                 self.state_transition_write(RF233Register::TRX_STATE,
-                                            RF233TrxCmd::RX_ON as u8,
+                                            RF233TrxCmd::RX_AACK_ON as u8,
                                             InternalState::TX_RETURN_TO_RX);
             }
             InternalState::TX_RETURN_TO_RX => {
-                if status == ExternalState::RX_ON as u8 {
+                if status == ExternalState::RX_AACK_ON as u8 {
                     self.transmitting.set(false);
                     let buf = self.tx_buf.take();
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
@@ -739,7 +739,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
         buf[0] = 0x00; // Where the frame command will go.
         buf[1] = len + 2 - 1; // plus 2 for CRC, - 1 for length byte  1/6/17 PAL
         buf[2] = 0x61; // 0x40: intra-PAN; 0x20: ack requested; 0x01: data frame
-        buf[3] = 0xAA; // 0xA0: 16-bit src addr; 0x0A: 16-bit dest addr
+        buf[3] = 0x88; // 0x80: 16-bit src addr; 0x08: 16-bit dest addr
         buf[4] = self.seq.get();
         buf[5] = (self.pan.get() & 0xFF) as u8; // PAN id is 16 bits
         buf[6] = (self.pan.get() >> 8) as u8;
@@ -857,7 +857,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
     }
 
     fn ready(&self) -> bool {
-        self.radio_on.get()
+        self.radio_on.get() && self.state.get() == InternalState::READY
     }
 
     fn transmit(&self, dest: u16, payload: &'static mut [u8], len: u8) -> ReturnCode {

@@ -192,7 +192,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     }
                     return rval;
                 });
-                return ReturnCode::ENOMEM;
+                return ReturnCode::ERESERVE;
             },
             6 /* check if on */ => {
                 if self.radio.ready() {
