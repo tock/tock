@@ -1,7 +1,6 @@
 # Makefile for building the tock kernel for the nRF development kit
 
 TOCK_ARCH=cortex-m0
-
 CHIP=nrf51
 PLATFORM=nrf51dk
 
@@ -16,9 +15,6 @@ target/nrf51/release/nrf51dk-$(APP): target/nrf51/release/nrf51dk apps/$(APP)/bu
 	  --set-section-flags .apps=alloc,code \
 	  target/nrf51/release/nrf51dk $@
 
-target/nrf51/release/nrf51dk.hex: target/nrf51/release/nrf51dk
-	@$(OBJCOPY) -Oihex $^ $@
-
 target/nrf51/release/nrf51dk-$(APP).hex: target/nrf51/release/nrf51dk-$(APP)
 	@$(OBJCOPY) -Oihex $^ $@
 
@@ -28,12 +24,12 @@ JLINK_SCRIPTS_DIR=jtag/
 
 # Upload the kernel over JTAG
 .PHONY: program
-program: target/nrf51/release/nrf51dk.hex
+flash: target/nrf51/release/nrf51dk.hex
 	$(JLINK) $(JLINK_OPTIONS) $(JLINK_SCRIPTS_DIR)/flash-kernel.jlink
 
 # Upload kernel + app over JTAG
 .PHONY: program-full
-program-full: target/nrf51/release/nrf51dk-$(APP).hex
+flash-full: target/nrf51/release/nrf51dk-$(APP).hex
 	@$(eval TEMPFILE := $(shell mktemp -t nrf51dk-$(APP).jlink.XXXXXXXXXX))
 	@echo r > $(TEMPFILE)
 	@echo loadfile $< >> $(TEMPFILE)
