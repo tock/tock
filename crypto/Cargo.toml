@@ -7,8 +7,6 @@ build = "build.rs"
 
 [dependencies]
 rust-libcore = "*"
-cortexm4 = { path = "../arch/cortex-m4" }
-kernel = { path = "../kernel" }
 
 [build-dependencies]
 gcc = "0.3"
