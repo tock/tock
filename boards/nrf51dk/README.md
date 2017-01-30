@@ -1,19 +1,20 @@
 Platform-Specific Instructions: nRF
 ===================================
 
-The [nRF51 Development Kit](https://www.nordicsemi.com/eng/Products/nRF51-DK) is
-a platform based around the nRF51422, an SoC with an ARM Cortex-M0 and a BLE
-radio. The kit is Arduino shield compatible and includes several buttons.
-All code for the kit is compatible with the nRF51822 as well.
+The [nRF51 Development
+Kit](https://www.nordicsemi.com/eng/Products/nRF51-DK) is a platform
+based around the nRF51422, an SoC with an ARM Cortex-M0 and a BLE
+radio. The kit is Arduino shield compatible and includes several
+buttons.  All code for the kit is compatible with the nRF51822 as
+well.
 
 ## Necessary tools
 
-There are two ways to program the nRF51DK: JTAG or the mbed file system. If
-you choose to use JTAG (the recommended approach), this requires `JLinkExe`, 
-a JTAG programming application.
-It can be downloaded from [Segger](https://www.segger.com/downloads/jlink),
-you want the "Software and Documentation Pack".
-
+There are two ways to program the nRF51DK: JTAG or the mbed file
+system. If you choose to use JTAG (the recommended approach), this
+requires `JLinkExe`, a JTAG programming application.  It can be
+downloaded from [Segger](https://www.segger.com/downloads/jlink), you
+want the "Software and Documentation Pack".
 
 ## Programming the kernel
 
@@ -31,7 +32,7 @@ $ make TOCK_BOARD=nrf51dk program
 This will build `boards/nrf51dk/target/nrf51/release/nrf51dk` and 
 program it on the board using `JLinkExe`.
 
-### Programming with mbed file system
+### Programming with mbed file system 
 
 The nRF51DK supports ARM mbed development. This means that under Mac OS and 
 Windows, plugging the nRF51DK in over USB causes it to appear as a file
