@@ -59,7 +59,7 @@
 
 /// Denotes whether the [Client](trait.Client.html) wants to be notified when
 /// `More` randomness is available or if they are `Done`
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Continue {
     /// More randomness is required.
     More,

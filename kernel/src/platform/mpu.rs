@@ -1,4 +1,5 @@
 
+#[derive(Debug)]
 pub enum AccessPermission {
     //                                 Privileged  Unprivileged
     //                                 Access      Access
@@ -12,6 +13,7 @@ pub enum AccessPermission {
     ReadOnlyAlais = 0b111, //......... R-          R-
 }
 
+#[derive(Debug)]
 pub enum ExecutePermission {
     ExecutionPermitted = 0b0,
     ExecutionNotPermitted = 0b1,

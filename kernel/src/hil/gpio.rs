@@ -1,5 +1,6 @@
 /// Enum for configuring any pull-up or pull-down
 /// resistors on the GPIO pin.
+#[derive(Debug)]
 pub enum InputMode {
     PullUp,
     PullDown,
@@ -8,6 +9,7 @@ pub enum InputMode {
 
 /// Enum for selecting which edge to trigger interrupts
 /// on.
+#[derive(Debug)]
 pub enum InterruptMode {
     RisingEdge,
     FallingEdge,

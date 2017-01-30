@@ -5,7 +5,9 @@ use core::ptr::Unique;
 use core::slice;
 use process;
 
+#[derive(Debug)]
 pub struct Private;
+#[derive(Debug)]
 pub struct Shared;
 
 pub struct AppPtr<L, T> {

@@ -32,7 +32,7 @@ impl Display for Error {
 }
 
 /// This specifies what type of transmission just finished from a Master device.
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub enum SlaveTransmissionType {
     Write,
     Read,
