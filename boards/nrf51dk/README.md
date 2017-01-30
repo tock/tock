@@ -20,8 +20,9 @@ want the "Software and Documentation Pack".
 
 ### Programming with JTAG (recommended)
 
-The nRF51DK, a Segger JTAG chip is included on the board. A USB
-connection to a computer allows code to be uploaded to the board.
+The nRF51DK, a Segger JTAG chip is included on the board. Connecting
+the board to your computer over USB allows you to program (and debug)
+Tock with JTAG.
 
 To program the Tock kernel onto the nRF51 DK, run:
 
