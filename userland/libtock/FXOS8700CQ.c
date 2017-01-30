@@ -9,6 +9,8 @@ struct fx0_data {
   bool fired;
 };
 
+static struct fx0_data res = { .fired = false };
+
 // internal callback for faking synchronous reads
 static void FXOS8700CQ_cb(int x, int y, int z, void* ud) {
   struct fx0_data* result = (struct fx0_data*) ud;
@@ -34,9 +36,7 @@ double FXOS8700CQ_read_accel_mag() {
 
   yield_for(&result.fired);
 
-  // TODO add sqrt of accel magnitude once software floating point supported in userspace
-  // adding sqrt(...) currently causes crash
-  return (result.x * result.x + result.y * result.y + result.z * result.z);
+  return sqrt(result.x * result.x + result.y * result.y + result.z * result.z);
 }
 
 int FXOS8700CQ_subscribe(subscribe_cb callback, void* userdata) {
@@ -44,5 +44,48 @@ int FXOS8700CQ_subscribe(subscribe_cb callback, void* userdata) {
 }
 
 int FXOS8700CQ_start_accel_reading() {
-  return command(11, 0, 0);
+  return command(11, 1, 0);
+}
+int FXOS8700CQ_start_magnetometer_reading() {
+  return command(11, 2, 0);
+}
+
+int FXOS8700CQ_read_acceleration_sync(int* x, int* y, int* z) {
+    int err;
+    res.fired = false;
+
+    err = FXOS8700CQ_subscribe(FXOS8700CQ_cb, (void*) &res);
+    if (err < 0) return err;
+
+    err = FXOS8700CQ_start_accel_reading();
+    if (err < 0) return err;
+
+    // Wait for the callback.
+    yield_for(&res.fired);
+
+    *x = res.x;
+    *y = res.y;
+    *z = res.z;
+
+    return 0;
+}
+
+int FXOS8700CQ_read_magenetometer_sync(int* x, int* y, int* z) {
+    int err;
+    res.fired = false;
+
+    err = FXOS8700CQ_subscribe(FXOS8700CQ_cb, (void*) &res);
+    if (err < 0) return err;
+
+    err = FXOS8700CQ_start_magnetometer_reading();
+    if (err < 0) return err;
+
+    // Wait for the callback.
+    yield_for(&res.fired);
+
+    *x = res.x;
+    *y = res.y;
+    *z = res.z;
+
+    return 0;
 }

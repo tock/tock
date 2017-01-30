@@ -5,6 +5,7 @@
 
 use kernel::{AppId, Driver};
 use kernel::hil;
+use kernel::returncode::ReturnCode;
 
 /// Whether the LEDs are active high or active low on this platform.
 pub enum ActivationMode {
@@ -36,50 +37,50 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
 }
 
 impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         let pins = self.pins.as_ref();
         match command_num {
             // get number of LEDs
-            0 => pins.len() as isize,
+            0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
 
             // on
             1 => {
                 if data >= pins.len() {
-                    -1
+                    ReturnCode::EINVAL /* impossible pin */
                 } else {
                     match self.mode {
                         ActivationMode::ActiveHigh => pins[data].set(),
                         ActivationMode::ActiveLow => pins[data].clear(),
                     }
-                    0
+                    ReturnCode::SUCCESS
                 }
             }
 
             // off
             2 => {
                 if data >= pins.len() {
-                    -1
+                    ReturnCode::EINVAL /* impossible pin */
                 } else {
                     match self.mode {
                         ActivationMode::ActiveHigh => pins[data].clear(),
                         ActivationMode::ActiveLow => pins[data].set(),
                     }
-                    0
+                    ReturnCode::SUCCESS
                 }
             }
 
             // toggle
             3 => {
                 if data >= pins.len() {
-                    -1
+                    ReturnCode::EINVAL /* impossible pin */
                 } else {
                     pins[data].toggle();
-                    0
+                    ReturnCode::SUCCESS
                 }
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

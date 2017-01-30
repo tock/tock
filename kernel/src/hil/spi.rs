@@ -3,21 +3,21 @@
 use core::option::Option;
 
 /// Values for the ordering of bits
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum DataOrder {
     MSBFirst,
     LSBFirst,
 }
 
 /// Values for the clock polarity (idle state or CPOL)
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ClockPolarity {
     IdleLow,
     IdleHigh,
 }
 
 /// Which clock edge values are sampled on
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ClockPhase {
     SampleLeading,
     SampleTrailing,
@@ -121,7 +121,7 @@ pub trait SpiMaster {
 /// SPIMasterDevice provides a chip-specific interface to the SPI Master
 /// hardware. The interface wraps the chip select line so that chip drivers
 /// cannot communicate with different SPI devices.
-pub trait SPIMasterDevice {
+pub trait SpiMasterDevice {
     /// Setup the SPI settings and speed of the bus.
     fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32);
 
@@ -136,4 +136,12 @@ pub trait SPIMasterDevice {
                         mut read_buffer: Option<&'static mut [u8]>,
                         len: usize)
                         -> bool;
+
+    fn set_polarity(&self, cpol: ClockPolarity);
+    fn set_phase(&self, cpal: ClockPhase);
+    fn set_rate(&self, rate: u32);
+
+    fn get_polarity(&self) -> ClockPolarity;
+    fn get_phase(&self) -> ClockPhase;
+    fn get_rate(&self) -> u32;
 }

@@ -7,9 +7,13 @@ APP_FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/flash/storm-flash-app.py
 APP_ADDRESS = 0x30000
 
 # Upload programs over UART with tockloader
+ifdef PORT
+  TOCKLOADER_GENERAL_FLAGS += --port $(PORT)
+endif
+
 .PHONY: program
 program: $(BUILDDIR)/app.bin
-	$(APP_TOCKLOADER) flash --address $(APP_ADDRESS) $(BUILDDIR)/app.bin
+	$(APP_TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(APP_ADDRESS) $(BUILDDIR)/app.bin
 
 # Upload programs over JTAG
 .PHONY: flash

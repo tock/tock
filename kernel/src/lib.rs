@@ -10,6 +10,7 @@ pub mod ipc;
 pub mod mem;
 pub mod process;
 pub mod hil;
+pub mod returncode;
 
 pub mod support;
 
@@ -22,7 +23,8 @@ pub use callback::{AppId, Callback};
 pub use container::Container;
 pub use driver::Driver;
 pub use mem::{AppSlice, AppPtr, Private, Shared};
-pub use platform::{Chip, MPU, Platform, SysTick};
+pub use platform::{Chip, mpu, Platform, systick};
+pub use platform::systick::SysTick;
 pub use process::{Process, State};
 
 pub fn main<P: Platform, C: Chip>(platform: &P,
@@ -47,10 +49,8 @@ pub fn main<P: Platform, C: Chip>(platform: &P,
                 }
             }
 
-            support::atomic(|| {
-                if !chip.has_pending_interrupts() && process::processes_blocked() {
-                    support::wfi();
-                }
+            support::atomic(|| if !chip.has_pending_interrupts() && process::processes_blocked() {
+                support::wfi();
             })
         };
     }

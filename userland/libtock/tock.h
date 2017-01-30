@@ -23,6 +23,8 @@ int allow(uint32_t driver, uint32_t allow, void* ptr, size_t size);
 // 1: sbrk, arg1 is increment to increase/decrease memory break
 int memop(uint32_t op_type, int arg1);
 
+// Checks to see if the given driver number exists on this platform.
+bool driver_exists(uint32_t driver);
 
 #ifdef __cplusplus
 }

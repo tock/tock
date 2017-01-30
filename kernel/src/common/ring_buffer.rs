@@ -30,6 +30,20 @@ impl<'a, T: Copy> queue::Queue<T> for RingBuffer<'a, T> {
         unsafe { read_volatile(&self.head) == ((read_volatile(&self.tail) + 1) % self.ring.len()) }
     }
 
+    fn len(&self) -> usize {
+        let head = unsafe { read_volatile(&self.head) };
+        let tail = unsafe { read_volatile(&self.tail) };
+
+        if tail > head {
+            tail - head
+        } else if tail < head {
+            (self.ring.len() - head) + tail
+        } else {
+            // head equals tail, length is zero
+            0
+        }
+    }
+
     fn enqueue(&mut self, val: T) -> bool {
         unsafe {
             let head = read_volatile(&self.head);

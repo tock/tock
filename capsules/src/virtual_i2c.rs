@@ -1,3 +1,9 @@
+//! Mux and Virtualize an I2C Master Bus
+//!
+//! `MuxI2C` provides shared access to a single I2C Master Bus
+//! for multiple users.
+//! `I2CDevice` provides access to a specific I2C address.
+
 use core::cell::Cell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::common::take_cell::TakeCell;
@@ -12,9 +18,7 @@ pub struct MuxI2C<'a> {
 
 impl<'a> I2CHwMasterClient for MuxI2C<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        self.inflight.take().map(move |device| {
-            device.command_complete(buffer, error);
-        });
+        self.inflight.take().map(move |device| { device.command_complete(buffer, error); });
         self.do_next_op();
     }
 }
@@ -105,9 +109,7 @@ impl<'a> I2CDevice<'a> {
 
 impl<'a> I2CClient for I2CDevice<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        self.client.get().map(move |client| {
-            client.command_complete(buffer, error);
-        });
+        self.client.get().map(move |client| { client.command_complete(buffer, error); });
     }
 }
 

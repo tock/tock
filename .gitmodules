@@ -1,3 +1,0 @@
-[submodule "userland/examples/ble-serialization/nrf5x-base"]
-	path = userland/examples/ble-serialization/nrf5x-base
-	url = https://github.com/lab11/nrf5x-base

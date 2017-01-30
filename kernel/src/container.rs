@@ -51,7 +51,7 @@ impl<T: ?Sized> Owned<T> {
     }
 
     pub fn appid(&self) -> AppId {
-        unsafe { AppId::new(self.app_id) }
+        AppId::new(self.app_id)
     }
 }
 
@@ -117,7 +117,7 @@ impl<T: Default> Container<T> {
                     } else {
                         Some(AppliedContainer {
                             appid: app_id,
-                            container: *cntr,
+                            container: cntr,
                             _phantom: PhantomData,
                         })
                     }
@@ -157,9 +157,8 @@ impl<T: Default> Container<T> {
         unsafe {
             let itr = process::PROCS.iter_mut().filter_map(|p| p.as_mut());
             for (app_id, app) in itr.enumerate() {
-                let ctr_ptr = app.container_for::<T>(self.container_num);
-                if !ctr_ptr.is_null() {
-                    let root_ptr = *ctr_ptr;
+                let root_ptr = app.container_for::<T>(self.container_num);
+                if !root_ptr.is_null() {
                     let mut root = Owned::new(root_ptr, app_id);
                     fun(&mut root);
                 }
@@ -191,7 +190,7 @@ impl<'a, T: Default> Iterator for Iter<'a, T> {
         while self.index < self.len {
             let idx = self.index;
             self.index += 1;
-            let res = self.container.container(unsafe { AppId::new(idx) });
+            let res = self.container.container(AppId::new(idx));
             if res.is_some() {
                 return res;
             }

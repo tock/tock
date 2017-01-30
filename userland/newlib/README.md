@@ -16,5 +16,5 @@ Then:
 
     $ make
 
-When the build finishes (it takes a while) the copy of `libc.a` that we use
-can be found in the `thumbv6m` folder.
+When the build finishes (it takes a while) the copy of `libc.a` and `libm.a`
+that we use can be found in the `thumbv6m` folder.

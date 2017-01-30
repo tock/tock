@@ -1,11 +1,13 @@
+//! Nrf51822Serialization is the kernel-level driver that provides
+//! the UART API that the nRF51822 serialization library requires.
+//!
+//! This capsule handles interfacing with the UART driver, and includes
+//! some nuances that keep the Nordic BLE serialization library happy.
+
 use kernel::{AppId, Callback, AppSlice, Driver, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UARTAdvanced, Client};
-
-///
-/// Nrf51822Serialization is the kernel-level driver that provides
-/// the UART API that the nRF51822 serialization library requires.
-///
+use kernel::returncode::ReturnCode;
 
 struct App {
     callback: Option<Callback>,
@@ -54,12 +56,9 @@ impl<'a, U: UARTAdvanced> Nrf51822Serialization<'a, U> {
 
 impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     /// Pass application space memory to this driver.
-    ///
-    /// allow_type: 0 - Provide an RX buffer
-    /// allow_type: 1 - Provide an TX buffer
-    ///
-    fn allow(&self, _appid: AppId, allow_type: usize, slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, _appid: AppId, allow_type: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_type {
+            // Provide an RX buffer.
             0 => {
                 let resapp = match self.app.take() {
                     Some(mut app) => {
@@ -79,8 +78,10 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                     }
                 };
                 self.app.replace(resapp);
-                0
+                ReturnCode::SUCCESS
             }
+
+            // Provide a TX buffer.
             1 => {
                 let resapp = match self.app.take() {
                     Some(mut app) => {
@@ -98,9 +99,9 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                     }
                 };
                 self.app.replace(resapp);
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
@@ -108,12 +109,10 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     ///
     /// The callback will be called when a TX finishes and when
     /// RX data is available.
-    ///
-    /// subscribe_type: 0 - add the callback
-    ///
     #[inline(never)]
-    fn subscribe(&self, subscribe_type: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_type: usize, callback: Callback) -> ReturnCode {
         match subscribe_type {
+            // Add a callback
             0 => {
                 let resapp = match self.app.take() {
                     Some(mut app) => {
@@ -123,9 +122,9 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                     None => {
                         // can't start receiving until DMA has been set up
                         //  we'll start here when subscribe is first called
-                        self.rx_buffer.take().map(|buffer| {
-                            self.uart.receive_automatic(buffer, 250);
-                        });
+                        self.rx_buffer
+                            .take()
+                            .map(|buffer| { self.uart.receive_automatic(buffer, 250); });
 
                         App {
                             callback: Some(callback),
@@ -138,24 +137,27 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                 };
                 self.app.replace(resapp);
 
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
     /// Issue a command to the Nrf51822Serialization driver.
-    ///
-    /// command_type: 0 - Write a byte to the UART.
-    ///
-    fn command(&self, command_type: usize, _: usize, _: AppId) -> isize {
+    fn command(&self, command_type: usize, _: usize, _: AppId) -> ReturnCode {
 
         match command_type {
-            0 => {
+            0 /* check if present */ => ReturnCode::SUCCESS,
+
+            // Send a buffer to the nRF51822 over UART.
+            1 => {
                 // On a TX, send the first byte of the TX buffer.
                 // TODO(bradjc): Need to match this to the correct app!
                 //               Can't just use 0!
-                let result = self.app.map(|appst| {
+                //
+                // When could app be NULL? What return code should be here?
+                // XXX ReturnCode -----------,,,,,,,,,,,,,,,,
+                self.app.map_or(ReturnCode::FAIL, |appst| {
 
                     match appst.tx_buffer.take() {
                         Some(slice) => {
@@ -166,13 +168,20 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                                 }
                                 self.uart.transmit(buffer, write_len);
                             });
-                            0
+                            ReturnCode::SUCCESS
                         }
-                        None => -2,
+                        None => ReturnCode::FAIL, /* XXX: ReturnCode */
+                        // ^When could this happen - when there wasn't an allow
+                        // first? Maybe ERESERVE?
                     }
-                });
-                result.unwrap_or(-1)
+                })
             }
+
+            // Ask the kernel to callback the application. This is used to
+            // keep the state machine in the Nordic BLE serialization library
+            // happy so that events look like they are occuring as the library
+            // expects, since it doesn't expect there to be an underlying
+            // kernel.
             9001 => {
                 self.app.map(|appst| {
                     appst.callback.as_mut().map(|mut cb| {
@@ -181,9 +190,9 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                     });
                 });
 
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }
@@ -197,13 +206,11 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         //               Can't just use 0!
         self.app.map(|appst| {
             // Call the callback after TX has finished
-            appst.callback.as_mut().map(|mut cb| {
-                cb.schedule(1, 0, 0);
-            });
+            appst.callback.as_mut().map(|mut cb| { cb.schedule(1, 0, 0); });
         });
     }
 
-    // Called when a byte is received on the UART
+    // Called when a buffer is received on the UART
     fn receive_complete(&self, buffer: &'static mut [u8], rx_len: usize, _error: uart::Error) {
 
         self.rx_buffer.replace(buffer);
@@ -218,10 +225,8 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
                 }
 
                 // copy over data to app buffer
-                self.rx_buffer.map(|buffer| {
-                    for idx in 0..max_len {
-                        rb.as_mut()[idx] = buffer[idx];
-                    }
+                self.rx_buffer.map(|buffer| for idx in 0..max_len {
+                    rb.as_mut()[idx] = buffer[idx];
                 });
 
                 appst.callback.as_mut().map(|cb| {
@@ -234,8 +239,6 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         });
 
         // restart the uart receive
-        self.rx_buffer.take().map(|buffer| {
-            self.uart.receive_automatic(buffer, 250);
-        });
+        self.rx_buffer.take().map(|buffer| { self.uart.receive_automatic(buffer, 250); });
     }
 }

@@ -47,7 +47,7 @@ from [gpio.c](../userland/libtock/gpio.c):
 
 ```c
 int gpio_set(GPIO_Pin_t pin) {
-  return command(GPIO_DRIVER_NUM, 1, pin);
+  return command(GPIO_DRIVER_NUM, 2, pin);
 }
 ```
 
@@ -87,11 +87,84 @@ return from execution (for example, an application that returns from `main`).
 
 ## Inter-Process Communication
  * **TODO:** how does this work?
+ 
+## Stack and Heap
 
+Applications can specify their required stack and heap sizes via the
+`STACK_SIZE` and `APP_HEAP_SIZE` defines, which default to 2K and 1K respectively
+as of this writing. __You must rebuild `libtock` if you change these values.__
+Note that the Tock kernel treats these as minimum values, depending on the underlying
+platform, the stack and heap may be larger than requested, but will never be smaller.
+
+If there is insufficient memory to load your application, the kernel will fail
+during loading and print a message.
+
+If you application exceeds its alloted memory during runtime, the application
+will crash (see [Debugging](#debugging) section for an example).
+
+## Debugging
+
+If an application crashes, Tock can provide a lot of useful information.
+By default, when an application crashes Tock prints a crash dump over the
+platform's default console interface.
+
+Note that because an application is relocated when it is loaded, this trace
+will print both relocated addresses and the original symbol address where
+appropriate.
+
+```
+---| Fault Status |---
+Data Access Violation:              true
+Forced Hard Fault:                  true
+Faulting Memory Address:            0x00000000
+Fault Status Register (CFSR):       0x00000082
+Hard Fault Status Register (HFSR):  0x40000000
+
+---| App Status |---
+App: sensors
+[Fault]  -  Events Queued: 0  Syscall Count: 24
+
+╔═══════════╤══════════════════════════════════════════╗
+║  Address  │ Region Name    Used | Allocated (bytes)  ║
+╚0x20006000═╪══════════════════════════════════════════╝
+            │ ▼ Grant         356 |   1024          
+ 0x20005E9C ┼───────────────────────────────────────────
+            │ Unused
+ 0x20004FB4 ┼───────────────────────────────────────────
+            │ ▲ Heap         1580 |   1024 EXCEEDED!     S
+ 0x20004988 ┼─────────────────────────────────────────── R
+            │ ▼ Stack          48 |   2048               A
+ 0x20004958 ┼─────────────────────────────────────────── M
+            │ Unused
+ 0x20004188 ┼───────────────────────────────────────────
+            │ Data            392 |    392
+ 0x20004000 ┴───────────────────────────────────────────
+            .....
+ 0x00034000 ┬───────────────────────────────────────────
+            │ Unused
+ 0x00033BBF ┼─────────────────────────────────────────── F
+            │ Data            329                        L
+ 0x00033A76 ┼─────────────────────────────────────────── A
+            │ Text          14842                        S
+ 0x0003007C ┼─────────────────────────────────────────── H
+            │ Header          124
+ 0x00030000 ┴───────────────────────────────────────────
+
+ R0 : 0x00000000    R6 : 0x00000000
+ R1 : 0x00000005    R7 : 0x20004978
+ R2 : 0x00000103    R8 : 0x00000000
+ R3 : 0x00000000    R10: 0x00000000
+ R4 : 0x00000000    R11: 0x00000000
+ R5 : 0x00000000    R12: 0x00000000
+ R9 : 0x20004000 (Static Base Register)
+ SP : 0x20004070 (Process Stack Pointer)
+ LR : 0x00031667 [0x800015EA in lst file]
+ PC : 0x0003036A [0x800002EE in lst file]
+```
 
 ## Libraries
 Application code does not need to stand alone, libraries are available that can
-be utilized! 
+be utilized!
 
 
 ### Newlib

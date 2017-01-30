@@ -13,9 +13,14 @@ Further, it conforms to the Particle Photon form-factor.
 Setup
 -----
 
+Follow the main [Getting Started](../../doc/Getting_Started.md) to install Rust
+and GCC.
+
 Programming Hail over USB requires the `tockloader` utility. To install:
 
     sudo pip3 install tockloader
+
+Connecting Hail to a computer requires a USB Micro B cable.
 
 
 Programming the Tock Kernel and Apps
@@ -34,3 +39,10 @@ To program an application:
 cd tock/userland/examples/blink
 make TOCK_BOARD=hail program
 ```
+
+You can also specify the serial port to use:
+
+```bash
+make program PORT=/dev/ttyUSB0
+```
+

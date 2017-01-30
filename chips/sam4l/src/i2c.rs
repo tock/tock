@@ -272,9 +272,7 @@ impl I2CHw {
                             }
                             None => None,
                         };
-                        buf.map(|buf| {
-                            client.command_complete(buf, err);
-                        });
+                        buf.map(|buf| { client.command_complete(buf, err); });
                     });
                 });
             }
@@ -439,9 +437,8 @@ impl I2CHw {
                         let len = self.slave_read_buffer_len.get();
 
                         if len >= 1 {
-                            self.slave_read_buffer.map(|buffer| {
-                                regs.transmit_holding.set(buffer[0] as u32);
-                            });
+                            self.slave_read_buffer
+                                .map(|buffer| { regs.transmit_holding.set(buffer[0] as u32); });
                             self.slave_read_buffer_index.set(1);
                         } else {
                             // Send dummy byte
@@ -454,9 +451,7 @@ impl I2CHw {
 
                     } else {
                         // Call to upper layers asking for a buffer to send
-                        self.slave_client.map(|client| {
-                            client.read_expected();
-                        });
+                        self.slave_client.map(|client| { client.read_expected(); });
                     }
 
                 } else {
@@ -475,9 +470,7 @@ impl I2CHw {
                     } else {
                         // Call to upper layers asking for a buffer to
                         // read into.
-                        self.slave_client.map(|client| {
-                            client.write_expected();
-                        });
+                        self.slave_client.map(|client| { client.write_expected(); });
                     }
                 }
 
@@ -645,9 +638,8 @@ impl I2CHw {
                     let len = self.slave_read_buffer_len.get();
 
                     if len >= 1 {
-                        self.slave_read_buffer.map(|buffer| {
-                            regs.transmit_holding.set(buffer[0] as u32);
-                        });
+                        self.slave_read_buffer
+                            .map(|buffer| { regs.transmit_holding.set(buffer[0] as u32); });
                         self.slave_read_buffer_index.set(1);
                     } else {
                         // Send dummy byte
@@ -662,10 +654,8 @@ impl I2CHw {
     }
 
     fn slave_enable_interrupts(&self) {
-        self.slave_nvic.map(|slave_nvic| {
-            unsafe {
-                nvic::enable(slave_nvic);
-            }
+        self.slave_nvic.map(|slave_nvic| unsafe {
+            nvic::enable(slave_nvic);
         });
     }
 
@@ -674,10 +664,8 @@ impl I2CHw {
             let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
             regs.interrupt_disable.set(!0);
         });
-        self.slave_nvic.map(|slave_nvic| {
-            unsafe {
-                nvic::disable(slave_nvic);
-            }
+        self.slave_nvic.map(|slave_nvic| unsafe {
+            nvic::disable(slave_nvic);
         });
     }
 
@@ -694,7 +682,7 @@ impl I2CHw {
                            (1 << 14) | // SOAM - stretch on address match
                            (1 << 13) | // CUP - count nbytes up
                            (1 << 4)  | // STREN - stretch clock enable
-                           (1 << 2);   // SMATCH - ack on slave address
+                           (1 << 2); //.. SMATCH - ack on slave address
             regs.control.set(control as u32);
 
             // Set this separately because that makes the HW happy.
@@ -716,10 +704,8 @@ impl hil::i2c::I2CMaster for I2CHw {
         }
 
         // If exists, disable slave clock
-        self.slave_clock.map(|slave_clock| {
-            unsafe {
-                pm::disable_clock(slave_clock);
-            }
+        self.slave_clock.map(|slave_clock| unsafe {
+            pm::disable_clock(slave_clock);
         });
 
         let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
@@ -766,11 +752,9 @@ impl hil::i2c::I2CMaster for I2CHw {
 
 impl hil::i2c::I2CSlave for I2CHw {
     fn enable(&self) {
-        self.slave_clock.map(|slave_clock| {
-            unsafe {
-                pm::disable_clock(self.master_clock);
-                pm::enable_clock(slave_clock);
-            }
+        self.slave_clock.map(|slave_clock| unsafe {
+            pm::disable_clock(self.master_clock);
+            pm::enable_clock(slave_clock);
         });
 
         self.slave_registers.map(|slave_registers| {
@@ -810,10 +794,8 @@ impl hil::i2c::I2CSlave for I2CHw {
             let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
 
             regs.control.set(0);
-            self.slave_clock.map(|slave_clock| {
-                unsafe {
-                    pm::disable_clock(slave_clock);
-                }
+            self.slave_clock.map(|slave_clock| unsafe {
+                pm::disable_clock(slave_clock);
             });
         });
         self.slave_disable_interrupts();

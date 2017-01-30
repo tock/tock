@@ -8,6 +8,7 @@ use kernel::{AppId, Callback, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
+use kernel::returncode::ReturnCode;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 4] = [0; 4];
@@ -424,28 +425,29 @@ impl<'a> gpio::Client for TSL2561<'a> {
 }
 
 impl<'a> Driver for TSL2561<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // Set a callback
             0 => {
                 // Set callback function
                 self.callback.set(Some(callback));
-                0
+                ReturnCode::SUCCESS
             }
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
-            // Take a pressure measurement
-            0 => {
+            0 /* check if present */ => ReturnCode::SUCCESS,
+            // Take a measurement
+            1 => {
                 self.take_measurement();
-                0
+                ReturnCode::SUCCESS
             }
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

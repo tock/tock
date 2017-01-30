@@ -24,6 +24,7 @@ pub mod scif;
 pub mod adc;
 pub mod flashcalw;
 pub mod wdt;
+pub mod trng;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -64,8 +65,9 @@ extern "C" {
 }
 
 #[link_section=".vectors"]
-#[no_mangle] // Ensures that the symbol is kept until the final binary
 #[cfg_attr(rustfmt, rustfmt_skip)]
+// no_mangle Ensures that the symbol is kept until the final binary
+#[no_mangle]
 pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     _estack, reset_handler,
     /* NMI */           unhandled_interrupt,
@@ -164,7 +166,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* DACC */          Option::Some(unhandled_interrupt),
     /* ACIFC */         Option::Some(unhandled_interrupt),
     /* ABDACB */        Option::Some(unhandled_interrupt),
-    /* TRNG */          Option::Some(unhandled_interrupt),
+    /* TRNG */          Option::Some(trng::trng_handler),
     /* PARC */          Option::Some(unhandled_interrupt),
     /* CATB */          Option::Some(unhandled_interrupt),
     None,
@@ -219,36 +221,78 @@ unsafe extern "C" fn hard_fault_handler() {
         :
         );
 
-    let stacked_r0: u32 = *offset(faulting_stack, 0);
-    let stacked_r1: u32 = *offset(faulting_stack, 1);
-    let stacked_r2: u32 = *offset(faulting_stack, 2);
-    let stacked_r3: u32 = *offset(faulting_stack, 3);
-    let stacked_r12: u32 = *offset(faulting_stack, 4);
-    let stacked_lr: u32 = *offset(faulting_stack, 5);
-    let stacked_pc: u32 = *offset(faulting_stack, 6);
-    let stacked_prs: u32 = *offset(faulting_stack, 7);
+    if kernel_stack {
+        let stacked_r0: u32 = *offset(faulting_stack, 0);
+        let stacked_r1: u32 = *offset(faulting_stack, 1);
+        let stacked_r2: u32 = *offset(faulting_stack, 2);
+        let stacked_r3: u32 = *offset(faulting_stack, 3);
+        let stacked_r12: u32 = *offset(faulting_stack, 4);
+        let stacked_lr: u32 = *offset(faulting_stack, 5);
+        let stacked_pc: u32 = *offset(faulting_stack, 6);
+        let stacked_prs: u32 = *offset(faulting_stack, 7);
 
-    let mode_str = if kernel_stack { "Kernel" } else { "Process" };
+        let mode_str = "Kernel";
 
-    let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
-    let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
-    let hfsr: u32 = core::ptr::read_volatile(0xE000ED2C as *const u32);
+        let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
+        let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
+        let hfsr: u32 = core::ptr::read_volatile(0xE000ED2C as *const u32);
 
-    panic!("{} HardFault.\n\
-           \tr0  0x{:x}\n\
-           \tr1  0x{:x}\n\
-           \tr2  0x{:x}\n\
-           \tr3  0x{:x}\n\
-           \tr12 0x{:x}\n\
-           \tlr  0x{:x}\n\
-           \tpc  0x{:x}\n\
-           \tprs 0x{:x}\n\
-           \tsp  0x{:x}\n\
-           \tSHCSR 0x{:x}\n\
-           \tCFSR  0x{:x}\n\
-           \tHSFR  0x{:x}\n\
-           ", mode_str,
-           stacked_r0, stacked_r1, stacked_r2, stacked_r3,
-           stacked_r12, stacked_lr, stacked_pc, stacked_prs,
-           faulting_stack as u32, shcsr, cfsr, hfsr);
+        panic!("{} HardFault.\n\
+               \tr0  0x{:x}\n\
+               \tr1  0x{:x}\n\
+               \tr2  0x{:x}\n\
+               \tr3  0x{:x}\n\
+               \tr12 0x{:x}\n\
+               \tlr  0x{:x}\n\
+               \tpc  0x{:x}\n\
+               \tprs 0x{:x}\n\
+               \tsp  0x{:x}\n\
+               \tSHCSR 0x{:x}\n\
+               \tCFSR  0x{:x}\n\
+               \tHSFR  0x{:x}\n\
+               ",
+               mode_str,
+               stacked_r0,
+               stacked_r1,
+               stacked_r2,
+               stacked_r3,
+               stacked_r12,
+               stacked_lr,
+               stacked_pc,
+               stacked_prs,
+               faulting_stack as u32,
+               shcsr,
+               cfsr,
+               hfsr);
+    } else {
+        // hard fault occurred in an app, not the kernel. The app should be
+        //  marked as in an error state and handled by the kernel
+        asm!("ldr r0, =SYSCALL_FIRED
+              mov r1, #1
+              str r1, [r0, #0]
+
+              ldr r0, =APP_FAULT
+              str r1, [r0, #0]
+
+              /* Read the SCB registers. */
+              ldr r0, =SCB_REGISTERS
+              ldr r1, =0xE000ED14
+              ldr r2, [r1, #0] /* CCR */
+              str r2, [r0, #0]
+              ldr r2, [r1, #20] /* CFSR */
+              str r2, [r0, #4]
+              ldr r2, [r1, #24] /* HFSR */
+              str r2, [r0, #8]
+              ldr r2, [r1, #32] /* MMFAR */
+              str r2, [r0, #12]
+              ldr r2, [r1, #36] /* BFAR */
+              str r2, [r0, #16]
+
+              /* Set thread mode to privileged */
+              mov r0, #0
+              msr CONTROL, r0
+
+              movw LR, #0xFFF9
+              movt LR, #0xFFFF");
+    }
 }

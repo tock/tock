@@ -1,6 +1,12 @@
+//! Timer Capsule
+//!
+//! Provides userspace applications with a timer API.
+
 use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver};
 use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::process::Error;
+use kernel::returncode::ReturnCode;
 
 #[derive(Copy, Clone)]
 pub struct TimerData {
@@ -41,14 +47,12 @@ impl<'a, A: Alarm> TimerDriver<'a, A> {
         let mut next_alarm = u32::max_value();
         let mut next_dist = u32::max_value();
         for timer in self.app_timer.iter() {
-            timer.enter(|timer, _| {
-                if timer.interval > 0 {
-                    let t_alarm = timer.t0.wrapping_add(timer.interval);
-                    let t_dist = t_alarm.wrapping_sub(now);
-                    if next_dist > t_dist {
-                        next_alarm = t_alarm;
-                        next_dist = t_dist;
-                    }
+            timer.enter(|timer, _| if timer.interval > 0 {
+                let t_alarm = timer.t0.wrapping_add(timer.interval);
+                let t_dist = t_alarm.wrapping_sub(now);
+                if next_dist > t_dist {
+                    next_alarm = t_alarm;
+                    next_dist = t_dist;
                 }
             });
         }
@@ -59,16 +63,20 @@ impl<'a, A: Alarm> TimerDriver<'a, A> {
 }
 
 impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
-    fn subscribe(&self, _: usize, callback: Callback) -> isize {
+    fn subscribe(&self, _: usize, callback: Callback) -> ReturnCode {
         self.app_timer
             .enter(callback.app_id(), |td, _allocator| {
                 td.callback = Some(callback);
-                0
+                ReturnCode::SUCCESS
             })
-            .unwrap_or(-1)
+            .unwrap_or_else(|err| match err {
+                Error::OutOfMemory => ReturnCode::ENOMEM,
+                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                Error::NoSuchApp => ReturnCode::EINVAL,
+            })
     }
 
-    fn command(&self, cmd_type: usize, interval: usize, caller_id: AppId) -> isize {
+    fn command(&self, cmd_type: usize, interval: usize, caller_id: AppId) -> ReturnCode {
         // First, convert from milliseconds to native clock frequency
         let interval = (interval as u32) * <A::Frequency>::frequency() / 1000;
 
@@ -78,14 +86,15 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
         // anyway, if the underlying alarm is currently disabled and we're
         // enabling the first alarm, or on an error (i.e. no change to the
         // alarms).
-        let (err_code, reset) = self.app_timer
+        let (return_code, reset) = self.app_timer
             .enter(caller_id, |td, _alloc| {
                 match cmd_type {
-                3 /* capture time */ => {
-		    let curr_time: u32 = self.alarm.now();
-		    (curr_time as isize, true)
+                0 /* check if present */ => (ReturnCode::SUCCESS, false),
+                4 /* capture time */ => {
+                    let curr_time: u32 = self.alarm.now();
+                    (ReturnCode::SuccessWithValue { value: curr_time as usize }, true)
                 },
-                2 /* Stop */ => {
+                3 /* Stop */ => {
                     if td.interval > 0 {
                         td.interval = 0;
                         td.t0 = 0;
@@ -93,18 +102,20 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                         self.num_armed.set(num_armed - 1);
                         if num_armed == 1 {
                             self.alarm.disable();
-                            (0, false)
+                            (ReturnCode::SUCCESS, false)
                         } else {
-                            (0, true)
+                            (ReturnCode::SUCCESS, true)
                         }
                     } else {
-                        (-2, false)
+                        // Request to stop when already stopped
+                        (ReturnCode::EINVAL, false)
                     }
                 },
-                /* 0 for Oneshot, 1 for Repeat */
-                cmd_type if cmd_type <= 1 => {
+                /* 1 for Oneshot, 2 for Repeat */
+                cmd_type if cmd_type <= 2 && cmd_type > 0 => {
                     if interval == 0 {
-                        return (-2, false);
+                        // Request for zero-length timer
+                        return (ReturnCode::EINVAL, false);
                     }
 
                     // if previously unarmed, but now will become armed
@@ -115,23 +126,30 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                     td.t0 = self.alarm.now();
                     td.interval = interval;
 
-                    // Repeat if cmd_type was 1
-                    td.repeating = cmd_type == 1;
+                    // Repeat if cmd_type was 2
+                    td.repeating = cmd_type == 2;
                     if self.alarm.is_armed() {
-                        (0, true)
+                        (ReturnCode::SUCCESS, true)
                     } else {
                         self.alarm.set_alarm(td.t0.wrapping_add(td.interval));
-                        (0, false)
+                        (ReturnCode::SUCCESS, false)
                     }
                 },
-                _ => (-1, false)
+                _ => (ReturnCode::ENOSUPPORT, false)
             }
             })
-            .unwrap_or((-3, false));
+            .unwrap_or_else(|err| {
+                let e = match err {
+                    Error::OutOfMemory => ReturnCode::ENOMEM,
+                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                    Error::NoSuchApp => ReturnCode::EINVAL,
+                };
+                (e, false)
+            });
         if reset {
             self.reset_active_timer();
         }
-        err_code
+        return_code
     }
 }
 
@@ -158,9 +176,7 @@ impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
                     self.num_armed.set(self.num_armed.get() - 1);
                 }
 
-                timer.callback.map(|mut cb| {
-                    cb.schedule(now as usize, 0, 0);
-                });
+                timer.callback.map(|mut cb| { cb.schedule(now as usize, 0, 0); });
             }
         });
 

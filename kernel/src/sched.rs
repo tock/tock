@@ -1,7 +1,10 @@
-use platform::{Chip, Platform, SysTick};
+use core::nonzero::NonZero;
+use platform::{Chip, Platform};
+use platform::systick::SysTick;
 use process;
 use process::{Process, Task};
-use syscall;
+use returncode::ReturnCode;
+use syscall::Syscall;
 
 pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                                                chip: &mut C,
@@ -41,62 +44,80 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                     }
                 }
             }
+            process::State::Fault => {
+                // we should never be scheduling a process in fault
+                panic!("Attempted to schedule a faulty process");
+            }
         }
 
         if !process.syscall_fired() {
             break;
         }
 
+        // check if the app had a fault
+        if process.app_fault() {
+
+            // let process deal with it as appropriate
+            process.fault_state();
+            continue;
+        }
+
+        // process had a system call, count it
+        process.incr_syscall_count();
         match process.svc_number() {
-            Some(syscall::MEMOP) => {
+            Some(Syscall::MEMOP) => {
                 let brk_type = process.r0();
                 let r1 = process.r1();
 
                 let res = match brk_type {
                     0 /* BRK */ => {
                         process.brk(r1 as *const u8)
-                            .map(|_| 0).unwrap_or(-1)
+                            .map(|_| ReturnCode::SUCCESS)
+                            .unwrap_or(ReturnCode::ENOMEM)
                     },
                     1 /* SBRK */ => {
                         process.sbrk(r1 as isize)
-                            .map(|addr| addr as isize).unwrap_or(-1)
+                            .map(|addr| ReturnCode::SuccessWithValue { value: addr as usize })
+                            .unwrap_or(ReturnCode::ENOMEM)
                     },
-                    _ => -2
+                    _ => ReturnCode::ENOSUPPORT
                 };
-                process.set_r0(res);
+                process.set_return_code(res);
             }
-            Some(syscall::YIELD) => {
+            Some(Syscall::YIELD) => {
                 process.yield_state();
                 process.pop_syscall_stack();
 
                 // There might be already enqueued callbacks
                 continue;
             }
-            Some(syscall::SUBSCRIBE) => {
+            Some(Syscall::SUBSCRIBE) => {
                 let driver_num = process.r0();
                 let subdriver_num = process.r1();
-                let callback_ptr = process.r2() as *mut ();
+                let callback_ptr_raw = process.r2() as *mut ();
                 let appdata = process.r3();
 
-                let callback = ::Callback::new(appid, appdata, callback_ptr);
-                let res = platform.with_driver(driver_num, |driver| {
-                    match driver {
+                let res = if callback_ptr_raw as usize == 0 {
+                    ReturnCode::EINVAL
+                } else {
+                    let callback_ptr = NonZero::new(callback_ptr_raw);
+
+                    let callback = ::Callback::new(appid, appdata, callback_ptr);
+                    platform.with_driver(driver_num, |driver| match driver {
                         Some(d) => d.subscribe(subdriver_num, callback),
-                        None => -1,
-                    }
-                });
-                process.set_r0(res);
+                        None => ReturnCode::ENODEVICE,
+                    })
+                };
+                process.set_return_code(res);
             }
-            Some(syscall::COMMAND) => {
-                let res = platform.with_driver(process.r0(), |driver| {
-                    match driver {
-                        Some(d) => d.command(process.r1(), process.r2(), appid),
-                        None => -1,
-                    }
+            Some(Syscall::COMMAND) => {
+                let res = platform.with_driver(process.r0(), |driver| match driver {
+                    Some(d) => d.command(process.r1(), process.r2(), appid),
+                    None => ReturnCode::ENODEVICE,
                 });
-                process.set_r0(res);
+                process.set_return_code(res);
             }
-            Some(syscall::ALLOW) => {
+            Some(Syscall::ALLOW) => {
                 let res = platform.with_driver(process.r0(), |driver| {
                     match driver {
                         Some(d) => {
@@ -106,13 +127,13 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                                 let slice = ::AppSlice::new(start_addr as *mut u8, size, appid);
                                 d.allow(appid, process.r1(), slice)
                             } else {
-                                -1
+                                ReturnCode::EINVAL /* memory not allocated to process */
                             }
                         }
-                        None => -1,
+                        None => ReturnCode::ENODEVICE,
                     }
                 });
-                process.set_r0(res);
+                process.set_return_code(res);
             }
             _ => {}
         }

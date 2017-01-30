@@ -4,7 +4,9 @@ pub mod gpio;
 pub mod i2c;
 pub mod spi;
 pub mod uart;
+pub mod rng;
 pub mod adc;
+pub mod flash;
 pub mod watchdog;
 
 pub trait Controller {

@@ -8,7 +8,7 @@
 //! by the scheduler, while three others are passed along to drivers:
 //!
 //!   * `subscribe` lets an application pass a callback to the driver to be
-//!   called later, when an event has occured or data of interest is available.
+//!   called later, when an event has occurred or data of interest is available.
 //!
 //!   * `command` tells the driver to do something immediately.
 //!
@@ -25,10 +25,20 @@
 //! determined by a particular platform, while the _driver minor number_ is
 //! driver-specific.
 //!
+//! One convention in Tock is that _driver minor number_ 0 for the `command`
+//! syscall can always be used to determine if the driver is supported by
+//! the running kernel by checking the return code. If the return value is
+//! greater than or equal to zero then the driver is present. Typically this is
+//! implemented by a null command that only returns 0, but in some cases the
+//! command can also return more information, like the number of supported
+//! devices (useful for things like the number of LEDs).
+//!
 //! # The `yield` System-call
 //!
-//! While drivers to handle the `yield` system call, it's important to understand
-//! it's function and it interacts with `subscribe`.
+//! While drivers do not handle the `yield` system call, it is important to
+//! understand its function and how it interacts with `subscribe`.
+
+use returncode::ReturnCode;
 
 /// `Driver`s implement the three driver-specific system calls: `subscribe`,
 /// `command` and `allow`.
@@ -60,8 +70,8 @@ pub trait Driver {
     /// the magnitude of the return value of can signify extra information such
     /// as error type.
     #[allow(unused_variables)]
-    fn subscribe(&self, minor_num: usize, callback: ::Callback) -> isize {
-        -1
+    fn subscribe(&self, minor_num: usize, callback: ::Callback) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
     }
 
     /// `command` instructs a driver to perform some action synchronously.
@@ -73,9 +83,14 @@ pub trait Driver {
     /// Commands should not execute long running tasks synchronously. However,
     /// commands might "kick-off" asynchronous tasks in coordination with a
     /// `subscribe` call.
+    ///
+    /// All drivers must support the command with `minor_num` 0, and return 0
+    /// or greater if the driver is supported. This command should not have any
+    /// side effects. This convention ensures that applications can query the
+    /// kernel for supported drivers on a given platform.
     #[allow(unused_variables)]
-    fn command(&self, minor_num: usize, r2: usize, caller_id: ::AppId) -> isize {
-        -1
+    fn command(&self, minor_num: usize, r2: usize, caller_id: ::AppId) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
     }
 
     /// `allow` lets an application give the driver access to a buffer in the
@@ -85,7 +100,7 @@ pub trait Driver {
     /// driver should not rely on the contents of the buffer to remain
     /// unchanged.
     #[allow(unused_variables)]
-    fn allow(&self, app: ::AppId, minor_num: usize, slice: ::AppSlice<::Shared, u8>) -> isize {
-        -1
+    fn allow(&self, app: ::AppId, minor_num: usize, slice: ::AppSlice<::Shared, u8>) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
     }
 }

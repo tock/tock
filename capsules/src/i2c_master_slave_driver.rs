@@ -16,6 +16,7 @@ use kernel::{AppId, AppSlice, Callback, Driver, Shared};
 
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use kernel::returncode::ReturnCode;
 
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
@@ -91,9 +92,7 @@ impl<'a> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
                 self.master_buffer.replace(buffer);
 
                 self.app_state.map(|app_state| {
-                    app_state.callback.map(|mut cb| {
-                        cb.schedule(0, err as usize, 0);
-                    });
+                    app_state.callback.map(|mut cb| { cb.schedule(0, err as usize, 0); });
                 });
             }
 
@@ -110,9 +109,7 @@ impl<'a> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
                         self.master_buffer.replace(buffer);
                     });
 
-                    app_state.callback.map(|mut cb| {
-                        cb.schedule(1, err as usize, 0);
-                    });
+                    app_state.callback.map(|mut cb| { cb.schedule(1, err as usize, 0); });
                 });
             }
         }
@@ -154,9 +151,7 @@ impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
                         self.slave_buffer1.replace(buffer);
                     });
 
-                    app_state.callback.map(|mut cb| {
-                        cb.schedule(3, length as usize, 0);
-                    });
+                    app_state.callback.map(|mut cb| { cb.schedule(3, length as usize, 0); });
                 });
             }
 
@@ -165,9 +160,7 @@ impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
 
                 // Notify the app that the read finished
                 self.app_state.map(|app_state| {
-                    app_state.callback.map(|mut cb| {
-                        cb.schedule(4, length as usize, 0);
-                    });
+                    app_state.callback.map(|mut cb| { cb.schedule(4, length as usize, 0); });
                 });
             }
         }
@@ -191,67 +184,58 @@ impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
         // to receive bytes because this module has a buffer and may as well
         // just let the hardware layer have it. But, if it does happen
         // we can respond.
-        self.slave_buffer1.take().map(|buffer| {
-            hil::i2c::I2CSlave::write_receive(self.i2c, buffer, 255);
-        });
+        self.slave_buffer1
+            .take()
+            .map(|buffer| { hil::i2c::I2CSlave::write_receive(self.i2c, buffer, 255); });
     }
 }
 
 
 impl<'a> Driver for I2CMasterSlaveDriver<'a> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             // Pass in a buffer for transmitting a `write` to another
             // I2C device.
             0 => {
-                self.app_state.map(|app_state| {
-                    app_state.master_tx_buffer.replace(slice);
-                });
-                0
+                self.app_state.map(|app_state| { app_state.master_tx_buffer.replace(slice); });
+                ReturnCode::SUCCESS
             }
             // Pass in a buffer for doing a read from another I2C device.
             1 => {
-                self.app_state.map(|app_state| {
-                    app_state.master_rx_buffer.replace(slice);
-                });
-                0
+                self.app_state.map(|app_state| { app_state.master_rx_buffer.replace(slice); });
+                ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a read issued by another I2C master.
             2 => {
-                self.app_state.map(|app_state| {
-                    app_state.slave_tx_buffer.replace(slice);
-                });
-                0
+                self.app_state.map(|app_state| { app_state.slave_tx_buffer.replace(slice); });
+                ReturnCode::SUCCESS
             }
             // Pass in a buffer for handling a write issued by another I2C master.
             3 => {
-                self.app_state.map(|app_state| {
-                    app_state.slave_rx_buffer.replace(slice);
-                });
-                0
+                self.app_state.map(|app_state| { app_state.slave_rx_buffer.replace(slice); });
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
-                self.app_state.map(|app_state| {
-                    app_state.callback.replace(callback);
-                });
-                0
+                self.app_state.map(|app_state| { app_state.callback.replace(callback); });
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
+            0 /* check if present */ => ReturnCode::SUCCESS,
             // Do a write to another I2C device
-            0 => {
+            1 => {
                 let address = (data & 0xFFFF) as u8;
                 let len = (data >> 16) & 0xFFFF;
 
@@ -278,11 +262,11 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                     });
                 });
 
-                0
+                ReturnCode::SUCCESS
             }
 
             // Do a read to another I2C device
-            1 => {
+            2 => {
                 let address = (data & 0xFFFF) as u8;
                 let len = (data >> 16) & 0xFFFF;
 
@@ -306,12 +290,11 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                     });
                 });
 
-
-                0
+                ReturnCode::SUCCESS
             }
 
             // Listen for messages to this device as a slave.
-            2 => {
+            3 => {
                 // We can always handle a write since this module has a buffer.
                 // .map will handle if we have already done this.
                 self.slave_buffer1.take().map(|buffer| {
@@ -325,12 +308,12 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                 // Note that we have enabled listening, so that if we switch
                 // to Master mode to send a message we can go back to listening.
                 self.listening.set(true);
-                0
+                ReturnCode::SUCCESS
             }
 
             // Prepare for a read from another Master by passing what's
             // in the shared slice to the lower level I2C hardware driver.
-            3 => {
+            4 => {
                 self.app_state.map(|app_state| {
                     app_state.slave_tx_buffer.map(|app_tx| {
                         self.slave_buffer2.take().map(|kernel_tx| {
@@ -349,28 +332,28 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                     });
                 });
 
-                0
+                ReturnCode::SUCCESS
             }
 
             // Stop listening for messages as an I2C slave
-            4 => {
+            5 => {
                 hil::i2c::I2CSlave::disable(self.i2c);
 
                 // We are no longer listening for I2C messages from a different
                 // master device.
                 self.listening.set(false);
-                0
+                ReturnCode::SUCCESS
             }
 
             // Setup this device's slave address.
-            5 => {
+            6 => {
                 let address = data as u8;
                 hil::i2c::I2CSlave::set_address(self.i2c, address);
-                0
+                ReturnCode::SUCCESS
             }
 
             // default
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

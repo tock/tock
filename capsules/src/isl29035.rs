@@ -5,6 +5,7 @@ use kernel::{AppId, Callback, Driver};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
 use kernel::hil::time::{self, Frequency};
+use kernel::returncode::ReturnCode;
 
 pub static mut BUF: [u8; 3] = [0; 3];
 
@@ -61,23 +62,24 @@ impl<'a, A: time::Alarm + 'a> Isl29035<'a, A> {
 }
 
 impl<'a, A: time::Alarm + 'a> Driver for Isl29035<'a, A> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
                 self.callback.set(Some(callback));
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> isize {
+    fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> ReturnCode {
         match command_num {
-            0 => {
+            0 /* check if present */ => ReturnCode::SUCCESS,
+            1 => {
                 self.start_read_lux();
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

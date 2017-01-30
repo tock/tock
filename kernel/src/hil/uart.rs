@@ -1,18 +1,18 @@
 /// UART hardware interface
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum StopBits {
     One = 0,
     Two = 2,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Parity {
     None = 0,
     Odd = 1,
     Even = 2,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct UARTParams {
     pub baud_rate: u32, // baud rate in bit/s
     pub stop_bits: StopBits,

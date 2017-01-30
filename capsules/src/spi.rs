@@ -1,11 +1,14 @@
+//! The SPI capsule provides userspace applications with the ability
+//! to communicate over the SPI bus.
+
 use core::cell::Cell;
 use core::cmp;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::spi::{SpiMaster, SpiMasterClient};
+use kernel::hil::spi::{SpiMasterDevice, SpiMasterClient};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
-
+use kernel::returncode::ReturnCode;
 
 // SPI operations are handled by coping into a kernel buffer for
 // writes and copying out of a kernel buffer for reads.
@@ -24,23 +27,21 @@ struct App {
     index: usize,
 }
 
-pub struct Spi<'a, S: SpiMaster + 'a> {
-    spi_master: &'a mut S,
+pub struct Spi<'a, S: SpiMasterDevice + 'a> {
+    spi_master: &'a S,
     busy: Cell<bool>,
     app: TakeCell<App>,
-    chip_selects: &'a [S::ChipSelect],
     kernel_read: TakeCell<&'static mut [u8]>,
     kernel_write: TakeCell<&'static mut [u8]>,
     kernel_len: Cell<usize>,
 }
 
-impl<'a, S: SpiMaster> Spi<'a, S> {
-    pub fn new(spi_master: &'a mut S, chip_selects: &'a [S::ChipSelect]) -> Spi<'a, S> {
+impl<'a, S: SpiMasterDevice> Spi<'a, S> {
+    pub fn new(spi_master: &'a S) -> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
             app: TakeCell::empty(),
-            chip_selects: chip_selects,
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
             kernel_write: TakeCell::empty(),
@@ -63,21 +64,20 @@ impl<'a, S: SpiMaster> Spi<'a, S> {
         app.index = end;
 
         self.kernel_write.map(|kwbuf| {
-            app.app_write.as_mut().map(|src| {
-                for (i, c) in src.as_ref()[start..end].iter().enumerate() {
+            app.app_write
+                .as_mut()
+                .map(|src| for (i, c) in src.as_ref()[start..end].iter().enumerate() {
                     kwbuf[i] = *c;
-                }
-            });
+                });
         });
-
         self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(),
                                          self.kernel_read.take(),
                                          len);
     }
 }
 
-impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> isize {
+impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
+    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
                 let appc = match self.app.take() {
@@ -96,7 +96,7 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             }
             1 => {
                 let appc = match self.app.take() {
@@ -115,14 +115,14 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             }
-            _ => -1,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
     #[inline(never)]
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> isize {
+    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* read_write */ => {
                 let appc = match self.app.take() {
@@ -139,9 +139,9 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                     }
                 };
                 self.app.replace(appc);
-                0
+                ReturnCode::SUCCESS
             },
-            _ => -1
+            _ => ReturnCode::ENOSUPPORT
         }
     }
     // 0: read/write a single byte (blocking)
@@ -187,19 +187,17 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
     //   - does nothing if lock not held
     //
 
-    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> isize {
+    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
         match cmd_num {
-            0 /* read_write_byte */ => {
-                self.spi_master.read_write_byte(arg1 as u8) as isize
-            },
-            1 /* read_write_bytes */ => {
+            0 /* check if present */ => ReturnCode::SUCCESS,
+            // No longer supported, wrap inside a read_write_bytes
+            1 /* read_write_byte */ => ReturnCode::ENOSUPPORT,
+            2 /* read_write_bytes */ => {
                 if self.busy.get() {
-                    return -1;
+                    return ReturnCode::EBUSY;
                 }
-                let mut result = -1;
-                self.app.map(|app| {
+                self.app.map_or(ReturnCode::FAIL /* XXX app is null? */, |app| {
                     let mut mlen = 0;
-                    // If write buffer too small, return
                     app.app_write.as_mut().map(|w| {
                         mlen = w.len();
                     });
@@ -211,61 +209,56 @@ impl<'a, S: SpiMaster> Driver for Spi<'a, S> {
                         app.index = 0;
                         self.busy.set(true);
                         self.do_next_read_write(app);
-                        result = 0;
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::EINVAL /* write buffer too small */
                     }
-                });
-                return result;
-            }
-            2 /* set chip select */ => {
-                let cs = arg1;
-                self.chip_selects.get(cs).map_or(-1, |cs_line| {
-                    self.spi_master.specify_chip_select(*cs_line);
-                    0
                 })
             }
-            3 /* get chip select */ => {
-                0
+            3 /* set chip select */ => {
+                // do nothing, for now, until we fix interface
+                // so virtual instances can use multiple chip selects
+                ReturnCode::ENOSUPPORT
             }
-            4 /* set baud rate */ => {
-                self.spi_master.set_rate(arg1 as u32) as isize
+            4 /* get chip select */ => {
+                //XXX Was a naked, uncommented zero. I'm assuming that's
+                //    because the only valid chip select for now is 0,
+                //    and wrapping it appropriately -Pat, ReturnCode fixes
+                ReturnCode::SuccessWithValue { value: 0 }
             }
-            5 /* get baud rate */ => {
-                self.spi_master.get_rate() as isize
+            5 /* set baud rate */ => {
+                self.spi_master.set_rate(arg1 as u32);
+                ReturnCode::SUCCESS
             }
-            6 /* set phase */ => {
+            6 /* get baud rate */ => {
+                ReturnCode::SuccessWithValue { value: self.spi_master.get_rate() as usize }
+            }
+            7 /* set phase */ => {
                 match arg1 {
                     0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
                 };
-                0
+                ReturnCode::SUCCESS
             }
-            7 /* get phase */ => {
-                self.spi_master.get_phase() as isize
+            8 /* get phase */ => {
+                ReturnCode::SuccessWithValue { value: self.spi_master.get_phase() as usize }
             }
-            8 /* set polarity */ => {
+            9 /* set polarity */ => {
                 match arg1 {
-                    0 => self.spi_master.set_clock(ClockPolarity::IdleLow),
-                    _ => self.spi_master.set_clock(ClockPolarity::IdleHigh),
+                    0 => self.spi_master.set_polarity(ClockPolarity::IdleLow),
+                    _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
                 };
-                0
+                ReturnCode::SUCCESS
             }
-            9 /* get polarity */ => {
-                self.spi_master.get_clock() as isize
+            10 /* get polarity */ => {
+                ReturnCode::SuccessWithValue { value: self.spi_master.get_polarity() as usize }
             }
-            10 /* hold low */ => {
-                self.spi_master.hold_low();
-                0
-            }
-            11 /* release low */ => {
-                self.spi_master.release_low();
-                0
-            }
-            _ => -1
+            _ => ReturnCode::ENOSUPPORT
         }
     }
 }
 
-impl<'a, S: SpiMaster> SpiMasterClient for Spi<'a, S> {
+impl<'a, S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
     fn read_write_done(&self,
                        writebuf: &'static mut [u8],
                        readbuf: Option<&'static mut [u8]>,
@@ -290,9 +283,7 @@ impl<'a, S: SpiMaster> SpiMasterClient for Spi<'a, S> {
                 self.busy.set(false);
                 app.len = 0;
                 app.index = 0;
-                app.callback.take().map(|mut cb| {
-                    cb.schedule(app.len, 0, 0);
-                });
+                app.callback.take().map(|mut cb| { cb.schedule(app.len, 0, 0); });
             } else {
                 self.do_next_read_write(app);
             }

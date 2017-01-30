@@ -1,13 +1,13 @@
 use core::nonzero::NonZero;
 use process;
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct AppId {
     idx: usize,
 }
 
 impl AppId {
-    pub unsafe fn new(idx: usize) -> AppId {
+    pub fn new(idx: usize) -> AppId {
         AppId { idx: idx }
     }
 
@@ -16,7 +16,7 @@ impl AppId {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Callback {
     app_id: AppId,
     appdata: usize,
@@ -24,11 +24,11 @@ pub struct Callback {
 }
 
 impl Callback {
-    pub unsafe fn new(appid: AppId, appdata: usize, fn_ptr: *mut ()) -> Callback {
+    pub fn new(appid: AppId, appdata: usize, fn_ptr: NonZero<*mut ()>) -> Callback {
         Callback {
             app_id: appid,
             appdata: appdata,
-            fn_ptr: NonZero::new(fn_ptr),
+            fn_ptr: fn_ptr,
         }
     }
 

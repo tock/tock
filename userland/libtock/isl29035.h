@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+#define DRIVER_NUM_ISL29035 6
+
 int isl29035_subscribe(subscribe_cb callback, void* userdata);
 int isl29035_start_intensity_reading();
 

@@ -57,6 +57,17 @@ or with [MacPorts](https://www.macports.org/):
 $ port install arm-none-eabi-gcc
 ```
 
+###### Heads Up!
+
+The `make debug` target asks the Tock build system to generate a listings
+(disassembly) file. Some developers have noticed that `arm-none-eabi-objdump`
+takes a long time (order several minutes) on a mac while Activity Monitor
+reports that `opendirectoryd` pegs the CPU.
+
+This is a [known issue](http://superuser.com/questions/350879/) that you can
+resolve by commenting out the `/home` line from `/etc/auto_master` and then
+running `sudo automount -vc` to apply the changes.
+
 ##### Linux
 
 On Linux we recommend getting packages from the [Launchpad repo](https://launchpad.net/gcc-arm-embedded/+download).
