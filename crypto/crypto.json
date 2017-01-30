@@ -1,0 +1,24 @@
+{
+    "data-layout": "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64",
+    "llvm-target": "thumbv6m-none-eabi",
+    "target-endian": "little",
+    "target-pointer-width": "32",
+    "arch": "arm",
+    "os": "none",
+    "morestack": false,
+    "executables": true,
+    "no-compiler-rt": true,
+    "relocation-model": "static",
+    "linker": "arm-none-eabi-gcc",
+    "linker-is-gnu": true,
+    "disable-redzone": true,
+    "pre-link-args": [
+        "-mcpu=cortex-m4", "-mthumb",
+        "-mfloat-abi=soft",
+        "-Wl,-gc-sections",
+        "-Tlayout.ld"
+    ],
+    "post-link-args": [
+        "-lm", "-lgcc", "-lc"
+    ]
+}
