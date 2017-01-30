@@ -106,35 +106,36 @@ Alternatively, if you would like simulator mode in `arm-none-eabi-gdb`,
 you can use the build scripts in the `tools` directory, in this order:
 `build-arm-binutils` then `build-arm-gcc` then `build-arm-gdb`.
 
-## Building the Kernel
+## Compiling the Kernel
 
-To build the kernel, just type `make` in the root directory. To upload code to
-a board, type `make program`.
-
-The root Makefile selects a board and architecture to build the kernel for and
-routes all calls to that board's specific Makefile. The root Makefile is set up
-with the following defaults:
+To build the kernel, just type `make` in the root directory.  The root
+Makefile selects a board and architecture to build the kernel for and
+routes all calls to that board's specific Makefile. The root Makefile
+is set up with the following defaults:
 
 ```
 TOCK_BOARD ?= storm
 TOCK_ARCH ?= cortex-m4
 ```
 
-To build for a different platform, multiple options exist:
+so it compiles for the storm board. There are two ways to build
+for a different board
 
- * You can add an environment variable for the `TOCK_BOARD` and `TOCK_ARCH`.
-    `TOCK_BOARD` is the directory name inside `boards/`.
-    `TOCK_ARCH` is the gcc architecture name. Ex: `cortex-m4` or `cortex-m0`.
-
-    ```bash
-    $ make TOCK_BOARD=nrf51dk
-    ```
-
- * You can also build the kernel for a specific board by entering the board's directory
+ * You can compile the kernel for a specific board by running the command
+   from inside the board's directory
 
     ```bash
     $ cd boards/nrf51dk/
     $ make
+    ```
+
+ * Alternatively, you can add an environment variable for the
+  `TOCK_BOARD` and `TOCK_ARCH`.
+    `TOCK_BOARD` is the directory name inside `boards/`.
+    `TOCK_ARCH` is the gcc architecture name. Ex: `cortex-m4` or `cortex-m0`.
+
+    ```bash
+    $ make TOCK_BOARD=nrf51dk TOCK_ARCH=cortex-m0
     ```
 
 Board specific Makefiles are located in `boards/<BOARD>/`. Some boards have
@@ -142,23 +143,39 @@ special build options that can only be used within the board's directory.
 Generic options such as `clean`, `doc`, `debug`, `program`, and `flash` can be
 accessed from Tock's root
 
-To upload code to a board, use the `program` or `flash` options. `program`
-uploads code over a serial bootloader. `flash` uploads code over JTAG. Not all
-platforms support all methods of code upload.
+## Uploading the Kernel
+
+To upload code to a board, use `make program` or `make flash` (recommended).
+
+  * `flash` programs the chip using JTAG, which is a debugging and
+    control protocol that many chips provide. This requires that the
+    board either supports JTAG directly (e.g., the nrf51dk) or you
+    connect a JTAG device to the board (e.g., imix and storm).
+
+  * `program` uploads code over a serial bootloader. Your computer sends
+    the image over the serial port to a small piece of code running on the
+    board, which writes the image to the chip's flash. Not all platforms
+    support this option.
 
 
-## Building apps
+## Compiling applications
 
-All user-level code lives in the `userland` subdirectory. This includes a
-specially compiled version of newlib, a user-level library for talking to the
-kernel and specific drivers and a variety of example applications.
+All user-level code lives in the `userland` subdirectory. This
+includes a specially compiled version of newlib, a user-level library
+for talking to the kernel and specific drivers and a variety of
+example applications.
 
-Userland compilation units are specific to a particular architecture (e.g.
-`cortex-m4`, `cortex-m0`) since the compiler emits slightly different code for
-each variant, but is portable across boards with the same drivers. The `TOCK_ARCH`
-environment variable controls which architecture to compile to. You can set the
-`TOCK_ARCH` to any architecture GCC's `-mcpu` option accepts. By default, `TOCK_ARCH`
-is set to `cortex-m4` for the `storm` board.
+Compiled applications are architecture-specific (e.g.  `cortex-m4`,
+`cortex-m0`) since the compiler emits slightly different instructions
+for each variant. Compiled applications can also depend on specific
+drivers, which not all boards provide; if you load an application onto
+a board that does not support every driver/system call it uses, some
+system calls with return error codes (ENODEVICE or ENOSUPPORT).
+
+The `TOCK_ARCH` environment variable controls which chip architecture
+to compile to. You can set the `TOCK_ARCH` to any architecture GCC's
+`-mcpu` option accepts. By default, `TOCK_ARCH` is set to `cortex-m4`
+for the `storm` board.
 
 To compile an app, `cd` to the desired app and `make`. For example:
 
@@ -167,29 +184,34 @@ $ cd userland/examples/blink/
 $ make
 ```
 
-This will build the app and generate a binary in Tock Binary Format (using the
-`elf2tbf` utility): `userland/examples/blink/build/cortex-m4/app.bin`. This
-binary should either be programmed separately from the kernel. See the README
-file in each board subdirectory for details.
+This will build the app and generate a binary in Tock Binary Format
+(using the `elf2tbf` utility):
+`userland/examples/blink/build/cortex-m4/app.bin`.
 
-Apps can be built and automatically uploaded from the root directory of Tock.
+Alternatively, pps can be built and automatically uploaded from the
+Tock root directory:
 
 ```bash
 $ make examples/blink
 ```
 
+## Installing applications
+
+Application binaries are programmed separately from the kernel.
 Like the kernel, apps can be uploaded with `make program` or `make flash`.
 ```bash
 $ cd userland/examples/blink/
 $ make program
 ```
 
-This builds and loads only a single app. Tock is capable of running multiple apps
-concurrently. In order to load multiple apps, you can use the application upload
-tools manually. They are located in `userland/tools/`, are separated by upload method
-(`flash` or `program`) and take `.bin` files as input arguments.
+This builds and loads only a single app applications. Tock is capable
+of running multiple applications concurrently. In order to load
+multiple applications, you need to manually use the application upload
+tools. They are located in `userland/tools/`, are separated by upload
+method (`flash` or `program`) and take `.bin` files as input
+arguments.
 
-Example
+For example,
 
 ```bash
 $ make -C userland/examples/blink
@@ -197,6 +219,7 @@ $ make -C userland/examples/c_hello
 $ userland/tools/program/storm.py userland/examples/blink/build/cortex-m4/app.bin userland/examples/c_hello/build/cortex-m4/app.bin
 ```
 
+will program both blink and c_hello on a storm board.
 
 ## Board-Specific Instructions
 
@@ -209,8 +232,8 @@ boards, see board specific READMEs.
 
 ## Formatting Rust Source Code
 
-Rust includes a tool for automatically formatting Rust source code. This requires
-a `cargo` tool:
+Rust includes a tool for automatically formatting Rust source
+code. This requires a `cargo` tool:
 
     $ cargo install rustfmt
 
