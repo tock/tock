@@ -247,14 +247,15 @@ from TinyOS Enhancement Proposal 1 (TEP 1).
 7. Author's Address
 ====================================================================
 
-> Philip Levis
-> 409 Gates Hall
-> Stanford University 
-> Stanford, CA 94305
->
-> phone - +1 650 725 9046
->
-> email - pal@cs.stanford.edu
+```Philip Levis
+409 Gates Hall
+Stanford University 
+Stanford, CA 94305
+
+phone - +1 650 725 9046
+
+email - pal@cs.stanford.edu```
+
 
 8. Citations
 ====================================================================
