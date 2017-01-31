@@ -254,7 +254,8 @@ Stanford, CA 94305
 
 phone - +1 650 725 9046
 
-email - pal@cs.stanford.edu```
+email - pal@cs.stanford.edu
+```
 
 
 8. Citations
