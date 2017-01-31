@@ -1,4 +1,5 @@
-#![allow(unused_parens)] // I like them sometimes, for formatting -pal
+// I like them sometimes, for formatting -pal
+#![allow(unused_parens)] 
 
 ///
 /// Capsule for sending 802.15.4 packets with an Atmel RF233.
