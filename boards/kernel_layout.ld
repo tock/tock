@@ -34,7 +34,7 @@ MEMORY
   ram (rwx) : ORIGIN =  RAM_ORIGIN, LENGTH =  RAM_LENGTH
 }
 
-__stack_size__ = DEFINED(__stack_size__) ? __stack_size__ : 0x1000;
+__stack_size__ = DEFINED(__stack_size__) ? __stack_size__ : 0x2000;
 
 SECTIONS
 {
