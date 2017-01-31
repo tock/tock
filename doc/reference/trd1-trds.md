@@ -247,7 +247,8 @@ from TinyOS Enhancement Proposal 1 (TEP 1).
 7. Author's Address
 ====================================================================
 
-```Philip Levis
+```
+Philip Levis
 409 Gates Hall
 Stanford University 
 Stanford, CA 94305
