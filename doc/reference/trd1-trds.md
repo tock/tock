@@ -231,7 +231,7 @@ TRDs MUST be stored in the Tock repository with a file name of
 trd[number]-[desc].md
 
 Where number is the TRD number and desc is a short, one word description.
-The name of this document is trd1-trds.doc.
+The name of this document is trd1-trds.md.
 
 5. Reference
 ====================================================================
