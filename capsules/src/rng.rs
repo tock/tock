@@ -7,10 +7,9 @@
 
 
 use core::cell::Cell;
-use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver};
+use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
 use kernel::hil::rng;
 use kernel::process::Error;
-use kernel::returncode::ReturnCode;
 
 pub struct App {
     callback: Option<Callback>,

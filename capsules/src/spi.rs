@@ -3,12 +3,11 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, Driver, Callback, AppSlice, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::spi::{SpiMasterDevice, SpiMasterClient};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
-use kernel::returncode::ReturnCode;
 
 // SPI operations are handled by coping into a kernel buffer for
 // writes and copying out of a kernel buffer for reads.

@@ -3,9 +3,8 @@
 //! without having to know which of the GPIO pins exposed across
 //! the syscall interface are LEDs.
 
-use kernel::{AppId, Driver};
+use kernel::{AppId, Driver, ReturnCode};
 use kernel::hil;
-use kernel::returncode::ReturnCode;
 
 /// Whether the LEDs are active high or active low on this platform.
 pub enum ActivationMode {

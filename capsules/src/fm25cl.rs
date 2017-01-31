@@ -2,11 +2,10 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use kernel::returncode::ReturnCode;
 
 
 
