@@ -21,7 +21,10 @@ extern int main();
  */
 
 #ifndef STACK_SIZE
-#define STACK_SIZE 2048
+#error STACK_SIZE not defined.\
+       libtock expects STACK_SIZE to be defined by the compiling environment\
+       and for the compilation to check and warn for oversized stacks, i.e.\
+         $(CC) -DSTACK_SIZE=$(SIZE) -fstack-usage -Wstack-usage=$(SIZE)
 #endif
 
 __attribute__ ((section(".stack")))
