@@ -1,5 +1,3 @@
-
-
 use callback::{AppId, Callback, RustOrRawFnPtr};
 use core::cmp::min;
 use core::fmt::{Arguments, Result, Write, write};
