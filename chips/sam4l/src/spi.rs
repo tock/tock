@@ -15,7 +15,6 @@ use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use pm;
 
-
 /// Implementation of DMA-based SPI master communication for
 /// the Atmel SAM4L CortexM4 microcontroller.
 /// Authors: Sam Crow <samcrow@uw.edu>
@@ -296,7 +295,6 @@ impl spi::SpiMaster for Spi {
                         len: usize)
                         -> bool {
         self.enable();
-
         // If busy, don't start.
         if self.is_busy() {
             return false;
@@ -323,7 +321,7 @@ impl spi::SpiMaster for Spi {
         // For shorter transfers, the first byte will be missing.
         self.dma_write.map(move |write| {
             write.enable();
-            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count)
+            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count);
         });
 
         // Only setup the RX channel if we were passed a read_buffer inside
@@ -335,7 +333,6 @@ impl spi::SpiMaster for Spi {
                 read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
             });
         });
-
         true
     }
 

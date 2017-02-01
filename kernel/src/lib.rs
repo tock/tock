@@ -9,8 +9,8 @@ pub mod driver;
 pub mod ipc;
 pub mod mem;
 pub mod process;
-pub mod hil;
 pub mod returncode;
+pub mod hil;
 
 pub mod support;
 
