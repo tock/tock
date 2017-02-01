@@ -23,6 +23,8 @@ use sam4l::usart;
 
 #[macro_use]
 pub mod io;
+#[allow(dead_code)]
+mod test_take_map_cell;
 
 static mut spi_read_buf: [u8; 64] = [0; 64];
 static mut spi_write_buf: [u8; 64] = [0; 64];
@@ -343,6 +345,8 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
+
+
     let hail = Hail {
         console: console,
         gpio: gpio,
@@ -371,5 +375,9 @@ pub unsafe fn reset_handler() {
     let mut chip = sam4l::chip::Sam4l::new();
     chip.mpu().enable_mpu();
 
+    // Uncomment to measure overheads for TakeCell and MapCell:
+    //test_take_map_cell::test_take_map_cell();
+
     kernel::main(&hail, &mut chip, load_processes(), &hail.ipc);
 }
+
