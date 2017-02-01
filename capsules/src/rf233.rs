@@ -1,5 +1,5 @@
 // I like them sometimes, for formatting -pal
-#![allow(unused_parens)] 
+#![allow(unused_parens,dead_code)] 
 
 ///
 /// Capsule for sending 802.15.4 packets with an Atmel RF233.
@@ -30,7 +30,7 @@ use rf233_const::*;
 
 const INTERRUPT_ID: usize = 0x2154;
 
-#[allow(unused_variables, dead_code,non_camel_case_types)]
+#[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
 enum InternalState {
     // There are 6 high-level states:
@@ -290,6 +290,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             // interrupt
             InternalState::READY => {
                 self.radio_on.set(true);
+                // Useful debug code to test radio can transmit without
+                // an app/calling system calls
                 //unsafe {
                 //    self.transmit(0xFFFF, &mut app_buf, 20);
                 //}

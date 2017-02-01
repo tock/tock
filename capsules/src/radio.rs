@@ -7,8 +7,6 @@
 // Date: Jan 12 2017
 //
 
-#![allow(dead_code)]
-
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::TakeCell;
@@ -87,7 +85,6 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
         }
     }
 
-    #[inline(never)]
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* transmit done*/  => {
@@ -227,7 +224,6 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
                     let dest = app.app_read.as_mut().unwrap();
                     let d = &mut dest.as_mut();
                     for (i, c) in buf[offset..len as usize].iter().enumerate() {
-                        // Should  subtract header length and move payload
                         d[i] = *c;
                     }
                     app.rx_callback.take().map(|mut cb| {
