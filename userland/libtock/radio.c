@@ -31,14 +31,14 @@ int radio_init() {
 static void cb_tx( __attribute__ ((unused)) int unused0,
                 __attribute__ ((unused)) int unused1,
                 __attribute__ ((unused)) int unused2,
-                __attribute__ ((unused)) void* ud) {
+                void* ud) {
   *((bool*)ud) = true;
 }
 
 static void cb_rx( __attribute__ ((unused)) int unused0,
                 __attribute__ ((unused)) int unused1,
                 __attribute__ ((unused)) int unused2,
-                __attribute__ ((unused)) void* ud) {
+                void* ud) {
   *((bool*)ud) = true;
 }
 

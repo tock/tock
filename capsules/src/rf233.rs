@@ -1,5 +1,5 @@
 // I like them sometimes, for formatting -pal
-#![allow(unused_parens,dead_code)] 
+#![allow(unused_parens,dead_code)]
 
 ///
 /// Capsule for sending 802.15.4 packets with an Atmel RF233.
@@ -665,7 +665,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
         }
     }
 
-    #[allow(dead_code)]
     fn register_write(&self, reg: RF233Register, val: u8) -> ReturnCode {
 
         if (self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none()) {
@@ -709,8 +708,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
         ReturnCode::SUCCESS
     }
 
-    // A future, correct version will use buf and properly handle buffers.
-    #[allow(unused_variables)]
     fn frame_read(&self, buf: &'static mut [u8], buf_len: u8) -> ReturnCode {
         if self.spi_busy.get() {
             return ReturnCode::EBUSY;
@@ -787,7 +784,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
         ReturnCode::SUCCESS
     }
 
-    #[allow(dead_code)]
     fn start(&self) -> ReturnCode {
         if self.state.get() != InternalState::START {
             return ReturnCode::FAIL;

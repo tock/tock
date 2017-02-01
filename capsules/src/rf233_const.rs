@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types)]
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum RF233Register {
     MIN = 0x00,
     TRX_STATUS = 0x01,
@@ -110,7 +110,7 @@ pub const IRQ_1_PLL_UNLOCK: u8 = 0x02;
 pub const IRQ_0_PLL_LOCK: u8 = 0x01;
 
 // The commands issued over SPI (first 2-3 bits).
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum RF233BusCommand {
     REGISTER_READ = 0x80,
     REGISTER_WRITE = 0xC0,
@@ -121,7 +121,7 @@ pub enum RF233BusCommand {
 }
 // The values of the radio's internal state, fetched
 // from SPI operations or TRX_STATUS.
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum ExternalState {
     ON = 0x00,
     BUSY_RX = 0x01,

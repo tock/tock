@@ -23,9 +23,6 @@ int callback(void*, int, uint16_t, uint16_t, uint16_t);
 int main() {
   char buf[2] = { 0xde, 0xad };
 
-
-  // Userland init not working, SPI doesn't
-  // operate. -pal, 1/2/17
   rf233_init(0xab, 0xbc, 0xcd);
   rf233_rx_data(callback);
 
