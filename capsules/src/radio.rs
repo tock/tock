@@ -208,9 +208,7 @@ impl<'a, R: radio::Radio> radio::TxClient for RadioDriver<'a, R> {
         self.app.map(move |app| {
             self.kernel_tx.replace(buf);
             self.busy.set(false);
-            app.tx_callback.take().map(|mut cb| {
-                cb.schedule(usize::from(result), 0, 0);
-            });
+            app.tx_callback.take().map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
         });
     }
 }
@@ -226,9 +224,9 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
                     for (i, c) in buf[offset..len as usize].iter().enumerate() {
                         d[i] = *c;
                     }
-                    app.rx_callback.take().map(|mut cb| {
-                        cb.schedule(usize::from(result), 0, 0);
-                    });
+                    app.rx_callback
+                        .take()
+                        .map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
                 }
                 self.radio.set_receive_buffer(buf);
             });

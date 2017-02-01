@@ -524,9 +524,9 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                     let buf = self.tx_buf.take();
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
 
-                    self.tx_client.get().map(|c| {
-                        c.send_done(buf.unwrap(), ReturnCode::SUCCESS);
-                    });
+                    self.tx_client
+                        .get()
+                        .map(|c| { c.send_done(buf.unwrap(), ReturnCode::SUCCESS); });
                 } else {
                     self.register_read(RF233Register::TRX_STATUS);
                 }
