@@ -32,7 +32,33 @@ ELF2TBF_ARGS += -n $(PACKAGE_NAME)
 OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
 OBJS += $(patsubst %.cc,$(BUILDDIR)/%.o,$(CXX_SRCS))
 
-CPPFLAGS += -DSTACK_SIZE=2048
+# Divine or set the stack size
+# First, if the make variable STACK_SIZE is set, we add that to the flags
+ifdef STACK_SIZE
+    CPPFLAGS += -DSTACK_SIZE=$(STACK_SIZE)
+endif
+# Next, we scan all the reasonable flags for '-DSTACK_SIZE' invocations.
+# If there are conflicting values, throw an error.
+# If there's none, set a default size.
+# If there's one (or multiple identical) grab the value so we can use it elsewhere.
+FLAGS_STACK_SIZE := $(shell echo $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS) | tr ' ' '\n' | grep STACK_SIZE | sort | uniq)
+ifneq ($(shell echo $(FLAGS_STACK_SIZE) | tr ' ' '\n' | wc -l | tr -d ' '),1)
+    $(error Conflicting STACK_SIZE values: $(FLAGS_STACK_SIZE))
+endif
+ifeq ($(FLAGS_STACK_SIZE),)
+    STACK_SIZE := 2048
+    CPPFLAGS += -DSTACK_SIZE=$(STACK_SIZE)
+else
+    STACK_SIZE := $(shell echo $(FLAGS_STACK_SIZE) | cut -d '=' -f2)
+endif
+
+# Also detect and pass through APP_HEAP_SIZE and KERNEL_HEAP_SIZE make variables
+ifdef APP_HEAP_SIZE
+    CPPFLAGS += -DAPP_HEAP_SIZE=$(APP_HEAP_SIZE)
+endif
+ifdef KERNEL_HEAP_SIZE
+    CPPFLAGS += -DKERNEL_HEAP_SIZE=$(KERNEL_HEAP_SIZE)
+endif
 
 ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
 
@@ -44,6 +70,7 @@ CPPFLAGS += \
 	    -frecord-gcc-switches\
 	    -Os\
 	    -fdata-sections -ffunction-sections\
+	    -fstack-usage -Wstack-usage=$(STACK_SIZE)\
 	    -Wall\
 	    -Wextra\
 	    -Wl,-gc-sections\
