@@ -51,7 +51,7 @@ struct Imix {
 
 // The RF233 radio stack requires our buffers for its SPI operations:
 //
-//   1. buf: a packet-sized buffer for SPI operations, which is 
+//   1. buf: a packet-sized buffer for SPI operations, which is
 //      used as the read buffer when it writes a packet passed to it and the write
 //      buffer when it reads a packet into a buffer passed to it.
 //   2. rx_buf: buffer to receive packets into
@@ -380,8 +380,8 @@ pub unsafe fn reset_handler() {
     chip.mpu().enable_mpu();
 
     rf233.reset();
-    rf233.set_pan(0xABCD);
-    rf233.set_address(0x1008);
+    rf233.config_set_pan(0xABCD);
+    rf233.config_set_address(0x1008);
     rf233.start();
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);
 }

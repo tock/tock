@@ -1,5 +1,5 @@
 // I like them sometimes, for formatting -pal
-#![allow(unused_parens)] 
+#![allow(unused_parens)]
 
 ///
 /// Capsule for sending 802.15.4 packets with an Atmel RF233.
@@ -178,10 +178,65 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     rx_client: Cell<Option<&'static radio::RxClient>>,
     addr: Cell<u16>,
     pan: Cell<u16>,
+    tx_power: Cell<i8>,
+    channel: Cell<u8>,
     seq: Cell<u8>,
     spi_rx: TakeCell<&'static mut [u8]>,
     spi_tx: TakeCell<&'static mut [u8]>,
     spi_buf: TakeCell<&'static mut [u8]>,
+}
+
+
+fn setting_to_power(setting: u8) -> i8 {
+    match setting {
+        0x00 => 4,
+        0x01 => 4,
+        0x02 => 3,
+        0x03 => 3,
+        0x04 => 2,
+        0x05 => 2,
+        0x06 => 1,
+        0x07 => 0,
+        0x08 => -1,
+        0x09 => -2,
+        0x0A => -3,
+        0x0B => -4,
+        0x0C => -6,
+        0x0D => -8,
+        0x0E => -12,
+        0x0F => -17,
+        _ => -127
+    }
+}
+
+fn power_to_setting(power: i8) -> u8 {
+    if (power >= 4) {
+        return 0x00;
+    } else if (power >= 3) {
+        return 0x03;
+    } else if (power >= 2) {
+        return 0x05;
+    } else if (power >= 1) {
+        return 0x06;
+    } else if (power >= 0) {
+        return 0x07;
+    } else if (power >= -1) {
+        return 0x08;
+    } else if (power >= -2) {
+        return 0x09;
+    } else if (power >= -3) {
+        return 0x0A;
+    } else if (power >= -4) {
+        return 0x0B;
+    } else if (power >= -6) {
+        return 0x0C;
+    } else if (power >= -8) {
+        return 0x0D;
+    } else if (power >= -12) {
+        return 0x0E;
+    } else {
+        return 0x0F;
+    }
 }
 
 fn interrupt_included(mask: u8, interrupt: u8) -> bool {
@@ -644,6 +699,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
             rx_client: Cell::new(None),
             addr: Cell::new(0),
             pan: Cell::new(0),
+            tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
+            channel: Cell::new(PHY_CHANNEL),
             seq: Cell::new(0),
             spi_rx: TakeCell::empty(),
             spi_tx: TakeCell::empty(),
@@ -801,6 +858,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
     fn set_transmit_client(&self, client: &'static radio::TxClient) {
         self.tx_client.set(Some(client));
     }
+
     fn set_receive_client(&self, client: &'static radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(Some(client));
         self.rx_buf.replace(buffer);
@@ -810,14 +868,57 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
         self.rx_buf.replace(buffer);
     }
 
+    fn config_set_address(&self, addr: u16) {
+        self.addr.set(addr);
+    }
 
-    // Setting the address also sets the panx
-    fn set_address(&self, addr: u16) -> ReturnCode {
-        let state = self.state.get();
+    fn config_set_pan(&self, id: u16) {
+        self.pan.set(id);
+    }
+
+    fn config_set_tx_power(&self, power: i8) -> ReturnCode {
+        if (power > 4 || power < -17) {
+            ReturnCode::EINVAL
+        } else {
+            self.tx_power.set(power);
+            ReturnCode::SUCCESS
+        }
+    }
+
+    fn config_set_channel(&self, chan: u8) -> ReturnCode {
+        if chan >= 11 && chan <= 26 {
+            self.channel.set(chan);
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::EINVAL
+        }
+    }
+
+
+    fn config_address(&self) -> u16 {
+        self.addr.get()
+    }
+    /// The 16-bit PAN ID
+    fn config_pan(&self) -> u16 {
+        self.pan.get()
+    }
+    /// The transmit power, in dBm
+    fn config_tx_power(&self) -> i8 {
+        self.tx_power.get()
+    }
+    /// The 802.15.4 channel
+    fn config_channel(&self) -> u8 {
+        self.channel.get()
+    }
+
+    fn config_commit(&self) -> ReturnCode {
+        ReturnCode::FAIL
+    }
+/*        let state = self.state.get();
         // The start state will push addr into hardware on initialization;
         // the ready state needs to do so immediately.
         if state == InternalState::READY || state == InternalState::START {
-            self.addr.set(addr);
+
             if state == InternalState::READY {
                 self.state_transition_write(RF233Register::SHORT_ADDR_0,
                                             (self.addr.get() & 0xff) as u8,
@@ -828,7 +929,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
             ReturnCode::EBUSY
         }
     }
-    // Setting the PAN also sets the address
+
+    /// Setting the PAN also sets the address.
     fn set_pan(&self, addr: u16) -> ReturnCode {
         let state = self.state.get();
         // The start state will push addr into hardware on initialization;
@@ -844,7 +946,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
         } else {
             ReturnCode::EBUSY
         }
-    }
+    }*/
 
     // + 1 because we need space for the frame read/write byte for
     // the SPI command. Otherwise, if the packet begins at byte 0, we
@@ -853,6 +955,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
     fn payload_offset(&self) -> u8 {
         radio::HEADER_SIZE + 1
     }
+
     fn header_size(&self) -> u8 {
         radio::HEADER_SIZE
     }
