@@ -15,7 +15,7 @@ developing Tock.
 
 #### Rust (nightly)
 
-We are using `rustc 1.12.0-nightly (54c0dcfd6 2016-07-28)`. We recommend
+We are using `rustc 1.16.0-nightly (df8debf6d 2017-01-25)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -31,7 +31,7 @@ Then override the default version of Rust to use for Tock by running the
 following from the top-level Tock directory:
 
 ```bash
-$ rustup override set nightly-2016-07-29
+$ rustup override set nightly-2017-01-25
 ```
 
 #### `arm-none-eabi` toolchain

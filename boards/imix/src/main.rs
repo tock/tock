@@ -58,14 +58,14 @@ struct Imix {
 //   3 + 4: two small buffers for performing registers
 //      operations (one read, one write).
 
-static mut rf233_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
-static mut rf233_rx_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
-static mut rf233_reg_write: [u8; 2] = [0x00; 2];
-static mut rf233_reg_read: [u8; 2] = [0x00; 2];
+static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut RF233_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
+static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 // The RF233 system call interface ("radio") requires one buffer, which it
 // copies application transmissions into or copies out to application buffers
 // for reception.
-static mut radio_buf: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+static mut RADIO_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -238,13 +238,13 @@ pub unsafe fn reset_handler() {
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(syscall_spi_device),
-        84);
+        608/8);
 
     // System call capsule requires static buffers so it can
     // copy from application slices to DMA
-    static mut spi_read_buf: [u8; 64] = [0; 64];
-    static mut spi_write_buf: [u8; 64] = [0; 64];
-    spi_syscalls.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    static mut SPI_READ_BUF: [u8; 64] = [0; 64];
+    static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
+    spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
     syscall_spi_device.set_client(spi_syscalls);
 
 
@@ -348,17 +348,17 @@ pub unsafe fn reset_handler() {
     }
 
     rf233_spi.set_client(rf233);
-    rf233.initialize(&mut rf233_buf, &mut rf233_reg_write, &mut rf233_reg_read);
+    rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
 
     let radio_capsule = static_init!(
         capsules::radio::RadioDriver<'static,
                                      RF233<'static,
                                            VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
         capsules::radio::RadioDriver::new(rf233),
-        76);
-    radio_capsule.config_buffer(&mut radio_buf);
+        544/8);
+    radio_capsule.config_buffer(&mut RADIO_BUF);
     rf233.set_transmit_client(radio_capsule);
-    rf233.set_receive_client(radio_capsule, &mut rf233_rx_buf);
+    rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
 
     let imix = Imix {
         console: console,
@@ -400,7 +400,7 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
     #[link_section = ".app_memory"]
     static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
-    static mut processes: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None, None];
+    static mut PROCESSES: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None, None];
 
     let mut apps_in_flash_ptr = &_sapps as *const u8;
     let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
@@ -416,11 +416,11 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
             break;
         }
 
-        processes[i] = process;
+        PROCESSES[i] = process;
         apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
         app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
         app_memory_size -= memory_offset;
     }
 
-    &mut processes
+    &mut PROCESSES
 }

@@ -29,11 +29,11 @@ struct ScbRegisters {
 
 const SCB_BASE: usize = 0xE000ED00;
 
-static mut scb: *mut ScbRegisters = SCB_BASE as *mut ScbRegisters;
+static mut SCB: *mut ScbRegisters = SCB_BASE as *mut ScbRegisters;
 
 /// Software reset using the ARM System Control Block
 pub unsafe fn reset() {
-    let aircr = (*scb).aircr.get();
+    let aircr = (*SCB).aircr.get();
     let reset = (0x5FA << 16) | (aircr & (0x7 << 8)) | (1 << 2);
-    (*scb).aircr.set(reset);
+    (*SCB).aircr.set(reset);
 }
