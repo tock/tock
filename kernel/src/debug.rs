@@ -1,4 +1,4 @@
-use callback::{AppId, Callback, RustOrRawFnPtr};
+use callback::{AppId, Callback};
 use core::cmp::min;
 use core::fmt::{Arguments, Result, Write, write};
 use core::ptr::{read_volatile, write_volatile};
@@ -154,11 +154,8 @@ impl DebugWriter {
 // inappropriate way?
 unsafe impl Sync for Callback {}
 
-static KERNEL_CONSOLE_CALLBACK: Callback = Callback {
-    app_id: AppId::kernel_new(APPID_IDX),
-    appdata: 0,
-    fn_ptr: RustOrRawFnPtr::Rust { func: DebugWriter::callback },
-};
+static KERNEL_CONSOLE_CALLBACK: Callback = Callback::kernel_new(AppId::kernel_new(APPID_IDX),
+                                                                DebugWriter::callback);
 
 impl Write for DebugWriter {
     fn write_str(&mut self, s: &str) -> Result {
