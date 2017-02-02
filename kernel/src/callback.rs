@@ -40,9 +40,9 @@ pub enum RustOrRawFnPtr {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Callback {
-    pub app_id: AppId,
-    pub appdata: usize,
-    pub fn_ptr: RustOrRawFnPtr,
+    app_id: AppId,
+    appdata: usize,
+    fn_ptr: RustOrRawFnPtr,
 }
 
 impl Callback {
@@ -51,6 +51,14 @@ impl Callback {
             app_id: appid,
             appdata: appdata,
             fn_ptr: RustOrRawFnPtr::Raw { ptr: fn_ptr },
+        }
+    }
+
+    pub const fn kernel_new(appid: AppId, fn_ptr: fn(usize, usize, usize, usize)) -> Callback {
+        Callback {
+            app_id: appid,
+            appdata: 0,
+            fn_ptr: RustOrRawFnPtr::Rust { func: fn_ptr },
         }
     }
 
