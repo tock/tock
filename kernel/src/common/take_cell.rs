@@ -2,14 +2,15 @@
 use core::{mem, ptr};
 use core::cell::{Cell, UnsafeCell};
 
-/// A mutable memory location that enforces borrow rules at runtime without
-/// possible panics.
+/// A shared reference to a mutable reference.
 ///
-/// A `TakeCell` is a potential reference to mutable memory. Borrow rules are
-/// enforced by forcing clients to either move the memory out of the cell or
-/// operate on a borrow within a closure. You can think of a `TakeCell` as a
-/// between an `Option` wrapped in a `RefCell` --- attempts to take the value
-/// from inside a `TakeCell` may fail by returning `None`.
+/// A `TakeCell` wraps potential reference to mutable memory that may be
+/// available at a given point. Rather than enforcing borrow rules at
+/// compile-time, `TakeCell` enables multiple clients to hold references to it,
+/// but ensures that only one referrer has access to the underlying mutable
+/// reference at a time. Clients either move the memory out of the `TakeCell` or
+/// operate on a borrow within a closure. Attempts to take the value from inside
+/// a `TakeCell` may fail by returning `None`.
 pub struct TakeCell<'a, T: 'a + ?Sized> {
     val: UnsafeCell<Option<&'a mut T>>,
 }
@@ -32,9 +33,9 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
         unsafe { (&*self.val.get()).is_some() }
     }
 
-    /// Takes the value out of the `TakeCell` leaving a `None` in it's place. If
-    /// the value has already been taken elsewhere (and not `replace`ed), the
-    /// returned `Option` will be empty.
+    /// Takes the mutable reference out of the `TakeCell` leaving a `None` in
+    /// it's place. If the value has already been taken elsewhere (and not
+    /// `replace`ed), the returned `Option` will be empty.
     ///
     /// # Examples
     ///
@@ -53,6 +54,7 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
         }
     }
 
+    /// Stores `val` in the `TakeCell`
     pub fn put(&self, val: Option<&'a mut T>) {
         let _ = self.take();
         let ptr = self.val.get();
@@ -103,6 +105,7 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
         })
     }
 
+    /// Performs a `map` or returns a default value if the `TakeCell` is empty
     pub fn map_or<F, R>(&self, default: R, closure: F) -> R
         where F: FnOnce(&mut T) -> R
     {
@@ -114,6 +117,9 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
         })
     }
 
+    /// Uses the first closure (`modify`) to modify the value in the `TakeCell`
+    /// if it is present, otherwise, fills the `TakeCell` with the result of
+    /// `mkval`.
     pub fn modify_or_replace<F, G>(&self, modify: F, mkval: G)
         where F: FnOnce(&mut T),
               G: FnOnce() -> &'a mut T
@@ -134,9 +140,9 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
 ///
 /// A `MapCell` is a potential reference to mutable memory. Borrow rules are
 /// enforced by forcing clients to either move the memory out of the cell or
-/// operate on a borrow within a closure. You can think of a `TakeCell` as a
-/// between an `Option` wrapped in a `RefCell` --- attempts to take the value
-/// from inside a `TakeCell` may fail by returning `None`.
+/// operate on a borrow within a closure. You can think of a `MapCell` as an
+/// `Option` wrapped in a `RefCell` --- attempts to take the value from inside a
+/// `MapCell` may fail by returning `None`.
 pub struct MapCell<T> {
     val: UnsafeCell<T>,
     occupied: Cell<bool>,
@@ -196,7 +202,7 @@ impl<T> MapCell<T> {
         }
     }
 
-    /// Replaces the contents of the `TakeCell` with `val`. If the cell was not
+    /// Replaces the contents of the `MapCell` with `val`. If the cell was not
     /// empty, the previous value is returned, otherwise `None` is returned.
     pub fn replace(&self, val: T) -> Option<T> {
         if self.is_some() {
@@ -207,14 +213,14 @@ impl<T> MapCell<T> {
         }
     }
 
-    /// Allows `closure` to borrow the contents of the `TakeCell` if-and-only-if
-    /// it is not `take`n already. The state of the `TakeCell` is unchanged
+    /// Allows `closure` to borrow the contents of the `MapCell` if-and-only-if
+    /// it is not `take`n already. The state of the `MapCell` is unchanged
     /// after the closure completes.
     ///
     /// # Examples
     ///
     /// ```
-    /// let cell = TakeCell::new(1234);
+    /// let cell = MapCell::new(1234);
     /// let x = &cell;
     /// let y = &cell;
     ///
