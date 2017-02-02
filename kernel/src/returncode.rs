@@ -40,3 +40,9 @@ impl From<ReturnCode> for isize {
         }
     }
 }
+
+impl From<ReturnCode> for usize {
+    fn from(original: ReturnCode) -> usize {
+        isize::from(original) as usize
+    }
+}

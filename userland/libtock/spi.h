@@ -17,14 +17,28 @@ int spi_init();
  * back to peripheral 3, it still has rate R.*/
 int spi_set_chip_select(unsigned char cs);
 int spi_get_chip_select();
+
+/* Rate is the Hz of the SPI clock. So a rate of 100000
+ * is a 100kHZ clock. */
 int spi_set_rate(int rate);
 int spi_get_rate();
+
+  /* false means sample on a leading (low to high) clock edge
+   * true means sample on a trailing (high to low) clock edge */
 int spi_set_phase(bool phase);
 int spi_get_phase();
+
+  /* false means an idle clock is low
+   * true means an idle clock is high. */
 int spi_set_polarity(bool pol);
 int spi_get_polarity();
+
+  /* Only partially supported, depending on implementation. In some cases
+     allows a process to hold its chip select line low over multiple SPI
+     operations*/
 int spi_hold_low();
 int spi_release_low();
+
 int spi_write_byte(unsigned char byte);
 int spi_write(const char* str, size_t len, subscribe_cb cb, bool* cond);
 int spi_read_write(const char* write, char* read, size_t len, subscribe_cb cb, bool* cond);

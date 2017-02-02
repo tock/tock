@@ -8,6 +8,7 @@ pub mod rng;
 pub mod adc;
 pub mod flash;
 pub mod watchdog;
+pub mod radio;
 
 pub trait Controller {
     type Config;
