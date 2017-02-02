@@ -8,7 +8,6 @@ use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
 use kernel::common::VolatileCell;
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use nvic;
 use peripheral_interrupts::NvicIdx;
@@ -91,7 +90,7 @@ fn find_channel(pin: u8) -> i8 {
 pub struct GPIOPin {
     pin: u8,
     client_data: Cell<usize>,
-    client: TakeCell<&'static hil::gpio::Client>,
+    client: Cell<Option<&'static hil::gpio::Client>>,
 }
 
 impl GPIOPin {
@@ -99,12 +98,12 @@ impl GPIOPin {
         GPIOPin {
             pin: pin,
             client_data: Cell::new(0),
-            client: TakeCell::empty(),
+            client: Cell::new(None),
         }
     }
 
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.replace(client);
+        self.client.set(Some(client));
     }
 }
 
@@ -189,7 +188,9 @@ impl hil::gpio::Pin for GPIOPin {
 
 impl GPIOPin {
     pub fn handle_interrupt(&self) {
-        self.client.map(|client| { client.fired(self.client_data.get()); });
+        self.client.get().map(|client| {
+            client.fired(self.client_data.get());
+        });
     }
 }
 

@@ -19,9 +19,9 @@
 //! Date: August 18, 2016
 
 use chip;
+use core::cell::Cell;
 use core::mem;
 use kernel::common::VolatileCell;
-use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use nvic;
 use peripheral_interrupts::NvicIdx;
@@ -64,19 +64,19 @@ pub enum Location {
 pub static mut TIMER0: Timer = Timer {
     which: Location::TIMER0,
     nvic: NvicIdx::TIMER0,
-    client: TakeCell::empty(),
+    client: Cell::new(None),
 };
 
 pub static mut ALARM1: TimerAlarm = TimerAlarm {
     which: Location::TIMER1,
     nvic: NvicIdx::TIMER1,
-    client: TakeCell::empty(),
+    client: Cell::new(None),
 };
 
 pub static mut TIMER2: Timer = Timer {
     which: Location::TIMER2,
     nvic: NvicIdx::TIMER2,
-    client: TakeCell::empty(),
+    client: Cell::new(None),
 };
 
 #[allow(non_snake_case)]
@@ -93,7 +93,7 @@ pub trait CompareClient {
 pub struct Timer {
     which: Location,
     nvic: NvicIdx,
-    client: TakeCell<&'static CompareClient>,
+    client: Cell<Option<&'static CompareClient>>,
 }
 
 impl Timer {
@@ -105,12 +105,12 @@ impl Timer {
         Timer {
             which: location,
             nvic: nvic,
-            client: TakeCell::empty(),
+            client: Cell::new(None),
         }
     }
 
     pub fn set_client(&self, client: &'static CompareClient) {
-        self.client.replace(client);
+        self.client.set(Some(client));
     }
 
     pub fn start(&self) {
@@ -223,7 +223,7 @@ impl Timer {
     /// events that is passed to the client.
     pub fn handle_interrupt(&self) {
         nvic::clear_pending(self.nvic);
-        self.client.map(|client| {
+        self.client.get().map(|client| {
             let mut val = 0;
             // For each of 4 possible compare events, if it's happened,
             // clear it and store its bit in val to pass in callback.
@@ -242,7 +242,7 @@ impl Timer {
 pub struct TimerAlarm {
     which: Location,
     nvic: NvicIdx,
-    client: TakeCell<&'static hil::time::Client>,
+    client: Cell<Option<&'static hil::time::Client>>,
 }
 
 // CC0 is used for capture
@@ -260,7 +260,7 @@ impl TimerAlarm {
         TimerAlarm {
             which: location,
             nvic: nvic,
-            client: TakeCell::empty(),
+            client: Cell::new(None),
         }
     }
 
@@ -276,7 +276,7 @@ impl TimerAlarm {
     }
 
     pub fn set_client(&self, client: &'static hil::time::Client) {
-        self.client.replace(client);
+        self.client.set(Some(client));
     }
 
     pub fn start(&self) {
@@ -294,7 +294,9 @@ impl TimerAlarm {
     #[inline(never)]
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
-        self.client.map(|client| { client.fired(); });
+        self.client.get().map(|client| {
+            client.fired();
+        });
     }
 
     // Enable and disable interrupts use the bottom 4 bits

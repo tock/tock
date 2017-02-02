@@ -61,7 +61,9 @@ impl Rtc {
 
     pub fn handle_interrupt(&self) {
         rtc1().intenclr.set(COMPARE0_EVENT);
-        self.callback.get().map(|cb| { cb.fired(); });
+        self.callback.get().map(|cb| {
+            cb.fired();
+        });
     }
 
     pub fn set_client(&self, client: &'static time::Client) {

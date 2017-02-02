@@ -6,7 +6,6 @@ use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
 
-use kernel::common::take_cell::TakeCell;
 use kernel::common::volatile_cell::VolatileCell;
 
 use kernel::hil::spi;
@@ -62,9 +61,9 @@ pub enum Peripheral {
 /// The SAM4L supports four peripherals.
 pub struct Spi {
     registers: *mut SpiRegisters,
-    client: TakeCell<&'static SpiMasterClient>,
-    dma_read: TakeCell<&'static mut DMAChannel>,
-    dma_write: TakeCell<&'static mut DMAChannel>,
+    client: Cell<Option<&'static SpiMasterClient>>,
+    dma_read: Cell<Option<&'static DMAChannel>>,
+    dma_write: Cell<Option<&'static DMAChannel>>,
     // keep track of which how many DMA transfers are pending to correctly
     // issue completion event only after both complete.
     transfers_in_progress: Cell<u8>,
@@ -78,9 +77,9 @@ impl Spi {
     pub const fn new() -> Spi {
         Spi {
             registers: SPI_BASE as *mut SpiRegisters,
-            client: TakeCell::empty(),
-            dma_read: TakeCell::empty(),
-            dma_write: TakeCell::empty(),
+            client: Cell::new(None),
+            dma_read: Cell::new(None),
+            dma_write: Cell::new(None),
             transfers_in_progress: Cell::new(0),
             dma_length: Cell::new(0),
         }
@@ -98,8 +97,8 @@ impl Spi {
     pub fn disable(&self) {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
 
-        self.dma_read.map(|read| read.disable());
-        self.dma_write.map(|write| write.disable());
+        self.dma_read.get().map(|read| read.disable());
+        self.dma_write.get().map(|write| write.disable());
         regs.cr.set(0b10);
     }
 
@@ -208,9 +207,9 @@ impl Spi {
     }
 
     /// Set the DMA channels used for reading and writing.
-    pub fn set_dma(&mut self, read: &'static mut DMAChannel, write: &'static mut DMAChannel) {
-        self.dma_read.replace(read);
-        self.dma_write.replace(write);
+    pub fn set_dma(&mut self, read: &'static DMAChannel, write: &'static DMAChannel) {
+        self.dma_read.set(Some(read));
+        self.dma_write.set(Some(write));
     }
 
     fn enable_clock(&self) {
@@ -224,7 +223,7 @@ impl spi::SpiMaster for Spi {
     type ChipSelect = u8;
 
     fn set_client(&self, client: &'static SpiMasterClient) {
-        self.client.replace(client);
+        self.client.set(Some(client));
     }
 
     /// By default, initialize SPI to operate at 40KHz, clock is
@@ -321,7 +320,7 @@ impl spi::SpiMaster for Spi {
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
-        self.dma_write.map(move |write| {
+        self.dma_write.get().map(move |write| {
             write.enable();
             write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count)
         });
@@ -330,7 +329,7 @@ impl spi::SpiMaster for Spi {
         // of the option. `map()` checks this for us.
         read_buffer.map(|rbuf| {
             self.transfers_in_progress.set(2);
-            self.dma_read.map(move |read| {
+            self.dma_read.get().map(move |read| {
                 read.enable();
                 read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
             });
@@ -419,13 +418,13 @@ impl DMAClient for Spi {
         self.transfers_in_progress.set(self.transfers_in_progress.get() - 1);
 
         if self.transfers_in_progress.get() == 0 {
-            let txbuf = self.dma_write.map_or(None, |dma| {
+            let txbuf = self.dma_write.get().map_or(None, |dma| {
                 let buf = dma.abort_xfer();
                 dma.disable();
                 buf
             });
 
-            let rxbuf = self.dma_read.map_or(None, |dma| {
+            let rxbuf = self.dma_read.get().map_or(None, |dma| {
                 let buf = dma.abort_xfer();
                 dma.disable();
                 buf
@@ -434,7 +433,12 @@ impl DMAClient for Spi {
             let len = self.dma_length.get();
             self.dma_length.set(0);
             self.client
-                .map(|cb| { txbuf.map(|txbuf| { cb.read_write_done(txbuf, rxbuf, len); }); });
+                .get()
+                .map(|cb| {
+                    txbuf.map(|txbuf| {
+                        cb.read_write_done(txbuf, rxbuf, len);
+                    });
+                });
         }
     }
 }

@@ -1,5 +1,6 @@
-use core::cell::{Cell, UnsafeCell};
+
 use core::{mem, ptr};
+use core::cell::{Cell, UnsafeCell};
 
 /// A mutable memory location that enforces borrow rules at runtime without
 /// possible panics.
@@ -9,17 +10,17 @@ use core::{mem, ptr};
 /// operate on a borrow within a closure. You can think of a `TakeCell` as a
 /// between an `Option` wrapped in a `RefCell` --- attempts to take the value
 /// from inside a `TakeCell` may fail by returning `None`.
-pub struct TakeCell<T> {
-    val: UnsafeCell<Option<T>>,
+pub struct TakeCell<'a, T: 'a + ?Sized> {
+    val: UnsafeCell<Option<&'a mut T>>,
 }
 
-impl<T> TakeCell<T> {
-    pub const fn empty() -> TakeCell<T> {
+impl<'a, T: ?Sized> TakeCell<'a, T> {
+    pub const fn empty() -> TakeCell<'a, T> {
         TakeCell { val: UnsafeCell::new(None) }
     }
 
     /// Creates a new `TakeCell` containing `value`
-    pub const fn new(value: T) -> TakeCell<T> {
+    pub fn new(value: &'a mut T) -> TakeCell<'a, T> {
         TakeCell { val: UnsafeCell::new(Some(value)) }
     }
 
@@ -45,14 +46,14 @@ impl<T> TakeCell<T> {
     /// x.take();
     /// assert_eq!(y.take(), None);
     /// ```
-    pub fn take(&self) -> Option<T> {
+    pub fn take(&self) -> Option<&'a mut T> {
         unsafe {
             let inner = &mut *self.val.get();
             inner.take()
         }
     }
 
-    pub fn put(&self, val: Option<T>) {
+    pub fn put(&self, val: Option<&'a mut T>) {
         let _ = self.take();
         let ptr = self.val.get();
         unsafe {
@@ -62,7 +63,7 @@ impl<T> TakeCell<T> {
 
     /// Replaces the contents of the `TakeCell` with `val`. If the cell was not
     /// empty, the previous value is returned, otherwise `None` is returned.
-    pub fn replace(&self, val: T) -> Option<T> {
+    pub fn replace(&self, val: &'a mut T) -> Option<&'a mut T> {
         let prev = self.take();
         let ptr = self.val.get();
         unsafe {
@@ -115,7 +116,7 @@ impl<T> TakeCell<T> {
 
     pub fn modify_or_replace<F, G>(&self, modify: F, mkval: G)
         where F: FnOnce(&mut T),
-              G: FnOnce() -> T
+              G: FnOnce() -> &'a mut T
     {
         let val = match self.take() {
             Some(mut val) => {
@@ -145,13 +146,16 @@ impl<T> MapCell<T> {
     pub fn empty() -> MapCell<T> {
         MapCell {
             val: unsafe { mem::uninitialized() },
-            occupied: Cell::new(false)
+            occupied: Cell::new(false),
         }
     }
 
     /// Creates a new `MapCell` containing `value`
     pub const fn new(value: T) -> MapCell<T> {
-        MapCell { val: UnsafeCell::new(value), occupied: Cell::new(true) }
+        MapCell {
+            val: UnsafeCell::new(value),
+            occupied: Cell::new(true),
+        }
     }
 
     pub fn is_none(&self) -> bool {
@@ -178,12 +182,10 @@ impl<T> MapCell<T> {
     /// ```
     pub fn take(&self) -> Option<T> {
         if self.is_none() {
-            return None
+            return None;
         } else {
             self.occupied.set(false);
-            unsafe {
-                Some(ptr::replace(self.val.get(), mem::uninitialized()))
-            }
+            unsafe { Some(ptr::replace(self.val.get(), mem::uninitialized())) }
         }
     }
 
@@ -198,9 +200,7 @@ impl<T> MapCell<T> {
     /// empty, the previous value is returned, otherwise `None` is returned.
     pub fn replace(&self, val: T) -> Option<T> {
         if self.is_some() {
-            unsafe {
-                Some(ptr::replace(self.val.get(), val))
-            }
+            unsafe { Some(ptr::replace(self.val.get(), val)) }
         } else {
             self.put(val);
             None

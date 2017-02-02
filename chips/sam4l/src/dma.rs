@@ -132,7 +132,7 @@ pub struct DMAChannel {
     nvic: nvic::NvicIdx,
     pub client: Option<&'static mut DMAClient>,
     enabled: Cell<bool>,
-    buffer: TakeCell<&'static mut [u8]>,
+    buffer: TakeCell<'static, [u8]>,
 }
 
 pub trait DMAClient {
@@ -194,7 +194,9 @@ impl DMAChannel {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         let channel = registers.peripheral_select.get();
 
-        self.client.as_mut().map(|client| { client.xfer_done(channel); });
+        self.client.as_mut().map(|client| {
+            client.xfer_done(channel);
+        });
     }
 
     pub fn start_xfer(&self) {

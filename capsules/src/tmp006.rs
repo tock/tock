@@ -93,7 +93,7 @@ pub struct TMP006<'a> {
     repeated_mode: Cell<bool>,
     callback: Cell<Option<Callback>>,
     protocol_state: Cell<ProtocolState>,
-    buffer: TakeCell<&'static mut [u8]>,
+    buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a> TMP006<'a> {

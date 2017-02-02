@@ -277,7 +277,7 @@ pub unsafe fn reset_handler() {
     let syscall_spi_device = static_init!(
         VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
         VirtualSpiMasterDevice::new(mux_spi, 0),
-        384/8);
+        352/8);
 
     // Create the SPI systemc call capsule, passing the client
     let spi_syscalls = static_init!(
@@ -376,8 +376,7 @@ pub unsafe fn reset_handler() {
     chip.mpu().enable_mpu();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
-    //test_take_map_cell::test_take_map_cell();
+    // test_take_map_cell::test_take_map_cell();
 
     kernel::main(&hail, &mut chip, load_processes(), &hail.ipc);
 }
-

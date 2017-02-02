@@ -103,7 +103,9 @@ impl Adc {
             // Read the value from the LCV register.
             // The sample is 16 bits wide
             val = (regs.lcv.get() & 0xffff) as u16;
-            self.client.get().map(|client| { client.sample_done(val); });
+            self.client.get().map(|client| {
+                client.sample_done(val);
+            });
         }
     }
 }

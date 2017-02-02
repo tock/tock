@@ -156,7 +156,7 @@ enum State {
 pub struct Fxos8700cq<'a> {
     i2c: &'a I2CDevice,
     state: Cell<State>,
-    buffer: TakeCell<&'static mut [u8]>,
+    buffer: TakeCell<'static, [u8]>,
     callback: Cell<Option<Callback>>,
 }
 

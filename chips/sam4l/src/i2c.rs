@@ -104,20 +104,20 @@ pub struct I2CHw {
     slave_registers: Option<*mut TWISRegisters>, // Pointer to the I2C TWIS registers in memory
     master_clock: pm::Clock,
     slave_clock: Option<pm::Clock>,
-    dma: TakeCell<&'static DMAChannel>,
+    dma: Cell<Option<&'static DMAChannel>>,
     dma_pids: (DMAPeripheral, DMAPeripheral),
     nvic: nvic::NvicIdx,
     slave_nvic: Option<nvic::NvicIdx>,
-    master_client: TakeCell<&'static hil::i2c::I2CHwMasterClient>,
-    slave_client: TakeCell<&'static hil::i2c::I2CHwSlaveClient>,
-    on_deck: TakeCell<(DMAPeripheral, usize)>,
+    master_client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
+    slave_client: Cell<Option<&'static hil::i2c::I2CHwSlaveClient>>,
+    on_deck: Cell<Option<(DMAPeripheral, usize)>>,
 
     slave_enabled: Cell<bool>,
     my_slave_address: Cell<u8>,
-    slave_read_buffer: TakeCell<&'static mut [u8]>,
+    slave_read_buffer: TakeCell<'static, [u8]>,
     slave_read_buffer_len: Cell<u8>,
     slave_read_buffer_index: Cell<u8>,
-    slave_write_buffer: TakeCell<&'static mut [u8]>,
+    slave_write_buffer: TakeCell<'static, [u8]>,
     slave_write_buffer_len: Cell<u8>,
     slave_write_buffer_index: Cell<u8>,
 }
@@ -176,13 +176,13 @@ impl I2CHw {
             slave_registers: slave_base_addr,
             master_clock: master_clock,
             slave_clock: slave_clock,
-            dma: TakeCell::empty(),
+            dma: Cell::new(None),
             dma_pids: (dma_rx, dma_tx),
             nvic: nvic,
             slave_nvic: slave_nvic,
-            master_client: TakeCell::empty(),
-            slave_client: TakeCell::empty(),
-            on_deck: TakeCell::empty(),
+            master_client: Cell::new(None),
+            slave_client: Cell::new(None),
+            on_deck: Cell::new(None),
 
             slave_enabled: Cell::new(false),
             my_slave_address: Cell::new(0),
@@ -225,15 +225,15 @@ impl I2CHw {
     }
 
     pub fn set_dma(&self, dma: &'static DMAChannel) {
-        self.dma.replace(dma);
+        self.dma.set(Some(dma));
     }
 
     pub fn set_master_client(&self, client: &'static hil::i2c::I2CHwMasterClient) {
-        self.master_client.replace(client);
+        self.master_client.set(Some(client));
     }
 
     pub fn set_slave_client(&self, client: &'static hil::i2c::I2CHwSlaveClient) {
-        self.slave_client.replace(client);
+        self.slave_client.set(Some(client));
     }
 
     pub fn handle_interrupt(&self) {
@@ -252,7 +252,9 @@ impl I2CHw {
             _ => None
         };
 
-        match self.on_deck.take() {
+        let on_deck = self.on_deck.get();
+        self.on_deck.set(None);
+        match on_deck {
             None => {
                 write_volatile(&mut regs.command, 0);
                 write_volatile(&mut regs.next_command, 0);
@@ -263,16 +265,18 @@ impl I2CHw {
                     write_volatile(&mut regs.control, 0x1 << 7);
                     write_volatile(&mut regs.control, 0x1 << 1);
 
-                    self.master_client.map(|client| {
-                        let buf = match self.dma.take() {
+                    self.master_client.get().map(|client| {
+                        let buf = match self.dma.get() {
                             Some(dma) => {
                                 let b = dma.abort_xfer();
-                                self.dma.replace(dma);
+                                self.dma.set(Some(dma));
                                 b
                             }
                             None => None,
                         };
-                        buf.map(|buf| { client.command_complete(buf, err); });
+                        buf.map(|buf| {
+                            client.command_complete(buf, err);
+                        });
                     });
                 });
             }
@@ -283,7 +287,7 @@ impl I2CHw {
                                | (1 << 8)    // ANAK   - Address not ACKd
                                | (1 << 9)    // DNAK   - Data not ACKd
                                | (1 << 10)); // ARBLST - Abitration lost
-                self.dma.map(|dma| {
+                self.dma.get().map(|dma| {
                     let buf = dma.abort_xfer().unwrap();
                     dma.prepare_xfer(dma_periph, buf, len);
                     dma.start_xfer();
@@ -344,7 +348,7 @@ impl I2CHw {
     }
 
     pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
-        self.dma.map(move |dma| {
+        self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.1, data, len as usize);
             self.setup_xfer(chip, flags, false, len);
@@ -354,7 +358,7 @@ impl I2CHw {
     }
 
     pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
-        self.dma.map(move |dma| {
+        self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.0, data, len as usize);
             self.setup_xfer(chip, flags, true, len);
@@ -364,12 +368,12 @@ impl I2CHw {
     }
 
     pub fn write_read(&self, chip: u8, data: &'static mut [u8], split: u8, read_len: u8) {
-        self.dma.map(move |dma| {
+        self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.1, data, split as usize);
             self.setup_xfer(chip, START, false, split);
             self.setup_nextfer(chip, START | STOP, true, read_len);
-            self.on_deck.replace((self.dma_pids.0, read_len as usize));
+            self.on_deck.set(Some((self.dma_pids.0, read_len as usize)));
             dma.start_xfer();
         });
     }
@@ -438,7 +442,9 @@ impl I2CHw {
 
                         if len >= 1 {
                             self.slave_read_buffer
-                                .map(|buffer| { regs.transmit_holding.set(buffer[0] as u32); });
+                                .map(|buffer| {
+                                    regs.transmit_holding.set(buffer[0] as u32);
+                                });
                             self.slave_read_buffer_index.set(1);
                         } else {
                             // Send dummy byte
@@ -451,7 +457,9 @@ impl I2CHw {
 
                     } else {
                         // Call to upper layers asking for a buffer to send
-                        self.slave_client.map(|client| { client.read_expected(); });
+                        self.slave_client.get().map(|client| {
+                            client.read_expected();
+                        });
                     }
 
                 } else {
@@ -470,7 +478,9 @@ impl I2CHw {
                     } else {
                         // Call to upper layers asking for a buffer to
                         // read into.
-                        self.slave_client.map(|client| { client.write_expected(); });
+                        self.slave_client.get().map(|client| {
+                            client.write_expected();
+                        });
                     }
                 }
 
@@ -488,7 +498,7 @@ impl I2CHw {
 
                     if status & (1 << 5) > 0 {
                         // read
-                        self.slave_client.map(|client| {
+                        self.slave_client.get().map(|client| {
                             self.slave_read_buffer.take().map(|buffer| {
                                 client.command_complete(buffer,
                                                         nbytes as u8,
@@ -512,7 +522,7 @@ impl I2CHw {
                             regs.receive_holding.get();
                         }
 
-                        self.slave_client.map(|client| {
+                        self.slave_client.get().map(|client| {
                             self.slave_write_buffer.take().map(|buffer| {
                                 client.command_complete(buffer,
                                                         nbytes as u8,
@@ -639,7 +649,9 @@ impl I2CHw {
 
                     if len >= 1 {
                         self.slave_read_buffer
-                            .map(|buffer| { regs.transmit_holding.set(buffer[0] as u32); });
+                            .map(|buffer| {
+                                regs.transmit_holding.set(buffer[0] as u32);
+                            });
                         self.slave_read_buffer_index.set(1);
                     } else {
                         // Send dummy byte

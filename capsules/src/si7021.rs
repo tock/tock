@@ -56,7 +56,7 @@ pub struct SI7021<'a, A: time::Alarm + 'a> {
     alarm: &'a A,
     callback: Cell<Option<Callback>>,
     state: Cell<State>,
-    buffer: TakeCell<&'static mut [u8]>,
+    buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {

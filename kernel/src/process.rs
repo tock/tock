@@ -137,10 +137,9 @@ unsafe fn parse_and_validate_load_info(address: *const u8) -> Option<&'static Lo
         load_info.version ^ load_info.total_size ^ load_info.entry_offset ^
         load_info.rel_data_offset ^ load_info.rel_data_size ^ load_info.text_offset ^
         load_info.text_size ^ load_info.got_offset ^
-        load_info.got_size ^
-        load_info.data_offset ^ load_info.data_size ^ load_info.bss_mem_offset ^
-        load_info.bss_size ^
-        load_info.min_stack_len ^ load_info.min_app_heap_len ^
+        load_info.got_size ^ load_info.data_offset ^ load_info.data_size ^
+        load_info.bss_mem_offset ^ load_info.bss_size ^ load_info.min_stack_len ^
+        load_info.min_app_heap_len ^
         load_info.min_kernel_heap_len ^ load_info.pkg_name_offset ^ load_info.pkg_name_size;
 
     if checksum != load_info.checksum {
@@ -831,12 +830,12 @@ impl<'a> Process<'a> {
             let flash_end = self.text.as_ptr().offset(self.text.len() as isize) as usize;
             let flash_data_end = self.text
                 .as_ptr()
-                .offset(load_info.pkg_name_offset as isize + load_info.pkg_name_size as isize) as
-                                 usize;
-            let flash_data_start = self.text.as_ptr().offset(load_info.got_offset as isize) as
-                                   usize;
-            let flash_text_start = self.text.as_ptr().offset(load_info.text_offset as isize) as
-                                   usize;
+                .offset(load_info.pkg_name_offset as isize +
+                        load_info.pkg_name_size as isize) as usize;
+            let flash_data_start =
+                self.text.as_ptr().offset(load_info.got_offset as isize) as usize;
+            let flash_text_start =
+                self.text.as_ptr().offset(load_info.text_offset as isize) as usize;
             let flash_start = self.text.as_ptr() as usize;
 
             // Flash sizes
@@ -1061,7 +1060,9 @@ unsafe fn load(load_info: &'static LoadInfo,
         slice::from_raw_parts(flash_start_addr.offset(load_info.pkg_name_offset as isize),
                               load_info.pkg_name_size as usize);
     let mut app_name_str = "";
-    let _ = str::from_utf8(package_name_byte_array).map(|name_str| { app_name_str = name_str; });
+    let _ = str::from_utf8(package_name_byte_array).map(|name_str| {
+        app_name_str = name_str;
+    });
 
     let mut load_result = LoadResult {
         package_name: app_name_str,

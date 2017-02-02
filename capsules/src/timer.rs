@@ -175,7 +175,9 @@ impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
                     self.num_armed.set(self.num_armed.get() - 1);
                 }
 
-                timer.callback.map(|mut cb| { cb.schedule(now as usize, 0, 0); });
+                timer.callback.map(|mut cb| {
+                    cb.schedule(now as usize, 0, 0);
+                });
             }
         });
 

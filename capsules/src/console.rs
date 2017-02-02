@@ -3,6 +3,7 @@
 //! Console provides userspace with the ability to print text via a serial
 //! interface.
 
+use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
@@ -37,8 +38,8 @@ pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 pub struct Console<'a, U: UART + 'a> {
     uart: &'a U,
     apps: Container<App>,
-    in_progress: TakeCell<AppId>,
-    tx_buffer: TakeCell<&'static mut [u8]>,
+    in_progress: Cell<Option<AppId>>,
+    tx_buffer: TakeCell<'static, [u8]>,
     baud_rate: u32,
 }
 
@@ -51,7 +52,7 @@ impl<'a, U: UART> Console<'a, U> {
         Console {
             uart: uart,
             apps: container,
-            in_progress: TakeCell::empty(),
+            in_progress: Cell::new(None),
             tx_buffer: TakeCell::new(tx_buffer),
             baud_rate: baud_rate,
         }
@@ -99,8 +100,8 @@ impl<'a, U: UART> Console<'a, U> {
     /// Internal helper function for sending data for an existing transaction.
     /// Cannot fail. If can't send now, it will schedule for sending later.
     fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) {
-        if self.in_progress.is_none() {
-            self.in_progress.replace(app_id);
+        if self.in_progress.get().is_none() {
+            self.in_progress.set(Some(app_id));
             self.tx_buffer.take().map(|buffer| {
                 let mut transaction_len = app.write_remaining;
                 for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
@@ -204,7 +205,8 @@ impl<'a, U: UART> Client for Console<'a, U> {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
-        self.in_progress.take().map(|appid| {
+        self.in_progress.get().map(|appid| {
+            self.in_progress.set(None);
             self.apps.enter(appid, |app, _| {
                 match self.send_continue(appid, app) {
                     Ok(more_to_send) => {
@@ -212,7 +214,9 @@ impl<'a, U: UART> Client for Console<'a, U> {
                             // Go ahead and signal the application
                             let written = app.write_len;
                             app.write_len = 0;
-                            app.write_callback.map(|mut cb| { cb.schedule(written, 0, 0); });
+                            app.write_callback.map(|mut cb| {
+                                cb.schedule(written, 0, 0);
+                            });
                         }
                     }
                     Err(return_code) => {
@@ -221,7 +225,9 @@ impl<'a, U: UART> Client for Console<'a, U> {
                         app.write_remaining = 0;
                         app.pending_write = false;
                         let r0 = isize::from(return_code) as usize;
-                        app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
+                        app.write_callback.map(|mut cb| {
+                            cb.schedule(r0, 0, 0);
+                        });
                     }
                 }
             })
@@ -229,7 +235,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
 
         // If we are not printing more from the current AppSlice,
         // see if any other applications have pending messages.
-        if self.in_progress.is_none() {
+        if self.in_progress.get().is_none() {
             for cntr in self.apps.iter() {
                 let started_tx = cntr.enter(|app, _| {
                     if app.pending_write {
@@ -242,7 +248,9 @@ impl<'a, U: UART> Client for Console<'a, U> {
                                 app.write_remaining = 0;
                                 app.pending_write = false;
                                 let r0 = isize::from(return_code) as usize;
-                                app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
+                                app.write_callback.map(|mut cb| {
+                                    cb.schedule(r0, 0, 0);
+                                });
                                 false
                             }
                         }

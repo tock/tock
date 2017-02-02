@@ -10,7 +10,7 @@ use kernel::hil;
 pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster + 'a> {
     spi: &'a Spi,
     devices: List<'a, VirtualSpiMasterDevice<'a, Spi>>,
-    inflight: TakeCell<&'a VirtualSpiMasterDevice<'a, Spi>>,
+    inflight: Cell<Option<&'a VirtualSpiMasterDevice<'a, Spi>>>,
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a, Spi> {
@@ -18,7 +18,8 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a
                        write_buffer: &'static mut [u8],
                        read_buffer: Option<&'static mut [u8]>,
                        len: usize) {
-        self.inflight.take().map(move |device| {
+        self.inflight.get().map(move |device| {
+            self.inflight.set(None);
             self.do_next_op();
             device.read_write_done(write_buffer, read_buffer, len);
         });
@@ -30,12 +31,12 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
         MuxSpiMaster {
             spi: spi,
             devices: List::new(),
-            inflight: TakeCell::empty(),
+            inflight: Cell::new(None),
         }
     }
 
     fn do_next_op(&self) {
-        if self.inflight.is_none() {
+        if self.inflight.get().is_none() {
             let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
                 self.spi.specify_chip_select(node.chip_select.get());
@@ -54,11 +55,10 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                     Op::ReadWriteBytes(len) => {
                         // Only async operations want to block by setting
                         // the devices as inflight.
-                        self.inflight.replace(node);
+                        self.inflight.set(Some(node));
                         node.txbuffer.take().map(|txbuffer| {
-                            node.rxbuffer.take().map(move |rxbuffer| {
-                                self.spi.read_write_bytes(txbuffer, rxbuffer, len);
-                            });
+                            let rxbuffer = node.rxbuffer.take();
+                            self.spi.read_write_bytes(txbuffer, rxbuffer, len);
                         });
                     }
                     Op::SetPolarity(pol) => {
@@ -90,8 +90,8 @@ enum Op {
 pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster + 'a> {
     mux: &'a MuxSpiMaster<'a, Spi>,
     chip_select: Cell<Spi::ChipSelect>,
-    txbuffer: TakeCell<&'static mut [u8]>,
-    rxbuffer: TakeCell<Option<&'static mut [u8]>>,
+    txbuffer: TakeCell<'static, [u8]>,
+    rxbuffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
     next: ListLink<'a, VirtualSpiMasterDevice<'a, Spi>>,
     client: Cell<Option<&'a hil::spi::SpiMasterClient>>,
@@ -125,7 +125,9 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMaste
                        len: usize) {
         self.client
             .get()
-            .map(move |client| { client.read_write_done(write_buffer, read_buffer, len); });
+            .map(move |client| {
+                client.read_write_done(write_buffer, read_buffer, len);
+            });
     }
 }
 
@@ -149,7 +151,7 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
                         len: usize)
                         -> bool {
         self.txbuffer.replace(write_buffer);
-        self.rxbuffer.replace(read_buffer);
+        self.rxbuffer.put(read_buffer);
         self.operation.set(Op::ReadWriteBytes(len));
         self.mux.do_next_op();
         true
