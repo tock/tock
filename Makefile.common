@@ -26,6 +26,14 @@ Q=@
 VERBOSE =
 endif
 
+# Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
+RUSTC_VERSION_STRING := rustc 1.16.0-nightly (83c2d9523 2017-01-24)
+ifneq ($(shell rustc --version),$(RUSTC_VERSION_STRING))
+    $(warning Unexpected rustc version. Expected $(RUSTC_VERSION_STRING) got $(shell rustc --version))
+    $(warning You may experience unexpected compilation warnings or errors)
+    $(warning To fix, run `rustup override set nightly-2017-01-25`)
+endif
+
 .PHONY: all
 all:	target/$(CHIP)/release/$(PLATFORM).bin
 
