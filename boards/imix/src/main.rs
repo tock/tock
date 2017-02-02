@@ -21,7 +21,7 @@ use kernel::hil::spi::SpiMaster;
 use kernel::mpu::MPU;
 
 #[macro_use]
-mod io;
+pub mod io;
 
 // Unit Tests for drivers.
 #[allow(dead_code)]
