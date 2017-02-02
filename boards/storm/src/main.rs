@@ -4,7 +4,7 @@
 
 extern crate capsules;
 extern crate cortexm4;
-#[macro_use(static_init)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate sam4l;
 
@@ -428,9 +428,17 @@ pub unsafe fn reset_handler() {
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();
 
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(
+        capsules::console::App,
+        capsules::console::App::default(),
+        480/8);
+    kernel::debug::assign_console_driver(Some(firestorm.console), kc);
+
     let mut chip = sam4l::chip::Sam4l::new();
     chip.mpu().enable_mpu();
 
 
+    debug!("Initialization complete. Entering main loop");
     kernel::main(&firestorm, &mut chip, load_processes(), &firestorm.ipc);
 }
