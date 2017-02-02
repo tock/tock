@@ -39,7 +39,7 @@
 
 extern crate cortexm0;
 extern crate capsules;
-#[macro_use(static_init)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate nrf51;
 
@@ -202,6 +202,13 @@ pub unsafe fn reset_handler() {
     UART::set_client(&nrf51::uart::UART0, console);
     console.initialize();
 
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(
+        capsules::console::App,
+        capsules::console::App::default(),
+        480/8);
+    kernel::debug::assign_console_driver(Some(console), kc);
+
     let alarm = &nrf51::rtc::RTC;
     alarm.start();
     let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
@@ -244,6 +251,7 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
+    debug!("Initialization complete. Entering main loop");
     kernel::main(&platform,
                  &mut chip,
                  load_process(),

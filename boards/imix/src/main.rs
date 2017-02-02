@@ -3,7 +3,7 @@
 #![feature(asm,const_fn,lang_items)]
 
 extern crate capsules;
-#[macro_use(static_init)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate sam4l;
 
@@ -178,6 +178,13 @@ pub unsafe fn reset_handler() {
         224/8);
     hil::uart::UART::set_client(&sam4l::usart::USART3, console);
     console.initialize();
+
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(
+        capsules::console::App,
+        capsules::console::App::default(),
+        480/8);
+    kernel::debug::assign_console_driver(Some(console), kc);
 
     // # TIMER
 
@@ -384,6 +391,8 @@ pub unsafe fn reset_handler() {
     rf233.set_pan(0xABCD);
     rf233.set_address(0x1008);
     rf233.start();
+
+    debug!("Initialization complete. Entering main loop");
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);
 }
 
