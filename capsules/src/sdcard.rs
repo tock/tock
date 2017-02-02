@@ -51,6 +51,13 @@ enum State {
     InitSetBlocksize,
 }
 
+#[derive(Clone,Copy,Debug,PartialEq)]
+enum AlarmState {
+    Idle,
+
+    DetectionChange,
+}
+
 // SD Card types
 const CT_MMC: u8 = 0x01;
 const CT_SD1: u8 = 0x02;
@@ -61,28 +68,38 @@ const CT_BLOCK: u8 = 0x08;
 //XXX: How do we handle errors with this interface?
 pub trait SDCardClient {
     fn status(&self, status: u8);
+    fn card_detection_changed(&self, installed: bool);
     fn init_done(&self, status: u8);
     fn read_done(&self, data: &'static mut [u8], len: usize);
     fn write_done(&self, buffer: &'static mut [u8]);
 }
 
 // SD Card capsule, capable of being built on top of by other kernel capsules
-pub struct SDCard<'a> {
+pub struct SDCard<'a, A: hil::time::Alarm + 'a> {
     spi: &'a hil::spi::SpiMasterDevice,
     state: Cell<State>,
     after_state: Cell<State>,
+
+    alarm: &'a A,
+    alarm_state: Cell<AlarmState>,
+
     is_slow_mode: Cell<bool>,
     card_type: Cell<u8>,
+
+    detect_pin: TakeCell<&'static hil::gpio::Pin>,
+
     txbuffer: TakeCell<&'static mut [u8]>,
     rxbuffer: TakeCell<&'static mut [u8]>,
     client: TakeCell<&'static SDCardClient>,
 }
 
-impl<'a> SDCard<'a> {
+impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
     pub fn new(spi: &'a hil::spi::SpiMasterDevice,
+               alarm: &'a A,
+               detect_pin: Option<&'static hil::gpio::Pin>,
                txbuffer: &'static mut [u8],
                rxbuffer: &'static mut [u8])
-               -> SDCard<'a> {
+               -> SDCard<'a, A> {
 
         // initialize buffers
         for i in 0..txbuffer.len() {
@@ -92,13 +109,25 @@ impl<'a> SDCard<'a> {
             rxbuffer[i] = 0xFF;
         }
 
+        // handle optional detect pin
+        let pin_cell = detect_pin.map_or_else(|| {
+            // else first, pin was None
+            TakeCell::empty()
+        }, |pin| {
+            pin.make_input();
+            TakeCell::new(pin)
+        });
+
         // setup and return struct
         SDCard {
             spi: spi,
             state: Cell::new(State::Idle),
             after_state: Cell::new(State::Idle),
+            alarm: alarm,
+            alarm_state: Cell::new(AlarmState::Idle),
             is_slow_mode: Cell::new(true),
             card_type: Cell::new(0x00),
+            detect_pin: pin_cell,
             txbuffer: TakeCell::new(txbuffer),
             rxbuffer: TakeCell::new(rxbuffer),
             client: TakeCell::empty(),
@@ -162,8 +191,10 @@ impl<'a> SDCard<'a> {
             write_buffer[8+i] = 0xFF;
         }
 
-        //XXX: Hack. Added one to this
-        self.spi.read_write_bytes(write_buffer, Some(read_buffer), 8+recv_len+1);
+        // Note: when running on top of the USART, the CS line is raised 1.5
+        //  bytes too early so we read an extra two bytes here.
+        //  See: https://github.com/helena-project/tock/issues/274
+        self.spi.read_write_bytes(write_buffer, Some(read_buffer), 8+recv_len+2);
     }
 
     fn get_response(&self, response: SDResponse, read_buffer: &[u8])
@@ -391,30 +422,66 @@ impl<'a> SDCard<'a> {
         }
     }
 
+    fn process_alarm(&self) {
+        /*
+        self.txbuffer.map_or_else(|| {
+            panic!("No txbuffer available for timer");
+        }, |write_buffer| {
+            self.rxbuffer.map_or_else(|| {
+                panic!("No rxbuffer available for timer");
+            }, |read_buffer| {
+                self.process_state(write_buffer, read_buffer, 0);
+            });
+        });
+        */
+        match self.alarm_state.get() {
+            AlarmState::DetectionChange => {
+                if self.is_installed() {
+                    panic!("SD Card installed");
+                } else {
+                    panic!("SD Card gone");
+                }
+                self.alarm_state.set(AlarmState::Idle);
+            }
+
+            AlarmState::Idle => {}
+        }
+    }
+
     pub fn set_client<C: SDCardClient>(&self, client: &'static C) {
         self.client.replace(client);
     }
 
-    //XXX: do we actually want an interrupt on install/uninstall?
     pub fn is_installed(&self) -> bool {
-        // set initialized to be false if the card is ever gone
-        true
+        // if there is no detect pin, assume an sd card is installed
+        self.detect_pin.map_or(true, |pin| {
+            // sd card detection pin is active low
+            pin.read() == false
+        })
+    }
+
+    pub fn detect_changes(&self) {
+        self.detect_pin.map(|pin| {
+            pin.enable_interrupt(0, hil::gpio::InterruptMode::EitherEdge);
+        });
     }
 
     pub fn initialize(&self) {
         // initially configure SPI to 400 khz
         self.is_slow_mode.set(true);
 
-        //XXX: need to check if the SD card is installed before continuing
-
-        // reset the SD card in order to start initializing it
-        self.txbuffer.take().map(|txbuffer| {
-            self.rxbuffer.take().map(move |rxbuffer| {
-                self.state.set(State::InitReset);
-                self.send_command(SDCmd::CMD0, 0x0,
-                    txbuffer, rxbuffer);
+        if self.is_installed() {
+            // reset the SD card in order to start initializing it
+            self.txbuffer.take().map(|txbuffer| {
+                self.rxbuffer.take().map(move |rxbuffer| {
+                    self.state.set(State::InitReset);
+                    self.send_command(SDCmd::CMD0, 0x0,
+                        txbuffer, rxbuffer);
+                });
             });
-        });
+        } else {
+            panic!("No SD card is installed!");
+        }
     }
 
     pub fn read_block(&self) {
@@ -426,7 +493,7 @@ impl<'a> SDCard<'a> {
     }
 }
 
-impl<'a> hil::spi::SpiMasterClient for SDCard<'a> {
+impl<'a, A: hil::time::Alarm + 'a> hil::spi::SpiMasterClient for SDCard<'a, A> {
     fn read_write_done(&self,
                        mut write_buffer: &'static mut [u8],
                        read_buffer: Option<&'static mut [u8]>,
@@ -441,9 +508,27 @@ impl<'a> hil::spi::SpiMasterClient for SDCard<'a> {
     }
 }
 
+impl<'a, A: hil::time::Alarm + 'a> hil::time::Client for SDCard<'a, A> {
+    fn fired(&self) {
+        self.process_alarm();
+    }
+}
+
+impl<'a, A: hil::time::Alarm + 'a> hil::gpio::Client for SDCard<'a, A> {
+    fn fired(&self, _: usize) {
+        // run a timer for 500 ms in order to let the sd card settle
+        self.alarm_state.set(AlarmState::DetectionChange);
+        let interval = (500 as u32) * <A::Frequency>::frequency() / 1000;
+        //let interval = (500 as u32) * <hil::time::Frequency>::frequency() / 1000;
+        //let interval = (500 as u32) * self.alarm.Frequency.frequency() / 1000;
+        let tics = self.alarm.now().wrapping_add(interval);
+        self.alarm.set_alarm(tics);
+    }
+}
+
 
 // Application driver for SD Card capsule, layers on top of SD Card capsule
-pub struct SDCardDriver<'a> {
-    sdcard: &'a SDCard<'a>,
+pub struct SDCardDriver<'a, A: hil::time::Alarm + 'a> {
+    sdcard: &'a SDCard<'a, hil::time::Alarm + 'a>,
 }
 
