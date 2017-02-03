@@ -111,13 +111,13 @@ pub struct SDCard<'a, A: hil::time::Alarm + 'a> {
     is_initialized: Cell<bool>,
     card_type: Cell<u8>,
 
-    detect_pin: TakeCell<&'static hil::gpio::Pin>,
+    detect_pin: Cell<Option<&'static hil::gpio::Pin>>,
 
-    txbuffer: TakeCell<&'static mut [u8]>,
-    rxbuffer: TakeCell<&'static mut [u8]>,
+    txbuffer: TakeCell<'static, [u8]>,
+    rxbuffer: TakeCell<'static, [u8]>,
 
-    client: TakeCell<&'static SDCardClient>,
-    client_buffer: TakeCell<&'static mut [u8]>,
+    client: Cell<Option<&'static SDCardClient>>,
+    client_buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
@@ -142,14 +142,14 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
         cs_pin.set();
 
         // handle optional detect pin
-        let pin_cell = detect_pin.map_or_else(|| {
-                                                  // else first, pin was None
-                                                  TakeCell::empty()
-                                              },
-                                              |pin| {
-                                                  pin.make_input();
-                                                  TakeCell::new(pin)
-                                              });
+        let pin = detect_pin.map_or_else(|| {
+                                             // else first, pin was None
+                                             None
+                                         },
+                                         |pin| {
+                                             pin.make_input();
+                                             Some(pin)
+                                         });
 
         // setup and return struct
         SDCard {
@@ -161,10 +161,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             alarm_state: Cell::new(AlarmState::Idle),
             is_initialized: Cell::new(false),
             card_type: Cell::new(0x00),
-            detect_pin: pin_cell,
+            detect_pin: Cell::new(pin),
             txbuffer: TakeCell::new(txbuffer),
             rxbuffer: TakeCell::new(rxbuffer),
-            client: TakeCell::empty(),
+            client: Cell::new(None),
             client_buffer: TakeCell::empty(),
         }
     }
@@ -663,12 +663,12 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
     }
 
     pub fn set_client<C: SDCardClient>(&self, client: &'static C) {
-        self.client.replace(client);
+        self.client.set(Some(client));
     }
 
     pub fn is_installed(&self) -> bool {
         // if there is no detect pin, assume an sd card is installed
-        self.detect_pin.map_or(true, |pin| {
+        self.detect_pin.get().map_or(true, |pin| {
             // sd card detection pin is active low
             pin.read() == false
         })
@@ -676,6 +676,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
     pub fn detect_changes(&self) {
         self.detect_pin
+            .get()
             .map(|pin| { pin.enable_interrupt(0, hil::gpio::InterruptMode::EitherEdge); });
     }
 
@@ -769,7 +770,7 @@ impl<'a, A: hil::time::Alarm + 'a> hil::gpio::Client for SDCard<'a, A> {
         //  probably just want to burn the entire state machine down
 
         // disable additional interrupts
-        self.detect_pin.map(|pin| { pin.disable_interrupt(); });
+        self.detect_pin.get().map(|pin| { pin.disable_interrupt(); });
 
         // run a timer for 500 ms in order to let the sd card settle
         self.alarm_state.set(AlarmState::DetectionChange);
