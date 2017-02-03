@@ -431,11 +431,7 @@ impl DMAClient for Spi {
             self.dma_length.set(0);
             self.client
                 .get()
-                .map(|cb| {
-                    txbuf.map(|txbuf| {
-                        cb.read_write_done(txbuf, rxbuf, len);
-                    });
-                });
+                .map(|cb| { txbuf.map(|txbuf| { cb.read_write_done(txbuf, rxbuf, len); }); });
         }
     }
 }

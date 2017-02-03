@@ -282,9 +282,7 @@ impl<'a, S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
                 self.busy.set(false);
                 app.len = 0;
                 app.index = 0;
-                app.callback.take().map(|mut cb| {
-                    cb.schedule(app.len, 0, 0);
-                });
+                app.callback.take().map(|mut cb| { cb.schedule(app.len, 0, 0); });
             } else {
                 self.do_next_read_write(app);
             }

@@ -125,9 +125,7 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMaste
                        len: usize) {
         self.client
             .get()
-            .map(move |client| {
-                client.read_write_done(write_buffer, read_buffer, len);
-            });
+            .map(move |client| { client.read_write_done(write_buffer, read_buffer, len); });
     }
 }
 

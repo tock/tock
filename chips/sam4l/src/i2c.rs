@@ -274,9 +274,7 @@ impl I2CHw {
                             }
                             None => None,
                         };
-                        buf.map(|buf| {
-                            client.command_complete(buf, err);
-                        });
+                        buf.map(|buf| { client.command_complete(buf, err); });
                     });
                 });
             }
@@ -442,9 +440,7 @@ impl I2CHw {
 
                         if len >= 1 {
                             self.slave_read_buffer
-                                .map(|buffer| {
-                                    regs.transmit_holding.set(buffer[0] as u32);
-                                });
+                                .map(|buffer| { regs.transmit_holding.set(buffer[0] as u32); });
                             self.slave_read_buffer_index.set(1);
                         } else {
                             // Send dummy byte
@@ -457,9 +453,7 @@ impl I2CHw {
 
                     } else {
                         // Call to upper layers asking for a buffer to send
-                        self.slave_client.get().map(|client| {
-                            client.read_expected();
-                        });
+                        self.slave_client.get().map(|client| { client.read_expected(); });
                     }
 
                 } else {
@@ -478,9 +472,7 @@ impl I2CHw {
                     } else {
                         // Call to upper layers asking for a buffer to
                         // read into.
-                        self.slave_client.get().map(|client| {
-                            client.write_expected();
-                        });
+                        self.slave_client.get().map(|client| { client.write_expected(); });
                     }
                 }
 
@@ -649,9 +641,7 @@ impl I2CHw {
 
                     if len >= 1 {
                         self.slave_read_buffer
-                            .map(|buffer| {
-                                regs.transmit_holding.set(buffer[0] as u32);
-                            });
+                            .map(|buffer| { regs.transmit_holding.set(buffer[0] as u32); });
                         self.slave_read_buffer_index.set(1);
                     } else {
                         // Send dummy byte

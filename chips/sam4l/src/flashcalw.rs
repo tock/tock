@@ -361,9 +361,7 @@ impl FLASHCALW {
         //  If the command is finished call the complete CB.
         if self.current_command.get() == Command::None &&
            self.current_state.get() == FlashState::Ready {
-            self.client.get().map(|value| {
-                value.command_complete(Error::CommandComplete);
-            });
+            self.client.get().map(|value| { value.command_complete(Error::CommandComplete); });
         }
     }
 
@@ -844,9 +842,7 @@ impl FLASHCALW {
             return -1;
         }
 
-        self.page_buffer.map(|value| {
-            value.clone_from_slice(&data);
-        });
+        self.page_buffer.map(|value| { value.clone_from_slice(&data); });
 
         self.current_state.set(FlashState::Unlocking);
         self.current_command.set(Command::Write { page: page_num });

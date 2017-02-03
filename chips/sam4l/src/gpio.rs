@@ -1,5 +1,6 @@
 
 
+use self::Pin::*;
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
@@ -7,7 +8,6 @@ use kernel::common::volatile_cell::VolatileCell;
 use kernel::hil;
 use nvic;
 use nvic::NvicIdx::*;
-use self::Pin::*;
 
 #[repr(C, packed)]
 struct Register {
@@ -410,9 +410,7 @@ impl GPIOPin {
     }
 
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| {
-            client.fired(self.client_data.get());
-        });
+        self.client.get().map(|client| { client.fired(self.client_data.get()); });
     }
 
     pub fn disable_schmidtt_trigger(&self) {
@@ -451,9 +449,7 @@ impl hil::Controller for GPIOPin {
 
 
     fn configure(&self, config: Option<PeripheralFunction>) {
-        config.map(|c| {
-            self.select_peripheral(c);
-        });
+        config.map(|c| { self.select_peripheral(c); });
     }
 }
 

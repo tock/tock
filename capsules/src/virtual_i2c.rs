@@ -112,9 +112,7 @@ impl<'a> I2CDevice<'a> {
 
 impl<'a> I2CClient for I2CDevice<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        self.client.get().map(move |client| {
-            client.command_complete(buffer, error);
-        });
+        self.client.get().map(move |client| { client.command_complete(buffer, error); });
     }
 }
 

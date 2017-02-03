@@ -123,9 +123,7 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                         //  we'll start here when subscribe is first called
                         self.rx_buffer
                             .take()
-                            .map(|buffer| {
-                                self.uart.receive_automatic(buffer, 250);
-                            });
+                            .map(|buffer| { self.uart.receive_automatic(buffer, 250); });
 
                         App {
                             callback: Some(callback),
@@ -207,9 +205,7 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         //               Can't just use 0!
         self.app.map(|appst| {
             // Call the callback after TX has finished
-            appst.callback.as_mut().map(|mut cb| {
-                cb.schedule(1, 0, 0);
-            });
+            appst.callback.as_mut().map(|mut cb| { cb.schedule(1, 0, 0); });
         });
     }
 
@@ -242,8 +238,6 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         });
 
         // restart the uart receive
-        self.rx_buffer.take().map(|buffer| {
-            self.uart.receive_automatic(buffer, 250);
-        });
+        self.rx_buffer.take().map(|buffer| { self.uart.receive_automatic(buffer, 250); });
     }
 }

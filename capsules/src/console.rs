@@ -214,9 +214,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
                             // Go ahead and signal the application
                             let written = app.write_len;
                             app.write_len = 0;
-                            app.write_callback.map(|mut cb| {
-                                cb.schedule(written, 0, 0);
-                            });
+                            app.write_callback.map(|mut cb| { cb.schedule(written, 0, 0); });
                         }
                     }
                     Err(return_code) => {
@@ -225,9 +223,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
                         app.write_remaining = 0;
                         app.pending_write = false;
                         let r0 = isize::from(return_code) as usize;
-                        app.write_callback.map(|mut cb| {
-                            cb.schedule(r0, 0, 0);
-                        });
+                        app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
                     }
                 }
             })
@@ -248,9 +244,7 @@ impl<'a, U: UART> Client for Console<'a, U> {
                                 app.write_remaining = 0;
                                 app.pending_write = false;
                                 let r0 = isize::from(return_code) as usize;
-                                app.write_callback.map(|mut cb| {
-                                    cb.schedule(r0, 0, 0);
-                                });
+                                app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
                                 false
                             }
                         }
