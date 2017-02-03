@@ -7,9 +7,10 @@
 // luckyresistor.me/cat-protector/software/sdcard-2/
 
 use core::cell::Cell;
+use kernel::common::take_cell::TakeCell;
 
 use kernel::hil;
-use kernel::common::take_cell::TakeCell;
+use kernel::hil::time::Frequency;
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];
 pub static mut RXBUFFER: [u8; 512] = [0; 512];
@@ -55,6 +56,10 @@ enum State {
 enum AlarmState {
     Idle,
 
+    RepeatHCSInit,
+    RepeatAppSpecificInit,
+    RepeatGenericInit,
+
     DetectionChange,
 }
 
@@ -62,7 +67,7 @@ enum AlarmState {
 const CT_MMC: u8 = 0x01;
 const CT_SD1: u8 = 0x02;
 const CT_SD2: u8 = 0x04;
-const CT_SDC: u8 = (CT_SD1|CT_SD2);
+const CT_SDC: u8 = (CT_SD1 | CT_SD2);
 const CT_BLOCK: u8 = 0x08;
 
 //XXX: How do we handle errors with this interface?
@@ -83,7 +88,7 @@ pub struct SDCard<'a, A: hil::time::Alarm + 'a> {
     alarm: &'a A,
     alarm_state: Cell<AlarmState>,
 
-    is_slow_mode: Cell<bool>,
+    is_initialized: Cell<bool>,
     card_type: Cell<u8>,
 
     detect_pin: TakeCell<&'static hil::gpio::Pin>,
@@ -111,12 +116,13 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
         // handle optional detect pin
         let pin_cell = detect_pin.map_or_else(|| {
-            // else first, pin was None
-            TakeCell::empty()
-        }, |pin| {
-            pin.make_input();
-            TakeCell::new(pin)
-        });
+                                                  // else first, pin was None
+                                                  TakeCell::empty()
+                                              },
+                                              |pin| {
+                                                  pin.make_input();
+                                                  TakeCell::new(pin)
+                                              });
 
         // setup and return struct
         SDCard {
@@ -125,7 +131,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             after_state: Cell::new(State::Idle),
             alarm: alarm,
             alarm_state: Cell::new(AlarmState::Idle),
-            is_slow_mode: Cell::new(true),
+            is_initialized: Cell::new(false),
             card_type: Cell::new(0x00),
             detect_pin: pin_cell,
             txbuffer: TakeCell::new(txbuffer),
@@ -148,13 +154,17 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                            4000000);
     }
 
-    fn send_command(&self, cmd: SDCmd, arg: u32,
+    fn send_command(&self,
+                    cmd: SDCmd,
+                    arg: u32,
                     mut write_buffer: &'static mut [u8],
                     mut read_buffer: &'static mut [u8]) {
-        if self.is_slow_mode.get() {
-            self.set_spi_slow_mode();
-        } else {
+        if self.is_initialized.get() {
+            // device is already initialized
             self.set_spi_fast_mode();
+        } else {
+            // device is still being initialized
+            self.set_spi_slow_mode();
         }
 
         // send dummy bytes to start
@@ -173,8 +183,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
         // argument, MSB first
         write_buffer[3] = ((arg >> 24) & 0xFF) as u8;
         write_buffer[4] = ((arg >> 16) & 0xFF) as u8;
-        write_buffer[5] = ((arg >>  8) & 0xFF) as u8;
-        write_buffer[6] = ((arg >>  0) & 0xFF) as u8;
+        write_buffer[5] = ((arg >> 8) & 0xFF) as u8;
+        write_buffer[6] = ((arg >> 0) & 0xFF) as u8;
 
         // CRC is ignored except for CMD0 and maybe CMD8
         if cmd == SDCmd::CMD8 {
@@ -188,17 +198,16 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
         // append dummy bytes to transmission
         for i in 0..recv_len {
-            write_buffer[8+i] = 0xFF;
+            write_buffer[8 + i] = 0xFF;
         }
 
         // Note: when running on top of the USART, the CS line is raised 1.5
         //  bytes too early so we read an extra two bytes here.
         //  See: https://github.com/helena-project/tock/issues/274
-        self.spi.read_write_bytes(write_buffer, Some(read_buffer), 8+recv_len+2);
+        self.spi.read_write_bytes(write_buffer, Some(read_buffer), 8 + recv_len + 2);
     }
 
-    fn get_response(&self, response: SDResponse, read_buffer: &[u8])
-            -> (u8, u8, u32) {
+    fn get_response(&self, response: SDResponse, read_buffer: &[u8]) -> (u8, u8, u32) {
 
         let mut r1: u8 = 0xFF;
         let mut r2: u8 = 0xFF;
@@ -211,16 +220,16 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
                 match response {
                     SDResponse::R2 => {
-                        if i+1 < read_buffer.len() {
-                            r2 = read_buffer[i+1];
+                        if i + 1 < read_buffer.len() {
+                            r2 = read_buffer[i + 1];
                         }
                     }
-                    SDResponse::R3 | SDResponse::R7=> {
-                        if i+4 < read_buffer.len() {
-                            r3 = (read_buffer[i+1] as u32) << 24 |
-                                 (read_buffer[i+2] as u32) << 16 |
-                                 (read_buffer[i+3] as u32) <<  8 |
-                                 (read_buffer[i+4] as u32);
+                    SDResponse::R3 | SDResponse::R7 => {
+                        if i + 4 < read_buffer.len() {
+                            r3 = (read_buffer[i + 1] as u32) << 24 |
+                                 (read_buffer[i + 2] as u32) << 16 |
+                                 (read_buffer[i + 3] as u32) << 8 |
+                                 (read_buffer[i + 4] as u32);
                         }
                     }
                     _ => {}
@@ -235,34 +244,16 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
     }
 
     fn process_state(&self,
-                   mut write_buffer: &'static mut [u8],
-                   mut read_buffer: &'static mut [u8],
-                   _: usize) {
-
-        // CMD0 - reset to idle state
-
-        //XXX: do we actually care about SDv2, SDv1, and MMC?
-        // CMD8 - checks if SDv2
-
-            // ACMD41 - application-specific initialize
-
-            // repeat until not idle
-
-        // else SDv1 or MMC
-
-            // ACMD41 - application-specific initialize
-
-            // CMD1 - generic initialize
-
-            // repeat until not idle
-
-            // CMD16 - set blocksize to 512
+                     mut write_buffer: &'static mut [u8],
+                     mut read_buffer: &'static mut [u8],
+                     _: usize) {
 
         match self.state.get() {
             State::SendACmd { acmd, arg } => {
                 // send the application-specific command and resume the state
                 //  machine
                 self.state.set(self.after_state.get());
+                self.after_state.set(State::Idle);
                 self.send_command(acmd, arg, write_buffer, read_buffer);
             }
 
@@ -289,13 +280,19 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 if r1 == 0x01 && r7 == 0x1AA {
                     // we have an SDv2 card
                     // send application-specific initialization in high capacity mode (HCS)
-                    self.state.set(State::SendACmd { acmd: SDCmd::ACMD41, arg: 0x40000000 });
+                    self.state.set(State::SendACmd {
+                        acmd: SDCmd::ACMD41,
+                        arg: 0x40000000,
+                    });
                     self.after_state.set(State::InitRepeatHCSInit);
                     self.send_command(SDCmd::CMD55, 0x0, write_buffer, read_buffer);
                 } else {
                     // we have either an SDv1 or MMCv3 card
                     // send application-specific initialization
-                    self.state.set(State::SendACmd { acmd: SDCmd::ACMD41, arg: 0x0 });
+                    self.state.set(State::SendACmd {
+                        acmd: SDCmd::ACMD41,
+                        arg: 0x0,
+                    });
                     self.after_state.set(State::InitAppSpecificInit);
                     self.send_command(SDCmd::CMD55, 0x0, write_buffer, read_buffer);
                 }
@@ -311,12 +308,15 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(State::InitCheckCapacity);
                     self.send_command(SDCmd::CMD58, 0x0, write_buffer, read_buffer);
                 } else if r1 == 0x01 {
-                    //XXX: replace this with a timer set to 10 ms
-                    // try again
-                    // send application-specific initialization in high capcity mode (HCS)
-                    self.state.set(State::SendACmd { acmd: SDCmd::ACMD41, arg: 0x40000000 });
-                    self.after_state.set(State::InitRepeatHCSInit);
-                    self.send_command(SDCmd::CMD55, 0x0, write_buffer, read_buffer);
+                    // replace buffers
+                    self.txbuffer.replace(write_buffer);
+                    self.rxbuffer.replace(read_buffer);
+
+                    // try again after 10 ms
+                    self.alarm_state.set(AlarmState::RepeatHCSInit);
+                    let interval = (10 as u32) * <A::Frequency>::frequency() / 1000;
+                    let tics = self.alarm.now().wrapping_add(interval);
+                    self.alarm.set_alarm(tics);
                 } else {
                     panic!("Error in {:?}. R1: {:#X}", self.state.get(), r1);
                 }
@@ -336,9 +336,15 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     panic!("Error in {:?}. R1: {}", self.state.get(), r1);
                 }
 
-                //XXX: Initialization complete! Do callback
+                // Initialization complete
                 self.state.set(State::Idle);
-                self.is_slow_mode.set(true);
+                self.is_initialized.set(true);
+
+                // replace buffers
+                self.txbuffer.replace(write_buffer);
+                self.rxbuffer.replace(read_buffer);
+
+                //XXX: Initialization complete! Do callback
                 panic!("Initialization complete");
             }
 
@@ -350,7 +356,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     // SDv1 card
                     // send application-specific initialization
                     self.card_type.set(CT_SD1);
-                    self.state.set(State::SendACmd { acmd: SDCmd::ACMD41, arg: 0x0 });
+                    self.state.set(State::SendACmd {
+                        acmd: SDCmd::ACMD41,
+                        arg: 0x0,
+                    });
                     self.after_state.set(State::InitRepeatAppSpecificInit);
                     self.send_command(SDCmd::CMD55, 0x0, write_buffer, read_buffer);
                 } else {
@@ -358,8 +367,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     // send generic intialization
                     self.card_type.set(CT_MMC);
                     self.state.set(State::InitRepeatGenericInit);
-                    self.send_command(SDCmd::CMD1, 0x0,
-                        write_buffer, read_buffer);
+                    self.send_command(SDCmd::CMD1, 0x0, write_buffer, read_buffer);
                 }
             }
 
@@ -373,12 +381,15 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(State::InitSetBlocksize);
                     self.send_command(SDCmd::CMD16, 512, write_buffer, read_buffer);
                 } else if r1 == 0x01 {
-                    //XXX: replace this with a timer set to 10 ms
-                    // try again
-                    // send application-specific initialization
-                    self.state.set(State::SendACmd { acmd: SDCmd::ACMD41, arg: 0x0 });
-                    self.after_state.set(State::InitRepeatAppSpecificInit);
-                    self.send_command(SDCmd::CMD55, 0x0, write_buffer, read_buffer);
+                    // replace buffers
+                    self.txbuffer.replace(write_buffer);
+                    self.rxbuffer.replace(read_buffer);
+
+                    // try again after 10 ms
+                    self.alarm_state.set(AlarmState::RepeatAppSpecificInit);
+                    let interval = (10 as u32) * <A::Frequency>::frequency() / 1000;
+                    let tics = self.alarm.now().wrapping_add(interval);
+                    self.alarm.set_alarm(tics);
                 } else {
                     panic!("Error in {:?}. R1: {:#X}", self.state.get(), r1);
                 }
@@ -394,11 +405,15 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(State::InitSetBlocksize);
                     self.send_command(SDCmd::CMD16, 512, write_buffer, read_buffer);
                 } else if r1 == 0x01 {
-                    //XXX: replace this with a timer set to 10 ms
-                    // try again
-                    // send generic intialization
-                    self.state.set(State::InitRepeatGenericInit);
-                    self.send_command(SDCmd::CMD1, 0x0, write_buffer, read_buffer);
+                    // replace buffers
+                    self.txbuffer.replace(write_buffer);
+                    self.rxbuffer.replace(read_buffer);
+
+                    // try again after 10 ms
+                    self.alarm_state.set(AlarmState::RepeatGenericInit);
+                    let interval = (10 as u32) * <A::Frequency>::frequency() / 1000;
+                    let tics = self.alarm.now().wrapping_add(interval);
+                    self.alarm.set_alarm(tics);
                 } else {
                     panic!("Error in {:?}. R1: {:#X}", self.state.get(), r1);
                 }
@@ -409,9 +424,15 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 let (r1, _, _) = self.get_response(SDResponse::R1, read_buffer);
 
                 if r1 == 0x00 {
-                    //XXX: Initialization complete! Do callback
+                    // Initialization complete
                     self.state.set(State::Idle);
-                    self.is_slow_mode.set(false);
+                    self.is_initialized.set(true);
+
+                    // replace buffers
+                    self.txbuffer.replace(write_buffer);
+                    self.rxbuffer.replace(read_buffer);
+
+                    //XXX: Initialization complete! Do callback
                     panic!("Initialization complete");
                 } else {
                     panic!("Error in {:?}. R1: {}", self.state.get(), r1);
@@ -423,17 +444,6 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
     }
 
     fn process_alarm(&self) {
-        /*
-        self.txbuffer.map_or_else(|| {
-            panic!("No txbuffer available for timer");
-        }, |write_buffer| {
-            self.rxbuffer.map_or_else(|| {
-                panic!("No rxbuffer available for timer");
-            }, |read_buffer| {
-                self.process_state(write_buffer, read_buffer, 0);
-            });
-        });
-        */
         match self.alarm_state.get() {
             AlarmState::DetectionChange => {
                 if self.is_installed() {
@@ -441,6 +451,80 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 } else {
                     panic!("SD Card gone");
                 }
+
+                // re-enable interrupts
+                self.detect_changes();
+                self.alarm_state.set(AlarmState::Idle);
+            }
+
+            AlarmState::RepeatHCSInit => {
+                // buffers must be available to use
+                if self.txbuffer.is_none() {
+                    panic!("No txbuffer available for timer");
+                }
+                if self.rxbuffer.is_none() {
+                    panic!("No rxbuffer available for timer");
+                }
+
+                // check card initialization again
+                self.txbuffer.take().map(|write_buffer| {
+                    self.rxbuffer.take().map(move |read_buffer| {
+                        // send application-specific initialization in high capcity mode (HCS)
+                        self.state.set(State::SendACmd {
+                            acmd: SDCmd::ACMD41,
+                            arg: 0x40000000,
+                        });
+                        self.after_state.set(State::InitRepeatHCSInit);
+                        self.send_command(SDCmd::CMD55, 0x0, write_buffer, read_buffer);
+                    });
+                });
+
+                self.alarm_state.set(AlarmState::Idle);
+            }
+
+            AlarmState::RepeatAppSpecificInit => {
+                // buffers must be available to use
+                if self.txbuffer.is_none() {
+                    panic!("No txbuffer available for timer");
+                }
+                if self.rxbuffer.is_none() {
+                    panic!("No rxbuffer available for timer");
+                }
+
+                // check card initialization again
+                self.txbuffer.take().map(|write_buffer| {
+                    self.rxbuffer.take().map(move |read_buffer| {
+                        // send application-specific initialization
+                        self.state.set(State::SendACmd {
+                            acmd: SDCmd::ACMD41,
+                            arg: 0x0,
+                        });
+                        self.after_state.set(State::InitRepeatAppSpecificInit);
+                        self.send_command(SDCmd::CMD55, 0x0, write_buffer, read_buffer);
+                    });
+                });
+
+                self.alarm_state.set(AlarmState::Idle);
+            }
+
+            AlarmState::RepeatGenericInit => {
+                // buffers must be available to use
+                if self.txbuffer.is_none() {
+                    panic!("No txbuffer available for timer");
+                }
+                if self.rxbuffer.is_none() {
+                    panic!("No rxbuffer available for timer");
+                }
+
+                // check card initialization again
+                self.txbuffer.take().map(|write_buffer| {
+                    self.rxbuffer.take().map(move |read_buffer| {
+                        // send generic initialization
+                        self.state.set(State::InitRepeatGenericInit);
+                        self.send_command(SDCmd::CMD1, 0x0, write_buffer, read_buffer);
+                    });
+                });
+
                 self.alarm_state.set(AlarmState::Idle);
             }
 
@@ -461,22 +545,21 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
     }
 
     pub fn detect_changes(&self) {
-        self.detect_pin.map(|pin| {
-            pin.enable_interrupt(0, hil::gpio::InterruptMode::EitherEdge);
-        });
+        self.detect_pin
+            .map(|pin| { pin.enable_interrupt(0, hil::gpio::InterruptMode::EitherEdge); });
     }
 
     pub fn initialize(&self) {
-        // initially configure SPI to 400 khz
-        self.is_slow_mode.set(true);
+        // if not already, set card to uninitialized again
+        self.is_initialized.set(false);
 
+        // no point in initializing if the card is not installed
         if self.is_installed() {
             // reset the SD card in order to start initializing it
             self.txbuffer.take().map(|txbuffer| {
                 self.rxbuffer.take().map(move |rxbuffer| {
                     self.state.set(State::InitReset);
-                    self.send_command(SDCmd::CMD0, 0x0,
-                        txbuffer, rxbuffer);
+                    self.send_command(SDCmd::CMD0, 0x0, txbuffer, rxbuffer);
                 });
             });
         } else {
@@ -493,6 +576,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
     }
 }
 
+// Handle callbacks from the SPI peripheral
 impl<'a, A: hil::time::Alarm + 'a> hil::spi::SpiMasterClient for SDCard<'a, A> {
     fn read_write_done(&self,
                        mut write_buffer: &'static mut [u8],
@@ -501,26 +585,33 @@ impl<'a, A: hil::time::Alarm + 'a> hil::spi::SpiMasterClient for SDCard<'a, A> {
 
         // unrwap so we don't have to deal with options everywhere
         read_buffer.map_or_else(|| {
-            panic!("Didn't receive a read_buffer back");
-        }, move |read_buffer| {
-            self.process_state(write_buffer, read_buffer, len);
-        });
+                                    panic!("Didn't receive a read_buffer back");
+                                },
+                                move |read_buffer| {
+                                    self.process_state(write_buffer, read_buffer, len);
+                                });
     }
 }
 
+// Handle callbacks from the timer
 impl<'a, A: hil::time::Alarm + 'a> hil::time::Client for SDCard<'a, A> {
     fn fired(&self) {
         self.process_alarm();
     }
 }
 
+// Handle callbacks from the card detection pin
 impl<'a, A: hil::time::Alarm + 'a> hil::gpio::Client for SDCard<'a, A> {
     fn fired(&self, _: usize) {
+        //XXX: need to do something if alarm is already in use
+        //  probably just want to burn the entire state machine down
+
+        // disable additional interrupts
+        self.detect_pin.map(|pin| { pin.disable_interrupt(); });
+
         // run a timer for 500 ms in order to let the sd card settle
         self.alarm_state.set(AlarmState::DetectionChange);
         let interval = (500 as u32) * <A::Frequency>::frequency() / 1000;
-        //let interval = (500 as u32) * <hil::time::Frequency>::frequency() / 1000;
-        //let interval = (500 as u32) * self.alarm.Frequency.frequency() / 1000;
         let tics = self.alarm.now().wrapping_add(interval);
         self.alarm.set_alarm(tics);
     }
@@ -529,6 +620,5 @@ impl<'a, A: hil::time::Alarm + 'a> hil::gpio::Client for SDCard<'a, A> {
 
 // Application driver for SD Card capsule, layers on top of SD Card capsule
 pub struct SDCardDriver<'a, A: hil::time::Alarm + 'a> {
-    sdcard: &'a SDCard<'a, hil::time::Alarm + 'a>,
+    sdcard: &'a SDCard<'a, A>,
 }
-
