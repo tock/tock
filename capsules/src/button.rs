@@ -2,11 +2,10 @@
 //! platform controlling of buttons without having to know which of the GPIO pins exposed across
 //! the syscall interface are buttons.
 
-use kernel::{AppId, Container, Callback, Driver};
+use kernel::{AppId, Container, Callback, Driver, ReturnCode};
 use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
 use kernel::process::Error;
-use kernel::returncode::ReturnCode;
 
 pub type SubscribeMap = u32;
 

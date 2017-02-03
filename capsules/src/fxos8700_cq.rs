@@ -4,10 +4,9 @@
 //! To use readings from the sensor in userland, see FXOS8700CQ.h in libtock.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
-use kernel::returncode::ReturnCode;
 
 pub static mut BUF: [u8; 6] = [0; 6];
 

@@ -33,26 +33,23 @@ int radio_init() {
 static void cb_tx( __attribute__ ((unused)) int unused0,
                 __attribute__ ((unused)) int unused1,
                 __attribute__ ((unused)) int unused2,
-                __attribute__ ((unused)) void* ud) {
+                void* ud) {
   *((bool*)ud) = true;
 }
 
 static void cb_rx( __attribute__ ((unused)) int unused0,
                 __attribute__ ((unused)) int unused1,
                 __attribute__ ((unused)) int unused2,
-                __attribute__ ((unused)) void* ud) {
+                void* ud) {
   *((bool*)ud) = true;
 }
 
 static void cb_config( __attribute__ ((unused)) int unused0,
                        __attribute__ ((unused)) int unused1,
                        __attribute__ ((unused)) int unused2,
-                       __attribute__ ((unused)) void* ud) {
-  gpio_toggle(1);
+                       void* ud) {
   *((bool*)ud) = true;
 }
-
-
 
 // packet contains the payload of the 802.15.4 packet; this will
 // be copied into a packet buffer with header space within the kernel.
@@ -95,7 +92,6 @@ int radio_set_power(char power) {
   return command(SYS_RADIO, COM_POWER, (unsigned int) (power + 128));
 }
 
-
 int radio_commit() {
   bool cond = false;
   int err = subscribe(SYS_RADIO, EVT_CFG, cb_config, &cond);
@@ -107,6 +103,7 @@ int radio_commit() {
     return err;
   }
   yield_for(&cond);
+  return SUCCESS;
 }
 
 // Valid channels are 10-26

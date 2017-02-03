@@ -26,13 +26,13 @@ pub const MAX_BUF_SIZE: usize    = 129;    // +1 for opcode
 pub const MIN_PACKET_SIZE: u8    = HEADER_SIZE + 2; // +2 for CRC
 
 pub trait Radio {
-
     /// buf must be at least MAX_BUF_SIZE in length, and
     /// reg_read and reg_write must be 2 bytes
     fn initialize(&self,
                   spi_buf: &'static mut [u8],
                   reg_write: &'static mut [u8],
-                  reg_read: &'static mut [u8]) -> ReturnCode;
+                  reg_read: &'static mut [u8])
+                  -> ReturnCode;
     fn start(&self) -> ReturnCode;
     fn stop(&self) -> ReturnCode;
     fn reset(&self) -> ReturnCode;
@@ -42,7 +42,6 @@ pub trait Radio {
     fn set_receive_client(&self, client: &'static RxClient,
                           receive_buffer: &'static mut [u8]);
     fn set_config_client(&self, client: &'static ConfigClient);
-
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
     /// The local 16-bit address

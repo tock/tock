@@ -16,7 +16,6 @@ int main(void) {
   radio_set_addr(0x802);
   radio_set_pan(0xABCD);
   radio_commit();
-  led_toggle(0);
   while (1) {
     if (radio_receive(packet, BUF_SIZE) >= 0) {
       radio_send(0xFFFF, packet, BUF_SIZE);

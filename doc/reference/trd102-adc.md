@@ -2,17 +2,23 @@ Kernel Analog-to-Digital Conversion HIL
 ========================================
 
 **TRD:** 102 <br/>
+**Working Group:** Kernel<br/>
+**Type:** Documentary<br/>
 **Status:** Draft <br/>
 **Author:** Philip Levis <br/>
-**Date:** Dec 18, 2016
+**Draft-Created:** Dec 18, 2016<br/>
+**Draft-Modified:** Jan 30, 2017<br/>
+**Draft-Version:** 1<br/>
+**Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
 -------------------------------
 
 This document describes the hardware independent layer interface (HIL)
-for analog-to-digital conversion in the Tock operating system kernel.
+çfor analog-to-digital conversion in the Tock operating system kernel.
 It describes the Rust traits and other definitions for this service
-as well as the reasoning behind them.
+as well as the reasoning behind them. This document is in full compliance
+with TRD1.
 
 1. Introduction
 -------------------------------
@@ -153,4 +159,19 @@ value, the value MUST be left shifted so the most significant bit of
 5. Example Implementation
 ---------------------------------
 
+6. Authors' Address
+---------------------------------
 
+Philip Levis
+409 Gates Hall
+Stanford University
+Stanford, CA 94305
+
+phone - +1 650 725 9046
+
+email - pal@cs.stanford.edu
+
+7. Citations
+---------------------------------
+
+[TRD1] <trd1-trds.md>

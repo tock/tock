@@ -3,12 +3,11 @@
 //! http://www.digikey.com/product-detail/en/ams-taos-usa-inc/TSL2561FN/TSL2561-FNCT-ND/3095298
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, Callback, Driver, ReturnCode};
 
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
-use kernel::returncode::ReturnCode;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 4] = [0; 4];

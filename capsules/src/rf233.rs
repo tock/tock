@@ -30,7 +30,7 @@ use rf233_const::*;
 
 const INTERRUPT_ID: usize = 0x2154;
 
-#[allow(unused_variables, dead_code,non_camel_case_types)]
+#[allow(non_camel_case_types,dead_code)]
 #[derive(Copy, Clone, PartialEq)]
 enum InternalState {
     // There are 6 high-level states:
@@ -190,7 +190,6 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     spi_tx: TakeCell<&'static mut [u8]>,
     spi_buf: TakeCell<&'static mut [u8]>,
 }
-
 
 fn setting_to_power(setting: u8) -> i8 {
     match setting {
@@ -354,6 +353,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                                                 (self.addr.get() & 0xff) as u8,
                                                 InternalState::CONFIG_SHORT0_SET);
                 }
+                // Useful debug code to test radio can transmit without
+                // an app/calling system calls
                 //unsafe {
                 //    self.transmit(0xFFFF, &mut app_buf, 20);
                 //}
@@ -588,9 +589,9 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                     let buf = self.tx_buf.take();
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
 
-                    self.tx_client.get().map(|c| {
-                        c.send_done(buf.unwrap(), ReturnCode::SUCCESS);
-                    });
+                    self.tx_client
+                        .get()
+                        .map(|c| { c.send_done(buf.unwrap(), ReturnCode::SUCCESS); });
                 } else {
                     self.register_read(RF233Register::TRX_STATUS);
                 }
@@ -756,7 +757,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
         }
     }
 
-    #[allow(dead_code)]
     fn register_write(&self, reg: RF233Register, val: u8) -> ReturnCode {
 
         if (self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none()) {
@@ -800,8 +800,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
         ReturnCode::SUCCESS
     }
 
-    // A future, correct version will use buf and properly handle buffers.
-    #[allow(unused_variables)]
     fn frame_read(&self, buf: &'static mut [u8], buf_len: u8) -> ReturnCode {
         if self.spi_busy.get() {
             return ReturnCode::EBUSY;
@@ -878,7 +876,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
         ReturnCode::SUCCESS
     }
 
-    #[allow(dead_code)]
     fn start(&self) -> ReturnCode {
         if self.state.get() != InternalState::START {
             return ReturnCode::FAIL;

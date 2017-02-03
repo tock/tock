@@ -3,13 +3,12 @@
 //! https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver};
+use kernel::{AppId, Callback, Driver, ReturnCode};
 
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
-use kernel::returncode::ReturnCode;
 
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 14] = [0; 14];

@@ -43,20 +43,6 @@ impl From<ReturnCode> for isize {
 
 impl From<ReturnCode> for usize {
     fn from(original: ReturnCode) -> usize {
-        match original {
-            ReturnCode::SuccessWithValue { value } => value as usize,
-            ReturnCode::SUCCESS => 0,
-            ReturnCode::FAIL => 1,
-            ReturnCode::EBUSY => 2,
-            ReturnCode::EALREADY => 3,
-            ReturnCode::EOFF => 4,
-            ReturnCode::ERESERVE => 5,
-            ReturnCode::EINVAL => 6,
-            ReturnCode::ESIZE => 7,
-            ReturnCode::ECANCEL => 8,
-            ReturnCode::ENOMEM => 9,
-            ReturnCode::ENOSUPPORT => 10,
-            ReturnCode::ENODEVICE => 11,
-        }
+        isize::from(original) as usize
     }
 }
