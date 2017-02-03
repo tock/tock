@@ -21,7 +21,7 @@ pub struct Isl29035<'a, A: time::Alarm + 'a> {
     i2c: &'a I2CDevice,
     alarm: &'a A,
     state: Cell<State>,
-    buffer: TakeCell<&'static mut [u8]>,
+    buffer: TakeCell<'static, [u8]>,
     callback: Cell<Option<Callback>>,
 }
 

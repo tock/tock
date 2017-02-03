@@ -4,7 +4,7 @@
 use core::cell::Cell;
 use core::cmp;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::spi::{SpiMasterDevice, SpiMasterClient};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
@@ -29,9 +29,9 @@ struct App {
 pub struct Spi<'a, S: SpiMasterDevice + 'a> {
     spi_master: &'a S,
     busy: Cell<bool>,
-    app: TakeCell<App>,
-    kernel_read: TakeCell<&'static mut [u8]>,
-    kernel_write: TakeCell<&'static mut [u8]>,
+    app: MapCell<App>,
+    kernel_read: TakeCell<'static, [u8]>,
+    kernel_write: TakeCell<'static, [u8]>,
     kernel_len: Cell<usize>,
 }
 
@@ -40,7 +40,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
-            app: TakeCell::empty(),
+            app: MapCell::empty(),
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
             kernel_write: TakeCell::empty(),

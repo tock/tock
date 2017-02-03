@@ -171,17 +171,17 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     irq_pin: &'a gpio::Pin,
     irq_ctl: &'a gpio::PinCtl,
     state: Cell<InternalState>,
-    tx_buf: TakeCell<&'static mut [u8]>,
-    rx_buf: TakeCell<&'static mut [u8]>,
+    tx_buf: TakeCell<'static, [u8]>,
+    rx_buf: TakeCell<'static, [u8]>,
     tx_len: Cell<u8>,
     tx_client: Cell<Option<&'static radio::TxClient>>,
     rx_client: Cell<Option<&'static radio::RxClient>>,
     addr: Cell<u16>,
     pan: Cell<u16>,
     seq: Cell<u8>,
-    spi_rx: TakeCell<&'static mut [u8]>,
-    spi_tx: TakeCell<&'static mut [u8]>,
-    spi_buf: TakeCell<&'static mut [u8]>,
+    spi_rx: TakeCell<'static, [u8]>,
+    spi_tx: TakeCell<'static, [u8]>,
+    spi_buf: TakeCell<'static, [u8]>,
 }
 
 fn interrupt_included(mask: u8, interrupt: u8) -> bool {

@@ -5,7 +5,7 @@
 //! some nuances that keep the Nordic BLE serialization library happy.
 
 use kernel::{AppId, Callback, AppSlice, Driver, ReturnCode, Shared};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::uart::{self, UARTAdvanced, Client};
 
 struct App {
@@ -25,9 +25,9 @@ pub static mut READ_BUF: [u8; 600] = [0; 600];
 // application.
 pub struct Nrf51822Serialization<'a, U: UARTAdvanced + 'a> {
     uart: &'a U,
-    app: TakeCell<App>,
-    tx_buffer: TakeCell<&'static mut [u8]>,
-    rx_buffer: TakeCell<&'static mut [u8]>,
+    app: MapCell<App>,
+    tx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a, U: UARTAdvanced> Nrf51822Serialization<'a, U> {
@@ -37,7 +37,7 @@ impl<'a, U: UARTAdvanced> Nrf51822Serialization<'a, U> {
                -> Nrf51822Serialization<'a, U> {
         Nrf51822Serialization {
             uart: uart,
-            app: TakeCell::empty(),
+            app: MapCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),
             rx_buffer: TakeCell::new(rx_buffer),
         }

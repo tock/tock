@@ -4,7 +4,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 
-use kernel::common::take_cell::TakeCell;
+use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil;
 
 
@@ -52,10 +52,10 @@ pub trait FM25CLClient {
 pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice + 'a> {
     spi: &'a S,
     state: Cell<State>,
-    txbuffer: TakeCell<&'static mut [u8]>,
-    rxbuffer: TakeCell<&'static mut [u8]>,
-    client: TakeCell<&'static FM25CLClient>,
-    client_buffer: TakeCell<&'static mut [u8]>, // Store buffer and state for passing back to client
+    txbuffer: TakeCell<'static, [u8]>,
+    rxbuffer: TakeCell<'static, [u8]>,
+    client: Cell<Option<&'static FM25CLClient>>,
+    client_buffer: TakeCell<'static, [u8]>, // Store buffer and state for passing back to client
     client_write_address: Cell<u16>,
     client_write_len: Cell<u16>,
 }
@@ -71,7 +71,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
             state: Cell::new(State::Idle),
             txbuffer: TakeCell::new(txbuffer),
             rxbuffer: TakeCell::new(rxbuffer),
-            client: TakeCell::empty(),
+            client: Cell::new(None),
             client_buffer: TakeCell::empty(),
             client_write_address: Cell::new(0),
             client_write_len: Cell::new(0),
@@ -79,7 +79,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
     }
 
     pub fn set_client<C: FM25CLClient>(&self, client: &'static C) {
-        self.client.replace(client);
+        self.client.set(Some(client));
     }
 
     /// Setup SPI for this chip
@@ -165,7 +165,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
                     // Also replace this buffer
                     self.rxbuffer.replace(read_buffer);
 
-                    self.client.map(|client| { client.status(status); });
+                    self.client.get().map(|client| { client.status(status); });
                 });
             }
             State::WriteEnable => {
@@ -195,9 +195,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
 
                 // Call done with the write() buffer
                 self.client_buffer.take().map(move |buffer| {
-                    self.client.map(move |client| {
-                        client.done(buffer);
-                    });
+                    self.client.get().map(move |client| { client.done(buffer); });
                 });
             }
             State::ReadMemory => {
@@ -216,7 +214,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
 
                         self.rxbuffer.replace(read_buffer);
 
-                        self.client.map(move |client| { client.read(buffer, read_len); });
+                        self.client.get().map(move |client| { client.read(buffer, read_len); });
                     });
                 });
             }
@@ -227,18 +225,18 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
 
 /// Holds buffers and whatnot that the application has passed us.
 struct AppState {
-    callback: Cell<Option<Callback>>,
-    read_buffer: TakeCell<AppSlice<Shared, u8>>,
-    write_buffer: TakeCell<AppSlice<Shared, u8>>,
+    callback: Option<Callback>,
+    read_buffer: Option<AppSlice<Shared, u8>>,
+    write_buffer: Option<AppSlice<Shared, u8>>,
 }
 
 /// Default implementation of the FM25CL driver that provides a Driver
 /// interface for providing access to applications.
 pub struct FM25CLDriver<'a, S: hil::spi::SpiMasterDevice + 'a> {
     fm25cl: &'a FM25CL<'a, S>,
-    app_state: TakeCell<AppState>,
-    kernel_read: TakeCell<&'static mut [u8]>,
-    kernel_write: TakeCell<&'static mut [u8]>,
+    app_state: MapCell<AppState>,
+    kernel_read: TakeCell<'static, [u8]>,
+    kernel_write: TakeCell<'static, [u8]>,
 }
 
 impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLDriver<'a, S> {
@@ -248,7 +246,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLDriver<'a, S> {
                -> FM25CLDriver<'a, S> {
         FM25CLDriver {
             fm25cl: fm25,
-            app_state: TakeCell::empty(),
+            app_state: MapCell::empty(),
             kernel_read: TakeCell::new(read_buf),
             kernel_write: TakeCell::new(write_buf),
         }
@@ -258,7 +256,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLDriver<'a, S> {
 impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S> {
     fn status(&self, status: u8) {
         self.app_state.map(|app_state| {
-            app_state.callback.get().map(|mut cb| { cb.schedule(0, status as usize, 0); });
+            app_state.callback.map(|mut cb| { cb.schedule(0, status as usize, 0); });
         });
     }
 
@@ -266,7 +264,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
         self.app_state.map(|app_state| {
             let mut read_len: usize = 0;
 
-            app_state.read_buffer.map(move |read_buffer| {
+            app_state.read_buffer.as_mut().map(move |read_buffer| {
                 read_len = cmp::min(read_buffer.len(), len);
 
                 let d = &mut read_buffer.as_mut()[0..(read_len as usize)];
@@ -277,7 +275,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
                 self.kernel_read.replace(data);
             });
 
-            app_state.callback.get().map(|mut cb| { cb.schedule(1, read_len, 0); });
+            app_state.callback.map(|mut cb| { cb.schedule(1, read_len, 0); });
         });
     }
 
@@ -285,7 +283,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
         self.kernel_write.replace(buffer);
 
         self.app_state
-            .map(|app_state| { app_state.callback.get().map(|mut cb| { cb.schedule(2, 0, 0); }); });
+            .map(|app_state| { app_state.callback.map(|mut cb| { cb.schedule(2, 0, 0); }); });
     }
 }
 
@@ -297,13 +295,13 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
                 let appst = match self.app_state.take() {
                     None => {
                         AppState {
-                            callback: Cell::new(None),
-                            read_buffer: TakeCell::new(slice),
-                            write_buffer: TakeCell::empty(),
+                            callback: None,
+                            read_buffer: Some(slice),
+                            write_buffer: None,
                         }
                     }
-                    Some(appst) => {
-                        appst.read_buffer.replace(slice);
+                    Some(mut appst) => {
+                        appst.read_buffer = Some(slice);
                         appst
                     }
                 };
@@ -312,20 +310,15 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
             }
             // Pass write buffer in from application
             1 => {
-                let appst = match self.app_state.take() {
-                    None => {
-                        AppState {
-                            callback: Cell::new(None),
-                            write_buffer: TakeCell::new(slice),
-                            read_buffer: TakeCell::empty(),
-                        }
-                    }
-                    Some(appst) => {
-                        appst.write_buffer.replace(slice);
-                        appst
-                    }
-                };
-                self.app_state.replace(appst);
+                if self.app_state.is_none() {
+                    self.app_state.put(AppState {
+                        callback: None,
+                        write_buffer: Some(slice),
+                        read_buffer: None,
+                    });
+                } else {
+                    self.app_state.map(|appst| appst.write_buffer = Some(slice));
+                }
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -335,20 +328,15 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
-                let appst = match self.app_state.take() {
-                    None => {
-                        AppState {
-                            callback: Cell::new(Some(callback)),
-                            write_buffer: TakeCell::empty(),
-                            read_buffer: TakeCell::empty(),
-                        }
-                    }
-                    Some(appst) => {
-                        appst.callback.set(Some(callback));
-                        appst
-                    }
-                };
-                self.app_state.replace(appst);
+                if self.app_state.is_none() {
+                    self.app_state.put(AppState {
+                        callback: Some(callback),
+                        write_buffer: None,
+                        read_buffer: None,
+                    });
+                } else {
+                    self.app_state.map(|appst| appst.callback = Some(callback));
+                }
                 ReturnCode::SUCCESS
             }
 
@@ -385,7 +373,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
                 let len = ((data >> 16) & 0xFFFF) as usize;
 
                 self.app_state.map(|app_state| {
-                    app_state.write_buffer.map(|write_buffer| {
+                    app_state.write_buffer.as_mut().map(|write_buffer| {
                         self.kernel_write.take().map(|kernel_write| {
                             // Check bounds for write length
                             let buf_len = cmp::min(write_buffer.len(), kernel_write.len());

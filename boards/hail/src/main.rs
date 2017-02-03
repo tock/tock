@@ -23,6 +23,8 @@ use sam4l::usart;
 
 #[macro_use]
 pub mod io;
+#[allow(dead_code)]
+mod test_take_map_cell;
 
 static mut SPI_READ_BUF: [u8; 64] = [0; 64];
 static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
@@ -275,7 +277,7 @@ pub unsafe fn reset_handler() {
     let syscall_spi_device = static_init!(
         VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
         VirtualSpiMasterDevice::new(mux_spi, 0),
-        384/8);
+        352/8);
 
     // Create the SPI systemc call capsule, passing the client
     let spi_syscalls = static_init!(
@@ -343,6 +345,8 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
+
+
     let hail = Hail {
         console: console,
         gpio: gpio,
@@ -370,6 +374,9 @@ pub unsafe fn reset_handler() {
 
     let mut chip = sam4l::chip::Sam4l::new();
     chip.mpu().enable_mpu();
+
+    // Uncomment to measure overheads for TakeCell and MapCell:
+    // test_take_map_cell::test_take_map_cell();
 
     kernel::main(&hail, &mut chip, load_processes(), &hail.ipc);
 }

@@ -9,7 +9,7 @@
 
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
-use kernel::common::take_cell::TakeCell;
+use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio;
 use kernel::returncode::ReturnCode;
 
@@ -23,8 +23,8 @@ struct App {
 pub struct RadioDriver<'a, R: radio::Radio + 'a> {
     radio: &'a R,
     busy: Cell<bool>,
-    app: TakeCell<App>,
-    kernel_tx: TakeCell<&'static mut [u8]>,
+    app: MapCell<App>,
+    kernel_tx: TakeCell<'static, [u8]>,
 }
 
 impl<'a, R: radio::Radio> RadioDriver<'a, R> {
@@ -32,7 +32,7 @@ impl<'a, R: radio::Radio> RadioDriver<'a, R> {
         RadioDriver {
             radio: radio,
             busy: Cell::new(false),
-            app: TakeCell::empty(),
+            app: MapCell::empty(),
             kernel_tx: TakeCell::empty(),
         }
     }
