@@ -12,8 +12,8 @@ pub struct DummyCB {
 }
 
 pub static mut FLOP: bool = false;
-pub static mut buf1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-pub static mut buf2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
+pub static mut BUF1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+pub static mut BUF2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
 
 impl spi::SpiMasterClient for DummyCB {
     #[allow(unused_variables,dead_code)]
@@ -23,11 +23,11 @@ impl spi::SpiMasterClient for DummyCB {
                        len: usize) {
         unsafe {
             FLOP = !FLOP;
-            let len: usize = buf1.len();
+            let len: usize = BUF1.len();
             if FLOP {
-                sam4l::spi::SPI.read_write_bytes(&mut buf1, Some(&mut buf2), len);
+                sam4l::spi::SPI.read_write_bytes(&mut BUF1, Some(&mut BUF2), len);
             } else {
-                sam4l::spi::SPI.read_write_bytes(&mut buf2, Some(&mut buf1), len);
+                sam4l::spi::SPI.read_write_bytes(&mut BUF2, Some(&mut BUF1), len);
             }
         }
     }
@@ -64,8 +64,8 @@ pub unsafe fn spi_dummy_test() {
     sam4l::spi::SPI.init();
     sam4l::spi::SPI.enable();
     sam4l::spi::SPI.set_baud_rate(1000000);
-    let len = buf2.len();
-    if sam4l::spi::SPI.read_write_bytes(&mut buf2, Some(&mut buf1), len) == false {
+    let len = BUF2.len();
+    if sam4l::spi::SPI.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) == false {
         loop {
             sam4l::spi::SPI.write_byte(0xA5);
         }

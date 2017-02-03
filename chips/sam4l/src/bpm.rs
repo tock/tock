@@ -20,7 +20,7 @@ struct BpmRegisters {
 const BPM_BASE: usize = 0x400F0000;
 const BPM_UNLOCK_KEY: u32 = 0xAA000000;
 
-static mut bpm: *mut BpmRegisters = BPM_BASE as *mut BpmRegisters;
+static mut BPM: *mut BpmRegisters = BPM_BASE as *mut BpmRegisters;
 
 pub enum CK32Source {
     OSC32K = 0,
@@ -29,11 +29,11 @@ pub enum CK32Source {
 
 #[inline(never)]
 pub unsafe fn set_ck32source(source: CK32Source) {
-    let control = (*bpm).control.get();
+    let control = (*BPM).control.get();
     unlock_register(0x1c); // Control
-    (*bpm).control.set(control | (source as u32) << 16);
+    (*BPM).control.set(control | (source as u32) << 16);
 }
 
 unsafe fn unlock_register(register_offset: u32) {
-    (*bpm).unlock.set(BPM_UNLOCK_KEY | register_offset);
+    (*BPM).unlock.set(BPM_UNLOCK_KEY | register_offset);
 }
