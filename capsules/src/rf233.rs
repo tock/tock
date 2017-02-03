@@ -96,11 +96,14 @@ enum InternalState {
     // because we need to block other operations.
     TX_PENDING,
 
-    // Intermediate states when setting the short address
-    // and PAN ID.
+    // Intermediate states when committing configuration from RAM
+    // to the chiP; short address, PAN address, tx power and channel
     CONFIG_SHORT0_SET,
     CONFIG_SHORT1_SET,
     CONFIG_PAN0_SET,
+    CONFIG_PAN1_SET,
+    CONFIG_POWER_SET,
+    CONFIG_DONE,
 
     // RX is a short-lived state for when software has detected
     // the chip is receiving a packet (by internal state) but has
@@ -166,6 +169,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     spi_busy: Cell<bool>,
     interrupt_handling: Cell<bool>,
     interrupt_pending: Cell<bool>,
+    config_pending: Cell<bool>,
     reset_pin: &'a gpio::Pin,
     sleep_pin: &'a gpio::Pin,
     irq_pin: &'a gpio::Pin,
@@ -176,6 +180,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     tx_len: Cell<u8>,
     tx_client: Cell<Option<&'static radio::TxClient>>,
     rx_client: Cell<Option<&'static radio::RxClient>>,
+    cfg_client: Cell<Option<&'static radio::ConfigClient>>,
     addr: Cell<u16>,
     pan: Cell<u16>,
     tx_power: Cell<i8>,
@@ -337,7 +342,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                     return;
                 }
             }
-
         }
 
         match self.state.get() {
@@ -345,6 +349,11 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             // interrupt
             InternalState::READY => {
                 self.radio_on.set(true);
+                if self.config_pending.get() == true {
+                    self.state_transition_write(RF233Register::SHORT_ADDR_0,
+                                                (self.addr.get() & 0xff) as u8,
+                                                InternalState::CONFIG_SHORT0_SET);
+                }
                 //unsafe {
                 //    self.transmit(0xFFFF, &mut app_buf, 20);
                 //}
@@ -381,13 +390,15 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                                             InternalState::START_CTRL1_SET);
             }
             InternalState::START_CTRL1_SET => {
+                let val = self.channel.get() | PHY_CC_CCA_MODE_CS_OR_ED;
                 self.state_transition_write(RF233Register::PHY_CC_CCA,
-                                            PHY_CC_CCA,
+                                            val,
                                             InternalState::START_CCA_SET);
             }
             InternalState::START_CCA_SET => {
+                let val = power_to_setting(self.tx_power.get());
                 self.state_transition_write(RF233Register::PHY_TX_PWR,
-                                            PHY_TX_PWR,
+                                            val,
                                             InternalState::START_PWR_SET);
             }
             InternalState::START_PWR_SET => {
@@ -466,12 +477,12 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             }
             InternalState::START_IEEE7_SET => {
                 self.state_transition_write(RF233Register::SHORT_ADDR_0,
-                                            (self.addr.get() >> 8) as u8,
+                                            (self.addr.get() & 0xff) as u8,
                                             InternalState::START_SHORT0_SET);
             }
             InternalState::START_SHORT0_SET => {
                 self.state_transition_write(RF233Register::SHORT_ADDR_1,
-                                            (self.addr.get() & 0xff) as u8,
+                                            (self.addr.get() >> 8) as u8,
                                             InternalState::START_SHORT1_SET);
             }
             InternalState::START_SHORT1_SET => {
@@ -657,8 +668,31 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::CONFIG_PAN0_SET => {
                 self.state_transition_write(RF233Register::PAN_ID_1,
                                             (self.pan.get() >> 8) as u8,
-                                            InternalState::READY);
+                                            InternalState::CONFIG_PAN1_SET);
             }
+            InternalState::CONFIG_PAN1_SET => {
+                let val = power_to_setting(self.tx_power.get());
+                self.state_transition_write(RF233Register::PHY_TX_PWR,
+                                            val,
+                                            InternalState::CONFIG_POWER_SET);
+            }
+
+            InternalState::CONFIG_POWER_SET => {
+                let val = self.channel.get() | PHY_CC_CCA_MODE_CS_OR_ED;
+                self.state_transition_write(RF233Register::PHY_CC_CCA,
+                                            val,
+                                            InternalState::CONFIG_DONE);
+            }
+
+            InternalState::CONFIG_DONE => {
+                self.config_pending.set(false);
+                self.state_transition_read(RF233Register::TRX_STATUS,
+                                           InternalState::READY);
+                self.cfg_client.get().map(|c| {
+                    c.config_done(ReturnCode::SUCCESS);
+                });
+            }
+
             InternalState::UNKNOWN => {}
         }
     }
@@ -692,11 +726,13 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
             state: Cell::new(InternalState::START),
             interrupt_handling: Cell::new(false),
             interrupt_pending: Cell::new(false),
+            config_pending: Cell::new(false),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_client: Cell::new(None),
             rx_client: Cell::new(None),
+            cfg_client: Cell::new(None),
             addr: Cell::new(0),
             pan: Cell::new(0),
             tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
@@ -864,6 +900,10 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
         self.rx_buf.replace(buffer);
     }
 
+    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+        self.cfg_client.set(Some(client));
+    }
+
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
         self.rx_buf.replace(buffer);
     }
@@ -912,41 +952,29 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
     }
 
     fn config_commit(&self) -> ReturnCode {
-        ReturnCode::FAIL
-    }
-/*        let state = self.state.get();
-        // The start state will push addr into hardware on initialization;
-        // the ready state needs to do so immediately.
-        if state == InternalState::READY || state == InternalState::START {
+        let pending = self.config_pending.get();
+        if pending {
+            ReturnCode::SUCCESS
+        } else {
+            self.config_pending.set(true);
 
-            if state == InternalState::READY {
+            let state = self.state.get();
+            if state == InternalState::START {
+                // Configuration will be pushed automatically on boot
+                ReturnCode::SUCCESS
+            } else if state == InternalState::READY {
+                // Start configuration commit
                 self.state_transition_write(RF233Register::SHORT_ADDR_0,
                                             (self.addr.get() & 0xff) as u8,
                                             InternalState::CONFIG_SHORT0_SET);
+                ReturnCode::SUCCESS
+            } else {
+                // Pending flag will be checked on return to READY
+                // and commit started
+                ReturnCode::SUCCESS
             }
-            ReturnCode::SUCCESS
-        } else {
-            ReturnCode::EBUSY
         }
     }
-
-    /// Setting the PAN also sets the address.
-    fn set_pan(&self, addr: u16) -> ReturnCode {
-        let state = self.state.get();
-        // The start state will push addr into hardware on initialization;
-        // the ready state needs to do so immediately.
-        if state == InternalState::READY || state == InternalState::START {
-            self.pan.set(addr);
-            if state == InternalState::READY {
-                self.state_transition_write(RF233Register::SHORT_ADDR_0,
-                                            (self.addr.get() & 0xff) as u8,
-                                            InternalState::CONFIG_SHORT0_SET);
-            }
-            ReturnCode::SUCCESS
-        } else {
-            ReturnCode::EBUSY
-        }
-    }*/
 
     // + 1 because we need space for the frame read/write byte for
     // the SPI command. Otherwise, if the packet begins at byte 0, we

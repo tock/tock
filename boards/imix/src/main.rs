@@ -273,7 +273,7 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        116);
+                                        124);
 
     sam4l::gpio::PA[08].set_client(rf233);
 
@@ -355,10 +355,11 @@ pub unsafe fn reset_handler() {
                                      RF233<'static,
                                            VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
         capsules::radio::RadioDriver::new(rf233),
-        76);
+        88);
     radio_capsule.config_buffer(&mut radio_buf);
     rf233.set_transmit_client(radio_capsule);
     rf233.set_receive_client(radio_capsule, &mut rf233_rx_buf);
+    rf233.set_config_client(radio_capsule);
 
     let imix = Imix {
         console: console,

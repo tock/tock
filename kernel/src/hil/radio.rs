@@ -25,9 +25,6 @@ pub const MAX_PACKET_SIZE: u8    = 128;
 pub const MAX_BUF_SIZE: usize    = 129;    // +1 for opcode
 pub const MIN_PACKET_SIZE: u8    = HEADER_SIZE + 2; // +2 for CRC
 
-
-
-
 pub trait Radio {
 
     /// buf must be at least MAX_BUF_SIZE in length, and
@@ -44,6 +41,8 @@ pub trait Radio {
     fn set_transmit_client(&self, client: &'static TxClient);
     fn set_receive_client(&self, client: &'static RxClient,
                           receive_buffer: &'static mut [u8]);
+    fn set_config_client(&self, client: &'static ConfigClient);
+
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
     /// The local 16-bit address

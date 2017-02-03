@@ -13,10 +13,10 @@ int main(void) {
   for (i = 0; i < BUF_SIZE; i++) {
     packet[i] = i;
   }
-  radio_init();
   radio_set_addr(0x802);
-  radio_init();
   radio_set_pan(0xABCD);
+  radio_commit();
+  led_toggle(0);
   while (1) {
     if (radio_receive(packet, BUF_SIZE) >= 0) {
       radio_send(0xFFFF, packet, BUF_SIZE);
