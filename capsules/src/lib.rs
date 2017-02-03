@@ -1,7 +1,6 @@
 #![feature(const_fn)]
 #![no_std]
 
-#[macro_use(debug)]
 extern crate kernel;
 
 pub mod button;
