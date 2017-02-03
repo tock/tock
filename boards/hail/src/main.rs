@@ -24,8 +24,8 @@ use sam4l::usart;
 #[macro_use]
 pub mod io;
 
-static mut spi_read_buf: [u8; 64] = [0; 64];
-static mut spi_write_buf: [u8; 64] = [0; 64];
+static mut SPI_READ_BUF: [u8; 64] = [0; 64];
+static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 
 unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'static>>] {
     extern "C" {
@@ -41,7 +41,7 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
     #[link_section = ".app_memory"]
     static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
-    static mut processes: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None, None];
+    static mut PROCESSES: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None, None];
 
     let mut apps_in_flash_ptr = &_sapps as *const u8;
     let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
@@ -57,13 +57,13 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
             break;
         }
 
-        processes[i] = process;
+        PROCESSES[i] = process;
         apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
         app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
         app_memory_size -= memory_offset;
     }
 
-    &mut processes
+    &mut PROCESSES
 }
 
 struct Hail {
@@ -194,7 +194,7 @@ pub unsafe fn reset_handler() {
         Nrf51822Serialization::new(&usart::USART3,
                                    &mut nrf51822_serialization::WRITE_BUF,
                                    &mut nrf51822_serialization::READ_BUF),
-        608/8);
+        544/8);
     hil::uart::UART::set_client(&usart::USART3, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
@@ -281,9 +281,9 @@ pub unsafe fn reset_handler() {
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(syscall_spi_device),
-        672/8);
+        608/8);
 
-    spi_syscalls.config_buffers(&mut spi_read_buf, &mut spi_write_buf);
+    spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
     syscall_spi_device.set_client(spi_syscalls);
 
     // LEDs

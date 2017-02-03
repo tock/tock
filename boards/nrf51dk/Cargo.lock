@@ -52,3 +52,6 @@ name = "rust-libcore"
 version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
+[metadata]
+"checksum gcc 0.3.35 (registry+https://github.com/rust-lang/crates.io-index)" = "91ecd03771effb0c968fd6950b37e89476a578aaf1c70297d8e92b6516ec3312"
+"checksum rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ae7a33830cc02d03ae1e50057d0e4e4b1a84be09bfb158bf95e9c3f3373aa453"

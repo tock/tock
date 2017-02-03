@@ -166,7 +166,7 @@ pub struct FLASHCALW {
 }
 
 // static instance for the board. Only one FLASHCALW on chip.
-pub static mut flash_controller: FLASHCALW = FLASHCALW::new(FLASHCALW_BASE_ADDRS,
+pub static mut FLASH_CONTROLLER: FLASHCALW = FLASHCALW::new(FLASHCALW_BASE_ADDRS,
                                                             pm::HSBClock::FLASHCALW,
                                                             pm::HSBClock::FLASHCALWP,
                                                             pm::PBBClock::FLASHCALW);
@@ -873,7 +873,7 @@ pub unsafe extern "C" fn flash_handler() {
 
     //  disable the nvic interrupt line for flash, turn of the perherial interrupt,
     //  and queue a handle interrupt.
-    flash_controller.enable_ready_int(false);
+    FLASH_CONTROLLER.enable_ready_int(false);
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
 }

@@ -26,8 +26,8 @@ pub enum ClockPhase {
 pub trait SpiMasterClient {
     /// Called when a read/write operation finishes
     fn read_write_done(&self,
-                       mut write_buffer: &'static mut [u8],
-                       mut read_buffer: Option<&'static mut [u8]>,
+                       write_buffer: &'static mut [u8],
+                       read_buffer: Option<&'static mut [u8]>,
                        len: usize);
 }
 /// The `SpiMaster` trait for interacting with SPI slave
@@ -84,8 +84,8 @@ pub trait SpiMaster {
     /// length of the operation is the minimum of the size of
     /// the two buffers.
     fn read_write_bytes(&self,
-                        mut write_buffer: &'static mut [u8],
-                        mut read_buffer: Option<&'static mut [u8]>,
+                        write_buffer: &'static mut [u8],
+                        read_buffer: Option<&'static mut [u8]>,
                         len: usize)
                         -> bool;
     fn write_byte(&self, val: u8);
@@ -132,8 +132,8 @@ pub trait SpiMasterDevice {
     /// length of the operation is the minimum of the size of
     /// the two buffers.
     fn read_write_bytes(&self,
-                        mut write_buffer: &'static mut [u8],
-                        mut read_buffer: Option<&'static mut [u8]>,
+                        write_buffer: &'static mut [u8],
+                        read_buffer: Option<&'static mut [u8]>,
                         len: usize)
                         -> bool;
 

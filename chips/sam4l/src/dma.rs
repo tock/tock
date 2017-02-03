@@ -109,7 +109,7 @@ pub enum DMAPeripheral {
     LCDCA_ABMDR_TX = 38,
 }
 
-pub static mut DMAChannels: [DMAChannel; 16] =
+pub static mut DMA_CHANNELS: [DMAChannel; 16] =
     [DMAChannel::new(DMAChannelNum::DMAChannel00, nvic::NvicIdx::PDCA0),
      DMAChannel::new(DMAChannelNum::DMAChannel01, nvic::NvicIdx::PDCA1),
      DMAChannel::new(DMAChannelNum::DMAChannel02, nvic::NvicIdx::PDCA2),
@@ -250,7 +250,7 @@ macro_rules! pdca_handler {
             $nvic,
             {
                 let registers : &mut DMARegisters =
-                    mem::transmute(DMAChannels[$num].registers);
+                    mem::transmute(DMA_CHANNELS[$num].registers);
                 registers.interrupt_disable.set(0xffffffff);
             });
     }
