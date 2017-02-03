@@ -15,7 +15,7 @@ developing Tock.
 
 #### Rust (nightly)
 
-We are using `rustc 1.16.0-nightly (df8debf6d 2017-01-25)`. We recommend
+We are using `rustc 1.16.0-nightly (83c2d9523 2017-01-24)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
