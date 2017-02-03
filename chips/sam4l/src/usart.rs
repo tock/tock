@@ -483,8 +483,10 @@ impl dma::DMAClient for USART {
             }
 
             UsartMode::Spi => {
-                if pid == self.tx_dma_peripheral {
-                    // TX transfer was completed
+                if (self.usart_rx_state.get() == USARTStateRX::Idle &&
+                    pid == self.tx_dma_peripheral) ||
+                   pid == self.rx_dma_peripheral {
+                    // SPI transfer was completed
 
                     self.spi_chip_select.get().map_or_else(|| {
                         // Do "else" case first. Thanks, rust.
@@ -495,6 +497,7 @@ impl dma::DMAClient for USART {
 
                     // note that the DMA has finished but TX cannot be disabled yet
                     self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
+                    self.usart_rx_state.set(USARTStateRX::Idle);
 
                     // get buffer
                     let txbuf = self.tx_dma.get().map_or(None, |dma| {
@@ -665,7 +668,7 @@ impl hil::uart::UARTAdvanced for USART {
 
 /// SPI
 impl hil::spi::SpiMaster for USART {
-    type ChipSelect = &'static hil::gpio::Pin;
+    type ChipSelect = Option<&'static hil::gpio::Pin>;
 
     fn init(&self) {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
@@ -725,12 +728,15 @@ impl hil::spi::SpiMaster for USART {
 
         // Set up dma transfer and start transmission
         self.tx_dma.get().map(move |dma| {
+            self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
+            self.usart_rx_state.set(USARTStateRX::Idle);
             dma.enable();
             dma.do_xfer(self.tx_dma_peripheral, write_buffer, count);
         });
 
         read_buffer.map(|rbuf| {
             self.rx_dma.get().map(move |read| {
+                self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
                 read.enable();
                 read.do_xfer(self.rx_dma_peripheral, rbuf, count);
             });
@@ -760,9 +766,9 @@ impl hil::spi::SpiMaster for USART {
         regs.rhr.get() as u8
     }
 
-    /// Don't call this to use the HW chip select pin on the USART (RTS).
+    /// Pass in a None to use the HW chip select pin on the USART (RTS).
     fn specify_chip_select(&self, cs: Self::ChipSelect) {
-        self.spi_chip_select.set(Some(cs));
+        self.spi_chip_select.set(cs);
     }
 
     /// Returns the actual rate set
