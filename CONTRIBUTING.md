@@ -21,21 +21,22 @@ Conduct][coc].
 
 ## What Goes Where?
 
-This repository contains for the core Tock kernel, the main userland library and
-the officially support hardware platforms. Drivers useful for these platforms,
-improvements to the core kernel or changes to the main userland libraries live
+This repository contains the core Tock kernel, the main userland library and
+the officially supported hardware platforms. Drivers useful for these platforms,
+improvements to the core kernel, or changes to the main userland libraries live
 here.
 
 If you are porting Tock to a different hardware platform or building an
-application for an existing platform, that code should go in a separate
-repository. We still encourage you to join the mailing list and IRC channel and
-ask questions there. Of course, if building your application or port requires in
-changes in this code base, we encourage you to contribute them here.
+application for an existing platform, that code should go in a [separate
+repository][out-of-tree]. We still encourage you to join the [mailing
+list][listserv] and [IRC channel][irc] and ask questions there. Of course, if
+building your application or port requires in changes in this code base, we
+encourage you to contribute them here.
 
 ## Feature Requests
 
 To request a change to the way that Tock works, please post an RFC to the
-mailing list rather than an issue in this repository.
+[mailing list][listserv] rather than an issue in this repository.
 
 ## Bug Reports
 
@@ -44,7 +45,7 @@ what we don't know, so please report liberally. If you're not sure if something
 is a bug or not, feel free to file a bug anyway.
 
 If you have the chance, before reporting a bug, please [search existing
-issues](https://github.com/helena-project/tock/search?q=&type=Issues&utf8=%E2%9C%93),
+issues](https://github.com/helena-project/tock/search?q=&type=Issues),
 as it's possible that someone else has already reported your error. This doesn't
 always work, and sometimes it's hard to know what to search for, so consider this
 extra credit. We won't mind if you accidentally file a duplicate report.
@@ -84,15 +85,9 @@ out your copy locally.
 
 ```text
 $ git clone git@github.com:username/tock.git
-$ cd node
+$ cd tock
 $ git remote add upstream git://github.com/helena-project/tock.git
 ```
-
-#### Which branch?
-
-You should pull and build on the `master` branch. Once your pull request has
-been merged, start from `master` again even if you're building on your previous
-changes.
 
 ### Step 2: Branch
 
@@ -101,6 +96,10 @@ Create a feature branch and start hacking:
 ```text
 $ git checkout -b my-branch -t origin/master
 ```
+
+You should always start new feature branches from `upstream/master`. Try not to
+stack up changes on local branches. We try to resolve pull requests in a timely
+manner so you shouldn't have too many outstanding changes in flight.
 
 ### Step 3: Commit
 
@@ -129,6 +128,7 @@ changed and why. Follow these guidelines when writing one:
    imperative verb. Example: "sam4l: use DMA for USART transfers"
 2. Keep the second line blank.
 3. Wrap all other lines at 72 columns.
+4. Any quoted text or code should be indented four spaces
 
 A good commit log can look something like this:
 
@@ -138,6 +138,10 @@ subsystem: explain the commit in one line
 Body of commit message is a few lines of text, explaining things
 in more detail, possibly giving some background about the issue
 being fixed, etc.
+
+If you quote a discussion or some code it should be intended:
+
+    Should we have an example of indentation? Yes I think so.
 
 The body of the commit message can be several paragraphs, and
 please do proper word-wrap and keep columns shorter than about
@@ -190,7 +194,7 @@ Feel free to post a comment in the Pull Request to ping reviewers if you are
 awaiting an answer on something.
 
 Before its ready to merge, your Pull Request should contain a minimal number of
-commits (see notes about [squashing](#squashing).
+commits (see notes about [rewriting-history](#rewriting-history)).
 
 ### Step 8: Landing
 
@@ -214,18 +218,18 @@ updated sort][lru] is good for finding issues like this.
 
 ## Notes
 
-### Squashing
+### Rewriting History
 
-Once the reviewer approves your Pull Request, they might ask you to "squash" the
+Once the reviewer approves your Pull Request, they might ask you to clean up the
 commits. There are a lot of reasons for this. If you have a lot of fixup
 commits, and you merge all of them directly, the git history will be bloated.
 Or, if your recent commit fixes your previous commit in the same PR, then you
-could simply rebased it.
+could simply rebase it.
 
 To achieve this, you can use the `git rebase -i` command.
 
-Run `git rebase -i upstream/master`, which will bring up your default text
-editor with a content like:
+Run `git rebase -i`, which will bring up your default text editor with a
+content like:
 
 ```
 pick 7de252c X
@@ -256,8 +260,8 @@ the previous commit with either `squash` (or s for short) or `fixup` (or f for
 short).
 
 ```
-pick 7de252c X
-squash 02e5bd1 Y
+pick 7de252c sam4l: use DMA for USART transfers
+squash 02e5bd1 run rustfmt
 
 # Rebase 170afb6..02e5bd1 onto 170afb6 (2 command(s))
 ...
