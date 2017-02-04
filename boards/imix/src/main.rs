@@ -240,7 +240,7 @@ pub unsafe fn reset_handler() {
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(syscall_spi_device),
-        608/8);
+        672/8);
 
     // System call capsule requires static buffers so it can
     // copy from application slices to DMA
@@ -275,7 +275,7 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        116);
+                                        124);
 
     sam4l::gpio::PA[08].set_client(rf233);
 
@@ -357,10 +357,11 @@ pub unsafe fn reset_handler() {
                                      RF233<'static,
                                            VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
         capsules::radio::RadioDriver::new(rf233),
-        544/8);
+        704/8);
     radio_capsule.config_buffer(&mut RADIO_BUF);
     rf233.set_transmit_client(radio_capsule);
     rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
+    rf233.set_config_client(radio_capsule);
 
     let imix = Imix {
         console: console,
@@ -382,8 +383,8 @@ pub unsafe fn reset_handler() {
     chip.mpu().enable_mpu();
 
     rf233.reset();
-    rf233.set_pan(0xABCD);
-    rf233.set_address(0x1008);
+    rf233.config_set_pan(0xABCD);
+    rf233.config_set_address(0x1008);
     rf233.start();
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);
 }

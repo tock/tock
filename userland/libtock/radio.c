@@ -19,9 +19,11 @@ const int COM_CHAN = 3;
 const int COM_POWER = 4;
 const int COM_TX = 5;
 const int COM_READY = 6;
+const int COM_COMMIT = 7;
 
 const int EVT_TX = 0;
 const int EVT_RX = 1;
+const int EVT_CFG = 2;
 
 int radio_init() {
   while (!radio_ready()) {}
@@ -39,6 +41,13 @@ static void cb_rx( __attribute__ ((unused)) int unused0,
                 __attribute__ ((unused)) int unused1,
                 __attribute__ ((unused)) int unused2,
                 void* ud) {
+  *((bool*)ud) = true;
+}
+
+static void cb_config( __attribute__ ((unused)) int unused0,
+                       __attribute__ ((unused)) int unused1,
+                       __attribute__ ((unused)) int unused2,
+                       void* ud) {
   *((bool*)ud) = true;
 }
 
@@ -78,6 +87,25 @@ int radio_set_addr(unsigned short addr) {
 int radio_set_pan(unsigned short pan) {
   return command(SYS_RADIO, COM_PAN, (unsigned int)pan);
 }
+
+int radio_set_power(char power) {
+  return command(SYS_RADIO, COM_POWER, (unsigned int) (power + 128));
+}
+
+int radio_commit() {
+  bool cond = false;
+  int err = subscribe(SYS_RADIO, EVT_CFG, cb_config, &cond);
+  if (err != SUCCESS) {
+    return err;
+  }
+  err = command(SYS_RADIO, COM_COMMIT, 0);
+  if (err != SUCCESS) {
+    return err;
+  }
+  yield_for(&cond);
+  return SUCCESS;
+}
+
 // Valid channels are 10-26
 int radio_set_channel(unsigned char channel) {
   return command(SYS_RADIO, COM_CHAN, (unsigned int)channel);
