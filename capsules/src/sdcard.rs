@@ -28,6 +28,8 @@ enum SDCmd {
     CMD16 = 16, // Set blocksize
     CMD17 = 17, // Read single block
     CMD18 = 18, // Read multiple blocks
+    CMD24 = 24, // Write single block
+    CMD25 = 25, // Write multiple blocks
     CMD55 = 55, // Next command will be application specific
     CMD58 = 58, // Read operation condition register (OCR)
     ACMD41 = 0x80 + 41, // App-specific Init
@@ -60,10 +62,14 @@ enum State {
     StartReadBlocks { count: u32 },
     WaitReadBlock,
     ReadBlockComplete,
-
     WaitReadBlocks { count: u32 },
     ReceivedBlock { count: u32 },
     ReadBlocksComplete,
+
+    StartWriteBlocks { count: u32 },
+    WriteBlockResponse,
+    WriteBlockBusy,
+    WaitWriteBlockBusy,
 }
 
 #[derive(Clone,Copy,Debug,PartialEq)]
@@ -78,6 +84,9 @@ enum AlarmState {
 
     WaitForDataBlock,
     WaitForDataBlocks { count: u32 },
+
+    WaitForWriteBusy,
+    //WaitForWritesBusy { count: u32 },
 }
 
 // SD Card types
@@ -268,6 +277,17 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
         self.spi.read_write_bytes(write_buffer, Some(read_buffer), recv_len);
     }
 
+    fn write_bytes(&self,
+                  mut write_buffer: &'static mut [u8],
+                  mut read_buffer: &'static mut [u8],
+                  recv_len: usize) {
+
+        self.set_spi_fast_mode();
+
+        self.spi.read_write_bytes(write_buffer, Some(read_buffer), recv_len);
+    }
+
+
     fn get_response(&self, response: SDResponse, read_buffer: &[u8]) -> (u8, u8, u32) {
 
         let mut r1: u8 = 0xFF;
@@ -406,12 +426,12 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 self.rxbuffer.replace(read_buffer);
 
                 /* TESTING
+                 * HERE
                 //XXX: Initialization complete! Do callback
                 panic!("Initialization complete");
                 */
-
-                unsafe{self.read_blocks(&mut CLIENT_BUFFER, 0x0, 1000);}
-
+                //unsafe{self.read_blocks(&mut CLIENT_BUFFER, 0, 3);} // Read blocks from memory
+                unsafe{self.write_blocks(&mut CLIENT_BUFFER, 0, 1);} // Write blocks to memory
             }
 
             State::InitAppSpecificInit => {
@@ -595,6 +615,66 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 }
             }
 
+            State::StartWriteBlocks { count: count } => {
+                // check response
+                let (r1, _, _) = self.get_response(SDResponse::R1, read_buffer);
+
+                if r1 == 0x00 {
+                    if count == 1 {
+                        // set up data packet
+                        write_buffer[0] = 0xFE; // Data token
+                        write_buffer[513] = 0xFF; // dummy CRC
+                        write_buffer[514] = 0xFF; // dummy CRC
+                        //XXX: copy over data from client buffer
+
+                        //XXX: TESTING
+                        for i in 1..512 {
+                            write_buffer[i] = i as u8;
+                        }
+
+                        // write data packet
+                        self.state.set(State::WriteBlockResponse);
+                        self.write_bytes(write_buffer, read_buffer, 515);
+                    } else {
+                        panic!("IMPLEMENTME");
+                    }
+                } else {
+                    panic!("Error in {:?}. R1: {:#X}", self.state.get(), r1);
+                }
+            }
+
+            State::WriteBlockResponse => {
+                // Get data packet
+                self.state.set(State::WriteBlockBusy);
+                self.read_bytes(write_buffer, read_buffer, 1);
+            }
+
+            State::WriteBlockBusy => {
+                if (read_buffer[0] & 0x1F) == 0x05 {
+                    // check if sd card is busy
+                    self.state.set(State::WaitWriteBlockBusy);
+                    self.read_bytes(write_buffer, read_buffer, 1);
+                } else {
+                    panic!("Error in {:?}. Data Response: {:#X}", self.state.get(), read_buffer[0]);
+                }
+            }
+
+            State::WaitWriteBlockBusy => {
+                if read_buffer[0] != 0x00 {
+                    //XXX: write successfully completed do something about that
+                    panic!("Write complete");
+                } else {
+                    // replace buffers
+                    self.txbuffer.replace(write_buffer);
+                    self.rxbuffer.replace(read_buffer);
+
+                    // try again after 1 ms
+                    self.alarm_state.set(AlarmState::WaitForWriteBusy);
+                    let interval = (1 as u32) * <A::Frequency>::frequency() / 1000;
+                    let tics = self.alarm.now().wrapping_add(interval);
+                    self.alarm.set_alarm(tics);
+                }
+            }
 
             State::Idle => {}
         }
@@ -727,6 +807,27 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 self.alarm_state.set(AlarmState::Idle);
             }
 
+            AlarmState::WaitForWriteBusy => {
+                // buffers must be available to use
+                if self.txbuffer.is_none() {
+                    panic!("No txbuffer available for timer");
+                }
+                if self.rxbuffer.is_none() {
+                    panic!("No rxbuffer available for timer");
+                }
+
+                // check card initialization again
+                self.txbuffer.take().map(|write_buffer| {
+                    self.rxbuffer.take().map(move |read_buffer| {
+                        // check if sd card is busy
+                        self.state.set(State::WaitWriteBlockBusy);
+                        self.read_bytes(write_buffer, read_buffer, 1);
+                    });
+                });
+
+                self.alarm_state.set(AlarmState::Idle);
+            }
+
             AlarmState::Idle => {}
         }
     }
@@ -783,6 +884,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     }
 
                     //XXX: do something if count is 0 or the buffer can't hold a block
+                    // is it valid to read a partial block?
 
                     self.state.set(State::StartReadBlocks { count: count });
                     if count == 1 {
@@ -804,6 +906,26 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 self.rxbuffer.take().map(move |rxbuffer| {
                     // save the user buffer for later
                     self.client_buffer.replace(buffer);
+
+                    // convert block address to byte address for non-block
+                    //  access cards
+                    let mut address = sector;
+                    if (self.card_type.get() & CT_BLOCK) == CT_BLOCK {
+                        address *= 512;
+                    }
+
+                    //XXX: do something if count is 0 or the buffer doesn't hold a block
+                    // is it valid to write a partial block?
+
+                    self.state.set(State::StartWriteBlocks { count: count });
+                    if count == 1 {
+                        self.send_command(SDCmd::CMD24, address, txbuffer, rxbuffer);
+                    } else {
+                        panic!("Can't write multiple blocks yet");
+                        /*
+                        self.send_command(SDCmd::CMD18, address, txbuffer, rxbuffer);
+                        */
+                    }
 
                 })
             });
