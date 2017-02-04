@@ -77,21 +77,21 @@ SECTIONS {
     .stack :
     {
         _stack = .;
-        KEEP(*(.stack*))
+        . += STACK_SIZE;
         _estack = .;
     } > SRAM
 
     .app_heap :
     {
         _app_heap = .;
-        KEEP(*(.app_heap*))
+        . += APP_HEAP_SIZE;
         _eapp_heap = .;
     } > SRAM
 
     .kernel_heap :
     {
         _kernel_heap = .;
-        KEEP(*(.kernel_heap*))
+        . += KERNEL_HEAP_SIZE;
         _ekernel_heap = .;
     } > SRAM
 

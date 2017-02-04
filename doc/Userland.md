@@ -87,14 +87,13 @@ return from execution (for example, an application that returns from `main`).
 
 ## Inter-Process Communication
  * **TODO:** how does this work?
- 
-## Stack and Heap
 
-Applications can specify their required stack and heap sizes via the
-`STACK_SIZE` and `APP_HEAP_SIZE` defines, which default to 2K and 1K respectively
-as of this writing. __You must rebuild `libtock` if you change these values.__
-Note that the Tock kernel treats these as minimum values, depending on the underlying
-platform, the stack and heap may be larger than requested, but will never be smaller.
+## Stack and Heap
+Applications can specify their required stack and heap sizes by defining the
+make variables `STACK_SIZE` and `APP_HEAP_SIZE`, which default to 2K and 1K
+respectively as of this writing.  Note that the Tock kernel treats these as
+minimum values, depending on the underlying platform, the stack and heap may be
+larger than requested, but will never be smaller.
 
 If there is insufficient memory to load your application, the kernel will fail
 during loading and print a message.

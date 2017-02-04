@@ -342,7 +342,6 @@ else
 	TRACE_CCM = @echo "CC -M      " $<
 endif
 
-CPPFLAGS += -DSTACK_SIZE=2048
 CFLAGS   += -std=gnu11
 CPPFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/libtock -g -mcpu=$(TOCK_ARCH) -mthumb -mfloat-abi=soft
 CPPFLAGS += \
