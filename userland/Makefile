@@ -130,6 +130,7 @@ $(BUILDDIR):
 $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) | $(BUILDDIR)
 	$(TRACE_LD)
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS)\
+	    -Wl,--warn-common\
 	    -Wl,--gc-sections -Wl,--emit-relocs\
 	    --entry=_start\
 	    -T $(LINKER)\
