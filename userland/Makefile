@@ -129,7 +129,14 @@ $(BUILDDIR):
 
 $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) | $(BUILDDIR)
 	$(TRACE_LD)
-	$(Q)$(CC) -Wl,--gc-sections -Wl,--emit-relocs --entry=_start $(CFLAGS) $(CPPFLAGS) -T $(LINKER) -nostdlib -Wl,--start-group $(OBJS) $(LIBS) -Wl,--end-group -Wl,-Map=$(BUILDDIR)/app.Map -o $@
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS)\
+	    -Wl,--gc-sections -Wl,--emit-relocs\
+	    --entry=_start\
+	    -T $(LINKER)\
+	    -nostdlib\
+	    -Wl,--start-group $(OBJS) $(LIBS) -Wl,--end-group\
+	    -Wl,-Map=$(BUILDDIR)/app.Map\
+	    -o $@
 
 $(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR) validate_gcc_flags
 	$(TRACE_BIN)
