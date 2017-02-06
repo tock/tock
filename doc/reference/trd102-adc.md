@@ -15,7 +15,7 @@ Abstract
 -------------------------------
 
 This document describes the hardware independent layer interface (HIL)
-çfor analog-to-digital conversion in the Tock operating system kernel.
+for analog-to-digital conversion in the Tock operating system kernel.
 It describes the Rust traits and other definitions for this service
 as well as the reasoning behind them. This document is in full compliance
 with TRD1.
