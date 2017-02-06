@@ -4,7 +4,6 @@ use self::Pin::*;
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
-use kernel::common::take_cell::TakeCell;
 use kernel::common::volatile_cell::VolatileCell;
 use kernel::hil;
 use nvic;
@@ -281,7 +280,7 @@ pub struct GPIOPin {
     nvic: nvic::NvicIdx,
     pin_mask: u32,
     client_data: Cell<usize>,
-    client: TakeCell<&'static hil::gpio::Client>,
+    client: Cell<Option<&'static hil::gpio::Client>>,
 }
 
 impl GPIOPin {
@@ -291,12 +290,12 @@ impl GPIOPin {
             nvic: nvic,
             pin_mask: 1 << ((pin as u32) % 32),
             client_data: Cell::new(0),
-            client: TakeCell::empty(),
+            client: Cell::new(None),
         }
     }
 
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
-        self.client.replace(client);
+        self.client.set(Some(client));
     }
 
     pub fn select_peripheral(&self, function: PeripheralFunction) {
@@ -411,7 +410,7 @@ impl GPIOPin {
     }
 
     pub fn handle_interrupt(&self) {
-        self.client.map(|client| { client.fired(self.client_data.get()); });
+        self.client.get().map(|client| { client.fired(self.client_data.get()); });
     }
 
     pub fn disable_schmidtt_trigger(&self) {

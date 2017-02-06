@@ -7,9 +7,9 @@
 //! Author: Philip Levis
 //! Date: August 18, 2016
 
+use core::cell::Cell;
 use core::mem;
 use kernel::common::VolatileCell;
-use kernel::common::take_cell::TakeCell;
 
 struct Registers {
     pub tasks_hfclkstart: VolatileCell<u32>,
@@ -79,7 +79,7 @@ pub enum XtalFreq {
 }
 
 pub struct Clock {
-    client: TakeCell<&'static ClockClient>,
+    client: Cell<Option<&'static ClockClient>>,
 }
 
 pub trait ClockClient {
@@ -90,7 +90,7 @@ pub trait ClockClient {
     fn event(&self);
 }
 
-pub static mut CLOCK: Clock = Clock { client: TakeCell::empty() };
+pub static mut CLOCK: Clock = Clock { client: Cell::new(None) };
 
 #[allow(non_snake_case)]
 fn CLK() -> &'static Registers {
@@ -99,7 +99,7 @@ fn CLK() -> &'static Registers {
 
 impl Clock {
     pub fn set_client(&self, client: &'static ClockClient) {
-        self.client.replace(client);
+        self.client.set(Some(client));
     }
 
     pub fn interrupt_enable(&self, interrupt: InterruptField) {

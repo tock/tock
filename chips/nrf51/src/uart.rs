@@ -54,8 +54,8 @@ const UART_BASE: u32 = 0x40002000;
 
 pub struct UART {
     regs: *mut Registers,
-    client: TakeCell<&'static uart::Client>,
-    buffer: TakeCell<&'static mut [u8]>,
+    client: Cell<Option<&'static uart::Client>>,
+    buffer: TakeCell<'static, [u8]>,
     len: Cell<usize>,
     index: Cell<usize>,
 }
@@ -76,7 +76,7 @@ impl UART {
     pub const fn new() -> UART {
         UART {
             regs: UART_BASE as *mut Registers,
-            client: TakeCell::empty(),
+            client: Cell::new(None),
             buffer: TakeCell::empty(),
             len: Cell::new(0),
             index: Cell::new(0),
@@ -165,7 +165,7 @@ impl UART {
                 regs.task_stoptx.set(1 as u32);
 
                 // Signal client write done
-                self.client.map(|client| {
+                self.client.get().map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.transmit_complete(buffer, uart::Error::CommandComplete);
                     });
@@ -209,7 +209,7 @@ impl UART {
 
 impl uart::UART for UART {
     fn set_client(&self, client: &'static uart::Client) {
-        self.client.replace(client);
+        self.client.set(Some(client));
     }
 
     fn init(&self, params: uart::UARTParams) {

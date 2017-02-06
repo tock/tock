@@ -79,7 +79,7 @@ pub struct LPS25HB<'a> {
     interrupt_pin: &'a gpio::Pin,
     callback: Cell<Option<Callback>>,
     state: Cell<State>,
-    buffer: TakeCell<&'static mut [u8]>,
+    buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a> LPS25HB<'a> {
