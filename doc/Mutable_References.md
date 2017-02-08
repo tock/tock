@@ -7,6 +7,7 @@ such as the TakeCell abstraction to allow simple code to keep
 the safety properties Rust provides.
 
 ## Brief Overview of Borrowing in Rust
+
 Ownership and Borrowing are two design features in Rust which
 prevent race conditions and make it impossible to write code that produces
 dangling pointers.
@@ -23,7 +24,7 @@ reference or any number of read-only references.
 If a piece of code has a mutable reference to a piece of memory, it's
 also important that other code does not have any references within
 that memory. Otherwise, the language is not safe. For example, consider
-this case of an `enum` which can either be a pointer or a value:
+this case of an `enum` which can be either a pointer or a value:
 
 ```rust
 enum NumOrPointer {
@@ -32,14 +33,14 @@ enum NumOrPointer {
 }
 ```
 
-A Rust `enum` is like a type-safe C union. Suppose that code has
-both a mutable reference to a `NumOrPointer` and a read-only reference
-to the encapsulated `Pointer`. If the code the `NumOrPointer` reference
-changes it to be a `Num`, it can then set the `Num` to be any value.
-However, the reference to `Pointer` can still access the memory as a
-pointer. As these two representations use the same memory, this means
-that the reference to `Num` can create any pointer it wants, breaking
-Rust's type safety:
+A Rust `enum` is like a type-safe C union. Suppose that code has both
+a mutable reference to a `NumOrPointer` and a read-only reference to
+the encapsulated `Pointer`. If the code with the `NumOrPointer`
+reference changes it to be a `Num`, it can then set the `Num` to be
+any value.  However, the reference to `Pointer` can still access the
+memory as a pointer. As these two representations use the same memory,
+this means that the reference to `Num` can create any pointer it
+wants, breaking Rust's type safety:
 
 ```rust
 // n.b. illegal example
@@ -56,11 +57,11 @@ match external {
 ```
 
 But what does this mean for Tock? As the Tock kernel is single
-threaded, it doesn't have race conditions and so it can in some
-cases be safe for there to be multiple references, as long as they
-do not reference inside each other (as in the number/pointer example).
-However, Rust doesn't know this so its rules still hold. In practice,
-Rust's rules cause problems in event-driven code.
+threaded, it doesn't have race conditions and so in some cases it may
+be safe for there to be multiple references, as long as they do not
+point inside each other (as in the number/pointer example).  But Rust
+doesn't know this, so its rules still hold.  In practice, Rust's rules
+cause problems in event-driven code.
 
 ## Issues with Borrowing in Event-Driven code
 
@@ -70,10 +71,11 @@ application that periodically samples a sensor and receives commands
 over a serial port. At any given time, this application can have two
 or three event callbacks registered: a timer, sensor data acquisition,
 and receiving a command. Each callback is registered with a different
-component in the kernel, and component requires a reference to the
-object to issue a callback on. That is, the generator of each callback
-requires its own writeable reference to the application. Rust's
-rules, however, do not allow multiple mutable references.
+component in the kernel, and each of these components requires a
+reference to the object to issue a callback on. That is, the generator
+of each callback requires its own writeable reference to the
+application. Rust's rules, however, do not allow multiple mutable
+references.
 
 ## The TakeCell abstraction
 
