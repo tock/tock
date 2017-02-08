@@ -8,7 +8,7 @@ developing Tock.
 
 1. [Rust](http://www.rust-lang.org/) (nightly)
 2. [arm-none-eabi toolchain](https://launchpad.net/gcc-arm-embedded/) (version >= 5.0)
-3. stormloader (recommended) or JLinkExe for programming the storm
+3. to program the storm: stormloader (recommended) or JLinkExe
 4. Command line utilities: wget, sed, make
 
 ### Installing Requirements
@@ -92,8 +92,12 @@ $ sudo apt-get install gcc-arm-embedded
 
 ###### Arch
 
-On Arch Linux the `arm-none-eabi` package in pacman contains a sufficiently up
-to date version of newlibc.
+On Arch Linux the `arm-none-eabi-newlib` package in pacman contains a
+sufficiently up-to-date version of newlibc.
+
+```bash
+$ sudo pacman Sy arm-none-eabi-gcc arm-none-eabi-newlib arm-none-eabi-gdb
+```
 
 ##### Windows
 
@@ -118,11 +122,11 @@ TOCK_BOARD ?= storm
 TOCK_ARCH ?= cortex-m4
 ```
 
-so it compiles for the storm board. There are two ways to build
-for a different board
+Thus it compiles for the storm board by default. There are two ways to
+build for a different board:
 
  * You can compile the kernel for a specific board by running the command
-   from inside the board's directory
+   from inside the board's directory:
 
     ```bash
     $ cd boards/nrf51dk/
@@ -141,7 +145,7 @@ for a different board
 Board specific Makefiles are located in `boards/<BOARD>/`. Some boards have
 special build options that can only be used within the board's directory.
 Generic options such as `clean`, `doc`, `debug`, `program`, and `flash` can be
-accessed from Tock's root
+accessed from Tock's root.
 
 ## Uploading the Kernel
 
@@ -188,7 +192,7 @@ This will build the app and generate a binary in Tock Binary Format
 (using the `elf2tbf` utility):
 `userland/examples/blink/build/cortex-m4/app.bin`.
 
-Alternatively, pps can be built and automatically uploaded from the
+Alternatively, apps can be built and automatically uploaded from the
 Tock root directory:
 
 ```bash
@@ -211,7 +215,8 @@ tools. They are located in `userland/tools/`, are separated by upload
 method (`flash` or `program`) and take `.bin` files as input
 arguments.
 
-For example,
+For example, the following commands will program both blink and c_hello on
+a storm board:
 
 ```bash
 $ make -C userland/examples/blink
@@ -219,15 +224,14 @@ $ make -C userland/examples/c_hello
 $ userland/tools/program/storm.py userland/examples/blink/build/cortex-m4/app.bin userland/examples/c_hello/build/cortex-m4/app.bin
 ```
 
-will program both blink and c_hello on a storm board.
 
 ## Board-Specific Instructions
 
 For instructions on building, uploading code, and debugging on specific
 boards, see board specific READMEs.
 
- * [Storm](boards/storm/README.md)
- * [nRF](boards/nrf51dk/README.md)
+ * [Storm](../boards/storm/README.md)
+ * [nRF](../boards/nrf51dk/README.md)
 
 
 ## Formatting Rust Source Code
