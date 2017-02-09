@@ -327,6 +327,8 @@ impl TimerAlarm {
 }
 
 impl hil::time::Time for TimerAlarm {
+    type Frequency = hil::time::Freq16KHz;
+
     fn disable(&self) {
         self.disable_interrupts();
     }
@@ -337,8 +339,6 @@ impl hil::time::Time for TimerAlarm {
 }
 
 impl hil::time::Alarm for TimerAlarm {
-    type Frequency = hil::time::Freq16KHz;
-
     fn now(&self) -> u32 {
         self.value()
     }
