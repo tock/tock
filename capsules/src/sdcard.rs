@@ -108,7 +108,8 @@ pub trait SDCardClient {
     fn init_done(&self, block_size: u32, total_size: u64);
     fn read_done(&self, data: &'static mut [u8], len: usize);
     fn write_done(&self, buffer: &'static mut [u8]);
-    fn error(&self, error: u32); //XXX: How do we handle errors with this interface?
+    fn error(&self, error: u32);
+    //XXX: How do we handle errors with this interface? Decide then replace ALL panics
 }
 
 // SD Card capsule, capable of being built on top of by other kernel capsules
@@ -134,6 +135,7 @@ pub struct SDCard<'a, A: hil::time::Alarm + 'a> {
 
     client: Cell<Option<&'static SDCardClient>>,
     client_buffer: TakeCell<'static, [u8]>,
+    client_offset: Cell<usize>,
 }
 
 impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
@@ -177,6 +179,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             rxbuffer: TakeCell::new(rxbuffer),
             client: Cell::new(None),
             client_buffer: TakeCell::empty(),
+            client_offset: Cell::new(0),
         }
     }
 
@@ -552,19 +555,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.state.set(State::Idle);
                     self.is_initialized.set(true);
 
-                    /*
                     // perform callback
-                    self.client.map(|client| {
+                    self.client.get().map(move |client| {
                         client.init_done(512, total_size);
                     });
-                    panic!("Init complete: {} bytes", total_size);
-                    */
-
-                    /* TESTING
-                     * WHERE
-                    */
-                    unsafe{self.read_blocks(&mut CLIENT_BUFFER, 0, 3);} // Read blocks from memory
-                    //unsafe{self.write_blocks(&mut CLIENT_BUFFER, 0, 1);} // Write blocks to memory
                 } else {
                     panic!("Error in {:?}. R1: {}", self.state.get(), r1);
                 }
@@ -575,7 +569,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 let (r1, _, _) = self.get_response(SDResponse::R1, read_buffer);
 
                 if r1 == 0x00 {
-                    if count == 1 {
+                    if count <= 1 {
                         // check for data block to be ready
                         self.state.set(State::WaitReadBlock);
                         self.read_bytes(write_buffer, read_buffer, 1);
@@ -611,8 +605,26 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             State::ReadBlockComplete => {
-                //XXX: Block read complete, copy to client buffer and do callback
-                panic!("Got a buffer!");
+                // replace buffers
+                self.txbuffer.replace(write_buffer);
+                self.rxbuffer.replace(read_buffer);
+
+                // read finished, perform callback
+                self.state.set(State::Idle);
+                self.client_buffer.take().map(move |buffer| {
+                    // copy data to user buffer
+                    let read_len = cmp::min(buffer.len(), 512);
+                    self.rxbuffer.map(|read_buffer| {
+                        for i in 0..read_len {
+                            buffer[i] = read_buffer[i];
+                        }
+                    });
+
+                    // callback
+                    self.client.get().map(move |client| {
+                        client.read_done(buffer, read_len);
+                    });
+                });
             }
 
             State::WaitReadBlocks { count } => {
@@ -637,7 +649,15 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             State::ReceivedBlock { count } => {
-                //XXX: copy data to client buffer
+                // copy block over to client buffer
+                self.client_buffer.map(|buffer| {
+                    let offset = self.client_offset.get();
+                    let read_len = cmp::min(buffer.len(), 512 + offset);
+                    for i in 0..read_len {
+                        buffer[i] = read_buffer[i];
+                    }
+                    self.client_offset.set(offset + read_len);
+                });
 
                 if count <= 1 {
                     // all blocks received. Terminate multiple read
@@ -655,8 +675,17 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 let (r1, _, _) = self.get_response(SDResponse::R1, read_buffer);
 
                 if r1 == 0x00 {
-                    //XXX: read blocks complete, do callback
-                    panic!("Read blockS complete");
+                    // replace buffers
+                    self.txbuffer.replace(write_buffer);
+                    self.rxbuffer.replace(read_buffer);
+                    self.state.set(State::Idle);
+
+                    // read finished, perform callback
+                    self.client_buffer.take().map(move |buffer| {
+                        self.client.get().map(move |client| {
+                            client.read_done(buffer, self.client_offset.get());
+                        });
+                    });
                 } else {
                     panic!("Error in {:?}. R1: {:#X}", self.state.get(), r1);
                 }
@@ -667,22 +696,32 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 let (r1, _, _) = self.get_response(SDResponse::R1, read_buffer);
 
                 if r1 == 0x00 {
-                    if count == 1 {
+                    if count <= 1 {
                         // ensure that the write buffer is long enough
                         if write_buffer.len() < 515 {
                             panic!("Write buffer not long enough to store entire SD card block");
+                        }
+
+                        // copy over data from client buffer
+                        let remaining_bytes = self.client_buffer.map_or(512, |buffer| {
+                            let write_len = cmp::min(buffer.len(), 512);
+
+                            for i in 0..write_len {
+                                write_buffer[i+1] = buffer[i];
+                            }
+
+                            512-write_len
+                        });
+
+                        // set a known value for remaining bytes
+                        for i in 0..remaining_bytes {
+                            write_buffer[i+1] = 0xFF;
                         }
 
                         // set up data packet
                         write_buffer[0] = 0xFE; // Data token
                         write_buffer[513] = 0xFF; // dummy CRC
                         write_buffer[514] = 0xFF; // dummy CRC
-                        //XXX: copy over data from client buffer
-
-                        //XXX: TESTING
-                        for i in 1..512 {
-                            write_buffer[i] = i as u8;
-                        }
 
                         // write data packet
                         self.state.set(State::WriteBlockResponse);
@@ -713,9 +752,18 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
             State::WaitWriteBlockBusy => {
                 if read_buffer[0] != 0x00 {
-                    //XXX: write successfully completed do something about that
+                    // replace buffers
+                    self.txbuffer.replace(write_buffer);
+                    self.rxbuffer.replace(read_buffer);
+
+                    // read finished, perform callback
+                    self.state.set(State::Idle);
                     self.alarm_count.set(0);
-                    panic!("Write complete");
+                    self.client_buffer.take().map(move |buffer| {
+                        self.client.get().map(move |client| {
+                            client.write_done(buffer);
+                        });
+                    });
                 } else {
                     // replace buffers
                     self.txbuffer.replace(write_buffer);
@@ -948,6 +996,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 self.rxbuffer.take().map(move |rxbuffer| {
                     // save the user buffer for later
                     self.client_buffer.replace(buffer);
+                    self.client_offset.set(0);
 
                     // convert block address to byte address for non-block
                     //  access cards
@@ -955,9 +1004,6 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     if (self.card_type.get() & CT_BLOCK) != CT_BLOCK {
                         address *= 512;
                     }
-
-                    //XXX: do something if count is 0 or the buffer can't hold a block
-                    // is it valid to read a partial block?
 
                     self.state.set(State::StartReadBlocks { count: count });
                     if count == 1 {
@@ -979,6 +1025,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 self.rxbuffer.take().map(move |rxbuffer| {
                     // save the user buffer for later
                     self.client_buffer.replace(buffer);
+                    self.client_offset.set(0);
 
                     // convert block address to byte address for non-block
                     //  access cards
@@ -986,9 +1033,6 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     if (self.card_type.get() & CT_BLOCK) != CT_BLOCK {
                         address *= 512;
                     }
-
-                    //XXX: do something if count is 0 or the buffer doesn't hold a block
-                    // is it valid to write a partial block?
 
                     self.state.set(State::StartWriteBlocks { count: count });
                     if count == 1 {
@@ -1041,7 +1085,10 @@ impl<'a, A: hil::time::Alarm + 'a> hil::gpio::Client for SDCard<'a, A> {
             //  send an error callback
             self.state.set(State::Idle);
             self.alarm_state.set(AlarmState::Idle);
-            //XXX: send an error callback
+            self.client.get().map(move |client| {
+                //XXX: need to figure out how to send error codes
+                client.error(57);
+            });
         }
 
         // either the card is new or gone, in either case it isn't initialized
