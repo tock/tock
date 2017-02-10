@@ -8,7 +8,7 @@ char rbuf[BUF_SIZE];
 char wbuf[BUF_SIZE];
 bool toggle = true;
 
-void write_cb(__attribute__ ((unused)) int arg0,
+static void write_cb(__attribute__ ((unused)) int arg0,
               __attribute__ ((unused)) int arg2,
               __attribute__ ((unused)) int arg3,
               __attribute__ ((unused)) void* userdata) {

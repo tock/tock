@@ -13,20 +13,20 @@ static void tsl2561_cb(__attribute__ ((unused)) int callback_type,
                        int value,
                        __attribute__ ((unused)) int unused2,
                        void* ud) {
-  struct tsl2561_data* result = (struct tsl2561_data*) ud;
-  result->value = value;
-  result->fired = true;
+  struct tsl2561_data* data = (struct tsl2561_data*) ud;
+  data->value = value;
+  data->fired = true;
 }
 
 int tsl2561_set_callback (subscribe_cb callback, void* callback_args) {
     return subscribe(DRIVER_NUM_TSL2561, 0, callback, callback_args);
 }
 
-int tsl2561_get_lux () {
+int tsl2561_get_lux (void) {
     return command(DRIVER_NUM_TSL2561, 1, 0);
 }
 
-int tsl2561_get_lux_sync () {
+int tsl2561_get_lux_sync (void) {
     int err;
     result.fired = false;
 

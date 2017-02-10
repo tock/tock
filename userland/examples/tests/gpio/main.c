@@ -12,7 +12,7 @@
 #include <led.h>
 
 // callback for timers
-void timer_cb (__attribute__ ((unused)) int arg0,
+static void timer_cb (__attribute__ ((unused)) int arg0,
                __attribute__ ((unused)) int arg1,
                __attribute__ ((unused)) int arg2,
                __attribute__ ((unused)) void* userdata) {
@@ -21,7 +21,7 @@ void timer_cb (__attribute__ ((unused)) int arg0,
 //**************************************************
 // GPIO output example
 //**************************************************
-void gpio_output() {
+static void gpio_output(void) {
   putstr("Periodically blinking LED\n");
 
   // Start repeating timer
@@ -37,7 +37,7 @@ void gpio_output() {
 //**************************************************
 // GPIO input example
 //**************************************************
-void gpio_input() {
+static void gpio_input(void) {
   putstr("Periodically reading value of the GPIO 0 pin\n");
   putstr("Jump pin high to test (defaults to low)\n");
 
@@ -58,13 +58,13 @@ void gpio_input() {
 //**************************************************
 // GPIO interrupt example
 //**************************************************
-void gpio_cb (__attribute__ ((unused)) int pin_num,
+static void gpio_cb (__attribute__ ((unused)) int pin_num,
               __attribute__ ((unused)) int arg2,
               __attribute__ ((unused)) int arg3,
               __attribute__ ((unused)) void* userdata) {
 }
 
-void gpio_interrupt() {
+static void gpio_interrupt(void) {
   putstr("Print GPIO 0 pin reading whenever its value changes\n");
   putstr("Jump pin high to test\n");
 

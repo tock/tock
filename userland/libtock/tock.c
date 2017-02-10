@@ -12,7 +12,7 @@ void yield_for(bool *cond) {
   }
 }
 
-void yield() {
+void yield(void) {
   asm volatile("push {lr}\nsvc 0\npop {pc}" ::: "memory", "r0");
 }
 
@@ -36,8 +36,8 @@ int allow(uint32_t driver, uint32_t allow, void* ptr, size_t size) {
   return ret;
 }
 
-int memop(uint32_t op_type, int arg1) {
-  register int ret __asm__ ("r0");
+void* memop(uint32_t op_type, int arg1) {
+  register void* ret __asm__ ("r0");
   asm volatile("svc 4\nbx lr" ::: "memory", "r0");
   return ret;
 }

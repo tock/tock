@@ -4,7 +4,7 @@ int button_subscribe(subscribe_cb callback, void *ud) {
   return subscribe(DRIVER_NUM_BUTTON, 0, callback, ud);
 }
 
-int button_count() {
+int button_count(void) {
   return command(DRIVER_NUM_BUTTON, 0, 0);  
 }
 

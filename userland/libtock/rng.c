@@ -13,9 +13,9 @@ static void rng_cb(__attribute__ ((unused)) int callback_type,
                    int received,
                    __attribute__ ((unused)) int val2,
                    void* ud) {
-  struct rng_data* result = (struct rng_data*) ud;
-  result->fired = true;
-  result->received = received;
+  struct rng_data* data = (struct rng_data*) ud;
+  data->fired = true;
+  data->received = received;
 }
 
 int rng_set_buffer(uint8_t* buf, uint32_t len) {

@@ -24,7 +24,7 @@ static void button_callback(__attribute__ ((unused)) int btn_num,
   }
 }
 
-void timer_fired(__attribute__ ((unused)) int arg0,
+static void timer_fired(__attribute__ ((unused)) int arg0,
                  __attribute__ ((unused)) int arg1,
                  __attribute__ ((unused)) int arg2,
                  __attribute__ ((unused)) void* ud) {

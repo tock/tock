@@ -23,7 +23,7 @@ const int COM_READY = 6;
 const int EVT_TX = 0;
 const int EVT_RX = 1;
 
-int radio_init() {
+int radio_init(void) {
   while (!radio_ready()) {}
   return 0;
 } // Do nothing for now
@@ -97,6 +97,6 @@ int radio_receive(const char* packet, unsigned char len) {
   return (int)packet[1];
 }
 
-int radio_ready() {
+int radio_ready(void) {
   return command(SYS_RADIO, COM_READY, 0) == SUCCESS;
 }

@@ -17,7 +17,7 @@ static bool lps25hb = false;
 static bool si7021 = false;
 static bool fxos8700cq = false;
 
-void timer_fired(__attribute__ ((unused)) int arg0,
+static void timer_fired(__attribute__ ((unused)) int arg0,
                  __attribute__ ((unused)) int arg1,
                  __attribute__ ((unused)) int arg2,
                  __attribute__ ((unused)) void* ud) {

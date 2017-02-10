@@ -8,7 +8,11 @@ extern unsigned int* _bss;
 extern unsigned int* _ebss;
 extern int main();
 
+// Allow _start to go undeclared
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+
 __attribute__ ((section(".start"), used))
+__attribute__ ((noreturn))
 void _start(
     __attribute__((unused))void* mem_start,
     __attribute__((unused))void* app_memory_break,

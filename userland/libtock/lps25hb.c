@@ -13,20 +13,20 @@ static void lps25hb_cb(int value,
                        __attribute__ ((unused)) int unused1,
                        __attribute__ ((unused)) int unused2,
                        void* ud) {
-  struct lps25hb_data* result = (struct lps25hb_data*) ud;
-  result->value = value;
-  result->fired = true;
+  struct lps25hb_data* data = (struct lps25hb_data*) ud;
+  data->value = value;
+  data->fired = true;
 }
 
 int lps25hb_set_callback (subscribe_cb callback, void* callback_args) {
     return subscribe(DRIVER_NUM_LPS25HB, 0, callback, callback_args);
 }
 
-int lps25hb_get_pressure () {
+int lps25hb_get_pressure (void) {
     return command(DRIVER_NUM_LPS25HB, 1, 0);
 }
 
-int lps25hb_get_pressure_sync () {
+int lps25hb_get_pressure_sync (void) {
     int err;
     result.fired = false;
 

@@ -9,7 +9,7 @@
 
 char hello[] = "Hello World!\r\n";
 
-void nop() {}
+static void nop() {}
 
 int main() {
   putnstr_async(hello, sizeof(hello), nop, NULL);

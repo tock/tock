@@ -51,7 +51,7 @@ ble_advdata_manuf_data_t mandata = {
   .data.size   = sizeof(mdata)
 };
 
-void ble_address_set () {
+void ble_address_set (void) {
   // nop
 }
 

@@ -15,16 +15,16 @@ static void adc_cb(__attribute__ ((unused)) int callback_type,
                    __attribute__ ((unused)) int channel,
                    int reading,
                    void* ud) {
-  struct adc_data* result = (struct adc_data*) ud;
-  result->reading = reading;
-  result->fired = true;
+  struct adc_data* data = (struct adc_data*) ud;
+  data->reading = reading;
+  data->fired = true;
 }
 
 int adc_set_callback(subscribe_cb callback, void* callback_args) {
     return subscribe(DRIVER_NUM_ADC, 0, callback, callback_args);
 }
 
-int adc_initialize() {
+int adc_initialize(void) {
     return command(DRIVER_NUM_ADC, 1, 0);
 }
 
