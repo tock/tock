@@ -35,7 +35,8 @@ int main() {
     printf("Init error: %d\n", err);
     return -1;
   }
-  printf("SD Card Initialized!\n\tBlock size: %lu bytes\n\tSize:       %lu kB\n\n",
+  printf("SD Card Initialized!\n");
+  printf("\tBlock size: %lu bytes\n\tSize:       %lu kB\n\n",
       block_size, size_in_kB);
 
   // Give buffers to SD card
