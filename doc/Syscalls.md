@@ -134,5 +134,6 @@ functionality that is handled by the kernel. `command`, `subscribe`, and
 | 12            | TSL2561          | Light sensor                               |
 | 13            | I2C Master/Slave | Raw I2C interface                          |
 | 14            | RNG              | Random number generator                    |
+| 154           | Radio            | 15.4 radio interface                       |
 | 255           | IPC              | Inter-process communication                |
 
