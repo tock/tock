@@ -62,24 +62,24 @@ OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -
 # I read through the gcc manual and grabbed the ones that I thought might be
 # interesting / useful. I've left a few commented that may be interesting but I
 # want to think about more
-CPPFLAGS += -Winit-self                  # { int i = i }
-CPPFLAGS += -Wswitch-enum                # switch on an enum doesn't cover all cases
-CPPFLAGS += -Wunused-parameter           # function parameter is unused aside from its declaration
-CPPFLAGS += -Wfloat-equal                # warn if floats used with '=' operator, likely imprecise
-CPPFLAGS += -Wshadow                     # int foo(int a) { int a = 1; } inner a shadows outer a
-CPPFLAGS += -Wpointer-arith              # sizeof things not define'd (i.e. sizeof(void))
-CPPFLAGS += -Wwrite-strings              # { char* c = "foo"; c[0] = 'b' } <-- "foo" should be r/o
-CPPFLAGS += -Wlogical-op                 # "suspicous use of logical operators in expressions" (a lint)
-CPPFLAGS += -Wmissing-declarations       # ^same? not sure how these differ
+CPPFLAGS += -Winit-self #                # { int i = i }
+CPPFLAGS += -Wswitch-enum #              # switch on an enum doesn't cover all cases
+CPPFLAGS += -Wunused-parameter #         # function parameter is unused aside from its declaration
+CPPFLAGS += -Wfloat-equal #              # warn if floats used with '=' operator, likely imprecise
+CPPFLAGS += -Wshadow #                   # int foo(int a) { int a = 1; } inner a shadows outer a
+CPPFLAGS += -Wpointer-arith #            # sizeof things not define'd (i.e. sizeof(void))
+CPPFLAGS += -Wwrite-strings #            # { char* c = "foo"; c[0] = 'b' } <-- "foo" should be r/o
+CPPFLAGS += -Wlogical-op #               # "suspicous use of logical operators in expressions" (a lint)
+CPPFLAGS += -Wmissing-declarations #     # ^same? not sure how these differ
 CPPFLAGS += -Wmissing-field-initializers # if init'ing struct w/out field names, warn if not all used
-CPPFLAGS += -Wmissing-noreturn           # __attribute__((noreturn)) like -> ! in Rust, should use it
-CPPFLAGS += -Wmissing-format-attribute   # something looks printf-like but isn't marked as such
-CPPFLAGS += -Wredundant-decls            # { int i; int i; } (a lint)
+CPPFLAGS += -Wmissing-noreturn #         # __attribute__((noreturn)) like -> ! in Rust, should use it
+CPPFLAGS += -Wmissing-format-attribute # # something looks printf-like but isn't marked as such
+CPPFLAGS += -Wredundant-decls #          # { int i; int i; } (a lint)
 
 # C-only warnings
-CFLAGS += -Wbad-function-cast            # not obvious when this would trigger, could drop if annoying
-CFLAGS += -Wmissing-prototypes           # global fn defined w/out prototype (should be static or in .h)
-CFLAGS += -Wnested-externs               # mis/weird-use of extern keyword
+CFLAGS += -Wbad-function-cast #          # not obvious when this would trigger, could drop if annoying
+CFLAGS += -Wmissing-prototypes #         # global fn defined w/out prototype (should be static or in .h)
+CFLAGS += -Wnested-externs #             # mis/weird-use of extern keyword
 
 # CXX-only warnings
 # XXX todo
