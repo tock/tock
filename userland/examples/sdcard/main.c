@@ -15,6 +15,18 @@ int main() {
   int err = 0;
   printf("[TOCK] SD Card Test\n");
 
+  // Check if an SD card is installed
+  err = sdcard_is_installed();
+  if (err < 0) {
+    printf("Is installed error: %d\n", err);
+    return -1;
+  }
+  if (err == 0) {
+    printf("No SD card installed\n");
+    return 0;
+  }
+  printf("Found SD card...\n");
+
   // Set up the SD card
   uint32_t block_size = 0;
   uint32_t size_in_kB = 0;
