@@ -3,24 +3,40 @@
 #include "tock.h"
 #include "sdcard.h"
 
-struct sdcard_data {
+// used for creating synchronous versions of functions
+//
+// fired - set when callback has been called
+// block_size - block size of SD card, set upon initialization complete
+// size_in_kB - size in kilobytes of SD card, set upon initialization complete
+// error - error code signalled in callback, 0 if successful
+typedef struct {
   bool fired;
   uint32_t block_size;
   uint32_t size_in_kB;
   int32_t error;
-};
+} sdcard_data_t;
 
-static struct sdcard_data result = {
-  .fired = false,
-  .block_size = 0,
-  .size_in_kB = 0,
-  .error = 0,
-};
+// Internal callback for creating synchronous functions
+//
+// callback_type - number indicating which type of callback occurred
+// arg1, arg2 - meaning varies based on callback_type
+// callback_args - user data passed into the set_callback function
+//
+// Possible callbacks
+// 0: card_detection_changed, SD card was either installed or removed
+//    arg1, arg2 - no meaning
+// 1: init_done, intialization completed successfully
+//    arg1 - block_size, block size of SD card in bytes
+//    arg2 - size_in_kB, total size of SD card in kilobytes
+// 2: read_done, read block completed successfully
+//    arg1 - len, number of bytes read
+// 3: write_done, write block completed successfully
+//    arg1 - len, number of bytes written
+// 4: error, an error occurred
+//    arg1 - error, number representing the error that occurred
+static void sdcard_cb (int callback_type, int arg1, int arg2, void* callback_args) {
 
-// Internal callback for faking synchronous reads
-static void sdcard_cb (int callback_type, int arg1, int arg2, void* ud) {
-
-  struct sdcard_data* result = (struct sdcard_data*) ud;
+  sdcard_data_t* result = (sdcard_data_t*) callback_args;
   switch (callback_type) {
     case 0:
       // card_detection_changed
@@ -73,16 +89,9 @@ int sdcard_initialize (void) {
   return command(DRIVER_NUM_SDCARD, 2, 0);
 }
 
-int sdcard_read_block (uint32_t sector) {
-  return command(DRIVER_NUM_SDCARD, 3, sector);
-}
-
-int sdcard_write_block (uint32_t sector) {
-  return command(DRIVER_NUM_SDCARD, 4, sector);
-}
-
 int sdcard_initialize_sync (uint32_t* block_size, uint32_t* size_in_kB) {
   int err;
+  sdcard_data_t result;
   result.fired = false;
   result.error = 0;
 
@@ -102,8 +111,13 @@ int sdcard_initialize_sync (uint32_t* block_size, uint32_t* size_in_kB) {
   return result.error;
 }
 
+int sdcard_read_block (uint32_t sector) {
+  return command(DRIVER_NUM_SDCARD, 3, sector);
+}
+
 int sdcard_read_block_sync (uint32_t sector) {
   int err;
+  sdcard_data_t result;
   result.fired = false;
   result.error = 0;
 
@@ -119,8 +133,13 @@ int sdcard_read_block_sync (uint32_t sector) {
   return result.error;
 }
 
+int sdcard_write_block (uint32_t sector) {
+  return command(DRIVER_NUM_SDCARD, 4, sector);
+}
+
 int sdcard_write_block_sync (uint32_t sector) {
   int err;
+  sdcard_data_t result;
   result.fired = false;
   result.error = 0;
 
