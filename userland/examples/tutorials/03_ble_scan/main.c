@@ -58,7 +58,7 @@ void ble_evt_adv_report (ble_evt_t* p_ble_evt) {
  * MAIN
  ******************************************************************************/
 
-int main () {
+int main (void) {
     printf("[Tutorial] BLE Scanning\n");
 
     // Setup BLE. See the simple_ble library for more information:

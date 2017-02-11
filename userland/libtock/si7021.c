@@ -28,7 +28,7 @@ int si7021_get_temperature_humidity (void) {
     return command(DRIVER_NUM_SI7021, 1, 0);
 }
 
-int si7021_get_temperature_humidity_sync (int* temperature, int* humidity) {
+int si7021_get_temperature_humidity_sync (int* temperature, unsigned* humidity) {
     int err;
     result.fired = false;
 

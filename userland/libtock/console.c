@@ -56,7 +56,14 @@ void putnstr(const char *str, size_t len) {
 }
 
 void putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) {
-  allow(0, 1, (void*)str, len);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+  // Currently, allow gives RW access, but we should have a richer set of
+  // options, such as kernel RO, which would be let us preserve type semantics
+  // all the way down
+  void* buf = (void*) str;
+#pragma GCC diagnostic pop
+  allow(0, 1, buf, len);
   subscribe(0, 1, cb, userdata);
 }
 

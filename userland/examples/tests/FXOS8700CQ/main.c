@@ -16,7 +16,7 @@ const double g = -9.8;
 
 // Step counter app
 // TODO get sqrt working
-int main() {
+int main(void) {
   printf("Step counter init\n");
   unsigned num_measurements = 100;
   double accel_mags[num_measurements];

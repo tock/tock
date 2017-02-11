@@ -81,7 +81,7 @@ static void gpio_interrupt(void) {
 }
 
 
-int main() {
+int main(void) {
   putstr("*********************\n");
   putstr("GPIO Test Application\n");
 

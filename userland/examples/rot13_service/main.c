@@ -22,7 +22,7 @@ static void rot13_callback(int pid, int len, int buf, __attribute__ ((unused)) v
   ipc_notify_client(pid);
 }
 
-int main() {
+int main(void) {
   ipc_register_svc(rot13_callback, NULL);
   return 0;
 }

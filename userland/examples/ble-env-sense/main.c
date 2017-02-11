@@ -120,7 +120,7 @@ static void temp_callback (int temp_value, int error_code, int unused, void* ud)
  * MAIN
  ******************************************************************************/
 
-int main () {
+int main (void) {
     printf("Starting BLE serialization example\n");
 
     // Setup BLE

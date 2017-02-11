@@ -6,7 +6,7 @@ extern unsigned int* _got;
 extern unsigned int* _egot;
 extern unsigned int* _bss;
 extern unsigned int* _ebss;
-extern int main();
+extern int main(void);
 
 // Allow _start to go undeclared
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"

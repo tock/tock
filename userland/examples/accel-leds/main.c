@@ -4,7 +4,7 @@
 #include <led.h>
 #include <FXOS8700CQ.h>
 
-int main() {
+int main(void) {
   printf("[App] Accelerometer -> LEDs\n");
 
   while (1) {

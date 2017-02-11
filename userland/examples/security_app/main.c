@@ -41,7 +41,7 @@ static void gpio_cb (int pin_num,
 //  * GPIO input from Hall-effect sensor (door open/close)
 //  * Accelerometer (movement)
 //  and makes that available over RF communication
-int main() {
+int main(void) {
   putstr("*********************\n");
   putstr("Security Application\n");
 

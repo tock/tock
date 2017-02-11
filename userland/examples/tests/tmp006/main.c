@@ -63,7 +63,7 @@ static void read_periodic (void) {
     yield();
 
     // print new temp reading
-    printf("\tValue(%d) [0x%X]\n\n", temp_reading, temp_reading);
+    printf("\tValue(%d) [0x%X]\n\n", temp_reading, (unsigned) temp_reading);
     if (error_val != 0) {
       printf("\tError(%lu) [0x%X]\n\n", error_val, (uint16_t) error_val);
     }
@@ -80,7 +80,7 @@ static void read_periodic (void) {
 //********************************************************************************
 
 // Demonstrate both synchronous and asynchronous reading from a driver
-int main() {
+int main(void) {
   putstr("Welcome to Tock in C (with libc)\nReading temperature...\n");
 
   // uncomment whichever example you want

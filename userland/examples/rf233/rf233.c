@@ -121,7 +121,7 @@ static const char* state_str(uint8_t state) {
 // Section 9.8 of the RF233 manual suggests recalibrating filters at
 // least every 5 minutes of operation. Transitioning out of sleep
 // resets the filters automatically.
-static void calibrate_filters() {
+static void calibrate_filters(void) {
   PRINTF("RF233: Calibrating filters.\n");
   trx_reg_write(RF233_REG_FTN_CTRL, 0x80);
   while (trx_reg_read(RF233_REG_FTN_CTRL) & 0x80);
@@ -130,11 +130,11 @@ static void calibrate_filters() {
 uint8_t recv_data[PACKETBUF_SIZE];
 uint8_t packetbuf[PACKETBUF_SIZE];
 
-static void* packetbuf_dataptr() {
+static void* packetbuf_dataptr(void) {
   return (void*)packetbuf;
 }
 
-static void packetbuf_clear() {
+static void packetbuf_clear(void) {
   int* ptr = (int*)packetbuf;
   for (int i = 0; i <  PACKETBUF_SIZE / 4; i++) {
     *ptr++ = 0x00000000;
@@ -281,7 +281,12 @@ static bool radio_pll;
 static bool radio_tx;
 static bool radio_rx;
 
-static void interrupt_callback() {
+static void interrupt_callback(
+    int    _a __attribute__((unused)),
+    int    _b __attribute__((unused)),
+    int    _c __attribute__((unused)),
+    void* _ud __attribute__((unused))
+    ) {
   volatile uint8_t irq_source;
   PRINTF("RF233: interrupt handler.\n");
   /* handle IRQ source (for what IRQs are enabled, see rf233-config.h) */
@@ -557,7 +562,7 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
  * \param payload_len    Length of the frame to send
  * \return     Returns success/fail, refer to radio.h for explanation
  */
-static int rf233_transmit() {
+static int rf233_transmit(void) {
   static uint8_t status_now;
 
   status_now = rf233_status();
@@ -874,7 +879,7 @@ void wake_from_sleep(void) {
 
 }
 
-uint8_t rf233_status() {
+uint8_t rf233_status(void) {
   return (trx_reg_read(RF233_REG_TRX_STATUS) & TRX_STATUS);
 }
 /*---------------------------------------------------------------------------*/

@@ -1,6 +1,6 @@
 #include "spi.h"
 
-int spi_init(void) {return 0;}
+__attribute__((const)) int spi_init(void) {return 0;}
 int spi_set_chip_select(unsigned char cs) {return command(4, 3, cs);}
 int spi_get_chip_select(void)             {return command(4, 4, 0);}
 int spi_set_rate(int rate)                {return command(4, 5, rate);}
@@ -17,7 +17,12 @@ int spi_write_byte(unsigned char byte) {
 }
 
 int spi_read_buf(const char* str, size_t len) {
-  return allow(4, 0, (void*)str, len);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+  // in lieu of RO allow
+  void* buf = (void*) str;
+#pragma GCC diagnostic pop
+  return allow(4, 0, buf, len);
 }
 
 static void spi_cb( __attribute__ ((unused)) int unused0,
@@ -31,7 +36,12 @@ int spi_write(const char* str,
               size_t len,
               subscribe_cb cb, bool* cond) {
   int err;
-  err = allow(4, 1, (void*)str, len);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+  // in lieu of RO allow
+  void* buf = (void*) str;
+#pragma GCC diagnostic pop
+  err = allow(4, 1, buf, len);
   if (err < 0 ) {
     return err;
   }
