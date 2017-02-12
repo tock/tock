@@ -11,7 +11,7 @@
 uint8_t read_buf[512] = {0};
 uint8_t write_buf[512] = {0};
 
-int main() {
+int main (void) {
   int err = 0;
   printf("[TOCK] SD Card Test\n");
 
