@@ -230,8 +230,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     mut read_buffer: &'static mut [u8],
                     recv_len: usize) {
         // Note: a good default recv_len is 10 bytes. Reading too many bytes
-        //  rarely matters. However, it occasionally matters a lot, so we do
-        //  provided a settable recv_len
+        //  rarely matters. However, it occasionally matters a lot, so we
+        //  provide a settable recv_len
 
         if self.is_initialized() {
             // device is already initialized
@@ -272,9 +272,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             write_buffer[7] = 0x95; // valid crc for CMD0
         }
 
-        // append dummy bytes to transmission
-        for i in 0..recv_len {
-            write_buffer[8 + i] = 0xFF;
+        // append dummy bytes to transmission after command bytes
+        // Limit to minimum length between write_buffer and recv_len
+        for (byte, _) in write_buffer.iter_mut().skip(8).zip(0..recv_len) {
+            *byte = 0xFF;
         }
 
         self.spi.read_write_bytes(write_buffer, Some(read_buffer), 8 + recv_len);
@@ -289,11 +290,11 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
         self.set_spi_fast_mode();
 
         // set write buffer to null transactions
+        // Limit to minimum length between write_buffer and recv_len.
         // Note: this could be optimized in the future by allowing SPI to read
         //  without a write buffer passed in
-        let count = cmp::min(write_buffer.len(), recv_len);
-        for i in 0..count {
-            write_buffer[i] = 0xFF;
+        for (byte, _) in write_buffer.iter_mut().zip(0..recv_len) {
+            *byte = 0xFF;
         }
 
         self.spi.read_write_bytes(write_buffer, Some(read_buffer), recv_len);
@@ -320,10 +321,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
         let mut r3: u32 = 0xFFFFFFFF;
 
         // scan through read buffer for response byte
-        for i in 0..read_buffer.len() {
-            if (read_buffer[i] & 0x80) == 0x00 {
+        for (i, &byte) in read_buffer.iter().enumerate() {
+            if (byte & 0x80) == 0x00 {
                 // status byte is always included
-                r1 = read_buffer[i];
+                r1 = byte;
 
                 match response {
                     SDResponse::R2_ExtendedStatus => {
@@ -601,26 +602,28 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     let mut total_size: u64 = 0;
 
                     // find CSD register value
-                    for i in 0..read_buffer.len() {
-                        if read_buffer[i] == 0xFE && (i + 11 < read_buffer.len()) {
+                    // Slide through 12-byte windows searching for beginning of
+                    // the CSD register
+                    for buf in read_buffer.windows(12) {
+                        if buf[0] == 0xFE {
                             // get total size from CSD
-                            if (read_buffer[i + 1] & 0xC0) == 0x00 {
+                            if (buf[1] & 0xC0) == 0x00 {
                                 // CSD version 1.0
-                                let c_size = (((read_buffer[i + 7] & 0x03) as u32) << 10) |
-                                             (((read_buffer[i + 8] & 0xFF) as u32) << 2) |
-                                             (((read_buffer[i + 9] & 0xC0) as u32) >> 6);
-                                let c_size_mult = (((read_buffer[i + 10] & 0x03) as u32) << 1) |
-                                                  (((read_buffer[i + 11] & 0x80) as u32) >> 7);
-                                let read_bl_len = (read_buffer[i + 6] & 0x0F) as u32;
+                                let c_size = (((buf[7] & 0x03) as u32) << 10) |
+                                             (((buf[8] & 0xFF) as u32) << 2) |
+                                             (((buf[9] & 0xC0) as u32) >> 6);
+                                let c_size_mult = (((buf[10] & 0x03) as u32) << 1) |
+                                                  (((buf[11] & 0x80) as u32) >> 7);
+                                let read_bl_len = (buf[6] & 0x0F) as u32;
 
                                 let block_count = (c_size + 1) * (1 << (c_size_mult + 2));
                                 let block_len = 1 << read_bl_len;
                                 total_size = block_count as u64 * block_len as u64;
                             } else {
                                 // CSD version 2.0
-                                let c_size = (((read_buffer[i + 8] & 0x3F) as u32) << 16) |
-                                             (((read_buffer[i + 9] & 0xFF) as u32) << 8) |
-                                             ((read_buffer[i + 10] & 0xFF) as u32);
+                                let c_size = (((buf[8] & 0x3F) as u32) << 16) |
+                                             (((buf[9] & 0xFF) as u32) << 8) |
+                                             ((buf[10] & 0xFF) as u32);
                                 total_size = ((c_size as u64) + 1) * 512 * 1024;
                             }
 
@@ -714,15 +717,19 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
                 // read finished, perform callback
                 self.state.set(SpiState::Idle);
-                self.client_buffer.take().map(move |buffer| {
-                    // copy data to user buffer
-                    let read_len = cmp::min(buffer.len(), 512);
-                    self.rxbuffer.map(|read_buffer| for i in 0..read_len {
-                        buffer[i] = read_buffer[i];
-                    });
+                self.rxbuffer.map(|read_buffer| {
+                    self.client_buffer.take().map(move |buffer| {
+                        // copy data to user buffer
+                        // Limit to minimum length between buffer, read_buffer,
+                        // and 512 (block size)
+                        for ((client_byte, &read_byte), _) in buffer.iter_mut().zip(read_buffer.iter()).zip(0..512) {
+                            *client_byte = read_byte;
+                        }
 
-                    // callback
-                    self.client.get().map(move |client| { client.read_done(buffer, read_len); });
+                        // callback
+                        let read_len = cmp::min(read_buffer.len(), cmp::min(buffer.len(), 512));
+                        self.client.get().map(move |client| { client.read_done(buffer, read_len); });
+                    });
                 });
             }
 
@@ -758,11 +765,16 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             SpiState::ReceivedBlock { count } => {
                 // copy block over to client buffer
                 self.client_buffer.map(|buffer| {
+                    // copy block into client buffer
+                    // Limit to minimum length between buffer, read_buffer, and
+                    // 512 (block size)
                     let offset = self.client_offset.get();
-                    let read_len = cmp::min(buffer.len(), 512 + offset);
-                    for i in 0..read_len {
-                        buffer[i] = read_buffer[i];
+                    for ((client_byte, &read_byte), _) in buffer.iter_mut().skip(offset).zip(read_buffer.iter()).zip(0..512) {
+                        *client_byte = read_byte;
                     }
+
+                    // update offset
+                    let read_len = cmp::min(read_buffer.len(), cmp::min(buffer.len(), 512));
                     self.client_offset.set(offset + read_len);
                 });
 
@@ -812,23 +824,24 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
                 if r1 == 0x00 {
                     if count <= 1 {
-                        // copy over data from client buffer
-                        let remaining_bytes = self.client_buffer.map_or(512, |buffer| {
-                            let write_len = cmp::min(buffer.len(), 512);
-
-                            for i in 0..write_len {
-                                write_buffer[i + 1] = buffer[i];
+                        let bytes_written = self.client_buffer.map_or(0, |buffer| {
+                            // copy over data from client buffer
+                            // Limit to minimum length between write_buffer,
+                            // buffer, and 512 (block size)
+                            for ((write_byte, &client_byte), _) in write_buffer.iter_mut().skip(1).zip(buffer.iter()).zip(0..512) {
+                                *write_byte = client_byte;
                             }
 
-                            512 - write_len
+                            // calculate number of bytes written
+                            cmp::min(write_buffer.len(), cmp::min(buffer.len(), 512))
                         });
 
                         // set a known value for remaining bytes
-                        for i in 0..remaining_bytes {
-                            write_buffer[i + 1] = 0xFF;
+                        for (write_byte, _) in write_buffer.iter_mut().skip(1).skip(bytes_written).zip(0..512) {
+                            *write_byte = 0xFF;
                         }
 
-                        // set up data packet
+                        // set up remainder of data packet
                         write_buffer[0] = 0xFE; // Data token
                         write_buffer[513] = 0xFF; // dummy CRC
                         write_buffer[514] = 0xFF; // dummy CRC
@@ -837,7 +850,17 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                         self.state.set(SpiState::WriteBlockResponse);
                         self.write_bytes(write_buffer, read_buffer, 515);
                     } else {
-                        panic!("Multi-block SD card writes are unimplemented");
+                        // multi-block SD card writes are unimplemented
+                        // This should have returned an error already, but if
+                        // we got here somehow, return an error and quit now
+                        self.txbuffer.replace(write_buffer);
+                        self.rxbuffer.replace(read_buffer);
+                        self.state.set(SpiState::Idle);
+                        self.alarm_state.set(AlarmState::Idle);
+                        self.alarm_count.set(0);
+                        self.client
+                            .get()
+                            .map(move |client| { client.error(ErrorCode::WriteFailure as u32); });
                     }
                 } else {
                     // error, send callback and quit
@@ -1321,15 +1344,20 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardClient for SDCardDriver<'a, A> {
             let mut read_len: usize = 0;
             self.kernel_buf.map(|data| {
                 app_state.read_buffer.as_mut().map(move |read_buffer| {
-                    read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
 
-                    let d = &mut read_buffer.as_mut()[0..(read_len as usize)];
-                    for (i, c) in data[0..read_len].iter().enumerate() {
-                        d[i] = *c;
+                    // copy bytes to user buffer
+                    // Limit to minimum length between read_buffer, data, and
+                    // len field
+                    for ((read_byte, &data_byte), _) in read_buffer.iter_mut().zip(data.iter()).zip(0..len) {
+                        *read_byte = data_byte;
                     }
+                    read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
                 });
             });
 
+            // perform callback
+            // Note that we are explicitly performing the callback even if no
+            // data was read or if the app's read_buffer doesn't exist
             app_state.callback.map(|mut cb| { cb.schedule(2, read_len, 0); });
         });
     }
@@ -1436,16 +1464,14 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
                 self.app_state.map_or(ReturnCode::ENOMEM, |app_state| {
                     app_state.write_buffer.as_mut().map_or(ReturnCode::ENOMEM, |write_buffer| {
                         self.kernel_buf.take().map_or(ReturnCode::EBUSY, |kernel_buf| {
-                            // Check bounds for write length
-                            let write_len = cmp::min(write_buffer.len(),
-                                                     cmp::min(kernel_buf.len(), 512));
-
-                            // copy over data
-                            let d = &mut write_buffer.as_mut()[0..write_len];
-                            for (i, c) in kernel_buf[0..write_len].iter_mut().enumerate() {
-                                *c = d[i];
+                            // copy over write data from application
+                            // Limit to minimum length between kernel_buf,
+                            // write_buffer, and 512 (block size)
+                            for ((kernel_byte, &write_byte), _) in kernel_buf.iter_mut().zip(write_buffer.iter()).zip(0..512) {
+                                *kernel_byte = write_byte;
                             }
 
+                            // begin writing
                             self.sdcard.write_blocks(kernel_buf, data as u32, 1)
                         })
                     })
