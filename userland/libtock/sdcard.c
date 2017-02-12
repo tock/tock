@@ -105,8 +105,12 @@ int sdcard_initialize_sync (uint32_t* block_size, uint32_t* size_in_kB) {
   yield_for(&result.fired);
 
   // copy args
-  *block_size = result.block_size;
-  *size_in_kB = result.size_in_kB;
+  if (block_size != NULL) {
+    *block_size = result.block_size;
+  }
+  if (size_in_kB != NULL) {
+    *size_in_kB = result.size_in_kB;
+  }
 
   return result.error;
 }
