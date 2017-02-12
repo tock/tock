@@ -79,7 +79,7 @@ enum SDResponse {
 enum SpiState {
     Idle,
 
-    SendACmd { acmd: SDCmd, arg: u32 },
+    SendManufSpecificCmd { cmd: SDCmd, arg: u32 },
 
     InitReset,
     InitCheckVersion,
@@ -140,6 +140,11 @@ enum SDCardType {
     SDv2 = 0x04,
     SDv2BlockAddressable = 0x04 | 0x08,
 }
+
+// Constants used in driver
+const SUCCESS_STATUS: u8 = 0x00;
+const INITIALIZING_STATUS: u8 = 0x01;
+const DATA_TOKEN: u8 = 0xFE;
 
 /// Callback functions from SDCard
 pub trait SDCardClient {
@@ -241,11 +246,6 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             self.set_spi_slow_mode();
         }
 
-        // check that write buffer is long enough
-        if write_buffer.len() < 8 + recv_len {
-            panic!("Write buffer too short to send SD card commands");
-        }
-
         // send dummy bytes to start
         write_buffer[0] = 0xFF;
         write_buffer[1] = 0xFF;
@@ -266,6 +266,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
         write_buffer[6] = ((arg >> 0) & 0xFF) as u8;
 
         // CRC is ignored except for CMD0 and maybe CMD8
+        // Established practice it to just always use the CMD0 CRC unless we
+        // are sending a CMD8
         if cmd == SDCmd::CMD8_CheckVoltage {
             write_buffer[7] = 0x87; // valid crc for CMD8(0x1AA)
         } else {
@@ -278,6 +280,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             *byte = 0xFF;
         }
 
+        // start SPI transaction
+        // Length is command bytes (8) plus recv_len
         self.spi.read_write_bytes(write_buffer, Some(read_buffer), 8 + recv_len);
     }
 
@@ -363,12 +367,12 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                           _: usize) {
 
         match self.state.get() {
-            SpiState::SendACmd { acmd, arg } => {
+            SpiState::SendManufSpecificCmd { cmd, arg } => {
                 // send the application-specific command and resume the state
                 //  machine
                 self.state.set(self.after_state.get());
                 self.after_state.set(SpiState::Idle);
-                self.send_command(acmd, arg, write_buffer, read_buffer, 10);
+                self.send_command(cmd, arg, write_buffer, read_buffer, 10);
             }
 
             SpiState::InitReset => {
@@ -376,10 +380,13 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
                 // only continue if we are in idle state
-                if r1 == 0x01 {
+                if r1 == INITIALIZING_STATUS {
                     // next send Check Voltage Range command that is only valid
-                    //  on SDv2 cards. This is used to check which SD card version
-                    //  is installed
+                    //  on SDv2 cards. This is used to check which SD card
+                    //  version is installed. Note that 0xAA is an arbitrary
+                    //  check pattern that will be duplicated in the response
+                    //  and 0x100 specifies that the card is running between
+                    //  2.7 and 3.6 volts
                     self.state.set(SpiState::InitCheckVersion);
                     self.send_command(SDCmd::CMD8_CheckVoltage, 0x1AA, write_buffer, read_buffer, 10);
                 } else {
@@ -399,11 +406,12 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, r7) = self.get_response(SDResponse::R7_CheckVoltage, read_buffer);
 
-                if r1 == 0x01 && r7 == 0x1AA {
+                // look for test pattern duplicated in R7
+                if r1 == INITIALIZING_STATUS && r7 == 0x1AA {
                     // we have an SDv2 card
                     // send application-specific initialization in high capacity mode (HCS)
-                    self.state.set(SpiState::SendACmd {
-                        acmd: SDCmd::ACMD41_ManufSpecificInit,
+                    self.state.set(SpiState::SendManufSpecificCmd {
+                        cmd: SDCmd::ACMD41_ManufSpecificInit,
                         arg: 0x40000000,
                     });
                     self.after_state.set(SpiState::InitRepeatHCSInit);
@@ -411,8 +419,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 } else {
                     // we have either an SDv1 or MMCv3 card
                     // send application-specific initialization
-                    self.state.set(SpiState::SendACmd {
-                        acmd: SDCmd::ACMD41_ManufSpecificInit,
+                    self.state.set(SpiState::SendManufSpecificCmd {
+                        cmd: SDCmd::ACMD41_ManufSpecificInit,
                         arg: 0x0,
                     });
                     self.after_state.set(SpiState::InitAppSpecificInit);
@@ -424,13 +432,13 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
-                if r1 == 0x00 {
+                if r1 == SUCCESS_STATUS {
                     // card initialized
                     // check card capacity
                     self.alarm_count.set(0);
                     self.state.set(SpiState::InitCheckCapacity);
                     self.send_command(SDCmd::CMD58_ReadOCR, 0x0, write_buffer, read_buffer, 10);
-                } else if r1 == 0x01 {
+                } else if r1 == INITIALIZING_STATUS {
                     // replace buffers
                     self.txbuffer.replace(write_buffer);
                     self.rxbuffer.replace(read_buffer);
@@ -457,8 +465,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, r7) = self.get_response(SDResponse::R3_OCR, read_buffer);
 
-                if r1 == 0x00 {
-                    if (r7 & 0x40000000) != 0x00 {
+                if r1 == SUCCESS_STATUS {
+                    if (r7 & 0x40000000) != 0x00000000 {
                         self.card_type.set(SDCardType::SDv2BlockAddressable);
                     } else {
                         self.card_type.set(SDCardType::SDv2);
@@ -486,12 +494,12 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
-                if r1 <= 0x01 {
+                if r1 == INITIALIZING_STATUS || r1 == SUCCESS_STATUS {
                     // SDv1 card
                     // send application-specific initialization
                     self.card_type.set(SDCardType::SDv1);
-                    self.state.set(SpiState::SendACmd {
-                        acmd: SDCmd::ACMD41_ManufSpecificInit,
+                    self.state.set(SpiState::SendManufSpecificCmd {
+                        cmd: SDCmd::ACMD41_ManufSpecificInit,
                         arg: 0x0,
                     });
                     self.after_state.set(SpiState::InitRepeatAppSpecificInit);
@@ -509,13 +517,13 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
-                if r1 == 0x00 {
+                if r1 == SUCCESS_STATUS {
                     // card initialized
                     // set blocksize to 512
                     self.alarm_count.set(0);
                     self.state.set(SpiState::InitSetBlocksize);
                     self.send_command(SDCmd::CMD16_SetBlockSize, 512, write_buffer, read_buffer, 10);
-                } else if r1 == 0x01 {
+                } else if r1 == INITIALIZING_STATUS {
                     // replace buffers
                     self.txbuffer.replace(write_buffer);
                     self.rxbuffer.replace(read_buffer);
@@ -542,13 +550,13 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
-                if r1 == 0x00 {
+                if r1 == SUCCESS_STATUS {
                     // card initialized
                     // set blocksize to 512
                     self.alarm_count.set(0);
                     self.state.set(SpiState::InitSetBlocksize);
                     self.send_command(SDCmd::CMD16_SetBlockSize, 512, write_buffer, read_buffer, 10);
-                } else if r1 == 0x01 {
+                } else if r1 == INITIALIZING_STATUS {
                     // replace buffers
                     self.txbuffer.replace(write_buffer);
                     self.rxbuffer.replace(read_buffer);
@@ -575,7 +583,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
-                if r1 == 0x00 {
+                if r1 == SUCCESS_STATUS {
                     // Read CSD register
                     // Note that the receive length needs to be increased here
                     //  to capture the 16-byte register (plus some slack)
@@ -598,14 +606,14 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
-                if r1 == 0x00 {
+                if r1 == SUCCESS_STATUS {
                     let mut total_size: u64 = 0;
 
                     // find CSD register value
                     // Slide through 12-byte windows searching for beginning of
                     // the CSD register
                     for buf in read_buffer.windows(12) {
-                        if buf[0] == 0xFE {
+                        if buf[0] == DATA_TOKEN {
                             // get total size from CSD
                             if (buf[1] & 0xC0) == 0x00 {
                                 // CSD version 1.0
@@ -658,7 +666,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
-                if r1 == 0x00 {
+                if r1 == SUCCESS_STATUS {
                     if count <= 1 {
                         // check for data block to be ready
                         self.state.set(SpiState::WaitReadBlock);
@@ -682,12 +690,14 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             SpiState::WaitReadBlock => {
-                if read_buffer[0] == 0xFE {
+                if read_buffer[0] == DATA_TOKEN {
                     // data ready to read. Read block plus CRC
                     self.alarm_count.set(0);
                     self.state.set(SpiState::ReadBlockComplete);
                     self.read_bytes(write_buffer, read_buffer, 512 + 2);
                 } else if read_buffer[0] == 0xFF {
+                    // line is idling high, data is not ready
+
                     // replace buffers
                     self.txbuffer.replace(write_buffer);
                     self.rxbuffer.replace(read_buffer);
@@ -734,12 +744,14 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             SpiState::WaitReadBlocks { count } => {
-                if read_buffer[0] == 0xFE {
+                if read_buffer[0] == DATA_TOKEN {
                     // data ready to read. Read block plus CRC
                     self.alarm_count.set(0);
                     self.state.set(SpiState::ReceivedBlock { count: count });
                     self.read_bytes(write_buffer, read_buffer, 512 + 2);
                 } else if read_buffer[0] == 0xFF {
+                    // line is idling high, data is not ready
+
                     // replace buffers
                     self.txbuffer.replace(write_buffer);
                     self.rxbuffer.replace(read_buffer);
@@ -793,7 +805,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
-                if r1 == 0x00 {
+                if r1 == SUCCESS_STATUS {
                     // replace buffers
                     self.txbuffer.replace(write_buffer);
                     self.rxbuffer.replace(read_buffer);
@@ -822,7 +834,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                 // check response
                 let (r1, _, _) = self.get_response(SDResponse::R1_Status, read_buffer);
 
-                if r1 == 0x00 {
+                if r1 == SUCCESS_STATUS {
                     if count <= 1 {
                         let bytes_written = self.client_buffer.map_or(0, |buffer| {
                             // copy over data from client buffer
@@ -842,7 +854,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                         }
 
                         // set up remainder of data packet
-                        write_buffer[0] = 0xFE; // Data token
+                        write_buffer[0] = DATA_TOKEN; // Data token
                         write_buffer[513] = 0xFF; // dummy CRC
                         write_buffer[514] = 0xFF; // dummy CRC
 
@@ -900,6 +912,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             SpiState::WaitWriteBlockBusy => {
+                // check if line is still held low (busy state)
                 if read_buffer[0] != 0x00 {
                     // replace buffers
                     self.txbuffer.replace(write_buffer);
@@ -964,20 +977,12 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             AlarmState::RepeatHCSInit => {
-                // buffers must be available to use
-                if self.txbuffer.is_none() {
-                    panic!("No txbuffer available for timer");
-                }
-                if self.rxbuffer.is_none() {
-                    panic!("No rxbuffer available for timer");
-                }
-
                 // check card initialization again
                 self.txbuffer.take().map(|write_buffer| {
                     self.rxbuffer.take().map(move |read_buffer| {
                         // send application-specific initialization in high capcity mode (HCS)
-                        self.state.set(SpiState::SendACmd {
-                            acmd: SDCmd::ACMD41_ManufSpecificInit,
+                        self.state.set(SpiState::SendManufSpecificCmd {
+                            cmd: SDCmd::ACMD41_ManufSpecificInit,
                             arg: 0x40000000,
                         });
                         self.after_state.set(SpiState::InitRepeatHCSInit);
@@ -989,20 +994,12 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             AlarmState::RepeatAppSpecificInit => {
-                // buffers must be available to use
-                if self.txbuffer.is_none() {
-                    panic!("No txbuffer available for timer");
-                }
-                if self.rxbuffer.is_none() {
-                    panic!("No rxbuffer available for timer");
-                }
-
                 // check card initialization again
                 self.txbuffer.take().map(|write_buffer| {
                     self.rxbuffer.take().map(move |read_buffer| {
                         // send application-specific initialization
-                        self.state.set(SpiState::SendACmd {
-                            acmd: SDCmd::ACMD41_ManufSpecificInit,
+                        self.state.set(SpiState::SendManufSpecificCmd {
+                            cmd: SDCmd::ACMD41_ManufSpecificInit,
                             arg: 0x0,
                         });
                         self.after_state.set(SpiState::InitRepeatAppSpecificInit);
@@ -1014,14 +1011,6 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             AlarmState::RepeatGenericInit => {
-                // buffers must be available to use
-                if self.txbuffer.is_none() {
-                    panic!("No txbuffer available for timer");
-                }
-                if self.rxbuffer.is_none() {
-                    panic!("No rxbuffer available for timer");
-                }
-
                 // check card initialization again
                 self.txbuffer.take().map(|write_buffer| {
                     self.rxbuffer.take().map(move |read_buffer| {
@@ -1035,14 +1024,6 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             AlarmState::WaitForDataBlock => {
-                // buffers must be available to use
-                if self.txbuffer.is_none() {
-                    panic!("No txbuffer available for timer");
-                }
-                if self.rxbuffer.is_none() {
-                    panic!("No rxbuffer available for timer");
-                }
-
                 // check card initialization again
                 self.txbuffer.take().map(|write_buffer| {
                     self.rxbuffer.take().map(move |read_buffer| {
@@ -1056,14 +1037,6 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             AlarmState::WaitForDataBlocks { count } => {
-                // buffers must be available to use
-                if self.txbuffer.is_none() {
-                    panic!("No txbuffer available for timer");
-                }
-                if self.rxbuffer.is_none() {
-                    panic!("No rxbuffer available for timer");
-                }
-
                 // check card initialization again
                 self.txbuffer.take().map(|write_buffer| {
                     self.rxbuffer.take().map(move |read_buffer| {
@@ -1077,14 +1050,6 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
 
             AlarmState::WaitForWriteBusy => {
-                // buffers must be available to use
-                if self.txbuffer.is_none() {
-                    panic!("No txbuffer available for timer");
-                }
-                if self.rxbuffer.is_none() {
-                    panic!("No rxbuffer available for timer");
-                }
-
                 // check card initialization again
                 self.txbuffer.take().map(|write_buffer| {
                     self.rxbuffer.take().map(move |read_buffer| {
@@ -1145,7 +1110,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             })
         } else {
             // no sd card installed
-            ReturnCode::EOFF
+            ReturnCode::EUNINSTALLED
         }
     }
 
@@ -1183,7 +1148,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
         } else {
             // sd card not installed
-            ReturnCode::EOFF
+            ReturnCode::EUNINSTALLED
         }
     }
 
@@ -1222,7 +1187,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
             }
         } else {
             // sd card not installed
-            ReturnCode::EOFF
+            ReturnCode::EUNINSTALLED
         }
     }
 }
@@ -1235,12 +1200,9 @@ impl<'a, A: hil::time::Alarm + 'a> hil::spi::SpiMasterClient for SDCard<'a, A> {
                        len: usize) {
 
         // unrwap so we don't have to deal with options everywhere
-        read_buffer.map_or_else(|| {
-                                    panic!("Didn't receive a read_buffer back");
-                                },
-                                move |read_buffer| {
-                                    self.process_spi_states(write_buffer, read_buffer, len);
-                                });
+        read_buffer.map(move |read_buffer| {
+            self.process_spi_states(write_buffer, read_buffer, len);
+        });
     }
 }
 
