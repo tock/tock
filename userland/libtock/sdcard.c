@@ -40,24 +40,24 @@ static void sdcard_cb (int callback_type, int arg1, int arg2, void* callback_arg
   switch (callback_type) {
     case 0:
       // card_detection_changed
-      result->error = -4; // EOFF
+      result->error = EUNINSTALLED;
       break;
 
     case 1:
       // init_done
       result->block_size = arg1;
       result->size_in_kB = arg2;
-      result->error = 0;
+      result->error = SUCCESS;
       break;
 
     case 2:
       // read_done
-      result->error = 0;
+      result->error = SUCCESS;
       break;
 
     case 3:
       // write_done
-      result->error = 0;
+      result->error = SUCCESS;
       break;
 
     case 4:
@@ -93,7 +93,7 @@ int sdcard_initialize_sync (uint32_t* block_size, uint32_t* size_in_kB) {
   int err;
   sdcard_data_t result;
   result.fired = false;
-  result.error = 0;
+  result.error = SUCCESS;
 
   err = sdcard_set_callback(sdcard_cb, (void*) &result);
   if (err < 0) return err;
@@ -123,7 +123,7 @@ int sdcard_read_block_sync (uint32_t sector) {
   int err;
   sdcard_data_t result;
   result.fired = false;
-  result.error = 0;
+  result.error = SUCCESS;
 
   err = sdcard_set_callback(sdcard_cb, (void*) &result);
   if (err < 0) return err;
@@ -145,7 +145,7 @@ int sdcard_write_block_sync (uint32_t sector) {
   int err;
   sdcard_data_t result;
   result.fired = false;
-  result.error = 0;
+  result.error = SUCCESS;
 
   err = sdcard_set_callback(sdcard_cb, (void*) &result);
   if (err < 0) return err;
