@@ -15,12 +15,6 @@ TOCK_BOARD ?= storm
 TOCK_ARCH ?= cortex-m4
 LIBTOCK ?= $(TOCK_USERLAND_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
 
-TOOLCHAIN := arm-none-eabi
-AS := $(TOOLCHAIN)-as
-CC := $(TOOLCHAIN)-gcc
-CXX := $(TOOLCHAIN)-g++
-READELF := $(TOOLCHAIN)-readelf
-
 # PACKAGE_NAME is used to identify the application for IPC and for error reporting
 PACKAGE_NAME ?= $(notdir $(shell pwd))
 
@@ -28,6 +22,24 @@ PACKAGE_NAME ?= $(notdir $(shell pwd))
 STACK_SIZE       ?= 2048
 APP_HEAP_SIZE    ?= 1024
 KERNEL_HEAP_SIZE ?= 1024
+
+TOOLCHAIN := arm-none-eabi
+AS := $(TOOLCHAIN)-as
+CC := $(TOOLCHAIN)-gcc
+CXX := $(TOOLCHAIN)-g++
+READELF := $(TOOLCHAIN)-readelf
+
+# Validate the the toolchain is new enough (known not to work for gcc <= 5.1)
+CC_VERSION_MAJOR := $(shell $(CC) -dumpversion | cut -d '.' -f1)
+ifneq (1,$(shell expr $(CC_VERSION_MAJOR) \>= 6))
+ifneq (5,$(CC_VERSION_MAJOR))
+$(error Your compiler is too old. Need gcc version > 5.1)
+endif
+CC_VERSION_MINOR := $(shell $(CC) -dumpversion | cut -d '.' -f2)
+ifneq (1,$(shell expr $(CC_VERSION_MINOR) \> 1))
+$(error Your compiler is too old. Need gcc version > 5.1)
+endif
+endif
 
 # This could be replaced with an installed version of `elf2tbf`
 ELF2TBF ?= cargo run --manifest-path $(abspath $(TOCK_USERLAND_BASE_DIR))/tools/elf2tbf/Cargo.toml --
