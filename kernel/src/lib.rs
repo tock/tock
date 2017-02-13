@@ -53,7 +53,7 @@ pub fn main<P: Platform, C: Chip>(platform: &P,
             }
 
             support::atomic(|| if !chip.has_pending_interrupts() && process::processes_blocked() {
-                //support::wfi();
+                support::wfi();
             })
         };
     }
