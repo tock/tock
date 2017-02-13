@@ -274,7 +274,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
         // append dummy bytes to transmission after command bytes
         // Limit to minimum length between write_buffer and recv_len
-        for (byte, _) in write_buffer.iter_mut().skip(8).zip(0..recv_len) {
+        for byte in write_buffer.iter_mut().skip(8).take(recv_len) {
             *byte = 0xFF;
         }
 
@@ -295,7 +295,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
         // Limit to minimum length between write_buffer and recv_len.
         // Note: this could be optimized in the future by allowing SPI to read
         //  without a write buffer passed in
-        for (byte, _) in write_buffer.iter_mut().zip(0..recv_len) {
+        for byte in write_buffer.iter_mut().take(recv_len) {
             *byte = 0xFF;
         }
 
@@ -755,8 +755,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                         // copy data to user buffer
                         // Limit to minimum length between buffer, read_buffer,
                         // and 512 (block size)
-                        for ((client_byte, &read_byte), _) in
-                            buffer.iter_mut().zip(read_buffer.iter()).zip(0..512) {
+                        for (client_byte, &read_byte) in
+                            buffer.iter_mut().zip(read_buffer.iter()).take(512) {
                             *client_byte = read_byte;
                         }
 
@@ -807,8 +807,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     // Limit to minimum length between buffer, read_buffer, and
                     // 512 (block size)
                     let offset = self.client_offset.get();
-                    for ((client_byte, &read_byte), _) in
-                        buffer.iter_mut().skip(offset).zip(read_buffer.iter()).zip(0..512) {
+                    for (client_byte, &read_byte) in
+                        buffer.iter_mut().skip(offset).zip(read_buffer.iter()).take(512) {
                         *client_byte = read_byte;
                     }
 
@@ -867,8 +867,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                             // copy over data from client buffer
                             // Limit to minimum length between write_buffer,
                             // buffer, and 512 (block size)
-                            for ((write_byte, &client_byte), _) in
-                                write_buffer.iter_mut().skip(1).zip(buffer.iter()).zip(0..512) {
+                            for (write_byte, &client_byte) in
+                                write_buffer.iter_mut().skip(1).zip(buffer.iter()).take(512) {
                                 *write_byte = client_byte;
                             }
 
@@ -877,10 +877,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                         });
 
                         // set a known value for remaining bytes
-                        for (write_byte, _) in write_buffer.iter_mut()
+                        for write_byte in write_buffer.iter_mut()
                             .skip(1)
                             .skip(bytes_written)
-                            .zip(0..512) {
+                            .take(512) {
                             *write_byte = 0xFF;
                         }
 
@@ -1362,8 +1362,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardClient for SDCardDriver<'a, A> {
                     // copy bytes to user buffer
                     // Limit to minimum length between read_buffer, data, and
                     // len field
-                    for ((read_byte, &data_byte), _) in
-                        read_buffer.iter_mut().zip(data.iter()).zip(0..len) {
+                    for (read_byte, &data_byte) in
+                        read_buffer.iter_mut().zip(data.iter()).take(len) {
                         *read_byte = data_byte;
                     }
                     read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
@@ -1482,8 +1482,8 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
                             // copy over write data from application
                             // Limit to minimum length between kernel_buf,
                             // write_buffer, and 512 (block size)
-                            for ((kernel_byte, &write_byte), _) in
-                                kernel_buf.iter_mut().zip(write_buffer.iter()).zip(0..512) {
+                            for (kernel_byte, &write_byte) in
+                                kernel_buf.iter_mut().zip(write_buffer.iter()).take(512) {
                                 *kernel_byte = write_byte;
                             }
 
