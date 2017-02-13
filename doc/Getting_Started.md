@@ -7,7 +7,7 @@ developing Tock.
 ## Requirements
 
 1. [Rust](http://www.rust-lang.org/) (nightly)
-2. [arm-none-eabi toolchain](https://launchpad.net/gcc-arm-embedded/) (version >= 5.0)
+2. [arm-none-eabi toolchain](https://launchpad.net/gcc-arm-embedded/) (version >= 5.2)
 3. to program the storm: stormloader (recommended) or JLinkExe
 4. Command line utilities: wget, sed, make
 
@@ -36,10 +36,20 @@ $ rustup override set nightly-2017-01-25
 
 #### `arm-none-eabi` toolchain
 
-We are currently using arm-none-eabi-gcc version 5.4 from the gcc-arm-embedded
-PPA on launchpad. Using pre-5.0 versions from that repo, or other versions
-packaged with a newlib version earlier than 2.3 will run into problems with
-missing ARM intrinsics (e.g., `__aeabi_memclr`).
+We generally track the latest version of arm-none-eabi-gcc [as released by
+ARM](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads).
+
+There are known issues with arm-none-eabi-gcc version 5.1 and older, or other
+versions packaged with a newlib version earlier than 2.3, as they will run into
+problems with missing ARM intrinsics (e.g., `__aeabi_memclr`). Tock does not
+support these versions.
+
+##### Compiled Binaries
+
+Pre-compiled binaries are available [from
+ARM](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads).
+The recommendations below will set up your operating system's package manager
+to track the latest release from ARM.
 
 ##### Mac OS X
 
@@ -70,14 +80,6 @@ running `sudo automount -vc` to apply the changes.
 
 ##### Linux
 
-On Linux we recommend getting packages from the [Launchpad repo](https://launchpad.net/gcc-arm-embedded/+download).
-
-###### Compiled Binaries
-
-```bash
-$ curl https://launchpad.net/gcc-arm-embedded/5.0/5-2016-q2-update/+download/gcc-arm-none-eabi-5_4-2016q2-20160622-linux.tar.bz2
-```
-
 If you install the binaries but get a "no such file or directory" error
 when trying to run them, then you are most likely missing needed libraries.
 Check that you have a 64-bit version of libc installed.
@@ -101,8 +103,10 @@ $ sudo pacman Sy arm-none-eabi-gcc arm-none-eabi-newlib arm-none-eabi-gdb
 
 ##### Windows
 
-For Windows and other operating systems, download site is
-[here](https://launchpad.net/gcc-arm-embedded/+download).
+You can download precompiled binaries for Windows from the ARM site listed
+above. While we expect things should work on Windows, none of the active Tock
+developers currently develop on Windows, so it is possible that are some
+unexpected pitfalls.
 
 ##### Other
 
