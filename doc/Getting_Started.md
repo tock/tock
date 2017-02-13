@@ -7,7 +7,7 @@ developing Tock.
 ## Requirements
 
 1. [Rust](http://www.rust-lang.org/) (nightly)
-2. [arm-none-eabi toolchain](https://launchpad.net/gcc-arm-embedded/) (version >= 5.2)
+2. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 3. to program the storm: stormloader (recommended) or JLinkExe
 4. Command line utilities: wget, sed, make
 
