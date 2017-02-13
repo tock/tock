@@ -29,7 +29,6 @@ pub fn volatile_bitwise_and<T: BitAnd<Output = T>>(item: &mut T, val: T) {
 macro_rules! interrupt_handler {
     ($name: ident, $nvic: ident $(, $body: expr)*) => {
         #[no_mangle]
-        #[naked]
         #[allow(non_snake_case)]
         #[allow(unused_imports)]
         pub unsafe extern fn $name() {
@@ -40,9 +39,9 @@ macro_rules! interrupt_handler {
                 $body
             })*
 
-            /*let nvic = nvic::NvicIdx::$nvic;
+            let nvic = nvic::NvicIdx::$nvic;
             nvic::disable(nvic);
-            chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic);*/
+            chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic);
         }
     }
 }
