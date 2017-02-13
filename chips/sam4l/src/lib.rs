@@ -85,7 +85,7 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
 
 #[link_section=".vectors"]
 #[no_mangle] // Ensures that the symbol is kept until the final binary
-pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
+pub static IRQS: [unsafe extern "C" fn(); 80] = [gpio::gpio11_handler; 80];
 
 #[no_mangle]
 #[cfg_attr(rustfmt, rustfmt_skip)]
