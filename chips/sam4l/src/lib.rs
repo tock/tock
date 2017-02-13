@@ -1,6 +1,6 @@
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(asm,core_intrinsics,concat_idents,const_fn)]
+#![feature(naked_functions,asm,core_intrinsics,concat_idents,const_fn)]
 #![no_std]
 
 extern crate cortexm4;
@@ -85,7 +85,7 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
 
 #[link_section=".vectors"]
 #[no_mangle] // Ensures that the symbol is kept until the final binary
-pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
+pub static IRQS: [unsafe extern "C" fn(); 80] = [gpio::gpio11_handler; 80];
 
 #[no_mangle]
 #[cfg_attr(rustfmt, rustfmt_skip)]

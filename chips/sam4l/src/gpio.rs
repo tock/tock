@@ -544,4 +544,6 @@ interrupt_handler!(gpio7_handler, GPIO7);
 interrupt_handler!(gpio8_handler, GPIO8);
 interrupt_handler!(gpio9_handler, GPIO9);
 interrupt_handler!(gpio10_handler, GPIO10);
-interrupt_handler!(gpio11_handler, GPIO11);
+interrupt_handler!(gpio11_handler, GPIO11, {
+    PC[10].set();
+});
