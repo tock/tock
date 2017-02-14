@@ -156,7 +156,7 @@ value, the value MUST be left shifted so the most significant bit of
 `result` are SUCCESS, FAIL, EBUSY, EOFF, ERESERVE, EINVAL, or ECANCEL.
 
 
-5. Example Implementation
+5. Example Implementation: SAM4L
 ---------------------------------
 
 The SAM4L ADC has a flexible ADC, supporting differential
