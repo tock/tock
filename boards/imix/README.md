@@ -64,7 +64,7 @@ To debug a loaded kernel with `openocd`:
 
 ```bash
 $ cd boards/imix/
-$ openocd -f connect.cfg`
+$ openocd -f connect.cfg
 ```
 
 Then, in another terminal (assuming you have loaded a kernel image built using
