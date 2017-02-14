@@ -24,9 +24,11 @@ APP_HEAP_SIZE    ?= 1024
 KERNEL_HEAP_SIZE ?= 1024
 
 TOOLCHAIN := arm-none-eabi
+AR := $(TOOLCHAIN)-ar
 AS := $(TOOLCHAIN)-as
 CC := $(TOOLCHAIN)-gcc
 CXX := $(TOOLCHAIN)-g++
+RANLIB := $(TOOLCHAIN)-ranlib
 READELF := $(TOOLCHAIN)-readelf
 
 # Validate the the toolchain is new enough (known not to work for gcc <= 5.1)

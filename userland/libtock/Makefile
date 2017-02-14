@@ -1,16 +1,28 @@
+ifndef TOCK_USERLAND_BASE_DIR
+  $(error TOCK_USERLAND_BASE_DIR not defined)
+endif
+ifndef TOCK_ARCH
+  $(error TOCK_ARCH not defined)
+endif
+ifndef AR
+  $(error AR not defined)
+endif
+ifndef CC
+  $(error CC not defined)
+endif
+ifndef RANLIB
+  $(error RANLIB not defined)
+endif
+
 LIBTOCK_DIR := $(TOCK_USERLAND_BASE_DIR)/libtock
 
 ifeq ($(LIBTOCK_DIR),/libtock)
-$(error Do not run make from the libtock directory)
+  $(error Do not run make from the libtock directory)
 endif
 
 LIBTOCK_BUILDDIR ?= $(LIBTOCK_DIR)/build/$(TOCK_ARCH)
 
-TOOLCHAIN ?= arm-none-eabi
-
 CFLAGS += -I$(LIBTOCK_DIR)
-
-AR := $(TOOLCHAIN)-ar
 
 LIBTOCK_C_SRCS=$(wildcard $(LIBTOCK_DIR)/*.c)
 LIBTOCK_AS_SRCS=$(wildcard $(LIBTOCK_DIR)/*.s)
@@ -34,7 +46,7 @@ $(LIBTOCK_BUILDDIR)/%.o: %.S | $(LIBTOCK_BUILDDIR)
 $(LIBTOCK_BUILDDIR)/libtock.a: $(LIBTOCK_OBJS) | $(LIBTOCK_BUILDDIR)
 	$(TRACE_AR)
 	$(Q)$(AR) rc $@ $^
-	$(Q)$(TOOLCHAIN)-ranlib $@
+	$(Q)$(RANLIB) $@
 
 .PHONY: clean
 clean::
