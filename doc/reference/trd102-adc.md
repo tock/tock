@@ -159,6 +159,74 @@ value, the value MUST be left shifted so the most significant bit of
 5. Example Implementation
 ---------------------------------
 
+The SAML CortexM4 microcontroller `chips/sam4l` has an implementation of
+the `AdcSingle` trait in `adc.rs`.  The SAM4L ADC uses generic clock 
+10 (GCLK10). 
+
+5.1 Initialization
+---------------------------------
+
+Initialization follows the process outlined in section 38.6.1 of the 
+SAM4L datasheet.  The first step of initialization is to configure 
+the ADC's clock.  The implementation configures GCLK10 to use the 
+RCSYS clock, which operates at 115kHz.
+
+    unsafe {
+        pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
+        nvic::enable(nvic::NvicIdx::ADCIFE);
+        scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::RCSYS);
+    }
+
+It then has a fixed delay, to ensure the ADC cell is ready. Next,
+it enables the ADC and waits until it is ready. Once the ADC
+is ready, it turns on the bandgap and reference buffers. Once
+those buffers are enabled, it sets the ADC to takes samples against a
+reference voltage of VCC/2 and the clock divider to be 4. Since
+the clock frequency is 115kHz and it takes 6 clock cyles to 
+take a 12-bit sample, the maximum default sampling rate is
+115kHz / (4 * 6) ~= 4800ksps.
+
+5.2 Taking a sample
+---------------------------------
+
+A call to `AdcSingle.sample` has a few basic checks before
+initiating a sample. It checks that the channel is valid
+and that the ADC is enabled.
+
+The sample configures the ADC to use the ground pad as the
+ground (for reference to VCC/2) and take a 12-bit sample.
+The sample is not left-justified (it is in the 12 least
+significant bits).
+
+The implementation does not support cancelling outstanding
+samples: `cancel_sample` always returns `ReturnCode::FAIL`.
+
+5.3 Handling a sample
+---------------------------------
+
+The ADCIFE interrupt registers `handle_interrupt` bottom half
+to run on `Adc`. This function clears the interrupt, reads
+the sample result from the LCV register, and issues a callback
+to an ADC client, if one has ben registered with `set_client`:
+
+    pub fn handle_interrupt(&mut self) {
+        let val: u16;
+        let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
+        // Make sure this is the SEOC (Sequencer end-of-conversion) interrupt
+        let status = regs.sr.get();
+        if status & 0x01 == 0x01 {
+            // Clear SEOC interrupt
+            regs.scr.set(0x0000001);
+            // Disable SEOC interrupt
+            regs.idr.set(0x00000001);
+            // Read the value from the LCV register.
+            // The sample is 16 bits wide
+            val = (regs.lcv.get() & 0xffff) as u16;
+            self.client.get().map(|client| { client.sample_done(val); });
+        }
+    }
+
+
 6. Authors' Address
 ---------------------------------
 
