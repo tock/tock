@@ -3,6 +3,12 @@
 # Default target:
 all:
 
+
+# Remove built-in rules and variables
+# n.b. no-op for make --version < 4.0
+MAKEFLAGS += -r
+MAKEFLAGS += -R
+
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
 # Check that given variables are set and all have non-empty values,
 # die with an error otherwise.
