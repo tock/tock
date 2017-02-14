@@ -186,7 +186,7 @@ the clock frequency is 115kHz and it takes 6 clock cyles to
 take a 12-bit sample, the maximum default sampling rate is
 115kHz / (4 * 6) ~= 4800ksps.
 
-5.2 Taking a sample
+5.2 AdcSingle: Taking a sample
 ---------------------------------
 
 A call to `AdcSingle.sample` has a few basic checks before
@@ -201,7 +201,7 @@ significant bits).
 The implementation does not support cancelling outstanding
 samples: `cancel_sample` always returns `ReturnCode::FAIL`.
 
-5.3 Handling a sample
+5.3 AdcSingle: Handling a sample
 ---------------------------------
 
 The ADCIFE interrupt registers `handle_interrupt` bottom half
