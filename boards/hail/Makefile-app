@@ -1,5 +1,9 @@
 # Makefile for loading applications for the Hail platform
 
+$(call check_defined, TOCK_USERLAND_BASE_DIR)
+
+TOCK_ARCH=cortex-m4
+
 APP_TOCKLOADER = tockloader
 APP_FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/flash/storm-flash-app.py
 
@@ -12,10 +16,14 @@ ifdef PORT
 endif
 
 .PHONY: program
-program: $(BUILDDIR)/app.bin
+.SECONDEXPANSION:
+program: $$(BUILDDIR)/app.bin
+	@:$(call check_defined, BUILDDIR)
 	$(APP_TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(APP_ADDRESS) $(BUILDDIR)/app.bin
 
 # Upload programs over JTAG
 .PHONY: flash
-flash: $(BUILDDIR)/app.bin
+.SECONDEXPANSION:
+flash: $$(BUILDDIR)/app.bin
+	@:$(call check_defined, BUILDDIR)
 	$(APP_FLASH) $(BUILDDIR)/app.bin

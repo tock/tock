@@ -1,8 +1,14 @@
 # Makefile for loading applications for the nrf51dk
 
+$(call check_defined, TOCK_USERLAND_BASE_DIR)
+
+TOCK_ARCH=cortex-m0
+
 NRF_LOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf51dk.py
 
 # upload programs to nrf51dk
 .PHONY: flash
-flash: $(BUILDDIR)/app.bin
+.SECONDEXPANSION:
+flash: $$(BUILDDIR)/app.bin
+	@:$(call check_defined, BUILDDIR)
 	$(NRF_LOAD) $(BUILDDIR)/app.bin

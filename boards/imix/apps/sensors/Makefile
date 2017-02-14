@@ -1,7 +1,6 @@
 # Makefile for user application
 
 TOCK_BOARD=imix
-TOCK_ARCH=cortex-m4
 
 # Specify this directory relative to the current application.
 CURRENT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))

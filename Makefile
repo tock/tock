@@ -1,6 +1,5 @@
-# default board and architecture
+# default board
 TOCK_BOARD ?= storm
-TOCK_ARCH ?= cortex-m4
 
 
 # rules for making the kernel
@@ -37,6 +36,6 @@ list list-boards list-platforms:
 # rule for making userland example applications
 # 	automatically upload after making
 examples/%: userland/examples/%
-	$(MAKE) -C $< TOCK_ARCH=$(TOCK_ARCH)
-	$(MAKE) program -C $< TOCK_ARCH=$(TOCK_ARCH)
+	$(MAKE) -C $< TOCK_BOARD=$(TOCK_BOARD)
+	$(MAKE) program -C $< TOCK_BOARD=$(TOCK_BOARD)
 

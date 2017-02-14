@@ -123,7 +123,6 @@ is set up with the following defaults:
 
 ```
 TOCK_BOARD ?= storm
-TOCK_ARCH ?= cortex-m4
 ```
 
 Thus it compiles for the storm board by default. There are two ways to
@@ -137,13 +136,11 @@ build for a different board:
     $ make
     ```
 
- * Alternatively, you can add an environment variable for the
-  `TOCK_BOARD` and `TOCK_ARCH`.
+ * Alternatively, you can add a `TOCK_BOARD` environment variable where
     `TOCK_BOARD` is the directory name inside `boards/`.
-    `TOCK_ARCH` is the gcc architecture name. Ex: `cortex-m4` or `cortex-m0`.
 
     ```bash
-    $ make TOCK_BOARD=nrf51dk TOCK_ARCH=cortex-m0
+    $ make TOCK_BOARD=nrf51dk
     ```
 
 Board specific Makefiles are located in `boards/<BOARD>/`. Some boards have
@@ -178,12 +175,12 @@ Compiled applications are architecture-specific (e.g.  `cortex-m4`,
 for each variant. Compiled applications can also depend on specific
 drivers, which not all boards provide; if you load an application onto
 a board that does not support every driver/system call it uses, some
-system calls with return error codes (ENODEVICE or ENOSUPPORT).
+system calls with return error codes (`ENODEVICE` or `ENOSUPPORT`).
 
 The `TOCK_ARCH` environment variable controls which chip architecture
 to compile to. You can set the `TOCK_ARCH` to any architecture GCC's
-`-mcpu` option accepts. By default, `TOCK_ARCH` is set to `cortex-m4`
-for the `storm` board.
+`-mcpu` option accepts. Boards set an appropriate architecture by default,
+(e.g. `cortex-m4` for the `storm` board).
 
 To compile an app, `cd` to the desired app and `make`. For example:
 

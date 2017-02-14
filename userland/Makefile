@@ -1,5 +1,22 @@
 # userland master makefile. Included by application makefiles
 
+# Default target:
+all:
+
+# http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
+# Check that given variables are set and all have non-empty values,
+# die with an error otherwise.
+#
+# Params:
+#   1. Variable name(s) to test.
+#   2. (optional) Error message to print.
+check_defined = \
+    $(strip $(foreach 1,$1, \
+        $(call __check_defined,$1,$(strip $(value 2)))))
+__check_defined = \
+    $(if $(value $1),, \
+      $(error Undefined $1$(if $2, ($2))))
+
 # Check for a ~/ at the beginning of a path variable (TOCK_USERLAND_BASE_DIR).
 # Make will not properly expand this.
 ifdef TOCK_USERLAND_BASE_DIR
@@ -8,11 +25,27 @@ ifdef TOCK_USERLAND_BASE_DIR
     endif
 endif
 
+# Default platform
+TOCK_BOARD ?= storm
 TOCK_USERLAND_BASE_DIR ?= ..
 TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
+
+# Include platform app makefile.
+#  - Should set appropriate TOCK_ARCH for this platform
+#  - Adds rules for loading applications onto this board
+# Conditionally included in case it doesn't exist for a board
+-include $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/Makefile-app
+
+ifndef TOCK_ARCH
+    $(warning The board "$(TOCK_BOARD)" did not specify an architecture)
+    $(warning Defaulting to cortex-m0 for maximum compatibility)
+    $(warning This will result in less efficient code if your platform supports)
+    $(warning a more advanced instruction set. Update the board Makefile-app or)
+    $(warning define TOCK_ARCH in your Makefile to fix.)
+    TOCK_ARCH := cortex-m0
+endif
+
 BUILDDIR ?= build/$(TOCK_ARCH)
-TOCK_BOARD ?= storm
-TOCK_ARCH ?= cortex-m4
 LIBTOCK ?= $(TOCK_USERLAND_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
 
 # PACKAGE_NAME is used to identify the application for IPC and for error reporting
@@ -294,10 +327,6 @@ endif
 .PHONY:
 clean::
 	rm -Rf $(BUILDDIR)
-
-# for programming individual apps, include platform app makefile
-#	conditionally included in case it doesn't exist for a board
--include $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/Makefile-app
 
 
 
