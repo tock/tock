@@ -6,9 +6,7 @@ for mkfile in `find . -maxdepth 3 -name Makefile`; do
 	dir=`dirname $mkfile`
 	if [ $dir == "." ]; then continue; fi
 	pushd $dir > /dev/null
-	echo ""
-	echo "Building $dir"
-	make
+	make clean > /dev/null
 	popd > /dev/null
 done
 

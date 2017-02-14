@@ -10,9 +10,9 @@ extern "C" {
 #define DRIVER_NUM_ISL29035 6
 
 int isl29035_subscribe(subscribe_cb callback, void* userdata);
-int isl29035_start_intensity_reading();
+int isl29035_start_intensity_reading(void);
 
-int isl29035_read_light_intensity();
+int isl29035_read_light_intensity(void);
 
 #ifdef __cplusplus
 }

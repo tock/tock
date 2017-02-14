@@ -8,10 +8,10 @@ extern "C" {
 #endif
 
 /* System calls for an 802.15.4 radio. */
-int radio_init();
+int radio_init(void);
 
 /* Returns 1 if radio is ready, 0 otherwise. */
-int radio_ready();
+int radio_ready(void);
 
 // packet contains the payload of the 802.15.4 packet
 int radio_send(unsigned short addr, const char* packet, unsigned char len);

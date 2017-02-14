@@ -9,9 +9,9 @@ extern "C" {
 #define DRIVER_NUM_SI7021 10
 
 int si7021_set_callback (subscribe_cb callback, void* callback_args);
-int si7021_get_temperature_humidity ();
+int si7021_get_temperature_humidity (void);
 
-int si7021_get_temperature_humidity_sync (int* temperature, int* humidity);
+int si7021_get_temperature_humidity_sync (int* temperature, unsigned* humidity);
 
 #ifdef __cplusplus
 }

@@ -20,7 +20,7 @@ static SensorData_t sensor_data = {
 };
 
 // callback for gpio interrupts
-void gpio_cb (int pin_num,
+static void gpio_cb (int pin_num,
               int pin_val,
               __attribute__ ((unused)) int unused,
               __attribute__ ((unused)) void* userdata) {
@@ -41,7 +41,7 @@ void gpio_cb (int pin_num,
 //  * GPIO input from Hall-effect sensor (door open/close)
 //  * Accelerometer (movement)
 //  and makes that available over RF communication
-int main() {
+int main(void) {
   putstr("*********************\n");
   putstr("Security Application\n");
 

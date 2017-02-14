@@ -12,14 +12,14 @@ public:
 
 class D1: public Base {
 public:
-  virtual void function1() {
+  virtual void function1() override {
     printf("D1 says hello\n");
   };
 };
 
 class D2: public Base {
 public:
-  virtual void function1() {
+  virtual void function1() override {
     printf("D2 says hello\n");
   };
 };

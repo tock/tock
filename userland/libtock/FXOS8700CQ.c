@@ -20,7 +20,7 @@ static void FXOS8700CQ_cb(int x, int y, int z, void* ud) {
   result->fired = true;
 }
 
-double FXOS8700CQ_read_accel_mag() {
+double FXOS8700CQ_read_accel_mag(void) {
   struct fx0_data result = { .fired = false };
   int err;
 
@@ -43,10 +43,10 @@ int FXOS8700CQ_subscribe(subscribe_cb callback, void* userdata) {
   return subscribe(11, 0, callback, userdata);
 }
 
-int FXOS8700CQ_start_accel_reading() {
+int FXOS8700CQ_start_accel_reading(void) {
   return command(11, 1, 0);
 }
-int FXOS8700CQ_start_magnetometer_reading() {
+int FXOS8700CQ_start_magnetometer_reading(void) {
   return command(11, 2, 0);
 }
 

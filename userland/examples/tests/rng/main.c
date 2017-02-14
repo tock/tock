@@ -6,7 +6,7 @@
 
 uint8_t randbuf[256];
 
-int main () {
+int main (void) {
   printf("[RNG] Test App\n");
 
   while (1) {
@@ -20,7 +20,7 @@ int main () {
     	len -= snprintf(buf+(600-len), len, "%02x", randbuf[i]);
     }
     len -= snprintf(buf+(600-len), len, "\n\n");
-    printf(buf);
+    printf("%s\n", buf);
 
     delay_ms(500);
   }

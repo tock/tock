@@ -13,7 +13,7 @@ extern "C" {
 int tmp006_read_sync(int16_t* temp_reading);
 int tmp006_read_async(subscribe_cb callback, void* callback_args);
 int tmp006_start_sampling(uint8_t period, subscribe_cb callback, void* callback_args);
-int tmp006_stop_sampling();
+int tmp006_stop_sampling(void);
 
 #ifdef __cplusplus
 }

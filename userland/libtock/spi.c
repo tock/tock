@@ -1,23 +1,28 @@
 #include "spi.h"
 
-int spi_init() {return 0;}
+__attribute__((const)) int spi_init(void) {return 0;}
 int spi_set_chip_select(unsigned char cs) {return command(4, 3, cs);}
-int spi_get_chip_select()                 {return command(4, 4, 0);}
+int spi_get_chip_select(void)             {return command(4, 4, 0);}
 int spi_set_rate(int rate)                {return command(4, 5, rate);}
-int spi_get_rate()                        {return command(4, 6, 0);}
+int spi_get_rate(void)                    {return command(4, 6, 0);}
 int spi_set_phase(bool phase)             {return command(4, 7, (unsigned char)phase);}
-int spi_get_phase()                       {return command(4, 8, 0);}
+int spi_get_phase(void)                   {return command(4, 8, 0);}
 int spi_set_polarity(bool pol)            {return command(4, 9, (unsigned char)pol);}
-int spi_get_polarity()                    {return command(4, 10, 0);}
-int spi_hold_low()                        {return command(4, 11, 0);}
-int spi_release_low()                     {return command(4, 12, 0);}
+int spi_get_polarity(void)                {return command(4, 10, 0);}
+int spi_hold_low(void)                    {return command(4, 11, 0);}
+int spi_release_low(void)                 {return command(4, 12, 0);}
 
 int spi_write_byte(unsigned char byte) {
   return command(4, 1, byte);
 }
 
 int spi_read_buf(const char* str, size_t len) {
-  return allow(4, 0, (void*)str, len);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+  // in lieu of RO allow
+  void* buf = (void*) str;
+#pragma GCC diagnostic pop
+  return allow(4, 0, buf, len);
 }
 
 static void spi_cb( __attribute__ ((unused)) int unused0,
@@ -31,7 +36,12 @@ int spi_write(const char* str,
               size_t len,
               subscribe_cb cb, bool* cond) {
   int err;
-  err = allow(4, 1, (void*)str, len);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+  // in lieu of RO allow
+  void* buf = (void*) str;
+#pragma GCC diagnostic pop
+  err = allow(4, 1, buf, len);
   if (err < 0 ) {
     return err;
   }

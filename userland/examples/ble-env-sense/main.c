@@ -51,7 +51,7 @@ ble_advdata_manuf_data_t mandata = {
   .data.size   = sizeof(mdata)
 };
 
-void ble_address_set () {
+void ble_address_set (void) {
   // nop
 }
 
@@ -120,7 +120,7 @@ static void temp_callback (int temp_value, int error_code, int unused, void* ud)
  * MAIN
  ******************************************************************************/
 
-int main () {
+int main (void) {
     printf("Starting BLE serialization example\n");
 
     // Setup BLE

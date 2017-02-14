@@ -13,6 +13,6 @@ int led_toggle(int led_num) {
 	return command(DRIVER_NUM_LEDS, 3, led_num);
 }
 
-int led_count() {
+int led_count(void) {
 	return command(DRIVER_NUM_LEDS, 0, 0);
 }

@@ -8,8 +8,8 @@ Values in the Tock kernel can be allocated in three ways:
   2. **Stack allocation** Stack allocated values have a lexically bound
      lifetime. That is, we know by looking at the source code when they will be
      deallocated. When you create a reference to such a value, the Rust type
-     system ensures that reference is used after the value is deallocated by
-     assigning a "lifetime" to the reference.
+     system ensures that reference is never used after the value is deallocated
+     by assigning a "lifetime" to the reference.
 
   3. **Grant values** Values allocated from a process's grant region have a
      runtime-dependent lifetime. For example, when they are deallocated depends
@@ -18,8 +18,8 @@ Values in the Tock kernel can be allocated in three ways:
      values in Tock are done through the `Grant` type, which is owned by its
      referrer.
 
-We'll understand how Rust's notion of lifetimes maps to the lifetimes of values
-in Tock and how this affects the use of different types of values in the
+Next we'll discuss how Rust's notion of lifetimes maps to the lifetimes of
+values in Tock and how this affects the use of different types of values in the
 kernel.
 
 ## Rust lifetimes
@@ -40,11 +40,10 @@ struct Foo<'a> {
 
 defines a data structure `Foo` that contains a reference to another type,
 `Bar`. The reference has a lifetime `'a'`, which is a type parameter of `Foo`.
-Note that `'a` is an arbitrary choice of name for the lifetime (such as `E` in
-a generic `List<E>`) and other choices such as `'b` or `'foo`.
-It is also possible to use the explicit lifetime `'static` rather than a type
-parameter when the reference should always live forever, regardless of how long
-the containing type (e.g. `Foo`) lives:
+Note that `'a` is an arbitrary choice of name for the lifetime, such as `E` in
+a generic `List<E>`.  It is also possible to use the explicit lifetime
+`'static` rather than a type parameter when the reference should always live
+forever, regardless of how long the containing type (e.g. `Foo`) lives:
 
 ```rust
 struct Foo {
@@ -69,7 +68,7 @@ Specifically, two capsules that depend on each other will each have a field
 containing a reference to the other. For example, a client of the timer `Alarm` trait
 needs a reference to an instance of the timer in order to start/stop it, while
 the instance of timer needs a reference to the client in order to propagate
-events. This is handled by the `set_client` function. Which allows the platform
+events. This is handled by the `set_client` function, which allows the platform
 definition to connect objects after creation.
 
 ```rust

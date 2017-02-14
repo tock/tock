@@ -1,11 +1,10 @@
 # Syscalls
 
 This document explains how [system
-calls](https://en.wikipedia.org/wiki/System_call) work in Tock both with
-regards to the kernel and applications. This is documentation of the design
-thoughts behind the current implementation of syscalls rather than a tutorial
-on how to use them in drivers or applications.
-
+calls](https://en.wikipedia.org/wiki/System_call) work in Tock with regards
+to both the kernel and applications. This is a description of the design
+considerations behind the current implementation of syscalls, rather than a
+tutorial on how to use them in drivers or applications.
 
 ## Overview of System Calls in Tock
 
@@ -26,7 +25,7 @@ modes](http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDI
 Second, context switching to the kernel allows it to do other resource handling
 before returning to the application. This could include running other
 applications, servicing queued callbacks, or many other activities. Finally,
-and most importantly, using system call allows applications to be built
+and most importantly, using system calls allows applications to be built
 independently from the kernel. The entire codebase of the kernel could change,
 but as long as the system call interface remains identical, applications do not
 even need to be recompiled to work on the platform. Applications, when
@@ -40,11 +39,11 @@ version uploaded, all without modifying the kernel running on a platform.
 ### Command
 
 The `command` syscall instructs the driver to perform a specific action.
-`command` syscsalls take two arguments: the command number and a 32 bit
+`command` syscalls take two arguments: the command number and a 32 bit
 argument. The command number tells the driver which command was called from
-userspace, and the argument is driver and command number specific. One example
-of the argument being used is in the `led` driver, where the command to turn
-an LED on uses the argument to select which LED.
+userspace, and the argument is specific to the driver and command number.
+One example of the argument being used is in the `led` driver, where the
+command to turn on an LED uses the argument to specify which LED.
 
 Each `command` syscall returns a `int32_t` type. This is commonly used as an
 error code (where a negative value indicates an error), but is also used to
@@ -135,5 +134,6 @@ functionality that is handled by the kernel. `command`, `subscribe`, and
 | 12            | TSL2561          | Light sensor                               |
 | 13            | I2C Master/Slave | Raw I2C interface                          |
 | 14            | RNG              | Random number generator                    |
+| 154           | Radio            | 15.4 radio interface                       |
 | 255           | IPC              | Inter-process communication                |
 

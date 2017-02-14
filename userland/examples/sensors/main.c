@@ -17,7 +17,7 @@ static bool lps25hb = false;
 static bool si7021 = false;
 static bool fxos8700cq = false;
 
-void timer_fired(__attribute__ ((unused)) int arg0,
+static void timer_fired(__attribute__ ((unused)) int arg0,
                  __attribute__ ((unused)) int arg1,
                  __attribute__ ((unused)) int arg2,
                  __attribute__ ((unused)) void* ud) {
@@ -25,7 +25,8 @@ void timer_fired(__attribute__ ((unused)) int arg0,
   int16_t tmp006_temp;
   int tsl2561_lux;
   int lps25hb_pressure;
-  int si7021_temp, si7021_humi;
+  int si7021_temp;
+  unsigned si7021_humi;
   int fxos8700cq_x, fxos8700cq_y, fxos8700cq_z;
 
   if (isl29035)   light = isl29035_read_light_intensity();
@@ -41,7 +42,7 @@ void timer_fired(__attribute__ ((unused)) int arg0,
   if (tsl2561)    printf("TSL2561:    Light:           %d lux\n", tsl2561_lux);
   if (lps25hb)    printf("LPS25HB:    Pressure:        %d\n", lps25hb_pressure);
   if (si7021)     printf("SI7021:     Temperature:     %d deg C\n", si7021_temp/100);
-  if (si7021)     printf("SI7021:     Humidity:        %d%%\n", si7021_humi/100);
+  if (si7021)     printf("SI7021:     Humidity:        %u%%\n", si7021_humi/100);
   if (fxos8700cq) printf("FXOS8700CQ: X:               %d\n", fxos8700cq_x);
   if (fxos8700cq) printf("FXOS8700CQ: Y:               %d\n", fxos8700cq_y);
   if (fxos8700cq) printf("FXOS8700CQ: Z:               %d\n", fxos8700cq_z);
@@ -49,7 +50,7 @@ void timer_fired(__attribute__ ((unused)) int arg0,
   printf("\n");
 }
 
-int main() {
+int main(void) {
   printf("[Sensors] Starting Sensors App.\n");
   printf("[Sensors] All available sensors on the platform will be sampled.\n");
 

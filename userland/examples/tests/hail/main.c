@@ -24,11 +24,12 @@ static void button_callback(__attribute__ ((unused)) int btn_num,
   }
 }
 
-void timer_fired(__attribute__ ((unused)) int arg0,
+static void timer_fired(__attribute__ ((unused)) int arg0,
                  __attribute__ ((unused)) int arg1,
                  __attribute__ ((unused)) int arg2,
                  __attribute__ ((unused)) void* ud) {
-  int temp, humi;
+  int temp;
+  unsigned humi;
   uint32_t accel_mag;
   int light;
   int a0, a1, a2, a3, a4, a5;
@@ -54,7 +55,7 @@ void timer_fired(__attribute__ ((unused)) int arg0,
 
   printf("[Hail Sensor Reading]\n");
   printf("  Temperature:  %d 1/100 degrees C\n", temp);
-  printf("  Humidity:     %d 0.01%%\n", humi);
+  printf("  Humidity:     %u 0.01%%\n", humi);
   printf("  Light:        %d\n", light);
   printf("  Acceleration: %lu\n", accel_mag);
   printf("  A0:           %d mV\n", a0);
@@ -70,7 +71,7 @@ void timer_fired(__attribute__ ((unused)) int arg0,
   printf("\n");
 }
 
-int main() {
+int main(void) {
   printf("[Hail] Test App!\n");
   printf("[Hail] Samples all sensors and transmits over BLE.\n");
   printf("[Hail] Button controls LED.\n");

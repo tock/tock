@@ -9,9 +9,9 @@ extern "C" {
 #define DRIVER_NUM_TSL2561 12
 
 int tsl2561_set_callback (subscribe_cb callback, void* callback_args);
-int tsl2561_get_lux ();
+int tsl2561_get_lux (void);
 
-int tsl2561_get_lux_sync ();
+int tsl2561_get_lux_sync (void);
 
 #ifdef __cplusplus
 }

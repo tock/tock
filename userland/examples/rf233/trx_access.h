@@ -165,7 +165,7 @@ typedef void (*irq_handler_t)(void);
 
 /* === Prototypes =========================================================== */
 
-void trx_irq_init(void (*trx_irq_cb)());
+void trx_irq_init(void (*trx_irq_cb)(void));
 
 #ifdef __cplusplus
 extern "C" {

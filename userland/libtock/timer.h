@@ -32,12 +32,12 @@ int timer_start_repeating(uint32_t interval_ms);
  */
 int timer_oneshot(uint32_t interval_ms);
 
-int timer_stop();
+int timer_stop(void);
 
 /*
  * Get the current counter value of the timer.
  */
-unsigned int timer_read();
+unsigned int timer_read(void);
 
 /*
  * Blocks for the given amount of time in millisecond.
