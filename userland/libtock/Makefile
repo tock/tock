@@ -26,6 +26,8 @@ $(LIBTOCK_BUILDDIR):
 	$(Q)mkdir -p $@
 
 $(LIBTOCK_BUILDDIR)/%.o: $(LIBTOCK_DIR)/%.c | $(LIBTOCK_BUILDDIR)
+	$(TRACE_DEP)
+	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
 	$(TRACE_CC)
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
@@ -41,3 +43,7 @@ $(LIBTOCK_BUILDDIR)/libtock.a: $(LIBTOCK_OBJS) | $(LIBTOCK_BUILDDIR)
 .PHONY: clean
 clean::
 	rm -Rf $(LIBTOCK_BUILDDIR)
+
+# Include dependency rules for picking up header changes (by convention at bottom of makefile)
+LIBTOCK_OBJS_NO_ARCHIVES=$(filter %.o,$(LIBTOCK_OBJS))
+-include $(LIBTOCK_OBJS_NO_ARCHIVES:.o=.d)
