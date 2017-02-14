@@ -18,7 +18,7 @@ This document describes the hardware independent layer interface (HIL)
 for analog-to-digital conversion in the Tock operating system kernel.
 It describes the Rust traits and other definitions for this service
 as well as the reasoning behind them. This document is in full compliance
-with TRD1.
+with <a href="#trd1">TRD1</a>.
 
 1. Introduction
 -------------------------------
@@ -250,4 +250,4 @@ email - pal@cs.stanford.edu
 7. Citations
 ---------------------------------
 
-[TRD1] <trd1-trds.md>
+<a name="trd1"/>[TRD1] <a href="trd1-trds.md">Tock Reference Document (TRD) Structure and Keywords</a>
