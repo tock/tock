@@ -159,9 +159,14 @@ value, the value MUST be left shifted so the most significant bit of
 5. Example Implementation
 ---------------------------------
 
-The SAML CortexM4 microcontroller `chips/sam4l` has an implementation of
-the `AdcSingle` trait in `adc.rs`.  The SAM4L ADC uses generic clock 
-10 (GCLK10). 
+The SAM4L ADC has a flexible ADC, supporting differential
+and single-ended inputs, 8 or 12 bit samples, configurable clocks, 
+reference voltages, and grounds. It supports periodic sampling supported
+by an internal timer.  The SAM4L ADC uses generic clock 10 (GCLK10). 
+
+The current implementation, found in `chips/sam4l/adc.rs`, implements 
+the `AdcSingle` trait.
+
 
 5.1 Initialization
 ---------------------------------
