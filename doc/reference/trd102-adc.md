@@ -163,6 +163,9 @@ The SAM4L ADC has a flexible ADC, supporting differential
 and single-ended inputs, 8 or 12 bit samples, configurable clocks, 
 reference voltages, and grounds. It supports periodic sampling supported
 by an internal timer.  The SAM4L ADC uses generic clock 10 (GCLK10). 
+The ADC is peripheral 38, so its control registers are found at
+address 0x40038000. A complete description of the ADC can be
+found in chapter 38 of the SAM4L datasheet.
 
 The current implementation, found in `chips/sam4l/adc.rs`, implements 
 the `AdcSingle` trait.
