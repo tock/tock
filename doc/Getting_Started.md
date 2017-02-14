@@ -234,10 +234,10 @@ $ userland/tools/program/storm.py userland/examples/blink/build/cortex-m4/app.bi
 For instructions on building, uploading code, and debugging on specific
 boards, see board specific READMEs.
 
+ * [imix](../boards/imix/README.md)
  * [Hail](../boards/hail/README.md)
  * [nRF](../boards/nrf51dk/README.md)
  * [Storm](../boards/storm/README.md)
-
 
 ## Formatting Rust Source Code
 
