@@ -228,7 +228,7 @@ boards, see board specific READMEs.
 
  * [Storm](boards/storm/README.md)
  * [nRF](boards/nrf51dk/README.md)
-
+ * [imix](boards/imix/README.md)
 
 ## Formatting Rust Source Code
 
