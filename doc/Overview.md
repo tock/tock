@@ -71,9 +71,9 @@ Tock is intended to run on Cortex-M microcontrollers, which have
 non-volatile flash memory (for code) and RAM (for stack and data) in a
 single address space. While the Cortex-M architecture specifies a
 high-level layout of the address space, the exact layout of Tock can
-differ from chip to chip. Most chips simply define the beginning and
+differ from board to board. Most boards simply define the beginning and
 end of flash and SRAM in their `layout.ld` file and then include the
-[generic Tock memory map](../chips/kernel_layout.ld).
+[generic Tock memory map](../boards/kernel_layout.ld).
 
 Tock's memory has three major regions: kernel code, process code, and
 RAM: For the SAM4L, these are laid out as follows. This allocation assumes
