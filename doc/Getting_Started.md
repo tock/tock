@@ -235,7 +235,8 @@ For instructions on building, uploading code, and debugging on specific
 boards, see board specific READMEs.
 
  * [imix](../boards/imix/README.md)
- * [nRF51dk](../boards/nrf51dk/README.md)
+ * [Hail](../boards/hail/README.md)
+ * [nRF](../boards/nrf51dk/README.md)
  * [Storm](../boards/storm/README.md)
 
 ## Formatting Rust Source Code
