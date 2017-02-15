@@ -286,7 +286,7 @@ SRAM access is that frame access always starts at index 0, while
 SRAM access has random access (a frame operation is equivalent to an
 SRAM operation with address 0). The implementation only uses register
 and frame operations. The details of these operations can be found
-in Section 6.3 of the RF233 datasheet<a href="#rf233">[RF233]a>.
+in Section 6.3 of the RF233 datasheet<a href="#rf233">[RF233]<a>.
 
 The implementation has 6 high-level states:
 
@@ -333,4 +333,5 @@ email - pal@cs.stanford.edu
 ---------------------------------
 
 <a name="trd1"/>[TRD1] <a href="trd1-trds.md">Tock Reference Document (TRD) Structure and Keywords</a>
+
 <a name="rf233"/>[RF233] <a href="http://www.atmel.com/images/Atmel-8351-MCU_Wireless-AT86RF233_Datasheet.pdf">AT86RF233: Low Power, 2.4GHz Transceiver for ZigBee, RF4CE, IEEE 802.15.4, 6LoWPAN, and ISM Applications</a>
