@@ -33,24 +33,94 @@ separated from the kernel, no longer need to be loaded at the same time as the
 kernel. They could be uploaded at a later time, modified, and then have a new
 version uploaded, all without modifying the kernel running on a platform.
 
+## Process State
+
+In Tock, a process can be in one of three states:
+
+ - **Running**: Normal operation. A Running process is eligible to be scheduled
+ for execution, although is subject to being paused by Tock to allow interrupt
+ handlers or other processes to run. During normal operation, a process remains
+ in the Running state until it explicitly yields. Callbacks from other kernel
+ operations are not delivered to Running processes (i.e. callbacks do not
+ interrupt processes), rather they are enqueued until the process yields.
+ - **Yielded**: Suspended operation. A Yielded process will not be scheduled by
+ Tock. Processes often yield while they are waiting for I/O or other operations
+ to complete and have no immediately useful work to do. Whenever the kernel issues
+ a callback to a Yielded process, the process is transitioned to the Running state.
+ - **Fault**: Erroneous operation. A Fault-ed process will not be scheduled by
+ Tock. Processes enter the Fault state by performing an illegal operation, such
+ as accessing memory outside of their address space.
 
 ## The System Calls
 
-### Command
+All system calls except Yield (which cannot fail) return an integer return code
+value to userspace. Negative return codes indicate an error. Values greater
+than or equal to zero indicate success. Sometimes syscall return values encode
+useful data, for example in the `gpio` driver, the command for reading the
+value of a pin returns 0 or 1 based on the status of the pin.
 
-The `command` syscall instructs the driver to perform a specific action.
-`command` syscalls take two arguments: the command number and a 32 bit
-argument. The command number tells the driver which command was called from
-userspace, and the argument is specific to the driver and command number.
+Currently, the following return codes are defined, also available as `#defines`
+in C from the `tock.h` header:
+
+```rust
+pub enum ReturnCode {
+    SuccessWithValue { value: usize }, // Success value must be >= 0
+    SUCCESS,
+    FAIL, //.......... Generic failure condition
+    EBUSY, //......... Underlying system is busy; retry
+    EALREADY, //...... The state requested is already set
+    EOFF, //.......... The component is powered down
+    ERESERVE, //...... Reservation required before use
+    EINVAL, //........ An invalid parameter was passed
+    ESIZE, //......... Parameter passed was too large
+    ECANCEL, //....... Operation cancelled by a call
+    ENOMEM, //........ Memory required not available
+    ENOSUPPORT, //.... Operation or command is unsupported
+    ENODEVICE, //..... Device does not exist
+    EUNINSTALLED, //.. Device is not physically installed
+}
+```
+
+### 0: Yield
+
+Yield transitions the current process from the Running to the Yielded state, and
+the process will not execute again until another callback re-schedules the process.
+
+If a process has enqueued callbacks waiting to execute when Yield is called, the
+process immediately re-enters the Running state and the first callback runs.
+
+The Yield syscall takes no arguments.
+
+### 1: Subscribe
+
+Subscribe assigns callback functions to be executed in response to various events.
+
+The Subscribe syscall takes two arguments:
+
+ - `subscribe_number`: An integer index for which function is being subscribed
+ - `callback`: A pointer to a callback function to be executed when this event
+ occurs. All callbacks conform to the C-style function signature:
+ `void callback(int arg1, int arg2, int arg3, void* data)`
+
+Individual drivers define a mapping for `subscribe_number` to the events that
+may generate that callback as well as the meaning for each of the `callback`
+arguments.
+
+### 2: Command
+
+Command instructs the driver to perform a specific action.
+
+The Command syscall takes two arguments:
+
+ - `command_number`: An integer specifying the requested command
+ - `argument`: A command-specific argument
+
+The `command_number` tells the driver which command was called from
+userspace, and the `argument` is specific to the driver and command number.
 One example of the argument being used is in the `led` driver, where the
 command to turn on an LED uses the argument to specify which LED.
 
-Each `command` syscall returns a `int32_t` type. This is commonly used as an
-error code (where a negative value indicates an error), but is also used to
-return synchronous data. For example, in the `gpio` driver, the command for
-reading the value of a pin returns 0 or 1 based on the status of the pin.
-
-One Tock convention with the `command` syscall is that command number 0 will always
+One Tock convention with the Command syscall is that command number 0 will always
 return a value of 0 or greater if the driver is supported by the running kernel.
 This means that any application can call command number 0 on any driver number
 to determine if the driver is present and the related functionality is supported.
@@ -59,14 +129,38 @@ is present. In other cases, however, the return value can have an additional
 meaning such as the number of devices present, as is the case in the `led` driver
 to indicate how many LEDs are present on the board.
 
-### Subscribe
+### 3: Allow
 
-### Allow
+Allow marks a region of memory as shared between the kernel and application.
 
-### Yield
+The Allow syscall takes four arguments:
 
-### Memop?!
+ - `driver`: An integer specifying which driver should be granted access
+ - `allow_number`: A driver-specific integer specifying the purpose of this buffer
+ - `pointer`: A pointer to the start of the buffer in the process memory space
+ - `size`: An integer number of bytes specifying the length of the buffer
 
+Many driver commands require that buffers are Allow-ed before they can execute.
+A buffer that has been Allow-ed does not need to be Allow-ed to be used again.
+
+As of this writing, most Tock drivers do not provide multiple virtual devices to
+each application. If one application needs multiple users of a driver (i.e. two
+libraries on top of I2C), each library will need to re-Allow its buffers before
+beginning operations.
+
+### 4: Memop
+
+Memop expands the memory segment available to the process.
+
+The Memop syscall takes two arguments:
+
+ - `op_type`: An integer indicating whether this is a `brk` (0) or a `sbrk` (1)
+ - `argument`: The argument to `brk` or `sbrk`
+
+Both `brk` and `sbrk` adjust the current memory segment. The `argument` to `brk`
+is a pointer indicating the new requested end of memory segment. The `argument`
+to `sbrk` is an integer, indicating the number of bytes to adjust the end of the
+memory segment by.
 
 ## The Context Switch
 
