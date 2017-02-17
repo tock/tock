@@ -85,9 +85,9 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
 
 #[link_section=".vectors"]
 #[no_mangle] // Ensures that the symbol is kept until the final binary
-pub static IRQS: [unsafe extern "C" fn(); 80] = [gpio::gpio11_handler; 80];
+pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
-#[no_mangle]
+/*#[no_mangle]
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     // Perhipheral vectors are defined by Atmel in the SAM4L datasheet section
@@ -172,7 +172,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* TWIM2 */         Option::Some(i2c::twim2_handler),
     /* TWIM3 */         Option::Some(i2c::twim3_handler),
     /* LCDCA */         Option::Some(unhandled_interrupt),
-];
+];*/
 
 pub unsafe fn init() {
 
@@ -199,6 +199,10 @@ pub unsafe fn init() {
         *pdest = 0;
         pdest = pdest.offset(1);
     }
+
+    cortexm4::nvic::disable_all();
+    cortexm4::nvic::clear_all_pending();
+    cortexm4::nvic::enable_all();
 }
 
 unsafe extern "C" fn hard_fault_handler() {

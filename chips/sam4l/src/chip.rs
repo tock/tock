@@ -66,13 +66,15 @@ impl Chip for Sam4l {
     type MPU = cortexm4::mpu::MPU;
     type SysTick = cortexm4::systick::SysTick;
 
+    #[inline(never)]
     fn service_pending_interrupts(&mut self) {
-        use nvic::NvicIdx::*;
+        use nvic::raw::*;
 
         unsafe {
-            let iq = INTERRUPT_QUEUE.as_mut().unwrap();
-            while let Some(interrupt) = iq.dequeue() {
+            loop {
+                let interrupt = cortexm4::nvic::next_pending();
                 match interrupt {
+                    0 => return,
                     ASTALARM => ast::AST.handle_interrupt(),
 
                     USART0 => usart::USART0.handle_interrupt(),
@@ -124,13 +126,15 @@ impl Chip for Sam4l {
                     TRNG => trng::TRNG.handle_interrupt(),
                     _ => {}
                 }
-                nvic::enable(interrupt);
+                let n = cortexm4::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
         }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { INTERRUPT_QUEUE.as_mut().unwrap().has_elements() }
+        unsafe { cortexm4::nvic::has_pending() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
