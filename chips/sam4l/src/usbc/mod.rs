@@ -18,7 +18,6 @@ use kernel::common::take_cell::MapCell;
 use kernel::hil;
 use kernel::hil::usb::*;
 
-use nvic;
 use pm;
 use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
 use scif;
@@ -174,10 +173,6 @@ impl<'a> Usbc<'a> {
                         enable_clock(Clock::HSB(HSBClock::USBC));
                         enable_clock(Clock::PBB(PBBClock::USBC));
 
-                        nvic::disable(nvic::NvicIdx::USBC);
-                        nvic::clear_pending(nvic::NvicIdx::USBC);
-                        nvic::enable(nvic::NvicIdx::USBC);
-
                         // If we got to this state via disable() instead of chip reset,
                         // the values USBCON.FRZCLK, USBCON.UIMOD, UDCON.LS have *not* been
                         // reset to their default values.
@@ -230,8 +225,6 @@ impl<'a> Usbc<'a> {
         self.state.map(|state| if *state != State::Reset {
             unsafe {
                 USBCON_USBE.write(false);
-
-                nvic::disable(nvic::NvicIdx::USBC);
 
                 disable_clock(Clock::PBB(PBBClock::USBC));
                 disable_clock(Clock::HSB(HSBClock::USBC));

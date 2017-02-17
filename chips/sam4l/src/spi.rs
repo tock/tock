@@ -22,7 +22,6 @@ use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
-use nvic;
 use pm;
 
 /// The registers used to interface with the hardware

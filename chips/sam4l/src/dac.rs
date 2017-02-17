@@ -10,7 +10,6 @@ use core::mem;
 use kernel::ReturnCode;
 use kernel::common::VolatileCell;
 use kernel::hil;
-use nvic;
 use pm::{self, Clock, PBAClock};
 
 #[repr(C, packed)]
@@ -61,7 +60,6 @@ impl hil::dac::DacChannel for Dac {
             // Start the APB clock (CLK_DACC)
             unsafe {
                 pm::enable_clock(Clock::PBA(PBAClock::DACC));
-                nvic::enable(nvic::NvicIdx::DACC);
             }
 
             // Reset DACC

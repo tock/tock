@@ -23,7 +23,6 @@ use kernel::common::VolatileCell;
 use kernel::common::math;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use nvic;
 use pm::{self, Clock, PBAClock};
 use scif;
 
@@ -293,7 +292,6 @@ impl Adc {
                 // turn on ADCIFE bus clock. Already set to the same frequency
                 // as the CPU clock
                 pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
-                nvic::enable(nvic::NvicIdx::ADCIFE);
                 // the maximum sampling frequency with the RC clocks is 1/32th of their clock
                 // frequency. This is because of the minimum PRESCAL by a factor of 4 and the
                 // 7+1 cycles needed for conversion in continuous mode. Hence, 4*(7+1)=32.

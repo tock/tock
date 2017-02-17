@@ -16,7 +16,6 @@ use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 
 use kernel::hil;
-use nvic;
 use pm;
 
 // Listing of all registers related to the TWIM peripheral.
@@ -103,8 +102,6 @@ pub struct I2CHw {
     slave_clock: Option<pm::Clock>,
     dma: Cell<Option<&'static DMAChannel>>,
     dma_pids: (DMAPeripheral, DMAPeripheral),
-    nvic: nvic::NvicIdx,
-    slave_nvic: Option<nvic::NvicIdx>,
     master_client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
     slave_client: Cell<Option<&'static hil::i2c::I2CHwSlaveClient>>,
     on_deck: Cell<Option<(DMAPeripheral, usize)>>,
@@ -123,31 +120,23 @@ pub static mut I2C0: I2CHw = I2CHw::new(I2C_BASE_ADDRS[0],
                                         Some(I2C_SLAVE_BASE_ADDRS[0]),
                                         pm::Clock::PBA(pm::PBAClock::TWIM0),
                                         Some(pm::Clock::PBA(pm::PBAClock::TWIS0)),
-                                        nvic::NvicIdx::TWIM0,
-                                        Some(nvic::NvicIdx::TWIS0),
                                         DMAPeripheral::TWIM0_RX,
                                         DMAPeripheral::TWIM0_TX);
 pub static mut I2C1: I2CHw = I2CHw::new(I2C_BASE_ADDRS[1],
                                         Some(I2C_SLAVE_BASE_ADDRS[1]),
                                         pm::Clock::PBA(pm::PBAClock::TWIM1),
                                         Some(pm::Clock::PBA(pm::PBAClock::TWIS1)),
-                                        nvic::NvicIdx::TWIM1,
-                                        Some(nvic::NvicIdx::TWIS1),
                                         DMAPeripheral::TWIM1_RX,
                                         DMAPeripheral::TWIM1_TX);
 pub static mut I2C2: I2CHw = I2CHw::new(I2C_BASE_ADDRS[2],
                                         None,
                                         pm::Clock::PBA(pm::PBAClock::TWIM2),
                                         None,
-                                        nvic::NvicIdx::TWIM2,
-                                        None,
                                         DMAPeripheral::TWIM2_RX,
                                         DMAPeripheral::TWIM2_TX);
 pub static mut I2C3: I2CHw = I2CHw::new(I2C_BASE_ADDRS[3],
                                         None,
                                         pm::Clock::PBA(pm::PBAClock::TWIM3),
-                                        None,
-                                        nvic::NvicIdx::TWIM3,
                                         None,
                                         DMAPeripheral::TWIM3_RX,
                                         DMAPeripheral::TWIM3_TX);
@@ -163,8 +152,6 @@ impl I2CHw {
                  slave_base_addr: Option<*mut TWISRegisters>,
                  master_clock: pm::Clock,
                  slave_clock: Option<pm::Clock>,
-                 nvic: nvic::NvicIdx,
-                 slave_nvic: Option<nvic::NvicIdx>,
                  dma_rx: DMAPeripheral,
                  dma_tx: DMAPeripheral)
                  -> I2CHw {
@@ -175,8 +162,6 @@ impl I2CHw {
             slave_clock: slave_clock,
             dma: Cell::new(None),
             dma_pids: (dma_rx, dma_tx),
-            nvic: nvic,
-            slave_nvic: slave_nvic,
             master_client: Cell::new(None),
             slave_client: Cell::new(None),
             on_deck: Cell::new(None),
@@ -408,18 +393,9 @@ impl I2CHw {
         });
     }
 
-    fn enable_interrupts(&self) {
-        unsafe {
-            nvic::enable(self.nvic);
-        }
-    }
-
     fn disable_interrupts(&self) {
         let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
         regs.interrupt_disable.set(!0);
-        unsafe {
-            nvic::disable(self.nvic);
-        }
     }
 
     /// Handle possible interrupt for TWIS module.
@@ -687,19 +663,10 @@ impl I2CHw {
         }
     }
 
-    fn slave_enable_interrupts(&self) {
-        self.slave_nvic.map(|slave_nvic| unsafe {
-            nvic::enable(slave_nvic);
-        });
-    }
-
     fn slave_disable_interrupts(&self) {
         self.slave_registers.map(|slave_registers| {
             let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
             regs.interrupt_disable.set(!0);
-        });
-        self.slave_nvic.map(|slave_nvic| unsafe {
-            nvic::disable(slave_nvic);
         });
     }
 
@@ -755,8 +722,6 @@ impl hil::i2c::I2CMaster for I2CHw {
 
         // clear interrupts
         regs.status_clear.set(!0);
-
-        self.enable_interrupts();
     }
 
     /// This disables the entire I2C peripheral
@@ -810,9 +775,6 @@ impl hil::i2c::I2CSlave for I2CHw {
 
             // Also setup all of the error interrupts.
             regs.interrupt_enable.set((1 << 14) | (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6));
-
-            // Enable NVIC
-            self.slave_enable_interrupts();
         });
 
         self.slave_enabled.set(true);

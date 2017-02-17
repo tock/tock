@@ -8,7 +8,6 @@ use core::cell::Cell;
 use kernel::common::VolatileCell;
 use kernel::hil::Controller;
 use kernel::hil::time::{self, Alarm, Time, Freq16KHz};
-use nvic;
 use pm::{self, PBDClock};
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
@@ -110,7 +109,6 @@ impl<'a> Ast<'a> {
         while self.busy() {}
         unsafe {
             (*self.regs).scr.set(1 << 8);
-            nvic::clear_pending(nvic::NvicIdx::ASTALARM);
         }
     }
 
@@ -173,7 +171,6 @@ impl<'a> Ast<'a> {
 
     pub fn enable_alarm_irq(&self) {
         unsafe {
-            nvic::enable(nvic::NvicIdx::ASTALARM);
             (*self.regs).ier.set(1 << 8);
         }
     }
@@ -186,7 +183,6 @@ impl<'a> Ast<'a> {
 
     pub fn enable_ovf_irq(&mut self) {
         unsafe {
-            nvic::enable(nvic::NvicIdx::ASTOVF);
             (*self.regs).ier.set(1);
         }
     }
@@ -199,7 +195,6 @@ impl<'a> Ast<'a> {
 
     pub fn enable_periodic_irq(&mut self) {
         unsafe {
-            nvic::enable(nvic::NvicIdx::ASTPER);
             (*self.regs).ier.set(1 << 16);
         }
     }

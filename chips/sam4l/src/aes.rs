@@ -6,7 +6,6 @@ use core::mem;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use nvic;
 use pm;
 use scif;
 
@@ -87,9 +86,6 @@ impl Aes {
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
 
         self.enable_clock();
-        unsafe {
-            nvic::enable(nvic::NvicIdx::AESA);
-        }
         regs.ctrl.set(0x01);
     }
 
@@ -97,9 +93,6 @@ impl Aes {
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
 
         regs.ctrl.set(0x00);
-        unsafe {
-            nvic::disable(nvic::NvicIdx::AESA);
-        }
         self.disable_clock();
     }
 
@@ -113,10 +106,6 @@ impl Aes {
 
     fn enable_interrupts(&self) {
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
-
-        unsafe {
-            nvic::clear_pending(nvic::NvicIdx::AESA);
-        }
 
         // We want both interrupts.
         regs.ier.set((1 << 16) | (1 << 0));

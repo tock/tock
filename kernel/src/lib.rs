@@ -49,6 +49,7 @@ pub fn main<P: Platform, C: Chip>(platform: &P,
 
     loop {
         unsafe {
+
             chip.service_pending_interrupts();
 
             for (i, p) in processes.iter_mut().enumerate() {
@@ -63,7 +64,7 @@ pub fn main<P: Platform, C: Chip>(platform: &P,
             support::atomic(|| if !chip.has_pending_interrupts() && process::processes_blocked() {
                 chip.prepare_for_sleep();
                 support::wfi();
-            })
+            });
         };
     }
 }

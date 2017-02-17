@@ -5,7 +5,6 @@ use core::cell::Cell;
 use kernel::common::VolatileCell;
 
 use kernel::common::take_cell::TakeCell;
-use nvic;
 use pm;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
@@ -118,27 +117,25 @@ pub enum DMAWidth {
     Width32Bit = 2,
 }
 
-pub static mut DMA_CHANNELS: [DMAChannel; 16] =
-    [DMAChannel::new(DMAChannelNum::DMAChannel00, nvic::NvicIdx::PDCA0),
-     DMAChannel::new(DMAChannelNum::DMAChannel01, nvic::NvicIdx::PDCA1),
-     DMAChannel::new(DMAChannelNum::DMAChannel02, nvic::NvicIdx::PDCA2),
-     DMAChannel::new(DMAChannelNum::DMAChannel03, nvic::NvicIdx::PDCA3),
-     DMAChannel::new(DMAChannelNum::DMAChannel04, nvic::NvicIdx::PDCA4),
-     DMAChannel::new(DMAChannelNum::DMAChannel05, nvic::NvicIdx::PDCA5),
-     DMAChannel::new(DMAChannelNum::DMAChannel06, nvic::NvicIdx::PDCA6),
-     DMAChannel::new(DMAChannelNum::DMAChannel07, nvic::NvicIdx::PDCA7),
-     DMAChannel::new(DMAChannelNum::DMAChannel08, nvic::NvicIdx::PDCA8),
-     DMAChannel::new(DMAChannelNum::DMAChannel09, nvic::NvicIdx::PDCA9),
-     DMAChannel::new(DMAChannelNum::DMAChannel10, nvic::NvicIdx::PDCA10),
-     DMAChannel::new(DMAChannelNum::DMAChannel11, nvic::NvicIdx::PDCA11),
-     DMAChannel::new(DMAChannelNum::DMAChannel12, nvic::NvicIdx::PDCA12),
-     DMAChannel::new(DMAChannelNum::DMAChannel13, nvic::NvicIdx::PDCA13),
-     DMAChannel::new(DMAChannelNum::DMAChannel14, nvic::NvicIdx::PDCA14),
-     DMAChannel::new(DMAChannelNum::DMAChannel15, nvic::NvicIdx::PDCA15)];
+pub static mut DMA_CHANNELS: [DMAChannel; 16] = [DMAChannel::new(DMAChannelNum::DMAChannel00),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel01),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel02),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel03),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel04),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel05),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel06),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel07),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel08),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel09),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel10),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel11),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel12),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel13),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel14),
+                                                 DMAChannel::new(DMAChannelNum::DMAChannel15)];
 
 pub struct DMAChannel {
     registers: *mut DMARegisters,
-    nvic: nvic::NvicIdx,
     client: Cell<Option<&'static DMAClient>>,
     width: Cell<DMAWidth>,
     enabled: Cell<bool>,
@@ -150,10 +147,9 @@ pub trait DMAClient {
 }
 
 impl DMAChannel {
-    const fn new(channel: DMAChannelNum, nvic: nvic::NvicIdx) -> DMAChannel {
+    const fn new(channel: DMAChannelNum) -> DMAChannel {
         DMAChannel {
             registers: (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE) as *mut DMARegisters,
-            nvic: nvic,
             client: Cell::new(None),
             width: Cell::new(DMAWidth::Width8Bit),
             enabled: Cell::new(false),
@@ -182,8 +178,6 @@ impl DMAChannel {
             let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
             registers.interrupt_disable.set(0xffffffff);
 
-            unsafe { nvic::enable(self.nvic) };
-
             self.enabled.set(true);
         }
     }
@@ -200,14 +194,12 @@ impl DMAChannel {
             let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
             registers.control.set(0x2);
             self.enabled.set(false);
-            unsafe {
-                nvic::disable(self.nvic);
-            }
         }
     }
 
     pub fn handle_interrupt(&mut self) {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+        registers.interrupt_disable.set(0xffffffff);
         let channel = registers.peripheral_select.get();
 
         self.client.get().as_mut().map(|client| { client.xfer_done(channel); });

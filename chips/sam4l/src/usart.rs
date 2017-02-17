@@ -11,7 +11,6 @@ use kernel::common::VolatileCell;
 // other modules
 use kernel::hil;
 // local modules
-use nvic;
 use pm;
 
 // Register map for SAM4L USART
@@ -80,7 +79,6 @@ enum UsartClient<'a> {
 pub struct USART {
     registers: *mut USARTRegisters,
     clock: pm::Clock,
-    nvic: nvic::NvicIdx,
 
     usart_mode: Cell<UsartMode>,
 
@@ -102,36 +100,30 @@ pub struct USART {
 // USART hardware peripherals on SAM4L
 pub static mut USART0: USART = USART::new(USART_BASE_ADDRS[0],
                                           pm::PBAClock::USART0,
-                                          nvic::NvicIdx::USART0,
                                           dma::DMAPeripheral::USART0_RX,
                                           dma::DMAPeripheral::USART0_TX);
 pub static mut USART1: USART = USART::new(USART_BASE_ADDRS[1],
                                           pm::PBAClock::USART1,
-                                          nvic::NvicIdx::USART1,
                                           dma::DMAPeripheral::USART1_RX,
                                           dma::DMAPeripheral::USART1_TX);
 pub static mut USART2: USART = USART::new(USART_BASE_ADDRS[2],
                                           pm::PBAClock::USART2,
-                                          nvic::NvicIdx::USART2,
                                           dma::DMAPeripheral::USART2_RX,
                                           dma::DMAPeripheral::USART2_TX);
 pub static mut USART3: USART = USART::new(USART_BASE_ADDRS[3],
                                           pm::PBAClock::USART3,
-                                          nvic::NvicIdx::USART3,
                                           dma::DMAPeripheral::USART3_RX,
                                           dma::DMAPeripheral::USART3_TX);
 
 impl USART {
     const fn new(base_addr: *mut USARTRegisters,
                  clock: pm::PBAClock,
-                 nvic: nvic::NvicIdx,
                  rx_dma_peripheral: dma::DMAPeripheral,
                  tx_dma_peripheral: dma::DMAPeripheral)
                  -> USART {
         USART {
             registers: base_addr,
             clock: pm::Clock::PBA(clock),
-            nvic: nvic,
 
             usart_mode: Cell::new(UsartMode::Unused),
 
@@ -254,7 +246,6 @@ impl USART {
     }
 
     pub fn enable_tx_empty_interrupt(&self) {
-        self.enable_nvic();
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         regs.ier.set(1 << 9);
     }
@@ -265,7 +256,6 @@ impl USART {
     }
 
     pub fn enable_rx_error_interrupts(&self) {
-        self.enable_nvic();
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         let ier_val = 0x00000000 |
             (1 <<  7) | // PARE
@@ -284,8 +274,6 @@ impl USART {
             (1 <<  5) | // OVRE
             (1 << 1); //.. RXRDY
         regs.idr.set(idr_val);
-
-        // XXX: disable nvic if no interrupts are enabled
     }
 
     pub fn disable_tx_interrupts(&self) {
@@ -294,12 +282,9 @@ impl USART {
             (1 << 9) | // TXEMPTY
             (1 << 1); //. TXREADY
         regs.idr.set(idr_val);
-
-        // XXX: disable nvic if no interrupts are enabled
     }
 
     pub fn disable_interrupts(&self) {
-        self.disable_nvic();
         self.disable_rx_interrupts();
         self.disable_tx_interrupts();
     }
@@ -320,7 +305,6 @@ impl USART {
     }
 
     pub fn handle_interrupt(&self) {
-
         // only handle interrupts if the clock is enabled for this peripheral.
         // Now, why are we occasionally getting interrupts with the clock
         // disabled? That is a good question that I don't have the answer to.
@@ -376,18 +360,6 @@ impl USART {
         unsafe { pm::is_clock_enabled(self.clock) }
     }
 
-    fn enable_nvic(&self) {
-        unsafe {
-            nvic::enable(self.nvic);
-        }
-    }
-
-    fn disable_nvic(&self) {
-        unsafe {
-            nvic::disable(self.nvic);
-        }
-    }
-
     fn set_mode(&self, mode: u32) {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         regs.mr.set(mode);
@@ -429,7 +401,6 @@ impl USART {
 
         // enable timeout interrupt
         regs.ier.set((1 << 8)); // TIMEOUT
-        self.enable_nvic();
 
         // start timeout
         regs.cr.set((1 << 11)); // STTTO

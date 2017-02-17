@@ -11,8 +11,6 @@ use flashcalw;
 use gpio;
 use i2c;
 use kernel::Chip;
-use kernel::common::{RingBuffer, Queue};
-use nvic;
 use pm;
 use spi;
 use trng;
@@ -24,15 +22,8 @@ pub struct Sam4l {
     pub systick: &'static cortexm4::systick::SysTick,
 }
 
-const IQ_SIZE: usize = 100;
-static mut IQ_BUF: [nvic::NvicIdx; IQ_SIZE] = [nvic::NvicIdx::HFLASHC; IQ_SIZE];
-pub static mut INTERRUPT_QUEUE: Option<RingBuffer<'static, nvic::NvicIdx>> = None;
-
-
 impl Sam4l {
     pub unsafe fn new() -> Sam4l {
-        INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
-
         usart::USART0.set_dma(&mut dma::DMA_CHANNELS[0], &mut dma::DMA_CHANNELS[1]);
         dma::DMA_CHANNELS[0].initialize(&mut usart::USART0, dma::DMAWidth::Width8Bit);
         dma::DMA_CHANNELS[1].initialize(&mut usart::USART0, dma::DMAWidth::Width8Bit);
@@ -77,11 +68,10 @@ impl Chip for Sam4l {
     type SysTick = cortexm4::systick::SysTick;
 
     fn service_pending_interrupts(&mut self) {
-        use nvic::NvicIdx::*;
+        use nvic::*;
 
         unsafe {
-            let iq = INTERRUPT_QUEUE.as_mut().unwrap();
-            while let Some(interrupt) = iq.dequeue() {
+            while let Some(interrupt) = cortexm4::nvic::next_pending() {
                 match interrupt {
                     ASTALARM => ast::AST.handle_interrupt(),
 
@@ -139,15 +129,19 @@ impl Chip for Sam4l {
 
                     TRNG => trng::TRNG.handle_interrupt(),
                     AESA => aes::AES.handle_interrupt(),
-                    _ => {}
+                    _ => {
+                        panic!("unhandled interrupt {}", interrupt);
+                    }
                 }
-                nvic::enable(interrupt);
+                let n = cortexm4::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
         }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { INTERRUPT_QUEUE.as_mut().unwrap().has_elements() }
+        unsafe { cortexm4::nvic::has_pending() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

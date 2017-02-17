@@ -3,7 +3,6 @@
 use core::cell::Cell;
 use kernel::common::VolatileCell;
 use kernel::hil::rng::{self, Continue};
-use nvic;
 use pm;
 
 #[repr(C)]
@@ -83,7 +82,6 @@ impl<'a> rng::RNG for Trng<'a> {
         let regs = unsafe { &*self.regs };
         unsafe {
             pm::enable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
-            nvic::enable(nvic::NvicIdx::TRNG);
         }
 
         regs.control.set(KEY | 1);
