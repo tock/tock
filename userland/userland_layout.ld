@@ -93,6 +93,16 @@ SECTIONS {
         _ebss = .;
     } > SRAM
 
+/*
+ * __NOTE__: The following symbols are used only to pass information
+ * through the elf -> tbf -> Tock kernel.
+ *
+ * The kernel will place the stack at the beginning of the SRAM section so
+ * that stack overflows run off the end of the memory segment and trigger an
+ * MPU violation instead of overwriting data/got/bss information. This means
+ * the actual location of symbols in those sections in memory will be offset
+ * by STACK_SIZE.
+ */
     .stack :
     {
         _stack = .;

@@ -15,7 +15,7 @@ __attribute__ ((section(".start"), used))
 __attribute__ ((noreturn))
 void _start(
     __attribute__((unused))void* mem_start,
-    __attribute__((unused))void* app_memory_break,
+    __attribute__((unused))void* app_heap_break,
     __attribute__((unused))void* kernel_memory_break) {
   main();
   while(1) { yield(); }
