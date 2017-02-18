@@ -8,7 +8,7 @@ struct adc_data {
   bool fired;
 };
 
-struct adc_data result = { .fired = false };
+static struct adc_data result = { .fired = false };
 
 // Internal callback for faking synchronous reads
 static void adc_cb(__attribute__ ((unused)) int callback_type,

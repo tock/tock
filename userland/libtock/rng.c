@@ -6,7 +6,7 @@ struct rng_data {
   int received;
 };
 
-struct rng_data result = { .fired = false, .received = 0};
+static struct rng_data result = { .fired = false, .received = 0};
 
 // Internal callback for faking synchronous reads
 static void rng_cb(__attribute__ ((unused)) int callback_type,
