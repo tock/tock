@@ -348,6 +348,11 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
             // Setup this device's slave address.
             6 => {
                 let address = data as u8;
+                // We do not count the R/W bit as part of the address, so the
+                // valid range is 0x00-0x7f
+                if address > 0x7f {
+                    return ReturnCode::EINVAL;
+                }
                 hil::i2c::I2CSlave::set_address(self.i2c, address);
                 ReturnCode::SUCCESS
             }

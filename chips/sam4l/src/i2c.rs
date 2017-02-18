@@ -714,7 +714,7 @@ impl I2CHw {
             let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
 
             // Enable and configure
-            let control = (((self.my_slave_address.get() as usize) & 0x3F) << 16) |
+            let control = (((self.my_slave_address.get() as usize) & 0x7F) << 16) |
                            (1 << 14) | // SOAM - stretch on address match
                            (1 << 13) | // CUP - count nbytes up
                            (1 << 4)  | // STREN - stretch clock enable
