@@ -62,6 +62,16 @@ STACK_SIZE       ?= 2048
 APP_HEAP_SIZE    ?= 1024
 KERNEL_HEAP_SIZE ?= 1024
 
+ifdef HEAP_SIZE
+    $(warning The variable HEAP_SIZE is set but will not be used.)
+    $(warning Tock has two heaps, the application heap which is memory your program)
+    $(warning uses and the kernel heap or grant regions, which is memory dynamically)
+    $(warning allocated by drivers on behalf of your program.)
+    $(warning )
+    $(warning These regions are controlled by the APP_HEAP_SIZE and KERNEL_HEAP_SIZE)
+    $(warning variables respectively.)
+endif
+
 TOOLCHAIN := arm-none-eabi
 AR := $(TOOLCHAIN)-ar
 AS := $(TOOLCHAIN)-as
