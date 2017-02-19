@@ -10,7 +10,7 @@ use kernel::hil::adc::{Client, AdcSingle};
 #[derive(Default)]
 pub struct AppData {
     channel: Option<u8>,
-    callback: Option<Callback>
+    callback: Option<Callback>,
 }
 
 pub struct ADC<'a, A: AdcSingle + 'a> {
@@ -33,16 +33,18 @@ impl<'a, A: AdcSingle + 'a> ADC<'a, A> {
     }
 
     fn sample(&self, channel: u8, appid: AppId) -> ReturnCode {
-        self.app.enter(appid, |app, _| {
-            app.channel = Some(channel);
+        self.app
+            .enter(appid, |app, _| {
+                app.channel = Some(channel);
 
-            if self.channel.get().is_none() {
-                self.channel.set(Some(channel));
-                self.adc.sample(channel)
-            } else {
-                ReturnCode::SUCCESS
-            }
-        }).unwrap_or(ReturnCode::ENOMEM)
+                if self.channel.get().is_none() {
+                    self.channel.set(Some(channel));
+                    self.adc.sample(channel)
+                } else {
+                    ReturnCode::SUCCESS
+                }
+            })
+            .unwrap_or(ReturnCode::ENOMEM)
     }
 }
 
@@ -50,20 +52,14 @@ impl<'a, A: AdcSingle + 'a> Client for ADC<'a, A> {
     fn sample_done(&self, sample: u16) {
         self.channel.get().map(|cur_channel| {
             self.channel.set(None);
-            self.app.each(|app| {
-                if app.channel == Some(cur_channel) {
-                    app.channel = None;
-                    app.callback.map(|mut cb|
-                        cb.schedule(0, cur_channel as usize, sample as usize)
-                    );
-                } else if app.channel.is_some() {
-                    self.channel.set(app.channel);
-                }
+            self.app.each(|app| if app.channel == Some(cur_channel) {
+                app.channel = None;
+                app.callback.map(|mut cb| cb.schedule(0, cur_channel as usize, sample as usize));
+            } else if app.channel.is_some() {
+                self.channel.set(app.channel);
             });
         });
-        self.channel.get().map(|next_channel| {
-            self.adc.sample(next_channel);
-        });
+        self.channel.get().map(|next_channel| { self.adc.sample(next_channel); });
     }
 }
 
@@ -72,9 +68,10 @@ impl<'a, A: AdcSingle + 'a> Driver for ADC<'a, A> {
         match subscribe_num {
             // subscribe to ADC sample done
             0 => {
-                self.app.enter(callback.app_id(), |app, _| {
-                    app.callback = Some(callback);
-                }).unwrap_or(());
+                self.app
+                    .enter(callback.app_id(),
+                           |app, _| { app.callback = Some(callback); })
+                    .unwrap_or(());
                 ReturnCode::SUCCESS
             }
 
