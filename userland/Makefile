@@ -162,7 +162,6 @@ CPPFLAGS += -Wredundant-decls #          # { int i; int i; } (a lint)
 CPPFLAGS += -Wshadow #                   # int foo(int a) { int a = 1; } inner a shadows outer a
 CPPFLAGS += -Wsuggest-attribute=const    # does what it sounds like
 CPPFLAGS += -Wsuggest-attribute=pure     # does what it sounds like
-CPPFLAGS += -Wswitch-enum #              # switch on an enum doesn't cover all cases
 CPPFLAGS += -Wtrampolines #              # attempt to generate a trampoline on the NX stack
 CPPFLAGS += -Wunused-macros #            # macro defined in this file not used
 CPPFLAGS += -Wunused-parameter #         # function parameter is unused aside from its declaration
@@ -188,6 +187,8 @@ CPPFLAGS += -Wwrite-strings #            # { char* c = "foo"; c[0] = 'b' } <-- "
 #CPPFLAGS += -Wpedantic                   # strict ISO C/C++
 #CPPFLAGS += -Wsign-conversion            # implicit integer sign conversions, part of -Wconversion
 #CPPFLAGS += -Wstack-protector            # only if -fstack-protector, on by default, warn fn not protect
+#CPPFLAGS += -Wswitch-enum #              # switch of enum doesn't explicitly cover all cases
+#                                         ^ annoying in practice, let default: do its job
 #CPPFLAGS += -Wsystem-headers             # warnings from system headers
 #CPPFLAGS += -Wtraditional                # stuff gcc allows that "traditional" C doesn't
 #CPPFLAGS += -Wundef                      # undefined identifier is evaluated in an `#if' directive
