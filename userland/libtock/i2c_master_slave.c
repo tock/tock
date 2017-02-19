@@ -59,7 +59,9 @@ int i2c_master_slave_set_slave_address(uint8_t address) {
   return command(DRIVER_NUM_I2CMASTERSLAVE, 6, address);
 }
 
-
+int i2c_master_slave_enable_slave_read(uint32_t len) {
+  return command(DRIVER_NUM_I2CMASTERSLAVE, 4, len);
+}
 
 int i2c_master_slave_write_sync(uint8_t address, uint8_t len) {
   int err;
