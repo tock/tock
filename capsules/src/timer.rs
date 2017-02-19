@@ -122,7 +122,15 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                         self.num_armed.set(self.num_armed.get() + 1);
                     }
 
-                    td.t0 = self.alarm.now();
+                    let now = self.alarm.now();
+                    let freq = <A::Frequency>::frequency() / 1000;
+                    let now_mod = now % freq;
+                    let now_adjusted = if now_mod >= freq / 2 {
+                        now - now_mod + 1
+                    } else {
+                        now - now_mod
+                    };
+                    td.t0 = now_adjusted;
                     td.interval = interval;
 
                     // Repeat if cmd_type was 2
