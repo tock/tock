@@ -28,9 +28,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
             }
         }
 
-        LED {
-            pins_init: pins_init,
-        }
+        LED { pins_init: pins_init }
     }
 }
 
