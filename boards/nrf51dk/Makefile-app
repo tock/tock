@@ -9,6 +9,6 @@ NRF_LOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf51dk.py
 # upload programs to nrf51dk
 .PHONY: flash
 .SECONDEXPANSION:
-flash: $$(BUILDDIR)/app.bin
-	@:$(call check_defined, BUILDDIR)
-	$(NRF_LOAD) $(BUILDDIR)/app.bin
+flash: $$(BOARD_BUILDDIR)/app.bin
+	@:$(call check_defined, BOARD_BUILDDIR)
+	$(NRF_LOAD) $(BOARD_BUILDDIR)/app.bin
