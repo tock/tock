@@ -129,6 +129,7 @@ impl kernel::Platform for Platform {
             36 => f(Some(self.temp)),
             _ => f(None),
         }
+    }
 }
 
 #[no_mangle]
