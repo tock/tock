@@ -110,22 +110,24 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
     led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
+    aes_ccm: &'static capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
 }
 
 
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
-    {
-        match driver_num {
-            0 => f(Some(self.console)),
-            1 => f(Some(self.gpio)),
-            3 => f(Some(self.timer)),
-            8 => f(Some(self.led)),
-            9 => f(Some(self.button)),
-            _ => f(None),
+        {
+            match driver_num {
+                0 => f(Some(self.console)),
+                1 => f(Some(self.gpio)),
+                3 => f(Some(self.timer)),
+                8 => f(Some(self.led)),
+                9 => f(Some(self.button)),
+                35 => f(Some(self.aes_ccm)),
+                _ => f(None),
+            }
         }
-    }
 }
 
 #[no_mangle]
@@ -149,9 +151,9 @@ pub unsafe fn reset_handler() {
     let button_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 4],
         [&nrf51::gpio::PORT[BUTTON1_PIN], // 17
-         &nrf51::gpio::PORT[BUTTON2_PIN], // 18
-         &nrf51::gpio::PORT[BUTTON3_PIN], // 19
-         &nrf51::gpio::PORT[BUTTON4_PIN], // 20
+        &nrf51::gpio::PORT[BUTTON2_PIN], // 18
+        &nrf51::gpio::PORT[BUTTON3_PIN], // 19
+        &nrf51::gpio::PORT[BUTTON4_PIN], // 20
         ],
         4 * 4);
     let button = static_init!(
@@ -167,16 +169,16 @@ pub unsafe fn reset_handler() {
     let gpio_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 11],
         [&nrf51::gpio::PORT[1],  // Bottom left header on DK board
-         &nrf51::gpio::PORT[2],  //   |
-         &nrf51::gpio::PORT[3],  //   V
-         &nrf51::gpio::PORT[4],  //
-         &nrf51::gpio::PORT[5],  //
-         &nrf51::gpio::PORT[6],  // -----
-         &nrf51::gpio::PORT[16], //
-         &nrf51::gpio::PORT[15], //
-         &nrf51::gpio::PORT[14], //
-         &nrf51::gpio::PORT[13], //
-         &nrf51::gpio::PORT[12], //
+        &nrf51::gpio::PORT[2],  //   |
+        &nrf51::gpio::PORT[3],  //   V
+        &nrf51::gpio::PORT[4],  //
+        &nrf51::gpio::PORT[5],  //
+        &nrf51::gpio::PORT[6],  // -----
+        &nrf51::gpio::PORT[16], //
+        &nrf51::gpio::PORT[15], //
+        &nrf51::gpio::PORT[14], //
+        &nrf51::gpio::PORT[13], //
+        &nrf51::gpio::PORT[12], //
         ],
         4 * 11);
 
@@ -189,16 +191,16 @@ pub unsafe fn reset_handler() {
     }
 
     nrf51::uart::UART0.configure(Pinmux::new(9),
-                                 Pinmux::new(11),
-                                 Pinmux::new(10),
-                                 Pinmux::new(8));
+    Pinmux::new(11),
+    Pinmux::new(10),
+    Pinmux::new(8));
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
                                         115200,
                                         &mut capsules::console::WRITE_BUF,
                                         kernel::Container::create()),
-        224/8);
+                                        224/8);
     UART::set_client(&nrf51::uart::UART0, console);
     console.initialize();
 
@@ -223,8 +225,14 @@ pub unsafe fn reset_handler() {
         TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
         TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
-        12);
+                         12);
     virtual_alarm1.set_client(timer);
+    
+    let aes_ccm = static_init!(
+        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
+        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
+    nrf51::aes_ccm::AESCCM.ccm_init();
+    nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
@@ -243,6 +251,7 @@ pub unsafe fn reset_handler() {
         console: console,
         led: led,
         button: button,
+        aes_ccm: aes_ccm,
     };
 
     alarm.start();
