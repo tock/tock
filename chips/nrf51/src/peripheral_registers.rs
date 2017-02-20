@@ -58,3 +58,30 @@ pub struct TEMP_REGS {
     pub _reserved3: [u32; 127], // 0x30c - 0x508
     pub TEMP: VolatileCell<u32>, // 0x508 - 0x50c
 }
+pub const AESCCM_BASE: usize = 0x4000F000;
+#[no_mangle]
+#[allow(non_snake_case)]
+#[repr(C, packed)]
+pub struct AESCCM_REGS {
+    pub KSGEN: VolatileCell<u32>,                       // 0x000 - 0x004
+    pub CRYPT: VolatileCell<u32>,                       // 0x004 - 0x008
+    pub STOP: VolatileCell<u32>,                        // 0x008 - 0x00c
+    pub _reserved1: [u32; 61],                          // 0x00c - 0x100
+    pub ENDKSGEN: VolatileCell<u32>,                    // 0x100 - 0x104
+    pub ENDCRYPT: VolatileCell<u32>,                    // 0x104 - 0x108
+    pub ERROR: VolatileCell<u32>,                       // 0x108 - 0x10c
+    pub _reserved2: [u32; 61],                          // 0x10c - 0x200
+    pub SHORTS: VolatileCell<u32>,                      // 0x200 - 0x204
+    pub _reserved3: [u32; 64],                          // 0x204 - 0x304
+    pub INTENSET: VolatileCell<u32>,                    // 0x304 - 0x308
+    pub INTENCLR: VolatileCell<u32>,                    // 0x308 - 0x30c
+    pub _reserved4: [u32; 61],                          // 0x30c - 0x400
+    pub MICSTATUS: VolatileCell<u32>,                   // 0x400 - 0x404
+    pub _reserved5: [u32; 63],                          // 0x404 - 0x500
+    pub ENABLE: VolatileCell<u32>,                      // 0x500 - 0x504
+    pub MODE: VolatileCell<u32>,                        // 0x504 - 0x508
+    pub CNFPTR: VolatileCell<u32>,                      // 0x508 - 0x50c
+    pub INPTR: VolatileCell<u32>,                       // 0x50c - 0x510
+    pub OUTPTR: VolatileCell<u32>,                      // 0x510 - 0x514
+    pub SCRATCHPTR: VolatileCell<u32>,                  // 0x514 - 0x518
+}
