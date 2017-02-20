@@ -18,4 +18,5 @@ pub mod timer;
 pub mod clock;
 pub mod uart;
 pub mod pinmux;
+pub mod aes_ccm;
 pub use chip::NRF51;
