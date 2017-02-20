@@ -193,9 +193,9 @@ pub unsafe fn reset_handler() {
     }
 
     nrf51::uart::UART0.configure(Pinmux::new(9),
-                                 Pinmux::new(11),
-                                 Pinmux::new(10),
-                                 Pinmux::new(8));
+    Pinmux::new(11),
+    Pinmux::new(10),
+    Pinmux::new(8));
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
@@ -229,6 +229,12 @@ pub unsafe fn reset_handler() {
                          kernel::Container::create()),
                          12);
     virtual_alarm1.set_client(timer);
+    
+    let aes_ccm = static_init!(
+        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
+        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
+    nrf51::aes_ccm::AESCCM.ccm_init();
+    nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
 
     let aes_ccm = static_init!(
         capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
@@ -280,5 +286,4 @@ pub unsafe fn reset_handler() {
                  &mut chip,
                  load_process(),
                  &kernel::ipc::IPC::new());
-
 }
