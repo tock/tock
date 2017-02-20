@@ -32,7 +32,7 @@ ifdef TOCK_USERLAND_BASE_DIR
 endif
 
 # Default platform
-TOCK_BOARD ?= storm
+TOCK_BOARD ?= nrf51dk
 TOCK_USERLAND_BASE_DIR ?= ..
 TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
 
