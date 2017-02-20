@@ -98,7 +98,8 @@ ELF2TBF_ARGS += -n $(PACKAGE_NAME)
 
 # Collect all desired built output.
 OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
-OBJS += $(patsubst %.cc,$(BUILDDIR)/%.o,$(CXX_SRCS))
+OBJS += $(patsubst %.cc,$(BUILDDIR)/%.o,$(filter %.cc, $(CXX_SRCS)))
+OBJS += $(patsubst %.cpp,$(BUILDDIR)/%.o,$(filter %.cpp, $(CXX_SRCS)))
 
 ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
 
@@ -285,6 +286,12 @@ $(BUILDDIR)/%.o: %.c | $(BUILDDIR)
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 $(BUILDDIR)/%.o: %.cc | $(BUILDDIR)
+	$(TRACE_DEP)
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
+	$(TRACE_CXX)
+	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+$(BUILDDIR)/%.o: %.cpp | $(BUILDDIR)
 	$(TRACE_DEP)
 	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
 	$(TRACE_CXX)
