@@ -4,7 +4,7 @@
 
 #define SIZE 16
 
-static char plaintext[SIZE];
+static char data[SIZE+4];
 
 static void callback(int cb, int len,
     __attribute__ ((unused)) int arg2,
@@ -16,35 +16,50 @@ static void callback(int cb, int len,
 
   if ( cb == 1 ) 
   {
-    printf("CIPHERTEXT: \r\n");
-    for (int i = 0; i < SIZE; i++) {
-      printf("%d ", plaintext[i]);
+    printf("CIPHERTEXT + 4 BYTES MIC: \r\n");
+    for (int i = 0; i < SIZE+4; i++) {
+      printf("%d ", data[i]);
     }
     printf("\r\n");
   }
+
+  if ( cb == 2 ) 
+  {
+    printf("PLAINTEXT: \r\n");
+    for (int i = 0; i < 16; i++) {
+      printf("%d ", data[i]);
+    }
+    printf("\r\n");
+  }
+
 }
 
 int main(void)
 {
   char key[SIZE];
 
-  for (int i = 0; i < SIZE; i++) {
-    plaintext[i] = 9;
-    key[i] = 1;
+  for (int i = 0; i < 16; i++) {
+    key[i] = i;
+  }
+
+  for (int i = 0; i < 20; i++) {
+    data[i] = i;
   }
 
   // SUBSCRIBE
   aes_ccm_init(callback, NULL);
-
-  for (int i = 0; i < 1; i++) {
+  int config = aes_ccm_configure_key(key, 16);
+  
+  for (int i = 0; i < 5; i++) {
     // ALLOW + COMMAND
-    int config = aes_ccm_configure_key(key, SIZE);
-
-    delay_ms(1000);
-    int enc = aes_ccm_encrypt(plaintext, SIZE);
-
-    /** int dec = aes_ccm_decrypt(plaintext, SIZE); */
-    /** printf("decrypt return %d\n", dec); */
+    delay_ms(500);
+    if (aes_ccm_encrypt(data, SIZE) < 0) {
+      printf("encrypt error\r\n");
+    }
+    delay_ms(500);
+    if (aes_ccm_decrypt(data, SIZE) < 0) {
+      printf("decrypt error\r\n");
+    }
   }
   return 0;
 }
