@@ -112,7 +112,7 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
-            1 => {
+            1  => {
                 self.apps
                     .enter(appid, |app, _| {
                         app.ct_buf = Some(slice);
