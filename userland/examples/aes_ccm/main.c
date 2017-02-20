@@ -31,6 +31,16 @@ static void callback(int cb, int len,
     }
     printf("\r\n");
   }
+
+  if ( cb == 2 ) 
+  {
+    printf("PLAINTEXT: \r\n");
+    for (int i = 0; i < 16; i++) {
+      printf("%d ", data[i]);
+    }
+    printf("\r\n");
+  }
+
 }
 
 int main(void)
