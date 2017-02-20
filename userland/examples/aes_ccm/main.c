@@ -31,7 +31,6 @@ static void callback(int cb, int len,
     }
     printf("\r\n");
   }
-
 }
 
 int main(void)
