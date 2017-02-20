@@ -145,7 +145,7 @@ OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -
 
 CPPFLAGS += -Wdate-time #                # warn if __TIME__, __DATE__, or __TIMESTAMP__ used
                                          # ^on b/c flashing assumes same code => no flash, these enforce
-CPPFLAGS += -Wduplicated-cond #          # if (p->q != NULL) { ... } else if (p->q != NULL) { ... }
+#CPPFLAGS += -Wduplicated-cond #          # if (p->q != NULL) { ... } else if (p->q != NULL) { ... }
 CPPFLAGS += -Wfloat-equal #              # floats used with '=' operator, likely imprecise
 CPPFLAGS += -Wformat-nonliteral #        # can't check format string (maybe disable if annoying)
 CPPFLAGS += -Wformat-security #          # using untrusted format strings (maybe disable)
@@ -157,7 +157,7 @@ CPPFLAGS += -Wmissing-field-initializers # if init'ing struct w/out field names,
 CPPFLAGS += -Wmissing-format-attribute # # something looks printf-like but isn't marked as such
 CPPFLAGS += -Wmissing-noreturn #         # __attribute__((noreturn)) like -> ! in Rust, should use it
 CPPFLAGS += -Wmultichar #                # use of 'foo' instead of "foo" (surpised not on by default?)
-CPPFLAGS += -Wnull-dereference #         # deref of NULL (thought on if -fdelete-null-pointer-checks, in -Os, but no?)
+#CPPFLAGS += -Wnull-dereference #         # deref of NULL (thought on if -fdelete-null-pointer-checks, in -Os, but no?)
 CPPFLAGS += -Wpointer-arith #            # sizeof things not define'd (i.e. sizeof(void))
 CPPFLAGS += -Wredundant-decls #          # { int i; int i; } (a lint)
 CPPFLAGS += -Wshadow #                   # int foo(int a) { int a = 1; } inner a shadows outer a
