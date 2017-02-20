@@ -11,97 +11,38 @@ use peripheral_registers::{AESCCM_REGS, AESCCM_BASE};
 
 
 // maybe make this to a struct later
-// byte 0-15 ke
-// byte 16-24 packet counters
-// byte 25-32 IV
+// byte  0-15       ;;  Key
+// byte  16-24      ;;  Packet counters
+// byte  25-32      ;;  IV
 static mut CCM_DATA: [u8; 32] = [0; 32];
 
 
-// byte 0       ;;  Header
-// byte 1       ;;  Length
-// byte 2       ;;  NOT used
-// byte 3-30     ;;  PAYLOAD
+// byte 0           ;;  Header
+// byte 1           ;;  Length
+// byte 2           ;;  NOT used
+// byte 3-30        ;;  PAYLOAD
 // TOTAL PACKET =  Header(1 byte) + Length(1 byte) + RFU (1 byte) + PAYLOAD(27 bytes) = 30
-
 static mut IN_DATA: [u8; 30] = [0; 30];
 
-// byte 0       ;;  Header
-// byte 1       ;;  Length+4
-// byte 2       ;;  NOT used
-// byte 3-30     ;; Encrypted PAYLOAD
-// byte 3-34    ;;  MIC
+// byte 0           ;;  Header
+// byte 1           ;;  Length+4
+// byte 2           ;;  NOT used
+// byte 3-30        ;; Encrypted PAYLOAD
+// byte 3-34        ;;  MIC
 // TOTAL PACKET =  Header(1 byte) + Length(1 byte) + RFU (1 byte) + PAYLOAD(27 bytes) + MIC 4 bytes = 34
-
 static mut OUT_DATA: [u8; 34] = [0; 34];
 
 // scratchdata for temp usage
 static mut TMP: [u8; 32] = [0; 32];
 
-
-// struct CCM {
-//     key: [u8; 16],
-//     packet_cnt: [u8; 8],
-//     iv: [u8; 8],
-// }
-//
-// impl CCM {
-//     const fn new() -> CCM {
-//         CCM {
-//             key: [0; 16],
-//             packet_cnt: [0; 8],
-//             iv: [0; 8],
-//         }
-//     }
-// }
-//
-// struct IN {
-//     header: u8,
-//     len: u8,
-//     rfu: u8,
-//     payload: [u8; 27],
-// }
-//
-// impl IN {
-//     const fn new() -> IN {
-//         IN {
-//             header: 0,
-//             len: 0,
-//             rfu: 0,
-//             payload: [0; 27],
-//         }
-//     }
-// }
-//
-// struct OUT {
-//     header: u8,
-//     len: u8,
-//     rfu: u8,
-//     payload: [u8; 27],
-//     mic: [u8; 4],
-// }
-//
-// impl OUT {
-//     const fn new() -> OUT {
-//         OUT {
-//             header: 0,
-//             len: 0,
-//             rfu: 0,
-//             payload: [0; 27],
-//             mic: [0; 4],
-//         }
-//     }
-// }
-
-
-
-#[deny(no_mangle_const_items)]
-#[no_mangle]
 pub struct AesCCM {
     regs: *mut AESCCM_REGS,
     client: Cell<Option<&'static Client>>,
-    ccm_data: [u8; 32],
-    in_data: [u8; 30],
-    out_data: [u8; 34],
+    // TODO didn't got it work, i.e. to mutate data in struct as "&mut self"
+    // ccm_data: [u8; 32],
+    // in_data: [u8; 30],
+    // out_data: [u8; 34],
+    // tmp: [u8; 32],
     len: Cell<u8>,
 }
 
@@ -112,24 +53,16 @@ impl AesCCM {
         AesCCM {
             regs: AESCCM_BASE as *mut AESCCM_REGS,
             client: Cell::new(None),
-            ccm_data: [0; 32],
-            in_data: [0; 30],
-            out_data: [0; 34],
+            // ccm_data: [0; 32],
+            // in_data: [0; 30],
+            // out_data: [0; 34],
+            // tmp: [0; 32],
             len: Cell::new(0),
         }
     }
 
     pub fn ccm_init(&self) {
         let regs: &mut AESCCM_REGS = unsafe { mem::transmute(self.regs) };
-        // CNFPTR       ;;  datastructure (key, nonce)
-        // INPTR        ;;  indata
-        // OUTPTR       ;;  outdata
-        // SCRATCHDATA  ;;  temporary storage upon key generation
-        // regs.CNFPTR.set((&self.ccm_data as *const u8) as u32);
-        // regs.INPTR.set((&self.in_data as *const u8) as u32);
-        // regs.OUTPTR.set((&OUT_DATA as *const u8) as u32);
-        // regs.SCRATCHPTR.set((&TMP as *const u8) as u32);
-
         unsafe {
             regs.CNFPTR.set((&CCM_DATA as *const u8) as u32);
             regs.INPTR.set((&IN_DATA as *const u8) as u32);
@@ -146,7 +79,6 @@ impl AesCCM {
                 CCM_DATA[i] = *c;
             }
         }
-        // MOVE THIS LATER
         unsafe {
             self.client
                 .get()
@@ -155,7 +87,7 @@ impl AesCCM {
     }
 
     fn encrypt(&self, pt: &'static mut [u8], len: u8) {
-        // TODO features for bigger payload than 27 bytes
+        // TODO features for bigger payload than 27 bytes preferable handled in capsules
         if len > 27 {
             panic!("UN-SUPPORTED UNECR PAYLOAD LEN\r\n");
         }
@@ -177,7 +109,7 @@ impl AesCCM {
         }
 
         if regs.ERROR.get() != 0 {
-            panic!("ENCRYPTION ERROR  before CRYPT {}\r\n", regs.ERROR.get());
+            panic!("ENCRYPTION ERROR before CRYPT {}\r\n", regs.ERROR.get());
         }
 
         // set encryption mode
@@ -192,7 +124,7 @@ impl AesCCM {
     }
 
     fn decrypt(&self, ct: &'static mut [u8], len: u8) {
-        // TODO features for bigger payload than 27 bytes
+        // TODO features for bigger payload than 27 bytes preferable handled in capsules
         if len > 31 {
             panic!("UN-SUPPORTED ENC PAYLOAD LEN\r\n");
         }
