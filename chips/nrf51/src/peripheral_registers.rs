@@ -58,6 +58,7 @@ pub struct TEMP_REGS {
     pub _reserved3: [u32; 127], // 0x30c - 0x508
     pub TEMP: VolatileCell<u32>, // 0x508 - 0x50c
 }
+
 pub const AESCCM_BASE: usize = 0x4000F000;
 #[no_mangle]
 #[allow(non_snake_case)]
