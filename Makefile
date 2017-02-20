@@ -1,5 +1,5 @@
 # default board
-TOCK_BOARD ?= storm
+TOCK_BOARD ?= nrf51dk
 
 
 # rules for making the kernel

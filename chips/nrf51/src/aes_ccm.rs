@@ -148,7 +148,9 @@ impl AesCCM {
         }
         // MOVE THIS LATER
         unsafe {
-            self.client.get().map(|client| client.set_key_done(&mut CCM_DATA[0 .. len as usize], len));
+            self.client
+                .get()
+                .map(|client| client.set_key_done(&mut CCM_DATA[0..len as usize], len));
         }
     }
 
@@ -170,7 +172,7 @@ impl AesCCM {
         // mutate payload
         for (i, c) in pt.as_ref()[0..self.len.get() as usize].iter().enumerate() {
             unsafe {
-                IN_DATA[i+3] = *c;
+                IN_DATA[i + 3] = *c;
             }
         }
 
@@ -204,7 +206,7 @@ impl AesCCM {
         // mutate payload
         for (i, c) in ct.as_ref()[0..self.len.get() as usize].iter().enumerate() {
             unsafe {
-                IN_DATA[i+3] = *c;
+                IN_DATA[i + 3] = *c;
             }
         }
 
@@ -249,14 +251,18 @@ impl AesCCM {
                 unsafe {
                     // ct + MIC
                     // panic!("LEN: {:?}\r\n OUT_DATA: {:?}\r\n", self.len.get(), OUT_DATA);
-                    self.client.get().map(|client| client.encrypt_done(&mut OUT_DATA[3..], self.len.get()+4 ));
+                    self.client
+                        .get()
+                        .map(|client| client.encrypt_done(&mut OUT_DATA[3..], self.len.get() + 4));
                 }
             }
             // Decryption Mode
             else if regs.MODE.get() == 1 {
                 unsafe {
                     // pt
-                    self.client.get().map(|client| client.decrypt_done(&mut OUT_DATA[3..], self.len.get()-4 ));
+                    self.client
+                        .get()
+                        .map(|client| client.decrypt_done(&mut OUT_DATA[3..], self.len.get() - 4));
                 }
             }
         }
