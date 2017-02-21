@@ -39,7 +39,7 @@
 
 extern crate cortexm0;
 extern crate capsules;
-#[macro_use(static_init)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate nrf51;
 
@@ -135,18 +135,17 @@ pub unsafe fn reset_handler() {
     nrf51::init();
 
     // LEDs
-    let led_pins = static_init!(
-        [&'static nrf51::gpio::GPIOPin; 4],
-        [&nrf51::gpio::PORT[LED1_PIN], // 21
-        &nrf51::gpio::PORT[LED2_PIN], // 22
-        &nrf51::gpio::PORT[LED3_PIN], // 23
-        &nrf51::gpio::PORT[LED4_PIN], // 24
+        [(&'static nrf51::gpio::GPIOPin, capsules::led::ActivationMode); 4],
+        [(&nrf51::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow), // 21
+         (&nrf51::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow), // 22
+         (&nrf51::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow), // 23
+         (&nrf51::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow), // 24
         ],
-        4 * 4);
+        256/8);
     let led = static_init!(
         capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveLow),
-        96/8);
+        capsules::led::LED::new(led_pins),
+        64/8);
 
     let button_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 4],
@@ -185,7 +184,7 @@ pub unsafe fn reset_handler() {
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
-        20);
+        224/8);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
@@ -203,6 +202,13 @@ pub unsafe fn reset_handler() {
                                         224/8);
     UART::set_client(&nrf51::uart::UART0, console);
     console.initialize();
+
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(
+        capsules::console::App,
+        capsules::console::App::default(),
+        480/8);
+    kernel::debug::assign_console_driver(Some(console), kc);
 
     let alarm = &nrf51::rtc::RTC;
     alarm.start();
@@ -253,6 +259,7 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
+    debug!("Initialization complete. Entering main loop");
     kernel::main(&platform,
                  &mut chip,
                  load_process(),

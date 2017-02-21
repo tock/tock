@@ -1,3 +1,8 @@
+# Remove built-in rules and variables
+# n.b. no-op for make --version < 4.0
+MAKEFLAGS += -r
+MAKEFLAGS += -R
+
 TOOLCHAIN ?= arm-none-eabi
 
 SIZE      ?= $(TOOLCHAIN)-size

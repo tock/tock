@@ -14,7 +14,6 @@
 use core::cell::Cell;
 use core::mem;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
-use helpers::*;
 use kernel::common::take_cell::TakeCell;
 use kernel::common::volatile_cell::VolatileCell;
 
@@ -26,24 +25,24 @@ use pm;
 // Section 27.9 of the datasheet
 #[repr(C, packed)]
 #[allow(dead_code)]
-struct Registers {
-    control: usize,
-    clock_waveform_generator: usize,
-    smbus_timing: usize,
-    command: usize,
-    next_command: usize,
-    receive_holding: usize,
-    transmit_holding: usize,
-    status: usize,
-    interrupt_enable: usize,
-    interrupt_disable: usize,
-    interrupt_mask: usize,
-    status_clear: usize,
-    parameter: usize,
-    version: usize,
-    hsmode_clock_waveform_generator: usize,
-    slew_rate: usize,
-    hsmod_slew_rate: usize,
+struct TWIMRegisters {
+    control: VolatileCell<u32>,
+    clock_waveform_generator: VolatileCell<u32>,
+    smbus_timing: VolatileCell<u32>,
+    command: VolatileCell<u32>,
+    next_command: VolatileCell<u32>,
+    receive_holding: VolatileCell<u32>,
+    transmit_holding: VolatileCell<u32>,
+    status: VolatileCell<u32>,
+    interrupt_enable: VolatileCell<u32>,
+    interrupt_disable: VolatileCell<u32>,
+    interrupt_mask: VolatileCell<u32>,
+    status_clear: VolatileCell<u32>,
+    parameter: VolatileCell<u32>,
+    version: VolatileCell<u32>,
+    hsmode_clock_waveform_generator: VolatileCell<u32>,
+    slew_rate: VolatileCell<u32>,
+    hsmod_slew_rate: VolatileCell<u32>,
 }
 
 // Listing of all registers related to the TWIS peripheral.
@@ -70,10 +69,10 @@ struct TWISRegisters {
 }
 
 // The addresses in memory (7.1 of manual) of the TWIM peripherals
-const I2C_BASE_ADDRS: [*mut Registers; 4] = [0x40018000 as *mut Registers,
-                                             0x4001C000 as *mut Registers,
-                                             0x40078000 as *mut Registers,
-                                             0x4007C000 as *mut Registers];
+const I2C_BASE_ADDRS: [*mut TWIMRegisters; 4] = [0x40018000 as *mut TWIMRegisters,
+                                                 0x4001C000 as *mut TWIMRegisters,
+                                                 0x40078000 as *mut TWIMRegisters,
+                                                 0x4007C000 as *mut TWIMRegisters];
 
 // The addresses in memory (7.1 of manual) of the TWIM peripherals
 const I2C_SLAVE_BASE_ADDRS: [*mut TWISRegisters; 2] = [0x40018400 as *mut TWISRegisters,
@@ -100,7 +99,7 @@ pub enum Speed {
 
 // This represents an abstraction of the peripheral hardware.
 pub struct I2CHw {
-    registers: *mut Registers, // Pointer to the I2C registers in memory
+    registers: *mut TWIMRegisters, // Pointer to the I2C registers in memory
     slave_registers: Option<*mut TWISRegisters>, // Pointer to the I2C TWIS registers in memory
     master_clock: pm::Clock,
     slave_clock: Option<pm::Clock>,
@@ -162,7 +161,7 @@ pub const ACKLAST: usize = 1 << 24;
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
 impl I2CHw {
-    const fn new(base_addr: *mut Registers,
+    const fn new(base_addr: *mut TWIMRegisters,
                  slave_base_addr: Option<*mut TWISRegisters>,
                  master_clock: pm::Clock,
                  slave_clock: Option<pm::Clock>,
@@ -172,7 +171,7 @@ impl I2CHw {
                  dma_tx: DMAPeripheral)
                  -> I2CHw {
         I2CHw {
-            registers: base_addr as *mut Registers,
+            registers: base_addr as *mut TWIMRegisters,
             slave_registers: slave_base_addr,
             master_clock: master_clock,
             slave_clock: slave_clock,
@@ -220,8 +219,8 @@ impl I2CHw {
 
         let cwgr = ((exp & 0x7) << 28) | ((data & 0xF) << 24) | ((stasto & 0xFF) << 16) |
                    ((high & 0xFF) << 8) | ((low & 0xFF) << 0);
-        let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
-        write_volatile(&mut regs.clock_waveform_generator, cwgr as usize);
+        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        regs.clock_waveform_generator.set(cwgr);
     }
 
     pub fn set_dma(&self, dma: &'static DMAChannel) {
@@ -238,11 +237,11 @@ impl I2CHw {
 
     pub fn handle_interrupt(&self) {
         use kernel::hil::i2c::Error;
-        let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
+        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
 
-        let old_status = read_volatile(&regs.status);
+        let old_status = regs.status.get();
 
-        write_volatile(&mut regs.status_clear, !0);
+        regs.status_clear.set(!0);
 
         let err = match old_status {
             x if x & (1 <<  8) != 0 /*ANACK*/  => Some(Error::AddressNak),
@@ -256,14 +255,14 @@ impl I2CHw {
         self.on_deck.set(None);
         match on_deck {
             None => {
-                write_volatile(&mut regs.command, 0);
-                write_volatile(&mut regs.next_command, 0);
+                regs.command.set(0);
+                regs.next_command.set(0);
 
                 err.map(|err| {
                     // enable, reset, disable
-                    write_volatile(&mut regs.control, 0x1 << 0);
-                    write_volatile(&mut regs.control, 0x1 << 7);
-                    write_volatile(&mut regs.control, 0x1 << 1);
+                    regs.control.set(0x1 << 0);
+                    regs.control.set(0x1 << 7);
+                    regs.control.set(0x1 << 1);
 
                     self.master_client.get().map(|client| {
                         let buf = match self.dma.get() {
@@ -279,26 +278,62 @@ impl I2CHw {
                 });
             }
             Some((dma_periph, len)) => {
-                // Enable transaction error interrupts
-                write_volatile(&mut regs.interrupt_enable,
-                               (1 << 3)    // CCOMP   - Command completed
-                               | (1 << 8)    // ANAK   - Address not ACKd
-                               | (1 << 9)    // DNAK   - Data not ACKd
-                               | (1 << 10)); // ARBLST - Abitration lost
-                self.dma.get().map(|dma| {
-                    let buf = dma.abort_xfer().unwrap();
-                    dma.prepare_xfer(dma_periph, buf, len);
-                    dma.start_xfer();
-                });
+                // Check to see if we are only trying to get one byte. If we
+                // are, and the RXRDY bit is already set, then we already have
+                // that byte in the RHR register. If we setup DMA after we
+                // have the single byte we are looking for, everything breaks
+                // because we will never get another byte and therefore
+                // no more interrupts. So, we just read the byte we have
+                // and call this I2C command complete.
+                if (len == 1) && (old_status & 0x01 != 0) {
+                    regs.command.set(0);
+                    regs.next_command.set(0);
+
+                    err.map(|err| {
+                        // enable, reset, disable
+                        regs.control.set(0x1 << 0);
+                        regs.control.set(0x1 << 7);
+                        regs.control.set(0x1 << 1);
+
+                        self.master_client.get().map(|client| {
+                            let buf = match self.dma.get() {
+                                Some(dma) => {
+                                    let b = dma.abort_xfer();
+                                    self.dma.set(Some(dma));
+                                    b
+                                }
+                                None => None,
+                            };
+                            buf.map(|buf| {
+                                // Save the already read byte.
+                                buf[0] = regs.receive_holding.get() as u8;
+                                client.command_complete(buf, err);
+                            });
+                        });
+                    });
+
+
+                } else {
+                    // Enable transaction error interrupts
+                    regs.interrupt_enable.set((1 << 3)    // CCOMP   - Command completed
+                                   | (1 << 8)    // ANAK   - Address not ACKd
+                                   | (1 << 9)    // DNAK   - Data not ACKd
+                                   | (1 << 10)); // ARBLST - Arbitration lost
+                    self.dma.get().map(|dma| {
+                        let buf = dma.abort_xfer().unwrap();
+                        dma.prepare_xfer(dma_periph, buf, len);
+                        dma.start_xfer();
+                    });
+                }
             }
         }
     }
 
     fn setup_xfer(&self, chip: u8, flags: usize, read: bool, len: u8) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
+        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
 
         // disable before configuring
-        write_volatile(&mut regs.control, 0x1 << 1);
+        regs.control.set(0x1 << 1);
 
         let read = if read { 1 } else { 0 };
         let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
@@ -307,22 +342,21 @@ impl I2CHw {
                     | (1 << 15) // VALID
                     | (len as usize) << 16 // NBYTES (at most 255)
                     | read;
-        write_volatile(&mut regs.command, command);
-        write_volatile(&mut regs.next_command, 0);
+        regs.command.set(command as u32);
+        regs.next_command.set(0);
 
         // Enable transaction error interrupts
-        write_volatile(&mut regs.interrupt_enable,
-                       (1 << 3)    // CCOMP   - Command completed
+        regs.interrupt_enable.set((1 << 3)    // CCOMP   - Command completed
                        | (1 << 8)    // ANAK   - Address not ACKd
                        | (1 << 9)    // DNAK   - Data not ACKd
                        | (1 << 10)); // ARBLST - Abitration lost
     }
 
     fn setup_nextfer(&self, chip: u8, flags: usize, read: bool, len: u8) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
+        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
 
         // disable before configuring
-        write_volatile(&mut regs.control, 0x1 << 1);
+        regs.control.set(0x1 << 1);
 
         let read = if read { 1 } else { 0 };
         let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
@@ -331,17 +365,17 @@ impl I2CHw {
                     | (1 << 15) // VALID
                     | (len as usize) << 16 // NBYTES (at most 255)
                     | read;
-        write_volatile(&mut regs.next_command, command);
+        regs.next_command.set(command as u32);
 
         // Enable
-        write_volatile(&mut regs.control, 0x1 << 0);
+        regs.control.set(0x1 << 0);
     }
 
     fn master_enable(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
+        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
 
         // Enable to begin transfer
-        write_volatile(&mut regs.control, 0x1 << 0);
+        regs.control.set(0x1 << 0);
 
     }
 
@@ -383,8 +417,8 @@ impl I2CHw {
     }
 
     fn disable_interrupts(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
-        write_volatile(&mut regs.interrupt_disable, !0);
+        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        regs.interrupt_disable.set(!0);
         unsafe {
             nvic::disable(self.nvic);
         }
@@ -680,7 +714,7 @@ impl I2CHw {
             let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
 
             // Enable and configure
-            let control = (((self.my_slave_address.get() as usize) & 0x3F) << 16) |
+            let control = (((self.my_slave_address.get() as usize) & 0x7F) << 16) |
                            (1 << 14) | // SOAM - stretch on address match
                            (1 << 13) | // CUP - count nbytes up
                            (1 << 4)  | // STREN - stretch clock enable
@@ -710,29 +744,29 @@ impl hil::i2c::I2CMaster for I2CHw {
             pm::disable_clock(slave_clock);
         });
 
-        let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
+        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
 
         // enable, reset, disable
-        write_volatile(&mut regs.control, 0x1 << 0);
-        write_volatile(&mut regs.control, 0x1 << 7);
-        write_volatile(&mut regs.control, 0x1 << 1);
+        regs.control.set(0x1 << 0);
+        regs.control.set(0x1 << 7);
+        regs.control.set(0x1 << 1);
 
         // Init the bus speed
         self.set_bus_speed();
 
         // slew
-        write_volatile(&mut regs.slew_rate, (0x2 << 28) | (7 << 16) | (7 << 0));
+        regs.slew_rate.set((0x2 << 28) | (7 << 16) | (7 << 0));
 
         // clear interrupts
-        write_volatile(&mut regs.status_clear, !0);
+        regs.status_clear.set(!0);
 
         self.enable_interrupts();
     }
 
     /// This disables the entire I2C peripheral
     fn disable(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
-        write_volatile(&mut regs.control, 0x1 << 1);
+        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        regs.control.set(0x1 << 1);
         unsafe {
             pm::disable_clock(self.master_clock);
         }

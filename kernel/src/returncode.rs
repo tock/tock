@@ -19,6 +19,7 @@ pub enum ReturnCode {
     ENOMEM, //........ Memory required not available
     ENOSUPPORT, //.... Operation or command is unsupported
     ENODEVICE, //..... Device does not exist
+    EUNINSTALLED, //.. Device is not physically installed
 }
 
 impl From<ReturnCode> for isize {
@@ -37,6 +38,7 @@ impl From<ReturnCode> for isize {
             ReturnCode::ENOMEM => -9,
             ReturnCode::ENOSUPPORT => -10,
             ReturnCode::ENODEVICE => -11,
+            ReturnCode::EUNINSTALLED => -12,
         }
     }
 }

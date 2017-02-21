@@ -4,6 +4,8 @@
 #![no_std]
 
 extern crate cortexm4;
+#[allow(unused_imports)]
+#[macro_use(debug)]
 extern crate kernel;
 
 #[macro_use]

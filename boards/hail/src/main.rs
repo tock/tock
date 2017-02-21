@@ -1,10 +1,10 @@
 #![no_std]
 #![no_main]
-#![feature(const_fn,lang_items)]
+#![feature(asm,const_fn,lang_items)]
 
 extern crate capsules;
 extern crate cortexm4;
-#[macro_use(static_init)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate sam4l;
 
@@ -196,7 +196,7 @@ pub unsafe fn reset_handler() {
         Nrf51822Serialization::new(&usart::USART3,
                                    &mut nrf51822_serialization::WRITE_BUF,
                                    &mut nrf51822_serialization::READ_BUF),
-        544/8);
+        608/8);
     hil::uart::UART::set_client(&usart::USART3, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
@@ -224,7 +224,7 @@ pub unsafe fn reset_handler() {
         capsules::si7021::SI7021::new(si7021_i2c,
             si7021_virtual_alarm,
             &mut capsules::si7021::BUFFER),
-        288/8);
+        352/8);
     si7021_i2c.set_client(si7021);
     si7021_virtual_alarm.set_client(si7021);
 
@@ -238,7 +238,7 @@ pub unsafe fn reset_handler() {
         capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         capsules::isl29035::Isl29035::new(isl29035_i2c, isl29035_virtual_alarm,
                                           &mut capsules::isl29035::BUF),
-        320/8);
+        384/8);
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
@@ -258,7 +258,7 @@ pub unsafe fn reset_handler() {
     let fxos8700 = static_init!(
         capsules::fxos8700_cq::Fxos8700cq<'static>,
         capsules::fxos8700_cq::Fxos8700cq::new(fxos8700_i2c, &mut capsules::fxos8700_cq::BUF),
-        288/8);
+        352/8);
     fxos8700_i2c.set_client(fxos8700);
 
     // Initialize and enable SPI HAL
@@ -283,22 +283,22 @@ pub unsafe fn reset_handler() {
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(syscall_spi_device),
-        608/8);
+        672/8);
 
     spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
     syscall_spi_device.set_client(spi_syscalls);
 
     // LEDs
     let led_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 3],
-        [&sam4l::gpio::PA[13],  // Red
-         &sam4l::gpio::PA[15],  // Green
-         &sam4l::gpio::PA[14]], // Blue
-        3 * 4);
+        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 3],
+        [(&sam4l::gpio::PA[13], capsules::led::ActivationMode::ActiveLow),  // Red
+         (&sam4l::gpio::PA[15], capsules::led::ActivationMode::ActiveLow),  // Green
+         (&sam4l::gpio::PA[14], capsules::led::ActivationMode::ActiveLow)], // Blue
+        192/8);
     let led = static_init!(
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveLow),
-        96/8);
+        capsules::led::LED::new(led_pins),
+        64/8);
 
     // BUTTONs
     let button_pins = static_init!(
@@ -316,8 +316,8 @@ pub unsafe fn reset_handler() {
     // Setup ADC
     let adc = static_init!(
         capsules::adc::ADC<'static, sam4l::adc::Adc>,
-        capsules::adc::ADC::new(&mut sam4l::adc::ADC),
-        160/8);
+        capsules::adc::ADC::new(&mut sam4l::adc::ADC, kernel::Container::create()),
+        96/8);
     sam4l::adc::ADC.set_client(adc);
 
     // Setup RNG
@@ -340,7 +340,7 @@ pub unsafe fn reset_handler() {
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
-        20);
+        224/8);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
@@ -370,6 +370,13 @@ pub unsafe fn reset_handler() {
     sam4l::gpio::PA[17].set();
 
     hail.console.initialize();
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(
+        capsules::console::App,
+        capsules::console::App::default(),
+        480/8);
+    kernel::debug::assign_console_driver(Some(hail.console), kc);
+
     hail.nrf51822.initialize();
 
     let mut chip = sam4l::chip::Sam4l::new();
@@ -378,5 +385,6 @@ pub unsafe fn reset_handler() {
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
+    debug!("Initialization complete. Entering main loop");
     kernel::main(&hail, &mut chip, load_processes(), &hail.ipc);
 }

@@ -2,10 +2,15 @@
 
 CURRENT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-TOCK_ARCH ?= cortex-m4
+ifndef TOCK_ARCH
+  $(error TOCK_ARCH not set)
+endif
+ifndef BUILDDIR
+  $(error BUILDDIR nor set)
+endif
+
 TOCK_USERLAND_BASE_DIR = $(abspath $(CURRENT_DIR)/..)
 TOCK_BASE_DIR = $(abspath $(CURRENT_DIR)/../../)
-BUILDDIR ?= $(abspath build/$(TOCK_ARCH))
 
 PROJECT_NAME = $(shell basename "$(realpath ./)")
 
@@ -342,7 +347,6 @@ else
 	TRACE_CCM = @echo "CC -M      " $<
 endif
 
-CPPFLAGS += -DSTACK_SIZE=2048
 CFLAGS   += -std=gnu11
 CPPFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/libtock -g -mcpu=$(TOCK_ARCH) -mthumb -mfloat-abi=soft
 CPPFLAGS += \

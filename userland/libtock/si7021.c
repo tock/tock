@@ -14,21 +14,21 @@ static void cb(int temp,
                int humidity,
                __attribute__ ((unused)) int unused,
                void* ud) {
-  struct data* result = (struct data*) ud;
-  result->temp = temp;
-  result->humi = humidity;
-  result->fired = true;
+  struct data* data = (struct data*) ud;
+  data->temp = temp;
+  data->humi = humidity;
+  data->fired = true;
 }
 
 int si7021_set_callback (subscribe_cb callback, void* callback_args) {
     return subscribe(DRIVER_NUM_SI7021, 0, callback, callback_args);
 }
 
-int si7021_get_temperature_humidity () {
+int si7021_get_temperature_humidity (void) {
     return command(DRIVER_NUM_SI7021, 1, 0);
 }
 
-int si7021_get_temperature_humidity_sync (int* temperature, int* humidity) {
+int si7021_get_temperature_humidity_sync (int* temperature, unsigned* humidity) {
     int err;
     result.fired = false;
 

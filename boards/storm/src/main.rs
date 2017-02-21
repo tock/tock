@@ -1,10 +1,10 @@
 #![no_std]
 #![no_main]
-#![feature(const_fn,lang_items)]
+#![feature(asm,const_fn,lang_items)]
 
 extern crate capsules;
 extern crate cortexm4;
-#[macro_use(static_init)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate sam4l;
 
@@ -246,7 +246,7 @@ pub unsafe fn reset_handler() {
         Nrf51822Serialization::new(&usart::USART2,
                                    &mut nrf51822_serialization::WRITE_BUF,
                                    &mut nrf51822_serialization::READ_BUF),
-        544/8);
+        608/8);
     hil::uart::UART::set_client(&usart::USART2, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
@@ -268,7 +268,7 @@ pub unsafe fn reset_handler() {
         capsules::tmp006::TMP006::new(tmp006_i2c,
                                      &sam4l::gpio::PA[9],
                                      &mut capsules::tmp006::BUFFER),
-        52);
+        480/8);
     tmp006_i2c.set_client(tmp006);
     sam4l::gpio::PA[9].set_client(tmp006);
 
@@ -284,7 +284,7 @@ pub unsafe fn reset_handler() {
             isl29035_i2c,
             isl29035_virtual_alarm,
             &mut capsules::isl29035::BUF),
-        320/8);
+        384/8);
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
@@ -320,26 +320,26 @@ pub unsafe fn reset_handler() {
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(syscall_spi_device),
-        608/8);
+        672/8);
 
     spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
     syscall_spi_device.set_client(spi_syscalls);
 
     // LEDs
     let led_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 1],
-        [&sam4l::gpio::PC[10]],
-        1 * 4);
+        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 1],
+        [(&sam4l::gpio::PC[10], capsules::led::ActivationMode::ActiveHigh)],
+        64/8);
     let led = static_init!(
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
-        96/8);
+        capsules::led::LED::new(led_pins),
+        64/8);
 
     // Setup ADC
     let adc = static_init!(
         capsules::adc::ADC<'static, sam4l::adc::Adc>,
-        capsules::adc::ADC::new(&mut sam4l::adc::ADC),
-        160/8);
+        capsules::adc::ADC::new(&mut sam4l::adc::ADC, kernel::Container::create()),
+        96/8);
     sam4l::adc::ADC.set_client(adc);
 
     // RNG
@@ -370,7 +370,7 @@ pub unsafe fn reset_handler() {
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
-        20);
+        224/8);
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
@@ -428,9 +428,17 @@ pub unsafe fn reset_handler() {
     firestorm.console.initialize();
     firestorm.nrf51822.initialize();
 
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(
+        capsules::console::App,
+        capsules::console::App::default(),
+        480/8);
+    kernel::debug::assign_console_driver(Some(firestorm.console), kc);
+
     let mut chip = sam4l::chip::Sam4l::new();
     chip.mpu().enable_mpu();
 
 
+    debug!("Initialization complete. Entering main loop");
     kernel::main(&firestorm, &mut chip, load_processes(), &firestorm.ipc);
 }

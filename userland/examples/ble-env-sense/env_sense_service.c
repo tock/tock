@@ -12,7 +12,7 @@ static ble_gatts_char_handles_t irradiance_char_handle;
 static int16_t  temperature;
 static uint16_t irradiance;
 
-void add_irradiance_char() {
+static void add_irradiance_char(void) {
   uint32_t err_code;
   ble_gatts_char_md_t char_md;
   ble_gatts_attr_t    attr_char_value;
@@ -48,7 +48,7 @@ void add_irradiance_char() {
   APP_ERROR_CHECK(err_code);
 }
 
-void add_temperature_char() {
+static void add_temperature_char(void) {
   uint32_t err_code;
   ble_gatts_char_md_t char_md;
   ble_gatts_attr_t    attr_char_value;
@@ -84,7 +84,7 @@ void add_temperature_char() {
   APP_ERROR_CHECK(err_code);
 }
 
-void env_sense_service_init() {
+void env_sense_service_init(void) {
   ble_uuid_t uuid = {
     .uuid = ENVIRONMENTAL_SENSING_SERVICE_UUID,
     .type = BLE_UUID_TYPE_BLE
@@ -119,13 +119,13 @@ static uint32_t notify(uint16_t conn, uint16_t handle) {
   return err_code;
 }
 
-uint32_t env_sense_update_irradiance(uint16_t conn, uint16_t irradiance) {
+uint32_t env_sense_update_irradiance(uint16_t conn, uint16_t new_irradiance) {
   uint32_t err_code;
 
   ble_gatts_value_t value = {
       .len = 2,
       .offset = 0,
-      .p_value = (uint8_t*)&irradiance,
+      .p_value = (uint8_t*)&new_irradiance,
   };
   err_code = sd_ble_gatts_value_set(BLE_CONN_HANDLE_INVALID,
               irradiance_char_handle.value_handle, &value);
@@ -138,13 +138,13 @@ uint32_t env_sense_update_irradiance(uint16_t conn, uint16_t irradiance) {
   return err_code;
 }
 
-uint32_t env_sense_update_temperature(uint16_t conn, int16_t temperature) {
+uint32_t env_sense_update_temperature(uint16_t conn, int16_t new_temperature) {
   uint32_t err_code;
 
   ble_gatts_value_t value = {
       .len = 2,
       .offset = 0,
-      .p_value = (uint8_t*)&temperature,
+      .p_value = (uint8_t*)&new_temperature,
   };
   err_code = sd_ble_gatts_value_set(conn,
               temp_char_handle.value_handle, &value);

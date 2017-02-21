@@ -17,7 +17,7 @@
 //********************************************************************************
 
 // Repeatedly read from the temperature sensor
-void read_sync (void) {
+static void read_sync (void) {
   int err;
   int16_t temperature;
 
@@ -37,7 +37,7 @@ int16_t temp_reading;
 int32_t error_val;
 
 // Callback to receive asynchronous data
-void temp_callback(int temp_value,
+static void temp_callback(int temp_value,
                    int error_code,
                    __attribute__ ((unused)) int unused,
                    __attribute__ ((unused)) void* callback_args) {
@@ -47,7 +47,7 @@ void temp_callback(int temp_value,
 
 // Start periodic temperature sampling, then print data, sleeping in between
 //  samples. Note that you MUST yield() or else callbacks will never be serviced
-void read_periodic (void) {
+static void read_periodic (void) {
   int err;
 
   // start sampling at 1 sample per second (0x2)
@@ -63,7 +63,7 @@ void read_periodic (void) {
     yield();
 
     // print new temp reading
-    printf("\tValue(%d) [0x%X]\n\n", temp_reading, temp_reading);
+    printf("\tValue(%d) [0x%X]\n\n", temp_reading, (unsigned) temp_reading);
     if (error_val != 0) {
       printf("\tError(%lu) [0x%X]\n\n", error_val, (uint16_t) error_val);
     }
@@ -80,7 +80,7 @@ void read_periodic (void) {
 //********************************************************************************
 
 // Demonstrate both synchronous and asynchronous reading from a driver
-int main() {
+int main(void) {
   putstr("Welcome to Tock in C (with libc)\nReading temperature...\n");
 
   // uncomment whichever example you want

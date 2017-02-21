@@ -87,6 +87,10 @@ impl<L, T> AppSlice<L, T> {
     pub fn iter(&self) -> slice::Iter<T> {
         self.as_ref().iter()
     }
+
+    pub fn iter_mut(&mut self) -> slice::IterMut<T> {
+        self.as_mut().iter_mut()
+    }
 }
 
 impl<L, T> AsRef<[T]> for AppSlice<L, T> {

@@ -9,12 +9,17 @@
 #include <console.h>
 #include <lps25hb.h>
 
-int main () {
+int main (void) {
   printf("[LPS25HB] Test\n");
 
   // Start a pressure measurement
-  int pressure = lps25hb_get_pressure_sync();
+  int rc = lps25hb_get_pressure_sync();
 
-  // Print the pressure value
-  printf("\tValue(%d ubar) [0x%X]\n\n", pressure, pressure);
+  if (rc < 0) {
+    printf("Error getting pressure: %d\n", rc);
+  } else {
+    // Print the pressure value
+    unsigned pressure = rc;
+    printf("\tValue(%u ubar) [0x%X]\n\n", pressure, pressure);
+  }
 }

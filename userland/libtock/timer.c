@@ -26,10 +26,10 @@ int timer_start_repeating(uint32_t interval_ms) {
   return command(3, 2, (int)interval_ms);
 }
 
-int timer_stop() {
+int timer_stop(void) {
   return command(3, 3, 0);
 }
 
-unsigned int timer_read() {
+unsigned int timer_read(void) {
   return (unsigned int) command(3, 4, 0);
 }

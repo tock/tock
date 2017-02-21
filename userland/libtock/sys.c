@@ -8,6 +8,15 @@
 // are currently all just stubs
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+// XXX Suppress missing prototype warnings for this file as the headers should
+// be in newlib internals, but first stab at including things didn't quite work
+// and the warnings are just noise
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+
+// XXX Also suppress attribute suggestions as these are stubs
+#pragma GCC diagnostic ignored "-Wsuggest-attribute=const"
+
 //------------------------------
 // LIBC SUPPORT STUBS
 //------------------------------
@@ -52,7 +61,7 @@ void _exit(int __status)
 {
   while(666) {}
 }
-int _getpid()
+int _getpid(void)
 {
   return 0;
 }
@@ -63,6 +72,6 @@ int _kill(pid_t pid, int sig)
 
 caddr_t _sbrk(int incr)
 {
-  return (void*)memop(1, incr);
+  return memop(1, incr);
 }
 

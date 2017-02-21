@@ -80,7 +80,7 @@ kernel to be loaded and run. For more details about application code, see
 Currently, all Tock platforms are ARM Cortex-M processors and all existing
 applications are written in C. Therefore, compilation uses `arm-none-eabi-gcc`.
 Alternative languages and compilers are all possible for building applications,
-however as long as they build code following several requirements.
+as long as they build code following several requirements:
 
  1) The application must be built as position independent code (PIC)
 
@@ -99,9 +99,9 @@ normally need to interact with it.
 ### Position Independent Code
 
 Since Tock loads applications separately from the kernel and is capable of
-running multiple applications concurrently, applications cannot know exactly
-which address they will be loaded at in advance. This problem is common to many
-computer systems and is typically by dynamically linking and loading code at
+running multiple applications concurrently, applications cannot know in advance
+at which address they will be loaded. This problem is common to many computer
+systems and is typically addressed by dynamically linking and loading code at
 runtime.
 
 In Tock, however, we make a different choice and require applications to be
@@ -109,17 +109,17 @@ compiled as position independent code. Compiling with PIC makes all control
 flow relative to the current PC, rather than using jumps to specified absolute
 addresses. All data accesses are relative to the start of the data segment for
 that app, and the address of the data segment is stored in a register referred
-to as the `base register`. In concept this allows the segments in Flash and RAM
-to be placed anywhere, and as long as the OS correctly initializes the base
-register everything will work fine.
+to as the `base register`. This potentially allows the segments in Flash and
+RAM to be placed anywhere, and as long as the OS correctly initializes the base
+register, everything will work fine.
 
-While on some architectures, such as x86, PIC code can be inefficient, the ARM
-instruction set is optimized for PIC operation, allowing most code to execute
-with little to no overhead. PIC does not solve every problem, there is still
-some fixup that must occur at runtime, but the relocations are simple and only
-have a one-time cost at application load time. A more in-depth discussion of
-dynamically loading applications can be found on the Tock website:
-[Dynamic Code Loading on a MCU](http://www.tockos.org/blog/2016/dynamic-loading/).
+PIC code can be inefficient on some architectures such as x86, but the ARM
+instruction set is optimized for PIC operation and allows most code to execute
+with little to no overhead. Using PIC still requires some fixup at runtime, but
+the relocations are simple and cause only a one-time cost when an application
+is loaded.  A more in-depth discussion of dynamically loading applications can
+be found on the Tock website: [Dynamic Code Loading on a
+MCU](http://www.tockos.org/blog/2016/dynamic-loading/).
 
 For applications compiled with `arm-none-eabi-gcc`, building PIC code for Tock
 requires four flags:

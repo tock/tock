@@ -32,7 +32,7 @@ void app_error_fault_handler(__attribute__ ((unused)) uint32_t error_code,
   // The application can continue.
 }
 
-void ble_address_set () {
+void ble_address_set (void) {
   // Need to redefine this function so that we do not try to set the address
   // on the main processor.
 }
@@ -58,7 +58,7 @@ void ble_evt_adv_report (ble_evt_t* p_ble_evt) {
  * MAIN
  ******************************************************************************/
 
-int main () {
+int main (void) {
     printf("[Tutorial] BLE Scanning\n");
 
     // Setup BLE. See the simple_ble library for more information:

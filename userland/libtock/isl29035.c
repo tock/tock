@@ -14,7 +14,7 @@ static void isl29035_cb(int intensity,
   result->fired = true;
 }
 
-int isl29035_read_light_intensity() {
+int isl29035_read_light_intensity(void) {
   struct isl_data result = { .fired = false };
   int err;
 
@@ -37,7 +37,7 @@ int isl29035_subscribe(subscribe_cb callback, void* userdata) {
   return subscribe(DRIVER_NUM_ISL29035, 0, callback, userdata);
 }
 
-int isl29035_start_intensity_reading() {
+int isl29035_start_intensity_reading(void) {
   return command(DRIVER_NUM_ISL29035, 1, 0);
 }
 

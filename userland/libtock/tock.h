@@ -11,7 +11,7 @@ extern "C" {
 
 typedef void (subscribe_cb)(int, int, int,void*);
 
-void yield();
+void yield(void);
 void yield_for(bool*);
 int command(uint32_t driver, uint32_t command, int data);
 int subscribe(uint32_t driver, uint32_t subscribe,
@@ -21,7 +21,7 @@ int allow(uint32_t driver, uint32_t allow, void* ptr, size_t size);
 // op_type can be:
 // 0: brk, arg1 is pointer to new memory break
 // 1: sbrk, arg1 is increment to increase/decrease memory break
-int memop(uint32_t op_type, int arg1);
+void* memop(uint32_t op_type, int arg1);
 
 // Checks to see if the given driver number exists on this platform.
 bool driver_exists(uint32_t driver);
@@ -38,6 +38,7 @@ bool driver_exists(uint32_t driver);
 #define ENOMEM   -9
 #define ENOSUPPORT -10
 #define ENODEVICE  -11
+#define EUNINSTALLED -12
 
 #ifdef __cplusplus
 }

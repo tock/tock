@@ -61,7 +61,8 @@ process, load the binary, reset the device, and break on
 `reset_handler`, which is the function called on reset/boot. Your
 `.gdbinit` file should be as follows:
 
-```target remote localhost:2331
+```gdb
+target remote localhost:2331
 load
 mon reset
 break reset_handler
@@ -94,7 +95,8 @@ will break on entry to `reset_handler`.
 
 When debugging in gdb, we recommend that you use tui:
 
-```tui enable
+```gdb
+tui enable
 layout split
 layout reg
 ```
@@ -108,25 +110,29 @@ Since Rust heavily optimized and inlines code, it can be difficult to
 understand, from the assembly, exactly where you are in source code. Two
 tricks can help in this regard: the ``inline`` and ``no_mangle`` attributes. If you label a function
 
-```#[inline(never)]
+```rust
+#[inline(never)]
 ```
 
 then Rust will not inline it so you can see calls into it and break on
 entry. However, since Rust often emits complex symbol names, you also
 might want to use
 
-```$[no_mangle]
+```rust
+$[no_mangle]
 ```
 
 which will keep the function's symbol identical to the function name.
 For example, if you do this:
 
-```#[no_mangle]
+```rust
+#[no_mangle]
 #[inline(never)]
 
 fn important_func(&self) -> u32 {
    ...
-}```
+}
+```
 
 then `important_func` will not be inlined and you can break on
 `important_func` in gdb. The code itself will still be assembly, but

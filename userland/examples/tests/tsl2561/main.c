@@ -9,7 +9,7 @@
 #include <console.h>
 #include <tsl2561.h>
 
-int main () {
+int main (void) {
   printf("[TSL2561] Test\n");
 
   // Start a light measurement

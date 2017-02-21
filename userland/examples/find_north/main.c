@@ -4,7 +4,7 @@
 #include <led.h>
 #include <FXOS8700CQ.h>
 
-int main() {
+int main(void) {
   int x, y, z;
 
   // Choose the LED to use. We want green (which is usually

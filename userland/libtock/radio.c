@@ -23,7 +23,7 @@ const int COM_READY = 6;
 const int EVT_TX = 0;
 const int EVT_RX = 1;
 
-int radio_init() {
+int radio_init(void) {
   while (!radio_ready()) {}
   return 0;
 } // Do nothing for now
@@ -46,7 +46,12 @@ static void cb_rx( __attribute__ ((unused)) int unused0,
 // be copied into a packet buffer with header space within the kernel.
 int radio_send(unsigned short addr, const char* packet, unsigned char len) {
   bool cond = false;
-  int err = allow(SYS_RADIO, BUF_TX, (void*)packet, len);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+  // in lieu of RO allow
+  void* buf = (void*) packet;
+#pragma GCC diagnostic pop
+  int err = allow(SYS_RADIO, BUF_TX, buf, len);
   if (err < 0) {
     return err;
   }
@@ -85,7 +90,12 @@ int radio_set_channel(unsigned char channel) {
 
 int radio_receive(const char* packet, unsigned char len) {
   bool cond = false;
-  int err = allow(SYS_RADIO, BUF_RX, (void*)packet, len);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+  // in lieu of RO allow
+  void* buf = (void*) packet;
+#pragma GCC diagnostic pop
+  int err = allow(SYS_RADIO, BUF_RX, buf, len);
   if (err < 0) {
     return err;
   }
@@ -97,6 +107,6 @@ int radio_receive(const char* packet, unsigned char len) {
   return (int)packet[1];
 }
 
-int radio_ready() {
+int radio_ready(void) {
   return command(SYS_RADIO, COM_READY, 0) == SUCCESS;
 }

@@ -45,13 +45,6 @@ All user-level code lives in the `userland` subdirectory. This includes a
 specially compiled version of newlib, a user-level library for talking to the
 kernel and specific drivers and a variety of example applications.
 
-Userland compilation units are specific to a particular architecture (e.g.
-`cortex-m4`, `cortex-m0`) since the compiler emits slightly different code for
-each variant, but is portable across boards with the same drivers. The `TOCK_ARCH`
-environment variable controls which architecture to compile to. You can set the
-`TOCK_ARCH` to any architecture GCC's `-mcpu` option accepts. By default, `TOCK_ARCH`
-is set to `cortex-m4` for the `storm` board.
-
 To compile an app, `cd` to the desired app and `make`. For example:
 
 ```bash

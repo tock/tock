@@ -14,10 +14,10 @@ static void i2c_master_slave_cb(int callback_type,
                                 int length,
                                 __attribute__ ((unused)) int unused,
                                 void* ud) {
-  struct i2c_master_slave_data* result = (struct i2c_master_slave_data*) ud;
-  result->callback_type = callback_type;
-  result->length = length;
-  result->fired = true;
+  struct i2c_master_slave_data* data = (struct i2c_master_slave_data*) ud;
+  data->callback_type = callback_type;
+  data->length = length;
+  data->fired = true;
 }
 
 
@@ -51,7 +51,7 @@ int i2c_master_slave_read(uint16_t address, uint16_t len) {
   return command(DRIVER_NUM_I2CMASTERSLAVE, 2, a);
 }
 
-int i2c_master_slave_listen() {
+int i2c_master_slave_listen(void) {
   return command(DRIVER_NUM_I2CMASTERSLAVE, 3, 0);
 }
 
@@ -59,7 +59,9 @@ int i2c_master_slave_set_slave_address(uint8_t address) {
   return command(DRIVER_NUM_I2CMASTERSLAVE, 6, address);
 }
 
-
+int i2c_master_slave_enable_slave_read(uint32_t len) {
+  return command(DRIVER_NUM_I2CMASTERSLAVE, 4, len);
+}
 
 int i2c_master_slave_write_sync(uint8_t address, uint8_t len) {
   int err;

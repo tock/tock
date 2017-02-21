@@ -1,8 +1,27 @@
 ENTRY(_start)
 
+/* Userland Layout
+ *
+ * This script is designed to be used in conjunction with a chip_layout.ld from
+ * a Tock board directory. A properly configured layout.ld file will look like:
+ *
+ *     INCLUDE <tock_board_dir>/chip_layout.ld
+ *     INCLUDE <tock_userland_base_dir>./userland_layout.ld
+ *
+ * The Tock build system should generate and use an appropriate linker script
+ * automatically for you.
+ */
+
+TOCK_RAM_RESERVED = 0x4000;
+
+
+/* Note: Because apps are relocated, the FLASH address here acts as a sentinel
+ * value for relocation fixup routines. The application loader will select the
+ * actual location in flash where the app is placed.
+ */
 MEMORY {
-    FLASH (rx) : ORIGIN = 0x80000000, LENGTH = 0x00080000
-    SRAM (RWX) : ORIGIN = 0x00000000, LENGTH = 0x00004000
+    FLASH (rx) : ORIGIN = 0x80000000, LENGTH = PROG_LENGTH
+    SRAM (RWX) : ORIGIN = 0x00000000, LENGTH = RAM_LENGTH - TOCK_RAM_RESERVED
 }
 
 SECTIONS {
@@ -77,21 +96,21 @@ SECTIONS {
     .stack :
     {
         _stack = .;
-        KEEP(*(.stack*))
+        . += STACK_SIZE;
         _estack = .;
     } > SRAM
 
     .app_heap :
     {
         _app_heap = .;
-        KEEP(*(.app_heap*))
+        . += APP_HEAP_SIZE;
         _eapp_heap = .;
     } > SRAM
 
     .kernel_heap :
     {
         _kernel_heap = .;
-        KEEP(*(.kernel_heap*))
+        . += KERNEL_HEAP_SIZE;
         _ekernel_heap = .;
     } > SRAM
 

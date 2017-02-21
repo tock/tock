@@ -20,7 +20,7 @@
 // Callback function supplied by user
 int callback(void*, int, uint16_t, uint16_t, uint16_t);
 
-int main() {
+int main(void) {
   char buf[2] = { 0xde, 0xad };
 
   rf233_init(0xab, 0xbc, 0xcd);

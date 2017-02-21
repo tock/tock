@@ -38,9 +38,10 @@ interact with hardware, applications must make calls to the kernel.
 ## System Calls
 System calls (aka syscalls) are used to send commands to the kernel. These
 could include commands to drivers, subscriptions to callbacks, granting of
-memory to the kernel to use to store received data, communication with other
-application code, and many others. In practice, the system call is taken care
-of by library code and the application need not deal with them directly.
+memory to the kernel so it can store data related to the application,
+communication with other application code, and many others. In practice,
+system calls are made through library code and the application need not
+deal with them directly.
 
 For example the following is the system call handling the `gpio_set` command
 from [gpio.c](../userland/libtock/gpio.c):
@@ -61,7 +62,7 @@ command(uint32_t driver, uint32_t command, int data) {
 }
 ```
 
-A more in-depth discussion of can be found in the [system call
+A more in-depth discussion can be found in the [system call
 documentation](./Syscalls.md).
 
 
@@ -87,20 +88,20 @@ return from execution (for example, an application that returns from `main`).
 
 ## Inter-Process Communication
  * **TODO:** how does this work?
- 
-## Stack and Heap
 
-Applications can specify their required stack and heap sizes via the
-`STACK_SIZE` and `APP_HEAP_SIZE` defines, which default to 2K and 1K respectively
-as of this writing. __You must rebuild `libtock` if you change these values.__
-Note that the Tock kernel treats these as minimum values, depending on the underlying
-platform, the stack and heap may be larger than requested, but will never be smaller.
+## Stack and Heap
+Applications can specify their required stack and heap sizes by defining the
+make variables `STACK_SIZE` and `APP_HEAP_SIZE`, which default to 2K and 1K
+respectively as of this writing.  Note that the Tock kernel treats these as
+minimum values, depending on the underlying platform, the stack and heap may be
+larger than requested, but will never be smaller.
 
 If there is insufficient memory to load your application, the kernel will fail
 during loading and print a message.
 
-If you application exceeds its alloted memory during runtime, the application
-will crash (see [Debugging](#debugging) section for an example).
+If an application exceeds its alloted memory during runtime, the
+application will crash (see the [Debugging](#debugging) section for an
+example).
 
 ## Debugging
 
