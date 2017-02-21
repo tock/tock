@@ -182,7 +182,6 @@ impl AesCCM {
             if regs.MODE.get() == 0 {
                 unsafe {
                     // ct + MIC
-                    // panic!("LEN: {:?}\r\n OUT_DATA: {:?}\r\n", self.len.get(), OUT_DATA);
                     self.client
                         .get()
                         .map(|client| client.encrypt_done(&mut OUT_DATA[3..], self.len.get() + 4));
