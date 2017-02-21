@@ -261,15 +261,35 @@ pub unsafe fn reset_handler() {
 
 
 use core::fmt::Arguments;
+use core::fmt::Write;
+use core::fmt::write;
 #[cfg(not(test))]
 #[lang="panic_fmt"]
 #[no_mangle]
-pub unsafe extern "C" fn rust_begin_unwind(_args: &Arguments,
+pub unsafe extern "C" fn rust_begin_unwind(_args: Arguments,
                                            _file: &'static str,
                                            _line: usize)
                                            -> ! {
     use kernel::hil::gpio::Pin;
+    use kernel::process;
 
+    let writer = &mut io::WRITER;
+    let _ = writer.write_fmt(format_args!("\r\nKernel panic at {}:{}:\r\n\t\"", _file, _line));
+    let _ = write(writer, _args);
+    let _ = writer.write_str("\"\r\n");
+
+    // Print fault status once
+    let procs = &mut process::PROCS;
+    if procs.len() > 0 {
+        procs[0].as_mut().map(|process| { process.fault_str(writer); });
+    }
+
+    // print data about each process
+    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+    let procs = &mut process::PROCS;
+    for idx in 0..procs.len() {
+        procs[idx].as_mut().map(|process| { process.statistics_str(writer); });
+    }
     let led0 = &nrf51::gpio::PORT[LED1_PIN];
     let led1 = &nrf51::gpio::PORT[LED2_PIN];
 
