@@ -309,10 +309,18 @@ impl<'a> Process<'a> {
 
     pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {
         let data_start = self.memory.as_ptr() as usize;
-        let data_len = (32 - self.memory.len().leading_zeros()) as u32;
+        let data_len = self.memory.len();
+        if data_len.count_ones() != 1 {
+            panic!("Tock MPU does not currently handle complex region sizes");
+        }
+        let data_region_len = (31 - data_len.leading_zeros()) as u32;
 
         let text_start = self.text.as_ptr() as usize;
-        let text_len = ((32 - self.text.len().leading_zeros()) - 2) as u32;
+        let text_len = self.text.len();
+        if text_len.count_ones() != 1 {
+            panic!("Tock MPU does not currently handle complex region sizes");
+        }
+        let text_region_len = (31 - text_len.leading_zeros()) as u32;
 
         let mut grant_size = unsafe {
             self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
@@ -330,13 +338,13 @@ impl<'a> Process<'a> {
         // Data segment read/write/execute
         mpu.set_mpu(0,
                     data_start as u32,
-                    data_len,
+                    data_region_len,
                     mpu::ExecutePermission::ExecutionPermitted,
                     mpu::AccessPermission::ReadWrite);
         // Text segment read/execute (no write)
         mpu.set_mpu(1,
                     text_start as u32,
-                    text_len,
+                    text_region_len,
                     mpu::ExecutePermission::ExecutionPermitted,
                     mpu::AccessPermission::ReadOnly);
 
