@@ -261,8 +261,7 @@ pub unsafe fn reset_handler() {
 
 
 use core::fmt::Arguments;
-use core::fmt::Write;
-use core::fmt::write;
+use core::fmt::{Write,write};
 #[cfg(not(test))]
 #[lang="panic_fmt"]
 #[no_mangle]
@@ -296,13 +295,21 @@ pub unsafe extern "C" fn rust_begin_unwind(_args: Arguments,
     led0.make_output();
     led1.make_output();
     loop {
+        for _ in 0..1000000 {
+            led0.clear();
+            led1.clear();
+        }
         for _ in 0..100000 {
             led0.set();
             led1.set();
         }
-        for _ in 0..100000 {
+        for _ in 0..1000000 {
             led0.clear();
             led1.clear();
+        }
+        for _ in 0..500000 {
+            led0.set();
+            led1.set();
         }
     }
 }
