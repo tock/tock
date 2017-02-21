@@ -191,6 +191,9 @@ pub struct Process<'a> {
     cur_stack: *const u8,
     app_mem_start: *const u8,
 
+    /// How low have we ever seen the stack pointer
+    min_stack_pointer: *const u8,
+
     /// How many syscalls have occurred since the process started
     syscall_count: Cell<usize>,
 
@@ -449,6 +452,8 @@ impl<'a> Process<'a> {
                     cur_stack: stack_heap_boundary,
                     app_mem_start: load_result.app_mem_start,
 
+                    min_stack_pointer: stack_heap_boundary,
+
                     syscall_count: Cell::new(0),
                     last_syscall: Cell::new(None),
 
@@ -562,6 +567,9 @@ impl<'a> Process<'a> {
             self.yield_pc = read_volatile(pspr.offset(6));
             self.psr = read_volatile(pspr.offset(7));
             self.cur_stack = (self.cur_stack as *mut usize).offset(8) as *mut u8;
+            if self.cur_stack < self.min_stack_pointer {
+                self.min_stack_pointer = self.cur_stack;
+            }
         }
     }
 
@@ -586,6 +594,9 @@ impl<'a> Process<'a> {
         write_volatile(stack_bottom.offset(3), callback.r3);
 
         self.cur_stack = stack_bottom as *mut u8;
+        if self.cur_stack < self.min_stack_pointer {
+            self.min_stack_pointer = self.cur_stack;
+        }
     }
 
     pub unsafe fn app_fault(&self) -> bool {
@@ -603,6 +614,9 @@ impl<'a> Process<'a> {
                                  self.memory.as_ptr(),
                                  mem::transmute(&mut self.stored_regs));
         self.cur_stack = psp;
+        if self.cur_stack < self.min_stack_pointer {
+            self.min_stack_pointer = self.cur_stack;
+        }
     }
 
     pub fn svc_number(&self) -> Option<Syscall> {
@@ -850,7 +864,7 @@ impl<'a> Process<'a> {
             let sram_grant_start = self.kernel_memory_break as usize;
             let sram_heap_end = self.app_memory_break as usize;
             let sram_heap_start = self.stack_heap_boundary as usize;
-            let sram_stack_start = self.cur_stack as usize;
+            let sram_stack_start = self.min_stack_pointer as usize;
             let sram_data_end = self.app_mem_start as usize;
             let sram_start = self.memory.as_ptr() as usize;
 
