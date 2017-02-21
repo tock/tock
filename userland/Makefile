@@ -51,7 +51,23 @@ ifndef TOCK_ARCH
     TOCK_ARCH := cortex-m0
 endif
 
+
+# TODO(Pat) at some point this should change names to
+#  - BUILDDIR: build/
+#  - ARCHBUILDDIR: build/$(TOCK_ARCH)
+#  etc
+
+# BUILDDIR holds architecture dependent, but board-independent outputs
 BUILDDIR ?= build/$(TOCK_ARCH)
+$(BUILDDIR):
+	$(Q)mkdir -p $(BUILDDIR)
+
+# BOARD_BUILDDIR holds board-specific outputs
+BOARD_BUILDDIR ?= build/$(TOCK_BOARD)
+$(BOARD_BUILDDIR):
+	$(Q)mkdir -p $(BOARD_BUILDDIR)
+
+
 LIBTOCK ?= $(TOCK_USERLAND_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
 
 # PACKAGE_NAME is used to identify the application for IPC and for error reporting
@@ -77,8 +93,10 @@ AR := $(TOOLCHAIN)-ar
 AS := $(TOOLCHAIN)-as
 CC := $(TOOLCHAIN)-gcc
 CXX := $(TOOLCHAIN)-g++
+OBJDUMP := $(TOOLCHAIN)-objdump
 RANLIB := $(TOOLCHAIN)-ranlib
 READELF := $(TOOLCHAIN)-readelf
+SIZE := $(TOOLCHAIN)-size
 
 # Validate the the toolchain is new enough (known not to work for gcc <= 5.1)
 CC_VERSION_MAJOR := $(shell $(CC) -dumpversion | cut -d '.' -f1)
@@ -297,32 +315,38 @@ $(BUILDDIR)/%.o: %.cpp | $(BUILDDIR)
 	$(TRACE_CXX)
 	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-LINKER ?= $(TOCK_USERLAND_BASE_DIR)/linker.ld
 
-SIZE := $(TOOLCHAIN)-size
-OBJDUMP := $(TOOLCHAIN)-objdump
+# As different boards have different RAM/ROM sizes, we dynamically generate a
+# linker script (unless the user provide their own)
+LAYOUT ?= $(BOARD_BUILDDIR)/layout.ld
+
+# XXX(Pat) out of tree path to TOCK_BOARD directory? (?= chip hack)
+USERLAND_LAYOUT := $(TOCK_USERLAND_BASE_DIR)/userland_layout.ld
+CHIP_LAYOUT ?= $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/chip_layout.ld
+
+$(BOARD_BUILDDIR)/layout.ld:	$(USERLAND_LAYOUT) $(CHIP_LAYOUT) | $(BOARD_BUILDDIR)
+	$(Q)echo "INCLUDE $(CHIP_LAYOUT)" > $@
+	$(Q)echo "INCLUDE $(USERLAND_LAYOUT)" >> $@
+
 
 .PHONY:	all
-all:	$(BUILDDIR)/app.bin size
+all:	$(BOARD_BUILDDIR)/app.bin size
 
 .PHONY: size
-size:	$(BUILDDIR)/app.elf
+size:	$(BOARD_BUILDDIR)/app.elf
 	@$(SIZE) $<
 
 .PHONY: debug
-debug:	$(BUILDDIR)/app.lst
+debug:	$(BOARD_BUILDDIR)/app.lst
 
-$(BUILDDIR)/app.lst: $(BUILDDIR)/app.elf
+$(BOARD_BUILDDIR)/app.lst: $(BOARD_BUILDDIR)/app.elf
 	$(TRACE_LST)
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $(BUILDDIR)/app.lst
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $(BOARD_BUILDDIR)/app.lst
 
 # Include the libtock makefile. Adds rules that will rebuild library when needed
 include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
 
-$(BUILDDIR):
-	$(Q)mkdir -p $(BUILDDIR)
-
-$(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) | $(BUILDDIR)
+$(BOARD_BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) $(LAYOUT) | $(BOARD_BUILDDIR)
 	$(TRACE_LD)
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS)\
 	    -Wl,--warn-common\
@@ -331,18 +355,18 @@ $(BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) 
 	    -Xlinker --defsym=STACK_SIZE=$(STACK_SIZE)\
 	    -Xlinker --defsym=APP_HEAP_SIZE=$(APP_HEAP_SIZE)\
 	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$(KERNEL_HEAP_SIZE)\
-	    -T $(LINKER)\
+	    -T $(LAYOUT)\
 	    -nostdlib\
 	    -Wl,--start-group $(OBJS) $(LIBS) -Wl,--end-group\
-	    -Wl,-Map=$(BUILDDIR)/app.Map\
+	    -Wl,-Map=$(BOARD_BUILDDIR)/app.Map\
 	    -o $@
 
-$(BUILDDIR)/app.bin: $(BUILDDIR)/app.elf | $(BUILDDIR) validate_gcc_flags
+$(BOARD_BUILDDIR)/app.bin: $(BOARD_BUILDDIR)/app.elf | $(BOARD_BUILDDIR) validate_gcc_flags
 	$(TRACE_BIN)
 	$(Q)$(ELF2TBF) $(ELF2TBF_ARGS) -o $@ $<
 
 .PHONY: validate_gcc_flags
-validate_gcc_flags: $(BUILDDIR)/app.elf
+validate_gcc_flags: $(BOARD_BUILDDIR)/app.elf
 ifndef TOCK_NO_CHECK_SWITCHES
 	$(Q)$(READELF) -p .GCC.command.line $< 2>&1 | grep -q "does not exist" && { echo "Error: Missing section .GCC.command.line"; echo ""; echo "Tock requires that applications are built with"; echo "  -frecord-gcc-switches"; echo "to validate that all required flags were used"; echo ""; echo "You can skip this check by defining the make variable TOCK_NO_CHECK_SWITCHES"; exit 1; } || exit 0
 	$(Q)$(READELF) -p .GCC.command.line $< | grep -q -- -msingle-pic-base && $(READELF) -p .GCC.command.line $< | grep -q -- -mpic-register=r9 && $(READELF) -p .GCC.command.line $< | grep -q -- -mno-pic-data-is-text-relative || { echo "Error: Missing required build flags."; echo ""; echo "Tock requires applications are built with"; echo "  -msingle-pic-base"; echo "  -mpic-register=r9"; echo "  -mno-pic-data-is-text-relative"; echo "But one or more of these flags are missing"; echo ""; echo "To see the flags your application was built with, run"; echo "$(READELF) -p .GCC.command.line $<"; echo ""; exit 1; }
@@ -351,6 +375,7 @@ endif
 .PHONY:
 clean::
 	rm -Rf $(BUILDDIR)
+	rm -Rf $(BOARD_BUILDDIR)
 
 
 

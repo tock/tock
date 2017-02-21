@@ -17,13 +17,13 @@ endif
 
 .PHONY: program
 .SECONDEXPANSION:
-program: $$(BUILDDIR)/app.bin
-	@:$(call check_defined, BUILDDIR)
-	$(APP_TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(APP_ADDRESS) $(BUILDDIR)/app.bin
+program: $$(BOARD_BUILDDIR)/app.bin
+	@:$(call check_defined, BOARD_BUILDDIR)
+	$(APP_TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(APP_ADDRESS) $(BOARD_BUILDDIR)/app.bin
 
 # Upload programs over JTAG
 .PHONY: flash
 .SECONDEXPANSION:
-flash: $$(BUILDDIR)/app.bin
-	@:$(call check_defined, BUILDDIR)
-	$(APP_FLASH) $(BUILDDIR)/app.bin
+flash: $$(BOARD_BUILDDIR)/app.bin
+	@:$(call check_defined, BOARD_BUILDDIR)
+	$(APP_FLASH) $(BOARD_BUILDDIR)/app.bin
