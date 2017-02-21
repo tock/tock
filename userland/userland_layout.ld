@@ -12,7 +12,27 @@ ENTRY(_start)
  * automatically for you.
  */
 
-TOCK_RAM_RESERVED = 0x4000;
+
+
+/* TODO: Reserve space for Tock.
+ *
+ * Currently, this memory map allows applications to grow to the entire SRAM
+ * size of the chip they are being built for. If an application is actually
+ * that large, it will fail on loading because the Tock kernel requires some
+ * amount of memory itself.
+ *
+ * I *believe* that we could lookup the location of the `.app_memory` section
+ * from the built tock kernel image to get a better size estimate, but that
+ * requires the userland build to know the location of the Tock kernel image
+ * which isn't necessarily trivial.
+ *
+ * For now, the best we can do is fail at app load time if there's not enough
+ * memory left for the app.
+ *
+ * TOCK_RAM_RESERVED = 0x4000;
+ * SRAM (RWX) : ORIGIN = 0x00000000, LENGTH = RAM_LENGTH - TOCK_RAM_RESERVED
+ *
+ */
 
 
 /* Note: Because apps are relocated, the FLASH address here acts as a sentinel
@@ -21,7 +41,7 @@ TOCK_RAM_RESERVED = 0x4000;
  */
 MEMORY {
     FLASH (rx) : ORIGIN = 0x80000000, LENGTH = PROG_LENGTH
-    SRAM (RWX) : ORIGIN = 0x00000000, LENGTH = RAM_LENGTH - TOCK_RAM_RESERVED
+    SRAM (RWX) : ORIGIN = 0x00000000, LENGTH = RAM_LENGTH
 }
 
 SECTIONS {
