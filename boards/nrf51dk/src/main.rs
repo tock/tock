@@ -135,6 +135,7 @@ pub unsafe fn reset_handler() {
     nrf51::init();
 
     // LEDs
+        let led_pins = static_init!(
         [(&'static nrf51::gpio::GPIOPin, capsules::led::ActivationMode); 4],
         [(&nrf51::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow), // 21
          (&nrf51::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow), // 22
