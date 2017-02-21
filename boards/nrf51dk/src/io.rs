@@ -1,5 +1,7 @@
 use kernel::hil::uart::{self, UART};
 use nrf51;
+use core::fmt::{Write, write};
+use core::fmt::Arguments;
 
 pub struct Writer {
     initialized: bool,
@@ -47,8 +49,7 @@ macro_rules! println {
         ($fmt:expr) => (print!(concat!($fmt, "\n")));
             ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
 }
-use core::fmt::{Write, write};
-use core::fmt::Arguments;
+
 #[cfg(not(test))]
 #[lang="panic_fmt"]
 #[no_mangle]
