@@ -1,3 +1,4 @@
+use core::fmt::{Write, write, Arguments};
 use kernel::hil::uart::{self, UART};
 use nrf51;
 
@@ -47,8 +48,7 @@ macro_rules! println {
         ($fmt:expr) => (print!(concat!($fmt, "\n")));
             ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
 }
-use core::fmt::{Write, write};
-use core::fmt::Arguments;
+
 #[cfg(not(test))]
 #[lang="panic_fmt"]
 #[no_mangle]
