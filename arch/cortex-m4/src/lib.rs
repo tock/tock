@@ -3,6 +3,8 @@
 #![feature(asm,const_fn,naked_functions)]
 #![no_std]
 
+#[allow(unused_imports)]
+#[macro_use(debug)]
 extern crate kernel;
 
 pub mod mpu;
