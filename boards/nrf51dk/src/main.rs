@@ -134,17 +134,17 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [&'static nrf51::gpio::GPIOPin; 4],
-        [&nrf51::gpio::PORT[LED1_PIN], // 21
-         &nrf51::gpio::PORT[LED2_PIN], // 22
-         &nrf51::gpio::PORT[LED3_PIN], // 23
-         &nrf51::gpio::PORT[LED4_PIN], // 24
+        [(&'static nrf51::gpio::GPIOPin, capsules::led::ActivationMode); 4],
+        [(&nrf51::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow), // 21
+         (&nrf51::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow), // 22
+         (&nrf51::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow), // 23
+         (&nrf51::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow), // 24
         ],
-        4 * 4);
+        256/8);
     let led = static_init!(
         capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveLow),
-        96/8);
+        capsules::led::LED::new(led_pins),
+        64/8);
 
     let button_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 4],

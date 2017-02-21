@@ -7,20 +7,20 @@ use kernel::{AppId, Driver, ReturnCode};
 use kernel::hil;
 
 /// Whether the LEDs are active high or active low on this platform.
+#[derive(Clone,Copy)]
 pub enum ActivationMode {
     ActiveHigh,
     ActiveLow,
 }
 
 pub struct LED<'a, G: hil::gpio::Pin + 'a> {
-    pins: &'a [&'a G],
-    mode: ActivationMode,
+    pins_init: &'a [(&'a G, ActivationMode)],
 }
 
 impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
-    pub fn new(pins: &'a [&'a G], mode: ActivationMode) -> LED<'a, G> {
+    pub fn new(pins_init: &'a [(&'a G, ActivationMode)]) -> LED<'a, G> {
         // Make all pins output and off
-        for pin in pins.iter() {
+        for &(pin, mode) in pins_init.as_ref().iter() {
             pin.make_output();
             match mode {
                 ActivationMode::ActiveHigh => pin.clear(),
@@ -28,28 +28,26 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
             }
         }
 
-        LED {
-            pins: pins,
-            mode: mode,
-        }
+        LED { pins_init: pins_init }
     }
 }
 
 impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
-        let pins = self.pins.as_ref();
+        let pins_init = self.pins_init.as_ref();
         match command_num {
             // get number of LEDs
-            0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
+            0 => ReturnCode::SuccessWithValue { value: pins_init.len() as usize },
 
             // on
             1 => {
-                if data >= pins.len() {
+                if data >= pins_init.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    match self.mode {
-                        ActivationMode::ActiveHigh => pins[data].set(),
-                        ActivationMode::ActiveLow => pins[data].clear(),
+                    let (pin, mode) = pins_init[data];
+                    match mode {
+                        ActivationMode::ActiveHigh => pin.set(),
+                        ActivationMode::ActiveLow => pin.clear(),
                     }
                     ReturnCode::SUCCESS
                 }
@@ -57,12 +55,13 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
 
             // off
             2 => {
-                if data >= pins.len() {
+                if data >= pins_init.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    match self.mode {
-                        ActivationMode::ActiveHigh => pins[data].clear(),
-                        ActivationMode::ActiveLow => pins[data].set(),
+                    let (pin, mode) = pins_init[data];
+                    match mode {
+                        ActivationMode::ActiveHigh => pin.clear(),
+                        ActivationMode::ActiveLow => pin.set(),
                     }
                     ReturnCode::SUCCESS
                 }
@@ -70,10 +69,11 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
 
             // toggle
             3 => {
-                if data >= pins.len() {
+                if data >= pins_init.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].toggle();
+                    let (pin, _) = pins_init[data];
+                    pin.toggle();
                     ReturnCode::SUCCESS
                 }
             }

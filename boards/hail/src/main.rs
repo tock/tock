@@ -290,15 +290,15 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 3],
-        [&sam4l::gpio::PA[13],  // Red
-         &sam4l::gpio::PA[15],  // Green
-         &sam4l::gpio::PA[14]], // Blue
-        3 * 4);
+        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 3],
+        [(&sam4l::gpio::PA[13], capsules::led::ActivationMode::ActiveLow),  // Red
+         (&sam4l::gpio::PA[15], capsules::led::ActivationMode::ActiveLow),  // Green
+         (&sam4l::gpio::PA[14], capsules::led::ActivationMode::ActiveLow)], // Blue
+        192/8);
     let led = static_init!(
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveLow),
-        96/8);
+        capsules::led::LED::new(led_pins),
+        64/8);
 
     // BUTTONs
     let button_pins = static_init!(
