@@ -11,7 +11,7 @@ for mkfile in `find . -maxdepth 3 -name Makefile`; do
 	pushd $dir > /dev/null
 	echo ""
 	echo "Building $dir"
-	make || (echo "${bold} ⤤ Failure building $dir${normal}" ; exit 1)
+	make -j || (echo "${bold} ⤤ Failure building $dir${normal}" ; exit 1)
 	popd > /dev/null
 done
 
