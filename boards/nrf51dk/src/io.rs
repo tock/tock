@@ -1,7 +1,6 @@
 use kernel::hil::uart::{self, UART};
 use nrf51;
-use core::fmt::{Write, write};
-use core::fmt::Arguments;
+use core::fmt::{Write, write, Arguments};
 
 pub struct Writer {
     initialized: bool,
