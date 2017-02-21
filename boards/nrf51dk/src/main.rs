@@ -117,17 +117,17 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
-        {
-            match driver_num {
-                0 => f(Some(self.console)),
-                1 => f(Some(self.gpio)),
-                3 => f(Some(self.timer)),
-                8 => f(Some(self.led)),
-                9 => f(Some(self.button)),
-                36 => f(Some(self.temp)),
-                _ => f(None),
-            }
+    {
+        match driver_num {
+            0 => f(Some(self.console)),
+            1 => f(Some(self.gpio)),
+            3 => f(Some(self.timer)),
+            8 => f(Some(self.led)),
+            9 => f(Some(self.button)),
+            36 => f(Some(self.temp)),
+            _ => f(None),
         }
+    }
 }
 
 #[no_mangle]
@@ -191,9 +191,9 @@ pub unsafe fn reset_handler() {
     }
 
     nrf51::uart::UART0.configure(Pinmux::new(9),
-    Pinmux::new(11),
-    Pinmux::new(10),
-    Pinmux::new(8));
+                                 Pinmux::new(11),
+                                 Pinmux::new(10),
+                                 Pinmux::new(8));
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
@@ -268,7 +268,7 @@ use core::fmt::Arguments;
 pub unsafe extern "C" fn rust_begin_unwind(_args: &Arguments,
                                            _file: &'static str,
                                            _line: usize)
--> ! {
+                                           -> ! {
     use kernel::hil::gpio::Pin;
 
     let led0 = &nrf51::gpio::PORT[LED1_PIN];

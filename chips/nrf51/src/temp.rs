@@ -42,17 +42,17 @@ impl Temp {
 
     #[inline(never)]
     #[no_mangle]
-    // MEASUREMENT DONE 
+    // MEASUREMENT DONE
     pub fn handle_interrupt(&self) {
         // ONLY DATARDY CAN TRIGGER THIS INTERRUPT
         let regs: &mut TEMP_REGS = unsafe { mem::transmute(self.regs) };
-        
+
         // get temperature
         let temp = regs.TEMP.get() / 4;
-        
+
         // stop measurement
         regs.STOP.set(1);
-        
+
         // disable interrupts
         self.disable_nvic();
         self.disable_interrupts();
