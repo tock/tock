@@ -1,12 +1,12 @@
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdint.h>
 
 #include "tock.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define DRIVER_NUM_ADC 7
 

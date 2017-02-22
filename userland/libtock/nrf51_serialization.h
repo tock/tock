@@ -1,5 +1,4 @@
-#ifndef _NRF51_SERIALIZATION_H
-#define _NRF51_SERIALIZATION_H
+#pragma once
 
 #include "tock.h"
 
@@ -23,5 +22,3 @@ void nrf51_wakeup (void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // _NRF51_SERIALIZATION_H

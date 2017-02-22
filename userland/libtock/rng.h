@@ -2,6 +2,10 @@
 
 #include "tock.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define DRIVER_NUM_RNG 14
 
 /*  rng_async
@@ -50,3 +54,6 @@ int rng_set_buffer(uint8_t* buf, uint32_t len);
  */
 int rng_get_random(int num_bytes);
 
+#ifdef __cplusplus
+}
+#endif
