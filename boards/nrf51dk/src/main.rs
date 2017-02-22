@@ -234,12 +234,6 @@ pub unsafe fn reset_handler() {
     nrf51::aes_ccm::AESCCM.ccm_init();
     nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
 
-    let aes_ccm = static_init!(
-        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
-        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
-    nrf51::aes_ccm::AESCCM.ccm_init();
-    nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
-
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();

@@ -27,4 +27,3 @@ int aes_ccm_decrypt(const char* ciphertext, unsigned char len) {
   }
   return command(DRIVER_CCM, DEC, len+4);
 }
-
