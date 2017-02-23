@@ -98,7 +98,7 @@ On Arch Linux the `arm-none-eabi-newlib` package in pacman contains a
 sufficiently up-to-date version of newlibc.
 
 ```bash
-$ sudo pacman Sy arm-none-eabi-gcc arm-none-eabi-newlib arm-none-eabi-gdb
+$ sudo pacman -Sy arm-none-eabi-gcc arm-none-eabi-newlib arm-none-eabi-gdb
 ```
 
 ##### Windows
