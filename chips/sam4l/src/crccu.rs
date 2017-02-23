@@ -97,8 +97,8 @@ struct Descriptor {
 struct TCR(u32);
 
 impl TCR {
-    const fn new(ien: bool, trwidth: TrWidth, btsize: u16) -> Self {
-        TCR((ien as u32) << 27
+    const fn new(enable_interrupt: bool, trwidth: TrWidth, btsize: u16) -> Self {
+        TCR((!enable_interrupt as u32) << 27
             | (trwidth as u32) << 24
             | (btsize as u32))
     }
@@ -107,8 +107,8 @@ impl TCR {
         Self::new(false, TrWidth::Byte, 0)
     }
 
-    fn get_ien(self) -> bool {
-        (self.0 & (1 << 27)) != 0
+    fn interrupt_enabled(self) -> bool {
+        (self.0 & (1 << 27)) == 0
     }
 
     #[allow(dead_code)]
@@ -200,11 +200,6 @@ impl<'a> Crccu<'a> {
 
     pub fn handle_interrupt(&mut self) {
 
-        // DEBUG: We got some interrupt!
-        if let Some(client) = self.get_client() {
-            client.interrupt();
-        }
-
         if ISR.read() & 1 == 1 {
             // A CRC error has occurred
             if let Some(client) = self.get_client() {
@@ -215,7 +210,7 @@ impl<'a> Crccu<'a> {
         if DMAISR.read() & 1 == 1 {
             // A DMA transfer has completed
 
-            if self.get_tcr().get_ien() {
+            if self.get_tcr().interrupt_enabled() {
                 if let Some(client) = self.get_client() {
                     let result = SR.read();
                     client.receive_result(result);
@@ -263,7 +258,7 @@ impl<'a> crc::CRC for Crccu<'a> {
     }
 
     fn compute(&mut self, data: &[u8]) -> ReturnCode {
-        if self.get_tcr().get_ien() {
+        if self.get_tcr().interrupt_enabled() {
             // A computation is already in progress
             return ReturnCode::EBUSY;
         }
