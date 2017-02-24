@@ -28,8 +28,6 @@ pub mod io;
 mod i2c_dummy;
 #[allow(dead_code)]
 mod spi_dummy;
-#[allow(dead_code)]
-mod crc_dummy;
 
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
@@ -49,6 +47,7 @@ struct Imix {
     radio: &'static capsules::radio::RadioDriver<'static,
                                                  capsules::rf233::RF233<'static,
                                                  VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
+    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -85,6 +84,7 @@ impl kernel::Platform for Imix {
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
             11 => f(Some(self.fxos8700_cq)),
+            12 => f(Some(self.crc)),
             154 => f(Some(self.radio)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
@@ -356,6 +356,11 @@ pub unsafe fn reset_handler() {
         btn.set_client(button);
     }
 
+    let crc = static_init!(
+        capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()),
+        128/8);
+
     rf233_spi.set_client(rf233);
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
 
@@ -379,6 +384,7 @@ pub unsafe fn reset_handler() {
         adc: adc,
         led: led,
         button: button,
+        crc: crc,
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(),
         fxos8700_cq: fx0,
@@ -395,9 +401,6 @@ pub unsafe fn reset_handler() {
     //    rf233.config_commit();
 
     rf233.start();
-
-    // DEBUG: Perform a CRC computation
-    crc_dummy::crc_test_begin();
 
     debug!("Initialization complete. Entering main loop");
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);

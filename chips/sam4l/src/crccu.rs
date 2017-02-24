@@ -2,18 +2,26 @@
 //
 //  see datasheet section "41. Cyclic Redundancy Check Calculation Unit (CRCCU)"
 
+// Bugs:
+//
+// - Calculations with the two 32-bit polynomials produce results different
+//   from the reference in the notes below.
+
 // Infelicities:
 //
 // - As much as 512 bytes of RAM is wasted to allow runtime alignment of the
 //   CRCCU Descriptor.  Reliable knowledge of kernel alignment might allow this
 //   to be done statically.
 //
-// - It doesn't work:
-//      - Although the DMA transfer appears to complete, the CRCCU doesn't
-//        seem to issue an interrupt.  (If "compare" mode is enabled and the
-//        reference value doesn't match the result, the CRCCU *does* issue
-//        the error interrupt.)
-//      - The CRC values are not as expected.  (See note below.)
+// - CRC performance would be improved by using transfer-widths larger than Byte,
+//   but it is not clear in what cases that is possible.
+
+// TODO:
+//
+// - Chain computations to permit arbitrary-size computations, or at least
+//   publish the max buffer size the unit can handle.
+//
+// - Support continuous-mode CRC
 
 // Notes:
 //
@@ -21,14 +29,17 @@
 //      Atmel is using the low bit instead of the high bit so reversing
 //      the values before calculation did the trick. Here is a calculator
 //      that matches (click CCITT and check the 'reverse data bytes' to
-//      get the correct value).  http://www.zorc.breitbandkatze.de/crc.html
+//      get the correct value):
+//
+//          http://www.zorc.breitbandkatze.de/crc.html
 //
 //      The SAM4L calculates 0x1541 for "ABCDEFG".
 
+use core::cell::Cell;
 use kernel::returncode::ReturnCode;
-use kernel::hil::crc;
+use kernel::hil::crc::{self, Polynomial};
 use nvic;
-use pm::{Clock, HSBClock, PBBClock, enable_clock};
+use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
 
 // A memory-mapped register
 struct Reg(*mut u32);
@@ -134,15 +145,13 @@ impl Mode {
     }
 }
 
-pub enum Polynomial {
-	CCIT8023,   // Polynomial 0x04C11DB7
-	CASTAGNOLI, // Polynomial 0x1EDC6F41
-	CCIT16,		// Polynomial 0x1021
-}
+#[derive(Copy, Clone, PartialEq)]
+enum State { Invalid, Initialized, Enabled }
 
 // State for managing the CRCCU
 pub struct Crccu<'a> {
     client: Option<&'a crc::Client>,
+    state: Cell<State>,
 
     // Guaranteed room for a Descriptor with 512-byte alignment.
     // (Can we do this statically instead?)
@@ -154,8 +163,44 @@ const DSCR_RESERVE: usize = 512 + 5*4;
 impl<'a> Crccu<'a> {
     const fn new() -> Self {
         Crccu { client: None,
+                state: Cell::new(State::Invalid),
                 descriptor_space: [0; DSCR_RESERVE] }
     }
+
+    fn init(&self) {
+        if self.state.get() == State::Invalid {
+            self.set_descriptor(0, TCR::default(), 0);
+            self.state.set(State::Initialized);
+        }
+    }
+
+    pub fn enable(&self) {
+        if self.state.get() != State::Enabled {
+            self.init();
+            unsafe {
+                // see "10.7.4 Clock Mask"
+                enable_clock(Clock::HSB(HSBClock::CRCCU));
+                enable_clock(Clock::PBB(PBBClock::CRCCU));
+
+                nvic::disable(nvic::NvicIdx::CRCCU);
+                nvic::clear_pending(nvic::NvicIdx::CRCCU);
+                nvic::enable(nvic::NvicIdx::CRCCU);
+            }
+            self.state.set(State::Enabled);
+        }
+    }
+
+    pub fn disable(&self) {
+        if self.state.get() == State::Enabled {
+            unsafe {
+                nvic::disable(nvic::NvicIdx::CRCCU);
+                disable_clock(Clock::PBB(PBBClock::CRCCU));
+                disable_clock(Clock::HSB(HSBClock::CRCCU));
+            }
+            self.state.set(State::Initialized);
+        }
+    }
+
 
     pub fn set_client(&mut self, client: &'a crc::Client) {
         self.client = Some(client);
@@ -165,11 +210,16 @@ impl<'a> Crccu<'a> {
         self.client
     }
 
-    fn set_descriptor(&mut self, addr: u32, ctrl: TCR, crc: u32) {
+    fn set_descriptor(&self, addr: u32, ctrl: TCR, crc: u32) {
         let d = unsafe { &mut *self.descriptor() };
         d.addr = addr;
         d.ctrl = ctrl;
         d.crc = crc;
+    }
+
+    fn get_tcr(&self) -> TCR {
+        let d = unsafe { &*self.descriptor() };
+        d.ctrl
     }
 
     // Dynamically calculate the 512-byte-aligned location for Descriptor
@@ -181,30 +231,9 @@ impl<'a> Crccu<'a> {
         return d as *mut Descriptor;
     }
 
-    fn get_tcr(&self) -> TCR {
-        let d = unsafe { &*self.descriptor() };
-        d.ctrl
-    }
-
-    pub fn enable_unit(&self) {
-        unsafe {
-            // see "10.7.4 Clock Mask"
-            enable_clock(Clock::HSB(HSBClock::CRCCU));
-            enable_clock(Clock::PBB(PBBClock::CRCCU));
-
-            nvic::disable(nvic::NvicIdx::CRCCU);
-            nvic::clear_pending(nvic::NvicIdx::CRCCU);
-            nvic::enable(nvic::NvicIdx::CRCCU);
-        }
-    }
-
     pub fn handle_interrupt(&mut self) {
-
         if ISR.read() & 1 == 1 {
             // A CRC error has occurred
-            if let Some(client) = self.get_client() {
-                client.receive_err();
-            }
         }
 
         if DMAISR.read() & 1 == 1 {
@@ -219,57 +248,40 @@ impl<'a> Crccu<'a> {
                 // Disable the unit
                 MR.write(Mode::disabled().0);
 
-                // Clear CTRL.IEN (for our own statekeeping)
+                // Reset CTRL.IEN (for our own statekeeping)
                 self.set_descriptor(0, TCR::default(), 0);
                 
-                // Disable DMA interrupt and DMA channel
+                // Disable DMA interrupt
                 DMAIDR.write(1);
+
+                // Disable DMA channel
                 DMADIS.write(1);
             }
-
-            /*
-            // When is it appropriate to unclock the unit?
-            unsafe {
-                nvic::disable(nvic::NvicIdx::CRCCU);
-                disable_clock(Clock::PBB(PBBClock::CRCCU));
-                disable_clock(Clock::HSB(HSBClock::CRCCU));
-            }
-            */
         }
     }
 }
 
 // Implement the generic CRC interface with the CRCCU
 impl<'a> crc::CRC for Crccu<'a> {
-    fn init(&mut self) -> ReturnCode {
-        let daddr = self.descriptor() as u32;
-        if daddr & 0x1ff != 0 {
-            // Alignment failure
-            return ReturnCode::FAIL;
-        }
-
-        self.set_descriptor(0, TCR::default(), 0);
-        self.enable_unit();
-        return ReturnCode::SUCCESS;
-    }
-
     fn get_version(&self) -> u32 {
         VERSION.read()
     }
 
-    fn compute(&mut self, data: &[u8]) -> ReturnCode {
+    fn compute(&self, data: &[u8], poly: Polynomial) -> ReturnCode {
+        self.init();
+
         if self.get_tcr().interrupt_enabled() {
             // A computation is already in progress
             return ReturnCode::EBUSY;
         }
 
-        if data.len() > (2^16 - 1) {
+        if data.len() > 2usize.pow(16) - 1 {
             // Buffer too long
             // TODO: Chain CRCCU computations to handle large buffers
             return ReturnCode::ESIZE;
         }
 
-        self.enable_unit();
+        self.enable();
 
         // Enable DMA interrupt
         DMAIER.write(1);
@@ -282,7 +294,15 @@ impl<'a> crc::CRC for Crccu<'a> {
 
         // Configure the data transfer
         let addr = data.as_ptr() as u32;
-        let ctrl = TCR::new(true, TrWidth::Word, data.len() as u16);
+        let len = data.len() as u16;
+        /*
+        // It's not clear under what circumstances a transfer width other than Byte will work
+        let tr_width = if addr % 4 == 0 && len % 4 == 0 { TrWidth::Word }
+                       else { if addr % 2 == 0 && len % 2 == 0 { TrWidth::HalfWord }
+                              else { TrWidth::Byte } };
+        */
+        let tr_width = TrWidth::Byte;
+        let ctrl = TCR::new(true, tr_width, len);
         let crc = 0;
         self.set_descriptor(addr, ctrl, crc);
         DSCR.write(self.descriptor() as u32);
@@ -291,28 +311,17 @@ impl<'a> crc::CRC for Crccu<'a> {
         let divider = 0;
         let compare = false;
         let enable = true;
-        let mode = Mode::new(divider, Polynomial::CCIT16, compare, enable);
+        let mode = Mode::new(divider, poly, compare, enable);
         MR.write(mode.0);
 
         // Enable DMA channel
         DMAEN.write(1);
 
-        /*
-        // DEBUG: Don't wait for the interrupt that isn't coming for some reason.
-        // Instead, just busy-wait until DMA has completed
-        loop {
-            if DMASR.read() & 1 == 0 {
-                // DMA channel disabled
-                if let Some(client) = self.get_client() {
-                    let result = SR.read();
-                    client.receive_result(result);
-                }
-                break;
-            }
-        }
-        */
-
         return ReturnCode::SUCCESS;
+    }
+
+    fn disable(&self) {
+        Crccu::disable(self);
     }
 }
 

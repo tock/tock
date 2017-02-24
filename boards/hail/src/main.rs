@@ -85,6 +85,7 @@ struct Hail {
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
     ipc: kernel::ipc::IPC,
+    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
 }
 
 impl Platform for Hail {
@@ -105,6 +106,7 @@ impl Platform for Hail {
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
             11 => f(Some(self.fxos8700)),
+            12 => f(Some(self.crc)),
 
             14 => f(Some(self.rng)),
 
@@ -345,6 +347,12 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
+    // CRC
+    let crc = static_init!(
+        capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()),
+        128/8);
+    sam4l::crccu::CRCCU.set_client(crc);
 
 
     let hail = Hail {
@@ -361,6 +369,7 @@ pub unsafe fn reset_handler() {
         button: button,
         rng: rng,
         ipc: kernel::ipc::IPC::new(),
+        crc: crc,
     };
 
     // Need to reset the nRF on boot
