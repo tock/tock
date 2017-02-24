@@ -1,10 +1,7 @@
 use chip;
 use core::cell::Cell;
 use core::mem;
-use kernel::common::VolatileCell;
-use kernel::common::take_cell::TakeCell;
 use kernel::hil::aes::{AESDriver, Client};
-use kernel::returncode::ReturnCode;
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{AESCCM_REGS, AESCCM_BASE};

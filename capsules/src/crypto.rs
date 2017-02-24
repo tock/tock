@@ -4,9 +4,8 @@
 //! Provides a simple driver for userspace applications to encrypt and decrypt messages
 
 
-use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::take_cell::TakeCell;
 use kernel::hil::aes::{AESDriver, Client};
 use kernel::process::Error;
 
@@ -86,7 +85,7 @@ impl<'a, E: AESDriver + 'a> Client for Crypto<'a, E> {
         ReturnCode::SUCCESS
     }
 
-    fn set_key_done(&self, key: &'static mut [u8], len: u8) -> ReturnCode {
+    fn set_key_done(&self, key: &'static mut [u8], _: u8) -> ReturnCode {
         // panic!("KEY {:?}\n", key);
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| { app.callback.map(|mut cb| { cb.schedule(0, 0, 0); }); });
@@ -160,7 +159,7 @@ impl<'a, E: AESDriver> Driver for Crypto<'a, E> {
     }
 
     // This code violates the DRY-principle but don't care about it at moment
-    fn command(&self, command_num: usize, len: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, len: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => {
                 for cntr in self.apps.iter() {
