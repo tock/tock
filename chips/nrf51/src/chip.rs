@@ -1,3 +1,4 @@
+use aes_ccm;
 use gpio;
 use kernel;
 use kernel::common::{RingBuffer, Queue};
@@ -43,6 +44,7 @@ impl kernel::Chip for NRF51 {
                     NvicIdx::TIMER1 => timer::ALARM1.handle_interrupt(),
                     NvicIdx::TIMER2 => timer::TIMER2.handle_interrupt(),
                     NvicIdx::UART0 => uart::UART0.handle_interrupt(),
+                    NvicIdx::CCM_AAR => aes_ccm::AESCCM.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);
