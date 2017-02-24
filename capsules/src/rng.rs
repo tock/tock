@@ -48,7 +48,6 @@ impl<'a, RNG: rng::RNG> SimpleRng<'a, RNG> {
 impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
     fn randomness_available(&self, randomness: &mut Iterator<Item = u32>) -> rng::Continue {
         let mut done = true;
-
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 // Check if this app needs random values.
@@ -56,6 +55,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                     app.buffer.take().map(|mut buffer| {
                         // Check that the app is not asking for more than can
                         // fit in the provided buffer.
+                        
                         if buffer.len() < app.idx + app.remaining {
                             app.remaining = buffer.len() - app.idx;
                         }
@@ -65,7 +65,6 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
 
                             // 1. Slice buffer to start from current idx
                             let buf = &mut buffer.as_mut()[app.idx..(app.idx + app.remaining)];
-
                             // 2. Take at most as many random samples as needed to fill the buffer
                             //    (if app.remaining is not word-sized, take an extra one).
                             let remaining_ints = if app.remaining % 4 == 0 {
@@ -76,17 +75,19 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
 
                             // 3. Zip over the randomness iterator and chunks
                             //    of up to 4 bytes from the buffer.
+                            let mut dummy: [u32; 16] = [0; 16];
                             for (inp, outs) in randomness.take(remaining_ints)
                                 .zip(buf.chunks_mut(4)) {
-
                                 // 4. For each word of randomness input, update
                                 //    the remaining and idx and add to buffer.
                                 for (i, b) in outs.iter_mut().enumerate() {
+                                    dummy[i] = inp;
                                     *b = ((inp >> i * 8) & 0xff) as u8;
                                     app.remaining -= 1;
                                     app.idx += 1;
                                 }
                             }
+                            // panic!("dummy: {:?}\r\n", dummy);
                         }
 
                         // Replace taken buffer
