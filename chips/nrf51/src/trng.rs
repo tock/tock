@@ -4,9 +4,9 @@ use chip;
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::rng::{self, Continue};
-use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{RNG_BASE, RNG_REGS};
+use nvic;
 
 pub static mut DMY: [u8; 4] = [0; 4];
 
@@ -38,6 +38,8 @@ impl<'a> Trng<'a> {
         self.disable_nvic();
         regs.STOP.set(1);
 
+        // debug!("v: {}\r\n", regs.VALUE.get() as u8);
+
         self.cnt.set( self.cnt.get()+1);
 
         match self.done.get() {
@@ -51,9 +53,9 @@ impl<'a> Trng<'a> {
             4 => {
                 self.client.get().map(|client| {
                     let result = client.randomness_available(&mut TrngIter(self));
+                    debug!{"{:?}\r\n", result};
                     if let Continue::Done = result {
-                        // do nothing WE ARE DONE REMOVE THIS LATER
-                        ()
+                        self.done.set(0);
                     } else {
                         self.done.set(0);
                         self.start_rng();

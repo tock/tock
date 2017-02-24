@@ -2,7 +2,7 @@
 #include <timer.h>
 #include <rng.h>
 
-#define SIZE 100
+#define SIZE 16
 
 char data[SIZE];
 
@@ -25,8 +25,8 @@ int main(void)
   rng_set_buffer(data, SIZE);
   rng_set_callback(callback, NULL);
 
-  for(;;) {
-    rng_get_random(1000);
+  for(int i = 0; i < 5; i++) {
+    rng_get_random(16);
     delay_ms(1000);
   }
   return 0;
