@@ -2,11 +2,11 @@
 
 use chip;
 use core::cell::Cell;
+use core::mem;
 use kernel::hil::rng::{self, Continue};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{RNG_BASE, RNG_REGS};
-use core::mem;
 
 pub struct Trng<'a> {
     regs: *mut RNG_REGS,
@@ -26,10 +26,11 @@ impl<'a> Trng<'a> {
     pub fn handle_interrupt(&self) {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
         // panic!("random number: {:}\r\n", regs.VALUE.get());
-        
+
         // ONLY VALRDY CAN TRIGGER THIS INTERRUPT
         self.disable_interrupts();
         self.disable_nvic();
+        regs.STOP.set(1);
         //
         self.client.get().map(|client| {
             let result = client.randomness_available(&mut TrngIter(self));
@@ -62,13 +63,27 @@ impl<'a> Trng<'a> {
         nvic::disable(NvicIdx::RNG);
     }
 
+    #[inline(never)]
+    #[no_mangle]
     fn start_rng(&self) {
-    
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
+        // clear registers
+        regs.START.set(0);
         regs.VALRDY.set(0);
+
+        // enable interrupts
+        self.enable_nvic();
+        self.enable_interrupts();
+
+        // start rng
         regs.START.set(1);
     }
 
+    // fn stop_rng(&self) {
+    //     let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
+    //     regs.VALRDY.set(0);
+    //     regs.START.set(0);
+    // }
 }
 
 struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
@@ -77,21 +92,18 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        // let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
-        // if regs.VALRDY.get() != 0 {
-        //     Some(regs.VALUE.get())
-        // } else {
-        //     None
-        // }
-        Some(12 as u32)
+        let regs: &mut RNG_REGS = unsafe { mem::transmute(self.0.regs) };
+        if regs.VALRDY.get() != 0 {
+            Some(regs.VALUE.get())
+        } else {
+            None
+        }
     }
 }
 
 impl<'a> rng::RNG for Trng<'a> {
     fn get(&self) {
         self.start_rng();
-        self.enable_nvic();
-        self.enable_interrupts();
     }
 }
 
