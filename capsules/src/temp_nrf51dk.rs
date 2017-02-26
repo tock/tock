@@ -9,14 +9,10 @@ use kernel::{AppId, Container, Callback, Driver, ReturnCode};
 use kernel::hil::temperature::{TemperatureDriver, Client};
 use kernel::process::Error;
 
+#[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App { callback: None }
-    }
+    subscribed: bool,
 }
 
 pub struct Temperature<'a, T: TemperatureDriver + 'a> {
@@ -39,7 +35,10 @@ impl<'a, E: TemperatureDriver + 'a> Client for Temperature<'a, E> {
     fn measurement_done(&self, temp: usize) -> ReturnCode {
         for cntr in self.apps.iter() {
             self.busy.set(false);
-            cntr.enter(|app, _| { app.callback.map(|mut cb| { cb.schedule(temp, 0, 0); }); });
+            cntr.enter(|app, _| if app.subscribed {
+                app.subscribed = false;
+                app.callback.map(|mut cb| cb.schedule(temp, 0, 0));
+            });
         }
         ReturnCode::SUCCESS
     }
@@ -64,16 +63,18 @@ impl<'a, E: TemperatureDriver> Driver for Temperature<'a, E> {
             _ => ReturnCode::ENOSUPPORT,
         }
     }
-    fn command(&self, command_num: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => {
-                if self.busy.get() {
-                    ReturnCode::EBUSY
-                } else {
+                self.apps
+                    .enter(appid, |app, _| app.subscribed = true)
+                    .unwrap_or(());
+
+                if !self.busy.get() {
                     self.busy.set(true);
                     self.temp.take_measurement();
-                    ReturnCode::SUCCESS
                 }
+                ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
         }
