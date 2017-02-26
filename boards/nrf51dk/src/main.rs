@@ -230,7 +230,7 @@ pub unsafe fn reset_handler() {
 
     let temp = static_init!(
         capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
-        capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP, 
+        capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP,
                                           kernel::Container::create()), 96/8);
     nrf51::temperature::TEMP.set_client(temp);
 
