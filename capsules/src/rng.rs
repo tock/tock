@@ -75,19 +75,17 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
 
                             // 3. Zip over the randomness iterator and chunks
                             //    of up to 4 bytes from the buffer.
-                            let mut dummy: [u8; 16] = [0; 16];
                             for (inp, outs) in randomness.take(remaining_ints)
                                 .zip(buf.chunks_mut(4)) {
                                 // 4. For each word of randomness input, update
                                 //    the remaining and idx and add to buffer.
                                 for (i, b) in outs.iter_mut().enumerate() {
-                                    dummy[i] = ((inp >> i * 8) & 0xff) as u8;
+                                    // debug!("random: {:?}\r\n", ((inp >> i * 8) & 0xff) as u8);
                                     *b = ((inp >> i * 8) & 0xff) as u8;
                                     app.remaining -= 1;
                                     app.idx += 1;
                                 }
                             }
-                            // panic!("dummy: {:?}\r\n app.rem {:?}\r\n", dummy, app.remaining);
                         }
 
                         // Replace taken buffer
