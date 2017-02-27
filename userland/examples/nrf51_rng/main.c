@@ -25,7 +25,7 @@ int main(void)
   rng_set_buffer(data, SIZE);
   rng_set_callback(callback, NULL);
 
-  for(int i = 0; i < 5; i++) {
+  for(int i = 0; i < 3; i++) {
     rng_get_random(16);
     delay_ms(1000);
   }

@@ -4,9 +4,9 @@ use chip;
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::rng::{self, Continue};
+use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{RNG_BASE, RNG_REGS};
-use nvic;
 
 pub static mut DMY: [u8; 4] = [0; 4];
 
@@ -25,7 +25,6 @@ impl<'a> Trng<'a> {
             regs: RNG_BASE as *mut RNG_REGS,
             client: Cell::new(None),
             done: Cell::new(0),
-            cnt: Cell::new(0),
         }
     }
 
@@ -34,13 +33,10 @@ impl<'a> Trng<'a> {
     pub fn handle_interrupt(&self) {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
         // ONLY VALRDY CAN TRIGGER THIS INTERRUPT
+        // debug!("handle_interrupt rng: {}\r\n", regs.VALUE.get());
         self.disable_interrupts();
         self.disable_nvic();
         regs.STOP.set(1);
-
-        // debug!("v: {}\r\n", regs.VALUE.get() as u8);
-
-        self.cnt.set( self.cnt.get()+1);
 
         match self.done.get() {
             e @ 0...3 => {
@@ -53,7 +49,6 @@ impl<'a> Trng<'a> {
             4 => {
                 self.client.get().map(|client| {
                     let result = client.randomness_available(&mut TrngIter(self));
-                    debug!{"{:?}\r\n", result};
                     if let Continue::Done = result {
                         self.done.set(0);
                     } else {
@@ -64,6 +59,7 @@ impl<'a> Trng<'a> {
             }
             _ => panic!("invalid length of data\r\n"),
         }
+        nvic::clear_pending(NvicIdx::RNG);
     }
 
     pub fn set_client(&self, client: &'a rng::Client) {
@@ -73,11 +69,12 @@ impl<'a> Trng<'a> {
     fn enable_interrupts(&self) {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
         regs.INTEN.set(1);
-        regs.INTENSET.set(1);
+        // regs.INTENSET.set(1);
     }
 
     fn disable_interrupts(&self) {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
+        regs.INTENCLR.set(1);
         regs.INTEN.set(0);
     }
 
@@ -95,7 +92,7 @@ impl<'a> Trng<'a> {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
         // clear registers
         regs.VALRDY.set(0);
-        regs.CONFIG.set(1);
+        // regs.CONFIG.set(1);
 
         // enable interrupts
         self.enable_nvic();
@@ -118,6 +115,7 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
         if self.0.done.get() == 4 {
             unsafe {
                 let b = mem::transmute::<[u8; 4], u32>(DMY);
+                debug!("rng: {:?}\r\n", DMY);
                 Some(b)
             }
         } else {

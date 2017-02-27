@@ -1,7 +1,10 @@
 #![feature(asm,concat_idents,const_fn)]
 #![no_std]
 
-#[macro_use(debug)] extern crate kernel;
+#[allow(unused_imports)]
+#[macro_use(debug)] 
+extern crate kernel;
+
 extern "C" {
     pub fn init();
 }
