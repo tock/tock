@@ -14,7 +14,6 @@ pub struct Trng<'a> {
     regs: *mut RNG_REGS,
     client: Cell<Option<&'a rng::Client>>,
     done: Cell<u8>,
-    cnt: Cell<u8>,
 }
 
 pub static mut TRNG: Trng<'static> = Trng::new();
@@ -37,13 +36,15 @@ impl<'a> Trng<'a> {
         self.disable_interrupts();
         self.disable_nvic();
         regs.STOP.set(1);
-
+        nvic::clear_pending(NvicIdx::RNG);
+        
         match self.done.get() {
             e @ 0...3 => {
                 unsafe {
                     DMY[e as usize] = regs.VALUE.get() as u8;
                 }
                 self.done.set(e + 1);
+                // TEST THIS
                 self.start_rng()
             }
             4 => {
@@ -59,7 +60,6 @@ impl<'a> Trng<'a> {
             }
             _ => panic!("invalid length of data\r\n"),
         }
-        nvic::clear_pending(NvicIdx::RNG);
     }
 
     pub fn set_client(&self, client: &'a rng::Client) {
@@ -69,7 +69,7 @@ impl<'a> Trng<'a> {
     fn enable_interrupts(&self) {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
         regs.INTEN.set(1);
-        // regs.INTENSET.set(1);
+        regs.INTENSET.set(1);
     }
 
     fn disable_interrupts(&self) {

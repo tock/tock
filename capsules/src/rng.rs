@@ -80,7 +80,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                                 // 4. For each word of randomness input, update
                                 //    the remaining and idx and add to buffer.
                                 for (i, b) in outs.iter_mut().enumerate() {
-                                    // debug!("random: {:?}\r\n", ((inp >> i * 8) & 0xff) as u8);
+                                    debug!("random: {:?}\r\n", ((inp >> i * 8) & 0xff) as u8);
                                     *b = ((inp >> i * 8) & 0xff) as u8;
                                     app.remaining -= 1;
                                     app.idx += 1;
@@ -110,9 +110,11 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
         }
 
         if done {
+            debug!("done\r\n");
             self.getting_randomness.set(false);
             rng::Continue::Done
         } else {
+            debug!("require more rn\r\n");
             rng::Continue::More
         }
     }
