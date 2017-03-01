@@ -984,16 +984,32 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
     }
 
     fn packet_get_src(&self, packet: &'static [u8]) -> u16 {
-        if packet.len <
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return 0;
+        } else {
+            return 0;
+        }
     }
     fn packet_get_dest(&self, packet: &'static [u8]) -> u16 {
-
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return 0;
+        } else {
+            return 0;
+        }
     }
     fn packet_get_length(&self, packet: &'static [u8]) -> u16 {
-
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return 0;
+        } else {
+            return 0;
+        }
     }
     fn packet_get_pan(&self, packet: &'static [u8]) -> u16 {
-
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return 0;
+        } else {
+            return 0;
+        }
     }
 
 
