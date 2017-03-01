@@ -1,4 +1,7 @@
 //! TRNG driver for the nrf51dk
+//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
+//! Date: March 01, 2017
 
 use chip;
 use core::cell::Cell;
@@ -26,7 +29,7 @@ impl<'a> Trng<'a> {
             done: Cell::new(0),
         }
     }
-    
+
     // ONLY VALRDY CAN TRIGGER THIS INTERRUPT
     pub fn handle_interrupt(&self) {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };

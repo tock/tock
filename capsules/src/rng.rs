@@ -55,7 +55,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                     app.buffer.take().map(|mut buffer| {
                         // Check that the app is not asking for more than can
                         // fit in the provided buffer.
-               
+
                         if buffer.len() < app.idx + app.remaining {
                             app.remaining = buffer.len() - app.idx;
                         }
