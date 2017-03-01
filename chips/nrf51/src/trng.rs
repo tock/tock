@@ -1,4 +1,14 @@
-//! TRNG driver for the nrf51dk
+//! TRNG driver for nrf51dk
+//!
+//! The TRNG generates 1 byte randomness at the time value in the interval 0 .. 255
+//! The capsule requires 4 bytes of randomness
+//! The counter "done" ensures that 4 bytes of randomness have been generated before returning to the capsule.
+//! A temporary array "randomness" is used to store the randomness until it is returned to the capsule
+//! In the current implementation the driver can panic if the logic is implemented incorrectly
+//! It can be considered to return some bogus data while the error condition occurs but then the
+//! datatype in
+//!
+//!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
 //! Date: March 01, 2017
@@ -11,12 +21,11 @@ use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{RNG_BASE, RNG_REGS};
 
-pub static mut DMY: [u8; 4] = [0; 4];
-
 pub struct Trng<'a> {
     regs: *mut RNG_REGS,
     client: Cell<Option<&'a rng::Client>>,
-    done: Cell<u8>,
+    done: Cell<usize>,
+    randomness: Cell<[u8; 4]>,
 }
 
 pub static mut TRNG: Trng<'static> = Trng::new();
@@ -27,36 +36,46 @@ impl<'a> Trng<'a> {
             regs: RNG_BASE as *mut RNG_REGS,
             client: Cell::new(None),
             done: Cell::new(0),
+            randomness: Cell::new([0; 4]),
         }
     }
 
-    // ONLY VALRDY CAN TRIGGER THIS INTERRUPT
+    // only VALRDY register can trigger the interrupt
     pub fn handle_interrupt(&self) {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
 
         // disable interrupts
         self.disable_interrupts();
         self.disable_nvic();
-        regs.STOP.set(1);
         nvic::clear_pending(NvicIdx::RNG);
 
         match self.done.get() {
+            // fetch more data need 4 bytes because the capsule requires that
             e @ 0...3 => {
-                unsafe {
-                    DMY[e as usize] = regs.VALUE.get() as u8;
-                }
+                // 3 lines below to change data in Cell, perhaps it can be done more nicely
+                let mut arr = self.randomness.get();
+                arr[e] = regs.VALUE.get() as u8;
+                self.randomness.set(arr);
+
                 self.done.set(e + 1);
                 self.start_rng()
             }
+            // fetched 4 bytes of data send to the capsule
             4 => {
                 self.client.get().map(|client| {
                     let result = client.randomness_available(&mut TrngIter(self));
                     if Continue::Done != result {
+                        // need more randomness i.e generate more randomness
                         self.start_rng();
                     }
                 });
             }
-            _ => panic!("invalid length of data\r\n"),
+            // This should never happend if the logic is correct
+            // Consider to make some "clever" error message
+            _ => {
+                self.done.set(0);
+                self.randomness.set([0, 0, 0, 0]);
+            }
         }
     }
 
@@ -106,7 +125,8 @@ impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
 
     fn next(&mut self) -> Option<u32> {
         if self.0.done.get() == 4 {
-            let b = unsafe { mem::transmute::<[u8; 4], u32>(DMY) };
+            // convert [u8; 4] to u32 and return to rng capsule
+            let b = unsafe { mem::transmute::<[u8; 4], u32>(self.0.randomness.get()) };
             // indicate 4 bytes of randomness taken by the capsule
             self.0.done.set(0);
             Some(b)
