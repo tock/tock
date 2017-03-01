@@ -117,17 +117,17 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
-        {
-            match driver_num {
-                0 => f(Some(self.console)),
-                1 => f(Some(self.gpio)),
-                3 => f(Some(self.timer)),
-                8 => f(Some(self.led)),
-                9 => f(Some(self.button)),
-                14 => f(Some(self.rng)),
-                _ => f(None),
-            }
+    {
+        match driver_num {
+            0 => f(Some(self.console)),
+            1 => f(Some(self.gpio)),
+            3 => f(Some(self.timer)),
+            8 => f(Some(self.led)),
+            9 => f(Some(self.button)),
+            14 => f(Some(self.rng)),
+            _ => f(None),
         }
+    }
 }
 
 #[no_mangle]
@@ -191,9 +191,9 @@ pub unsafe fn reset_handler() {
     }
 
     nrf51::uart::UART0.configure(Pinmux::new(9),
-    Pinmux::new(11),
-    Pinmux::new(10),
-    Pinmux::new(8));
+                                 Pinmux::new(11),
+                                 Pinmux::new(10),
+                                 Pinmux::new(8));
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
@@ -233,7 +233,7 @@ pub unsafe fn reset_handler() {
         capsules::rng::SimpleRng::new(&mut nrf51::trng::TRNG, kernel::Container::create()),
         96/8);
     nrf51::trng::TRNG.set_client(rng);
-    
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();

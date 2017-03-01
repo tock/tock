@@ -5,8 +5,8 @@ use nvic;
 use peripheral_interrupts::NvicIdx;
 use rtc;
 use timer;
-use uart;
 use trng;
+use uart;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];

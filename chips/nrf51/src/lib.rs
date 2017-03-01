@@ -2,7 +2,7 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug)] 
+#[macro_use(debug)]
 extern crate kernel;
 
 extern "C" {
