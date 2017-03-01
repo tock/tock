@@ -26,34 +26,29 @@ impl<'a> Trng<'a> {
             done: Cell::new(0),
         }
     }
-
-    #[inline(never)]
-    #[no_mangle]
+    
+    // ONLY VALRDY CAN TRIGGER THIS INTERRUPT
     pub fn handle_interrupt(&self) {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
-        // ONLY VALRDY CAN TRIGGER THIS INTERRUPT
-        // debug!("handle_interrupt rng: {}\r\n", regs.VALUE.get());
+
+        // disable interrupts
         self.disable_interrupts();
         self.disable_nvic();
         regs.STOP.set(1);
         nvic::clear_pending(NvicIdx::RNG);
-        
+
         match self.done.get() {
             e @ 0...3 => {
                 unsafe {
                     DMY[e as usize] = regs.VALUE.get() as u8;
                 }
                 self.done.set(e + 1);
-                // TEST THIS
                 self.start_rng()
             }
             4 => {
                 self.client.get().map(|client| {
                     let result = client.randomness_available(&mut TrngIter(self));
-                    if let Continue::Done = result {
-                        self.done.set(0);
-                    } else {
-                        self.done.set(0);
+                    if Continue::Done != result {
                         self.start_rng();
                     }
                 });
@@ -86,13 +81,11 @@ impl<'a> Trng<'a> {
         nvic::disable(NvicIdx::RNG);
     }
 
-    #[inline(never)]
-    #[no_mangle]
     fn start_rng(&self) {
         let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
+
         // clear registers
         regs.VALRDY.set(0);
-        // regs.CONFIG.set(1);
 
         // enable interrupts
         self.enable_nvic();
@@ -108,16 +101,12 @@ struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
 impl<'a, 'b> Iterator for TrngIter<'a, 'b> {
     type Item = u32;
 
-    #[inline(never)]
-    #[no_mangle]
     fn next(&mut self) -> Option<u32> {
-        // let regs: &mut RNG_REGS = unsafe { mem::transmute(self.0.regs) };
         if self.0.done.get() == 4 {
-            unsafe {
-                let b = mem::transmute::<[u8; 4], u32>(DMY);
-                debug!("rng: {:?}\r\n", DMY);
-                Some(b)
-            }
+            let b = unsafe { mem::transmute::<[u8; 4], u32>(DMY) };
+            // indicate 4 bytes of randomness taken by the capsule
+            self.0.done.set(0);
+            Some(b)
         } else {
             None
         }
