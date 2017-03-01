@@ -6,7 +6,9 @@
 
 uint8_t data[SIZE];
 
-static void callback(int x, int not_used2,
+static void callback(
+    __attribute__ ((unused)) int x, 
+    __attribute__ ((unused)) int not_used2,
     __attribute__ ((unused)) int arg2,
     __attribute__ ((unused)) void *ud){
   printf("RANDOMNESS: \r\n");

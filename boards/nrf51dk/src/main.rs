@@ -118,17 +118,16 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
-        {
-            match driver_num {
-                0 => f(Some(self.console)),
-                1 => f(Some(self.gpio)),
-                3 => f(Some(self.timer)),
-                8 => f(Some(self.led)),
-                9 => f(Some(self.button)),
-                14 => f(Some(self.rng)),
-                36 => f(Some(self.temp)),
-                _ => f(None),
-            }
+    {
+        match driver_num {
+            0 => f(Some(self.console)),
+            1 => f(Some(self.gpio)),
+            3 => f(Some(self.timer)),
+            8 => f(Some(self.led)),
+            9 => f(Some(self.button)),
+            14 => f(Some(self.rng)),
+            36 => f(Some(self.temp)),
+            _ => f(None),
         }
     }
 }
@@ -234,7 +233,7 @@ pub unsafe fn reset_handler() {
     let temp = static_init!(
         capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
         capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP,
-                                          kernel::Container::create()), 96/8);
+                                                 kernel::Container::create()), 96/8);
     nrf51::temperature::TEMP.set_client(temp);
 
     let rng = static_init!(

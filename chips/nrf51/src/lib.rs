@@ -21,8 +21,5 @@ pub mod clock;
 pub mod uart;
 pub mod pinmux;
 pub use chip::NRF51;
-<<<<<<< HEAD
 pub mod temperature;
-=======
->>>>>>> 8c1aa42453243d9d528d8489598e7195afd5177e
 pub mod trng;
