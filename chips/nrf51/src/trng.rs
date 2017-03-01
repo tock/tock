@@ -1,13 +1,11 @@
 //! TRNG driver for nrf51dk
 //!
-//! The TRNG generates 1 byte randomness at the time value in the interval 0 .. 255
+//! The TRNG generates 1 byte randomness at the time value in the interval 0 <= r <= 255
 //! The capsule requires 4 bytes of randomness
 //! The counter "done" ensures that 4 bytes of randomness have been generated before returning to the capsule.
 //! A temporary array "randomness" is used to store the randomness until it is returned to the capsule
-//! In the current implementation the driver can panic if the logic is implemented incorrectly
-//! It can be considered to return some bogus data while the error condition occurs but then the
-//! datatype in
-//!
+//! In the current implementation if done > 4 for some strange reason the random generation will be
+//! restarted
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
@@ -71,7 +69,7 @@ impl<'a> Trng<'a> {
                 });
             }
             // This should never happend if the logic is correct
-            // Consider to make some "clever" error message
+            // Restart randomness generation if the conditon occurs
             _ => {
                 self.done.set(0);
                 self.randomness.set([0, 0, 0, 0]);
