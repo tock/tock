@@ -111,6 +111,7 @@ pub struct Platform {
     led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
+    rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
 }
 
 
@@ -124,6 +125,7 @@ impl kernel::Platform for Platform {
             3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            14 => f(Some(self.rng)),
             36 => f(Some(self.temp)),
             _ => f(None),
         }
@@ -138,9 +140,9 @@ pub unsafe fn reset_handler() {
     let led_pins = static_init!(
         [(&'static nrf51::gpio::GPIOPin, capsules::led::ActivationMode); 4],
         [(&nrf51::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow), // 21
-         (&nrf51::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow), // 22
-         (&nrf51::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow), // 23
-         (&nrf51::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow), // 24
+        (&nrf51::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow), // 22
+        (&nrf51::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow), // 23
+        (&nrf51::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow), // 24
         ],
         256/8);
     let led = static_init!(
@@ -231,8 +233,14 @@ pub unsafe fn reset_handler() {
     let temp = static_init!(
         capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
         capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP,
-                                          kernel::Container::create()), 96/8);
+                                                 kernel::Container::create()), 96/8);
     nrf51::temperature::TEMP.set_client(temp);
+
+    let rng = static_init!(
+        capsules::rng::SimpleRng<'static, nrf51::trng::Trng>,
+        capsules::rng::SimpleRng::new(&mut nrf51::trng::TRNG, kernel::Container::create()),
+        96/8);
+    nrf51::trng::TRNG.set_client(rng);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
@@ -252,6 +260,7 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         temp: temp,
+        rng: rng,
     };
 
     alarm.start();
