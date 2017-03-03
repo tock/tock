@@ -1,11 +1,18 @@
 //! TRNG driver for nrf51dk
 //!
-//! The TRNG generates 1 byte randomness at the time value in the interval 0 <= r <= 255
+//! The TRNG generates 1 byte randomness at the time value in the interval
+//! 0 <= r <= 255
+//!
 //! The capsule requires 4 bytes of randomness
-//! The counter "done" ensures that 4 bytes of randomness have been generated before returning to the capsule.
-//! A temporary array "randomness" is used to store the randomness until it is returned to the capsule
-//! In the current implementation if done > 4 for some strange reason the random generation will be
-//! restarted
+//!
+//! The counter "done" ensures that 4 bytes of randomness have been generated
+//! before returning to the capsule.
+//!
+//! A temporary array "randomness" is used to store the randomness until it is
+//! returned to the capsule
+//!
+//! In the current implementation if done > 4 for some strange reason the
+//! random generation will be restarted
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
