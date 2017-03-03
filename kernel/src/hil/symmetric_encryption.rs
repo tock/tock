@@ -1,6 +1,6 @@
 use returncode::ReturnCode;
 
-pub trait AESDriver {
+pub trait SymmetricEncryptionDriver {
     fn init(&self);
     fn set_key(&self, key: &'static mut [u8], len: u8);
     fn encrypt(&self, plaintext: &'static mut [u8], len: u8);

@@ -1,11 +1,10 @@
 use chip;
 use core::cell::Cell;
 use core::mem;
-use kernel::hil::aes::{AESDriver, Client};
+use kernel::hil::symmetric_encryption::{SymmetricEncryptionDriver, Client};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{AESCCM_REGS, AESCCM_BASE};
-
 
 // maybe make this to a struct later
 // byte  0-15       ;;  Key
@@ -36,7 +35,7 @@ pub struct AesCCM {
     regs: *mut AESCCM_REGS,
     client: Cell<Option<&'static Client>>,
     // TODO didn't got it work, i.e. to mutate data in struct as "&mut self"
-    // ccm_data: [u8; 32],
+    //ccm_data: Cell<[u8; 32]>,
     // in_data: [u8; 30],
     // out_data: [u8; 34],
     // tmp: [u8; 32],
@@ -50,7 +49,7 @@ impl AesCCM {
         AesCCM {
             regs: AESCCM_BASE as *mut AESCCM_REGS,
             client: Cell::new(None),
-            // ccm_data: [0; 32],
+            // ccm_data: Cell::new([0; 32]),
             // in_data: [0; 30],
             // out_data: [0; 34],
             // tmp: [0; 32],
@@ -227,7 +226,7 @@ impl AesCCM {
     }
 }
 // Methods of RadioDummy Trait/Interface and are shared between Capsules and Chips
-impl AESDriver for AesCCM {
+impl SymmetricEncryptionDriver for AesCCM {
     // This Function is called once Tock is booted
     fn init(&self) {
         self.ccm_init()

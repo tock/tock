@@ -9,7 +9,7 @@ pub mod adc;
 pub mod flash;
 pub mod watchdog;
 pub mod radio;
-pub mod aes;
+pub mod symmetric_encryption;
 pub trait Controller {
     type Config;
 
