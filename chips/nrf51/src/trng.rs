@@ -27,7 +27,7 @@ use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{RNG_BASE, RNG_REGS};
 
 pub struct Trng<'a> {
-    regs: *mut RNG_REGS,
+    regs: *const RNG_REGS,
     client: Cell<Option<&'a rng::Client>>,
     done: Cell<usize>,
     randomness: Cell<[u8; 4]>,
@@ -47,8 +47,7 @@ impl<'a> Trng<'a> {
 
     // only VALRDY register can trigger the interrupt
     pub fn handle_interrupt(&self) {
-        let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
-
+        let regs = unsafe { &*self.regs };
         // disable interrupts
         self.disable_interrupts();
         self.disable_nvic();
@@ -89,13 +88,13 @@ impl<'a> Trng<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.INTEN.set(1);
         regs.INTENSET.set(1);
     }
 
     fn disable_interrupts(&self) {
-        let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.INTENCLR.set(1);
         regs.INTEN.set(0);
     }
@@ -109,7 +108,7 @@ impl<'a> Trng<'a> {
     }
 
     fn start_rng(&self) {
-        let regs: &mut RNG_REGS = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
 
         // clear registers
         regs.VALRDY.set(0);
