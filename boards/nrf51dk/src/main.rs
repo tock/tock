@@ -111,6 +111,7 @@ pub struct Platform {
     led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
+    aes_ccm: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes_ccm::AesCCM>,
 }
 
 
@@ -124,6 +125,7 @@ impl kernel::Platform for Platform {
             3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            35 => f(Some(self.aes_ccm)),
             36 => f(Some(self.temp)),
             _ => f(None),
         }
@@ -228,6 +230,12 @@ pub unsafe fn reset_handler() {
                          12);
     virtual_alarm1.set_client(timer);
 
+    let aes_ccm = static_init!(
+        capsules::symmetric_encryption::Crypto<'static, nrf51::aes_ccm::AesCCM>,
+        capsules::symmetric_encryption::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::symmetric_encryption::BUF), 192/8);
+    nrf51::aes_ccm::AESCCM.ccm_init();
+    nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
+
     let temp = static_init!(
         capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
         capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP,
@@ -252,6 +260,7 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         temp: temp,
+        aes_ccm: aes_ccm,
     };
 
     alarm.start();
@@ -265,5 +274,4 @@ pub unsafe fn reset_handler() {
                  &mut chip,
                  load_process(),
                  &kernel::ipc::IPC::new());
-
 }

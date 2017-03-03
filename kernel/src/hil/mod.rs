@@ -10,7 +10,7 @@ pub mod flash;
 pub mod watchdog;
 pub mod radio;
 pub mod temperature;
-
+pub mod symmetric_encryption;
 pub trait Controller {
     type Config;
 
