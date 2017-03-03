@@ -1,6 +1,13 @@
+//! Temperature Sensor Driver for nrf51dk
+//!
+//! Generates a simple temperature measurement without sampling
+//!
+//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
+//! Date: March 03, 2017
+
 use chip;
 use core::cell::Cell;
-use core::mem;
 use kernel::hil::temperature::{TemperatureDriver, Client};
 use nvic;
 use peripheral_interrupts::NvicIdx;
@@ -9,7 +16,7 @@ use peripheral_registers::{TEMP_REGS, TEMP_BASE};
 #[deny(no_mangle_const_items)]
 #[no_mangle]
 pub struct Temperature {
-    regs: *mut TEMP_REGS,
+    regs: *const TEMP_REGS,
     client: Cell<Option<&'static Client>>,
 }
 
@@ -23,11 +30,8 @@ impl Temperature {
         }
     }
 
-    #[inline(never)]
-    #[no_mangle]
     fn measure(&self) {
-
-        let regs: &mut TEMP_REGS = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
 
         self.enable_nvic();
         self.enable_interrupts();
@@ -36,12 +40,10 @@ impl Temperature {
         regs.START.set(1);
     }
 
-    #[inline(never)]
-    #[no_mangle]
     // MEASUREMENT DONE
     pub fn handle_interrupt(&self) {
         // ONLY DATARDY CAN TRIGGER THIS INTERRUPT
-        let regs: &mut TEMP_REGS = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
 
         // get temperature
         let temp = regs.TEMP.get() / 4;
@@ -58,18 +60,15 @@ impl Temperature {
         nvic::clear_pending(NvicIdx::TEMP);
     }
 
-
-    #[inline(never)]
-    #[no_mangle]
     fn enable_interrupts(&self) {
-        let regs: &mut TEMP_REGS = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         // enable interrupts on DATARDY events
         regs.INTEN.set(1);
         regs.INTENSET.set(1);
     }
 
     fn disable_interrupts(&self) {
-        let regs: &mut TEMP_REGS = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         // disable interrupts on DATARDY events
         regs.INTENCLR.set(1);
     }
@@ -88,8 +87,6 @@ impl Temperature {
 }
 // Methods of RadioDummy Trait/Interface and are shared between Capsules and Chips
 impl TemperatureDriver for Temperature {
-    #[inline(never)]
-    #[no_mangle]
     fn take_measurement(&self) {
         self.measure()
     }
