@@ -111,7 +111,7 @@ pub struct Platform {
     led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
-    aes_ccm: &'static capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
+    aes_ccm: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes_ccm::AesCCM>,
 }
 
 
@@ -231,38 +231,8 @@ pub unsafe fn reset_handler() {
     virtual_alarm1.set_client(timer);
 
     let aes_ccm = static_init!(
-        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
-        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
-    nrf51::aes_ccm::AESCCM.ccm_init();
-    nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
-
-    let aes_ccm = static_init!(
-        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
-        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
-    nrf51::aes_ccm::AESCCM.ccm_init();
-    nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
-
-    let aes_ccm = static_init!(
-        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
-        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
-    nrf51::aes_ccm::AESCCM.ccm_init();
-    nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
-
-    let aes_ccm = static_init!(
-        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
-        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
-    nrf51::aes_ccm::AESCCM.ccm_init();
-    nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
-
-    let aes_ccm = static_init!(
-        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
-        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
-    nrf51::aes_ccm::AESCCM.ccm_init();
-    nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
-
-    let aes_ccm = static_init!(
-        capsules::crypto::Crypto<'static, nrf51::aes_ccm::AesCCM>,
-        capsules::crypto::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::crypto::BUF), 128/8);
+        capsules::symmetric_encryption::Crypto<'static, nrf51::aes_ccm::AesCCM>,
+        capsules::symmetric_encryption::Crypto::new(&mut nrf51::aes_ccm::AESCCM, kernel::Container::create(), &mut capsules::symmetric_encryption::BUF), 192/8);
     nrf51::aes_ccm::AESCCM.ccm_init();
     nrf51::aes_ccm::AESCCM.set_client(aes_ccm);
 

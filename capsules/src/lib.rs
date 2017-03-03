@@ -5,7 +5,7 @@
 #[macro_use(debug)]
 extern crate kernel;
 
-pub mod crypto;
+pub mod symmetric_encryption;
 pub mod button;
 pub mod console;
 pub mod fm25cl;
