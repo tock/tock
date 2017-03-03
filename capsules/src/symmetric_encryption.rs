@@ -192,7 +192,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
     }
 
     // This code violates the DRY-principle but don't care about it at moment
-    fn command(&self, command_num: usize, len: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, len: usize, _: AppId) -> ReturnCode {
         match command_num {
             // set key, it is assumed that it is always 16 bytes
             // can only be performed once at the moment
