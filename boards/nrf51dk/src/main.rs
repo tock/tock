@@ -112,24 +112,26 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
+    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
 }
 
 
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
-    {
-        match driver_num {
-            0 => f(Some(self.console)),
-            1 => f(Some(self.gpio)),
-            3 => f(Some(self.timer)),
-            8 => f(Some(self.led)),
-            9 => f(Some(self.button)),
-            14 => f(Some(self.rng)),
-            36 => f(Some(self.temp)),
-            _ => f(None),
+        {
+            match driver_num {
+                0 => f(Some(self.console)),
+                1 => f(Some(self.gpio)),
+                3 => f(Some(self.timer)),
+                8 => f(Some(self.led)),
+                9 => f(Some(self.button)),
+                14 => f(Some(self.rng)),
+                34 => f(Some(self.aes)),
+                36 => f(Some(self.temp)),
+                _ => f(None),
+            }
         }
-    }
 }
 
 #[no_mangle]
@@ -193,9 +195,9 @@ pub unsafe fn reset_handler() {
     }
 
     nrf51::uart::UART0.configure(Pinmux::new(9),
-                                 Pinmux::new(11),
-                                 Pinmux::new(10),
-                                 Pinmux::new(8));
+    Pinmux::new(11),
+    Pinmux::new(10),
+    Pinmux::new(8));
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
         capsules::console::Console::new(&nrf51::uart::UART0,
@@ -242,6 +244,13 @@ pub unsafe fn reset_handler() {
         96/8);
     nrf51::trng::TRNG.set_client(rng);
 
+    let aes = static_init!(
+        capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
+        capsules::symmetric_encryption::Crypto::new(&mut nrf51::aes::AESECB, kernel::Container::create(), &mut capsules::symmetric_encryption::BUF, &mut capsules::symmetric_encryption::BUF), 224/8);
+    nrf51::aes::AESECB.ecb_init();
+    nrf51::aes::AESECB.set_client(aes);
+
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();
@@ -261,6 +270,7 @@ pub unsafe fn reset_handler() {
         button: button,
         temp: temp,
         rng: rng,
+        aes: aes,
     };
 
     alarm.start();
@@ -269,7 +279,7 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
-    debug!("Initialization complete. Entering main loop");
+    debug!("Initialization complete. Entering main loop\r\n");
     kernel::main(&platform,
                  &mut chip,
                  load_process(),
