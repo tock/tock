@@ -1,5 +1,4 @@
-#ifndef _ISL29035_H
-#define _ISL29035_H
+#pragma once
 
 #include <tock.h>
 
@@ -17,5 +16,3 @@ int isl29035_read_light_intensity(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // _ISL29035_H

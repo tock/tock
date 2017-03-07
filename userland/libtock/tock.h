@@ -1,5 +1,4 @@
-#ifndef _TOCK_H
-#define _TOCK_H
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -43,5 +42,3 @@ bool driver_exists(uint32_t driver);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // _TOCK_H

@@ -92,7 +92,7 @@ pub trait Client {
     /// consuming randomn numbers.
     ///
     /// The client returns either `Continue::More` if the iterator did not have
-    /// enoug random values and the client would like to be called again when
+    /// enough random values and the client would like to be called again when
     /// more is available, or `Continue::Done`.
     fn randomness_available(&self, randomness: &mut Iterator<Item = u32>) -> Continue;
 }

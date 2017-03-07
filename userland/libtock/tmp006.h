@@ -1,5 +1,4 @@
-#ifndef _TMP006_H
-#define _TMP006_H
+#pragma once
 
 #include <tock.h>
 
@@ -18,5 +17,3 @@ int tmp006_stop_sampling(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // _TMP006_H

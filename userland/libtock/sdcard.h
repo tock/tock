@@ -1,7 +1,12 @@
 #pragma once
 
 #include <stdint.h>
+
 #include "tock.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define DRIVER_NUM_SDCARD 15
 
@@ -87,3 +92,6 @@ int sdcard_write_block (uint32_t sector);
 // returns 0 if the block has been written, < 0 if an error occurrs
 int sdcard_write_block_sync (uint32_t sector);
 
+#ifdef __cplusplus
+}
+#endif

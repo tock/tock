@@ -1,5 +1,4 @@
-#ifndef _SPI_H
-#define _SPI_H
+#pragma once
 
 #include <tock.h>
 
@@ -50,5 +49,3 @@ int spi_read_write_sync(const char* write, char* read, size_t len);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // _SPI_H

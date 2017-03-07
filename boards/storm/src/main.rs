@@ -327,13 +327,13 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 1],
-        [&sam4l::gpio::PC[10]],
-        1 * 4);
+        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 1],
+        [(&sam4l::gpio::PC[10], capsules::led::ActivationMode::ActiveHigh)],
+        64/8);
     let led = static_init!(
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveHigh),
-        96/8);
+        capsules::led::LED::new(led_pins),
+        64/8);
 
     // Setup ADC
     let adc = static_init!(

@@ -1,13 +1,12 @@
-#ifndef _GPIO_H
-#define _GPIO_H
+#pragma once
 
 #include <tock.h>
-
-#define GPIO_DRIVER_NUM 1
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define GPIO_DRIVER_NUM 1
 
 // GPIO pin enum is defined externally in platform headers
 typedef uint32_t GPIO_Pin_t;
@@ -39,5 +38,3 @@ int gpio_interrupt_callback(subscribe_cb callback, void* callback_args);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // _GPIO_H

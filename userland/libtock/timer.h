@@ -1,5 +1,4 @@
-#ifndef _TIMER_H
-#define _TIMER_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,5 +49,3 @@ void delay_ms(uint32_t ms);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // _TIMER_H

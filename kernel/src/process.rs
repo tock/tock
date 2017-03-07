@@ -29,7 +29,7 @@ pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 #[allow(improper_ctypes)]
 extern "C" {
     pub fn switch_to_user(user_stack: *const u8,
-                          mem_base: *const u8,
+                          got_base: *const u8,
                           process_regs: &mut [usize; 8])
                           -> *mut u8;
 }
@@ -165,31 +165,36 @@ struct StoredRegs {
 pub struct Process<'a> {
     /// Application memory layout:
     ///
-    ///  |======== <- memory[memory.len()]
-    ///  | Grant
-    ///  |   ↓
-    ///  |  ----   <- kernel_memory_break
-    ///  |
-    ///  |  ----   <- app_memory_break
-    ///  |   ↑
-    ///  |  Heap
-    ///  |  ----   <- stack_heap_boundary
-    ///  | Stack
-    ///  |   ↓
-    ///  |  ----   <- cur_stack
-    ///  |
-    ///  |  ----   <- app_mem_start
-    ///  |  Data
-    ///  |======== <- memory[0]
+    ///     |======== <- memory[memory.len()]
+    ///  ╔═ | Grant
+    ///     |   ↓
+    ///  D  |  ----   <- kernel_memory_break
+    ///  Y  |
+    ///  N  |  ----   <- app_heap_break
+    ///  A  |
+    ///  M  |   ↑
+    ///     |  Heap
+    ///  ╠═ |  ----   <- app_heap_start
+    ///     |  Data
+    ///  F  |  ----   <- stack_data_boundary
+    ///  I  | Stack
+    ///  X  |   ↓
+    ///  E  |
+    ///  D  |  ----   <- cur_stack
+    ///     |
+    ///  ╚═ |======== <- memory[0]
 
     /// The process's memory.
     memory: &'static mut [u8],
 
     kernel_memory_break: *const u8,
-    app_memory_break: *const u8,
-    stack_heap_boundary: *const u8,
+    app_heap_break: *const u8,
+    app_heap_start: *const u8,
+    stack_data_boundary: *const u8,
     cur_stack: *const u8,
-    app_mem_start: *const u8,
+
+    /// How low have we ever seen the stack pointer
+    min_stack_pointer: *const u8,
 
     /// How many syscalls have occurred since the process started
     syscall_count: Cell<usize>,
@@ -309,10 +314,18 @@ impl<'a> Process<'a> {
 
     pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {
         let data_start = self.memory.as_ptr() as usize;
-        let data_len = (32 - self.memory.len().leading_zeros()) as u32;
+        let data_len = self.memory.len();
+        if data_len.count_ones() != 1 {
+            panic!("Tock MPU does not currently handle complex region sizes");
+        }
+        let data_region_len = (31 - data_len.leading_zeros()) as u32;
 
         let text_start = self.text.as_ptr() as usize;
-        let text_len = ((32 - self.text.len().leading_zeros()) - 2) as u32;
+        let text_len = self.text.len();
+        if text_len.count_ones() != 1 {
+            panic!("Tock MPU does not currently handle complex region sizes");
+        }
+        let text_region_len = (31 - text_len.leading_zeros()) as u32;
 
         let mut grant_size = unsafe {
             self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
@@ -330,13 +343,13 @@ impl<'a> Process<'a> {
         // Data segment read/write/execute
         mpu.set_mpu(0,
                     data_start as u32,
-                    data_len,
+                    data_region_len,
                     mpu::ExecutePermission::ExecutionPermitted,
                     mpu::AccessPermission::ReadWrite);
         // Text segment read/execute (no write)
         mpu.set_mpu(1,
                     text_start as u32,
-                    text_len,
+                    text_region_len,
                     mpu::ExecutePermission::ExecutionPermitted,
                     mpu::AccessPermission::ReadOnly);
 
@@ -389,13 +402,12 @@ impl<'a> Process<'a> {
                      app_flash_address,
                      remaining_app_memory,
                      remaining_app_memory_size) {
-                let stack_len = align8!(load_info.min_stack_len);
                 let app_heap_len = align8!(load_info.min_app_heap_len);
                 let kernel_heap_len = align8!(load_info.min_kernel_heap_len);
 
-                let app_slice_size =
-                    closest_power_of_two(load_result.data_len + stack_len + app_heap_len +
-                                         kernel_heap_len) as usize;
+                let app_slice_size_unaligned = load_result.fixed_len + app_heap_len +
+                                               kernel_heap_len;
+                let app_slice_size = closest_power_of_two(app_slice_size_unaligned) as usize;
                 // TODO round app_slice_size up to a closer MPU unit.
                 // This is a very conservative approach that rounds up to power of
                 // two. We should be able to make this closer to what we actually need.
@@ -408,9 +420,6 @@ impl<'a> Process<'a> {
                 }
 
                 let app_memory = slice::from_raw_parts_mut(remaining_app_memory, app_slice_size);
-                let stack_heap_boundary = app_memory.as_mut_ptr()
-                    .offset((load_result.data_len + stack_len) as isize);
-                let app_memory_break = stack_heap_boundary;
 
                 // Set up initial grant region
                 let mut kernel_memory_break = app_memory.as_mut_ptr()
@@ -444,10 +453,12 @@ impl<'a> Process<'a> {
                     memory: app_memory,
 
                     kernel_memory_break: kernel_memory_break,
-                    app_memory_break: app_memory_break,
-                    stack_heap_boundary: stack_heap_boundary,
-                    cur_stack: stack_heap_boundary,
-                    app_mem_start: load_result.app_mem_start,
+                    app_heap_break: load_result.app_heap_start,
+                    app_heap_start: load_result.app_heap_start,
+                    stack_data_boundary: load_result.stack_data_boundary,
+                    cur_stack: load_result.stack_data_boundary,
+
+                    min_stack_pointer: load_result.stack_data_boundary,
 
                     syscall_count: Cell::new(0),
                     last_syscall: Cell::new(None),
@@ -480,8 +491,8 @@ impl<'a> Process<'a> {
 
                 process.tasks.enqueue(Task::FunctionCall(FunctionCall {
                     pc: load_result.init_fn,
-                    r0: load_result.app_mem_start as usize,
-                    r1: process.app_memory_break as usize,
+                    r0: process.memory.as_ptr() as usize,
+                    r1: process.app_heap_break as usize,
                     r2: process.kernel_memory_break as usize,
                     r3: 0,
                 }));
@@ -495,7 +506,7 @@ impl<'a> Process<'a> {
     }
 
     pub fn sbrk(&mut self, increment: isize) -> Result<*const u8, Error> {
-        let new_break = unsafe { self.app_memory_break.offset(increment) };
+        let new_break = unsafe { self.app_heap_break.offset(increment) };
         self.brk(new_break)
     }
 
@@ -505,8 +516,8 @@ impl<'a> Process<'a> {
         } else if new_break > self.kernel_memory_break {
             Err(Error::OutOfMemory)
         } else {
-            let old_break = self.app_memory_break;
-            self.app_memory_break = new_break;
+            let old_break = self.app_heap_break;
+            self.app_heap_break = new_break;
             Ok(old_break)
         }
     }
@@ -520,7 +531,7 @@ impl<'a> Process<'a> {
 
     pub unsafe fn alloc(&mut self, size: usize) -> Option<&mut [u8]> {
         let new_break = self.kernel_memory_break.offset(-(size as isize));
-        if new_break < self.app_memory_break {
+        if new_break < self.app_heap_break {
             None
         } else {
             self.kernel_memory_break = new_break;
@@ -562,6 +573,9 @@ impl<'a> Process<'a> {
             self.yield_pc = read_volatile(pspr.offset(6));
             self.psr = read_volatile(pspr.offset(7));
             self.cur_stack = (self.cur_stack as *mut usize).offset(8) as *mut u8;
+            if self.cur_stack < self.min_stack_pointer {
+                self.min_stack_pointer = self.cur_stack;
+            }
         }
     }
 
@@ -586,6 +600,9 @@ impl<'a> Process<'a> {
         write_volatile(stack_bottom.offset(3), callback.r3);
 
         self.cur_stack = stack_bottom as *mut u8;
+        if self.cur_stack < self.min_stack_pointer {
+            self.min_stack_pointer = self.cur_stack;
+        }
     }
 
     pub unsafe fn app_fault(&self) -> bool {
@@ -600,9 +617,12 @@ impl<'a> Process<'a> {
     pub unsafe fn switch_to(&mut self) {
         write_volatile(&mut SYSCALL_FIRED, 0);
         let psp = switch_to_user(self.cur_stack,
-                                 self.memory.as_ptr(),
+                                 self.stack_data_boundary,
                                  mem::transmute(&mut self.stored_regs));
         self.cur_stack = psp;
+        if self.cur_stack < self.min_stack_pointer {
+            self.min_stack_pointer = self.cur_stack;
+        }
     }
 
     pub fn svc_number(&self) -> Option<Syscall> {
@@ -848,17 +868,17 @@ impl<'a> Process<'a> {
             // SRAM addresses
             let sram_end = self.memory.as_ptr().offset(self.memory.len() as isize) as usize;
             let sram_grant_start = self.kernel_memory_break as usize;
-            let sram_heap_end = self.app_memory_break as usize;
-            let sram_heap_start = self.stack_heap_boundary as usize;
-            let sram_stack_start = self.cur_stack as usize;
-            let sram_data_end = self.app_mem_start as usize;
+            let sram_heap_end = self.app_heap_break as usize;
+            let sram_heap_start = self.app_heap_start as usize;
+            let sram_stack_data_boundary = self.stack_data_boundary as usize;
+            let sram_stack_bottom = self.min_stack_pointer as usize;
             let sram_start = self.memory.as_ptr() as usize;
 
             // SRAM sizes
             let sram_grant_size = sram_end - sram_grant_start;
             let sram_heap_size = sram_heap_end - sram_heap_start;
-            let sram_stack_size = sram_heap_start - sram_stack_start;
-            let sram_data_size = sram_data_end - sram_start;
+            let sram_data_size = sram_heap_start - sram_stack_data_boundary;
+            let sram_stack_size = sram_stack_data_boundary - sram_stack_bottom;
             let sram_grant_allocated = load_info.min_kernel_heap_len as usize;
             let sram_heap_allocated = load_info.min_app_heap_len as usize;
             let sram_stack_allocated = load_info.min_stack_len as usize;
@@ -901,7 +921,6 @@ impl<'a> Process<'a> {
                                    (0xFFFFFFFE & (self.yield_pc - flash_text_size as usize));
 
 
-            // You can thank the piece of garbage rustfmt for this.
             let _ = writer.write_fmt(format_args!("\
             App: {}   -   [{:?}]\
             \r\n Events Queued: {}   Syscall Count: {}   ",
@@ -917,105 +936,76 @@ impl<'a> Process<'a> {
             };
 
             let _ = writer.write_fmt(format_args!("\
-            \r\n\
-            \r\n ╔═══════════╤══════════════\
-════════════════════════════╗\
-            \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
-              \r\n ╚{:#010X}═╪══════════════\
-════════════════════════════╝\
-            \r\n             │ ▼ Grant      {:6} | {:6}{}\
-              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
-            \r\n             │ Unused\
-              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
-            \r\n             │ ▲ Heap       {:6} | {:6}{}    S\
-              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ R\
-            \r\n             │ ▼ Stack      {:6} | {:6}{}    A\
-              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ M\
-            \r\n             │ Unused\
-              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
-            \r\n             │ Data         {:6} | {:6}\
-              \r\n  {:#010X} ┴───────────────\
-────────────────────────────\
-            \r\n             .....\
-              \r\n  {:#010X} ┬───────────────\
-────────────────────────────\
-            \r\n             │ Unused\
-              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ F\
-            \r\n             │ Data         {:6}                       L\
-              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ A\
-            \r\n             │ Text         {:6}                       S\
-              \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈\
-┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ H\
-            \r\n             │ Header       {:6}\
-              \r\n  {:#010X} ┴───────────────\
-────────────────────────────\
-            \r\n\
-              \r\n  R0 : {:#010X}    R6 : {:#010X}\
-              \r\n  R1 : {:#010X}    R7 : {:#010X}\
-              \r\n  R2 : {:#010X}    R8 : {:#010X}\
-              \r\n  R3 : {:#010X}    R10: {:#010X}\
-              \r\n  R4 : {:#010X}    R11: {:#010X}\
-              \r\n  R5 : {:#010X}    R12: {:#010X}\
-              \r\n  R9 : {:#010X} (Static Base Register)\
-              \r\n  SP : {:#010X} (Process Stack Pointer)\
-              \r\n  LR : {:#010X} [{:#010X} in lst file]\
-              \r\n  PC : {:#010X} [{:#010X} in lst file]\
-              \r\n YPC : {:#010X} [{:#010X} in lst file]\
-            \r\n\r\n",
-                                                  sram_end,
-                                                  sram_grant_size,
-                                                  sram_grant_allocated,
-                                                  sram_grant_error_str,
-                                                  sram_grant_start,
-                                                  sram_heap_end,
-                                                  sram_heap_size,
-                                                  sram_heap_allocated,
-                                                  sram_heap_error_str,
-                                                  sram_heap_start,
-                                                  sram_stack_size,
-                                                  sram_stack_allocated,
-                                                  sram_stack_error_str,
-                                                  sram_stack_start,
-                                                  sram_data_end,
-                                                  sram_data_size,
-                                                  sram_data_allocated,
-                                                  sram_start,
-                                                  flash_end,
-                                                  flash_data_end,
-                                                  flash_data_size,
-                                                  flash_data_start,
-                                                  flash_text_size,
-                                                  flash_text_start,
-                                                  flash_header_size,
-                                                  flash_start,
-                                                  r0,
-                                                  self.stored_regs.r6,
-                                                  r1,
-                                                  self.stored_regs.r7,
-                                                  r2,
-                                                  self.stored_regs.r8,
-                                                  r3,
-                                                  self.stored_regs.r10,
-                                                  self.stored_regs.r4,
-                                                  self.stored_regs.r11,
-                                                  self.stored_regs.r5,
-                                                  r12,
-                                                  self.stored_regs.r9,
-                                                  sp,
-                                                  lr,
-                                                  lr_lst_relative,
-                                                  pc,
-                                                  pc_lst_relative,
-                                                  self.yield_pc,
-                                                  ypc_lst_relative,
-                                                  ));
+\r\n\
+\r\n ╔═══════════╤══════════════════════════════════════════╗\
+\r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
+\r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
+\r\n             │ ▼ Grant      {:6} | {:6}{}\
+  \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
+\r\n             │ Unused\
+  \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
+\r\n             │ ▲ Heap       {:6} | {:6}{}    S\
+  \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ R\
+\r\n             │ Data         {:6} | {:6}              A\
+  \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ M\
+\r\n             │ ▼ Stack      {:6} | {:6}{}\
+  \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\
+\r\n             │ Unused\
+  \r\n  {:#010X} ┴───────────────────────────────────────────\
+\r\n             .....\
+  \r\n  {:#010X} ┬───────────────────────────────────────────\
+\r\n             │ Unused\
+  \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ F\
+\r\n             │ Data         {:6}                       L\
+  \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ A\
+\r\n             │ Text         {:6}                       S\
+  \r\n  {:#010X} ┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ H\
+\r\n             │ Header       {:6}\
+  \r\n  {:#010X} ┴───────────────────────────────────────────\
+\r\n\
+  \r\n  R0 : {:#010X}    R6 : {:#010X}\
+  \r\n  R1 : {:#010X}    R7 : {:#010X}\
+  \r\n  R2 : {:#010X}    R8 : {:#010X}\
+  \r\n  R3 : {:#010X}    R10: {:#010X}\
+  \r\n  R4 : {:#010X}    R11: {:#010X}\
+  \r\n  R5 : {:#010X}    R12: {:#010X}\
+  \r\n  R9 : {:#010X} (Static Base Register)\
+  \r\n  SP : {:#010X} (Process Stack Pointer)\
+  \r\n  LR : {:#010X} [{:#010X} in lst file]\
+  \r\n  PC : {:#010X} [{:#010X} in lst file]\
+  \r\n YPC : {:#010X} [{:#010X} in lst file]\
+\r\n\r\n",
+  sram_end,
+  sram_grant_size, sram_grant_allocated, sram_grant_error_str,
+  sram_grant_start,
+  sram_heap_end,
+  sram_heap_size, sram_heap_allocated, sram_heap_error_str,
+  sram_heap_start,
+  sram_data_size, sram_data_allocated,
+  sram_stack_data_boundary,
+  sram_stack_size, sram_stack_allocated, sram_stack_error_str,
+  sram_stack_bottom,
+  sram_start,
+  flash_end,
+  flash_data_end,
+  flash_data_size,
+  flash_data_start,
+  flash_text_size,
+  flash_text_start,
+  flash_header_size,
+  flash_start,
+  r0, self.stored_regs.r6,
+  r1, self.stored_regs.r7,
+  r2, self.stored_regs.r8,
+  r3, self.stored_regs.r10,
+  self.stored_regs.r4, self.stored_regs.r11,
+  self.stored_regs.r5, r12,
+  self.stored_regs.r9,
+  sp,
+  lr, lr_lst_relative,
+  pc, pc_lst_relative,
+  self.yield_pc, ypc_lst_relative,
+  ));
         } else {
             let _ = writer.write_fmt(format_args!("Unknown Load Info\r\n"));
         }
@@ -1027,12 +1017,16 @@ struct LoadResult {
     /// The absolute address of the process entry point (i.e. `_start`).
     init_fn: usize,
 
-    /// The lowest free address in process memory after loading the GOT, data
-    /// and BSS.
-    app_mem_start: *const u8,
+    /// The lowest free address in process memory after allocating space for
+    /// the stack, loading the GOT, data and BSS
+    app_heap_start: *const u8,
 
-    /// The length of the data segment
-    data_len: u32,
+    /// The initial stack pointer
+    stack_data_boundary: *const u8,
+
+    /// The length of the fixed segment, including the stack, GOT, .data, /
+    /// BSS, and any necessary alignment
+    fixed_len: u32,
 
     /// The process's package name (used for IPC)
     package_name: &'static str,
@@ -1048,6 +1042,12 @@ struct LoadResult {
 /// zero out the BSS section. It performs relocation on the GOT and on
 /// variables named in the relocation section of the binary.
 ///
+/// Note: We place the stack at the bottom of the memory space so that a stack
+/// overflow will trigger an MPU violation rather than overwriting GOT/BSS/.data
+/// sections. The stack is not included in the flash data, however, which means
+/// that the offset values for everything above the stack in the elf header need
+/// to have the stack offset added.
+///
 /// The function returns a `LoadResult` containing metadata about the loaded
 /// process or None if loading failed.
 unsafe fn load(load_info: &'static LoadInfo,
@@ -1055,8 +1055,6 @@ unsafe fn load(load_info: &'static LoadInfo,
                mem_base: *mut u8,
                mem_size: usize)
                -> Option<LoadResult> {
-    let mem_end = mem_base.offset(mem_size as isize);
-
     let package_name_byte_array =
         slice::from_raw_parts(flash_start_addr.offset(load_info.pkg_name_offset as isize),
                               load_info.pkg_name_size as usize);
@@ -1064,10 +1062,11 @@ unsafe fn load(load_info: &'static LoadInfo,
     let _ = str::from_utf8(package_name_byte_array).map(|name_str| { app_name_str = name_str; });
 
     let mut load_result = LoadResult {
-        package_name: app_name_str,
         init_fn: 0,
-        app_mem_start: ptr::null(),
-        data_len: 0,
+        app_heap_start: ptr::null(),
+        stack_data_boundary: ptr::null(),
+        fixed_len: 0,
+        package_name: app_name_str,
     };
 
     let text_start = flash_start_addr.offset(load_info.text_offset as isize);
@@ -1077,6 +1076,8 @@ unsafe fn load(load_info: &'static LoadInfo,
                               *const u32,
                               (load_info.rel_data_size as usize) / mem::size_of::<u32>());
 
+    let aligned_stack_len = align8!(load_info.min_stack_len);
+
     let got: &[u8] =
         slice::from_raw_parts(flash_start_addr.offset(load_info.got_offset as isize),
                               load_info.got_size as usize) as &[u8];
@@ -1085,42 +1086,43 @@ unsafe fn load(load_info: &'static LoadInfo,
         slice::from_raw_parts(flash_start_addr.offset(load_info.data_offset as isize),
                               load_info.data_size as usize);
 
-    let target_data: &mut [u8] =
-        slice::from_raw_parts_mut(mem_base,
-                                  (load_info.data_size + load_info.got_size) as usize);
+    let got_base = mem_base.offset(aligned_stack_len as isize);
+    let got_andthen_data: &mut [u8] =
+        slice::from_raw_parts_mut(got_base,
+                                  (load_info.got_size + load_info.data_size) as usize);
 
-    // Verify target data fits in memory
-    if target_data.len() > mem_size {
+    let bss = mem_base.offset(aligned_stack_len as isize + load_info.bss_mem_offset as isize);
+
+    // Total size of fixed segment
+    let aligned_fixed_len = align8!(aligned_stack_len + load_info.data_size + load_info.got_size +
+                                    load_info.bss_size);
+
+    // Verify target data fits in memory before writing anything
+    if (aligned_fixed_len) > mem_size as u32 {
         // When a kernel warning mechanism exists, this panic should be
         // replaced with that, but for now it seems more useful to bail out to
         // alert developers of why the app failed to load
-        panic!("{:?} failed to load. Data + GOT ({}) exceeded available memory ({})",
+        panic!("{:?} failed to load. Stack + Data + GOT + BSS ({}) > available memory ({})",
                load_result.package_name,
-               target_data.len(),
+               aligned_fixed_len,
                mem_size);
     }
 
     // Copy the GOT and data into base memory
-    for (orig, dest) in got.iter().chain(data.iter()).zip(target_data.iter_mut()) {
+    for (orig, dest) in got.iter().chain(data.iter()).zip(got_andthen_data.iter_mut()) {
         *dest = *orig
     }
 
     // Zero out BSS
-    let bss = mem_base.offset(load_info.bss_mem_offset as isize);
-    if bss.offset(load_info.bss_size as isize) > mem_end {
-        panic!("{:?} failed to load. BSS overran available memory",
-               load_result.package_name);
-    }
-    intrinsics::write_bytes(mem_base.offset(load_info.bss_mem_offset as isize),
-                            0,
-                            load_info.bss_size as usize);
+    intrinsics::write_bytes(bss, 0, load_info.bss_size as usize);
 
 
+    // Helper function that fixes up GOT entries
     let fixup = |addr: &mut u32| {
         let entry = *addr;
         if (entry & 0x80000000) == 0 {
             // Regular data (memory relative)
-            *addr = entry + (mem_base as u32);
+            *addr = entry + (got_base as u32);
         } else {
             // rodata or function pointer (code relative)
             *addr = (entry ^ 0x80000000) + (text_start as u32);
@@ -1128,8 +1130,7 @@ unsafe fn load(load_info: &'static LoadInfo,
     };
 
     // Fixup Global Offset Table
-    // No need to validate size here, covered by target_data check above
-    let mem_got: &mut [u32] = slice::from_raw_parts_mut(mem_base as *mut u32,
+    let mem_got: &mut [u32] = slice::from_raw_parts_mut(got_base as *mut u32,
                                                         (load_info.got_size as usize) /
                                                         mem::size_of::<u32>());
 
@@ -1141,16 +1142,16 @@ unsafe fn load(load_info: &'static LoadInfo,
     for (i, addr) in rel_data.iter().enumerate() {
         if i % 2 == 0 {
             // Only the first of every 2 entries is an address
-            fixup(&mut *(mem_base.offset(*addr as isize) as *mut u32));
+            fixup(&mut *(got_base.offset(*addr as isize) as *mut u32));
         }
     }
 
     // Entry point is offset from app code
     load_result.init_fn = flash_start_addr.offset(load_info.entry_offset as isize) as usize;
 
-    let aligned_mem_start = align8!(load_info.bss_mem_offset + load_info.bss_size);
-    load_result.app_mem_start = mem_base.offset(aligned_mem_start as isize);
-    load_result.data_len = aligned_mem_start;
+    load_result.app_heap_start = mem_base.offset(aligned_fixed_len as isize);
+    load_result.stack_data_boundary = mem_base.offset(aligned_stack_len as isize);
+    load_result.fixed_len = aligned_fixed_len;
 
     Some(load_result)
 }

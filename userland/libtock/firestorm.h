@@ -1,5 +1,4 @@
-#ifndef _FIRESTORM_H
-#define _FIRESTORM_H
+#pragma once
 
 #include "tock.h"
 
@@ -17,5 +16,3 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif // _FIRESTORM_H

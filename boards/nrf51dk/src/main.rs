@@ -110,6 +110,8 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
     led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
+    temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
+    rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
 }
 
 
@@ -123,6 +125,8 @@ impl kernel::Platform for Platform {
             3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            14 => f(Some(self.rng)),
+            36 => f(Some(self.temp)),
             _ => f(None),
         }
     }
@@ -134,24 +138,24 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [&'static nrf51::gpio::GPIOPin; 4],
-        [&nrf51::gpio::PORT[LED1_PIN], // 21
-         &nrf51::gpio::PORT[LED2_PIN], // 22
-         &nrf51::gpio::PORT[LED3_PIN], // 23
-         &nrf51::gpio::PORT[LED4_PIN], // 24
+        [(&'static nrf51::gpio::GPIOPin, capsules::led::ActivationMode); 4],
+        [(&nrf51::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow), // 21
+        (&nrf51::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow), // 22
+        (&nrf51::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow), // 23
+        (&nrf51::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow), // 24
         ],
-        4 * 4);
+        256/8);
     let led = static_init!(
         capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins, capsules::led::ActivationMode::ActiveLow),
-        96/8);
+        capsules::led::LED::new(led_pins),
+        64/8);
 
     let button_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 4],
         [&nrf51::gpio::PORT[BUTTON1_PIN], // 17
-         &nrf51::gpio::PORT[BUTTON2_PIN], // 18
-         &nrf51::gpio::PORT[BUTTON3_PIN], // 19
-         &nrf51::gpio::PORT[BUTTON4_PIN], // 20
+        &nrf51::gpio::PORT[BUTTON2_PIN], // 18
+        &nrf51::gpio::PORT[BUTTON3_PIN], // 19
+        &nrf51::gpio::PORT[BUTTON4_PIN], // 20
         ],
         4 * 4);
     let button = static_init!(
@@ -167,16 +171,16 @@ pub unsafe fn reset_handler() {
     let gpio_pins = static_init!(
         [&'static nrf51::gpio::GPIOPin; 11],
         [&nrf51::gpio::PORT[1],  // Bottom left header on DK board
-         &nrf51::gpio::PORT[2],  //   |
-         &nrf51::gpio::PORT[3],  //   V
-         &nrf51::gpio::PORT[4],  //
-         &nrf51::gpio::PORT[5],  //
-         &nrf51::gpio::PORT[6],  // -----
-         &nrf51::gpio::PORT[16], //
-         &nrf51::gpio::PORT[15], //
-         &nrf51::gpio::PORT[14], //
-         &nrf51::gpio::PORT[13], //
-         &nrf51::gpio::PORT[12], //
+        &nrf51::gpio::PORT[2],  //   |
+        &nrf51::gpio::PORT[3],  //   V
+        &nrf51::gpio::PORT[4],  //
+        &nrf51::gpio::PORT[5],  //
+        &nrf51::gpio::PORT[6],  // -----
+        &nrf51::gpio::PORT[16], //
+        &nrf51::gpio::PORT[15], //
+        &nrf51::gpio::PORT[14], //
+        &nrf51::gpio::PORT[13], //
+        &nrf51::gpio::PORT[12], //
         ],
         4 * 11);
 
@@ -198,7 +202,7 @@ pub unsafe fn reset_handler() {
                                         115200,
                                         &mut capsules::console::WRITE_BUF,
                                         kernel::Container::create()),
-        224/8);
+                                        224/8);
     UART::set_client(&nrf51::uart::UART0, console);
     console.initialize();
 
@@ -223,8 +227,20 @@ pub unsafe fn reset_handler() {
         TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
         TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
-        12);
+                         12);
     virtual_alarm1.set_client(timer);
+
+    let temp = static_init!(
+        capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
+        capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP,
+                                                 kernel::Container::create()), 96/8);
+    nrf51::temperature::TEMP.set_client(temp);
+
+    let rng = static_init!(
+        capsules::rng::SimpleRng<'static, nrf51::trng::Trng>,
+        capsules::rng::SimpleRng::new(&mut nrf51::trng::TRNG, kernel::Container::create()),
+        96/8);
+    nrf51::trng::TRNG.set_client(rng);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
@@ -243,6 +259,8 @@ pub unsafe fn reset_handler() {
         console: console,
         led: led,
         button: button,
+        temp: temp,
+        rng: rng,
     };
 
     alarm.start();
@@ -257,32 +275,4 @@ pub unsafe fn reset_handler() {
                  load_process(),
                  &kernel::ipc::IPC::new());
 
-}
-
-
-use core::fmt::Arguments;
-#[cfg(not(test))]
-#[lang="panic_fmt"]
-#[no_mangle]
-pub unsafe extern "C" fn rust_begin_unwind(_args: &Arguments,
-                                           _file: &'static str,
-                                           _line: usize)
-                                           -> ! {
-    use kernel::hil::gpio::Pin;
-
-    let led0 = &nrf51::gpio::PORT[LED1_PIN];
-    let led1 = &nrf51::gpio::PORT[LED2_PIN];
-
-    led0.make_output();
-    led1.make_output();
-    loop {
-        for _ in 0..100000 {
-            led0.set();
-            led1.set();
-        }
-        for _ in 0..100000 {
-            led0.clear();
-            led1.clear();
-        }
-    }
 }

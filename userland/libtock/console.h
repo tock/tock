@@ -1,5 +1,4 @@
-#ifndef CONSOLE_H
-#define CONSOLE_H
+#pragma once
 
 #include "tock.h"
 
@@ -14,5 +13,3 @@ void putnstr_async(const char* str, size_t len, subscribe_cb cb, void* userdata)
 #ifdef __cplusplus
 }
 #endif
-
-#endif // CONSOLE_H

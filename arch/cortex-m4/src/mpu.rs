@@ -122,9 +122,13 @@ impl kernel::mpu::MPU for MPU {
                execute: kernel::mpu::ExecutePermission,
                access: kernel::mpu::AccessPermission) {
         let regs = unsafe { &*self.0 };
-        regs.region_base_address.set(region_num | 1 << 4 | start_addr);
+
+        let region_base_address = region_num | 1 << 4 | start_addr;
+        regs.region_base_address.set(region_base_address);
+
         let xn = execute as u32;
         let ap = access as u32;
-        regs.region_attributes_and_size.set(1 | len << 1 | ap << 24 | xn << 28);
+        let region_attributes_and_size = 1 | len << 1 | ap << 24 | xn << 28;
+        regs.region_attributes_and_size.set(region_attributes_and_size);
     }
 }
