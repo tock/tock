@@ -29,6 +29,8 @@ pub const MAX_PACKET_SIZE: u8    = 128;
 pub const MAX_BUF_SIZE: usize    = 129;    // +1 for opcode
 pub const MIN_PACKET_SIZE: u8    = HEADER_SIZE + 2; // +2 for CRC
 
+pub trait Radio: RadioConfig + RadioData {}
+
 pub trait RadioConfig {
     /// buf must be at least MAX_BUF_SIZE in length, and
     /// reg_read and reg_write must be 2 bytes
@@ -61,7 +63,7 @@ pub trait RadioConfig {
     fn config_set_channel(&self, chan: u8) -> ReturnCode;
 }
 
-pub trait Radio {
+pub trait RadioData {
     fn payload_offset(&self) -> u8;
     fn header_size(&self) -> u8;
     fn packet_get_src(&self, packet: &'static [u8]) -> u16;

@@ -134,23 +134,25 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* set 16-bit address */ => {
-                self.radio.set_address(arg1 as u16)
+                self.radio.config_set_address(arg1 as u16);
+                ReturnCode::SUCCESS
             },
             2 /* set PAN id */ => {
-                self.radio.set_pan(arg1 as u16)
+                self.radio.config_set_pan(arg1 as u16);
+                ReturnCode::SUCCESS
             },
             3 /* set channel */ => { // not yet supported
-                ReturnCode::ENOSUPPORT
+                self.radio.config_set_channel(arg1 as u8)
             },
             4 /* set tx power */ => { // not yet supported
-                ReturnCode::ENOSUPPORT
+                self.radio.config_set_tx_power(arg1 as i8)
             },
             5 /* tx packet */ => {
                 // Don't transmit if we're busy, the radio is off, or
                 // we don't have a buffer yet.
-                if self.busy.get() {
+                if self.busy.get() || self.radio.busy() {
                     return ReturnCode::EBUSY;
-                } else if !self.radio.ready() {
+                } else if !self.radio.is_on() {
                     return ReturnCode::EOFF;
                 } else if self.kernel_tx.is_none() {
                     return ReturnCode::ENOMEM;
@@ -192,7 +194,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                 return ReturnCode::ERESERVE;
             },
             6 /* check if on */ => {
-                if self.radio.ready() {
+                if self.radio.is_on() {
                     ReturnCode::SUCCESS
                 } else {
                     ReturnCode::EOFF

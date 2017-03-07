@@ -846,6 +846,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
     }
 }
 
+impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {}
+
 impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
     fn initialize(&self,
                   buf: &'static mut [u8],
@@ -889,7 +891,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
     }
 
     fn is_on(&self) -> bool {
-        self.radio_on().get()
+        self.radio_on.get()
     }
 
     fn busy(&self) -> bool {
@@ -970,7 +972,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
     }
 }
 
-impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
+impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
     // + 1 because we need space for the frame read/write byte for
     // the SPI command. Otherwise, if the packet begins at byte 0, we
     // have to copy it into a buffer whose byte 0 is the frame read/write
