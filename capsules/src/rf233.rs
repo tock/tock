@@ -950,27 +950,23 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
 
     fn config_commit(&self) -> ReturnCode {
         let pending = self.config_pending.get();
-        if pending {
-            ReturnCode::SUCCESS
-        } else {
+        if !pending {
             self.config_pending.set(true);
-
             let state = self.state.get();
-            if state == InternalState::START {
-                // Configuration will be pushed automatically on boot
-                ReturnCode::SUCCESS
-            } else if state == InternalState::READY {
+
+            if state == InternalState::READY {
                 // Start configuration commit
                 self.state_transition_write(RF233Register::SHORT_ADDR_0,
                                             (self.addr.get() & 0xff) as u8,
                                             InternalState::CONFIG_SHORT0_SET);
-                ReturnCode::SUCCESS
             } else {
-                // Pending flag will be checked on return to READY
+                // Do nothing --
+                // Configuration will be pushed automatically on boot,
+                // or pending flag will be checked on return to READY
                 // and commit started
-                ReturnCode::SUCCESS
             }
         }
+        ReturnCode::SUCCESS
     }
 
     // + 1 because we need space for the frame read/write byte for
