@@ -11,6 +11,7 @@ use core::ptr::{read_volatile, write_volatile};
 use platform::mpu;
 use returncode::ReturnCode;
 use syscall::Syscall;
+use common::math;
 
 /// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
@@ -234,17 +235,6 @@ pub struct Process<'a> {
     pub package_name: &'static str,
 }
 
-fn closest_power_of_two(mut num: u32) -> u32 {
-    num -= 1;
-    num |= num >> 1;
-    num |= num >> 2;
-    num |= num >> 4;
-    num |= num >> 8;
-    num |= num >> 16;
-    num += 1;
-    num
-}
-
 // Stores the current number of callbacks enqueued + processes in Running state
 static mut HAVE_WORK: VolatileCell<usize> = VolatileCell::new(0);
 
@@ -318,20 +308,20 @@ impl<'a> Process<'a> {
         if data_len.count_ones() != 1 {
             panic!("Tock MPU does not currently handle complex region sizes");
         }
-        let data_region_len = (31 - data_len.leading_zeros()) as u32;
+        let data_region_len = math::log_base_two(data_len as u32);
 
         let text_start = self.text.as_ptr() as usize;
         let text_len = self.text.len();
         if text_len.count_ones() != 1 {
             panic!("Tock MPU does not currently handle complex region sizes");
         }
-        let text_region_len = (31 - text_len.leading_zeros()) as u32;
+        let text_region_len = math::log_base_two(text_len as u32);
 
         let mut grant_size = unsafe {
             self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
             (self.kernel_memory_break as u32)
         };
-        grant_size = closest_power_of_two(grant_size);
+        grant_size = math::closest_power_of_two(grant_size);
         let grant_base = unsafe {
             self.memory
                 .as_ptr()
@@ -407,7 +397,7 @@ impl<'a> Process<'a> {
 
                 let app_slice_size_unaligned = load_result.fixed_len + app_heap_len +
                                                kernel_heap_len;
-                let app_slice_size = closest_power_of_two(app_slice_size_unaligned) as usize;
+                let app_slice_size = math::closest_power_of_two(app_slice_size_unaligned) as usize;
                 // TODO round app_slice_size up to a closer MPU unit.
                 // This is a very conservative approach that rounds up to power of
                 // two. We should be able to make this closer to what we actually need.
