@@ -1,7 +1,22 @@
+//! Radio/BLE driver for nrf51dk
+//!
+//! So far the capsule is as simple as it can be i.e. it receives
+//! which channel from the userapp to advertise on
+//!
+//! TODO:
+//!     - BLE/radio state
+//!     - Guard to ensure mutex
+//!     - Logic .... separate which layers to be handler where
+//!     - more discuss with @alevy
+//!
+//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
+//! Date: March 09, 2017
+
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container};
-use kernel::common::take_cell::{MapCell, TakeCell};
-use kernel::hil::radio_nrf51dk::{RadioDummy, Client};
+use kernel::common::take_cell::TakeCell;
+use kernel::hil::radio_nrf51dk::{RadioDriver, Client};
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
 
@@ -25,7 +40,7 @@ impl Default for App {
     }
 }
 
-pub struct Radio<'a, R: RadioDummy + 'a> {
+pub struct Radio<'a, R: RadioDriver + 'a> {
     radio: &'a R,
     busy: Cell<bool>,
     app: Container<App>,
@@ -33,7 +48,7 @@ pub struct Radio<'a, R: RadioDummy + 'a> {
 }
 // 'a = lifetime
 // R - type Radio
-impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a> Radio<'a, R> {
     pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8]) -> Radio<'a, R> {
         Radio {
             radio: radio,
@@ -48,7 +63,7 @@ impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
     }
 }
 
-impl<'a, R: RadioDummy + 'a> Client for Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a> Client for Radio<'a, R> {
     #[inline(never)]
     #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
@@ -67,6 +82,7 @@ impl<'a, R: RadioDummy + 'a> Client for Radio<'a, R> {
                 app.rx_callback.map(|mut cb| { cb.schedule(12, 0, 0); });
             });
         }
+        self.kernel_tx.replace(rx_data);
         ReturnCode::SUCCESS
     }
 
@@ -75,17 +91,19 @@ impl<'a, R: RadioDummy + 'a> Client for Radio<'a, R> {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| { app.tx_callback.map(|mut cb| { cb.schedule(13, 0, 0); }); });
         }
+        self.kernel_tx.replace(tx_data);
         ReturnCode::SUCCESS
     }
 }
 
 // Implementation of the Driver Trait/Interface
-impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a> Driver for Radio<'a, R> {
     //  0 -  rx, must be called each time to get a an rx interrupt, TODO nicer approach
     //  2 -  tx, call for each message
     //  ...
     //  ...
     //  TODO channel configuration etc for bluetooth compatible packets
+    //  TODO add guard for mutex etc
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => {
@@ -111,10 +129,6 @@ impl<'a, R: RadioDummy + 'a> Driver for Radio<'a, R> {
 
                         });
                     });
-                }
-                // THIS IS UGLY, FIX FOR EXAMPLE BY TX/RX CB
-                unsafe {
-                    self.kernel_tx.replace(&mut BUF);
                 }
                 ReturnCode::SUCCESS
             }
