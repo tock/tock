@@ -7,6 +7,7 @@
 // Date: Jan 12 2017
 //
 
+
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
@@ -16,6 +17,7 @@ use kernel::returncode::ReturnCode;
 struct App {
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
+    cfg_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
 }
@@ -51,6 +53,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                         App {
                             tx_callback: None,
                             rx_callback: None,
+                            cfg_callback: None,
                             app_read: Some(slice),
                             app_write: None,
                         }
@@ -69,6 +72,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                         App {
                             tx_callback: None,
                             rx_callback: None,
+                            cfg_callback: None,
                             app_read: None,
                             app_write: Some(slice),
                         }
@@ -92,6 +96,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     None => App {
                         tx_callback: Some(callback),
                         rx_callback: None,
+                        cfg_callback: None,
                         app_read: None,
                         app_write: None,
                     },
@@ -108,6 +113,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     None => App {
                         tx_callback: None,
                         rx_callback: Some(callback),
+                        cfg_callback: None,
                         app_read: None,
                         app_write: None,
                     },
@@ -119,6 +125,23 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                 self.app.replace(appc);
                 ReturnCode::SUCCESS
             },
+            2 /* config */ => {
+                let appc = match self.app.take() {
+                    None => App {
+                        tx_callback: None,
+                        rx_callback: None,
+                        cfg_callback: Some(callback),
+                        app_read: None,
+                        app_write: None,
+                    },
+                    Some(mut appc) => {
+                        appc.cfg_callback = Some(callback);
+                        appc
+                    }
+                };
+                self.app.replace(appc);
+                ReturnCode::SUCCESS
+            }
             _ => ReturnCode::ENOSUPPORT
         }
     }
@@ -134,16 +157,20 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* set 16-bit address */ => {
-                self.radio.set_address(arg1 as u16)
+                self.radio.config_set_address(arg1 as u16);
+                ReturnCode::SUCCESS
             },
             2 /* set PAN id */ => {
-                self.radio.set_pan(arg1 as u16)
+                self.radio.config_set_pan(arg1 as u16);
+                ReturnCode::SUCCESS
             },
             3 /* set channel */ => { // not yet supported
-                ReturnCode::ENOSUPPORT
+                self.radio.config_set_channel(arg1 as u8)
             },
             4 /* set tx power */ => { // not yet supported
-                ReturnCode::ENOSUPPORT
+                let mut val = arg1 as i32;
+                val = val - 128; // Library adds 128 to make unsigned
+                self.radio.config_set_tx_power(val as i8)
             },
             5 /* tx packet */ => {
                 // Don't transmit if we're busy, the radio is off, or
@@ -198,6 +225,9 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     ReturnCode::EOFF
                 }
             }
+            7 /* commit config */ => {
+                self.radio.config_commit()
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -233,5 +263,13 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
         } else {
             self.radio.set_receive_buffer(buf);
         }
+    }
+}
+
+impl<'a, R: radio::Radio> radio::ConfigClient for RadioDriver<'a, R> {
+    fn config_done(&self, result: ReturnCode) {
+        self.app.map(move |app| {
+            app.cfg_callback.take().map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
+        });
     }
 }

@@ -282,7 +282,7 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        116);
+                                        992/8);
 
     sam4l::gpio::PA[08].set_client(rf233);
 
@@ -363,10 +363,11 @@ pub unsafe fn reset_handler() {
                                      RF233<'static,
                                            VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
         capsules::radio::RadioDriver::new(rf233),
-        672/8);
+        832/8);
     radio_capsule.config_buffer(&mut RADIO_BUF);
     rf233.set_transmit_client(radio_capsule);
     rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
+    rf233.set_config_client(radio_capsule);
 
     let imix = Imix {
         console: console,
@@ -388,8 +389,8 @@ pub unsafe fn reset_handler() {
     chip.mpu().enable_mpu();
 
     rf233.reset();
-    rf233.set_pan(0xABCD);
-    rf233.set_address(0x1008);
+    rf233.config_set_pan(0xABCD);
+    rf233.config_set_address(0x1008);
     rf233.start();
 
     debug!("Initialization complete. Entering main loop");
