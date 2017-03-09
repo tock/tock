@@ -209,7 +209,7 @@ fn setting_to_power(setting: u8) -> i8 {
         0x0D => -8,
         0x0E => -12,
         0x0F => -17,
-        _ => -127
+        _ => -127,
     }
 }
 
@@ -687,11 +687,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
 
             InternalState::CONFIG_DONE => {
                 self.config_pending.set(false);
-                self.state_transition_read(RF233Register::TRX_STATUS,
-                                           InternalState::READY);
-                self.cfg_client.get().map(|c| {
-                    c.config_done(ReturnCode::SUCCESS);
-                });
+                self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
+                self.cfg_client.get().map(|c| { c.config_done(ReturnCode::SUCCESS); });
             }
 
             InternalState::UNKNOWN => {}
@@ -898,32 +895,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
         self.state.get() != InternalState::READY
     }
 
-
-    fn config_commit(&self) -> ReturnCode {
-        let pending = self.config_pending.get();
-        if pending {
-            ReturnCode::SUCCESS
-        } else {
-            self.config_pending.set(true);
-
-            let state = self.state.get();
-            if state == InternalState::START {
-                // Configuration will be pushed automatically on boot
-                ReturnCode::SUCCESS
-            } else if state == InternalState::READY {
-                // Start configuration commit
-                self.state_transition_write(RF233Register::SHORT_ADDR_0,
-                                            (self.addr.get() & 0xff) as u8,
-                                            InternalState::CONFIG_SHORT0_SET);
-                ReturnCode::SUCCESS
-            } else {
-                // Pending flag will be checked on return to READY
-                // and commit started
-                ReturnCode::SUCCESS
-            }
-        }
-    }
-
     fn set_config_client(&self, client: &'static radio::ConfigClient) {
         self.cfg_client.set(Some(client));
     }
@@ -969,6 +940,27 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
     /// The 802.15.4 channel
     fn config_channel(&self) -> u8 {
         self.channel.get()
+    }
+
+    fn config_commit(&self) -> ReturnCode {
+        let pending = self.config_pending.get();
+        if !pending {
+            self.config_pending.set(true);
+            let state = self.state.get();
+
+            if state == InternalState::READY {
+                // Start configuration commit
+                self.state_transition_write(RF233Register::SHORT_ADDR_0,
+                                            (self.addr.get() & 0xff) as u8,
+                                            InternalState::CONFIG_SHORT0_SET);
+            } else {
+                // Do nothing --
+                // Configuration will be pushed automatically on boot,
+                // or pending flag will be checked on return to READY
+                // and commit started
+            }
+        }
+        ReturnCode::SUCCESS
     }
 }
 

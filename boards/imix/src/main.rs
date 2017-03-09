@@ -368,6 +368,7 @@ pub unsafe fn reset_handler() {
     rf233.set_transmit_client(radio_capsule);
     rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
     rf233.set_config_client(radio_capsule);
+
     let imix = Imix {
         console: console,
         timer: timer,
@@ -390,7 +391,8 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.config_set_pan(0xABCD);
     rf233.config_set_address(0x1008);
-    rf233.config_commit();
+//    rf233.config_commit();
+
     rf233.start();
 
     debug!("Initialization complete. Entering main loop");

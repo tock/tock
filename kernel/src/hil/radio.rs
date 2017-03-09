@@ -42,7 +42,6 @@ pub trait RadioConfig {
     fn reset(&self) -> ReturnCode;
     fn start(&self) -> ReturnCode;
     fn stop(&self) -> ReturnCode;
-
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
 
