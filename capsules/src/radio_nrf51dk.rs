@@ -90,7 +90,7 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
 }
 // 'a = lifetime
 // R - type Radio
-impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a> Radio<'a, R> {
     pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8]) -> Radio<'a, R> {
         Radio {
             radio: radio,

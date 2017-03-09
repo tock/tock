@@ -16,7 +16,8 @@ use kernel::returncode::ReturnCode;
 use nvic;
 use peripheral_interrupts::NvicIdx;
 extern crate capsules;
-use self::capsules::led::LED;
+// use self::capsules::led::LED;
+
 use peripheral_registers::{RADIO_REGS, RADIO_BASE};
 
 #[deny(no_mangle_const_items)]

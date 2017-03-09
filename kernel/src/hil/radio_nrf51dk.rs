@@ -9,7 +9,6 @@ pub trait RadioDriver {
     fn set_adv_name(&self, &'static mut [u8], len: usize) -> ReturnCode;
     fn receive(&self);
     // ADD MORE LATER
-    fn flash_leds(&self);
     fn set_channel(&self, ch: usize);
 }
 
