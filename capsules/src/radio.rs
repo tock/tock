@@ -238,9 +238,7 @@ impl<'a, R: radio::Radio> radio::TxClient for RadioDriver<'a, R> {
         self.app.map(move |app| {
             self.kernel_tx.replace(buf);
             self.busy.set(false);
-            app.tx_callback.take().map(|mut cb| {
-                cb.schedule(usize::from(result), 0, 0);
-            });
+            app.tx_callback.take().map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
         });
     }
 }
@@ -258,9 +256,7 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
                     }
                     app.rx_callback
                         .take()
-                        .map(|mut cb| {
-                            cb.schedule(usize::from(result), 0, 0);
-                        });
+                        .map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
                 }
                 self.radio.set_receive_buffer(buf);
             });
@@ -273,9 +269,7 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
 impl<'a, R: radio::Radio> radio::ConfigClient for RadioDriver<'a, R> {
     fn config_done(&self, result: ReturnCode) {
         self.app.map(move |app| {
-            app.cfg_callback.take().map(|mut cb| {
-                cb.schedule(usize::from(result), 0, 0);
-            });
+            app.cfg_callback.take().map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
         });
     }
 }

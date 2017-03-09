@@ -591,9 +591,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
 
                     self.tx_client
                         .get()
-                        .map(|c| {
-                            c.send_done(buf.unwrap(), ReturnCode::SUCCESS);
-                        });
+                        .map(|c| { c.send_done(buf.unwrap(), ReturnCode::SUCCESS); });
                 } else {
                     self.register_read(RF233Register::TRX_STATUS);
                 }
@@ -690,9 +688,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::CONFIG_DONE => {
                 self.config_pending.set(false);
                 self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
-                self.cfg_client.get().map(|c| {
-                    c.config_done(ReturnCode::SUCCESS);
-                });
+                self.cfg_client.get().map(|c| { c.config_done(ReturnCode::SUCCESS); });
             }
 
             InternalState::UNKNOWN => {}

@@ -22,7 +22,7 @@ pub trait ConfigClient {
 
 pub const HEADER_SIZE: u8 = 10;
 pub const MAX_PACKET_SIZE: u8 = 128;
-pub const MAX_BUF_SIZE: usize = 129;    // +1 for opcode
+pub const MAX_BUF_SIZE: usize = 129; // +1 for opcode
 pub const MIN_PACKET_SIZE: u8 = HEADER_SIZE + 2; // +2 for CRC
 
 pub trait Radio {
