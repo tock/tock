@@ -20,10 +20,10 @@ pub trait ConfigClient {
     fn config_done(&self, result: ReturnCode);
 }
 
-pub const HEADER_SIZE: u8        = 10;
-pub const MAX_PACKET_SIZE: u8    = 128;
-pub const MAX_BUF_SIZE: usize    = 129;    // +1 for opcode
-pub const MIN_PACKET_SIZE: u8    = HEADER_SIZE + 2; // +2 for CRC
+pub const HEADER_SIZE: u8 = 10;
+pub const MAX_PACKET_SIZE: u8 = 128;
+pub const MAX_BUF_SIZE: usize = 129;    // +1 for opcode
+pub const MIN_PACKET_SIZE: u8 = HEADER_SIZE + 2; // +2 for CRC
 
 pub trait Radio {
     /// buf must be at least MAX_BUF_SIZE in length, and
@@ -39,8 +39,7 @@ pub trait Radio {
     fn ready(&self) -> bool;
 
     fn set_transmit_client(&self, client: &'static TxClient);
-    fn set_receive_client(&self, client: &'static RxClient,
-                          receive_buffer: &'static mut [u8]);
+    fn set_receive_client(&self, client: &'static RxClient, receive_buffer: &'static mut [u8]);
     fn set_config_client(&self, client: &'static ConfigClient);
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
@@ -70,10 +69,7 @@ pub trait Radio {
     fn payload_offset(&self) -> u8;
     fn header_size(&self) -> u8;
 
-    fn transmit(&self,
-                dest: u16,
-                tx_data: &'static mut [u8],
-                tx_len: u8) -> ReturnCode;
+    fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode;
 }
 
 #[repr(C, packed)]
