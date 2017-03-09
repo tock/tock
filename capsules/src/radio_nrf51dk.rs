@@ -68,10 +68,7 @@ pub struct App {
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
-    // used for adv name
     app_write: Option<AppSlice<Shared, u8>>,
-    // specific data in adv
-    app_write_data: Option<AppSlice<Shared, u8>>,
 }
 
 impl Default for App {
@@ -81,7 +78,6 @@ impl Default for App {
             rx_callback: None,
             app_read: None,
             app_write: None,
-            app_write_data: None,
         }
     }
 }
@@ -91,22 +87,11 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     busy: Cell<bool>,
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
-    kernel_tx_data: TakeCell<'static, [u8]>,
-    alarm: &'a A,
-    // we should probably add a BLE state-machine here
-    // frequency: Cell<usize>,
-    advertise: Cell<bool>,
-    remaining: Cell<usize>,
 }
 // 'a = lifetime
 // R - type Radio
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
-    pub fn new(radio: &'a R,
-               container: Container<App>,
-               buf: &'static mut [u8],
-               buf1: &'static mut [u8],
-               alarm: &'a A)
-               -> Radio<'a, R, A> {
+impl<'a, R: RadioDummy + 'a> Radio<'a, R> {
+    pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8]) -> Radio<'a, R> {
         Radio {
             radio: radio,
             busy: Cell::new(false),
@@ -272,32 +257,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
         }
     }
 
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
-        match subscribe_num {
-            0 => {
-                self.app
-                    .enter(callback.app_id(), |app_tmp, _| {
-                        app_tmp.rx_callback = Some(callback);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| match err {
-                                        _ => ReturnCode::ENOSUPPORT,
-                                    })
-            }
-            // DONT KNOW IF WE NEED THIS REMOVE LATER IF NOT
-            1 => {
-                self.app
-                    .enter(callback.app_id(), |app, _| {
-                        app.tx_callback = Some(callback);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| match err {
-                                        _ => ReturnCode::ENOSUPPORT,
-                                    })
-            }
-            _ => ReturnCode::ENOSUPPORT,
-        }
-    }
 
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match (allow_num, self.busy.get()) {
