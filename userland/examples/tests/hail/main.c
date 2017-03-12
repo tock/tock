@@ -69,6 +69,9 @@ static void timer_fired(__attribute__ ((unused)) int arg0,
   printf("  D6:           %d\n", d6);
   printf("  D7:           %d\n", d7);
   printf("\n");
+
+  // toggle the blue LED
+  led_toggle(2);
 }
 
 int main(void) {
