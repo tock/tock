@@ -2,6 +2,17 @@
 //
 // public domain
 //
+//// This assmeble file was taken from
+// https://munacl.cryptojedi.org/curve25519-cortexm0.shtml
+// Credit to  Björn Haase and Ana Helena Sánchez, as well
+// as M. Hutter and P. Schwabe
+// This assemble file assumes the function multiply256x256_asm
+// with 2 inputs, each of type [u32;8]. The program will square
+// the first input in modulo 2^255 − 19 and puts the result
+// in the second input.
+//The commented out code was the multiplication that was 
+//replaces by the faster UMULL (supported by the arm cortex m4)
+
 
  .align	2
 	.global	square256_asm
