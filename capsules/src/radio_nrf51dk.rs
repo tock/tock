@@ -87,11 +87,12 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     busy: Cell<bool>,
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
+    alarm: &'a A,
 }
 // 'a = lifetime
 // R - type Radio
-impl<'a, R: RadioDriver + 'a> Radio<'a, R> {
-    pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8]) -> Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm +'a > Radio<'a, R, A> {
+    pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8], alarm: &'a A ) -> Radio<'a, R, A> {
         Radio {
             radio: radio,
             busy: Cell::new(false),
@@ -169,6 +170,7 @@ impl<'a, R: RadioDriver + 'a> Radio<'a, R> {
         let tics = self.alarm.now().wrapping_add(5017 as u32);
         self.alarm.set_alarm(tics);
     }
+
 }
 
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
