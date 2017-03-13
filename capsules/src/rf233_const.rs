@@ -85,6 +85,8 @@ pub const IRQ_MASK: u8 = (IRQ_TRXBUF_ACCESS_VIOLATION | IRQ_TRX_DONE | IRQ_PLL_L
 pub const XAH_CTRL_1: u8 = XAH_CTRL_1_AACK_PROM_MODE;
 pub const XAH_CTRL_0: u8 = 0;
 pub const TRX_RPC: u8 = 0xFF;
+pub const TRX_TRAC_MASK: u8 = 0xE0;
+pub const TRX_TRAC_SUCCESS_DATA_PENDING: u8 = 1;
 
 // Default address settings.
 pub const PAN_ID_0: u8 = 0x22;

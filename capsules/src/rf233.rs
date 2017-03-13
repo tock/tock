@@ -86,6 +86,7 @@ enum InternalState {
     TX_PLL_WAIT,
     TX_ARET_ON,
     TX_TRANSMITTING,
+    TX_READ_ACK,
     TX_DONE,
     TX_RETURN_TO_RX,
 
@@ -181,6 +182,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     tx_client: Cell<Option<&'static radio::TxClient>>,
     rx_client: Cell<Option<&'static radio::RxClient>>,
     cfg_client: Cell<Option<&'static radio::ConfigClient>>,
+    power_client: Cell<Option<&'static radio::PowerClient>>,
     addr: Cell<u16>,
     pan: Cell<u16>,
     tx_power: Cell<i8>,
@@ -581,9 +583,16 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::TX_DONE => {
                 self.state_transition_write(RF233Register::TRX_STATE,
                                             RF233TrxCmd::RX_AACK_ON as u8,
-                                            InternalState::TX_RETURN_TO_RX);
+                                            InternalState::TX_READ_ACK);
             }
+            InternalState::TX_READ_ACK => {
+                self.state_transition_read(RF233Register::TRX_STATE,
+                                           InternalState::TX_RETURN_TO_RX);
+            }
+
+            // Insert read of TRX_STATUS here, checking TRAC
             InternalState::TX_RETURN_TO_RX => {
+                let ack: bool = (result & TRX_TRAC_MASK) == 0;
                 if status == ExternalState::RX_AACK_ON as u8 {
                     self.transmitting.set(false);
                     let buf = self.tx_buf.take();
@@ -591,7 +600,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
 
                     self.tx_client
                         .get()
-                        .map(|c| { c.send_done(buf.unwrap(), ReturnCode::SUCCESS); });
+                        .map(|c| { c.send_done(buf.unwrap(), ack, ReturnCode::SUCCESS); });
                 } else {
                     self.register_read(RF233Register::TRX_STATUS);
                 }
@@ -731,6 +740,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
             tx_client: Cell::new(None),
             rx_client: Cell::new(None),
             cfg_client: Cell::new(None),
+            power_client: Cell::new(None),
             addr: Cell::new(0),
             pan: Cell::new(0),
             tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
@@ -897,6 +907,10 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
 
     fn set_config_client(&self, client: &'static radio::ConfigClient) {
         self.cfg_client.set(Some(client));
+    }
+
+    fn set_power_client(&self, client: &'static radio::PowerClient) {
+        self.power_client.set(Some(client));
     }
 
     fn config_set_address(&self, addr: u16) {

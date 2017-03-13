@@ -9,7 +9,10 @@
 
 use returncode::ReturnCode;
 pub trait TxClient {
-    fn send_done(&self, buf: &'static mut [u8], result: ReturnCode);
+    fn send_done(&self,
+                 buf: &'static mut [u8],
+                 acked: bool,
+                 result: ReturnCode);
 }
 
 pub trait RxClient {
@@ -44,6 +47,8 @@ pub trait RadioConfig {
     fn stop(&self) -> ReturnCode;
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
+
+    fn set_power_client(&self, client: &'static PowerClient);
 
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues

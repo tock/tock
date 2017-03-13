@@ -15,8 +15,14 @@ int radio_ready();
 // packet contains the payload of the 802.15.4 packet
 int radio_send(unsigned short addr, const char* packet, unsigned char len);
 
+// Blocking radio receive
 int radio_receive(const char* packet, unsigned char len);
 
+// Issue a callback when a packet is received;
+// not usable simultaneously with radio_receive
+int radio_receive_callback(subscribe_cb callback,
+                           const char* packet,
+                           unsigned char len);
 
 // Calls to configure the radio don't take full effect
 // until you call radio_commit()

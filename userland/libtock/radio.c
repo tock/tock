@@ -125,6 +125,20 @@ int radio_receive(const char* packet, unsigned char len) {
   return (int)packet[1];
 }
 
+int radio_receive_callback(subscribe_cb callback,
+                           const char* packet,
+                           unsigned char len) {
+  int err = allow(SYS_RADIO, BUF_RX, (void*)packet, len);
+  if (err < 0) {
+    return err;
+  }
+  err = subscribe(SYS_RADIO, EVT_RX, callback, NULL);
+  if (err < 0) {
+    return err;
+  }
+  return 0;
+}
+
 int radio_ready() {
   return command(SYS_RADIO, COM_READY, 0) == SUCCESS;
 }

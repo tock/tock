@@ -78,7 +78,6 @@ turn it on/off and configure it.
 3.1 Changing radio power state
 -------------------------------
 
-
     fn initialize(&self,
                   spi_buf: &'static mut [u8],
                   reg_write: &'static mut [u8],
@@ -90,6 +89,7 @@ turn it on/off and configure it.
 
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
+    fn set_power_client(&self, client: &'static PowerClient);
 
 The `initialize` function takes three buffers, which are required for
 the driver to be able to control the radio over an SPI bus. The first,
@@ -135,6 +135,9 @@ reconfiguration or packet transmission requests. If it is busy and
 cannot accept reconfiguration or packet transmission requests, it
 MUST return true.
 
+The `set_power_client` function allows a client to register a
+callback for when the radio's power state changes.
+
 
 3.1 Configuring the radio
 -------------------------------
@@ -171,12 +174,12 @@ SUCCESS otherwise.
 
 `config_set_tx_power` takes an signed integer, whose units are dBm.
 If the specified value is greater than the maximum supported transmit
-power or less than the minimum supported transmit power, it MUST return
-EINVAL. Otherwise, it MUST set the transmit power to the closest value
-that the radio supports. `config_tx_power` MUST return the actual transmit
-power value in dBm. Therefore, it is possible that the return value of
-`config_tx_power` returns a different (but close) value than what it set
-in `config_set_tx_power`.
+power or less than the minimum supported transmit power, it MUST
+return EINVAL. Otherwise, it MUST set the transmit power to the
+closest value that the radio supports. `config_tx_power` MUST return
+the actual transmit power value in dBm. Therefore, it is possible that
+the return value of `config_tx_power` returns a different (but close)
+value than what it set in `config_set_tx_power`.
 
 4. Radio trait for sending and receiving packets
 -------------------------------
@@ -201,8 +204,8 @@ offset. For example, if `payload_offset` returns 11 and the caller
 wants to send 20 bytes, it should fill in bytes 11-30 of the buffer
 with the payload.
 
-The data path has two callbacks: one for when a packet is received and one
-for when a packet transmission completes.
+The data path has two callbacks: one for when a packet is received and
+one for when a packet transmission completes.
 
     fn set_transmit_client(&self, client: &'static TxClient);
     fn set_receive_client(&self, client: &'static RxClient,
@@ -210,10 +213,10 @@ for when a packet transmission completes.
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
 Registering for a receive callback requires also providing a packet
-buffer to receive packets into. The receive callback MUST pass
-this buffer back. The callback handler MUST install a new receive buffer
-with a call to `set_receive_buffer`. This buffer MAY be the same buffer
-it received or a different one.
+buffer to receive packets into. The receive callback MUST pass this
+buffer back. The callback handler MUST install a new receive buffer
+with a call to `set_receive_buffer`. This buffer MAY be the same
+buffer it received or a different one.
 
 Clients transmit packets by calling `transmit`.
 
@@ -222,65 +225,90 @@ Clients transmit packets by calling `transmit`.
                 tx_data: &'static mut [u8],
                 tx_len: u8) -> ReturnCode;
 
-The passed buffer `tx_data` MUST be MAX_BUF_LEN in size. `tx_len` is the length
-of the payload. If `transmit` returns SUCCESS, then the driver MUST issue
-a transmission completion callback. If `transmit` returns any value
-except SUCCESS, it MUST NOT accept the packet for transmission and MUST NOT
-issue a transmission completion callback. If `tx_len` is too long,
-`transmit` MUST return ESIZE. If the radio is off, `transmit` MUST return EOFF.
-If the stack is temporarilt unable to send a packet (e.g., already
-has a transmission pending), then `transmit` MUST return EBUSY. If
-the stack accepts a packet for transmission (returns SUCCESS), it
-MUST return EBUSY until it issues a transmission completion callback.
+The passed buffer `tx_data` MUST be MAX_BUF_LEN in size. `tx_len` is
+the length of the payload. If `transmit` returns SUCCESS, then the
+driver MUST issue a transmission completion callback. If `transmit`
+returns any value except SUCCESS, it MUST NOT accept the packet for
+transmission and MUST NOT issue a transmission completion callback. If
+`tx_len` is too long, `transmit` MUST return ESIZE. If the radio is
+off, `transmit` MUST return EOFF.  If the stack is temporarilt unable
+to send a packet (e.g., already has a transmission pending), then
+`transmit` MUST return EBUSY. If the stack accepts a packet for
+transmission (returns SUCCESS), it MUST return EBUSY until it issues a
+transmission completion callback.
 
-4. TxClient, RxClient, and ConfigClient traits
+4. TxClient, RxClient, ConfigClient, and PowerClient traits
 -------------------------------
 
-An 802.15.4 radio provides three callbacks: packet transmission completion,
-packet reception, and when a change to the radio's configuration has completed.
+An 802.15.4 radio provides four callbacks: packet transmission
+completion, packet reception, when a change to the radio's
+configuration has completed, and when the power state of the
+radio has changed.
 
     pub trait TxClient {
         fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode);
     }
 
-The `buf` paramater of `send_done` MUST pass back the same buffer that was passed
-to `transmit`. `acked` specifies whether the sender received a link-layer acknowledgement
-(indicating the packet was successfully received). `result` indicates whether or not the
-packet was transmitted successfully; it can take on any of the valid return values for
-`transmit` or FAIL to indicate other reasons for failure.
+The `buf` paramater of `send_done` MUST pass back the same buffer that
+was passed to `transmit`. `acked` specifies whether the sender
+received a link-layer acknowledgement (indicating the packet was
+successfully received). `result` indicates whether or not the packet
+was transmitted successfully; it can take on any of the valid return
+values for `transmit` or FAIL to indicate other reasons for failure.
 
-The `receive` callback is called whenever the radio receives a packet destined to the
-node's address (including broadcast address) and PAN id that passes a CRC check. If a
-packet is not destined to the node or does not pass a CRC check then `receive` MUST NOT
-be called. `buf` is the buffer containing the received packet. It MUST be the same
-buffer that was passed with either installing the receive handler or calling
-`set_receive_buffer`. The buffer is consumed through the callback: the radio stack
-MUST NOT maintain a reference to the buffer. A client that wants to receive another
-packet MUST call `set_receive_buffer`.
+The `receive` callback is called whenever the radio receives a packet
+destined to the node's address (including broadcast address) and PAN
+id that passes a CRC check. If a packet is not destined to the node or
+does not pass a CRC check then `receive` MUST NOT be called. `buf` is
+the buffer containing the received packet. It MUST be the same buffer
+that was passed with either installing the receive handler or calling
+`set_receive_buffer`. The buffer is consumed through the callback: the
+radio stack MUST NOT maintain a reference to the buffer. A client that
+wants to receive another packet MUST call `set_receive_buffer`.
 
     pub trait RxClient {
         fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
     }
 
-The `config_done` callback indicates that a radio reconfiguration has been committed
-to hardware. If the configuration has been successfully committed, `result` MUST be
-SUCCESS. It may otherwise take on any value that is a valid return value of `config_commit`
-or FAIL to indicate another failure.
+The `config_done` callback indicates that a radio reconfiguration has
+been committed to hardware. If the configuration has been successfully
+committed, `result` MUST be SUCCESS. It may otherwise take on any
+value that is a valid return value of `config_commit` or FAIL to
+indicate another failure.
 
     pub trait ConfigClient {
         fn config_done(&self, result: ReturnCode);
     }
 
+The `changed` callback indicates that the power state of the radio
+has changed. The `on` parameter states whether it is now on or off.
+If a call to `stop` using the RadioConfig interface returns SUCCESS,
+the radio MUST issue a `changed` callback when the radio is powered
+off, passing `false` as the value of the `on` parameter. If a
+call to `start` using the RadioConfig interface returns SUCCESS,
+the radio MUST issue a `changed` callback when the radio is powered
+on, passing `true` as the value of the `on` parameter.
+
+    pub trait PowerClient {
+        fn changed(&self, on: bool);
+    }
+
+The return value of `is_on` MUST be consistent with the state as
+exposed through the `changed` callback.  If the `changed` callback has
+indicated that the radio is on, then `is_on` MUST return true a later
+callback signals the radio is off. Similarly, if the `changed` callback
+has indicated that the radio is off, then `is_on` MUST return false
+until a later callback signals the radio is on.
 
 5. Example Implementation: RF233
 ---------------------------------
 
-An implementation of the radio HIL for the Atmel RF233 radio can be found
-in capsules::rf233. This implementation interacts with an RF233 radio over
-an SPI bus. It supports 16-bit addresses, intra-PAN communication, and
-synchronous link-layer acknowledgments. It has two files: `rf233.rs` and
-`rf233_const.rs`. The latter has constants such as register identifiers,
-command formats, and register flags.
+An implementation of the radio HIL for the Atmel RF233 radio can be
+found in capsules::rf233. This implementation interacts with an RF233
+radio over an SPI bus. It supports 16-bit addresses, intra-PAN
+communication, and synchronous link-layer acknowledgments. It has two
+files: `rf233.rs` and `rf233_const.rs`. The latter has constants such
+as register identifiers, command formats, and register flags.
 
 The RF233 has 6 major operations of the SPI bus: read a register,
 write a register, read an 802.15.4 frame, write an 802.15.4 frame,
@@ -301,24 +329,26 @@ The implementation has 6 high-level states:
   * transmitting a packet, and
   * committing a configuration change.
 
-All of these states, except off, have multiple substates.  They reach represent
-a (mostly) linear series of state transitions. If a client requests an operation
-(e.g., transmit a packet, reconfigure) while the stack is in the waiting state, it
-starts the operation immediately. If it is in the midst of receiving a packet, it
-marks the operation as pending and completes it when it falls back to the waiting
-state. If there is both a packet transmission and a reconfiguration pending, it
+All of these states, except off, have multiple substates.  They reach
+represent a (mostly) linear series of state transitions. If a client
+requests an operation (e.g., transmit a packet, reconfigure) while the
+stack is in the waiting state, it starts the operation immediately. If
+it is in the midst of receiving a packet, it marks the operation as
+pending and completes it when it falls back to the waiting state. If
+there is both a packet transmission and a reconfiguration pending, it
 prioritizes the transmission first.
 
-The RF233 provides an interrupt line to the processor, to denote some state changes.
-The radio has multiple interrupts, which are are multiplexed onto a single interrupt
-line. Software is responsible for reading an interrupt status register on the radio
-(a register read operation) to determine what interrupts are pending. Since
-a register read requires an SPI operation, it can be significantly delayed. For
-example, if the stack is the midst of writing out a packet to the radio's frame
-buffer, it will complete the SPI operation before issuing a register read. In cases
-when transmissions are interrupted by packet reception, the stack simply marks the
-packet as pending and waits for the reception to complete, then retries the
-transmission.
+The RF233 provides an interrupt line to the processor, to denote some
+state changes.  The radio has multiple interrupts, which are are
+multiplexed onto a single interrupt line. Software is responsible for
+reading an interrupt status register on the radio (a register read
+operation) to determine what interrupts are pending. Since a register
+read requires an SPI operation, it can be significantly delayed. For
+example, if the stack is the midst of writing out a packet to the
+radio's frame buffer, it will complete the SPI operation before
+issuing a register read. In cases when transmissions are interrupted
+by packet reception, the stack simply marks the packet as pending and
+waits for the reception to complete, then retries the transmission.
 
 6. Authors' Address
 ---------------------------------

@@ -234,7 +234,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
 }
 
 impl<'a, R: radio::Radio> radio::TxClient for RadioDriver<'a, R> {
-    fn send_done(&self, buf: &'static mut [u8], result: ReturnCode) {
+    fn send_done(&self, buf: &'static mut [u8], acked: bool,  result: ReturnCode) {
         self.app.map(move |app| {
             self.kernel_tx.replace(buf);
             self.busy.set(false);
