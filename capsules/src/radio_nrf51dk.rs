@@ -19,7 +19,7 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::radio_nrf51dk::{RadioDriver, Client};
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
-
+use kernel::hil;
 pub static mut BUF: [u8; 16] = [0; 16];
 
 pub struct App {
@@ -40,30 +40,35 @@ impl Default for App {
     }
 }
 
-pub struct Radio<'a, R: RadioDriver + 'a> {
+pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     radio: &'a R,
     busy: Cell<bool>,
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
+    alarm: &'a A,
 }
 // 'a = lifetime
 // R - type Radio
-impl<'a, R: RadioDriver + 'a> Radio<'a, R> {
-    pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8]) -> Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm +'a > Radio<'a, R, A> {
+    pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8], alarm: &'a A ) -> Radio<'a, R, A> {
         Radio {
             radio: radio,
             busy: Cell::new(false),
             app: container,
             kernel_tx: TakeCell::new(buf),
+            alarm: alarm,
+
+
         }
     }
 
     pub fn capsule_init(&self) {
         self.radio.init()
     }
+
 }
 
-impl<'a, R: RadioDriver + 'a> Client for Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm +'a> Client for Radio<'a, R, A> {
     #[inline(never)]
     #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
@@ -97,7 +102,7 @@ impl<'a, R: RadioDriver + 'a> Client for Radio<'a, R> {
 }
 
 // Implementation of the Driver Trait/Interface
-impl<'a, R: RadioDriver + 'a> Driver for Radio<'a, R> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, A> {
     //  0 -  rx, must be called each time to get a an rx interrupt, TODO nicer approach
     //  2 -  tx, call for each message
     //  ...
@@ -124,6 +129,9 @@ impl<'a, R: RadioDriver + 'a> Driver for Radio<'a, R> {
                                     }
                                     buf[i] = *c;
                                 }
+
+                                self.alarm_state.set(AlarmState::DetectionChange);
+                                self.alarm.set_alarm(10);
                                 self.radio.transmit(0, buf, 16);
                             });
 

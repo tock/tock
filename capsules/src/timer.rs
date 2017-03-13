@@ -162,6 +162,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
 
 impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
     fn fired(&self) {
+        panic!("fired\r\n");
         let now = self.alarm.now();
 
         self.app_timer.each(|timer| {

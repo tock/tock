@@ -222,6 +222,7 @@ impl Timer {
     /// created an event, and if so, add it to the bitmask of triggered
     /// events that is passed to the client.
     pub fn handle_interrupt(&self) {
+        panic!("handle int\r\n");
         nvic::clear_pending(self.nvic);
         self.client.get().map(|client| {
             let mut val = 0;
@@ -293,6 +294,7 @@ impl TimerAlarm {
 
     #[inline(never)]
     pub fn handle_interrupt(&self) {
+        panic!("handle int\r\n");
         self.clear_alarm();
         self.client.get().map(|client| { client.fired(); });
     }
@@ -369,7 +371,6 @@ pub unsafe extern "C" fn TIMER0_Handler() {
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn TIMER1_Handler() {
     use kernel::common::Queue;
-
     nvic::disable(NvicIdx::TIMER1);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER1);
 }
