@@ -246,7 +246,11 @@ pub unsafe fn reset_handler() {
 
     let aes = static_init!(
         capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
-        capsules::symmetric_encryption::Crypto::new(&mut nrf51::aes::AESECB, kernel::Container::create(), &mut capsules::symmetric_encryption::BUF, &mut capsules::symmetric_encryption::BUF), 224/8);
+        capsules::symmetric_encryption::Crypto::new(&mut nrf51::aes::AESECB,
+                                                    kernel::Container::create(),
+                                                    &mut capsules::symmetric_encryption::BUF,
+                                                    &mut capsules::symmetric_encryption::BUF),
+        224/8);
     nrf51::aes::AESECB.ecb_init();
     nrf51::aes::AESECB.set_client(aes);
 
