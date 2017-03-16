@@ -19,7 +19,7 @@ int radio_send(unsigned short addr, const char* packet, unsigned char len);
 int radio_receive(const char* packet, unsigned char len);
 
 // Issue a callback when a packet is received;
-// not usable simultaneously with radio_receive
+// not usable simultaneously with radio_receive.
 int radio_receive_callback(subscribe_cb callback,
                            const char* packet,
                            unsigned char len);

@@ -181,11 +181,14 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     return ReturnCode::EOFF;
                 } else if self.kernel_tx.is_none() {
                     return ReturnCode::ENOMEM;
+                } else if self.app.is_none() {
+                    return ReturnCode::ERESERVE;
                 }
 
                 // The argument packs the 16-bit destination address
                 // and length in the 32-bit argument. Bits 0-15 are
                 // the address and bits 16-23 are the length.
+                let mut rval = ReturnCode::SUCCESS;
                 self.app.map(|app| {
                     let mut blen = 0;
                     // If write buffer too small, return
@@ -195,7 +198,8 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     let len: usize = (arg1 >> 16) & 0xff;
                     let addr: u16 = (arg1 & 0xffff) as u16;
                     if blen < len {
-                        return ReturnCode::ESIZE;
+                        rval = ReturnCode::ESIZE;
+                        return;
                     }
                     let offset = self.radio.payload_offset() as usize;
                     // Copy the packet into the kernel buffer
@@ -209,14 +213,12 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     let transmit_len = len as u8 + self.radio.header_size();
                     let kbuf = self.kernel_tx.take().unwrap();
 
-                    let rval = self.radio.transmit(addr, kbuf, transmit_len);
+                    rval = self.radio.transmit(addr, kbuf, transmit_len);
                     if rval == ReturnCode::SUCCESS {
                         self.busy.set(true);
-                        return ReturnCode::SUCCESS
                     }
-                    return rval;
                 });
-                return ReturnCode::ERESERVE;
+                rval
             },
             6 /* check if on */ => {
                 if self.radio.is_on() {
@@ -238,7 +240,7 @@ impl<'a, R: radio::Radio> radio::TxClient for RadioDriver<'a, R> {
         self.app.map(move |app| {
             self.kernel_tx.replace(buf);
             self.busy.set(false);
-            app.tx_callback.take().map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
+            app.tx_callback.take().map(|mut cb| { cb.schedule(usize::from(result), acked as usize, 0); });
         });
     }
 }
