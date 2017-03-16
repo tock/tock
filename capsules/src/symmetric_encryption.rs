@@ -58,7 +58,11 @@ pub struct Crypto<'a, E: SymmetricEncryptionDriver + 'a> {
 }
 
 impl<'a, E: SymmetricEncryptionDriver + 'a> Crypto<'a, E> {
-    pub fn new(crypto: &'a E, container: Container<App>, buf1: &'static mut [u8], buf2: &'static mut [u8]) -> Crypto<'a, E> {
+    pub fn new(crypto: &'a E,
+               container: Container<App>,
+               buf1: &'static mut [u8],
+               buf2: &'static mut [u8])
+               -> Crypto<'a, E> {
         Crypto {
             crypto: crypto,
             apps: container,
@@ -83,11 +87,11 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
                         d[i] = *c;
                     }
                 }
-                    if self.state.get() == CryptoState::ENCRYPT {
-                        app.callback.map(|mut cb| { cb.schedule(1, 0, 0); });
-                    } else if self.state.get() == CryptoState::DECRYPT {
-                        app.callback.map(|mut cb| { cb.schedule(2, 0, 0); });
-                    }
+                if self.state.get() == CryptoState::ENCRYPT {
+                    app.callback.map(|mut cb| { cb.schedule(1, 0, 0); });
+                } else if self.state.get() == CryptoState::DECRYPT {
+                    app.callback.map(|mut cb| { cb.schedule(2, 0, 0); });
+                }
             });
         }
         // indicate that the encryption driver not busy
@@ -106,7 +110,7 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
         self.key_configured.set(true);
         // indicate that the encryption driver not busy
         self.busy.set(false);
-        
+
         self.state.set(CryptoState::IDLE);
         ReturnCode::SUCCESS
     }
@@ -128,7 +132,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
-            1 ... 2 => {
+            1...2 => {
                 self.apps
                     .enter(appid, |app, _| {
                         app.data_buf = Some(slice);
@@ -167,13 +171,14 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
             // set key, it is assumed that it is always 16 bytes
             // can only be performed once at the moment
             0 => {
-                if len == 16 && !self.key_configured.get() && !self.busy.get() && self.state.get() == CryptoState::IDLE {
+                if len == 16 && !self.key_configured.get() && !self.busy.get() &&
+                   self.state.get() == CryptoState::IDLE {
                     for cntr in self.apps.iter() {
-                        
+
                         // indicate busy state
                         self.busy.set(true);
                         self.state.set(CryptoState::SETKEY);
-                        
+
                         cntr.enter(|app, _| {
                             app.key_buf.as_mut().map(|slice| {
                                 self.kernel_key.take().map(|buf| {
@@ -200,18 +205,19 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
             }
             // encryption/decryption driver
             // FIXME: better error handling
-            e @ 1 ... 2 => {
-                if self.key_configured.get() && !self.busy.get() && self.state.get() == CryptoState::IDLE {
+            e @ 1...2 => {
+                if self.key_configured.get() && !self.busy.get() &&
+                   self.state.get() == CryptoState::IDLE {
                     for cntr in self.apps.iter() {
                         self.busy.set(true);
-                        
-                        // set state 
+
+                        // set state
                         match e {
                             1 => self.state.set(CryptoState::ENCRYPT),
                             2 => self.state.set(CryptoState::DECRYPT),
                             _ => (),
                         }
-                        
+
                         cntr.enter(|app, _| {
                             app.data_buf.as_mut().map(|slice| {
                                 self.kernel_data.take().map(|buf| {
@@ -227,7 +233,9 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                                         buf[i] = *c;
                                     }
                                     // Chips are responsble for slicing the buffer so far!!!!
-                                    unsafe {self.crypto.crypt_ctr(buf, &mut IV, len as u8);}
+                                    unsafe {
+                                        self.crypto.crypt_ctr(buf, &mut IV, len as u8);
+                                    }
                                 });
                             });
                         });
