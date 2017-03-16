@@ -5,7 +5,7 @@ pub trait SymmetricEncryptionDriver {
     fn set_key(&self, key: &'static mut [u8]);
     // fn encrypt(&self, plaintext: &'static mut [u8], len: u8);
     // fn decrypt(&self, ciphertext: &'static mut [u8], len: u8);
-    fn crypt_ctr(&self, data: &'static mut [u8], init_ctr: &'static mut [u8], len: u8); 
+    fn crypt_ctr(&self, data: &'static mut [u8], init_ctr: &'static mut [u8], len: u8);
 }
 
 pub trait Client {

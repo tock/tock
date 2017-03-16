@@ -1,3 +1,26 @@
+//! AES128-CTR Driver
+//!
+//! Provides a simple driver for userspace applications to encrypt and decrypt messages
+//! using aes128-ctr mode on top of aes128-ecb
+//!
+//! At the moment are the initial counter always assigned to 0 but
+//! our idea is to have another allow call for that initial counter
+//! i.e. similar to the data(plaintext/cithertext)
+//!
+//! The buffer is also sliced in chips at the moment and some un-necessary
+//! static mut...
+//!
+//! FIXME:
+//!     - replace static mut with TakeCell or something similar
+//!     (I had problem to use because it can only be used one with take() )
+//!     - add support the enter initial counter value in userland
+//!     - maybe move some stuff to capsule instead
+//!
+//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
+//! Date: March 16, 2017
+
+
 use chip;
 use core::cell::Cell;
 // use kernel::common::take_cell::TakeCell;
@@ -146,7 +169,7 @@ impl AesECB {
 
             // USE THIS PRINT TO TEST THAT THE CTR UPDATES ACCORDINGLY
             // debug!("ctr {:?}\r\n", self.ctr.get());
-            
+
             // More bytes to encrypt!!!
             if self.remaining.get() > 0 {
                 self.crypt();
@@ -212,7 +235,7 @@ impl SymmetricEncryptionDriver for AesECB {
         self.len.set(len);
         self.offset.set(0);
         // self.data.replace(data);
-        
+
         // append data to "enc/dec" to a the global buf
         for (i, c) in data.as_ref()[0..len as usize].iter().enumerate() {
             unsafe {
