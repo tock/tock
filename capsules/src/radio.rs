@@ -10,7 +10,7 @@
 
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
-use kernel::common::take_cell::{MapCell,TakeCell};
+use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio;
 use kernel::returncode::ReturnCode;
 
@@ -236,11 +236,13 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
 }
 
 impl<'a, R: radio::Radio> radio::TxClient for RadioDriver<'a, R> {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool,  result: ReturnCode) {
+    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.app.map(move |app| {
             self.kernel_tx.replace(buf);
             self.busy.set(false);
-            app.tx_callback.take().map(|mut cb| { cb.schedule(usize::from(result), acked as usize, 0); });
+            app.tx_callback
+                .take()
+                .map(|mut cb| { cb.schedule(usize::from(result), acked as usize, 0); });
         });
     }
 }

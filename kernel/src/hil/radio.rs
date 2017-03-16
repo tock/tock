@@ -9,10 +9,7 @@
 
 use returncode::ReturnCode;
 pub trait TxClient {
-    fn send_done(&self,
-                 buf: &'static mut [u8],
-                 acked: bool,
-                 result: ReturnCode);
+    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode);
 }
 
 pub trait RxClient {
@@ -27,10 +24,10 @@ pub trait PowerClient {
     fn changed(&self, on: bool);
 }
 
-pub const HEADER_SIZE: u8        = 10;
-pub const MAX_PACKET_SIZE: u8    = 128;
-pub const MAX_BUF_SIZE: usize    = 129;    // +1 for opcode
-pub const MIN_PACKET_SIZE: u8    = HEADER_SIZE + 2; // +2 for CRC
+pub const HEADER_SIZE: u8 = 10;
+pub const MAX_PACKET_SIZE: u8 = 128;
+pub const MAX_BUF_SIZE: usize = 129; // +1 for opcode
+pub const MIN_PACKET_SIZE: u8 = HEADER_SIZE + 2; // +2 for CRC
 
 pub trait Radio: RadioConfig + RadioData {}
 
@@ -57,9 +54,9 @@ pub trait RadioConfig {
     fn set_config_client(&self, client: &'static ConfigClient);
 
     fn config_address(&self) -> u16; // The local 16-bit address
-    fn config_pan(&self) -> u16;     // The 16-bit PAN ID
+    fn config_pan(&self) -> u16; // The 16-bit PAN ID
     fn config_tx_power(&self) -> i8; // The transmit power, in dBm
-    fn config_channel(&self) -> u8;  // The 802.15.4 channel
+    fn config_channel(&self) -> u8; // The 802.15.4 channel
 
     fn config_set_address(&self, addr: u16);
     fn config_set_pan(&self, addr: u16);
@@ -76,14 +73,10 @@ pub trait RadioData {
     fn packet_get_pan(&self, packet: &'static [u8]) -> u16;
 
     fn set_transmit_client(&self, client: &'static TxClient);
-    fn set_receive_client(&self, client: &'static RxClient,
-                          receive_buffer: &'static mut [u8]);
+    fn set_receive_client(&self, client: &'static RxClient, receive_buffer: &'static mut [u8]);
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
-    fn transmit(&self,
-                dest: u16,
-                tx_data: &'static mut [u8],
-                tx_len: u8) -> ReturnCode;
+    fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode;
 }
 
 #[repr(C, packed)]

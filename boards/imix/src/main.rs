@@ -391,7 +391,7 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.config_set_pan(0xABCD);
     rf233.config_set_address(0x1008);
-//    rf233.config_commit();
+    //    rf233.config_commit();
 
     rf233.start();
 
