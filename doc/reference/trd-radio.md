@@ -20,8 +20,8 @@ the Rust traits and other definitions for this service as well as the
 reasoning behind them. This document is in full compliance
 with <a href="#trd1">TRD1</a>.
 
-1. Introduction
--------------------------------
+1 Introduction
+========================================
 
 Wireless communication is an integral component of sensor networks and
 the Internet of Things (IoT). 802.15.4 is low-power link layer that is
@@ -45,8 +45,8 @@ in the kernel create, in model hil::radio. It provides four traits:
 
 The rest of this document discusses each in turn.
 
-2. Configuration constants and buffer management
--------------------------------
+2 Configuration constants and buffer management
+========================================
 
 To avoid extra buffers and memory copies, the radio stack requires that
 callers provide it with memory buffers that are larger than the maximum
@@ -69,8 +69,8 @@ Note that MAX_BUF_SIZE can be larger (but not smaller) than MAX_PACKET_SIZE.
 A radio must be given receive buffers that are MAX_BUF_SIZE in order to 
 ensure that it can receive maximum length packets. 
 
-3. RadioControl trait
--------------------------------
+3 RadioControl trait
+========================================
 
 The RadioControl trait provides functions to initialize an 802.15.4 radio,
 turn it on/off and configure it.
@@ -135,7 +135,7 @@ cannot accept reconfiguration or packet transmission requests, it
 MUST return true.
 
 
-3.1 Configuring the radio
+3.2 Configuring the radio
 -------------------------------
 
 Re-configuring an 802.15.4 radio is an asynchronous operation.
@@ -177,8 +177,8 @@ power value in dBm. Therefore, it is possible that the return value of
 `config_tx_power` returns a different (but close) value than what it set
 in `config_set_tx_power`.
 
-4. Radio trait for sending and receiving packets 
--------------------------------
+4 Radio trait for sending and receiving packets 
+========================================
 
 The Radio trait implements the radio data path: it allows clients to 
 send and receive packets as well as accessors for packet fields. 
@@ -230,8 +230,8 @@ has a transmission pending), then `transmit` MUST return EBUSY. If
 the stack accepts a packet for transmission (returns SUCCESS), it
 MUST return EBUSY until it issues a transmission completion callback.
 
-4. TxClient, RxClient, and ConfigClient traits
--------------------------------
+5 TxClient, RxClient, and ConfigClient traits
+========================================
 
 An 802.15.4 radio provides three callbacks: packet transmission completion,
 packet reception, and when a change to the radio's configuration has completed.
@@ -269,8 +269,8 @@ or FAIL to indicate another failure.
     }
 
 
-5. Example Implementation: RF233
----------------------------------
+6 Example Implementation: RF233
+========================================
 
 An implementation of the radio HIL for the Atmel RF233 radio can be found 
 in capsules::rf233. This implementation interacts with an RF233 radio over
@@ -317,9 +317,10 @@ when transmissions are interrupted by packet reception, the stack simply marks t
 packet as pending and waits for the reception to complete, then retries the
 transmission.
 
-6. Authors' Address
----------------------------------
+7 Authors' Address
+========================================
 
+```
 Philip Levis
 409 Gates Hall
 Stanford University
@@ -328,9 +329,10 @@ Stanford, CA 94305
 phone - +1 650 725 9046
 
 email - pal@cs.stanford.edu
+```
 
-7. Citations
----------------------------------
+8 Citations
+========================================
 
 <a name="trd1"/>[TRD1] <a href="trd1-trds.md">Tock Reference Document (TRD) Structure and Keywords</a>
 
