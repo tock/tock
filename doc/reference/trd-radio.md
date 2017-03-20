@@ -192,6 +192,7 @@ send and receive packets as well as accessors for packet fields.
 
     fn payload_offset(&self, long_src: bool, long_dest: bool) -> u8;
     fn header_size(&self, long_src: bool, long_dest: bool) -> u8;
+    fn packet_header_size(&self, packet: &'static [u8]) -> u8;
     fn packet_get_src(&self, packet: &'static [u8]) -> u16;
     fn packet_get_dest(&self, packet: &'static [u8]) -> u16;
     fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8;8]
@@ -208,7 +209,11 @@ buffer at which the radio stack places the data payload. To send a
 data payload, a client should fill in the payload starting at this
 offset. For example, if `payload_offset` returns 11 and the caller
 wants to send 20 bytes, it should fill in bytes 11-30 of the buffer
-with the payload.
+with the payload. `header_size` returns the size of a header based
+on whether the source and destination addresses are long (64-bit)
+or short (16-bit). `packet_header_size` returns the size of the
+header on a particular correctly formatted packet (i.e., it looks
+at the header to see if there are long or short addresses).
 
 The data path has two callbacks: one for when a packet is received and
 one for when a packet transmission completes.
@@ -227,21 +232,22 @@ buffer it received or a different one.
 Clients transmit packets by calling `transmit` or `transmit_long`.
 
     fn transmit(&self,
-                source_long: bool,
                 dest: u16,
                 tx_data: &'static mut [u8],
-                tx_len: u8) -> ReturnCode;
+                tx_len: u8,
+                source_long: bool) -> ReturnCode;
 
     fn transmit_long(&self,
-                source_long: bool,
                 dest: [u8;8],
                 tx_data: &'static mut [u8],
-                tx_len: u8) -> ReturnCode;
+                tx_len: u8,
+                source_long: bool) -> ReturnCode;
 
-A packet sent by a call to `transmit` MUST include a 16-bit short
-destination address equal to the `dest` argument. A packet sent by a
-call to `transmit_long` MUST include a 64-bit destination address
-equal to the `dest` argument.
+The packet sent on the air by a call to `transmit` MUST be formatted
+to have a 16-bit short destination address equal to the `dest`
+argument. A packet sent on the air by a call to `transmit_long` MUST
+be formatted to have a 64-bit destination address equal to the `dest`
+argument.
 
 The `source_long` parameter denotes the length of the source address in
 the packet. If `source_long` is false, the implementation MUST include
