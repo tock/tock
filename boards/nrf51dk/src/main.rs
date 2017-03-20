@@ -113,7 +113,7 @@ pub struct Platform {
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
     aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
-    radio: &'static capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio, nrf51::timer::TimerAlarm>,
+    radio: &'static capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
 }
 
 
@@ -245,6 +245,13 @@ pub unsafe fn reset_handler() {
                          12);
     virtual_alarm1.set_client(timer);
 
+    let radio_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, Rtc>,
+        VirtualMuxAlarm::new(mux_alarm),
+        24);
+
+
+
     let temp = static_init!(
         capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
         capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP,
@@ -269,11 +276,17 @@ pub unsafe fn reset_handler() {
     nrf51::aes::AESECB.set_client(aes);
 
     let radio = static_init!(
-     capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio, nrf51::timer::TimerAlarm>,
-     capsules::radio_nrf51dk::Radio::new(&mut nrf51::radio::RADIO, kernel::Container::create(),
-     &mut capsules::radio_nrf51dk::BUF, &mut nrf51::timer::ALARM1),
+     capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+     capsules::radio_nrf51dk::Radio::new(
+         &mut nrf51::radio::RADIO,
+         kernel::Container::create(),
+         &mut capsules::radio_nrf51dk::BUF,
+         radio_virtual_alarm),
         192/8);
     nrf51::radio::RADIO.set_client(radio);
+
+    radio_virtual_alarm.set_client(radio);
+
     radio.capsule_init();
 
     // Start all of the clocks. Low power operation will require a better

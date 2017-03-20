@@ -222,7 +222,6 @@ impl Timer {
     /// created an event, and if so, add it to the bitmask of triggered
     /// events that is passed to the client.
     pub fn handle_interrupt(&self) {
-        panic!("handle int\r\n");
         nvic::clear_pending(self.nvic);
         self.client.get().map(|client| {
             let mut val = 0;
@@ -294,7 +293,6 @@ impl TimerAlarm {
 
     #[inline(never)]
     pub fn handle_interrupt(&self) {
-        panic!("handle int\r\n");
         self.clear_alarm();
         self.client.get().map(|client| { client.fired(); });
     }

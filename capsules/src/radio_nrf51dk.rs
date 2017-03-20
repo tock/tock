@@ -63,10 +63,19 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm +'a > Radio<'a, R, A> {
     }
 
     pub fn capsule_init(&self) {
+    //    self.alarm.set_alarm(100);
         self.radio.init()
     }
 
 }
+
+impl<'a, R: RadioDriver +'a , A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
+    fn fired(&self) {
+        debug!("f t c\r\n");
+        panic!("fired ffs\r\n");
+    }
+}
+
 
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm +'a> Client for Radio<'a, R, A> {
     #[inline(never)]
@@ -109,6 +118,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
     //  ...
     //  TODO channel configuration etc for bluetooth compatible packets
     //  TODO add guard for mutex etc
+    #[inline(never)]
+    #[no_mangle]
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => {
@@ -130,8 +141,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                                     buf[i] = *c;
                                 }
 
-                                self.alarm_state.set(AlarmState::DetectionChange);
-                                self.alarm.set_alarm(10);
+                                //self.alarm_state.set(AlarmState::DetectionChange);
+                                //debug!("set alarm before\r\n");
+                                //debug!("set alarm after\r\n");
                                 self.radio.transmit(0, buf, 16);
                             });
 
@@ -156,6 +168,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
     }
 
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
+        self.alarm.set_alarm(100);
         match subscribe_num {
             0 => {
                 // panic!("subscribe_rx");
