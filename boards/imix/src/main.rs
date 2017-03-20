@@ -282,7 +282,7 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        1056/8);
+                                        1120/8);
 
     sam4l::gpio::PA[08].set_client(rf233);
 
