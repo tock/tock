@@ -1071,41 +1071,145 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
         len
     }
 
-    fn packet_get_src(&self, packet: &'static [u8]) -> u16 {
-        if packet.len() < radio::HEADER_SIZE as usize {
-            return 0;
+    fn packet_header_size(&self, packet: &'static [u8]) -> u8 {
+        if packet.len() < radio::HEADER_SIZE as usize{
+            0
         } else {
-            return 0;
+            let src = self.packet_has_src_long(packet);
+            let dest = self.packet_has_dest_long(packet);
+            self.header_size(src, dest)
         }
     }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a short source address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
+    fn packet_get_src(&self, packet: &'static [u8]) -> u16 {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return 0; // Packet invalid, not long enough
+        } else if self.packet_has_src_long(packet) {
+            return 0; // Has a long address
+        } else {
+            let mut offset = 9;
+            if self.packet_has_dest_long(packet) {
+                offset += 6;
+            }
+            if packet.len() < offset + 2 {
+                return 0; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: u16 = packet[offset] as u16 |
+                            (packet[offset + 1] as u16) << 8;
+            return addr;
+        }
+    }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a short destination address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
     fn packet_get_dest(&self, packet: &'static [u8]) -> u16 {
         if packet.len() < radio::HEADER_SIZE as usize {
-            return 0;
+            return 0; // Packet invalid, not long enough
+        } else if self.packet_has_dest_long(packet) {
+            return 0; // Has a long address
         } else {
-            return 0;
+            let offset = 7; // Offset of dest field
+            if packet.len() < offset + 2 {
+                return 0; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: u16 = packet[offset] as u16 |
+            (packet[offset + 1] as u16) << 8;
+            return addr;
         }
     }
 
     fn packet_has_src_long(&self, packet: &'static [u8]) -> bool {
+        if packet.len() < 4 {
+            return false;
+        }
         (packet[3] & 0xC0) == 0xC0
     }
 
     fn packet_has_dest_long(&self, packet: &'static [u8]) -> bool {
+        if packet.len() < 4 {
+            return false;
+        }
         (packet[3] & 0x0C) == 0x0C
     }
 
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a long source address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
     fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8;8] {
         if packet.len() < radio::HEADER_SIZE as usize {
-            return [0x00;8];
+            return [0x00;8]; // Packet invalid, not long enough
+        } else if !self.packet_has_src_long(packet) {
+            return [0x00;8]; // Has a short address
         } else {
-            return [0x00;8];
+            let mut offset = 9;
+            if self.packet_has_dest_long(packet) {
+                offset += 6;
+            }
+            if packet.len() < offset + 8 {
+                return [0x00;8]; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: [u8;8] = [packet[offset],
+                                packet[offset + 1],
+                                packet[offset + 2],
+                                packet[offset + 3],
+                                packet[offset + 4],
+                                packet[offset + 5],
+                                packet[offset + 6],
+                                packet[offset + 7]];
+            return addr;
         }
     }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a long destination address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
     fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8;8] {
         if packet.len() < radio::HEADER_SIZE as usize {
-            return [0x00;8];
+            return [0x00;8]; // Packet invalid, not long enough
+        } else if !self.packet_has_dest_long(packet) {
+            return [0x00;8]; // Has a short address
         } else {
-            return [0x00;8];
+            let offset = 7; // Offset of dest field
+            if packet.len() < offset + 8 {
+                return [0x00;8]; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: [u8;8] = [packet[offset],
+                                packet[offset + 1],
+                                packet[offset + 2],
+                                packet[offset + 3],
+                                packet[offset + 4],
+                                packet[offset + 5],
+                                packet[offset + 6],
+                                packet[offset + 7]];
+            return addr;
         }
     }
 

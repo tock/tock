@@ -69,6 +69,7 @@ pub trait RadioConfig {
 pub trait RadioData {
     fn payload_offset(&self, long_src: bool, long_dest: bool) -> u8;
     fn header_size(&self, long_src: bool, long_dest: bool) -> u8;
+    fn packet_header_size(&self, packet: &'static[u8]) -> u8;
     fn packet_get_src(&self, packet: &'static [u8]) -> u16;
     fn packet_get_dest(&self, packet: &'static [u8]) -> u16;
     fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8;8];
