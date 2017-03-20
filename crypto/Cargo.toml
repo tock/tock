@@ -3,7 +3,7 @@ name = "crypto"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
-build = "build.rs"
+build = "buildm4.rs"
 
 [dependencies]
 rust-libcore = "*"
