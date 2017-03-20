@@ -16,7 +16,7 @@ use kernel::Chip;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::radio;
-use kernel::hil::radio::Radio;
+use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::mpu::MPU;
 
@@ -282,7 +282,7 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        992/8);
+                                        1056/8);
 
     sam4l::gpio::PA[08].set_client(rf233);
 
@@ -391,6 +391,8 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.config_set_pan(0xABCD);
     rf233.config_set_address(0x1008);
+    //    rf233.config_commit();
+
     rf233.start();
 
     debug!("Initialization complete. Entering main loop");

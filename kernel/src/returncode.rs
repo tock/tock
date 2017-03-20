@@ -20,6 +20,7 @@ pub enum ReturnCode {
     ENOSUPPORT, //.... Operation or command is unsupported
     ENODEVICE, //..... Device does not exist
     EUNINSTALLED, //.. Device is not physically installed
+    ENOACK, //........ Packet transmission not acknowledged
 }
 
 impl From<ReturnCode> for isize {
@@ -39,6 +40,7 @@ impl From<ReturnCode> for isize {
             ReturnCode::ENOSUPPORT => -10,
             ReturnCode::ENODEVICE => -11,
             ReturnCode::EUNINSTALLED => -12,
+            ReturnCode::ENOACK => -13,
         }
     }
 }
