@@ -33,8 +33,7 @@ describes and follows both.
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
 "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-document are to be interpreted as described in TRD 1
-<a href="#TRD1">[TRD1]</a>.
+document are to be interpreted as described in [TRD1].
 
 Note that the force of these words is modified by the requirement
 level of the document in which they are used. These words hold their
@@ -105,9 +104,8 @@ A TRD MUST begin with a title, and then follow with a header and a
 body. The header states document metadata, for management and status.
 The body contains the content of the proposal.
 
-All TRDs MUST conform to Markdown syntax
-<a href="#markdown">[markdown]</a> to enable translation to HTML and
-LaTeX, and for useful display in web tools.
+All TRDs MUST conform to [Markdown syntax][markdown] to enable
+translation to HTML and LaTeX, and for useful display in web tools.
 
 3.1 TRD Header
 --------------------------------------------------------------------
@@ -259,17 +257,12 @@ from TinyOS Enhancement Proposal 1 (TEP 1).
     email - pal@cs.stanford.edu
 
 
-8. Citations
-====================================================================
-
-<a name="TRD1" />[TRD1]
-  <a href="trd1-trds.md">Tock Reference Document (TRD) Structure and Keywords</a>
-
-<a name="markdown" />[markdown]
-  <a href="https://daringfireball.net/projects/markdown/">Markdown</a>
- 
-
 Appendix A. Example Appendix
 ====================================================================
 
 This is an example appendix. Appendices begin with the letter A.
+
+[TRD1]: trd1-trds.md "Tock Reference Document (TRD) Structure and Keywords"
+
+[markdown]: https://daringfireball.net/projects/markdown/ "Markdown"
+
