@@ -113,7 +113,9 @@ pub struct Platform {
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
     aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
-    radio: &'static capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+    radio: &'static capsules::radio_nrf51dk::Radio<'static,
+                                                   nrf51::radio::Radio,
+                                                   VirtualMuxAlarm<'static, Rtc>>,
 }
 
 

@@ -16,10 +16,10 @@
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container};
 use kernel::common::take_cell::TakeCell;
+use kernel::hil;
 use kernel::hil::radio_nrf51dk::{RadioDriver, Client};
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
-use kernel::hil;
 pub static mut BUF: [u8; 16] = [0; 16];
 
 pub struct App {
@@ -49,27 +49,28 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
 }
 // 'a = lifetime
 // R - type Radio
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm +'a > Radio<'a, R, A> {
-    pub fn new(radio: &'a R, container: Container<App>, buf: &'static mut [u8], alarm: &'a A ) -> Radio<'a, R, A> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
+    pub fn new(radio: &'a R,
+               container: Container<App>,
+               buf: &'static mut [u8],
+               alarm: &'a A)
+               -> Radio<'a, R, A> {
         Radio {
             radio: radio,
             busy: Cell::new(false),
             app: container,
             kernel_tx: TakeCell::new(buf),
             alarm: alarm,
-
-
         }
     }
 
     pub fn capsule_init(&self) {
-    //    self.alarm.set_alarm(100);
+        //    self.alarm.set_alarm(100);
         self.radio.init()
     }
-
 }
 
-impl<'a, R: RadioDriver +'a , A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
     fn fired(&self) {
         debug!("f t c\r\n");
         panic!("fired ffs\r\n");
@@ -77,7 +78,7 @@ impl<'a, R: RadioDriver +'a , A: hil::time::Alarm + 'a> hil::time::Client for Ra
 }
 
 
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm +'a> Client for Radio<'a, R, A> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, A> {
     #[inline(never)]
     #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
