@@ -18,7 +18,7 @@ This document describes the structure followed by all Tock Reference
 Documents (TRDs), and defines the meaning of several key words in
 those documents.
 
-1. Introduction
+1 Introduction
 ====================================================================
 
 To simplify management, reading, and tracking development,
@@ -28,7 +28,7 @@ implementation interoperability, all TRDs MUST observe the meaning of
 several key words that specify levels of compliance. This document
 describes and follows both.
 
-2. Keywords
+2 Keywords
 ====================================================================
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
@@ -97,7 +97,7 @@ on implementors where the method is not required for
 interoperability.
 
 
-3. TRD Structure
+3 TRD Structure
 ====================================================================
 
 A TRD MUST begin with a title, and then follow with a header and a
@@ -223,7 +223,7 @@ appendices. Appendices MUST immediately follow the citations section,
 or if there is no citations section, the author information section.
 Appendices are lettered.  Please refer to Appendix A for details.
 
-4. File names
+4 File names
 ====================================================================
 
 TRDs MUST be stored in the Tock repository with a file name of
@@ -233,18 +233,18 @@ trd[number]-[desc].md
 Where number is the TRD number and desc is a short, one word description.
 The name of this document is trd1-trds.md.
 
-5. Reference
+5 Reference
 ====================================================================
 The reference use of this document is TRD 1 (itself).
 
-6. Acknowledgments
+6 Acknowledgments
 ====================================================================
 
 The definitions of the compliance terms are a direct copy of
 definitions taken from IETF RFC 2119. This document is heavily copied
 from TinyOS Enhancement Proposal 1 (TEP 1).
 
-7. Author's Address
+7 Author's Address
 ====================================================================
 
     Philip Levis
@@ -256,8 +256,7 @@ from TinyOS Enhancement Proposal 1 (TEP 1).
 
     email - pal@cs.stanford.edu
 
-
-Appendix A. Example Appendix
+Appendix A Example Appendix
 ====================================================================
 
 This is an example appendix. Appendices begin with the letter A.
