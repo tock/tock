@@ -78,13 +78,15 @@ pub const XAH_CTRL_1_AACK_PROM_MODE: u8 = 1 << 1;
 pub const TRX_CTRL_1: u8 = (TRX_CTRL_1_DIG34_RXTX_INDICATOR | TRX_CTRL_1_SPI_CMD_TRX_STATUS |
                             TRX_CTRL_1_AUTO_CRC);
 pub const TRX_CTRL_2: u8 = (TRX_CTRL_2_RX_SAFE_MODE | TRX_CTRL_2_DATA_RATE_250);
-pub const PHY_CHANNEL: u8 = 26;
 pub const PHY_CC_CCA: u8 = PHY_CHANNEL | PHY_CC_CCA_MODE_CS_OR_ED;
 pub const PHY_TX_PWR: u8 = PHY_TX_PWR_4;
+pub const PHY_CHANNEL: u8 = 26;
 pub const IRQ_MASK: u8 = (IRQ_TRXBUF_ACCESS_VIOLATION | IRQ_TRX_DONE | IRQ_PLL_LOCK | IRQ_RX_START);
 pub const XAH_CTRL_1: u8 = XAH_CTRL_1_AACK_PROM_MODE;
 pub const XAH_CTRL_0: u8 = 0;
 pub const TRX_RPC: u8 = 0xFF;
+pub const TRX_TRAC_MASK: u8 = 0xE0;
+pub const TRX_TRAC_SUCCESS_DATA_PENDING: u8 = 1;
 
 // Default address settings.
 pub const PAN_ID_0: u8 = 0x22;

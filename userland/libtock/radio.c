@@ -30,10 +30,13 @@ int radio_init() {
   return 0;
 } // Do nothing for now
 
-static void cb_tx( __attribute__ ((unused)) int unused0,
-                __attribute__ ((unused)) int unused1,
+int tx_acked = 0;
+
+static void cb_tx( __attribute__ ((unused)) int len,
+                int acked,
                 __attribute__ ((unused)) int unused2,
                 void* ud) {
+  tx_acked = acked;
   *((bool*)ud) = true;
 }
 
@@ -69,12 +72,15 @@ int radio_send(unsigned short addr, const char* packet, unsigned char len) {
   param |= (len << 16);
   err = command(SYS_RADIO, COM_TX, param);
   if (err != 0) {
-    gpio_toggle(0);
-    return err; // yield here too?
+    return err;
   } else {
-    yield_for(&cond); // This should return -1, but for some reason
-  }                   // successful calls don't return 0! radio.rs:208
-  return 0;
+    yield_for(&cond);
+    if (tx_acked) {
+      return SUCCESS;
+    } else {
+      return ENOACK;
+    }
+  }
 }
 
 // Set local 16-bit short address.
@@ -123,6 +129,20 @@ int radio_receive(const char* packet, unsigned char len) {
   }
   yield_for(&cond);
   return (int)packet[1];
+}
+
+int radio_receive_callback(subscribe_cb callback,
+                           const char* packet,
+                           unsigned char len) {
+  int err = allow(SYS_RADIO, BUF_RX, (void*)packet, len);
+  if (err < 0) {
+    return err;
+  }
+  err = subscribe(SYS_RADIO, EVT_RX, callback, NULL);
+  if (err < 0) {
+    return err;
+  }
+  return 0;
 }
 
 int radio_ready() {

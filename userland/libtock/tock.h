@@ -38,6 +38,7 @@ bool driver_exists(uint32_t driver);
 #define ENOSUPPORT -10
 #define ENODEVICE  -11
 #define EUNINSTALLED -12
+#define ENOACK -13
 
 #ifdef __cplusplus
 }
