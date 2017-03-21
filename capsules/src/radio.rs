@@ -212,7 +212,6 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     });
                     let transmit_len = len as u8 + self.radio.header_size(false, false);
                     let kbuf = self.kernel_tx.take().unwrap();
-
                     rval = self.radio.transmit(addr, kbuf, transmit_len, false);
                     if rval == ReturnCode::SUCCESS {
                         self.busy.set(true);

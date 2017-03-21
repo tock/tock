@@ -103,6 +103,14 @@ enum InternalState {
     CONFIG_SHORT1_SET,
     CONFIG_PAN0_SET,
     CONFIG_PAN1_SET,
+    CONFIG_IEEE0_SET,
+    CONFIG_IEEE1_SET,
+    CONFIG_IEEE2_SET,
+    CONFIG_IEEE3_SET,
+    CONFIG_IEEE4_SET,
+    CONFIG_IEEE5_SET,
+    CONFIG_IEEE6_SET,
+    CONFIG_IEEE7_SET,
     CONFIG_POWER_SET,
     CONFIG_DONE,
 
@@ -441,42 +449,42 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             }
             InternalState::START_PANID1_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_0,
-                                            IEEE_ADDR_0,
+                                            self.addr_long.get()[0],
                                             InternalState::START_IEEE0_SET);
             }
             InternalState::START_IEEE0_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_1,
-                                            IEEE_ADDR_1,
+                                            self.addr_long.get()[1],
                                             InternalState::START_IEEE1_SET);
             }
             InternalState::START_IEEE1_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_2,
-                                            IEEE_ADDR_2,
+                                            self.addr_long.get()[2],
                                             InternalState::START_IEEE2_SET);
             }
             InternalState::START_IEEE2_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_3,
-                                            IEEE_ADDR_3,
+                                            self.addr_long.get()[3],
                                             InternalState::START_IEEE3_SET);
             }
             InternalState::START_IEEE3_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_4,
-                                            IEEE_ADDR_4,
+                                            self.addr_long.get()[4],
                                             InternalState::START_IEEE4_SET);
             }
             InternalState::START_IEEE4_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_5,
-                                            IEEE_ADDR_5,
+                                            self.addr_long.get()[5],
                                             InternalState::START_IEEE5_SET);
             }
             InternalState::START_IEEE5_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_6,
-                                            IEEE_ADDR_6,
+                                            self.addr_long.get()[6],
                                             InternalState::START_IEEE6_SET);
             }
             InternalState::START_IEEE6_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_7,
-                                            IEEE_ADDR_7,
+                                            self.addr_long.get()[7],
                                             InternalState::START_IEEE7_SET);
             }
             InternalState::START_IEEE7_SET => {
@@ -682,12 +690,51 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                                             InternalState::CONFIG_PAN1_SET);
             }
             InternalState::CONFIG_PAN1_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_0,
+                                            self.addr_long.get()[0],
+                                            InternalState::CONFIG_IEEE0_SET);
+            }
+            InternalState::CONFIG_IEEE0_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_1,
+                                            self.addr_long.get()[1],
+                                            InternalState::CONFIG_IEEE1_SET);
+            }
+            InternalState::CONFIG_IEEE1_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_2,
+                                            self.addr_long.get()[2],
+                                            InternalState::CONFIG_IEEE2_SET);
+            }
+            InternalState::CONFIG_IEEE2_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_3,
+                                            self.addr_long.get()[3],
+                                            InternalState::CONFIG_IEEE3_SET);
+            }
+            InternalState::CONFIG_IEEE3_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_4,
+                                            self.addr_long.get()[4],
+                                            InternalState::CONFIG_IEEE4_SET);
+            }
+            InternalState::CONFIG_IEEE4_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_5,
+                                            self.addr_long.get()[5],
+                                            InternalState::CONFIG_IEEE5_SET);
+            }
+            InternalState::CONFIG_IEEE5_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_6,
+                                            self.addr_long.get()[6],
+                                            InternalState::CONFIG_IEEE6_SET);
+            }
+            InternalState::CONFIG_IEEE6_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_7,
+                                            self.addr_long.get()[7],
+                                            InternalState::CONFIG_IEEE7_SET);
+            }
+            InternalState::CONFIG_IEEE7_SET => {
                 let val = power_to_setting(self.tx_power.get());
                 self.state_transition_write(RF233Register::PHY_TX_PWR,
                                             val,
                                             InternalState::CONFIG_POWER_SET);
             }
-
             InternalState::CONFIG_POWER_SET => {
                 let val = self.channel.get() | PHY_CC_CCA_MODE_CS_OR_ED;
                 self.state_transition_write(RF233Register::PHY_CC_CCA,
@@ -1055,7 +1102,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
         len += radio::HEADER_SIZE; // Size if both addresses are short
         if long_src {
             len += 6;
-        } else if long_dest {
+        }
+        if long_dest {
             len += 6;
         }
         len
