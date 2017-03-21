@@ -39,7 +39,7 @@ static void callback(int cb,
 int main(void)
 {
   char key[KEY_SIZE] = {0};
-//  char ctr[KEY_SIZE] = {0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff};
+  char ctr[KEY_SIZE] = {0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff};
 
   for(int i = 0; i < SIZE; i++) {
     data[i] = i+1; 
@@ -54,14 +54,13 @@ int main(void)
 
   for (int i = 0; i < 1; i++) {
     delay_ms(500);
-    if(aes128_encrypt_ctr(data, SIZE) < 0) {
+    if(aes128_encrypt_ctr(data, ctr, SIZE) < 0) {
       printf("encrypt error\r\n");
     }
     delay_ms(500);
-    if(aes128_decrypt_ctr(data, SIZE) < 0) {
+    if(aes128_decrypt_ctr(data, ctr, SIZE) < 0) {
       printf("encrypt error\r\n");
     }
-
   }
   return 0;
 }

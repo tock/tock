@@ -11,9 +11,10 @@ extern "C" {
 #define KEY        0
 #define ENC        1
 #define DEC        2 
+#define CTR        3
 
 int aes128_init(subscribe_cb callback, void *ud);
 int aes128_configure_key(const char* key, unsigned char len);
-int aes128_encrypt_ctr(const char* buf, unsigned char len);
-int aes128_decrypt_ctr(const char* buf, unsigned char len);
+int aes128_encrypt_ctr(const char* buf, const char* ctr, unsigned char len);
+int aes128_decrypt_ctr(const char* buf, const char* ctr, unsigned char len);
 
