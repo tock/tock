@@ -33,6 +33,7 @@ pub struct App {
     callback: Option<Callback>,
     key_buf: Option<AppSlice<Shared, u8>>,
     data_buf: Option<AppSlice<Shared, u8>>,
+    ctr_buf: Option<AppSlice<Shared, u8>>,
 }
 
 impl Default for App {
@@ -41,6 +42,7 @@ impl Default for App {
             callback: None,
             key_buf: None,
             data_buf: None,
+            ctr_buf: None,
         }
     }
 }
@@ -50,6 +52,7 @@ pub struct Crypto<'a, E: SymmetricEncryptionDriver + 'a> {
     apps: Container<App>,
     kernel_key: TakeCell<'static, [u8]>,
     kernel_data: TakeCell<'static, [u8]>,
+    kernel_ctr: TakeCell<'static, [u8]>,
     key_configured: Cell<bool>,
     busy: Cell<bool>,
     state: Cell<CryptoState>,
@@ -59,13 +62,15 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Crypto<'a, E> {
     pub fn new(crypto: &'a E,
                container: Container<App>,
                buf1: &'static mut [u8],
-               buf2: &'static mut [u8])
+               buf2: &'static mut [u8],
+               ctr: &'static mut [u8])
                -> Crypto<'a, E> {
         Crypto {
             crypto: crypto,
             apps: container,
             kernel_key: TakeCell::new(buf1),
             kernel_data: TakeCell::new(buf2),
+            kernel_ctr: TakeCell::new(ctr),
             key_configured: Cell::new(false),
             busy: Cell::new(false),
             state: Cell::new(CryptoState::IDLE),
@@ -91,6 +96,10 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
                     app.callback.map(|mut cb| { cb.schedule(2, 0, 0); });
                 }
             });
+        }
+        // tmp
+        unsafe {
+            self.kernel_ctr.replace(&mut IV);
         }
         // indicate that the encryption driver not busy
         self.busy.set(false);
@@ -142,6 +151,18 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
+            3 => {
+                self.apps
+                    .enter(appid, |app, _| {
+                        app.ctr_buf = Some(slice);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -178,7 +199,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                         self.state.set(CryptoState::SETKEY);
 
                         cntr.enter(|app, _| {
-                            app.key_buf.as_mut().map(|slice| {
+                            app.key_buf.as_ref().map(|slice| {
                                 self.kernel_key.take().map(|buf| {
                                     for (i, c) in slice.as_ref()[0..len]
                                         .iter()
@@ -217,7 +238,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                         }
 
                         cntr.enter(|app, _| {
-                            app.data_buf.as_mut().map(|slice| {
+                            app.data_buf.as_ref().map(|slice| {
                                 self.kernel_data.take().map(|buf| {
                                     for (i, c) in slice.as_ref()[0..len]
                                         .iter()
@@ -230,10 +251,22 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                                         }
                                         buf[i] = *c;
                                     }
-                                    // Chips are responsble for slicing the buffer so far!!!!
-                                    unsafe {
-                                        self.crypto.aes128_crypt_ctr(buf, &mut IV, len as u8);
-                                    }
+                                    app.ctr_buf.as_ref().map(|slice2| {
+                                        self.kernel_ctr.take().map(move |ctr| {
+                                            for (i, c) in slice2.as_ref()[0..16]
+                                                .iter()
+                                                .enumerate() {
+                                                // buf len is not the same as len abort
+                                                if ctr.len() < i {
+                                                    self.busy.set(false);
+                                                    self.state.set(CryptoState::IDLE);
+                                                    break;
+                                                }
+                                                ctr[i] = *c;
+                                            }
+                                            self.crypto.aes128_crypt_ctr(buf, ctr, len as u8);
+                                        });
+                                    });
                                 });
                             });
                         });

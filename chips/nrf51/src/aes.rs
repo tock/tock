@@ -163,7 +163,7 @@ impl AesECB {
             }
 
             // USE THIS PRINT TO TEST THAT THE CTR UPDATES ACCORDINGLY
-            // debug!("ctr {:?}\r\n", self.ctr.get());
+            // panic!("ctr {:?}\r\n", self.ctr.get());
 
             // More bytes to encrypt!!!
             if self.remaining.get() > 0 {
@@ -206,6 +206,7 @@ impl AesECB {
     }
 
     pub fn set_initial_ctr(&self, iv: &'static mut [u8]) {
+        // read bytes as big-endian
         let mut ctr: [u8; 16] = [0; 16];
         for (i, c) in iv.as_ref()[0..16].iter().enumerate() {
             ctr[i] = *c;
