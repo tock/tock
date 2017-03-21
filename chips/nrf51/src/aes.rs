@@ -72,9 +72,8 @@ impl AesECB {
         }
     }
 
-    // FIXME: should this be performed in constant i.e. skip the break part?!
-    // As a sidenote if the counter is small number loop iterations are performed
-    // instead 16
+    // FIXME: should this be performed in constant time i.e. skip the break part and always loop 16
+    // times?
     fn update_ctr(&self) {
         // from 15 to 0...
         let mut ctr = self.ctr.get();
