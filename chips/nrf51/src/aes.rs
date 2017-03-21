@@ -72,6 +72,9 @@ impl AesECB {
         }
     }
 
+    // FIXME: should this be performed in constant i.e. skip the break part?!
+    // As a sidenote if the counter is small number loop iterations are performed
+    // instead 16
     fn update_ctr(&self) {
         // from 15 to 0...
         let mut ctr = self.ctr.get();
@@ -84,10 +87,6 @@ impl AesECB {
         self.ctr.set(ctr);
     }
 
-
-    // check components/drivers_nrf/hal/nrf_ecb.c for inspiration :)
-    #[inline(never)]
-    #[no_mangle]
     fn crypt(&self) {
         let regs = unsafe { &*self.regs };
 
@@ -114,14 +113,11 @@ impl AesECB {
         }
 
         unsafe {
-            // BUF.copy_from_slice(&ECB_DATA[0..16]);
             self.client.get().map(|client| client.set_key_done(&mut BUF[0..16], 16));
         }
 
     }
 
-    #[inline(never)]
-    #[no_mangle]
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
 
@@ -230,7 +226,7 @@ impl SymmetricEncryptionDriver for AesECB {
         self.set_key(key)
     }
 
-    fn crypt_ctr(&self, data: &'static mut [u8], iv: &'static mut [u8], len: u8) {
+    fn aes128_crypt_ctr(&self, data: &'static mut [u8], iv: &'static mut [u8], len: u8) {
         self.remaining.set(len);
         self.len.set(len);
         self.offset.set(0);

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "aes.h"
 #include <timer.h>
+#include <string.h>
 
 #define KEY_SIZE  16
 #define SIZE      113
@@ -38,27 +39,26 @@ static void callback(int cb,
 int main(void)
 {
   char key[KEY_SIZE] = {0};
+//  char ctr[KEY_SIZE] = {0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff};
 
-  for (int i = 0; i < SIZE; i++) {
-    data[i] = i;
+  for(int i = 0; i < SIZE; i++) {
+    data[i] = i+1; 
   }
 
-
   // SUBSCRIBE
-  aes_ecb_init(callback, NULL);
-  int config = aes_ecb_configure_key(key, KEY_SIZE);
+  aes128_init(callback, NULL);
+  int config = aes128_configure_key(key, KEY_SIZE);
   if(config < 0) {
     printf("set key error %d\r\n", config);
   }
 
   for (int i = 0; i < 1; i++) {
-    // ALLOW + COMMAND
     delay_ms(500);
-    if(aes_ecb_encrypt(data, SIZE) < 0) {
+    if(aes128_encrypt_ctr(data, SIZE) < 0) {
       printf("encrypt error\r\n");
     }
     delay_ms(500);
-    if(aes_ecb_decrypt(data, SIZE) < 0) {
+    if(aes128_decrypt_ctr(data, SIZE) < 0) {
       printf("encrypt error\r\n");
     }
 

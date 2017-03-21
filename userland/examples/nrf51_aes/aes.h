@@ -12,14 +12,8 @@ extern "C" {
 #define ENC        1
 #define DEC        2 
 
-int aes_ecb_init(subscribe_cb callback, void *ud);
-int aes_ecb_configure_key(const char* packet, unsigned char len);
-int aes_ecb_encrypt(const char* packet, unsigned char len);
-int aes_ecb_decrypt(const char* packet, unsigned char len);
-
-
-int aes_ccm_init(subscribe_cb callback, void *ud);
-int aes_ccm_configure_key(const char* packet, unsigned char len);
-int aes_ccm_encrypt(const char* packet, unsigned char len);
-int aes_ccm_decrypt(const char* packet, unsigned char len);
+int aes128_init(subscribe_cb callback, void *ud);
+int aes128_configure_key(const char* key, unsigned char len);
+int aes128_encrypt_ctr(const char* buf, unsigned char len);
+int aes128_decrypt_ctr(const char* buf, unsigned char len);
 

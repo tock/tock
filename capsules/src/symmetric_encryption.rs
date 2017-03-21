@@ -1,11 +1,9 @@
 //! Symmetric Block Cipher Capsule
 //!
 //! Provides a simple driver for userspace applications to encrypt and decrypt messages
-//! using aes128-ctr mode on top of aes128-ecb
-//! the ctr mode is implemented in software and can probably be performed
-//! more efficiently than the current implementation
 //!
 //! The key is assumed to be 16 bytes and configured once
+//! FIXME: other key lengths e.g. AES256 should be supported
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
@@ -234,7 +232,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                                     }
                                     // Chips are responsble for slicing the buffer so far!!!!
                                     unsafe {
-                                        self.crypto.crypt_ctr(buf, &mut IV, len as u8);
+                                        self.crypto.aes128_crypt_ctr(buf, &mut IV, len as u8);
                                     }
                                 });
                             });
