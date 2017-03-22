@@ -89,6 +89,7 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     kernel_tx: TakeCell<'static, [u8]>,
     alarm: &'a A,
     frequency: Cell<usize>,
+    advertise: Cell<bool>,
 }
 // 'a = lifetime
 // R - type Radio
@@ -175,27 +176,15 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         let tics = self.alarm.now().wrapping_add(5017 as u32);
         self.alarm.set_alarm(tics);
     }
-    pub fn toggle_led(&self) {
 
-        if self.frequency.get() == 39 {
-            self.frequency.set(37);
-        }
-        else{
-            self.frequency.set(self.frequency.get() +1 );
-        }
-        self.radio.set_channel(self.frequency.get());
+    pub fn read_userland_buffer(&self) {
 
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 app.app_write.as_mut().map(|slice| {
                     self.kernel_tx.take().map(|buf| {
-                        for (i, c) in slice.as_ref()[0..16]
-                            .iter()
-                            .enumerate() {
-                            if buf.len() < i {
-                                break;
-                            }
-                            buf[i] = *c;
+                        for (out, inp) in buf.iter_mut().zip(slice.as_ref()[0..16].iter()) {
+                            *out = *inp;
                         }
                         self.radio.transmit(0, buf, 16);
                     });
@@ -204,6 +193,17 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             });
         }
 
+    }
+    pub fn transmit_ble_adv(&self) {
+
+        if self.frequency.get() == 39 {
+            self.frequency.set(37);
+        } else {
+            self.frequency.set(self.frequency.get() + 1);
+        }
+        self.radio.set_channel(self.frequency.get());
+
+        self.read_userland_buffer();
 
         let interval = (4100 as u32);
         let tics = self.alarm.now().wrapping_add(interval);
@@ -295,11 +295,17 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
             }
             //Start ADV_BLE
             3 => {
+                self.advertise.set(true);
                 let interval = (4100 as u32);
                 let tics = self.alarm.now().wrapping_add(interval);
                 self.alarm.set_alarm(tics);
                 ReturnCode::SUCCESS
 
+            }
+            //Stop ADV_BLE
+            4 => {
+                self.advertise.set(false);
+                ReturnCode::SUCCESS
             }
             _ => ReturnCode::EALREADY,
         }

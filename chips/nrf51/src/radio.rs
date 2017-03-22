@@ -422,8 +422,6 @@ impl RadioDriver for Radio {
     fn init(&self) {
         // self.init_radio_ble()
     }
-
-    // REMOVE !?
     fn flash_leds(&self) {
         self.turn_on_leds();
     }
