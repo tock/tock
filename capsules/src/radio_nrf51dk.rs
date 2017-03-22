@@ -186,13 +186,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         self.radio.set_channel(self.frequency.get());
 
         for cntr in self.app.iter() {
-                    //panic!("-1");
             cntr.enter(|app, _| {
-                    //panic!("0");
                 app.app_write.as_mut().map(|slice| {
-                    //panic!("1");
                     self.kernel_tx.take().map(|buf| {
-                    //    panic!("2");
                         for (i, c) in slice.as_ref()[0..16]
                             .iter()
                             .enumerate() {
@@ -207,13 +203,11 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                 });
             });
         }
-        //panic!("after");
 
 
         let interval = (4100 as u32);
         let tics = self.alarm.now().wrapping_add(interval);
         self.alarm.set_alarm(tics);
-        //self.radio.flash_leds()
     }
 }
 
