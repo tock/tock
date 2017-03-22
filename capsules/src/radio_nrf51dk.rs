@@ -46,6 +46,7 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
     alarm: &'a A,
+    frequency: Cell<usize>,
 }
 // 'a = lifetime
 // R - type Radio
@@ -61,6 +62,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             app: container,
             kernel_tx: TakeCell::new(buf),
             alarm: alarm,
+            frequency: Cell::new(37),
         }
     }
 
@@ -68,12 +70,51 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         //    self.alarm.set_alarm(100);
         self.radio.init()
     }
+    pub fn toggle_led(&self) {
+
+        if self.frequency.get() == 39 {
+            self.frequency.set(37);
+        }
+        else{
+            self.frequency.set(self.frequency.get() +1 );
+        }
+        self.radio.set_channel(self.frequency.get());
+
+        for cntr in self.app.iter() {
+                    //panic!("-1");
+            cntr.enter(|app, _| {
+                    //panic!("0");
+                app.app_write.as_mut().map(|slice| {
+                    //panic!("1");
+                    self.kernel_tx.take().map(|buf| {
+                    //    panic!("2");
+                        for (i, c) in slice.as_ref()[0..16]
+                            .iter()
+                            .enumerate() {
+                            if buf.len() < i {
+                                break;
+                            }
+                            buf[i] = *c;
+                        }
+                        self.radio.transmit(0, buf, 16);
+                    });
+
+                });
+            });
+        }
+        //panic!("after");
+
+
+        let interval = (4100 as u32);
+        let tics = self.alarm.now().wrapping_add(interval);
+        self.alarm.set_alarm(tics);
+        //self.radio.flash_leds()
+    }
 }
 
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
     fn fired(&self) {
-        debug!("f t c\r\n");
-        panic!("fired ffs\r\n");
+        self.toggle_led();
     }
 }
 
@@ -141,10 +182,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                                     }
                                     buf[i] = *c;
                                 }
-
-                                //self.alarm_state.set(AlarmState::DetectionChange);
-                                //debug!("set alarm before\r\n");
-                                //debug!("set alarm after\r\n");
                                 self.radio.transmit(0, buf, 16);
                             });
 
@@ -164,12 +201,20 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
 
                 }
             }
+            //Start ADV_BLE
+            3 => {
+                let interval = (4100 as u32);
+                let tics = self.alarm.now().wrapping_add(interval);
+                self.alarm.set_alarm(tics);
+                ReturnCode::SUCCESS
+
+            }
             _ => ReturnCode::EALREADY,
         }
     }
 
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
-        self.alarm.set_alarm(100);
+
         match subscribe_num {
             0 => {
                 // panic!("subscribe_rx");

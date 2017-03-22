@@ -8,7 +8,7 @@ pub trait RadioDriver {
     fn receive(&self);
     fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode;
     // ADD MORE LATER
-
+    fn flash_leds(&self);
     fn set_channel(&self, ch: usize);
 }
 
