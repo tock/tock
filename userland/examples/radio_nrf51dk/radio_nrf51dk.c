@@ -10,10 +10,10 @@ int subscribe_tx(subscribe_cb callback, void *ud) {
 
 int tx_data(const char* data, unsigned char len) {
   int err = allow(DRIVER_RADIO, TX, (void*)data, len);
-  /*if (err < 0)  {
+  if (err < 0)  {
     return err;
-  }*/
-  return err;//command(DRIVER_RADIO, TX, 16);
+  }
+  return command(DRIVER_RADIO, TX, 16);
 }
 
 int start_ble_advertisement(const char* data, unsigned char len){
@@ -21,7 +21,11 @@ int start_ble_advertisement(const char* data, unsigned char len){
   if (err < 0){
     return err;
   }
-  return command(DRIVER_RADIO,BLE_TX,16);
+  return command(DRIVER_RADIO,BLE_ADV_START,16);
+}
+
+int stop_ble_advertisement(){
+  return command(DRIVER_RADIO,BLE_ADV_STOP, 1);
 }
 
 int rx_data(const char* data, unsigned char len) {

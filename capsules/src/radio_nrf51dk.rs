@@ -47,6 +47,7 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     kernel_tx: TakeCell<'static, [u8]>,
     alarm: &'a A,
     frequency: Cell<usize>,
+    advertise: Cell<bool>,
 }
 // 'a = lifetime
 // R - type Radio
@@ -63,33 +64,22 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             kernel_tx: TakeCell::new(buf),
             alarm: alarm,
             frequency: Cell::new(37),
+            advertise: Cell::new(false),
         }
     }
 
     pub fn capsule_init(&self) {
         self.radio.init()
     }
-    pub fn toggle_led(&self) {
 
-        if self.frequency.get() == 39 {
-            self.frequency.set(37);
-        }
-        else{
-            self.frequency.set(self.frequency.get() +1 );
-        }
-        self.radio.set_channel(self.frequency.get());
+    pub fn read_userland_buffer(&self) {
 
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 app.app_write.as_mut().map(|slice| {
                     self.kernel_tx.take().map(|buf| {
-                        for (i, c) in slice.as_ref()[0..16]
-                            .iter()
-                            .enumerate() {
-                            if buf.len() < i {
-                                break;
-                            }
-                            buf[i] = *c;
+                        for (out, inp) in buf.iter_mut().zip(slice.as_ref()[0..16].iter()) {
+                            *out = *inp;
                         }
                         self.radio.transmit(0, buf, 16);
                     });
@@ -98,6 +88,17 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             });
         }
 
+    }
+    pub fn transmit_ble_adv(&self) {
+
+        if self.frequency.get() == 39 {
+            self.frequency.set(37);
+        } else {
+            self.frequency.set(self.frequency.get() + 1);
+        }
+        self.radio.set_channel(self.frequency.get());
+
+        self.read_userland_buffer();
 
         let interval = (4100 as u32);
         let tics = self.alarm.now().wrapping_add(interval);
@@ -107,7 +108,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
 
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
     fn fired(&self) {
-        self.toggle_led();
+        if self.advertise.get() == true {
+            self.transmit_ble_adv();
+        }
     }
 }
 
@@ -162,25 +165,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                 ReturnCode::SUCCESS
             }
             1 => {
-                for cntr in self.app.iter() {
-                    cntr.enter(|app, _| {
-                        app.app_write.as_mut().map(|slice| {
-
-                            self.kernel_tx.take().map(|buf| {
-                                for (i, c) in slice.as_ref()[0..16]
-                                    .iter()
-                                    .enumerate() {
-                                    if buf.len() < i {
-                                        break;
-                                    }
-                                    buf[i] = *c;
-                                }
-                                self.radio.transmit(0, buf, 16);
-                            });
-
-                        });
-                    });
-                }
+                self.read_userland_buffer();
                 ReturnCode::SUCCESS
             }
             // SET CHANNEL
@@ -196,11 +181,17 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
             }
             //Start ADV_BLE
             3 => {
+                self.advertise.set(true);
                 let interval = (4100 as u32);
                 let tics = self.alarm.now().wrapping_add(interval);
                 self.alarm.set_alarm(tics);
                 ReturnCode::SUCCESS
 
+            }
+            //Stop ADV_BLE
+            4 => {
+                self.advertise.set(false);
+                ReturnCode::SUCCESS
             }
             _ => ReturnCode::EALREADY,
         }

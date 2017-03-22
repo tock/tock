@@ -69,7 +69,7 @@ static mut PAYLOAD: [u8; 22] = [ 0x02, 0x13, 0x00, // ADV_IND, public addr
 #[no_mangle]
 pub struct Radio {
     regs: *const RADIO_REGS,
-    client: Cell<Option<&'static Client>>,
+    client: Cell<Option<&'static Client>>, 
     // tx_buffer: TakeCell<'static, [u8]>,
     // rx_buffer: TakeCell<'static, [u8]>,
 }
@@ -83,7 +83,7 @@ impl Radio {
     pub const fn new() -> Radio {
         Radio {
             regs: RADIO_BASE as *const RADIO_REGS,
-            client: Cell::new(None),
+            client: Cell::new(None), 
             // tx_buffer: TakeCell::empty(),
             // rx_buffer : TakeCell::empty(),
         }
@@ -340,7 +340,7 @@ impl RadioDriver for Radio {
     fn init(&self) {
         self.init_radio_ble()
     }
-    fn flash_leds(&self){
+    fn flash_leds(&self) {
         self.turn_on_leds();
     }
     // This Function is called once a radio packet is to be sent
