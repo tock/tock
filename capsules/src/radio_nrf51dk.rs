@@ -88,6 +88,7 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
     alarm: &'a A,
+    frequency: Cell<usize>,
 }
 // 'a = lifetime
 // R - type Radio
@@ -174,6 +175,46 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         let tics = self.alarm.now().wrapping_add(5017 as u32);
         self.alarm.set_alarm(tics);
     }
+    pub fn toggle_led(&self) {
+
+        if self.frequency.get() == 39 {
+            self.frequency.set(37);
+        }
+        else{
+            self.frequency.set(self.frequency.get() +1 );
+        }
+        self.radio.set_channel(self.frequency.get());
+
+        for cntr in self.app.iter() {
+                    //panic!("-1");
+            cntr.enter(|app, _| {
+                    //panic!("0");
+                app.app_write.as_mut().map(|slice| {
+                    //panic!("1");
+                    self.kernel_tx.take().map(|buf| {
+                    //    panic!("2");
+                        for (i, c) in slice.as_ref()[0..16]
+                            .iter()
+                            .enumerate() {
+                            if buf.len() < i {
+                                break;
+                            }
+                            buf[i] = *c;
+                        }
+                        self.radio.transmit(0, buf, 16);
+                    });
+
+                });
+            });
+        }
+        //panic!("after");
+
+
+        let interval = (4100 as u32);
+        let tics = self.alarm.now().wrapping_add(interval);
+        self.alarm.set_alarm(tics);
+        //self.radio.flash_leds()
+    }
 }
 
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
@@ -258,10 +299,17 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                 self.busy.set(false);
                 ReturnCode::SUCCESS
             }
+            //Start ADV_BLE
+            3 => {
+                let interval = (4100 as u32);
+                let tics = self.alarm.now().wrapping_add(interval);
+                self.alarm.set_alarm(tics);
+                ReturnCode::SUCCESS
+
+            }
             _ => ReturnCode::EALREADY,
         }
     }
-
 
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match (allow_num, self.busy.get()) {
