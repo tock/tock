@@ -286,7 +286,6 @@ impl Radio {
 
         if regs.ADDRESS.get() == 1 {
             regs.ADDRESS.set(0);
-            // panic!("ADDRESS");
         }
 
         if regs.END.get() == 1 {

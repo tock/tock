@@ -67,7 +67,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
     }
 
     pub fn capsule_init(&self) {
-        //    self.alarm.set_alarm(100);
         self.radio.init()
     }
     pub fn toggle_led(&self) {
@@ -81,13 +80,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         self.radio.set_channel(self.frequency.get());
 
         for cntr in self.app.iter() {
-                    //panic!("-1");
             cntr.enter(|app, _| {
-                    //panic!("0");
                 app.app_write.as_mut().map(|slice| {
-                    //panic!("1");
                     self.kernel_tx.take().map(|buf| {
-                    //    panic!("2");
                         for (i, c) in slice.as_ref()[0..16]
                             .iter()
                             .enumerate() {
@@ -102,13 +97,11 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                 });
             });
         }
-        //panic!("after");
 
 
         let interval = (4100 as u32);
         let tics = self.alarm.now().wrapping_add(interval);
         self.alarm.set_alarm(tics);
-        //self.radio.flash_leds()
     }
 }
 
@@ -217,7 +210,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
 
         match subscribe_num {
             0 => {
-                // panic!("subscribe_rx");
                 self.app
                     .enter(callback.app_id(), |app_tmp, _| {
                         app_tmp.rx_callback = Some(callback);
@@ -229,7 +221,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
             }
             // DONT KNOW IF WE NEED THIS REMOVE LATER IF NOT
             1 => {
-                // panic!("subscribe_tx");
                 self.app
                     .enter(callback.app_id(), |app, _| {
                         app.tx_callback = Some(callback);
@@ -244,10 +235,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
     }
 
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
-        // panic!("allow error\n");
         match allow_num {
             0 => {
-                // panic!("allow error\n");
                 self.app
                     .enter(appid, |app, _| {
                         app.app_read = Some(slice);
