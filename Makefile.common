@@ -3,6 +3,8 @@
 MAKEFLAGS += -r
 MAKEFLAGS += -R
 
+export RUSTUP_TOOLCHAIN ?= nightly-2017-01-25
+
 TOOLCHAIN ?= arm-none-eabi
 
 SIZE      ?= $(TOOLCHAIN)-size
@@ -33,10 +35,10 @@ endif
 
 # Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
 RUSTC_VERSION_STRING := rustc 1.16.0-nightly (83c2d9523 2017-01-24)
-ifneq ($(shell rustc --version),$(RUSTC_VERSION_STRING))
+ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version),$(RUSTC_VERSION_STRING))
     $(warning Unexpected rustc version. Expected $(RUSTC_VERSION_STRING) got $(shell rustc --version))
     $(warning You may experience unexpected compilation warnings or errors)
-    $(warning To fix, run `rustup override set nightly-2017-01-25`)
+    $(warning To fix, install `rustup` from https://rustup.rs/, then run: `rustup install $(RUSTUP_TOOLCHAIN)`)
 endif
 
 .PHONY: all
