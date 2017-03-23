@@ -192,7 +192,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     cfg_client: Cell<Option<&'static radio::ConfigClient>>,
     power_client: Cell<Option<&'static radio::PowerClient>>,
     addr: Cell<u16>,
-    addr_long: Cell<[u8;8]>,
+    addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
     tx_power: Cell<i8>,
     channel: Cell<u8>,
@@ -790,7 +790,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
             cfg_client: Cell::new(None),
             power_client: Cell::new(None),
             addr: Cell::new(0),
-            addr_long: Cell::new([0x00;8]),
+            addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
             tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
             channel: Cell::new(PHY_CHANNEL),
@@ -916,7 +916,11 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
         self.tx_len.set(len);
     }
 
-    fn prepare_packet_long(&self, buf:&'static mut [u8], len: u8, dest: [u8;8], source_long: bool) {
+    fn prepare_packet_long(&self,
+                           buf: &'static mut [u8],
+                           len: u8,
+                           dest: [u8; 8],
+                           source_long: bool) {
         buf[0] = 0x00; // Where the frame command will go.
         buf[1] = len + 2 - 1; // plus 2 for CRC, - 1 for length byte  1/6/17 PAL
         buf[2] = 0x61; // 0x40: intra-PAN; 0x20: ack requested; 0x01: data frame
@@ -1022,7 +1026,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
         self.addr.set(addr);
     }
 
-    fn config_set_address_long(&self, addr: [u8;8]) {
+    fn config_set_address_long(&self, addr: [u8; 8]) {
         self.addr_long.set(addr);
     }
 
@@ -1053,7 +1057,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
         self.addr.get()
     }
 
-    fn config_address_long(&self) -> [u8;8] {
+    fn config_address_long(&self) -> [u8; 8] {
         self.addr_long.get()
     }
 
@@ -1120,7 +1124,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
     }
 
     fn packet_header_size(&self, packet: &'static [u8]) -> u8 {
-        if packet.len() < radio::HEADER_SIZE as usize{
+        if packet.len() < radio::HEADER_SIZE as usize {
             0
         } else {
             let src = self.packet_has_src_long(packet);
@@ -1151,8 +1155,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
                 return 0; // Packet invalid, not long enough
             }
             // The most significant byte is second, IEEE
-            let addr: u16 = packet[offset] as u16 |
-                            (packet[offset + 1] as u16) << 8;
+            let addr: u16 = packet[offset] as u16 | (packet[offset + 1] as u16) << 8;
             return addr;
         }
     }
@@ -1176,8 +1179,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
                 return 0; // Packet invalid, not long enough
             }
             // The most significant byte is second, IEEE
-            let addr: u16 = packet[offset] as u16 |
-            (packet[offset + 1] as u16) << 8;
+            let addr: u16 = packet[offset] as u16 | (packet[offset + 1] as u16) << 8;
             return addr;
         }
     }
@@ -1204,28 +1206,28 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
     // Third, compute the offset the address will be at.
     // Fourth, check the packet is long enough for the address.
     // Finally, extract and return the address.
-    fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8;8] {
+    fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8; 8] {
         if packet.len() < radio::HEADER_SIZE as usize {
-            return [0x00;8]; // Packet invalid, not long enough
+            return [0x00; 8]; // Packet invalid, not long enough
         } else if !self.packet_has_src_long(packet) {
-            return [0x00;8]; // Has a short address
+            return [0x00; 8]; // Has a short address
         } else {
             let mut offset = 9;
             if self.packet_has_dest_long(packet) {
                 offset += 6;
             }
             if packet.len() < offset + 8 {
-                return [0x00;8]; // Packet invalid, not long enough
+                return [0x00; 8]; // Packet invalid, not long enough
             }
             // The most significant byte is second, IEEE
-            let addr: [u8;8] = [packet[offset],
-                                packet[offset + 1],
-                                packet[offset + 2],
-                                packet[offset + 3],
-                                packet[offset + 4],
-                                packet[offset + 5],
-                                packet[offset + 6],
-                                packet[offset + 7]];
+            let addr: [u8; 8] = [packet[offset],
+                                 packet[offset + 1],
+                                 packet[offset + 2],
+                                 packet[offset + 3],
+                                 packet[offset + 4],
+                                 packet[offset + 5],
+                                 packet[offset + 6],
+                                 packet[offset + 7]];
             return addr;
         }
     }
@@ -1238,25 +1240,25 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
     // Third, compute the offset the address will be at.
     // Fourth, check the packet is long enough for the address.
     // Finally, extract and return the address.
-    fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8;8] {
+    fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8; 8] {
         if packet.len() < radio::HEADER_SIZE as usize {
-            return [0x00;8]; // Packet invalid, not long enough
+            return [0x00; 8]; // Packet invalid, not long enough
         } else if !self.packet_has_dest_long(packet) {
-            return [0x00;8]; // Has a short address
+            return [0x00; 8]; // Has a short address
         } else {
             let offset = 7; // Offset of dest field
             if packet.len() < offset + 8 {
-                return [0x00;8]; // Packet invalid, not long enough
+                return [0x00; 8]; // Packet invalid, not long enough
             }
             // The most significant byte is second, IEEE
-            let addr: [u8;8] = [packet[offset],
-                                packet[offset + 1],
-                                packet[offset + 2],
-                                packet[offset + 3],
-                                packet[offset + 4],
-                                packet[offset + 5],
-                                packet[offset + 6],
-                                packet[offset + 7]];
+            let addr: [u8; 8] = [packet[offset],
+                                 packet[offset + 1],
+                                 packet[offset + 2],
+                                 packet[offset + 3],
+                                 packet[offset + 4],
+                                 packet[offset + 5],
+                                 packet[offset + 6],
+                                 packet[offset + 7]];
             return addr;
         }
     }
@@ -1290,7 +1292,12 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
         self.rx_buf.replace(buffer);
     }
 
-    fn transmit(&self, dest: u16, payload: &'static mut [u8], len: u8, source_long: bool) -> ReturnCode {
+    fn transmit(&self,
+                dest: u16,
+                payload: &'static mut [u8],
+                len: u8,
+                source_long: bool)
+                -> ReturnCode {
         let state = self.state.get();
         if !self.radio_on.get() {
             return ReturnCode::EOFF;
@@ -1310,7 +1317,12 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
         return ReturnCode::SUCCESS;
     }
 
-    fn transmit_long(&self, dest: [u8;8], payload: &'static mut [u8], len: u8, source_long: bool) -> ReturnCode {
+    fn transmit_long(&self,
+                     dest: [u8; 8],
+                     payload: &'static mut [u8],
+                     len: u8,
+                     source_long: bool)
+                     -> ReturnCode {
         let state = self.state.get();
         if !self.radio_on.get() {
             return ReturnCode::EOFF;
@@ -1323,7 +1335,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
 
         self.prepare_packet_long(payload, len, dest, source_long);
         self.transmitting.set(true);
-                if !self.receiving.get() && state == InternalState::READY {
+        if !self.receiving.get() && state == InternalState::READY {
             self.state_transition_read(RF233Register::TRX_STATUS,
                                        InternalState::TX_STATUS_PRECHECK1);
         }
