@@ -20,8 +20,8 @@ It describes the Rust traits and other definitions for this service
 as well as the reasoning behind them. This document is in full compliance
 with <a href="#trd1">TRD1</a>.
 
-1. Introduction
--------------------------------
+1 Introduction
+========================================
 
 Analog-to-digital converters (ADCs) are devices that convert analog input
 signals to discrete digital output signals, typically voltage to a binary
@@ -40,8 +40,8 @@ provides three traits:
 The rest of this document discusses each in turn.
 
 
-2. AdcSingle trait
--------------------------------
+2 AdcSingle trait
+========================================
 
 The AdcSingle trait is for requesting a single ADC conversion. It has
 three functions:
@@ -80,8 +80,8 @@ or FAIL. SUCCESS indicates that a callback WILL NOT be issued, while
 a failure code (FAIL or ERESERVE) indicate that the callback WILL be
 issued normally.
 
-3. AdcContinuous
--------------------------------
+3 AdcContinuous
+========================================
 
 The AdcContinuous trait is for requesting a stream of ADC conversions
 at a fixed frequency. These samples are expected to be taken with
@@ -135,8 +135,8 @@ are three default values of `Frequency`:
   * 32kHz
   * 1MHz
 
-4. Client
--------------------------------
+4 Client
+========================================
 
 The Client trait is how a caller provides a callback to the ADC
 implementation. Using a function defined outside the ADC trait, it
@@ -156,8 +156,8 @@ value, the value MUST be left shifted so the most significant bit of
 `result` are SUCCESS, FAIL, EBUSY, EOFF, ERESERVE, EINVAL, or ECANCEL.
 
 
-5. Example Implementation: SAM4L
----------------------------------
+5 Example Implementation: SAM4L
+========================================
 
 The SAM4L ADC has a flexible ADC, supporting differential
 and single-ended inputs, 8 or 12 bit samples, configurable clocks, 
@@ -235,9 +235,10 @@ to an ADC client, if one has ben registered with `set_client`:
     }
 
 
-6. Authors' Address
----------------------------------
+6 Authors' Address
+========================================
 
+```
 Philip Levis
 409 Gates Hall
 Stanford University
@@ -246,8 +247,9 @@ Stanford, CA 94305
 phone - +1 650 725 9046
 
 email - pal@cs.stanford.edu
+```
 
-7. Citations
----------------------------------
+7 Citations
+========================================
 
 <a name="trd1"/>[TRD1] <a href="trd1-trds.md">Tock Reference Document (TRD) Structure and Keywords</a>

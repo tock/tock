@@ -19,8 +19,8 @@ General Purpose Input/Output (GPIO) in the Tock operating system kernel.  It
 describes the Rust traits and other definitions for this service as well as the
 reasoning behind them. This document is in full compliance with [TRD1].
 
-1. Introduction
--------------------------------
+1 Introduction
+========================================
 
 General Purpose Input/Output (GPIO) controls generic pins. User code can control
 the output level on the pin (high or low), read the externally drive logic level
@@ -40,8 +40,8 @@ The GPIO HIL is the kernel crate, in module hil::gpio. It provides three traits:
 
 The rest of this document discusses each in turn.
 
-2. `Pin` trait
--------------------------------
+2 `Pin` trait
+========================================
 
 The `Pin` trait is for requesting a single ADC conversion. It has
 three functions:
@@ -125,8 +125,8 @@ The `disable_interrupts` method disables interrupts on the pin. Once
 `disable_interrupts` is called, the implementation MUST NOT deliver interrupts
 to the user via the `Client` trait until `enable_interrupts` is called.
 
-3. PinCtl
--------------------------------
+3 PinCtl
+========================================
 
 The `PinCtl` trait is for controlling the input mode of a particular pin. It is
 OPTIONAL and shoul only be implemented on microcontrollers that provide this
@@ -149,8 +149,8 @@ pub enum InputMode {
 The `set_input_mode` configures whether the microcontroller should apply pull-up
 or pull-down resistence to the pin.
 
-4. Client
--------------------------------
+4 Client
+========================================
 
 The `Client` trait is how a caller provides a callback to the `Pin`
 implementation. Using a function defined outside the `Pin` trait, it registers a
@@ -166,10 +166,11 @@ Whenever an interrupt occurs on the pin it invokes the `fired`
 method. `identifier` MUST contain the value passed to the `Pin` trait's `enable_interrupts` method.
 
 
-5. Example Implementation
----------------------------------
+5 Example Implementation
+========================================
 
-6. Authors' Address
----------------------------------
-
+6 Authors' Address
+========================================
+```
 email - amit@amitlevy.com
+```
