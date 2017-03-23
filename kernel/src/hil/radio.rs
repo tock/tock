@@ -54,13 +54,13 @@ pub trait RadioConfig {
     fn set_config_client(&self, client: &'static ConfigClient);
 
     fn config_address(&self) -> u16; //....... The local 16-bit address
-    fn config_address_long(&self) -> [u8;8]; // 64-bit address
+    fn config_address_long(&self) -> [u8; 8]; // 64-bit address
     fn config_pan(&self) -> u16; //........... The 16-bit PAN ID
     fn config_tx_power(&self) -> i8; //....... The transmit power, in dBm
     fn config_channel(&self) -> u8; // ....... The 802.15.4 channel
 
     fn config_set_address(&self, addr: u16);
-    fn config_set_address_long(&self, addr: [u8;8]);
+    fn config_set_address_long(&self, addr: [u8; 8]);
     fn config_set_pan(&self, addr: u16);
     fn config_set_tx_power(&self, power: i8) -> ReturnCode;
     fn config_set_channel(&self, chan: u8) -> ReturnCode;
@@ -69,11 +69,11 @@ pub trait RadioConfig {
 pub trait RadioData {
     fn payload_offset(&self, long_src: bool, long_dest: bool) -> u8;
     fn header_size(&self, long_src: bool, long_dest: bool) -> u8;
-    fn packet_header_size(&self, packet: &'static[u8]) -> u8;
+    fn packet_header_size(&self, packet: &'static [u8]) -> u8;
     fn packet_get_src(&self, packet: &'static [u8]) -> u16;
     fn packet_get_dest(&self, packet: &'static [u8]) -> u16;
-    fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8;8];
-    fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8;8];
+    fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8; 8];
+    fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8; 8];
     fn packet_get_length(&self, packet: &'static [u8]) -> u16;
     fn packet_get_pan(&self, packet: &'static [u8]) -> u16;
     fn packet_has_src_long(&self, packet: &'static [u8]) -> bool;
@@ -83,8 +83,18 @@ pub trait RadioData {
     fn set_receive_client(&self, client: &'static RxClient, receive_buffer: &'static mut [u8]);
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
-    fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8, source_long: bool) -> ReturnCode;
-    fn transmit_long(&self, dest: [u8;8], tx_data: &'static mut [u8], tx_len: u8, source_long: bool) -> ReturnCode;
+    fn transmit(&self,
+                dest: u16,
+                tx_data: &'static mut [u8],
+                tx_len: u8,
+                source_long: bool)
+                -> ReturnCode;
+    fn transmit_long(&self,
+                     dest: [u8; 8],
+                     tx_data: &'static mut [u8],
+                     tx_len: u8,
+                     source_long: bool)
+                     -> ReturnCode;
 }
 
 pub enum RadioMacLen {
@@ -95,7 +105,7 @@ pub enum RadioMacLen {
 }
 
 // C is the confidentiality key type, I is the integrity key type
-pub trait RadioCrypto<C,I> {
+pub trait RadioCrypto<C, I> {
     fn set_encrypt_key(&self, key: C);
     fn set_decrypt_key(&self, key: C);
     fn set_mac_key(&self, key: I);
