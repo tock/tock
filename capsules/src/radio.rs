@@ -201,7 +201,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                         rval = ReturnCode::ESIZE;
                         return;
                     }
-                    let offset = self.radio.payload_offset() as usize;
+                    let offset = self.radio.payload_offset(false, false) as usize;
                     // Copy the packet into the kernel buffer
                     self.kernel_tx.map(|kbuf| {
                         app.app_write.as_mut().map(|src| {
@@ -210,10 +210,9 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                             }
                         });
                     });
-                    let transmit_len = len as u8 + self.radio.header_size();
+                    let transmit_len = len as u8 + self.radio.header_size(false, false);
                     let kbuf = self.kernel_tx.take().unwrap();
-
-                    rval = self.radio.transmit(addr, kbuf, transmit_len);
+                    rval = self.radio.transmit(addr, kbuf, transmit_len, false);
                     if rval == ReturnCode::SUCCESS {
                         self.busy.set(true);
                     }
@@ -252,7 +251,7 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
         if self.app.is_some() {
             self.app.map(move |app| {
                 if app.app_read.is_some() {
-                    let offset = self.radio.payload_offset() as usize;
+                    let offset = self.radio.payload_offset(false, false) as usize;
                     let dest = app.app_read.as_mut().unwrap();
                     let d = &mut dest.as_mut();
                     for (i, c) in buf[offset..len as usize].iter().enumerate() {

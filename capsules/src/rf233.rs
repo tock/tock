@@ -103,6 +103,14 @@ enum InternalState {
     CONFIG_SHORT1_SET,
     CONFIG_PAN0_SET,
     CONFIG_PAN1_SET,
+    CONFIG_IEEE0_SET,
+    CONFIG_IEEE1_SET,
+    CONFIG_IEEE2_SET,
+    CONFIG_IEEE3_SET,
+    CONFIG_IEEE4_SET,
+    CONFIG_IEEE5_SET,
+    CONFIG_IEEE6_SET,
+    CONFIG_IEEE7_SET,
     CONFIG_POWER_SET,
     CONFIG_DONE,
 
@@ -184,6 +192,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     cfg_client: Cell<Option<&'static radio::ConfigClient>>,
     power_client: Cell<Option<&'static radio::PowerClient>>,
     addr: Cell<u16>,
+    addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
     tx_power: Cell<i8>,
     channel: Cell<u8>,
@@ -440,42 +449,42 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             }
             InternalState::START_PANID1_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_0,
-                                            IEEE_ADDR_0,
+                                            self.addr_long.get()[0],
                                             InternalState::START_IEEE0_SET);
             }
             InternalState::START_IEEE0_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_1,
-                                            IEEE_ADDR_1,
+                                            self.addr_long.get()[1],
                                             InternalState::START_IEEE1_SET);
             }
             InternalState::START_IEEE1_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_2,
-                                            IEEE_ADDR_2,
+                                            self.addr_long.get()[2],
                                             InternalState::START_IEEE2_SET);
             }
             InternalState::START_IEEE2_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_3,
-                                            IEEE_ADDR_3,
+                                            self.addr_long.get()[3],
                                             InternalState::START_IEEE3_SET);
             }
             InternalState::START_IEEE3_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_4,
-                                            IEEE_ADDR_4,
+                                            self.addr_long.get()[4],
                                             InternalState::START_IEEE4_SET);
             }
             InternalState::START_IEEE4_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_5,
-                                            IEEE_ADDR_5,
+                                            self.addr_long.get()[5],
                                             InternalState::START_IEEE5_SET);
             }
             InternalState::START_IEEE5_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_6,
-                                            IEEE_ADDR_6,
+                                            self.addr_long.get()[6],
                                             InternalState::START_IEEE6_SET);
             }
             InternalState::START_IEEE6_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_7,
-                                            IEEE_ADDR_7,
+                                            self.addr_long.get()[7],
                                             InternalState::START_IEEE7_SET);
             }
             InternalState::START_IEEE7_SET => {
@@ -681,12 +690,51 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                                             InternalState::CONFIG_PAN1_SET);
             }
             InternalState::CONFIG_PAN1_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_0,
+                                            self.addr_long.get()[0],
+                                            InternalState::CONFIG_IEEE0_SET);
+            }
+            InternalState::CONFIG_IEEE0_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_1,
+                                            self.addr_long.get()[1],
+                                            InternalState::CONFIG_IEEE1_SET);
+            }
+            InternalState::CONFIG_IEEE1_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_2,
+                                            self.addr_long.get()[2],
+                                            InternalState::CONFIG_IEEE2_SET);
+            }
+            InternalState::CONFIG_IEEE2_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_3,
+                                            self.addr_long.get()[3],
+                                            InternalState::CONFIG_IEEE3_SET);
+            }
+            InternalState::CONFIG_IEEE3_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_4,
+                                            self.addr_long.get()[4],
+                                            InternalState::CONFIG_IEEE4_SET);
+            }
+            InternalState::CONFIG_IEEE4_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_5,
+                                            self.addr_long.get()[5],
+                                            InternalState::CONFIG_IEEE5_SET);
+            }
+            InternalState::CONFIG_IEEE5_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_6,
+                                            self.addr_long.get()[6],
+                                            InternalState::CONFIG_IEEE6_SET);
+            }
+            InternalState::CONFIG_IEEE6_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_7,
+                                            self.addr_long.get()[7],
+                                            InternalState::CONFIG_IEEE7_SET);
+            }
+            InternalState::CONFIG_IEEE7_SET => {
                 let val = power_to_setting(self.tx_power.get());
                 self.state_transition_write(RF233Register::PHY_TX_PWR,
                                             val,
                                             InternalState::CONFIG_POWER_SET);
             }
-
             InternalState::CONFIG_POWER_SET => {
                 let val = self.channel.get() | PHY_CC_CCA_MODE_CS_OR_ED;
                 self.state_transition_write(RF233Register::PHY_CC_CCA,
@@ -742,6 +790,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
             cfg_client: Cell::new(None),
             power_client: Cell::new(None),
             addr: Cell::new(0),
+            addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
             tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
             channel: Cell::new(PHY_CHANNEL),
@@ -834,19 +883,79 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
     /// be able to send the packet (store reference, etc.).
     // For details on frame format, the old CC2420 datasheet is a
     // very good guide. -pal
-    fn prepare_packet(&self, buf: &'static mut [u8], len: u8, dest: u16) {
+    fn prepare_packet(&self, buf: &'static mut [u8], len: u8, dest: u16, source_long: bool) {
         buf[0] = 0x00; // Where the frame command will go.
         buf[1] = len + 2 - 1; // plus 2 for CRC, - 1 for length byte  1/6/17 PAL
         buf[2] = 0x61; // 0x40: intra-PAN; 0x20: ack requested; 0x01: data frame
-        buf[3] = 0x88; // 0x80: 16-bit src addr; 0x08: 16-bit dest addr
+        if source_long {
+            buf[3] = 0xC8; // 0xC0: 64-bit source addr, 0x08: 16-bit dest addr
+        } else {
+            buf[3] = 0x88; // 0x80: 16-bit src addr; 0x08: 16-bit dest addr
+        }
         buf[4] = self.seq.get();
         buf[5] = (self.pan.get() & 0xFF) as u8; // PAN id is 16 bits
         buf[6] = (self.pan.get() >> 8) as u8;
         buf[7] = (dest & 0xff) as u8;
         buf[8] = (dest >> 8) as u8;
-        buf[9] = (self.addr.get() & 0xFF) as u8;
-        buf[10] = (self.addr.get() >> 8) as u8;
+        if (source_long) {
+            let addr_long = self.addr_long.get();
+            buf[9] = addr_long[0];
+            buf[10] = addr_long[1];
+            buf[11] = addr_long[2];
+            buf[12] = addr_long[3];
+            buf[13] = addr_long[4];
+            buf[14] = addr_long[5];
+            buf[15] = addr_long[6];
+            buf[16] = addr_long[7];
+        } else {
+            buf[9] = (self.addr.get() & 0xFF) as u8;
+            buf[10] = (self.addr.get() >> 8) as u8;
+        }
+        self.seq.set(self.seq.get() + 1);
+        self.tx_buf.replace(buf);
+        self.tx_len.set(len);
+    }
 
+    fn prepare_packet_long(&self,
+                           buf: &'static mut [u8],
+                           len: u8,
+                           dest: [u8; 8],
+                           source_long: bool) {
+        buf[0] = 0x00; // Where the frame command will go.
+        buf[1] = len + 2 - 1; // plus 2 for CRC, - 1 for length byte  1/6/17 PAL
+        buf[2] = 0x61; // 0x40: intra-PAN; 0x20: ack requested; 0x01: data frame
+        if source_long {
+            buf[3] = 0xCC; // 0xC0: 64-bit source addr, 0x0C: 64-bit dest addr
+        } else {
+            buf[3] = 0x8C; // 0x80: 16-bit src addr; 0x0C: 64-bit dest addr
+        }
+        buf[4] = self.seq.get();
+        buf[5] = (self.pan.get() & 0xFF) as u8; // PAN id is 16 bits
+        buf[6] = (self.pan.get() >> 8) as u8;
+
+        buf[7] = dest[0];
+        buf[8] = dest[1];
+        buf[9] = dest[2];
+        buf[10] = dest[3];
+        buf[11] = dest[4];
+        buf[12] = dest[5];
+        buf[13] = dest[6];
+        buf[14] = dest[7];
+
+        if (source_long) {
+            let addr_long = self.addr_long.get();
+            buf[15] = addr_long[0];
+            buf[16] = addr_long[1];
+            buf[17] = addr_long[2];
+            buf[18] = addr_long[3];
+            buf[19] = addr_long[4];
+            buf[20] = addr_long[5];
+            buf[21] = addr_long[6];
+            buf[22] = addr_long[7];
+        } else {
+            buf[15] = (self.addr.get() & 0xFF) as u8;
+            buf[16] = (self.addr.get() >> 8) as u8;
+        }
         self.seq.set(self.seq.get() + 1);
         self.tx_buf.replace(buf);
         self.tx_len.set(len);
@@ -917,6 +1026,10 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
         self.addr.set(addr);
     }
 
+    fn config_set_address_long(&self, addr: [u8; 8]) {
+        self.addr_long.set(addr);
+    }
+
     fn config_set_pan(&self, id: u16) {
         self.pan.set(id);
     }
@@ -943,6 +1056,11 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
     fn config_address(&self) -> u16 {
         self.addr.get()
     }
+
+    fn config_address_long(&self) -> [u8; 8] {
+        self.addr_long.get()
+    }
+
     /// The 16-bit PAN ID
     fn config_pan(&self) -> u16 {
         self.pan.get()
@@ -983,28 +1101,168 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
     // the SPI command. Otherwise, if the packet begins at byte 0, we
     // have to copy it into a buffer whose byte 0 is the frame read/write
     // command.
-    fn payload_offset(&self) -> u8 {
-        radio::HEADER_SIZE + 1
+    fn payload_offset(&self, long_src: bool, long_dest: bool) -> u8 {
+        let mut len: u8 = 1; // The SPI command at the head of the buffer
+        len += radio::HEADER_SIZE; // Size if both addresses are short
+        if long_src {
+            len += 6;
+        }
+        if long_dest {
+            len += 6;
+        }
+        len
     }
 
-    fn header_size(&self) -> u8 {
-        radio::HEADER_SIZE
+    fn header_size(&self, long_src: bool, long_dest: bool) -> u8 {
+        let mut len: u8 = radio::HEADER_SIZE;
+        if long_src {
+            len += 6;
+        } else if long_dest {
+            len += 6;
+        }
+        len
     }
 
+    fn packet_header_size(&self, packet: &'static [u8]) -> u8 {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            0
+        } else {
+            let src = self.packet_has_src_long(packet);
+            let dest = self.packet_has_dest_long(packet);
+            self.header_size(src, dest)
+        }
+    }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a short source address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
     fn packet_get_src(&self, packet: &'static [u8]) -> u16 {
         if packet.len() < radio::HEADER_SIZE as usize {
-            return 0;
+            return 0; // Packet invalid, not long enough
+        } else if self.packet_has_src_long(packet) {
+            return 0; // Has a long address
         } else {
-            return 0;
+            let mut offset = 9;
+            if self.packet_has_dest_long(packet) {
+                offset += 6;
+            }
+            if packet.len() < offset + 2 {
+                return 0; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: u16 = packet[offset] as u16 | (packet[offset + 1] as u16) << 8;
+            return addr;
         }
     }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a short destination address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
     fn packet_get_dest(&self, packet: &'static [u8]) -> u16 {
         if packet.len() < radio::HEADER_SIZE as usize {
-            return 0;
+            return 0; // Packet invalid, not long enough
+        } else if self.packet_has_dest_long(packet) {
+            return 0; // Has a long address
         } else {
-            return 0;
+            let offset = 7; // Offset of dest field
+            if packet.len() < offset + 2 {
+                return 0; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: u16 = packet[offset] as u16 | (packet[offset + 1] as u16) << 8;
+            return addr;
         }
     }
+
+    fn packet_has_src_long(&self, packet: &'static [u8]) -> bool {
+        if packet.len() < 4 {
+            return false;
+        }
+        (packet[3] & 0xC0) == 0xC0
+    }
+
+    fn packet_has_dest_long(&self, packet: &'static [u8]) -> bool {
+        if packet.len() < 4 {
+            return false;
+        }
+        (packet[3] & 0x0C) == 0x0C
+    }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a long source address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
+    fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8; 8] {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return [0x00; 8]; // Packet invalid, not long enough
+        } else if !self.packet_has_src_long(packet) {
+            return [0x00; 8]; // Has a short address
+        } else {
+            let mut offset = 9;
+            if self.packet_has_dest_long(packet) {
+                offset += 6;
+            }
+            if packet.len() < offset + 8 {
+                return [0x00; 8]; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: [u8; 8] = [packet[offset],
+                                 packet[offset + 1],
+                                 packet[offset + 2],
+                                 packet[offset + 3],
+                                 packet[offset + 4],
+                                 packet[offset + 5],
+                                 packet[offset + 6],
+                                 packet[offset + 7]];
+            return addr;
+        }
+    }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a long destination address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
+    fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8; 8] {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return [0x00; 8]; // Packet invalid, not long enough
+        } else if !self.packet_has_dest_long(packet) {
+            return [0x00; 8]; // Has a short address
+        } else {
+            let offset = 7; // Offset of dest field
+            if packet.len() < offset + 8 {
+                return [0x00; 8]; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: [u8; 8] = [packet[offset],
+                                 packet[offset + 1],
+                                 packet[offset + 2],
+                                 packet[offset + 3],
+                                 packet[offset + 4],
+                                 packet[offset + 5],
+                                 packet[offset + 6],
+                                 packet[offset + 7]];
+            return addr;
+        }
+    }
+
     fn packet_get_length(&self, packet: &'static [u8]) -> u16 {
         if packet.len() < radio::HEADER_SIZE as usize {
             return 0;
@@ -1034,7 +1292,12 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
         self.rx_buf.replace(buffer);
     }
 
-    fn transmit(&self, dest: u16, payload: &'static mut [u8], len: u8) -> ReturnCode {
+    fn transmit(&self,
+                dest: u16,
+                payload: &'static mut [u8],
+                len: u8,
+                source_long: bool)
+                -> ReturnCode {
         let state = self.state.get();
         if !self.radio_on.get() {
             return ReturnCode::EOFF;
@@ -1045,7 +1308,32 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
             return ReturnCode::ESIZE;
         }
 
-        self.prepare_packet(payload, len, dest);
+        self.prepare_packet(payload, len, dest, source_long);
+        self.transmitting.set(true);
+        if !self.receiving.get() && state == InternalState::READY {
+            self.state_transition_read(RF233Register::TRX_STATUS,
+                                       InternalState::TX_STATUS_PRECHECK1);
+        }
+        return ReturnCode::SUCCESS;
+    }
+
+    fn transmit_long(&self,
+                     dest: [u8; 8],
+                     payload: &'static mut [u8],
+                     len: u8,
+                     source_long: bool)
+                     -> ReturnCode {
+        let state = self.state.get();
+        if !self.radio_on.get() {
+            return ReturnCode::EOFF;
+        } else if self.tx_buf.is_some() || self.transmitting.get() {
+            return ReturnCode::EBUSY;
+        } else if (len + 2) as usize >= payload.len() {
+            // Not enough room for CRC
+            return ReturnCode::ESIZE;
+        }
+
+        self.prepare_packet_long(payload, len, dest, source_long);
         self.transmitting.set(true);
         if !self.receiving.get() && state == InternalState::READY {
             self.state_transition_read(RF233Register::TRX_STATUS,

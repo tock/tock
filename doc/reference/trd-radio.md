@@ -5,10 +5,10 @@ Kernel 802.15.4 Radio HIL
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Philip Levis <br/>
+**Authors:** Philip Levis <br/>
 **Draft-Created:** Feb 14, 2017<br/>
-**Draft-Modified:** Feb 14, 2017<br/>
-**Draft-Version:** 1<br/>
+**Draft-Modified:** Mar 20, 2017<br/>
+**Draft-Version:** 2<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -18,7 +18,7 @@ This document describes the hardware independent layer interface (HIL)
 for an 802.15.4 radio in the Tock operating system kernel. It describes
 the Rust traits and other definitions for this service as well as the
 reasoning behind them. This document is in full compliance
-with <a href="#trd1">TRD1</a>.
+with [TRD1].
 
 1 Introduction
 ========================================
@@ -156,18 +156,20 @@ configuration commit until the radio is turned on again.
     fn set_config_client(&self, client: &'static ConfigClient);
     fn config_commit(&self) -> ReturnCode;
 
-A caller can configure the 16-bit short address, PAN (personal area
-network) identifier, transmit power, and channel. The PAN address and
-node address are both 16-bit values.  Channel is an integer in the
-range 11-26 (the 802.15.4 channel numbers). `config_set_channel`
-MUST return EINVAL if passed a channel not in the range 11-26 and
-SUCCESS otherwise.
+A caller can configure the 16-bit short address, 64-bit full address,
+PAN (personal area network) identifier, transmit power, and
+channel. The PAN address and node address are both 16-bit values.
+Channel is an integer in the range 11-26 (the 802.15.4 channel
+numbers). `config_set_channel` MUST return EINVAL if passed a channel
+not in the range 11-26 and SUCCESS otherwise.
 
     fn config_address(&self) -> u16;
+    fn config_address_long(&self) -> [u8;8];
     fn config_pan(&self) -> u16;
     fn config_tx_power(&self) -> i8;
     fn config_channel(&self) -> u8;
     fn config_set_address(&self, addr: u16);
+    fn config_set_address_long(&self, addr: [u8;8]);
     fn config_set_pan(&self, addr: u16);
     fn config_set_tx_power(&self, power: i8) -> ReturnCode;
     fn config_set_channel(&self, chan: u8) -> ReturnCode;
@@ -181,19 +183,24 @@ the actual transmit power value in dBm. Therefore, it is possible that
 the return value of `config_tx_power` returns a different (but close)
 value than what it set in `config_set_tx_power`.
 
-4 Radio trait for sending and receiving packets 
-===============================================
+4 RadioData trait for sending and receiving packets
+========================================
 
-The Radio trait implements the radio data path: it allows clients to
+The RadioData trait implements the radio data path: it allows clients to
 send and receive packets as well as accessors for packet fields.
 
 
-    fn payload_offset(&self) -> u8;
-    fn header_size(&self) -> u8;
+    fn payload_offset(&self, long_src: bool, long_dest: bool) -> u8;
+    fn header_size(&self, long_src: bool, long_dest: bool) -> u8;
+    fn packet_header_size(&self, packet: &'static [u8]) -> u8;
     fn packet_get_src(&self, packet: &'static [u8]) -> u16;
     fn packet_get_dest(&self, packet: &'static [u8]) -> u16;
+    fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8;8]
+    fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8;8];
     fn packet_get_pan(&self, packet: &'static [u8]) -> u16;
     fn packet_get_length(&self, packet: &'static [u8]) -> u8;
+    fn packet_has_src_long(&self, packet: &'static [u8]) -> bool;
+    fn packet_has_dest_long(&self, packet: &'static [u8]) -> bool;
 
 The `packet_` functions MUST NOT be called on improperly formatted
 802.15.4 packets (i.e., only on received packets). Otherwise the
@@ -202,7 +209,11 @@ buffer at which the radio stack places the data payload. To send a
 data payload, a client should fill in the payload starting at this
 offset. For example, if `payload_offset` returns 11 and the caller
 wants to send 20 bytes, it should fill in bytes 11-30 of the buffer
-with the payload.
+with the payload. `header_size` returns the size of a header based
+on whether the source and destination addresses are long (64-bit)
+or short (16-bit). `packet_header_size` returns the size of the
+header on a particular correctly formatted packet (i.e., it looks
+at the header to see if there are long or short addresses).
 
 The data path has two callbacks: one for when a packet is received and
 one for when a packet transmission completes.
@@ -218,14 +229,35 @@ buffer back. The callback handler MUST install a new receive buffer
 with a call to `set_receive_buffer`. This buffer MAY be the same
 buffer it received or a different one.
 
-Clients transmit packets by calling `transmit`.
+Clients transmit packets by calling `transmit` or `transmit_long`.
 
     fn transmit(&self,
                 dest: u16,
                 tx_data: &'static mut [u8],
-                tx_len: u8) -> ReturnCode;
+                tx_len: u8,
+                source_long: bool) -> ReturnCode;
 
-The passed buffer `tx_data` MUST be MAX_BUF_LEN in size. `tx_len` is
+    fn transmit_long(&self,
+                dest: [u8;8],
+                tx_data: &'static mut [u8],
+                tx_len: u8,
+                source_long: bool) -> ReturnCode;
+
+The packet sent on the air by a call to `transmit` MUST be formatted
+to have a 16-bit short destination address equal to the `dest`
+argument. A packet sent on the air by a call to `transmit_long` MUST
+be formatted to have a 64-bit destination address equal to the `dest`
+argument.
+
+The `source_long` parameter denotes the length of the source address in
+the packet. If `source_long` is false, the implementation MUST include
+a 16-bit short source address in the packet. If `source_long` is true,
+the implementation MUST include a 64-bit full source address in the
+packet. The addresses MUST be consistent with the values written and
+read with `config_set_address`, `config_set_address_long`,
+`config_address`, and `config_address_long`.
+
+The passed buffer `tx_data` MUST be MAX_BUF_LEN in size.  `tx_len` is
 the length of the payload. If `transmit` returns SUCCESS, then the
 driver MUST issue a transmission completion callback. If `transmit`
 returns any value except SUCCESS, it MUST NOT accept the packet for
@@ -237,8 +269,8 @@ to send a packet (e.g., already has a transmission pending), then
 transmission (returns SUCCESS), it MUST return EBUSY until it issues a
 transmission completion callback.
 
-5 TxClient, RxClient, and ConfigClient traits
-=============================================
+5 TxClient, RxClient, ConfigClient, and PowerClient traits
+========================================
 
 An 802.15.4 radio provides four callbacks: packet transmission
 completion, packet reception, when a change to the radio's
@@ -300,7 +332,13 @@ callback signals the radio is off. Similarly, if the `changed` callback
 has indicated that the radio is off, then `is_on` MUST return false
 until a later callback signals the radio is on.
 
-6 Example Implementation: RF233
+6 RadioCrypto trait
+========================================
+
+The RadioCrypto trait is for configuring and enabling/disabling
+different security settings.
+
+7 Example Implementation: RF233
 ========================================
 
 An implementation of the radio HIL for the Atmel RF233 radio can be
@@ -317,7 +355,7 @@ SRAM access is that frame access always starts at index 0, while
 SRAM access has random access (a frame operation is equivalent to an
 SRAM operation with address 0). The implementation only uses register
 and frame operations. The details of these operations can be found
-in Section 6.3 of the RF233 datasheet<a href="#rf233">[RF233]<a>.
+in Section 6.3 of the RF233 datasheet [RF233].
 
 The implementation has 6 high-level states:
 
@@ -350,23 +388,19 @@ issuing a register read. In cases when transmissions are interrupted
 by packet reception, the stack simply marks the packet as pending and
 waits for the reception to complete, then retries the transmission.
 
-7 Authors' Address
+8 Authors' Address
 ========================================
 
-```
-Philip Levis
-409 Gates Hall
-Stanford University
-Stanford, CA 94305
+    Philip Levis
+    409 Gates Hall
+    Stanford University
+    Stanford, CA 94305
+    phone - +1 650 725 9046
+    email - pal@cs.stanford.edu
 
-phone - +1 650 725 9046
-
-email - pal@cs.stanford.edu
-```
-
-8 Citations
+9. Citations
 ========================================
 
-<a name="trd1"/>[TRD1] <a href="trd1-trds.md">Tock Reference Document (TRD) Structure and Keywords</a>
+[TRD1]: trd1-trds.md "Tock Reference Document (TRD) Structure and Keywords"
 
-<a name="rf233"/>[RF233] <a href="http://www.atmel.com/images/Atmel-8351-MCU_Wireless-AT86RF233_Datasheet.pdf">AT86RF233: Low Power, 2.4GHz Transceiver for ZigBee, RF4CE, IEEE 802.15.4, 6LoWPAN, and ISM Applications</a>
+[RF233]: http://www.atmel.com/images/Atmel-8351-MCU_Wireless-AT86RF233_Datasheet.pdf "AT86RF233: Low Power, 2.4GHz Transceiver for ZigBee, RF4CE, IEEE 802.15.4, 6LoWPAN, and ISM Applications"
