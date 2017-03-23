@@ -29,3 +29,4 @@ pub mod rf233;
 pub mod rf233_const;
 pub mod radio;
 pub mod rng;
+pub mod temp_nrf51dk;

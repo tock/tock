@@ -2,6 +2,10 @@
 
 #include "tock.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define DRIVER_NUM_I2CMASTERSLAVE 13
 
 #define TOCK_I2C_CB_SLAVE_READ_REQUEST   2
@@ -23,3 +27,7 @@ int i2c_master_slave_enable_slave_read(uint32_t len);
 
 int i2c_master_slave_write_sync(uint8_t address, uint8_t length);
 int i2c_master_slave_read_sync(uint16_t address, uint16_t len);
+
+#ifdef __cplusplus
+}
+#endif

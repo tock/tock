@@ -1,5 +1,4 @@
-#ifndef _TOCK_H
-#define _TOCK_H
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -39,9 +38,8 @@ bool driver_exists(uint32_t driver);
 #define ENOSUPPORT -10
 #define ENODEVICE  -11
 #define EUNINSTALLED -12
+#define ENOACK -13
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif // _TOCK_H

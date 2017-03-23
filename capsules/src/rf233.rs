@@ -1,5 +1,5 @@
 // I like them sometimes, for formatting -pal
-#![allow(unused_parens,dead_code)]
+#![allow(unused_parens)]
 
 ///
 /// Capsule for sending 802.15.4 packets with an Atmel RF233.
@@ -30,7 +30,7 @@ use rf233_const::*;
 
 const INTERRUPT_ID: usize = 0x2154;
 
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types,dead_code)]
 #[derive(Copy, Clone, PartialEq)]
 enum InternalState {
     // There are 6 high-level states:
@@ -86,6 +86,7 @@ enum InternalState {
     TX_PLL_WAIT,
     TX_ARET_ON,
     TX_TRANSMITTING,
+    TX_READ_ACK,
     TX_DONE,
     TX_RETURN_TO_RX,
 
@@ -96,11 +97,22 @@ enum InternalState {
     // because we need to block other operations.
     TX_PENDING,
 
-    // Intermediate states when setting the short address
-    // and PAN ID.
+    // Intermediate states when committing configuration from RAM
+    // to the chiP; short address, PAN address, tx power and channel
     CONFIG_SHORT0_SET,
     CONFIG_SHORT1_SET,
     CONFIG_PAN0_SET,
+    CONFIG_PAN1_SET,
+    CONFIG_IEEE0_SET,
+    CONFIG_IEEE1_SET,
+    CONFIG_IEEE2_SET,
+    CONFIG_IEEE3_SET,
+    CONFIG_IEEE4_SET,
+    CONFIG_IEEE5_SET,
+    CONFIG_IEEE6_SET,
+    CONFIG_IEEE7_SET,
+    CONFIG_POWER_SET,
+    CONFIG_DONE,
 
     // RX is a short-lived state for when software has detected
     // the chip is receiving a packet (by internal state) but has
@@ -166,6 +178,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     spi_busy: Cell<bool>,
     interrupt_handling: Cell<bool>,
     interrupt_pending: Cell<bool>,
+    config_pending: Cell<bool>,
     reset_pin: &'a gpio::Pin,
     sleep_pin: &'a gpio::Pin,
     irq_pin: &'a gpio::Pin,
@@ -176,12 +189,69 @@ pub struct RF233<'a, S: spi::SpiMasterDevice + 'a> {
     tx_len: Cell<u8>,
     tx_client: Cell<Option<&'static radio::TxClient>>,
     rx_client: Cell<Option<&'static radio::RxClient>>,
+    cfg_client: Cell<Option<&'static radio::ConfigClient>>,
+    power_client: Cell<Option<&'static radio::PowerClient>>,
     addr: Cell<u16>,
+    addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
+    tx_power: Cell<i8>,
+    channel: Cell<u8>,
     seq: Cell<u8>,
     spi_rx: TakeCell<'static, [u8]>,
     spi_tx: TakeCell<'static, [u8]>,
     spi_buf: TakeCell<'static, [u8]>,
+}
+
+fn setting_to_power(setting: u8) -> i8 {
+    match setting {
+        0x00 => 4,
+        0x01 => 4,
+        0x02 => 3,
+        0x03 => 3,
+        0x04 => 2,
+        0x05 => 2,
+        0x06 => 1,
+        0x07 => 0,
+        0x08 => -1,
+        0x09 => -2,
+        0x0A => -3,
+        0x0B => -4,
+        0x0C => -6,
+        0x0D => -8,
+        0x0E => -12,
+        0x0F => -17,
+        _ => -127,
+    }
+}
+
+fn power_to_setting(power: i8) -> u8 {
+    if (power >= 4) {
+        return 0x00;
+    } else if (power >= 3) {
+        return 0x03;
+    } else if (power >= 2) {
+        return 0x05;
+    } else if (power >= 1) {
+        return 0x06;
+    } else if (power >= 0) {
+        return 0x07;
+    } else if (power >= -1) {
+        return 0x08;
+    } else if (power >= -2) {
+        return 0x09;
+    } else if (power >= -3) {
+        return 0x0A;
+    } else if (power >= -4) {
+        return 0x0B;
+    } else if (power >= -6) {
+        return 0x0C;
+    } else if (power >= -8) {
+        return 0x0D;
+    } else if (power >= -12) {
+        return 0x0E;
+    } else {
+        return 0x0F;
+    }
 }
 
 fn interrupt_included(mask: u8, interrupt: u8) -> bool {
@@ -282,7 +352,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                     return;
                 }
             }
-
         }
 
         match self.state.get() {
@@ -290,6 +359,11 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             // interrupt
             InternalState::READY => {
                 self.radio_on.set(true);
+                if self.config_pending.get() == true {
+                    self.state_transition_write(RF233Register::SHORT_ADDR_0,
+                                                (self.addr.get() & 0xff) as u8,
+                                                InternalState::CONFIG_SHORT0_SET);
+                }
                 // Useful debug code to test radio can transmit without
                 // an app/calling system calls
                 //unsafe {
@@ -328,13 +402,15 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                                             InternalState::START_CTRL1_SET);
             }
             InternalState::START_CTRL1_SET => {
+                let val = self.channel.get() | PHY_CC_CCA_MODE_CS_OR_ED;
                 self.state_transition_write(RF233Register::PHY_CC_CCA,
-                                            PHY_CC_CCA,
+                                            val,
                                             InternalState::START_CCA_SET);
             }
             InternalState::START_CCA_SET => {
+                let val = power_to_setting(self.tx_power.get());
                 self.state_transition_write(RF233Register::PHY_TX_PWR,
-                                            PHY_TX_PWR,
+                                            val,
                                             InternalState::START_PWR_SET);
             }
             InternalState::START_PWR_SET => {
@@ -373,52 +449,52 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             }
             InternalState::START_PANID1_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_0,
-                                            IEEE_ADDR_0,
+                                            self.addr_long.get()[0],
                                             InternalState::START_IEEE0_SET);
             }
             InternalState::START_IEEE0_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_1,
-                                            IEEE_ADDR_1,
+                                            self.addr_long.get()[1],
                                             InternalState::START_IEEE1_SET);
             }
             InternalState::START_IEEE1_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_2,
-                                            IEEE_ADDR_2,
+                                            self.addr_long.get()[2],
                                             InternalState::START_IEEE2_SET);
             }
             InternalState::START_IEEE2_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_3,
-                                            IEEE_ADDR_3,
+                                            self.addr_long.get()[3],
                                             InternalState::START_IEEE3_SET);
             }
             InternalState::START_IEEE3_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_4,
-                                            IEEE_ADDR_4,
+                                            self.addr_long.get()[4],
                                             InternalState::START_IEEE4_SET);
             }
             InternalState::START_IEEE4_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_5,
-                                            IEEE_ADDR_5,
+                                            self.addr_long.get()[5],
                                             InternalState::START_IEEE5_SET);
             }
             InternalState::START_IEEE5_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_6,
-                                            IEEE_ADDR_6,
+                                            self.addr_long.get()[6],
                                             InternalState::START_IEEE6_SET);
             }
             InternalState::START_IEEE6_SET => {
                 self.state_transition_write(RF233Register::IEEE_ADDR_7,
-                                            IEEE_ADDR_7,
+                                            self.addr_long.get()[7],
                                             InternalState::START_IEEE7_SET);
             }
             InternalState::START_IEEE7_SET => {
                 self.state_transition_write(RF233Register::SHORT_ADDR_0,
-                                            (self.addr.get() >> 8) as u8,
+                                            (self.addr.get() & 0xff) as u8,
                                             InternalState::START_SHORT0_SET);
             }
             InternalState::START_SHORT0_SET => {
                 self.state_transition_write(RF233Register::SHORT_ADDR_1,
-                                            (self.addr.get() & 0xff) as u8,
+                                            (self.addr.get() >> 8) as u8,
                                             InternalState::START_SHORT1_SET);
             }
             InternalState::START_SHORT1_SET => {
@@ -516,9 +592,16 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::TX_DONE => {
                 self.state_transition_write(RF233Register::TRX_STATE,
                                             RF233TrxCmd::RX_AACK_ON as u8,
-                                            InternalState::TX_RETURN_TO_RX);
+                                            InternalState::TX_READ_ACK);
             }
+            InternalState::TX_READ_ACK => {
+                self.state_transition_read(RF233Register::TRX_STATE,
+                                           InternalState::TX_RETURN_TO_RX);
+            }
+
+            // Insert read of TRX_STATUS here, checking TRAC
             InternalState::TX_RETURN_TO_RX => {
+                let ack: bool = (result & TRX_TRAC_MASK) == 0;
                 if status == ExternalState::RX_AACK_ON as u8 {
                     self.transmitting.set(false);
                     let buf = self.tx_buf.take();
@@ -526,7 +609,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
 
                     self.tx_client
                         .get()
-                        .map(|c| { c.send_done(buf.unwrap(), ReturnCode::SUCCESS); });
+                        .map(|c| { c.send_done(buf.unwrap(), ack, ReturnCode::SUCCESS); });
                 } else {
                     self.register_read(RF233Register::TRX_STATUS);
                 }
@@ -604,8 +687,67 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::CONFIG_PAN0_SET => {
                 self.state_transition_write(RF233Register::PAN_ID_1,
                                             (self.pan.get() >> 8) as u8,
-                                            InternalState::READY);
+                                            InternalState::CONFIG_PAN1_SET);
             }
+            InternalState::CONFIG_PAN1_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_0,
+                                            self.addr_long.get()[0],
+                                            InternalState::CONFIG_IEEE0_SET);
+            }
+            InternalState::CONFIG_IEEE0_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_1,
+                                            self.addr_long.get()[1],
+                                            InternalState::CONFIG_IEEE1_SET);
+            }
+            InternalState::CONFIG_IEEE1_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_2,
+                                            self.addr_long.get()[2],
+                                            InternalState::CONFIG_IEEE2_SET);
+            }
+            InternalState::CONFIG_IEEE2_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_3,
+                                            self.addr_long.get()[3],
+                                            InternalState::CONFIG_IEEE3_SET);
+            }
+            InternalState::CONFIG_IEEE3_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_4,
+                                            self.addr_long.get()[4],
+                                            InternalState::CONFIG_IEEE4_SET);
+            }
+            InternalState::CONFIG_IEEE4_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_5,
+                                            self.addr_long.get()[5],
+                                            InternalState::CONFIG_IEEE5_SET);
+            }
+            InternalState::CONFIG_IEEE5_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_6,
+                                            self.addr_long.get()[6],
+                                            InternalState::CONFIG_IEEE6_SET);
+            }
+            InternalState::CONFIG_IEEE6_SET => {
+                self.state_transition_write(RF233Register::IEEE_ADDR_7,
+                                            self.addr_long.get()[7],
+                                            InternalState::CONFIG_IEEE7_SET);
+            }
+            InternalState::CONFIG_IEEE7_SET => {
+                let val = power_to_setting(self.tx_power.get());
+                self.state_transition_write(RF233Register::PHY_TX_PWR,
+                                            val,
+                                            InternalState::CONFIG_POWER_SET);
+            }
+            InternalState::CONFIG_POWER_SET => {
+                let val = self.channel.get() | PHY_CC_CCA_MODE_CS_OR_ED;
+                self.state_transition_write(RF233Register::PHY_CC_CCA,
+                                            val,
+                                            InternalState::CONFIG_DONE);
+            }
+
+            InternalState::CONFIG_DONE => {
+                self.config_pending.set(false);
+                self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
+                self.cfg_client.get().map(|c| { c.config_done(ReturnCode::SUCCESS); });
+            }
+
             InternalState::UNKNOWN => {}
         }
     }
@@ -639,13 +781,19 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
             state: Cell::new(InternalState::START),
             interrupt_handling: Cell::new(false),
             interrupt_pending: Cell::new(false),
+            config_pending: Cell::new(false),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_client: Cell::new(None),
             rx_client: Cell::new(None),
+            cfg_client: Cell::new(None),
+            power_client: Cell::new(None),
             addr: Cell::new(0),
+            addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
+            tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
+            channel: Cell::new(PHY_CHANNEL),
             seq: Cell::new(0),
             spi_rx: TakeCell::empty(),
             spi_tx: TakeCell::empty(),
@@ -735,26 +883,88 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
     /// be able to send the packet (store reference, etc.).
     // For details on frame format, the old CC2420 datasheet is a
     // very good guide. -pal
-    fn prepare_packet(&self, buf: &'static mut [u8], len: u8, dest: u16) {
+    fn prepare_packet(&self, buf: &'static mut [u8], len: u8, dest: u16, source_long: bool) {
         buf[0] = 0x00; // Where the frame command will go.
         buf[1] = len + 2 - 1; // plus 2 for CRC, - 1 for length byte  1/6/17 PAL
         buf[2] = 0x61; // 0x40: intra-PAN; 0x20: ack requested; 0x01: data frame
-        buf[3] = 0x88; // 0x80: 16-bit src addr; 0x08: 16-bit dest addr
+        if source_long {
+            buf[3] = 0xC8; // 0xC0: 64-bit source addr, 0x08: 16-bit dest addr
+        } else {
+            buf[3] = 0x88; // 0x80: 16-bit src addr; 0x08: 16-bit dest addr
+        }
         buf[4] = self.seq.get();
         buf[5] = (self.pan.get() & 0xFF) as u8; // PAN id is 16 bits
         buf[6] = (self.pan.get() >> 8) as u8;
         buf[7] = (dest & 0xff) as u8;
         buf[8] = (dest >> 8) as u8;
-        buf[9] = (self.addr.get() & 0xFF) as u8;
-        buf[10] = (self.addr.get() >> 8) as u8;
+        if (source_long) {
+            let addr_long = self.addr_long.get();
+            buf[9] = addr_long[0];
+            buf[10] = addr_long[1];
+            buf[11] = addr_long[2];
+            buf[12] = addr_long[3];
+            buf[13] = addr_long[4];
+            buf[14] = addr_long[5];
+            buf[15] = addr_long[6];
+            buf[16] = addr_long[7];
+        } else {
+            buf[9] = (self.addr.get() & 0xFF) as u8;
+            buf[10] = (self.addr.get() >> 8) as u8;
+        }
+        self.seq.set(self.seq.get() + 1);
+        self.tx_buf.replace(buf);
+        self.tx_len.set(len);
+    }
 
+    fn prepare_packet_long(&self,
+                           buf: &'static mut [u8],
+                           len: u8,
+                           dest: [u8; 8],
+                           source_long: bool) {
+        buf[0] = 0x00; // Where the frame command will go.
+        buf[1] = len + 2 - 1; // plus 2 for CRC, - 1 for length byte  1/6/17 PAL
+        buf[2] = 0x61; // 0x40: intra-PAN; 0x20: ack requested; 0x01: data frame
+        if source_long {
+            buf[3] = 0xCC; // 0xC0: 64-bit source addr, 0x0C: 64-bit dest addr
+        } else {
+            buf[3] = 0x8C; // 0x80: 16-bit src addr; 0x0C: 64-bit dest addr
+        }
+        buf[4] = self.seq.get();
+        buf[5] = (self.pan.get() & 0xFF) as u8; // PAN id is 16 bits
+        buf[6] = (self.pan.get() >> 8) as u8;
+
+        buf[7] = dest[0];
+        buf[8] = dest[1];
+        buf[9] = dest[2];
+        buf[10] = dest[3];
+        buf[11] = dest[4];
+        buf[12] = dest[5];
+        buf[13] = dest[6];
+        buf[14] = dest[7];
+
+        if (source_long) {
+            let addr_long = self.addr_long.get();
+            buf[15] = addr_long[0];
+            buf[16] = addr_long[1];
+            buf[17] = addr_long[2];
+            buf[18] = addr_long[3];
+            buf[19] = addr_long[4];
+            buf[20] = addr_long[5];
+            buf[21] = addr_long[6];
+            buf[22] = addr_long[7];
+        } else {
+            buf[15] = (self.addr.get() & 0xFF) as u8;
+            buf[16] = (self.addr.get() >> 8) as u8;
+        }
         self.seq.set(self.seq.get() + 1);
         self.tx_buf.replace(buf);
         self.tx_len.set(len);
     }
 }
 
-impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
+impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {}
+
+impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
     fn initialize(&self,
                   buf: &'static mut [u8],
                   reg_write: &'static mut [u8],
@@ -796,9 +1006,283 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
         ReturnCode::FAIL
     }
 
+    fn is_on(&self) -> bool {
+        self.radio_on.get()
+    }
+
+    fn busy(&self) -> bool {
+        self.state.get() != InternalState::READY
+    }
+
+    fn set_config_client(&self, client: &'static radio::ConfigClient) {
+        self.cfg_client.set(Some(client));
+    }
+
+    fn set_power_client(&self, client: &'static radio::PowerClient) {
+        self.power_client.set(Some(client));
+    }
+
+    fn config_set_address(&self, addr: u16) {
+        self.addr.set(addr);
+    }
+
+    fn config_set_address_long(&self, addr: [u8; 8]) {
+        self.addr_long.set(addr);
+    }
+
+    fn config_set_pan(&self, id: u16) {
+        self.pan.set(id);
+    }
+
+    fn config_set_tx_power(&self, power: i8) -> ReturnCode {
+        if (power > 4 || power < -17) {
+            ReturnCode::EINVAL
+        } else {
+            self.tx_power.set(power);
+            ReturnCode::SUCCESS
+        }
+    }
+
+    fn config_set_channel(&self, chan: u8) -> ReturnCode {
+        if chan >= 11 && chan <= 26 {
+            self.channel.set(chan);
+            ReturnCode::SUCCESS
+        } else {
+            ReturnCode::EINVAL
+        }
+    }
+
+
+    fn config_address(&self) -> u16 {
+        self.addr.get()
+    }
+
+    fn config_address_long(&self) -> [u8; 8] {
+        self.addr_long.get()
+    }
+
+    /// The 16-bit PAN ID
+    fn config_pan(&self) -> u16 {
+        self.pan.get()
+    }
+    /// The transmit power, in dBm
+    fn config_tx_power(&self) -> i8 {
+        self.tx_power.get()
+    }
+    /// The 802.15.4 channel
+    fn config_channel(&self) -> u8 {
+        self.channel.get()
+    }
+
+    fn config_commit(&self) -> ReturnCode {
+        let pending = self.config_pending.get();
+        if !pending {
+            self.config_pending.set(true);
+            let state = self.state.get();
+
+            if state == InternalState::READY {
+                // Start configuration commit
+                self.state_transition_write(RF233Register::SHORT_ADDR_0,
+                                            (self.addr.get() & 0xff) as u8,
+                                            InternalState::CONFIG_SHORT0_SET);
+            } else {
+                // Do nothing --
+                // Configuration will be pushed automatically on boot,
+                // or pending flag will be checked on return to READY
+                // and commit started
+            }
+        }
+        ReturnCode::SUCCESS
+    }
+}
+
+impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
+    // + 1 because we need space for the frame read/write byte for
+    // the SPI command. Otherwise, if the packet begins at byte 0, we
+    // have to copy it into a buffer whose byte 0 is the frame read/write
+    // command.
+    fn payload_offset(&self, long_src: bool, long_dest: bool) -> u8 {
+        let mut len: u8 = 1; // The SPI command at the head of the buffer
+        len += radio::HEADER_SIZE; // Size if both addresses are short
+        if long_src {
+            len += 6;
+        }
+        if long_dest {
+            len += 6;
+        }
+        len
+    }
+
+    fn header_size(&self, long_src: bool, long_dest: bool) -> u8 {
+        let mut len: u8 = radio::HEADER_SIZE;
+        if long_src {
+            len += 6;
+        } else if long_dest {
+            len += 6;
+        }
+        len
+    }
+
+    fn packet_header_size(&self, packet: &'static [u8]) -> u8 {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            0
+        } else {
+            let src = self.packet_has_src_long(packet);
+            let dest = self.packet_has_dest_long(packet);
+            self.header_size(src, dest)
+        }
+    }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a short source address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
+    fn packet_get_src(&self, packet: &'static [u8]) -> u16 {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return 0; // Packet invalid, not long enough
+        } else if self.packet_has_src_long(packet) {
+            return 0; // Has a long address
+        } else {
+            let mut offset = 9;
+            if self.packet_has_dest_long(packet) {
+                offset += 6;
+            }
+            if packet.len() < offset + 2 {
+                return 0; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: u16 = packet[offset] as u16 | (packet[offset + 1] as u16) << 8;
+            return addr;
+        }
+    }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a short destination address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
+    fn packet_get_dest(&self, packet: &'static [u8]) -> u16 {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return 0; // Packet invalid, not long enough
+        } else if self.packet_has_dest_long(packet) {
+            return 0; // Has a long address
+        } else {
+            let offset = 7; // Offset of dest field
+            if packet.len() < offset + 2 {
+                return 0; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: u16 = packet[offset] as u16 | (packet[offset + 1] as u16) << 8;
+            return addr;
+        }
+    }
+
+    fn packet_has_src_long(&self, packet: &'static [u8]) -> bool {
+        if packet.len() < 4 {
+            return false;
+        }
+        (packet[3] & 0xC0) == 0xC0
+    }
+
+    fn packet_has_dest_long(&self, packet: &'static [u8]) -> bool {
+        if packet.len() < 4 {
+            return false;
+        }
+        (packet[3] & 0x0C) == 0x0C
+    }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a long source address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
+    fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8; 8] {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return [0x00; 8]; // Packet invalid, not long enough
+        } else if !self.packet_has_src_long(packet) {
+            return [0x00; 8]; // Has a short address
+        } else {
+            let mut offset = 9;
+            if self.packet_has_dest_long(packet) {
+                offset += 6;
+            }
+            if packet.len() < offset + 8 {
+                return [0x00; 8]; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: [u8; 8] = [packet[offset],
+                                 packet[offset + 1],
+                                 packet[offset + 2],
+                                 packet[offset + 3],
+                                 packet[offset + 4],
+                                 packet[offset + 5],
+                                 packet[offset + 6],
+                                 packet[offset + 7]];
+            return addr;
+        }
+    }
+
+    // Because we're accessing a field in an array with a variable
+    // length header, we need to take a few steps to get the address
+    // safely.
+    // First, check the packet is long enough to check the FCF
+    // Second, check it has a long destination address.
+    // Third, compute the offset the address will be at.
+    // Fourth, check the packet is long enough for the address.
+    // Finally, extract and return the address.
+    fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8; 8] {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return [0x00; 8]; // Packet invalid, not long enough
+        } else if !self.packet_has_dest_long(packet) {
+            return [0x00; 8]; // Has a short address
+        } else {
+            let offset = 7; // Offset of dest field
+            if packet.len() < offset + 8 {
+                return [0x00; 8]; // Packet invalid, not long enough
+            }
+            // The most significant byte is second, IEEE
+            let addr: [u8; 8] = [packet[offset],
+                                 packet[offset + 1],
+                                 packet[offset + 2],
+                                 packet[offset + 3],
+                                 packet[offset + 4],
+                                 packet[offset + 5],
+                                 packet[offset + 6],
+                                 packet[offset + 7]];
+            return addr;
+        }
+    }
+
+    fn packet_get_length(&self, packet: &'static [u8]) -> u16 {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return 0;
+        } else {
+            return 0;
+        }
+    }
+    fn packet_get_pan(&self, packet: &'static [u8]) -> u16 {
+        if packet.len() < radio::HEADER_SIZE as usize {
+            return 0;
+        } else {
+            return 0;
+        }
+    }
+
+
     fn set_transmit_client(&self, client: &'static radio::TxClient) {
         self.tx_client.set(Some(client));
     }
+
     fn set_receive_client(&self, client: &'static radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(Some(client));
         self.rx_buf.replace(buffer);
@@ -808,58 +1292,12 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
         self.rx_buf.replace(buffer);
     }
 
-
-    // Setting the address also sets the panx
-    fn set_address(&self, addr: u16) -> ReturnCode {
-        let state = self.state.get();
-        // The start state will push addr into hardware on initialization;
-        // the ready state needs to do so immediately.
-        if state == InternalState::READY || state == InternalState::START {
-            self.addr.set(addr);
-            if state == InternalState::READY {
-                self.state_transition_write(RF233Register::SHORT_ADDR_0,
-                                            (self.addr.get() & 0xff) as u8,
-                                            InternalState::CONFIG_SHORT0_SET);
-            }
-            ReturnCode::SUCCESS
-        } else {
-            ReturnCode::EBUSY
-        }
-    }
-    // Setting the PAN also sets the address
-    fn set_pan(&self, addr: u16) -> ReturnCode {
-        let state = self.state.get();
-        // The start state will push addr into hardware on initialization;
-        // the ready state needs to do so immediately.
-        if state == InternalState::READY || state == InternalState::START {
-            self.pan.set(addr);
-            if state == InternalState::READY {
-                self.state_transition_write(RF233Register::SHORT_ADDR_0,
-                                            (self.addr.get() & 0xff) as u8,
-                                            InternalState::CONFIG_SHORT0_SET);
-            }
-            ReturnCode::SUCCESS
-        } else {
-            ReturnCode::EBUSY
-        }
-    }
-
-    // + 1 because we need space for the frame read/write byte for
-    // the SPI command. Otherwise, if the packet begins at byte 0, we
-    // have to copy it into a buffer whose byte 0 is the frame read/write
-    // command.
-    fn payload_offset(&self) -> u8 {
-        radio::HEADER_SIZE + 1
-    }
-    fn header_size(&self) -> u8 {
-        radio::HEADER_SIZE
-    }
-
-    fn ready(&self) -> bool {
-        self.radio_on.get() && self.state.get() == InternalState::READY
-    }
-
-    fn transmit(&self, dest: u16, payload: &'static mut [u8], len: u8) -> ReturnCode {
+    fn transmit(&self,
+                dest: u16,
+                payload: &'static mut [u8],
+                len: u8,
+                source_long: bool)
+                -> ReturnCode {
         let state = self.state.get();
         if !self.radio_on.get() {
             return ReturnCode::EOFF;
@@ -870,7 +1308,32 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::Radio for RF233<'a, S> {
             return ReturnCode::ESIZE;
         }
 
-        self.prepare_packet(payload, len, dest);
+        self.prepare_packet(payload, len, dest, source_long);
+        self.transmitting.set(true);
+        if !self.receiving.get() && state == InternalState::READY {
+            self.state_transition_read(RF233Register::TRX_STATUS,
+                                       InternalState::TX_STATUS_PRECHECK1);
+        }
+        return ReturnCode::SUCCESS;
+    }
+
+    fn transmit_long(&self,
+                     dest: [u8; 8],
+                     payload: &'static mut [u8],
+                     len: u8,
+                     source_long: bool)
+                     -> ReturnCode {
+        let state = self.state.get();
+        if !self.radio_on.get() {
+            return ReturnCode::EOFF;
+        } else if self.tx_buf.is_some() || self.transmitting.get() {
+            return ReturnCode::EBUSY;
+        } else if (len + 2) as usize >= payload.len() {
+            // Not enough room for CRC
+            return ReturnCode::ESIZE;
+        }
+
+        self.prepare_packet_long(payload, len, dest, source_long);
         self.transmitting.set(true);
         if !self.receiving.get() && state == InternalState::READY {
             self.state_transition_read(RF233Register::TRX_STATUS,

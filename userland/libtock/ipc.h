@@ -4,11 +4,11 @@
 #include <string.h>
 #include <tock.h>
 
-#define IPC_DRIVER_NUM 0xff
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define IPC_DRIVER_NUM 0xff
 
 // Performs service discovery
 //
@@ -60,4 +60,3 @@ int ipc_share(int pid, void* base, int len);
 #ifdef __cplusplus
 }
 #endif
-

@@ -8,7 +8,7 @@ developing Tock.
 
 1. [Rust](http://www.rust-lang.org/) (nightly)
 2. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
-3. to program the storm: stormloader (recommended) or JLinkExe
+3. [tockloader](https://github.com/helena-project/tockloader) (recommended) or [JLinkExe](https://www.segger.com/downloads/jlink)
 4. Command line utilities: wget, sed, make
 
 ### Installing Requirements
@@ -27,11 +27,10 @@ This will install `rustup` in your home directory, so you will need to
 source `~/.profile` or open a new shell to add the `.cargo/bin` directory
 to your `$PATH`.
 
-Then override the default version of Rust to use for Tock by running the
-following from the top-level Tock directory:
+Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup override set nightly-2017-01-25
+$ rustup install nightly-2017-01-25
 ```
 
 #### `arm-none-eabi` toolchain
@@ -98,7 +97,7 @@ On Arch Linux the `arm-none-eabi-newlib` package in pacman contains a
 sufficiently up-to-date version of newlibc.
 
 ```bash
-$ sudo pacman Sy arm-none-eabi-gcc arm-none-eabi-newlib arm-none-eabi-gdb
+$ sudo pacman -S arm-none-eabi-gcc arm-none-eabi-newlib arm-none-eabi-gdb
 ```
 
 ##### Windows
@@ -148,21 +147,6 @@ special build options that can only be used within the board's directory.
 Generic options such as `clean`, `doc`, `debug`, `program`, and `flash` can be
 accessed from Tock's root.
 
-## Uploading the Kernel
-
-To upload code to a board, use `make program` or `make flash` (recommended).
-
-  * `flash` programs the chip using JTAG, which is a debugging and
-    control protocol that many chips provide. This requires that the
-    board either supports JTAG directly (e.g., the nrf51dk) or you
-    connect a JTAG device to the board (e.g., imix and storm).
-
-  * `program` uploads code over a serial bootloader. Your computer sends
-    the image over the serial port to a small piece of code running on the
-    board, which writes the image to the chip's flash. Not all platforms
-    support this option.
-
-
 ## Compiling applications
 
 All user-level code lives in the `userland` subdirectory. This
@@ -200,41 +184,17 @@ Tock root directory:
 $ make examples/blink
 ```
 
-## Installing applications
+## Loading the kernel and applications onto a board.
 
-Application binaries are programmed separately from the kernel.
-Like the kernel, apps can be uploaded with `make program` or `make flash`.
-```bash
-$ cd userland/examples/blink/
-$ make program
-```
+This is generally done with `make program` and `make flash`, but is board
+specific. To learn how to program your specific hardware, please see
+the board specific READMEs:
 
-This builds and loads only a single app applications. Tock is capable
-of running multiple applications concurrently. In order to load
-multiple applications, you need to manually use the application upload
-tools. They are located in `userland/tools/`, are separated by upload
-method (`flash` or `program`) and take `.bin` files as input
-arguments.
+* [imix](../boards/imix/README.md)
+* [Hail](../boards/hail/README.md)
+* [nRF](../boards/nrf51dk/README.md)
+* [Storm](../boards/storm/README.md)
 
-For example, the following commands will program both blink and c_hello on
-a storm board:
-
-```bash
-$ make -C userland/examples/blink
-$ make -C userland/examples/c_hello
-$ userland/tools/program/storm.py userland/examples/blink/build/cortex-m4/app.bin userland/examples/c_hello/build/cortex-m4/app.bin
-```
-
-
-## Board-Specific Instructions
-
-For instructions on building, uploading code, and debugging on specific
-boards, see board specific READMEs.
-
- * [imix](../boards/imix/README.md)
- * [Hail](../boards/hail/README.md)
- * [nRF](../boards/nrf51dk/README.md)
- * [Storm](../boards/storm/README.md)
 
 ## Formatting Rust Source Code
 

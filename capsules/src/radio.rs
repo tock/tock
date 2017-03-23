@@ -7,6 +7,7 @@
 // Date: Jan 12 2017
 //
 
+
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
@@ -16,6 +17,7 @@ use kernel::returncode::ReturnCode;
 struct App {
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
+    cfg_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
 }
@@ -51,6 +53,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                         App {
                             tx_callback: None,
                             rx_callback: None,
+                            cfg_callback: None,
                             app_read: Some(slice),
                             app_write: None,
                         }
@@ -69,6 +72,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                         App {
                             tx_callback: None,
                             rx_callback: None,
+                            cfg_callback: None,
                             app_read: None,
                             app_write: Some(slice),
                         }
@@ -92,6 +96,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     None => App {
                         tx_callback: Some(callback),
                         rx_callback: None,
+                        cfg_callback: None,
                         app_read: None,
                         app_write: None,
                     },
@@ -108,6 +113,7 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     None => App {
                         tx_callback: None,
                         rx_callback: Some(callback),
+                        cfg_callback: None,
                         app_read: None,
                         app_write: None,
                     },
@@ -119,6 +125,23 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                 self.app.replace(appc);
                 ReturnCode::SUCCESS
             },
+            2 /* config */ => {
+                let appc = match self.app.take() {
+                    None => App {
+                        tx_callback: None,
+                        rx_callback: None,
+                        cfg_callback: Some(callback),
+                        app_read: None,
+                        app_write: None,
+                    },
+                    Some(mut appc) => {
+                        appc.cfg_callback = Some(callback);
+                        appc
+                    }
+                };
+                self.app.replace(appc);
+                ReturnCode::SUCCESS
+            }
             _ => ReturnCode::ENOSUPPORT
         }
     }
@@ -134,31 +157,38 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* set 16-bit address */ => {
-                self.radio.set_address(arg1 as u16)
+                self.radio.config_set_address(arg1 as u16);
+                ReturnCode::SUCCESS
             },
             2 /* set PAN id */ => {
-                self.radio.set_pan(arg1 as u16)
+                self.radio.config_set_pan(arg1 as u16);
+                ReturnCode::SUCCESS
             },
             3 /* set channel */ => { // not yet supported
-                ReturnCode::ENOSUPPORT
+                self.radio.config_set_channel(arg1 as u8)
             },
             4 /* set tx power */ => { // not yet supported
-                ReturnCode::ENOSUPPORT
+                let mut val = arg1 as i32;
+                val = val - 128; // Library adds 128 to make unsigned
+                self.radio.config_set_tx_power(val as i8)
             },
             5 /* tx packet */ => {
                 // Don't transmit if we're busy, the radio is off, or
                 // we don't have a buffer yet.
                 if self.busy.get() {
                     return ReturnCode::EBUSY;
-                } else if !self.radio.ready() {
+                } else if !self.radio.is_on() {
                     return ReturnCode::EOFF;
                 } else if self.kernel_tx.is_none() {
                     return ReturnCode::ENOMEM;
+                } else if self.app.is_none() {
+                    return ReturnCode::ERESERVE;
                 }
 
                 // The argument packs the 16-bit destination address
                 // and length in the 32-bit argument. Bits 0-15 are
                 // the address and bits 16-23 are the length.
+                let mut rval = ReturnCode::SUCCESS;
                 self.app.map(|app| {
                     let mut blen = 0;
                     // If write buffer too small, return
@@ -168,9 +198,10 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                     let len: usize = (arg1 >> 16) & 0xff;
                     let addr: u16 = (arg1 & 0xffff) as u16;
                     if blen < len {
-                        return ReturnCode::ESIZE;
+                        rval = ReturnCode::ESIZE;
+                        return;
                     }
-                    let offset = self.radio.payload_offset() as usize;
+                    let offset = self.radio.payload_offset(false, false) as usize;
                     // Copy the packet into the kernel buffer
                     self.kernel_tx.map(|kbuf| {
                         app.app_write.as_mut().map(|src| {
@@ -179,24 +210,24 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
                             }
                         });
                     });
-                    let transmit_len = len as u8 + self.radio.header_size();
+                    let transmit_len = len as u8 + self.radio.header_size(false, false);
                     let kbuf = self.kernel_tx.take().unwrap();
-
-                    let rval = self.radio.transmit(addr, kbuf, transmit_len);
+                    rval = self.radio.transmit(addr, kbuf, transmit_len, false);
                     if rval == ReturnCode::SUCCESS {
                         self.busy.set(true);
-                        return ReturnCode::SUCCESS
                     }
-                    return rval;
                 });
-                return ReturnCode::ERESERVE;
+                rval
             },
             6 /* check if on */ => {
-                if self.radio.ready() {
+                if self.radio.is_on() {
                     ReturnCode::SUCCESS
                 } else {
                     ReturnCode::EOFF
                 }
+            }
+            7 /* commit config */ => {
+                self.radio.config_commit()
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -204,11 +235,13 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
 }
 
 impl<'a, R: radio::Radio> radio::TxClient for RadioDriver<'a, R> {
-    fn send_done(&self, buf: &'static mut [u8], result: ReturnCode) {
+    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.app.map(move |app| {
             self.kernel_tx.replace(buf);
             self.busy.set(false);
-            app.tx_callback.take().map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
+            app.tx_callback
+                .take()
+                .map(|mut cb| { cb.schedule(usize::from(result), acked as usize, 0); });
         });
     }
 }
@@ -218,7 +251,7 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
         if self.app.is_some() {
             self.app.map(move |app| {
                 if app.app_read.is_some() {
-                    let offset = self.radio.payload_offset() as usize;
+                    let offset = self.radio.payload_offset(false, false) as usize;
                     let dest = app.app_read.as_mut().unwrap();
                     let d = &mut dest.as_mut();
                     for (i, c) in buf[offset..len as usize].iter().enumerate() {
@@ -233,5 +266,13 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
         } else {
             self.radio.set_receive_buffer(buf);
         }
+    }
+}
+
+impl<'a, R: radio::Radio> radio::ConfigClient for RadioDriver<'a, R> {
+    fn config_done(&self, result: ReturnCode) {
+        self.app.map(move |app| {
+            app.cfg_callback.take().map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
+        });
     }
 }

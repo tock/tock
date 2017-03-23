@@ -4,7 +4,9 @@ use kernel::common::{RingBuffer, Queue};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use rtc;
+use temperature;
 use timer;
+use trng;
 use uart;
 
 const IQ_SIZE: usize = 100;
@@ -43,6 +45,8 @@ impl kernel::Chip for NRF51 {
                     NvicIdx::TIMER1 => timer::ALARM1.handle_interrupt(),
                     NvicIdx::TIMER2 => timer::TIMER2.handle_interrupt(),
                     NvicIdx::UART0 => uart::UART0.handle_interrupt(),
+                    NvicIdx::TEMP => temperature::TEMP.handle_interrupt(),
+                    NvicIdx::RNG => trng::TRNG.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);

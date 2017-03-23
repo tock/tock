@@ -2,11 +2,11 @@
 
 #include <tock.h>
 
-#define DRIVER_NUM_BUTTON 9
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define DRIVER_NUM_BUTTON 9
 
 int button_subscribe(subscribe_cb callback, void *ud);
 int button_enable_interrupt(int pin_num);
