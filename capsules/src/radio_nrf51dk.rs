@@ -177,7 +177,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         self.alarm.set_alarm(tics);
     }
 
-    pub fn read_userland_buffer(&self) {
+    pub fn send_userland_buffer(&self) {
 
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
@@ -203,7 +203,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         }
         self.radio.set_channel(self.frequency.get());
 
-        self.read_userland_buffer();
+        self.send_userland_buffer();
 
         let interval = (4100 as u32);
         let tics = self.alarm.now().wrapping_add(interval);
