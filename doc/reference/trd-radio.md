@@ -269,7 +269,7 @@ to send a packet (e.g., already has a transmission pending), then
 transmission (returns SUCCESS), it MUST return EBUSY until it issues a
 transmission completion callback.
 
-4. TxClient, RxClient, ConfigClient, and PowerClient traits
+5. TxClient, RxClient, ConfigClient, and PowerClient traits
 -------------------------------
 
 An 802.15.4 radio provides four callbacks: packet transmission
@@ -332,7 +332,13 @@ callback signals the radio is off. Similarly, if the `changed` callback
 has indicated that the radio is off, then `is_on` MUST return false
 until a later callback signals the radio is on.
 
-5. Example Implementation: RF233
+6. RadioCrypto trait
+---------------------------------
+
+The RadioCrypto trait is for configuring and enabling/disabling
+different security settings.
+
+7. Example Implementation: RF233
 ---------------------------------
 
 An implementation of the radio HIL for the Atmel RF233 radio can be
@@ -382,7 +388,7 @@ issuing a register read. In cases when transmissions are interrupted
 by packet reception, the stack simply marks the packet as pending and
 waits for the reception to complete, then retries the transmission.
 
-6. Authors' Address
+8. Authors' Address
 ---------------------------------
 
     Philip Levis
@@ -394,7 +400,7 @@ waits for the reception to complete, then retries the transmission.
 
     email - pal@cs.stanford.edu
 
-7. Citations
+9. Citations
 ---------------------------------
 
 [TRD1]: trd1-trds.md "Tock Reference Document (TRD) Structure and Keywords"

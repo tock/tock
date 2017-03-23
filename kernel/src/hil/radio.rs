@@ -87,6 +87,23 @@ pub trait RadioData {
     fn transmit_long(&self, dest: [u8;8], tx_data: &'static mut [u8], tx_len: u8, source_long: bool) -> ReturnCode;
 }
 
+pub enum RadioMacLen {
+    ZERO = 0,
+    FOUR = 4,
+    EIGHT = 8,
+    SIXTEEN = 16,
+}
+
+// C is the confidentiality key type, I is the integrity key type
+pub trait RadioCrypto<C,I> {
+    fn set_encrypt_key(&self, key: C);
+    fn set_decrypt_key(&self, key: C);
+    fn set_mac_key(&self, key: I);
+    fn set_mac_check_key(&self, key: I);
+    fn set_encrypt(&self, on: bool);
+    fn set_mac(&self, len: RadioMacLen);
+}
+
 #[repr(C, packed)]
 pub struct Header {
     len: u8,
