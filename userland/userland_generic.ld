@@ -1,39 +1,14 @@
+/* Userland Generic Layout
+ *
+ * This linker script is designed for Tock apps where the end microcontroller
+ * is not known. Therefore, this script over provisions space on some platforms.
+ */
+
+/* Memory Spaces Definitions, 448K flash, 64K ram */
+PROG_LENGTH = 0x00040000;
+RAM_LENGTH  = 0x00010000;
+
 ENTRY(_start)
-
-/* Userland Layout
- *
- * This script is designed to be used in conjunction with a chip_layout.ld from
- * a Tock board directory. A properly configured layout.ld file will look like:
- *
- *     INCLUDE <tock_board_dir>/chip_layout.ld
- *     INCLUDE <tock_userland_base_dir>./userland_layout.ld
- *
- * The Tock build system should generate and use an appropriate linker script
- * automatically for you.
- */
-
-
-
-/* TODO: Reserve space for Tock.
- *
- * Currently, this memory map allows applications to grow to the entire SRAM
- * size of the chip they are being built for. If an application is actually
- * that large, it will fail on loading because the Tock kernel requires some
- * amount of memory itself.
- *
- * I *believe* that we could lookup the location of the `.app_memory` section
- * from the built tock kernel image to get a better size estimate, but that
- * requires the userland build to know the location of the Tock kernel image
- * which isn't necessarily trivial.
- *
- * For now, the best we can do is fail at app load time if there's not enough
- * memory left for the app.
- *
- * TOCK_RAM_RESERVED = 0x4000;
- * SRAM (RWX) : ORIGIN = 0x00000000, LENGTH = RAM_LENGTH - TOCK_RAM_RESERVED
- *
- */
-
 
 /* Note: Because apps are relocated, the FLASH address here acts as a sentinel
  * value for relocation fixup routines. The application loader will select the

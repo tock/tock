@@ -1,14 +1,20 @@
 # Makefile for loading applications for the nrf51dk
 
 $(call check_defined, TOCK_USERLAND_BASE_DIR)
+$(call check_defined, BUILDDIR)
+$(call check_defined, PACKAGE_NAME)
 
-TOCK_ARCH=cortex-m0
+TOCK_ARCH = cortex-m0
+BOARD_BUILDDIR = $(BUILDDIR)/$(TOCK_ARCH)
 
 NRF_LOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf51dk.py
 
-# upload programs to nrf51dk
+# Upload programs over uart (does not work for nRF)
+.PHONY: program
+program: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+	$(error No program rule for nRF)
+
+# Upload programs to nrf51dk
 .PHONY: flash
-.SECONDEXPANSION:
-flash: $$(BOARD_BUILDDIR)/app.bin
-	@:$(call check_defined, BOARD_BUILDDIR)
-	$(NRF_LOAD) $(BOARD_BUILDDIR)/app.bin
+flash: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+	$(NRF_LOAD) $<
