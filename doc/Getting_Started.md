@@ -27,17 +27,11 @@ This will install `rustup` in your home directory, so you will need to
 source `~/.profile` or open a new shell to add the `.cargo/bin` directory
 to your `$PATH`.
 
-Then override the default version of Rust to use for Tock by running the
-following from the top-level Tock directory:
+Then install the correct nightly version of Rust:
 
 ```bash
-$ cd tock
-$ rustup override set nightly-2017-01-25
+$ rustup install nightly-2017-01-25
 ```
-
-If you are having trouble with running the correct version of rust, you
-can check the `$HOME/multirust/settings.toml` file for which versions
-are set to which folders.
 
 #### `arm-none-eabi` toolchain
 
