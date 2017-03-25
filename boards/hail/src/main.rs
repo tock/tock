@@ -106,9 +106,10 @@ impl Platform for Hail {
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
             11 => f(Some(self.fxos8700)),
-            12 => f(Some(self.crc)),
 
             14 => f(Some(self.rng)),
+
+            16 => f(Some(self.crc)),
 
             0xff => f(Some(&self.ipc)),
             _ => f(None),

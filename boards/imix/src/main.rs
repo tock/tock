@@ -84,7 +84,7 @@ impl kernel::Platform for Imix {
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
             11 => f(Some(self.fxos8700_cq)),
-            12 => f(Some(self.crc)),
+            16 => f(Some(self.crc)),
             154 => f(Some(self.radio)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
