@@ -163,7 +163,7 @@ impl AesECB {
             }
 
             // USE THIS PRINT TO TEST THAT THE CTR UPDATES ACCORDINGLY
-            // panic!("ctr {:?}\r\n", self.ctr.get());
+            // debug!("ctr {:?}\r\n", self.ctr.get());
 
             // More bytes to encrypt!!!
             if self.remaining.get() > 0 {

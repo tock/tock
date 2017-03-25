@@ -201,16 +201,9 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                         cntr.enter(|app, _| {
                             app.key_buf.as_ref().map(|slice| {
                                 self.kernel_key.take().map(|buf| {
-                                    for (i, c) in slice.as_ref()[0..len]
-                                        .iter()
-                                        .enumerate() {
-                                        // quit pre-maturely
-                                        if buf.len() < i {
-                                            self.busy.set(false);
-                                            self.state.set(CryptoState::IDLE);
-                                            break;
-                                        }
-                                        buf[i] = *c;
+                                    for (out, inp) in buf.iter_mut()
+                                        .zip(slice.as_ref()[0..16].iter()) {
+                                        *out = *inp;
                                     }
                                     self.crypto.set_key(buf);
                                 });
@@ -240,29 +233,15 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                         cntr.enter(|app, _| {
                             app.data_buf.as_ref().map(|slice| {
                                 self.kernel_data.take().map(|buf| {
-                                    for (i, c) in slice.as_ref()[0..len]
-                                        .iter()
-                                        .enumerate() {
-                                        // buf len is not the same as len abort
-                                        if buf.len() < i {
-                                            self.busy.set(false);
-                                            self.state.set(CryptoState::IDLE);
-                                            break;
-                                        }
-                                        buf[i] = *c;
+                                    for (out, inp) in buf.iter_mut()
+                                        .zip(slice.as_ref()[0..len].iter()) {
+                                        *out = *inp;
                                     }
                                     app.ctr_buf.as_ref().map(|slice2| {
                                         self.kernel_ctr.take().map(move |ctr| {
-                                            for (i, c) in slice2.as_ref()[0..16]
-                                                .iter()
-                                                .enumerate() {
-                                                // buf len is not the same as len abort
-                                                if ctr.len() < i {
-                                                    self.busy.set(false);
-                                                    self.state.set(CryptoState::IDLE);
-                                                    break;
-                                                }
-                                                ctr[i] = *c;
+                                            for (out, inp) in ctr.iter_mut()
+                                                .zip(slice2.as_ref()[0..16].iter()) {
+                                                *out = *inp;
                                             }
                                             self.crypto.aes128_crypt_ctr(buf, ctr, len as u8);
                                         });
