@@ -24,12 +24,6 @@ static struct test_case test_cases[] = {
 
 int n_test_cases = sizeof(test_cases) / sizeof(struct test_case);
 
-int test_index;
-
-void receive_result(int, int, int, void *);
-
-bool completed;
-
 uint32_t procid;
 
 int main(void) {
@@ -52,58 +46,31 @@ int main(void) {
     exit(1);
   }
 
-  if (crc_subscribe(receive_result, 0) !=0) {
-    printf("CRC subscribe failed\n");
-    exit(1);
-  }
-
   while (1) {
-    for (test_index = 0; test_index < n_test_cases; test_index++) {
+    for (int test_index = 0; test_index < n_test_cases; test_index++) {
       struct test_case *t = &test_cases[test_index];
 
-      printf("Requesting test case %d (length %d) ...\n",
-             test_index, strlen(t->input));
-
-      if ((r = crc_set_buffer(t->input, strlen(t->input))) != 0) {
-        printf("CRC set-buffer failed: %d\n", r);
+      uint32_t result;
+      if ((r = crc_compute(t->input, strlen(t->input), t->alg, &result)) != SUCCESS) {
+        printf("CRC compute failed: %d\n", r);
         exit(1);
       }
 
-      completed = false;
-      if ((r = crc_request(t->alg)) != 0) {
-        printf("CRC request failed: %d\n", r);
-        exit(1);
+      printf("[%8lx] Case %2d: ", procid, test_index);
+      if (r == SUCCESS) {
+        printf("result=%08lx ", result);
+        if (result == t->output)
+          printf("(OK)");
+        else
+          printf("(Expected %08lx)", t->output);
       }
-
-      printf("Waiting for CRC results ...\n");
-      yield_for(&completed);
+      else {
+        printf("failed with status %d\n", r);
+      }
+      printf("\n");
     }
 
-    printf("\n\n");
+    printf("\n");
     delay_ms(1000);
   }
-}
-
-void receive_result(int status, int v1,
-                    __attribute__((unused)) int v2,
-                    __attribute__((unused)) void *data)
-{
-  uint32_t result = v1;
-
-  struct test_case *t = &test_cases[test_index];
-
-  printf("[%8lx] Case %d: ", procid, test_index);
-  if (status == SUCCESS) {
-    printf("result=%8lx ", result);
-    if (result == t->output)
-      printf("(OK)");
-    else
-      printf("(Expected %8lx)", t->output);
-  }
-  else {
-    printf("failed with status %d\n", status);
-  }
-  printf("\n");
-
-  completed = true;
 }

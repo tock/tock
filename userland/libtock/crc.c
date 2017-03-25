@@ -29,6 +29,7 @@ struct data {
 static void callback(int status, int v1, __attribute__((unused)) int v2, void *data)
 {
   struct data *d = data;
+
   d->fired = true;
   d->status = status;
   d->result = v1;
@@ -36,7 +37,7 @@ static void callback(int status, int v1, __attribute__((unused)) int v2, void *d
 
 int crc_compute(const void *buf, size_t buflen, enum crc_alg alg, uint32_t *result)
 {
-  struct data d = { .fired = true };
+  struct data d = { .fired = false };
 
   crc_set_buffer(buf, buflen);
   crc_subscribe(callback, (void *) &d);
