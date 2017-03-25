@@ -6,18 +6,18 @@
 #include <rng.h>
 
 struct test_case {
-  enum crc_polynomial poly;
+  enum crc_alg alg;
   uint32_t output;
   char *input;
 };
 
-#define CASE(poly, output, input) char input_ ## poly ## _ ## output [] = input;
+#define CASE(alg, output, input) char input_ ## alg ## _ ## output [] = input;
 #include "test_cases.h"
 #undef CASE
 
 static struct test_case test_cases[] = {
-#define CASE(poly, output, input) \
-  { poly, output, input_ ## poly ## _ ## output },
+#define CASE(alg, output, input) \
+  { alg, output, input_ ## alg ## _ ## output },
 #include "test_cases.h"
 #undef CASE
 };
@@ -70,8 +70,8 @@ int main(void) {
       }
 
       completed = false;
-      if ((r = crc_compute(t->poly)) != 0) {
-        printf("CRC compute-request failed: %d\n", r);
+      if ((r = crc_request(t->alg)) != 0) {
+        printf("CRC request failed: %d\n", r);
         exit(1);
       }
 

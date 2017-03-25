@@ -8,8 +8,8 @@ uint32_t crc_version(void) {
   return command(DRIVER_NUM_CRC, 1, 0);
 }
 
-int crc_compute(enum crc_polynomial poly) {
-  return command(DRIVER_NUM_CRC, 2, poly);
+int crc_request(enum crc_alg alg) {
+  return command(DRIVER_NUM_CRC, 2, alg);
 }
 
 int crc_subscribe(subscribe_cb callback, void *ud) {
@@ -18,4 +18,33 @@ int crc_subscribe(subscribe_cb callback, void *ud) {
 
 int crc_set_buffer(const void* buf, size_t len) {
   return allow(DRIVER_NUM_CRC, 0, (void*) buf, len);
+}
+
+struct data {
+  bool fired;
+  int status;
+  uint32_t result;
+};
+
+static void callback(int status, int v1, __attribute__((unused)) int v2, void *data)
+{
+  struct data *d = data;
+  d->fired = true;
+  d->status = status;
+  d->result = v1;
+}
+
+int crc_compute(const void *buf, size_t buflen, enum crc_alg alg, uint32_t *result)
+{
+  struct data d = { .fired = true };
+
+  crc_set_buffer(buf, buflen);
+  crc_subscribe(callback, (void *) &d);
+  crc_request(alg);
+  yield_for(&d.fired);
+
+  if (d.status == SUCCESS)
+    *result = d.result;
+
+  return d.status;
 }

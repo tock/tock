@@ -8,14 +8,36 @@ extern "C" {
 
 #define DRIVER_NUM_CRC 12
 
-enum crc_polynomial {
-  CRC_CCIT8023,   // Polynomial 0x04C11DB7
-  CRC_CASTAGNOLI, // Polynomial 0x1EDC6F41
-  CRC_CCIT16      // Polynomial 0x1021
+// CRC algorithms
+//
+// In all cases, input bytes are bit-reversed (i.e., consumed from LSB to MSB.)
+//
+// Algorithms prefixed with `SAM4L_` are native to that chip and thus require
+// no software post-processing on platforms using it.
+//
+enum crc_alg {
+    // Polynomial 0x04C11DB7, output reversed then inverted ("CRC-32")
+    CRC_32,
+    // Polynomial 0x1EDC6F41, output reversed then inverted ("CRC-32C" / "Castagnoli")
+    CRC_32C,
+
+    /// Polynomial 0x1021, no output post-processing
+    CRC_SAM4L_16,
+    /// Polynomial 0x04C11DB7, no output post-processing
+    CRC_SAM4L_32,
+    /// Polynomial 0x1EDC6F41, no output post-processing
+    CRC_SAM4L_32C,
 };
 
 // Does the driver exist?
 int crc_exists(void);
+
+// Compute a CRC value over the given buffer using the given algorithm
+//
+// Returns SUCCESS and sets `result` on success.
+// Returns EBUSY if a computation is already in progress.
+// Returns ESIZE if the buffer is too big for the unit.
+int crc_compute(const void *buf, size_t buflen, enum crc_alg, uint32_t *result);
 
 // Get the version of the CRC firmware
 uint32_t crc_version(void);
@@ -30,7 +52,7 @@ int crc_subscribe(subscribe_cb, void *);
 // Provide the buffer over which to compute a CRC
 int crc_set_buffer(const void*, size_t);
 
-// Request a CRC computation.
+// Request a CRC computation asynchronously
 //
 // The callback and buffer must be provided first.
 //
@@ -39,7 +61,7 @@ int crc_set_buffer(const void*, size_t);
 //
 // Returns EBUSY if a computation is already in progress.
 // Returns ESIZE if the buffer is too big for the unit.
-int crc_compute(enum crc_polynomial);
+int crc_request(enum crc_alg);
 
 #ifdef __cplusplus
 }

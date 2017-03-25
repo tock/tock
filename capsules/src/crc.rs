@@ -3,25 +3,17 @@
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
 use kernel::hil;
+use kernel::hil::crc::CrcAlg;
 use kernel::process::Error;
 
+#[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
     buffer: Option<AppSlice<Shared, u8>>,
 
     // if Some, the application is awaiting the result of a CRC
-    //   using the given polynomial
-    waiting: Option<hil::crc::Polynomial>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            callback: None,
-            buffer: None,
-            waiting: None,
-        }
-    }
+    //   using the given algorithm
+    waiting: Option<hil::crc::CrcAlg>,
 }
 
 pub struct Crc<'a, C: hil::crc::CRC + 'a> {
@@ -131,7 +123,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C>  {
             // Request a CRC computation
             2 => {
                 let result =
-                    if let Some(poly) = hil::crc::poly_from_int(data) {
+                    if let Some(alg) = alg_from_user_int(data) {
                         self.apps
                             .enter(appid, |app, _| {
                                 if app.waiting.is_some() {
@@ -140,7 +132,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C>  {
                                 }
                                 else {
                                     if app.callback.is_some() && app.buffer.is_some() {
-                                        app.waiting = Some(poly);
+                                        app.waiting = Some(alg);
                                         ReturnCode::SUCCESS
                                     }
                                     else { ReturnCode::EINVAL }
@@ -193,5 +185,16 @@ impl<'a, C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
         else {
             // Ignore orphaned computation
         }
+    }
+}
+
+fn alg_from_user_int(i: usize) -> Option<hil::crc::CrcAlg> {
+    match i {
+        0 => Some(CrcAlg::Crc32),
+        1 => Some(CrcAlg::Crc32C),
+        2 => Some(CrcAlg::Sam4L16),
+        3 => Some(CrcAlg::Sam4L32),
+        4 => Some(CrcAlg::Sam4L32C),
+        _ => None
     }
 }

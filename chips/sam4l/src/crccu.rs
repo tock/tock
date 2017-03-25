@@ -1,11 +1,36 @@
 //! CRCCU implementation for the SAM4L
-//
-//  see datasheet section "41. Cyclic Redundancy Check Calculation Unit (CRCCU)"
-
-// Bugs:
-//
-// - Calculations with the two 32-bit polynomials produce results different
-//   from the reference in the notes below.
+//!
+//! See datasheet section "41. Cyclic Redundancy Check Calculation Unit (CRCCU)".
+//!
+//! The SAM4L can compute CRCs using three different polynomials:
+//!
+//!   * 0x04C11DB7 (as used in "CRC-32"; Atmel calls this "CCIT8023")
+//!   * 0x1EDC6F41 (as used in "CRC-32C"; Atmel calls this "CASTAGNOLI")
+//!   * 0x1021     (as used in "CRC-16-CCITT"; Atmel calls this "CCIT16")
+//!
+//! (The integers above give each polynomial from most-significant to least-significant
+//! bit, except that the most significant bit is omitted because it is always 1.)
+//!
+//! In all cases, the unit consumes each input byte from LSB to MSB.
+//!
+//! Note that the chip's behavior differs from some "standard" CRC algorithms,
+//! which may do some of these things:
+//!
+//!   * Consume input from MSB to LSB (CRC-16-CCITT?)
+//!   * Bit-reverse and then bit-invert the output (CRC-32)
+//!
+//! # Notes
+//!
+//! This [calculator](http://www.zorc.breitbandkatze.de/crc.html) may be used to
+//! generate CRC values.  To match the output of the SAM4L, the parameters must
+//! be set as follows:
+//!
+//!   * Final XOR value: 0  (equivalent to no final XOR)
+//!   * reverse data bytes: yes
+//!   * reverse CRC result before Final XOR: no
+//!
+//! For one example, the SAM4L calculates 0x1541 for "ABCDEFG" when using
+//! polynomial 0x1021.
 
 // Infelicities:
 //
@@ -23,21 +48,9 @@
 //
 // - Support continuous-mode CRC
 
-// Notes:
-//
-// http://www.at91.com/discussions/viewtopic.php/f,29/t,24859.html
-//      Atmel is using the low bit instead of the high bit so reversing
-//      the values before calculation did the trick. Here is a calculator
-//      that matches (click CCITT and check the 'reverse data bytes' to
-//      get the correct value):
-//
-//          http://www.zorc.breitbandkatze.de/crc.html
-//
-//      The SAM4L calculates 0x1541 for "ABCDEFG".
-
 use core::cell::Cell;
 use kernel::returncode::ReturnCode;
-use kernel::hil::crc::{self, Polynomial};
+use kernel::hil::crc::{self, CrcAlg};
 use nvic;
 use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
 
@@ -128,6 +141,48 @@ impl TCR {
     }
 }
 
+#[derive(Copy, Clone)]
+enum Polynomial {
+	CCIT8023,   // Polynomial 0x04C11DB7
+	CASTAGNOLI, // Polynomial 0x1EDC6F41
+	CCIT16,		// Polynomial 0x1021
+}
+
+fn poly_for_alg(alg: CrcAlg) -> Polynomial {
+    match alg {
+        CrcAlg::Crc32    => Polynomial::CCIT8023,
+        CrcAlg::Crc32C   => Polynomial::CASTAGNOLI,
+        CrcAlg::Sam4L16  => Polynomial::CCIT16,
+        CrcAlg::Sam4L32  => Polynomial::CCIT8023,
+        CrcAlg::Sam4L32C => Polynomial::CASTAGNOLI,
+    }
+}
+
+fn post_process(result: u32, alg: CrcAlg) -> u32 {
+    match alg {
+        CrcAlg::Crc32    => reverse_and_invert(result),
+        CrcAlg::Crc32C   => reverse_and_invert(result),
+        CrcAlg::Sam4L16  => result,
+        CrcAlg::Sam4L32  => result,
+        CrcAlg::Sam4L32C => result,
+    }
+}
+
+fn reverse_and_invert(n: u32) -> u32 {
+    let mut out: u32 = 0;
+
+    // Bit-reverse
+    for j in 0..32 {
+        let i = 31 - j;
+        out |= ((n & (1 << i)) >> i) << j;
+    }
+
+    // Bit-invert
+    out ^= 0xffffffff;
+
+    out
+}
+
 pub enum TrWidth { Byte, HalfWord, Word }
 
 // Mode Register (see Section 41.6.10)
@@ -152,6 +207,7 @@ enum State { Invalid, Initialized, Enabled }
 pub struct Crccu<'a> {
     client: Option<&'a crc::Client>,
     state: Cell<State>,
+    alg: Cell<CrcAlg>,
 
     // Guaranteed room for a Descriptor with 512-byte alignment.
     // (Can we do this statically instead?)
@@ -164,6 +220,7 @@ impl<'a> Crccu<'a> {
     const fn new() -> Self {
         Crccu { client: None,
                 state: Cell::new(State::Invalid),
+                alg: Cell::new(CrcAlg::Crc32C),
                 descriptor_space: [0; DSCR_RESERVE] }
     }
 
@@ -241,7 +298,7 @@ impl<'a> Crccu<'a> {
 
             if self.get_tcr().interrupt_enabled() {
                 if let Some(client) = self.get_client() {
-                    let result = SR.read();
+                    let result = post_process(SR.read(), self.alg.get());
                     client.receive_result(result);
                 }
 
@@ -267,7 +324,7 @@ impl<'a> crc::CRC for Crccu<'a> {
         VERSION.read()
     }
 
-    fn compute(&self, data: &[u8], poly: Polynomial) -> ReturnCode {
+    fn compute(&self, data: &[u8], alg: CrcAlg) -> ReturnCode {
         self.init();
 
         if self.get_tcr().interrupt_enabled() {
@@ -307,11 +364,14 @@ impl<'a> crc::CRC for Crccu<'a> {
         self.set_descriptor(addr, ctrl, crc);
         DSCR.write(self.descriptor() as u32);
 
+        // Record what algorithm was requested
+        self.alg.set(alg);
+
         // Configure the unit to compute a checksum
         let divider = 0;
         let compare = false;
         let enable = true;
-        let mode = Mode::new(divider, poly, compare, enable);
+        let mode = Mode::new(divider, poly_for_alg(alg), compare, enable);
         MR.write(mode.0);
 
         // Enable DMA channel
