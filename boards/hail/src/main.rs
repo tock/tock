@@ -35,15 +35,16 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
         static _sapps: u8;
     }
 
-    const NUM_PROCS: usize = 2;
+    const NUM_PROCS: usize = 4;
 
     // how should the kernel respond when a process faults
     const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
     #[link_section = ".app_memory"]
-    static mut APP_MEMORY: [u8; 16384] = [0; 16384];
+    static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
-    static mut PROCESSES: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None, None];
+    static mut PROCESSES: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None, None,
+                                                                                    None, None];
 
     let mut apps_in_flash_ptr = &_sapps as *const u8;
     let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
