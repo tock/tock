@@ -35,9 +35,9 @@ endif
 
 # Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
 RUSTC_VERSION_STRING := rustc 1.16.0-nightly (83c2d9523 2017-01-24)
-ifneq ($(shell RUST_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
+ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
   DUMMY := $(shell rustup install $(RUSTUP_TOOLCHAIN))
-  ifneq ($(shell RUST_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
+  ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
     $(warning You do not have the correct version of `rustc` configured, and `rustup` is not installed.)
     $(warning Expected `rustc` version "$(RUSTC_VERSION_STRING)" but got "$(shell rustc --version)")
     $(warning You may experience unexpected compilation warnings or errors)
