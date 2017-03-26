@@ -12,10 +12,10 @@ if [ ! -d "nrf5x-base-$NRF5X_BASE_SHA" ]; then
 	unzip $NRF5X_BASE_SHA.zip
 fi
 
-make NRF_BASE_PATH=nrf5x-base-$NRF5X_BASE_SHA
+TOCK_ARCH=cortex-m4 BUILDDIR=build/cortex-m4 make NRF_BASE_PATH=nrf5x-base-$NRF5X_BASE_SHA
 cp build/cortex-m4/libnrfserialization.a libnrfserialization.a
 
-make headers NRF_BASE_PATH=nrf5x-base-$NRF5X_BASE_SHA
+TOCK_ARCH=cortex-m4 BUILDDIR=build/cortex-m4 make headers NRF_BASE_PATH=nrf5x-base-$NRF5X_BASE_SHA
 rm -rf headers
 rm -f headers.tar.gz
 mkdir -p headers

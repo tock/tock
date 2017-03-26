@@ -1,93 +1,16 @@
-# userland master makefile. Included by application makefiles
+# Configuration parameters for building Tock applications. Included by
+# AppMakefile.mk and libtock's Makefile
 
-# Default target:
-all:
-
+# ensure that this file is only included once
+ifndef CONFIGURATION_MAKEFILE
+CONFIGURATION_MAKEFILE = 1
 
 # Remove built-in rules and variables
 # n.b. no-op for make --version < 4.0
 MAKEFLAGS += -r
 MAKEFLAGS += -R
 
-# http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
-# Check that given variables are set and all have non-empty values,
-# die with an error otherwise.
-#
-# Params:
-#   1. Variable name(s) to test.
-#   2. (optional) Error message to print.
-check_defined = \
-    $(strip $(foreach 1,$1, \
-        $(call __check_defined,$1,$(strip $(value 2)))))
-__check_defined = \
-    $(if $(value $1),, \
-      $(error Undefined $1$(if $2, ($2))))
-
-# Check for a ~/ at the beginning of a path variable (TOCK_USERLAND_BASE_DIR).
-# Make will not properly expand this.
-ifdef TOCK_USERLAND_BASE_DIR
-    ifneq (,$(findstring BEGINNINGOFVARIABLE~/,BEGINNINGOFVARIABLE$(TOCK_USERLAND_BASE_DIR)))
-        $(error Hi! Using "~" in Makefile variables is not supported. Use "$$(HOME)" instead)
-    endif
-endif
-
-# Default platform
-TOCK_BOARD ?= storm
-TOCK_USERLAND_BASE_DIR ?= ..
-TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
-
-# Include platform app makefile.
-#  - Should set appropriate TOCK_ARCH for this platform
-#  - Adds rules for loading applications onto this board
-# Conditionally included in case it doesn't exist for a board
--include $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/Makefile-app
-
-ifndef TOCK_ARCH
-    $(warning The board "$(TOCK_BOARD)" did not specify an architecture)
-    $(warning Defaulting to cortex-m0 for maximum compatibility)
-    $(warning This will result in less efficient code if your platform supports)
-    $(warning a more advanced instruction set. Update the board Makefile-app or)
-    $(warning define TOCK_ARCH in your Makefile to fix.)
-    TOCK_ARCH := cortex-m0
-endif
-
-
-# TODO(Pat) at some point this should change names to
-#  - BUILDDIR: build/
-#  - ARCHBUILDDIR: build/$(TOCK_ARCH)
-#  etc
-
-# BUILDDIR holds architecture dependent, but board-independent outputs
-BUILDDIR ?= build/$(TOCK_ARCH)
-$(BUILDDIR):
-	$(Q)mkdir -p $(BUILDDIR)
-
-# BOARD_BUILDDIR holds board-specific outputs
-BOARD_BUILDDIR ?= build/$(TOCK_BOARD)
-$(BOARD_BUILDDIR):
-	$(Q)mkdir -p $(BOARD_BUILDDIR)
-
-
-LIBTOCK ?= $(TOCK_USERLAND_BASE_DIR)/libtock/build/$(TOCK_ARCH)/libtock.a
-
-# PACKAGE_NAME is used to identify the application for IPC and for error reporting
-PACKAGE_NAME ?= $(notdir $(shell pwd))
-
-# Set default region sizes
-STACK_SIZE       ?= 2048
-APP_HEAP_SIZE    ?= 1024
-KERNEL_HEAP_SIZE ?= 1024
-
-ifdef HEAP_SIZE
-    $(warning The variable HEAP_SIZE is set but will not be used.)
-    $(warning Tock has two heaps, the application heap which is memory your program)
-    $(warning uses and the kernel heap or grant regions, which is memory dynamically)
-    $(warning allocated by drivers on behalf of your program.)
-    $(warning )
-    $(warning These regions are controlled by the APP_HEAP_SIZE and KERNEL_HEAP_SIZE)
-    $(warning variables respectively.)
-endif
-
+# Toolchain programs
 TOOLCHAIN := arm-none-eabi
 AR := $(TOOLCHAIN)-ar
 AS := $(TOOLCHAIN)-as
@@ -98,37 +21,27 @@ RANLIB := $(TOOLCHAIN)-ranlib
 READELF := $(TOOLCHAIN)-readelf
 SIZE := $(TOOLCHAIN)-size
 
-# Validate the the toolchain is new enough (known not to work for gcc <= 5.1)
-CC_VERSION_MAJOR := $(shell $(CC) -dumpversion | cut -d '.' -f1)
-ifeq (1,$(shell expr $(CC_VERSION_MAJOR) \>= 6))
-  # Opportunistically turn on gcc 6.0+ warnings since we're already version checking:
-  CPPFLAGS += -Wduplicated-cond #          # if (p->q != NULL) { ... } else if (p->q != NULL) { ... }
-  CPPFLAGS += -Wnull-dereference #         # deref of NULL (thought default if -fdelete-null-pointer-checks, in -Os, but no?)
-else
-  ifneq (5,$(CC_VERSION_MAJOR))
-    $(error Your compiler is too old. Need gcc version > 5.1)
-  endif
-    CC_VERSION_MINOR := $(shell $(CC) -dumpversion | cut -d '.' -f2)
-  ifneq (1,$(shell expr $(CC_VERSION_MINOR) \> 1))
-    $(error Your compiler is too old. Need gcc version > 5.1)
-  endif
-endif
+# Set default region sizes
+STACK_SIZE       ?= 2048
+APP_HEAP_SIZE    ?= 1024
+KERNEL_HEAP_SIZE ?= 1024
+
+# PACKAGE_NAME is used to identify the application for IPC and for error reporting
+PACKAGE_NAME ?= $(notdir $(shell pwd))
+
+# Tock supported architectures
+TOCK_ARCHS := cortex-m0 cortex-m4
 
 # This could be replaced with an installed version of `elf2tbf`
 ELF2TBF ?= cargo run --manifest-path $(abspath $(TOCK_USERLAND_BASE_DIR))/tools/elf2tbf/Cargo.toml --
 ELF2TBF_ARGS += -n $(PACKAGE_NAME)
 
-# Collect all desired built output.
-OBJS += $(patsubst %.c,$(BUILDDIR)/%.o,$(C_SRCS))
-OBJS += $(patsubst %.cc,$(BUILDDIR)/%.o,$(filter %.cc, $(CXX_SRCS)))
-OBJS += $(patsubst %.cpp,$(BUILDDIR)/%.o,$(filter %.cpp, $(CXX_SRCS)))
-
-ASFLAGS += -mcpu=$(TOCK_ARCH) -mthumb
-
+# Flags for building app Assembly, C, C++ files
 # n.b. make convention is that CPPFLAGS are shared for C and C++ sources
 # [CFLAGS is C only, CXXFLAGS is C++ only]
+ASFLAGS += -mthumb
 CFLAGS   += -std=gnu11
-CPPFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/libtock -g -mcpu=$(TOCK_ARCH) -mthumb -mfloat-abi=soft
+CPPFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/libtock -g -mthumb -mfloat-abi=soft
 CPPFLAGS += \
 	    -frecord-gcc-switches\
 	    -Os\
@@ -142,7 +55,12 @@ CPPFLAGS += \
 	    -msingle-pic-base\
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
+
+# Flags for creating application Object files
 OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
+
+# Use a generic linker script that over provisions.
+LAYOUT ?= $(TOCK_USERLAND_BASE_DIR)/userland_generic.ld
 
 ##################################################################################################
 # Extra warning flags not enabled by Wall or Wextra.
@@ -290,127 +208,5 @@ CXXFLAGS += -Wzero-as-null-pointer-constant # use of 0 as NULL
 # END WARNINGS
 ##################################################################################################
 
-LIBS += $(LIBTOCK)
-LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
-
-# First step doesn't actually compile, just generate header dependency information
-# More info on our approach here: http://stackoverflow.com/questions/97338
-$(BUILDDIR)/%.o: %.c | $(BUILDDIR)
-	$(TRACE_DEP)
-	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
-	$(TRACE_CC)
-	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-
-$(BUILDDIR)/%.o: %.cc | $(BUILDDIR)
-	$(TRACE_DEP)
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
-	$(TRACE_CXX)
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
-
-$(BUILDDIR)/%.o: %.cpp | $(BUILDDIR)
-	$(TRACE_DEP)
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -MF"$(@:.o=.d)" -MG -MM -MP -MT"$(@:.o=.d)@" -MT"$@" "$<"
-	$(TRACE_CXX)
-	$(Q)$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
-
-
-# As different boards have different RAM/ROM sizes, we dynamically generate a
-# linker script (unless the user provide their own)
-LAYOUT ?= $(BOARD_BUILDDIR)/layout.ld
-
-# XXX(Pat) out of tree path to TOCK_BOARD directory? (?= chip hack)
-USERLAND_LAYOUT := $(TOCK_USERLAND_BASE_DIR)/userland_layout.ld
-CHIP_LAYOUT ?= $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/chip_layout.ld
-
-$(BOARD_BUILDDIR)/layout.ld:	$(USERLAND_LAYOUT) $(CHIP_LAYOUT) | $(BOARD_BUILDDIR)
-	$(Q)echo "INCLUDE $(CHIP_LAYOUT)" > $@
-	$(Q)echo "INCLUDE $(USERLAND_LAYOUT)" >> $@
-
-
-.PHONY:	all
-all:	$(BOARD_BUILDDIR)/app.bin size
-
-.PHONY: size
-size:	$(BOARD_BUILDDIR)/app.elf
-	@$(SIZE) $<
-
-.PHONY: debug
-debug:	$(BOARD_BUILDDIR)/app.lst
-
-$(BOARD_BUILDDIR)/app.lst: $(BOARD_BUILDDIR)/app.elf
-	$(TRACE_LST)
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $(BOARD_BUILDDIR)/app.lst
-
-# Include the libtock makefile. Adds rules that will rebuild library when needed
-include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
-
-$(BOARD_BUILDDIR)/app.elf: $(OBJS) $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $(LIBTOCK) $(LAYOUT) | $(BOARD_BUILDDIR)
-	$(TRACE_LD)
-	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS)\
-	    -Wl,--warn-common\
-	    -Wl,--gc-sections -Wl,--emit-relocs\
-	    --entry=_start\
-	    -Xlinker --defsym=STACK_SIZE=$(STACK_SIZE)\
-	    -Xlinker --defsym=APP_HEAP_SIZE=$(APP_HEAP_SIZE)\
-	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$(KERNEL_HEAP_SIZE)\
-	    -T $(LAYOUT)\
-	    -nostdlib\
-	    -Wl,--start-group $(OBJS) $(LIBS) -Wl,--end-group\
-	    -Wl,-Map=$(BOARD_BUILDDIR)/app.Map\
-	    -o $@
-
-$(BOARD_BUILDDIR)/app.bin: $(BOARD_BUILDDIR)/app.elf | $(BOARD_BUILDDIR) validate_gcc_flags
-	$(TRACE_BIN)
-	$(Q)$(ELF2TBF) $(ELF2TBF_ARGS) -o $@ $<
-
-.PHONY: validate_gcc_flags
-validate_gcc_flags: $(BOARD_BUILDDIR)/app.elf
-ifndef TOCK_NO_CHECK_SWITCHES
-	$(Q)$(READELF) -p .GCC.command.line $< 2>&1 | grep -q "does not exist" && { echo "Error: Missing section .GCC.command.line"; echo ""; echo "Tock requires that applications are built with"; echo "  -frecord-gcc-switches"; echo "to validate that all required flags were used"; echo ""; echo "You can skip this check by defining the make variable TOCK_NO_CHECK_SWITCHES"; exit 1; } || exit 0
-	$(Q)$(READELF) -p .GCC.command.line $< | grep -q -- -msingle-pic-base && $(READELF) -p .GCC.command.line $< | grep -q -- -mpic-register=r9 && $(READELF) -p .GCC.command.line $< | grep -q -- -mno-pic-data-is-text-relative || { echo "Error: Missing required build flags."; echo ""; echo "Tock requires applications are built with"; echo "  -msingle-pic-base"; echo "  -mpic-register=r9"; echo "  -mno-pic-data-is-text-relative"; echo "But one or more of these flags are missing"; echo ""; echo "To see the flags your application was built with, run"; echo "$(READELF) -p .GCC.command.line $<"; echo ""; exit 1; }
 endif
 
-.PHONY:
-clean::
-	rm -Rf $(BUILDDIR)
-	rm -Rf $(BOARD_BUILDDIR)
-
-
-
-#########################################################################################
-## Pretty-printing rules
-
-# If environment variable V is non-empty, be verbose
-ifneq ($(V),)
-Q=
-TRACE_BIN =
-TRACE_DEP =
-TRACE_CC  =
-TRACE_CXX =
-TRACE_LD  =
-TRACE_AR  =
-TRACE_AS  =
-TRACE_LST =
-ELF2TBF_ARGS += -v
-else
-Q=@
-TRACE_BIN = @echo " BIN       " $@
-TRACE_DEP = @echo " DEP       " $<
-TRACE_CC  = @echo "  CC       " $<
-TRACE_CXX = @echo " CXX       " $<
-TRACE_LD  = @echo "  LD       " $@
-TRACE_AR  = @echo "  AR       " $@
-TRACE_AS  = @echo "  AS       " $<
-TRACE_LST = @echo " LST       " $<
-endif
-
-
-
-#########################################################################################
-# Include dependency rules for picking up header changes (by convention at bottom of makefile)
-OBJS_NO_ARCHIVES=$(filter %.o,$(OBJS))
--include $(OBJS_NO_ARCHIVES:.o=.d)
