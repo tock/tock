@@ -3,7 +3,7 @@
 CHIP=sam4l
 PLATFORM=imix
 
-include ../../Makefile.common
+include ../Makefile.common
 
 OPENOCD=openocd
 OPENOCD_CONF=connect.cfg
