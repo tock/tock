@@ -60,6 +60,7 @@ impl Rtc {
     }
 
     pub fn handle_interrupt(&self) {
+        rtc1().events_compare[0].set(0);
         rtc1().intenclr.set(COMPARE0_EVENT);
         self.callback.get().map(|cb| { cb.fired(); });
     }
