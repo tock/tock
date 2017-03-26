@@ -25,8 +25,9 @@ How would you like to get started?
 First, follow our [getting started guide](doc/Getting_Started.md) to setup
 your system to compile Tock and Tock applications.
 
-Second, head to the [tutorials](doc/tutorials) to get started running
-apps with TockOS.
+Then head to the [hardware page](https://www.tockos.org/hardware/)
+to learn about the hardware platforms Tock supports. Also check out the
+[tutorials](doc/tutorials) to get started running apps with TockOS.
 
 
 ### Develop Tock
