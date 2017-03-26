@@ -12,6 +12,22 @@ use kernel::hil::time::{self, Alarm, Time, Freq16KHz};
 use nvic;
 use pm::{self, PBDClock};
 
+/// Minimum number of clock tics to make sure ALARM0 register is synchronized
+///
+/// The datasheet has the following ominous language (Section 19.5.3.2):
+///
+/// > Because of synchronization, the transfer of the alarm value will not
+/// > happen immediately. When changing/setting the alarm value, the user must
+/// > make sure that the counter will not count the selected alarm value before
+/// > the value is transferred to the register. In that case, the first alarm
+/// > interrupt after the change will not be triggered.
+///
+/// In practice, we've observed that when the alarm is set for a counter value
+/// less than or equal to four tics ahead of the current counter value, the
+/// alarm interrupt doesn't fire. Thus, we simply round up to at least eight
+/// tics. Seems safe enough and in practice has seemed to work.
+const ALARM0_SYNC_TICS: u32 = 8;
+
 #[repr(C, packed)]
 struct AstRegisters {
     cr: VolatileCell<u32>,
@@ -41,12 +57,12 @@ struct AstRegisters {
 const AST_BASE: usize = 0x400F0800;
 
 pub struct Ast<'a> {
-    regs: *mut AstRegisters,
+    regs: *const AstRegisters,
     callback: Cell<Option<&'a time::Client>>,
 }
 
 pub static mut AST: Ast<'static> = Ast {
-    regs: AST_BASE as *mut AstRegisters,
+    regs: AST_BASE as *const AstRegisters,
     callback: Cell::new(None),
 };
 
@@ -63,6 +79,7 @@ impl<'a> Controller for Ast<'a> {
         self.set_prescalar(0); // 32KHz / (2^(0 + 1)) = 16KHz
         self.enable_alarm_wake();
         self.clear_alarm();
+        self.enable();
     }
 }
 
@@ -246,15 +263,17 @@ impl<'a> Alarm for Ast<'a> {
         unsafe { (*self.regs).cv.get() }
     }
 
-    fn set_alarm(&self, tics: u32) {
-        self.disable();
+    fn set_alarm(&self, mut tics: u32) {
         while self.busy() {}
         unsafe {
+            let now = (*self.regs).cv.get();
+            if tics.wrapping_sub(now) <= ALARM0_SYNC_TICS {
+                tics = now.wrapping_add(ALARM0_SYNC_TICS);
+            }
             (*self.regs).ar0.set(tics);
         }
         self.clear_alarm();
         self.enable_alarm_irq();
-        self.enable();
     }
 
     fn get_alarm(&self) -> u32 {
