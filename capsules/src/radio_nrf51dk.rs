@@ -169,17 +169,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                 self.send_userland_buffer();
                 ReturnCode::SUCCESS
             }
-            // SET CHANNEL
-            2 => {
-                match data {
-                    e @ 37...39 => {
-                        self.radio.set_channel(e);
-                        ReturnCode::SUCCESS
-                    }
-                    _ => ReturnCode::FAIL,
-
-                }
-            }
             //Start ADV_BLE
             3 => {
                 if self.busy.get() == false {
