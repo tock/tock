@@ -6,10 +6,9 @@ developing Tock.
 
 ## Requirements
 
-1. [Rust](http://www.rust-lang.org/) (nightly)
+1. [Rust](http://www.rust-lang.org/) (version nightly-2017-01-25)
 2. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
-3. [tockloader](https://github.com/helena-project/tockloader) (recommended) or [JLinkExe](https://www.segger.com/downloads/jlink)
-4. Command line utilities: wget, sed, make
+3. Command line utilities: wget, sed, make
 
 ### Installing Requirements
 
@@ -50,7 +49,7 @@ ARM](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads).
 The recommendations below will set up your operating system's package manager
 to track the latest release from ARM.
 
-##### Mac OS X
+##### MacOS
 
 With [Homebrew](http://brew.sh/) (preferred):
 
@@ -154,17 +153,16 @@ includes a specially compiled version of newlib, a user-level library
 for talking to the kernel and specific drivers and a variety of
 example applications.
 
-Compiled applications are architecture-specific (e.g.  `cortex-m4`,
+Compiled applications are architecture-specific (e.g. `cortex-m4`,
 `cortex-m0`) since the compiler emits slightly different instructions
 for each variant. Compiled applications can also depend on specific
 drivers, which not all boards provide; if you load an application onto
 a board that does not support every driver/system call it uses, some
 system calls with return error codes (`ENODEVICE` or `ENOSUPPORT`).
 
-The `TOCK_ARCH` environment variable controls which chip architecture
-to compile to. You can set the `TOCK_ARCH` to any architecture GCC's
-`-mcpu` option accepts. Boards set an appropriate architecture by default,
-(e.g. `cortex-m4` for the `storm` board).
+Applications are built for all architectures Tock supports, currently
+`cortex-m0` and `cortex-m4`. Boards select an appropriate architecture when
+uploading code (e.g. `cortex-m4` for the SAM4L on the `imix` board).
 
 To compile an app, `cd` to the desired app and `make`. For example:
 
@@ -175,7 +173,7 @@ $ make
 
 This will build the app and generate a binary in Tock Binary Format
 (using the `elf2tbf` utility):
-`userland/examples/blink/build/cortex-m4/app.bin`.
+`userland/examples/blink/build/cortex-m4/cortex-m4.bin`.
 
 Alternatively, apps can be built and automatically uploaded from the
 Tock root directory:
@@ -184,7 +182,53 @@ Tock root directory:
 $ make examples/blink
 ```
 
-## Loading the kernel and applications onto a board.
+## Loading the kernel and applications onto a board
+
+### Optional Requirements
+
+For some boards, currently `Hail`, you will need `tockloader`. `tockloader`
+also has features that are generally useful to all Tock boards, such as easy to
+manage serial connections, and the ability to list, add, replace, and remove
+applications over JTAG (or USB if a bootloader is installed).
+
+1. [tockloader](https://github.com/helena-project/tockloader) (version 0.5.0)
+
+Installing applications over JTAG, depending on your JTAG Debugger, you will
+need one of:
+
+1. [openocd](http://openocd.org/)
+2. [JLinkExe](https://www.segger.com/downloads/jlink)
+
+#### `tockloader`
+
+Tock requires `tockloader` version `0.5.0`. To install:
+
+```bash
+(Linux): sudo pip3 install tockloader==0.5.0
+(MacOS): pip3 install tockloader==0.5.0
+```
+
+#### `openocd`
+
+Works with various JTAG debuggers.
+
+```bash
+(Linux): sudo apt-get install openocd
+(MacOS): brew install open-ocd
+```
+
+#### `JLinkExe`
+
+If you want to upload code through a [JLink JTAG
+debugger](https://www.segger.com/j-link-edu.html) (available on
+[Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)
+), you should install JLinkExe.
+
+It is available [here](https://www.segger.com/downloads/jlink). You want to the
+"J-Link Software and Documentation Pack". There are various packages available
+depending on operating system.
+
+### Loading code onto a board
 
 This is generally done with `make program` and `make flash`, but is board
 specific. To learn how to program your specific hardware, please see

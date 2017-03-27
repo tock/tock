@@ -14,9 +14,13 @@ Setup
 Follow the main [Getting Started](../../doc/Getting_Started.md) to install Rust
 and GCC.
 
-Programming Hail over USB requires the `tockloader` utility. To install:
+Programming Hail over USB requires the `tockloader` utility, version `0.5.0`.
+To install:
 
-    sudo pip3 install tockloader
+```bash
+(Linux): sudo pip3 install tockloader==0.5.0
+(MacOS): pip3 install tockloader==0.5.0
+```
 
 Connecting Hail to a computer requires a USB Micro B cable.
 
