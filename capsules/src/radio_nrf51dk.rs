@@ -91,7 +91,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
     }
     pub fn transmit_ble_adv(&self) {
 
+        let mut interval = 4100 as u32;
         if self.frequency.get() == 39 {
+            interval = 41000 as u32;
             self.frequency.set(37);
         } else {
             self.frequency.set(self.frequency.get() + 1);
@@ -100,7 +102,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
 
         self.send_userland_buffer();
 
-        let interval = (4100 as u32);
         let tics = self.alarm.now().wrapping_add(interval);
         self.alarm.set_alarm(tics);
     }
@@ -182,7 +183,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
             //Start ADV_BLE
             3 => {
                 self.advertise.set(true);
-                let interval = (4100 as u32);
+                let interval = 4100 as u32;
                 let tics = self.alarm.now().wrapping_add(interval);
                 self.alarm.set_alarm(tics);
                 ReturnCode::SUCCESS
