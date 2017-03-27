@@ -63,11 +63,38 @@ static mut RX_BUF: [u8; 12] = [0x00; 12];
 // static mut payload: [u8; 12] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0x00];
 
 //static mut payload: [u8; 12] = [0x02, 0x28, 0x41,0x41,0x41, 0x41, 0x41, 0x41, 1, 2, 3, 4];
-static mut PAYLOAD: [u8; 31] = [ 0x02, 0x1C, 0x00, // ADV_IND, public addr  [HEADER]
-                    0x90, 0xD8, 0x7A, 0xBD, 0xA3, 0xED, // Address          [ADV ADDRESS]
-                    // [LEN, AD-TYPE, LEN-1 bytes of data ...]
-                    0x15, 0x09, 0x41, 0x77, 0x65, 0x73, 0x6f, 0x6d, 0x65, 0x52, 0x75, 0x73, 0x74,
-                                0x41, 0x77, 0x65, 0x73, 0x6f, 0x6d, 0x65, 0x52, 0x75]; //[DATA]
+static mut PAYLOAD: [u8; 31] = [0x02,
+0x1C,
+0x00, // ADV_IND, public addr  [HEADER]
+    0x90,
+    0xD8,
+    0x7A,
+    0xBD,
+    0xA3,
+    0xED, // Address          [ADV ADDRESS]
+    // [LEN, AD-TYPE, LEN-1 bytes of data ...]
+    0x15,
+    0x09,
+    0x41,
+    0x77,
+    0x65,
+    0x73,
+    0x6f,
+    0x6d,
+    0x65,
+    0x52,
+    0x75,
+    0x73,
+    0x74,
+    0x41,
+    0x77,
+    0x65,
+    0x73,
+    0x6f,
+    0x6d,
+    0x65,
+    0x52,
+    0x75]; //[DATA]
 #[no_mangle]
 pub struct Radio {
     regs: *const RADIO_REGS,
@@ -162,7 +189,7 @@ impl Radio {
         // Legngth      ;;      6 bits
         // RFU          ;;      2 bits
         regs.PCNF0.set(// set S0 to 1 byte
-                       (1 << RADIO_PCNF0_S0LEN_POS) |
+            (1 << RADIO_PCNF0_S0LEN_POS) |
             // set S1 to 2 bits
             (2 << RADIO_PCNF0_S1LEN_POS) |
             // set length to 6 bits
@@ -170,14 +197,14 @@ impl Radio {
 
 
         regs.PCNF1.set((RADIO_PCNF1_WHITEEN_ENABLED << RADIO_PCNF1_WHITEEN_POS) |
-            // set little-endian
-            (0 << RADIO_PCNF1_ENDIAN_POS)  |
-            // Set BASE + PREFIX address to 4 bytes
-            (3 << RADIO_PCNF1_BALEN_POS)   |
-            // don't extend packet length
-            (0 << RADIO_PCNF1_STATLEN_POS) |
-            // max payload size 37
-            (37 << RADIO_PCNF1_MAXLEN_POS));
+                       // set little-endian
+                       (0 << RADIO_PCNF1_ENDIAN_POS)  |
+                       // Set BASE + PREFIX address to 4 bytes
+                       (3 << RADIO_PCNF1_BALEN_POS)   |
+                       // don't extend packet length
+                       (0 << RADIO_PCNF1_STATLEN_POS) |
+                       // max payload size 37
+                       (37 << RADIO_PCNF1_MAXLEN_POS));
     }
 
     // TODO set from capsules?!
@@ -245,11 +272,11 @@ impl Radio {
     #[no_mangle]
     // TODO use dest address?!
     // TODO use tx_len?!
-    pub fn tx(&self, _: u16, tx_data: &'static mut [u8], _: u8) {
+    pub fn tx(&self, _: u16, tx_data: &'static mut [u8], _: usize) {
         for (i, c) in tx_data.as_ref()[0..16].iter().enumerate() {
             unsafe {
                 TX_BUF[i] = *c;
-                PAYLOAD[11+i] = *c;
+                PAYLOAD[11 + i] = *c;
             }
         }
         self.set_tx_buffer();
@@ -261,7 +288,6 @@ impl Radio {
     #[inline(never)]
     #[no_mangle]
     pub fn rx(&self) {
-
         let regs = unsafe { &*self.regs };
         regs.READY.set(0);
         regs.RXEN.set(1);
@@ -296,14 +322,15 @@ impl Radio {
             regs.END.set(0);
             regs.DISABLE.set(1);
             if regs.STATE.get() <= 4 {
-                // Only for debugging purposes,
-                // TODO: graceful handling here
+                // Once a CRC error is received discard the message and return
                 if regs.CRCSTATUS.get() == 0 {
-
-                    panic!("crc status {:?}\n", regs.CRCSTATUS.get());
+                    // Only for debugging purposes,
+                    debug!("crc status {:?}\n", regs.CRCSTATUS.get());
                 }
-                unsafe {
-                    self.client.get().map(|client| client.receive_done(&mut RX_BUF, 0));
+                else {
+                    unsafe {
+                        self.client.get().map(|client| client.receive_done(&mut RX_BUF, 0));
+                    }
                 }
             } else {
                 // TODO: Implement something.
@@ -360,7 +387,7 @@ impl RadioDriver for Radio {
 
     #[inline(never)]
     #[no_mangle]
-    fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: u8) -> ReturnCode {
+    fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: usize) -> ReturnCode {
 
         self.tx(dest, tx_data, tx_len);
         ReturnCode::SUCCESS
