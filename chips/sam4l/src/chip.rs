@@ -1,6 +1,7 @@
 use adc;
 use ast;
 use cortexm4;
+use crccu;
 use dma;
 use flashcalw;
 use gpio;
@@ -96,6 +97,8 @@ impl Chip for Sam4l {
                     PDCA13 => dma::DMA_CHANNELS[13].handle_interrupt(),
                     PDCA14 => dma::DMA_CHANNELS[14].handle_interrupt(),
                     PDCA15 => dma::DMA_CHANNELS[15].handle_interrupt(),
+
+                    CRCCU => crccu::CRCCU.handle_interrupt(),
 
                     GPIO0 => gpio::PA.handle_interrupt(),
                     GPIO1 => gpio::PA.handle_interrupt(),

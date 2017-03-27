@@ -26,6 +26,7 @@ pub mod adc;
 pub mod flashcalw;
 pub mod wdt;
 pub mod trng;
+pub mod crccu;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -111,7 +112,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* PDCA13 */        Option::Some(dma::pdca13_handler),
     /* PDCA14 */        Option::Some(dma::pdca14_handler),
     /* PDCA15 */        Option::Some(dma::pdca15_handler),
-    /* CRCCU */         Option::Some(unhandled_interrupt),
+    /* CRCCU */         Option::Some(crccu::interrupt_handler),
     /* USBC */          Option::Some(unhandled_interrupt),
     /* PEVC_TR */       Option::Some(unhandled_interrupt),
     /* PEVC_OV */       Option::Some(unhandled_interrupt),

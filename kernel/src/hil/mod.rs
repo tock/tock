@@ -10,6 +10,7 @@ pub mod flash;
 pub mod watchdog;
 pub mod radio;
 pub mod temperature;
+pub mod crc;
 
 pub trait Controller {
     type Config;
