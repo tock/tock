@@ -37,11 +37,15 @@ int main(void)
   //int ret = subscribe_tx(callback, NULL);
 	//ret = tx_data(packet, BUF_SIZE);
   //int ch = 39;
-	delay_ms(5000);
-	printf("after delay \r\n");
-	printf("return from start_ble_advertisement %d\r\n",start_ble_advertisement(packet,BUF_SIZE));
-	delay_ms(2000);
-	printf("return from stop_ble_advertisement %d\r\n",stop_ble_advertisement());
+	for(;;){
+		delay_ms(10000);
+		printf("after delay \r\n");
+		printf("return from start_ble_advertisement %d\r\n",start_ble_advertisement(packet,BUF_SIZE));
+		delay_ms(50000);
+		//for(int i = 0; i < 1000000; i++){}
+		printf("return from stop_ble_advertisement %d\r\n",stop_ble_advertisement());
+		printf("after everything\r\n");
+	}
   /*for (;;) {
 
     //set_channel(ch);
