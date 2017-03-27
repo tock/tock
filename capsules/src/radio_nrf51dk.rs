@@ -87,6 +87,7 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     busy: Cell<bool>,
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
+    kernel_tx_data: TakeCell<'static, [u8]>,
     alarm: &'a A,
     frequency: Cell<usize>,
     advertise: Cell<bool>,
@@ -97,6 +98,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
     pub fn new(radio: &'a R,
                container: Container<App>,
                buf: &'static mut [u8],
+               buf1: &'static mut [u8],
                alarm: &'a A)
                -> Radio<'a, R, A> {
         Radio {
@@ -183,10 +185,22 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             cntr.enter(|app, _| {
                 app.app_write.as_mut().map(|slice| {
                     self.kernel_tx.take().map(|buf| {
-                        for (out, inp) in buf.iter_mut().zip(slice.as_ref()[0..16].iter()) {
+                        // suggestion how to loop through the buffer without knowing the length
+                        // as a side-note buf.len() is only length of the takecell i.e. initally 32
+                        // thus there is no "guarantee" that the actual data is 32
+                        // this is eq to while(char *ptr != NULL)
+                        // also added so that the buffer is 32 bytes and data can't be longer than
+                        // 31 bytes because of BLE restrictions
+                        let max_len = buf.len();
+                        let mut len = 0;
+                        for (out, inp) in buf.iter_mut().zip(slice.as_ref()[0..max_len].iter()) {
+                            if *inp == 0 {
+                                break;
+                            }
+                            len += 1;
                             *out = *inp;
                         }
-                        self.radio.transmit(0, buf, 16);
+                        self.radio.transmit(0, buf, len);
                     });
 
                 });
