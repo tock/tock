@@ -183,6 +183,7 @@ fn reverse_and_invert(n: u32) -> u32 {
     out
 }
 
+/// Transfer width for DMA
 pub enum TrWidth { Byte, HalfWord, Word }
 
 // Mode Register (see Section 41.6.10)
@@ -203,7 +204,7 @@ impl Mode {
 #[derive(Copy, Clone, PartialEq)]
 enum State { Invalid, Initialized, Enabled }
 
-// State for managing the CRCCU
+/// State for managing the CRCCU
 pub struct Crccu<'a> {
     client: Option<&'a crc::Client>,
     state: Cell<State>,
@@ -231,6 +232,7 @@ impl<'a> Crccu<'a> {
         }
     }
 
+    /// Enable the CRCCU's clocks and interrupt
     pub fn enable(&self) {
         if self.state.get() != State::Enabled {
             self.init();
@@ -247,6 +249,7 @@ impl<'a> Crccu<'a> {
         }
     }
 
+    /// Disable the CRCCU's clocks and interrupt
     pub fn disable(&self) {
         if self.state.get() == State::Enabled {
             unsafe {
@@ -258,11 +261,12 @@ impl<'a> Crccu<'a> {
         }
     }
 
-
+    /// Set a client to receive results from the CRCCU
     pub fn set_client(&mut self, client: &'a crc::Client) {
         self.client = Some(client);
     }
 
+    /// Get the client currently receiving results from the CRCCU
     pub fn get_client(&self) -> Option<&'a crc::Client> {
         self.client
     }
@@ -288,6 +292,7 @@ impl<'a> Crccu<'a> {
         return d as *mut Descriptor;
     }
 
+    /// Handle an interrupt from the CRCCU
     pub fn handle_interrupt(&mut self) {
         if ISR.read() & 1 == 1 {
             // A CRC error has occurred
@@ -385,8 +390,7 @@ impl<'a> crc::CRC for Crccu<'a> {
     }
 }
 
-// If this static is mutable, only unsafe code may use it.
-// If it is not (and instead uses internal mutability), it must implement Sync.
+/// Static state to manage the CRCCU
 pub static mut CRCCU: Crccu<'static> = Crccu::new();
 
 interrupt_handler!(interrupt_handler, CRCCU);
