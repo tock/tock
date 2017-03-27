@@ -17,11 +17,11 @@ int tx_data(const char* data, unsigned char len) {
 }
 
 int start_ble_advertisement(const char* data, unsigned char len){
-  int err = allow(DRIVER_RADIO, TX, (void*)data, len);
+  int err = allow(DRIVER_RADIO, TX, (void*)data, 32);
   if (err < 0){
     return err;
   }
-  return command(DRIVER_RADIO,BLE_ADV_START,16);
+  return command(DRIVER_RADIO, BLE_ADV_START, 32);
 }
 
 int stop_ble_advertisement(void){
