@@ -296,16 +296,23 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
             }
             //Start ADV_BLE
             3 => {
-                self.advertise.set(true);
-                let interval = 4100 as u32;
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
-                ReturnCode::SUCCESS
+                if self.busy.get() == false {
+                    self.busy.set(true);
+                    self.advertise.set(true);
+                    let interval = 4100 as u32;
+                    let tics = self.alarm.now().wrapping_add(interval);
+                    self.alarm.set_alarm(tics);
+                    ReturnCode::SUCCESS
+                }
+                else{
+                    ReturnCode::FAIL
+                }
 
             }
             //Stop ADV_BLE
             4 => {
                 self.advertise.set(false);
+                self.busy.set(false);
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::EALREADY,
