@@ -35,7 +35,7 @@ flash-debug: target/sam4l/debug/$(PLATFORM).hex
 # Command to flash the bootloader. Flashes the bootloader onto the SAM4L.
 .PHONY: flash-bootloader
 flash-bootloader: bootloader/bootloader.bin
-	$(JLINK) $(JLINK_OPTIONS) $(JLINK_SCRIPTS_DIR)/flash-bootloader.jlink
+	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address 0 --jtag --board hail --arch cortex-m4 --jtag-device ATSAM4LC8C $<
 
 # Command to flash the nRF51822 on Hail with the connectivity side
 # of the BLE serialization library.
