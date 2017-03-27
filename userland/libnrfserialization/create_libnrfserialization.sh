@@ -9,7 +9,7 @@ mkdir -p headers
 
 # Commit hash of the https://github.com/lab11/nrf5x-base repository
 # to use to make the library.
-NRF5X_BASE_SHA=6fb0730f2e976d9b85f8dddc6a873cb58d85d810
+NRF5X_BASE_SHA=86e69e37b4a544a7f53fadfa0b8db40e06e9ab12
 
 if [ ! -f $NRF5X_BASE_SHA.zip ]; then
 	wget https://github.com/lab11/nrf5x-base/archive/$NRF5X_BASE_SHA.zip
