@@ -7,10 +7,10 @@ extern "C" {
 #endif
 
 /* System calls for an 802.15.4 radio. */
-int radio_init();
+int radio_init(void);
 
 /* Returns 1 if radio is ready, 0 otherwise. */
-int radio_ready();
+int radio_ready(void);
 
 // packet contains the payload of the 802.15.4 packet
 int radio_send(unsigned short addr, const char* packet, unsigned char len);
@@ -37,7 +37,7 @@ int radio_set_channel(unsigned char channel);
 // Specify power in dBm. Typical range is -20 -- 4.
 int radio_set_power(char power);
 // Commit the channel, PAN, addr, and transmit power
-int radio_commit();
+int radio_commit(void);
 
 #ifdef __cplusplus
 }

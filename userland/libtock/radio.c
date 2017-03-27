@@ -25,7 +25,7 @@ const int EVT_TX = 0;
 const int EVT_RX = 1;
 const int EVT_CFG = 2;
 
-int radio_init() {
+int radio_init(void) {
   while (!radio_ready()) {}
   return 0;
 } // Do nothing for now
@@ -98,7 +98,7 @@ int radio_set_power(char power) {
   return command(SYS_RADIO, COM_POWER, (unsigned int) (power + 128));
 }
 
-int radio_commit() {
+int radio_commit(void) {
   bool cond = false;
   int err = subscribe(SYS_RADIO, EVT_CFG, cb_config, &cond);
   if (err != SUCCESS) {
@@ -145,6 +145,6 @@ int radio_receive_callback(subscribe_cb callback,
   return 0;
 }
 
-int radio_ready() {
+int radio_ready(void) {
   return command(SYS_RADIO, COM_READY, 0) == SUCCESS;
 }
