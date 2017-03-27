@@ -49,8 +49,8 @@
 // - Support continuous-mode CRC
 
 use core::cell::Cell;
-use kernel::returncode::ReturnCode;
 use kernel::hil::crc::{self, CrcAlg};
+use kernel::returncode::ReturnCode;
 use nvic;
 use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
 
@@ -63,7 +63,9 @@ impl Reg {
     }
 
     fn write(self, n: u32) {
-        unsafe { ::core::ptr::write_volatile(self.0, n); }
+        unsafe {
+            ::core::ptr::write_volatile(self.0, n);
+        }
     }
 }
 
@@ -88,31 +90,47 @@ macro_rules! registers {
 
 // CRCCU Registers (from Table 41.1 in Section 41.6):
 registers![
-    { 0x00, "Descriptor Base Register", DSCR, "RW" },        // Address of descriptor (512-byte aligned)
-    { 0x08, "DMA Enable Register", DMAEN, "W" },             // Write a one to enable DMA channel
-    { 0x0C, "DMA Disable Register", DMADIS, "W" },           // Write a one to disable DMA channel
-    { 0x10, "DMA Status Register", DMASR, "R" },             // DMA channel enabled?
-    { 0x14, "DMA Interrupt Enable Register", DMAIER, "W" },  // Write a one to enable DMA interrupt
-    { 0x18, "DMA Interrupt Disable Register", DMAIDR, "W" }, // Write a one to disable DMA interrupt
-    { 0x1C, "DMA Interrupt Mask Register", DMAIMR, "R" },    // DMA interrupt enabled?
-    { 0x20, "DMA Interrupt Status Register", DMAISR, "R" },  // DMA transfer completed? (cleared when read)
-    { 0x34, "Control Register", CR, "W" },                   // Write a one to reset SR
-    { 0x38, "Mode Register", MR, "RW" },                     // Bandwidth divider, Polynomial type, Compare?, Enable?
-    { 0x3C, "Status Register", SR, "R" },                    // CRC result (unreadable if MR.COMPARE=1)
-    { 0x40, "Interrupt Enable Register", IER, "W" },         // Write one to set IMR.ERR bit (zero no effect)
-    { 0x44, "Interrupt Disable Register", IDR, "W" },        // Write zero to clear IMR.ERR bit (one no effect)
-    { 0x48, "Interrupt Mask Register", IMR, "R" },           // If IMR.ERR bit is set, error-interrupt (for compare) is enabled
-    { 0x4C, "Interrupt Status Register", ISR, "R" },         // CRC error (for compare)? (cleared when read)
-    { 0xFC, "Version Register", VERSION, "R" }               // 12 low-order bits: version of this module.  = 0x00000202
+    // Address of descriptor (512-byte aligned)
+    { 0x00, "Descriptor Base Register", DSCR, "RW" },
+    // Write a one to enable DMA channel
+    { 0x08, "DMA Enable Register", DMAEN, "W" },
+    // Write a one to disable DMA channel
+    { 0x0C, "DMA Disable Register", DMADIS, "W" },
+    // DMA channel enabled?
+    { 0x10, "DMA Status Register", DMASR, "R" },
+    // Write a one to enable DMA interrupt
+    { 0x14, "DMA Interrupt Enable Register", DMAIER, "W" },
+    // Write a one to disable DMA interrupt
+    { 0x18, "DMA Interrupt Disable Register", DMAIDR, "W" },
+    // DMA interrupt enabled?
+    { 0x1C, "DMA Interrupt Mask Register", DMAIMR, "R" },
+    // DMA transfer completed? (cleared when read)
+    { 0x20, "DMA Interrupt Status Register", DMAISR, "R" },
+    // Write a one to reset SR
+    { 0x34, "Control Register", CR, "W" },
+    // Bandwidth divider, Polynomial type, Compare?, Enable?
+    { 0x38, "Mode Register", MR, "RW" },
+    // CRC result (unreadable if MR.COMPARE=1)
+    { 0x3C, "Status Register", SR, "R" },
+    // Write one to set IMR.ERR bit (zero no effect)
+    { 0x40, "Interrupt Enable Register", IER, "W" },
+    // Write zero to clear IMR.ERR bit (one no effect)
+    { 0x44, "Interrupt Disable Register", IDR, "W" },
+    // If IMR.ERR bit is set, error-interrupt (for compare) is enabled
+    { 0x48, "Interrupt Mask Register", IMR, "R" },
+    // CRC error (for compare)? (cleared when read)
+    { 0x4C, "Interrupt Status Register", ISR, "R" },
+    // 12 low-order bits: version of this module.  = 0x00000202
+    { 0xFC, "Version Register", VERSION, "R" }
 ];
 
 // CRCCU Descriptor (from Table 41.2 in Section 41.6):
 #[repr(C, packed)]
 struct Descriptor {
-    addr: u32,       // Transfer Address Register (RW): Address of memory block to compute
-    ctrl: TCR,       // Transfer Control Register (RW): IEN, TRWIDTH, BTSIZE
+    addr: u32, // Transfer Address Register (RW): Address of memory block to compute
+    ctrl: TCR, // Transfer Control Register (RW): IEN, TRWIDTH, BTSIZE
     _res: [u32; 2],
-    crc: u32         // Transfer Reference Register (RW): Reference CRC (for compare mode)
+    crc: u32, // Transfer Reference Register (RW): Reference CRC (for compare mode)
 }
 
 // Transfer Control Register (see Section 41.6.18)
@@ -122,9 +140,7 @@ struct TCR(u32);
 
 impl TCR {
     const fn new(enable_interrupt: bool, trwidth: TrWidth, btsize: u16) -> Self {
-        TCR((!enable_interrupt as u32) << 27
-            | (trwidth as u32) << 24
-            | (btsize as u32))
+        TCR((!enable_interrupt as u32) << 27 | (trwidth as u32) << 24 | (btsize as u32))
     }
 
     const fn default() -> Self {
@@ -143,27 +159,27 @@ impl TCR {
 
 #[derive(Copy, Clone)]
 enum Polynomial {
-	CCIT8023,   // Polynomial 0x04C11DB7
-	CASTAGNOLI, // Polynomial 0x1EDC6F41
-	CCIT16,		// Polynomial 0x1021
+    CCIT8023, // Polynomial 0x04C11DB7
+    CASTAGNOLI, // Polynomial 0x1EDC6F41
+    CCIT16, // Polynomial 0x1021
 }
 
 fn poly_for_alg(alg: CrcAlg) -> Polynomial {
     match alg {
-        CrcAlg::Crc32    => Polynomial::CCIT8023,
-        CrcAlg::Crc32C   => Polynomial::CASTAGNOLI,
-        CrcAlg::Sam4L16  => Polynomial::CCIT16,
-        CrcAlg::Sam4L32  => Polynomial::CCIT8023,
+        CrcAlg::Crc32 => Polynomial::CCIT8023,
+        CrcAlg::Crc32C => Polynomial::CASTAGNOLI,
+        CrcAlg::Sam4L16 => Polynomial::CCIT16,
+        CrcAlg::Sam4L32 => Polynomial::CCIT8023,
         CrcAlg::Sam4L32C => Polynomial::CASTAGNOLI,
     }
 }
 
 fn post_process(result: u32, alg: CrcAlg) -> u32 {
     match alg {
-        CrcAlg::Crc32    => reverse_and_invert(result),
-        CrcAlg::Crc32C   => reverse_and_invert(result),
-        CrcAlg::Sam4L16  => result,
-        CrcAlg::Sam4L32  => result,
+        CrcAlg::Crc32 => reverse_and_invert(result),
+        CrcAlg::Crc32C => reverse_and_invert(result),
+        CrcAlg::Sam4L16 => result,
+        CrcAlg::Sam4L32 => result,
         CrcAlg::Sam4L32C => result,
     }
 }
@@ -184,17 +200,19 @@ fn reverse_and_invert(n: u32) -> u32 {
 }
 
 /// Transfer width for DMA
-pub enum TrWidth { Byte, HalfWord, Word }
+pub enum TrWidth {
+    Byte,
+    HalfWord,
+    Word,
+}
 
 // Mode Register (see Section 41.6.10)
 struct Mode(u32);
 
 impl Mode {
-	fn new(divider: u8, ptype: Polynomial, compare: bool, enable: bool) -> Self {
-        Mode((((divider & 0x0f) as u32) << 4)
-             | (ptype as u32) << 2
-             | (compare as u32) << 1
-             | (enable as u32))
+    fn new(divider: u8, ptype: Polynomial, compare: bool, enable: bool) -> Self {
+        Mode((((divider & 0x0f) as u32) << 4) | (ptype as u32) << 2 | (compare as u32) << 1 |
+             (enable as u32))
     }
     fn disabled() -> Self {
         Mode::new(0, Polynomial::CCIT8023, false, false)
@@ -202,7 +220,11 @@ impl Mode {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-enum State { Invalid, Initialized, Enabled }
+enum State {
+    Invalid,
+    Initialized,
+    Enabled,
+}
 
 /// State for managing the CRCCU
 pub struct Crccu<'a> {
@@ -215,14 +237,16 @@ pub struct Crccu<'a> {
     descriptor_space: [u8; DSCR_RESERVE],
 }
 
-const DSCR_RESERVE: usize = 512 + 5*4;
+const DSCR_RESERVE: usize = 512 + 5 * 4;
 
 impl<'a> Crccu<'a> {
     const fn new() -> Self {
-        Crccu { client: None,
-                state: Cell::new(State::Invalid),
-                alg: Cell::new(CrcAlg::Crc32C),
-                descriptor_space: [0; DSCR_RESERVE] }
+        Crccu {
+            client: None,
+            state: Cell::new(State::Invalid),
+            alg: Cell::new(CrcAlg::Crc32C),
+            descriptor_space: [0; DSCR_RESERVE],
+        }
     }
 
     fn init(&self) {
@@ -312,7 +336,7 @@ impl<'a> Crccu<'a> {
 
                 // Reset CTRL.IEN (for our own statekeeping)
                 self.set_descriptor(0, TCR::default(), 0);
-                
+
                 // Disable DMA interrupt
                 DMAIDR.write(1);
 

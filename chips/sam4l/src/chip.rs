@@ -1,6 +1,7 @@
 use adc;
 use ast;
 use cortexm4;
+use crccu;
 use dma;
 use flashcalw;
 use gpio;
@@ -11,7 +12,6 @@ use nvic;
 use spi;
 use trng;
 use usart;
-use crccu;
 
 pub struct Sam4l {
     pub mpu: cortexm4::mpu::MPU,

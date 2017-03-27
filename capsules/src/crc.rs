@@ -111,10 +111,11 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
     /// requests.
     ///
     pub fn new(crc_unit: &'a C, apps: Container<App>) -> Crc<'a, C> {
-        Crc { crc_unit: crc_unit,
-              apps: apps,
-              serving_app: Cell::new(None),
-            }
+        Crc {
+            crc_unit: crc_unit,
+            apps: apps,
+            serving_app: Cell::new(None),
+        }
     }
 
     fn serve_waiting_apps(&self) {
@@ -134,8 +135,7 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
                             // The unit is now computing a CRC for this app
                             self.serving_app.set(Some(app.appid()));
                             found = true;
-                        }
-                        else {
+                        } else {
                             // The app's request failed
                             if let Some(mut callback) = app.callback {
                                 callback.schedule(From::from(r), 0, 0);
@@ -148,7 +148,9 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
                     }
                 }
             });
-            if found { break }
+            if found {
+                break;
+            }
         }
 
         if !found {
@@ -158,7 +160,7 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
     }
 }
 
-impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C>  {
+impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             // Provide user buffer to compute CRC over
@@ -173,7 +175,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C>  {
                         Error::AddressOutOfBounds => ReturnCode::EINVAL,
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
-            },
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -192,7 +194,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C>  {
                         Error::AddressOutOfBounds => ReturnCode::EINVAL,
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
-            },
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -203,39 +205,33 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C>  {
             0 => ReturnCode::SUCCESS,
 
             // Get version of CRC unit
-            1 => ReturnCode::SuccessWithValue {
-                                value: self.crc_unit.get_version() as usize
-                             },
+            1 => ReturnCode::SuccessWithValue { value: self.crc_unit.get_version() as usize },
 
             // Request a CRC computation
             2 => {
-                let result =
-                    if let Some(alg) = alg_from_user_int(data) {
-                        self.apps
-                            .enter(appid, |app, _| {
-                                if app.waiting.is_some() {
-                                    // Each app may make only one request at a time
-                                    ReturnCode::EBUSY
+                let result = if let Some(alg) = alg_from_user_int(data) {
+                    self.apps
+                        .enter(appid, |app, _| {
+                            if app.waiting.is_some() {
+                                // Each app may make only one request at a time
+                                ReturnCode::EBUSY
+                            } else {
+                                if app.callback.is_some() && app.buffer.is_some() {
+                                    app.waiting = Some(alg);
+                                    ReturnCode::SUCCESS
+                                } else {
+                                    ReturnCode::EINVAL
                                 }
-                                else {
-                                    if app.callback.is_some() && app.buffer.is_some() {
-                                        app.waiting = Some(alg);
-                                        ReturnCode::SUCCESS
-                                    }
-                                    else { ReturnCode::EINVAL }
-                                }
-                            })
-                            .unwrap_or_else(|err| {
-                                match err {
-                                    Error::OutOfMemory => ReturnCode::ENOMEM,
-                                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                    Error::NoSuchApp => ReturnCode::EINVAL,
-                                }
-                            })
-                    }
-                    else {
-                        ReturnCode::EINVAL
-                    };
+                            }
+                        })
+                        .unwrap_or_else(|err| match err {
+                            Error::OutOfMemory => ReturnCode::ENOMEM,
+                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                            Error::NoSuchApp => ReturnCode::EINVAL,
+                        })
+                } else {
+                    ReturnCode::EINVAL
+                };
 
                 if result == ReturnCode::SUCCESS {
                     self.serve_waiting_apps();
@@ -258,18 +254,15 @@ impl<'a, C: hil::crc::CRC> hil::crc::Client for Crc<'a, C> {
                     }
                     app.waiting = None;
                 })
-                .unwrap_or_else(|err| {
-                    match err {
-                        Error::OutOfMemory => {},
-                        Error::AddressOutOfBounds => {},
-                        Error::NoSuchApp => {},
-                    }
+                .unwrap_or_else(|err| match err {
+                    Error::OutOfMemory => {}
+                    Error::AddressOutOfBounds => {}
+                    Error::NoSuchApp => {}
                 });
 
             self.serving_app.set(None);
             self.serve_waiting_apps();
-        }
-        else {
+        } else {
             // Ignore orphaned computation
         }
     }
@@ -282,6 +275,6 @@ fn alg_from_user_int(i: usize) -> Option<hil::crc::CrcAlg> {
         2 => Some(CrcAlg::Sam4L16),
         3 => Some(CrcAlg::Sam4L32),
         4 => Some(CrcAlg::Sam4L32C),
-        _ => None
+        _ => None,
     }
 }
