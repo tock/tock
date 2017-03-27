@@ -1,22 +1,21 @@
 # Makefile for loading applications for the storm platform
 
 $(call check_defined, TOCK_USERLAND_BASE_DIR)
+$(call check_defined, BUILDDIR)
+$(call check_defined, PACKAGE_NAME)
 
-TOCK_ARCH := cortex-m4
+TOCK_ARCH = cortex-m4
+BOARD_BUILDDIR = $(BUILDDIR)/$(TOCK_ARCH)
 
 APP_SLOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/storm.py
 APP_FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/flash/storm-flash-app.py
 
-# upload programs over uart with stormloader
+# Upload programs over uart with stormloader
 .PHONY: program
-.SECONDEXPANSION:
-program: $$(BOARD_BUILDDIR)/app.bin
-	@:$(call check_defined, BOARD_BUILDDIR)
-	$(APP_SLOAD) $(BOARD_BUILDDIR)/app.bin
+program: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+	$(APP_SLOAD) $<
 
-# upload programs over JTAG
+# Upload programs over JTAG
 .PHONY: flash
-flash: $$(BOARD_BUILDDIR)/app.bin
-	@:$(call check_defined, BOARD_BUILDDIR)
-	$(APP_FLASH) $(BOARD_BUILDDIR)/app.bin
-
+flash: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+	$(APP_FLASH) $<

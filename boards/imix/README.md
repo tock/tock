@@ -2,7 +2,12 @@ imix: Platform-Specific Instructions
 =====================================
 
 Kernel and userland software can be flashed onto the imix using
-[openocd](http://openocd.org/).
+[openocd](http://openocd.org/). We require at least version `0.8.0`.
+
+```bash
+(Linux): sudo apt-get install openocd
+(MacOS): brew install open-ocd
+```
 
 
 ## Flashing the kernel

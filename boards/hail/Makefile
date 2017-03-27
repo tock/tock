@@ -3,7 +3,7 @@
 CHIP=sam4l
 PLATFORM=hail
 
-include ../../Makefile.common
+include ../Makefile.common
 
 TOCKLOADER=tockloader
 

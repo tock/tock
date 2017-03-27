@@ -1,0 +1,85 @@
+# Various helper functions and definitions for use by Tock makefiles. Included
+# by AppMakefile.mk and libtock's Makefile
+
+# ensure that this file is only included once
+ifndef HELPERS_MAKEFILE
+HELPERS_MAKEFILE = 1
+
+# http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
+# Check that given variables are set and all have non-empty values,
+# die with an error otherwise.
+#
+# Params:
+#   1. Variable name(s) to test.
+#   2. (optional) Error message to print.
+check_defined = \
+    $(strip $(foreach 1,$1, \
+        $(call __check_defined,$1,$(strip $(value 2)))))
+__check_defined = \
+    $(if $(value $1),, \
+      $(error Undefined $1$(if $2, ($2))))
+
+# Check for a ~/ at the beginning of a path variable (TOCK_USERLAND_BASE_DIR).
+# Make will not properly expand this.
+ifdef TOCK_USERLAND_BASE_DIR
+    ifneq (,$(findstring BEGINNINGOFVARIABLE~/,BEGINNINGOFVARIABLE$(TOCK_USERLAND_BASE_DIR)))
+        $(error Hi! Using "~" in Makefile variables is not supported. Use "$$(HOME)" instead)
+    endif
+endif
+
+# Warn users about improperly defined HEAP_SIZE
+ifdef HEAP_SIZE
+    $(warning The variable HEAP_SIZE is set but will not be used.)
+    $(warning Tock has two heaps, the application heap which is memory your program)
+    $(warning uses and the kernel heap or grant regions, which is memory dynamically)
+    $(warning allocated by drivers on behalf of your program.)
+    $(warning )
+    $(warning These regions are controlled by the APP_HEAP_SIZE and KERNEL_HEAP_SIZE)
+    $(warning variables respectively.)
+endif
+
+# Validate the the toolchain is new enough (known not to work for gcc <= 5.1)
+CC_VERSION_MAJOR := $(shell $(CC) -dumpversion | cut -d '.' -f1)
+ifeq (1,$(shell expr $(CC_VERSION_MAJOR) \>= 6))
+  # Opportunistically turn on gcc 6.0+ warnings since we're already version checking:
+  CPPFLAGS += -Wduplicated-cond #          # if (p->q != NULL) { ... } else if (p->q != NULL) { ... }
+  CPPFLAGS += -Wnull-dereference #         # deref of NULL (thought default if -fdelete-null-pointer-checks, in -Os, but no?)
+else
+  ifneq (5,$(CC_VERSION_MAJOR))
+    $(error Your compiler is too old. Need gcc version > 5.1)
+  endif
+    CC_VERSION_MINOR := $(shell $(CC) -dumpversion | cut -d '.' -f2)
+  ifneq (1,$(shell expr $(CC_VERSION_MINOR) \> 1))
+    $(error Your compiler is too old. Need gcc version > 5.1)
+  endif
+endif
+
+#########################################################################################
+## Pretty-printing rules
+
+# If environment variable V is non-empty, be verbose
+ifneq ($(V),)
+Q=
+TRACE_BIN =
+TRACE_DEP =
+TRACE_CC  =
+TRACE_CXX =
+TRACE_LD  =
+TRACE_AR  =
+TRACE_AS  =
+TRACE_LST =
+ELF2TBF_ARGS += -v
+else
+Q=@
+TRACE_BIN = @echo " BIN       " $@
+TRACE_DEP = @echo " DEP       " $<
+TRACE_CC  = @echo "  CC       " $<
+TRACE_CXX = @echo " CXX       " $<
+TRACE_LD  = @echo "  LD       " $@
+TRACE_AR  = @echo "  AR       " $@
+TRACE_AS  = @echo "  AS       " $<
+TRACE_LST = @echo " LST       " $<
+endif
+
+endif
+

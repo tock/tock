@@ -24,3 +24,12 @@ If you won't be developing Tock for a while, you can stop the Tock VM via
  - `vagrant halt` - Shuts down the VM
 
 In either case, simply `vagrant up` to begin working again.
+
+
+Getting code onto hardware
+--------------------------
+
+To flash or program boards, you will need to enable USB passthrough using the
+virtual machine manager of your choice for the board-specific programmer for
+your device. As the `tock/` folder is shared, you may also simply use this
+vagrant image for building and the host machine directly to flash images.

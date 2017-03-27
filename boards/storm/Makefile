@@ -3,7 +3,7 @@
 CHIP     := sam4l
 PLATFORM := storm
 
-include ../../Makefile.common
+include ../Makefile.common
 
 SLOAD=sload
 SDB=$(TOCK_BUILD_DIR)/kernel.sdb
