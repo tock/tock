@@ -23,7 +23,7 @@ int read_data(const char* packet, subscribe_cb callback, unsigned char len);
 int set_channel(int ch_num);
 
 int start_ble_advertisement(const char* packet, unsigned char len);
-int stop_ble_advertisement();
+int stop_ble_advertisement(void);
 #ifdef __cplusplus
 }
 #endif
