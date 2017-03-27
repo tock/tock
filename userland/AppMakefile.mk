@@ -47,6 +47,9 @@ LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
 LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
 LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
 
+# Some extra rules to support libnrfserialization
+include $(TOCK_USERLAND_BASE_DIR)/libnrfserialization/Makefile.app
+
 
 # Rules to generate an app for a given architecture
 # These will be used to create the different architecture versions of an app
@@ -66,19 +69,19 @@ $$(BUILDDIR)/$(1):
 
 # First step doesn't actually compile, just generate header dependency information
 # More info on our approach here: http://stackoverflow.com/questions/97338
-$$(BUILDDIR)/$(1)/%.o: %.c | $$(BUILDDIR)/$(1)
+$$(BUILDDIR)/$(1)/%.o: %.c | $$(BUILDDIR)/$(1) $$(HDRS)
 	$$(TRACE_DEP)
 	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(TRACE_CC)
 	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
-$$(BUILDDIR)/$(1)/%.o: %.cc | $$(BUILDDIR)/$(1)
+$$(BUILDDIR)/$(1)/%.o: %.cc | $$(BUILDDIR)/$(1) $$(HDRS)
 	$$(TRACE_DEP)
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(TRACE_CXX)
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
-$$(BUILDDIR)/$(1)/%.o: %.cpp | $$(BUILDDIR)/$(1)
+$$(BUILDDIR)/$(1)/%.o: %.cpp | $$(BUILDDIR)/$(1) $$(HDRS)
 	$$(TRACE_DEP)
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(TRACE_CXX)
@@ -89,6 +92,7 @@ OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)
 OBJS_$(1) += $$(patsubst %.cpp,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$(CXX_SRCS)))
 
 LIBTOCK_$(1) = $$(TOCK_USERLAND_BASE_DIR)/libtock/build/$(1)/libtock.a
+LIBNRFSERIALIZATION_$(1) = $$(TOCK_USERLAND_BASE_DIR)/libnrfserialization/$(1)/libnrfserialization.a
 
 # Collect all desired built output.
 $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBTOCK_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
@@ -100,7 +104,7 @@ $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc
 	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
 	    -T $$(LAYOUT)\
 	    -nostdlib\
-	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBTOCK_$(1)) $$(LIBS) -Wl,--end-group\
+	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBTOCK_$(1)) $$(LIBNRFSERIALIZATION_$(1)) $$(LIBS) -Wl,--end-group\
 	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
 	    -o $$@
 
