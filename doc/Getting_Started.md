@@ -196,8 +196,8 @@ applications over JTAG (or USB if a bootloader is installed).
 Installing applications over JTAG, depending on your JTAG Debugger, you will
 need one of:
 
-1. [openocd](http://openocd.org/)
-2. [JLinkExe](https://www.segger.com/downloads/jlink)
+1. [openocd](http://openocd.org/) (version >= 0.8.0)
+2. [JLinkExe](https://www.segger.com/downloads/jlink) (version >= 5.0)
 
 #### `tockloader`
 
@@ -210,7 +210,8 @@ Tock requires `tockloader` version `0.5.0`. To install:
 
 #### `openocd`
 
-Works with various JTAG debuggers.
+Works with various JTAG debuggers. We require at least version `0.8.0` to
+support the SAM4L on `imix`.
 
 ```bash
 (Linux): sudo apt-get install openocd
@@ -222,7 +223,7 @@ Works with various JTAG debuggers.
 If you want to upload code through a [JLink JTAG
 debugger](https://www.segger.com/j-link-edu.html) (available on
 [Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)
-), you should install JLinkExe.
+), you should install JLinkExe. We require a version greater than or equal to `5.0`.
 
 It is available [here](https://www.segger.com/downloads/jlink). You want to the
 "J-Link Software and Documentation Pack". There are various packages available
