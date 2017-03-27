@@ -1,6 +1,0 @@
-r
-loadfile target/sam4l/debug/hail.hex
-r
-g
-q
-
