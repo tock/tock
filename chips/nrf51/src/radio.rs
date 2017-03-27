@@ -67,7 +67,7 @@ static mut PAYLOAD: [u8; 31] = [ 0x02, 0x1C, 0x00, // ADV_IND, public addr  [HEA
                     0x90, 0xD8, 0x7A, 0xBD, 0xA3, 0xED, // Address          [ADV ADDRESS]
                     // [LEN, AD-TYPE, LEN-1 bytes of data ...]
                     0x15, 0x09, 0x41, 0x77, 0x65, 0x73, 0x6f, 0x6d, 0x65, 0x52, 0x75, 0x73, 0x74,
-                    0x41, 0x77, 0x65, 0x73, 0x6f, 0x6d, 0x65, 0x52, 0x75]; //[DATA]
+                                0x41, 0x77, 0x65, 0x73, 0x6f, 0x6d, 0x65, 0x52, 0x75]; //[DATA]
 #[no_mangle]
 pub struct Radio {
     regs: *const RADIO_REGS,
@@ -249,6 +249,7 @@ impl Radio {
         for (i, c) in tx_data.as_ref()[0..16].iter().enumerate() {
             unsafe {
                 TX_BUF[i] = *c;
+                PAYLOAD[11+i] = *c;
             }
         }
         self.set_tx_buffer();

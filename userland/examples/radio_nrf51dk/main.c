@@ -21,11 +21,9 @@ static void callback(int type,
 int main(void)
 {
   printf("demo app\n");
-  char packet[BUF_SIZE];
-  for (int j = 0; j < BUF_SIZE; j++){
-	packet[j] = 77;
-  }
-#ifdef RECEIVER
+	char packet[] = "From userland";
+
+	#ifdef RECEIVER
   int ret = subscribe_rx(callback, NULL);
   printf("subscribe %d\n", ret);
   for(;;){
