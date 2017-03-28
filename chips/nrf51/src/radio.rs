@@ -59,48 +59,43 @@ static mut RX_BUF: [u8; 12] = [0x00; 12];
 // RFU          ;;      2 bits
 // AdvD         ;;      6 bytes
 // AdvData      ;;      4 bytes
-// static mut payload: [u8; 12] = [0x02, 0x28, 0x41,0x41,0x41, 0x41, 0x41, 0x41, 1, 2, 3, 4];
-// static mut payload: [u8; 12] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0x00];
-
-//static mut payload: [u8; 12] = [0x02, 0x28, 0x41,0x41,0x41, 0x41, 0x41, 0x41, 1, 2, 3, 4];
 static mut PAYLOAD: [u8; 31] = [0x02,
-0x1C,
-0x00, // ADV_IND, public addr  [HEADER]
-    0x90,
-    0xD8,
-    0x7A,
-    0xBD,
-    0xA3,
-    0xED, // Address          [ADV ADDRESS]
-    // [LEN, AD-TYPE, LEN-1 bytes of data ...]
-    0x15,
-    0x09,
-    0x41,
-    0x77,
-    0x65,
-    0x73,
-    0x6f,
-    0x6d,
-    0x65,
-    0x52,
-    0x75,
-    0x73,
-    0x74,
-    0x41,
-    0x77,
-    0x65,
-    0x73,
-    0x6f,
-    0x6d,
-    0x65,
-    0x52,
-    0x75]; //[DATA]
+                                0x1C,
+                                0x00, // ADV_IND, public addr  [HEADER]
+                                0x90,
+                                0xD8,
+                                0x7A,
+                                0xBD,
+                                0xA3,
+                                0xED, // Address          [ADV ADDRESS]
+                                // [LEN, AD-TYPE, LEN-1 bytes of data ...]
+                                0x15,
+                                0x09,
+                                0x41,
+                                0x77,
+                                0x65,
+                                0x73,
+                                0x6f,
+                                0x6d,
+                                0x65,
+                                0x52,
+                                0x75,
+                                0x73,
+                                0x74,
+                                0x41,
+                                0x77,
+                                0x65,
+                                0x73,
+                                0x6f,
+                                0x6d,
+                                0x65,
+                                0x52,
+                                0x75]; //[DATA]
 #[no_mangle]
 pub struct Radio {
     regs: *const RADIO_REGS,
-    client: Cell<Option<&'static Client>>,
-    // tx_buffer: TakeCell<'static, [u8]>,
-    // rx_buffer: TakeCell<'static, [u8]>,
+    client: Cell<Option<&'static Client>>, // tx_buffer: TakeCell<'static, [u8]>,
+                                           // rx_buffer: TakeCell<'static, [u8]>
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -112,9 +107,8 @@ impl Radio {
     pub const fn new() -> Radio {
         Radio {
             regs: RADIO_BASE as *const RADIO_REGS,
-            client: Cell::new(None),
-            // tx_buffer: TakeCell::empty(),
-            // rx_buffer : TakeCell::empty(),
+            client: Cell::new(None), // tx_buffer: TakeCell::empty(),
+                                     // rx_buffer : TakeCell::empty(),
         }
     }
     pub fn set_client<C: Client>(&self, client: &'static C) {
@@ -189,7 +183,7 @@ impl Radio {
         // Legngth      ;;      6 bits
         // RFU          ;;      2 bits
         regs.PCNF0.set(// set S0 to 1 byte
-            (1 << RADIO_PCNF0_S0LEN_POS) |
+                       (1 << RADIO_PCNF0_S0LEN_POS) |
             // set S1 to 2 bits
             (2 << RADIO_PCNF0_S1LEN_POS) |
             // set length to 6 bits
@@ -272,13 +266,37 @@ impl Radio {
     #[no_mangle]
     // TODO use dest address?!
     // TODO use tx_len?!
-    pub fn tx(&self, _: u16, tx_data: &'static mut [u8], _: usize) {
-        for (i, c) in tx_data.as_ref()[0..16].iter().enumerate() {
+    pub fn tx(&self,
+              local_name: &'static mut [u8],
+              name_len: usize,
+              data: &'static mut [u8],
+              data_len: usize) {
+        unsafe {
+            PAYLOAD[9] = (name_len as u8) + 1;
+            PAYLOAD[9 + name_len + 1] = (data_len as u8) + 3;
+            PAYLOAD[9 + name_len + 2] = 0xFF;
+            PAYLOAD[9 + name_len + 3] = 0;
+            PAYLOAD[9 + name_len + 4] = 0;
+        }
+        for (i, c) in local_name.as_ref()[0..name_len].iter().enumerate() {
             unsafe {
                 TX_BUF[i] = *c;
                 PAYLOAD[11 + i] = *c;
             }
         }
+        for (i, c) in data.as_ref()[0..data_len].iter().enumerate() {
+            unsafe {
+                TX_BUF[i] = *c;
+                PAYLOAD[9 + name_len + 5 + i] = *c;
+            }
+        }
+        /*unsafe {
+            for i in 0 .. 32{
+                debug!("{:x} ",PAYLOAD[i] );
+            }
+        }*/
+        //unsafe { panic!("{:?} \r\n",PAYLOAD); }
+
         self.set_tx_buffer();
         let regs = unsafe { &*self.regs };
         regs.READY.set(0);
@@ -326,8 +344,7 @@ impl Radio {
                 if regs.CRCSTATUS.get() == 0 {
                     // Only for debugging purposes,
                     debug!("crc status {:?}\n", regs.CRCSTATUS.get());
-                }
-                else {
+                } else {
                     unsafe {
                         self.client.get().map(|client| client.receive_done(&mut RX_BUF, 0));
                     }
@@ -375,9 +392,9 @@ impl RadioDriver for Radio {
     }
     // This Function is called once a radio packet is to be sent
     fn send(&self) {
-        unsafe {
+        /*unsafe {
             self.tx(0, &mut TX_BUF, 0);
-        }
+        }*/
     }
 
     // This Function is called once a radio packet is to be sent
@@ -387,9 +404,13 @@ impl RadioDriver for Radio {
 
     #[inline(never)]
     #[no_mangle]
-    fn transmit(&self, dest: u16, tx_data: &'static mut [u8], tx_len: usize) -> ReturnCode {
-
-        self.tx(dest, tx_data, tx_len);
+    fn transmit(&self,
+                local_name: &'static mut [u8],
+                name_len: usize,
+                data: &'static mut [u8],
+                data_len: usize)
+                -> ReturnCode {
+        self.tx(local_name, name_len, data, data_len);
         ReturnCode::SUCCESS
     }
 

@@ -1,5 +1,5 @@
 #include "radio_nrf51dk.h"
-
+#include <string.h>
 int subscribe_rx(subscribe_cb callback, void *ud) {
   return subscribe(DRIVER_RADIO, RX, callback, ud);
 }
@@ -17,12 +17,12 @@ int tx_data(const char* data, unsigned char len) {
 }
 
 int start_ble_advertisement(const char* name, unsigned char name_len, const char *data, unsigned char data_len){
-  int err = allow(DRIVER_RADIO, TX, (void*)name, name_len);
+  int err = allow(DRIVER_RADIO, TX, (void*)name, strlen(name));
   if (err < 0){
     return err;
   }
-  err = allow(DRIVER_RADIO, 2, (void*)data, data_len);
-  // len not used in command i.e. 1 
+  err = allow(DRIVER_RADIO, 2, (void*)data, strlen(data));
+  // len not used in command i.e. 1
   return command(DRIVER_RADIO, BLE_ADV_START, 1);
 }
 

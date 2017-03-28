@@ -102,15 +102,22 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                                     .zip(slice2.as_ref()[0..len2].iter()) {
                                     *out = *inp;
                                 }
+                                if len + len2 < 17 {
+                                    self.radio.transmit(buf, len, buf2, len2);
+                                } else {
+                                    // TODO: return error
+                                }
                                 // if len + len2 < 30 then send (or similar)
                                 // else return error
-                                debug!("total len {:?}\r\n", len + len2);
+                                //debug!("total len {:?}\r\n", len + len2);
+                                unsafe {
+                                    self.kernel_tx_data.replace(&mut BUF);
+                                }
                             });
                         });
                         // kernel_tx_data works only for 1 transmitt then it "consumed"
                         // need to replaced after take()
                         // when it's fixed move transmit into the inner closure
-                        self.radio.transmit(0, buf, len);
                     });
 
                 });
@@ -172,6 +179,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, 
             cntr.enter(|app, _| { app.tx_callback.map(|mut cb| { cb.schedule(13, 0, 0); }); });
         }
         self.kernel_tx.replace(tx_data);
+        //self.kernel_tx_data.replace(tx_data);
+        //TODO: something like this to avoid unsafe in send_userland_buffer
         ReturnCode::SUCCESS
     }
 }
