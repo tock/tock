@@ -47,8 +47,29 @@ LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
 LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
 LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
 
-# Some extra rules to support libnrfserialization
-include $(TOCK_USERLAND_BASE_DIR)/libnrfserialization/Makefile.app
+
+
+# Rules to incorporate external libraries
+define EXTERN_LIB_RULES
+EXTERN_LIB_NAME_$(notdir $(1)) := $(notdir $(1))
+
+# If this library has any additional rules, add them
+-include $(1)/Makefile.app
+
+# If this library has an include directory, add it to search path
+ifneq "$$(wildcard $(1)/include)" ""
+  CPPFLAGS += -I$(1)/include
+endif
+
+# Add arch-specific rules for each library
+$$(foreach arch, $$(TOCK_ARCHS), $$(eval LIBS_$$(arch) += $(1)/$$(arch)/$(notdir $(1)).a))
+
+endef
+
+# To see the generated rules, run:
+# $(info $(foreach lib, $(EXTERN_LIBS), $(call EXTERN_LIB_RULES,$(lib))))
+$(foreach lib, $(EXTERN_LIBS), $(eval $(call EXTERN_LIB_RULES,$(lib))))
+
 
 
 # Rules to generate an app for a given architecture
@@ -58,9 +79,6 @@ include $(TOCK_USERLAND_BASE_DIR)/libnrfserialization/Makefile.app
 # Note: all variables, other than $(1), used within this block must be double
 # dollar-signed so that their values will be evaluated when run, not when
 # generated
-#
-# To see the generated rules, run:
-# $(info $(foreach arch,$(TOCK_ARCHS),$(call BUILD_RULES,$(arch))))
 define BUILD_RULES
 
 # BUILDDIR holds architecture dependent, but board-independent outputs
@@ -92,10 +110,9 @@ OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)
 OBJS_$(1) += $$(patsubst %.cpp,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$(CXX_SRCS)))
 
 LIBTOCK_$(1) = $$(TOCK_USERLAND_BASE_DIR)/libtock/build/$(1)/libtock.a
-LIBNRFSERIALIZATION_$(1) = $$(TOCK_USERLAND_BASE_DIR)/libnrfserialization/$(1)/libnrfserialization.a
 
 # Collect all desired built output.
-$$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBTOCK_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
+$$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBTOCK_$(1)) $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
 	$$(TRACE_LD)
 	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS)\
 	    --entry=_start\
@@ -104,7 +121,7 @@ $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc
 	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
 	    -T $$(LAYOUT)\
 	    -nostdlib\
-	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBTOCK_$(1)) $$(LIBNRFSERIALIZATION_$(1)) $$(LIBS) -Wl,--end-group\
+	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBTOCK_$(1)) $$(LIBS_$(1)) $$(LIBS) -Wl,--end-group\
 	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
 	    -o $$@
 
@@ -126,7 +143,9 @@ ifndef TOCK_NO_CHECK_SWITCHES
 endif
 endef
 
-# actually generate the rules for each architecture
+# To see the generated rules, run:
+# $(info $(foreach arch,$(TOCK_ARCHS),$(call BUILD_RULES,$(arch))))
+# Actually generate the rules for each architecture
 $(foreach arch, $(TOCK_ARCHS), $(eval $(call BUILD_RULES,$(arch))))
 
 
