@@ -1,1 +1,2 @@
 newlib-*
+lto_archive_workaround

@@ -120,8 +120,8 @@ $(LIBNAME)_OBJS_$(1) += $$(patsubst %.cxx,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(fi
 
 $$($(LIBNAME)_BUILDDIR)/$(1)/$(LIBNAME).a: $$($(LIBNAME)_OBJS_$(1)) | $$($(LIBNAME)_BUILDDIR)/$(1)
 	$$(TRACE_AR)
-	$$(Q)$$(AR) rc $$@ $$^
-	$$(Q)$$(RANLIB) $$@
+	$$(Q)$$(AR) rc $$@ $$^ --plugin=$$$$($$(CC) --print-file-name=liblto_plugin.so)
+	$$(Q)$$(RANLIB) $$@ --plugin=$$$$($$(CC) --print-file-name=liblto_plugin.so)
 
 # If we're building this library as part of a bigger build, add ourselves to
 # the list of libraries
