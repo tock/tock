@@ -207,15 +207,22 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                                     .zip(slice2.as_ref()[0..len2].iter()) {
                                     *out = *inp;
                                 }
+                                if len + len2 < 17 {
+                                    self.radio.transmit(buf, len, buf2, len2);
+                                } else {
+                                    // TODO: return error
+                                }
                                 // if len + len2 < 30 then send (or similar)
                                 // else return error
-                                debug!("total len {:?}\r\n", len + len2);
+                                //debug!("total len {:?}\r\n", len + len2);
+                                unsafe {
+                                    self.kernel_tx_data.replace(&mut BUF);
+                                }
                             });
                         });
                         // kernel_tx_data works only for 1 transmitt then it "consumed"
                         // need to replaced after take()
                         // when it's fixed move transmit into the inner closure
-                        self.radio.transmit(0, buf, len);
                     });
 
                 });
