@@ -1,13 +1,12 @@
-//! Radio/BLE driver for nrf51dk
+//! Radio/BLE Capsule
 //!
-//! So far the capsule is as simple as it can be i.e. it receives
-//! which channel from the userapp to advertise on
+//! The capsule is implemented on top of a virtual timer
+//! in order to send periodic BLE advertisements without blocking
+//! the entire kernel
 //!
-//! TODO:
-//!     - BLE/radio state
-//!     - Guard to ensure mutex
-//!     - Logic .... separate which layers to be handler where
-//!     - more discuss with @alevy
+//! Currently only advertisements with name configured in
+//! userland are supported.
+//!
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
@@ -26,7 +25,10 @@ pub struct App {
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
+    // used for adv name
     app_write: Option<AppSlice<Shared, u8>>,
+    // specific data in adv
+    app_write_data: Option<AppSlice<Shared, u8>>,
 }
 
 impl Default for App {
@@ -36,6 +38,7 @@ impl Default for App {
             rx_callback: None,
             app_read: None,
             app_write: None,
+            app_write_data: None,
         }
     }
 }
@@ -75,37 +78,48 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         self.radio.init()
     }
 
+    // change name of the function? not that clear
+    // added a nested closure get other data from userland
     pub fn send_userland_buffer(&self) {
-
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
-                app.app_write.as_mut().map(|slice| {
+                app.app_write.as_ref().map(|slice| {
+                    // advertisement name
                     self.kernel_tx.take().map(|buf| {
                         // suggestion how to loop through the buffer without knowing the length
-                        // as a side-note buf.len() is only length of the takecell i.e. initally 32
-                        // thus there is no "guarantee" that the actual data is 32
-                        // this is eq to while(char *ptr != NULL)
-                        // also added so that the buffer is 32 bytes and data can't be longer than
-                        // 31 bytes because of BLE restrictions
-                        let max_len = buf.len();
-                        let mut len = 0;
-                        for (out, inp) in buf.iter_mut().zip(slice.as_ref()[0..max_len].iter()) {
-                            if *inp == 0 {
-                                break;
-                            }
-                            len += 1;
+                        let len = slice.len();
+                        // debug!("len: {:?}\r\n", len);
+                        for (out, inp) in buf.iter_mut().zip(slice.as_ref()[0..len].iter()) {
                             *out = *inp;
                         }
+
+                        app.app_write_data.as_ref().map(|slice2| {
+                            // advertisement data
+                            self.kernel_tx_data.take().map(move |buf2| {
+                                let len2 = slice2.len();
+                                // debug!("len2: {:?}\r\n", len2);
+                                for (out, inp) in buf2.iter_mut()
+                                    .zip(slice2.as_ref()[0..len2].iter()) {
+                                    *out = *inp;
+                                }
+                                // if len + len2 < 30 then send (or similar)
+                                // else return error
+                                debug!("total len {:?}\r\n", len + len2);
+                            });
+                        });
+                        // kernel_tx_data works only for 1 transmitt then it "consumed"
+                        // need to replaced after take()
+                        // when it's fixed move transmit into the inner closure
                         self.radio.transmit(0, buf, len);
                     });
 
                 });
             });
         }
-
     }
-    pub fn transmit_ble_adv(&self) {
 
+    // re-name set_frequency()???
+    pub fn transmit_ble_adv(&self) {
         let mut interval = 4100 as u32;
         if self.frequency.get() == 39 {
             interval = 41000 as u32;
@@ -123,6 +137,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
 }
 
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
+    // this method is called once the virtual timer has been expired
+    // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
         if self.advertise.get() == true {
             self.transmit_ble_adv();
@@ -132,18 +148,14 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Ra
 
 
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, A> {
-    #[inline(never)]
-    #[no_mangle]
     fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
-        // TODO add offset size etc....
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 if app.app_read.is_some() {
                     let dest = app.app_read.as_mut().unwrap();
                     let d = &mut dest.as_mut();
                     // write to buffer in userland
-                    // 0 .. 16 <-> int i = 0; i < 16; i++
-                    for (i, c) in rx_data[0..16].iter().enumerate() {
+                    for (i, c) in rx_data[0..rx_len as usize].iter().enumerate() {
                         d[i] = *c;
                     }
                 }
@@ -167,13 +179,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, 
 // Implementation of the Driver Trait/Interface
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, A> {
     //  0 -  rx, must be called each time to get a an rx interrupt, TODO nicer approach
-    //  2 -  tx, call for each message
-    //  ...
-    //  ...
-    //  TODO channel configuration etc for bluetooth compatible packets
-    //  TODO add guard for mutex etc
-    #[inline(never)]
-    #[no_mangle]
+    //  1 -  tx, call for each message
+    //  3 -  send BLE advertisements periodically
+    //  4 -  disable periodc BLE advertisementes
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => {
@@ -193,11 +201,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                     let tics = self.alarm.now().wrapping_add(interval);
                     self.alarm.set_alarm(tics);
                     ReturnCode::SUCCESS
-                }
-                else{
+                } else {
                     ReturnCode::FAIL
                 }
-
             }
             //Stop ADV_BLE
             4 => {
@@ -255,6 +261,19 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                 self.app
                     .enter(appid, |app, _| {
                         app.app_write = Some(slice);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
+            }
+            // used for data buf for advertisement
+            2 => {
+                self.app
+                    .enter(appid, |app, _| {
+                        app.app_write_data = Some(slice);
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {

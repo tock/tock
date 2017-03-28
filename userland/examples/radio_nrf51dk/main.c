@@ -21,7 +21,9 @@ static void callback(int type,
 int main(void)
 {
   printf("demo app\n");
-	char packet[] = "From userland";
+	// remember these will be automatically '\0' terminated
+  char packet[] = "From userland";
+  char data[] = "dummy";
 
 	#ifdef RECEIVER
   int ret = subscribe_rx(callback, NULL);
@@ -38,7 +40,7 @@ int main(void)
 	for(;;){
 		delay_ms(10000);
 		printf("after delay \r\n");
-		printf("return from start_ble_advertisement %d\r\n",start_ble_advertisement(packet,BUF_SIZE));
+		printf("return from start_ble_advertisement %d\r\n", start_ble_advertisement(packet, sizeof(packet), data, sizeof(data)));
 		delay_ms(50000);
 		//for(int i = 0; i < 1000000; i++){}
 		printf("return from stop_ble_advertisement %d\r\n",stop_ble_advertisement());
