@@ -49,7 +49,9 @@ CPPFLAGS += \
 	    -fstack-usage -Wstack-usage=$(STACK_SIZE)\
 	    -Wall\
 	    -Wextra\
-	    -Wl,-gc-sections\
+	    -Wl,--warn-common\
+	    -Wl,--gc-sections\
+	    -Wl,--emit-relocs\
 	    -g\
 	    -fPIC\
 	    -msingle-pic-base\
