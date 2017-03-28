@@ -176,7 +176,9 @@ impl AesECB {
                 // ugly work-around to replace buffers in the capsule;
                 unsafe {
                     self.client.get().map(|client| {
-                        client.crypt_done(&mut BUF[0..self.len.get() as usize], &mut DMY, self.len.get())
+                        client.crypt_done(&mut BUF[0..self.len.get() as usize],
+                                          &mut DMY,
+                                          self.len.get())
                     });
                 }
             }

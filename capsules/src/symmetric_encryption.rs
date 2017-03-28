@@ -227,7 +227,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                     // aes-ctr-128
                     0 => {
                         if self.key_configured.get() && !self.busy.get() &&
-                           self.state.get() == CryptoState::IDLE {   
+                           self.state.get() == CryptoState::IDLE {
                             for cntr in self.apps.iter() {
                                 cntr.enter(|app, _| {
                                     self.busy.set(true);
@@ -266,7 +266,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
             }
             // decryption driver
             // command sets decryption mode
-            // sub_command sets algorithm currently only aes-ctr 
+            // sub_command sets algorithm currently only aes-ctr
             2 => {
                 match sub_cmd {
                     // aes-128-ctr
