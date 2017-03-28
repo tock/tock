@@ -176,7 +176,7 @@ static void callback(int cb,
       printf("set key error %d\r\n", config);
     }
 
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 10; i++) {
       delay_ms(500);
       if(aes128_encrypt_ctr(data, ctr, sizeof(data)) < 0) {
         printf("encrypt error\r\n");

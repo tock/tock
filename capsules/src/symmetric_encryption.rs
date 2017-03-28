@@ -2,8 +2,7 @@
 //!
 //! Provides a simple driver for userspace applications to encrypt and decrypt messages
 //!
-//! The key is assumed to be 16 bytes and configured once
-//! FIXME: other key lengths e.g. AES256 should be supported
+//! The key is assumed to be 16, 24 or 32 bytes
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
@@ -79,7 +78,7 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Crypto<'a, E> {
 }
 
 impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
-    fn crypt_done(&self, data: &'static mut [u8], len: u8) -> ReturnCode {
+    fn crypt_done(&self, data: &'static mut [u8], dmy: &'static mut [u8], len: u8) -> ReturnCode {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 if app.data_buf.is_some() {
@@ -90,21 +89,18 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
                         d[i] = *c;
                     }
                 }
-                if self.state.get() == CryptoState::ENCRYPT {
-                    app.callback.map(|mut cb| { cb.schedule(1, 0, 0); });
-                } else if self.state.get() == CryptoState::DECRYPT {
-                    app.callback.map(|mut cb| { cb.schedule(2, 0, 0); });
-                }
+                app.callback.map(|mut cb| { cb.schedule(self.state.get() as usize, 0, 0); });
             });
         }
-        // tmp
-        unsafe {
-            self.kernel_ctr.replace(&mut IV);
-        }
+        // // tmp
+        // unsafe {
+        //     self.kernel_ctr.replace(&mut IV);
+        // }
         // indicate that the encryption driver not busy
         self.busy.set(false);
         self.state.set(CryptoState::IDLE);
         self.kernel_data.replace(data);
+        self.kernel_ctr.replace(dmy);
         ReturnCode::SUCCESS
     }
 
@@ -122,7 +118,6 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
         ReturnCode::SUCCESS
     }
 }
-
 
 impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
@@ -185,74 +180,133 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
         }
     }
 
-    fn command(&self, command_num: usize, len: usize, _: AppId) -> ReturnCode {
-        match command_num {
+    fn command(&self, cmd: usize, sub_cmd: usize, _: AppId) -> ReturnCode {
+        match cmd {
             // set key, it is assumed that it is always 16 bytes
             // can only be performed once at the moment
             0 => {
-                if len == 16 && !self.key_configured.get() && !self.busy.get() &&
+                if !self.key_configured.get() && !self.busy.get() &&
                    self.state.get() == CryptoState::IDLE {
+                    let mut ret = ReturnCode::SUCCESS;
                     for cntr in self.apps.iter() {
-
                         // indicate busy state
                         self.busy.set(true);
                         self.state.set(CryptoState::SETKEY);
 
                         cntr.enter(|app, _| {
                             app.key_buf.as_ref().map(|slice| {
-                                self.kernel_key.take().map(|buf| {
-                                    for (out, inp) in buf.iter_mut()
-                                        .zip(slice.as_ref()[0..16].iter()) {
-                                        *out = *inp;
-                                    }
-                                    self.crypto.set_key(buf);
-                                });
+                                let len = slice.len();
+                                if len == 16 || len == 24 || len == 32 {
+                                    self.kernel_key.take().map(|buf| {
+                                        for (out, inp) in buf.iter_mut()
+                                            .zip(slice.as_ref()[0..len].iter()) {
+                                            *out = *inp;
+                                        }
+                                        self.crypto.set_key(buf, len);
+                                    });
+                                } else {
+                                    self.busy.set(false);
+                                    self.state.set(CryptoState::IDLE);
+                                    ret = ReturnCode::ESIZE;
+                                }
                             });
                         });
                     }
-                    ReturnCode::SUCCESS
+                    ret
+                } else if self.busy.get() {
+                    ReturnCode::EBUSY
                 } else {
                     ReturnCode::FAIL
                 }
             }
-            // encryption/decryption driver
-            // FIXME: better error handling
-            e @ 1...2 => {
-                if self.key_configured.get() && !self.busy.get() &&
-                   self.state.get() == CryptoState::IDLE {
-                    for cntr in self.apps.iter() {
-                        self.busy.set(true);
-
-                        // set state
-                        match e {
-                            1 => self.state.set(CryptoState::ENCRYPT),
-                            2 => self.state.set(CryptoState::DECRYPT),
-                            _ => (),
-                        }
-
-                        cntr.enter(|app, _| {
-                            app.data_buf.as_ref().map(|slice| {
-                                self.kernel_data.take().map(|buf| {
-                                    for (out, inp) in buf.iter_mut()
-                                        .zip(slice.as_ref()[0..len].iter()) {
-                                        *out = *inp;
-                                    }
-                                    app.ctr_buf.as_ref().map(|slice2| {
-                                        self.kernel_ctr.take().map(move |ctr| {
-                                            for (out, inp) in ctr.iter_mut()
-                                                .zip(slice2.as_ref()[0..16].iter()) {
+            // encryption driver
+            // the sub-command is suppused to be used for selection
+            // encryption algorithm and block cipher mode
+            1 => {
+                match sub_cmd {
+                    // aes-ctr-128
+                    0 => {
+                        if self.key_configured.get() && !self.busy.get() &&
+                           self.state.get() == CryptoState::IDLE {   
+                            for cntr in self.apps.iter() {
+                                cntr.enter(|app, _| {
+                                    self.busy.set(true);
+                                    self.state.set(CryptoState::ENCRYPT);
+                                    app.data_buf.as_ref().map(|slice| {
+                                        let len1 = slice.len();
+                                        self.kernel_data.take().map(|buf| {
+                                            for (out, inp) in buf.iter_mut()
+                                                .zip(slice.as_ref()[0..len1].iter()) {
                                                 *out = *inp;
                                             }
-                                            self.crypto.aes128_crypt_ctr(buf, ctr, len as u8);
+                                            app.ctr_buf.as_ref().map(|slice2| {
+                                                let len2 = slice2.len();
+                                                self.kernel_ctr.take().map(move |ctr| {
+                                                    for (out, inp) in ctr.iter_mut()
+                                                        .zip(slice2.as_ref()[0..len2].iter()) {
+                                                        *out = *inp;
+                                                    }
+                                                    self.crypto
+                                                        .aes128_crypt_ctr(buf, ctr, len1);
+                                                });
+                                            });
                                         });
                                     });
                                 });
-                            });
-                        });
+                            }
+                            ReturnCode::SUCCESS
+                        } else if self.busy.get() == true {
+                            ReturnCode::EBUSY
+                        } else {
+                            ReturnCode::FAIL
+                        }
                     }
-                    ReturnCode::SUCCESS
-                } else {
-                    ReturnCode::EBUSY
+                    _ => ReturnCode::ENOSUPPORT,
+                }
+            }
+            // decryption driver
+            // command sets decryption mode
+            // sub_command sets algorithm currently only aes-ctr 
+            2 => {
+                match sub_cmd {
+                    // aes-128-ctr
+                    0 => {
+                        if self.key_configured.get() && !self.busy.get() &&
+                           self.state.get() == CryptoState::IDLE {
+                            for cntr in self.apps.iter() {
+                                cntr.enter(|app, _| {
+                                    self.busy.set(true);
+                                    self.state.set(CryptoState::DECRYPT);
+                                    app.data_buf.as_ref().map(|slice| {
+                                        let len1 = slice.len();
+                                        self.kernel_data.take().map(|buf| {
+                                            for (out, inp) in buf.iter_mut()
+                                                .zip(slice.as_ref()[0..len1].iter()) {
+                                                *out = *inp;
+                                            }
+                                            app.ctr_buf.as_ref().map(|slice2| {
+                                                let len2 = slice2.len();
+                                                self.kernel_ctr.take().map(move |ctr| {
+                                                    for (out, inp) in ctr.iter_mut()
+                                                        .zip(slice2.as_ref()[0..len2].iter()) {
+                                                        *out = *inp;
+                                                    }
+                                                    self.crypto
+                                                        .aes128_crypt_ctr(buf, ctr, len1);
+                                                });
+                                            });
+                                        });
+                                    });
+                                });
+                            }
+                            ReturnCode::SUCCESS
+                        } else if self.busy.get() == true {
+                            ReturnCode::EBUSY
+                        } else {
+                            ReturnCode::FAIL
+                        }
+                    }
+                    _ => ReturnCode::ENOSUPPORT,
                 }
             }
             _ => ReturnCode::ENOSUPPORT,

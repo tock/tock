@@ -18,7 +18,7 @@ pub trait SymmetricEncryptionDriver {
 
     /// Configure encryption/decryption key
     /// assumes that key size is 16 bytes
-    fn set_key(&self, key: &'static mut [u8]);
+    fn set_key(&self, key: &'static mut [u8], len: usize);
 
     /// these may be used in the future but rename them then as "aes_128_encrypt_cbc etc"
     // fn encrypt(&self, plaintext: &'static mut [u8], len: u8);
@@ -28,14 +28,14 @@ pub trait SymmetricEncryptionDriver {
     /// rename method to "aes_128_crypt_ctr"?
     /// this method is highly depedent on nrf51dk though but should work for
     /// other chips perhaps only ignore "init_ctr" and assume all is performed in HW
-    fn aes128_crypt_ctr(&self, data: &'static mut [u8], init_ctr: &'static mut [u8], len: u8);
+    fn aes128_crypt_ctr(&self, data: &'static mut [u8], init_ctr: &'static mut [u8], len: usize);
 }
 
 pub trait Client {
     /// send back to result of the encryption/decryption to the capsule
     /// this should be hardware independent if the cryptostate is used for all
     /// implementations
-    fn crypt_done(&self, data: &'static mut [u8], len: u8) -> ReturnCode;
+    fn crypt_done(&self, data: &'static mut [u8], dmy: &'static mut [u8], len: u8) -> ReturnCode;
 
     /// once the key has been configure trigger call-back to indicate to the capsule
     /// that now it's possible to begin to encrypt and decrypt data

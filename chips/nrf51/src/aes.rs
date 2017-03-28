@@ -38,6 +38,7 @@ static mut ECB_DATA: [u8; 48] = [0; 48];
 
 static mut BUF: [u8; 128] = [0; 128];
 static mut DATA: [u8; 128] = [0; 128];
+static mut DMY: [u8; 16] = [0; 16];
 
 #[no_mangle]
 pub struct AesECB {
@@ -104,7 +105,8 @@ impl AesECB {
         self.enable_interrupts();
     }
 
-    fn set_key(&self, key: &'static mut [u8]) {
+    // key can be 16, 24, 32
+    fn set_key(&self, key: &'static mut [u8], _: usize) {
         for (i, c) in key.as_ref()[0..16].iter().enumerate() {
             unsafe {
                 ECB_DATA[i] = *c;
@@ -171,10 +173,10 @@ impl AesECB {
             }
             // DONE
             else {
-                // panic!("done\r\n");
+                // ugly work-around to replace buffers in the capsule;
                 unsafe {
                     self.client.get().map(|client| {
-                        client.crypt_done(&mut BUF[0..self.len.get() as usize], self.len.get())
+                        client.crypt_done(&mut BUF[0..self.len.get() as usize], &mut DMY, self.len.get())
                     });
                 }
             }
@@ -222,13 +224,13 @@ impl SymmetricEncryptionDriver for AesECB {
     }
 
     // capsule ensures that the key is 16 bytes
-    fn set_key(&self, key: &'static mut [u8]) {
-        self.set_key(key)
+    fn set_key(&self, key: &'static mut [u8], len: usize) {
+        self.set_key(key, len)
     }
 
-    fn aes128_crypt_ctr(&self, data: &'static mut [u8], iv: &'static mut [u8], len: u8) {
-        self.remaining.set(len);
-        self.len.set(len);
+    fn aes128_crypt_ctr(&self, data: &'static mut [u8], iv: &'static mut [u8], len: usize) {
+        self.remaining.set(len as u8);
+        self.len.set(len as u8);
         self.offset.set(0);
         // self.data.replace(data);
 

@@ -9,7 +9,7 @@ int aes128_configure_key(const char* key, unsigned char len) {
   if (err < 0)  {
     return err;
   }
-  return command(DRIVER_ECB, KEY, len);
+  return command(DRIVER_ECB, KEY, 0);
 }
 
 int aes128_encrypt_ctr(const char* buf, const char* ctr, unsigned char len) {
@@ -21,7 +21,7 @@ int aes128_encrypt_ctr(const char* buf, const char* ctr, unsigned char len) {
   if (err < 0) {
     return err;
   }
-  return command(DRIVER_ECB, ENC, len);
+  return command(DRIVER_ECB, ENC, 0);
 }
 
 int aes128_decrypt_ctr(const char* buf, const char* ctr, unsigned char len) {
@@ -33,5 +33,5 @@ int aes128_decrypt_ctr(const char* buf, const char* ctr, unsigned char len) {
   if (err < 0) {
     return err;
   }
-  return command(DRIVER_ECB, DEC, len);
+  return command(DRIVER_ECB, DEC, 0);
 }
