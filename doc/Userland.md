@@ -3,6 +3,22 @@ This document explains how application code works in Tock. This is not a guide
 to creating your own applications, but rather documentation of the design
 thoughts behind how applications function.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Userland.md -->
+
+<!-- toc -->
+
+- [Overview of Applications in Tock](#overview-of-applications-in-tock)
+- [System Calls](#system-calls)
+- [Callbacks](#callbacks)
+- [Inter-Process Communication](#inter-process-communication)
+- [Stack and Heap](#stack-and-heap)
+- [Debugging](#debugging)
+- [Libraries](#libraries)
+  * [Newlib](#newlib)
+  * [libtock](#libtock)
+- [Related](#related)
+
+<!-- tocstop -->
 
 ## Overview of Applications in Tock
 Applications in Tock are the user-level code meant to accomplish some type of
@@ -88,6 +104,20 @@ return from execution (for example, an application that returns from `main`).
 
 ## Inter-Process Communication
  * **TODO:** how does this work?
+
+## Application Entry Point
+
+__Warning: Unstable__
+
+Applications should define a `main` method:
+
+    int main(void)
+
+Currently, main receives no arguments and its return value is ignored.
+Applications **should** return 0 from `main`.  Applications are not terminated
+when `main` returns, rather an implicit `while (1) { yield(); }` follows
+`main`, allowing applications to set up a series of event subscriptions in
+their `main` method and then return.
 
 ## Stack and Heap
 Applications can specify their required stack and heap sizes by defining the
