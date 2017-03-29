@@ -92,11 +92,6 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
                 app.callback.map(|mut cb| { cb.schedule(self.state.get() as usize, 0, 0); });
             });
         }
-        // // tmp
-        // unsafe {
-        //     self.kernel_ctr.replace(&mut IV);
-        // }
-        // indicate that the encryption driver not busy
         self.busy.set(false);
         self.state.set(CryptoState::IDLE);
         self.kernel_data.replace(data);
@@ -182,8 +177,8 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
 
     fn command(&self, cmd: usize, sub_cmd: usize, _: AppId) -> ReturnCode {
         match cmd {
-            // set key, it is assumed that it is always 16 bytes
-            // can only be performed once at the moment
+            // set key, it is assumed to 16, 24 or 32 bytes
+            // e.g. aes-128, aes-128 and aes-256
             0 => {
                 if !self.key_configured.get() && !self.busy.get() &&
                    self.state.get() == CryptoState::IDLE {

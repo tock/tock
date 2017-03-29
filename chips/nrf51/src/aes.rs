@@ -105,7 +105,7 @@ impl AesECB {
         self.enable_interrupts();
     }
 
-    // key can be 16, 24, 32
+    // precondition: key len = 16 || 24 || 32
     fn set_key(&self, key: &'static mut [u8], _: usize) {
         for (i, c) in key.as_ref()[0..16].iter().enumerate() {
             unsafe {
