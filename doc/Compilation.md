@@ -232,11 +232,11 @@ build-date = 2017-03-20T19:37:11Z       // When the application was compiled
 
 ### Tock userland compilation environment
 
-Tock provides aims to provide a build environment that is easy for application
-authors to integrate with. Check out the [examples](../userland/examples)
-folder for sample applications. The Tock userland build system will
-automatically build with all of the correct flags and generate TABs for all
-supported Tock architectures.
+Tock aims to provide a build environment that is easy for application authors
+to integrate with. Check out the [examples](../userland/examples) folder for
+sample applications. The Tock userland build system will automatically build
+with all of the correct flags and generate TABs for all supported Tock
+architectures.
 
 To leverage the Tock build system, you must:
 
