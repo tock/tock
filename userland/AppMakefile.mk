@@ -72,6 +72,19 @@ $(foreach lib, $(EXTERN_LIBS), $(eval $(call EXTERN_LIB_RULES,$(lib))))
 
 
 
+ifdef LDFLAGS
+  $(warning *******************************************************)
+  $(warning LDFLAGS are currently ignored!!)
+  $(warning )
+  $(warning This is because we need to invoke the gcc frontend not the)
+  $(warning ld frontend for the final link step, which means that we would)
+  $(warning need to parse the LDFLAGS into things like -Wl,-<flag> for each)
+  $(warning entry, but that proved a little fragile on first attempt so)
+  $(warning it is not currently done. Sorry.)
+  $(warning *******************************************************)
+endif
+
+
 # Rules to generate an app for a given architecture
 # These will be used to create the different architecture versions of an app
 # Argument $(1) is the Architecture (e.g. cortex-m0) to build for
