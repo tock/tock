@@ -6,6 +6,26 @@ platform has a different way of programming the kernel and processes. Below is
 an explanation of both kernel and process compilation as well as some examples
 of how platforms program each onto an actual board.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Compilation.md -->
+
+<!-- toc -->
+
+- [Compiling the kernel](#compiling-the-kernel)
+  * [Life of a Tock compilation](#life-of-a-tock-compilation)
+- [Compiling a process](#compiling-a-process)
+  * [Position Independent Code](#position-independent-code)
+  * [Tock Binary Format](#tock-binary-format)
+  * [Tock Application Bundle](#tock-application-bundle)
+    + [TAB Format](#tab-format)
+    + [Metadata](#metadata)
+  * [Tock userland compilation environment](#tock-userland-compilation-environment)
+    + [Compiling Libraries for Tock](#compiling-libraries-for-tock)
+    + [Including other libraries](#including-other-libraries)
+  * [Note for the Future](#note-for-the-future)
+- [Loading the kernel and processes onto a board](#loading-the-kernel-and-processes-onto-a-board)
+
+<!-- tocstop -->
+
 ## Compiling the kernel
 
 The kernel is divided into five Rust crates (i.e. packages):
@@ -210,6 +230,84 @@ only-for-boards = <list of boards>      // Optional list of board kernels that t
 build-date = 2017-03-20T19:37:11Z       // When the application was compiled
 ```
 
+### Tock userland compilation environment
+
+Tock aims to provide a build environment that is easy for application authors
+to integrate with. Check out the [examples](../userland/examples) folder for
+sample applications. The Tock userland build system will automatically build
+with all of the correct flags and generate TABs for all supported Tock
+architectures.
+
+To leverage the Tock build system, you must:
+
+  1. Set `TOCK_USERLAND_BASE_DIR` to the path to the Tock userland
+  2. `include $(TOCK_USERLAND_BASE_DIR)/AppMakefile.mk`
+
+This `include` should be the _last_ line of the Makefile for most applications.
+
+In addition, you must specify the sources for your application:
+
+  - `C_SRCS` - A list of C files to compile
+  - `CXX_SRCS` - A list of C++ files to compile
+  - `AS_SRCS` - A list of assembly files to compile
+  - `EXTERN_LIBS` - A list of directories for libraries [**compiled for Tock**](#compiling-libraries-for-tock)
+
+The build system respects all of the standard `CFLAGS` (C only), `CXXFLAGS`
+(C++ only), `CPPFLAGS` (C and C++), `ASFLAGS` (asm only), etc.
+
+Several Tock-specific variables are also useful:
+
+  - `STACK_SIZE` - The minimum application stack size
+  - `APP_HEAP_SIZE` - The minimum heap size for your application
+  - `KERNEL_HEAP_SIZE` - The minimum grant size for your application
+  - `PACKAGE_NAME` - The name for your application. Defaults to current folder
+
+The build system is broken across three files:
+
+  - `Configuration.mk` - Sets most variables used
+  - `Helpers.mk` - Generic rules and functions to support the build
+  - `AppMakefile.mk` - Includes the above files and supplies build recipes
+
+Applications wishing to define their own build rules can include only the
+`Configuration.mk` file to ensure all of the flags needed for Tock applications
+are included.
+
+#### Compiling Libraries for Tock
+
+Libraries used by Tock need all of the same position-independent build flags as
+the final application. As Tock builds for all supported architectures by
+default, libraries should include images for each supported Tock architecture.
+
+To leverage the `EXTERN_LIBS` variable, external libraries must adhere to the
+following structure:
+
+```
+For the library "example"
+
+libexample/                <-- Folder name must match library name
+├── Makefile.app           <-- Optional additional rules to include when building apps
+├── build
+│   ├── cortex-m0          <-- Architecture names match gcc's -mcpu= flag
+│   │   └── libexample.a   <-- Library name must match folder name
+│   └── cortex-m4
+│       └── libexample.a   <-- Library name must match folder name
+└── include                <-- Optional include/ directory will be added to include path
+    └── example.h
+```
+
+Like applications, libraries can leverage the Tock build system to do most of
+the heavy lifting. Simply,
+
+  1. Set `TOCK_USERLAND_BASE_DIR` to the path to the Tock userland
+  2. `include $(TOCK_USERLAND_BASE_DIR)/TockLibrary.mk`
+
+and add sources using the same variables as applications.
+
+#### Including other libraries
+
+To manually include an external library, add the library to each `LIBS_$(arch)`
+(i.e. `LIBS_cortex-m0`) variable. You can include header paths using the
+standard search mechanisms (i.e. `CPPFLAGS += -I<path>`).
 
 ### Note for the Future
 

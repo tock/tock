@@ -17,7 +17,7 @@ Using `libnrfserialization`
 To use `libnrfserialization`, add the following include to the application's
 Makefile:
 
-    include $(TOCK_USERLAND_BASE_DIR)/libnrfserialization/Makefile.app
+    EXTERN_LIBS += $(TOCK_USERLAND_BASE_DIR)/libnrfserialization
 
 
 

@@ -31,14 +31,14 @@ uint16_t conn_handle = BLE_CONN_HANDLE_INVALID;
 simple_ble_config_t ble_config = {
     .platform_id       = 0x00,              // used as 4th octect in device BLE address
     .device_id         = DEVICE_ID_DEFAULT,
-    .adv_name          = "FSTORM",
+    .adv_name          = "TOCK-BLE-ENV",
     .adv_interval      = MSEC_TO_UNITS(500, UNIT_0_625_MS),
     .min_conn_interval = MSEC_TO_UNITS(1000, UNIT_1_25_MS),
     .max_conn_interval = MSEC_TO_UNITS(1250, UNIT_1_25_MS)
 };
 
 // URL to advertise
-char eddystone_url[] = "goo.gl/8685Uw";
+const char eddystone_url[] = "goo.gl/8685Uw";
 
 // Manufacturer specific data setup
 #define UMICH_COMPANY_IDENTIFIER 0x02E0
@@ -51,6 +51,7 @@ ble_advdata_manuf_data_t mandata = {
   .data.size   = sizeof(mdata)
 };
 
+__attribute__ ((const))
 void ble_address_set (void) {
   // nop
 }
