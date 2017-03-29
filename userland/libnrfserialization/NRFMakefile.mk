@@ -304,7 +304,7 @@ CFLAGS += -D$(shell echo $(SOFTDEVICE_MODEL) | tr a-z A-Z)
 CFLAGS += -D__TOCK__
 COMPILE_ONLY += -c
 
-# Needs to be done per-arch by our Makefile
+# These are the stock NRF rules. Needs to be done per-arch by our Makefile so we replace them in our Makefile.
 #SRCS = $(SYSTEM_FILE) $(notdir $(APPLICATION_SRCS))
 #OBJS = $(addprefix $(OUTPUT_PATH), $(SRCS:.c=.o)) $(addprefix $(OUTPUT_PATH),$(APPLICATION_LIBS))
 #HDRS = $(addprefix $(OUTPUT_PATH), $(SRCS:.c=.headers)) $(addprefix $(OUTPUT_PATH),$(APPLICATION_LIBS))
