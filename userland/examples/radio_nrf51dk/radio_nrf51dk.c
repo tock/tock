@@ -22,6 +22,9 @@ int start_ble_advertisement(const char* name, unsigned char name_len, const char
     return err;
   }
   err = allow(DRIVER_RADIO, 2, (void*)data, strlen(data));
+  if (err < 0){
+    return err;
+  }
   // len not used in command i.e. 1
   return command(DRIVER_RADIO, BLE_ADV_START, 1);
 }
