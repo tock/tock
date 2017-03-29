@@ -71,7 +71,7 @@ endef
 $(foreach lib, $(EXTERN_LIBS), $(eval $(call EXTERN_LIB_RULES,$(lib))))
 
 
-
+# Some sanity checks for variables before they are used
 ifdef LDFLAGS
   $(warning *******************************************************)
   $(warning LDFLAGS are currently ignored!!)
@@ -83,6 +83,18 @@ ifdef LDFLAGS
   $(warning it is not currently done. Sorry.)
   $(warning *******************************************************)
 endif
+
+# Warn users about improperly defined HEAP_SIZE
+ifdef HEAP_SIZE
+    $(warning The variable HEAP_SIZE is set but will not be used.)
+    $(warning Tock has two heaps, the application heap which is memory your program)
+    $(warning uses and the kernel heap or grant regions, which is memory dynamically)
+    $(warning allocated by drivers on behalf of your program.)
+    $(warning )
+    $(warning These regions are controlled by the APP_HEAP_SIZE and KERNEL_HEAP_SIZE)
+    $(warning variables respectively.)
+endif
+
 
 
 # Rules to generate an app for a given architecture
@@ -162,9 +174,11 @@ endef
 $(foreach arch, $(TOCK_ARCHS), $(eval $(call BUILD_RULES,$(arch))))
 
 
+
 # TAB file generation. Used for Tockloader
 $(BUILDDIR)/$(PACKAGE_NAME).tab: $(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).bin)
 	$(TOCK_USERLAND_BASE_DIR)/tools/tab/create_tab.py $@ $(PACKAGE_NAME) $^
+
 
 
 # Rules for building apps
@@ -181,6 +195,7 @@ debug:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).lst)
 .PHONY:
 clean::
 	rm -Rf $(BUILDDIR)
+
 
 
 #########################################################################################

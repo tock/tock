@@ -16,10 +16,8 @@ else
 	TRACE_TAR = @echo " TAR       " $<
 endif
 
-HDRS += $(LIBNRFSER_DIR)/headers
-
-$(C_SRCS):	$(HDRS)
-$(CXX_SRCS):	$(HDRS)
+$(C_SRCS):	$(LIBNRFSER_DIR)/headers
+$(CXX_SRCS):	$(LIBNRFSER_DIR)/headers
 
 $(LIBNRFSER_DIR)/headers: $(LIBNRFSER_DIR)/headers.tar.gz
 	$(TRACE_TAR)
