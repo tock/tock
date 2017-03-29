@@ -127,7 +127,7 @@ impl kernel::Platform for Platform {
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
             14 => f(Some(self.rng)),
-            34 => f(Some(self.aes)),
+            17 => f(Some(self.aes)),
             36 => f(Some(self.temp)),
             _ => f(None),
         }
@@ -248,7 +248,7 @@ pub unsafe fn reset_handler() {
         capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
         capsules::symmetric_encryption::Crypto::new(&mut nrf51::aes::AESECB,
                                                     kernel::Container::create(),
-                                                    &mut capsules::symmetric_encryption::BUF,
+                                                    &mut capsules::symmetric_encryption::KEY,
                                                     &mut capsules::symmetric_encryption::BUF,
                                                     &mut capsules::symmetric_encryption::IV),
         288/8);
@@ -284,7 +284,7 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
-    debug!("Initialization complete. Entering main loop\r\n");
+    debug!("Initialization complete. Entering main loop");
     kernel::main(&platform,
                  &mut chip,
                  load_process(),

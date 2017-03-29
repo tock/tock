@@ -15,6 +15,7 @@ use kernel::hil::symmetric_encryption::{SymmetricEncryptionDriver, Client};
 use kernel::process::Error;
 
 pub static mut BUF: [u8; 128] = [0; 128];
+pub static mut KEY: [u8; 32] = [0; 32];
 pub static mut IV: [u8; 16] = [0; 16];
 
 
@@ -60,15 +61,15 @@ pub struct Crypto<'a, E: SymmetricEncryptionDriver + 'a> {
 impl<'a, E: SymmetricEncryptionDriver + 'a> Crypto<'a, E> {
     pub fn new(crypto: &'a E,
                container: Container<App>,
-               buf1: &'static mut [u8],
-               buf2: &'static mut [u8],
+               key: &'static mut [u8],
+               data: &'static mut [u8],
                ctr: &'static mut [u8])
                -> Crypto<'a, E> {
         Crypto {
             crypto: crypto,
             apps: container,
-            kernel_key: TakeCell::new(buf1),
-            kernel_data: TakeCell::new(buf2),
+            kernel_key: TakeCell::new(key),
+            kernel_data: TakeCell::new(data),
             kernel_ctr: TakeCell::new(ctr),
             key_configured: Cell::new(false),
             busy: Cell::new(false),
@@ -129,7 +130,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
-            1...2 => {
+            1 => {
                 self.apps
                     .enter(appid, |app, _| {
                         app.data_buf = Some(slice);
@@ -141,7 +142,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     })
             }
-            3 => {
+            4 => {
                 self.apps
                     .enter(appid, |app, _| {
                         app.ctr_buf = Some(slice);
@@ -217,7 +218,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
             // encryption driver
             // the sub-command is suppused to be used for selection
             // encryption algorithm and block cipher mode
-            1 => {
+            2 => {
                 match sub_cmd {
                     // aes-ctr-128
                     0 => {
@@ -262,7 +263,7 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
             // decryption driver
             // command sets decryption mode
             // sub_command sets algorithm currently only aes-ctr
-            2 => {
+            3 => {
                 match sub_cmd {
                     // aes-128-ctr
                     0 => {

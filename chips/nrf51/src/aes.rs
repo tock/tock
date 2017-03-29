@@ -76,7 +76,6 @@ impl AesECB {
     // FIXME: should this be performed in constant time i.e. skip the break part and always loop 16
     // times?
     fn update_ctr(&self) {
-        // from 15 to 0...
         let mut ctr = self.ctr.get();
         for i in (0..16).rev() {
             ctr[i] += 1;
@@ -105,7 +104,7 @@ impl AesECB {
         self.enable_interrupts();
     }
 
-    // precondition: key len = 16 || 24 || 32
+    // precondition: key_len = 16 || 24 || 32
     fn set_key(&self, key: &'static mut [u8], _: usize) {
         for (i, c) in key.as_ref()[0..16].iter().enumerate() {
             unsafe {

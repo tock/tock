@@ -20,13 +20,8 @@ pub trait SymmetricEncryptionDriver {
     /// assumes that key size is 16 bytes
     fn set_key(&self, key: &'static mut [u8], len: usize);
 
-    /// these may be used in the future but rename them then as "aes_128_encrypt_cbc etc"
-    // fn encrypt(&self, plaintext: &'static mut [u8], len: u8);
-    // fn decrypt(&self, ciphertext: &'static mut [u8], len: u8);
     /// encryption and decryption for aes in counter mode
-    /// because only the encryption-mode of the cipher is used and works like stream-cipher
-    /// rename method to "aes_128_crypt_ctr"?
-    /// this method is highly depedent on nrf51dk though but should work for
+    /// because only the encryption-mode of the cipher only one method in needed
     /// other chips perhaps only ignore "init_ctr" and assume all is performed in HW
     fn aes128_crypt_ctr(&self, data: &'static mut [u8], init_ctr: &'static mut [u8], len: usize);
 }
