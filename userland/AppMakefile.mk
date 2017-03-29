@@ -100,19 +100,19 @@ $$(BUILDDIR)/$(1):
 
 # First step doesn't actually compile, just generate header dependency information
 # More info on our approach here: http://stackoverflow.com/questions/97338
-$$(BUILDDIR)/$(1)/%.o: %.c | $$(BUILDDIR)/$(1) $$(HDRS)
+$$(BUILDDIR)/$(1)/%.o: %.c $$(HDRS) | $$(BUILDDIR)/$(1)
 	$$(TRACE_DEP)
 	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(TRACE_CC)
 	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
-$$(BUILDDIR)/$(1)/%.o: %.cc | $$(BUILDDIR)/$(1) $$(HDRS)
+$$(BUILDDIR)/$(1)/%.o: %.cc $$(HDRS) | $$(BUILDDIR)/$(1)
 	$$(TRACE_DEP)
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(TRACE_CXX)
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
-$$(BUILDDIR)/$(1)/%.o: %.cpp | $$(BUILDDIR)/$(1) $$(HDRS)
+$$(BUILDDIR)/$(1)/%.o: %.cpp $$(HDRS) | $$(BUILDDIR)/$(1)
 	$$(TRACE_DEP)
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(TRACE_CXX)
