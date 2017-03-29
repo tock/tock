@@ -18,6 +18,9 @@ endif
 
 HDRS += $(LIBNRFSER_DIR)/headers
 
+$(C_SRCS):	$(HDRS)
+$(CXX_SRCS):	$(HDRS)
+
 $(LIBNRFSER_DIR)/headers: $(LIBNRFSER_DIR)/headers.tar.gz
 	$(TRACE_TAR)
 	$(Q)tar xf $< --directory $(LIBNRFSER_DIR)
