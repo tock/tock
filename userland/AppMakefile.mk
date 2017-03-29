@@ -62,7 +62,7 @@ ifneq "$$(wildcard $(1)/include)" ""
 endif
 
 # Add arch-specific rules for each library
-$$(foreach arch, $$(TOCK_ARCHS), $$(eval LIBS_$$(arch) += $(1)/$$(arch)/$(notdir $(1)).a))
+$$(foreach arch, $$(TOCK_ARCHS), $$(eval LIBS_$$(arch) += $(1)/build/$$(arch)/$(notdir $(1)).a))
 
 endef
 

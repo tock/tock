@@ -10,17 +10,23 @@ include $(TOCK_USERLAND_BASE_DIR)/Configuration.mk
 # Helper functions
 include $(TOCK_USERLAND_BASE_DIR)/Helpers.mk
 
-
-
 LIBNRFSERIALIZATION_SRCS += $(SYSTEM_FILE) $(notdir $(APPLICATION_SRCS))
 
-# Rules for building libnrfserialization
+# Top-level rules
 .PHONY: all
 all: $(foreach arch, $(TOCK_ARCHS),$(LIBNRFSERIALIZATION_BUILDDIR)/$(arch)/libnrfserialization.a)
+all: headers.tar.gz
 
 .PHONY: clean
 clean::
 	rm -Rf $(LIBNRFSERIALIZATION_BUILDDIR)
+	rm -Rf headers/
+	rm -Rf headers.tar.gz
+
+
+
+##############################################################################################
+## Rules to actually build libnrfserialization
 
 # Rules to generate LibNRFSerialization for a given Architecture
 # These will be used to create the different architecture versions of LibNRFSerialization
@@ -54,22 +60,26 @@ $$(LIBNRFSERIALIZATION_BUILDDIR)/$(1)/libnrfserialization.a: $$(LIBNRFSERIALIZAT
 	$$(Q)$$(RANLIB) $$@
 endef
 
-#LIBNRFSERIALIZATION_OBJS_$(1) += $(addprefix $(LIBNRFSERIALIZATION_BUILDDIR), $(LIBNRFSERIALIZATION_SRCS:.c=.o)) $(addprefix $(LIBNRFSERIALIZATION_BUILDDIR),$(APPLICATION_LIBS))
-
 # actually generate the rules for each architecture
 $(foreach arch,$(TOCK_ARCHS),$(eval $(call LIBNRFSERIALIZATION_RULES,$(arch))))
 
 
+
+##############################################################################################
+## Rules to create libnrfserialization headers
 
 $(LIBNRFSERIALIZATION_BUILDDIR)/headers:
 	$(Q)mkdir -p $@
 
 HDRS += $(patsubst %.c,$(LIBNRFSERIALIZATION_BUILDDIR)/headers/%.headers, $(LIBNRFSERIALIZATION_SRCS))
 HDRS += $(addprefix $(LIBNRFSERIALIZATION_BUILDDIR)/headers/,$(APPLICATION_LIBS))
-headers: $(HDRS)
 
 $(LIBNRFSERIALIZATION_BUILDDIR)/headers/%.headers: %.c | $(LIBNRFSERIALIZATION_BUILDDIR)/headers
 	$(TRACE_CCM)
 	$(Q)$(CC) $(CFLAGS) $(CPPFLAGS) -MM $< > $@
 
+headers.tar.gz: $(HDRS)
+	mkdir -p headers
+	cat build/headers/*.headers | awk '{$$1=$$1};1' | awk '{print $$1}' | sort | grep '\.h' | grep -v libtock | uniq | xargs -IFOO cp FOO headers/
+	tar czf headers.tar.gz headers
 
