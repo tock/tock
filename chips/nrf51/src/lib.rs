@@ -13,6 +13,7 @@ mod peripheral_registers;
 mod peripheral_interrupts;
 mod nvic;
 
+pub mod aes;
 pub mod chip;
 pub mod gpio;
 pub mod rtc;
