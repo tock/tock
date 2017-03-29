@@ -68,15 +68,18 @@ static void start(
   dowork(0x20000000, 0x20004000, 0x100);
 }
 
-// our main isn't normal
-#pragma GCC diagnostic ignored "-Wmain"
-#pragma GCC diagnostic ignored "-Wsuggest-attribute=pure"
-
-int main(
+// override default _start symbol to access memory regions
+//
+// Note: parameters passed from the kernel to _start are considered unstable and
+// subject to change in the future
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+__attribute__ ((section(".start"), used))
+__attribute__ ((noreturn))
+void _start(
     void* mem_start,
     void* app_heap_break,
     void* kernel_memory_break) {
   register uint32_t* sp asm ("sp");
   start(mem_start, app_heap_break, kernel_memory_break, sp);
-  return 0;
+  while(1) { yield(); }
 }
