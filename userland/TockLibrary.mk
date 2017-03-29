@@ -46,6 +46,8 @@ $$(LIB_BUILDDIR)/$(1)/$$(PACKAGE_NAME).a: $$(LIB_OBJS_$(1)) | $$(LIB_BUILDDIR)/$
 	$$(Q)$$(RANLIB) $$@
 endef
 
+# uncomment to print generated rules
+# $(info $(foreach arch,$(TOCK_ARCHS), $(call LIB_RULES,$(arch))))
 # actually generate the rules for each architecture
 $(foreach arch,$(TOCK_ARCHS),$(eval $(call LIB_RULES,$(arch))))
 
