@@ -24,7 +24,7 @@ clean::
 $(LIBNRFSERIALIZATION_BUILDDIR)/headers:
 	$(Q)mkdir -p $@
 
-HDRS += $(patsubst %.c,$(LIBNRFSERIALIZATION_BUILDDIR)/headers/%.headers, $(LIBNRFSERIALIZATION_SRCS))
+HDRS += $(patsubst %.c,$(LIBNRFSERIALIZATION_BUILDDIR)/headers/%.headers, $(LIB_SRCS))
 HDRS += $(addprefix $(LIBNRFSERIALIZATION_BUILDDIR)/headers/,$(APPLICATION_LIBS))
 
 $(LIBNRFSERIALIZATION_BUILDDIR)/headers/%.headers: %.c | $(LIBNRFSERIALIZATION_BUILDDIR)/headers
