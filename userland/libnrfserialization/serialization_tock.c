@@ -71,7 +71,8 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
 uint32_t sd_app_evt_wait (void);
 void serialization_timer_cb (int a, int b, int c, void* timer_id);
 
-uint32_t ser_app_hal_hw_init (void);
+typedef void (*ser_app_hal_flash_op_done_handler_t)(bool success);
+uint32_t ser_app_hal_hw_init(ser_app_hal_flash_op_done_handler_t handler);
 void ser_app_hal_delay (uint32_t ms);
 void ser_app_hal_nrf_reset_pin_clear (void);
 void ser_app_hal_nrf_reset_pin_set (void);
@@ -282,7 +283,8 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
 // ser_app_hal_nrf51.c
 //
 
-uint32_t ser_app_hal_hw_init (void) {
+typedef void (*ser_app_hal_flash_op_done_handler_t)(bool success);
+uint32_t ser_app_hal_hw_init(ser_app_hal_flash_op_done_handler_t handler __attribute__((unused))) {
     return NRF_SUCCESS;
 }
 
