@@ -17,7 +17,7 @@ pub trait SymmetricEncryptionDriver {
     fn init(&self);
 
     /// Configure encryption/decryption key
-    /// assumes that key size is 16 bytes
+    /// assumes that key size is 16, 24 or 32 bytes
     fn set_key(&self, key: &'static mut [u8], len: usize);
 
     /// encryption and decryption for aes in counter mode

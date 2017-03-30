@@ -3,9 +3,11 @@
 //! Provides a simple driver for userspace applications to encrypt and decrypt messages
 //! using aes128-ctr mode on top of aes128-ecb
 //!
-//! At the moment are the initial counter always assigned to 0 but
-//! our idea is to have another allow call for that initial counter
-//! i.e. similar to the data(plaintext/cithertext)
+//! The initial counter configred according to the counter received from the user application.
+//! The capsule is invoked as follows:
+//!     - the key has been configured
+//!     - the entire buffer has been encrypted
+//!     - the entire buffer has been decrypted
 //!
 //! The buffer is also sliced in chips at the moment and some un-necessary
 //! static mut...
@@ -13,12 +15,11 @@
 //! FIXME:
 //!     - replace static mut with TakeCell or something similar
 //!     (I had problem to use because it can only be used one with take() )
-//!     - add support the enter initial counter value in userland
 //!     - maybe move some stuff to capsule instead
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: March 16, 2017
+//! Date: March 31, 2017
 
 
 use chip;

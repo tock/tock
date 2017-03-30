@@ -1,12 +1,65 @@
 //! Symmetric Block Cipher Capsule
 //!
-//! Provides a simple driver for userspace applications to encrypt and decrypt messages
+//! Provides a driver for user space applications to encrypt and decrypt messages.
 //!
-//! The key is assumed to be 16, 24 or 32 bytes
+//! The system calls allow, subscribe and command are used to initiate the driver.
+//! The methods set_key_done() and crypt_done() are invoked by chip to send
+//! back the result of the operation and then passed the user application via
+//! the callback from the subscribe call.
+//!
+//! ---ALLOW SYSTEM CALL ------------------------------------------------------------
+//! The 'allow' system call is used to provide three different buffers and
+//! the following allow_num's are supported:
+//!
+//!     * 0: A buffer with the key to be used for encryption and decryption.
+//!          Currently it can only configured once.
+//!     * 1: A buffer with data that will be encrypted and/or decrypted
+//!     * 4: A buffer to configure to initial counter when counter mode of
+//!          block cipher is used.
+//!
+//! The possible return codes from the 'allow' system call indicate the following:
+//!     * SUCCESS: The buffer has successfully been filled
+//!     * ENOSUPPORT: Invalid allow_num
+//!     * ENOMEM: No sufficient memory available
+//!     * EINVAL => Invalid address of the buffer or other error
+//! ------------------------------------------------------------------------------
+//!
+//! ---SUBSCRIBE SYSTEM CALL----------------------------------------------------------
+//! The `subscribe` system call supports the single `subscribe_number`
+//! zero, which is used to provide a callback that will receive the
+//! result of configuring the key, encryption or decryption.
+//! The possible return from the 'subscribe' system call indicates the following:
+//!     * SUCCESS: the callback been successfully been configured
+//!     * ENOSUPPORT: Invalid allow_num
+//!     * ENOMEM: No sufficient memory available
+//!     * EINVAL => Invalid address of the buffer or other error
+//! ------------------------------------------------------------------------------
+//!
+//! ---COMMAND SYSTEM CALL------------------------------------------------------------
+//! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
+//! 'cmd' is used to specify the specific operation, currently
+//! the following cmd's are supported:
+//!     * 0: configure the key
+//!     * 2: encryption
+//!     * 3: decryption
+//!
+//! 'sub_cmd' is used to specify the specific algorithm to be used and currently
+//!  the following sub_cmd's are supported:
+//!     * 0: aes128 counter-mode
+//!
+//! The possible return from the 'command' system call indicates the following:
+//!   * SUCCESS:    The operation has been successful
+//!   * EBUSY:      The driver is busy
+//!   * ESIZE:      Invalid key size currently is must be 16, 24 or 32 bytes
+//!   * ENOSUPPORT: Invalid 'cmd' or 'sub_cmd'
+//!   * EFAIL:      The key is configured or other error
+//! ------------------------------------------------------------------------------
+//!
+//!
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: March 16, 2017
+//! Date: March 31, 2017
 
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
