@@ -21,11 +21,14 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then brew update; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then brew install arm-none-eabi-gcc; fi
 
-before_script: (cargo install rustfmt || true)
+before_script:
+  - (cargo install rustfmt || true)
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then npm install -g markdown-toc; fi
 
 script:
   - export PATH=$HOME/.cargo/bin:$PATH
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then tools/run_cargo_fmt.sh diff; fi
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then tools/toc.sh; fi
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then make allboards; fi
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then pushd userland/examples && ./build_all.sh; fi
 
