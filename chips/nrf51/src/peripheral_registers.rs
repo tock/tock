@@ -77,3 +77,20 @@ pub struct RNG_REGS {
     pub CONFIG: VolatileCell<u32>, // 0x504 - 0x508
     pub VALUE: VolatileCell<u32>, // 0x508 - 0x50c
 }
+
+pub const AESECB_BASE: usize = 0x4000E000;
+#[no_mangle]
+#[allow(non_snake_case)]
+#[repr(C, packed)]
+pub struct AESECB_REGS {
+    pub STARTECB: VolatileCell<u32>, // 0x000 - 0x004
+    pub STOPECB: VolatileCell<u32>, // 0x004 - 0x008
+    pub _reserved1: [u32; 62], // 0x008 - 0x100
+    pub ENDECB: VolatileCell<u32>, // 0x100 - 0x104
+    pub ERRORECB: VolatileCell<u32>, // 0x104 - 0x108
+    pub _reserved2: [u32; 127], // 0x108 - 0x304
+    pub INTENSET: VolatileCell<u32>, // 0x304 - 0x308
+    pub INTENCLR: VolatileCell<u32>, // 0x308 - 0x30c
+    pub _reserved3: [u32; 126], // 0x30c - 0x504
+    pub ECBDATAPTR: VolatileCell<u32>, // 0x504 - 0x508
+}

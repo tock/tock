@@ -112,6 +112,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
+    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
 }
 
 
@@ -126,6 +127,7 @@ impl kernel::Platform for Platform {
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
             14 => f(Some(self.rng)),
+            17 => f(Some(self.aes)),
             36 => f(Some(self.temp)),
             _ => f(None),
         }
@@ -242,6 +244,18 @@ pub unsafe fn reset_handler() {
         96/8);
     nrf51::trng::TRNG.set_client(rng);
 
+    let aes = static_init!(
+        capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
+        capsules::symmetric_encryption::Crypto::new(&mut nrf51::aes::AESECB,
+                                                    kernel::Container::create(),
+                                                    &mut capsules::symmetric_encryption::KEY,
+                                                    &mut capsules::symmetric_encryption::BUF,
+                                                    &mut capsules::symmetric_encryption::IV),
+        288/8);
+    nrf51::aes::AESECB.ecb_init();
+    nrf51::aes::AESECB.set_client(aes);
+
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf51::clock::CLOCK.low_stop();
@@ -261,6 +275,7 @@ pub unsafe fn reset_handler() {
         button: button,
         temp: temp,
         rng: rng,
+        aes: aes,
     };
 
     alarm.start();
