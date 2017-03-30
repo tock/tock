@@ -108,7 +108,7 @@ define BUILD_RULES
 
 # BUILDDIR holds architecture dependent, but board-independent outputs
 $$(BUILDDIR)/$(1):
-	$(Q)mkdir -p $$(BUILDDIR)/$(1)
+	$$(Q)mkdir -p $$(BUILDDIR)/$(1)
 
 # First step doesn't actually compile, just generate header dependency information
 # More info on our approach here: http://stackoverflow.com/questions/97338
