@@ -11,6 +11,7 @@ thoughts behind how applications function.
 - [System Calls](#system-calls)
 - [Callbacks](#callbacks)
 - [Inter-Process Communication](#inter-process-communication)
+- [Application Entry Point](#application-entry-point)
 - [Stack and Heap](#stack-and-heap)
 - [Debugging](#debugging)
 - [Libraries](#libraries)
