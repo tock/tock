@@ -8,7 +8,7 @@ normal=$(tput sgr0)
 function opt_rebuild {
 	if [ "$CI" == "true" ]; then
 		echo "${bold}Rebuilding Verbose: $1${normal}"
-		make V=1 $1
+		make V=1
 	fi
 }
 
