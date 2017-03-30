@@ -21,7 +21,7 @@ pub trait SymmetricEncryptionDriver {
     fn set_key(&self, key: &'static mut [u8], len: usize);
 
     /// encryption and decryption for aes in counter mode
-    /// because only the encryption-mode of the cipher only one method in needed
+    /// because only the encryption-mode of the cipher only one method is needed
     /// other chips perhaps only ignore "init_ctr" and assume all is performed in HW
     fn aes128_crypt_ctr(&self, data: &'static mut [u8], init_ctr: &'static mut [u8], len: usize);
 }
