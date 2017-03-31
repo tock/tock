@@ -1,8 +1,10 @@
 TOCK_USERLAND_BASE_DIR ?= ..
+LIBNAME=libnrfserialization
+$(LIBNAME)_DIR=.
 
 include NRFMakefile.mk
 
-LIB_SRCS += $(SYSTEM_FILE) $(notdir $(APPLICATION_SRCS))
+$(LIBNAME)_SRCS += $(SYSTEM_FILE) $(notdir $(APPLICATION_SRCS))
 
 
 ##############################################################################################

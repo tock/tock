@@ -10,38 +10,53 @@ include $(TOCK_USERLAND_BASE_DIR)/Configuration.mk
 # Helper functions
 include $(TOCK_USERLAND_BASE_DIR)/Helpers.mk
 
-# Okay.. so here's what the goals are:
-#
-#  - LIBNAME should be the name of the _current_ library that's including this file
-#  - We'd like to set this automatically based on the current directory
-#  --- But at the same time not trample over a user-specified definition
-#  - We'd like to allow multiple different libraries to include this file
-#
-# So, our approach is to keep track of all the SEEN_LIBNAMES, and if the
-# current LIBNAME is in the list of SEEN_LIBNAMES, assume that this variable
-# is simply still set from a previous inclusion of this file and overwrite it
-
-CURRENT_DIRNAME := $(notdir $(shell pwd))
-ifdef SEEN_LIBNAMES
-  ifneq ($(filter $(LIBNAME),$(SEEN_LIBNAMES)),"")
-    # LIBNAME in SEEN_LIBNAMES, replace
-    LIBNAME := $(CURRENT_DIRNAME)
-  endif
-else
-  ifndef LIBNAME
-    LIBNAME := $(CURRENT_DIRNAME)
-  endif
-endif
-SEEN_LIBNAMES += $(LIBNAME)
-
-# Grab the directory this library is in
-$(LIBNAME)_DIR ?= $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+$(call check_defined, LIBNAME)
+$(call check_defined, $(LIBNAME)_DIR)
+$(call check_defined, $(LIBNAME)_SRCS)
 
 # directory for built output
-$(LIBNAME)_BUILDDIR ?= $($(LIBNAME)_DIR)build
+$(LIBNAME)_BUILDDIR ?= $($(LIBNAME)_DIR)/build
 
+# Handle complex paths
+#
+# Okay, so this merits some explanation:
+#
+# Our build system aspires to put everything in build/ directories, this means
+# that we have to match the path of source files (foo.c) to output directories
+# (build/<arch>/foo.o). That's easy enough if all the source files are in the
+# same directory, but restricts applications and libraries to a flat file
+# structure.
+#
+# The current solution we employ is built on make's VPATH variable, which is a
+# list of directories to search for dependencies, e.g.
+#
+#    VPATH = foo/ ../bar/
+#    somerule: dependency.c
+#
+# Will find any of ./dependency.c, foo/dependency.c, or ../bar/dependency.c
+# We leverage this by flattening the list of SRCS to remove all path
+# information and adding all the paths from the SRCS to the VPATH, this means
+# we can write rules as-if all the SRCS were in a flat directory.
+#
+# The obvious pitfall here is what happens when multiple directories hold a
+# source file of the same name. However, both libnrf and mbed are set up to
+# use VPATH without running into that problem, which gives some pretty serious
+# hope that it won't be an issue in practice. The day is actually is a problem,
+# we can revisit this, but the only solution I can think of presently is
+# another layer of macros that generates the build rules for each path in SRCS,
+# which is a pretty hairy sounding proposition
 
-$(LIBNAME)_SRCS = $(AS_SRCS) $(C_SRCS) $(CXX_SRCS) $(LIB_SRCS)
+$(LIBNAME)_SRCS_FLAT := $(notdir $($(LIBNAME)_SRCS))
+$(LIBNAME)_SRCS_DIRS := $(sort $(dir $($(LIBNAME)_SRCS))) # sort removes duplicates
+
+# Only use vpath for certain types of files
+# But must be a global list
+VPATH_DIRS += $($(LIBNAME)_SRCS_DIRS)
+vpath %.s $(VPATH_DIRS)
+vpath %.c $(VPATH_DIRS)
+vpath %.cc $(VPATH_DIRS)
+vpath %.cpp $(VPATH_DIRS)
+
 
 # Rules to generate libraries for a given Architecture
 # These will be used to create the different architecture versions of LibNRFSerialization
@@ -61,10 +76,22 @@ $$($(LIBNAME)_BUILDDIR)/$(1)/%.o: %.S | $$($(LIBNAME)_BUILDDIR)/$(1)
 	$$(TRACE_AS)
 	$$(Q)$$(AS) $$(ASFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
-$(LIBNAME)_OBJS_$(1) += $$(patsubst %.s,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.s, $$($(LIBNAME)_SRCS)))
-$(LIBNAME)_OBJS_$(1) += $$(patsubst %.c,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.c, $$($(LIBNAME)_SRCS)))
-$(LIBNAME)_OBJS_$(1) += $$(patsubst %.cc,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$($(LIBNAME)_SRCS)))
-$(LIBNAME)_OBJS_$(1) += $$(patsubst %.cpp,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$($(LIBNAME)_SRCS)))
+$(LIBNAME)_OBJS_$(1) += $$(patsubst %.s,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.s, $$($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_OBJS_$(1) += $$(patsubst %.c,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.c, $$($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_OBJS_$(1) += $$(patsubst %.cc,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_OBJS_$(1) += $$(patsubst %.cpp,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$($(LIBNAME)_SRCS_FLAT)))
+
+# Dependency rules for picking up header changes
+-include $$($(LIBNAME)_OBJS_$(1):.o=.d)
+
+# Useful debugging
+# $$(info -----------------------------------------------------)
+# $$(info $(LIBNAME) $(1))
+# $$(info      $(LIBNAME)_SRCS: $$($(LIBNAME)_SRCS))
+# $$(info $(LIBNAME)_SRCS_FLAT: $$($(LIBNAME)_SRCS_FLAT))
+# $$(info                VPATH: $$(VPATH))
+# $$(info $(LIBNAME)_OBJS_$(1): $$($(LIBNAME)_OBJS_$(1)))
+# $$(info =====================================================)
 
 $$($(LIBNAME)_BUILDDIR)/$(1)/$$(LIBNAME).a: $$($(LIBNAME)_OBJS_$(1)) | $$($(LIBNAME)_BUILDDIR)/$(1)
 	$$(TRACE_AR)
