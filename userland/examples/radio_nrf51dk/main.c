@@ -41,7 +41,7 @@ int main(void)
 		printf("after delay \r\n");
 		printf("return from start_ble_advertisement %d\r\n", start_ble_advertisement(packet, 0, data, 0));
 		delay_ms(50000);
-		packet[0] = 'A';
+		/** packet[0] = 'A'; */
 		//for(int i = 0; i < 1000000; i++){}
 		printf("return from stop_ble_advertisement %d\r\n",stop_ble_advertisement());
 		//printf("after everything\r\n");

@@ -49,6 +49,8 @@ pub const PACKET_STATIC_LENGTH: u32 = 64;
 
 static mut TX_BUF: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 static mut RX_BUF: [u8; 12] = [0x00; 12];
+static mut DMY: [u8; 32] = [0; 32];
+
 
 // FROM LEFT
 // ADVTYPE      ;;      4 bits
@@ -345,14 +347,15 @@ impl Radio {
                     // Only for debugging purposes,
                     debug!("crc status {:?}\n", regs.CRCSTATUS.get());
                 } else {
+                    
                     unsafe {
-                        self.client.get().map(|client| client.receive_done(&mut RX_BUF, 0));
+                        self.client.get().map(|client| client.receive_done(&mut RX_BUF, &mut DMY, 12));
                     }
                 }
             } else {
                 // TODO: Implement something.
                 unsafe {
-                    self.client.get().map(|client| client.transmit_done(&mut TX_BUF, 0));
+                    self.client.get().map(|client| client.transmit_done(&mut TX_BUF, &mut DMY, 16));
                 }
             }
 

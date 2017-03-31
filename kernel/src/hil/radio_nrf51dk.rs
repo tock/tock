@@ -18,6 +18,6 @@ pub trait RadioDriver {
 
 pub trait Client {
     /// Called when a rx or tx is finished
-    fn receive_done(&self, rx_data: &'static mut [u8], len: u8) -> ReturnCode;
-    fn transmit_done(&self, tx_data: &'static mut [u8], len: u8) -> ReturnCode;
+    fn receive_done(&self, rx_data: &'static mut [u8], dmy: &'static mut [u8], len: u8) -> ReturnCode;
+    fn transmit_done(&self, tx_data: &'static mut [u8], dmy: &'static mut [u8], len: u8) -> ReturnCode;
 }

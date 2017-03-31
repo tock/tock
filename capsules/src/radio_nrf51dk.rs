@@ -4,7 +4,7 @@
 //! in order to send periodic BLE advertisements without blocking
 //! the entire kernel
 //!
-//! Currently only advertisements with name configured in
+//! Currently advertisements with name and configured in
 //! userland are supported.
 //!
 //!
@@ -110,9 +110,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                                 // if len + len2 < 30 then send (or similar)
                                 // else return error
                                 //debug!("total len {:?}\r\n", len + len2);
-                                unsafe {
-                                    self.kernel_tx_data.replace(&mut BUF);
-                                }
+                                // unsafe {
+                                //     self.kernel_tx_data.replace(&mut BUF);
+                                // }
                             });
                         });
                         // kernel_tx_data works only for 1 transmitt then it "consumed"
@@ -125,8 +125,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         }
     }
 
-    // re-name set_frequency()???
-    pub fn transmit_ble_adv(&self) {
+    pub fn configure_periodic_alarm(&self) {
         let mut interval = 4100 as u32;
         if self.frequency.get() == 39 {
             interval = 41000 as u32;
@@ -135,9 +134,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             self.frequency.set(self.frequency.get() + 1);
         }
         self.radio.set_channel(self.frequency.get());
-
-        self.send_userland_buffer();
-
         let tics = self.alarm.now().wrapping_add(interval);
         self.alarm.set_alarm(tics);
     }
@@ -148,14 +144,19 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Ra
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
         if self.advertise.get() == true {
-            self.transmit_ble_adv();
+            self.configure_periodic_alarm();
+            self.send_userland_buffer();
         }
     }
 }
 
 
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, A> {
-    fn receive_done(&self, rx_data: &'static mut [u8], rx_len: u8) -> ReturnCode {
+    fn receive_done(&self,
+                    rx_data: &'static mut [u8],
+                    dmy: &'static mut [u8],
+                    rx_len: u8)
+                    -> ReturnCode {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 if app.app_read.is_some() {
@@ -170,17 +171,21 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, 
             });
         }
         self.kernel_tx.replace(rx_data);
+        self.kernel_tx_data.replace(dmy);
         ReturnCode::SUCCESS
     }
 
-    fn transmit_done(&self, tx_data: &'static mut [u8], len: u8) -> ReturnCode {
+    fn transmit_done(&self,
+                     tx_data: &'static mut [u8],
+                     dmy: &'static mut [u8],
+                     len: u8)
+                     -> ReturnCode {
         // only notify userland
         for cntr in self.app.iter() {
             cntr.enter(|app, _| { app.tx_callback.map(|mut cb| { cb.schedule(13, 0, 0); }); });
         }
         self.kernel_tx.replace(tx_data);
-        //self.kernel_tx_data.replace(tx_data);
-        //TODO: something like this to avoid unsafe in send_userland_buffer
+        self.kernel_tx_data.replace(dmy);
         ReturnCode::SUCCESS
     }
 }
@@ -206,9 +211,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                 if self.busy.get() == false {
                     self.busy.set(true);
                     self.advertise.set(true);
-                    let interval = 4100 as u32;
-                    let tics = self.alarm.now().wrapping_add(interval);
-                    self.alarm.set_alarm(tics);
+                    self.configure_periodic_alarm();
+                    self.send_userland_buffer();
                     ReturnCode::SUCCESS
                 } else {
                     ReturnCode::FAIL
