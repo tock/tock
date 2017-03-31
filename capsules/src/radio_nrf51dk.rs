@@ -215,9 +215,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                                 // if len + len2 < 30 then send (or similar)
                                 // else return error
                                 //debug!("total len {:?}\r\n", len + len2);
-                                unsafe {
-                                    self.kernel_tx_data.replace(&mut BUF);
-                                }
+                                // unsafe {
+                                //     self.kernel_tx_data.replace(&mut BUF);
+                                // }
                             });
                         });
                         // kernel_tx_data works only for 1 transmitt then it "consumed"
@@ -230,8 +230,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         }
     }
 
-    // re-name set_frequency()???
-    pub fn transmit_ble_adv(&self) {
+    pub fn configure_periodic_alarm(&self) {
         let mut interval = 4100 as u32;
         if self.frequency.get() == 39 {
             interval = 41000 as u32;
@@ -240,9 +239,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             self.frequency.set(self.frequency.get() + 1);
         }
         self.radio.set_channel(self.frequency.get());
-
-        self.send_userland_buffer();
-
         let tics = self.alarm.now().wrapping_add(interval);
         self.alarm.set_alarm(tics);
     }
@@ -335,9 +331,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                 if self.busy.get() == false {
                     self.busy.set(true);
                     self.advertise.set(true);
-                    let interval = 4100 as u32;
-                    let tics = self.alarm.now().wrapping_add(interval);
-                    self.alarm.set_alarm(tics);
+                    self.configure_periodic_alarm();
+                    self.send_userland_buffer();
                     ReturnCode::SUCCESS
                 } else {
                     ReturnCode::FAIL
