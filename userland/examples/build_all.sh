@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+NUM_JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || 4)
+
 set -e
 
 bold=$(tput bold)
@@ -18,7 +20,7 @@ for mkfile in `find . -maxdepth 3 -name Makefile`; do
 	pushd $dir > /dev/null
 	echo ""
 	echo "Building $dir"
-	make -j || (echo "${bold} ⤤ Failure building $dir${normal}" ; opt_rebuild $dir; exit 1)
+	make -j $NUM_JOBS || (echo "${bold} ⤤ Failure building $dir${normal}" ; opt_rebuild $dir; exit 1)
 	popd > /dev/null
 done
 
