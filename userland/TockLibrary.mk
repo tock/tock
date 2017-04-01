@@ -147,6 +147,11 @@ $(foreach arch,$(TOCK_ARCHS),$(eval $(call LIB_RULES,$(arch))))
 .PHONY: all
 all: $(foreach arch, $(TOCK_ARCHS),$($(LIBNAME)_BUILDDIR)/$(arch)/$(LIBNAME).a)
 
+
+# Force LIBNAME to be expanded now
+define CLEAN_RULE
 .PHONY: clean
 clean::
-	rm -Rf $($(LIBNAME)_BUILDDIR)
+	rm -Rf $(1)
+endef
+$(eval $(call CLEAN_RULE,$($(LIBNAME)_BUILDDIR)))
