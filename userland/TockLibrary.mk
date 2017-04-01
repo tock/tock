@@ -109,14 +109,26 @@ $(LIBNAME)_OBJS_$(1) += $$(patsubst %.cpp,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(fi
 # $$(info $(LIBNAME)_OBJS_$(1): $$($(LIBNAME)_OBJS_$(1)))
 # $$(info =====================================================)
 
-$$($(LIBNAME)_BUILDDIR)/$(1)/$$(LIBNAME).a: $$($(LIBNAME)_OBJS_$(1)) | $$($(LIBNAME)_BUILDDIR)/$(1)
+$$($(LIBNAME)_BUILDDIR)/$(1)/$(LIBNAME).a: $$($(LIBNAME)_OBJS_$(1)) | $$($(LIBNAME)_BUILDDIR)/$(1)
 	$$(TRACE_AR)
 	$$(Q)$$(AR) rc $$@ $$^
 	$$(Q)$$(RANLIB) $$@
 
 # If we're building this library as part of a bigger build, add ourselves to
 # the list of libraries
-LIBS_$(1) += $$($(LIBNAME)_BUILDDIR)/$(1)/$$(LIBNAME).a
+#
+# Ahh.. make. By default, the RHS of variables aren't expanded at all until the
+# variable is _used_ ("lazy set", "="), this means that LIBNAME will have
+# changed by the time the variable is evaluated. We want immediate set (":="),
+# but we'd also like to append ("+=") to grow the list. Append chooses between
+# lazy or immediate set based on how the variable was previously set (yes,
+# that's right, the RHS evaluation depends on the LHS type - make was ahead of
+# it's time! :D), and defaults to lazy set if the variable is undefined at the
+# first append. So, we force it to immediate set. Lovely.
+ifndef LIBS_$(1)
+  LIBS_$(1) :=
+endif
+LIBS_$(1) += $$($(LIBNAME)_BUILDDIR)/$(1)/$(LIBNAME).a
 endef
 
 # uncomment to print generated rules
