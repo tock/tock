@@ -64,13 +64,16 @@ vpath %.cpp $(VPATH_DIRS)
 # Now, VPATH allows _make_ to find all the sources, but gcc needs to be told
 # how to find all of the headers. We do this by `-I`'ing any folder that had a
 # LIB_SRC and has any .h files in it. We also check the common convention of
-# headers in an include/ folder while we're at it
+# headers in an include/ folder (both in and adjacent to src/) while we're at it
 define LIB_HEADER_INCLUDES
 ifneq ($$(wildcard $(1)/*.h),"")
   CPPFLAGS += -I$(1)
 endif
 ifneq ($$(wildcard $(1)/include/*.h),"")
-  CPPFLAGS += -I$(1)
+  CPPFLAGS += -I$(1)/include
+endif
+ifneq ($$(wildcard $(1)/../include/*.h),"")
+  CPPFLAGS += -I$(1)/../include
 endif
 endef
 # uncomment to print generated rules
