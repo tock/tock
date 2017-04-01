@@ -35,13 +35,12 @@ else
 include $(TOCK_USERLAND_BASE_DIR)/Program.mk
 endif
 
-# Libraries to include with Tock applications. These will be garbage collected
-# if unused
-LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
-LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
+# Single-arch libraries, to be phased out
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
+LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
 
 
 
@@ -130,8 +129,6 @@ OBJS_$(1) += $$(patsubst %.c,$$(BUILDDIR)/$(1)/%.o,$$(C_SRCS))
 OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)))
 OBJS_$(1) += $$(patsubst %.cpp,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$(CXX_SRCS)))
 
-LIBTOCK_$(1) = $$(TOCK_USERLAND_BASE_DIR)/libtock/build/$(1)/libtock.a
-
 # Collect all desired built output.
 $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBTOCK_$(1)) $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
 	$$(TRACE_LD)
@@ -142,7 +139,7 @@ $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc
 	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
 	    -T $$(LAYOUT)\
 	    -nostdlib\
-	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBTOCK_$(1)) $$(LIBS_$(1)) $$(LIBS) -Wl,--end-group\
+	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBTOCK_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS) -Wl,--end-group\
 	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
 	    -o $$@
 

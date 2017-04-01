@@ -113,6 +113,10 @@ $$($(LIBNAME)_BUILDDIR)/$(1)/$$(LIBNAME).a: $$($(LIBNAME)_OBJS_$(1)) | $$($(LIBN
 	$$(TRACE_AR)
 	$$(Q)$$(AR) rc $$@ $$^
 	$$(Q)$$(RANLIB) $$@
+
+# If we're building this library as part of a bigger build, add ourselves to
+# the list of libraries
+LIBS_$(1) += $$($(LIBNAME)_BUILDDIR)/$(1)/$$(LIBNAME).a
 endef
 
 # uncomment to print generated rules
