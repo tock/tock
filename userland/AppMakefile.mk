@@ -21,7 +21,7 @@ include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
 # variable which selects one and we include the appropriate Makefile-app from
 # within the Tock base directory.
 TOCK_BOARD ?= storm
-TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
+TOCK_KERNEL_ROOT ?= $(TOCK_USERLAND_BASE_DIR)/..
 
 # Include platform app makefile if one exists.
 #  - Chooses an appropriate TOCK_ARCH for the platform and uses those bin files
@@ -29,8 +29,8 @@ TOCK_BASE_DIR ?= $(TOCK_USERLAND_BASE_DIR)/..
 # Conditionally included in case it doesn't exist for a board. In that case,
 # the generic "Program.mk" is used instead which defines `program` and `flash`
 # using Tockloader.
-ifneq ("$(wildcard $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/Makefile-app)","")
--include $(TOCK_BASE_DIR)/boards/$(TOCK_BOARD)/Makefile-app
+ifneq ("$(wildcard $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app)","")
+include $(TOCK_KERNEL_ROOT)/boards/$(TOCK_BOARD)/Makefile-app
 else
 include $(TOCK_USERLAND_BASE_DIR)/Program.mk
 endif
