@@ -4,10 +4,6 @@
 # specify `all` as our default rule
 all:
 
-# Check that the Userland directory path is defined
-# (this should have been done in the app's Makefile)
-$(call check_defined, TOCK_USERLAND_BASE_DIR)
-
 # directory for built output
 BUILDDIR ?= build
 
