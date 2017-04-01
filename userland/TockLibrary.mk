@@ -14,6 +14,10 @@ $(call check_defined, LIBNAME)
 $(call check_defined, $(LIBNAME)_DIR)
 $(call check_defined, $(LIBNAME)_SRCS)
 
+ifeq ($(strip $($(LIBNAME)_SRCS)),)
+  $(error Library "$(LIBNAME)" has no SRCS?)
+endif
+
 # directory for built output
 $(LIBNAME)_BUILDDIR ?= $($(LIBNAME)_DIR)/build
 
