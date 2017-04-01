@@ -1,5 +1,5 @@
-# Configuration parameters for building Tock applications. Included by
-# AppMakefile.mk and libtock's Makefile
+# Configuration parameters for building Tock applications
+# Included by AppMakefile.mk and TockLibrary.mk
 
 # ensure that this file is only included once
 ifndef CONFIGURATION_MAKEFILE
@@ -41,9 +41,9 @@ ELF2TBF_ARGS += -n $(PACKAGE_NAME)
 # [CFLAGS is C only, CXXFLAGS is C++ only]
 ASFLAGS += -mthumb
 CFLAGS   += -std=gnu11
-CPPFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/libtock -g -mthumb -mfloat-abi=soft
 CPPFLAGS += \
 	    -frecord-gcc-switches\
+	    -g\
 	    -Os\
 	    -fdata-sections -ffunction-sections\
 	    -fstack-usage -Wstack-usage=$(STACK_SIZE)\
@@ -52,8 +52,9 @@ CPPFLAGS += \
 	    -Wl,--warn-common\
 	    -Wl,--gc-sections\
 	    -Wl,--emit-relocs\
-	    -g\
 	    -fPIC\
+	    -mthumb\
+	    -mfloat-abi=soft\
 	    -msingle-pic-base\
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative

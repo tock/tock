@@ -9,6 +9,10 @@ $(LIBNAME)_SRCS += $(SYSTEM_FILE) $(notdir $(APPLICATION_SRCS))
 
 ##############################################################################################
 ## Rules to create libnrfserialization
+
+# Need libtock headers
+CPPFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/libtock
+
 include $(TOCK_USERLAND_BASE_DIR)/TockLibrary.mk
 
 

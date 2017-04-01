@@ -57,6 +57,22 @@ vpath %.c $(VPATH_DIRS)
 vpath %.cc $(VPATH_DIRS)
 vpath %.cpp $(VPATH_DIRS)
 
+# Now, VPATH allows _make_ to find all the sources, but gcc needs to be told
+# how to find all of the headers. We do this by `-I`'ing any folder that had a
+# LIB_SRC and has any .h files in it. We also check the common convention of
+# headers in an include/ folder while we're at it
+define LIB_HEADER_INCLUDES
+ifneq ($$(wildcard $(1)/*.h),"")
+  CPPFLAGS += -I$(1)
+endif
+ifneq ($$(wildcard $(1)/include/*.h),"")
+  CPPFLAGS += -I$(1)
+endif
+endef
+# uncomment to print generated rules
+# $(info $(foreach hdrdir,$($(LIBNAME)_SRCS_DIRS),$(call LIB_HEADER_INCLUDES,$(hdrdir))))
+# actually generate the rules
+$(foreach hdrdir,$($(LIBNAME)_SRCS_DIRS),$(eval $(call LIB_HEADER_INCLUDES,$(hdrdir))))
 
 # Rules to generate libraries for a given Architecture
 # These will be used to create the different architecture versions of LibNRFSerialization
