@@ -130,7 +130,7 @@ OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)
 OBJS_$(1) += $$(patsubst %.cpp,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$(CXX_SRCS)))
 
 # Collect all desired built output.
-$$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBTOCK_$(1)) $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
+$$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
 	$$(TRACE_LD)
 	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS)\
 	    --entry=_start\
@@ -139,7 +139,7 @@ $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc
 	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
 	    -T $$(LAYOUT)\
 	    -nostdlib\
-	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBTOCK_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS) -Wl,--end-group\
+	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS) -Wl,--end-group\
 	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
 	    -o $$@
 
