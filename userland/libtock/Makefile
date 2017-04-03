@@ -3,8 +3,8 @@
 
 # Base folder definitions
 TOCK_USERLAND_BASE_DIR ?= ..
-LIBNAME=libtock
-$(LIBNAME)_DIR=$(TOCK_USERLAND_BASE_DIR)/$(LIBNAME)
+LIBNAME := libtock
+$(LIBNAME)_DIR := $(TOCK_USERLAND_BASE_DIR)/$(LIBNAME)
 
 # List all C and Assembly files
 $(LIBNAME)_SRCS  := $(wildcard $($(LIBNAME)_DIR)/*.c) $(wildcard $($(LIBNAME)_DIR)/*.s)
