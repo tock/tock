@@ -49,6 +49,7 @@ endif
 # If environment variable V is non-empty, be verbose
 ifneq ($(V),)
 Q=
+TRACE_DIR =
 TRACE_BIN =
 TRACE_DEP =
 TRACE_CC  =
@@ -60,6 +61,7 @@ TRACE_LST =
 ELF2TBF_ARGS += -v
 else
 Q=@
+TRACE_DIR = @echo " DIR       " $@
 TRACE_BIN = @echo " BIN       " $@
 TRACE_DEP = @echo " DEP       " $<
 TRACE_CC  = @echo "  CC       " $<

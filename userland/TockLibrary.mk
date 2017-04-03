@@ -87,6 +87,7 @@ $(foreach hdrdir,$($(LIBNAME)_SRCS_DIRS),$(eval $(call LIB_HEADER_INCLUDES,$(hdr
 define LIB_RULES
 
 $$($(LIBNAME)_BUILDDIR)/$(1):
+	$$(TRACE_DIR)
 	$$(Q)mkdir -p $$@
 
 $$($(LIBNAME)_BUILDDIR)/$(1)/%.o: %.c | $$($(LIBNAME)_BUILDDIR)/$(1)

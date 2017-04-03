@@ -23,6 +23,7 @@ include $(TOCK_USERLAND_BASE_DIR)/TockLibrary.mk
 all: headers.tar.gz
 
 $($(LIBNAME)_BUILDDIR)/headers:
+	$(TRACE_DIR)
 	$(Q)mkdir -p $@
 
 HDRS += $(patsubst %.c,$($(LIBNAME)_BUILDDIR)/headers/%.headers, $($(LIBNAME)_SRCS))
