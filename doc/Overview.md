@@ -146,7 +146,7 @@ context switches and making system calls (trapping from user code to
 kernel code).
 
 The *boards* directory contains code for specific Tock platforms, such as
-the imix, the Firestorm, and the nrf51dk. This is typically the structure
+the imix, the Hail, and the nrf51dk. This is typically the structure
 that defines all of the capsules the kernel has, the code to configure the
 MCU's IO pins into the proper states, initializing the kernel and loading
 processes. The principal file in this directory is `main.rs`, and the

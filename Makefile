@@ -1,5 +1,5 @@
 # default board
-TOCK_BOARD ?= storm
+TOCK_BOARD ?= hail
 
 
 # rules for making the kernel

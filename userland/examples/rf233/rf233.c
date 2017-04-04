@@ -7,7 +7,6 @@
 // Date: April 18 2016
 
 
-#include <firestorm.h>
 #include <gpio.h>
 #include <spi.h>
 #include <stdint.h>
@@ -18,6 +17,10 @@
 #include "rf233-arch.h"
 #include "trx_access.h"
 #include "rf233.h"
+
+#define RADIO_SLP 8
+#define RADIO_RST 9
+#define RADIO_IRQ 10
 
 #define RF233_STATUS()                    rf233_status()
 /*---------------------------------------------------------------------------*/

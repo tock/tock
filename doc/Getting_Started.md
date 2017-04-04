@@ -120,10 +120,10 @@ routes all calls to that board's specific Makefile. The root Makefile
 is set up with the following defaults:
 
 ```
-TOCK_BOARD ?= storm
+TOCK_BOARD ?= hail
 ```
 
-Thus it compiles for the storm board by default. There are two ways to
+Thus it compiles for the Hail board by default. There are two ways to
 build for a different board:
 
  * You can compile the kernel for a specific board by running the command
@@ -238,7 +238,6 @@ the board specific READMEs:
 * [imix](../boards/imix/README.md)
 * [Hail](../boards/hail/README.md)
 * [nRF](../boards/nrf51dk/README.md)
-* [Storm](../boards/storm/README.md)
 
 
 ## Formatting Rust Source Code
