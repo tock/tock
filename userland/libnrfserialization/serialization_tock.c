@@ -14,7 +14,6 @@
 #include "app_timer.h"
 
 #include "nrf51_serialization.h"
-#include "firestorm.h"
 
 // Buffer to receive packets from the nrf51 in.
 // The upper layer also has a buffer, which we could use, but to make

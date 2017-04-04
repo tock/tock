@@ -1,1 +1,0 @@
-../boards/storm/README.md

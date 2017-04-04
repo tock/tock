@@ -4,7 +4,6 @@
  * and is called by rf233 interrupt handler.
  */
 
-#include <firestorm.h>
 #include <gpio.h>
 #include <spi.h>
 #include <stdint.h>

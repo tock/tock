@@ -20,7 +20,7 @@ include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile
 # board, and that method is board-specific. So for now, we have the TOCK_BOARD
 # variable which selects one and we include the appropriate Makefile-app from
 # within the Tock base directory.
-TOCK_BOARD ?= storm
+TOCK_BOARD ?= hail
 TOCK_KERNEL_ROOT ?= $(TOCK_USERLAND_BASE_DIR)/..
 
 # Include platform app makefile if one exists.
