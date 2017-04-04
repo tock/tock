@@ -9,7 +9,7 @@
 let ERROR=0
 
 # Find all markdown files
-for f in $(find . | grep .md); do
+for f in $(find * -name "*.md"); do
 
 	# Only use ones that include a table of contents
 	grep '<!-- toc -->' $f > /dev/null
