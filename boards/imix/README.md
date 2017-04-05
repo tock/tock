@@ -89,23 +89,22 @@ telnet localhost 4444
 
 ## Console I/O
 
-Console interaction may not work well for the imix board at present, but here
-are a few notes that may be helpful.
-
-It may be possible to connect to the FTDI chip by plugging a USB cable into the
-DBG\_USB port (the one closer to the middle), and then use `miniterm.py` to
-open that serial port:
+Connect to the FTDI chip by plugging a USB cable into the DBG\_USB port (the
+one closer to the middle), and then use `miniterm.py` to open that serial port:
 
 ```bash
-$ miniterm.py --dtr 0 --rts 1 /dev/ttyUSB0
+$ miniterm.py --dtr 0 --rts 1 /dev/ttyUSB0 115200
 ```
 
-Miniterm is similar to `screen` but lets you control the DTR and RTS lines,
-which we re-purpose to control the sam4l reset line.  Note that `--rts 1`
-shouldn't have any impact now, but may mitigate power-supply problems with
-console interaction. On most simple applications it won't make a difference.
+(Note that you may need to configure your system to allow user access to the
+USB serial port device.)
 
-You can install the `miniterm` script from the "pySerial" pip package:
+Miniterm is a terminal emulator that allows control over the DTR and RTS lines,
+which the imix board re-purposes to control the SAM4L's reset line.  You may
+type `CTRL-T`, `CTRL-D` to toggle DTR and thus reset the chip; doing this a
+second time will then restart it.
+
+You can install the `miniterm` script from the `pySerial` pip package:
 
 ```bash
 $ pip install pyserial --user
