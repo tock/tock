@@ -156,7 +156,7 @@ pub static mut I2C3: I2CHw = I2CHw::new(I2C_BASE_ADDRS[3],
 
 pub const START: usize = 1 << 13;
 pub const STOP: usize = 1 << 14;
-pub const ACKLAST: usize = 1 << 24;
+pub const ACKLAST: usize = 1 << 25;
 
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
