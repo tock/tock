@@ -132,7 +132,11 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Crypto<'a, E> {
 }
 
 impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
-    fn crypt_done(&self, data: &'static mut [u8], dmy: &'static mut [u8], len: u8) -> ReturnCode {
+    fn crypt_done(&self,
+                  data: &'static mut [u8],
+                  dmy: &'static mut [u8],
+                  len: usize)
+                  -> ReturnCode {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 if app.data_buf.is_some() {
@@ -153,7 +157,7 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
         ReturnCode::SUCCESS
     }
 
-    fn set_key_done(&self, key: &'static mut [u8], _: u8) -> ReturnCode {
+    fn set_key_done(&self, key: &'static mut [u8]) -> ReturnCode {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| { app.callback.map(|mut cb| { cb.schedule(0, 0, 0); }); });
         }
