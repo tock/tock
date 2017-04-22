@@ -238,6 +238,33 @@ unsafe extern "C" fn hard_fault_handler() {
         let shcsr: u32 = core::ptr::read_volatile(0xE000ED24 as *const u32);
         let cfsr: u32 = core::ptr::read_volatile(0xE000ED28 as *const u32);
         let hfsr: u32 = core::ptr::read_volatile(0xE000ED2C as *const u32);
+        let mmfar: u32 = core::ptr::read_volatile(0xE000ED34 as *const u32);
+        let bfar: u32 = core::ptr::read_volatile(0xE000ED38 as *const u32);
+
+        let iaccviol = (cfsr & 0x01) == 0x01;
+        let daccviol = (cfsr & 0x02) == 0x02;
+        let munstkerr = (cfsr & 0x08) == 0x08;
+        let mstkerr = (cfsr & 0x10) == 0x10;
+        let mlsperr = (cfsr & 0x20) == 0x20;
+        let mmfarvalid = (cfsr & 0x80) == 0x80;
+
+        let ibuserr = ((cfsr >> 8) & 0x01) == 0x01;
+        let preciserr = ((cfsr >> 8) & 0x02) == 0x02;
+        let impreciserr = ((cfsr >> 8) & 0x04) == 0x04;
+        let unstkerr = ((cfsr >> 8) & 0x08) == 0x08;
+        let stkerr = ((cfsr >> 8) & 0x10) == 0x10;
+        let lsperr = ((cfsr >> 8) & 0x20) == 0x20;
+        let bfarvalid = ((cfsr >> 8) & 0x80) == 0x80;
+
+        let undefinstr = ((cfsr >> 16) & 0x01) == 0x01;
+        let invstate = ((cfsr >> 16) & 0x02) == 0x02;
+        let invpc = ((cfsr >> 16) & 0x04) == 0x04;
+        let nocp = ((cfsr >> 16) & 0x08) == 0x08;
+        let unaligned = ((cfsr >> 16) & 0x100) == 0x100;
+        let divbysero = ((cfsr >> 16) & 0x200) == 0x200;
+
+        let vecttbl = (hfsr & 0x02) == 0x02;
+        let forced = (hfsr & 0x40000000) == 0x40000000;
 
         panic!("{} HardFault.\n\
                \tr0  0x{:x}\n\
@@ -249,9 +276,32 @@ unsafe extern "C" fn hard_fault_handler() {
                \tpc  0x{:x}\n\
                \tprs 0x{:x}\n\
                \tsp  0x{:x}\n\
+               \ttop of stack     0x{:x}\n\
+               \tbottom of stack  0x{:x}\n\
                \tSHCSR 0x{:x}\n\
                \tCFSR  0x{:x}\n\
                \tHSFR  0x{:x}\n\
+               \tInstruction Access Violation:       {}\n\
+               \tData Access Violation:              {}\n\
+               \tMemory Management Unstacking Fault: {}\n\
+               \tMemory Management Stacking Fault:   {}\n\
+               \tMemory Management Lazy FP Fault:    {}\n\
+               \tInstruction Bus Error:              {}\n\
+               \tPrecise Data Bus Error:             {}\n\
+               \tImprecise Data Bus Error:           {}\n\
+               \tBus Unstacking Fault:               {}\n\
+               \tBus Stacking Fault:                 {}\n\
+               \tBus Lazy FP Fault:                  {}\n\
+               \tUndefined Instruction Usage Fault:  {}\n\
+               \tInvalid State Usage Fault:          {}\n\
+               \tInvalid PC Load Usage Fault:        {}\n\
+               \tNo Coprocessor Usage Fault:         {}\n\
+               \tUnaligned Access Usage Fault:       {}\n\
+               \tDivide By Zero:                     {}\n\
+               \tBus Fault on Vector Table Read:     {}\n\
+               \tForced Hard Fault:                  {}\n\
+               \tFaulting Memory Address: (valid: {}) {:#010X}\n\
+               \tBus Fault Address:       (valid: {}) {:#010X}\n\
                ",
                mode_str,
                stacked_r0,
@@ -263,9 +313,32 @@ unsafe extern "C" fn hard_fault_handler() {
                stacked_pc,
                stacked_prs,
                faulting_stack as u32,
+               (_estack as *const ()) as u32,
+               (&_ezero as *const u32) as u32,
                shcsr,
                cfsr,
-               hfsr);
+               hfsr,
+               iaccviol,
+               daccviol,
+               munstkerr,
+               mstkerr,
+               mlsperr,
+               ibuserr,
+               preciserr,
+               impreciserr,
+               unstkerr,
+               stkerr,
+               lsperr,
+               undefinstr,
+               invstate,
+               invpc,
+               nocp,
+               unaligned,
+               divbysero,
+               vecttbl,
+               forced,
+               mmfarvalid, mmfar,
+               bfarvalid, bfar);
     } else {
         // hard fault occurred in an app, not the kernel. The app should be
         //  marked as in an error state and handled by the kernel
