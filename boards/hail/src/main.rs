@@ -78,7 +78,9 @@ struct Hail {
                                                                     sam4l::ast::Ast<'static>>>,
     si7021: &'static capsules::si7021::SI7021<'static,
                                               VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    fxos8700: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
+    fxos8700: &'static capsules::fxos8700_cq::Fxos8700cq<'static,
+                                                         VirtualMuxAlarm<'static,
+                                                                         sam4l::ast::Ast<'static>>>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
@@ -259,11 +261,18 @@ pub unsafe fn reset_handler() {
 
     // FXOS8700CQ accelerometer, device address 0x
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e), 32);
+    let fxos8700_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm),
+        192/8);
     let fxos8700 = static_init!(
-        capsules::fxos8700_cq::Fxos8700cq<'static>,
-        capsules::fxos8700_cq::Fxos8700cq::new(fxos8700_i2c, &mut capsules::fxos8700_cq::BUF),
-        352/8);
+        capsules::fxos8700_cq::Fxos8700cq<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        capsules::fxos8700_cq::Fxos8700cq::new(fxos8700_i2c,
+                                               fxos8700_virtual_alarm,
+                                               &mut capsules::fxos8700_cq::BUF),
+        384/8);
     fxos8700_i2c.set_client(fxos8700);
+    fxos8700_virtual_alarm.set_client(fxos8700);
 
     // Initialize and enable SPI HAL
     // Set up an SPI MUX, so there can be multiple clients
