@@ -4,7 +4,7 @@
 
 extern crate capsules;
 extern crate cortexm4;
-#[macro_use(debug, static_init)]
+#[macro_use(static_init)]
 extern crate kernel;
 extern crate sam4l;
 
@@ -396,6 +396,6 @@ pub unsafe fn reset_handler() {
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
-    debug!("Initialization complete. Entering main loop");
+    // debug!("Initialization complete. Entering main loop");
     kernel::main(&hail, &mut chip, load_processes(), &hail.ipc);
 }
