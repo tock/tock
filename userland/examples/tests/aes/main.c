@@ -1,10 +1,8 @@
 #include <stdio.h>
 #include <aes.h>
-#include <timer.h>
 #include <string.h>
 
 /*
-
    NIST TEST CASE
    ------------------------------------------------------------
    F.5.1       CTR-AES128.Encrypt
@@ -56,7 +54,7 @@
    Output Block   e89c399ff0f198c6d40a31db156cabfe
    Ciphertext     1e031dda2fbe03d1792170a0f3009cee
    Plaintext      f69f2445df4f9b17ad2b417be66c3710
-   */
+*/
 
 /* DATA BUFFER */
 // Block #1: 6bc1bee22e409f96e93d7e117393172a
@@ -94,6 +92,10 @@ static unsigned char exp_ct[] = {
   0x1e, 0x03, 0x1d, 0xda, 0x2f, 0xbe, 0x03, 0xd1, 0x79, 0x21, 0x70, 0xa0, 0xf3, 0x00, 0x9c, 0xee
 };
 
+
+/* INITIAL COUNTER */
+static unsigned char ctr[] = {0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff};
+
 static void callback(int cb,
     __attribute__ ((unused)) int len,
     __attribute__ ((unused)) int arg2,
@@ -101,6 +103,10 @@ static void callback(int cb,
 
   if ( cb == 0 ) {
     printf("\rKEY IS CONFIGURED\r\n");
+
+    if(aes128_encrypt_ctr(data, sizeof(data), ctr, sizeof(ctr)) < 0) {
+      printf("encrypt error\r\n");
+    }
   }
 
   // test according to NIST TEST AES-128-CTR
@@ -108,78 +114,61 @@ static void callback(int cb,
   {
     // FAIL
     if(memcmp(data, exp_ct, sizeof(data)) != 0) {
-      printf("ENCRYPTION TEST FAILED\r\n");
-      printf("CIPHERTEXT \r\n");
+      printf("CTR test #1 (encryption SP 800-38a tests): FAILED\r\n");
+      printf("EXPECTED: ");
+      for (uint8_t i = 0; i < sizeof(data); i++) {
+        printf("%02x ", exp_ct[i]);
+      }
+      printf("\r\nGOT: ");
       for (uint8_t i = 0; i < sizeof(data); i++) {
         printf("%02x ", data[i]);
-      }
-      printf("\r\n");
-      printf("EXPECTED CIPHERTEXT: \r\n");
-      for (uint8_t i = 0; i < sizeof(exp_ct); i++) {
-        printf("%02x ", exp_ct[i]);
       }
       printf("\r\n");
     }
     // PASS
     else {
-      printf("CIPHERTEXT \r\n");
-      for (uint8_t i = 0; i < sizeof(data); i++) {
-        printf("%02x ", data[i]);
-      }
-      printf("\r\n");
+      printf("CTR test #1 (encryption SP 800-38a tests PASSED\r\n"); 
     }
+
+    if(aes128_decrypt_ctr(data, sizeof(data), ctr, sizeof(ctr)) < 0) {
+      printf("decrypt error\r\n");
+    }
+
   }
 
   if ( cb == 2 )
   {
     // FAIL
     if(memcmp(data, exp_pt, sizeof(data)) != 0) {
-      printf("DECRYPT TEST FAILED\r\n");
-      printf("PLAINTEXT: \r\n");
+      printf("CTR test #2 (decryption SP 800-38a tests): FAILED\r\n");
+      printf("EXPECTED: ");
+      for (uint8_t i = 0; i < sizeof(data); i++) {
+        printf("%02x ", exp_pt[i]);
+      }
+      printf("\r\nGOT: ");
       for (uint8_t i = 0; i < sizeof(data); i++) {
         printf("%02x ", data[i]);
-      }
-      printf("\r\n");
-      printf("EXPECTED PLAINTEXT: \r\n");
-      for (uint8_t i = 0; i < sizeof(exp_pt); i++) {
-        printf("%02x ", exp_pt[i]);
       }
       printf("\r\n");
     }
     // PASS
     else {
-      printf("PLAINTEXT: \r\n");
-      for (uint8_t i = 0; i < sizeof(data); i++) {
-        printf("%02x ", data[i]);
-      }
+      printf("CTR test #2 (decryption SP 800-38a tests): PASSED\n");
       printf("\r\n");
     }
   }
 }
 
-  int main(void)
-  {
-    /* SET KEY */
-    unsigned char key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
-    /* INITIAL COUNTER */
-    unsigned char ctr[] = {0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff};
+int main(void)
+{
+  /* SET KEY */
+  unsigned char key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
 
-    // SUBSCRIBE
-    aes128_init(callback, NULL);
-    int config = aes128_configure_key(key, sizeof(key));
-    if(config < 0) {
-      printf("set key error %d\r\n", config);
-    }
-
-    for (int i = 0; i < 10; i++) {
-      delay_ms(500);
-      if(aes128_encrypt_ctr(data, sizeof(data), ctr, sizeof(ctr)) < 0) {
-        printf("encrypt error\r\n");
-      }
-      delay_ms(500);
-      if(aes128_decrypt_ctr(data, sizeof(data), ctr, sizeof(ctr)) < 0) {
-        printf("decrypt error\r\n");
-      }
-    }
-    return 0;
+  // SUBSCRIBE
+  aes128_init(callback, NULL);
+  int config = aes128_configure_key(key, sizeof(key));
+  if(config < 0) {
+    printf("set key error %d\r\n", config);
   }
+  return 0;
+}
