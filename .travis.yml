@@ -22,7 +22,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then brew install arm-none-eabi-gcc; fi
 
 before_script:
-  - (cargo install --vers 0.7.1 --force rustfmt || true)
+  - (cargo install --vers 0.7.1 rustfmt || true)
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then npm install -g markdown-toc; fi
 
 script:
