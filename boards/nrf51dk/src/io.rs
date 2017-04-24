@@ -67,6 +67,9 @@ pub unsafe extern "C" fn rust_begin_unwind(_args: Arguments,
     let _ = write(writer, _args);
     let _ = writer.write_str("\"\r\n");
 
+    // Print version of the kernel
+    let _ = writer.write_fmt(format_args!("\tKernel version {}\r\n", env!("TOCK_KERNEL_VERSION")));
+
     // Print fault status once
     let procs = &mut process::PROCS;
     if procs.len() > 0 {

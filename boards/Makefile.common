@@ -33,6 +33,8 @@ Q=@
 VERBOSE =
 endif
 
+export TOCK_KERNEL_VERSION := $(shell git describe --always || echo notgit)
+
 # Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
 RUSTC_VERSION_STRING := rustc 1.16.0-nightly (83c2d9523 2017-01-24)
 ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))

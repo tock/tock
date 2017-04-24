@@ -267,6 +267,7 @@ unsafe extern "C" fn hard_fault_handler() {
         let forced = (hfsr & 0x40000000) == 0x40000000;
 
         panic!("{} HardFault.\n\
+               \tKernel version {}\n\
                \tr0  0x{:x}\n\
                \tr1  0x{:x}\n\
                \tr2  0x{:x}\n\
@@ -304,6 +305,7 @@ unsafe extern "C" fn hard_fault_handler() {
                \tBus Fault Address:       (valid: {}) {:#010X}\n\
                ",
                mode_str,
+               env!("TOCK_KERNEL_VERSION"),
                stacked_r0,
                stacked_r1,
                stacked_r2,
