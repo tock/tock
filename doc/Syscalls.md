@@ -234,6 +234,7 @@ functionality that is handled by the kernel. `command`, `subscribe`, and
 | 17            | AES              | AES encryption and decryption              |
 | 18            | LTC294X          | Battery gauge IC                           |
 | 20            | GPIO Async       | Asynchronous GPIO pins                     |
+| 21            | MAX17205         | Battery gauge IC                           |
 | 22            | LPS25HB          | Pressure sensor                            |
 | 25            | SPI Slave        | Raw SPI slave interface                    |
 | 33            | BLE              | Bluetooth low energy communication         |

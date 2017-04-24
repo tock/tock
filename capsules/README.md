@@ -28,7 +28,7 @@ The list of Tock capsules and a brief description.
 
 These implement a driver to setup and read various physical sensors.
 
-- **[FXOS8700CQ](src/fxos8700cq.rs)**: Acceleromter and magnetometer.
+- **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
 - **[LPS29035](src/isl29035.rs)**: Pressure sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
@@ -42,6 +42,7 @@ These drivers provide support for various ICs.
 
 - **[FM25CL](src/fm25cl.rs)**: FRAM chip.
 - **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
+- **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
 - **[MCP23008](src/mcp23008.rs)**: I2C GPIO extender.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
 
