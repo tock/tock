@@ -231,9 +231,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
     }
 
     pub fn configure_periodic_alarm(&self) {
-        let mut interval = 4100 as u32;
+        let mut interval = 3545 as u32;
         if self.frequency.get() == 39 {
-            interval = 41000 as u32;
+            //interval = 41000 as u32;
             self.frequency.set(37);
         } else {
             self.frequency.set(self.frequency.get() + 1);
