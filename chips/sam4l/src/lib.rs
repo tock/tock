@@ -337,8 +337,10 @@ unsafe extern "C" fn hard_fault_handler() {
                divbysero,
                vecttbl,
                forced,
-               mmfarvalid, mmfar,
-               bfarvalid, bfar);
+               mmfarvalid,
+               mmfar,
+               bfarvalid,
+               bfar);
     } else {
         // hard fault occurred in an app, not the kernel. The app should be
         //  marked as in an error state and handled by the kernel
