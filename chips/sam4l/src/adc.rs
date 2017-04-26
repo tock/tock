@@ -190,15 +190,41 @@ impl adc::AdcSingle for Adc {
 }
 
 /// Not implemented yet. -pal 12/22/16
-impl adc::AdcContinuous for Adc {
+impl adc::AdcContinuous for Adc { 
+    // Three different frequencies 1kHz 32kHz 1MHz, do we select at boot or 
+    // do we allow runtime change?
     type Frequency = adc::Freq1KHz;
 
     fn compute_interval(&self, interval: u32) -> u32 {
         interval
+        // How should we round sample interval?
+        // The interval time unit is 1/Frequency? We return the most precise 
+        // alignment with the actual clock.
+        // The system clock rate can be sampled from?
+        //      - get_system_frequency()? chips/sam4l/src/pm.rs
+        // Do we have to use RCSYS or can we use RC32K, RCFAST( how do we specify
+        // frequency), et cetera.
+        // Why do you never disable the clocks ? 
+        // line 125: What is this fixed delay?
     }
 
     fn sample_continuous(&self, _channel: u8, _interval: u32) -> ReturnCode {
         ReturnCode::FAIL
+        // Initialize clocks, just like in ADCSingle::initialize().
+        // Probably insert fixed delay.
+        // Enable the ADC.
+        // Wait till Ready.
+        // Config + Enable
+        // Basically combine the code from initialize() and sample() above.
+        // Difference: handle_interrupt() SHOULD NOT disable interrupt after it
+        // is done. Do that in cancel_sampling.
+        //
+        // handle_interrupt(): Do we add it to the AdcSingle and AdcContinuous
+        // traits since it needs to be different for both of them.
+        //
+        // How to sample: If the client wants to sample once per `n conversions,
+        // we add a counter to handle_interrupt() and when it hits `n we reset it
+        // and callback the client with sample_done().
     }
 
     fn cancel_sampling(&self) -> ReturnCode {
