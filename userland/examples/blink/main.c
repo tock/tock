@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include <led.h>
 #include <timer.h>
 
