@@ -1,50 +1,163 @@
-Hail: Platform-Specific Instructions
-=====================================
+The Hail Platform
+=================
 
-<img src="media/hail_reva_noheaders_1000x536.jpg" width="30%"><img src="media/hail_breadboard_1000x859.jpg" width="30%"><img src="media/hail_reva_noheaders_labeled.png" width="30%">
+<img src="media/hail-lab11llc_pinout_and_guide.svg" width="35%"><img src="media/hail_breadboard_1000x859.jpg" width="30%"><img src="media/hail_reva_noheaders_labeled.png" width="30%">
 
 Hail is an embedded IoT module for running Tock.
 It is programmable over USB, uses BLE for wireless, includes
 temperature, humidity, and light sensors, and has an onboard accelerometer.
 Further, it conforms to the Particle Photon form-factor.
 
-Setup
------
+For Hail schematics or other hardware details,
+[visit the Hail repository](https://github.com/lab11/hail).
 
-Follow the main [Getting Started](../../doc/Getting_Started.md) to install Rust
-and GCC.
+Getting Started with Hail
+-------------------------
 
-Programming Hail over USB requires the `tockloader` utility, version `0.5.0`.
-To install:
+In addition to the Hail hardware, you will need a Micro USB Cable to power the
+Hail. Any cable will do ([here's what's on my desk](https://www.amazon.com/StarTech-com-Inch-Micro-USB-Cable/dp/B003YKX6WM/)).
+
+Hail should come with the Tock kernel and [the Hail test app](../../userland/examples/tests/hail/)
+pre-loaded. When you plug in Hail, the blue LED should blink slowly (about once
+per second). Pressing the User Button&mdash;just to the right of the USB
+plug&mdash;should turn on the green LED.
+
+
+### Connecting to Hail
+
+The Hail board should appear as a regular serial device (e.g.
+`/dev/tty.usbserial-c098e5130006` on my machine). While you can connect with
+any standard serial program (set to 115200 baud), Tock ships with the
+[tockloader][tockloader] utility to make programming and interfacing easier. To
+install tockloader, use pip:
 
 ```bash
 (Linux): sudo pip3 install tockloader==0.5.0
 (MacOS): pip3 install tockloader==0.5.0
 ```
 
-Connecting Hail to a computer requires a USB Micro B cable.
+Tockloader can read attributes from connected serial devices, and will
+automatically find your connected Hail. Simply run `tockloader listen`:
+
+    $ tockloader listen
+    No device name specified. Using default "tock"
+    Using "/dev/cu.usbserial-c098e5130006 - Hail IoT Module - TockOS"
+
+    Listening for serial output.
+    [Hail Sensor Reading]
+      Temperature:  2423 1/100 degrees C
+      Humidity:     4090 0.01%
+      Light:        187
+      Acceleration: 1003
+      ...
 
 
-Programming the Tock Kernel and Apps
-------------------------------------
+Tockloader has a several other useful features, such as `tockloader list` which
+collects all of the applications currently installed:
 
-To program the kernel for Hail:
+    $ tockloader list
+    [App 0]
+      Name:                  hail
+      Total Size in Flash:   65536 bytes
+
+Check out the [tockloader homepage][tockloader] for more information on tockloader.
+
+
+Running your own applications
+-----------------------------
+
+First, you will need to get your development environment set up (if you already
+have `rustup` and the `arm-none-eabi-` toolchain installed, you can skip this
+step).  Follow [Tock's Getting Started guide](../../doc/Getting_Started.md) to
+install Rust and GCC for Arm.
+
+### Loading Blink
+
+Let's replace the `hail` test app with the basic `blink` application:
+
+1. Head over to the [blink folder](../../userland/examples/blink/)
+
+    `$ cd tock/userland/examples/blink`
+
+2. Start with a clean slate
+
+    `$ tockloader erase-apps`
+
+3. Build blink
+
+    `$ make`
+
+4. Install the blink app
+
+    `$ tockloader install`
+
+The `blink` app will detect that Hail has three LED channels and rotate through
+all eight colors.
+
+
+### Modifying Blink
+
+The stock blink app cycles a little fast for my taste. It also doesn't print
+anything about what it's doing. Let's fix that. Open `main.c` and:
+
+  * Change `delay_ms(250)` to a larger value, maybe 2000
+  * Add a `printf("Hello from the Blink app!\n");` to the beginning of the
+    program (also `#include <stdio.h>`)
+
+Now run `make program`. This convenience target will automatically rebuild your
+application and then call `tockloader install` to install it on Hail.
+
+
+### Loading another application
+
+One of the big advantages of Tock over traditional applications is that it can
+run multiple applications concurrently. Let's head back down into the examples
+directory and install (`make && tockloader install`) the
+[c_hello](../../userland/examples/c_hello) application. While we're at it,
+let's install [cxx_hello](../../userland/examples/cxx_hello) as well.
+
+Now try running `tockloader listen` &ndash; three apps running at once, cool!
+
+
+### Other examples
+
+There are a few more advanced sample applications that are worth checking out:
+
+  * [accel-leds](../../userland/examples/accel-leds) changes LED color based on
+    the board's orientation
+  * [ble-env-sense](../../userland/examples/ble-env-sense) shows how to
+    integrate with the onboard Bluetooth to act as an environmental sensor
+  * [find-north](../../userland/examples/find-north) acts as a simple compass,
+    turning the LED on when the board is pointed north (the magnetometer tends
+    to get confused in large buildings, best tried outdoors)
+
+
+### Writing a new app
+
+We recommend starting from an existing example app and modifying it. Building
+Tock applications can be [a little complicated](../../doc/Compilation.md#compiling-a-process),
+so we recommend using the Tock build system, simply a three-line Makefile in
+your app:
+
+    TOCK_USERLAND_BASE_DIR = ../..
+    C_SRCS := $(wildcard *.c)
+    include $(TOCK_USERLAND_BASE_DIR)/AppMakefile.mk
+
+
+Hacking the Tock Kernel
+-----------------------
+
+For information on the Tock kernel itself and where to start editing, head over
+to the [Tock documentation](../../doc).
+
+Once you've made changes (or if you're simply pulling an updated kernel from
+upstream), you can update the kernel via `make program`:
 
 ```bash
 cd tock/boards/hail
 make program
 ```
 
-To program an application:
 
-```bash
-cd tock/userland/examples/blink
-make TOCK_BOARD=hail program
-```
 
-You can also specify the serial port to use:
-
-```bash
-make program PORT=/dev/ttyUSB0
-```
-
+[tockloader]: https://github.com/helena-project/tockloader
