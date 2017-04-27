@@ -111,9 +111,9 @@ application and then call `tockloader install` to install it on Hail.
 
 ### Loading another application
 
-One of the big advantages of Tock over traditional applications is that it can
-run multiple applications concurrently. Let's head back down into the examples
-directory and install (`make && tockloader install`) the
+One of the big advantages of Tock over traditional embedded operating systems is
+that it can run multiple applications concurrently. Let's head back down into the
+examples directory and install (`make && tockloader install`) the
 [c_hello](../../userland/examples/c_hello) application. While we're at it,
 let's install [cxx_hello](../../userland/examples/cxx_hello) as well.
 
