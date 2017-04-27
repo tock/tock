@@ -192,7 +192,7 @@ fn do_work(input: &elf::File,
                           data.data.len() + package_name.len()) as u32;
 
     let pad = if total_size.count_ones() > 1 {
-        let power2len = 1 << (32 - total_size.leading_zeros());
+        let power2len = cmp::max(1 << (32 - total_size.leading_zeros()), 512);
         power2len - total_size
     } else {
         0
