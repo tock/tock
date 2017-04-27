@@ -683,7 +683,7 @@ impl<'a> Process<'a> {
 
     pub fn r12(&self) -> usize {
         let pspr = self.cur_stack as *const usize;
-        unsafe { read_volatile(pspr.offset(3)) }
+        unsafe { read_volatile(pspr.offset(4)) }
     }
 
     pub unsafe fn fault_str<W: Write>(&mut self, writer: &mut W) {
