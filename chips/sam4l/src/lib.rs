@@ -231,7 +231,7 @@ unsafe extern "C" fn hard_fault_handler() {
         let stacked_r12: u32 = *offset(faulting_stack, 4);
         let stacked_lr: u32 = *offset(faulting_stack, 5);
         let stacked_pc: u32 = *offset(faulting_stack, 6);
-        let stacked_prs: u32 = *offset(faulting_stack, 7);
+        let stacked_xpsr: u32 = *offset(faulting_stack, 7);
 
         let mode_str = "Kernel";
 
@@ -266,6 +266,10 @@ unsafe extern "C" fn hard_fault_handler() {
         let vecttbl = (hfsr & 0x02) == 0x02;
         let forced = (hfsr & 0x40000000) == 0x40000000;
 
+        let ici_it = (((stacked_xpsr >> 25) & 0x3) << 6) | ((stacked_xpsr >> 10) & 0x3f);
+        let thumb_bit = ((stacked_xpsr >> 24) & 0x1) == 1;
+        let exception_number = (stacked_xpsr & 0x1ff) as usize;
+
         panic!("{} HardFault.\n\
                \tKernel version {}\n\
                \tr0  0x{:x}\n\
@@ -275,7 +279,7 @@ unsafe extern "C" fn hard_fault_handler() {
                \tr12 0x{:x}\n\
                \tlr  0x{:x}\n\
                \tpc  0x{:x}\n\
-               \tprs 0x{:x}\n\
+               \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\n\
                \tsp  0x{:x}\n\
                \ttop of stack     0x{:x}\n\
                \tbottom of stack  0x{:x}\n\
@@ -313,7 +317,19 @@ unsafe extern "C" fn hard_fault_handler() {
                stacked_r12,
                stacked_lr,
                stacked_pc,
-               stacked_prs,
+               stacked_xpsr,
+               (stacked_xpsr >> 31) & 0x1,
+               (stacked_xpsr >> 30) & 0x1,
+               (stacked_xpsr >> 29) & 0x1,
+               (stacked_xpsr >> 28) & 0x1,
+               (stacked_xpsr >> 27) & 0x1,
+               (stacked_xpsr >> 19) & 0x1,
+               (stacked_xpsr >> 18) & 0x1,
+               (stacked_xpsr >> 17) & 0x1,
+               (stacked_xpsr >> 16) & 0x1,
+               ici_it,
+               thumb_bit,
+               exception_number, kernel::process::ipsr_isr_number_to_str(exception_number),
                faulting_stack as u32,
                (_estack as *const ()) as u32,
                (&_ezero as *const u32) as u32,
