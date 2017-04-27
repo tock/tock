@@ -68,8 +68,9 @@ Running your own applications
 
 First, you will need to get your development environment set up (if you already
 have `rustup` and the `arm-none-eabi-` toolchain installed, you can skip this
-step).  Follow [Tock's Getting Started guide](../../doc/Getting_Started.md) to
-install Rust and GCC for Arm.
+step).
+
+1. Follow [Tock's Getting Started guide](../../doc/Getting_Started.md) to install Rust and GCC for Arm.
 
 ### Loading Blink
 
