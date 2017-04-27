@@ -686,6 +686,34 @@ impl<'a> Process<'a> {
         unsafe { read_volatile(pspr.offset(4)) }
     }
 
+    pub fn xpsr(&self) -> usize {
+        let pspr = self.cur_stack as *const usize;
+        unsafe { read_volatile(pspr.offset(7)) }
+    }
+
+    // Table 2.5
+    // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html
+    pub fn ipsr_isr_number_to_str(&self, isr_number: usize) -> &'static str {
+        match isr_number {
+            0 => "Thread Mode",
+            1 => "Reserved",
+            2 => "NMI",
+            3 => "HardFault",
+            4 => "MemManage",
+            5 => "BusFault",
+            6 => "UsageFault",
+            7 ... 10 => "Reserved",
+            11 => "SVCall",
+            12 => "Reserved for Debug",
+            13 => "Reserved",
+            14 => "PendSV",
+            15 => "SysTick",
+            16 ... 255 => "IRQn",
+            _ => "(Unknown! Illegal value?)"
+        }
+    }
+
+
     pub unsafe fn fault_str<W: Write>(&mut self, writer: &mut W) {
         let _ccr = SCB_REGISTERS[0];
         let cfsr = SCB_REGISTERS[1];
@@ -894,14 +922,15 @@ impl<'a> Process<'a> {
             let last_syscall = self.last_syscall.get();
 
             // register values
-            let (r0, r1, r2, r3, r12, sp, lr, pc) = (self.r0(),
-                                                     self.r1(),
-                                                     self.r2(),
-                                                     self.r3(),
-                                                     self.r12(),
-                                                     self.sp(),
-                                                     self.lr(),
-                                                     self.pc());
+            let (r0, r1, r2, r3, r12, sp, lr, pc, xpsr) = (self.r0(),
+                                                           self.r1(),
+                                                           self.r2(),
+                                                           self.r3(),
+                                                           self.r12(),
+                                                           self.sp(),
+                                                           self.lr(),
+                                                           self.pc(),
+                                                           self.xpsr());
 
             // lst-file relative LR and PC
             let lr_lst_relative = 0x80000000 | (0xFFFFFFFE & (lr - flash_text_start as usize));
@@ -964,7 +993,7 @@ impl<'a> Process<'a> {
   \r\n  LR : {:#010X} [{:#010X} in lst file]\
   \r\n  PC : {:#010X} [{:#010X} in lst file]\
   \r\n YPC : {:#010X} [{:#010X} in lst file]\
-\r\n\r\n",
+\r\n",
   sram_end,
   sram_grant_size, sram_grant_allocated, sram_grant_error_str,
   sram_grant_start,
@@ -996,9 +1025,36 @@ impl<'a> Process<'a> {
   pc, pc_lst_relative,
   self.yield_pc, ypc_lst_relative,
   ));
+            let _ = writer.write_fmt(format_args!("\
+            \r\n APSR: N {} Z {} C {} V {} Q {}\
+            \r\n       GE {} {} {} {}",
+            (xpsr >> 31) & 0x1,
+            (xpsr >> 30) & 0x1,
+            (xpsr >> 29) & 0x1,
+            (xpsr >> 28) & 0x1,
+            (xpsr >> 27) & 0x1,
+            (xpsr >> 19) & 0x1,
+            (xpsr >> 18) & 0x1,
+            (xpsr >> 17) & 0x1,
+            (xpsr >> 16) & 0x1,
+            ));
+            let _ = writer.write_fmt(format_args!("\
+            \r\n IPSR: Exception Type - {}",
+            self.ipsr_isr_number_to_str(xpsr & 0x1ff)
+            ));
+            let ici_it = (((xpsr >> 25) & 0x3) << 6) | ((xpsr >> 10) & 0x3f);
+            let thumb_bit = ((xpsr >> 24) & 0x1) == 1;
+            let _ = writer.write_fmt(format_args!("\
+            \r\n EPSR: ICI.IT {:#04x}\
+            \r\n       ThumbBit {} {}",
+            ici_it,
+            thumb_bit,
+            if thumb_bit { "" } else { "!!ERROR - Cortex M Thumb only!" },
+            ));
         } else {
             let _ = writer.write_fmt(format_args!("Unknown Load Info\r\n"));
         }
+        let _ = writer.write_fmt(format_args!("\r\n\r\n"));
     }
 }
 
