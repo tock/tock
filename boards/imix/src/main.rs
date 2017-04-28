@@ -99,8 +99,8 @@ unsafe fn set_pin_primary_functions() {
 
     // Right column: Imix pin name
     // Left  column: SAM4L peripheral function
-    PA[04].configure(Some(C)); // LI_INT      --  EIC EXTINT2
-    PA[05].configure(Some(A)); // AD0         --  ADCIFE AD1
+    PA[04].configure(Some(A)); // AD0         --  ADCIFE AD0
+    PA[05].configure(Some(A)); // AD1         --  ADCIFE AD1
     PA[06].configure(Some(C)); // EXTINT1     --  EIC EXTINT1
     PA[07].configure(Some(A)); // AD1         --  ADCIFE AD2
     PA[08].configure(None); //... RF233 IRQ   --  GPIO pin
@@ -110,16 +110,17 @@ unsafe fn set_pin_primary_functions() {
     PA[14].configure(None); //... TRNG_OUT    --  GPIO pin
     PA[17].configure(None); //... NRF INT     -- GPIO pin
     PA[18].configure(Some(A)); // NRF CLK     -- USART2_CLK
+    PA[20].configure(None); //... D8          -- GPIO pin
     PA[21].configure(Some(E)); // TWI2 SDA    -- TWIM2_SDA
     PA[22].configure(Some(E)); // TWI2 SCL    --  TWIM2 TWCK
     PA[25].configure(Some(A)); // USB_N       --  USB DM
     PA[26].configure(Some(A)); // USB_P       --  USB DP
     PB[00].configure(Some(A)); // TWI1_SDA    --  TWIMS1 TWD
     PB[01].configure(Some(A)); // TWI1_SCL    --  TWIMS1 TWCK
-    PB[02].configure(Some(A)); // AD2         --  ADCIFE AD3
-    PB[03].configure(Some(A)); // AD3         --  ADCIFE AD4
-    PB[04].configure(Some(A)); // AD4         --  ADCIFE AD5
-    PB[05].configure(Some(A)); // AD5         --  ADCIFE AD6
+    PB[02].configure(Some(A)); // AD3         --  ADCIFE AD3
+    PB[03].configure(Some(A)); // AD4         --  ADCIFE AD4
+    PB[04].configure(Some(A)); // AD5         --  ADCIFE AD5
+    PB[05].configure(Some(A)); // VHIGHSAMPLE --  ADCIFE AD6
     PB[06].configure(Some(A)); // RTS3        --  USART3 RTS
     PB[07].configure(None); //... NRF RESET   --  GPIO
     PB[09].configure(Some(A)); // RX3         --  USART3 RX
@@ -130,7 +131,7 @@ unsafe fn set_pin_primary_functions() {
     PB[14].configure(Some(A)); // RX0         --  USART0 RX
     PB[15].configure(Some(A)); // TX0         --  USART0 TX
     PC[00].configure(Some(A)); // CS2         --  SPI NPCS2
-    PC[01].configure(Some(A)); // CS3 (RF233) -- SPI NPCS3
+    PC[01].configure(Some(A)); // CS3 (RF233) --  SPI NPCS3
     PC[02].configure(Some(A)); // CS1         --  SPI NPCS1
     PC[03].configure(Some(A)); // CS0         --  SPI NPCS0
     PC[04].configure(Some(A)); // MISO        --  SPI MISO
@@ -148,8 +149,9 @@ unsafe fn set_pin_primary_functions() {
     PC[17].configure(None); //... NRF_PWR     --  GPIO pin
     PC[18].configure(None); //... RF233_PWR   --  GPIO pin
     PC[19].configure(None); //... TRNG_PWR    -- GPIO Pin
+    PC[22].configure(None); //... KERNEL LED  -- GPIO Pin
     PC[24].configure(None); //... USER_BTN    -- GPIO Pin
-    PC[25].configure(None); //... D8          -- GPIO Pin
+    PC[25].configure(Some(B)); // LI_INT      --  EIC EXTINT2
     PC[26].configure(None); //... D7          -- GPIO Pin
     PC[27].configure(None); //... D6          -- GPIO Pin
     PC[28].configure(None); //... D5          -- GPIO Pin
@@ -162,7 +164,8 @@ unsafe fn set_pin_primary_functions() {
 pub unsafe fn reset_handler() {
     sam4l::init();
 
-    sam4l::pm::setup_system_clock(sam4l::pm::SystemClockSource::DfllRc32k, 48000000);
+    sam4l::pm::setup_system_clock(sam4l::pm::SystemClockSource::ExternalOscillatorPll,
+                                  48000000);
 
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
@@ -339,8 +342,9 @@ pub unsafe fn reset_handler() {
          &sam4l::gpio::PC[28], // P5
          &sam4l::gpio::PC[27], // P6
          &sam4l::gpio::PC[26], // P7
-         &sam4l::gpio::PC[25], // P8
-         &sam4l::gpio::PC[25]], // Dummy Pin (regular GPIO)
+         &sam4l::gpio::PA[20], // P8
+         &sam4l::gpio::PA[20], // Dummy Pin (regular GPIO)
+         ],
         8 * 4
     );
 
@@ -354,9 +358,11 @@ pub unsafe fn reset_handler() {
 
     // # LEDs
     let led_pins = static_init!(
-        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 1],
-        [(&sam4l::gpio::PC[10], capsules::led::ActivationMode::ActiveHigh)],
-        64/8);
+        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 2],
+        [(&sam4l::gpio::PC[22], capsules::led::ActivationMode::ActiveHigh),
+         (&sam4l::gpio::PC[10], capsules::led::ActivationMode::ActiveHigh)
+        ],
+        128/8);
     let led = static_init!(
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
         capsules::led::LED::new(led_pins),
