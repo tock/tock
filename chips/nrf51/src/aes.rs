@@ -158,8 +158,8 @@ impl AesECB {
                         self.client
                             .get()
                             .map(move |client| unsafe {
-                                     client.crypt_done(buf, &mut INIT_CTR, self.len.get())
-                                 });
+                                client.crypt_done(buf, &mut INIT_CTR, self.len.get())
+                            });
                     });
 
             }
@@ -227,8 +227,7 @@ impl SymmetricEncryptionDriver for AesECB {
 pub unsafe extern "C" fn ECB_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::ECB);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::ECB);
 }
