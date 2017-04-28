@@ -68,7 +68,7 @@ use kernel::hil::symmetric_encryption::{SymmetricEncryptionDriver, Client};
 use kernel::process::Error;
 
 pub static mut BUF: [u8; 128] = [0; 128];
-pub static mut KEY: [u8; 32] = [0; 32];
+pub static mut KEY: [u8; 16] = [0; 16];
 pub static mut IV: [u8; 16] = [0; 16];
 
 

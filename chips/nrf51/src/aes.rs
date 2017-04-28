@@ -14,7 +14,7 @@
 //!
 //! FIXME:
 //!     - maybe move some stuff to capsule instead
-//!     - OUTPUT and INIT_CTR can be replaced with TakeCell
+//!     - INIT_CTR can be replaced with TakeCell
 //!     - ECB_DATA must be a static mut [u8]
 //!       and can't be located in the struct
 //!     - PAYLOAD size is restricted to 128 bytes
@@ -35,9 +35,6 @@ use peripheral_registers::{AESECB_REGS, AESECB_BASE};
 // array that the AES-CHIP will mutate during AES-ECB
 // key 0-15     cleartext 16-32     ciphertext 32-47
 static mut ECB_DATA: [u8; 48] = [0; 48];
-
-// the final output i.e. either encrypted or decrypted
-static mut OUTPUT: [u8; 128] = [0; 128];
 
 // data to replace TakeCell initial counter in the capsule
 static mut INIT_CTR: [u8; 16] = [0; 16];
@@ -117,7 +114,7 @@ impl AesECB {
 
         self.client
             .get()
-            .map(|client| unsafe { client.set_key_done(&mut OUTPUT[0..16]) });
+            .map(|client| unsafe { client.set_key_done(&mut INIT_CTR[0..16]) });
     }
 
     pub fn handle_interrupt(&self) {
@@ -154,23 +151,17 @@ impl AesECB {
                 self.input
                     .take()
                     .map(|buf| {
-                        // take at most 16 bytes and XOR with the keystream
-                        for (i, c) in buf.as_ref()[0..self.len.get()].iter().enumerate() {
-                            // m XOR ECB(k || ctr)
-                            unsafe {
-                                OUTPUT[i] = ks[i] ^ *c;
-                            }
+                        for (i, c) in buf.as_mut()[0..self.len.get()].iter_mut().enumerate() {
+                            *c = ks[i] ^ *c;
                         }
+                        // ugly work-around to replace buffers in the capsule;
+                        self.client
+                            .get()
+                            .map(move |client| unsafe {
+                                     client.crypt_done(buf, &mut INIT_CTR, self.len.get())
+                                 });
                     });
 
-                // ugly work-around to replace buffers in the capsule;
-                self.client
-                    .get()
-                    .map(|client| unsafe {
-                        client.crypt_done(&mut OUTPUT[0..self.len.get()],
-                                          &mut INIT_CTR,
-                                          self.len.get())
-                    });
             }
             self.keystream.set(ks);
         }
@@ -236,7 +227,8 @@ impl SymmetricEncryptionDriver for AesECB {
 pub unsafe extern "C" fn ECB_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::ECB);
-    chip::INTERRUPT_QUEUE.as_mut()
+    chip::INTERRUPT_QUEUE
+        .as_mut()
         .unwrap()
         .enqueue(NvicIdx::ECB);
 }

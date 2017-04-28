@@ -127,7 +127,7 @@ static void callback(int cb,
     }
     // PASS
     else {
-      printf("CTR test #1 (encryption SP 800-38a tests PASSED\r\n"); 
+      printf("CTR test #1 (encryption SP 800-38a tests): PASSED\r\n"); 
     }
 
     if(aes128_decrypt_ctr(data, sizeof(data), ctr, sizeof(ctr)) < 0) {
