@@ -13,43 +13,43 @@
 //! static mut...
 //!
 //! FIXME:
-//!     - replace static mut with TakeCell or something similar
-//!     (I had problem to use because it can only be used one with take() )
 //!     - maybe move some stuff to capsule instead
+//!     - INIT_CTR can be replaced with TakeCell
+//!     - ECB_DATA must be a static mut [u8]
+//!       and can't be located in the struct
+//!     - PAYLOAD size is restricted to 128 bytes
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: March 31, 2017
+//! Date: April 21, 2017
 
 
 use chip;
 use core::cell::Cell;
-// use kernel::common::take_cell::TakeCell;
+use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption::{SymmetricEncryptionDriver, Client};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{AESECB_REGS, AESECB_BASE};
 
-#[deny(no_mangle_const_items)]
-
+// array that the AES-CHIP will mutate during AES-ECB
+// key 0-15     cleartext 16-32     ciphertext 32-47
 static mut ECB_DATA: [u8; 48] = [0; 48];
-// key 0-15
-// cleartext 16-32
-// ciphertext 32-47
 
-static mut BUF: [u8; 128] = [0; 128];
-static mut DATA: [u8; 128] = [0; 128];
-static mut DMY: [u8; 16] = [0; 16];
+// data to replace TakeCell initial counter in the capsule
+static mut INIT_CTR: [u8; 16] = [0; 16];
 
-#[no_mangle]
 pub struct AesECB {
     regs: *mut AESECB_REGS,
     client: Cell<Option<&'static Client>>,
     ctr: Cell<[u8; 16]>,
-    // data: TakeCell<'static, [u8]>,
-    remaining: Cell<u8>,
-    len: Cell<u8>,
-    offset: Cell<u8>,
+    // input either plaintext or ciphertext to be encrypted or decrypted
+    input: TakeCell<'static, [u8]>,
+    // keystream to be XOR:ed with the input
+    keystream: Cell<[u8; 128]>,
+    remaining: Cell<usize>,
+    len: Cell<usize>,
+    offset: Cell<usize>,
 }
 
 pub static mut AESECB: AesECB = AesECB::new();
@@ -60,7 +60,8 @@ impl AesECB {
             regs: AESECB_BASE as *mut AESECB_REGS,
             client: Cell::new(None),
             ctr: Cell::new([0; 16]),
-            // data: TakeCell::empty(),
+            input: TakeCell::empty(),
+            keystream: Cell::new([0; 128]),
             remaining: Cell::new(0),
             len: Cell::new(0),
             offset: Cell::new(0),
@@ -89,9 +90,7 @@ impl AesECB {
 
     fn crypt(&self) {
         let regs = unsafe { &*self.regs };
-
         let ctr = self.ctr.get();
-
         for i in 0..16 {
             unsafe {
                 ECB_DATA[i + 16] = ctr[i];
@@ -113,10 +112,9 @@ impl AesECB {
             }
         }
 
-        unsafe {
-            self.client.get().map(|client| client.set_key_done(&mut BUF[0..16], 16));
-        }
-
+        self.client
+            .get()
+            .map(|client| unsafe { client.set_key_done(&mut INIT_CTR[0..16]) });
     }
 
     pub fn handle_interrupt(&self) {
@@ -129,59 +127,43 @@ impl AesECB {
 
         if regs.ENDECB.get() == 1 {
 
-            let rem = self.remaining.get() as usize;
-            let offset = self.offset.get() as usize;
+            let rem = self.remaining.get();
+            let offset = self.offset.get();
             let take = if rem >= 16 { 16 } else { rem };
+            let mut ks = self.keystream.get();
 
-
-            // THIS DON'T WORK FOR MORE THAN 1 BLOCK BECAUSE TAKE EATS UP THE ENTIRE BUF
-            // ------------------------------------------------------------------------------------
-            // guard that more bytes exist
-            // if self.data.is_some() && take > 0 {
-            //     self.data.take().map(|buf| {
-            //         if buf.len() >= offset + take {
-            //             // take at most 16 bytes and XOR with the keystream
-            //             for (i, c) in buf.as_ref()[offset .. offset+take].iter().enumerate() {
-            //                 // m XOR ECB(k || ctr)
-            //                 unsafe { BUF[i] = ECB_DATA[i-offset+32] ^ *c; }
-            //                 debug!("{}\r\n", i);
-            //             }
-            //             self.offset.set( (offset + take) as u8 );
-            //             self.remaining.set( (rem - take) as u8 );
-            //         }
-            //     });
-            // }
-
-            // TEMP solution
+            // Append keystream to the KEYSTREAM array
             if take > 0 {
                 for i in offset..offset + take {
-                    unsafe {
-                        BUF[i] = ECB_DATA[i - offset + 32] ^ DATA[i];
-                    }
+                    ks[i] = unsafe { ECB_DATA[i - offset + 32] }
                 }
-                self.offset.set((offset + take) as u8);
-                self.remaining.set((rem - take) as u8);
+                self.offset.set(offset + take);
+                self.remaining.set(rem - take);
                 self.update_ctr();
             }
-
-            // USE THIS PRINT TO TEST THAT THE CTR UPDATES ACCORDINGLY
-            // debug!("ctr {:?}\r\n", self.ctr.get());
 
             // More bytes to encrypt!!!
             if self.remaining.get() > 0 {
                 self.crypt();
             }
-            // DONE
-            else {
-                // ugly work-around to replace buffers in the capsule;
-                unsafe {
-                    self.client.get().map(|client| {
-                        client.crypt_done(&mut BUF[0..self.len.get() as usize],
-                                          &mut DMY,
-                                          self.len.get())
+            // Entire Keystream generate now XOR with the date
+            else if self.input.is_some() {
+                self.input
+                    .take()
+                    .map(|buf| {
+                        for (i, c) in buf.as_mut()[0..self.len.get()].iter_mut().enumerate() {
+                            *c = ks[i] ^ *c;
+                        }
+                        // ugly work-around to replace buffers in the capsule;
+                        self.client
+                            .get()
+                            .map(move |client| unsafe {
+                                client.crypt_done(buf, &mut INIT_CTR, self.len.get())
+                            });
                     });
-                }
+
             }
+            self.keystream.set(ks);
         }
         // else ERROR encrypt error do nothing
     }
@@ -231,17 +213,10 @@ impl SymmetricEncryptionDriver for AesECB {
     }
 
     fn aes128_crypt_ctr(&self, data: &'static mut [u8], iv: &'static mut [u8], len: usize) {
-        self.remaining.set(len as u8);
-        self.len.set(len as u8);
+        self.remaining.set(len);
+        self.len.set(len);
         self.offset.set(0);
-        // self.data.replace(data);
-
-        // append data to "enc/dec" to a the global buf
-        for (i, c) in data.as_ref()[0..len as usize].iter().enumerate() {
-            unsafe {
-                DATA[i] = *c;
-            }
-        }
+        self.input.replace(data);
         self.set_initial_ctr(iv);
         self.crypt();
     }
@@ -252,5 +227,7 @@ impl SymmetricEncryptionDriver for AesECB {
 pub unsafe extern "C" fn ECB_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::ECB);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::ECB);
+    chip::INTERRUPT_QUEUE.as_mut()
+        .unwrap()
+        .enqueue(NvicIdx::ECB);
 }

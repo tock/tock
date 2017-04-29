@@ -68,7 +68,7 @@ use kernel::hil::symmetric_encryption::{SymmetricEncryptionDriver, Client};
 use kernel::process::Error;
 
 pub static mut BUF: [u8; 128] = [0; 128];
-pub static mut KEY: [u8; 32] = [0; 32];
+pub static mut KEY: [u8; 16] = [0; 16];
 pub static mut IV: [u8; 16] = [0; 16];
 
 
@@ -132,7 +132,11 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Crypto<'a, E> {
 }
 
 impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
-    fn crypt_done(&self, data: &'static mut [u8], dmy: &'static mut [u8], len: u8) -> ReturnCode {
+    fn crypt_done(&self,
+                  data: &'static mut [u8],
+                  dmy: &'static mut [u8],
+                  len: usize)
+                  -> ReturnCode {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 if app.data_buf.is_some() {
@@ -153,7 +157,7 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
         ReturnCode::SUCCESS
     }
 
-    fn set_key_done(&self, key: &'static mut [u8], _: u8) -> ReturnCode {
+    fn set_key_done(&self, key: &'static mut [u8]) -> ReturnCode {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| { app.callback.map(|mut cb| { cb.schedule(0, 0, 0); }); });
         }
