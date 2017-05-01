@@ -34,13 +34,24 @@ process code.
 
 ## Kernel code
 
-The kernel code is split into two major regions, `.text` which holds the
-vector table, program code, initialization routines, and other read-only data.
-This section is written to the beginning of flash.
+Kernel code is split into four regions, in order:
 
-This is immediately followed by the `.relocate` region, which holds values the
-need to exist in SRAM, but have non-zero initial values that Tock copies from
-flash to SRAM as part of its initialization (see [Startup](Startup.md)).
+  - `.vector_table` holds the vector table and is always exactly 0x400 bytes
+    long (room for 256 entries, the maximum for any ARM Cortex-M)
+  - `.kernel_attributes` holds arbitrary key:value pairs that contain
+    information about this kernel image. The attribute format mirrors
+    attributes from the bootloader, namely:
+    - Begins with `TockKernel`
+    - Then 1 byte version (currently 0)
+    - Then 64 byte entries:
+       - 8 byte (zero-padded) name
+       - 1 byte length
+       - 55 byte (zero-padded) value
+  - `.text` holds the program code, initialization routines, and other
+    read-only data.
+  - `.relocate` holds values the need to exist in SRAM, but have non-zero
+    initial values that Tock copies from flash to SRAM as part of its
+    initialization (see [Startup](Startup.md)).
 
 ## Process code
 
