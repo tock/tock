@@ -159,7 +159,7 @@ Format. This means the use of a linker script following specific rules and a
 header for the binary so that Tock can load the application correctly.
 
 Each Tock application uses a
-[linker script](https://github.com/helena-project/tock/blob/11871e5abcd5baf7c16ec951ac1fadd515851ec6/userland/linker.ld)
+[linker script](https://github.com/helena-project/tock/blob/master/userland/userland_generic.ld)
 that places Flash at address `0x80000000` and SRAM at address `0x00000000`.
 This allows relocations pointing at Flash to be easily differentiated from
 relocations pointing at RAM.
@@ -192,7 +192,7 @@ struct LoadInfo {
 
 In practice, this is automatically handled for applications. As part of the
 compilation process, a tool called
-[Elf to Tock Binary Format](https://github.com/helena-project/tock/blob/a0a3b7705354db0e7dcfddd4063c7d6ec38be7a8/userland/tools/elf2tbf/src/main.rs)
+[Elf to Tock Binary Format](https://github.com/helena-project/tock/tree/master/userland/tools/elf2tbf)
 does the conversion from ELF to Tock's expected binary format, ensuring that
 sections are placed in the expected order, adding a section that lists
 necessary load-time relocations, and creating the `LoadInfo` header.
@@ -332,5 +332,3 @@ Importantly, while applications currently share the same upload process as the
 kernel, they are planned to support additional methods in the future.
 Application loading through wireless methods especially is targeted for future
 editions of Tock.
-
-
