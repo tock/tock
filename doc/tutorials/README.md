@@ -7,6 +7,7 @@ These tutorials walk through how to use the various features of Tock
 1. **[Button to Printf()](02_button_print.md)**: Print to terminal in response to button presses.
 1. **[BLE Advertisement Scanning](03_ble_scan.md)**: Sense nearby BLE packets.
 1. **[Sample Sensors and Use Drivers](04_sensors_and_drivers.md)**: Use syscalls to interact with kernel drivers.
+1. **[Inter-process Communication](05_ipc.md)**: Tock's IPC mechanism.
 
 
 ### Planned
@@ -14,7 +15,6 @@ These tutorials walk through how to use the various features of Tock
 #### Apps
 4. App that implements a BLE device.
 5. App that uses 15.4.
-6. App that uses IPC.
 
 
 #### Kernel
