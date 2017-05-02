@@ -20,6 +20,7 @@ dependencies = [
  "cortexm4 0.1.0",
  "kernel 0.1.0",
  "sam4l 0.1.0",
+ "tock_kernel_attributes 0.1.0",
 ]
 
 [[package]]
@@ -33,4 +34,8 @@ dependencies = [
  "cortexm4 0.1.0",
  "kernel 0.1.0",
 ]
+
+[[package]]
+name = "tock_kernel_attributes"
+version = "0.1.0"
 

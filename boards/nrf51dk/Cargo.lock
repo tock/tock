@@ -34,6 +34,7 @@ dependencies = [
  "kernel 0.1.0",
  "nrf51 0.1.0",
  "nrf5x 0.1.0",
+ "tock_kernel_attributes 0.1.0",
 ]
 
 [[package]]
@@ -43,3 +44,6 @@ dependencies = [
  "kernel 0.1.0",
 ]
 
+[[package]]
+name = "tock_kernel_attributes"
+version = "0.1.0"

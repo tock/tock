@@ -27,6 +27,8 @@ pub mod io;
 #[allow(dead_code)]
 mod test_take_map_cell;
 
+include!(concat!(env!("OUT_DIR"), "/kernel_attribute_git.rs"));
+
 static mut SPI_READ_BUF: [u8; 64] = [0; 64];
 static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 

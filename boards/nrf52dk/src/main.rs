@@ -73,6 +73,9 @@ extern crate nrf5x;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use nrf5x::rtc::Rtc;
 
+// Include git hash in kernel attribute table
+include!(concat!(env!("OUT_DIR"), "/kernel_attribute_git.rs"));
+
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: usize = 17;
 const LED2_PIN: usize = 18;

@@ -54,6 +54,7 @@ SECTIONS
     .vector_table :
     {
         . = ALIGN(4);
+        _vector_table_start = .;
         _textstart = .;         /* Symbol expected by some MS build toolchains */
         _stext = .;         /* First of standard s,e (start/end) pair */
 
@@ -68,8 +69,30 @@ SECTIONS
         KEEP(*(.vectors .vectors.*))
         KEEP(*(.irqs))
         FILL(0xadde) /* dead */
-        . = _textstart + ARM_MAX_VECTOR_TABLE_LENGTH;
+        . = _vector_table_start + ARM_MAX_VECTOR_TABLE_LENGTH;
     } > vector_table
+
+    .attribute_table :
+    {
+        _attribute_table_start = .;
+        /* Attribute Table Identifier: TockKernel */
+        BYTE(0x54) /* T */
+        BYTE(0x6f) /* o */
+        BYTE(0x63) /* c */
+        BYTE(0x6b) /* k */
+        BYTE(0x4b) /* K */
+        BYTE(0x65) /* e */
+        BYTE(0x72) /* r */
+        BYTE(0x6e) /* n */
+        BYTE(0x65) /* e */
+        BYTE(0x6c) /* l */
+        /* Kernel Major Version: 0 */
+        BYTE(0x00)
+        /* Remaining attributes */
+        KEEP(*(.kernel_attributes .kernel_attribute.*))
+        FILL(0x0)
+        . = _attribute_table_start + ATTRIBUTE_TABLE_LENGTH;
+    } > attribute_table
 
     .text :
     {
