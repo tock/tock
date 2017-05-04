@@ -29,6 +29,69 @@ EXC_RETURN_PSP:
 }
 
 #[no_mangle]
+/// All ISRs are caught by this handler which indirects to a custom handler by
+/// indexing into `INTERRUPT_TABLE` based on the ISR number.
+pub unsafe extern "C" fn generic_isr() {
+    asm!("
+    /* Skip saving process state if not coming from user-space */
+    ldr r0, EXC_RETURN_PSP
+    cmp lr, r0
+    bne _ggeneric_isr_no_stacking
+
+    /* We need the most recent kernel's version of r0, which points */
+    /* to the Process struct's stored registers field. The kernel's r0 */
+    /* lives in the first word of the hardware stacked registers on MSP */
+    mov r0, sp
+    ldr r0, [r0, #0]
+
+    /* Push non-hardware-stacked registers onto Process stack */
+    /* r0 points to user stack (see to_kernel) */
+    str r4, [r0, #16]
+    str r5, [r0, #20]
+    str r6, [r0, #24]
+    str r7, [r0, #28]
+
+    mov  r4, r8
+    mov  r5, r9
+    mov  r6, r10
+    mov  r7, r11
+
+    str r4, [r0, #0]
+    str r5, [r0, #4]
+    str r6, [r0, #8]
+    str r7, [r0, #12]
+
+_ggeneric_isr_no_stacking:
+    /* Find the ISR number by looking at the low byte of the IPSR registers */
+    mrs r0, IPSR
+    movs r1, #0xff
+    ands r0, r1
+    /* ISRs start at 16, so substract 16 to get zero-indexed */
+    subs r0, #16
+
+    /* INTERRUPT_TABLE contains function pointers, which are word sized, so
+     * multiply by 4 (the word size) */
+    lsls r0, r0, #2
+
+    ldr r1, =INTERRUPT_TABLE
+    ldr r0, [r1, r0]
+
+    push {lr}
+    blx r0
+    /* pop {lr} */
+    pop {r0}
+    mov lr, r0
+
+    /* Set thread mode to privileged */
+    movs r0, #0
+    msr CONTROL, r0
+
+    ldr r0, EXC_RETURN_PSP
+    mov lr, r0
+    ");
+}
+
+#[no_mangle]
 #[inline(never)]
 /// r0 is top of user stack, r1 Process GOT
 pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
