@@ -4,6 +4,5 @@ version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
 [dependencies]
-rust-libcore = "*"
 cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }

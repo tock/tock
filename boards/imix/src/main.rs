@@ -1,8 +1,9 @@
 #![no_std]
 #![no_main]
-#![feature(asm,const_fn,lang_items)]
+#![feature(asm,const_fn,lang_items,compiler_builtins_lib)]
 
 extern crate capsules;
+extern crate compiler_builtins;
 #[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate sam4l;
@@ -283,7 +284,7 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
                                         &sam4l::gpio::PA[08]),   // irq_ctl
-                                        1120/8);
+                                        1056/8);
 
     sam4l::gpio::PA[08].set_client(rf233);
 

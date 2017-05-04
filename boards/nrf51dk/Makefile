@@ -1,7 +1,7 @@
 # Makefile for building the tock kernel for the nRF development kit
 
 TOCK_ARCH=cortex-m0
-CHIP=nrf51
+TARGET=thumbv6m-none-eabi
 PLATFORM=nrf51dk
 
 include ../Makefile.common
@@ -10,12 +10,12 @@ include ../Makefile.common
 apps/$(APP)/build/$(TOCK_ARCH)/app.bin:
 	@make -C apps/$(APP) TOCK_ARCH=$(TOCK_ARCH)
 
-target/nrf51/release/nrf51dk-$(APP): target/nrf51/release/nrf51dk apps/$(APP)/build/$(TOCK_ARCH)/app.bin
+target/$(TARGET)/release/nrf51dk-$(APP): target/$(TARGET)/release/nrf51dk apps/$(APP)/build/$(TOCK_ARCH)/app.bin
 	@$(OBJCOPY) --update-section .apps=../../userland/examples/$(APP)/build/$(TOCK_ARCH)/app.bin \
 	  --set-section-flags .apps=alloc,code \
-	  target/nrf51/release/nrf51dk $@
+	  target/$(TARGET)/release/nrf51dk $@
 
-target/nrf51/release/nrf51dk-$(APP).hex: target/nrf51/release/nrf51dk-$(APP)
+target/$(TARGET)/release/nrf51dk-$(APP).hex: target/$(TARGET)/release/nrf51dk-$(APP)
 	@$(OBJCOPY) -Oihex $^ $@
 
 JLINK=JLinkExe
@@ -24,12 +24,12 @@ JLINK_SCRIPTS_DIR=jtag/
 
 # Upload the kernel over JTAG
 .PHONY: program
-flash: target/nrf51/release/nrf51dk.hex
+flash: target/$(TARGET)/release/nrf51dk.hex
 	$(JLINK) $(JLINK_OPTIONS) $(JLINK_SCRIPTS_DIR)/flash-kernel.jlink
 
 # Upload kernel + app over JTAG
 .PHONY: program-full
-flash-full: target/nrf51/release/nrf51dk-$(APP).hex
+flash-full: target/$(TARGET)/release/nrf51dk-$(APP).hex
 	@$(eval TEMPFILE := $(shell mktemp -t nrf51dk-$(APP).jlink.XXXXXXXXXX))
 	@echo r > $(TEMPFILE)
 	@echo loadfile $< >> $(TEMPFILE)
