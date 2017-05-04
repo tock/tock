@@ -149,7 +149,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* EIC7 */          Option::Some(unhandled_interrupt),
     /* EIC8 */          Option::Some(unhandled_interrupt),
     /* IISC */          Option::Some(unhandled_interrupt),
-    /* SPI */           Option::Some(unhandled_interrupt),
+    /* SPI */           Option::Some(spi::spi_interrupt_handler),
     /* TC00 */          Option::Some(unhandled_interrupt),
     /* TC01 */          Option::Some(unhandled_interrupt),
     /* TC02 */          Option::Some(unhandled_interrupt),

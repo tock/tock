@@ -12,13 +12,13 @@ use capsules::rf233::RF233;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
+use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster, VirtualSpiSlaveDevice};
+use sam4l::spi::SpiRole;
 use kernel::Chip;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
-use kernel::hil::spi::SpiMaster;
 use kernel::mpu::MPU;
 
 #[macro_use]
@@ -29,6 +29,15 @@ pub mod io;
 mod i2c_dummy;
 #[allow(dead_code)]
 mod spi_dummy;
+#[allow(dead_code)]
+mod spi_slave_dummy;
+
+const SPI_ROLE : SpiRole = SpiRole::SpiMaster;
+
+enum SpiType {
+    SpiMasterT(&'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>),
+    SpiSlaveT(&'static capsules::spi::SpiSlave<'static, VirtualSpiSlaveDevice<'static, sam4l::spi::Spi>>),
+}
 
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
@@ -42,12 +51,12 @@ struct Imix {
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    spi: SpiType,
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
-    radio: &'static capsules::radio::RadioDriver<'static,
+    radio: Option<&'static capsules::radio::RadioDriver<'static,
                                                  capsules::rf233::RF233<'static,
-                                                 VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
+                                                 VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
 }
 
@@ -78,7 +87,7 @@ impl kernel::Platform for Imix {
             1 => f(Some(self.gpio)),
 
             3 => f(Some(self.timer)),
-            4 => f(Some(self.spi)),
+            4 => f({ match self.spi { SpiType::SpiMasterT(i) => Some(i), _ => None}}),
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
@@ -86,7 +95,8 @@ impl kernel::Platform for Imix {
             10 => f(Some(self.si7021)),
             11 => f(Some(self.ninedof)),
             16 => f(Some(self.crc)),
-            154 => f(Some(self.radio)),
+            25 => f({ match self.spi { SpiType::SpiSlaveT(i) => Some(i), _ => None}}),
+            154 => f( self.radio.map( |radio| radio as &kernel::Driver ) ),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -232,35 +242,63 @@ pub unsafe fn reset_handler() {
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
-    // Set up an SPI MUX, so there can be multiple clients
-    let mux_spi = static_init!(
-        MuxSpiMaster<'static, sam4l::spi::Spi>,
-        MuxSpiMaster::new(&sam4l::spi::SPI),
-        12);
-    sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
+    let mut mux_spi_master_opt: Option<&'static MuxSpiMaster<'static, sam4l::spi::Spi>> = None;
+
+    let spi_syscalls = match SPI_ROLE {
+        SpiRole::SpiMaster => {
+            // Set up an SPI MUX, so there can be multiple clients
+            let mux_spi = static_init!(
+                MuxSpiMaster<'static, sam4l::spi::Spi>,
+                MuxSpiMaster::new(&sam4l::spi::SPI),
+                12);
+            mux_spi_master_opt = Some(mux_spi);
+            kernel::hil::spi::SpiMaster::set_client(&mut sam4l::spi::SPI, mux_spi);
+            kernel::hil::spi::SpiMaster::init(&mut sam4l::spi::SPI);
+
+            // Create a virtualized client for SPI system call interface,
+            // then the system call capsule
+            let syscall_spi_device = static_init!(
+                VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+                VirtualSpiMasterDevice::new(mux_spi, 3),
+                352/8);
+
+            // Create the SPI system call capsule, passing the client
+            let spi_syscalls = static_init!(
+                capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+                capsules::spi::Spi::new(syscall_spi_device),
+                672/8);
+
+            // System call capsule requires static buffers so it can
+            // copy from application slices to DMA
+            static mut SPI_READ_BUF: [u8; 64] = [0; 64];
+            static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
+            spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
+            syscall_spi_device.set_client(spi_syscalls);
+
+            SpiType::SpiMasterT(spi_syscalls)
+        },
+        SpiRole::SpiSlave => {
+            // Create a virtualized client for SPI system call interface,
+            // then the system call capsule
+            let syscall_spi_device = static_init!(
+                VirtualSpiSlaveDevice<'static, sam4l::spi::Spi>,
+                VirtualSpiSlaveDevice::new(&mut sam4l::spi::SPI),
+                96/8);
+            kernel::hil::spi::SpiSlave::set_client(&mut sam4l::spi::SPI, Some(syscall_spi_device));
+            kernel::hil::spi::SpiSlave::init(&mut sam4l::spi::SPI);
+
+            // Create the SPI system call capsule, passing the client
+            let spi_syscalls = static_init!(
+                capsules::spi::SpiSlave<'static, VirtualSpiSlaveDevice<'static, sam4l::spi::Spi>>,
+                capsules::spi::SpiSlave::new(syscall_spi_device),
+                832/8);
+
+            SpiType::SpiSlaveT(spi_syscalls)
+        },
+    };
+
+    // Now enable the SPI
     sam4l::spi::SPI.enable();
-
-    // Create a virtualized client for SPI system call interface,
-    // then the system call capsule
-    let syscall_spi_device = static_init!(
-        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
-        VirtualSpiMasterDevice::new(mux_spi, 3),
-        352/8);
-
-    // Create the SPI systemc call capsule, passing the client
-    let spi_syscalls = static_init!(
-        capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
-        capsules::spi::Spi::new(syscall_spi_device),
-        672/8);
-
-    // System call capsule requires static buffers so it can
-    // copy from application slices to DMA
-    static mut SPI_READ_BUF: [u8; 64] = [0; 64];
-    static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
-    spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
-    syscall_spi_device.set_client(spi_syscalls);
-
 
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
@@ -274,22 +312,6 @@ pub unsafe fn reset_handler() {
         352/8);
     si7021_i2c.set_client(si7021);
     si7021_alarm.set_client(si7021);
-
-    // Create a second virtualized SPI client, for the RF233
-    let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
-                                 VirtualSpiMasterDevice::new(mux_spi, 3),
-                                 352/8);
-    // Create the RF233 driver, passing its pins and SPI client
-    let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> =
-        static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
-                             RF233::new(rf233_spi,
-                                        &sam4l::gpio::PA[09],    // reset
-                                        &sam4l::gpio::PA[10],    // sleep
-                                        &sam4l::gpio::PA[08],    // irq
-                                        &sam4l::gpio::PA[08]),   // irq_ctl
-                                        1056/8);
-
-    sam4l::gpio::PA[08].set_client(rf233);
 
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e), 32);
@@ -357,6 +379,7 @@ pub unsafe fn reset_handler() {
     }
 
     // # LEDs
+
     let led_pins = static_init!(
         [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 2],
         [(&sam4l::gpio::PC[22], capsules::led::ActivationMode::ActiveHigh),
@@ -388,19 +411,51 @@ pub unsafe fn reset_handler() {
         capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()),
         128/8);
 
-    rf233_spi.set_client(rf233);
-    rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
+    // # RF233
 
-    let radio_capsule = static_init!(
-        capsules::radio::RadioDriver<'static,
-                                     RF233<'static,
-                                           VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
-        capsules::radio::RadioDriver::new(rf233),
-        832/8);
-    radio_capsule.config_buffer(&mut RADIO_BUF);
-    rf233.set_transmit_client(radio_capsule);
-    rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
-    rf233.set_config_client(radio_capsule);
+    // RF233 is only possible if we are SpiMaster role
+    let rf233_opt : Option<&RF233<'static,
+        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>
+        = mux_spi_master_opt.map(|mux_spi| {
+
+        // Create a second virtualized SPI client, for the RF233
+        let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+                                     VirtualSpiMasterDevice::new(mux_spi, 3),
+                                     352/8);
+
+        // Create the RF233 driver, passing its pins and SPI client
+        let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> =
+            static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+                                 RF233::new(rf233_spi,
+                                            &sam4l::gpio::PA[09],    // reset
+                                            &sam4l::gpio::PA[10],    // sleep
+                                            &sam4l::gpio::PA[08],    // irq
+                                            &sam4l::gpio::PA[08]),   // irq_ctl
+                                            1056/8);
+
+        sam4l::gpio::PA[08].set_client(rf233);
+
+        rf233_spi.set_client(rf233);
+        rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
+        rf233
+    });
+
+    let radio_capsule_opt = rf233_opt.map(|rf233| {
+        type RadioDriverSpi =
+            capsules::radio::RadioDriver<'static,
+                                         RF233<'static,
+                                               VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>;
+        let radio_capsule = static_init!(
+            RadioDriverSpi,
+            capsules::radio::RadioDriver::new(rf233),
+            832/8);
+        radio_capsule.config_buffer(&mut RADIO_BUF);
+        rf233.set_transmit_client(radio_capsule);
+        rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
+        rf233.set_config_client(radio_capsule);
+
+        radio_capsule as &'static RadioDriverSpi
+    });
 
     let imix = Imix {
         console: console,
@@ -415,19 +470,26 @@ pub unsafe fn reset_handler() {
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(),
         ninedof: ninedof,
-        radio: radio_capsule,
+        radio: radio_capsule_opt,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
 
     chip.mpu().enable_mpu();
 
-    rf233.reset();
-    rf233.config_set_pan(0xABCD);
-    rf233.config_set_address(0x1008);
-    //    rf233.config_commit();
+    rf233_opt.map(|rf233| {
+        rf233.reset();
+        rf233.config_set_pan(0xABCD);
+        rf233.config_set_address(0x1008);
+        // rf233.config_commit();
 
-    rf233.start();
+        rf233.start();
+    });
+
+    // match SPI_ROLE {
+    //     SpiRole::SpiMaster => spi_dummy::spi_dummy_test(),
+    //     SpiRole::SpiSlave => spi_slave_dummy::spi_slave_dummy_test(),
+    // }
 
     debug!("Initialization complete. Entering main loop");
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);
