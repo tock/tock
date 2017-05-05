@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 
 #include "tock.h"
 #include "adc.h"
@@ -9,7 +10,7 @@ struct adc_data {
 };
 
 static struct adc_data result = { .fired = false };
-
+static void(*cont_cb)(int);
 // Internal callback for faking synchronous reads
 static void adc_cb(__attribute__ ((unused)) int callback_type,
                    __attribute__ ((unused)) int channel,
@@ -18,6 +19,10 @@ static void adc_cb(__attribute__ ((unused)) int callback_type,
   struct adc_data* data = (struct adc_data*) ud;
   data->reading = reading;
   data->fired = true;
+
+  // In continuous mode
+  if (cont_cb)
+      cont_cb(reading);
 }
 
 int adc_set_callback(subscribe_cb callback, void* callback_args) {
@@ -32,9 +37,15 @@ int adc_single_sample(uint8_t channel) {
     return command(DRIVER_NUM_ADC, 2, channel);
 }
 
+int adc_cont_sample(uint8_t channel, uint32_t interval) {
+    // TODO change signature to include interval
+    return command(DRIVER_NUM_ADC, 3, channel);
+}
+
 int adc_read_single_sample(uint8_t channel) {
   int err;
 
+  cont_cb = NULL;
   result.fired = false;
   err = adc_set_callback(adc_cb, (void*) &result);
   if (err < 0) return err;
@@ -46,4 +57,16 @@ int adc_read_single_sample(uint8_t channel) {
   yield_for(&result.fired);
 
   return result.reading;
+}
+
+int adc_read_cont_sample(uint8_t channel, uint32_t interval, void (*cb)(int)) {
+  int err;
+
+  cont_cb = cb;
+  err = adc_set_callback(adc_cb, (void*) &result);
+  if (err < 0) return err;
+
+  err = adc_cont_sample(channel, interval);
+
+  return err;
 }
