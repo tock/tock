@@ -5,7 +5,7 @@
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver, ReturnCode};
-use kernel::hil::adc::{Client, AdcSingle};
+use kernel::hil::adc::{Client, AdcSingle, AdcContinuous};
 
 #[derive(Default)]
 pub struct AppData {
@@ -13,18 +13,20 @@ pub struct AppData {
     callback: Option<Callback>,
 }
 
-pub struct ADC<'a, A: AdcSingle + 'a> {
+pub struct ADC<'a, A: AdcSingle + AdcContinuous + 'a> {
     adc: &'a A,
     channel: Cell<Option<u8>>,
     app: Container<AppData>,
+    mode: Cell<bool>,
 }
 
-impl<'a, A: AdcSingle + 'a> ADC<'a, A> {
+impl<'a, A: AdcSingle + AdcContinuous + 'a> ADC<'a, A> {
     pub fn new(adc: &'a A, container: Container<AppData>) -> ADC<'a, A> {
         ADC {
             adc: adc,
             channel: Cell::new(None),
             app: container,
+            mode: Cell::new(false),
         }
     }
 
@@ -33,6 +35,7 @@ impl<'a, A: AdcSingle + 'a> ADC<'a, A> {
     }
 
     fn sample(&self, channel: u8, appid: AppId) -> ReturnCode {
+        self.mode.set(false);
         self.app
             .enter(appid, |app, _| {
                 app.channel = Some(channel);
@@ -46,24 +49,47 @@ impl<'a, A: AdcSingle + 'a> ADC<'a, A> {
             })
             .unwrap_or(ReturnCode::ENOMEM)
     }
+
+    fn sample_continuous (&self, channel: u8, interval: u32, appid: AppId) -> ReturnCode {
+        self.mode.set(true);
+        self.app
+            .enter(appid, |app, _| {
+                app.channel = Some(channel);
+
+                if self.channel.get().is_none() {
+                    self.channel.set(Some(channel));
+                    self.adc.sample_continuous(channel, interval)
+                } else {
+                    ReturnCode::SUCCESS
+                }
+            })
+            .unwrap_or(ReturnCode::ENOMEM)
+    }
 }
 
-impl<'a, A: AdcSingle + 'a> Client for ADC<'a, A> {
+// The if statements are a hacky way to discriminate. Figure out a better way.
+impl<'a, A: AdcSingle + AdcContinuous + 'a> Client for ADC<'a, A> {
     fn sample_done(&self, sample: u16) {
         self.channel.get().map(|cur_channel| {
-            self.channel.set(None);
+            if !self.mode.get() {
+                self.channel.set(None);
+            }
             self.app.each(|app| if app.channel == Some(cur_channel) {
-                app.channel = None;
+                if !self.mode.get() {
+                    app.channel = None;
+                }
                 app.callback.map(|mut cb| cb.schedule(0, cur_channel as usize, sample as usize));
             } else if app.channel.is_some() {
                 self.channel.set(app.channel);
             });
         });
-        self.channel.get().map(|next_channel| { self.adc.sample(next_channel); });
+        if !self.mode.get() {
+            self.channel.get().map(|next_channel| { self.adc.sample(next_channel); });
+        }
     }
 }
 
-impl<'a, A: AdcSingle + 'a> Driver for ADC<'a, A> {
+impl<'a, A: AdcSingle + AdcContinuous + 'a> Driver for ADC<'a, A> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // subscribe to ADC sample done
@@ -89,6 +115,9 @@ impl<'a, A: AdcSingle + 'a> Driver for ADC<'a, A> {
             // Sample on channel
             2 => {
                 self.sample(data as u8, appid)
+            },
+            3 => { //TODO
+                self.sample_continuous(data as u8, 0, appid)
             },
 
             // default
