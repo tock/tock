@@ -43,9 +43,7 @@ struct Imix {
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     ipc: kernel::ipc::IPC,
-    fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static,
-                                                    VirtualMuxAlarm<'static,
-                                                                    sam4l::ast::Ast<'static>>>,
+    fxos8700_cq: &'static capsules::fxos8700_cq::Fxos8700cq<'static>,
     radio: &'static capsules::radio::RadioDriver<'static,
                                                  capsules::rf233::RF233<'static,
                                                  VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
@@ -291,18 +289,14 @@ pub unsafe fn reset_handler() {
 
     // FXOS8700CQ accelerometer
     let fx0_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e), 32);
-    let fx0_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm),
-        192/8);
     let fx0 = static_init!(
-        capsules::fxos8700_cq::Fxos8700cq<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        capsules::fxos8700_cq::Fxos8700cq<'static>,
         capsules::fxos8700_cq::Fxos8700cq::new(fx0_i2c,
-                                               fx0_virtual_alarm,
+                                               &sam4l::gpio::PC[13],
                                                &mut capsules::fxos8700_cq::BUF),
-        384/8);
+        416/8);
     fx0_i2c.set_client(fx0);
-    fx0_virtual_alarm.set_client(fx0);
+    sam4l::gpio::PC[13].set_client(fx0);
 
     // Clear sensors enable pin to enable sensor rail
     // sam4l::gpio::PC[16].enable_output();
