@@ -37,9 +37,9 @@ int adc_single_sample(uint8_t channel) {
     return command(DRIVER_NUM_ADC, 2, channel);
 }
 
-int adc_cont_sample(uint8_t channel, uint32_t interval) {
-    // TODO change signature to include interval
-    return command(DRIVER_NUM_ADC, 3, channel);
+int adc_cont_sample(uint8_t channel, uint32_t frequency) {
+  uint32_t chan_freq = (frequency << 8) | (channel);
+  return command(DRIVER_NUM_ADC, 3, chan_freq);
 }
 
 int adc_read_single_sample(uint8_t channel) {
@@ -59,14 +59,14 @@ int adc_read_single_sample(uint8_t channel) {
   return result.reading;
 }
 
-int adc_read_cont_sample(uint8_t channel, uint32_t interval, void (*cb)(int)) {
+int adc_read_cont_sample(uint8_t channel, uint8_t frequency, void (*cb)(int)) {
   int err;
 
   cont_cb = cb;
   err = adc_set_callback(adc_cb, (void*) &result);
   if (err < 0) return err;
 
-  err = adc_cont_sample(channel, interval);
+  err = adc_cont_sample(channel, frequency);
 
   return err;
 }

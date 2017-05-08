@@ -50,7 +50,7 @@ impl<'a, A: AdcSingle + AdcContinuous + 'a> ADC<'a, A> {
             .unwrap_or(ReturnCode::ENOMEM)
     }
 
-    fn sample_continuous (&self, channel: u8, interval: u32, appid: AppId) -> ReturnCode {
+    fn sample_continuous (&self, channel: u8, frequency: u32, appid: AppId) -> ReturnCode {
         self.mode.set(true);
         self.app
             .enter(appid, |app, _| {
@@ -58,7 +58,7 @@ impl<'a, A: AdcSingle + AdcContinuous + 'a> ADC<'a, A> {
 
                 if self.channel.get().is_none() {
                     self.channel.set(Some(channel));
-                    self.adc.sample_continuous(channel, interval)
+                    self.adc.sample_continuous(channel, frequency)
                 } else {
                     ReturnCode::SUCCESS
                 }
@@ -116,8 +116,13 @@ impl<'a, A: AdcSingle + AdcContinuous + 'a> Driver for ADC<'a, A> {
             2 => {
                 self.sample(data as u8, appid)
             },
-            3 => { //TODO
-                self.sample_continuous(data as u8, 0, appid)
+            3 => {
+                // Due to the 32-bit limit of the data parameter to the
+                // `command()' system call, only the lower 24 bits of
+                // FREQUENCY are used, leaving 8 bits for CHANNEL.
+                let channel = (data & 0xFF) as u8;
+                let frequency = (data >> 8) as u32;
+                self.sample_continuous(channel, frequency)
             },
 
             // default
