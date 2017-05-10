@@ -4,12 +4,8 @@ Tock Reference Document (TRD) Structure and Keywords
 **TRD:** 1<br/>
 **Working Group:** Kernel<br/>
 **Type:** Best Common Practice<br/>
-**Status:** Draft<br/>
-**Authors:** Philip Levis<br/>
-**Draft-Created:** Jan 30, 2017<br/>
-**Draft-Modified:** Mar 9, 2017<br/>
-**Draft-Version:** 2<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com<br/>
+**Status:** Final<br/>
+**Authors:** Philip Levis, Daniel Griffin<br/>
 
 Abstract
 -------------------------------
