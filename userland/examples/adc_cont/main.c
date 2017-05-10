@@ -8,8 +8,9 @@
 #include <timer.h>
 #include <adc.h>
 
+void cb(int value);
 
-// RACE CONDITIONS!
+// Race conditions possible 
 static int total = 0;
 static int last_sample = 0;
 static int num_samples = 0;
@@ -23,20 +24,21 @@ void cb(int value) {
 int main(void) {
   putstr("[Tock] ADC Continuous Test\n");
 
-  // Setup the ADC
-  adc_initialize();
-  delay_ms(1000);
+  // Setup the ADC. TODO no, don't do that!
+  // Unless you make init common for both?
+ // adc_initialize();
+ // delay_ms(1000);
   
   // Read this asynchronously
   // Sample channel 1. This is pin A1.
-  adc_read_cont_sample(1, 0, cb);
+  adc_read_cont_sample(1, 1001, cb);
 
   while (1) {
     delay_ms(1000);
     printf("Measured average of %d over %d samples. Last sample is %d\n",
             total/num_samples, num_samples, last_sample);
-    num_samples = 0;
     total = 0;
+    num_samples = 0;
 
   }
 

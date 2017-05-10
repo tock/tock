@@ -122,7 +122,7 @@ impl<'a, A: AdcSingle + AdcContinuous + 'a> Driver for ADC<'a, A> {
                 // FREQUENCY are used, leaving 8 bits for CHANNEL.
                 let channel = (data & 0xFF) as u8;
                 let frequency = (data >> 8) as u32;
-                self.sample_continuous(channel, frequency)
+                self.sample_continuous(channel, frequency, appid)
             },
 
             // default

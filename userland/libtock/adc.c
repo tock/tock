@@ -59,7 +59,7 @@ int adc_read_single_sample(uint8_t channel) {
   return result.reading;
 }
 
-int adc_read_cont_sample(uint8_t channel, uint8_t frequency, void (*cb)(int)) {
+int adc_read_cont_sample(uint8_t channel, uint32_t frequency, void (*cb)(int)) {
   int err;
 
   cont_cb = cb;

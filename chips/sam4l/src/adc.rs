@@ -32,10 +32,13 @@
 //
 
 use core::cell::Cell;
+use core::cmp;
 use core::mem;
+use kernel::common::math;
 use kernel::common::volatile_cell::VolatileCell;
 use kernel::hil;
 use kernel::hil::adc;
+use kernel::hil::adc::Frequency;
 use kernel::returncode::ReturnCode;
 use nvic;
 use pm::{self, Clock, PBAClock};
@@ -72,7 +75,8 @@ pub struct Adc {
     enabled: Cell<bool>,
     channel: Cell<u8>,
     client: Cell<Option<&'static hil::adc::Client>>,
-    last_sample: Cell<bool> // true if should stop after next sample 
+    last_sample: Cell<bool>, // true if should stop after next sample 
+    max_frequency: Cell<u32>,
 }
 
 pub static mut ADC: Adc = Adc::new(BASE_ADDRESS);
@@ -85,6 +89,7 @@ impl Adc {
             channel: Cell::new(0),
             client: Cell::new(None),
             last_sample: Cell::new(true),
+            max_frequency: Cell::new(0),
         }
     }
 
@@ -201,16 +206,19 @@ impl adc::AdcContinuous for Adc {
     type Frequency = adc::Freq1KHz;
 
     fn compute_interval(&self, interval: u32) -> u32 {
-        interval
-        // How should we round sample interval?
-        // The interval time unit is 1/Frequency? We return the most precise 
-        // alignment with the actual clock.
-        // The system clock rate can be sampled from?
-        //      - get_system_frequency()? chips/sam4l/src/pm.rs
-        // Do we have to use RCSYS or can we use RC32K, RCFAST( how do we specify
-        // frequency), et cetera.
-        // Why do you never disable the clocks ? 
-        // line 125: What is this fixed delay?
+        // Internal Timer Trigger Period= (ITMC+1)*T(CLK_ADC)
+        // f(itimer_timeout) = f(GCLK) / (ITMC + 1)
+        // ITMC = (f(GCLK)/F(itimer_timeout) - 1)
+        if interval == 0 {
+            return 1; // Minimum possible frequency
+        }
+
+        if interval > Self::Frequency::frequency() { // Maximum possible frequency
+            return Self::Frequency::frequency();
+        }
+
+        let itmc: u32 = (self.max_frequency.get() / interval ) - 1;
+        return self.max_frequency.get() / (itmc + 1);
     }
 
     fn sample_continuous(&self, _channel: u8, _interval: u32) -> ReturnCode {
@@ -243,12 +251,23 @@ impl adc::AdcContinuous for Adc {
             regs.cr.set(cr2);
 
             // 6. Configure the ADCIFE
-            // Setting below in the configuration register sets
-            //   - the clock divider to be 4,
-            //   - the source to be the Generic clock,
-            //   - the max speed to be 300 ksps, and
-            //   - the reference voltage to be VCC/2
-            regs.cfg.set(0x00000008);
+            unsafe{
+                let freq = Self::Frequency::frequency();
+
+                let sys_freq = pm::get_system_frequency(); 
+                let closest_power = math::closest_power_of_two((sys_freq + freq - 1)/ freq);
+                // The -2 comes from the fact that the divider starts at DIV4.
+                let mut clock_divider: u32 = math::log_base_two(closest_power) - 2;
+                clock_divider = cmp::min(cmp::max(clock_divider, 0), 7);
+                let mut cfg: u32 = 0x00000008;  // VCC / 2
+                cfg |= 0x00000040;  // SPEED = 00 (300ksps). REFSEL = 1 (APB) 
+                cfg |= clock_divider << 8; // PRESCAL 3 bits
+                regs.cfg.set(cfg);
+                self.max_frequency.set(sys_freq / (1 << (clock_divider + 2)));
+            }
+
+
+
             while regs.sr.get() & (0x51000000) != 0x51000000 {}
         }
 
@@ -257,31 +276,29 @@ impl adc::AdcContinuous for Adc {
         } else {
             self.last_sample.set(false);
             self.channel.set(_channel);
-            // This configuration sets the ADC to use Pad Ground as the
-            // negative input, and the ADC channel as the positive. Since
-            // this is a single-ended sample, the bipolar bit is set to zero.
-            // Trigger select is set to zero because this denotes a software
-            // sample. Gain is 0.5x (set to 111). Resolution is set to 12 bits
-            // (set to 0).
 
             let chan_field: u32 = (self.channel.get() as u32) << 16;
             let mut cfg: u32 = chan_field;
             cfg |= 0x00700000; // MUXNEG   = 111 (ground pad)
             cfg |= 0x00008000; // INTERNAL =  10 (int neg, ext pos)
             cfg |= 0x00000000; // RES      =   0 (12-bit)
-            cfg |= 0x00000300; // TRGSEL   = 011 (continuous mode)
+            cfg |= 0x00000100; // TRGSEL   = 001 (internal timer)
             cfg |= 0x00000000; // GCOMP    =   0 (no gain error corr)
             cfg |= 0x00000070; // GAIN     = 111 (0.5x gain)
             cfg |= 0x00000000; // BIPOLAR  =   0 (not bipolar)
             cfg |= 0x00000000; // HWLA     =   0 (no left justify value)
             regs.seqcfg.set(cfg);
+
+            regs.cr.set(2); // stop timer before setting it up
+
             // Set interrupt timeout
-            // Internal Timer Trigger Period= (ITMC+1)*T(CLK_ADC)
-            regs.itimer.set(0x00000000);    // TODO This runs at GCLK speed, replace with interval
+            let actual_interval = self.compute_interval(_interval);
+            let itmc = (self.max_frequency.get() / actual_interval ) - 1;
+            regs.itimer.set(cmp::max(cmp::min(itmc, 0x0000FFFF), 0));
             // Enable end of conversion interrupt
             regs.ier.set(1);
             // Initiate conversion
-            regs.cr.set(8);
+            regs.cr.set(4);
         }
         return ReturnCode::SUCCESS
     }
