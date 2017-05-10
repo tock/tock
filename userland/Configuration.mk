@@ -211,5 +211,26 @@ CXXFLAGS += -Wzero-as-null-pointer-constant # use of 0 as NULL
 # END WARNINGS
 ##################################################################################################
 
+
+# Dump configuration for verbose builds
+ifneq ($(V),)
+  $(info )
+  $(info **************************************************)
+  $(info TOCK USERLAND BUILD SYSTEM -- VERBOSE BUILD)
+  $(info **************************************************)
+  $(info Config:)
+  $(info CC=$(CC))
+  $(info LAYOUT=$(LAYOUT))
+  $(info MAKEFLAGS=$(MAKEFLAGS))
+  $(info PACKAGE_NAME=$(PACKAGE_NAME))
+  $(info TOCK_ARCHS=$(TOCK_ARCHS))
+  $(info TOCK_USERLAND_BASE_DIR=$(TOCK_USERLAND_BASE_DIR))
+  $(info TOOLCHAIN=$(TOOLCHAIN))
+  $(info )
+  $(info $(CC) --version = $(shell $(CC) --version))
+  $(info **************************************************)
+  $(info )
+endif
+
 endif
 
