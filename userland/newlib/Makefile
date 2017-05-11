@@ -1,4 +1,4 @@
-NEWLIB_VERSION ?= 2.2.0.20150423
+NEWLIB_VERSION ?= 2.5.0.20170421
 
 all: rebuild-newlib
 
