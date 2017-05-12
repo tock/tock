@@ -16,26 +16,26 @@ static int last_sample = 0;
 static int num_samples = 0;
 
 void cb(int value) {
-  total += value;
+  // 12 bit, reference = VCC/2, gain = 0.5
+  // millivolts = ((reading * 2) / (2^12 - 1)) * (3.3 V / 2) * 1000
+  int millivolts = (value * 3300) / 4095;
+  total += millivolts;
   ++num_samples;
-  last_sample = value;
+  last_sample = millivolts;
 }
 
 int main(void) {
   putstr("[Tock] ADC Continuous Test\n");
 
-  // Setup the ADC. TODO no, don't do that!
-  // Unless you make init common for both?
- // adc_initialize();
- // delay_ms(1000);
-  
   // Read this asynchronously
   // Sample channel 1. This is pin A1.
-  adc_read_cont_sample(1, 1001, cb);
+  adc_read_cont_sample(1, 100, cb);
 
   while (1) {
-    delay_ms(1000);
-    printf("Measured average of %d over %d samples. Last sample is %d\n",
+    // sample for 5 seconds and then stop.
+    delay_ms(5000);
+    adc_cancel_sampling();
+    printf("Measured average of %d over %d samples.\nLast sample is %i mV\n",
             total/num_samples, num_samples, last_sample);
     total = 0;
     num_samples = 0;

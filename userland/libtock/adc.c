@@ -70,3 +70,7 @@ int adc_read_cont_sample(uint8_t channel, uint32_t frequency, void (*cb)(int)) {
 
   return err;
 }
+
+int adc_cancel_sampling(void) {
+    return command(DRIVER_NUM_ADC, 4, 0);
+}

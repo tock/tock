@@ -250,7 +250,12 @@ impl adc::AdcContinuous for Adc {
             let cr2: u32 = (1 << 10) | (1 << 8) | (1 << 4);
             regs.cr.set(cr2);
 
-            // 6. Configure the ADCIFE
+        }
+
+        if _channel > 14 {
+            return ReturnCode::EINVAL;
+        } else {
+            // Configure the ADCIFE
             unsafe{
                 let freq = Self::Frequency::frequency();
 
@@ -266,14 +271,9 @@ impl adc::AdcContinuous for Adc {
                 self.max_frequency.set(sys_freq / (1 << (clock_divider + 2)));
             }
 
-
-
             while regs.sr.get() & (0x51000000) != 0x51000000 {}
-        }
 
-        if _channel > 14 {
-            return ReturnCode::EINVAL;
-        } else {
+            
             self.last_sample.set(false);
             self.channel.set(_channel);
 

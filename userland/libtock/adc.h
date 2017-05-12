@@ -28,6 +28,7 @@ int adc_read_single_sample(uint8_t channel);
 // `command()' system call, only the lower 24 bits of
 // FREQUENCY are used, leaving 8 bits for CHANNEL.
 int adc_read_cont_sample(uint8_t channel, uint32_t frequency, void (*cb)(int));
+int adc_cancel_sampling(void);
 
 #ifdef __cplusplus
 }

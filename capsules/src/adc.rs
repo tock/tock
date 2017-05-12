@@ -65,6 +65,10 @@ impl<'a, A: AdcSingle + AdcContinuous + 'a> ADC<'a, A> {
             })
             .unwrap_or(ReturnCode::ENOMEM)
     }
+
+    fn cancel_sampling (&self) -> ReturnCode {
+        self.adc.cancel_sampling()
+    }
 }
 
 // The if statements are a hacky way to discriminate. Figure out a better way.
@@ -123,6 +127,9 @@ impl<'a, A: AdcSingle + AdcContinuous + 'a> Driver for ADC<'a, A> {
                 let channel = (data & 0xFF) as u8;
                 let frequency = (data >> 8) as u32;
                 self.sample_continuous(channel, frequency, appid)
+            },
+            4 => {
+                self.cancel_sampling()
             },
 
             // default
