@@ -11,7 +11,6 @@
     "relocation-model": "static",
     "linker": "arm-none-eabi-gcc",
     "linker-is-gnu": true,
-    "disable-redzone": true,
     "pre-link-args": [
         "-mcpu=cortex-m4", "-mthumb",
         "-mfloat-abi=soft",
