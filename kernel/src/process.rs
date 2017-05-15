@@ -37,17 +37,6 @@ extern "C" {
 
 pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
 
-pub fn get_process_from_appid(appid: AppId) -> Option<&'static Process<'static>> {
-    let procs = unsafe { &mut PROCS };
-    let idx = appid.idx();
-
-    match procs[idx] {
-        None => None,
-        // TODO(alevy): validate appid liveness
-        Some(ref p) => Some(p)
-    }
-}
-
 pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
     let procs = unsafe { &mut PROCS };
     let idx = appid.idx();
