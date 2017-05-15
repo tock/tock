@@ -85,7 +85,6 @@ struct Hail {
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
-    system: kernel::system::System,
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
 }
@@ -113,7 +112,6 @@ impl Platform for Hail {
 
             16 => f(Some(self.crc)),
 
-            0xfe => f(Some(&self.system)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -375,7 +373,6 @@ pub unsafe fn reset_handler() {
         led: led,
         button: button,
         rng: rng,
-        system: kernel::system::System::new(),
         ipc: kernel::ipc::IPC::new(),
         crc: crc,
     };
