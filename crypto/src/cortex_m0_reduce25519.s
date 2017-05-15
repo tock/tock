@@ -35,6 +35,8 @@
 	.type	fe25519_reduceTo256Bits_asm, %function
 
 fe25519_reduceTo256Bits_asm:	
+    
+    //variant of subtractive karasuba multiplication for the 7th u32 (zero-index)
     push {r4,r5,r6,r7,r14}
     ldr r2,[r1,#60]
     lsr r3,r2,#16
@@ -53,6 +55,8 @@ fe25519_reduceTo256Bits_asm:
     lsl r2,r4,#1
     lsr r2,r2,#1
     str r2,[r0,#28]
+
+    //variant of subtractive karasuba multiplication for the 0th u32 (zero-index)
     lsr r4,r4,#31
     lsl r5,r5,#1
     orr r4,r5
@@ -74,6 +78,8 @@ fe25519_reduceTo256Bits_asm:
     add r2,r4
     adc r3,r5
     str r2,[r0,#0]
+
+    //variant of subtractive karasuba multiplication for the 1st u32 (zero-index)
     ldr r4,[r1,#4]
     add r3,r4
     mov r2,#0
@@ -90,6 +96,8 @@ fe25519_reduceTo256Bits_asm:
     add r3,r4
     adc r2,r5
     str r3,[r0,#4]
+
+    //variant of subtractive karasuba multiplication for the 2nd u32 (zero-index)
     ldr r4,[r1,#8]
     add r2,r4
     mov r3,#0
@@ -106,6 +114,8 @@ fe25519_reduceTo256Bits_asm:
     add r2,r4
     adc r3,r5
     str r2,[r0,#8]
+
+    //variant of subtractive karasuba multiplication for the 3rd u32 (zero-index)
     ldr r4,[r1,#12]
     add r3,r4
     mov r2,#0
@@ -122,6 +132,8 @@ fe25519_reduceTo256Bits_asm:
     add r3,r4
     adc r2,r5
     str r3,[r0,#12]
+
+    //variant of subtractive karasuba multiplication for the 4th u32 (zero-index)
     ldr r4,[r1,#16]
     add r2,r4
     mov r3,#0
@@ -138,6 +150,8 @@ fe25519_reduceTo256Bits_asm:
     add r2,r4
     adc r3,r5
     str r2,[r0,#16]
+
+    //variant of subtractive karasuba multiplication for the 5th u32 (zero-index)
     ldr r4,[r1,#20]
     add r3,r4
     mov r2,#0
@@ -154,6 +168,8 @@ fe25519_reduceTo256Bits_asm:
     add r3,r4
     adc r2,r5
     str r3,[r0,#20]
+
+    //variant of subtractive karasuba multiplication for the 6th u32 (zero-index)
     ldr r4,[r1,#24]
     add r2,r4
     mov r3,#0
@@ -170,9 +186,12 @@ fe25519_reduceTo256Bits_asm:
     add r2,r4
     adc r3,r5
     str r2,[r0,#24]
+
+    //variant of subtractive karasuba multiplication for the 7th u32 (zero-index)
     ldr r4,[r0,#28]
     add r4,r3
     str r4,[r0,#28]
+
     pop {r4,r5,r6,r7,r15}
 			
 	.size	fe25519_reduceTo256Bits_asm, .-fe25519_reduceTo256Bits_asm

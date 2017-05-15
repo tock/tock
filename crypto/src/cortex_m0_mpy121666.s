@@ -39,7 +39,9 @@
 	.thumb_func
 	.type	fe25519_mpyWith121666_asm, %function
 
-fe25519_mpyWith121666_asm:	
+fe25519_mpyWith121666_asm:
+
+    //variant of subtractive karasuba multiplication for the 7th u32 (zero-index)
     push {r4,r5,r6,r7,r14}
     ldr r7,__label_for_immediate_56130
     ldr r2,[r1,#28]
@@ -59,6 +61,8 @@ fe25519_mpyWith121666_asm:
     lsl r2,r5,#1
     lsr r2,r2,#1
     str r2,[r0,#28]
+
+    //variant of subtractive karasuba multiplication for the 0th u32 (zero-index)
     lsr r5,r5,#31
     lsl r6,r6,#1
     orr r5,r6
@@ -82,6 +86,8 @@ fe25519_mpyWith121666_asm:
     add r5,r2
     adc r6,r3
     str r5,[r0,#0]
+
+    //variant of subtractive karasuba multiplication for the 1st u32 (zero-index)
     mov r5,#0
     ldr r2,[r1,#4]
     lsl r3,r2,#16
@@ -100,6 +106,8 @@ fe25519_mpyWith121666_asm:
     add r6,r2
     adc r5,r3
     str r6,[r0,#4]
+
+    //variant of subtractive karasuba multiplication for the 2nd u32 (zero-index)
     mov r6,#0
     ldr r2,[r1,#8]
     lsl r3,r2,#16
@@ -118,6 +126,8 @@ fe25519_mpyWith121666_asm:
     add r5,r2
     adc r6,r3
     str r5,[r0,#8]
+
+    //variant of subtractive karasuba multiplication for the 3rd u32 (zero-index)
     mov r5,#0
     ldr r2,[r1,#12]
     lsl r3,r2,#16
@@ -136,6 +146,8 @@ fe25519_mpyWith121666_asm:
     add r6,r2
     adc r5,r3
     str r6,[r0,#12]
+
+    //variant of subtractive karasuba multiplication for the 4th u32 (zero-index)
     mov r6,#0
     ldr r2,[r1,#16]
     lsl r3,r2,#16
@@ -154,6 +166,8 @@ fe25519_mpyWith121666_asm:
     add r5,r2
     adc r6,r3
     str r5,[r0,#16]
+
+    //variant of subtractive karasuba multiplication for the 5th u32 (zero-index)
     mov r5,#0
     ldr r2,[r1,#20]
     lsl r3,r2,#16
@@ -172,6 +186,8 @@ fe25519_mpyWith121666_asm:
     add r6,r2
     adc r5,r3
     str r6,[r0,#20]
+
+    //variant of subtractive karasuba multiplication for the 6th u32 (zero-index)
     mov r6,#0
     ldr r2,[r1,#24]
     lsl r3,r2,#16
@@ -190,10 +206,13 @@ fe25519_mpyWith121666_asm:
     add r5,r2
     adc r6,r3
     str r5,[r0,#24]
+
+    //variant of subtractive karasuba multiplication for the 7th u32 (zero-index)
     mov r5,#0
     ldr r2,[r0,#28]
     add r6,r2
     str r6,[r0,#28]
+
     pop {r4,r5,r6,r7,r15}
 
 	.align	2
