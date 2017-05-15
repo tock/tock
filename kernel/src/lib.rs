@@ -11,6 +11,7 @@ pub mod driver;
 pub mod ipc;
 pub mod mem;
 pub mod returncode;
+pub mod system;
 pub mod hil;
 
 // Work around https://github.com/rust-lang-nursery/rustfmt/issues/6
