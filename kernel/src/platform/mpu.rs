@@ -1,3 +1,4 @@
+use common::math::PowerOfTwo;
 
 #[derive(Debug)]
 pub enum AccessPermission {
@@ -38,7 +39,8 @@ pub trait MPU {
     fn set_mpu(&self,
                region_num: u32,
                start_addr: u32,
-               len: u32,
+               len: PowerOfTwo,
+               subregion_mask: u8,
                execute: ExecutePermission,
                ap: AccessPermission);
 }
@@ -47,5 +49,5 @@ pub trait MPU {
 impl MPU for () {
     fn enable_mpu(&self) {}
 
-    fn set_mpu(&self, _: u32, _: u32, _: u32, _: ExecutePermission, _: AccessPermission) {}
+    fn set_mpu(&self, _: u32, _: u32, _: PowerOfTwo, _: u8, _: ExecutePermission, _: AccessPermission) {}
 }
