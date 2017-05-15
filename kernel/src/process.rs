@@ -332,10 +332,43 @@ impl<'a> Process<'a> {
         }
         let data_region_len = math::PowerOfTwo::from(data_len as u32);
 
+        // Text segment read/execute (no write)
         let text_start = self.text.as_ptr() as usize;
         let text_len = self.text.len();
         if text_len.count_ones() != 1 {
             panic!("Tock MPU does not currently handle complex region sizes");
+        }
+
+        // Invariant: text_len is a power of two
+        if text_start % text_len != 0 {
+            // Text length not aligned to text start
+            let div = text_start % text_len;
+            let region_size = div * 8; // there are 8 subregions in a region
+            let region_start = text_start - (text_start % region_size);
+
+            let min_subregion = (text_start - region_start) / div;
+            let max_subregion = min_subregion + text_len / div - 1;
+
+            let region_len = math::PowerOfTwo::from(region_size as u32);
+
+            let subregion_mask = (min_subregion..(max_subregion + 1))
+                                    .fold(!0, |res, i| res & !(1 << i));
+
+            mpu.set_mpu(0,
+                        region_start as u32,
+                        region_len,
+                        subregion_mask,
+                        mpu::ExecutePermission::ExecutionPermitted,
+                        mpu::AccessPermission::ReadOnly);
+        } else {
+            // Text length aligned to text start
+            let region_len = math::PowerOfTwo::from(text_len as u32);
+            mpu.set_mpu(0,
+                        text_start as u32,
+                        region_len,
+                        0,
+                        mpu::ExecutePermission::ExecutionPermitted,
+                        mpu::AccessPermission::ReadOnly);
         }
 
         // Data segment read/write/execute
@@ -345,16 +378,6 @@ impl<'a> Process<'a> {
                     0,
                     mpu::ExecutePermission::ExecutionPermitted,
                     mpu::AccessPermission::ReadWrite);
-
-        // Text segment read/execute (no write)
-        let text_region_len = math::PowerOfTwo::from(text_len as u32);
-        mpu.set_mpu(1,
-                    text_start as u32,
-                    text_region_len,
-                    0,
-                    mpu::ExecutePermission::ExecutionPermitted,
-                    mpu::AccessPermission::ReadOnly);
-
 
         // Disallow access to grant region
         let mut grant_size = unsafe {
