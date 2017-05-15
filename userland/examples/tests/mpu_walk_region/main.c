@@ -79,8 +79,6 @@ int main(void) {
   printf("\n[TEST] MPU Walk Regions\n");
   putchar('\n');
 
-  printf("  Tock Kernel Version:   %u\n", system_tock_major_version());
-
   printf("  app_memory:            %p-%p\n", memory_start, memory_end);
   printf("  app_grant:             %p-%p\n", grant_start, memory_end);
   printf("  app_memory_accessible: %p-%p\n", memory_start, memory_limit);

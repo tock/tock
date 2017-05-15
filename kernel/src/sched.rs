@@ -1,4 +1,5 @@
 use core::nonzero::NonZero;
+use memop;
 use platform::{Chip, Platform};
 use platform::systick::SysTick;
 use process;
@@ -66,22 +67,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
         process.incr_syscall_count();
         match process.svc_number() {
             Some(Syscall::MEMOP) => {
-                let brk_type = process.r0();
-                let r1 = process.r1();
-
-                let res = match brk_type {
-                    0 /* BRK */ => {
-                        process.brk(r1 as *const u8)
-                            .map(|_| ReturnCode::SUCCESS)
-                            .unwrap_or(ReturnCode::ENOMEM)
-                    },
-                    1 /* SBRK */ => {
-                        process.sbrk(r1 as isize)
-                            .map(|addr| ReturnCode::SuccessWithValue { value: addr as usize })
-                            .unwrap_or(ReturnCode::ENOMEM)
-                    },
-                    _ => ReturnCode::ENOSUPPORT
-                };
+                let res = memop::memop(process);
                 process.set_return_code(res);
             }
             Some(Syscall::YIELD) => {
