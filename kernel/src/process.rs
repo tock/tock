@@ -37,6 +37,17 @@ extern "C" {
 
 pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
 
+pub fn get_process_from_appid(appid: AppId) -> Option<&'static Process<'static>> {
+    let procs = unsafe { &mut PROCS };
+    let idx = appid.idx();
+
+    match procs[idx] {
+        None => None,
+        // TODO(alevy): validate appid liveness
+        Some(ref p) => Some(p)
+    }
+}
+
 pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
     let procs = unsafe { &mut PROCS };
     let idx = appid.idx();
@@ -322,6 +333,18 @@ impl<'a> Process<'a> {
 
     pub fn mem_end(&self) -> *const u8 {
         unsafe { self.memory.as_ptr().offset(self.memory.len() as isize) }
+    }
+
+    pub fn flash_start(&self) -> *const u8 {
+        self.text.as_ptr()
+    }
+
+    pub fn flash_end(&self) -> *const u8 {
+        unsafe { self.text.as_ptr().offset(self.text.len() as isize) }
+    }
+
+    pub fn kernel_memory_break(&self) -> *const u8 {
+        self.kernel_memory_break
     }
 
     pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {

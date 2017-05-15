@@ -5,8 +5,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <button.h>
 #include <console.h>
-
+#include <system.h>
+#include <timer.h>
 
 static uint32_t read_cpsr(void) {
   register uint32_t ret asm ("r0");
@@ -31,9 +33,9 @@ static void clear_priv(void) {
 */
 
 __attribute__((noinline))
-static void dowork(uint32_t from, uint32_t to, uint32_t incr) {
-  volatile uint8_t* p_from = (uint8_t*) from;
-  volatile uint8_t* p_to = (uint8_t*) to;
+static void dowork(uint8_t* from, uint8_t* to, uint32_t incr) {
+  volatile uint8_t* p_from = from;
+  volatile uint8_t* p_to = to;
 
   printf("%p -> %p, incr 0x%lx\n", p_from, p_to, incr);
   printf("       CPSR: %08lx\n", read_cpsr());
@@ -47,39 +49,62 @@ static void dowork(uint32_t from, uint32_t to, uint32_t incr) {
   }
 }
 
-// Try not to move the stack much so main's reading the sp reg is meaningful
-__attribute__((noinline))
-static void start(
-    void* mem_start,
-    void* app_heap_break,
-    void* kernel_memory_break,
-    void* sp) {
+// Should intentionally overrun the memory region?
+static bool overrun(void) {
+  if (button_count()) {
+    return !button_read(0);
+  }
+  return false;
+}
+
+int main(void) {
+  uint8_t* memory_start = system_app_memory_begins_at();
+  uint8_t* memory_end   = system_app_memory_ends_at();
+  uint8_t* flash_start  = system_app_flash_begins_at();
+  uint8_t* flash_end    = system_app_flash_ends_at();
+  uint8_t* grant_start  = system_app_grant_begins_at();
+
+  unsigned grant_len = memory_end - grant_start;
+  // http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+  grant_len--;
+  grant_len |= grant_len >> 1;
+  grant_len |= grant_len >> 2;
+  grant_len |= grant_len >> 4;
+  grant_len |= grant_len >> 8;
+  grant_len |= grant_len >> 16;
+  grant_len++;
+
+  uint8_t* memory_limit = (uint8_t*) (((unsigned) grant_start) & (~(grant_len - 1)));
+
   printf("\n[TEST] MPU Walk Regions\n");
   putchar('\n');
 
-  printf("  mem_start:           %p\n", mem_start);
-  printf("  app_heap_break:      %p\n", app_heap_break);
-  printf("  kernel_memory_break: %p\n", kernel_memory_break);
-  printf("  stack pointer (ish): %p\n", sp);
+  printf("  Tock Kernel Version:   %u\n", system_tock_major_version());
+
+  printf("  app_memory:            %p-%p\n", memory_start, memory_end);
+  printf("  app_grant:             %p-%p\n", grant_start, memory_end);
+  printf("  app_memory_accessible: %p-%p\n", memory_start, memory_limit);
+  printf("  app_flash:             %p-%p\n", flash_start, flash_end);
 
   putchar('\n');
 
-  dowork(0x20004000, (uint32_t)kernel_memory_break & 0xfffffe00, 0x100);
-  dowork(0x20000000, 0x20004000, 0x100);
-}
+  bool do_overrun;
+  while (true) {
+    do_overrun = overrun();
+    printf("\nWalking flash\n");
+    if (do_overrun) printf("  ! Will overrun\n");
+    putchar('\n');
+    dowork(flash_start, flash_end + ((do_overrun) ? 0x1000:0x0), 0x100);
 
-// override default _start symbol to access memory regions
-//
-// Note: parameters passed from the kernel to _start are considered unstable and
-// subject to change in the future
-#pragma GCC diagnostic ignored "-Wmissing-prototypes"
-__attribute__ ((section(".start"), used))
-__attribute__ ((noreturn))
-void _start(
-    void* mem_start,
-    void* app_heap_break,
-    void* kernel_memory_break) {
-  register uint32_t* sp asm ("sp");
-  start(mem_start, app_heap_break, kernel_memory_break, sp);
-  while(1) { yield(); }
+    delay_ms(2000);
+
+    do_overrun = overrun();
+    printf("\nWalking memory\n");
+    if (do_overrun) printf("  ! Will overrun\n");
+    putchar('\n');
+
+    dowork(memory_start, memory_limit + ((do_overrun) ? 0x1000:0x0), 0x100);
+
+    delay_ms(2000);
+  }
 }
