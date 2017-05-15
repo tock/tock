@@ -1,5 +1,5 @@
+use core::convert::{From, Into};
 use core::intrinsics as int;
-use core::convert::{From,Into};
 
 // wrappers for unsafe core::intrinsics math functions
 //  core::intrinsics functions can be found at
@@ -54,7 +54,9 @@ pub fn closest_power_of_two(mut num: u32) -> u32 {
 pub struct PowerOfTwo(u32);
 
 impl PowerOfTwo {
-    pub fn bit<R>(self) -> R where R: From<u32> {
+    pub fn bit<R>(self) -> R
+        where R: From<u32>
+    {
         From::from(self.0)
     }
 

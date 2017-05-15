@@ -49,5 +49,12 @@ pub trait MPU {
 impl MPU for () {
     fn enable_mpu(&self) {}
 
-    fn set_mpu(&self, _: u32, _: u32, _: PowerOfTwo, _: u8, _: ExecutePermission, _: AccessPermission) {}
+    fn set_mpu(&self,
+               _: u32,
+               _: u32,
+               _: PowerOfTwo,
+               _: u8,
+               _: ExecutePermission,
+               _: AccessPermission) {
+    }
 }
