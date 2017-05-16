@@ -46,3 +46,23 @@ bool driver_exists(uint32_t driver) {
   int ret = command(driver, 0, 0);
   return ret >= 0;
 }
+
+void* tock_app_memory_begins_at(void) {
+	return memop(2, 0);
+}
+
+void* tock_app_memory_ends_at(void) {
+	return memop(3, 0);
+}
+
+void* tock_app_flash_begins_at(void) {
+	return memop(4, 0);
+}
+
+void* tock_app_flash_ends_at(void) {
+	return memop(5, 0);
+}
+
+void* tock_app_grant_begins_at(void) {
+	return memop(6, 0);
+}

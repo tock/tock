@@ -22,6 +22,13 @@ int allow(uint32_t driver, uint32_t allow, void* ptr, size_t size);
 // 1: sbrk, arg1 is increment to increase/decrease memory break
 void* memop(uint32_t op_type, int arg1);
 
+// Wrappers around memop to support app introspection
+void* tock_app_memory_begins_at(void);
+void* tock_app_memory_ends_at(void);
+void* tock_app_flash_begins_at(void);
+void* tock_app_flash_ends_at(void);
+void* tock_app_grant_begins_at(void);
+
 // Checks to see if the given driver number exists on this platform.
 bool driver_exists(uint32_t driver);
 

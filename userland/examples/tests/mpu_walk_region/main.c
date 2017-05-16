@@ -7,7 +7,6 @@
 
 #include <button.h>
 #include <console.h>
-#include <system.h>
 #include <timer.h>
 
 static uint32_t read_cpsr(void) {
@@ -58,11 +57,11 @@ static bool overrun(void) {
 }
 
 int main(void) {
-  uint8_t* memory_start = system_app_memory_begins_at();
-  uint8_t* memory_end   = system_app_memory_ends_at();
-  uint8_t* flash_start  = system_app_flash_begins_at();
-  uint8_t* flash_end    = system_app_flash_ends_at();
-  uint8_t* grant_start  = system_app_grant_begins_at();
+  uint8_t* memory_start = tock_app_memory_begins_at();
+  uint8_t* memory_end   = tock_app_memory_ends_at();
+  uint8_t* flash_start  = tock_app_flash_begins_at();
+  uint8_t* flash_end    = tock_app_flash_ends_at();
+  uint8_t* grant_start  = tock_app_grant_begins_at();
 
   unsigned grant_len = memory_end - grant_start;
   // http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
