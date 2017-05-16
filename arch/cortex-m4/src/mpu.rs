@@ -131,7 +131,7 @@ impl kernel::mpu::MPU for MPU {
         let xn = execute as u32;
         let ap = access as u32;
         let srd = subregion_mask as u32;
-        let size = len.bit::<u32>() - 1;
+        let size = len.exp::<u32>() - 1;
         let region_attributes_and_size = 1 | size << 1 | srd << 8 | ap << 24 | xn << 28;
         regs.region_attributes_and_size.set(region_attributes_and_size);
     }
