@@ -339,6 +339,12 @@ impl<'a> Process<'a> {
             let region_size = subregion_size * 8; // 8 subregions in a region
             let region_start = text_start - (text_start % region_size);
 
+            if region_size + region_start - text_start < text_len {
+                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                       text_start, text_len);
+            }
+
+
             let min_subregion = (text_start - region_start) / subregion_size;
             let max_subregion = min_subregion + text_len / subregion_size - 1;
 
