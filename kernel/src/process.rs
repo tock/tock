@@ -228,7 +228,7 @@ pub struct Process<'a> {
     /// The pointer must be aligned to the size. E.g. if the size is 32 bytes, the pointer must be
     /// 32-byte aligned.
     ///
-    mpu_regions: [Cell<(*const u8, usize)>; 5],
+    mpu_regions: [Cell<(*const u8, math::PowerOfTwo)>; 5],
 
     tasks: RingBuffer<'a, Task>,
 
@@ -337,66 +337,102 @@ impl<'a> Process<'a> {
     }
 
     pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {
-        let data_start = self.memory.as_ptr() as usize;
-        let data_len = self.memory.len();
-        if data_len.count_ones() != 1 {
-            panic!("Tock MPU does not currently handle complex region sizes");
-        }
-        let data_region_len = math::log_base_two(data_len as u32);
-
+        // Text segment read/execute (no write)
         let text_start = self.text.as_ptr() as usize;
         let text_len = self.text.len();
         if text_len.count_ones() != 1 {
             panic!("Tock MPU does not currently handle complex region sizes");
         }
-        let text_region_len = math::log_base_two(text_len as u32);
 
-        let mut grant_size = unsafe {
-            self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
-            (self.kernel_memory_break as u32)
+        // Invariant: text_len is a power of two
+        if text_start % text_len != 0 {
+            // Text length not aligned to text start
+            let subregion_size = text_start % text_len;
+            let region_size = subregion_size * 8; // 8 subregions in a region
+            let region_start = text_start - (text_start % region_size);
+
+            if region_size + region_start - text_start < text_len {
+                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                       text_start, text_len);
+            }
+
+
+            let min_subregion = (text_start - region_start) / subregion_size;
+            let max_subregion = min_subregion + text_len / subregion_size - 1;
+
+            let region_len = math::PowerOfTwo::floor(region_size as u32);
+
+            let subregion_mask = (min_subregion..(max_subregion + 1))
+                                    .fold(!0, |res, i| res & !(1 << i));
+
+            mpu.set_mpu(0,
+                        region_start as u32,
+                        region_len,
+                        subregion_mask,
+                        mpu::ExecutePermission::ExecutionPermitted,
+                        mpu::AccessPermission::ReadOnly);
+        } else {
+            // Text length aligned to text start
+            let region_len = math::PowerOfTwo::floor(text_len as u32);
+            mpu.set_mpu(0,
+                        text_start as u32,
+                        region_len,
+                        0,
+                        mpu::ExecutePermission::ExecutionPermitted,
+                        mpu::AccessPermission::ReadOnly);
+        }
+
+        let data_start = self.memory.as_ptr() as usize;
+        let data_len = self.memory.len();
+        if data_len.count_ones() != 1 {
+            panic!("Tock MPU does not currently handle complex region sizes");
+        }
+        let data_region_len = math::PowerOfTwo::floor(data_len as u32);
+
+
+        // Data segment read/write/execute
+        mpu.set_mpu(1,
+                    data_start as u32,
+                    data_region_len,
+                    0,
+                    mpu::ExecutePermission::ExecutionPermitted,
+                    mpu::AccessPermission::ReadWrite);
+
+        // Disallow access to grant region
+        let grant_size = unsafe {
+            math::PowerOfTwo::ceiling(
+                self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
+                    (self.kernel_memory_break as u32)
+            )
         };
-        grant_size = math::closest_power_of_two(grant_size);
         let grant_base = unsafe {
             self.memory
                 .as_ptr()
                 .offset(self.memory.len() as isize)
-                .offset(-(grant_size as isize))
+                .offset(-(grant_size.as_num::<u32>() as isize))
         };
-        let mgrant_size = grant_size.trailing_zeros() - 1;
-
-        // Data segment read/write/execute
-        mpu.set_mpu(0,
-                    data_start as u32,
-                    data_region_len,
-                    mpu::ExecutePermission::ExecutionPermitted,
-                    mpu::AccessPermission::ReadWrite);
-        // Text segment read/execute (no write)
-        mpu.set_mpu(1,
-                    text_start as u32,
-                    text_region_len,
-                    mpu::ExecutePermission::ExecutionPermitted,
-                    mpu::AccessPermission::ReadOnly);
-
-        // Disallow access to grant region
         mpu.set_mpu(2,
                     grant_base as u32,
-                    mgrant_size,
+                    grant_size,
+                    0,
                     mpu::ExecutePermission::ExecutionNotPermitted,
                     mpu::AccessPermission::PrivilegedOnly);
 
+        // Setup IPC MPU regions
         for (i, region) in self.mpu_regions.iter().enumerate() {
             mpu.set_mpu((i + 3) as u32,
                         region.get().0 as u32,
-                        region.get().1 as u32,
+                        region.get().1,
+                        0,
                         mpu::ExecutePermission::ExecutionPermitted,
                         mpu::AccessPermission::ReadWrite);
         }
     }
 
 
-    pub fn add_mpu_region(&self, base: *const u8, size: usize) -> bool {
-        if size >= 16 && size.count_ones() == 1 && (base as usize) % size == 0 {
-            let mpu_size = (size.trailing_zeros() - 1) as usize;
+    pub fn add_mpu_region(&self, base: *const u8, size: u32) -> bool {
+        if size >= 16 && size.count_ones() == 1 && (base as u32) % size == 0 {
+            let mpu_size = math::PowerOfTwo::floor(size);
             for region in self.mpu_regions.iter() {
                 if region.get().0 == ptr::null() {
                     region.set((base, mpu_size));
@@ -497,11 +533,11 @@ impl<'a> Process<'a> {
                     state: State::Yielded,
                     fault_response: fault_response,
 
-                    mpu_regions: [Cell::new((ptr::null(), 0)),
-                                  Cell::new((ptr::null(), 0)),
-                                  Cell::new((ptr::null(), 0)),
-                                  Cell::new((ptr::null(), 0)),
-                                  Cell::new((ptr::null(), 0))],
+                    mpu_regions: [Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                                  Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                                  Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                                  Cell::new((ptr::null(), math::PowerOfTwo::zero())),
+                                  Cell::new((ptr::null(), math::PowerOfTwo::zero()))],
                     tasks: tasks,
                     package_name: load_result.package_name,
                 };

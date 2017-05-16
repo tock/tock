@@ -77,7 +77,7 @@ impl<L, T> AppSlice<L, T> {
         if appid.idx() != self.ptr.process.idx() && ps.len() > appid.idx() {
             ps[appid.idx()]
                 .as_ref()
-                .map(|process| process.add_mpu_region(self.ptr() as *const u8, self.len()))
+                .map(|process| process.add_mpu_region(self.ptr() as *const u8, self.len() as u32))
                 .unwrap_or(false)
         } else {
             false

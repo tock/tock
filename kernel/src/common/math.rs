@@ -1,3 +1,4 @@
+use core::convert::{From, Into};
 use core::intrinsics as int;
 
 // wrappers for unsafe core::intrinsics math functions
@@ -47,6 +48,40 @@ pub fn closest_power_of_two(mut num: u32) -> u32 {
     num |= num >> 16;
     num += 1;
     num
+}
+
+#[derive(Copy,Clone,Debug,PartialEq,PartialOrd,Eq,Ord)]
+pub struct PowerOfTwo(u32);
+
+/// Represents an integral power-of-two as an exponent
+impl PowerOfTwo {
+    /// Returns the base-2 exponent as a numeric type
+    pub fn exp<R>(self) -> R
+        where R: From<u32>
+    {
+        From::from(self.0)
+    }
+
+    /// Converts a number two the nearest `PowerOfTwo` less-than-or-equal to it.
+    pub fn floor<F: Into<u32>>(f: F) -> PowerOfTwo {
+        PowerOfTwo(log_base_two(f.into()))
+    }
+
+    /// Converts a number two the nearest `PowerOfTwo` greater-than-or-equal to
+    /// it.
+    pub fn ceiling<F: Into<u32>>(f: F) -> PowerOfTwo {
+        PowerOfTwo(log_base_two(closest_power_of_two(f.into())))
+    }
+
+    /// Creates a new `PowerOfTwo` representing the number zero.
+    pub fn zero() -> PowerOfTwo {
+        PowerOfTwo(0)
+    }
+
+    /// Converts a `PowerOfTwo` to a number.
+    pub fn as_num<F: From<u32>>(self) -> F {
+        (1 << self.0).into()
+    }
 }
 
 // get log base 2 of a number

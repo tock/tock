@@ -1,4 +1,5 @@
 use kernel;
+use kernel::common::math::PowerOfTwo;
 use kernel::common::volatile_cell::VolatileCell;
 
 /// Indicates whether the MPU is present and, if so, how many regions it
@@ -118,7 +119,8 @@ impl kernel::mpu::MPU for MPU {
     fn set_mpu(&self,
                region_num: u32,
                start_addr: u32,
-               len: u32,
+               len: PowerOfTwo,
+               subregion_mask: u8,
                execute: kernel::mpu::ExecutePermission,
                access: kernel::mpu::AccessPermission) {
         let regs = unsafe { &*self.0 };
@@ -128,7 +130,9 @@ impl kernel::mpu::MPU for MPU {
 
         let xn = execute as u32;
         let ap = access as u32;
-        let region_attributes_and_size = 1 | len << 1 | ap << 24 | xn << 28;
+        let srd = subregion_mask as u32;
+        let size = len.exp::<u32>() - 1;
+        let region_attributes_and_size = 1 | size << 1 | srd << 8 | ap << 24 | xn << 28;
         regs.region_attributes_and_size.set(region_attributes_and_size);
     }
 }
