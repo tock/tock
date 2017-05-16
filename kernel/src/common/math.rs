@@ -60,14 +60,20 @@ impl PowerOfTwo {
         From::from(self.0)
     }
 
+    pub fn floor<F: Into<u32>>(f: F) -> PowerOfTwo {
+        PowerOfTwo(log_base_two(f.into()))
+    }
+
+    pub fn ceiling<F: Into<u32>>(f: F) -> PowerOfTwo {
+        PowerOfTwo(log_base_two(closest_power_of_two(f.into())))
+    }
+
     pub fn zero() -> PowerOfTwo {
         PowerOfTwo(0)
     }
-}
 
-impl<F: Into<u32>> From<F> for PowerOfTwo {
-    fn from(f: F) -> PowerOfTwo {
-        PowerOfTwo(log_base_two(f.into()))
+    pub fn as_num<F: From<u32>>(self) -> F {
+        (1 << self.0).into()
     }
 }
 

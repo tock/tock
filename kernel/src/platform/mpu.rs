@@ -32,7 +32,7 @@ pub trait MPU {
     /// `region_num`: an MPU region number 0-7
     /// `start_addr`: the region base address. Lower bits will be masked
     ///               according to the region size.
-    /// `len`       : region size as a function 2^(len + 1)
+    /// `len`       : region size as a PowerOfTwo (e.g. `16` for 64KB)
     /// `execute`   : whether to enable code execution from this region
     /// `ap`        : access permissions as defined in Table 4.47 of the user
     ///               guide.

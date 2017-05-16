@@ -325,13 +325,6 @@ impl<'a> Process<'a> {
     }
 
     pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {
-        let data_start = self.memory.as_ptr() as usize;
-        let data_len = self.memory.len();
-        if data_len.count_ones() != 1 {
-            panic!("Tock MPU does not currently handle complex region sizes");
-        }
-        let data_region_len = math::PowerOfTwo::from(data_len as u32);
-
         // Text segment read/execute (no write)
         let text_start = self.text.as_ptr() as usize;
         let text_len = self.text.len();
@@ -342,14 +335,14 @@ impl<'a> Process<'a> {
         // Invariant: text_len is a power of two
         if text_start % text_len != 0 {
             // Text length not aligned to text start
-            let div = text_start % text_len;
-            let region_size = div * 8; // there are 8 subregions in a region
+            let subregion_size = text_start % text_len;
+            let region_size = subregion_size * 8; // 8 subregions in a region
             let region_start = text_start - (text_start % region_size);
 
-            let min_subregion = (text_start - region_start) / div;
-            let max_subregion = min_subregion + text_len / div - 1;
+            let min_subregion = (text_start - region_start) / subregion_size;
+            let max_subregion = min_subregion + text_len / subregion_size - 1;
 
-            let region_len = math::PowerOfTwo::from(region_size as u32);
+            let region_len = math::PowerOfTwo::floor(region_size as u32);
 
             let subregion_mask = (min_subregion..(max_subregion + 1))
                                     .fold(!0, |res, i| res & !(1 << i));
@@ -362,7 +355,7 @@ impl<'a> Process<'a> {
                         mpu::AccessPermission::ReadOnly);
         } else {
             // Text length aligned to text start
-            let region_len = math::PowerOfTwo::from(text_len as u32);
+            let region_len = math::PowerOfTwo::floor(text_len as u32);
             mpu.set_mpu(0,
                         text_start as u32,
                         region_len,
@@ -370,6 +363,14 @@ impl<'a> Process<'a> {
                         mpu::ExecutePermission::ExecutionPermitted,
                         mpu::AccessPermission::ReadOnly);
         }
+
+        let data_start = self.memory.as_ptr() as usize;
+        let data_len = self.memory.len();
+        if data_len.count_ones() != 1 {
+            panic!("Tock MPU does not currently handle complex region sizes");
+        }
+        let data_region_len = math::PowerOfTwo::floor(data_len as u32);
+
 
         // Data segment read/write/execute
         mpu.set_mpu(1,
@@ -380,25 +381,26 @@ impl<'a> Process<'a> {
                     mpu::AccessPermission::ReadWrite);
 
         // Disallow access to grant region
-        let mut grant_size = unsafe {
-            self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
-            (self.kernel_memory_break as u32)
+        let grant_size = unsafe {
+            math::PowerOfTwo::ceiling(
+                self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
+                    (self.kernel_memory_break as u32)
+            )
         };
-        grant_size = math::closest_power_of_two(grant_size);
         let grant_base = unsafe {
             self.memory
                 .as_ptr()
                 .offset(self.memory.len() as isize)
-                .offset(-(grant_size as isize))
+                .offset(-(grant_size.as_num::<u32>() as isize))
         };
-        let mgrant_size = math::PowerOfTwo::from(grant_size as u32);
         mpu.set_mpu(2,
                     grant_base as u32,
-                    mgrant_size,
+                    grant_size,
                     0,
                     mpu::ExecutePermission::ExecutionNotPermitted,
                     mpu::AccessPermission::PrivilegedOnly);
 
+        // Setup IPC MPU regions
         for (i, region) in self.mpu_regions.iter().enumerate() {
             mpu.set_mpu((i + 3) as u32,
                         region.get().0 as u32,
@@ -412,7 +414,7 @@ impl<'a> Process<'a> {
 
     pub fn add_mpu_region(&self, base: *const u8, size: u32) -> bool {
         if size >= 16 && size.count_ones() == 1 && (base as u32) % size == 0 {
-            let mpu_size = math::PowerOfTwo::from(size);
+            let mpu_size = math::PowerOfTwo::floor(size);
             for region in self.mpu_regions.iter() {
                 if region.get().0 == ptr::null() {
                     region.set((base, mpu_size));
