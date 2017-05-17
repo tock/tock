@@ -8,6 +8,8 @@
 #include <timer.h>
 #include <adc.h>
 
+#include <inttypes.h>
+
 void cb(int value);
 
 // Race conditions possible 
@@ -28,8 +30,16 @@ int main(void) {
   putstr("[Tock] ADC Continuous Test\n");
 
   // Read this asynchronously
-  // Sample channel 1. This is pin A1.
+  // Sample channel 1 at 100 Hz. This is pin A1.
   adc_read_cont_sample(1, 100, cb);
+
+  // 100 Hz sampling frequency means
+  // 10000 microsecond sampling interval.
+  uint32_t interval = 10000;
+  uint32_t actual_interval = adc_nearest_interval(interval);
+
+  printf("Requested sampling interval %" PRIu32 " microsecond. Nearest supported interval is %" PRIu32 " microsecond.\n",
+         interval, actual_interval);
 
   while (1) {
     // sample for 5 seconds and then stop.

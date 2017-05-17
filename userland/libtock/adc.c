@@ -39,7 +39,7 @@ static void adc_interval_cb(__attribute__ ((unused)) int callback_type,
                             __attribute__ ((unused)) int channel,
                             int value,
                             void* ud) {
-  struct adc_interval *interval = (struct adc_data*) ud;
+  struct adc_interval *interval = (struct adc_interval*) ud;
   interval->value = value;
   interval->computed = true;
 }
