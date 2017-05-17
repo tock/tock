@@ -4,6 +4,7 @@ use returncode::ReturnCode;
 pub trait Client {
     /// Called when a sample is ready.
     fn sample_done(&self, sample: u16);
+    fn interval_computed(&self, interval: u32);
 }
 
 /// Simple interface for reading a single ADC sample on any channel.
@@ -36,4 +37,5 @@ pub trait AdcContinuous {
     fn compute_frequency(&self, frequency: u32) -> u32;
     fn sample_continuous(&self, channel: u8, interval: u32) -> ReturnCode;
     fn cancel_sampling(&self) -> ReturnCode;
+    fn nearest_interval (&self, interval: u32) -> ReturnCode;
 }

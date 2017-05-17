@@ -325,6 +325,12 @@ impl adc::AdcContinuous for Adc {
         // TODO should disable clocks
         ReturnCode::SUCCESS
     }
+
+    fn nearest_interval(&self, interval: u32) -> ReturnCode {
+        let interval = self.compute_interval(interval);
+        self.client.get().map(|client| { client.interval_computed(interval); });
+        ReturnCode::SUCCESS
+    }
 }
 
 interrupt_handler!(adcife_handler, ADCIFE);

@@ -69,6 +69,14 @@ impl<'a, A: AdcSingle + AdcContinuous + 'a> ADC<'a, A> {
     fn cancel_sampling (&self) -> ReturnCode {
         self.adc.cancel_sampling()
     }
+
+    fn nearest_interval (&self, interval: u32) -> ReturnCode {
+
+        // TODO: Unsure if this is the correct way to call sample_frequency
+        //       (unsure how callback for return value gets called).
+
+        self.adc.nearest_interval(interval)
+    }
 }
 
 // The if statements are a hacky way to discriminate. Figure out a better way.
@@ -90,6 +98,22 @@ impl<'a, A: AdcSingle + AdcContinuous + 'a> Client for ADC<'a, A> {
         if !self.mode.get() {
             self.channel.get().map(|next_channel| { self.adc.sample(next_channel); });
         }
+    }
+
+    fn interval_computed(&self, interval: u32) {
+        self.channel.get().map(|cur_channel| {
+            if !self.mode.get() {
+                self.channel.set(None);
+            }
+            self.app.each(|app| if app.channel == Some(cur_channel) {
+                if !self.mode.get() {
+                    app.channel = None;
+                }
+                app.callback.map(|mut cb| cb.schedule(0, cur_channel as usize, interval as usize));
+            } else if app.channel.is_some() {
+                self.channel.set(app.channel);
+            });
+        });
     }
 }
 
@@ -130,6 +154,9 @@ impl<'a, A: AdcSingle + AdcContinuous + 'a> Driver for ADC<'a, A> {
             },
             4 => {
                 self.cancel_sampling()
+            },
+            5 => {
+                self.nearest_interval(data as u32)
             },
 
             // default
