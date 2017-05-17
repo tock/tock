@@ -201,9 +201,26 @@ impl adc::AdcSingle for Adc {
 
 /// Not implemented yet. -pal 12/22/16
 impl adc::AdcContinuous for Adc { 
-    // Three different frequencies 1kHz 32kHz 1MHz, do we select at boot or 
-    // do we allow runtime change?
+    
+    // Unit is Hz.
     type Frequency = adc::Freq1KHz;
+
+    // Unit is microsecond for parameter `interval` and return value.
+    fn compute_interval(&self, interval: u32) -> u32 {
+
+        // (1000000 microsecond / 1 sec) * (1 sec / FREQUENCY samples)
+        // gives minimum supported interval.
+        let min_interval: u32 = cmp::max(1000000 / Self::Frequency::frequency(), 1);
+        if interval <= min_interval {
+            return min_interval;
+        }
+
+        if interval % min_interval > 0 {
+            return (interval / min_interval + 1) * min_interval;
+        } else {
+            return interval;
+        }
+    }
 
     fn compute_frequency(&self, frequency: u32) -> u32 {
         // Internal Timer Trigger Period= (ITMC+1)*T(CLK_ADC)

@@ -32,6 +32,7 @@ impl Frequency for Freq1KHz {
 
 pub trait AdcContinuous {
     type Frequency: Frequency;
+    fn compute_interval(&self, interval: u32) -> u32;
     fn compute_frequency(&self, frequency: u32) -> u32;
     fn sample_continuous(&self, channel: u8, interval: u32) -> ReturnCode;
     fn cancel_sampling(&self) -> ReturnCode;
