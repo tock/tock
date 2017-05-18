@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "FXOS8700CQ.h"
+#include "fxos8700cq.h"
 #include "math.h"
 
 struct fx0_data {
@@ -12,7 +12,7 @@ struct fx0_data {
 static struct fx0_data res = { .fired = false };
 
 // internal callback for faking synchronous reads
-static void FXOS8700CQ_cb(int x, int y, int z, void* ud) {
+static void fxos8700cq_cb(int x, int y, int z, void* ud) {
   struct fx0_data* result = (struct fx0_data*) ud;
   result->x = x;
   result->y = y;
@@ -20,16 +20,16 @@ static void FXOS8700CQ_cb(int x, int y, int z, void* ud) {
   result->fired = true;
 }
 
-double FXOS8700CQ_read_accel_mag(void) {
+double fxos8700cq_read_accel_mag(void) {
   struct fx0_data result = { .fired = false };
   int err;
 
-  err = FXOS8700CQ_subscribe(FXOS8700CQ_cb, (void*)(&result));
+  err = fxos8700cq_subscribe(fxos8700cq_cb, (void*)(&result));
   if (err < 0) {
     return err;
   }
 
-  err = FXOS8700CQ_start_accel_reading();
+  err = fxos8700cq_start_accel_reading();
   if (err < 0) {
     return err;
   }
@@ -39,25 +39,25 @@ double FXOS8700CQ_read_accel_mag(void) {
   return sqrt(result.x * result.x + result.y * result.y + result.z * result.z);
 }
 
-int FXOS8700CQ_subscribe(subscribe_cb callback, void* userdata) {
+int fxos8700cq_subscribe(subscribe_cb callback, void* userdata) {
   return subscribe(11, 0, callback, userdata);
 }
 
-int FXOS8700CQ_start_accel_reading(void) {
+int fxos8700cq_start_accel_reading(void) {
   return command(11, 1, 0);
 }
-int FXOS8700CQ_start_magnetometer_reading(void) {
+int fxos8700cq_start_magnetometer_reading(void) {
   return command(11, 2, 0);
 }
 
-int FXOS8700CQ_read_acceleration_sync(int* x, int* y, int* z) {
+int fxos8700cq_read_acceleration_sync(int* x, int* y, int* z) {
     int err;
     res.fired = false;
 
-    err = FXOS8700CQ_subscribe(FXOS8700CQ_cb, (void*) &res);
+    err = fxos8700cq_subscribe(fxos8700cq_cb, (void*) &res);
     if (err < 0) return err;
 
-    err = FXOS8700CQ_start_accel_reading();
+    err = fxos8700cq_start_accel_reading();
     if (err < 0) return err;
 
     // Wait for the callback.
@@ -70,14 +70,14 @@ int FXOS8700CQ_read_acceleration_sync(int* x, int* y, int* z) {
     return 0;
 }
 
-int FXOS8700CQ_read_magenetometer_sync(int* x, int* y, int* z) {
+int fxos8700cq_read_magenetometer_sync(int* x, int* y, int* z) {
     int err;
     res.fired = false;
 
-    err = FXOS8700CQ_subscribe(FXOS8700CQ_cb, (void*) &res);
+    err = fxos8700cq_subscribe(fxos8700cq_cb, (void*) &res);
     if (err < 0) return err;
 
-    err = FXOS8700CQ_start_magnetometer_reading();
+    err = fxos8700cq_start_magnetometer_reading();
     if (err < 0) return err;
 
     // Wait for the callback.

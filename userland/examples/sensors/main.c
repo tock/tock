@@ -8,7 +8,7 @@
 #include <tsl2561.h>
 #include <lps25hb.h>
 #include <si7021.h>
-#include <FXOS8700CQ.h>
+#include <fxos8700cq.h>
 
 static bool isl29035 = false;
 static bool tmp006 = false;
@@ -34,7 +34,7 @@ static void timer_fired(__attribute__ ((unused)) int arg0,
   if (tsl2561)    tsl2561_lux = tsl2561_get_lux_sync();
   if (lps25hb)    lps25hb_pressure = lps25hb_get_pressure_sync();
   if (si7021)     si7021_get_temperature_humidity_sync(&si7021_temp, &si7021_humi);
-  if (fxos8700cq) FXOS8700CQ_read_acceleration_sync(&fxos8700cq_x, &fxos8700cq_y, &fxos8700cq_z);
+  if (fxos8700cq) fxos8700cq_read_acceleration_sync(&fxos8700cq_x, &fxos8700cq_y, &fxos8700cq_z);
 
 
   if (isl29035)   printf("ISL29035:   Light Intensity: %d\n", light);
