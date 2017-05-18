@@ -23,6 +23,10 @@
 
 void* __dso_handle = 0;
 
+int _unlink(const char *pathname) {
+  return -1;
+}
+
 int _isatty(int fd)
 {
     if (fd == 0)
