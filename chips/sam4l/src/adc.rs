@@ -39,6 +39,7 @@ use kernel::common::volatile_cell::VolatileCell;
 use kernel::hil;
 use kernel::hil::adc;
 use kernel::hil::adc::Frequency;
+use kernel::hil::adc::AdcContinuous;
 use kernel::returncode::ReturnCode;
 use nvic;
 use pm::{self, Clock, PBAClock};
@@ -76,7 +77,7 @@ pub struct Adc {
     channel: Cell<u8>,
     client: Cell<Option<&'static hil::adc::Client>>,
     last_sample: Cell<bool>, // true if should stop after next sample 
-    max_frequency: Cell<u32>,
+    current_frequency: Cell<u32>,
 }
 
 pub static mut ADC: Adc = Adc::new(BASE_ADDRESS);
@@ -89,7 +90,7 @@ impl Adc {
             channel: Cell::new(0),
             client: Cell::new(None),
             last_sample: Cell::new(true),
-            max_frequency: Cell::new(0),
+            current_frequency: Cell::new(0),
         }
     }
 
@@ -206,90 +207,60 @@ impl adc::AdcContinuous for Adc {
     type Frequency = adc::Freq1KHz;
 
     // Unit is microsecond for parameter `interval` and return value.
-    fn compute_interval(&self, interval: u32) -> u32 {
-
-        // (1000000 microsecond / 1 sec) * (1 sec / FREQUENCY samples)
-        // gives minimum supported interval.
-        let min_interval: u32 = cmp::max(1000000 / Self::Frequency::frequency(), 1);
-        if interval <= min_interval {
-            return min_interval;
-        }
-
-        if interval % min_interval > 0 {
-            return (interval / min_interval + 1) * min_interval;
-        } else {
-            return interval;
-        }
-    }
-
-    fn compute_frequency(&self, frequency: u32) -> u32 {
-        // Internal Timer Trigger Period= (ITMC+1)*T(CLK_ADC)
-        // f(itimer_timeout) = f(GCLK) / (ITMC + 1)
-        // ITMC = (f(GCLK)/F(itimer_timeout) - 1)
-        if frequency == 0 {
-            return 1; // Minimum possible frequency
-        }
-
-        if frequency > Self::Frequency::frequency() { // Maximum possible frequency
-            return Self::Frequency::frequency();
-        }
-
-        let itmc: u32 = (self.max_frequency.get() / frequency ) - 1;
-        return self.max_frequency.get() / (itmc + 1);
+    fn compute_interval(&self, _interval: u32) -> u32 {
+        compute_interval_freq(_interval, Self::Frequency::frequency())
     }
 
     fn sample_continuous(&self, _channel: u8, _interval: u32) -> ReturnCode {
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
-        if !self.enabled.get() {
-            self.enabled.set(true);
-            // This logic is from 38.6.1 "Initializing the ADCIFE" of
-            // the SAM4L data sheet
-            // 1. Start the clocks, ADC uses GCLK10, choose to
-            // source it from RCSYS (115Khz)
-            unsafe {
-                pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
-                nvic::enable(nvic::NvicIdx::ADCIFE);
+        self.enabled.set(true);
+        // This logic is from 38.6.1 "Initializing the ADCIFE" of
+        // the SAM4L data sheet
+        // 1. Start the clocks, ADC uses GCLK10, choose to
+        // source it from RC32K (32Khz)
+        unsafe {
+            pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
+            nvic::enable(nvic::NvicIdx::ADCIFE);
+            if self.current_frequency.get() <= 1000 {
+                scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::RC32K);
+            } else if self.current_frequency.get() <= 10000 {
                 scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::RCSYS);
+            } else {
+                scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::RCFAST);
             }
-            // 2. Insert a fixed delay
-            for _ in 1..10000 {
-                let _ = regs.cr.get();
-            }
-
-            // 3, Enable the ADC
-            let mut cr: u32 = regs.cr.get();
-            cr |= 1 << 8;
-            regs.cr.set(cr);
-
-            // 4. Wait until ADC ready
-            while regs.sr.get() & (1 << 24) == 0 {}
-            // 5. Turn on bandgap and reference buffer
-            let cr2: u32 = (1 << 10) | (1 << 8) | (1 << 4);
-            regs.cr.set(cr2);
-
         }
+        // 2. Insert a fixed delay
+        for _ in 1..10000 {
+            let _ = regs.cr.get();
+        }
+
+        // 3, Enable the ADC
+        let mut cr: u32 = regs.cr.get();
+        cr |= 1 << 8;
+        regs.cr.set(cr);
+
+        // 4. Wait until ADC ready
+        while regs.sr.get() & (1 << 24) == 0 {}
+        // 5. Turn on bandgap and reference buffer
+        let cr2: u32 = (1 << 10) | (1 << 8) | (1 << 4);
+        regs.cr.set(cr2);
 
         if _channel > 14 {
             return ReturnCode::EINVAL;
         } else {
             // Configure the ADCIFE
-            unsafe{
-                let freq = Self::Frequency::frequency();
-
-                let sys_freq = pm::get_system_frequency(); 
-                let closest_power = math::closest_power_of_two((sys_freq + freq - 1)/ freq);
-                // The -2 comes from the fact that the divider starts at DIV4.
-                let mut clock_divider: u32 = math::log_base_two(closest_power) - 2;
-                clock_divider = cmp::min(cmp::max(clock_divider, 0), 7);
-                let mut cfg: u32 = 0x00000008;  // VCC / 2
-                cfg |= 0x00000040;  // SPEED = 00 (300ksps). REFSEL = 1 (APB) 
-                cfg |= clock_divider << 8; // PRESCAL 3 bits
-                regs.cfg.set(cfg);
-                self.max_frequency.set(sys_freq / (1 << (clock_divider + 2)));
+            if self.current_frequency.get() == 0 {
+                self.current_frequency.set(Self::Frequency::frequency());
             }
+            let freq = self.current_frequency.get(); 
+            let min_int: u32 = 1000000 / freq;
+            let clock_divider = math::log_base_two(compute_interval_freq(_interval, freq) / min_int);
+            let mut cfg: u32 = 0x00000008;  // VCC / 2
+            cfg |= 0x00000000;  // SPEED = 00 (300ksps). REFSEL =  (GCLOCK) 
+            cfg |= clock_divider << 8; // PRESCAL 3 bits
+            regs.cfg.set(cfg);
 
             while regs.sr.get() & (0x51000000) != 0x51000000 {}
-
             
             self.last_sample.set(false);
             self.channel.set(_channel);
@@ -299,19 +270,13 @@ impl adc::AdcContinuous for Adc {
             cfg |= 0x00700000; // MUXNEG   = 111 (ground pad)
             cfg |= 0x00008000; // INTERNAL =  10 (int neg, ext pos)
             cfg |= 0x00000000; // RES      =   0 (12-bit)
-            cfg |= 0x00000100; // TRGSEL   = 001 (internal timer)
+            cfg |= 0x00000300; // TRGSEL   = 011 (continuous mode)
             cfg |= 0x00000000; // GCOMP    =   0 (no gain error corr)
             cfg |= 0x00000070; // GAIN     = 111 (0.5x gain)
             cfg |= 0x00000000; // BIPOLAR  =   0 (not bipolar)
             cfg |= 0x00000000; // HWLA     =   0 (no left justify value)
             regs.seqcfg.set(cfg);
 
-            regs.cr.set(2); // stop timer before setting it up
-
-            // Set interrupt timeout
-            let actual_frequency = self.compute_frequency(_interval);    // TODO: Should be either frequency or interval, not both.
-            let itmc = (self.max_frequency.get() / actual_frequency ) - 1;
-            regs.itimer.set(cmp::max(cmp::min(itmc, 0x0000FFFF), 0));
             // Enable end of conversion interrupt
             regs.ier.set(1);
             // Initiate conversion
@@ -322,15 +287,50 @@ impl adc::AdcContinuous for Adc {
 
     fn cancel_sampling(&self) -> ReturnCode {
         self.last_sample.set(true);
-        // TODO should disable clocks
-        ReturnCode::SUCCESS
-    }
 
-    fn nearest_interval(&self, interval: u32) -> ReturnCode {
-        let interval = self.compute_interval(interval);
-        self.client.get().map(|client| { client.interval_computed(interval); });
+        // reset frequency to default
+        self.current_frequency.set(Self::Frequency::frequency());
         ReturnCode::SUCCESS
     }
 }
 
+impl adc::AdcContinuousFast for Adc { 
+    // Unit is Hz.
+    type FrequencyFast = adc::Freq3KHz;
+
+    fn compute_interval_fast(&self, _interval: u32) -> u32 {
+        compute_interval_freq(_interval, Self::FrequencyFast::frequency())
+    }
+
+    fn sample_continuous_fast(&self, _channel: u8, _interval: u32) -> ReturnCode {
+        self.current_frequency.set(Self::FrequencyFast::frequency());
+        self.sample_continuous(_channel, _interval)
+    }
+}
+impl adc::AdcContinuousVeryFast for Adc { 
+    // Unit is Hz.
+    type FrequencyVeryFast = adc::Freq33KHz;
+
+    fn compute_interval_very_fast(&self, _interval: u32) -> u32 {
+        compute_interval_freq(_interval, Self::FrequencyVeryFast::frequency())
+    }
+
+    fn sample_continuous_very_fast(&self, _channel: u8, _interval: u32) -> ReturnCode {
+        self.current_frequency.set(Self::FrequencyVeryFast::frequency());
+        self.sample_continuous(_channel, _interval)
+    }
+}
+
+fn compute_interval_freq(interval: u32, frequency: u32) -> u32 {
+    // unit for interval is microsecond
+    // unit for frequency is Hz
+    let min_int: u32 = 1000000 / frequency;
+    if interval <= min_int {
+        return min_int
+    }
+    let closest: u32 = math::closest_power_of_two((interval + min_int - 1)/ min_int);
+    // can support at most 128 times less frequent than the maximum
+    return cmp::min(128, closest) * min_int;
+
+}
 interrupt_handler!(adcife_handler, ADCIFE);

@@ -29,22 +29,23 @@ void cb(int value) {
 int main(void) {
   putstr("[Tock] ADC Continuous Test\n");
 
+  // 10000 microsecond sampling interval.
+  // 100 Hz sampling frequency
+  uint32_t interval = 400;
+  uint32_t actual_interval = adc_nearest_interval(interval);
   // Read this asynchronously
   // Sample channel 1 at 100 Hz. This is pin A1.
-  adc_read_cont_sample(1, 100, cb);
+  adc_read_cont_sample(1, interval, cb);
 
-  // 100 Hz sampling frequency means
-  // 10000 microsecond sampling interval.
-  uint32_t interval = 10000;
-  uint32_t actual_interval = adc_nearest_interval(interval);
 
-  printf("Requested sampling interval %" PRIu32 " microsecond. Nearest supported interval is %" PRIu32 " microsecond.\n",
+  printf("Requested sampling interval %" PRIu32 " microseconds. Nearest "
+         "supported interval is %" PRIu32 " microseconds.\n",
          interval, actual_interval);
 
   while (1) {
-    // sample for 5 seconds and then stop.
-    delay_ms(5000);
-    adc_cancel_sampling();
+    // sample for 5 seconds and then stop. XXX fix
+    delay_ms(1000);
+   // adc_cancel_sampling();
     printf("Measured average of %d over %d samples.\nLast sample is %i mV\n",
             total/num_samples, num_samples, last_sample);
     total = 0;
