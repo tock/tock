@@ -11,7 +11,7 @@
 #include <timer.h>
 #include <isl29035.h>
 #include <si7021.h>
-#include <fxos8700cq.h>
+#include <ninedof.h>
 #include <button.h>
 #include <led.h>
 #include <adc.h>
@@ -53,7 +53,7 @@ static void sample_sensors (void) {
   int temp;
   unsigned humi;
   si7021_get_temperature_humidity_sync(&temp, &humi);
-  uint32_t accel_mag = fxos8700cq_read_accel_mag();
+  uint32_t accel_mag = ninedof_read_accel_mag();
   int light = isl29035_read_light_intensity();
 
   // Analog inputs: A0-A5

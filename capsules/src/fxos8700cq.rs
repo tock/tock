@@ -4,8 +4,9 @@
 //! To use readings from the sensor in userland, see FXOS8700CQ.h in libtock.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
+use kernel::hil;
 use kernel::hil::gpio;
 use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
 
@@ -162,7 +163,7 @@ pub struct Fxos8700cq<'a> {
     interrupt_pin1: &'a gpio::Pin,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: Cell<Option<Callback>>,
+    callback: Cell<Option<&'static hil::ninedof::NineDofClient>>,
 }
 
 impl<'a> Fxos8700cq<'a> {
@@ -266,7 +267,7 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.callback.get().map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
+                self.callback.get().map(|cb| { cb.callback(x as usize, y as usize, z as usize); });
             }
             State::ReadMagStart => {
                 // One shot measurement taken, now read result.
@@ -285,40 +286,25 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
 
-                self.callback.get().map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
+                self.callback.get().map(|cb| cb.callback(x as usize, y as usize, z as usize));
             }
             _ => {}
         }
     }
 }
 
-impl<'a> Driver for Fxos8700cq<'a> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
-        match subscribe_num {
-            0 => {
-                self.callback.set(Some(callback));
-                ReturnCode::SUCCESS
-            }
-            _ => ReturnCode::ENOSUPPORT,
-        }
+impl<'a> hil::ninedof::NineDof for Fxos8700cq<'a> {
+    fn set_client(&self, client: &'static hil::ninedof::NineDofClient) {
+        self.callback.set(Some(client));
     }
 
-    fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> ReturnCode {
-        match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
+    fn read_accelerometer(&self) -> ReturnCode {
+        self.start_read_accel();
+        ReturnCode::SUCCESS
+    }
 
-            // Read acceleration.
-            1 => {
-                self.start_read_accel();
-                ReturnCode::SUCCESS
-            }
-
-            // Read the magnetometer.
-            2 => {
-                self.start_read_magnetometer();
-                ReturnCode::SUCCESS
-            }
-            _ => ReturnCode::ENOSUPPORT,
-        }
+    fn read_magnetometer(&self) -> ReturnCode {
+        self.start_read_magnetometer();
+        ReturnCode::SUCCESS
     }
 }

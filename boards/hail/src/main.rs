@@ -78,7 +78,7 @@ struct Hail {
                                                                     sam4l::ast::Ast<'static>>>,
     si7021: &'static capsules::si7021::SI7021<'static,
                                               VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    fxos8700: &'static capsules::fxos8700cq::Fxos8700cq<'static>,
+    ninedof: &'static capsules::ninedof::NineDof<'static>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
     adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
@@ -106,7 +106,7 @@ impl Platform for Hail {
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
             10 => f(Some(self.si7021)),
-            11 => f(Some(self.fxos8700)),
+            11 => f(Some(self.ninedof)),
 
             14 => f(Some(self.rng)),
 
@@ -257,16 +257,22 @@ pub unsafe fn reset_handler() {
         12);
     virtual_alarm1.set_client(timer);
 
-    // FXOS8700CQ accelerometer, device address 0x
+    // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e), 32);
     let fxos8700 = static_init!(
         capsules::fxos8700cq::Fxos8700cq<'static>,
         capsules::fxos8700cq::Fxos8700cq::new(fxos8700_i2c,
                                                &sam4l::gpio::PA[9],
                                                &mut capsules::fxos8700cq::BUF),
-        416/8);
+        320/8);
     fxos8700_i2c.set_client(fxos8700);
     sam4l::gpio::PA[9].set_client(fxos8700);
+
+    let ninedof = static_init!(
+        capsules::ninedof::NineDof<'static>,
+        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()),
+        160/8);
+    hil::ninedof::NineDof::set_client(fxos8700, ninedof);
 
     // Initialize and enable SPI HAL
     // Set up an SPI MUX, so there can be multiple clients
@@ -366,7 +372,7 @@ pub unsafe fn reset_handler() {
         timer: timer,
         si7021: si7021,
         isl29035: isl29035,
-        fxos8700: fxos8700,
+        ninedof: ninedof,
         spi: spi_syscalls,
         nrf51822: nrf_serialization,
         adc: adc,
