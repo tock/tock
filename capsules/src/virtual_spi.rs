@@ -190,12 +190,15 @@ pub struct VirtualSpiSlaveDevice<'a, Spi: hil::spi::SpiSlave + 'a> {
 }
 
 impl<'a, Spi: hil::spi::SpiSlave> VirtualSpiSlaveDevice<'a, Spi> {
-    pub const fn new(spi: &'a Spi)
-                     -> VirtualSpiSlaveDevice<'a, Spi> {
+    pub const fn new(spi: &'a Spi) -> VirtualSpiSlaveDevice<'a, Spi> {
         VirtualSpiSlaveDevice {
             spi: spi,
             client: Cell::new(None),
         }
+    }
+
+    pub fn set_client(&'a self, client: &'a hil::spi::SpiSlaveClient) {
+        self.client.set(Some(client));
     }
 }
 

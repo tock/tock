@@ -14,8 +14,8 @@ use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
-use pm;
 use nvic;
+use pm;
 
 /// Implementation of DMA-based SPI master communication for
 /// the Atmel SAM4L CortexM4 microcontroller.
@@ -52,25 +52,25 @@ struct SpiRegisters {
 // Per-register masks defined in the SPI manual in chapter 26.8
 mod spi_consts {
     pub mod cr {
-        pub const SPIEN: u32     = 1 << 0;
-        pub const SPIDIS: u32    = 1 << 1;
-        pub const SWRST: u32     = 1 << 7;
+        pub const SPIEN: u32 = 1 << 0;
+        pub const SPIDIS: u32 = 1 << 1;
+        pub const SWRST: u32 = 1 << 7;
         pub const FLUSHFIFO: u32 = 1 << 8;
-        pub const LASTXFER: u32  = 1 << 24;
+        pub const LASTXFER: u32 = 1 << 24;
     }
 
     pub mod mr {
-        pub const MSTR: u32        = 1 << 0;
-        pub const PS: u32          = 1 << 1;
-        pub const PCSDEC: u32      = 1 << 2;
-        pub const MODFDIS: u32     = 1 << 4;
-        pub const RXFIFOEN: u32    = 1 << 6;
-        pub const LLB: u32         = 1 << 7;
-        pub const PCS_MASK: u32    = 0b1111 << 16;
-        pub const PCS0: u32        = 0b1110 << 16;
-        pub const PCS1: u32        = 0b1101 << 16;
-        pub const PCS2: u32        = 0b1011 << 16;
-        pub const PCS3: u32        = 0b0111 << 16;
+        pub const MSTR: u32 = 1 << 0;
+        pub const PS: u32 = 1 << 1;
+        pub const PCSDEC: u32 = 1 << 2;
+        pub const MODFDIS: u32 = 1 << 4;
+        pub const RXFIFOEN: u32 = 1 << 6;
+        pub const LLB: u32 = 1 << 7;
+        pub const PCS_MASK: u32 = 0b1111 << 16;
+        pub const PCS0: u32 = 0b1110 << 16;
+        pub const PCS1: u32 = 0b1101 << 16;
+        pub const PCS2: u32 = 0b1011 << 16;
+        pub const PCS3: u32 = 0b0111 << 16;
         pub const DLYBCS_MASK: u32 = 0xFF << 24;
     }
 
@@ -86,40 +86,40 @@ mod spi_consts {
 
     pub mod sr {
         // These same bits are used in IDR, IER, and IMR.
-        pub const RDRF: u32    = 1 << 0;
-        pub const TDRE: u32    = 1 << 1;
-        pub const MODF: u32    = 1 << 2;
-        pub const OVRES: u32   = 1 << 3;
-        pub const NSSR: u32    = 1 << 8;
+        pub const RDRF: u32 = 1 << 0;
+        pub const TDRE: u32 = 1 << 1;
+        pub const MODF: u32 = 1 << 2;
+        pub const OVRES: u32 = 1 << 3;
+        pub const NSSR: u32 = 1 << 8;
         pub const TXEMPTY: u32 = 1 << 9;
-        pub const UNDES: u32   = 1 << 10;
+        pub const UNDES: u32 = 1 << 10;
 
         // This only exists in the SR
-        pub const SPIENS: u32  = 1 << 16;
+        pub const SPIENS: u32 = 1 << 16;
     }
 
     // These bit masks apply to CSR0; CSR1, CSR2, CSR3
     pub mod csr {
-        pub const CPOL: u32        = 1 << 0;
-        pub const NCPHA: u32       = 1 << 1;
-        pub const CSNAAT: u32      = 1 << 2;
-        pub const CSAAT: u32       = 1 << 3;
-        pub const BITS_MASK: u32   = 0x1111 << 4;
-        pub const BITS8: u32       = 0b0000 << 4;
-        pub const BITS9: u32       = 0b0001 << 4;
-        pub const BITS10: u32      = 0b0010 << 4;
-        pub const BITS11: u32      = 0b0011 << 4;
-        pub const BITS12: u32      = 0b0100 << 4;
-        pub const BITS13: u32      = 0b0101 << 4;
-        pub const BITS14: u32      = 0b0110 << 4;
-        pub const BITS15: u32      = 0b0111 << 4;
-        pub const BITS16: u32      = 0b1000 << 4;
-        pub const BITS4: u32       = 0b1001 << 4;
-        pub const BITS5: u32       = 0b1010 << 4;
-        pub const BITS6: u32       = 0b1011 << 4;
-        pub const BITS7: u32       = 0b1100 << 4;
-        pub const SCBR_MASK: u32   = 0xFF << 8;
-        pub const DLYBS_MASK: u32  = 0xFF << 16;
+        pub const CPOL: u32 = 1 << 0;
+        pub const NCPHA: u32 = 1 << 1;
+        pub const CSNAAT: u32 = 1 << 2;
+        pub const CSAAT: u32 = 1 << 3;
+        pub const BITS_MASK: u32 = 0x1111 << 4;
+        pub const BITS8: u32 = 0b0000 << 4;
+        pub const BITS9: u32 = 0b0001 << 4;
+        pub const BITS10: u32 = 0b0010 << 4;
+        pub const BITS11: u32 = 0b0011 << 4;
+        pub const BITS12: u32 = 0b0100 << 4;
+        pub const BITS13: u32 = 0b0101 << 4;
+        pub const BITS14: u32 = 0b0110 << 4;
+        pub const BITS15: u32 = 0b0111 << 4;
+        pub const BITS16: u32 = 0b1000 << 4;
+        pub const BITS4: u32 = 0b1001 << 4;
+        pub const BITS5: u32 = 0b1010 << 4;
+        pub const BITS6: u32 = 0b1011 << 4;
+        pub const BITS7: u32 = 0b1100 << 4;
+        pub const SCBR_MASK: u32 = 0xFF << 8;
+        pub const DLYBS_MASK: u32 = 0xFF << 16;
         pub const DLYBCT_MASK: u32 = 0xFF << 24;
     }
 }
@@ -211,7 +211,7 @@ impl Spi {
         regs.cr.set(spi_consts::cr::SPIEN);
 
         if self.role.get() == SpiRole::SpiSlave {
-            regs.ier.set(spi_consts::sr::NSSR); // Enable NSSR, TDRE, RDRF interrupts
+            regs.ier.set(spi_consts::sr::NSSR); // Enable NSSR
         }
     }
 
@@ -223,7 +223,7 @@ impl Spi {
         regs.cr.set(spi_consts::cr::SPIDIS);
 
         if self.role.get() == SpiRole::SpiSlave {
-            regs.idr.set(spi_consts::sr::NSSR); // Disable NSSR, TDRE, RDRF interrupts
+            regs.idr.set(spi_consts::sr::NSSR); // Disable NSSR
         }
     }
 
@@ -385,7 +385,8 @@ impl Spi {
         let sr = regs.sr.get();
 
         self.slave_client.get().map(|client| {
-            if (sr & spi_consts::sr::NSSR) != 0 { // NSSR
+            if (sr & spi_consts::sr::NSSR) != 0 {
+                // NSSR
                 client.chip_selected()
             }
             // TODO: Do we want to support byte-level interrupts too?
@@ -426,7 +427,7 @@ impl Spi {
          */
 
         let mut opt_len = None;
-        write_buffer.as_ref().map(|buf| { opt_len = Some(buf.len()) });
+        write_buffer.as_ref().map(|buf| opt_len = Some(buf.len()));
         read_buffer.as_ref().map(|buf| {
             let min_len = opt_len.map_or(buf.len(), |old_len| cmp::min(old_len, buf.len()));
             opt_len = Some(min_len);
@@ -435,13 +436,11 @@ impl Spi {
         let count = cmp::min(opt_len.unwrap_or(0), len);
         self.dma_length.set(count);
 
-        // We will have at least a write transfer in progress
-        self.transfers_in_progress.set(1);
-
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
         write_buffer.map(|wbuf| {
+            self.transfers_in_progress.set(self.transfers_in_progress.get() + 1);
             self.dma_write.get().map(move |write| {
                 write.enable();
                 write.do_xfer(DMAPeripheral::SPI_TX, wbuf, count);
@@ -451,7 +450,7 @@ impl Spi {
         // Only setup the RX channel if we were passed a read_buffer inside
         // of the option. `map()` checks this for us.
         read_buffer.map(|rbuf| {
-            self.transfers_in_progress.set(2);
+            self.transfers_in_progress.set(self.transfers_in_progress.get() + 1);
             self.dma_read.get().map(move |read| {
                 read.enable();
                 read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
@@ -581,7 +580,6 @@ impl spi::SpiMaster for Spi {
 }
 
 impl spi::SpiSlave for Spi {
-
     // Set to None to disable the whole thing
     fn set_client(&self, client: Option<&'static SpiSlaveClient>) {
         self.slave_client.set(client);
@@ -595,7 +593,7 @@ impl spi::SpiSlave for Spi {
         self.init_as_role(SpiRole::SpiSlave);
     }
 
-    /// This sets the value in the TDR register, to be sent as soon as the 
+    /// This sets the value in the TDR register, to be sent as soon as the
     /// chip select pin is low.
     fn set_write_byte(&self, write_byte: u8) {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
@@ -620,10 +618,10 @@ impl spi::SpiSlave for Spi {
     }
 
     fn read_write_bytes(&self,
-                    write_buffer: Option<&'static mut [u8]>,
-                    read_buffer: Option<&'static mut [u8]>,
-                    len: usize)
-                    -> ReturnCode {
+                        write_buffer: Option<&'static mut [u8]>,
+                        read_buffer: Option<&'static mut [u8]>,
+                        len: usize)
+                        -> bool {
         self.read_write_bytes(write_buffer, read_buffer, len)
     }
 
@@ -675,13 +673,17 @@ impl DMAClient for Spi {
                 SpiRole::SpiMaster => {
                     self.client
                         .get()
-                        .map(|cb| { txbuf.map(|txbuf| { cb.read_write_done(txbuf, rxbuf, len); }); });
-                },
+                        .map(|cb| {
+                            txbuf.map(|txbuf| {
+                                cb.read_write_done(txbuf, rxbuf, len);
+                            });
+                        });
+                }
                 SpiRole::SpiSlave => {
                     self.slave_client
                         .get()
                         .map(|cb| { cb.read_write_done(txbuf, rxbuf, len); });
-                },
+                }
             }
         }
     }

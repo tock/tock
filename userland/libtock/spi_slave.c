@@ -1,6 +1,6 @@
 #include "spi.h"
 
-#define SPI_SLAVE 18
+#define SPI_SLAVE 19
 
 __attribute__((const)) int spi_slave_init(void) {return 0;}
 int spi_slave_set_chip_select(unsigned char cs) {return command(SPI_SLAVE, 3, cs);}

@@ -24,7 +24,7 @@ impl spi::SpiSlaveClient for SlaveCB {
                        read_buffer: Option<&'static mut [u8]>,
                        len: usize) {
         unsafe {
-            SPI_SLAVE.read_write_bytes(Some(&mut BUF1), None, 8);
+            SPI_SLAVE.read_write_bytes(Some(&mut BUF2), None, 8);
         }
     }
 
@@ -32,13 +32,11 @@ impl spi::SpiSlaveClient for SlaveCB {
     fn chip_selected(&self) {
         unsafe {
             // This should be 0 at the start of every transfer
-            /*
-            if COUNTER != 0 {
-                loop {
-                    SPI_SLAVE.set_write_byte(0xA5);
-                }
-            }
-            */
+            // if COUNTER != 0 {
+            //     loop {
+            //         SPI_SLAVE.set_write_byte(0xA5);
+            //     }
+            // }
 
             SPI_SLAVE.set_write_byte(0x05);
             // Send initial byte
@@ -49,6 +47,9 @@ impl spi::SpiSlaveClient for SlaveCB {
                 SPI_SLAVE.set_write_byte(BUF2[COUNTER]);
             }
             */
+
+
+
         }
     }
 }

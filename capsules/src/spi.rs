@@ -324,9 +324,7 @@ impl<'a, S: SpiSlaveDevice> SpiSlave<'a, S> {
                     kwbuf[i] = *c;
                 });
         });
-        self.spi_slave.read_write_bytes(self.kernel_write.take(),
-                                        self.kernel_read.take(),
-                                        len);
+        self.spi_slave.read_write_bytes(self.kernel_write.take(), self.kernel_read.take(), len);
     }
 }
 
@@ -386,7 +384,7 @@ impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
                 let appc = match self.app.take() {
                     None => SlaveApp {
                         callback: Some(callback),
-                        selected_callback: None, 
+                        selected_callback: None,
                         app_read: None,
                         app_write: None,
                         len: 0,
@@ -421,53 +419,53 @@ impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
             _ => ReturnCode::ENOSUPPORT
         }
     }
-    // 0: check if present
-    // 1: read/write a single byte (blocking)
-    //   - No longer supported
-    // 2: read/write buffers 
-    //   - read and write buffers optional
-    //   - fails if arg1 (bytes to write) >
-    //     write_buffer.len()
-    // 3: set chip select
-    //   - not supported in slave mode
-    // 4: get chip select
-    //   - returns current selected peripheral
-    //   - in slave mode, always returns 0
-    // 5: set rate on current peripheral
-    //   - not supported in slave mode
-    // 6: get rate on current peripheral
-    //   - not supported in slave mode
-    // 7: set clock phase on current peripheral
-    //   - 0 is sample leading
-    //   - non-zero is sample trailing
-    // 8: get clock phase on current peripheral
-    //   - 0 is sample leading
-    //   - non-zero is sample trailing
-    // 9: set clock polarity on current peripheral
-    //   - 0 is idle low
-    //   - non-zero is idle high
-    // 10: get clock polarity on current peripheral
-    //   - 0 is idle low
-    //   - non-zero is idle high
-    //
-    // 11: hold CS line low between transfers
-    //   - set CSAAT bit of control register
-    //   - not supported for slave 
-    // 12: release CS line (high) between transfers
-    //   - clear CSAAT bit of control register
-    //   - not supported for slave
-    //
-    // x: lock spi
-    //   - if you perform an operation without the lock,
-    //     it implicitly acquires the lock before the
-    //     operation and releases it after
-    //   - while an app holds the lock no other app can issue
-    //     operations on SPI (they are buffered)
-    //   - not implemented or currently supported
-    // x+1: unlock spi
-    //   - does nothing if lock not held
-    //   - not implemented or currently supported
-    //
+
+    /// 0: check if present
+    /// 1: read/write a single byte (blocking)
+    ///   - No longer supported
+    /// 2: read/write buffers
+    ///   - read and write buffers optional
+    ///   - fails if arg1 (bytes to write) >
+    ///     write_buffer.len()
+    /// 3: set chip select
+    ///   - not supported in slave mode
+    /// 4: get chip select
+    ///   - returns current selected peripheral
+    ///   - in slave mode, always returns 0
+    /// 5: set rate on current peripheral
+    ///   - not supported in slave mode
+    /// 6: get rate on current peripheral
+    ///   - not supported in slave mode
+    /// 7: set clock phase on current peripheral
+    ///   - 0 is sample leading
+    ///   - non-zero is sample trailing
+    /// 8: get clock phase on current peripheral
+    ///   - 0 is sample leading
+    ///   - non-zero is sample trailing
+    /// 9: set clock polarity on current peripheral
+    ///   - 0 is idle low
+    ///   - non-zero is idle high
+    /// 10: get clock polarity on current peripheral
+    ///   - 0 is idle low
+    ///   - non-zero is idle high
+    ///
+    /// 11: hold CS line low between transfers
+    ///   - set CSAAT bit of control register
+    ///   - not supported for slave
+    /// 12: release CS line (high) between transfers
+    ///   - clear CSAAT bit of control register
+    ///   - not supported for slave
+    ///
+    /// x: lock spi
+    ///   - if you perform an operation without the lock,
+    ///     it implicitly acquires the lock before the
+    ///     operation and releases it after
+    ///   - while an app holds the lock no other app can issue
+    ///     operations on SPI (they are buffered)
+    ///   - not implemented or currently supported
+    /// x+1: unlock spi
+    ///   - does nothing if lock not held
+    ///   - not implemented or currently supported
 
     fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
         match cmd_num {

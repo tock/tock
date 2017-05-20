@@ -188,7 +188,7 @@ pub trait SpiSlave {
     fn get_phase(&self) -> ClockPhase;
 }
 
-/// SPISlaveDevice provides a chip-specific interface to the SPI Slave 
+/// SPISlaveDevice provides a chip-specific interface to the SPI Slave
 /// hardware. The interface wraps the chip select line so that chip drivers
 /// cannot communicate with different SPI devices.
 pub trait SpiSlaveDevice {

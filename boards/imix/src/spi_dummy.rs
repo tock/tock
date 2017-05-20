@@ -16,7 +16,6 @@ pub static mut FLOP: bool = false;
 pub static mut BUF1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 pub static mut BUF2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
 pub static mut A5: [u8; 16] = [0xA5; 16];
-pub static mut BIG_BUFFER: [u8; 1000] = [1; 1000];
 
 impl spi::SpiMasterClient for DummyCB {
     #[allow(unused_variables,dead_code)]
@@ -25,14 +24,6 @@ impl spi::SpiMasterClient for DummyCB {
                        read: Option<&'static mut [u8]>,
                        len: usize) {
         unsafe {
-            // do useless computations
-            for _ in 0..3 {
-                for i in 0..BIG_BUFFER.len() {
-                    BIG_BUFFER[i] <<= 1;
-                    BIG_BUFFER[i] >>= 1;
-                }
-            }
-
             // do actual stuff
             sam4l::spi::SPI.read_write_bytes(&mut A5, None, A5.len());
 

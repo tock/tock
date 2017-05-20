@@ -2,6 +2,9 @@
 
 #include "led.h"
 #include "spi_slave.h"
+#include "gpio.h"
+
+#define GPIO_PIN 31
 
 #define BUF_SIZE 200
 char rbuf[BUF_SIZE];
@@ -28,8 +31,10 @@ static void selected_cb(__attribute__ ((unused)) int arg0,
               __attribute__ ((unused)) void* userdata) {
     if (toggle) {
       led_on(0);
+      gpio_clear(GPIO_PIN);
     } else {
       led_off(0);
+      gpio_set(GPIO_PIN);
     }
     toggle = !toggle;
 }
@@ -55,6 +60,8 @@ static void selected_cb(__attribute__ ((unused)) int arg0,
 // will be 0..n rather than all 0s.
 
 int main(void) {
+  gpio_enable_output(GPIO_PIN);
+
   int i;
   for (i = 0; i < 200; i++) {
     wbuf[i] = i;
@@ -81,9 +88,10 @@ int main(void) {
   }
 
   // If any of the calls succeeded, return -1 and
-  // select the led toggle
+  // set the LED and GPIO pin
   if (error == true) {
     led_on(0);
+    gpio_set(GPIO_PIN);
     return -1;
   }
 

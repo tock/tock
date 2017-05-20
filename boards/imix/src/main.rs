@@ -13,13 +13,13 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster, VirtualSpiSlaveDevice};
-use sam4l::spi::SpiRole;
 use kernel::Chip;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::mpu::MPU;
+use sam4l::spi::SpiRole;
 
 #[macro_use]
 pub mod io;
@@ -32,11 +32,13 @@ mod spi_dummy;
 #[allow(dead_code)]
 mod spi_slave_dummy;
 
-const SPI_ROLE : SpiRole = SpiRole::SpiMaster;
+const SPI_ROLE: SpiRole = SpiRole::SpiMaster;
 
 enum SpiType {
-    SpiMasterT(&'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>),
-    SpiSlaveT(&'static capsules::spi::SpiSlave<'static, VirtualSpiSlaveDevice<'static, sam4l::spi::Spi>>),
+    SpiMasterT(&'static capsules::spi::Spi<'static,
+                                           VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>),
+    SpiSlaveT(&'static capsules::spi::SpiSlave<'static,
+                                               VirtualSpiSlaveDevice<'static, sam4l::spi::Spi>>),
 }
 
 struct Imix {
@@ -55,8 +57,8 @@ struct Imix {
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     radio: Option<&'static capsules::radio::RadioDriver<'static,
-                                                 capsules::rf233::RF233<'static,
-                                                 VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>>,
+        capsules::rf233::RF233<'static,
+        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
 }
 
@@ -87,7 +89,14 @@ impl kernel::Platform for Imix {
             1 => f(Some(self.gpio)),
 
             3 => f(Some(self.timer)),
-            4 => f({ match self.spi { SpiType::SpiMasterT(i) => Some(i), _ => None}}),
+            4 => {
+                f({
+                    match self.spi {
+                        SpiType::SpiMasterT(i) => Some(i),
+                        _ => None,
+                    }
+                })
+            }
             6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
@@ -95,8 +104,15 @@ impl kernel::Platform for Imix {
             10 => f(Some(self.si7021)),
             11 => f(Some(self.ninedof)),
             16 => f(Some(self.crc)),
-            25 => f({ match self.spi { SpiType::SpiSlaveT(i) => Some(i), _ => None}}),
-            154 => f( self.radio.map( |radio| radio as &kernel::Driver ) ),
+            25 => {
+                f({
+                    match self.spi {
+                        SpiType::SpiSlaveT(i) => Some(i),
+                        _ => None,
+                    }
+                })
+            }
+            154 => f(self.radio.map(|radio| radio as &kernel::Driver)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -254,12 +270,13 @@ pub unsafe fn reset_handler() {
             mux_spi_master_opt = Some(mux_spi);
             kernel::hil::spi::SpiMaster::set_client(&mut sam4l::spi::SPI, mux_spi);
             kernel::hil::spi::SpiMaster::init(&mut sam4l::spi::SPI);
+            kernel::hil::spi::SpiMaster::specify_chip_select(&mut sam4l::spi::SPI, 0);
 
             // Create a virtualized client for SPI system call interface,
             // then the system call capsule
             let syscall_spi_device = static_init!(
                 VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
-                VirtualSpiMasterDevice::new(mux_spi, 3),
+                VirtualSpiMasterDevice::new(mux_spi, 0),
                 352/8);
 
             // Create the SPI system call capsule, passing the client
@@ -276,7 +293,7 @@ pub unsafe fn reset_handler() {
             syscall_spi_device.set_client(spi_syscalls);
 
             SpiType::SpiMasterT(spi_syscalls)
-        },
+        }
         SpiRole::SpiSlave => {
             // Create a virtualized client for SPI system call interface,
             // then the system call capsule
@@ -293,8 +310,15 @@ pub unsafe fn reset_handler() {
                 capsules::spi::SpiSlave::new(syscall_spi_device),
                 832/8);
 
+            // System call capsule requires static buffers so it can
+            // copy from application slices to DMA
+            static mut SPI_READ_BUF: [u8; 64] = [0; 64];
+            static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
+            spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
+            syscall_spi_device.set_client(spi_syscalls);
+
             SpiType::SpiSlaveT(spi_syscalls)
-        },
+        }
     };
 
     // Now enable the SPI
@@ -414,18 +438,17 @@ pub unsafe fn reset_handler() {
     // # RF233
 
     // RF233 is only possible if we are SpiMaster role
-    let rf233_opt : Option<&RF233<'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>
-        = mux_spi_master_opt.map(|mux_spi| {
+    let rf233_opt: Option<&RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>> =
+        mux_spi_master_opt.map(|mux_spi| {
 
-        // Create a second virtualized SPI client, for the RF233
-        let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
+            // Create a second virtualized SPI client, for the RF233
+            let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
                                      VirtualSpiMasterDevice::new(mux_spi, 3),
                                      352/8);
 
-        // Create the RF233 driver, passing its pins and SPI client
-        let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> =
-            static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+            // Create the RF233 driver, passing its pins and SPI client
+            let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> =
+                static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
                                  RF233::new(rf233_spi,
                                             &sam4l::gpio::PA[09],    // reset
                                             &sam4l::gpio::PA[10],    // sleep
@@ -433,12 +456,12 @@ pub unsafe fn reset_handler() {
                                             &sam4l::gpio::PA[08]),   // irq_ctl
                                             1056/8);
 
-        sam4l::gpio::PA[08].set_client(rf233);
+            sam4l::gpio::PA[08].set_client(rf233);
 
-        rf233_spi.set_client(rf233);
-        rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-        rf233
-    });
+            rf233_spi.set_client(rf233);
+            rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
+            rf233
+        });
 
     let radio_capsule_opt = rf233_opt.map(|rf233| {
         type RadioDriverSpi =
@@ -483,7 +506,7 @@ pub unsafe fn reset_handler() {
         rf233.config_set_address(0x1008);
         // rf233.config_commit();
 
-        rf233.start();
+        // rf233.start();
     });
 
     // match SPI_ROLE {
