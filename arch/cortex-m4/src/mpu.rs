@@ -100,6 +100,8 @@ impl MPU {
     }
 }
 
+type Region = kernel::mpu::Region;
+
 impl kernel::mpu::MPU for MPU {
     fn enable_mpu(&self) {
         let regs = unsafe { &*self.0 };
@@ -116,23 +118,55 @@ impl kernel::mpu::MPU for MPU {
         }
     }
 
-    fn set_mpu(&self,
-               region_num: u32,
-               start_addr: u32,
-               len: PowerOfTwo,
-               subregion_mask: u8,
-               execute: kernel::mpu::ExecutePermission,
-               access: kernel::mpu::AccessPermission) {
+    fn create_region(region_num: usize,
+                     start: usize,
+                     len: usize,
+                     execute: kernel::mpu::ExecutePermission,
+                     access: kernel::mpu::AccessPermission)
+                     -> Option<Region> {
+        if start % len != 0 {
+            // Text length not aligned to text start
+            let subregion_size = start % len;
+            let region_size = subregion_size * 8; // 8 subregions in a region
+            let region_start = start - (start % region_size);
+
+            if region_size + region_start - start < len {
+                return None;
+            }
+
+
+            let min_subregion = (start - region_start) / subregion_size;
+            let max_subregion = min_subregion + len / subregion_size - 1;
+
+            let region_len = PowerOfTwo::floor(region_size as u32);
+
+            let subregion_mask = (min_subregion..(max_subregion + 1))
+                .fold(!0, |res, i| res & !(1 << i)) & 0xff;
+            let xn = execute as u32;
+            let ap = access as u32;
+            Some(unsafe {
+                Region::new((region_start | 1 << 4 | (region_num & 0xf)) as u32,
+                            1 | subregion_mask << 8 | (region_len.exp::<u32>() - 1) << 1 |
+                            ap << 24 | xn << 28)
+            })
+
+        } else {
+            // Text length aligned to text start
+            let region_len = PowerOfTwo::floor(len as u32);
+            let xn = execute as u32;
+            let ap = access as u32;
+            Some(unsafe {
+                Region::new((start | 1 << 4 | (region_num & 0xf)) as u32,
+                            1 | (region_len.exp::<u32>() - 1) << 1 | ap << 24 | xn << 28)
+            })
+        }
+    }
+
+    fn set_mpu(&self, region: Region) {
         let regs = unsafe { &*self.0 };
 
-        let region_base_address = region_num | 1 << 4 | start_addr;
-        regs.region_base_address.set(region_base_address);
+        regs.region_base_address.set(region.base_address());
 
-        let xn = execute as u32;
-        let ap = access as u32;
-        let srd = subregion_mask as u32;
-        let size = len.exp::<u32>() - 1;
-        let region_attributes_and_size = 1 | size << 1 | srd << 8 | ap << 24 | xn << 28;
-        regs.region_attributes_and_size.set(region_attributes_and_size);
+        regs.region_attributes_and_size.set(region.attributes());
     }
 }
