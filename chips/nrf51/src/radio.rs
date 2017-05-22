@@ -379,6 +379,22 @@ impl Radio {
                         }
                         _ => self.set_channel(37),
                     }
+                    // Once a CRC error is received discard the message and return
+                    /*
+                    if regs.CRCSTATUS.get() == 0 {
+                        // Only for debugging purposes,
+                        debug!("crc status {:?}\n", regs.CRCSTATUS.get());
+                    } else {
+
+                        unsafe {
+                            self.client.get().map(|client| client.receive_done(&mut RX_BUF, &mut DMY, 12));
+                        }
+                    }
+                } else {
+                    // TODO: Implement something.
+                    unsafe {
+                        self.client.get().map(|client| client.transmit_done(&mut TX_BUF, &mut DMY, 16));
+                    }*/
                 }
                 _ => (),
             }
