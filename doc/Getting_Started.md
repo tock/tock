@@ -191,7 +191,7 @@ also has features that are generally useful to all Tock boards, such as easy to
 manage serial connections, and the ability to list, add, replace, and remove
 applications over JTAG (or USB if a bootloader is installed).
 
-1. [tockloader](https://github.com/helena-project/tockloader) (version 0.5.0)
+1. [tockloader](https://github.com/helena-project/tockloader) (version 0.6.0)
 
 Installing applications over JTAG, depending on your JTAG Debugger, you will
 need one of:
@@ -201,11 +201,11 @@ need one of:
 
 #### `tockloader`
 
-Tock requires `tockloader` version `0.5.0`. To install:
+Tock requires `tockloader` version `0.6.0`. To install:
 
 ```bash
-(Linux): sudo pip3 install tockloader==0.5.0
-(MacOS): pip3 install tockloader==0.5.0
+(Linux): sudo pip3 install tockloader==0.6.0
+(MacOS): pip3 install tockloader==0.6.0
 ```
 
 #### `openocd`

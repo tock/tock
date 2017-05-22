@@ -12,9 +12,9 @@ endif
 
 .PHONY: program
 program: $(BUILDDIR)/$(PACKAGE_NAME).tab
-	$(APP_TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) replace --add $<
+	$(APP_TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install $<
 
 # Upload programs over JTAG
 .PHONY: flash
 flash: $(BUILDDIR)/$(PACKAGE_NAME).tab
-	$(APP_TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) replace --add --jtag $<
+	$(APP_TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) install --jtag $<
