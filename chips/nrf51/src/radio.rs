@@ -121,7 +121,7 @@ impl Radio {
     // Remove later
     pub fn turn_on_leds(&self) {
         unsafe {
-            let led0 = &gpio::PORT[21];
+            let led0 = &gpio::PORT[24];
             led0.make_output();
             led0.toggle();
         }
@@ -317,7 +317,7 @@ impl Radio {
     // #[no_mangle]
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
-
+        self.disable_nvic();
         if regs.READY.get() == 1 {
             if regs.STATE.get() <= 4 {
                 self.set_rx_buffer();
@@ -338,30 +338,60 @@ impl Radio {
         }
 
         if regs.END.get() == 1 {
-            self.turn_on_leds();
             regs.END.set(0);
             regs.DISABLE.set(1);
-            if regs.STATE.get() <= 4 {
-                // Once a CRC error is received discard the message and return
-                if regs.CRCSTATUS.get() == 0 {
-                    // Only for debugging purposes,
-                    debug!("crc status {:?}\n", regs.CRCSTATUS.get());
-                } else {
-                    
+
+            //debug!("{:?}\r\n",regs.FREQEUNCY.get());
+            //debug!("{:?}\r\n",regs.FREQEUNCY.get());
+            //debug!("u\r\n");
+
+            if regs.FREQEUNCY.get() == 80 {
+
+                if regs.STATE.get() <= 12 {
+                    //self.turn_on_leds();
+                    //debug!("state {}", regs.STATE.get());
+                    //debug!("crc status {:?}\n", regs.CRCSTATUS.get());
                     unsafe {
-                        self.client.get().map(|client| client.receive_done(&mut RX_BUF, &mut DMY, 12));
+                        self.client.get().map(|client| client.transmit_done(&mut TX_BUF, &mut DMY, 16));
                     }
+                    // Once a CRC error is received discard the message and return
+                    /*
+                    if regs.CRCSTATUS.get() == 0 {
+                        // Only for debugging purposes,
+                        debug!("crc status {:?}\n", regs.CRCSTATUS.get());
+                    } else {
+
+                        unsafe {
+                            self.client.get().map(|client| client.receive_done(&mut RX_BUF, &mut DMY, 12));
+                        }
+                    }
+                } else {
+                    // TODO: Implement something.
+                    unsafe {
+                        self.client.get().map(|client| client.transmit_done(&mut TX_BUF, &mut DMY, 16));
+                    }*/
                 }
-            } else {
-                // TODO: Implement something.
-                unsafe {
-                    self.client.get().map(|client| client.transmit_done(&mut TX_BUF, &mut DMY, 16));
-                }
+                nvic::clear_pending(NvicIdx::RADIO);
+            }
+            else if regs.FREQEUNCY.get() == 20 {
+                self.set_channel(39);
+                //regs.FREQEUNCY.set(80);
+                nvic::clear_pending(NvicIdx::RADIO);
+                self.client.get().map(|client| client.continue_adv());
+
+            }
+            else if regs.FREQEUNCY.get() == 2 {
+                self.set_channel(38);
+                //regs.FREQEUNCY.set(20);
+                nvic::clear_pending(NvicIdx::RADIO);
+                self.client.get().map(|client| client.continue_adv());
+
+
             }
 
 
         }
-        nvic::clear_pending(NvicIdx::RADIO);
+        self.enable_nvic();
     }
 
 
@@ -395,6 +425,9 @@ impl RadioDriver for Radio {
     }
     // This Function is called once a radio packet is to be sent
     fn send(&self) {
+        let regs = unsafe { &*self.regs };
+        regs.READY.set(0);
+        regs.TXEN.set(1);
         /*unsafe {
             self.tx(0, &mut TX_BUF, 0);
         }*/
@@ -413,6 +446,7 @@ impl RadioDriver for Radio {
                 data: &'static mut [u8],
                 data_len: usize)
                 -> ReturnCode {
+        //self.turn_on_leds();
         self.tx(local_name, name_len, data, data_len);
         ReturnCode::SUCCESS
     }

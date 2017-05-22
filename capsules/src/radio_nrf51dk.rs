@@ -103,6 +103,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                                     *out = *inp;
                                 }
                                 if len + len2 < 17 {
+                                    //debug!("sending buffer\r\n");
                                     self.radio.transmit(buf, len, buf2, len2);
                                 } else {
                                     // TODO: return error
@@ -126,16 +127,25 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
     }
 
     pub fn configure_periodic_alarm(&self) {
-        let mut interval = 3545 as u32;
-        if self.frequency.get() == 39 {
-            //interval = 41000 as u32;
-            self.frequency.set(37);
-        } else {
-            self.frequency.set(self.frequency.get() + 1);
-        }
-        self.radio.set_channel(self.frequency.get());
+        let mut interval = 5017 as u32;
+        self.radio.set_channel(37);
         let tics = self.alarm.now().wrapping_add(interval);
         self.alarm.set_alarm(tics);
+        /*
+        let mut interval = 1000 as u32;
+        if self.frequency.get() == 39 {
+            interval = 3545 as u32;
+            self.radio.set_channel(self.frequency.get());
+            let tics = self.alarm.now().wrapping_add(interval);
+            self.alarm.set_alarm(tics);
+            self.frequency.set(37);
+        } else {
+            self.radio.set_channel(self.frequency.get());
+            let tics = self.alarm.now().wrapping_add(interval);
+            self.alarm.set_alarm(tics);
+            self.frequency.set(self.frequency.get() + 1);
+        }
+        */
     }
 }
 
@@ -144,8 +154,11 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Ra
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
         if self.advertise.get() == true {
-            self.configure_periodic_alarm();
+            //debug!("fired\r\n");
             self.send_userland_buffer();
+        }
+        else {
+            self.radio.send();
         }
     }
 }
@@ -175,17 +188,30 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, 
         ReturnCode::SUCCESS
     }
 
+    fn continue_adv(&self){
+        //debug!("Sending adv\r\n");
+        self.advertise.set(false);
+        let mut interval = 2 as u32;
+        //self.radio.set_channel(37);
+        let tics = self.alarm.now().wrapping_add(interval);
+        self.alarm.set_alarm(tics);
+        //self.radio.send();
+    }
+
     fn transmit_done(&self,
                      tx_data: &'static mut [u8],
                      dmy: &'static mut [u8],
                      len: u8)
                      -> ReturnCode {
         // only notify userland
+        //debug!("transmit done \r\n");
         for cntr in self.app.iter() {
             cntr.enter(|app, _| { app.tx_callback.map(|mut cb| { cb.schedule(13, 0, 0); }); });
         }
         self.kernel_tx.replace(tx_data);
         self.kernel_tx_data.replace(dmy);
+        self.advertise.set(true);
+        self.configure_periodic_alarm();
         ReturnCode::SUCCESS
     }
 }
@@ -212,7 +238,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                     self.busy.set(true);
                     self.advertise.set(true);
                     self.configure_periodic_alarm();
-                    self.send_userland_buffer();
+                    //self.send_userland_buffer();
                     ReturnCode::SUCCESS
                 } else {
                     ReturnCode::FAIL
