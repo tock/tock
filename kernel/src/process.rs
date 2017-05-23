@@ -387,6 +387,10 @@ impl<'a> Process<'a> {
 
         // Setup IPC MPU regions
         for (i, region) in self.mpu_regions.iter().enumerate() {
+            if region.get().0 == ptr::null() {
+                mpu.set_mpu(mpu::Region::empty());
+                continue;
+            }
             match MPU::create_region(i + 3,
                                      region.get().0 as usize,
                                      region.get().1.as_num::<u32>() as usize,
