@@ -392,7 +392,11 @@ impl<'a> Process<'a> {
                                      region.get().1.as_num::<u32>() as usize,
                                      mpu::ExecutePermission::ExecutionPermitted,
                                      mpu::AccessPermission::ReadWrite) {
-                None => {},
+                None =>
+                    panic!("Unexpected: Infeasible MPU allocation: Num: {}, \
+                           Base: {:#x}, Length: {:#x}", i + 3,
+                               region.get().0 as usize,
+                               region.get().1.as_num::<u32>()),
                 Some(region) => mpu.set_mpu(region)
             }
         }

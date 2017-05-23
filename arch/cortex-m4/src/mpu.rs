@@ -208,7 +208,6 @@ impl kernel::mpu::MPU for MPU {
 
             let xn = execute as u32;
             let ap = access as u32;
-            let size = region_len.exp::<u32>() - 1;
             Some(unsafe {
                 Region::new((region_start | 1 << 4 | (region_num & 0xf)) as u32,
                             1 | subregion_mask << 8 | (region_len.exp::<u32>() - 1) << 1 |
