@@ -124,6 +124,10 @@ impl kernel::mpu::MPU for MPU {
                      execute: kernel::mpu::ExecutePermission,
                      access: kernel::mpu::AccessPermission)
                      -> Option<Region> {
+        if region_num >= 8 {
+            // There are only 8 (0-indexed) regions available
+            return None;
+        }
         if start % len != 0 {
             // Text length not aligned to text start
             let subregion_size = start % len;
@@ -139,11 +143,19 @@ impl kernel::mpu::MPU for MPU {
             let max_subregion = min_subregion + len / subregion_size - 1;
 
             let region_len = PowerOfTwo::floor(region_size as u32);
+            if region_len.exp::<u32>() < 7 {
+                // Subregions only supported for regions sizes 128 bytes and up.
+                return None;
+            } else if region_len.exp::<u32>() > 32 {
+                // Region sizes must be 4GB or smaller
+                return None;
+            }
 
             let subregion_mask = (min_subregion..(max_subregion + 1))
                 .fold(!0, |res, i| res & !(1 << i)) & 0xff;
             let xn = execute as u32;
             let ap = access as u32;
+            let size = region_len.exp::<u32>() - 1;
             Some(unsafe {
                 Region::new((region_start | 1 << 4 | (region_num & 0xf)) as u32,
                             1 | subregion_mask << 8 | (region_len.exp::<u32>() - 1) << 1 |
@@ -153,6 +165,14 @@ impl kernel::mpu::MPU for MPU {
         } else {
             // Text length aligned to text start
             let region_len = PowerOfTwo::floor(len as u32);
+            if region_len.exp::<u32>() < 5 {
+                // Region sizes must be 32 Bytes or larger
+                return None;
+            } else if region_len.exp::<u32>() > 32 {
+                // Region sizes must be 4GB or smaller
+                return None;
+            }
+
             let xn = execute as u32;
             let ap = access as u32;
             Some(unsafe {
