@@ -340,95 +340,67 @@ impl<'a> Process<'a> {
         // Text segment read/execute (no write)
         let text_start = self.text.as_ptr() as usize;
         let text_len = self.text.len();
-        if text_len.count_ones() != 1 {
-            panic!("Tock MPU does not currently handle complex region sizes");
-        }
 
-        // Invariant: text_len is a power of two
-        if text_start % text_len != 0 {
-            // Text length not aligned to text start
-            let subregion_size = text_start % text_len;
-            let region_size = subregion_size * 8; // 8 subregions in a region
-            let region_start = text_start - (text_start % region_size);
-
-            if region_size + region_start - text_start < text_len {
+        match MPU::create_region(0, text_start, text_len,
+                        mpu::ExecutePermission::ExecutionPermitted,
+                        mpu::AccessPermission::ReadOnly) {
+            None =>
                 panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
-                       text_start, text_len);
-            }
-
-
-            let min_subregion = (text_start - region_start) / subregion_size;
-            let max_subregion = min_subregion + text_len / subregion_size - 1;
-
-            let region_len = math::PowerOfTwo::floor(region_size as u32);
-
-            let subregion_mask = (min_subregion..(max_subregion + 1))
-                                    .fold(!0, |res, i| res & !(1 << i));
-
-            mpu.set_mpu(0,
-                        region_start as u32,
-                        region_len,
-                        subregion_mask,
-                        mpu::ExecutePermission::ExecutionPermitted,
-                        mpu::AccessPermission::ReadOnly);
-        } else {
-            // Text length aligned to text start
-            let region_len = math::PowerOfTwo::floor(text_len as u32);
-            mpu.set_mpu(0,
-                        text_start as u32,
-                        region_len,
-                        0,
-                        mpu::ExecutePermission::ExecutionPermitted,
-                        mpu::AccessPermission::ReadOnly);
+                           text_start, text_len),
+            Some(region) => mpu.set_mpu(region),
         }
 
         let data_start = self.memory.as_ptr() as usize;
         let data_len = self.memory.len();
-        if data_len.count_ones() != 1 {
-            panic!("Tock MPU does not currently handle complex region sizes");
+
+        match MPU::create_region(1, data_start, data_len,
+                        mpu::ExecutePermission::ExecutionPermitted,
+                        mpu::AccessPermission::ReadWrite) {
+            None =>
+                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                           data_start, data_len),
+            Some(region) => mpu.set_mpu(region)
         }
-        let data_region_len = math::PowerOfTwo::floor(data_len as u32);
-
-
-        // Data segment read/write/execute
-        mpu.set_mpu(1,
-                    data_start as u32,
-                    data_region_len,
-                    0,
-                    mpu::ExecutePermission::ExecutionPermitted,
-                    mpu::AccessPermission::ReadWrite);
 
         // Disallow access to grant region
-        let grant_size = unsafe {
+        let grant_len = unsafe {
             math::PowerOfTwo::ceiling(
                 self.memory.as_ptr().offset(self.memory.len() as isize) as u32 -
                     (self.kernel_memory_break as u32)
-            )
+            ).as_num::<u32>()
         };
         let grant_base = unsafe {
             self.memory
                 .as_ptr()
                 .offset(self.memory.len() as isize)
-                .offset(-(grant_size.as_num::<u32>() as isize))
+                .offset(-(grant_len as isize))
         };
-        mpu.set_mpu(2,
-                    grant_base as u32,
-                    grant_size,
-                    0,
-                    mpu::ExecutePermission::ExecutionNotPermitted,
-                    mpu::AccessPermission::PrivilegedOnly);
+
+        match MPU::create_region(2, grant_base as usize, grant_len as usize,
+                                 mpu::ExecutePermission::ExecutionNotPermitted,
+                                 mpu::AccessPermission::PrivilegedOnly) {
+            None =>
+                panic!("Infeasible MPU allocation. Base {:#x}, Length: {:#x}",
+                           grant_base as usize, grant_len),
+            Some(region) => mpu.set_mpu(region)
+        }
 
         // Setup IPC MPU regions
         for (i, region) in self.mpu_regions.iter().enumerate() {
-            mpu.set_mpu((i + 3) as u32,
-                        region.get().0 as u32,
-                        region.get().1,
-                        0,
-                        mpu::ExecutePermission::ExecutionPermitted,
-                        mpu::AccessPermission::ReadWrite);
+            match MPU::create_region(i + 3,
+                                     region.get().0 as usize,
+                                     region.get().1.as_num::<u32>() as usize,
+                                     mpu::ExecutePermission::ExecutionPermitted,
+                                     mpu::AccessPermission::ReadWrite) {
+                None =>
+                    panic!("Unexpected: Infeasible MPU allocation: Num: {}, \
+                           Base: {:#x}, Length: {:#x}", i + 3,
+                               region.get().0 as usize,
+                               region.get().1.as_num::<u32>()),
+                Some(region) => mpu.set_mpu(region)
+            }
         }
     }
-
 
     pub fn add_mpu_region(&self, base: *const u8, size: u32) -> bool {
         if size >= 16 && size.count_ones() == 1 && (base as u32) % size == 0 {

@@ -22,6 +22,10 @@ pub struct MpuType {
 }
 
 #[repr(C,packed)]
+/// MPU Registers for the Cortex-M4 family
+///
+/// Described in section 4.5 of
+/// <http://infocenter.arm.com/help/topic/com.arm.doc.dui0553a/DUI0553A_cortex_m4_dgug.pdf>
 pub struct Registers {
     pub mpu_type: VolatileCell<MpuType>,
 
@@ -100,6 +104,8 @@ impl MPU {
     }
 }
 
+type Region = kernel::mpu::Region;
+
 impl kernel::mpu::MPU for MPU {
     fn enable_mpu(&self) {
         let regs = unsafe { &*self.0 };
@@ -116,23 +122,105 @@ impl kernel::mpu::MPU for MPU {
         }
     }
 
-    fn set_mpu(&self,
-               region_num: u32,
-               start_addr: u32,
-               len: PowerOfTwo,
-               subregion_mask: u8,
-               execute: kernel::mpu::ExecutePermission,
-               access: kernel::mpu::AccessPermission) {
+    fn create_region(region_num: usize,
+                     start: usize,
+                     len: usize,
+                     execute: kernel::mpu::ExecutePermission,
+                     access: kernel::mpu::AccessPermission)
+                     -> Option<Region> {
+        if region_num >= 8 {
+            // There are only 8 (0-indexed) regions available
+            return None;
+        }
+
+        // There are two possibilities we support:
+        //
+        // 1. The base address is aligned exactly to the size of the region,
+        //    which uses an MPU region with the exact base address and size of
+        //    the memory region.
+        //
+        // 2. Otherwise, we can use a larger MPU region and expose only MPU
+        //    subregions, as long as the memory region's base address is aligned
+        //    to 1/8th of a larger region size.
+
+        if start % len == 0 {
+            // Memory base aligned to memory size - straight forward case
+            let region_len = PowerOfTwo::floor(len as u32);
+            if region_len.exp::<u32>() < 5 {
+                // Region sizes must be 32 Bytes or larger
+                return None;
+            } else if region_len.exp::<u32>() > 32 {
+                // Region sizes must be 4GB or smaller
+                return None;
+            }
+
+            let xn = execute as u32;
+            let ap = access as u32;
+            Some(unsafe {
+                Region::new((start | 1 << 4 | (region_num & 0xf)) as u32,
+                            1 | (region_len.exp::<u32>() - 1) << 1 | ap << 24 | xn << 28)
+            })
+        } else {
+            // Memory base not aligned to memory size
+
+            // Which subregion size would align with the base address?
+            let subregion_size = start % len;
+            // Once we have a subregion size, we get a region size by
+            // multiplying it by the number of subregions per region.
+            let region_size = subregion_size * 8;
+            // Finally, we calculate the region base by finding the nearest
+            // address below `start` that aligns with the region size.
+            let region_start = start - (start % region_size);
+
+            if region_size + region_start - start < len {
+                // Sanity check that the amount left over space in the region
+                // after `start` is at least as large as the memory region we
+                // want to reference.
+                return None;
+            }
+
+
+            // The index of the first subregion to activate is the number of
+            // regions between `region_start` (MPU) and `start` (memory).
+            let min_subregion = (start - region_start) / subregion_size;
+            // The index of the last subregion to activate is the number of
+            // regions that fit in `len`, plus the `min_subregion`, minus one
+            // (because subregions are zero-indexed).
+            let max_subregion = min_subregion + len / subregion_size - 1;
+
+            let region_len = PowerOfTwo::floor(region_size as u32);
+            if region_len.exp::<u32>() < 7 {
+                // Subregions only supported for regions sizes 128 bytes and up.
+                return None;
+            } else if region_len.exp::<u32>() > 32 {
+                // Region sizes must be 4GB or smaller
+                return None;
+            }
+
+            // Turn the min/max subregion into a bitfield where all bits are `1`
+            // except for the bits whose index lie within
+            // [min_subregion, max_subregion]
+            //
+            // Note: Rust ranges are minimum inclusive, maximum exclusive, hence
+            // max_subregion + 1.
+            let subregion_mask = (min_subregion..(max_subregion + 1))
+                .fold(!0, |res, i| res & !(1 << i)) & 0xff;
+
+            let xn = execute as u32;
+            let ap = access as u32;
+            Some(unsafe {
+                Region::new((region_start | 1 << 4 | (region_num & 0xf)) as u32,
+                            1 | subregion_mask << 8 | (region_len.exp::<u32>() - 1) << 1 |
+                            ap << 24 | xn << 28)
+            })
+        }
+    }
+
+    fn set_mpu(&self, region: Region) {
         let regs = unsafe { &*self.0 };
 
-        let region_base_address = region_num | 1 << 4 | start_addr;
-        regs.region_base_address.set(region_base_address);
+        regs.region_base_address.set(region.base_address());
 
-        let xn = execute as u32;
-        let ap = access as u32;
-        let srd = subregion_mask as u32;
-        let size = len.exp::<u32>() - 1;
-        let region_attributes_and_size = 1 | size << 1 | srd << 8 | ap << 24 | xn << 28;
-        regs.region_attributes_and_size.set(region_attributes_and_size);
+        regs.region_attributes_and_size.set(region.attributes());
     }
 }
