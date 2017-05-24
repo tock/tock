@@ -83,7 +83,11 @@ static void read_periodic (void) {
 int main(void) {
   putstr("Welcome to Tock in C (with libc)\nReading temperature...\n");
 
-  // uncomment whichever example you want
-  read_sync();
-  //read_periodic();
+  // Set mode to whichever example you want
+  uint8_t mode = 0;
+
+  switch (mode) {
+    case 0: read_sync(); break;
+    case 1: read_periodic(); break;
+  }
 }

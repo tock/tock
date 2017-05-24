@@ -21,13 +21,13 @@ static void timer_fired(__attribute__ ((unused)) int arg0,
                  __attribute__ ((unused)) int arg1,
                  __attribute__ ((unused)) int arg2,
                  __attribute__ ((unused)) void* ud) {
-  int light;
-  int16_t tmp006_temp;
-  int tsl2561_lux;
-  int lps25hb_pressure;
-  int si7021_temp;
-  unsigned si7021_humi;
-  int ninedof_x, ninedof_y, ninedof_z;
+  int light = 0;
+  int16_t tmp006_temp = 0;
+  int tsl2561_lux = 0;
+  int lps25hb_pressure = 0;
+  int si7021_temp = 0;
+  unsigned si7021_humi = 0;
+  int ninedof_x = 0, ninedof_y = 0, ninedof_z = 0;
 
   if (isl29035)   light = isl29035_read_light_intensity();
   if (tmp006)     tmp006_read_sync(&tmp006_temp);

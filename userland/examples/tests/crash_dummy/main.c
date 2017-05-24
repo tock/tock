@@ -4,11 +4,11 @@
 
 volatile int* nullptr = 0;
 
-static void button_callback(int btn_num,
-                            int val,
+static void button_callback(__attribute__ ((unused)) int btn_num,
+                            __attribute__ ((unused)) int val,
                             __attribute__ ((unused)) int arg2,
                             __attribute__ ((unused)) void *ud) {
-  volatile int k = *nullptr;
+  __attribute__ ((unused)) volatile int k = *nullptr;
 }
 
 int main(void) {
