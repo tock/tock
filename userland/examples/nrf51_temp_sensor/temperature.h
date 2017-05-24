@@ -9,7 +9,7 @@ extern "C" {
 #define DRIVER_TEMP 36
 
 int temperature_init(subscribe_cb callback, void *ud);
-int temperature_measure();
+int temperature_measure(void);
 
 #ifdef __cplusplus
 }

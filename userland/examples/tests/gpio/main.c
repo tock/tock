@@ -85,10 +85,14 @@ int main(void) {
   putstr("*********************\n");
   putstr("GPIO Test Application\n");
 
-  // uncomment whichever example you want
-  // gpio_output();
-  // gpio_input();
-  gpio_interrupt();
+  // Set mode to which test you want
+  uint8_t mode = 0;
+
+  switch (mode) {
+    case 0: gpio_interrupt(); break;
+    case 1: gpio_output(); break;
+    case 2: gpio_input(); break;
+  }
 
   return 0;
 }
