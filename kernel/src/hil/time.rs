@@ -1,6 +1,8 @@
 //! Hardware agnostic interfaces for counter-like resources
 
 pub trait Time {
+    type Frequency: Frequency;
+
     fn disable(&self);
 
     fn is_armed(&self) -> bool;
@@ -49,8 +51,6 @@ impl Frequency for Freq1KHz {
 /// [`Client`](trait.Client.html) trait to signal when the counter has
 /// reached a pre-specified value set in [`set_alarm`](#tymethod.set_alarm).
 pub trait Alarm: Time {
-    type Frequency: Frequency;
-
     /// Returns the current time in hardware clock units.
     fn now(&self) -> u32;
 

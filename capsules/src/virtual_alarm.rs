@@ -39,6 +39,8 @@ impl<'a, Alrm: Alarm> VirtualMuxAlarm<'a, Alrm> {
 }
 
 impl<'a, Alrm: Alarm> Time for VirtualMuxAlarm<'a, Alrm> {
+    type Frequency = Alrm::Frequency;
+
     fn disable(&self) {
         if !self.armed.get() {
             return;
@@ -62,8 +64,6 @@ impl<'a, Alrm: Alarm> Time for VirtualMuxAlarm<'a, Alrm> {
 }
 
 impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
-    type Frequency = Alrm::Frequency;
-
     fn now(&self) -> u32 {
         self.mux.alarm.now()
     }
