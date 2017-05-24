@@ -167,35 +167,103 @@ relocations pointing at RAM.
 Each Tock application begins with a header that is today defined as:
 
 ```rust
-struct LoadInfo {
-    version: u32,            // Version of the Tock Binary Format (currently 1)
-    total_size: u32,         // Total padded size of the program image in bytes
-    entry_offset: u32,       // The function to call to start the application
-    rel_data_offset: u32,    // Offset in memory to start of relocation data
-    rel_data_size: u32,      // Length of relocation data segment in bytes
-    text_offset: u32,        // Offset in memory to start of text segment
-    text_size: u32,          // Length of text segment in bytes
-    got_offset: u32,         // Offset in memory to start of GOT
-    got_size: u32,           // Length of GOT segment in bytes
-    data_offset: u32,        // Offset in memory to start of data
-    data_size: u32,          // Length of data segment in bytes
-    bss_mem_offset: u32,     // Offset in memory to start of BSS
-    bss_size: u32,           // Length of BSS segment in bytes
-    min_stack_len: u32,      // Minimum stack size
-    min_app_heap_len: u32    // Minimum size for the application heap
-    min_kernel_heap_len: u32 // Minimum size for kernel's borrow heap
-    pkg_name_offset: u32,    // Offset in memory to a string with package name
-    pkg_name_size: u32,      // Length of package name in bytes
-    checksum: u32,           // XOR of all previous fields
+struct TbfHeader {
+    version: u16,            // Version of the Tock Binary Format (currently 2)
+    header_size: u16,        // Number of bytes in the complete TBF header
+    total_size: u32,         // Total padded size of the program image in bytes, including header
+    flags: u32,              // Various flags associated with the application
+    checksum: u32,           // XOR of all 4 byte words in the header, including existing optional structs
+
+    // Optional structs.
+    main: Option<TbfHeaderMain>,
+    pic_options: Option<TbfHeaderPicOption1Fields>,
+    name: Option<TbfHeaderPackageName>,
+    flash_regions: Option<TbfHeaderWriteableFlashRegions>,
+}
+
+// Identifiers for the optional header structs.
+enum TbfHeaderTypes {
+    TbfHeaderMain = 1,
+    TbfHeaderWriteableFlashRegions = 2,
+    TbfHeaderPackageName = 3,
+    TbfHeaderPicOption1 = 4,
+}
+
+// Type-length-value header to identify each struct.
+struct TbfHeaderTlv {
+    tipe: TbfHeaderTypes,    // 16 byte specifier of which struct follows
+    length: u16,             // Number of bytes of the following struct
+}
+
+// Main settings required for all apps. If this does not exist, the "app" is
+// considered padding and used to insert an empty linked-list element into the
+// app flash space.
+struct TbfHeaderMain {
+    base: TbfHeaderTlv,
+    init_fn_offset: u32,     // The function to call to start the application
+    protected_size: u32,     // The number of bytes the application cannot write
+    minimum_ram_size: u32,   // How much RAM the application is requesting
+}
+
+// Specifications for instructing the kernel to do PIC fixups for the application.
+struct TbfHeaderPicOption1Fields {
+    base: TbfHeaderTlv,
+    text_offset: u32,            // Offset in memory to start of text segment
+    data_offset: u32,            // Offset in memory to start of data
+    data_size: u32,              // Length of data segment in bytes
+    bss_memory_offset: u32,      // Offset in memory to start of BSS
+    bss_size: u32,               // Length of BSS segment in bytes
+    relocation_data_offset: u32, // Offset in memory to start of relocation data
+    relocation_data_size: u32,   // Length of relocation data segment in bytes
+    got_offset: u32,             // Offset in memory to start of GOT
+    got_size: u32,               // Length of GOT segment in bytes
+    minimum_stack_length: u32,   // Minimum stack size
+}
+
+// Optional package name for the app.
+struct TbfHeaderPackageName {
+    base: TbfHeaderTlv,
+    package_name: [u8],      // UTF-8 string of the application name
+}
+
+// A defined flash region inside of the app's flash space.
+struct TbfHeaderWriteableFlashRegion {
+    writeable_flash_region_offset: u32,
+    writeable_flash_region_size: u32,
+}
+
+// One or more specially identified flash regions the app intends to write.
+struct TbfHeaderWriteableFlashRegions {
+    base: TbfHeaderTlv,
+    writeable_flash_regions: [TbfHeaderWriteableFlashRegion],
 }
 ```
+
+Flags:
+
+```
+   3                   2                   1                   0
+ 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+| Reserved                                                  |S|E|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+- `E`: Enabled/disabled bit. When set to `1` the application will be started
+on boot. When `0` the kernel will not start the application. Defaults to `1`
+when set by `elf2tbf`.
+- 'S': Sticky bit. When set to `1`, Tockloader will not remove the app without
+a `--force` flag. This allows for "system" apps that can be added for debugging
+purposes and are not removed during normal testing/application development.
+The sticky bit also enables "library" applications (e.g. a radio stack) to
+be persistent even when other apps are being developed.
 
 In practice, this is automatically handled for applications. As part of the
 compilation process, a tool called
 [Elf to Tock Binary Format](https://github.com/helena-project/tock/tree/master/userland/tools/elf2tbf)
 does the conversion from ELF to Tock's expected binary format, ensuring that
 sections are placed in the expected order, adding a section that lists
-necessary load-time relocations, and creating the `LoadInfo` header.
+necessary load-time relocations, and creating the TBF header.
 
 
 ### Tock Application Bundle
