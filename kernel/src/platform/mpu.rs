@@ -1,3 +1,5 @@
+use core::fmt::Write;
+
 #[derive(Debug)]
 pub enum AccessPermission {
     //                                 Privileged  Unprivileged
@@ -19,8 +21,9 @@ pub enum ExecutePermission {
 }
 
 pub struct Region {
-    base_address: u32,
-    attributes: u32,
+    // HACK: Make these pub
+    pub base_address: u32,
+    pub attributes: u32,
 }
 
 impl Region {
@@ -68,6 +71,9 @@ pub trait MPU {
                      access: AccessPermission)
                      -> Option<Region>;
 
+    /// Debugging tool that `write`s a human-friendly intepretation of a region
+    fn debug_region<W: Write>(writer: &mut W, region: Region);
+
     /// Sets the base address, size and access attributes of the given MPU
     /// region number.
     fn set_mpu(&self, region: Region);
@@ -84,6 +90,10 @@ impl MPU for () {
                      _: AccessPermission)
                      -> Option<Region> {
         Some(Region::empty())
+    }
+
+    fn debug_region<W: Write>(writer: &mut W, _: Region) {
+        let _ = writer.write_fmt(format_args!("No MPU. Unused Region.\r\n"));
     }
 
     fn set_mpu(&self, _: Region) {}

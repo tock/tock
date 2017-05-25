@@ -2,6 +2,8 @@ use kernel;
 use kernel::common::math::PowerOfTwo;
 use kernel::common::volatile_cell::VolatileCell;
 
+use core::fmt::Write;
+
 /// Indicates whether the MPU is present and, if so, how many regions it
 /// supports.
 #[repr(C,packed)]
@@ -216,9 +218,29 @@ impl kernel::mpu::MPU for MPU {
         }
     }
 
+    fn debug_region<W: Write>(_: &mut W, _: Region) {
+        /*
+        let enable = region.attributes & 0x1;
+        let size = (region.attributes >> 1) & 0x1f;  // size is 2^(size+1)
+        let subregion_disable_bits = (region.attributes >> 8) & 0xff; // 1->disabled
+        let B = (region.attributes >> 16) & 0x1;
+        let C = (region.attributes >> 17) & 0x1;
+        let S = (region.attributes >> 18) & 0x1; // shareable?
+        let tex = (region.attributes >> 19) & 0x7;
+        let ap = (region.attributes >> 24) & 0x7;
+        let xn = (region.attributes >> 28) & 0x1; // executable?
+
+        // N = Log2(Region size in bytes) = "size" + 1
+        let N = size + 1;
+        let region_number = region.base_address & 0xf;
+        let region_start = region.base_address & !((1<<N) - 1) // bits [31:N]
+        */
+    }
+
     fn set_mpu(&self, region: Region) {
         let regs = unsafe { &*self.0 };
 
+        debug!("{:#010x} {:#010x}", region.base_address(), region.attributes());
         regs.region_base_address.set(region.base_address());
 
         regs.region_attributes_and_size.set(region.attributes());
