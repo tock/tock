@@ -521,18 +521,6 @@ impl hil::gpio::Pin for GPIOPin {
     }
 }
 
-macro_rules! gpio_handler {
-    ($num: ident) => {
-        interrupt_handler!(concat_idents!(GPIO_, $num, _Handler), {
-            use kernel::common::Queue;
-
-            let nvic = concat_idents!(nvic::NvicIdx::GPIO, $num);
-            nvic::disable(nvic);
-            chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic);
-        })
-    }
-}
-
 interrupt_handler!(gpio0_handler, GPIO0);
 interrupt_handler!(gpio1_handler, GPIO1);
 interrupt_handler!(gpio2_handler, GPIO2);
