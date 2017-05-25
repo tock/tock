@@ -84,7 +84,7 @@ impl Callback {
                                   r1: r1,
                                   r2: r2,
                                   r3: self.appdata,
-                                  pc: *fn_ptr as usize,
+                                  pc: fn_ptr.get() as usize,
                               },
                               self.app_id)
         }

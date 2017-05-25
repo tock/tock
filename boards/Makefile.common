@@ -3,9 +3,13 @@
 MAKEFLAGS += -r
 MAKEFLAGS += -R
 
-export RUSTUP_TOOLCHAIN ?= nightly-2017-01-25
+export RUSTUP_TOOLCHAIN ?= nightly-2017-05-24
 
 TOOLCHAIN ?= arm-none-eabi
+
+XARGO ?= xargo
+# This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually
+RUSTFLAGS_FOR_XARGO_LINKING := "-C link-arg=-nostartfiles -C link-arg=-Tlayout.ld"
 
 SIZE      ?= $(TOOLCHAIN)-size
 OBJCOPY   ?= $(TOOLCHAIN)-objcopy
@@ -14,14 +18,6 @@ OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -
 
 ifndef PLATFORM
 $(error Required make vairable PLATFORM is not defined)
-endif
-
-ifndef CHIP
-$(error Required make variable CHIP is not defined)
-endif
-
-ifndef TARGET
-TARGET := $(CHIP).json
 endif
 
 # If environment variable V is non-empty, be verbose
@@ -36,7 +32,7 @@ endif
 export TOCK_KERNEL_VERSION := $(shell git describe --always || echo notgit)
 
 # Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
-RUSTC_VERSION_STRING := rustc 1.16.0-nightly (83c2d9523 2017-01-24)
+RUSTC_VERSION_STRING := rustc 1.19.0-nightly (5b13bff52 2017-05-23)
 ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
   DUMMY := $(shell rustup install $(RUSTUP_TOOLCHAIN))
   ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
@@ -45,6 +41,14 @@ ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VE
     $(warning You may experience unexpected compilation warnings or errors)
     $(warning To fix, install `rustup` from https://rustup.rs/, then run: `rustup install $(RUSTUP_TOOLCHAIN)`)
   endif
+endif
+
+# Check that xargo is installed
+ifneq ($(strip $(firstword $(shell $(XARGO) --version 2>&1))), xargo)
+  $(warning Required tool `xargo` not installed.)
+  $(warning Running `cargo install xargo` in 3 seconds (ctrl-c to cancel))
+  $(shell sleep 3s)
+  $(shell cargo install xargo)
 endif
 
 # Dump configuration for verbose builds
@@ -70,47 +74,48 @@ ifneq ($(V),)
 endif
 
 .PHONY: all
-all:	target/$(CHIP)/release/$(PLATFORM).bin
+all:	target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: debug
-debug:	target/$(CHIP)/debug/$(PLATFORM).bin
+debug:	target/$(TARGET)/debug/$(PLATFORM).bin
 
 .PHONY: doc
 doc:
-	$(Q)cargo doc $(VERBOSE) --release --target=$(TARGET)
+	$(Q)XARGO doc $(VERBOSE) --release --target=$(TARGET)
 
-target/$(CHIP)/release/$(PLATFORM).elf: target/$(CHIP)/release/$(PLATFORM)
-	$(Q)cp target/$(CHIP)/release/$(PLATFORM) target/$(CHIP)/release/$(PLATFORM).elf
+target/$(TARGET)/release/$(PLATFORM).elf: target/$(TARGET)/release/$(PLATFORM)
+	$(Q)cp target/$(TARGET)/release/$(PLATFORM) target/$(TARGET)/release/$(PLATFORM).elf
 
-.PHONY: target/$(CHIP)/release/$(PLATFORM)
-target/$(CHIP)/release/$(PLATFORM):
-	$(Q)cargo build $(VERBOSE) --release --target=$(TARGET)
+.PHONY: target/$(TARGET)/release/$(PLATFORM)
+target/$(TARGET)/release/$(PLATFORM):
+	$(Q)rustup component add rust-src
+	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) build --target=$(TARGET) $(VERBOSE) --release
 	$(Q)$(SIZE) $@
 
-target/$(CHIP)/debug/$(PLATFORM).elf: target/$(CHIP)/debug/$(PLATFORM)
-	$(Q)cp target/$(CHIP)/debug/$(PLATFORM) target/$(CHIP)/debug/$(PLATFORM).elf
+target/$(TARGET)/debug/$(PLATFORM).elf: target/$(TARGET)/debug/$(PLATFORM)
+	$(Q)cp target/$(TARGET)/debug/$(PLATFORM) target/$(TARGET)/debug/$(PLATFORM).elf
 
-.PHONY: target/$(CHIP)/debug/$(PLATFORM)
-target/$(CHIP)/debug/$(PLATFORM):
-	$(Q)cargo build $(VERBOSE) --target=$(TARGET)
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/$(CHIP)/debug/$(PLATFORM).lst
+.PHONY: target/$(TARGET)/debug/$(PLATFORM)
+target/$(TARGET)/debug/$(PLATFORM):
+	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) build $(VERBOSE) --target=$(TARGET)
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > target/$(TARGET)/debug/$(PLATFORM).lst
 	$(Q)$(SIZE) $@
 
-target/$(CHIP)/release/$(PLATFORM).hex: target/$(CHIP)/release/$(PLATFORM).elf
+target/$(TARGET)/release/$(PLATFORM).hex: target/$(TARGET)/release/$(PLATFORM).elf
 	$(Q)$(OBJCOPY) -Oihex $^ $@
 
-target/$(CHIP)/debug/$(PLATFORM).hex: target/$(CHIP)/debug/$(PLATFORM).elf
+target/$(TARGET)/debug/$(PLATFORM).hex: target/$(TARGET)/debug/$(PLATFORM).elf
 	$(Q)$(OBJCOPY) -Oihex $^ $@
 
-target/$(CHIP)/release/$(PLATFORM).bin: target/$(CHIP)/release/$(PLATFORM).elf
+target/$(TARGET)/release/$(PLATFORM).bin: target/$(TARGET)/release/$(PLATFORM).elf
 	$(Q)$(OBJCOPY) -Obinary $^ $@
 
-target/$(CHIP)/debug/$(PLATFORM).bin: target/$(CHIP)/debug/$(PLATFORM).elf
+target/$(TARGET)/debug/$(PLATFORM).bin: target/$(TARGET)/debug/$(PLATFORM).elf
 	$(Q)$(OBJCOPY) -Obinary $^ $@
 
 .PHONY: clean
 clean::
-	$(Q)cargo clean $(VERBOSE)
+	$(Q)$(XARGO) clean $(VERBOSE)
 
 .PHONY: debug
-debug: target/$(CHIP)/debug/$(PLATFORM).elf
+debug: target/$(TARGET)/debug/$(PLATFORM).elf

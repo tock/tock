@@ -12,7 +12,7 @@ os:
 
 # If you change this, you must also change README and Common.mk
 rust:
-  - nightly-2017-01-25
+  - nightly-2017-05-24
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./.travis-install-gcc; fi
@@ -23,6 +23,7 @@ before_install:
 
 before_script:
   - (cargo install --vers 0.7.1 rustfmt || true)
+  - (cargo install xargo || true)
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then npm install -g markdown-toc; fi
 
 script:
