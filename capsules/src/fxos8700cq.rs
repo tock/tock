@@ -181,18 +181,14 @@ impl<'a> Fxos8700cq<'a> {
     }
 
     fn start_read_accel(&self) {
-        // Need an interrupt pin
-        self.interrupt_pin1.make_input();
-
-        self.buffer.take().map(|buf| {
-            self.i2c.enable();
-            // Configure the data ready interrupt.
-            buf[0] = Registers::CtrlReg4 as u8;
-            buf[1] = 1; // CtrlReg4 data ready interrupt
-            buf[2] = 1; // CtrlReg5 drdy on pin 1
-            self.i2c.write(buf, 3);
-            self.state.set(State::ReadAccelSetup);
-        });
+        self.buffer
+            .take()
+            .map(|buf| {
+                     self.i2c.enable();
+                     buf[0] = Registers::WhoAmI as u8;
+                     self.i2c.write_read(buf, 1, 1);
+                     self.state.set(State::ReadAccelEnabling);
+                 });
     }
 
     fn start_read_magnetometer(&self) {
@@ -270,7 +266,9 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.callback.get().map(|cb| { cb.callback(x as usize, y as usize, z as usize); });
+                self.callback
+                    .get()
+                    .map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
             }
             State::ReadMagStart => {
                 // One shot measurement taken, now read result.
@@ -289,7 +287,9 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
 
-                self.callback.get().map(|cb| cb.callback(x as usize, y as usize, z as usize));
+                self.callback
+                    .get()
+                    .map(|mut cb| cb.schedule(x as usize, y as usize, z as usize));
             }
             _ => {}
         }
