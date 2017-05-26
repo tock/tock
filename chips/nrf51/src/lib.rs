@@ -66,13 +66,16 @@ extern "C" {
 // no_mangle Ensures that the symbol is kept until the final binary
 #[no_mangle]
 pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
-    _estack, reset_handler,
+    _estack,
+    reset_handler,
     /* NMI */           unhandled_interrupt,
     /* Hard Fault */    unhandled_interrupt,
     /* MemManage */     unhandled_interrupt,
     /* BusFault */      unhandled_interrupt,
     /* UsageFault*/     unhandled_interrupt,
-    unhandled_interrupt, unhandled_interrupt, unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
+    unhandled_interrupt,
     unhandled_interrupt,
     /* SVC */           SVC_Handler,
     /* DebugMon */      unhandled_interrupt,
@@ -85,12 +88,16 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
 #[no_mangle] // Ensures that the symbol is kept until the final binary
 pub static IRQS: [unsafe extern "C" fn(); 25] = [generic_isr; 25];
 
+unsafe extern "C" fn quick_uart_hack() {
+    uart::UART0.handle_interrupt();
+}
+
 #[no_mangle]
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 25] = [
     /* POWER_CLOCK_Handler */   Option::Some(unhandled_interrupt),
     /* RADIO_Handler */         Option::Some(unhandled_interrupt),
-    /* UART0_Handler */         Option::Some(unhandled_interrupt),
+    /* UART0_Handler */         Option::Some(quick_uart_hack),
     /* SPI0_TWI0_Handler */     Option::Some(unhandled_interrupt),
     /* SPI1_TWI1_Handler */     Option::Some(unhandled_interrupt),
     /* GPIOTE_Handler */        Option::Some(unhandled_interrupt),
