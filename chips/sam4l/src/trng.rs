@@ -44,18 +44,20 @@ impl<'a> Trng<'a> {
         }
         regs.interrupt_disable.set(1);
 
-        self.client.get().map(|client| {
-            let result = client.randomness_available(&mut TrngIter(self));
-            if let Continue::Done = result {
-                // disable controller
-                regs.control.set(KEY | 0);
-                unsafe {
-                    pm::disable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
+        self.client
+            .get()
+            .map(|client| {
+                let result = client.randomness_available(&mut TrngIter(self));
+                if let Continue::Done = result {
+                    // disable controller
+                    regs.control.set(KEY | 0);
+                    unsafe {
+                        pm::disable_clock(pm::Clock::PBA(pm::PBAClock::TRNG));
+                    }
+                } else {
+                    regs.interrupt_enable.set(1);
                 }
-            } else {
-                regs.interrupt_enable.set(1);
-            }
-        });
+            });
     }
 
     pub fn set_client(&self, client: &'a rng::Client) {

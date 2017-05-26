@@ -317,7 +317,9 @@ unsafe fn enable_rc32k() {
     // Write the BSCIF::RC32KCR register.
     // Enable the generic clock source, the temperature compensation, and the
     // 32k output.
-    (*BSCIF).rc32kcr.set(bscif_rc32kcr | (1 << 2) | (1 << 1) | (1 << 0));
+    (*BSCIF)
+        .rc32kcr
+        .set(bscif_rc32kcr | (1 << 2) | (1 << 1) | (1 << 0));
     // Wait for it to be ready, although it feels like this won't do anything
     while (*BSCIF).rc32kcr.get() & (1 << 0) == 0 {}
 
@@ -416,7 +418,9 @@ unsafe fn configure_external_oscillator() {
     // Enable the OSC0
     (*SCIF).unlock.set(0xAA000020);
     // enable, 557 us startup time, gain level 4 (sortof), is crystal.
-    (*SCIF).oscctrl0.set((1 << 16) | (1 << 8) | (4 << 1) | (1 << 0));
+    (*SCIF)
+        .oscctrl0
+        .set((1 << 16) | (1 << 8) | (4 << 1) | (1 << 0));
     // Wait for oscillator to be ready
     while (*SCIF).pclksr.get() & (1 << 0) == 0 {}
 
@@ -438,7 +442,9 @@ unsafe fn configure_external_oscillator_pll() {
     // Enable the OSC0
     (*SCIF).unlock.set(0xAA000020);
     // enable, 557 us startup time, gain level 4 (sortof), is crystal.
-    (*SCIF).oscctrl0.set((1 << 16) | (1 << 8) | (4 << 1) | (1 << 0));
+    (*SCIF)
+        .oscctrl0
+        .set((1 << 16) | (1 << 8) | (4 << 1) | (1 << 0));
     // Wait for oscillator to be ready
     while (*SCIF).pclksr.get() & (1 << 0) == 0 {}
 
@@ -446,7 +452,9 @@ unsafe fn configure_external_oscillator_pll() {
     // Enable the PLL0 register
     (*SCIF).unlock.set(0xAA000024);
     // Maximum startup time, multiply by 5, divide=1, divide output by 2, enable.
-    (*SCIF).pll0.set((0x3F << 24) | (5 << 16) | (1 << 8) | (1 << 4) | (1 << 0));
+    (*SCIF)
+        .pll0
+        .set((0x3F << 24) | (5 << 16) | (1 << 8) | (1 << 4) | (1 << 0));
     // Wait for the PLL to be ready
     while (*SCIF).pclksr.get() & (1 << 6) == 0 {}
 

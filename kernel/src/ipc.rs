@@ -41,10 +41,14 @@ impl IPC {
                 let callback = match cb_type {
                     process::IPCType::Service => mydata.callback,
                     process::IPCType::Client => {
-                        *mydata.client_callbacks.get(otherapp.idx()).unwrap_or(&None)
+                        *mydata
+                             .client_callbacks
+                             .get(otherapp.idx())
+                             .unwrap_or(&None)
                     }
                 };
-                callback.map(|mut callback| {
+                callback
+                    .map(|mut callback| {
                         self.data
                             .enter(otherapp, |otherdata, _| {
                                 if appid.idx() >= otherdata.shared_memory.len() {
@@ -134,9 +138,9 @@ impl Driver for IPC {
         procs[target_id - 1]
             .as_mut()
             .map(|target| {
-                target.schedule_ipc(appid, cb_type);
-                ReturnCode::SUCCESS
-            })
+                     target.schedule_ipc(appid, cb_type);
+                     ReturnCode::SUCCESS
+                 })
             .unwrap_or(ReturnCode::EINVAL) /* Request to IPC to unknown process */
     }
 
@@ -163,9 +167,7 @@ impl Driver for IPC {
                             let s = p.package_name.as_bytes();
                             // are slices equal?
                             if s.len() == slice.len() &&
-                               s.iter()
-                                .zip(slice.iter())
-                                .all(|(c1, c2)| c1 == c2) {
+                               s.iter().zip(slice.iter()).all(|(c1, c2)| c1 == c2) {
                                 return ReturnCode::SuccessWithValue { value: (i as usize) + 1 };
                             }
                         }
@@ -176,15 +178,15 @@ impl Driver for IPC {
             return ReturnCode::EINVAL; /* AppSlice must have non-zero length */
         }
         return self.data
-            .enter(appid, |data, _| {
-                data.shared_memory
-                    .get_mut(target_id - 1)
-                    .map(|smem| {
-                        *smem = Some(slice);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or(ReturnCode::EINVAL) /* Target process does not exist */
-            })
-            .unwrap_or(ReturnCode::EBUSY);
+                   .enter(appid, |data, _| {
+            data.shared_memory
+                .get_mut(target_id - 1)
+                .map(|smem| {
+                         *smem = Some(slice);
+                         ReturnCode::SUCCESS
+                     })
+                .unwrap_or(ReturnCode::EINVAL) /* Target process does not exist */
+        })
+                   .unwrap_or(ReturnCode::EBUSY);
     }
 }

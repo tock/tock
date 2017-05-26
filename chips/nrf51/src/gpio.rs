@@ -188,7 +188,9 @@ impl hil::gpio::Pin for GPIOPin {
 
 impl GPIOPin {
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| { client.fired(self.client_data.get()); });
+        self.client
+            .get()
+            .map(|client| { client.fired(self.client_data.get()); });
     }
 }
 
@@ -279,5 +281,8 @@ pub static mut PORT: Port = Port {
 pub unsafe extern "C" fn GPIOTE_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::GPIOTE);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::GPIOTE);
+    chip::INTERRUPT_QUEUE
+        .as_mut()
+        .unwrap()
+        .enqueue(NvicIdx::GPIOTE);
 }

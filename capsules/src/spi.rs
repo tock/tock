@@ -74,16 +74,18 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
         let end = start + len;
         app.index = end;
 
-        self.kernel_write.map(|kwbuf| {
-            app.app_write
-                .as_mut()
-                .map(|src| for (i, c) in src.as_ref()[start..end].iter().enumerate() {
-                    kwbuf[i] = *c;
-                });
-        });
-        self.spi_master.read_write_bytes(self.kernel_write.take().unwrap(),
-                                         self.kernel_read.take(),
-                                         len);
+        self.kernel_write
+            .map(|kwbuf| {
+                app.app_write
+                    .as_mut()
+                    .map(|src| for (i, c) in src.as_ref()[start..end].iter().enumerate() {
+                             kwbuf[i] = *c;
+                         });
+            });
+        self.spi_master
+            .read_write_bytes(self.kernel_write.take().unwrap(),
+                              self.kernel_read.take(),
+                              len);
     }
 }
 
@@ -228,30 +230,33 @@ impl<'a, S: SpiMasterDevice> SpiMasterClient for Spi<'a, S> {
                        writebuf: &'static mut [u8],
                        readbuf: Option<&'static mut [u8]>,
                        length: usize) {
-        self.app.map(move |app| {
-            if app.app_read.is_some() {
-                let src = readbuf.as_ref().unwrap();
-                let dest = app.app_read.as_mut().unwrap();
-                let start = app.index - length;
-                let end = start + length;
+        self.app
+            .map(move |app| {
+                if app.app_read.is_some() {
+                    let src = readbuf.as_ref().unwrap();
+                    let dest = app.app_read.as_mut().unwrap();
+                    let start = app.index - length;
+                    let end = start + length;
 
-                let d = &mut dest.as_mut()[start..end];
-                for (i, c) in src[0..length].iter().enumerate() {
-                    d[i] = *c;
+                    let d = &mut dest.as_mut()[start..end];
+                    for (i, c) in src[0..length].iter().enumerate() {
+                        d[i] = *c;
+                    }
                 }
-            }
 
-            self.kernel_read.put(readbuf);
-            self.kernel_write.replace(writebuf);
+                self.kernel_read.put(readbuf);
+                self.kernel_write.replace(writebuf);
 
-            if app.index == app.len {
-                self.busy.set(false);
-                app.len = 0;
-                app.index = 0;
-                app.callback.take().map(|mut cb| { cb.schedule(app.len, 0, 0); });
-            } else {
-                self.do_next_read_write(app);
-            }
-        });
+                if app.index == app.len {
+                    self.busy.set(false);
+                    app.len = 0;
+                    app.index = 0;
+                    app.callback
+                        .take()
+                        .map(|mut cb| { cb.schedule(app.len, 0, 0); });
+                } else {
+                    self.do_next_read_write(app);
+                }
+            });
     }
 }

@@ -179,33 +179,35 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
 
 impl<'a, R: radio::Radio> radio::TxClient for RadioDriver<'a, R> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        self.app.map(move |app| {
-            self.kernel_tx.replace(buf);
-            self.busy.set(false);
-            app.tx_callback
-                .take()
-                .map(|mut cb| { cb.schedule(usize::from(result), acked as usize, 0); });
-        });
+        self.app
+            .map(move |app| {
+                self.kernel_tx.replace(buf);
+                self.busy.set(false);
+                app.tx_callback
+                    .take()
+                    .map(|mut cb| { cb.schedule(usize::from(result), acked as usize, 0); });
+            });
     }
 }
 
 impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
     fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         if self.app.is_some() {
-            self.app.map(move |app| {
-                if app.app_read.is_some() {
-                    let offset = self.radio.payload_offset(false, false) as usize;
-                    let dest = app.app_read.as_mut().unwrap();
-                    let d = &mut dest.as_mut();
-                    for (i, c) in buf[offset..len as usize].iter().enumerate() {
-                        d[i] = *c;
+            self.app
+                .map(move |app| {
+                    if app.app_read.is_some() {
+                        let offset = self.radio.payload_offset(false, false) as usize;
+                        let dest = app.app_read.as_mut().unwrap();
+                        let d = &mut dest.as_mut();
+                        for (i, c) in buf[offset..len as usize].iter().enumerate() {
+                            d[i] = *c;
+                        }
+                        app.rx_callback
+                            .take()
+                            .map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
                     }
-                    app.rx_callback
-                        .take()
-                        .map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
-                }
-                self.radio.set_receive_buffer(buf);
-            });
+                    self.radio.set_receive_buffer(buf);
+                });
         } else {
             self.radio.set_receive_buffer(buf);
         }
@@ -214,8 +216,11 @@ impl<'a, R: radio::Radio> radio::RxClient for RadioDriver<'a, R> {
 
 impl<'a, R: radio::Radio> radio::ConfigClient for RadioDriver<'a, R> {
     fn config_done(&self, result: ReturnCode) {
-        self.app.map(move |app| {
-            app.cfg_callback.take().map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
-        });
+        self.app
+            .map(move |app| {
+                     app.cfg_callback
+                         .take()
+                         .map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
+                 });
     }
 }

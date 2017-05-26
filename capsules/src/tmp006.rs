@@ -116,38 +116,44 @@ impl<'a> TMP006<'a> {
 
     fn enable_sensor(&self, sampling_period: u8) {
         // enable and configure TMP006
-        self.buffer.take().map(|buf| {
-            // turn on i2c to send commands
-            self.i2c.enable();
+        self.buffer
+            .take()
+            .map(|buf| {
+                // turn on i2c to send commands
+                self.i2c.enable();
 
-            let config = 0x7100 | (((sampling_period & 0x7) as u16) << 9);
-            buf[0] = Registers::Configuration as u8;
-            buf[1] = ((config & 0xFF00) >> 8) as u8;
-            buf[2] = (config & 0x00FF) as u8;
-            self.i2c.write(buf, 3);
-            self.protocol_state.set(ProtocolState::Configure);
-        });
+                let config = 0x7100 | (((sampling_period & 0x7) as u16) << 9);
+                buf[0] = Registers::Configuration as u8;
+                buf[1] = ((config & 0xFF00) >> 8) as u8;
+                buf[2] = (config & 0x00FF) as u8;
+                self.i2c.write(buf, 3);
+                self.protocol_state.set(ProtocolState::Configure);
+            });
     }
 
     fn disable_sensor(&self, temperature: Option<f32>) {
         // disable the TMP006
-        self.buffer.take().map(|buf| {
-            // turn on i2c to send commands
-            self.i2c.enable();
+        self.buffer
+            .take()
+            .map(|buf| {
+                // turn on i2c to send commands
+                self.i2c.enable();
 
-            let config = 0x0000;
-            buf[0] = Registers::Configuration as u8;
-            buf[1] = ((config & 0xFF00) >> 8) as u8;
-            buf[2] = (config & 0x00FF) as u8;
-            self.i2c.write(buf, 3);
-            self.protocol_state.set(ProtocolState::Deconfigure(temperature));
-        });
+                let config = 0x0000;
+                buf[0] = Registers::Configuration as u8;
+                buf[1] = ((config & 0xFF00) >> 8) as u8;
+                buf[2] = (config & 0x00FF) as u8;
+                self.i2c.write(buf, 3);
+                self.protocol_state
+                    .set(ProtocolState::Deconfigure(temperature));
+            });
     }
 
     fn enable_interrupts(&self) {
         // setup interrupts from the sensor
         self.interrupt_pin.make_input();
-        self.interrupt_pin.enable_interrupt(0, InterruptMode::FallingEdge);
+        self.interrupt_pin
+            .enable_interrupt(0, InterruptMode::FallingEdge);
     }
 
     fn disable_interrupts(&self) {
@@ -202,7 +208,8 @@ impl<'a> i2c::I2CClient for TMP006<'a> {
             ProtocolState::SetRegSensorVoltage => {
                 // Read sensor voltage register
                 self.i2c.read(buffer, 2);
-                self.protocol_state.set(ProtocolState::ReadingSensorVoltage);
+                self.protocol_state
+                    .set(ProtocolState::ReadingSensorVoltage);
             }
             ProtocolState::ReadingSensorVoltage => {
                 let sensor_voltage = (((buffer[0] as u16) << 8) | buffer[1] as u16) as i16;
@@ -211,12 +218,14 @@ impl<'a> i2c::I2CClient for TMP006<'a> {
                 buffer[0] = Registers::DieTemperature as u8;
                 self.i2c.write(buffer, 1);
 
-                self.protocol_state.set(ProtocolState::SetRegDieTemperature(sensor_voltage));
+                self.protocol_state
+                    .set(ProtocolState::SetRegDieTemperature(sensor_voltage));
             }
             ProtocolState::SetRegDieTemperature(sensor_voltage) => {
                 // Read die temperature register
                 self.i2c.read(buffer, 2);
-                self.protocol_state.set(ProtocolState::ReadingDieTemperature(sensor_voltage));
+                self.protocol_state
+                    .set(ProtocolState::ReadingDieTemperature(sensor_voltage));
             }
             ProtocolState::ReadingDieTemperature(sensor_voltage) => {
                 let die_temperature = (((buffer[0] as u16) << 8) | buffer[1] as u16) as i16;
@@ -245,15 +254,18 @@ impl<'a> i2c::I2CClient for TMP006<'a> {
 
 impl<'a> Client for TMP006<'a> {
     fn fired(&self, _: usize) {
-        self.buffer.take().map(|buf| {
-            // turn on i2c to send commands
-            self.i2c.enable();
+        self.buffer
+            .take()
+            .map(|buf| {
+                // turn on i2c to send commands
+                self.i2c.enable();
 
-            // select sensor voltage register and read it
-            buf[0] = Registers::SensorVoltage as u8;
-            self.i2c.write(buf, 1);
-            self.protocol_state.set(ProtocolState::SetRegSensorVoltage);
-        });
+                // select sensor voltage register and read it
+                buf[0] = Registers::SensorVoltage as u8;
+                self.i2c.write(buf, 1);
+                self.protocol_state
+                    .set(ProtocolState::SetRegSensorVoltage);
+            });
     }
 }
 

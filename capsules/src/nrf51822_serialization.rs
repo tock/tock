@@ -56,12 +56,13 @@ impl<'a, U: UARTAdvanced> Nrf51822Serialization<'a, U> {
     }
 
     pub fn initialize(&self) {
-        self.uart.init(uart::UARTParams {
-            baud_rate: 250000,
-            stop_bits: uart::StopBits::One,
-            parity: uart::Parity::Even,
-            hw_flow_control: true,
-        });
+        self.uart
+            .init(uart::UARTParams {
+                      baud_rate: 250000,
+                      stop_bits: uart::StopBits::One,
+                      parity: uart::Parity::Even,
+                      hw_flow_control: true,
+                  });
     }
 }
 
@@ -160,10 +161,14 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         self.tx_buffer.replace(buffer);
         // TODO(bradjc): Need to match this to the correct app!
         //               Can't just use 0!
-        self.app.map(|appst| {
-            // Call the callback after TX has finished
-            appst.callback.as_mut().map(|mut cb| { cb.schedule(1, 0, 0); });
-        });
+        self.app
+            .map(|appst| {
+                     // Call the callback after TX has finished
+                     appst
+                         .callback
+                         .as_mut()
+                         .map(|mut cb| { cb.schedule(1, 0, 0); });
+                 });
     }
 
     // Called when a buffer is received on the UART
@@ -171,28 +176,36 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
 
         self.rx_buffer.replace(buffer);
 
-        self.app.map(|appst| {
-            appst.rx_buffer = appst.rx_buffer.take().map(|mut rb| {
+        self.app
+            .map(|appst| {
+                appst.rx_buffer = appst
+                    .rx_buffer
+                    .take()
+                    .map(|mut rb| {
 
-                // figure out length to copy
-                let mut max_len = rx_len;
-                if rb.len() < rx_len {
-                    max_len = rb.len();
-                }
+                        // figure out length to copy
+                        let mut max_len = rx_len;
+                        if rb.len() < rx_len {
+                            max_len = rb.len();
+                        }
 
-                // copy over data to app buffer
-                self.rx_buffer.map(|buffer| for idx in 0..max_len {
-                    rb.as_mut()[idx] = buffer[idx];
-                });
+                        // copy over data to app buffer
+                        self.rx_buffer
+                            .map(|buffer| for idx in 0..max_len {
+                                     rb.as_mut()[idx] = buffer[idx];
+                                 });
 
-                appst.callback.as_mut().map(|cb| {
-                    // send the whole darn buffer to the serialization layer
-                    cb.schedule(4, rx_len, 0);
-                });
+                        appst
+                            .callback
+                            .as_mut()
+                            .map(|cb| {
+                                     // send the whole darn buffer to the serialization layer
+                                     cb.schedule(4, rx_len, 0);
+                                 });
 
-                rb
+                        rb
+                    });
             });
-        });
 
         // restart the uart receive
         self.rx_buffer.take().map(|buffer| self.uart.receive_automatic(buffer, 250));

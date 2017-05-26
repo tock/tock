@@ -72,26 +72,30 @@ impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {
     }
 
     pub fn read_id(&self) {
-        self.buffer.take().map(|buffer| {
-            // turn on i2c to send commands
-            self.i2c.enable();
+        self.buffer
+            .take()
+            .map(|buffer| {
+                // turn on i2c to send commands
+                self.i2c.enable();
 
-            buffer[0] = Registers::ReadElectronicIdByteOneA as u8;
-            buffer[1] = Registers::ReadElectronicIdByteOneB as u8;
-            self.i2c.write(buffer, 2);
-            self.state.set(State::SelectElectronicId1);
-        });
+                buffer[0] = Registers::ReadElectronicIdByteOneA as u8;
+                buffer[1] = Registers::ReadElectronicIdByteOneB as u8;
+                self.i2c.write(buffer, 2);
+                self.state.set(State::SelectElectronicId1);
+            });
     }
 
     pub fn take_measurement(&self) {
-        self.buffer.take().map(|buffer| {
-            // turn on i2c to send commands
-            self.i2c.enable();
+        self.buffer
+            .take()
+            .map(|buffer| {
+                     // turn on i2c to send commands
+                     self.i2c.enable();
 
-            buffer[0] = Registers::MeasRelativeHumidityNoHoldMode as u8;
-            self.i2c.write(buffer, 1);
-            self.state.set(State::TakeMeasurementInit);
-        });
+                     buffer[0] = Registers::MeasRelativeHumidityNoHoldMode as u8;
+                     self.i2c.write(buffer, 1);
+                     self.state.set(State::TakeMeasurementInit);
+                 });
     }
 }
 
@@ -158,7 +162,9 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
                 let humidity_raw = (((buffer[2] as u32) << 8) | (buffer[3] as u32)) as u32;
                 let humidity = (((humidity_raw * 125 * 100) / 65536) - 600) as u16;
 
-                self.callback.get().map(|mut cb| cb.schedule(temp as usize, humidity as usize, 0));
+                self.callback
+                    .get()
+                    .map(|mut cb| cb.schedule(temp as usize, humidity as usize, 0));
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -171,13 +177,15 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
 
 impl<'a, A: time::Alarm + 'a> time::Client for SI7021<'a, A> {
     fn fired(&self) {
-        self.buffer.take().map(|buffer| {
-            // turn on i2c to send commands
-            self.i2c.enable();
+        self.buffer
+            .take()
+            .map(|buffer| {
+                     // turn on i2c to send commands
+                     self.i2c.enable();
 
-            self.i2c.read(buffer, 2);
-            self.state.set(State::ReadRhMeasurement);
-        });
+                     self.i2c.read(buffer, 2);
+                     self.state.set(State::ReadRhMeasurement);
+                 });
     }
 }
 

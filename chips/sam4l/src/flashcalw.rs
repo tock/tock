@@ -280,21 +280,23 @@ impl FLASHCALW {
             self.current_command.set(Command::None);
             self.current_state.set(FlashState::Ready);
 
-            self.client.get().map(|client| {
-                // call command complete with error
-                match error_status {
-                    4 => {
-                        client.command_complete(Error::LockE);
+            self.client
+                .get()
+                .map(|client| {
+                    // call command complete with error
+                    match error_status {
+                        4 => {
+                            client.command_complete(Error::LockE);
+                        }
+                        8 => {
+                            client.command_complete(Error::ProgE);
+                        }
+                        12 => {
+                            client.command_complete(Error::LockProgE);
+                        }
+                        _ => {}
                     }
-                    8 => {
-                        client.command_complete(Error::ProgE);
-                    }
-                    12 => {
-                        client.command_complete(Error::LockProgE);
-                    }
-                    _ => {}
-                }
-            });
+                });
         }
 
         //  Part of a command succeeded -- continue onto next steps.
@@ -361,7 +363,9 @@ impl FLASHCALW {
         //  If the command is finished call the complete CB.
         if self.current_command.get() == Command::None &&
            self.current_state.get() == FlashState::Ready {
-            self.client.get().map(|value| { value.command_complete(Error::CommandComplete); });
+            self.client
+                .get()
+                .map(|value| { value.command_complete(Error::CommandComplete); });
         }
     }
 
@@ -384,10 +388,10 @@ impl FLASHCALW {
 
     pub fn get_page_region(&self, page_number: i32) -> u32 {
         (if page_number >= 0 {
-            page_number as u32
-        } else {
-            self.get_page_number()
-        } / self.get_page_count_per_region())
+             page_number as u32
+         } else {
+             self.get_page_number()
+         } / self.get_page_count_per_region())
     }
 
     pub fn get_region_first_page_number(&self, region: u32) -> u32 {
@@ -842,10 +846,12 @@ impl FLASHCALW {
             return -1;
         }
 
-        self.page_buffer.map(|value| { value.clone_from_slice(&data); });
+        self.page_buffer
+            .map(|value| { value.clone_from_slice(&data); });
 
         self.current_state.set(FlashState::Unlocking);
-        self.current_command.set(Command::Write { page: page_num });
+        self.current_command
+            .set(Command::Write { page: page_num });
         self.lock_page_region(page_num, false);
         0
     }
@@ -860,7 +866,8 @@ impl FLASHCALW {
         }
 
         self.current_state.set(FlashState::Unlocking);
-        self.current_command.set(Command::Erase { page: page_num });
+        self.current_command
+            .set(Command::Erase { page: page_num });
         self.lock_page_region(page_num, false);
         0
     }
@@ -876,5 +883,8 @@ pub unsafe extern "C" fn flash_handler() {
     //  and queue a handle interrupt.
     FLASH_CONTROLLER.enable_ready_int(false);
     nvic::disable(nvic::NvicIdx::HFLASHC);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);
+    chip::INTERRUPT_QUEUE
+        .as_mut()
+        .unwrap()
+        .enqueue(nvic::NvicIdx::HFLASHC);
 }

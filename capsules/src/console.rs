@@ -59,12 +59,13 @@ impl<'a, U: UART> Console<'a, U> {
     }
 
     pub fn initialize(&self) {
-        self.uart.init(uart::UARTParams {
-            baud_rate: self.baud_rate,
-            stop_bits: uart::StopBits::One,
-            parity: uart::Parity::None,
-            hw_flow_control: false,
-        });
+        self.uart
+            .init(uart::UARTParams {
+                      baud_rate: self.baud_rate,
+                      stop_bits: uart::StopBits::One,
+                      parity: uart::Parity::None,
+                      hw_flow_control: false,
+                  });
     }
 
     /// Internal helper function for setting up a new send transaction
@@ -99,29 +100,31 @@ impl<'a, U: UART> Console<'a, U> {
     fn send(&self, app_id: AppId, app: &mut App, slice: AppSlice<Shared, u8>) {
         if self.in_progress.get().is_none() {
             self.in_progress.set(Some(app_id));
-            self.tx_buffer.take().map(|buffer| {
-                let mut transaction_len = app.write_remaining;
-                for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
-                    .iter()
-                    .enumerate() {
-                    if buffer.len() <= i {
-                        break;
+            self.tx_buffer
+                .take()
+                .map(|buffer| {
+                    let mut transaction_len = app.write_remaining;
+                    for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
+                            .iter()
+                            .enumerate() {
+                        if buffer.len() <= i {
+                            break;
+                        }
+                        buffer[i] = *c;
                     }
-                    buffer[i] = *c;
-                }
 
-                // Check if everything we wanted to print
-                // fit in the buffer.
-                if app.write_remaining > buffer.len() {
-                    transaction_len = buffer.len();
-                    app.write_remaining -= buffer.len();
-                    app.write_buffer = Some(slice);
-                } else {
-                    app.write_remaining = 0;
-                }
+                    // Check if everything we wanted to print
+                    // fit in the buffer.
+                    if app.write_remaining > buffer.len() {
+                        transaction_len = buffer.len();
+                        app.write_remaining -= buffer.len();
+                        app.write_buffer = Some(slice);
+                    } else {
+                        app.write_remaining = 0;
+                    }
 
-                self.uart.transmit(buffer, transaction_len);
-            });
+                    self.uart.transmit(buffer, transaction_len);
+                });
         } else {
             app.pending_write = true;
             app.write_buffer = Some(slice);
@@ -140,10 +143,10 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                        Error::NoSuchApp => ReturnCode::EINVAL,
+                                    })
             }
             1 => {
                 self.apps
@@ -152,10 +155,10 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                        Error::NoSuchApp => ReturnCode::EINVAL,
+                                    })
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -202,29 +205,34 @@ impl<'a, U: UART> Client for Console<'a, U> {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
-        self.in_progress.get().map(|appid| {
-            self.in_progress.set(None);
-            self.apps.enter(appid, |app, _| {
-                match self.send_continue(appid, app) {
-                    Ok(more_to_send) => {
-                        if !more_to_send {
-                            // Go ahead and signal the application
-                            let written = app.write_len;
-                            app.write_len = 0;
-                            app.write_callback.map(|mut cb| { cb.schedule(written, 0, 0); });
+        self.in_progress
+            .get()
+            .map(|appid| {
+                self.in_progress.set(None);
+                self.apps
+                    .enter(appid, |app, _| {
+                        match self.send_continue(appid, app) {
+                            Ok(more_to_send) => {
+                                if !more_to_send {
+                                    // Go ahead and signal the application
+                                    let written = app.write_len;
+                                    app.write_len = 0;
+                                    app.write_callback
+                                        .map(|mut cb| { cb.schedule(written, 0, 0); });
+                                }
+                            }
+                            Err(return_code) => {
+                                // XXX This shouldn't ever happen?
+                                app.write_len = 0;
+                                app.write_remaining = 0;
+                                app.pending_write = false;
+                                let r0 = isize::from(return_code) as usize;
+                                app.write_callback
+                                    .map(|mut cb| { cb.schedule(r0, 0, 0); });
+                            }
                         }
-                    }
-                    Err(return_code) => {
-                        // XXX This shouldn't ever happen?
-                        app.write_len = 0;
-                        app.write_remaining = 0;
-                        app.pending_write = false;
-                        let r0 = isize::from(return_code) as usize;
-                        app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
-                    }
-                }
-            })
-        });
+                    })
+            });
 
         // If we are not printing more from the current AppSlice,
         // see if any other applications have pending messages.
@@ -241,7 +249,8 @@ impl<'a, U: UART> Client for Console<'a, U> {
                                 app.write_remaining = 0;
                                 app.pending_write = false;
                                 let r0 = isize::from(return_code) as usize;
-                                app.write_callback.map(|mut cb| { cb.schedule(r0, 0, 0); });
+                                app.write_callback
+                                    .map(|mut cb| { cb.schedule(r0, 0, 0); });
                                 false
                             }
                         }

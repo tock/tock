@@ -47,13 +47,13 @@ impl<'a, A: Alarm> TimerDriver<'a, A> {
         let mut next_dist = u32::max_value();
         for timer in self.app_timer.iter() {
             timer.enter(|timer, _| if timer.interval > 0 {
-                let t_alarm = timer.t0.wrapping_add(timer.interval);
-                let t_dist = t_alarm.wrapping_sub(now);
-                if next_dist > t_dist {
-                    next_alarm = t_alarm;
-                    next_dist = t_dist;
-                }
-            });
+                            let t_alarm = timer.t0.wrapping_add(timer.interval);
+                            let t_dist = t_alarm.wrapping_sub(now);
+                            if next_dist > t_dist {
+                                next_alarm = t_alarm;
+                                next_dist = t_dist;
+                            }
+                        });
         }
         if next_alarm != u32::max_value() {
             self.alarm.set_alarm(next_alarm);
@@ -69,10 +69,10 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                 ReturnCode::SUCCESS
             })
             .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+                                Error::OutOfMemory => ReturnCode::ENOMEM,
+                                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                Error::NoSuchApp => ReturnCode::EINVAL,
+                            })
     }
 
     fn command(&self, cmd_type: usize, interval: usize, caller_id: AppId) -> ReturnCode {
@@ -146,13 +146,13 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
             }
             })
             .unwrap_or_else(|err| {
-                let e = match err {
-                    Error::OutOfMemory => ReturnCode::ENOMEM,
-                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                    Error::NoSuchApp => ReturnCode::EINVAL,
-                };
-                (e, false)
-            });
+                                let e = match err {
+                                    Error::OutOfMemory => ReturnCode::ENOMEM,
+                                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                    Error::NoSuchApp => ReturnCode::EINVAL,
+                                };
+                                (e, false)
+                            });
         if reset {
             self.reset_active_timer();
         }
@@ -164,28 +164,31 @@ impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
 
-        self.app_timer.each(|timer| {
-            let elapsed = now.wrapping_sub(timer.t0);
+        self.app_timer
+            .each(|timer| {
+                let elapsed = now.wrapping_sub(timer.t0);
 
-            // timer.interval == 0 means the timer is inactive
-            if timer.interval > 0 &&
+                // timer.interval == 0 means the timer is inactive
+                if timer.interval > 0 &&
                     // Becuse of the calculations done for timer.interval when
                     // setting the timer, we might fire earlier than expected
                     // by some jitter.
                     elapsed >= timer.interval {
 
-                if timer.repeating {
-                    // Repeating timer, reset the reference time to now
-                    timer.t0 = now;
-                } else {
-                    // Deactivate timer
-                    timer.interval = 0;
-                    self.num_armed.set(self.num_armed.get() - 1);
-                }
+                    if timer.repeating {
+                        // Repeating timer, reset the reference time to now
+                        timer.t0 = now;
+                    } else {
+                        // Deactivate timer
+                        timer.interval = 0;
+                        self.num_armed.set(self.num_armed.get() - 1);
+                    }
 
-                timer.callback.map(|mut cb| { cb.schedule(now as usize, 0, 0); });
-            }
-        });
+                    timer
+                        .callback
+                        .map(|mut cb| { cb.schedule(now as usize, 0, 0); });
+                }
+            });
 
         // If there are armed timers left, reset the underlying timer to the
         // nearest interval. Otherwise, disable the underlying timer.

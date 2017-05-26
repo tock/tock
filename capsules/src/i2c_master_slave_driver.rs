@@ -180,7 +180,6 @@ impl<'a> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'a> {
                 // the correct bytes.
                 cb.schedule(2, 0, 0);
             });
-        });
     }
 
     fn write_expected(&self) {

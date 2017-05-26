@@ -170,13 +170,15 @@ fn do_work(input: &elf::File,
            verbose: bool)
            -> io::Result<()> {
     let package_name = package_name.unwrap_or(String::new());
-    let (rel_data_size, rel_data) = match input.sections
-        .iter()
-        .find(|section| section.shdr.name == ".rel.data".as_ref()) {
-        Some(section) => (section.shdr.size, section.data.as_ref()),
-        None => (0 as u64, &[] as &[u8]),
+    let (rel_data_size, rel_data) =
+        match input
+                  .sections
+                  .iter()
+                  .find(|section| section.shdr.name == ".rel.data".as_ref()) {
+            Some(section) => (section.shdr.size, section.data.as_ref()),
+            None => (0 as u64, &[] as &[u8]),
 
-    };
+        };
     let text = get_section(input, ".text");
     let got = get_section(input, ".got");
     let data = get_section(input, ".data");

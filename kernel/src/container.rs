@@ -102,11 +102,12 @@ impl<'a> Allocator<'a> {
             let app_id = self.app_id;
             match self.app.as_mut() {
                 Some(app) => {
-                    app.alloc(size_of::<T>()).map_or(Err(Error::OutOfMemory), |arr| {
-                        let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
-                        *owned = data;
-                        Ok(owned)
-                    })
+                    app.alloc(size_of::<T>())
+                        .map_or(Err(Error::OutOfMemory), |arr| {
+                            let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
+                            *owned = data;
+                            Ok(owned)
+                        })
                 }
                 None => {
                     if !AppId::is_kernel_idx(app_id) {
@@ -135,10 +136,10 @@ impl<T: Default> Container<T> {
             if AppId::is_kernel(appid) {
                 let cntr = kernel_container_for::<T>(app_id);
                 Some(AppliedContainer {
-                    appid: app_id,
-                    container: cntr,
-                    _phantom: PhantomData,
-                })
+                         appid: app_id,
+                         container: cntr,
+                         _phantom: PhantomData,
+                     })
             } else {
                 match process::PROCS[app_id] {
                     Some(ref mut app) => {
@@ -147,10 +148,10 @@ impl<T: Default> Container<T> {
                             None
                         } else {
                             Some(AppliedContainer {
-                                appid: app_id,
-                                container: cntr,
-                                _phantom: PhantomData,
-                            })
+                                     appid: app_id,
+                                     container: cntr,
+                                     _phantom: PhantomData,
+                                 })
                         }
                     }
                     None => None,

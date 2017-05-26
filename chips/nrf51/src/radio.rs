@@ -266,7 +266,7 @@ impl Radio {
         // set channel rate,  3 - BLE 1MBIT/s
         regs.MODE.set(3);
     }
-    
+
     fn set_data_white_iv(&self, val: u32) {
         let regs = unsafe { &*self.regs };
         // DATAIV
@@ -414,7 +414,7 @@ impl RadioDriver for Radio {
     fn init(&self) {
         // self.init_radio_ble()
     }
-    
+
     // REMOVE !?
     fn flash_leds(&self) {
         self.turn_on_leds();

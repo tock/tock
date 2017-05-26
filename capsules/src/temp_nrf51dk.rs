@@ -36,9 +36,9 @@ impl<'a, E: TemperatureDriver + 'a> Client for Temperature<'a, E> {
         for cntr in self.apps.iter() {
             self.busy.set(false);
             cntr.enter(|app, _| if app.subscribed {
-                app.subscribed = false;
-                app.callback.map(|mut cb| cb.schedule(temp, 0, 0));
-            });
+                           app.subscribed = false;
+                           app.callback.map(|mut cb| cb.schedule(temp, 0, 0));
+                       });
         }
         ReturnCode::SUCCESS
     }
@@ -55,10 +55,10 @@ impl<'a, E: TemperatureDriver> Driver for Temperature<'a, E> {
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                                        Error::NoSuchApp => ReturnCode::EINVAL,
+                                    })
             }
             _ => ReturnCode::ENOSUPPORT,
         }
