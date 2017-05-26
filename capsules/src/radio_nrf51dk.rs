@@ -2,15 +2,58 @@
 //!
 //! The capsule is implemented on top of a virtual timer
 //! in order to send periodic BLE advertisements without blocking
-//! the entire kernel
+//! the kernel
 //!
-//! Currently advertisements with name and configured in
+//! Currently advertisements with name and data configured in
 //! userland are supported.
+//! The name and data are only configured once i.e., by invoking
+//! start_ble_advertisement() from userland and then periodic advertisement
+//! are handled by the capsule on-top of virtual timers.
 //!
+//! The advertisment intervall is configured to every 150ms by sending on the
+//! channels 37, 38 and 39 very shortly after each other.
+//! The intervall is mainly picked to compare with other OS's.
+//!
+//! The radio chip module configures a default name which overwritten
+//! if a name is entered in user space.
+//!
+//! Suggested improvements:
+//! TODO: re-name the capsule to BLE and remove basic radio send and remove?!
+//! TODO: Fix system call to set advertisement intervall
+//! TODO: Fix system call to set advertisement type
+//!
+//!
+//! ---ALLOW SYSTEM CALL ------------------------------------------------------------
+//! The 'allow' system call is used to provide two different buffers and
+//! the following allow_num's are supported:
+//!
+//!     * 5: A buffer with data to configure local name (0x09)
+//!     * 6: A buffer to configure arbitary data (manufactor data 0xff)
+//!
+//! The possible return codes from the 'allow' system call indicate the following:
+//!     * SUCCESS: The buffer has successfully been filled
+//!     * ENOSUPPORT: Invalid allow_num
+//!     * ENOMEM: No sufficient memory available
+//!     * EINVAL => Invalid address of the buffer or other error
+//! ----------------------------------------------------------------------------------
+//!
+//! ---SUBSCRIBE SYSTEM CALL----------------------------------------------------------
+//!  NOT NEEDED NOT FOR PURE ADVERTISEMENTS
+//!
+//! ------------------------------------------------------------------------------
+//!
+//! ---COMMAND SYSTEM CALL------------------------------------------------------------
+//! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
+//! 'cmd' is used to specify the specific operation, currently
+//! the following cmd's are supported:
+//!     * 3: start advertisment
+//!     * 4: stop advertisment
+//! -----------------------------------------------------------------------------------
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: March 09, 2017
+//! Date: May 26, 2017
+
 
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container};
@@ -53,6 +96,7 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     // we should probably add a BLE state-machine here
     // frequency: Cell<usize>,
     advertise: Cell<bool>,
+    remaining: Cell<usize>,
 }
 // 'a = lifetime
 // R - type Radio
@@ -72,6 +116,9 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             alarm: alarm,
             // frequency: Cell::new(37),
             advertise: Cell::new(false),
+            // 6 bytes for 'TockOS'
+            // third byte is zero
+            remaining: Cell::new(30 - 6),
         }
     }
 
@@ -83,15 +130,18 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                     .map(|slice| {
                         // advertisement name
                         let len = slice.len();
-                        self.kernel_tx
-                            .take()
-                            .map(|name| {
-                                     for (out, inp) in
-                                    name.iter_mut().zip(slice.as_ref()[0..len].iter()) {
-                                         *out = *inp;
-                                     }
-                                     self.radio.set_adv_name(name, len)
-                                 });
+                        if len <= 28 {
+                            self.remaining.set(30 - (len + 2));
+                            self.kernel_tx
+                                .take()
+                                .map(|name| {
+                                         for (out, inp) in name.iter_mut()
+                                                 .zip(slice.as_ref()[0..len].iter()) {
+                                             *out = *inp;
+                                         }
+                                         self.radio.set_adv_name(name, len);
+                                     });
+                        }
                     });
             });
         }
@@ -106,15 +156,21 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                     .as_ref()
                     .map(|slice| {
                         let len = slice.len();
-                        self.kernel_tx_data
-                            .take()
-                            .map(|data| {
-                                     for (out, inp) in
-                                    data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
-                                         *out = *inp;
-                                     }
-                                     self.radio.set_adv_data(data, len);
-                                 });
+                        let i = (self.remaining.get() - (len + 2)) as isize;
+                        if i >= 0 {
+                            self.remaining.set(i as usize);
+                            self.kernel_tx_data
+                                .take()
+                                .map(|data| {
+                                    for (out, inp) in
+                                        data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
+                                        *out = *inp;
+                                    }
+                                    if i >= 0 {
+                                        self.radio.set_adv_data(data, len);
+                                    }
+                                });
+                        }
                     });
             });
         }

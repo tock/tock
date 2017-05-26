@@ -20,8 +20,8 @@ int main(void)
 {
   printf("demo app\n");
 	// remember these will be automatically '\0' terminated
-  char name[] = "NO_RUST_IN_USERLAND";
-  char data[] = "1337";
+  char name[] = "USERLANDISMYLAND";
+  char data[] = "AAAAAAAAAA";
 
 	#ifdef RECEIVER
   int ret = subscribe_rx(callback, NULL);

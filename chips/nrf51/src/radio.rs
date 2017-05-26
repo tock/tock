@@ -1,7 +1,7 @@
 //! Radio/BLE Driver for nrf51dk
 //!
-//! Sending BLE Discovery Packets
-//! Everything is hard-coded atm
+//! Sending BLE advertiement packets
+//! Possible payload is 30 bytes
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
@@ -74,6 +74,7 @@ enum Adtype {
     MfgData = 0xff,
 }
 
+
 // static mut TX_BUF: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 static mut RX_BUF: [u8; 12] = [0x00; 12];
 
@@ -83,14 +84,12 @@ static mut RX_BUF: [u8; 12] = [0x00; 12];
 // RFU          ;;      2 bits
 // TxAdd        ;;      1 bit
 // RxAdd        ;;      1 bit
-// Length      ;;      6 bits
+// Length       ;;       6 bits
 // RFU          ;;      2 bits
 // AdvD         ;;      6 bytes
-// AdvData      ;;      4 bytes
+// AdvData      ;;      31 bytes
 
-// I'm pretty sure that the total length is 39 bytes
 // Header (2 bytes) || Address (6 bytes) || Payload 31 bytes
-
 static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
                                 0x02,
                                 0x1C,
@@ -152,7 +151,7 @@ impl Radio {
         Radio {
             regs: RADIO_BASE as *const RADIO_REGS,
             client: Cell::new(None),
-            offset: Cell::new(0),
+            offset: Cell::new(18),
         }
     }
     pub fn set_client<C: Client>(&self, client: &'static C) {
@@ -407,6 +406,15 @@ impl Radio {
     pub fn disable_nvic(&self) {
         nvic::disable(NvicIdx::RADIO);
     }
+
+    fn reset_payload(&self) {
+        // reset contents except header || address
+        for i in 9..39 {
+            unsafe {
+                PAYLOAD[i] = 0;
+            }
+        }
+    }
 }
 
 impl RadioDriver for Radio {
@@ -441,17 +449,13 @@ impl RadioDriver for Radio {
         self.rx();
     }
 
+
+
+    // unsued return value remove!!
     fn set_adv_name(&self, name: &'static mut [u8], len: usize) -> ReturnCode {
         // assumption set name will always write over the buffer
         // name is max 29 bytes ensured by capsule
-
-        // reset contents except header || address
-        for i in 9..39 {
-            unsafe {
-                PAYLOAD[i] = 0;
-            }
-        }
-
+        self.reset_payload();
         self.offset.set(11 + len);
         unsafe {
             PAYLOAD[9] = (len + 1) as u8;
@@ -466,9 +470,7 @@ impl RadioDriver for Radio {
     }
 
     fn set_adv_data(&self, data: &'static mut [u8], len: usize) -> ReturnCode {
-        // assumption name + data is less or equal to 27 bytes
-        // TODO: validate in the capsule
-
+        // pre-condition name + data is less or equal to 27 bytes
         let offset = self.offset.get();
         unsafe {
             PAYLOAD[offset] = (len + 1) as u8;
@@ -480,6 +482,8 @@ impl RadioDriver for Radio {
                 PAYLOAD[i + offset + 2] = *c;
             }
         }
+
+        self.offset.set(offset + len + 2);
         ReturnCode::SUCCESS
     }
 
