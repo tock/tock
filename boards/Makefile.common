@@ -113,6 +113,13 @@ target/$(TARGET)/release/$(PLATFORM).bin: target/$(TARGET)/release/$(PLATFORM).e
 target/$(TARGET)/debug/$(PLATFORM).bin: target/$(TARGET)/debug/$(PLATFORM).elf
 	$(Q)$(OBJCOPY) -Obinary $^ $@
 
+# `make check` runs the Rust compiler but does not actually output the final
+# binary. This makes checking for Rust errors much faster.
+.PHONY: check
+check:
+	$(Q)rustup component add rust-src
+	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) check --target=$(TARGET) $(VERBOSE) --release
+
 .PHONY: clean
 clean::
 	$(Q)$(XARGO) clean $(VERBOSE)
