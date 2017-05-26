@@ -74,10 +74,8 @@ enum Adtype {
     MfgData = 0xff,
 }
 
-
 // static mut TX_BUF: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 static mut RX_BUF: [u8; 12] = [0x00; 12];
-static mut DMY: [u8; 32] = [0; 32];
 
 
 
@@ -267,7 +265,7 @@ impl Radio {
         // set channel rate,  3 - BLE 1MBIT/s
         regs.MODE.set(3);
     }
-
+    
     fn set_data_white_iv(&self, val: u32) {
         let regs = unsafe { &*self.regs };
         // DATAIV
@@ -380,21 +378,7 @@ impl Radio {
                         _ => self.set_channel(37),
                     }
                     // Once a CRC error is received discard the message and return
-                    /*
-                    if regs.CRCSTATUS.get() == 0 {
-                        // Only for debugging purposes,
-                        debug!("crc status {:?}\n", regs.CRCSTATUS.get());
-                    } else {
-
-                        unsafe {
-                            self.client.get().map(|client| client.receive_done(&mut RX_BUF, &mut DMY, 12));
-                        }
-                    }
-                } else {
-                    // TODO: Implement something.
-                    unsafe {
-                        self.client.get().map(|client| client.transmit_done(&mut TX_BUF, &mut DMY, 16));
-                    }*/
+                    
                 }
                 _ => (),
             }
@@ -440,6 +424,8 @@ impl RadioDriver for Radio {
     fn init(&self) {
         // self.init_radio_ble()
     }
+    
+    // REMOVE !?
     fn flash_leds(&self) {
         self.turn_on_leds();
     }

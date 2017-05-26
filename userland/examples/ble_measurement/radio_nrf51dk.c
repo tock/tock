@@ -16,12 +16,12 @@ int tx_data(const char* data, unsigned char len) {
   return command(DRIVER_RADIO, TX, 16);
 }
 
-int start_ble_advertisement(const char* name, unsigned char name_len, const char *data, unsigned char data_len){
-  int err = allow(DRIVER_RADIO, TX, (void*)name, strlen(name));
+int start_ble_advertisement(const char* name, const char *data){
+  int err = allow(DRIVER_RADIO, SET_NAME, (void*)name, strlen(name));
   if (err < 0){
     return err;
   }
-  err = allow(DRIVER_RADIO, 2, (void*)data, strlen(data));
+  err = allow(DRIVER_RADIO, SET_DATA, (void*)data, strlen(data));
   if (err < 0){
     return err;
   }

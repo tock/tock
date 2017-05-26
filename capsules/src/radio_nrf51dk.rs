@@ -93,7 +93,8 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     kernel_tx: TakeCell<'static, [u8]>,
     kernel_tx_data: TakeCell<'static, [u8]>,
     alarm: &'a A,
-    frequency: Cell<usize>,
+    // we should probably add a BLE state-machine here
+    // frequency: Cell<usize>,
     advertise: Cell<bool>,
 }
 // 'a = lifetime
@@ -183,74 +184,35 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         self.alarm.set_alarm(tics);
     }
 
-    // change name of the function? not that clear
-    // added a nested closure get other data from userland
-    pub fn send_userland_buffer(&self) {
+
+    pub fn set_adv_data(&self) -> ReturnCode {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
-                app.app_write.as_ref().map(|slice| {
-                    // advertisement name
-                    self.kernel_tx.take().map(|buf| {
-                        // suggestion how to loop through the buffer without knowing the length
+                app.app_write_data
+                    .as_ref()
+                    .map(|slice| {
                         let len = slice.len();
-                        // debug!("len: {:?}\r\n", len);
-                        for (out, inp) in buf.iter_mut().zip(slice.as_ref()[0..len].iter()) {
-                            *out = *inp;
-                        }
-
-                        app.app_write_data.as_ref().map(|slice2| {
-                            // advertisement data
-                            self.kernel_tx_data.take().map(move |buf2| {
-                                let len2 = slice2.len();
-                                // debug!("len2: {:?}\r\n", len2);
-                                for (out, inp) in buf2.iter_mut()
-                                    .zip(slice2.as_ref()[0..len2].iter()) {
-                                    *out = *inp;
-                                }
-                                if len + len2 < 17 {
-                                    //debug!("sending buffer\r\n");
-                                    self.radio.transmit(buf, len, buf2, len2);
-                                } else {
-                                    // TODO: return error
-                                }
-                                // if len + len2 < 30 then send (or similar)
-                                // else return error
-                                //debug!("total len {:?}\r\n", len + len2);
-                                // unsafe {
-                                //     self.kernel_tx_data.replace(&mut BUF);
-                                // }
-                            });
-                        });
-                        // kernel_tx_data works only for 1 transmitt then it "consumed"
-                        // need to replaced after take()
-                        // when it's fixed move transmit into the inner closure
+                        self.kernel_tx_data
+                            .take()
+                            .map(|data| {
+                                     for (out, inp) in
+                                    data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
+                                         *out = *inp;
+                                     }
+                                     self.radio.set_adv_data(data, len);
+                                 });
                     });
-
-                });
             });
         }
+        ReturnCode::SUCCESS
     }
 
+
+
     pub fn configure_periodic_alarm(&self) {
-        let mut interval = 5017 as u32;
         self.radio.set_channel(37);
-        let tics = self.alarm.now().wrapping_add(interval);
+        let tics = self.alarm.now().wrapping_add(5017 as u32);
         self.alarm.set_alarm(tics);
-        /*
-        let mut interval = 1000 as u32;
-        if self.frequency.get() == 39 {
-            interval = 3545 as u32;
-            self.radio.set_channel(self.frequency.get());
-            let tics = self.alarm.now().wrapping_add(interval);
-            self.alarm.set_alarm(tics);
-            self.frequency.set(37);
-        } else {
-            self.radio.set_channel(self.frequency.get());
-            let tics = self.alarm.now().wrapping_add(interval);
-            self.alarm.set_alarm(tics);
-            self.frequency.set(self.frequency.get() + 1);
-        }
-        */
     }
 }
 
@@ -345,7 +307,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                     self.busy.set(true);
                     self.advertise.set(true);
                     self.configure_periodic_alarm();
-                    //self.send_userland_buffer();
                     ReturnCode::SUCCESS
                 } else {
                     ReturnCode::FAIL
