@@ -1,5 +1,5 @@
 r
-loadfile target/nrf51/release/nrf51dk-blink.hex
+loadfile target/thumbv6m-none-eabi/release/nrf51dk-blink.hex
 r
 g
 q
