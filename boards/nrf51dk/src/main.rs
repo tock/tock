@@ -285,7 +285,7 @@ pub unsafe fn reset_handler() {
          &mut capsules::radio_nrf51dk::BUF,
          &mut capsules::radio_nrf51dk::BUF,
          radio_virtual_alarm),
-        288/8);
+        320/8);
     nrf51::radio::RADIO.set_client(radio);
     radio_virtual_alarm.set_client(radio);
 

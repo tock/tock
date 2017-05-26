@@ -96,6 +96,7 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     // we should probably add a BLE state-machine here
     // frequency: Cell<usize>,
     advertise: Cell<bool>,
+    remaining: Cell<usize>,
 }
 // 'a = lifetime
 // R - type Radio
