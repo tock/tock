@@ -62,22 +62,24 @@ pub unsafe extern "C" fn systick_handler() {
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn SVC_Handler() {
     asm!("
-  ldr r0, EXC_RETURN_MSP
+  ldr r0, EXC_RETURN_MSP_SVC
   cmp lr, r0
   bne to_kernel
-  ldr r1, EXC_RETURN_PSP
+  ldr r1, EXC_RETURN_PSP_SVC
   bx r1
 
 to_kernel:
   ldr r0, =SYSCALL_FIRED
   movs r1, #1
   str r1, [r0, #0]
-  ldr r1, EXC_RETURN_MSP
+  ldr r1, EXC_RETURN_MSP_SVC
   bx r1
 
-EXC_RETURN_MSP:
+  /* This word needs to be near the PC of the instruction that ref's it */
+  .align 4
+EXC_RETURN_MSP_SVC:
   .word 0xFFFFFFF9
-EXC_RETURN_PSP:
+EXC_RETURN_PSP_SVC:
   .word 0xFFFFFFFD
   ");
 }
@@ -88,7 +90,7 @@ EXC_RETURN_PSP:
 pub unsafe extern "C" fn generic_isr() {
     asm!("
     /* Skip saving process state if not coming from user-space */
-    ldr r0, EXC_RETURN_PSP
+    ldr r0, EXC_RETURN_PSP_GENERIC_ISR
     cmp lr, r0
     bne _ggeneric_isr_no_stacking
 
@@ -140,8 +142,13 @@ _ggeneric_isr_no_stacking:
     movs r0, #0
     msr CONTROL, r0
 
-    ldr r0, EXC_RETURN_PSP
+    ldr r0, EXC_RETURN_PSP_GENERIC_ISR
     mov lr, r0
+
+    /* This word needs to be near the PC of the instruction that ref's it */
+    .align 4
+EXC_RETURN_PSP_GENERIC_ISR:
+    .word 0xFFFFFFFD
     ");
 }
 
