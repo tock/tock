@@ -8,7 +8,8 @@
 #define CH            2
 #define BLE_ADV_START 3
 #define BLE_ADV_STOP  4
-
+#define SET_NAME      5
+#define SET_DATA      6
 
 
 #ifdef __cplusplus
@@ -22,7 +23,7 @@ int rx_data(const char* packet, unsigned char len);
 int read_data(const char* packet, subscribe_cb callback, unsigned char len);
 int set_channel(int ch_num);
 
-int start_ble_advertisement(const char* name, unsigned char len1, const char* data, unsigned char len2);
+int start_ble_advertisement(const char* name, const char* data);
 int stop_ble_advertisement(void);
 #ifdef __cplusplus
 }

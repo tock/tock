@@ -4,8 +4,6 @@
 
 /** #define RECEIVER */
 
-#define BUF_SIZE 16
-
 #ifdef RECEIVER
 static void callback(int type,
 		__attribute__ ((unused)) int not_used2,
@@ -22,8 +20,8 @@ int main(void)
 {
   printf("demo app\n");
 	// remember these will be automatically '\0' terminated
-  char packet[] = "u2";
-  char data[] = "41";
+  char name[] = "NO_RUST_IN_USERLAND";
+  char data[] = "1337";
 
 	#ifdef RECEIVER
   int ret = subscribe_rx(callback, NULL);
@@ -39,7 +37,7 @@ int main(void)
   //int ch = 39;
 	for(;;){
 		printf("after delay \r\n");
-		printf("return from start_ble_advertisement %d\r\n", start_ble_advertisement(packet, 0, data, 0));
+		printf("return from start_ble_advertisement %d\r\n", start_ble_advertisement(name, data));
 		delay_ms(50000);
 		/** packet[0] = 'A'; */
 		//for(int i = 0; i < 1000000; i++){}
