@@ -11,6 +11,7 @@ use core::cell::Cell;
 use core::mem;
 use kernel::common::VolatileCell;
 
+#[repr(C, packed)]
 struct Registers {
     pub tasks_hfclkstart: VolatileCell<u32>,
     pub tasks_hfclkstop: VolatileCell<u32>,
