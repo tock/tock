@@ -3,6 +3,60 @@
 
 extern crate kernel;
 
+pub mod systick;
+
+#[cfg(target_os = "none")]
+#[no_mangle]
+#[naked]
+pub unsafe extern "C" fn systick_handler() {
+    asm!("
+        /* Skip saving process state if not coming from user-space */
+        ldr r0, EXC_RETURN_MSP_SYSTICK
+        cmp lr, r0
+        bne _systick_handler_no_stacking
+
+        /* We need the most recent kernel's version of r0, which points */
+        /* to the Process struct's stored registers field. The kernel's r0 */
+        /* lives in the first word of the hardware stacked registers on MSP */
+        mov r0, sp
+        ldr r0, [r0, #0]
+
+        /* Push non-hardware-stacked registers onto Process stack */
+        /* r0 points to user stack (see to_kernel) */
+        str r4, [r0, #16]
+        str r5, [r0, #20]
+        str r6, [r0, #24]
+        str r7, [r0, #28]
+
+        mov  r4, r8
+        mov  r5, r9
+        mov  r6, r10
+        mov  r7, r11
+
+        str r4, [r0, #0]
+        str r5, [r0, #4]
+        str r6, [r0, #8]
+        str r7, [r0, #12]
+
+    _systick_handler_no_stacking:
+        ldr r0, =OVERFLOW_FIRED
+        movs r1, #1
+        str r1, [r0, #0]
+
+        /* Set thread mode to privileged */
+        movs r0, #0
+        msr CONTROL, r0
+
+        ldr r1, EXC_RETURN_MSP_SYSTICK
+        mov lr, r1
+
+        /* This word needs to be near the PC of the instruction that ref's it */
+        .align 4
+        EXC_RETURN_MSP_SYSTICK:
+          .word 0xFFFFFFF9
+         ");
+}
+
 #[no_mangle]
 #[naked]
 #[allow(non_snake_case)]
