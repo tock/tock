@@ -11,6 +11,15 @@ pub trait RadioDriver {
     // ADD MORE LATER
     fn flash_leds(&self);
     fn set_channel(&self, ch: usize);
+
+    fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
+    fn set_adv_interval(&self, interval: usize) -> ReturnCode {
+        ReturnCode::ENOSUPPORT
+    }
+    
+
 }
 
 pub trait Client {

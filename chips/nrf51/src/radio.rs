@@ -59,6 +59,7 @@ pub const RADIO_STATE_TXDISABLE: u32 = 12;
 
 
 // AD Types <-> not complete
+// FIXME: REMOVE ONCE THE CAPSULE SUPPORT ALL AD TYPES
 #[allow(dead_code)]
 #[repr(u8)]
 enum Adtype {
@@ -92,54 +93,55 @@ static mut RX_BUF: [u8; 12] = [0x00; 12];
 
 // Header (2 bytes) || Address (6 bytes) || Payload 31 bytes
 static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
-                                0x02,
-                                0x1C,
-                                0x00,
-                                // Address          [ADV ADDRESS]
-                                0x90,
-                                0xD8,
-                                0x7A,
-                                0xBD,
-                                0xA3,
-                                0xED,
-                                // [LEN, AD-TYPE, LEN-1 bytes of data ...]
-                                // 0x09 - Local name
-                                // 0x54 0x6f 0x63 0x6b 0x4f 0x54 - TockOs
-                                0x7,
-                                0x09,
-                                0x54,
-                                0x6f,
-                                0x63,
-                                0x6b,
-                                0x4f,
-                                0x53,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00]; //[DATA]
+    0x02,
+    0x1C,
+    0x00,
+    // Address          [ADV ADDRESS]
+    0x90,
+    0xD8,
+    0x7A,
+    0xBD,
+    0xA3,
+    0xED,
+    // [LEN, AD-TYPE, LEN-1 bytes of data ...]
+    // 0x09 - Local name
+    // 0x54 0x6f 0x63 0x6b 0x4f 0x54 - TockOs
+    0x7,
+    0x09,
+    0x54,
+    0x6f,
+    0x63,
+    0x6b,
+    0x4f,
+    0x53,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00]; //[DATA]
 #[no_mangle]
 pub struct Radio {
     regs: *const RADIO_REGS,
     client: Cell<Option<&'static Client>>,
     offset: Cell<usize>,
+    txpower: Cell<usize>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -153,6 +155,7 @@ impl Radio {
             regs: RADIO_BASE as *const RADIO_REGS,
             client: Cell::new(None),
             offset: Cell::new(18),
+            txpower: Cell::new(0),
         }
     }
     pub fn set_client<C: Client>(&self, client: &'static C) {
@@ -174,8 +177,8 @@ impl Radio {
 
         self.radio_on();
 
-        // TX Power 0 dB
-        self.set_txpower(0);
+        // TX Power acc. twpower variable in the struct
+        self.set_txpower();
 
         // BLE MODE
         self.set_channel_rate(0x03);
@@ -228,7 +231,7 @@ impl Radio {
         // RFU          ;;      2 bits
         regs.PCNF0
             .set(// set S0 to 1 byte
-                 (1 << RADIO_PCNF0_S0LEN_POS) |
+                (1 << RADIO_PCNF0_S0LEN_POS) |
                 // set S1 to 2 bits
                 (2 << RADIO_PCNF0_S1LEN_POS) |
                 // set length to 6 bits
@@ -296,10 +299,11 @@ impl Radio {
         regs.POWER.set(0);
     }
 
-
-    fn set_txpower(&self, val: u32) {
+    // pre-condition validated before arrving here
+    // argue where the put the returncode
+    fn set_txpower(&self) {
         let regs = unsafe { &*self.regs };
-        regs.TXPOWER.set(val);
+        regs.TXPOWER.set(self.txpower.get() as u32);
     }
 
     fn set_tx_buffer(&self) {
@@ -359,24 +363,25 @@ impl Radio {
             // e.g. receiv not covered and not supported
             match regs.STATE.get() {
                 RADIO_STATE_TXRU |
-                RADIO_STATE_TXIDLE |
-                RADIO_STATE_TXDISABLE |
-                RADIO_STATE_TX => {
-                    match regs.FREQEUNCY.get() {
-                        80 => {
-                            self.radio_off();
-                            self.client.get().map(|client| client.done_adv());
-                        }
-                        20 => {
-                            self.set_channel(39);
-                            self.client.get().map(|client| client.continue_adv());
-                        }
-                        2 => {
-                            self.set_channel(38);
-                            self.client.get().map(|client| client.continue_adv());
+                    RADIO_STATE_TXIDLE |
+                    RADIO_STATE_TXDISABLE |
+                    RADIO_STATE_TX => {
+                        match regs.FREQEUNCY.get() {
+                            80 => {
+                                self.radio_off();
+                                self.client.get().map(|client| client.done_adv());
+                            }
+                            20 => {
+                                self.set_channel(39);
+                                self.client.get().map(|client| client.continue_adv());
+                            }
+                            2 => {
+                                self.set_channel(38);
+                                self.client.get().map(|client| client.continue_adv());
 
+                            }
+                            _ => self.set_channel(37),
                         }
-                        _ => self.set_channel(37),
                     }
                     // Once a CRC error is received discard the message and return
                     
@@ -493,6 +498,26 @@ impl RadioDriver for Radio {
     fn set_channel(&self, ch: usize) {
         self.set_channel_freq(ch as u32);
         self.set_data_white_iv(ch as u32);
+    }
+
+    // FIXME: added a temporary variable in struct that keeps 
+    // track of the twpower because we turn off the radio 
+    // between advertisements, 
+    // it is configured to 0 by default or the latest conifigured value
+    fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
+        match dbm {
+            e @ 0x04 | 
+            e @ 0x00 | 
+            e @ 0xFC | 
+            e @ 0xF8 | 
+            e @ 0xF0 | 
+            e @ 0xEC | 
+            e @ 0xD8 => {
+                self.txpower.set(e);
+                ReturnCode::SUCCESS
+            }
+            _ => ReturnCode::ENOSUPPORT,
+        }
     }
 }
 
