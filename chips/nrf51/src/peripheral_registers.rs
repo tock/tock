@@ -3,6 +3,7 @@
 use kernel::common::VolatileCell;
 
 pub const RTC1_BASE: usize = 0x40011000;
+#[repr(C, packed)]
 pub struct RTC1 {
     pub tasks_start: VolatileCell<u32>,
     pub tasks_stop: VolatileCell<u32>,
@@ -30,6 +31,7 @@ pub struct RTC1 {
 }
 
 pub const GPIO_BASE: usize = 0x50000000;
+#[repr(C, packed)]
 pub struct GPIO {
     _reserved1: [u32; 321],
     pub out: VolatileCell<u32>,
@@ -79,7 +81,6 @@ pub struct RNG_REGS {
 }
 
 pub const AESECB_BASE: usize = 0x4000E000;
-#[no_mangle]
 #[allow(non_snake_case)]
 #[repr(C, packed)]
 pub struct AESECB_REGS {
