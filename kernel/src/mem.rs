@@ -47,7 +47,7 @@ impl<L, T> Drop for AppPtr<L, T> {
             if ps.len() > self.process.idx() {
                 ps[self.process.idx()]
                     .as_mut()
-                    .map(|process| process.free(self.ptr.get_mut()));
+                    .map(|process| process.free(self.ptr.as_mut()));
             }
         }
     }
