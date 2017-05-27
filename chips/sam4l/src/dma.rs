@@ -233,8 +233,7 @@ impl DMAChannel {
         registers.mode.set(self.width.get() as u32);
 
         registers.peripheral_select.set(pid);
-        registers
-            .memory_address_reload
+        registers.memory_address_reload
             .set(&buf[0] as *const u8 as u32);
         registers.transfer_counter_reload.set(len as u32);
 

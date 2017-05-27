@@ -104,8 +104,7 @@ impl Alarm for Rtc {
 pub unsafe extern "C" fn RTC1_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::RTC1);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::RTC1);
 }

@@ -502,8 +502,7 @@ impl RadioDriver for Radio {
 pub unsafe extern "C" fn RADIO_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::RADIO);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::RADIO);
 }

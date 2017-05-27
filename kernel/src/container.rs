@@ -136,10 +136,10 @@ impl<T: Default> Container<T> {
             if AppId::is_kernel(appid) {
                 let cntr = kernel_container_for::<T>(app_id);
                 Some(AppliedContainer {
-                         appid: app_id,
-                         container: cntr,
-                         _phantom: PhantomData,
-                     })
+                    appid: app_id,
+                    container: cntr,
+                    _phantom: PhantomData,
+                })
             } else {
                 match process::PROCS[app_id] {
                     Some(ref mut app) => {
@@ -148,10 +148,10 @@ impl<T: Default> Container<T> {
                             None
                         } else {
                             Some(AppliedContainer {
-                                     appid: app_id,
-                                     container: cntr,
-                                     _phantom: PhantomData,
-                                 })
+                                appid: app_id,
+                                container: cntr,
+                                _phantom: PhantomData,
+                            })
                         }
                     }
                     None => None,

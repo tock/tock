@@ -99,8 +99,7 @@ impl TemperatureDriver for Temperature {
 pub unsafe extern "C" fn TEMP_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::TEMP);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::TEMP);
 }

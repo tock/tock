@@ -50,8 +50,8 @@ impl DebugWriter {
                 panic!("wb bounds: start {} end {} bytes {:?}", start, end, bytes);
             }
             for (dst, src) in DEBUG_WRITER.output_buffer[start..end]
-                    .iter_mut()
-                    .zip(bytes.iter()) {
+                .iter_mut()
+                .zip(bytes.iter()) {
                 *dst = *src;
             }
         }
@@ -96,10 +96,10 @@ impl DebugWriter {
                         panic!("Consistency error: publish empty buffer?")
                     };
 
-                    let slice = AppSlice::new(self.output_buffer.as_mut_ptr().offset(start as
-                                                                                     isize),
-                                              end - start,
-                                              AppId::kernel_new(APPID_IDX));
+                    let slice =
+                        AppSlice::new(self.output_buffer.as_mut_ptr().offset(start as isize),
+                                      end - start,
+                                      AppId::kernel_new(APPID_IDX));
                     let slice_len = slice.len();
                     if driver.allow(AppId::kernel_new(APPID_IDX), 1, slice) != ReturnCode::SUCCESS {
                         panic!("Debug print allow fail");

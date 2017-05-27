@@ -21,9 +21,9 @@ impl<'a> I2CHwMasterClient for MuxI2C<'a> {
         self.inflight
             .get()
             .map(move |device| {
-                     self.inflight.set(None);
-                     device.command_complete(buffer, error);
-                 });
+                self.inflight.set(None);
+                device.command_complete(buffer, error);
+            });
         self.do_next_op();
     }
 }

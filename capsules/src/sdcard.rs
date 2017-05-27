@@ -407,8 +407,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.client
                         .get()
                         .map(move |client| {
-                                 client.error(ErrorCode::InitializationFailure as u32);
-                             });
+                            client.error(ErrorCode::InitializationFailure as u32);
+                        });
                 }
             }
 
@@ -422,9 +422,9 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     // send application-specific initialization in high capacity mode (HCS)
                     self.state
                         .set(SpiState::SendManufSpecificCmd {
-                                 cmd: SDCmd::ACMD41_ManufSpecificInit,
-                                 arg: 0x40000000,
-                             });
+                            cmd: SDCmd::ACMD41_ManufSpecificInit,
+                            arg: 0x40000000,
+                        });
                     self.after_state.set(SpiState::InitRepeatHCSInit);
                     self.send_command(SDCmd::CMD55_ManufSpecificCommand,
                                       0x0,
@@ -436,9 +436,9 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     // send application-specific initialization
                     self.state
                         .set(SpiState::SendManufSpecificCmd {
-                                 cmd: SDCmd::ACMD41_ManufSpecificInit,
-                                 arg: 0x0,
-                             });
+                            cmd: SDCmd::ACMD41_ManufSpecificInit,
+                            arg: 0x0,
+                        });
                     self.after_state.set(SpiState::InitAppSpecificInit);
                     self.send_command(SDCmd::CMD55_ManufSpecificCommand,
                                       0x0,
@@ -478,8 +478,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.client
                         .get()
                         .map(move |client| {
-                                 client.error(ErrorCode::InitializationFailure as u32);
-                             });
+                            client.error(ErrorCode::InitializationFailure as u32);
+                        });
                 }
             }
 
@@ -509,8 +509,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.client
                         .get()
                         .map(move |client| {
-                                 client.error(ErrorCode::InitializationFailure as u32);
-                             });
+                            client.error(ErrorCode::InitializationFailure as u32);
+                        });
                 }
             }
 
@@ -524,9 +524,9 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.card_type.set(SDCardType::SDv1);
                     self.state
                         .set(SpiState::SendManufSpecificCmd {
-                                 cmd: SDCmd::ACMD41_ManufSpecificInit,
-                                 arg: 0x0,
-                             });
+                            cmd: SDCmd::ACMD41_ManufSpecificInit,
+                            arg: 0x0,
+                        });
                     self.after_state.set(SpiState::InitRepeatAppSpecificInit);
                     self.send_command(SDCmd::CMD55_ManufSpecificCommand,
                                       0x0,
@@ -576,8 +576,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.client
                         .get()
                         .map(move |client| {
-                                 client.error(ErrorCode::InitializationFailure as u32);
-                             });
+                            client.error(ErrorCode::InitializationFailure as u32);
+                        });
                 }
             }
 
@@ -615,8 +615,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.client
                         .get()
                         .map(move |client| {
-                                 client.error(ErrorCode::InitializationFailure as u32);
-                             });
+                            client.error(ErrorCode::InitializationFailure as u32);
+                        });
                 }
             }
 
@@ -640,8 +640,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.client
                         .get()
                         .map(move |client| {
-                                 client.error(ErrorCode::InitializationFailure as u32);
-                             });
+                            client.error(ErrorCode::InitializationFailure as u32);
+                        });
                 }
             }
 
@@ -704,8 +704,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.client
                         .get()
                         .map(move |client| {
-                                 client.error(ErrorCode::InitializationFailure as u32);
-                             });
+                            client.error(ErrorCode::InitializationFailure as u32);
+                        });
                 }
             }
 
@@ -838,8 +838,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                         // 512 (block size)
                         let offset = self.client_offset.get();
                         for (client_byte, &read_byte) in
-                            buffer
-                                .iter_mut()
+                            buffer.iter_mut()
                                 .skip(offset)
                                 .zip(read_buffer.iter())
                                 .take(512) {
@@ -877,12 +876,12 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.client_buffer
                         .take()
                         .map(move |buffer| {
-                                 self.client
-                                     .get()
-                                     .map(move |client| {
-                                              client.read_done(buffer, self.client_offset.get());
-                                          });
-                             });
+                            self.client
+                                .get()
+                                .map(move |client| {
+                                    client.read_done(buffer, self.client_offset.get());
+                                });
+                        });
                 } else {
                     // error, send callback and quit
                     self.txbuffer.replace(write_buffer);
@@ -908,8 +907,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                                 // Limit to minimum length between write_buffer,
                                 // buffer, and 512 (block size)
                                 for (write_byte, &client_byte) in
-                                    write_buffer
-                                        .iter_mut()
+                                    write_buffer.iter_mut()
                                         .skip(1)
                                         .zip(buffer.iter())
                                         .take(512) {
@@ -921,11 +919,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                             });
 
                         // set a known value for remaining bytes
-                        for write_byte in write_buffer
-                                .iter_mut()
-                                .skip(1)
-                                .skip(bytes_written)
-                                .take(512) {
+                        for write_byte in write_buffer.iter_mut()
+                            .skip(1)
+                            .skip(bytes_written)
+                            .take(512) {
                             *write_byte = 0xFF;
                         }
 
@@ -1000,10 +997,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     self.client_buffer
                         .take()
                         .map(move |buffer| {
-                                 self.client
-                                     .get()
-                                     .map(move |client| { client.write_done(buffer); });
-                             });
+                            self.client
+                                .get()
+                                .map(move |client| { client.write_done(buffer); });
+                        });
                 } else {
                     // replace buffers
                     self.txbuffer.replace(write_buffer);
@@ -1062,18 +1059,18 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                     .take()
                     .map(|write_buffer| {
                         self.rxbuffer.take().map(move |read_buffer| {
-                        // send application-specific initialization in high capcity mode (HCS)
-                        self.state.set(SpiState::SendManufSpecificCmd {
-                            cmd: SDCmd::ACMD41_ManufSpecificInit,
-                            arg: 0x40000000,
+                            // send application-specific initialization in high capcity mode (HCS)
+                            self.state.set(SpiState::SendManufSpecificCmd {
+                                cmd: SDCmd::ACMD41_ManufSpecificInit,
+                                arg: 0x40000000,
+                            });
+                            self.after_state.set(SpiState::InitRepeatHCSInit);
+                            self.send_command(SDCmd::CMD55_ManufSpecificCommand,
+                                              0x0,
+                                              write_buffer,
+                                              read_buffer,
+                                              10);
                         });
-                        self.after_state.set(SpiState::InitRepeatHCSInit);
-                        self.send_command(SDCmd::CMD55_ManufSpecificCommand,
-                                          0x0,
-                                          write_buffer,
-                                          read_buffer,
-                                          10);
-                    });
                     });
 
                 self.alarm_state.set(AlarmState::Idle);
@@ -1090,9 +1087,9 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                                 // send application-specific initialization
                                 self.state
                                     .set(SpiState::SendManufSpecificCmd {
-                                             cmd: SDCmd::ACMD41_ManufSpecificInit,
-                                             arg: 0x0,
-                                         });
+                                        cmd: SDCmd::ACMD41_ManufSpecificInit,
+                                        arg: 0x0,
+                                    });
                                 self.after_state.set(SpiState::InitRepeatAppSpecificInit);
                                 self.send_command(SDCmd::CMD55_ManufSpecificCommand,
                                                   0x0,
@@ -1134,10 +1131,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                         self.rxbuffer
                             .take()
                             .map(move |read_buffer| {
-                                     // wait until ready and then read data block, then done
-                                     self.state.set(SpiState::WaitReadBlock);
-                                     self.read_bytes(write_buffer, read_buffer, 1);
-                                 });
+                                // wait until ready and then read data block, then done
+                                self.state.set(SpiState::WaitReadBlock);
+                                self.read_bytes(write_buffer, read_buffer, 1);
+                            });
                     });
 
                 self.alarm_state.set(AlarmState::Idle);
@@ -1151,10 +1148,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                         self.rxbuffer
                             .take()
                             .map(move |read_buffer| {
-                                     // wait until ready and then read data block, then done
-                                     self.state.set(SpiState::WaitReadBlocks { count: count });
-                                     self.read_bytes(write_buffer, read_buffer, 1);
-                                 });
+                                // wait until ready and then read data block, then done
+                                self.state.set(SpiState::WaitReadBlocks { count: count });
+                                self.read_bytes(write_buffer, read_buffer, 1);
+                            });
                     });
 
                 self.alarm_state.set(AlarmState::Idle);
@@ -1168,10 +1165,10 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
                         self.rxbuffer
                             .take()
                             .map(move |read_buffer| {
-                                     // check if sd card is busy
-                                     self.state.set(SpiState::WaitWriteBlockBusy);
-                                     self.read_bytes(write_buffer, read_buffer, 1);
-                                 });
+                                // check if sd card is busy
+                                self.state.set(SpiState::WaitWriteBlockBusy);
+                                self.read_bytes(write_buffer, read_buffer, 1);
+                            });
                     });
 
                 self.alarm_state.set(AlarmState::Idle);

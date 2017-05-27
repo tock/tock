@@ -90,13 +90,13 @@ impl<'a, A: time::Alarm + 'a> time::Client for Isl29035<'a, A> {
         self.buffer
             .take()
             .map(|buffer| {
-                     // Turn on i2c to send commands.
-                     self.i2c.enable();
+                // Turn on i2c to send commands.
+                self.i2c.enable();
 
-                     buffer[0] = 0x02 as u8;
-                     self.i2c.write_read(buffer, 1, 2);
-                     self.state.set(State::ReadingLI);
-                 });
+                buffer[0] = 0x02 as u8;
+                self.i2c.write_read(buffer, 1, 2);
+                self.state.set(State::ReadingLI);
+            });
     }
 }
 

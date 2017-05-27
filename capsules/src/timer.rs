@@ -47,13 +47,13 @@ impl<'a, A: Alarm> TimerDriver<'a, A> {
         let mut next_dist = u32::max_value();
         for timer in self.app_timer.iter() {
             timer.enter(|timer, _| if timer.interval > 0 {
-                            let t_alarm = timer.t0.wrapping_add(timer.interval);
-                            let t_dist = t_alarm.wrapping_sub(now);
-                            if next_dist > t_dist {
-                                next_alarm = t_alarm;
-                                next_dist = t_dist;
-                            }
-                        });
+                let t_alarm = timer.t0.wrapping_add(timer.interval);
+                let t_dist = t_alarm.wrapping_sub(now);
+                if next_dist > t_dist {
+                    next_alarm = t_alarm;
+                    next_dist = t_dist;
+                }
+            });
         }
         if next_alarm != u32::max_value() {
             self.alarm.set_alarm(next_alarm);
@@ -69,10 +69,10 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                 ReturnCode::SUCCESS
             })
             .unwrap_or_else(|err| match err {
-                                Error::OutOfMemory => ReturnCode::ENOMEM,
-                                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                Error::NoSuchApp => ReturnCode::EINVAL,
-                            })
+                Error::OutOfMemory => ReturnCode::ENOMEM,
+                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                Error::NoSuchApp => ReturnCode::EINVAL,
+            })
     }
 
     fn command(&self, cmd_type: usize, interval: usize, caller_id: AppId) -> ReturnCode {
@@ -146,13 +146,13 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
             }
             })
             .unwrap_or_else(|err| {
-                                let e = match err {
-                                    Error::OutOfMemory => ReturnCode::ENOMEM,
-                                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                    Error::NoSuchApp => ReturnCode::EINVAL,
-                                };
-                                (e, false)
-                            });
+                let e = match err {
+                    Error::OutOfMemory => ReturnCode::ENOMEM,
+                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                    Error::NoSuchApp => ReturnCode::EINVAL,
+                };
+                (e, false)
+            });
         if reset {
             self.reset_active_timer();
         }
@@ -184,8 +184,7 @@ impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
                         self.num_armed.set(self.num_armed.get() - 1);
                     }
 
-                    timer
-                        .callback
+                    timer.callback
                         .map(|mut cb| { cb.schedule(now as usize, 0, 0); });
                 }
             });

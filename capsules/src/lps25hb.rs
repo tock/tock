@@ -101,13 +101,13 @@ impl<'a> LPS25HB<'a> {
         self.buffer
             .take()
             .map(|buf| {
-                     // turn on i2c to send commands
-                     self.i2c.enable();
+                // turn on i2c to send commands
+                self.i2c.enable();
 
-                     buf[0] = Registers::WhoAmI as u8;
-                     self.i2c.write(buf, 1);
-                     self.state.set(State::SelectWhoAmI);
-                 });
+                buf[0] = Registers::WhoAmI as u8;
+                self.i2c.write(buf, 1);
+                self.state.set(State::SelectWhoAmI);
+            });
     }
 
     pub fn take_measurement(&self) {

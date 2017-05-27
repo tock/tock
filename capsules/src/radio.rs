@@ -218,9 +218,9 @@ impl<'a, R: radio::Radio> radio::ConfigClient for RadioDriver<'a, R> {
     fn config_done(&self, result: ReturnCode) {
         self.app
             .map(move |app| {
-                     app.cfg_callback
-                         .take()
-                         .map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
-                 });
+                app.cfg_callback
+                    .take()
+                    .map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
+            });
     }
 }

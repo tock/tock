@@ -98,10 +98,10 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     {
         let maybe_val = self.take();
         maybe_val.map(|mut val| {
-                          let res = closure(&mut val);
-                          self.replace(val);
-                          res
-                      })
+            let res = closure(&mut val);
+            self.replace(val);
+            res
+        })
     }
 
     /// Performs a `map` or returns a default value if the `TakeCell` is empty

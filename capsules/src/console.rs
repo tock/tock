@@ -61,11 +61,11 @@ impl<'a, U: UART> Console<'a, U> {
     pub fn initialize(&self) {
         self.uart
             .init(uart::UARTParams {
-                      baud_rate: self.baud_rate,
-                      stop_bits: uart::StopBits::One,
-                      parity: uart::Parity::None,
-                      hw_flow_control: false,
-                  });
+                baud_rate: self.baud_rate,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::None,
+                hw_flow_control: false,
+            });
     }
 
     /// Internal helper function for setting up a new send transaction
@@ -105,8 +105,8 @@ impl<'a, U: UART> Console<'a, U> {
                 .map(|buffer| {
                     let mut transaction_len = app.write_remaining;
                     for (i, c) in slice.as_ref()[slice.len() - app.write_remaining..slice.len()]
-                            .iter()
-                            .enumerate() {
+                        .iter()
+                        .enumerate() {
                         if buffer.len() <= i {
                             break;
                         }
@@ -143,10 +143,10 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                        Error::NoSuchApp => ReturnCode::EINVAL,
-                                    })
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
             1 => {
                 self.apps
@@ -155,10 +155,10 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                        Error::NoSuchApp => ReturnCode::EINVAL,
-                                    })
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
             _ => ReturnCode::ENOSUPPORT,
         }

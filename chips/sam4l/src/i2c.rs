@@ -309,10 +309,10 @@ impl I2CHw {
                                     None => None,
                                 };
                                 buf.map(|buf| {
-                                            // Save the already read byte.
-                                            buf[0] = regs.receive_holding.get() as u8;
-                                            client.command_complete(buf, err);
-                                        });
+                                    // Save the already read byte.
+                                    buf[0] = regs.receive_holding.get() as u8;
+                                    client.command_complete(buf, err);
+                                });
                             });
                     });
 
@@ -327,10 +327,10 @@ impl I2CHw {
                     self.dma
                         .get()
                         .map(|dma| {
-                                 let buf = dma.abort_xfer().unwrap();
-                                 dma.prepare_xfer(dma_periph, buf, len);
-                                 dma.start_xfer();
-                             });
+                            let buf = dma.abort_xfer().unwrap();
+                            dma.prepare_xfer(dma_periph, buf, len);
+                            dma.start_xfer();
+                        });
                 }
             }
         }
@@ -391,24 +391,24 @@ impl I2CHw {
         self.dma
             .get()
             .map(move |dma| {
-                     dma.enable();
-                     dma.prepare_xfer(self.dma_pids.1, data, len as usize);
-                     self.setup_xfer(chip, flags, false, len);
-                     self.master_enable();
-                     dma.start_xfer();
-                 });
+                dma.enable();
+                dma.prepare_xfer(self.dma_pids.1, data, len as usize);
+                self.setup_xfer(chip, flags, false, len);
+                self.master_enable();
+                dma.start_xfer();
+            });
     }
 
     pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
         self.dma
             .get()
             .map(move |dma| {
-                     dma.enable();
-                     dma.prepare_xfer(self.dma_pids.0, data, len as usize);
-                     self.setup_xfer(chip, flags, true, len);
-                     self.master_enable();
-                     dma.start_xfer();
-                 });
+                dma.enable();
+                dma.prepare_xfer(self.dma_pids.0, data, len as usize);
+                self.setup_xfer(chip, flags, true, len);
+                self.master_enable();
+                dma.start_xfer();
+            });
     }
 
     pub fn write_read(&self, chip: u8, data: &'static mut [u8], split: u8, read_len: u8) {
@@ -550,10 +550,10 @@ impl I2CHw {
                                     self.slave_read_buffer
                                         .take()
                                         .map(|buffer| {
-                                                 client.command_complete(buffer,
+                                            client.command_complete(buffer,
                                                         nbytes as u8,
                                                         hil::i2c::SlaveTransmissionType::Read);
-                                             });
+                                        });
                                 });
 
                         } else {
@@ -565,9 +565,8 @@ impl I2CHw {
                             if len > idx {
                                 self.slave_write_buffer
                                     .map(|buffer| {
-                                             buffer[idx as usize] = regs.receive_holding.get() as
-                                                                    u8;
-                                         });
+                                        buffer[idx as usize] = regs.receive_holding.get() as u8;
+                                    });
                                 self.slave_write_buffer_index.set(idx + 1);
                             } else {
                                 // Just drop on floor
@@ -580,10 +579,10 @@ impl I2CHw {
                                     self.slave_write_buffer
                                         .take()
                                         .map(|buffer| {
-                                                 client.command_complete(buffer,
+                                            client.command_complete(buffer,
                                                         nbytes as u8,
                                                         hil::i2c::SlaveTransmissionType::Write);
-                                             });
+                                        });
                                 });
                         }
 
@@ -599,8 +598,8 @@ impl I2CHw {
                             if len > idx {
                                 self.slave_read_buffer
                                     .map(|buffer| {
-                                             regs.transmit_holding.set(buffer[idx as usize] as u32);
-                                         });
+                                        regs.transmit_holding.set(buffer[idx as usize] as u32);
+                                    });
                                 self.slave_read_buffer_index.set(idx + 1);
                             } else {
                                 // Send dummy byte
@@ -634,9 +633,8 @@ impl I2CHw {
                                 if len > idx {
                                     self.slave_write_buffer
                                         .map(|buffer| {
-                                                 buffer[idx as usize] =
-                                                     regs.receive_holding.get() as u8;
-                                             });
+                                            buffer[idx as usize] = regs.receive_holding.get() as u8;
+                                        });
                                     self.slave_write_buffer_index.set(idx + 1);
                                 } else {
                                     // Just drop on floor
@@ -727,20 +725,20 @@ impl I2CHw {
     fn slave_enable_interrupts(&self) {
         self.slave_nvic
             .map(|slave_nvic| unsafe {
-                     nvic::enable(slave_nvic);
-                 });
+                nvic::enable(slave_nvic);
+            });
     }
 
     fn slave_disable_interrupts(&self) {
         self.slave_registers
             .map(|slave_registers| {
-                     let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
-                     regs.interrupt_disable.set(!0);
-                 });
+                let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
+                regs.interrupt_disable.set(!0);
+            });
         self.slave_nvic
             .map(|slave_nvic| unsafe {
-                     nvic::disable(slave_nvic);
-                 });
+                nvic::disable(slave_nvic);
+            });
     }
 
     pub fn slave_set_address(&self, address: u8) {
@@ -781,8 +779,8 @@ impl hil::i2c::I2CMaster for I2CHw {
         // If exists, disable slave clock
         self.slave_clock
             .map(|slave_clock| unsafe {
-                     pm::disable_clock(slave_clock);
-                 });
+                pm::disable_clock(slave_clock);
+            });
 
         let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
 
@@ -830,9 +828,9 @@ impl hil::i2c::I2CSlave for I2CHw {
     fn enable(&self) {
         self.slave_clock
             .map(|slave_clock| unsafe {
-                     pm::disable_clock(self.master_clock);
-                     pm::enable_clock(slave_clock);
-                 });
+                pm::disable_clock(self.master_clock);
+                pm::enable_clock(slave_clock);
+            });
 
         self.slave_registers
             .map(|slave_registers| {
@@ -876,8 +874,8 @@ impl hil::i2c::I2CSlave for I2CHw {
                 regs.control.set(0);
                 self.slave_clock
                     .map(|slave_clock| unsafe {
-                             pm::disable_clock(slave_clock);
-                         });
+                        pm::disable_clock(slave_clock);
+                    });
             });
         self.slave_disable_interrupts();
     }

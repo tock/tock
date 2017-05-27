@@ -129,10 +129,10 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                        Error::NoSuchApp => ReturnCode::EINVAL,
-                                    })
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -147,10 +147,10 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                        Error::NoSuchApp => ReturnCode::EINVAL,
-                                    })
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
 
             // default

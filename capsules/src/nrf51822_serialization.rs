@@ -58,11 +58,11 @@ impl<'a, U: UARTAdvanced> Nrf51822Serialization<'a, U> {
     pub fn initialize(&self) {
         self.uart
             .init(uart::UARTParams {
-                      baud_rate: 250000,
-                      stop_bits: uart::StopBits::One,
-                      parity: uart::Parity::Even,
-                      hw_flow_control: true,
-                  });
+                baud_rate: 250000,
+                stop_bits: uart::StopBits::One,
+                parity: uart::Parity::Even,
+                hw_flow_control: true,
+            });
     }
 }
 
@@ -163,12 +163,11 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         //               Can't just use 0!
         self.app
             .map(|appst| {
-                     // Call the callback after TX has finished
-                     appst
-                         .callback
-                         .as_mut()
-                         .map(|mut cb| { cb.schedule(1, 0, 0); });
-                 });
+                // Call the callback after TX has finished
+                appst.callback
+                    .as_mut()
+                    .map(|mut cb| { cb.schedule(1, 0, 0); });
+            });
     }
 
     // Called when a buffer is received on the UART
@@ -178,8 +177,7 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
 
         self.app
             .map(|appst| {
-                appst.rx_buffer = appst
-                    .rx_buffer
+                appst.rx_buffer = appst.rx_buffer
                     .take()
                     .map(|mut rb| {
 
@@ -192,16 +190,15 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
                         // copy over data to app buffer
                         self.rx_buffer
                             .map(|buffer| for idx in 0..max_len {
-                                     rb.as_mut()[idx] = buffer[idx];
-                                 });
+                                rb.as_mut()[idx] = buffer[idx];
+                            });
 
-                        appst
-                            .callback
+                        appst.callback
                             .as_mut()
                             .map(|cb| {
-                                     // send the whole darn buffer to the serialization layer
-                                     cb.schedule(4, rx_len, 0);
-                                 });
+                                // send the whole darn buffer to the serialization layer
+                                cb.schedule(4, rx_len, 0);
+                            });
 
                         rb
                     });

@@ -22,10 +22,10 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a
         self.inflight
             .get()
             .map(move |device| {
-                     self.inflight.set(None);
-                     self.do_next_op();
-                     device.read_write_done(write_buffer, read_buffer, len);
-                 });
+                self.inflight.set(None);
+                self.do_next_op();
+                device.read_write_done(write_buffer, read_buffer, len);
+            });
     }
 }
 
@@ -64,9 +64,9 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                         node.txbuffer
                             .take()
                             .map(|txbuffer| {
-                                     let rxbuffer = node.rxbuffer.take();
-                                     self.spi.read_write_bytes(txbuffer, rxbuffer, len);
-                                 });
+                                let rxbuffer = node.rxbuffer.take();
+                                self.spi.read_write_bytes(txbuffer, rxbuffer, len);
+                            });
                     }
                     Op::SetPolarity(pol) => {
                         self.spi.set_clock(pol);

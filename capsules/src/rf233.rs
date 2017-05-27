@@ -670,11 +670,11 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                 self.rx_client
                     .get()
                     .map(|client| {
-                             let rbuf = self.rx_buf.take().unwrap();
-                             // Subtract the CRC and add the length byte
-                             let len = rbuf[1] - 2 + 1;
-                             client.receive(rbuf, len, ReturnCode::SUCCESS);
-                         });
+                        let rbuf = self.rx_buf.take().unwrap();
+                        // Subtract the CRC and add the length byte
+                        let len = rbuf[1] - 2 + 1;
+                        client.receive(rbuf, len, ReturnCode::SUCCESS);
+                    });
             }
 
             InternalState::CONFIG_SHORT0_SET => {

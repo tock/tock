@@ -364,8 +364,7 @@ pub unsafe extern "C" fn TIMER0_Handler() {
     use kernel::common::Queue;
 
     nvic::disable(NvicIdx::TIMER0);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::TIMER0);
 }
@@ -375,8 +374,7 @@ pub unsafe extern "C" fn TIMER0_Handler() {
 pub unsafe extern "C" fn TIMER1_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::TIMER1);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::TIMER1);
 }
@@ -387,8 +385,7 @@ pub unsafe extern "C" fn TIMER2_Handler() {
     use kernel::common::Queue;
 
     nvic::disable(NvicIdx::TIMER2);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::TIMER2);
 }

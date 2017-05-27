@@ -281,8 +281,7 @@ pub static mut PORT: Port = Port {
 pub unsafe extern "C" fn GPIOTE_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::GPIOTE);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::GPIOTE);
 }

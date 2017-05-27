@@ -388,10 +388,10 @@ impl FLASHCALW {
 
     pub fn get_page_region(&self, page_number: i32) -> u32 {
         (if page_number >= 0 {
-             page_number as u32
-         } else {
-             self.get_page_number()
-         } / self.get_page_count_per_region())
+            page_number as u32
+        } else {
+            self.get_page_number()
+        } / self.get_page_count_per_region())
     }
 
     pub fn get_region_first_page_number(&self, region: u32) -> u32 {
@@ -883,8 +883,7 @@ pub unsafe extern "C" fn flash_handler() {
     //  and queue a handle interrupt.
     FLASH_CONTROLLER.enable_ready_int(false);
     nvic::disable(nvic::NvicIdx::HFLASHC);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(nvic::NvicIdx::HFLASHC);
 }

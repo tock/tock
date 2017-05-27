@@ -69,12 +69,12 @@ impl<'a> Trng<'a> {
                 self.client
                     .get()
                     .map(|client| {
-                             let result = client.randomness_available(&mut TrngIter(self));
-                             if Continue::Done != result {
-                                 // need more randomness i.e generate more randomness
-                                 self.start_rng();
-                             }
-                         });
+                        let result = client.randomness_available(&mut TrngIter(self));
+                        if Continue::Done != result {
+                            // need more randomness i.e generate more randomness
+                            self.start_rng();
+                        }
+                    });
             }
             // This should never happend if the logic is correct
             // Restart randomness generation if the conditon occurs
@@ -154,8 +154,7 @@ impl<'a> rng::RNG for Trng<'a> {
 pub unsafe extern "C" fn RNG_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::RNG);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::RNG);
 }

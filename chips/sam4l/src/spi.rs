@@ -322,9 +322,9 @@ impl spi::SpiMaster for Spi {
         self.dma_write
             .get()
             .map(move |write| {
-                     write.enable();
-                     write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count);
-                 });
+                write.enable();
+                write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count);
+            });
 
         // Only setup the RX channel if we were passed a read_buffer inside
         // of the option. `map()` checks this for us.
@@ -333,9 +333,9 @@ impl spi::SpiMaster for Spi {
             self.dma_read
                 .get()
                 .map(move |read| {
-                         read.enable();
-                         read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
-                     });
+                    read.enable();
+                    read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
+                });
         });
         ReturnCode::SUCCESS
     }

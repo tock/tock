@@ -89,13 +89,13 @@ impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {
         self.buffer
             .take()
             .map(|buffer| {
-                     // turn on i2c to send commands
-                     self.i2c.enable();
+                // turn on i2c to send commands
+                self.i2c.enable();
 
-                     buffer[0] = Registers::MeasRelativeHumidityNoHoldMode as u8;
-                     self.i2c.write(buffer, 1);
-                     self.state.set(State::TakeMeasurementInit);
-                 });
+                buffer[0] = Registers::MeasRelativeHumidityNoHoldMode as u8;
+                self.i2c.write(buffer, 1);
+                self.state.set(State::TakeMeasurementInit);
+            });
     }
 }
 
@@ -180,12 +180,12 @@ impl<'a, A: time::Alarm + 'a> time::Client for SI7021<'a, A> {
         self.buffer
             .take()
             .map(|buffer| {
-                     // turn on i2c to send commands
-                     self.i2c.enable();
+                // turn on i2c to send commands
+                self.i2c.enable();
 
-                     self.i2c.read(buffer, 2);
-                     self.state.set(State::ReadRhMeasurement);
-                 });
+                self.i2c.read(buffer, 2);
+                self.state.set(State::ReadRhMeasurement);
+            });
     }
 }
 

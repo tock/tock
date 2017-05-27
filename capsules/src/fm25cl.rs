@@ -201,10 +201,10 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
                 self.client_buffer
                     .take()
                     .map(move |buffer| {
-                             self.client
-                                 .get()
-                                 .map(move |client| { client.done(buffer); });
-                         });
+                        self.client
+                            .get()
+                            .map(move |client| { client.done(buffer); });
+                    });
             }
             State::ReadMemory => {
                 self.state.set(State::Idle);
@@ -290,8 +290,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
                         self.kernel_read.replace(data);
                     });
 
-                app_state
-                    .callback
+                app_state.callback
                     .map(|mut cb| { cb.schedule(1, read_len, 0); });
             });
 
