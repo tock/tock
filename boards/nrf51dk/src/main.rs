@@ -206,9 +206,9 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
-    nrf51::uart::UART0.configure(Pinmux::new(9) /*. tx  */,
-                                 Pinmux::new(11) /* rx  */,
-                                 Pinmux::new(10) /* cts */,
+    nrf51::uart::UART0.configure(Pinmux::new(9), /*. tx  */
+                                 Pinmux::new(11), /* rx  */
+                                 Pinmux::new(10), /* cts */
                                  Pinmux::new(8) /*. rts */);
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
