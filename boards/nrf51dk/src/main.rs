@@ -66,7 +66,7 @@ const BUTTON2_PIN: usize = 18;
 const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
 
-unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'static>>] {
+unsafe fn load_process() -> &'static mut [Option<kernel::Process<'static>>] {
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -80,17 +80,16 @@ unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'stati
     #[link_section = ".app_memory"]
     static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-    static mut PROCESSES: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None];
+    static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
     let mut apps_in_flash_ptr = &_sapps as *const u8;
     let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
     let mut app_memory_size = APP_MEMORY.len();
     for i in 0..NUM_PROCS {
-        let (process, flash_offset, memory_offset) =
-            kernel::process::Process::create(apps_in_flash_ptr,
-                                             app_memory_ptr,
-                                             app_memory_size,
-                                             FAULT_RESPONSE);
+        let (process, flash_offset, memory_offset) = kernel::Process::create(apps_in_flash_ptr,
+                                                                             app_memory_ptr,
+                                                                             app_memory_size,
+                                                                             FAULT_RESPONSE);
 
         if process.is_none() {
             break;

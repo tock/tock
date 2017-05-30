@@ -6,7 +6,7 @@
 //
 
 use core::cell::Cell;
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 use kernel::hil::Controller;
 use kernel::hil::time::{self, Alarm, Time, Freq16KHz};
 use nvic;

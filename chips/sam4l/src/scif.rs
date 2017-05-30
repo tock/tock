@@ -8,7 +8,7 @@
 // Date: Aug 2, 2015
 //
 
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 
 pub enum Register {
     IER = 0x00,

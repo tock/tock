@@ -10,9 +10,9 @@
 
 use core::cell::Cell;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
+use kernel::ReturnCode;
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio;
-use kernel::returncode::ReturnCode;
 
 struct App {
     tx_callback: Option<Callback>,

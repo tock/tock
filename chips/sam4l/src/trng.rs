@@ -1,7 +1,7 @@
 //! TRNG driver for the SAM4L
 
 use core::cell::Cell;
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 use kernel::hil::rng::{self, Continue};
 use nvic;
 use pm;
