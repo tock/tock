@@ -996,14 +996,15 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
 
     fn start(&self) -> ReturnCode {
         if self.state.get() != InternalState::START {
-            return ReturnCode::FAIL;
+            return ReturnCode::EALREADY;
         }
         self.register_read(RF233Register::PART_NUM);
         ReturnCode::SUCCESS
     }
 
     fn stop(&self) -> ReturnCode {
-        ReturnCode::FAIL
+        // XXX: TODO: implement stop()
+        ReturnCode::ENOSUPPORT
     }
 
     fn is_on(&self) -> bool {
