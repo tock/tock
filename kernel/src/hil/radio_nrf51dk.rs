@@ -5,21 +5,15 @@ pub trait RadioDriver {
     fn init(&self);
     fn start_adv(&self);
     fn continue_adv(&self);
-    fn set_adv_data(&self, &'static mut [u8], len: usize) -> ReturnCode;
+    fn set_adv_data(&self, ad_type: usize, &'static mut [u8], len: usize, offset: usize) -> &'static mut [u8];
+
     fn set_adv_name(&self, &'static mut [u8], len: usize) -> ReturnCode;
     fn receive(&self);
     // ADD MORE LATER
     fn flash_leds(&self);
     fn set_channel(&self, ch: usize);
 
-    fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
-    }
-    fn set_adv_interval(&self, interval: usize) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
-    }
-    
-
+    fn set_adv_txpower(&self, dbm: usize) -> ReturnCode;
 }
 
 pub trait Client {

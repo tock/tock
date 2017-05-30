@@ -283,9 +283,8 @@ pub unsafe fn reset_handler() {
          &mut nrf51::radio::RADIO,
          kernel::Container::create(),
          &mut capsules::radio_nrf51dk::BUF,
-         &mut capsules::radio_nrf51dk::BUF,
          radio_virtual_alarm),
-        320/8);
+        256/8);
     nrf51::radio::RADIO.set_client(radio);
     radio_virtual_alarm.set_client(radio);
 

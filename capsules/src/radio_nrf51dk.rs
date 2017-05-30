@@ -16,15 +16,13 @@
 //!
 //! The radio chip module configures a default name which overwritten
 //! if a name is entered in user space.
-//! 
+//!
 //! Only start and send are asyncronous and need to use the busy flag.
 //! However, the syncronous calls such as set tx power, advertisement interval
 //! and set payload can only by performed once the radio is not active
 //!
 //! Suggested improvements:
 //! TODO: re-name the capsule to BLE and remove basic radio send and remove?!
-//! TODO: Fix system call to set advertisement intervall
-//! TODO: Fix system call to set advertisement type
 //!
 //!
 //! ---ALLOW SYSTEM CALL ------------------------------------------------------------
@@ -50,13 +48,15 @@
 //! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
 //! 'cmd' is used to specify the specific operation, currently
 //! the following cmd's are supported:
-//!     * 3: start advertisment
-//!     * 4: stop advertisment
+//!     * 0: start advertisment
+//!     * 1: stop advertisment
+//!     * 2: configure tx power
+//!     * 3: configure advertise interval
 //! -----------------------------------------------------------------------------------
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: May 26, 2017
+//! Date: May 31, 2017
 
 
 use core::cell::Cell;
@@ -72,7 +72,7 @@ pub static mut BUF: [u8; 32] = [0; 32];
 // AD TYPES
 pub const BLE_HS_ADV_TYPE_FLAGS: usize = 0x01;
 pub const BLE_HS_ADV_TYPE_INCOMP_UUIDS16: usize = 0x02;
-pub const BLE_HS_ADV_TYPE_COMP_UUIDS16: usize =  0x03;
+pub const BLE_HS_ADV_TYPE_COMP_UUIDS16: usize = 0x03;
 pub const BLE_HS_ADV_TYPE_INCOMP_UUIDS32: usize = 0x04;
 pub const BLE_HS_ADV_TYPE_COMP_UUIDS32: usize = 0x05;
 pub const BLE_HS_ADV_TYPE_INCOMP_UUIDS128: usize = 0x06;
@@ -99,10 +99,8 @@ pub struct App {
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
-    // used for adv name
+    // used for adv data
     app_write: Option<AppSlice<Shared, u8>>,
-    // specific data in adv
-    app_write_data: Option<AppSlice<Shared, u8>>,
 }
 
 impl Default for App {
@@ -112,7 +110,6 @@ impl Default for App {
             rx_callback: None,
             app_read: None,
             app_write: None,
-            app_write_data: None,
         }
     }
 }
@@ -122,12 +119,11 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     busy: Cell<bool>,
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
-    kernel_tx_data: TakeCell<'static, [u8]>,
     alarm: &'a A,
     // we should probably add a BLE state-machine here
     interval: Cell<u32>,
     advertise: Cell<bool>,
-    remaining: Cell<usize>,
+    offset: Cell<usize>,
 }
 // 'a = lifetime
 // R - type Radio
@@ -135,7 +131,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
     pub fn new(radio: &'a R,
                container: Container<App>,
                buf: &'static mut [u8],
-               buf1: &'static mut [u8],
                alarm: &'a A)
                -> Radio<'a, R, A> {
         Radio {
@@ -143,7 +138,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             busy: Cell::new(false),
             app: container,
             kernel_tx: TakeCell::new(buf),
-            kernel_tx_data: TakeCell::new(buf1),
             alarm: alarm,
             // 5017 : every 150 ms!?
             // how do is that comptued?
@@ -154,57 +148,31 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
             advertise: Cell::new(false),
             // 6 bytes for 'TockOS'
             // third byte is zero
-            remaining: Cell::new(30 - 6),
+            offset: Cell::new(0),
         }
     }
 
-    pub fn set_adv_name(&self) -> ReturnCode {
+    pub fn set_adv_data(&self, ad_type: usize) -> ReturnCode {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 app.app_write
                     .as_ref()
                     .map(|slice| {
-                        // advertisement name
                         let len = slice.len();
-                        if len <= 28 {
-                            self.remaining.set(30 - (len + 2));
+                        let i = self.offset.get() + len + 2;
+                        debug!("set_adv_data {:?}\r\n", i);
+                        if i < 31 {
                             self.kernel_tx
-                                .take()
-                                .map(|name| {
-                                         for (out, inp) in name.iter_mut()
-                                                 .zip(slice.as_ref()[0..len].iter()) {
-                                             *out = *inp;
-                                         }
-                                         self.radio.set_adv_name(name, len);
-                                     });
-                        }
-                    });
-            });
-        }
-        ReturnCode::SUCCESS
-    }
-
-
-    pub fn set_adv_data(&self) -> ReturnCode {
-        for cntr in self.app.iter() {
-            cntr.enter(|app, _| {
-                app.app_write_data
-                    .as_ref()
-                    .map(|slice| {
-                        let len = slice.len();
-                        let i = (self.remaining.get() - (len + 2)) as isize;
-                        if i >= 0 {
-                            self.remaining.set(i as usize);
-                            self.kernel_tx_data
                                 .take()
                                 .map(|data| {
                                     for (out, inp) in
                                         data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
                                         *out = *inp;
                                     }
-                                    if i >= 0 {
-                                        self.radio.set_adv_data(data, len);
-                                    }
+                                    let tmp = self.radio
+                                        .set_adv_data(ad_type, data, len, self.offset.get() + 9);
+                                    self.kernel_tx.replace(tmp);
+                                    self.offset.set(i);
                                 });
                         }
                     });
@@ -212,8 +180,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
         }
         ReturnCode::SUCCESS
     }
-
-
 
     pub fn configure_periodic_alarm(&self) {
         self.radio.set_channel(37);
@@ -271,7 +237,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Ra
 impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, A> {
     fn receive_done(&self,
                     rx_data: &'static mut [u8],
-                    dmy: &'static mut [u8],
+                    _: &'static mut [u8],
                     rx_len: u8)
                     -> ReturnCode {
         for cntr in self.app.iter() {
@@ -288,7 +254,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, 
             });
         }
         self.kernel_tx.replace(rx_data);
-        self.kernel_tx_data.replace(dmy);
         ReturnCode::SUCCESS
     }
 
@@ -354,38 +319,29 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
 
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match (allow_num, self.busy.get()) {
-            // FIXME: implement these for all different ad types
-            // should be straight forward, we got length type 
-            // just add it in the payload if space is available 
-            // on the payload
             // See this as a giant case switch or if else statements
-            (e @ BLE_HS_ADV_TYPE_FLAGS, false)              |
-            (e @ BLE_HS_ADV_TYPE_INCOMP_UUIDS16, false)     |
-            (e @ BLE_HS_ADV_TYPE_COMP_UUIDS16, false)       |
-            (e @ BLE_HS_ADV_TYPE_INCOMP_UUIDS32, false)     |
-            (e @ BLE_HS_ADV_TYPE_COMP_UUIDS32, false)       |
-            (e @ BLE_HS_ADV_TYPE_INCOMP_UUIDS128, false)    |
-            (e @ BLE_HS_ADV_TYPE_COMP_UUIDS128, false)      |
-            (e @ BLE_HS_ADV_TYPE_INCOMP_NAME, false)        |
-            (e @ BLE_HS_ADV_TYPE_COMP_NAME, false)          |
-            (e @ BLE_HS_ADV_TYPE_TX_PWR_LVL, false)         |
-            (e @ BLE_HS_ADV_TYPE_SLAVE_ITVL_RANGE, false)   |
-            (e @ BLE_HS_ADV_TYPE_SOL_UUIDS16, false)        |
-            (e @ BLE_HS_ADV_TYPE_SOL_UUIDS128, false)       |
-            (e @ BLE_HS_ADV_TYPE_SVC_DATA_UUID16, false)    |
-            (e @ BLE_HS_ADV_TYPE_PUBLIC_TGT_ADDR, false)    |
-            (e @ BLE_HS_ADV_TYPE_RANDOM_TGT_ADDR, false)    |
-            (e @ BLE_HS_ADV_TYPE_APPEARANCE, false)         |
-            (e @ BLE_HS_ADV_TYPE_ADV_ITVL, false)           |            
-            (e @ BLE_HS_ADV_TYPE_SVC_DATA_UUID32, false)    |
-            (e @ BLE_HS_ADV_TYPE_SVC_DATA_UUID128, false)   |
-            (e @ BLE_HS_ADV_TYPE_URI, false)                |
+            (e @ BLE_HS_ADV_TYPE_FLAGS, false) |
+            (e @ BLE_HS_ADV_TYPE_INCOMP_UUIDS16, false) |
+            (e @ BLE_HS_ADV_TYPE_COMP_UUIDS16, false) |
+            (e @ BLE_HS_ADV_TYPE_INCOMP_UUIDS32, false) |
+            (e @ BLE_HS_ADV_TYPE_COMP_UUIDS32, false) |
+            (e @ BLE_HS_ADV_TYPE_INCOMP_UUIDS128, false) |
+            (e @ BLE_HS_ADV_TYPE_COMP_UUIDS128, false) |
+            (e @ BLE_HS_ADV_TYPE_INCOMP_NAME, false) |
+            (e @ BLE_HS_ADV_TYPE_COMP_NAME, false) |
+            (e @ BLE_HS_ADV_TYPE_TX_PWR_LVL, false) |
+            (e @ BLE_HS_ADV_TYPE_SLAVE_ITVL_RANGE, false) |
+            (e @ BLE_HS_ADV_TYPE_SOL_UUIDS16, false) |
+            (e @ BLE_HS_ADV_TYPE_SOL_UUIDS128, false) |
+            (e @ BLE_HS_ADV_TYPE_SVC_DATA_UUID16, false) |
+            (e @ BLE_HS_ADV_TYPE_PUBLIC_TGT_ADDR, false) |
+            (e @ BLE_HS_ADV_TYPE_RANDOM_TGT_ADDR, false) |
+            (e @ BLE_HS_ADV_TYPE_APPEARANCE, false) |
+            (e @ BLE_HS_ADV_TYPE_ADV_ITVL, false) |
+            (e @ BLE_HS_ADV_TYPE_SVC_DATA_UUID32, false) |
+            (e @ BLE_HS_ADV_TYPE_SVC_DATA_UUID128, false) |
+            (e @ BLE_HS_ADV_TYPE_URI, false) |
             (e @ BLE_HS_ADV_TYPE_MFG_DATA, false) => {
-                debug!("AD TYPE: {:?}\r\n", e);
-                ReturnCode::ENOSUPPORT
-            }
-            // FIXME: temporary for name
-            (0x53, false) => {
                 let ret = self.app
                     .enter(appid, |app, _| {
                         app.app_write = Some(slice);
@@ -397,26 +353,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                                         Error::NoSuchApp => ReturnCode::EINVAL,
                                     });
                 if ret == ReturnCode::SUCCESS {
-                    self.set_adv_name()
-                } else {
-                    ret
-                }
-            }
-
-            // FIXME: temporary for manufacturer data
-            (0x54, false) => {
-                let ret = self.app
-                    .enter(appid, |app, _| {
-                        app.app_write_data = Some(slice);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| match err {
-                                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                        Error::NoSuchApp => ReturnCode::EINVAL,
-                                    });
-                if ret == ReturnCode::SUCCESS {
-                    self.set_adv_data()
+                    self.set_adv_data(e)
                 } else {
                     ret
                 }

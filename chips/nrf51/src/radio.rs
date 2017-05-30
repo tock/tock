@@ -10,11 +10,13 @@
 use chip;
 use core::cell::Cell;
 use gpio;
+// use kernel::common::VolatileCell;
 use kernel::hil::gpio::Pin;
 use kernel::hil::radio_nrf51dk::{RadioDriver, Client};
 use kernel::returncode::ReturnCode;
 use nvic;
 use peripheral_interrupts::NvicIdx;
+// use core::mem;
 extern crate capsules;
 // use self::capsules::led::LED;
 
@@ -56,24 +58,6 @@ pub const RADIO_STATE_TXRU: u32 = 9;
 pub const RADIO_STATE_TXIDLE: u32 = 10;
 pub const RADIO_STATE_TX: u32 = 11;
 pub const RADIO_STATE_TXDISABLE: u32 = 12;
-
-
-// AD Types <-> not complete
-// FIXME: REMOVE ONCE THE CAPSULE SUPPORT ALL AD TYPES
-#[allow(dead_code)]
-#[repr(u8)]
-enum Adtype {
-    Flags = 1,
-    Uuids16 = 2,
-    Uuids16Complete = 3,
-    Uuids32 = 4,
-    Uuids32Complete = 5,
-    Uuids128 = 6,
-    Uuids128Complete = 7,
-    LocalName = 8,
-    LocalNameComplete = 9,
-    MfgData = 0xff,
-}
 
 
 // static mut TX_BUF: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -136,12 +120,23 @@ static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
     0x00,
     0x00,
     0x00]; //[DATA]
+
+// #[repr(C, packed)]
+// pub struct Packet {
+//     pub header: VolatileCell<[u8; 2]>,
+//     pub address: VolatileCell<[u8; 6]>,
+//     pub dummy: VolatileCell<u8>,
+//     pub data: VolatileCell<[u8; 30]>,
+// }
+
+
 #[no_mangle]
 pub struct Radio {
     regs: *const RADIO_REGS,
     client: Cell<Option<&'static Client>>,
     offset: Cell<usize>,
     txpower: Cell<usize>,
+    // packet: Packet,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -156,6 +151,12 @@ impl Radio {
             client: Cell::new(None),
             offset: Cell::new(18),
             txpower: Cell::new(0),
+            // packet: Packet {
+            //     header: VolatileCell::new([0; 2]),
+            //     address: VolatileCell::new([0; 6]),
+            //     dummy: VolatileCell::new(0),
+            //     data: VolatileCell::new([0; 30]),
+            // },
         }
     }
     pub fn set_client<C: Client>(&self, client: &'static C) {
@@ -310,6 +311,13 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         unsafe {
             regs.PACKETPTR.set((&PAYLOAD as *const u8) as u32);
+            // self.packet.header.set([0x02, 0x1C]);
+            // self.packet.dummy.set(0);
+            // self.packet.address.set([0x90, 0xD8, 0x7A, 0xBD, 0xA3, 0xED]);
+            // self.packet.data.set([0x7, 0x09, 0x54, 0x6f, 0x63, 0x6b, 0x4f, 0x53, 0x00, 0x00, 0x00, 0x00,
+            //            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            //            0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            // regs.PACKETPTR.set((mem::transmute::<VolatileCell<[u8; 2]>, u32>(&self.packet.header)) as u32);
         }
     }
 
@@ -458,7 +466,7 @@ impl RadioDriver for Radio {
     }
 
 
-
+    // FIXME: UN-USED FUNCTION
     // unsued return value remove!!
     fn set_adv_name(&self, name: &'static mut [u8], len: usize) -> ReturnCode {
         // assumption set name will always write over the buffer
@@ -467,7 +475,7 @@ impl RadioDriver for Radio {
         self.offset.set(11 + len);
         unsafe {
             PAYLOAD[9] = (len + 1) as u8;
-            PAYLOAD[10] = Adtype::LocalNameComplete as u8;
+            PAYLOAD[10] = 0x09 as u8;
         }
         for i in 0..len {
             unsafe {
@@ -477,12 +485,14 @@ impl RadioDriver for Radio {
         ReturnCode::SUCCESS
     }
 
-    fn set_adv_data(&self, data: &'static mut [u8], len: usize) -> ReturnCode {
-        // pre-condition name + data is less or equal to 27 bytes
-        let offset = self.offset.get();
+    fn set_adv_data(&self, ad_type: usize, data: &'static mut [u8], len: usize, offset: usize) -> &'static mut [u8] {
+        if offset == 9 {
+            //FIXME: move call to the capsule!?
+            self.reset_payload();
+        }
         unsafe {
             PAYLOAD[offset] = (len + 1) as u8;
-            PAYLOAD[offset + 1] = Adtype::MfgData as u8;
+            PAYLOAD[offset + 1] = ad_type as u8;
         }
 
         for (i, c) in data.as_ref()[0..len].iter().enumerate() {
@@ -490,9 +500,7 @@ impl RadioDriver for Radio {
                 PAYLOAD[i + offset + 2] = *c;
             }
         }
-
-        self.offset.set(offset + len + 2);
-        ReturnCode::SUCCESS
+        data
     }
 
     fn set_channel(&self, ch: usize) {
@@ -500,19 +508,13 @@ impl RadioDriver for Radio {
         self.set_data_white_iv(ch as u32);
     }
 
-    // FIXME: added a temporary variable in struct that keeps 
-    // track of the twpower because we turn off the radio 
-    // between advertisements, 
+    // FIXME: added a temporary variable in struct that keeps
+    // track of the twpower because we turn off the radio
+    // between advertisements,
     // it is configured to 0 by default or the latest conifigured value
     fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
         match dbm {
-            e @ 0x04 | 
-            e @ 0x00 | 
-            e @ 0xFC | 
-            e @ 0xF8 | 
-            e @ 0xF0 | 
-            e @ 0xEC | 
-            e @ 0xD8 => {
+            e @ 0x04 | e @ 0x00 | e @ 0xFC | e @ 0xF8 | e @ 0xF0 | e @ 0xEC | e @ 0xD8 => {
                 self.txpower.set(e);
                 ReturnCode::SUCCESS
             }
@@ -527,7 +529,8 @@ impl RadioDriver for Radio {
 pub unsafe extern "C" fn RADIO_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::RADIO);
-    chip::INTERRUPT_QUEUE.as_mut()
+    chip::INTERRUPT_QUEUE
+        .as_mut()
         .unwrap()
         .enqueue(NvicIdx::RADIO);
 }
