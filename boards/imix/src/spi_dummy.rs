@@ -1,6 +1,7 @@
 //! A dummy SPI client to test the SPI implementation
 
 extern crate kernel;
+use kernel::ReturnCode;
 use kernel::hil::gpio;
 use kernel::hil::gpio::Pin;
 use kernel::hil::spi::{self, SpiMaster};
@@ -65,7 +66,7 @@ pub unsafe fn spi_dummy_test() {
     sam4l::spi::SPI.enable();
     sam4l::spi::SPI.set_baud_rate(1000000);
     let len = BUF2.len();
-    if sam4l::spi::SPI.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) == false {
+    if sam4l::spi::SPI.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) != ReturnCode::SUCCESS {
         loop {
             sam4l::spi::SPI.write_byte(0xA5);
         }

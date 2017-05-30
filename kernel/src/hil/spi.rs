@@ -2,6 +2,8 @@
 
 use core::option::Option;
 
+use returncode::ReturnCode;
+
 /// Values for the ordering of bits
 #[derive(Copy, Clone, Debug)]
 pub enum DataOrder {
@@ -87,7 +89,7 @@ pub trait SpiMaster {
                         write_buffer: &'static mut [u8],
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
-                        -> bool;
+                        -> ReturnCode;
     fn write_byte(&self, val: u8);
     fn read_byte(&self) -> u8;
     fn read_write_byte(&self, val: u8) -> u8;
@@ -135,7 +137,7 @@ pub trait SpiMasterDevice {
                         write_buffer: &'static mut [u8],
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
-                        -> bool;
+                        -> ReturnCode;
 
     fn set_polarity(&self, cpol: ClockPolarity);
     fn set_phase(&self, cpal: ClockPhase);

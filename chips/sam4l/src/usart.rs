@@ -2,6 +2,7 @@ use core::cell::Cell;
 use core::cmp;
 use core::mem;
 use dma;
+use kernel::ReturnCode;
 use kernel::common::volatile_cell::VolatileCell;
 // other modules
 use kernel::hil;
@@ -705,7 +706,7 @@ impl hil::spi::SpiMaster for USART {
                         mut write_buffer: &'static mut [u8],
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
-                        -> bool {
+                        -> ReturnCode {
 
         self.enable_tx();
         self.enable_rx();
@@ -742,7 +743,7 @@ impl hil::spi::SpiMaster for USART {
             });
         });
 
-        true
+        ReturnCode::SUCCESS
     }
 
     fn write_byte(&self, val: u8) {
