@@ -160,7 +160,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                     .map(|slice| {
                         let len = slice.len();
                         let i = self.offset.get() + len + 2;
-                        debug!("set_adv_data {:?}\r\n", i);
                         if i < 31 {
                             self.kernel_tx
                                 .take()

@@ -23,7 +23,7 @@ int ble_adv_start(const char* name, const char *data){
   
   err = allow(DRIVER_RADIO, SET_DATA, (void*)data, strlen(data));
   if (err < 0){
-    perror("Warning invalid data kernel do not use datar\r\n");
+    perror("Warning invalid data kernel do not use data\r\n");
   }
   // len not used in command i.e. 1
   return command(DRIVER_RADIO, BLE_ADV_START, 1);
