@@ -16,6 +16,18 @@ struct App {
     rx_recv_total: usize, // The total number of bytes we expect to receive.
 }
 
+impl Default for App {
+    fn default() -> App {
+        App {
+            callback: None,
+            tx_buffer: None,
+            rx_buffer: None,
+            rx_recv_so_far: 0,
+            rx_recv_total: 0,
+        }
+    }
+}
+
 // Local buffer for storing data between when the application passes it to
 // use
 pub static mut WRITE_BUF: [u8; 256] = [0; 256];
@@ -37,7 +49,7 @@ impl<'a, U: UARTAdvanced> Nrf51822Serialization<'a, U> {
                -> Nrf51822Serialization<'a, U> {
         Nrf51822Serialization {
             uart: uart,
-            app: MapCell::empty(),
+            app: MapCell::new(App::default()),
             tx_buffer: TakeCell::new(tx_buffer),
             rx_buffer: TakeCell::new(rx_buffer),
         }
@@ -59,45 +71,17 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
         match allow_type {
             // Provide an RX buffer.
             0 => {
-                let resapp = match self.app.take() {
-                    Some(mut app) => {
-                        app.rx_buffer = Some(slice);
-                        app.rx_recv_so_far = 0;
-                        app.rx_recv_total = 0;
-                        app
-                    }
-                    None => {
-                        App {
-                            callback: None,
-                            tx_buffer: None,
-                            rx_buffer: Some(slice),
-                            rx_recv_so_far: 0,
-                            rx_recv_total: 0,
-                        }
-                    }
-                };
-                self.app.replace(resapp);
+                self.app.map(|app| {
+                    app.rx_buffer = Some(slice);
+                    app.rx_recv_so_far = 0;
+                    app.rx_recv_total = 0;
+                });
                 ReturnCode::SUCCESS
             }
 
             // Provide a TX buffer.
             1 => {
-                let resapp = match self.app.take() {
-                    Some(mut app) => {
-                        app.tx_buffer = Some(slice);
-                        app
-                    }
-                    None => {
-                        App {
-                            callback: None,
-                            tx_buffer: Some(slice),
-                            rx_buffer: None,
-                            rx_recv_so_far: 0,
-                            rx_recv_total: 0,
-                        }
-                    }
-                };
-                self.app.replace(resapp);
+                self.app.map(|app| app.tx_buffer = Some(slice));
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -108,33 +92,16 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     ///
     /// The callback will be called when a TX finishes and when
     /// RX data is available.
-    #[inline(never)]
     fn subscribe(&self, subscribe_type: usize, callback: Callback) -> ReturnCode {
         match subscribe_type {
             // Add a callback
             0 => {
-                let resapp = match self.app.take() {
-                    Some(mut app) => {
-                        app.callback = Some(callback);
-                        app
-                    }
-                    None => {
-                        // can't start receiving until DMA has been set up
-                        //  we'll start here when subscribe is first called
-                        self.rx_buffer
-                            .take()
-                            .map(|buffer| { self.uart.receive_automatic(buffer, 250); });
+                self.app.map(|app| app.callback = Some(callback));
 
-                        App {
-                            callback: Some(callback),
-                            tx_buffer: None,
-                            rx_buffer: None,
-                            rx_recv_so_far: 0,
-                            rx_recv_total: 0,
-                        }
-                    }
-                };
-                self.app.replace(resapp);
+                // Start the receive now that we have a callback.
+                self.rx_buffer
+                    .take()
+                    .map(|buffer| self.uart.receive_automatic(buffer, 250));
 
                 ReturnCode::SUCCESS
             }
@@ -150,30 +117,20 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
 
             // Send a buffer to the nRF51822 over UART.
             1 => {
-                // On a TX, send the first byte of the TX buffer.
                 // TODO(bradjc): Need to match this to the correct app!
                 //               Can't just use 0!
-                //
-                // When could app be NULL? What return code should be here?
-                // XXX ReturnCode -----------,,,,,,,,,,,,,,,,
-                self.app.map_or(ReturnCode::FAIL, |appst| {
-
-                    match appst.tx_buffer.take() {
-                        Some(slice) => {
-                            let write_len = slice.len();
-                            self.tx_buffer.take().map(|buffer| {
-                                for (i, c) in slice.as_ref().iter().enumerate() {
-                                    buffer[i] = *c;
-                                }
-                                self.uart.transmit(buffer, write_len);
-                            });
-                            ReturnCode::SUCCESS
-                        }
-                        None => ReturnCode::FAIL, /* XXX: ReturnCode */
-                        // ^When could this happen - when there wasn't an allow
-                        // first? Maybe ERESERVE?
-                    }
-                })
+                self.app.map(|app| {
+                    app.tx_buffer.take().map(|slice| {
+                        let write_len = slice.len();
+                        self.tx_buffer.take().map(|buffer| {
+                            for (i, c) in slice.as_ref().iter().enumerate() {
+                                buffer[i] = *c;
+                            }
+                            self.uart.transmit(buffer, write_len);
+                        });
+                    });
+                });
+                ReturnCode::SUCCESS
             }
 
             // Ask the kernel to callback the application. This is used to
@@ -188,9 +145,9 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
                         cb.schedule(17, 0, 0);
                     });
                 });
-
                 ReturnCode::SUCCESS
             }
+
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -238,6 +195,6 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         });
 
         // restart the uart receive
-        self.rx_buffer.take().map(|buffer| { self.uart.receive_automatic(buffer, 250); });
+        self.rx_buffer.take().map(|buffer| self.uart.receive_automatic(buffer, 250));
     }
 }
