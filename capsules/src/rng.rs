@@ -176,7 +176,7 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
                             ReturnCode::SUCCESS
                         }
                         else {
-                            ReturnCode::FAIL /* FIXME */
+                            ReturnCode::ERESERVE
                         }
                     })
                     .unwrap_or_else(|err| {
