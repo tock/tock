@@ -324,7 +324,7 @@ impl<'a> LTC294X<'a> {
                 self.model.set(ChipModel::LTC2943);
                 ReturnCode::SUCCESS
             }
-            _ => ReturnCode::FAIL,
+            _ => ReturnCode::ENODEVICE,
         }
     }
 }
