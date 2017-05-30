@@ -314,7 +314,7 @@ pub unsafe fn reset_handler() {
     let adc = static_init!(
         capsules::adc::ADC<'static, sam4l::adc::Adc>,
         capsules::adc::ADC::new(&mut sam4l::adc::ADC, kernel::Container::create()),
-        96/8);
+        128/8 /* was 96/8 */);
     sam4l::adc::ADC.set_client(adc);
 
     // # GPIO
