@@ -5,10 +5,10 @@ Kernel Analog-to-Digital Conversion HIL
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Philip Levis <br/>
+**Author:** Philip Levis and Branden Ghena<br/>
 **Draft-Created:** Dec 18, 2016<br/>
-**Draft-Modified:** Jan 30, 2017<br/>
-**Draft-Version:** 1<br/>
+**Draft-Modified:** May 5, 2017<br/>
+**Draft-Version:** 2<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 **Warning:** Out of Date. Needs to be updated. See
@@ -250,6 +250,12 @@ Stanford, CA 94305
 phone - +1 650 725 9046
 
 email - pal@cs.stanford.edu
+```
+
+```
+Branden Ghena
+
+email - brghena@umich.edu
 ```
 
 7 Citations
