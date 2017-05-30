@@ -21,7 +21,7 @@ pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> {
     mode: Cell<AdcMode>,
 
     // App state
-    app_state: MapCell<AppState>,
+    app: MapCell<App>,
     channel: Cell<usize>,
     callback: Cell<Option<Callback>>,
     app_buf_offset: Cell<usize>,
@@ -48,9 +48,18 @@ enum AdcMode {
 }
 
 /// Holds buffers that the application has passed us
-pub struct AppState {
+pub struct App {
     app_buf1: Option<AppSlice<Shared, u8>>,
     app_buf2: Option<AppSlice<Shared, u8>>,
+}
+
+impl Default for App {
+    fn default() -> App {
+        App {
+            app_buf1: None,
+            app_buf2: None,
+        }
+    }
 }
 
 /// Buffers to use for DMA transfers
@@ -85,10 +94,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
             mode: Cell::new(AdcMode::NoMode),
 
             // App state
-            app_state: MapCell::new(AppState {
-                app_buf1: None,
-                app_buf2: None,
-            }),
+            app: MapCell::new(App::default()),
             channel: Cell::new(0),
             callback: Cell::new(None),
             app_buf_offset: Cell::new(0),
@@ -251,7 +257,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
 
         // cannot sample a buffer without a buffer to sample into
         let mut app_buf_length = 0;
-        let exists = self.app_state.map_or(false, |state| {
+        let exists = self.app.map_or(false, |state| {
             app_buf_length = state.app_buf1.as_mut().map_or(0, |buf| buf.len());
             state.app_buf1.is_some()
         });
@@ -339,7 +345,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // cannot continuously sample without two buffers
         let mut app_buf_length = 0;
         let mut next_app_buf_length = 0;
-        let exists = self.app_state.map_or(false, |state| {
+        let exists = self.app.map_or(false, |state| {
             app_buf_length = state.app_buf1.as_mut().map_or(0, |buf| buf.len());
             next_app_buf_length = state.app_buf2.as_mut().map_or(0, |buf| buf.len());
             state.app_buf1.is_some() && state.app_buf2.is_some()
@@ -506,7 +512,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
             self.mode.get() == AdcMode::ContinuousBuffer) {
 
             // we did expect a buffer. Determine the current application state
-            self.app_state.map(|state| {
+            self.app.map(|state| {
 
                 // determine which app buffer to copy data into and which is
                 // next up if we're in continuous mode
@@ -743,7 +749,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
             // Pass buffer for samples to go into
             0 => {
                 // set first buffer
-                self.app_state.map(|state| { state.app_buf1 = Some(slice); });
+                self.app.map(|state| { state.app_buf1 = Some(slice); });
 
                 ReturnCode::SUCCESS
             }
@@ -751,7 +757,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
             // Pass a second buffer to be used for double-buffered continuous sampling
             1 => {
                 // set second buffer
-                self.app_state.map(|state| { state.app_buf2 = Some(slice); });
+                self.app.map(|state| { state.app_buf2 = Some(slice); });
 
                 ReturnCode::SUCCESS
             }
