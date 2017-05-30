@@ -11,6 +11,9 @@ Kernel Analog-to-Digital Conversion HIL
 **Draft-Version:** 1<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
+**Warning:** Out of Date. Needs to be updated. See
+[PR 398](https://github.com/helena-project/tock/pull/398).
+
 Abstract
 -------------------------------
 

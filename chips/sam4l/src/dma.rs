@@ -1,6 +1,5 @@
+use core::{cmp, intrinsics, mem};
 use core::cell::Cell;
-use core::intrinsics;
-use core::mem;
 
 use kernel::common::take_cell::TakeCell;
 use kernel::common::volatile_cell::VolatileCell;
@@ -109,6 +108,14 @@ pub enum DMAPeripheral {
     LCDCA_ABMDR_TX = 38,
 }
 
+#[derive(Copy,Clone,Debug,PartialEq)]
+#[repr(u8)]
+pub enum DMAWidth {
+    Width8Bit = 0,
+    Width16Bit = 1,
+    Width32Bit = 2,
+}
+
 pub static mut DMA_CHANNELS: [DMAChannel; 16] =
     [DMAChannel::new(DMAChannelNum::DMAChannel00, nvic::NvicIdx::PDCA0),
      DMAChannel::new(DMAChannelNum::DMAChannel01, nvic::NvicIdx::PDCA1),
@@ -130,7 +137,8 @@ pub static mut DMA_CHANNELS: [DMAChannel; 16] =
 pub struct DMAChannel {
     registers: *mut DMARegisters,
     nvic: nvic::NvicIdx,
-    pub client: Option<&'static mut DMAClient>,
+    client: Cell<Option<&'static DMAClient>>,
+    width: Cell<DMAWidth>,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -144,10 +152,16 @@ impl DMAChannel {
         DMAChannel {
             registers: (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE) as *mut DMARegisters,
             nvic: nvic,
-            client: None,
+            client: Cell::new(None),
+            width: Cell::new(DMAWidth::Width8Bit),
             enabled: Cell::new(false),
             buffer: TakeCell::empty(),
         }
+    }
+
+    pub fn initialize(&self, client: &'static mut DMAClient, width: DMAWidth) {
+        self.client.set(Some(client));
+        self.width.set(width);
     }
 
     pub fn enable(&self) {
@@ -194,7 +208,7 @@ impl DMAChannel {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         let channel = registers.peripheral_select.get();
 
-        self.client.as_mut().map(|client| { client.xfer_done(channel); });
+        self.client.get().as_mut().map(|client| { client.xfer_done(channel); });
     }
 
     pub fn start_xfer(&self) {
@@ -204,11 +218,18 @@ impl DMAChannel {
 
     pub fn prepare_xfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
         // TODO(alevy): take care of zero length case
-        if len > buf.len() {
-            len = buf.len();
-        }
 
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+
+        let maxlen = buf.len() /
+                     match self.width.get() {
+                DMAWidth::Width8Bit /*  DMA is acting on bytes     */ => 1,
+                DMAWidth::Width16Bit /* DMA is acting on halfwords */ => 2,
+                DMAWidth::Width32Bit /* DMA is acting on words     */ => 4,
+            };
+        len = cmp::min(len, maxlen);
+        registers.mode.set(self.width.get() as u32);
+
         registers.peripheral_select.set(pid);
         registers.memory_address_reload.set(&buf[0] as *const u8 as u32);
         registers.transfer_counter_reload.set(len as u32);

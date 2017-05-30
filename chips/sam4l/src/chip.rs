@@ -28,33 +28,36 @@ impl Sam4l {
         INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
 
         usart::USART0.set_dma(&mut dma::DMA_CHANNELS[0], &mut dma::DMA_CHANNELS[1]);
-        dma::DMA_CHANNELS[0].client = Some(&mut usart::USART0);
-        dma::DMA_CHANNELS[1].client = Some(&mut usart::USART0);
+        dma::DMA_CHANNELS[0].initialize(&mut usart::USART0, dma::DMAWidth::Width8Bit);
+        dma::DMA_CHANNELS[1].initialize(&mut usart::USART0, dma::DMAWidth::Width8Bit);
 
         usart::USART1.set_dma(&mut dma::DMA_CHANNELS[2], &mut dma::DMA_CHANNELS[3]);
-        dma::DMA_CHANNELS[2].client = Some(&mut usart::USART1);
-        dma::DMA_CHANNELS[3].client = Some(&mut usart::USART1);
+        dma::DMA_CHANNELS[2].initialize(&mut usart::USART1, dma::DMAWidth::Width8Bit);
+        dma::DMA_CHANNELS[3].initialize(&mut usart::USART1, dma::DMAWidth::Width8Bit);
 
         usart::USART2.set_dma(&mut dma::DMA_CHANNELS[4], &mut dma::DMA_CHANNELS[5]);
-        dma::DMA_CHANNELS[4].client = Some(&mut usart::USART2);
-        dma::DMA_CHANNELS[5].client = Some(&mut usart::USART2);
+        dma::DMA_CHANNELS[4].initialize(&mut usart::USART2, dma::DMAWidth::Width8Bit);
+        dma::DMA_CHANNELS[5].initialize(&mut usart::USART2, dma::DMAWidth::Width8Bit);
 
         usart::USART3.set_dma(&mut dma::DMA_CHANNELS[6], &mut dma::DMA_CHANNELS[7]);
-        dma::DMA_CHANNELS[6].client = Some(&mut usart::USART3);
-        dma::DMA_CHANNELS[7].client = Some(&mut usart::USART3);
+        dma::DMA_CHANNELS[6].initialize(&mut usart::USART3, dma::DMAWidth::Width8Bit);
+        dma::DMA_CHANNELS[7].initialize(&mut usart::USART3, dma::DMAWidth::Width8Bit);
 
         spi::SPI.set_dma(&mut dma::DMA_CHANNELS[8], &mut dma::DMA_CHANNELS[9]);
-        dma::DMA_CHANNELS[8].client = Some(&mut spi::SPI);
-        dma::DMA_CHANNELS[9].client = Some(&mut spi::SPI);
+        dma::DMA_CHANNELS[8].initialize(&mut spi::SPI, dma::DMAWidth::Width8Bit);
+        dma::DMA_CHANNELS[9].initialize(&mut spi::SPI, dma::DMAWidth::Width8Bit);
 
         i2c::I2C0.set_dma(&dma::DMA_CHANNELS[10]);
-        dma::DMA_CHANNELS[10].client = Some(&mut i2c::I2C0);
+        dma::DMA_CHANNELS[10].initialize(&mut i2c::I2C0, dma::DMAWidth::Width8Bit);
 
         i2c::I2C1.set_dma(&dma::DMA_CHANNELS[11]);
-        dma::DMA_CHANNELS[11].client = Some(&mut i2c::I2C1);
+        dma::DMA_CHANNELS[11].initialize(&mut i2c::I2C1, dma::DMAWidth::Width8Bit);
 
         i2c::I2C2.set_dma(&dma::DMA_CHANNELS[12]);
-        dma::DMA_CHANNELS[12].client = Some(&mut i2c::I2C2);
+        dma::DMA_CHANNELS[12].initialize(&mut i2c::I2C2, dma::DMAWidth::Width8Bit);
+
+        adc::ADC0.set_dma(&dma::DMA_CHANNELS[13]);
+        dma::DMA_CHANNELS[13].initialize(&mut adc::ADC0, dma::DMAWidth::Width16Bit);
 
         Sam4l {
             mpu: cortexm4::mpu::MPU::new(),
@@ -122,7 +125,7 @@ impl Chip for Sam4l {
                     TWIS1 => i2c::I2C1.handle_slave_interrupt(),
 
                     HFLASHC => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
-                    ADCIFE => adc::ADC.handle_interrupt(),
+                    ADCIFE => adc::ADC0.handle_interrupt(),
 
                     TRNG => trng::TRNG.handle_interrupt(),
                     _ => {}
