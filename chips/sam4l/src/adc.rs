@@ -18,11 +18,11 @@
 use core::{cmp, mem, slice};
 use core::cell::Cell;
 use dma;
+use kernel::ReturnCode;
+use kernel::common::VolatileCell;
 use kernel::common::math;
 use kernel::common::take_cell::TakeCell;
-use kernel::common::volatile_cell::VolatileCell;
 use kernel::hil;
-use kernel::returncode::ReturnCode;
 use nvic;
 use pm::{self, Clock, PBAClock};
 use scif;

@@ -2,9 +2,10 @@
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver};
+use kernel::ReturnCode;
 use kernel::hil;
 use kernel::process::Error;
-use kernel::returncode::ReturnCode;
+
 
 #[derive(Clone,Copy,PartialEq)]
 pub enum NineDofCommand {

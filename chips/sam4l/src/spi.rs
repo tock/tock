@@ -7,7 +7,7 @@ use dma::DMAClient;
 use dma::DMAPeripheral;
 use kernel::ReturnCode;
 
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;

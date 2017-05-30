@@ -1,8 +1,8 @@
 use core::{cmp, intrinsics, mem};
 use core::cell::Cell;
+use kernel::common::VolatileCell;
 
 use kernel::common::take_cell::TakeCell;
-use kernel::common::volatile_cell::VolatileCell;
 use nvic;
 use pm;
 

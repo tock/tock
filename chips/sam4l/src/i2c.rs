@@ -14,8 +14,8 @@
 use core::cell::Cell;
 use core::mem;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
+use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
-use kernel::common::volatile_cell::VolatileCell;
 
 use kernel::hil;
 use nvic;

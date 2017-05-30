@@ -49,8 +49,8 @@
 // - Support continuous-mode CRC
 
 use core::cell::Cell;
+use kernel::ReturnCode;
 use kernel::hil::crc::{self, CrcAlg};
-use kernel::returncode::ReturnCode;
 use nvic;
 use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
 

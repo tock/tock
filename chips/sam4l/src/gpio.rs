@@ -4,7 +4,7 @@ use self::Pin::*;
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 use kernel::hil;
 use nvic;
 use nvic::NvicIdx::*;

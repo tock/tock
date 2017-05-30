@@ -3,7 +3,7 @@ use core::cmp;
 use core::mem;
 use dma;
 use kernel::ReturnCode;
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 // other modules
 use kernel::hil;
 // local modules

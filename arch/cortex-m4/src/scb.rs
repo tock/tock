@@ -1,6 +1,6 @@
 // Based on: http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CIHFDJCA.html
 
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 
 #[repr(C, packed)]
 struct ScbRegisters {

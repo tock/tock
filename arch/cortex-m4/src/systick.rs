@@ -1,5 +1,5 @@
 use kernel;
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 
 pub struct SysTick {
     control: VolatileCell<u32>,
