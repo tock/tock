@@ -4,7 +4,7 @@
 //!  Author: Philip Levis <pal@cs.stanford.edu>
 //!  Date: Dec 22, 2016
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ReturnCode {
     SuccessWithValue { value: usize }, // Success value must be positive
     SUCCESS,
