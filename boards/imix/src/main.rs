@@ -39,7 +39,7 @@ struct Imix {
     isl29035: &'static capsules::isl29035::Isl29035<'static,
                                                     VirtualMuxAlarm<'static,
                                                                     sam4l::ast::Ast<'static>>>,
-    adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
+    adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
@@ -308,14 +308,26 @@ pub unsafe fn reset_handler() {
     // sam4l::gpio::PC[16].enable_output();
     // sam4l::gpio::PC[16].clear();
 
-    // # ADC
-
     // Setup ADC
+    let adc_channels = static_init!(
+        [&'static sam4l::adc::AdcChannel; 6],
+        [&sam4l::adc::CHANNEL_AD1, // AD0
+         &sam4l::adc::CHANNEL_AD2, // AD1
+         &sam4l::adc::CHANNEL_AD3, // AD2
+         &sam4l::adc::CHANNEL_AD4, // AD3
+         &sam4l::adc::CHANNEL_AD5, // AD4
+         &sam4l::adc::CHANNEL_AD6, // AD5
+        ],
+        192/8
+    );
     let adc = static_init!(
-        capsules::adc::ADC<'static, sam4l::adc::Adc>,
-        capsules::adc::ADC::new(&mut sam4l::adc::ADC, kernel::Container::create()),
-        96/8);
-    sam4l::adc::ADC.set_client(adc);
+        capsules::adc::Adc<'static, sam4l::adc::Adc>,
+        capsules::adc::Adc::new(&mut sam4l::adc::ADC0, adc_channels,
+                                &mut capsules::adc::ADC_BUFFER1,
+                                &mut capsules::adc::ADC_BUFFER2,
+                                &mut capsules::adc::ADC_BUFFER3),
+        864/8);
+    sam4l::adc::ADC0.set_client(adc);
 
     // # GPIO
     // set GPIO driver controlling remaining GPIO pins

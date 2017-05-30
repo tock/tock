@@ -56,6 +56,9 @@ impl Sam4l {
         i2c::I2C2.set_dma(&dma::DMA_CHANNELS[12]);
         dma::DMA_CHANNELS[12].initialize(&mut i2c::I2C2, dma::DMAWidth::Width8Bit);
 
+        adc::ADC0.set_dma(&dma::DMA_CHANNELS[13]);
+        dma::DMA_CHANNELS[13].initialize(&mut adc::ADC0, dma::DMAWidth::Width16Bit);
+
         Sam4l {
             mpu: cortexm4::mpu::MPU::new(),
             systick: cortexm4::systick::SysTick::new(),
@@ -122,7 +125,7 @@ impl Chip for Sam4l {
                     TWIS1 => i2c::I2C1.handle_slave_interrupt(),
 
                     HFLASHC => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
-                    ADCIFE => adc::ADC.handle_interrupt(),
+                    ADCIFE => adc::ADC0.handle_interrupt(),
 
                     TRNG => trng::TRNG.handle_interrupt(),
                     _ => {}
