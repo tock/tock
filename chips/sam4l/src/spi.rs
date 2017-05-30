@@ -5,6 +5,7 @@ use core::mem;
 use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
+use kernel::ReturnCode;
 
 use kernel::common::volatile_cell::VolatileCell;
 
@@ -292,11 +293,11 @@ impl spi::SpiMaster for Spi {
                         write_buffer: &'static mut [u8],
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
-                        -> bool {
+                        -> ReturnCode {
         self.enable();
         // If busy, don't start.
         if self.is_busy() {
-            return false;
+            return ReturnCode::EBUSY;
         }
 
         // We will have at least a write transfer in progress
@@ -332,7 +333,7 @@ impl spi::SpiMaster for Spi {
                 read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
             });
         });
-        true
+        ReturnCode::SUCCESS
     }
 
     fn set_rate(&self, rate: u32) -> u32 {

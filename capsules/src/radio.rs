@@ -22,6 +22,18 @@ struct App {
     app_write: Option<AppSlice<Shared, u8>>,
 }
 
+impl Default for App {
+    fn default() -> App {
+        App {
+            tx_callback: None,
+            rx_callback: None,
+            cfg_callback: None,
+            app_read: None,
+            app_write: None,
+        }
+    }
+}
+
 pub struct RadioDriver<'a, R: radio::Radio + 'a> {
     radio: &'a R,
     busy: Cell<bool>,
@@ -34,7 +46,7 @@ impl<'a, R: radio::Radio> RadioDriver<'a, R> {
         RadioDriver {
             radio: radio,
             busy: Cell::new(false),
-            app: MapCell::empty(),
+            app: MapCell::new(App::default()),
             kernel_tx: TakeCell::empty(),
         }
     }
@@ -48,41 +60,11 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
     fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
-                let appc = match self.app.take() {
-                    None => {
-                        App {
-                            tx_callback: None,
-                            rx_callback: None,
-                            cfg_callback: None,
-                            app_read: Some(slice),
-                            app_write: None,
-                        }
-                    }
-                    Some(mut appc) => {
-                        appc.app_read = Some(slice);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| app.app_read = Some(slice));
                 ReturnCode::SUCCESS
             }
             1 => {
-                let appc = match self.app.take() {
-                    None => {
-                        App {
-                            tx_callback: None,
-                            rx_callback: None,
-                            cfg_callback: None,
-                            app_read: None,
-                            app_write: Some(slice),
-                        }
-                    }
-                    Some(mut appc) => {
-                        appc.app_write = Some(slice);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| app.app_write = Some(slice));
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
@@ -92,54 +74,15 @@ impl<'a, R: radio::Radio> Driver for RadioDriver<'a, R> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* transmit done*/  => {
-                let appc = match self.app.take() {
-                    None => App {
-                        tx_callback: Some(callback),
-                        rx_callback: None,
-                        cfg_callback: None,
-                        app_read: None,
-                        app_write: None,
-                    },
-                    Some(mut appc) => {
-                        appc.tx_callback = Some(callback);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| app.tx_callback = Some(callback));
                 ReturnCode::SUCCESS
             },
             1 /* receive */ => {
-                let appc = match self.app.take() {
-                    None => App {
-                        tx_callback: None,
-                        rx_callback: Some(callback),
-                        cfg_callback: None,
-                        app_read: None,
-                        app_write: None,
-                    },
-                    Some(mut appc) => {
-                        appc.rx_callback = Some(callback);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| app.rx_callback = Some(callback));
                 ReturnCode::SUCCESS
             },
             2 /* config */ => {
-                let appc = match self.app.take() {
-                    None => App {
-                        tx_callback: None,
-                        rx_callback: None,
-                        cfg_callback: Some(callback),
-                        app_read: None,
-                        app_write: None,
-                    },
-                    Some(mut appc) => {
-                        appc.cfg_callback = Some(callback);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| app.cfg_callback = Some(callback));
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT

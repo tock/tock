@@ -1300,15 +1300,25 @@ impl<'a, A: hil::time::Alarm + 'a> hil::gpio::Client for SDCard<'a, A> {
 /// off of the SDCard instead
 pub struct SDCardDriver<'a, A: hil::time::Alarm + 'a> {
     sdcard: &'a SDCard<'a, A>,
-    app_state: MapCell<AppState>,
+    app: MapCell<App>,
     kernel_buf: TakeCell<'static, [u8]>,
 }
 
 /// Holds buffers and whatnot that the application has passed us.
-struct AppState {
+struct App {
     callback: Option<Callback>,
     write_buffer: Option<AppSlice<Shared, u8>>,
     read_buffer: Option<AppSlice<Shared, u8>>,
+}
+
+impl Default for App {
+    fn default() -> App {
+        App {
+            callback: None,
+            write_buffer: None,
+            read_buffer: None,
+        }
+    }
 }
 
 /// Buffer for SD card driver, assigned in board `main.rs` files
@@ -1328,7 +1338,7 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardDriver<'a, A> {
         // return new SDCardDriver
         SDCardDriver {
             sdcard: sdcard,
-            app_state: MapCell::empty(),
+            app: MapCell::new(App::default()),
             kernel_buf: TakeCell::new(kernel_buf),
         }
     }
@@ -1337,14 +1347,13 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardDriver<'a, A> {
 /// Handle callbacks from SDCard
 impl<'a, A: hil::time::Alarm + 'a> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
-        self.app_state.map(|app_state| {
-            app_state.callback.map(|mut cb| { cb.schedule(0, installed as usize, 0); });
-        });
+        self.app
+            .map(|app| { app.callback.map(|mut cb| { cb.schedule(0, installed as usize, 0); }); });
     }
 
     fn init_done(&self, block_size: u32, total_size: u64) {
-        self.app_state.map(|app_state| {
-            app_state.callback.map(|mut cb| {
+        self.app.map(|app| {
+            app.callback.map(|mut cb| {
                 let size_in_kb = ((total_size >> 10) & 0xFFFFFFFF) as usize;
                 cb.schedule(1, block_size as usize, size_in_kb);
             });
@@ -1353,11 +1362,11 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardClient for SDCardDriver<'a, A> {
 
     fn read_done(&self, data: &'static mut [u8], len: usize) {
         self.kernel_buf.replace(data);
-        self.app_state.map(|app_state| {
+        self.app.map(|app| {
 
             let mut read_len: usize = 0;
             self.kernel_buf.map(|data| {
-                app_state.read_buffer.as_mut().map(move |read_buffer| {
+                app.read_buffer.as_mut().map(move |read_buffer| {
 
                     // copy bytes to user buffer
                     // Limit to minimum length between read_buffer, data, and
@@ -1373,21 +1382,19 @@ impl<'a, A: hil::time::Alarm + 'a> SDCardClient for SDCardDriver<'a, A> {
             // perform callback
             // Note that we are explicitly performing the callback even if no
             // data was read or if the app's read_buffer doesn't exist
-            app_state.callback.map(|mut cb| { cb.schedule(2, read_len, 0); });
+            app.callback.map(|mut cb| { cb.schedule(2, read_len, 0); });
         });
     }
 
     fn write_done(&self, buffer: &'static mut [u8]) {
         self.kernel_buf.replace(buffer);
 
-        self.app_state
-            .map(|app_state| { app_state.callback.map(|mut cb| { cb.schedule(3, 0, 0); }); });
+        self.app
+            .map(|app| { app.callback.map(|mut cb| { cb.schedule(3, 0, 0); }); });
     }
 
     fn error(&self, error: u32) {
-        self.app_state.map(|app_state| {
-            app_state.callback.map(|mut cb| { cb.schedule(4, error as usize, 0); });
-        });
+        self.app.map(|app| { app.callback.map(|mut cb| { cb.schedule(4, error as usize, 0); }); });
     }
 }
 
@@ -1397,33 +1404,13 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
         match allow_num {
             // Pass read buffer in from application
             0 => {
-                if self.app_state.is_none() {
-                    // create new app state
-                    self.app_state.put(AppState {
-                        callback: None,
-                        read_buffer: Some(slice),
-                        write_buffer: None,
-                    });
-                } else {
-                    // app state exists, set read buffer
-                    self.app_state.map(|appst| { appst.read_buffer = Some(slice); });
-                }
+                self.app.map(|app| app.read_buffer = Some(slice));
                 ReturnCode::SUCCESS
             }
 
             // Pass write buffer in from application
             1 => {
-                if self.app_state.is_none() {
-                    // create new app state
-                    self.app_state.put(AppState {
-                        callback: None,
-                        read_buffer: None,
-                        write_buffer: Some(slice),
-                    });
-                } else {
-                    // app state exists, set write buffer
-                    self.app_state.map(|appst| { appst.write_buffer = Some(slice); });
-                }
+                self.app.map(|app| app.write_buffer = Some(slice));
                 ReturnCode::SUCCESS
             }
 
@@ -1435,17 +1422,7 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
         match subscribe_num {
             // Set callback
             0 => {
-                if self.app_state.is_none() {
-                    // create new app state
-                    self.app_state.put(AppState {
-                        callback: Some(callback),
-                        read_buffer: None,
-                        write_buffer: None,
-                    });
-                } else {
-                    // app state exists, set callback
-                    self.app_state.map(|appst| { appst.callback = Some(callback); });
-                }
+                self.app.map(|app| app.callback = Some(callback));
                 ReturnCode::SUCCESS
             }
 
@@ -1476,8 +1453,8 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
 
             // write_block
             4 => {
-                self.app_state.map_or(ReturnCode::ENOMEM, |app_state| {
-                    app_state.write_buffer.as_mut().map_or(ReturnCode::ENOMEM, |write_buffer| {
+                self.app.map_or(ReturnCode::ENOMEM, |app| {
+                    app.write_buffer.as_mut().map_or(ReturnCode::ENOMEM, |write_buffer| {
                         self.kernel_buf.take().map_or(ReturnCode::EBUSY, |kernel_buf| {
                             // copy over write data from application
                             // Limit to minimum length between kernel_buf,

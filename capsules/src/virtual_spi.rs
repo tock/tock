@@ -1,6 +1,7 @@
 //! Virtualize a Spi Master bus to enable multiple users of the Spi bus.
 
 use core::cell::Cell;
+use kernel::ReturnCode;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
@@ -147,12 +148,12 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
                         write_buffer: &'static mut [u8],
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
-                        -> bool {
+                        -> ReturnCode {
         self.txbuffer.replace(write_buffer);
         self.rxbuffer.put(read_buffer);
         self.operation.set(Op::ReadWriteBytes(len));
         self.mux.do_next_op();
-        true
+        ReturnCode::SUCCESS
     }
 
     fn set_polarity(&self, cpol: hil::spi::ClockPolarity) {

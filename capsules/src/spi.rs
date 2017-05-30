@@ -26,6 +26,18 @@ struct App {
     index: usize,
 }
 
+impl Default for App {
+    fn default() -> App {
+        App {
+            callback: None,
+            app_read: None,
+            app_write: None,
+            len: 0,
+            index: 0,
+        }
+    }
+}
+
 pub struct Spi<'a, S: SpiMasterDevice + 'a> {
     spi_master: &'a S,
     busy: Cell<bool>,
@@ -40,7 +52,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
         Spi {
             spi_master: spi_master,
             busy: Cell::new(false),
-            app: MapCell::empty(),
+            app: MapCell::new(App::default()),
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
             kernel_write: TakeCell::empty(),
@@ -78,103 +90,58 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
 impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
+            // Pass in a read buffer to receive bytes into.
             0 => {
-                let appc = match self.app.take() {
-                    None => {
-                        App {
-                            callback: None,
-                            app_read: Some(slice),
-                            app_write: None,
-                            len: 0,
-                            index: 0,
-                        }
-                    }
-                    Some(mut appc) => {
-                        appc.app_read = Some(slice);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| { app.app_read = Some(slice); });
                 ReturnCode::SUCCESS
             }
+            // Pass in a write buffer to transmit bytes from.
             1 => {
-                let appc = match self.app.take() {
-                    None => {
-                        App {
-                            callback: None,
-                            app_read: None,
-                            app_write: Some(slice),
-                            len: 0,
-                            index: 0,
-                        }
-                    }
-                    Some(mut appc) => {
-                        appc.app_write = Some(slice);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| { app.app_write = Some(slice); });
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    #[inline(never)]
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* read_write */ => {
-                let appc = match self.app.take() {
-                    None => App {
-                        callback: Some(callback),
-                        app_read: None,
-                        app_write: None,
-                        len: 0,
-                        index: 0,
-                    },
-                    Some(mut appc) => {
-                        appc.callback = Some(callback);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| {
+                    app.callback = Some(callback);
+                });
                 ReturnCode::SUCCESS
             },
             _ => ReturnCode::ENOSUPPORT
         }
     }
-    // 0: read/write a single byte (blocking)
-    // 1: read/write buffers
+
+    // 2: read/write buffers
     //   - requires write buffer registered with allow
     //   - read buffer optional
-    // 2: set chip select
+    // 3: set chip select
     //   - selects which peripheral (CS line) the SPI should
     //     activate
     //   - valid values are 0-3 for SAM4L
     //   - invalid value will result in CS 0
-    // 3: get chip select
+    // 4: get chip select
     //   - returns current selected peripheral
-    //   - If none selected, returns 255
-    // 4: set rate on current peripheral
+    // 5: set rate on current peripheral
     //   - parameter in bps
-    // 5: get rate on current peripheral
+    // 6: get rate on current peripheral
     //   - value in bps
-    // 6: set clock phase on current peripheral
+    // 7: set clock phase on current peripheral
     //   - 0 is sample leading
     //   - non-zero is sample trailing
-    // 7: get clock phase on current peripheral
+    // 8: get clock phase on current peripheral
     //   - 0 is sample leading
     //   - non-zero is sample trailing
-    // 8: set clock polarity on current peripheral
+    // 9: set clock polarity on current peripheral
     //   - 0 is idle low
     //   - non-zero is idle high
-    // 9: get clock polarity on current peripheral
+    // 10: get clock polarity on current peripheral
     //   - 0 is idle low
     //   - non-zero is idle high
-    // 10: hold CS line low between transfers
-    //   - set CSAAT bit of control register
-    // 11: release CS line (high) between transfers
-    //   - clear CSAAT bit of control register
     //
     // x: lock spi
     //   - if you perform an operation without the lock,
@@ -185,7 +152,6 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     // x+1: unlock spi
     //   - does nothing if lock not held
     //
-
     fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
@@ -195,7 +161,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                 if self.busy.get() {
                     return ReturnCode::EBUSY;
                 }
-                self.app.map_or(ReturnCode::FAIL /* XXX app is null? */, |app| {
+                self.app.map_or(ReturnCode::FAIL, |app| {
                     let mut mlen = 0;
                     app.app_write.as_mut().map(|w| {
                         mlen = w.len();
@@ -215,15 +181,15 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
                 })
             }
             3 /* set chip select */ => {
-                // do nothing, for now, until we fix interface
+                // XXX: TODO: do nothing, for now, until we fix interface
                 // so virtual instances can use multiple chip selects
                 ReturnCode::ENOSUPPORT
             }
             4 /* get chip select */ => {
-                //XXX Was a naked, uncommented zero. I'm assuming that's
-                //    because the only valid chip select for now is 0,
-                //    and wrapping it appropriately -Pat, ReturnCode fixes
-                ReturnCode::SuccessWithValue { value: 0 }
+                // XXX: We don't really know what chip select is being used
+                // since we can't set it. Return error until set chip select
+                // works.
+                ReturnCode::ENOSUPPORT
             }
             5 /* set baud rate */ => {
                 self.spi_master.set_rate(arg1 as u32);
