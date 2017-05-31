@@ -484,8 +484,13 @@ static void rf_generate_random_seed(void) {
 /*---------------------------------------------------------------------------*/
 // Append header with FCF, sequence number,
 static int rf233_prepare_without_header(const uint8_t *data, unsigned short data_len) {
+  if ((data_len + HEADER_SIZE) > MAX_PACKET_LEN) {
+    PRINTF("RF233: error, data too large (%u) (prepare_without_header)\n", data_len);
+    return RADIO_TX_ERR;
+  }
+
   // append mac header with length 9
-  uint8_t data_with_header[data_len + HEADER_SIZE];
+  uint8_t data_with_header[MAX_PACKET_LEN];
   data_with_header[0] = 0x61;
   data_with_header[1] = 0xAA;
   data_with_header[2] = radio_header.seq & 0xFF;
