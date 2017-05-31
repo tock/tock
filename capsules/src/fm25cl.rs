@@ -84,10 +84,9 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
 
     /// Setup SPI for this chip
     fn configure_spi(&self) {
-        self.spi
-            .configure(hil::spi::ClockPolarity::IdleLow,
-                       hil::spi::ClockPhase::SampleLeading,
-                       SPI_SPEED);
+        self.spi.configure(hil::spi::ClockPolarity::IdleLow,
+                           hil::spi::ClockPhase::SampleLeading,
+                           SPI_SPEED);
     }
 
     pub fn read_status(&self) -> ReturnCode {
@@ -112,13 +111,13 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
         self.txbuffer.take().map_or(ReturnCode::ERESERVE, move |txbuffer| {
             txbuffer[0] = Opcodes::WriteEnable as u8;
 
-                let write_len = cmp::min(txbuffer.len(), len as usize);
+            let write_len = cmp::min(txbuffer.len(), len as usize);
 
-                // Need to save the buffer passed to us so we can give it back.
-                self.client_buffer.replace(buffer);
-                // Also save address and len for the actual write.
-                self.client_write_address.set(address);
-                self.client_write_len.set(write_len as u16);
+            // Need to save the buffer passed to us so we can give it back.
+            self.client_buffer.replace(buffer);
+            // Also save address and len for the actual write.
+            self.client_write_address.set(address);
+            self.client_write_len.set(write_len as u16);
 
             self.state.set(State::WriteEnable);
             self.spi.read_write_bytes(txbuffer, None, 1)
@@ -134,10 +133,10 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
                 txbuffer[1] = ((address >> 8) & 0xFF) as u8;
                 txbuffer[2] = (address & 0xFF) as u8;
 
-                        // Save the user buffer for later
-                        self.client_buffer.replace(buffer);
+                // Save the user buffer for later
+                self.client_buffer.replace(buffer);
 
-                        let read_len = cmp::min(rxbuffer.len() - 3, len as usize);
+                let read_len = cmp::min(rxbuffer.len() - 3, len as usize);
 
                 self.state.set(State::ReadMemory);
                 self.spi.read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3)
@@ -165,30 +164,26 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
                     // Also replace this buffer
                     self.rxbuffer.replace(read_buffer);
 
-                    self.client
-                        .get()
-                        .map(|client| { client.status(status); });
+                    self.client.get().map(|client| { client.status(status); });
                 });
             }
             State::WriteEnable => {
                 self.state.set(State::WriteMemory);
 
-                self.client_buffer
-                    .map(move |buffer| {
-                        write_buffer[0] = Opcodes::WriteMemory as u8;
-                        write_buffer[1] = ((self.client_write_address.get() >> 8) & 0xFF) as u8;
-                        write_buffer[2] = (self.client_write_address.get() & 0xFF) as u8;
+                self.client_buffer.map(move |buffer| {
+                    write_buffer[0] = Opcodes::WriteMemory as u8;
+                    write_buffer[1] = ((self.client_write_address.get() >> 8) & 0xFF) as u8;
+                    write_buffer[2] = (self.client_write_address.get() & 0xFF) as u8;
 
-                        let write_len = cmp::min(write_buffer.len(),
-                                                 self.client_write_len.get() as usize);
+                    let write_len = cmp::min(write_buffer.len(),
+                                             self.client_write_len.get() as usize);
 
-                        for i in 0..write_len {
-                            write_buffer[(i + 3) as usize] = buffer[i as usize];
-                        }
+                    for i in 0..write_len {
+                        write_buffer[(i + 3) as usize] = buffer[i as usize];
+                    }
 
-                        self.spi
-                            .read_write_bytes(write_buffer, read_buffer, write_len + 3);
-                    });
+                    self.spi.read_write_bytes(write_buffer, read_buffer, write_len + 3);
+                });
             }
             State::WriteMemory => {
                 self.state.set(State::Idle);
@@ -198,13 +193,9 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
                 read_buffer.map(|read_buffer| { self.rxbuffer.replace(read_buffer); });
 
                 // Call done with the write() buffer
-                self.client_buffer
-                    .take()
-                    .map(move |buffer| {
-                        self.client
-                            .get()
-                            .map(move |client| { client.done(buffer); });
-                    });
+                self.client_buffer.take().map(move |buffer| {
+                    self.client.get().map(move |client| { client.done(buffer); });
+                });
             }
             State::ReadMemory => {
                 self.state.set(State::Idle);
@@ -213,21 +204,17 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
                 self.txbuffer.replace(write_buffer);
 
                 read_buffer.map(|read_buffer| {
-                    self.client_buffer
-                        .take()
-                        .map(move |buffer| {
-                            let read_len = cmp::min(buffer.len(), len);
+                    self.client_buffer.take().map(move |buffer| {
+                        let read_len = cmp::min(buffer.len(), len);
 
-                            for i in 0..(read_len - 3) {
-                                buffer[i] = read_buffer[i + 3];
-                            }
+                        for i in 0..(read_len - 3) {
+                            buffer[i] = read_buffer[i + 3];
+                        }
 
-                            self.rxbuffer.replace(read_buffer);
+                        self.rxbuffer.replace(read_buffer);
 
-                            self.client
-                                .get()
-                                .map(move |client| { client.read(buffer, read_len); });
-                        });
+                        self.client.get().map(move |client| { client.read(buffer, read_len); });
+                    });
                 });
             }
             _ => {}
@@ -287,11 +274,12 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S>
             app.read_buffer.as_mut().map(move |read_buffer| {
                 read_len = cmp::min(read_buffer.len(), len);
 
-                        self.kernel_read.replace(data);
-                    });
+                let d = &mut read_buffer.as_mut()[0..(read_len as usize)];
+                for (i, c) in data[0..read_len].iter().enumerate() {
+                    d[i] = *c;
+                }
 
-                app_state.callback
-                    .map(|mut cb| { cb.schedule(1, read_len, 0); });
+                self.kernel_read.replace(data);
             });
 
             app.callback.map(|mut cb| { cb.schedule(1, read_len, 0); });

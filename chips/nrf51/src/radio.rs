@@ -134,7 +134,7 @@ static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
 pub struct Radio {
     regs: *const RADIO_REGS,
     client: Cell<Option<&'static Client>>,
-    txpower: Cell<usize>, 
+    txpower: Cell<usize>,
     // packet: Packet,
 }
 
@@ -148,7 +148,7 @@ impl Radio {
         Radio {
             regs: RADIO_BASE as *const RADIO_REGS,
             client: Cell::new(None),
-            txpower: Cell::new(0), 
+            txpower: Cell::new(0),
             // packet: Packet {
             //     header: VolatileCell::new([0; 2]),
             //     address: VolatileCell::new([0; 6]),
@@ -368,7 +368,6 @@ impl Radio {
         if regs.END.get() == 1 {
             regs.END.set(0);
             regs.DISABLE.set(1);
-
             // this can be made more verbose on the state-checking
             // e.g. receiv not covered and not supported
             match regs.STATE.get() {
@@ -393,7 +392,7 @@ impl Radio {
                         _ => self.set_channel(37),
                     }
                     // Once a CRC error is received discard the message and return
-                    
+
                 }
                 _ => (),
             }

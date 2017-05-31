@@ -9,6 +9,7 @@ use temperature;
 use timer;
 use trng;
 use uart;
+use radio;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
@@ -49,6 +50,7 @@ impl kernel::Chip for NRF51 {
                     NvicIdx::TEMP => temperature::TEMP.handle_interrupt(),
                     NvicIdx::RNG => trng::TRNG.handle_interrupt(),
                     NvicIdx::ECB => aes::AESECB.handle_interrupt(),
+                    NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);

@@ -174,37 +174,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A> {
 
     pub fn configure_periodic_alarm(&self) {
         self.radio.set_channel(37);
-        let tics = self.alarm.now().wrapping_add(self.interval.get());
-        self.alarm.set_alarm(tics);
-    }
-
-
-    pub fn set_adv_data(&self) -> ReturnCode {
-        for cntr in self.app.iter() {
-            cntr.enter(|app, _| {
-                app.app_write_data
-                    .as_ref()
-                    .map(|slice| {
-                        let len = slice.len();
-                        self.kernel_tx_data
-                            .take()
-                            .map(|data| {
-                                     for (out, inp) in
-                                    data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
-                                         *out = *inp;
-                                     }
-                                     self.radio.set_adv_data(data, len);
-                                 });
-                    });
-            });
-        }
-        ReturnCode::SUCCESS
-    }
-
-
-
-    pub fn configure_periodic_alarm(&self) {
-        self.radio.set_channel(37);
         let tics = self.alarm.now().wrapping_add(5017 as u32);
         self.alarm.set_alarm(tics);
     }
@@ -218,9 +187,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for BL
             self.radio.start_adv();
         } else {
             self.radio.continue_adv();
-        }
-        else {
-            self.radio.send();
         }
     }
 }
@@ -262,24 +228,14 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, R, A>
                 self.busy.set(false);
                 ReturnCode::SUCCESS
             }
-            //Start ADV_BLE
-            3 => {
-                if self.busy.get() == false {
-                    self.busy.set(true);
-                    self.advertise.set(true);
-                    self.configure_periodic_alarm();
-                    ReturnCode::SUCCESS
-                } else {
-                    ReturnCode::FAIL
-                }
+            (2,false) => {
+                self.radio.set_adv_txpower(data)
             }
-            //Stop ADV_BLE
-            4 => {
-                self.advertise.set(false);
-                self.busy.set(false);
+            (3, false) => {
+                self.interval.set(5017);
                 ReturnCode::SUCCESS
             }
-            _ => ReturnCode::EALREADY,
+            (_,_)  => ReturnCode::EALREADY,
         }
     }
 
