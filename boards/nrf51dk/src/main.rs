@@ -113,9 +113,7 @@ pub struct Platform {
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
     aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
-    radio: &'static capsules::radio_nrf51dk::Radio<'static,
-                                                   nrf51::radio::Radio,
-                                                   VirtualMuxAlarm<'static, Rtc>>,
+    radio: &'static capsules::ble::BLE<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
 }
 
 
@@ -278,11 +276,11 @@ pub unsafe fn reset_handler() {
     nrf51::aes::AESECB.set_client(aes);
 
     let radio = static_init!(
-     capsules::radio_nrf51dk::Radio<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
-     capsules::radio_nrf51dk::Radio::new(
+     capsules::ble::BLE<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+     capsules::ble::BLE::new(
          &mut nrf51::radio::RADIO,
          kernel::Container::create(),
-         &mut capsules::radio_nrf51dk::BUF,
+         &mut capsules::ble::BUF,
          radio_virtual_alarm),
         256/8);
     nrf51::radio::RADIO.set_client(radio);

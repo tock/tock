@@ -60,7 +60,7 @@
 
 
 use core::cell::Cell;
-use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container};
+use kernel::{AppId, Driver, AppSlice, Shared, Container};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::hil::radio_nrf51dk::{RadioDriver, Client};
@@ -96,25 +96,17 @@ pub const BLE_HS_ADV_TYPE_MFG_DATA: usize = 0xff;
 
 
 pub struct App {
-    tx_callback: Option<Callback>,
-    rx_callback: Option<Callback>,
-    app_read: Option<AppSlice<Shared, u8>>,
     // used for adv data
     app_write: Option<AppSlice<Shared, u8>>,
 }
 
 impl Default for App {
     fn default() -> App {
-        App {
-            tx_callback: None,
-            rx_callback: None,
-            app_read: None,
-            app_write: None,
-        }
+        App { app_write: None }
     }
 }
 
-pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
+pub struct BLE<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
     radio: &'a R,
     busy: Cell<bool>,
     app: Container<App>,
@@ -127,20 +119,20 @@ pub struct Radio<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
 }
 // 'a = lifetime
 // R - type Radio
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A> {
     pub fn new(radio: &'a R,
                container: Container<App>,
                buf: &'static mut [u8],
                alarm: &'a A)
-               -> Radio<'a, R, A> {
-        Radio {
+               -> BLE<'a, R, A> {
+        BLE {
             radio: radio,
             busy: Cell::new(false),
             app: container,
             kernel_tx: TakeCell::new(buf),
             alarm: alarm,
             // 5017 : every 150 ms!?
-            // how do is that comptued?
+            // how is that comptued?
             // 1 clock cycle, 1/(16*10^6) = 6.25e-8
             // 5007 * 6.25e-8 ~= 0.31ms
             // TODO: check this if other CPUs shall be supported
@@ -164,8 +156,8 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
                             self.kernel_tx
                                 .take()
                                 .map(|data| {
-                                    for (out, inp) in
-                                        data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
+                                    for (out, inp) in data.iter_mut()
+                                        .zip(slice.as_ref()[0..len].iter()) {
                                         *out = *inp;
                                     }
                                     let tmp = self.radio
@@ -218,7 +210,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Radio<'a, R, A> {
     }
 }
 
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Radio<'a, R, A> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for BLE<'a, R, A> {
     // this method is called once the virtual timer has been expired
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
@@ -233,29 +225,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for Ra
     }
 }
 
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, A> {
-    fn receive_done(&self,
-                    rx_data: &'static mut [u8],
-                    _: &'static mut [u8],
-                    rx_len: u8)
-                    -> ReturnCode {
-        for cntr in self.app.iter() {
-            cntr.enter(|app, _| {
-                if app.app_read.is_some() {
-                    let dest = app.app_read.as_mut().unwrap();
-                    let d = &mut dest.as_mut();
-                    // write to buffer in userland
-                    for (i, c) in rx_data[0..rx_len as usize].iter().enumerate() {
-                        d[i] = *c;
-                    }
-                }
-                app.rx_callback.map(|mut cb| { cb.schedule(12, 0, 0); });
-            });
-        }
-        self.kernel_tx.replace(rx_data);
-        ReturnCode::SUCCESS
-    }
-
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for BLE<'a, R, A> {
     fn continue_adv(&self) {
         self.advertise.set(false);
         let tics = self.alarm.now().wrapping_add(2 as u32);
@@ -263,9 +233,6 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, 
     }
 
     fn done_adv(&self) -> ReturnCode {
-        for cntr in self.app.iter() {
-            cntr.enter(|app, _| { app.tx_callback.map(|mut cb| { cb.schedule(13, 0, 0); }); });
-        }
         self.advertise.set(true);
         self.configure_periodic_alarm();
         ReturnCode::SUCCESS
@@ -273,7 +240,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for Radio<'a, R, 
 }
 
 // Implementation of the Driver Trait/Interface
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, A> {
+impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, R, A> {
     //  0 -  send BLE advertisements periodically
     //  1 -  disable periodc BLE advertisementes
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
@@ -347,10 +314,10 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for Radio<'a, R, 
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| match err {
-                                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                                        Error::NoSuchApp => ReturnCode::EINVAL,
-                                    });
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    });
                 if ret == ReturnCode::SUCCESS {
                     self.set_adv_data(e)
                 } else {

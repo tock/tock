@@ -6,7 +6,6 @@ dependencies = [
  "cortexm0 0.1.0",
  "gcc 0.3.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "kernel 0.1.0",
- "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -14,7 +13,6 @@ name = "capsules"
 version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
- "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -22,7 +20,6 @@ name = "cortexm0"
 version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
- "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -33,15 +30,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "kernel"
 version = "0.1.0"
-dependencies = [
- "rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "rust-libcore"
-version = "0.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [metadata]
 "checksum gcc 0.3.43 (registry+https://github.com/rust-lang/crates.io-index)" = "c07c758b972368e703a562686adb39125707cc1ef3399da8c019fc6c2498a75d"
-"checksum rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ae7a33830cc02d03ae1e50057d0e4e4b1a84be09bfb158bf95e9c3f3373aa453"

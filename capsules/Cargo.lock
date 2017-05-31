@@ -9,5 +9,3 @@ dependencies = [
 name = "kernel"
 version = "0.1.0"
 
-[metadata]
-"checksum rust-libcore 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ae7a33830cc02d03ae1e50057d0e4e4b1a84be09bfb158bf95e9c3f3373aa453"

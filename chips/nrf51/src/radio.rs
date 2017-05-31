@@ -77,49 +77,49 @@ static mut RX_BUF: [u8; 12] = [0x00; 12];
 
 // Header (2 bytes) || Address (6 bytes) || Payload 31 bytes
 static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
-    0x02,
-    0x1C,
-    0x00,
-    // Address          [ADV ADDRESS]
-    0x90,
-    0xD8,
-    0x7A,
-    0xBD,
-    0xA3,
-    0xED,
-    // [LEN, AD-TYPE, LEN-1 bytes of data ...]
-    // 0x09 - Local name
-    // 0x54 0x6f 0x63 0x6b 0x4f 0x54 - TockOs
-    0x7,
-    0x09,
-    0x54,
-    0x6f,
-    0x63,
-    0x6b,
-    0x4f,
-    0x53,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00]; //[DATA]
+                                0x02,
+                                0xE,
+                                0x00,
+                                // Address          [ADV ADDRESS]
+                                0x90,
+                                0xD8,
+                                0x7A,
+                                0xBD,
+                                0xA3,
+                                0xED,
+                                // [LEN, AD-TYPE, LEN-1 bytes of data ...]
+                                // 0x09 - Local name
+                                // 0x54 0x6f 0x63 0x6b 0x4f 0x54 - TockOs
+                                0x7,
+                                0x09,
+                                0x54,
+                                0x6f,
+                                0x63,
+                                0x6b,
+                                0x4f,
+                                0x53,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00]; //[DATA]
 
 // #[repr(C, packed)]
 // pub struct Packet {
@@ -134,8 +134,7 @@ static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
 pub struct Radio {
     regs: *const RADIO_REGS,
     client: Cell<Option<&'static Client>>,
-    offset: Cell<usize>,
-    txpower: Cell<usize>,
+    txpower: Cell<usize>, 
     // packet: Packet,
 }
 
@@ -149,8 +148,7 @@ impl Radio {
         Radio {
             regs: RADIO_BASE as *const RADIO_REGS,
             client: Cell::new(None),
-            offset: Cell::new(18),
-            txpower: Cell::new(0),
+            txpower: Cell::new(0), 
             // packet: Packet {
             //     header: VolatileCell::new([0; 2]),
             //     address: VolatileCell::new([0; 6]),
@@ -206,6 +204,9 @@ impl Radio {
 
         self.enable_interrupts();
         self.enable_nvic();
+
+        regs.READY.set(0);
+        regs.TXEN.set(1);
     }
 
     fn set_crc_config(&self) {
@@ -232,7 +233,7 @@ impl Radio {
         // RFU          ;;      2 bits
         regs.PCNF0
             .set(// set S0 to 1 byte
-                (1 << RADIO_PCNF0_S0LEN_POS) |
+                 (1 << RADIO_PCNF0_S0LEN_POS) |
                 // set S1 to 2 bits
                 (2 << RADIO_PCNF0_S1LEN_POS) |
                 // set length to 6 bits
@@ -282,10 +283,11 @@ impl Radio {
         //37, 38 and 39 for adv.
         match val {
             37 => regs.FREQEUNCY.set(2),
-            38 => regs.FREQEUNCY.set(20),
+            38 => regs.FREQEUNCY.set(26),
             39 => regs.FREQEUNCY.set(80),
             _ => regs.FREQEUNCY.set(7),
         }
+        //debug!("{:?}\r\n",regs.FREQEUNCY.get());
     }
 
     fn radio_on(&self) {
@@ -371,25 +373,24 @@ impl Radio {
             // e.g. receiv not covered and not supported
             match regs.STATE.get() {
                 RADIO_STATE_TXRU |
-                    RADIO_STATE_TXIDLE |
-                    RADIO_STATE_TXDISABLE |
-                    RADIO_STATE_TX => {
-                        match regs.FREQEUNCY.get() {
-                            80 => {
-                                self.radio_off();
-                                self.client.get().map(|client| client.done_adv());
-                            }
-                            20 => {
-                                self.set_channel(39);
-                                self.client.get().map(|client| client.continue_adv());
-                            }
-                            2 => {
-                                self.set_channel(38);
-                                self.client.get().map(|client| client.continue_adv());
-
-                            }
-                            _ => self.set_channel(37),
+                RADIO_STATE_TXIDLE |
+                RADIO_STATE_TXDISABLE |
+                RADIO_STATE_TX => {
+                    match regs.FREQEUNCY.get() {
+                        80 => {
+                            self.radio_off();
+                            self.client.get().map(|client| client.done_adv());
                         }
+                        26 => {
+                            self.set_channel(39);
+                            self.client.get().map(|client| client.continue_adv());
+                        }
+                        2 => {
+                            self.set_channel(38);
+                            self.client.get().map(|client| client.continue_adv());
+
+                        }
+                        _ => self.set_channel(37),
                     }
                     // Once a CRC error is received discard the message and return
                     
@@ -434,22 +435,12 @@ impl Radio {
 }
 
 impl RadioDriver for Radio {
-    // This Function is called once Tock is booted
-    fn init(&self) {
-        // self.init_radio_ble()
-    }
-
-    // REMOVE !?
     fn flash_leds(&self) {
         self.turn_on_leds();
     }
 
     fn start_adv(&self) {
-        let regs = unsafe { &*self.regs };
         self.init_radio_ble();
-        self.set_tx_buffer();
-        regs.READY.set(0);
-        regs.TXEN.set(1);
     }
 
     fn continue_adv(&self) {
@@ -459,33 +450,15 @@ impl RadioDriver for Radio {
         regs.TXEN.set(1);
     }
 
-
-    // This Function is called once a radio packet is to be sent
-    fn receive(&self) {
-        self.rx();
-    }
-
-
-    // FIXME: UN-USED FUNCTION
-    // unsued return value remove!!
-    fn set_adv_name(&self, name: &'static mut [u8], len: usize) -> ReturnCode {
-        // assumption set name will always write over the buffer
-        // name is max 29 bytes ensured by capsule
-        self.reset_payload();
-        self.offset.set(11 + len);
-        unsafe {
-            PAYLOAD[9] = (len + 1) as u8;
-            PAYLOAD[10] = 0x09 as u8;
-        }
-        for i in 0..len {
-            unsafe {
-                PAYLOAD[i + 11] = name[i];
-            }
-        }
-        ReturnCode::SUCCESS
-    }
-
-    fn set_adv_data(&self, ad_type: usize, data: &'static mut [u8], len: usize, offset: usize) -> &'static mut [u8] {
+    fn set_adv_data(&self,
+                    ad_type: usize,
+                    data: &'static mut [u8],
+                    len: usize,
+                    offset: usize)
+                    -> &'static mut [u8] {
+        /*unsafe{
+            debug!("{:?}\r\n",&PAYLOAD[0 .. 31]);
+        }*/
         if offset == 9 {
             //FIXME: move call to the capsule!?
             self.reset_payload();
@@ -500,6 +473,15 @@ impl RadioDriver for Radio {
                 PAYLOAD[i + offset + 2] = *c;
             }
         }
+        unsafe {
+            PAYLOAD[1] = (offset - 1 + len) as u8;
+        }
+        /*
+        debug!("{:?}\r\n",len);
+        unsafe{
+            debug!("{:?}\r\n",&PAYLOAD[0 .. 31]);
+            debug!("{:?}\r\n",&PAYLOAD[31 .. ]);
+        }*/
         data
     }
 
@@ -529,8 +511,7 @@ impl RadioDriver for Radio {
 pub unsafe extern "C" fn RADIO_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::RADIO);
-    chip::INTERRUPT_QUEUE
-        .as_mut()
+    chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
         .enqueue(NvicIdx::RADIO);
 }
