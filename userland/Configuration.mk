@@ -102,8 +102,6 @@ override CPPFLAGS += -Wmultichar #                # use of 'foo' instead of "foo
 override CPPFLAGS += -Wpointer-arith #            # sizeof things not define'd (i.e. sizeof(void))
 override CPPFLAGS += -Wredundant-decls #          # { int i; int i; } (a lint)
 override CPPFLAGS += -Wshadow #                   # int foo(int a) { int a = 1; } inner a shadows outer a
-override CPPFLAGS += -Wsuggest-attribute=const    # does what it sounds like
-override CPPFLAGS += -Wsuggest-attribute=pure     # does what it sounds like
 override CPPFLAGS += -Wtrampolines #              # attempt to generate a trampoline on the NX stack
 override CPPFLAGS += -Wunused-macros #            # macro defined in this file not used
 override CPPFLAGS += -Wunused-parameter #         # function parameter is unused aside from its declaration
@@ -128,6 +126,8 @@ override CPPFLAGS += -Wwrite-strings #            # { char* c = "foo"; c[0] = 'b
 #CPPFLAGS += -Wpedantic                   # strict ISO C/C++
 #CPPFLAGS += -Wsign-conversion            # implicit integer sign conversions, part of -Wconversion
 #CPPFLAGS += -Wstack-protector            # only if -fstack-protector, on by default, warn fn not protect
+#CPPFLAGS += -Wsuggest-attribute=const    # does what it sounds like - removed due to noise
+#CPPFLAGS += -Wsuggest-attribute=pure     # does what it sounds like - removed due to noise
 #CPPFLAGS += -Wswitch-enum #              # switch of enum doesn't explicitly cover all cases
 #                                         ^ annoying in practice, let default: do its job
 #CPPFLAGS += -Wsystem-headers             # warnings from system headers
