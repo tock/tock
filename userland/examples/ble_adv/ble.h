@@ -10,10 +10,6 @@
 #define BLE_ADV_STOP      1
 #define CFG_TX_POWER      2
 #define CFG_ADV_INTERVAL  3
-
-// allow calls
-#define SET_NAME          0x53
-#define SET_DATA          0x54
 /*----------------------------*/
 
 // AD Types
@@ -45,10 +41,10 @@
 extern "C" {
 #endif
 
-int ble_adv_data(uint8_t type, uint8_t len, const char *data);
+int ble_adv_data(uint8_t type, uint8_t len, const unsigned char *data);
 int ble_adv_set_txpower(uint8_t);
 int ble_adv_set_interval(int8_t);
-int ble_adv_start(const char* name, const char *data);
+int ble_adv_start(void);
 int ble_adv_stop(void);
 
 #ifdef __cplusplus

@@ -63,7 +63,7 @@ use core::cell::Cell;
 use kernel::{AppId, Driver, AppSlice, Shared, Container};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use kernel::hil::radio_nrf51dk::{RadioDriver, Client};
+use kernel::hil::ble::{BleAdvertisementDriver, Client};
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
 pub static mut BUF: [u8; 32] = [0; 32];
@@ -106,7 +106,7 @@ impl Default for App {
     }
 }
 
-pub struct BLE<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
+pub struct BLE<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> {
     radio: &'a R,
     busy: Cell<bool>,
     app: Container<App>,
@@ -119,7 +119,7 @@ pub struct BLE<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> {
 }
 // 'a = lifetime
 // R - type Radio
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A> {
+impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A> {
     pub fn new(radio: &'a R,
                container: Container<App>,
                buf: &'static mut [u8],
@@ -179,7 +179,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A> {
     }
 }
 
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for BLE<'a, R, A> {
+impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for BLE<'a, R, A> {
     // this method is called once the virtual timer has been expired
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
@@ -191,7 +191,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for BL
     }
 }
 
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for BLE<'a, R, A> {
+impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Client for BLE<'a, R, A> {
     fn continue_adv(&self) {
         self.advertise.set(false);
         let tics = self.alarm.now().wrapping_add(2 as u32);
@@ -206,7 +206,7 @@ impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Client for BLE<'a, R, A>
 }
 
 // Implementation of the Driver Trait/Interface
-impl<'a, R: RadioDriver + 'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, R, A> {
+impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, R, A> {
     //  0 -  send BLE advertisements periodically
     //  1 -  disable periodc BLE advertisementes
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {

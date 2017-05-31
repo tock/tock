@@ -12,7 +12,7 @@ use core::cell::Cell;
 use gpio;
 // use kernel::common::VolatileCell;
 use kernel::hil::gpio::Pin;
-use kernel::hil::radio_nrf51dk::{RadioDriver, Client};
+use kernel::hil::ble::{BleAdvertisementDriver, Client};
 use kernel::returncode::ReturnCode;
 use nvic;
 use peripheral_interrupts::NvicIdx;
@@ -433,10 +433,7 @@ impl Radio {
     }
 }
 
-impl RadioDriver for Radio {
-    fn flash_leds(&self) {
-        self.turn_on_leds();
-    }
+impl BleAdvertisementDriver for Radio {
 
     fn start_adv(&self) {
         self.init_radio_ble();
