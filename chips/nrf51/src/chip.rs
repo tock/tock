@@ -4,12 +4,12 @@ use kernel;
 use kernel::common::{RingBuffer, Queue};
 use nvic;
 use peripheral_interrupts::NvicIdx;
+use radio;
 use rtc;
 use temperature;
 use timer;
 use trng;
 use uart;
-use radio;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];

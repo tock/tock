@@ -179,7 +179,8 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A>
     }
 }
 
-impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client for BLE<'a, R, A> {
+impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client
+    for BLE<'a, R, A> {
     // this method is called once the virtual timer has been expired
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
@@ -228,14 +229,12 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Driver for BL
                 self.busy.set(false);
                 ReturnCode::SUCCESS
             }
-            (2,false) => {
-                self.radio.set_adv_txpower(data)
-            }
+            (2, false) => self.radio.set_adv_txpower(data),
             (3, false) => {
                 self.interval.set(5017);
                 ReturnCode::SUCCESS
             }
-            (_,_)  => ReturnCode::EALREADY,
+            (_, _) => ReturnCode::EALREADY,
         }
     }
 

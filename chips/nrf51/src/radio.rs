@@ -10,9 +10,9 @@
 use chip;
 use core::cell::Cell;
 use gpio;
+use kernel::hil::ble::{BleAdvertisementDriver, Client};
 // use kernel::common::VolatileCell;
 use kernel::hil::gpio::Pin;
-use kernel::hil::ble::{BleAdvertisementDriver, Client};
 use kernel::returncode::ReturnCode;
 use nvic;
 use peripheral_interrupts::NvicIdx;
@@ -126,7 +126,6 @@ pub struct Radio {
     regs: *const RADIO_REGS,
     client: Cell<Option<&'static Client>>,
     txpower: Cell<usize>,
-    // packet: Packet,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -412,7 +411,6 @@ impl Radio {
 }
 
 impl BleAdvertisementDriver for Radio {
-
     fn start_adv(&self) {
         self.init_radio_ble();
     }
