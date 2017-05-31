@@ -29,7 +29,6 @@ simple_ble_config_t ble_config = {
 };
 
 // Empty handler for setting BLE addresses
-#pragma GCC diagnostic ignored "-Wsuggest-attribute=const"
 void ble_address_set (void) {
   // nop
 }

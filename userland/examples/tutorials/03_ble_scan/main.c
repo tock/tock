@@ -24,7 +24,6 @@ simple_ble_config_t ble_config = {
   .max_conn_interval = MSEC_TO_UNITS(1250, UNIT_1_25_MS)
 };
 
-#pragma GCC diagnostic ignored "-Wsuggest-attribute=const"
 void app_error_fault_handler(__attribute__ ((unused)) uint32_t error_code,
                              __attribute__ ((unused)) uint32_t line_num,
                              __attribute__ ((unused)) uint32_t info) {
@@ -33,7 +32,6 @@ void app_error_fault_handler(__attribute__ ((unused)) uint32_t error_code,
   // The application can continue.
 }
 
-#pragma GCC diagnostic ignored "-Wsuggest-attribute=const"
 void ble_address_set (void) {
   // Need to redefine this function so that we do not try to set the address
   // on the main processor.
