@@ -75,10 +75,7 @@ impl<'a, G: Pin> Client for GPIO<'a, G> {
 
         // schedule callback with the pin number and value
         if self.callback.get().is_some() {
-            self.callback
-                .get()
-                .unwrap()
-                .schedule(pin_num, pin_state as usize, 0);
+            self.callback.get().unwrap().schedule(pin_num, pin_state as usize, 0);
         }
     }
 }

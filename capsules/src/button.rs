@@ -119,12 +119,10 @@ impl<'a, G: hil::gpio::Pin> Client for Button<'a, G> {
         let pin_state = pins[pin_num].read();
 
         // schedule callback with the pin number and value
-        self.callback
-            .each(|cntr| {
-                cntr.0
-                    .map(|mut callback| if cntr.1 & (1 << pin_num) != 0 {
-                        callback.schedule(pin_num, pin_state as usize, 0);
-                    });
+        self.callback.each(|cntr| {
+            cntr.0.map(|mut callback| if cntr.1 & (1 << pin_num) != 0 {
+                callback.schedule(pin_num, pin_state as usize, 0);
             });
+        });
     }
 }

@@ -41,9 +41,7 @@ impl IPC {
                 let callback = match cb_type {
                     process::IPCType::Service => mydata.callback,
                     process::IPCType::Client => {
-                        *mydata.client_callbacks
-                            .get(otherapp.idx())
-                            .unwrap_or(&None)
+                        *mydata.client_callbacks.get(otherapp.idx()).unwrap_or(&None)
                     }
                 };
                 callback.map(|mut callback| {
@@ -165,7 +163,9 @@ impl Driver for IPC {
                             let s = p.package_name.as_bytes();
                             // are slices equal?
                             if s.len() == slice.len() &&
-                               s.iter().zip(slice.iter()).all(|(c1, c2)| c1 == c2) {
+                               s.iter()
+                                .zip(slice.iter())
+                                .all(|(c1, c2)| c1 == c2) {
                                 return ReturnCode::SuccessWithValue { value: (i as usize) + 1 };
                             }
                         }

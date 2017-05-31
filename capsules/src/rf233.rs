@@ -395,8 +395,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                 self.irq_pin.make_input();
                 self.irq_pin.clear();
                 self.irq_ctl.set_input_mode(gpio::InputMode::PullNone);
-                self.irq_pin
-                    .enable_interrupt(INTERRUPT_ID, gpio::InterruptMode::RisingEdge);
+                self.irq_pin.enable_interrupt(INTERRUPT_ID, gpio::InterruptMode::RisingEdge);
 
                 self.state_transition_write(RF233Register::TRX_CTRL_1,
                                             TRX_CTRL_1,
@@ -667,14 +666,12 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                 } else {
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
                 }
-                self.rx_client
-                    .get()
-                    .map(|client| {
-                        let rbuf = self.rx_buf.take().unwrap();
-                        // Subtract the CRC and add the length byte
-                        let len = rbuf[1] - 2 + 1;
-                        client.receive(rbuf, len, ReturnCode::SUCCESS);
-                    });
+                self.rx_client.get().map(|client| {
+                    let rbuf = self.rx_buf.take().unwrap();
+                    // Subtract the CRC and add the length byte
+                    let len = rbuf[1] - 2 + 1;
+                    client.receive(rbuf, len, ReturnCode::SUCCESS);
+                });
             }
 
             InternalState::CONFIG_SHORT0_SET => {
@@ -748,9 +745,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             InternalState::CONFIG_DONE => {
                 self.config_pending.set(false);
                 self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
-                self.cfg_client
-                    .get()
-                    .map(|c| { c.config_done(ReturnCode::SUCCESS); });
+                self.cfg_client.get().map(|c| { c.config_done(ReturnCode::SUCCESS); });
             }
 
             InternalState::UNKNOWN => {}
@@ -856,8 +851,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
 
         let op_len = (buf_len + 1) as usize;
         buf[0] = RF233BusCommand::FRAME_WRITE as u8;
-        self.spi
-            .read_write_bytes(buf, self.spi_buf.take(), op_len);
+        self.spi.read_write_bytes(buf, self.spi_buf.take(), op_len);
         self.spi_busy.set(true);
         ReturnCode::SUCCESS
     }
@@ -986,10 +980,9 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
     }
 
     fn reset(&self) -> ReturnCode {
-        self.spi
-            .configure(spi::ClockPolarity::IdleLow,
-                       spi::ClockPhase::SampleLeading,
-                       100000);
+        self.spi.configure(spi::ClockPolarity::IdleLow,
+                           spi::ClockPhase::SampleLeading,
+                           100000);
         self.reset_pin.make_output();
         self.sleep_pin.make_output();
         for _i in 0..10000 {

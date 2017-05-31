@@ -19,13 +19,11 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a
                        write_buffer: &'static mut [u8],
                        read_buffer: Option<&'static mut [u8]>,
                        len: usize) {
-        self.inflight
-            .get()
-            .map(move |device| {
-                self.inflight.set(None);
-                self.do_next_op();
-                device.read_write_done(write_buffer, read_buffer, len);
-            });
+        self.inflight.get().map(move |device| {
+            self.inflight.set(None);
+            self.do_next_op();
+            device.read_write_done(write_buffer, read_buffer, len);
+        });
     }
 }
 
@@ -40,9 +38,7 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
 
     fn do_next_op(&self) {
         if self.inflight.get().is_none() {
-            let mnode = self.devices
-                .iter()
-                .find(|node| node.operation.get() != Op::Idle);
+            let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
                 self.spi.specify_chip_select(node.chip_select.get());
                 let op = node.operation.get();
@@ -61,12 +57,10 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                         // Only async operations want to block by setting
                         // the devices as inflight.
                         self.inflight.set(Some(node));
-                        node.txbuffer
-                            .take()
-                            .map(|txbuffer| {
-                                let rxbuffer = node.rxbuffer.take();
-                                self.spi.read_write_bytes(txbuffer, rxbuffer, len);
-                            });
+                        node.txbuffer.take().map(|txbuffer| {
+                            let rxbuffer = node.rxbuffer.take();
+                            self.spi.read_write_bytes(txbuffer, rxbuffer, len);
+                        });
                     }
                     Op::SetPolarity(pol) => {
                         self.spi.set_clock(pol);

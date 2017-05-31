@@ -164,30 +164,28 @@ impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
 
-        self.app_timer
-            .each(|timer| {
-                let elapsed = now.wrapping_sub(timer.t0);
+        self.app_timer.each(|timer| {
+            let elapsed = now.wrapping_sub(timer.t0);
 
-                // timer.interval == 0 means the timer is inactive
-                if timer.interval > 0 &&
+            // timer.interval == 0 means the timer is inactive
+            if timer.interval > 0 &&
                     // Becuse of the calculations done for timer.interval when
                     // setting the timer, we might fire earlier than expected
                     // by some jitter.
                     elapsed >= timer.interval {
 
-                    if timer.repeating {
-                        // Repeating timer, reset the reference time to now
-                        timer.t0 = now;
-                    } else {
-                        // Deactivate timer
-                        timer.interval = 0;
-                        self.num_armed.set(self.num_armed.get() - 1);
-                    }
-
-                    timer.callback
-                        .map(|mut cb| { cb.schedule(now as usize, 0, 0); });
+                if timer.repeating {
+                    // Repeating timer, reset the reference time to now
+                    timer.t0 = now;
+                } else {
+                    // Deactivate timer
+                    timer.interval = 0;
+                    self.num_armed.set(self.num_armed.get() - 1);
                 }
-            });
+
+                timer.callback.map(|mut cb| { cb.schedule(now as usize, 0, 0); });
+            }
+        });
 
         // If there are armed timers left, reset the underlying timer to the
         // nearest interval. Otherwise, disable the underlying timer.

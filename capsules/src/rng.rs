@@ -95,8 +95,7 @@ impl<'a, RNG: rng::RNG> rng::Client for SimpleRng<'a, RNG> {
                     if app.remaining > 0 {
                         done = false;
                     } else {
-                        app.callback
-                            .map(|mut cb| { cb.schedule(0, app.idx, 0); });
+                        app.callback.map(|mut cb| { cb.schedule(0, app.idx, 0); });
                     }
                 }
             });

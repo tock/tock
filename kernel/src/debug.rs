@@ -49,9 +49,7 @@ impl DebugWriter {
             if end < start {
                 panic!("wb bounds: start {} end {} bytes {:?}", start, end, bytes);
             }
-            for (dst, src) in DEBUG_WRITER.output_buffer[start..end]
-                .iter_mut()
-                .zip(bytes.iter()) {
+            for (dst, src) in DEBUG_WRITER.output_buffer[start..end].iter_mut().zip(bytes.iter()) {
                 *dst = *src;
             }
         }

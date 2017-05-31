@@ -319,23 +319,19 @@ impl spi::SpiMaster for Spi {
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
-        self.dma_write
-            .get()
-            .map(move |write| {
-                write.enable();
-                write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count);
-            });
+        self.dma_write.get().map(move |write| {
+            write.enable();
+            write.do_xfer(DMAPeripheral::SPI_TX, write_buffer, count);
+        });
 
         // Only setup the RX channel if we were passed a read_buffer inside
         // of the option. `map()` checks this for us.
         read_buffer.map(|rbuf| {
             self.transfers_in_progress.set(2);
-            self.dma_read
-                .get()
-                .map(move |read| {
-                    read.enable();
-                    read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
-                });
+            self.dma_read.get().map(move |read| {
+                read.enable();
+                read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
+            });
         });
         ReturnCode::SUCCESS
     }
@@ -417,25 +413,20 @@ impl DMAClient for Spi {
         //    data over to/from the controller at the same time, so we don't want to abort
         //    prematurely.
 
-        self.transfers_in_progress
-            .set(self.transfers_in_progress.get() - 1);
+        self.transfers_in_progress.set(self.transfers_in_progress.get() - 1);
 
         if self.transfers_in_progress.get() == 0 {
-            let txbuf = self.dma_write
-                .get()
-                .map_or(None, |dma| {
-                    let buf = dma.abort_xfer();
-                    dma.disable();
-                    buf
-                });
+            let txbuf = self.dma_write.get().map_or(None, |dma| {
+                let buf = dma.abort_xfer();
+                dma.disable();
+                buf
+            });
 
-            let rxbuf = self.dma_read
-                .get()
-                .map_or(None, |dma| {
-                    let buf = dma.abort_xfer();
-                    dma.disable();
-                    buf
-                });
+            let rxbuf = self.dma_read.get().map_or(None, |dma| {
+                let buf = dma.abort_xfer();
+                dma.disable();
+                buf
+            });
 
             let len = self.dma_length.get();
             self.dma_length.set(0);

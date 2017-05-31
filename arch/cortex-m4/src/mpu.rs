@@ -221,10 +221,6 @@ impl kernel::mpu::MPU for MPU {
 
         regs.region_base_address.set(region.base_address());
 
-        let xn = execute as u32;
-        let ap = access as u32;
-        let region_attributes_and_size = 1 | len << 1 | ap << 24 | xn << 28;
-        regs.region_attributes_and_size
-            .set(region_attributes_and_size);
+        regs.region_attributes_and_size.set(region.attributes());
     }
 }

@@ -18,12 +18,10 @@ pub struct MuxI2C<'a> {
 
 impl<'a> I2CHwMasterClient for MuxI2C<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        self.inflight
-            .get()
-            .map(move |device| {
-                self.inflight.set(None);
-                device.command_complete(buffer, error);
-            });
+        self.inflight.get().map(move |device| {
+            self.inflight.set(None);
+            device.command_complete(buffer, error);
+        });
         self.do_next_op();
     }
 }
@@ -56,22 +54,18 @@ impl<'a> MuxI2C<'a> {
 
     fn do_next_op(&self) {
         if self.inflight.get().is_none() {
-            let mnode = self.devices
-                .iter()
-                .find(|node| node.operation.get() != Op::Idle);
+            let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
-                node.buffer
-                    .take()
-                    .map(|buf| {
-                        match node.operation.get() {
-                            Op::Write(len) => self.i2c.write(node.addr, buf, len),
-                            Op::Read(len) => self.i2c.read(node.addr, buf, len),
-                            Op::WriteRead(wlen, rlen) => {
-                                self.i2c.write_read(node.addr, buf, wlen, rlen)
-                            }
-                            Op::Idle => {} // Can't get here...
+                node.buffer.take().map(|buf| {
+                    match node.operation.get() {
+                        Op::Write(len) => self.i2c.write(node.addr, buf, len),
+                        Op::Read(len) => self.i2c.read(node.addr, buf, len),
+                        Op::WriteRead(wlen, rlen) => {
+                            self.i2c.write_read(node.addr, buf, wlen, rlen)
                         }
-                    });
+                        Op::Idle => {} // Can't get here...
+                    }
+                });
                 node.operation.set(Op::Idle);
                 self.inflight.set(Some(node));
             });
@@ -118,9 +112,7 @@ impl<'a> I2CDevice<'a> {
 
 impl<'a> I2CClient for I2CDevice<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        self.client
-            .get()
-            .map(move |client| { client.command_complete(buffer, error); });
+        self.client.get().map(move |client| { client.command_complete(buffer, error); });
     }
 }
 

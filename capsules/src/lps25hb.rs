@@ -98,37 +98,32 @@ impl<'a> LPS25HB<'a> {
     }
 
     pub fn read_whoami(&self) {
-        self.buffer
-            .take()
-            .map(|buf| {
-                // turn on i2c to send commands
-                self.i2c.enable();
+        self.buffer.take().map(|buf| {
+            // turn on i2c to send commands
+            self.i2c.enable();
 
-                buf[0] = Registers::WhoAmI as u8;
-                self.i2c.write(buf, 1);
-                self.state.set(State::SelectWhoAmI);
-            });
+            buf[0] = Registers::WhoAmI as u8;
+            self.i2c.write(buf, 1);
+            self.state.set(State::SelectWhoAmI);
+        });
     }
 
     pub fn take_measurement(&self) {
         self.interrupt_pin.make_input();
-        self.interrupt_pin
-            .enable_interrupt(0, gpio::InterruptMode::RisingEdge);
+        self.interrupt_pin.enable_interrupt(0, gpio::InterruptMode::RisingEdge);
 
-        self.buffer
-            .take()
-            .map(|buf| {
-                // turn on i2c to send commands
-                self.i2c.enable();
+        self.buffer.take().map(|buf| {
+            // turn on i2c to send commands
+            self.i2c.enable();
 
-                buf[0] = Registers::CtrlReg1 as u8 | REGISTER_AUTO_INCREMENT;
-                buf[1] = 0;
-                buf[2] = 0;
-                buf[3] = 0;
-                buf[4] = CTRL_REG4_INTERRUPT1_DATAREADY;
-                self.i2c.write(buf, 5);
-                self.state.set(State::TakeMeasurementInit);
-            });
+            buf[0] = Registers::CtrlReg1 as u8 | REGISTER_AUTO_INCREMENT;
+            buf[1] = 0;
+            buf[2] = 0;
+            buf[3] = 0;
+            buf[4] = CTRL_REG4_INTERRUPT1_DATAREADY;
+            self.i2c.write(buf, 5);
+            self.state.set(State::TakeMeasurementInit);
+        });
     }
 }
 
@@ -171,9 +166,7 @@ impl<'a> i2c::I2CClient for LPS25HB<'a> {
                 // Returned as microbars
                 let pressure_ubar = (pressure * 1000) / 4096;
 
-                self.callback
-                    .get()
-                    .map(|mut cb| cb.schedule(pressure_ubar as usize, 0, 0));
+                self.callback.get().map(|mut cb| cb.schedule(pressure_ubar as usize, 0, 0));
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;
@@ -192,17 +185,15 @@ impl<'a> i2c::I2CClient for LPS25HB<'a> {
 
 impl<'a> gpio::Client for LPS25HB<'a> {
     fn fired(&self, _: usize) {
-        self.buffer
-            .take()
-            .map(|buf| {
-                // turn on i2c to send commands
-                self.i2c.enable();
+        self.buffer.take().map(|buf| {
+            // turn on i2c to send commands
+            self.i2c.enable();
 
-                // select sensor voltage register and read it
-                buf[0] = Registers::PressOutXl as u8 | REGISTER_AUTO_INCREMENT;
-                self.i2c.write(buf, 1);
-                self.state.set(State::ReadMeasurement);
-            });
+            // select sensor voltage register and read it
+            buf[0] = Registers::PressOutXl as u8 | REGISTER_AUTO_INCREMENT;
+            self.i2c.write(buf, 1);
+            self.state.set(State::ReadMeasurement);
+        });
     }
 }
 

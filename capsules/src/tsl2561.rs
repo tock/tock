@@ -214,36 +214,31 @@ impl<'a> TSL2561<'a> {
     }
 
     pub fn read_id(&self) {
-        self.buffer
-            .take()
-            .map(|buffer| {
-                // turn on i2c to send commands
-                self.i2c.enable();
+        self.buffer.take().map(|buffer| {
+            // turn on i2c to send commands
+            self.i2c.enable();
 
-                buffer[0] = Registers::Id as u8 | COMMAND_REG;
-                // buffer[0] = Registers::Id as u8;
-                self.i2c.write(buffer, 1);
-                self.state.set(State::SelectId);
-            });
+            buffer[0] = Registers::Id as u8 | COMMAND_REG;
+            // buffer[0] = Registers::Id as u8;
+            self.i2c.write(buffer, 1);
+            self.state.set(State::SelectId);
+        });
     }
 
     pub fn take_measurement(&self) {
         // Need pull up on interrupt pin
         self.interrupt_pin.make_input();
-        self.interrupt_pin
-            .enable_interrupt(0, gpio::InterruptMode::FallingEdge);
+        self.interrupt_pin.enable_interrupt(0, gpio::InterruptMode::FallingEdge);
 
-        self.buffer
-            .take()
-            .map(|buf| {
-                // Turn on i2c to send commands
-                self.i2c.enable();
+        self.buffer.take().map(|buf| {
+            // Turn on i2c to send commands
+            self.i2c.enable();
 
-                buf[0] = Registers::Control as u8 | COMMAND_REG;
-                buf[1] = POWER_ON;
-                self.i2c.write(buf, 2);
-                self.state.set(State::TakeMeasurementTurnOn);
-            });
+            buf[0] = Registers::Control as u8 | COMMAND_REG;
+            buf[1] = POWER_ON;
+            self.i2c.write(buf, 2);
+            self.state.set(State::TakeMeasurementTurnOn);
+        });
     }
 
     fn calculate_lux(&self, chan0: u16, chan1: u16) -> usize {
@@ -416,17 +411,15 @@ impl<'a> i2c::I2CClient for TSL2561<'a> {
 
 impl<'a> gpio::Client for TSL2561<'a> {
     fn fired(&self, _: usize) {
-        self.buffer
-            .take()
-            .map(|buffer| {
-                // turn on i2c to send commands
-                self.i2c.enable();
+        self.buffer.take().map(|buffer| {
+            // turn on i2c to send commands
+            self.i2c.enable();
 
-                // Read the first of the ADC registers.
-                buffer[0] = Registers::Data1Low as u8 | COMMAND_REG | WORD_PROTOCOL;
-                self.i2c.write(buffer, 1);
-                self.state.set(State::ReadMeasurement1);
-            });
+            // Read the first of the ADC registers.
+            buffer[0] = Registers::Data1Low as u8 | COMMAND_REG | WORD_PROTOCOL;
+            self.i2c.write(buffer, 1);
+            self.state.set(State::ReadMeasurement1);
+        });
     }
 }
 

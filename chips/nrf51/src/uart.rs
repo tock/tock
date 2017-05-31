@@ -165,26 +165,21 @@ impl UART {
                 regs.task_stoptx.set(1 as u32);
 
                 // Signal client write done
-                self.client
-                    .get()
-                    .map(|client| {
-                        self.buffer
-                            .take()
-                            .map(|buffer| {
-                                client.transmit_complete(buffer, uart::Error::CommandComplete);
-                            });
+                self.client.get().map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        client.transmit_complete(buffer, uart::Error::CommandComplete);
                     });
+                });
 
                 return;
             }
 
-            self.buffer
-                .map(|buffer| {
-                    regs.event_txdrdy.set(0 as u32);
-                    regs.txd.set(buffer[self.index.get()] as u32);
-                    let next_index = self.index.get() + 1;
-                    self.index.set(next_index);
-                });
+            self.buffer.map(|buffer| {
+                regs.event_txdrdy.set(0 as u32);
+                regs.txd.set(buffer[self.index.get()] as u32);
+                let next_index = self.index.get() + 1;
+                self.index.set(next_index);
+            });
         }
     }
 
@@ -257,7 +252,5 @@ impl uart::UART for UART {
 pub unsafe extern "C" fn UART0_Handler() {
     use kernel::common::Queue;
     nvic::disable(NvicIdx::UART0);
-    chip::INTERRUPT_QUEUE.as_mut()
-        .unwrap()
-        .enqueue(NvicIdx::UART0);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::UART0);
 }

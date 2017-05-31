@@ -102,12 +102,11 @@ impl<'a> Allocator<'a> {
             let app_id = self.app_id;
             match self.app.as_mut() {
                 Some(app) => {
-                    app.alloc(size_of::<T>())
-                        .map_or(Err(Error::OutOfMemory), |arr| {
-                            let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
-                            *owned = data;
-                            Ok(owned)
-                        })
+                    app.alloc(size_of::<T>()).map_or(Err(Error::OutOfMemory), |arr| {
+                        let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
+                        *owned = data;
+                        Ok(owned)
+                    })
                 }
                 None => {
                     if !AppId::is_kernel_idx(app_id) {
