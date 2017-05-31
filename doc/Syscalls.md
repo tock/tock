@@ -78,6 +78,7 @@ pub enum ReturnCode {
     ENOSUPPORT, //.... Operation or command is unsupported
     ENODEVICE, //..... Device does not exist
     EUNINSTALLED, //.. Device is not physically installed
+    ENOACK, //........ Packet transmission not acknowledged
 }
 ```
 
