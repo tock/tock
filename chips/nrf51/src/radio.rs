@@ -121,15 +121,6 @@ static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
                                 0x00,
                                 0x00]; //[DATA]
 
-// #[repr(C, packed)]
-// pub struct Packet {
-//     pub header: VolatileCell<[u8; 2]>,
-//     pub address: VolatileCell<[u8; 6]>,
-//     pub dummy: VolatileCell<u8>,
-//     pub data: VolatileCell<[u8; 30]>,
-// }
-
-
 #[no_mangle]
 pub struct Radio {
     regs: *const RADIO_REGS,
@@ -149,12 +140,6 @@ impl Radio {
             regs: RADIO_BASE as *const RADIO_REGS,
             client: Cell::new(None),
             txpower: Cell::new(0),
-            // packet: Packet {
-            //     header: VolatileCell::new([0; 2]),
-            //     address: VolatileCell::new([0; 6]),
-            //     dummy: VolatileCell::new(0),
-            //     data: VolatileCell::new([0; 30]),
-            // },
         }
     }
     pub fn set_client<C: Client>(&self, client: &'static C) {
@@ -313,13 +298,6 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         unsafe {
             regs.PACKETPTR.set((&PAYLOAD as *const u8) as u32);
-            // self.packet.header.set([0x02, 0x1C]);
-            // self.packet.dummy.set(0);
-            // self.packet.address.set([0x90, 0xD8, 0x7A, 0xBD, 0xA3, 0xED]);
-            // self.packet.data.set([0x7, 0x09, 0x54, 0x6f, 0x63, 0x6b, 0x4f, 0x53, 0x00, 0x00, 0x00, 0x00,
-            //            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            //            0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-            // regs.PACKETPTR.set((mem::transmute::<VolatileCell<[u8; 2]>, u32>(&self.packet.header)) as u32);
         }
     }
 
@@ -452,9 +430,6 @@ impl BleAdvertisementDriver for Radio {
                     len: usize,
                     offset: usize)
                     -> &'static mut [u8] {
-        /*unsafe{
-            debug!("{:?}\r\n",&PAYLOAD[0 .. 31]);
-        }*/
         if offset == 9 {
             //FIXME: move call to the capsule!?
             self.reset_payload();
@@ -472,12 +447,6 @@ impl BleAdvertisementDriver for Radio {
         unsafe {
             PAYLOAD[1] = (offset - 1 + len) as u8;
         }
-        /*
-        debug!("{:?}\r\n",len);
-        unsafe{
-            debug!("{:?}\r\n",&PAYLOAD[0 .. 31]);
-            debug!("{:?}\r\n",&PAYLOAD[31 .. ]);
-        }*/
         data
     }
 
