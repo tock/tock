@@ -70,7 +70,7 @@ int rf233_pending_packet(void);
 #define RF233_COMMAND(c)                  trx_reg_write(RF233_REG_TRX_STATE, c)
 
 /* each frame has a footer consisting of LQI, ED, RX_STATUS added by the radio */
-#define FOOTER_LEN                        3   /* bytes */
+//#define FOOTER_LEN                        3   /* bytes */
 #define MAX_PACKET_LEN                    127 /* bytes, excluding the length (first) byte */
 #define PACKETBUF_SIZE                    128 /* bytes, for even int writes */
 #define HEADER_SIZE                       9 /* bytes */
