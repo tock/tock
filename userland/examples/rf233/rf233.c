@@ -519,7 +519,13 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   // Frame length is number of bytes in MPDU
   uint8_t templen;
   uint8_t radio_status;
-  uint8_t data[130];
+  uint8_t data[1 + MAX_PACKET_LEN + 2]; // Length + Payload + FCS
+
+  PRINTF("RF233: prepare %u\n", payload_len);
+  if(payload_len > MAX_PACKET_LEN) {
+    PRINTF("RF233: error, frame too large to tx\n");
+    return RADIO_TX_ERR;
+  }
 
   /* Add length of the FCS (2 bytes) */
   templen = payload_len + 2;
@@ -538,12 +544,6 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   }
   PRINTF("\n");
 #endif  /* DEBUG_PRINTDATA */
-
-  PRINTF("RF233: prepare %u\n", payload_len);
-  if(payload_len > MAX_PACKET_LEN) {
-    PRINTF("RF233: error, frame too large to tx\n");
-    return RADIO_TX_ERR;
-  }
 
   /* check that the FIFO is clear to access */
   radio_status = rf233_status();
