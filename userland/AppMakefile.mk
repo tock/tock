@@ -53,7 +53,7 @@ EXTERN_LIB_NAME_$(notdir $(1)) := $(notdir $(1))
 
 # If this library has an include directory, add it to search path
 ifneq "$$(wildcard $(1)/include)" ""
-  CPPFLAGS += -I$(1)/include
+  override CPPFLAGS += -I$(1)/include
 endif
 
 # Add arch-specific rules for each library

@@ -39,9 +39,9 @@ ELF2TBF_ARGS += -n $(PACKAGE_NAME)
 # Flags for building app Assembly, C, C++ files
 # n.b. make convention is that CPPFLAGS are shared for C and C++ sources
 # [CFLAGS is C only, CXXFLAGS is C++ only]
-ASFLAGS += -mthumb
-CFLAGS   += -std=gnu11
-CPPFLAGS += \
+override ASFLAGS += -mthumb
+override CFLAGS  += -std=gnu11
+override CPPFLAGS += \
 	    -frecord-gcc-switches\
 	    -g\
 	    -Os\
@@ -86,29 +86,28 @@ LAYOUT ?= $(TOCK_USERLAND_BASE_DIR)/userland_generic.ld
 #CPPFLAGS += -Wswitch-default #           # switch w/out default (doesn't cover all cases) (maybe annoying?)
 #CFLAGS += -Wstrict-prototypes #          # function defined w/out specifying argument types
 
-CPPFLAGS += -Wdate-time #                # warn if __TIME__, __DATE__, or __TIMESTAMP__ used
+override CPPFLAGS += -Wdate-time #                # warn if __TIME__, __DATE__, or __TIMESTAMP__ used
                                          # ^on b/c flashing assumes same code => no flash, these enforce
-CPPFLAGS += -Wfloat-equal #              # floats used with '=' operator, likely imprecise
-CPPFLAGS += -Wformat-nonliteral #        # can't check format string (maybe disable if annoying)
-CPPFLAGS += -Wformat-security #          # using untrusted format strings (maybe disable)
-CPPFLAGS += -Wformat-y2k #               # use of strftime that assumes two digit years
-CPPFLAGS += -Winit-self #                # { int i = i }
-CPPFLAGS += -Wlogical-op #               # "suspicous use of logical operators in expressions" (a lint)
-CPPFLAGS += -Wmissing-declarations #     # ^same? not sure how these differ
-CPPFLAGS += -Wmissing-field-initializers # if init'ing struct w/out field names, warn if not all used
-CPPFLAGS += -Wmissing-format-attribute # # something looks printf-like but isn't marked as such
-CPPFLAGS += -Wmissing-noreturn #         # __attribute__((noreturn)) like -> ! in Rust, should use it
-CPPFLAGS += -Wmultichar #                # use of 'foo' instead of "foo" (surpised not on by default?)
-CPPFLAGS += -Wpointer-arith #            # sizeof things not define'd (i.e. sizeof(void))
-CPPFLAGS += -Wredundant-decls #          # { int i; int i; } (a lint)
-CPPFLAGS += -Wshadow #                   # int foo(int a) { int a = 1; } inner a shadows outer a
-CPPFLAGS += -Wsuggest-attribute=const    # does what it sounds like
-CPPFLAGS += -Wsuggest-attribute=pure     # does what it sounds like
-CPPFLAGS += -Wtrampolines #              # attempt to generate a trampoline on the NX stack
-CPPFLAGS += -Wunused-macros #            # macro defined in this file not used
-CPPFLAGS += -Wunused-parameter #         # function parameter is unused aside from its declaration
-CXXFLAGS += -Wuseless-cast #             # pretty much what ya think here
-CPPFLAGS += -Wwrite-strings #            # { char* c = "foo"; c[0] = 'b' } <-- "foo" should be r/o
+override CPPFLAGS += -Wfloat-equal #              # floats used with '=' operator, likely imprecise
+override CPPFLAGS += -Wformat-nonliteral #        # can't check format string (maybe disable if annoying)
+override CPPFLAGS += -Wformat-security #          # using untrusted format strings (maybe disable)
+override CPPFLAGS += -Wformat-y2k #               # use of strftime that assumes two digit years
+override CPPFLAGS += -Winit-self #                # { int i = i }
+override CPPFLAGS += -Wlogical-op #               # "suspicous use of logical operators in expressions" (a lint)
+override CPPFLAGS += -Wmissing-declarations #     # ^same? not sure how these differ
+override CPPFLAGS += -Wmissing-field-initializers # if init'ing struct w/out field names, warn if not all used
+override CPPFLAGS += -Wmissing-format-attribute # # something looks printf-like but isn't marked as such
+override CPPFLAGS += -Wmissing-noreturn #         # __attribute__((noreturn)) like -> ! in Rust, should use it
+override CPPFLAGS += -Wmultichar #                # use of 'foo' instead of "foo" (surpised not on by default?)
+override CPPFLAGS += -Wpointer-arith #            # sizeof things not define'd (i.e. sizeof(void))
+override CPPFLAGS += -Wredundant-decls #          # { int i; int i; } (a lint)
+override CPPFLAGS += -Wshadow #                   # int foo(int a) { int a = 1; } inner a shadows outer a
+override CPPFLAGS += -Wsuggest-attribute=const    # does what it sounds like
+override CPPFLAGS += -Wsuggest-attribute=pure     # does what it sounds like
+override CPPFLAGS += -Wtrampolines #              # attempt to generate a trampoline on the NX stack
+override CPPFLAGS += -Wunused-macros #            # macro defined in this file not used
+override CPPFLAGS += -Wunused-parameter #         # function parameter is unused aside from its declaration
+override CPPFLAGS += -Wwrite-strings #            # { char* c = "foo"; c[0] = 'b' } <-- "foo" should be r/o
 
 #CPPFLAGS += -Wabi -Wabi-tag              # inter-compiler abi issues
 #CPPFLAGS += -Waggregate-return           # warn if things return struct's
@@ -142,11 +141,11 @@ CPPFLAGS += -Wwrite-strings #            # { char* c = "foo"; c[0] = 'b' } <-- "
 #CPPFLAGS += -Wvla                  -- XXX Didn't try, but interested
 
 # C-only warnings
-CFLAGS += -Wbad-function-cast #          # not obvious when this would trigger, could drop if annoying
-CFLAGS += -Wjump-misses-init #           # goto or switch skips over a variable initialziation
-CFLAGS += -Wmissing-prototypes #         # global fn defined w/out prototype (should be static or in .h)
-CFLAGS += -Wnested-externs #             # mis/weird-use of extern keyword
-CFLAGS += -Wold-style-definition #       # this garbage: void bar (a) int a; { }
+override CFLAGS += -Wbad-function-cast #          # not obvious when this would trigger, could drop if annoying
+override CFLAGS += -Wjump-misses-init #           # goto or switch skips over a variable initialziation
+override CFLAGS += -Wmissing-prototypes #         # global fn defined w/out prototype (should be static or in .h)
+override CFLAGS += -Wnested-externs #             # mis/weird-use of extern keyword
+override CFLAGS += -Wold-style-definition #       # this garbage: void bar (a) int a; { }
 
 #CFLAGS += -Wunsuffixed-float-constants # # { float f=0.67; if(f==0.67) printf("y"); else printf("n"); } => n
 #                                         ^ doesn't seem to work right? find_north does funny stuff
@@ -155,16 +154,17 @@ CFLAGS += -Wold-style-definition #       # this garbage: void bar (a) int a; { }
 #                                         ^ real noisy
 
 # CXX-only warnings
-CXXFLAGS += -Wctor-dtor-privacy #        # unusable class b/c everything private and no friends
-CXXFLAGS += -Wdelete-non-virtual-dtor #  # catches undefined behavior
-CXXFLAGS += -Wold-style-cast #           # C-style cast in C++ code
-CXXFLAGS += -Woverloaded-virtual #       # subclass shadowing makes parent impl's unavailable
-CXXFLAGS += -Wsign-promo #               # gcc did what spec requires, but probably not what you want
-CXXFLAGS += -Wstrict-null-sentinel #     # seems like a not-very-C++ thing to do? very unsure
-CXXFLAGS += -Wsuggest-final-methods #    # does what it sounds like
-CXXFLAGS += -Wsuggest-final-types #      # does what it sounds like
-CXXFLAGS += -Wsuggest-override #         # overridden virtual func w/out override keyword
-CXXFLAGS += -Wzero-as-null-pointer-constant # use of 0 as NULL
+override CXXFLAGS += -Wctor-dtor-privacy #        # unusable class b/c everything private and no friends
+override CXXFLAGS += -Wdelete-non-virtual-dtor #  # catches undefined behavior
+override CXXFLAGS += -Wold-style-cast #           # C-style cast in C++ code
+override CXXFLAGS += -Woverloaded-virtual #       # subclass shadowing makes parent impl's unavailable
+override CXXFLAGS += -Wsign-promo #               # gcc did what spec requires, but probably not what you want
+override CXXFLAGS += -Wstrict-null-sentinel #     # seems like a not-very-C++ thing to do? very unsure
+override CXXFLAGS += -Wsuggest-final-methods #    # does what it sounds like
+override CXXFLAGS += -Wsuggest-final-types #      # does what it sounds like
+override CXXFLAGS += -Wsuggest-override #         # overridden virtual func w/out override keyword
+override CXXFLAGS += -Wuseless-cast #             # pretty much what ya think here
+override CXXFLAGS += -Wzero-as-null-pointer-constant # use of 0 as NULL
 
 # -Wc++-compat #                         # C/C++ compat issues
 # -Wc++11-compat #                       # C11 compat issues
