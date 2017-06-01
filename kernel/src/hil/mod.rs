@@ -16,6 +16,7 @@ pub mod crc;
 pub mod symmetric_encryption;
 pub mod ninedof;
 pub mod gpio_async;
+pub mod dac;
 
 /// Shared interface for configuring components.
 pub trait Controller {
