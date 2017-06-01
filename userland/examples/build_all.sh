@@ -17,6 +17,9 @@ function opt_rebuild {
 for mkfile in `find . -maxdepth 3 -name Makefile`; do
 	dir=`dirname $mkfile`
 	if [ $dir == "." ]; then continue; fi
+	# Skip directories with leading _'s, useful for leaving test apps around
+	if [[ $(basename $dir) == _* ]]; then continue; fi
+
 	pushd $dir > /dev/null
 	echo ""
 	echo "Building $dir"
