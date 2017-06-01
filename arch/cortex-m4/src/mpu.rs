@@ -163,8 +163,21 @@ impl kernel::mpu::MPU for MPU {
         } else {
             // Memory base not aligned to memory size
 
-            // Which subregion size would align with the base address?
-            let subregion_size = start % len;
+            // Which (power-of-two) subregion size would align with the base
+            // address?
+            //
+            // We find this by taking smallest binary substring of the base
+            // address with exactly one bit:
+            //
+            //      1 << (start.trailing_zeros())
+            let subregion_size = {
+                let tz = start.trailing_zeros();
+                // `start` should never be 0 because of that's taken care of by
+                // the previous branch, but in case it is, do the right thing
+                // anyway.
+                if tz < 32 { (1 as usize) << tz } else { 0 }
+            };
+
             // Once we have a subregion size, we get a region size by
             // multiplying it by the number of subregions per region.
             let region_size = subregion_size * 8;
@@ -176,6 +189,12 @@ impl kernel::mpu::MPU for MPU {
                 // Sanity check that the amount left over space in the region
                 // after `start` is at least as large as the memory region we
                 // want to reference.
+                return None;
+            }
+            if len % subregion_size != 0 {
+                // Sanity check that there is some integer X such that
+                // subregion_size * X == len so none of `len` is left over when
+                // we take the max_subregion.
                 return None;
             }
 
