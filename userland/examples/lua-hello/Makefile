@@ -9,7 +9,7 @@ C_SRCS := $(wildcard *.c)
 # External libraries used
 EXTERN_LIBS += $(TOCK_USERLAND_BASE_DIR)/lua53
 
-CFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/lua53/include
+override CFLAGS += -I$(TOCK_USERLAND_BASE_DIR)/lua53/include
 
 STACK_SIZE    = 3072
 KERNEL_HEAP_SIZE    = 512

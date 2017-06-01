@@ -70,7 +70,7 @@ int rf233_pending_packet(void);
 #define RF233_COMMAND(c)                  trx_reg_write(RF233_REG_TRX_STATE, c)
 
 /* each frame has a footer consisting of LQI, ED, RX_STATUS added by the radio */
-#define FOOTER_LEN                        3   /* bytes */
+//#define FOOTER_LEN                        3   /* bytes */
 #define MAX_PACKET_LEN                    127 /* bytes, excluding the length (first) byte */
 #define PACKETBUF_SIZE                    128 /* bytes, for even int writes */
 #define HEADER_SIZE                       9 /* bytes */
@@ -484,8 +484,13 @@ static void rf_generate_random_seed(void) {
 /*---------------------------------------------------------------------------*/
 // Append header with FCF, sequence number,
 static int rf233_prepare_without_header(const uint8_t *data, unsigned short data_len) {
+  if ((data_len + HEADER_SIZE) > MAX_PACKET_LEN) {
+    PRINTF("RF233: error, data too large (%u) (prepare_without_header)\n", data_len);
+    return RADIO_TX_ERR;
+  }
+
   // append mac header with length 9
-  uint8_t data_with_header[data_len + HEADER_SIZE];
+  uint8_t data_with_header[MAX_PACKET_LEN];
   data_with_header[0] = 0x61;
   data_with_header[1] = 0xAA;
   data_with_header[2] = radio_header.seq & 0xFF;
@@ -519,7 +524,13 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   // Frame length is number of bytes in MPDU
   uint8_t templen;
   uint8_t radio_status;
-  uint8_t data[130];
+  uint8_t data[1 + MAX_PACKET_LEN + 2]; // Length + Payload + FCS
+
+  PRINTF("RF233: prepare %u\n", payload_len);
+  if(payload_len > MAX_PACKET_LEN) {
+    PRINTF("RF233: error, frame too large to tx\n");
+    return RADIO_TX_ERR;
+  }
 
   /* Add length of the FCS (2 bytes) */
   templen = payload_len + 2;
@@ -538,12 +549,6 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   }
   PRINTF("\n");
 #endif  /* DEBUG_PRINTDATA */
-
-  PRINTF("RF233: prepare %u\n", payload_len);
-  if(payload_len > MAX_PACKET_LEN) {
-    PRINTF("RF233: error, frame too large to tx\n");
-    return RADIO_TX_ERR;
-  }
 
   /* check that the FIFO is clear to access */
   radio_status = rf233_status();

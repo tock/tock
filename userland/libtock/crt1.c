@@ -9,6 +9,7 @@ extern unsigned int* _ebss;
 extern int main(void);
 
 // Allow _start to go undeclared
+#pragma GCC diagnostic ignored "-Wmissing-declarations"
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
 
 __attribute__ ((section(".start"), used))
