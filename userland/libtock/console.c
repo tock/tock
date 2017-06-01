@@ -26,24 +26,37 @@ static void putstr_cb(
   if (putstr_head == NULL) {
     putstr_tail = NULL;
   } else {
-    putnstr_async(putstr_head->buf, putstr_head->len, putstr_cb, NULL);
+    int ret;
+    ret = putnstr_async(putstr_head->buf, putstr_head->len, putstr_cb, NULL);
+    if (ret < 0) {
+      // XXX There's no path to report errors currently, so just drop it
+      putstr_cb(0, 0, 0, NULL);
+    }
   }
 }
 
-void putnstr(const char *str, size_t len) {
+int putnstr(const char *str, size_t len) {
+  int ret = SUCCESS;
+
   putstr_data_t* data = (putstr_data_t*)malloc(sizeof(putstr_data_t));
+  if (data == NULL) return ENOMEM;
 
   data->len = len;
   data->called = false;
   data->buf = (char*)malloc(len * sizeof(char));
+  if (data->buf == NULL) {
+    ret = ENOMEM;
+    goto putnstr_fail_buf_alloc;
+  }
   strncpy(data->buf, str, len);
   data->next = NULL;
 
   if (putstr_tail == NULL) {
     // Invariant, if tail is NULL, head is also NULL
+    ret = putnstr_async(data->buf, data->len, putstr_cb, NULL);
+    if (ret < 0) goto putnstr_fail_async;
     putstr_head = data;
     putstr_tail = data;
-    putnstr_async(data->buf, data->len, putstr_cb, NULL);
   } else {
     putstr_tail->next = data;
     putstr_tail = data;
@@ -51,11 +64,16 @@ void putnstr(const char *str, size_t len) {
 
   yield_for(&data->called);
 
+putnstr_fail_async:
   free(data->buf);
+putnstr_fail_buf_alloc:
   free(data);
+
+  return ret;
 }
 
-void putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) {
+int putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) {
+  int ret;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
   // Currently, allow gives RW access, but we should have a richer set of
@@ -63,10 +81,14 @@ void putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata)
   // all the way down
   void* buf = (void*) str;
 #pragma GCC diagnostic pop
-  allow(0, 1, buf, len);
-  subscribe(0, 1, cb, userdata);
+
+  ret = allow(0, 1, buf, len);
+  if (ret < 0) return ret;
+
+  ret = subscribe(0, 1, cb, userdata);
+  return ret;
 }
 
-void putstr(const char *str) {
-  putnstr(str, strlen(str));
+int putstr(const char *str) {
+  return putnstr(str, strlen(str));
 }
