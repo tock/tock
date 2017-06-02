@@ -438,7 +438,7 @@ impl BleAdvertisementDriver for Radio {
             PAYLOAD[1] = (offset - 1 + len) as u8;
         }
         unsafe {
-        debug!("payload {:?}\r\n", &PAYLOAD[0 .. 32]);
+            debug!("payload {:?}\r\n", &PAYLOAD[0..32]);
         }
         data
     }
@@ -457,7 +457,8 @@ impl BleAdvertisementDriver for Radio {
     fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
         match dbm {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
-            e @ 0x04 | e @ 0x00 | e @ 0xF4 | e @ 0xFC | e @ 0xF8 | e @ 0xF0 | e @ 0xEC | e @ 0xD8 => {
+            e @ 0x04 | e @ 0x00 | e @ 0xF4 | e @ 0xFC | e @ 0xF8 | e @ 0xF0 | e @ 0xEC |
+            e @ 0xD8 => {
                 self.txpower.set(e);
                 ReturnCode::SUCCESS
             }

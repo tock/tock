@@ -229,11 +229,9 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Driver for BL
             (3, false) => {
                 if data < 20 {
                     self.interval.set(20 * <A::Frequency>::frequency() / 1000);
-                }
-                else if data > 10240 {
+                } else if data > 10240 {
                     self.interval.set(10240 * <A::Frequency>::frequency() / 1000);
-                }
-                else {
+                } else {
                     self.interval.set((data as u32) * <A::Frequency>::frequency() / 1000);
                 }
                 ReturnCode::SUCCESS
@@ -243,7 +241,7 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Driver for BL
                 self.radio.clear_adv_data();
                 ReturnCode::SUCCESS
             }
-            (_ , true) => ReturnCode::EBUSY,
+            (_, true) => ReturnCode::EBUSY,
             (_, _) => ReturnCode::ENOSUPPORT,
         }
     }

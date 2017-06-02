@@ -2,7 +2,6 @@ use returncode::ReturnCode;
 
 // Defines the Interface between Capsules and Chips
 pub trait BleAdvertisementDriver {
-
     // Starts periodic advertisements on channel 37
     fn start_adv(&self);
 
