@@ -39,14 +39,15 @@
 
 // TX power
 // FIXME: Verify that this is platform independent.
+// OR create an nrf51.h
 #define TX_POWER_POS_4_DBM                      0x04
 #define TX_POWER_0DBM                           0x00
 #define TX_POWER_NEG_4_DBM                      0xFC
 #define TX_POWER_NEG_8_DBM                      0xF8
 #define TX_POWER_NEG_12_DBM                     0xF4
 #define TX_POWER_NEG_16_DBM                     0xF0
-#define TX_POWER_NEG_20_DBM                     0xD8
-#define TX_POWER_NEG_30_DBM                     0xFC
+#define TX_POWER_NEG_20_DBM                     0xEC
+#define TX_POWER_NEG_30_DBM                     0xD8
 
 
 #ifdef __cplusplus
