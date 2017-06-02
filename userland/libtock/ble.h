@@ -38,8 +38,7 @@
 #define BLE_HS_ADV_TYPE_MFG_DATA                0xff
 
 // TX power
-// FIXME: Verify that this is platform independent.
-// OR create an nrf51.h
+// FIXME: Not platform independent.
 #define TX_POWER_POS_4_DBM                      0x04
 #define TX_POWER_0DBM                           0x00
 #define TX_POWER_NEG_4_DBM                      0xFC
@@ -47,6 +46,7 @@
 #define TX_POWER_NEG_12_DBM                     0xF4
 #define TX_POWER_NEG_16_DBM                     0xF0
 #define TX_POWER_NEG_20_DBM                     0xEC
+// this -40 actually pretty weird
 #define TX_POWER_NEG_30_DBM                     0xD8
 
 
