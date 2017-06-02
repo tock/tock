@@ -6,10 +6,11 @@
 #define DRIVER_RADIO      33
 
 // commands calls
-#define BLE_ADV_START     0
-#define BLE_ADV_STOP      1
-#define CFG_TX_POWER      2
-#define CFG_ADV_INTERVAL  3
+#define BLE_ADV_START      0
+#define BLE_ADV_STOP       1
+#define CFG_TX_POWER       2
+#define CFG_ADV_INTERVAL   3
+#define BLE_ADV_RESET_DATA 4
 /*----------------------------*/
 
 // AD Types
@@ -36,14 +37,26 @@
 #define BLE_HS_ADV_TYPE_URI                     0x24
 #define BLE_HS_ADV_TYPE_MFG_DATA                0xff
 
+// TX power
+// FIXME: Verify that this is platform independent.
+#define TX_POWER_POS_4_DBM                      0x04
+#define TX_POWER_0DBM                           0x00
+#define TX_POWER_NEG_4_DBM                      0xFC
+#define TX_POWER_NEG_8_DBM                      0xF8
+#define TX_POWER_NEG_12_DBM                     0xF4
+#define TX_POWER_NEG_16_DBM                     0xF0
+#define TX_POWER_NEG_20_DBM                     0xD8
+#define TX_POWER_NEG_30_DBM                     0xFC
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 int ble_adv_data(uint8_t type, uint8_t len, const unsigned char *data);
+int ble_adv_clear_data(void);
 int ble_adv_set_txpower(uint8_t);
-int ble_adv_set_interval(int8_t);
+int ble_adv_set_interval(uint16_t);
 int ble_adv_start(void);
 int ble_adv_stop(void);
 

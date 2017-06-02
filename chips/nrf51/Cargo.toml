@@ -8,7 +8,6 @@ build = "build.rs"
 [dependencies]
 cortexm0 = { path = "../../arch/cortex-m0" }
 kernel = { path = "../../kernel" }
-capsules = { path = "../../capsules" }
 
 [build-dependencies]
 gcc = "0.3"

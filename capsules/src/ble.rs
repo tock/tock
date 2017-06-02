@@ -4,33 +4,24 @@
 //! in order to send periodic BLE advertisements without blocking
 //! the kernel
 //!
-//! Currently advertisements with name and data configured in
-//! userland are supported.
-//! The name and data are only configured once i.e., by invoking
-//! start_ble_advertisement() from userland and then periodic advertisement
-//! are handled by the capsule on-top of virtual timers.
+//! The advertisment interval is configured from the user application. The allowed range
+//! is between 20 ms and 10240 ms, lower or higher values will be set to these values.
+//! Advertisements are sent on channels 37, 38 and 39 with a very shortl time between each
+//! transmission.
 //!
-//! The advertisment intervall is configured to every 150ms by sending on the
-//! channels 37, 38 and 39 very shortly after each other.
-//! The intervall is mainly picked to compare with other OS's.
-//!
-//! The radio chip module configures a default name which overwritten
+//! The radio chip module configures a default name which is replaced
 //! if a name is entered in user space.
+//!
+//! The total size of the combined payload is 30 bytes, the capsule ignores payloads which
+//! exceed this limit. To clear the payload, the ble_adv_clear_data can be used. This function
+//! clears the payload, including the name.
 //!
 //! Only start and send are asyncronous and need to use the busy flag.
 //! However, the syncronous calls such as set tx power, advertisement interval
 //! and set payload can only by performed once the radio is not active
 //!
-//! Suggested improvements:
-//! TODO: re-name the capsule to BLE and remove basic radio send and remove?!
-//!
-//!
 //! ---ALLOW SYSTEM CALL ------------------------------------------------------------
-//! The 'allow' system call is used to provide two different buffers and
-//! the following allow_num's are supported:
-//!
-//!     * 0: A buffer with data to configure local name (0x09)
-//!     * 1: A buffer to configure arbitary data (manufactor data 0xff)
+//! Each AD TYP corresponds to a allow number from 0 to 0xFF
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!     * SUCCESS: The buffer has successfully been filled
@@ -52,11 +43,12 @@
 //!     * 1: stop advertisment
 //!     * 2: configure tx power
 //!     * 3: configure advertise interval
+//!     * 4: clear the advertisement payload
 //! -----------------------------------------------------------------------------------
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: May 31, 2017
+//! Date: June 2, 2017
 
 
 use core::cell::Cell;
@@ -64,6 +56,7 @@ use kernel::{AppId, Driver, AppSlice, Shared, Container};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::hil::ble::{BleAdvertisementDriver, Client};
+use kernel::hil::time::Frequency;
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
 pub static mut BUF: [u8; 32] = [0; 32];
@@ -114,7 +107,7 @@ pub struct BLE<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> {
     alarm: &'a A,
     // we should probably add a BLE state-machine here
     interval: Cell<u32>,
-    advertise: Cell<bool>,
+    is_advertising: Cell<bool>,
     offset: Cell<usize>,
 }
 // 'a = lifetime
@@ -131,26 +124,27 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A>
             app: container,
             kernel_tx: TakeCell::new(buf),
             alarm: alarm,
-            // 5017 : every 150 ms!?
-            // how is that comptued?
-            // 1 clock cycle, 1/(16*10^6) = 6.25e-8
-            // 5007 * 6.25e-8 ~= 0.31ms
-            // TODO: check this if other CPUs shall be supported
-            interval: Cell::new(5017),
-            advertise: Cell::new(false),
-            // 6 bytes for 'TockOS'
-            // third byte is zero
+            interval: Cell::new(150 * <A::Frequency>::frequency() / 1000),
+            is_advertising: Cell::new(false),
+            // This keeps track of the position in the payload to enable multiple AD TYPES
             offset: Cell::new(0),
         }
     }
 
-    pub fn set_adv_data(&self, ad_type: usize) -> ReturnCode {
+    // This function constructs an AD TYPE with type, data, length and offset.
+    // It uses the offset to keep track of where to place the next AD TYPE in the buffer in
+    // case multiple AD TYPES are provided.
+    // The chip module then sets the actual payload.
+    fn set_adv_data(&self, ad_type: usize) -> ReturnCode {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 app.app_write
                     .as_ref()
                     .map(|slice| {
                         let len = slice.len();
+                        // Each AD TYP consists of TYPE (1 byte), LENGTH (1 byte) and
+                        // PAYLOAD (0 - 30 bytes)
+                        // This is why we add 2 to start the payload at the correct position.
                         let i = self.offset.get() + len + 2;
                         if i < 31 {
                             self.kernel_tx
@@ -162,6 +156,7 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A>
                                     }
                                     let tmp = self.radio
                                         .set_adv_data(ad_type, data, len, self.offset.get() + 9);
+                                    //debug!("name {:?}\r\n", tmp);
                                     self.kernel_tx.replace(tmp);
                                     self.offset.set(i);
                                 });
@@ -172,10 +167,10 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A>
         ReturnCode::SUCCESS
     }
 
-    pub fn configure_periodic_alarm(&self) {
+    fn configure_periodic_alarm(&self) {
         self.radio.set_channel(37);
-        let tics = self.alarm.now().wrapping_add(5017 as u32);
-        self.alarm.set_alarm(tics);
+        let ms_in_tics = self.alarm.now().wrapping_add(self.interval.get());
+        self.alarm.set_alarm(ms_in_tics);
     }
 }
 
@@ -184,7 +179,7 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Cl
     // this method is called once the virtual timer has been expired
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
-        if self.advertise.get() == true {
+        if self.is_advertising.get() == true {
             self.radio.start_adv();
         } else {
             self.radio.continue_adv();
@@ -194,13 +189,14 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Cl
 
 impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Client for BLE<'a, R, A> {
     fn continue_adv(&self) {
-        self.advertise.set(false);
-        let tics = self.alarm.now().wrapping_add(2 as u32);
+        self.is_advertising.set(false);
+        let ms_in_tics = 2 * <A::Frequency>::frequency() / 1000;
+        let tics = self.alarm.now().wrapping_add(ms_in_tics);
         self.alarm.set_alarm(tics);
     }
 
     fn done_adv(&self) -> ReturnCode {
-        self.advertise.set(true);
+        self.is_advertising.set(true);
         self.configure_periodic_alarm();
         ReturnCode::SUCCESS
     }
@@ -216,7 +212,7 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Driver for BL
             (0, false) => {
                 if self.busy.get() == false {
                     self.busy.set(true);
-                    self.advertise.set(true);
+                    self.is_advertising.set(true);
                     self.configure_periodic_alarm();
                     ReturnCode::SUCCESS
                 } else {
@@ -224,17 +220,31 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Driver for BL
                 }
             }
             //Stop ADV_BLE
-            (1, true) => {
-                self.advertise.set(false);
+            (1, _) => {
+                self.is_advertising.set(false);
                 self.busy.set(false);
                 ReturnCode::SUCCESS
             }
             (2, false) => self.radio.set_adv_txpower(data),
             (3, false) => {
-                self.interval.set(5017);
+                if data < 20 {
+                    self.interval.set(20 * <A::Frequency>::frequency() / 1000);
+                }
+                else if data > 10240 {
+                    self.interval.set(10240 * <A::Frequency>::frequency() / 1000);
+                }
+                else {
+                    self.interval.set((data as u32) * <A::Frequency>::frequency() / 1000);
+                }
                 ReturnCode::SUCCESS
             }
-            (_, _) => ReturnCode::EALREADY,
+            (4, false) => {
+                self.offset.set(0);
+                self.radio.clear_adv_data();
+                ReturnCode::SUCCESS
+            }
+            (_ , true) => ReturnCode::EBUSY,
+            (_, _) => ReturnCode::ENOSUPPORT,
         }
     }
 

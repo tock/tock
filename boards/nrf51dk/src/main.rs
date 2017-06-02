@@ -113,7 +113,7 @@ pub struct Platform {
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
     aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
-    radio: &'static capsules::ble::BLE<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+    ble_radio: &'static capsules::ble::BLE<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
 }
 
 
@@ -140,7 +140,7 @@ impl kernel::Platform for Platform {
             9 => f(Some(self.button)),
             14 => f(Some(self.rng)),
             17 => f(Some(self.aes)),
-            33 => f(Some(self.radio)),
+            33 => f(Some(self.ble_radio)),
             36 => f(Some(self.temp)),
             _ => f(None),
         }
@@ -245,10 +245,10 @@ pub unsafe fn reset_handler() {
                          12);
     virtual_alarm1.set_client(timer);
 
-    let radio_virtual_alarm = static_init!(
+    let ble_radio_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
         VirtualMuxAlarm::new(mux_alarm),
-        24);
+        192/8);
 
 
 
@@ -275,16 +275,16 @@ pub unsafe fn reset_handler() {
     nrf51::aes::AESECB.ecb_init();
     nrf51::aes::AESECB.set_client(aes);
 
-    let radio = static_init!(
+    let ble_radio = static_init!(
      capsules::ble::BLE<'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
      capsules::ble::BLE::new(
          &mut nrf51::radio::RADIO,
          kernel::Container::create(),
          &mut capsules::ble::BUF,
-         radio_virtual_alarm),
+         ble_radio_virtual_alarm),
         256/8);
-    nrf51::radio::RADIO.set_client(radio);
-    radio_virtual_alarm.set_client(radio);
+    nrf51::radio::RADIO.set_client(ble_radio);
+    ble_radio_virtual_alarm.set_client(ble_radio);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
@@ -306,7 +306,7 @@ pub unsafe fn reset_handler() {
         temp: temp,
         rng: rng,
         aes: aes,
-        radio: radio,
+        ble_radio: ble_radio,
     };
 
     alarm.start();

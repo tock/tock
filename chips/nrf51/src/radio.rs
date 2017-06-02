@@ -9,16 +9,10 @@
 
 use chip;
 use core::cell::Cell;
-use gpio;
 use kernel::hil::ble::{BleAdvertisementDriver, Client};
-// use kernel::common::VolatileCell;
-use kernel::hil::gpio::Pin;
 use kernel::returncode::ReturnCode;
 use nvic;
 use peripheral_interrupts::NvicIdx;
-// use core::mem;
-extern crate capsules;
-// use self::capsules::led::LED;
 
 use peripheral_registers::{RADIO_REGS, RADIO_BASE};
 
@@ -143,16 +137,6 @@ impl Radio {
     }
     pub fn set_client<C: Client>(&self, client: &'static C) {
         self.client.set(Some(client));
-    }
-
-
-    // Remove later
-    pub fn turn_on_leds(&self) {
-        unsafe {
-            let led0 = &gpio::PORT[24];
-            led0.make_output();
-            led0.toggle();
-        }
     }
 
     fn init_radio_ble(&self) {
@@ -400,13 +384,21 @@ impl Radio {
         nvic::disable(NvicIdx::RADIO);
     }
 
-    fn reset_payload(&self) {
+    pub fn reset_payload(&self) {
         // reset contents except header || address
+        //debug!("clear payload\r\n");
         for i in 9..39 {
             unsafe {
                 PAYLOAD[i] = 0;
             }
         }
+        unsafe {
+            PAYLOAD[1] = 6;
+        }
+        /*
+        unsafe{
+            debug!("payload {:?}\r\n", &PAYLOAD[ .. 32]);
+        }*/
     }
 }
 
@@ -445,9 +437,14 @@ impl BleAdvertisementDriver for Radio {
         unsafe {
             PAYLOAD[1] = (offset - 1 + len) as u8;
         }
+        unsafe {
+        debug!("payload {:?}\r\n", &PAYLOAD[0 .. 32]);
+        }
         data
     }
-
+    fn clear_adv_data(&self) {
+        self.reset_payload();
+    }
     fn set_channel(&self, ch: usize) {
         self.set_channel_freq(ch as u32);
         self.set_data_white_iv(ch as u32);
@@ -459,7 +456,8 @@ impl BleAdvertisementDriver for Radio {
     // it is configured to 0 by default or the latest conifigured value
     fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
         match dbm {
-            e @ 0x04 | e @ 0x00 | e @ 0xFC | e @ 0xF8 | e @ 0xF0 | e @ 0xEC | e @ 0xD8 => {
+            // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
+            e @ 0x04 | e @ 0x00 | e @ 0xF4 | e @ 0xFC | e @ 0xF8 | e @ 0xF0 | e @ 0xEC | e @ 0xD8 => {
                 self.txpower.set(e);
                 ReturnCode::SUCCESS
             }
