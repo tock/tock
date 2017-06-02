@@ -19,6 +19,7 @@ use kernel::hil::Controller;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
+use kernel::hil::usb::Client;
 use kernel::mpu::MPU;
 
 #[macro_use]
@@ -49,6 +50,7 @@ struct Imix {
                                                  capsules::rf233::RF233<'static,
                                                  VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    usb: &'static capsules::usb_simple::SimpleClient<'static, sam4l::usbc::Usbc<'static>>,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -396,6 +398,11 @@ pub unsafe fn reset_handler() {
     rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
     rf233.set_config_client(radio_capsule);
 
+    let usb_client = static_init!(
+        capsules::usb_simple::SimpleClient<'static, sam4l::usbc::Usbc<'static>>,
+        capsules::usb_simple::SimpleClient::new(&sam4l::usbc::USBC), 288/8);
+    sam4l::usbc::USBC.set_client(usb_client);
+
     let imix = Imix {
         console: console,
         timer: timer,
@@ -410,6 +417,7 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(),
         ninedof: ninedof,
         radio: radio_capsule,
+        usb: usb_client,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
@@ -422,6 +430,10 @@ pub unsafe fn reset_handler() {
     //    rf233.config_commit();
 
     rf233.start();
+
+    // Test USB
+    imix.usb.enable();
+    imix.usb.attach();
 
     debug!("Initialization complete. Entering main loop");
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);

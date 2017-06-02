@@ -2,7 +2,7 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug)]
+#[macro_use(debug, static_fmt)]
 extern crate kernel;
 
 pub mod button;
@@ -34,3 +34,5 @@ pub mod temp_nrf51dk;
 pub mod symmetric_encryption;
 pub mod ninedof;
 pub mod ltc294x;
+pub mod usb;
+pub mod usb_simple;

@@ -26,7 +26,7 @@ pub enum Register {
 pub enum ClockSource {
     RCSYS = 0,
     OSC32K = 1,
-    DFFL0 = 2,
+    DFLL0 = 2,
     OSC0 = 3,
     RC80M = 4,
     RCFAST = 5,
