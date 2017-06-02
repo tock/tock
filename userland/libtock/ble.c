@@ -15,7 +15,7 @@ int ble_adv_data(uint8_t type, uint8_t len, const unsigned char *data) {
 }
 
 int ble_adv_clear_data(void){
-  return command(DRIVER_RADIO,BLE_ADV_RESET_DATA, 1);
+  return command(DRIVER_RADIO,BLE_ADV_CLEAR_DATA, 1);
 }
 
 int ble_adv_start(void){

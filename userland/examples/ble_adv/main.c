@@ -26,6 +26,7 @@ int main(void)
   delay_ms(5000);
   strcpy((char * restrict)name, "CLEAR");
   ble_adv_data(BLE_HS_ADV_TYPE_COMP_NAME, sizeof(name) - 1, name);
+  printf("return from start_ble_advertisement %d\r\n", ble_adv_start());
 
   return 0;
 }

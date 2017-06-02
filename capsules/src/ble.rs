@@ -156,7 +156,6 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A>
                                     }
                                     let tmp = self.radio
                                         .set_adv_data(ad_type, data, len, self.offset.get() + 9);
-                                    //debug!("name {:?}\r\n", tmp);
                                     self.kernel_tx.replace(tmp);
                                     self.offset.set(i);
                                 });
@@ -169,8 +168,8 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A>
 
     fn configure_periodic_alarm(&self) {
         self.radio.set_channel(37);
-        let ms_in_tics = self.alarm.now().wrapping_add(self.interval.get());
-        self.alarm.set_alarm(ms_in_tics);
+        let interval_in_tics = self.alarm.now().wrapping_add(self.interval.get());
+        self.alarm.set_alarm(interval_in_tics);
     }
 }
 
@@ -190,8 +189,8 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Cl
 impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Client for BLE<'a, R, A> {
     fn continue_adv(&self) {
         self.is_advertising.set(false);
-        let ms_in_tics = 2 * <A::Frequency>::frequency() / 1000;
-        let tics = self.alarm.now().wrapping_add(ms_in_tics);
+        let interval_in_tics = 2 * <A::Frequency>::frequency() / 1000;
+        let tics = self.alarm.now().wrapping_add(interval_in_tics);
         self.alarm.set_alarm(tics);
     }
 

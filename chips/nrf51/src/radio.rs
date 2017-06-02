@@ -255,7 +255,6 @@ impl Radio {
             39 => regs.FREQEUNCY.set(80),
             _ => regs.FREQEUNCY.set(7),
         }
-        //debug!("{:?}\r\n",regs.FREQEUNCY.get());
     }
 
     fn radio_on(&self) {
@@ -386,7 +385,6 @@ impl Radio {
 
     pub fn reset_payload(&self) {
         // reset contents except header || address
-        //debug!("clear payload\r\n");
         for i in 9..39 {
             unsafe {
                 PAYLOAD[i] = 0;
@@ -395,10 +393,6 @@ impl Radio {
         unsafe {
             PAYLOAD[1] = 6;
         }
-        /*
-        unsafe{
-            debug!("payload {:?}\r\n", &PAYLOAD[ .. 32]);
-        }*/
     }
 }
 
@@ -436,9 +430,6 @@ impl BleAdvertisementDriver for Radio {
         }
         unsafe {
             PAYLOAD[1] = (offset - 1 + len) as u8;
-        }
-        unsafe {
-            debug!("payload {:?}\r\n", &PAYLOAD[0..32]);
         }
         data
     }

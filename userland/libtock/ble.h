@@ -10,7 +10,7 @@
 #define BLE_ADV_STOP       1
 #define CFG_TX_POWER       2
 #define CFG_ADV_INTERVAL   3
-#define BLE_ADV_RESET_DATA 4
+#define BLE_ADV_CLEAR_DATA 4
 /*----------------------------*/
 
 // AD Types
