@@ -1,22 +1,20 @@
 //! Radio/BLE Driver for nrf51dk
 //!
-//! Sending BLE advertiement packets
+//! Sending BLE advertisement packets
 //! Possible payload is 30 bytes
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: March 09, 2017
+//! Date: June 3, 2017
 
 use chip;
 use core::cell::Cell;
-use kernel::hil::ble::{BleAdvertisementDriver, Client};
+use kernel::hil::time::Client;
 use kernel::returncode::ReturnCode;
 use nvic;
 use peripheral_interrupts::NvicIdx;
-
 use peripheral_registers::{RADIO_REGS, RADIO_BASE};
 
-#[deny(no_mangle_const_items)]
 
 pub const PACKET0_S1_SIZE: u32 = 0;
 pub const PACKET0_S0_SIZE: u32 = 0;
@@ -115,26 +113,24 @@ static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
                                 0x00,
                                 0x00]; //[DATA]
 
-#[no_mangle]
 pub struct Radio {
     regs: *const RADIO_REGS,
-    client: Cell<Option<&'static Client>>,
     txpower: Cell<usize>,
+    client: Cell<Option<&'static Client>>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
 
 
 impl Radio {
-    #[inline(never)]
-    #[no_mangle]
     pub const fn new() -> Radio {
         Radio {
             regs: RADIO_BASE as *const RADIO_REGS,
-            client: Cell::new(None),
             txpower: Cell::new(0),
+            client: Cell::new(None),
         }
     }
+
     pub fn set_client<C: Client>(&self, client: &'static C) {
         self.client.set(Some(client));
     }
@@ -192,32 +188,33 @@ impl Radio {
     fn set_packet_config(&self, _: u32) {
         let regs = unsafe { &*self.regs };
 
-        // This initlization have to do with the header in the PDU it is 2 bytes
+        // This initialization have to do with the header in the PDU it is 2 bytes
         // ADVTYPE      ;;      4 bits
         // RFU          ;;      2 bits
         // TxAdd        ;;      1 bit
         // RxAdd        ;;      1 bit
-        // Length        ;;      6 bits
+        // Length       ;;      6 bits
         // RFU          ;;      2 bits
+
         regs.PCNF0
             .set(// set S0 to 1 byte
                  (1 << RADIO_PCNF0_S0LEN_POS) |
-                // set S1 to 2 bits
-                (2 << RADIO_PCNF0_S1LEN_POS) |
-                // set length to 6 bits
-                (6 << RADIO_PCNF0_LFLEN_POS));
+                     // set S1 to 2 bits
+                     (2 << RADIO_PCNF0_S1LEN_POS) |
+                     // set length to 6 bits
+                     (6 << RADIO_PCNF0_LFLEN_POS));
 
 
         regs.PCNF1
             .set((RADIO_PCNF1_WHITEEN_ENABLED << RADIO_PCNF1_WHITEEN_POS) |
-                 // set little-endian
-                 (0 << RADIO_PCNF1_ENDIAN_POS)  |
-                 // Set BASE + PREFIX address to 4 bytes
-                 (3 << RADIO_PCNF1_BALEN_POS)   |
-                 // don't extend packet length
-                 (0 << RADIO_PCNF1_STATLEN_POS) |
-                 // max payload size 37
-                 (37 << RADIO_PCNF1_MAXLEN_POS));
+                // set little-endian
+                (0 << RADIO_PCNF1_ENDIAN_POS) |
+                // Set BASE + PREFIX address to 4 bytes
+                (3 << RADIO_PCNF1_BALEN_POS) |
+                // don't extend packet length
+                (0 << RADIO_PCNF1_STATLEN_POS) |
+                // max payload size 37
+                (37 << RADIO_PCNF1_MAXLEN_POS));
     }
 
     // TODO set from capsules?!
@@ -234,10 +231,10 @@ impl Radio {
 
     // should not be configured from the capsule i.e.
     // assume always BLE
-    fn set_channel_rate(&self, _: u32) {
+    fn set_channel_rate(&self, rate: u32) {
         let regs = unsafe { &*self.regs };
         // set channel rate,  3 - BLE 1MBIT/s
-        regs.MODE.set(3);
+        regs.MODE.set(rate);
     }
 
     fn set_data_white_iv(&self, val: u32) {
@@ -292,14 +289,6 @@ impl Radio {
 
     #[inline(never)]
     #[no_mangle]
-    pub fn rx(&self) {
-        let regs = unsafe { &*self.regs };
-        regs.READY.set(0);
-        regs.RXEN.set(1);
-    }
-
-    #[inline(never)]
-    #[no_mangle]
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
         self.disable_nvic();
@@ -328,31 +317,38 @@ impl Radio {
         if regs.END.get() == 1 {
             regs.END.set(0);
             regs.DISABLE.set(1);
-            // this can be made more verbose on the state-checking
-            // e.g. receiv not covered and not supported
+            // this state only verifies that END is received in TX-mode
+            // which means that the transmission is finished
             match regs.STATE.get() {
                 RADIO_STATE_TXRU |
                 RADIO_STATE_TXIDLE |
                 RADIO_STATE_TXDISABLE |
                 RADIO_STATE_TX => {
                     match regs.FREQEUNCY.get() {
+                        // frequency 39
                         80 => {
                             self.radio_off();
-                            self.client.get().map(|client| client.done_adv());
                         }
+                        // frequency 38
                         26 => {
-                            self.set_channel(39);
-                            self.client.get().map(|client| client.continue_adv());
+                            self.set_channel_freq(39);
+                            self.set_data_white_iv(39);
+                            regs.READY.set(0);
+                            regs.TXEN.set(1);
                         }
+                        // frequency 37
                         2 => {
-                            self.set_channel(38);
-                            self.client.get().map(|client| client.continue_adv());
-
+                            self.set_channel_freq(38);
+                            self.set_data_white_iv(38);
+                            regs.READY.set(0);
+                            regs.TXEN.set(1);
                         }
-                        _ => self.set_channel(37),
+                        // don't care as we only support advertisements at the moment
+                        _ => {
+                            self.set_channel_freq(37);
+                            self.set_data_white_iv(37)
+                        }
                     }
-                    // Once a CRC error is received discard the message and return
-
                 }
                 _ => (),
             }
@@ -394,26 +390,20 @@ impl Radio {
             PAYLOAD[1] = 6;
         }
     }
-}
 
-impl BleAdvertisementDriver for Radio {
-    fn start_adv(&self) {
+    // these are used by ble_advertising_driver and are therefore public
+    // FIXME: should be moved to the HIL later
+
+    pub fn start_adv(&self) {
         self.init_radio_ble();
     }
 
-    fn continue_adv(&self) {
-        let regs = unsafe { &*self.regs };
-        self.set_tx_buffer();
-        regs.READY.set(0);
-        regs.TXEN.set(1);
-    }
-
-    fn set_adv_data(&self,
-                    ad_type: usize,
-                    data: &'static mut [u8],
-                    len: usize,
-                    offset: usize)
-                    -> &'static mut [u8] {
+    pub fn set_adv_data(&self,
+                        ad_type: usize,
+                        data: &'static mut [u8],
+                        len: usize,
+                        offset: usize)
+                        -> &'static mut [u8] {
         if offset == 9 {
             //FIXME: move call to the capsule!?
             self.reset_payload();
@@ -433,19 +423,16 @@ impl BleAdvertisementDriver for Radio {
         }
         data
     }
-    fn clear_adv_data(&self) {
+
+    pub fn clear_adv_data(&self) {
         self.reset_payload();
-    }
-    fn set_channel(&self, ch: usize) {
-        self.set_channel_freq(ch as u32);
-        self.set_data_white_iv(ch as u32);
     }
 
     // FIXME: added a temporary variable in struct that keeps
     // track of the twpower because we turn off the radio
     // between advertisements,
     // it is configured to 0 by default or the latest conifigured value
-    fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
+    pub fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
         match dbm {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
             e @ 0x04 | e @ 0x00 | e @ 0xF4 | e @ 0xFC | e @ 0xF8 | e @ 0xF0 | e @ 0xEC |
@@ -457,7 +444,6 @@ impl BleAdvertisementDriver for Radio {
         }
     }
 }
-
 
 #[no_mangle]
 #[allow(non_snake_case)]

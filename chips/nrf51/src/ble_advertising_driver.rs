@@ -55,10 +55,10 @@ use core::cell::Cell;
 use kernel::{AppId, Driver, AppSlice, Shared, Container};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use kernel::hil::ble::{BleAdvertisementDriver, Client};
 use kernel::hil::time::Frequency;
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
+use radio;
 pub static mut BUF: [u8; 32] = [0; 32];
 
 
@@ -88,19 +88,13 @@ pub const BLE_HS_ADV_TYPE_MFG_DATA: usize = 0xff;
 
 
 
+#[derive(Default)]
 pub struct App {
     // used for adv data
     app_write: Option<AppSlice<Shared, u8>>,
 }
 
-impl Default for App {
-    fn default() -> App {
-        App { app_write: None }
-    }
-}
-
-pub struct BLE<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> {
-    radio: &'a R,
+pub struct BLE<'a, A: hil::time::Alarm + 'a> {
     busy: Cell<bool>,
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
@@ -110,16 +104,10 @@ pub struct BLE<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> {
     is_advertising: Cell<bool>,
     offset: Cell<usize>,
 }
-// 'a = lifetime
-// R - type Radio
-impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A> {
-    pub fn new(radio: &'a R,
-               container: Container<App>,
-               buf: &'static mut [u8],
-               alarm: &'a A)
-               -> BLE<'a, R, A> {
+
+impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
+    pub fn new(container: Container<App>, buf: &'static mut [u8], alarm: &'a A) -> BLE<'a, A> {
         BLE {
-            radio: radio,
             busy: Cell::new(false),
             app: container,
             kernel_tx: TakeCell::new(buf),
@@ -154,9 +142,13 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A>
                                         .zip(slice.as_ref()[0..len].iter()) {
                                         *out = *inp;
                                     }
-                                    let tmp = self.radio
-                                        .set_adv_data(ad_type, data, len, self.offset.get() + 9);
-                                    self.kernel_tx.replace(tmp);
+                                    unsafe {
+                                        let tmp = radio::RADIO.set_adv_data(ad_type,
+                                                                            data,
+                                                                            len,
+                                                                            self.offset.get() + 9);
+                                        self.kernel_tx.replace(tmp);
+                                    }
                                     self.offset.set(i);
                                 });
                         }
@@ -167,44 +159,24 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> BLE<'a, R, A>
     }
 
     fn configure_periodic_alarm(&self) {
-        self.radio.set_channel(37);
         let interval_in_tics = self.alarm.now().wrapping_add(self.interval.get());
         self.alarm.set_alarm(interval_in_tics);
     }
 }
 
-impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> hil::time::Client
-    for BLE<'a, R, A> {
+impl<'a, A: hil::time::Alarm + 'a> hil::time::Client for BLE<'a, A> {
     // this method is called once the virtual timer has been expired
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
-        if self.is_advertising.get() == true {
-            self.radio.start_adv();
-        } else {
-            self.radio.continue_adv();
+        unsafe {
+            radio::RADIO.start_adv();
         }
-    }
-}
-
-impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Client for BLE<'a, R, A> {
-    fn continue_adv(&self) {
-        self.is_advertising.set(false);
-        let interval_in_tics = 2 * <A::Frequency>::frequency() / 1000;
-        let tics = self.alarm.now().wrapping_add(interval_in_tics);
-        self.alarm.set_alarm(tics);
-    }
-
-    fn done_adv(&self) -> ReturnCode {
-        self.is_advertising.set(true);
         self.configure_periodic_alarm();
-        ReturnCode::SUCCESS
     }
 }
 
-// Implementation of the Driver Trait/Interface
-impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, R, A> {
-    //  0 -  send BLE advertisements periodically
-    //  1 -  disable periodc BLE advertisementes
+// Implementation of SYSCALL interface
+impl<'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, A> {
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match (command_num, self.busy.get()) {
             // START BLE
@@ -224,7 +196,7 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Driver for BL
                 self.busy.set(false);
                 ReturnCode::SUCCESS
             }
-            (2, false) => self.radio.set_adv_txpower(data),
+            (2, false) => unsafe { radio::RADIO.set_adv_txpower(data) },
             (3, false) => {
                 if data < 20 {
                     self.interval.set(20 * <A::Frequency>::frequency() / 1000);
@@ -237,7 +209,9 @@ impl<'a, R: BleAdvertisementDriver + 'a, A: hil::time::Alarm + 'a> Driver for BL
             }
             (4, false) => {
                 self.offset.set(0);
-                self.radio.clear_adv_data();
+                unsafe {
+                    radio::RADIO.clear_adv_data();
+                }
                 ReturnCode::SUCCESS
             }
             (_, true) => ReturnCode::EBUSY,
