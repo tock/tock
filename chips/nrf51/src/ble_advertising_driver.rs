@@ -6,7 +6,7 @@
 //!
 //! The advertisment interval is configured from the user application. The allowed range
 //! is between 20 ms and 10240 ms, lower or higher values will be set to these values.
-//! Advertisements are sent on channels 37, 38 and 39 with a very shortl time between each
+//! Advertisements are sent on channels 37, 38 and 39 with a very shortly time between each
 //! transmission.
 //!
 //! The radio chip module configures a default name which is replaced
@@ -16,18 +16,21 @@
 //! exceed this limit. To clear the payload, the ble_adv_clear_data can be used. This function
 //! clears the payload, including the name.
 //!
-//! Only start and send are asyncronous and need to use the busy flag.
-//! However, the syncronous calls such as set tx power, advertisement interval
-//! and set payload can only by performed once the radio is not active
+//! Only start and send are asynchronous and need to use the busy flag.
+//! However, the synchronous calls such as set tx power, advertisement interval
+//! and set payload can only by performed once the radio is not active.
+//! The reason why is that they can be interleaved by an interrupt
 //!
 //! ---ALLOW SYSTEM CALL ------------------------------------------------------------
-//! Each AD TYP corresponds to a allow number from 0 to 0xFF
+//! Each AD TYP corresponds to an allow number from 0 to 0xFF which is matched
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!     * SUCCESS: The buffer has successfully been filled
 //!     * ENOSUPPORT: Invalid allow_num
 //!     * ENOMEM: No sufficient memory available
-//!     * EINVAL => Invalid address of the buffer or other error
+//!     * EINVAL: Invalid address of the buffer or other error
+//!     * EBUSY: The driver is currently busy with other tasks
+//!     * ENOSUPPORT: The operation is not supported
 //! ----------------------------------------------------------------------------------
 //!
 //! ---SUBSCRIBE SYSTEM CALL----------------------------------------------------------
@@ -44,6 +47,11 @@
 //!     * 2: configure tx power
 //!     * 3: configure advertise interval
 //!     * 4: clear the advertisement payload
+//!
+//! The possible return codes from the 'command' system call indicate the following:
+//!     * SUCCESS:      The command was successful
+//!     * EBUSY:        The driver is currently busy with other tasks
+//!     * ENOSUPPORT:   The operation is not supported
 //! -----------------------------------------------------------------------------------
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
@@ -87,32 +95,35 @@ pub const BLE_HS_ADV_TYPE_URI: usize = 0x24;
 pub const BLE_HS_ADV_TYPE_MFG_DATA: usize = 0xff;
 
 
-
 #[derive(Default)]
 pub struct App {
-    // used for adv data
     app_write: Option<AppSlice<Shared, u8>>,
 }
 
 pub struct BLE<'a, A: hil::time::Alarm + 'a> {
+    radio: &'a radio::Radio,
     busy: Cell<bool>,
     app: Container<App>,
     kernel_tx: TakeCell<'static, [u8]>,
     alarm: &'a A,
-    // we should probably add a BLE state-machine here
-    interval: Cell<u32>,
+    advertisement_interval: Cell<u32>,
     is_advertising: Cell<bool>,
     offset: Cell<usize>,
 }
 
 impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
-    pub fn new(container: Container<App>, buf: &'static mut [u8], alarm: &'a A) -> BLE<'a, A> {
+    pub fn new(radio: &'a radio::Radio,
+               container: Container<App>,
+               buf: &'static mut [u8],
+               alarm: &'a A)
+               -> BLE<'a, A> {
         BLE {
+            radio: radio,
             busy: Cell::new(false),
             app: container,
             kernel_tx: TakeCell::new(buf),
             alarm: alarm,
-            interval: Cell::new(150 * <A::Frequency>::frequency() / 1000),
+            advertisement_interval: Cell::new(150 * <A::Frequency>::frequency() / 1000),
             is_advertising: Cell::new(false),
             // This keeps track of the position in the payload to enable multiple AD TYPES
             offset: Cell::new(0),
@@ -142,13 +153,9 @@ impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
                                         .zip(slice.as_ref()[0..len].iter()) {
                                         *out = *inp;
                                     }
-                                    unsafe {
-                                        let tmp = radio::RADIO.set_adv_data(ad_type,
-                                                                            data,
-                                                                            len,
-                                                                            self.offset.get() + 9);
-                                        self.kernel_tx.replace(tmp);
-                                    }
+                                    let tmp = self.radio
+                                        .set_adv_data(ad_type, data, len, self.offset.get() + 9);
+                                    self.kernel_tx.replace(tmp);
                                     self.offset.set(i);
                                 });
                         }
@@ -159,7 +166,7 @@ impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
     }
 
     fn configure_periodic_alarm(&self) {
-        let interval_in_tics = self.alarm.now().wrapping_add(self.interval.get());
+        let interval_in_tics = self.alarm.now().wrapping_add(self.advertisement_interval.get());
         self.alarm.set_alarm(interval_in_tics);
     }
 }
@@ -168,9 +175,7 @@ impl<'a, A: hil::time::Alarm + 'a> hil::time::Client for BLE<'a, A> {
     // this method is called once the virtual timer has been expired
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
-        unsafe {
-            radio::RADIO.start_adv();
-        }
+        self.radio.start_adv();
         self.configure_periodic_alarm();
     }
 }
@@ -196,22 +201,21 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, A> {
                 self.busy.set(false);
                 ReturnCode::SUCCESS
             }
-            (2, false) => unsafe { radio::RADIO.set_adv_txpower(data) },
+            (2, false) => self.radio.set_adv_txpower(data),
             (3, false) => {
                 if data < 20 {
-                    self.interval.set(20 * <A::Frequency>::frequency() / 1000);
+                    self.advertisement_interval.set(20 * <A::Frequency>::frequency() / 1000);
                 } else if data > 10240 {
-                    self.interval.set(10240 * <A::Frequency>::frequency() / 1000);
+                    self.advertisement_interval.set(10240 * <A::Frequency>::frequency() / 1000);
                 } else {
-                    self.interval.set((data as u32) * <A::Frequency>::frequency() / 1000);
+                    self.advertisement_interval
+                        .set((data as u32) * <A::Frequency>::frequency() / 1000);
                 }
                 ReturnCode::SUCCESS
             }
             (4, false) => {
                 self.offset.set(0);
-                unsafe {
-                    radio::RADIO.clear_adv_data();
-                }
+                self.radio.clear_adv_data();
                 ReturnCode::SUCCESS
             }
             (_, true) => ReturnCode::EBUSY,

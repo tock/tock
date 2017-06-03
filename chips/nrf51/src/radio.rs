@@ -140,7 +140,7 @@ impl Radio {
 
         self.radio_on();
 
-        // TX Power acc. twpower variable in the struct
+        // TX Power acc. to twpower variable in the struct
         self.set_txpower();
 
         // BLE MODE
@@ -431,7 +431,7 @@ impl Radio {
     // FIXME: added a temporary variable in struct that keeps
     // track of the twpower because we turn off the radio
     // between advertisements,
-    // it is configured to 0 by default or the latest conifigured value
+    // it is configured to 0 by default or the latest configured value
     pub fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
         match dbm {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm

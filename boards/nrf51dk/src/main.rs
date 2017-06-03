@@ -278,10 +278,11 @@ pub unsafe fn reset_handler() {
     let ble_radio = static_init!(
      nrf51::ble_advertising_driver::BLE<VirtualMuxAlarm<'static, Rtc>>,
      nrf51::ble_advertising_driver::BLE::new(
+         &mut nrf51::radio::RADIO,
          kernel::Container::create(),
          &mut nrf51::ble_advertising_driver::BUF,
          ble_radio_virtual_alarm),
-        224/8);
+        256/8);
     nrf51::radio::RADIO.set_client(ble_radio);
     ble_radio_virtual_alarm.set_client(ble_radio);
 
