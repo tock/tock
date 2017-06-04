@@ -9,6 +9,9 @@ extern "C" {
 /*
  * Sets the callback for timers
  *
+ * When invoked, the callback's first argument will be the timer value at which
+ * the timer was fired.
+ *
  * Side-effects: cancels any existing/outstanding timers
  */
 int timer_subscribe(subscribe_cb cb, void *userdata);
@@ -31,12 +34,26 @@ int timer_start_repeating(uint32_t interval_ms);
  */
 int timer_oneshot(uint32_t interval_ms);
 
+/*
+ * Starts a oneshot alarm
+ *
+ * expiration - absolute expiration value in clock tics
+ *
+ * Side-effects: cancels any existing/outstanding timers
+ */
+int timer_absolute(uint32_t tics);
+
 int timer_stop(void);
 
 /*
  * Get the current counter value of the timer.
  */
 unsigned int timer_read(void);
+
+/*
+ * Get the the timer frequency in Hz.
+ */
+unsigned int timer_frequency(void);
 
 /*
  * Blocks for the given amount of time in millisecond.
