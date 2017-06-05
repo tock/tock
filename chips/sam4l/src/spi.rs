@@ -621,7 +621,7 @@ impl spi::SpiSlave for Spi {
                         write_buffer: Option<&'static mut [u8]>,
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
-                        -> bool {
+                        -> ReturnCode {
         self.read_write_bytes(write_buffer, read_buffer, len)
     }
 

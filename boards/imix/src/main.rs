@@ -32,7 +32,7 @@ mod spi_dummy;
 #[allow(dead_code)]
 mod spi_slave_dummy;
 
-const SPI_ROLE: SpiRole = SpiRole::SpiMaster;
+const SPI_ROLE: SpiRole = SpiRole::SpiSlave;
 
 enum SpiType {
     SpiMasterT(&'static capsules::spi::Spi<'static,
