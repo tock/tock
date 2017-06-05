@@ -10,7 +10,7 @@ int main(void)
   unsigned char data[] = "1337";
   unsigned char tx[] = {0x1};
 
-  printf("return for ble_adv_set_power %d\r\n", ble_adv_set_txpower(0));
+  printf("return for ble_adv_set_power %d\r\n", ble_adv_set_txpower(TX_POWER_POS_4_DBM));
   printf("return for ble_adv_set_interval %d\r\n", ble_adv_set_interval(150));
 
   // name and data are strings, remove \0 by subtracting 1
@@ -24,7 +24,7 @@ int main(void)
   printf("return from stop_ble_advertisement %d\r\n", ble_adv_stop());
   ble_adv_clear_data();
   delay_ms(5000);
-  strcpy((char * restrict)name, "CLEAR");
+  strcpy((char *)name, "CLEAR");
   ble_adv_data(BLE_HS_ADV_TYPE_COMP_NAME, sizeof(name) - 1, name);
   printf("return from start_ble_advertisement %d\r\n", ble_adv_start());
 
