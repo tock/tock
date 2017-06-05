@@ -39,16 +39,16 @@
 
 // TX power
 // FIXME: Not platform independent.
-#define TX_POWER_POS_4_DBM                      0x04
-#define TX_POWER_0DBM                           0x00
-#define TX_POWER_NEG_4_DBM                      0xFC
-#define TX_POWER_NEG_8_DBM                      0xF8
-#define TX_POWER_NEG_12_DBM                     0xF4
-#define TX_POWER_NEG_16_DBM                     0xF0
-#define TX_POWER_NEG_20_DBM                     0xEC
-// this -40 actually pretty weird
-#define TX_POWER_NEG_30_DBM                     0xD8
-
+typedef enum {
+    POS4_DBM     = 0x04,
+    ODBM         = 0x00,
+    NEG4_DBM     = 0xFC,
+    NEG_8_DBM    = 0xF8,
+    NEG_12_DBM   = 0xF4,
+    NEG_16_DBM   = 0xF0,
+    NEG_20_DBM   = 0xEC,
+    NEG_30_DBM   = 0xD8
+} TX_Power_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,7 +56,7 @@ extern "C" {
 
 int ble_adv_data(uint8_t type, uint8_t len, const unsigned char *data);
 int ble_adv_clear_data(void);
-int ble_adv_set_txpower(uint8_t);
+int ble_adv_set_txpower(TX_Power_t power);
 int ble_adv_set_interval(uint16_t);
 int ble_adv_start(void);
 int ble_adv_stop(void);

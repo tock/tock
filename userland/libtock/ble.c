@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-int ble_adv_set_txpower(uint8_t power) {
+int ble_adv_set_txpower(TX_Power_t power) {
   return command(DRIVER_RADIO, CFG_TX_POWER, power);
 }
 

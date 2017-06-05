@@ -235,6 +235,7 @@ functionality that is handled by the kernel. `command`, `subscribe`, and
 | 18            | LTC294X          | Battery gauge IC                           |
 | 20            | GPIO Async       | Asynchronous GPIO pins                     |
 | 22            | LPS25HB          | Pressure sensor                            |
+| 33            | BLE              | Bluetooth low energy communication         |
 | 154           | Radio            | 15.4 radio interface                       |
 | 255           | IPC              | Inter-process communication                |
 
