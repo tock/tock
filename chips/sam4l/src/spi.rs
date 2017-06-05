@@ -410,22 +410,6 @@ impl Spi {
             return ReturnCode::SUCCESS;
         }
 
-        // TODO: Their version cleans this up a bit:
-        /*
-           let read_len = match read_buffer {
-           Some(ref buf) => buf.len(),
-           None => 0,
-           };
-           let write_len = write_buffer.len();
-           let buflen = if !read_buffer.is_some() {
-           write_len
-           } else {
-           cmp::min(read_len, write_len)
-           };
-           let count = cmp::min(buflen, len);
-           self.dma_length.set(count);
-         */
-
         let mut opt_len = None;
         write_buffer.as_ref().map(|buf| opt_len = Some(buf.len()));
         read_buffer.as_ref().map(|buf| {
@@ -435,6 +419,9 @@ impl Spi {
 
         let count = cmp::min(opt_len.unwrap_or(0), len);
         self.dma_length.set(count);
+
+        // We will have at least a write transfer in progress
+        self.transfers_in_progress.set(1);
 
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.

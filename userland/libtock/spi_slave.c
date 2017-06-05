@@ -1,18 +1,13 @@
-#include "spi.h"
+#include "spi_slave.h"
 
-#define SPI_SLAVE 19
+#define SPI_SLAVE 25
 
 __attribute__((const)) int spi_slave_init(void) {return 0;}
-int spi_slave_set_chip_select(unsigned char cs) {return command(SPI_SLAVE, 3, cs);}
 int spi_slave_get_chip_select(void)             {return command(SPI_SLAVE, 4, 0);}
-int spi_slave_set_rate(int rate)                {return command(SPI_SLAVE, 5, rate);}
-int spi_slave_get_rate(void)                    {return command(SPI_SLAVE, 6, 0);}
 int spi_slave_set_phase(bool phase)             {return command(SPI_SLAVE, 7, (unsigned char)phase);}
 int spi_slave_get_phase(void)                   {return command(SPI_SLAVE, 8, 0);}
 int spi_slave_set_polarity(bool pol)            {return command(SPI_SLAVE, 9, (unsigned char)pol);}
 int spi_slave_get_polarity(void)                {return command(SPI_SLAVE, 10, 0);}
-int spi_slave_hold_low(void)                    {return command(SPI_SLAVE, 11, 0);}
-int spi_slave_release_low(void)                 {return command(SPI_SLAVE, 12, 0);}
 
 /* This is no longer supported */
 int spi_slave_write_byte(unsigned char byte) {

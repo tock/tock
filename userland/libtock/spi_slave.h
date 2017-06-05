@@ -8,14 +8,8 @@ extern "C" {
 
 /* SPI system calls */
 int spi_slave_init(void);
-/* Set chip select is not supported in slave mode. */
-int spi_slave_set_chip_select(unsigned char cs);
 /* Get chip select always returns 0 in slave mode. */
 int spi_slave_get_chip_select(void);
-
-/* Set rate and get rate are not supported in slave mode. */
-int spi_slave_set_rate(int rate);
-int spi_slave_get_rate(void);
 
   /* false means sample on a leading (low to high) clock edge
    * true means sample on a trailing (high to low) clock edge */
@@ -26,10 +20,6 @@ int spi_slave_get_phase(void);
    * true means an idle clock is high. */
 int spi_slave_set_polarity(bool pol);
 int spi_slave_get_polarity(void);
-
-/* Hold low and release low are not supported in slave mode. */
-int spi_slave_hold_low(void);
-int spi_slave_release_low(void);
 
 /* Write byte is no longer supported. */
 int spi_slave_write_byte(unsigned char byte);
