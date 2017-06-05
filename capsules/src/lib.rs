@@ -34,4 +34,5 @@ pub mod temp_nrf51dk;
 pub mod symmetric_encryption;
 pub mod ninedof;
 pub mod ltc294x;
-// pub mod ble;
+pub mod mcp23008;
+pub mod gpio_async;

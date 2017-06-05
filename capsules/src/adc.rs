@@ -166,7 +166,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         }
 
         // convert channel index
-        if channel > self.channels.len() {
+        if channel >= self.channels.len() {
             return ReturnCode::EINVAL;
         }
         let chan = self.channels[channel];
@@ -207,7 +207,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         }
 
         // convert channel index
-        if channel > self.channels.len() {
+        if channel >= self.channels.len() {
             return ReturnCode::EINVAL;
         }
         let chan = self.channels[channel];
@@ -250,7 +250,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         }
 
         // convert channel index
-        if channel > self.channels.len() {
+        if channel >= self.channels.len() {
             return ReturnCode::EINVAL;
         }
         let chan = self.channels[channel];
@@ -337,7 +337,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         }
 
         // convert channel index
-        if channel > self.channels.len() {
+        if channel >= self.channels.len() {
             return ReturnCode::EINVAL;
         }
         let chan = self.channels[channel];

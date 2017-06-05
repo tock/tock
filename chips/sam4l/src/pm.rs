@@ -405,7 +405,7 @@ unsafe fn configure_48mhz_dfll() {
     select_main_clock(MainClock::DFLL);
 }
 
-/// Configure the system clock to use the DFLL with the 16 MHz external crystal.
+/// Configure the system clock to use the 16 MHz external crystal directly
 unsafe fn configure_external_oscillator() {
     // Use the cache
     enable_cache();
@@ -427,7 +427,7 @@ unsafe fn configure_external_oscillator() {
     select_main_clock(MainClock::OSC0);
 }
 
-/// Configure the system clock to use the DFLL with the 16 MHz external crystal.
+/// Configure the system clock to use the PLL with the 16 MHz external crystal
 unsafe fn configure_external_oscillator_pll() {
     // Use the cache
     enable_cache();

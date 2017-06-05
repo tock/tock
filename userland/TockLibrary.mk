@@ -67,13 +67,13 @@ vpath %.cpp $(VPATH_DIRS)
 # headers in an include/ folder (both in and adjacent to src/) while we're at it
 define LIB_HEADER_INCLUDES
 ifneq ($$(wildcard $(1)/*.h),"")
-  CPPFLAGS += -I$(1)
+  override CPPFLAGS += -I$(1)
 endif
 ifneq ($$(wildcard $(1)/include/*.h),"")
-  CPPFLAGS += -I$(1)/include
+  override CPPFLAGS += -I$(1)/include
 endif
 ifneq ($$(wildcard $(1)/../include/*.h),"")
-  CPPFLAGS += -I$(1)/../include
+  override CPPFLAGS += -I$(1)/../include
 endif
 endef
 # uncomment to print generated rules

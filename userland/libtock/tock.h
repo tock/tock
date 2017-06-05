@@ -12,9 +12,15 @@ typedef void (subscribe_cb)(int, int, int,void*);
 
 void yield(void);
 void yield_for(bool*);
+
+__attribute__ ((warn_unused_result))
 int command(uint32_t driver, uint32_t command, int data);
+
+__attribute__ ((warn_unused_result))
 int subscribe(uint32_t driver, uint32_t subscribe,
               subscribe_cb cb, void* userdata);
+
+__attribute__ ((warn_unused_result))
 int allow(uint32_t driver, uint32_t allow, void* ptr, size_t size);
 
 // op_type can be:
