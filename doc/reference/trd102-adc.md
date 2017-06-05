@@ -11,17 +11,14 @@ Kernel Analog-to-Digital Conversion HIL
 **Draft-Version:** 2<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
-**Warning:** Out of Date. Needs to be updated. See
-[PR 398](https://github.com/helena-project/tock/pull/398).
-
 Abstract
 -------------------------------
 
-This document describes the hardware independent layer interface (HIL)
-for analog-to-digital conversion in the Tock operating system kernel.
-It describes the Rust traits and other definitions for this service
-as well as the reasoning behind them. This document is in full compliance
-with <a href="#trd1">TRD1</a>.
+This document describes the hardware independent layer interface (HIL) for
+analog-to-digital conversion in the Tock operating system kernel. It describes
+the Rust traits and other definitions for this service as well as the reasoning
+behind them. This document also describes an implementation of the ADC HIL for
+the SAM4L. This document is in full compliance with <a href="#trd1">TRD1</a>.
 
 1 Introduction
 ========================================
@@ -30,49 +27,77 @@ Analog-to-digital converters (ADCs) are devices that convert analog input
 signals to discrete digital output signals, typically voltage to a binary
 number. While different microcontrollers can have very different control
 registers and operating modes, the basic high-level interface they provide
-is very uniform. Software that wishes to use more advanced features should
+is very uniform. Software that wishes to use more advanced features can
 directly use the per-chip implementations, which may export these features.
 
 The ADC HIL is the kernel crate, in module hil::adc. It
 provides three traits:
 
-  * kernel::hil::adc::AdcSingle: takes a single reading from an ADC port
-  * kernel::hil::adc::AdcContinuous: starts a continuous stream of readings from a port
-  * kernek::hil::adc::Client: handles the callback when a sample is obtained
+  * kernel::hil::adc::Adc - provides basic interface for individual analog samples
+  * kernel::hil::adc::Client - receives individual analog samples from the ADC
+  * kernel::hil::adc::AdcHighSpeed - provides high speed buffered analog sampling interface
+  * kernel::hil::adc::HighSpeedClient - receives buffers of analog samples from the ADC
 
 The rest of this document discusses each in turn.
 
 
-2 AdcSingle trait
+2 Adc trait
 ========================================
 
-The AdcSingle trait is for requesting a single ADC conversion. It has
-three functions:
+The Adc trait is for requesting individual analog to digital conversions,
+either one-shot or repeatedly. It has four functions and one associated type:
 
+```
+/// Simple interface for reading an ADC sample on any channel.
+pub trait Adc {
+    /// The chip-dependent type of an ADC channel.
+    type Channel;
 
-    pub trait AdcSingle {
-        /// Initialize must be called before taking a sample.
-        fn initialize(&self) -> Result;
+    /// Initialize must be called before taking a sample.
+    fn initialize(&self) -> ReturnCode;
 
-        /// Request a single ADC sample on a particular channel.
-        fn sample(&self, channel: u8) -> Result;
+    /// Request a single ADC sample on a particular channel.
+    /// Used for individual samples that have no timing requirements.
+    fn sample(&self, channel: &Self::Channel) -> ReturnCode;
 
-        /// Cancel an outstanding request. Returning SUCCESS
-        /// means it was cancelled and there will be no callback
-        /// invocation. Returning FAIL means it was not cancelled and
-        /// a callback will be invoked.
-        fn cancel_sample(&self) -> Result;
-    }
+    /// Request repeated ADC samples on a particular channel.
+    /// Callbacks will occur at the given frequency with low jitter and can be
+    /// set to any frequency supported by the chip implementation. However
+    /// callbacks may be limited based on how quickly the system can service
+    /// individual samples, leading to missed samples at high frequencies.
+    fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode;
 
-The `initialize` function MUST be called at least once before any
-samples are taken. It only needs to be called once, not once per sample
-This function MUST return SUCCESS, ERESERVE, and FAIL.
+    /// Stop a sampling operation.
+    /// Can be used to stop any simple or high-speed sampling operation. No
+    /// further callbacks will occur.
+    fn stop_sampling(&self) -> ReturnCode;
+}
+```
 
-The `sample` function starts a single conversion on the specified
-ADC channel. The exact binding of this channel to external sensors or
-other inputs is board-dependent, so must be known by higher-level
-software. This function MUST return SUCCESS, FAIL, EBUSY, EOFF, ERESERVE,
-or EINVAL.
+The `initialize` function configures the hardware to perform analog sampling.
+It MUST be called at least once before any samples are taken. It only needs to
+be called once, not once per sample. This function MUST return SUCCESS upon
+correct initialization or FAIL if the hardware fails to initialize
+successfully. If the driver is already initialized, the function SHOULD return
+SUCCESS.
+
+The `sample` function starts a single conversion on the specified ADC channel.
+The exact binding of this channel to external or internal analog inputs is
+board-dependent. The function MUST return SUCCESS if the analog conversion has
+been started, EOFF if the ADC is not initialized or enabled, EBUSY if a
+conversion is already in progress, or EINVAL if the specified channel is
+invalid. The `sample_ready` callback of the client MUST be called when the
+conversion is complete.
+
+The `sample_continuous` function begins repeated individual conversions on a
+specified channel. Conversions MUST continue at the specified frequency until
+`stop_sampling` is called. The `sample_ready` callback of the client MUST be
+called when each conversion is complete. The channels and frequency ranges
+supported are board-dependent. The function MUST return SUCCESS if repeated
+analog conversions have been started,  EOFF if the ADC is not initialized or
+enabled, EBUSY if a conversion is already in progress, or EINVAL if the
+specified channel or frequency are invalid.
+
 
 The `cancel_sample` function may be used to try to cancel an outstanding
 conversion request. Because the conversion may have already begun, or
@@ -82,6 +107,8 @@ sample via the `Client` trait. This function MUST return SUCCESS, ERESERVE
 or FAIL. SUCCESS indicates that a callback WILL NOT be issued, while
 a failure code (FAIL or ERESERVE) indicate that the callback WILL be
 issued normally.
+
+
 
 3 AdcContinuous
 ========================================
