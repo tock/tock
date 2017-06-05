@@ -2,8 +2,16 @@
 #include <timer.h>
 #include "virtual_timer.h"
 
+// Returns < 0 if expiration0 is earlier, > 0 if expiration1 is earlier, and 0
+// if they are equal.
+static int compare_expirations(uint32_t now, uint32_t expiration0, uint32_t expiration1) {
+  uint32_t dist0 = expiration0 > now ? expiration0 - now : now - expiration0;
+  uint32_t dist1 = expiration1 > now ? expiration1 - now : now - expiration1;
+  return dist0 < dist1 ? -1 : (int)(dist0 - dist1);
+}
+
 struct virtual_timer {
-  int expiration;
+  uint32_t expiration;
   subscribe_cb *callback;
   void* ud;
 };
@@ -20,7 +28,7 @@ static heap_t timer_heap = {
   .size = 0,
 };
 
-static void heap_insert(virtual_timer_t* timer) {
+static void heap_insert(uint32_t now, virtual_timer_t* timer) {
   if (timer_heap.capacity - timer_heap.size <= 0) {
     // Heap too small! Make it bigger
     int new_capacity = (timer_heap.capacity + 1) * 2;
@@ -38,7 +46,7 @@ static void heap_insert(virtual_timer_t* timer) {
   while(idx != 0) {
     int parent_idx = (idx - 1) / 2;
     virtual_timer_t *parent = timer_heap.data[parent_idx];
-    if (timer->expiration < parent->expiration) {
+    if (compare_expirations(now, timer->expiration, parent->expiration) < 0) {
       timer_heap.data[idx] = parent;
       timer_heap.data[parent_idx] = timer;
       idx = parent_idx;
@@ -48,7 +56,7 @@ static void heap_insert(virtual_timer_t* timer) {
   }
 }
 
-static virtual_timer_t* heap_pop(void) {
+static virtual_timer_t* heap_pop(uint32_t now) {
   if (timer_heap.size == 0) {
     return NULL;
   }
@@ -79,10 +87,10 @@ static virtual_timer_t* heap_pop(void) {
     virtual_timer_t* childl = timer_heap.data[childl_idx];
     virtual_timer_t* childr = timer_heap.data[childr_idx];
 
-    if (timer->expiration <= childl->expiration &&
-        timer->expiration <= childr->expiration) {
+    if (compare_expirations(now, timer->expiration, childl->expiration) <= 0 &&
+        compare_expirations(now, timer->expiration, childr->expiration) <= 0) {
       break;
-    } else if (childl->expiration < childr->expiration) {
+    } else if (compare_expirations(now, childl->expiration, childr->expiration) < 0) {
       timer_heap.data[idx] = childl;
       timer_heap.data[childl_idx] = timer;
     } else {
@@ -102,11 +110,11 @@ static virtual_timer_t* heap_peek(void) {
   }
 }
 
-static void callback( int now,
+static void callback( uint32_t now,
                       __attribute__ ((unused)) int unused1,
                       __attribute__ ((unused)) int unused2,
                       __attribute__ ((unused)) void* ud) {
-  virtual_timer_t* timer = heap_pop();
+  virtual_timer_t* timer = heap_pop(now);
   if (timer == NULL) {
     return;
   }
@@ -114,7 +122,7 @@ static void callback( int now,
   virtual_timer_t *next;
   for (next = heap_peek(); next != NULL && next->callback == NULL;
         next = heap_peek()) {
-    free(heap_pop());
+    free(heap_pop(now));
   }
   if (next != NULL) {
     timer_absolute(next->expiration);
@@ -126,16 +134,18 @@ static void callback( int now,
   free(timer);
 }
 
-virtual_timer_t *virtual_timer_start(int ms, subscribe_cb cb, void* ud) {
+virtual_timer_t *virtual_timer_start(uint32_t expiration, subscribe_cb cb, void* ud) {
   virtual_timer_t *timer = (virtual_timer_t*)malloc(sizeof(virtual_timer_t));
-  timer->expiration = ms;
+  timer->expiration = expiration;
   timer->callback = cb;
   timer->ud = ud;
 
-  heap_insert(timer);
+  uint32_t now = timer_read();
+
+  heap_insert(now, timer);
 
   if (heap_peek() == timer) {
-    timer_subscribe(callback, NULL);
+    timer_subscribe((subscribe_cb*)callback, NULL);
     timer_absolute(timer->expiration);
   }
 
