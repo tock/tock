@@ -35,7 +35,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items,compiler_builtins_lib)]
+#![feature(lang_items,drop_types_in_const,compiler_builtins_lib)]
 
 extern crate cortexm0;
 extern crate capsules;
@@ -156,8 +156,7 @@ pub unsafe fn reset_handler() {
         (&nrf51::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow), // 22
         (&nrf51::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow), // 23
         (&nrf51::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow), // 24
-        ],
-        256/8);
+        ], 256/8);
     let led = static_init!(
         capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
         capsules::led::LED::new(led_pins),
