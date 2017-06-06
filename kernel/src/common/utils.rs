@@ -15,23 +15,17 @@
 /// destructor.
 #[macro_export]
 macro_rules! static_init {
-    ($T:ty, $e:expr, $size:expr) => {
-        // Ideally we could use mem::size_of<$T> here instead of $size, however
-        // that is not currently possible in rust. Instead we write the size as
-        // a constant in the code and use compile-time verification to see that
-        // we got it right
+    ($T:ty, $e:expr, $size:expr) => (static_init!($T, $e));
+    ($T:ty, $e:expr) => {
+        // Ideally we could use mem::size_of<$T>, uninitialized or zerod here
+        // instead of having an `Option`, however that is not currently possible
+        // in Rust, so in some cases we're wasting up to a word.
         {
             use core::{mem, ptr};
-            // This is our compile-time assertion. The optimizer should be able
-            // to remove it from the generated code.
-            let assert_buf: [u8; $size] = mem::uninitialized();
-            let assert_val: $T = mem::transmute(assert_buf);
-            mem::forget(assert_val);
-
             // Statically allocate a read-write buffer for the value, write our
             // initial value into it (without dropping the initial zeros) and
             // return a reference to it.
-            static mut BUF: [u8; $size] = [0; $size];
+            static mut BUF: Option<$T> = None;
             let mut tmp : &'static mut $T = mem::transmute(&mut BUF);
             ptr::write(tmp as *mut $T, $e);
             tmp
