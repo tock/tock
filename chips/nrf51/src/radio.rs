@@ -51,12 +51,12 @@ pub const RADIO_STATE_TXDISABLE: u32 = 12;
 
 
 // constants for readability purposes
-pub const PAYLOAD_HDR_PDU:           usize = 0;
-pub const PAYLOAD_HDR_LEN:           usize = 1;
-pub const PAYLOAD_ADDR_START:        usize = 3;
-pub const PAYLOAD_ADDR_END:          usize = 8;
-pub const PAYLOAD_DATA_START:        usize = 9;
-pub const PAYLOAD_LENGTH:            usize = 39;
+pub const PAYLOAD_HDR_PDU: usize = 0;
+pub const PAYLOAD_HDR_LEN: usize = 1;
+pub const PAYLOAD_ADDR_START: usize = 3;
+pub const PAYLOAD_ADDR_END: usize = 8;
+pub const PAYLOAD_DATA_START: usize = 9;
+pub const PAYLOAD_LENGTH: usize = 39;
 
 // FROM LEFT
 // ADVTYPE      ;;      4 bits
@@ -70,48 +70,48 @@ pub const PAYLOAD_LENGTH:            usize = 39;
 
 // Header (2 bytes) || Address (6 bytes) || Payload 31 bytes
 static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
-    0x02,
-    0x00,
-    // Padding   FIXME: Remove get payload of 31 bytes
-    0x00,
-    // Address          [ADV ADDRESS]
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    // [LEN, AD-TYPE, LEN-1 bytes of data ...]
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00]; //[DATA]
+                                0x02,
+                                0x00,
+                                // Padding   FIXME: Remove get payload of 31 bytes
+                                0x00,
+                                // Address          [ADV ADDRESS]
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                // [LEN, AD-TYPE, LEN-1 bytes of data ...]
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00,
+                                0x00]; //[DATA]
 
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
@@ -370,25 +370,30 @@ impl Radio {
         nvic::disable(peripheral_interrupts::NvicIdx::RADIO);
     }
 
-    pub fn reset_payload(&self) {
-    }
+    pub fn reset_payload(&self) {}
 
     // these are used by ble_advertising_driver and are therefore public
 
     // FIXME: Support for other PDU types than ADV_NONCONN_IND
     // NOT USED ATM
     pub fn set_payload_header_pdu(&self, pdu: u8) {
-        unsafe {PAYLOAD[PAYLOAD_HDR_PDU] = pdu;}
+        unsafe {
+            PAYLOAD[PAYLOAD_HDR_PDU] = pdu;
+        }
     }
 
     pub fn set_payload_header_len(&self, len: u8) {
-        unsafe { PAYLOAD[PAYLOAD_HDR_LEN] = len; }
+        unsafe {
+            PAYLOAD[PAYLOAD_HDR_LEN] = len;
+        }
     }
 
     // pre-condition addr buffer is 6 bytes ensured by the capsule
-    pub fn set_advertisement_address(&self, addr: &'static mut [u8]) -> &'static mut [u8]{
-        for (i,c) in addr.as_ref()[0..6].iter().enumerate() {
-            unsafe { PAYLOAD[i+PAYLOAD_ADDR_START] = *c; }
+    pub fn set_advertisement_address(&self, addr: &'static mut [u8]) -> &'static mut [u8] {
+        for (i, c) in addr.as_ref()[0..6].iter().enumerate() {
+            unsafe {
+                PAYLOAD[i + PAYLOAD_ADDR_START] = *c;
+            }
         }
         addr
     }

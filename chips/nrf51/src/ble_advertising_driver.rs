@@ -172,20 +172,18 @@ impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
             cntr.enter(|app, _| {
                 app.app_write
                     .as_ref()
-                    .map(|slice| {
-                        if slice.len() == 6 {
-                            self.kernel_tx
-                                .take()
-                                .map(|data| {
-                                    for (out, inp) in data.iter_mut()
-                                        .zip(slice.as_ref()[0..slice.len()].iter()) {
-                                        *out = *inp;
-                                    }
-                                    let tmp = self.radio.set_advertisement_address(data);
-                                    self.kernel_tx.replace(tmp);
-                                    ret = ReturnCode::SUCCESS;
-                                });
-                        }
+                    .map(|slice| if slice.len() == 6 {
+                        self.kernel_tx
+                            .take()
+                            .map(|data| {
+                                for (out, inp) in data.iter_mut()
+                                    .zip(slice.as_ref()[0..slice.len()].iter()) {
+                                    *out = *inp;
+                                }
+                                let tmp = self.radio.set_advertisement_address(data);
+                                self.kernel_tx.replace(tmp);
+                                ret = ReturnCode::SUCCESS;
+                            });
                     });
             });
         }
@@ -303,9 +301,8 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, A> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     });
                 if ret == ReturnCode::SUCCESS {
-                   self.set_adv_addr()
-                }
-                else {
+                    self.set_adv_addr()
+                } else {
                     ret
                 }
             }
