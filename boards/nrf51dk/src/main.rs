@@ -113,6 +113,7 @@ pub struct Platform {
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
     aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
+    ble_radio: &'static nrf51::ble_advertising_driver::BLE<'static, VirtualMuxAlarm<'static, Rtc>>,
 }
 
 
@@ -139,6 +140,7 @@ impl kernel::Platform for Platform {
             9 => f(Some(self.button)),
             14 => f(Some(self.rng)),
             17 => f(Some(self.aes)),
+            33 => f(Some(self.ble_radio)),
             36 => f(Some(self.temp)),
             _ => f(None),
         }
@@ -243,6 +245,13 @@ pub unsafe fn reset_handler() {
                          12);
     virtual_alarm1.set_client(timer);
 
+    let ble_radio_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, Rtc>,
+        VirtualMuxAlarm::new(mux_alarm),
+        192/8);
+
+
+
     let temp = static_init!(
         capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
         capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP,
@@ -266,6 +275,16 @@ pub unsafe fn reset_handler() {
     nrf51::aes::AESECB.ecb_init();
     nrf51::aes::AESECB.set_client(aes);
 
+    let ble_radio = static_init!(
+     nrf51::ble_advertising_driver::BLE<VirtualMuxAlarm<'static, Rtc>>,
+     nrf51::ble_advertising_driver::BLE::new(
+         &mut nrf51::radio::RADIO,
+         kernel::Container::create(),
+         &mut nrf51::ble_advertising_driver::BUF,
+         ble_radio_virtual_alarm),
+        256/8);
+    //nrf51::radio::RADIO.set_client(ble_radio);
+    ble_radio_virtual_alarm.set_client(ble_radio);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
@@ -287,6 +306,7 @@ pub unsafe fn reset_handler() {
         temp: temp,
         rng: rng,
         aes: aes,
+        ble_radio: ble_radio,
     };
 
     alarm.start();
