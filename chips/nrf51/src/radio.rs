@@ -3,37 +3,35 @@
 //! Sending BLE advertisement packets
 //! Possible payload is 30 bytes
 //!
+//! Currently all fields in PAYLOAD array are configurable from user-space
+//! except the PDU_TYPE.
+//!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: June 3, 2017
+//! Date: June 6, 2017
 
 use chip;
 use core::cell::Cell;
-use kernel::hil::time::Client;
-use kernel::returncode::ReturnCode;
+use kernel;
 use nvic;
-use peripheral_interrupts::NvicIdx;
-use peripheral_registers::{RADIO_REGS, RADIO_BASE};
+use peripheral_interrupts;
+use peripheral_registers;
 
 
+// nrf51 specific constants
 pub const PACKET0_S1_SIZE: u32 = 0;
 pub const PACKET0_S0_SIZE: u32 = 0;
-
 pub const RADIO_PCNF0_S0LEN_POS: u32 = 8;
 pub const RADIO_PCNF0_S1LEN_POS: u32 = 16;
 pub const RADIO_PCNF0_LFLEN_POS: u32 = 0;
-
 pub const RADIO_PCNF1_WHITEEN_DISABLED: u32 = 0;
 pub const RADIO_PCNF1_WHITEEN_ENABLED: u32 = 1;
 pub const RADIO_PCNF1_WHITEEN_POS: u32 = 25;
-
 pub const RADIO_PCNF1_BALEN_POS: u32 = 16;
 pub const RADIO_PCNF1_STATLEN_POS: u32 = 8;
 pub const RADIO_PCNF1_MAXLEN_POS: u32 = 0;
-
 pub const RADIO_PCNF1_ENDIAN_POS: u32 = 24;
 pub const RADIO_PCNF1_ENDIAN_BIG: u32 = 1;
-
 pub const PACKET_LENGTH_FIELD_SIZE: u32 = 0;
 pub const PACKET_PAYLOAD_MAXSIZE: u32 = 64;
 pub const PACKET_BASE_ADDRESS_LENGTH: u32 = 4;
@@ -52,10 +50,13 @@ pub const RADIO_STATE_TX: u32 = 11;
 pub const RADIO_STATE_TXDISABLE: u32 = 12;
 
 
-// static mut TX_BUF: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-static mut RX_BUF: [u8; 12] = [0x00; 12];
-
-
+// constants for readability purposes
+pub const PAYLOAD_HDR_PDU:           usize = 0;
+pub const PAYLOAD_HDR_LEN:           usize = 1;
+pub const PAYLOAD_ADDR_START:        usize = 3;
+pub const PAYLOAD_ADDR_END:          usize = 8;
+pub const PAYLOAD_DATA_START:        usize = 9;
+pub const PAYLOAD_LENGTH:            usize = 39;
 
 // FROM LEFT
 // ADVTYPE      ;;      4 bits
@@ -69,54 +70,52 @@ static mut RX_BUF: [u8; 12] = [0x00; 12];
 
 // Header (2 bytes) || Address (6 bytes) || Payload 31 bytes
 static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
-                                0x02,
-                                0xE,
-                                0x00,
-                                // Address          [ADV ADDRESS]
-                                0x90,
-                                0xD8,
-                                0x7A,
-                                0xBD,
-                                0xA3,
-                                0xED,
-                                // [LEN, AD-TYPE, LEN-1 bytes of data ...]
-                                // 0x09 - Local name
-                                // 0x54 0x6f 0x63 0x6b 0x4f 0x54 - TockOs
-                                0x7,
-                                0x09,
-                                0x54,
-                                0x6f,
-                                0x63,
-                                0x6b,
-                                0x4f,
-                                0x53,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00]; //[DATA]
+    0x02,
+    0x00,
+    // Padding   FIXME: Remove get payload of 31 bytes
+    0x00,
+    // Address          [ADV ADDRESS]
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    // [LEN, AD-TYPE, LEN-1 bytes of data ...]
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00]; //[DATA]
 
 pub struct Radio {
-    regs: *const RADIO_REGS,
+    regs: *const peripheral_registers::RADIO_REGS,
     txpower: Cell<usize>,
-    client: Cell<Option<&'static Client>>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -125,14 +124,9 @@ pub static mut RADIO: Radio = Radio::new();
 impl Radio {
     pub const fn new() -> Radio {
         Radio {
-            regs: RADIO_BASE as *const RADIO_REGS,
+            regs: peripheral_registers::RADIO_BASE as *const peripheral_registers::RADIO_REGS,
             txpower: Cell::new(0),
-            client: Cell::new(None),
         }
-    }
-
-    pub fn set_client<C: Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
     }
 
     fn init_radio_ble(&self) {
@@ -281,10 +275,7 @@ impl Radio {
     }
 
     fn set_rx_buffer(&self) {
-        let regs = unsafe { &*self.regs };
-        unsafe {
-            regs.PACKETPTR.set((&RX_BUF as *const u8) as u32);
-        }
+        unimplemented!();
     }
 
     #[inline(never)]
@@ -293,7 +284,7 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         self.disable_nvic();
         self.disable_interrupts();
-        nvic::clear_pending(NvicIdx::RADIO);
+        nvic::clear_pending(peripheral_interrupts::NvicIdx::RADIO);
 
         if regs.READY.get() == 1 {
             if regs.STATE.get() <= 4 {
@@ -372,47 +363,57 @@ impl Radio {
     }
 
     pub fn enable_nvic(&self) {
-        nvic::enable(NvicIdx::RADIO);
+        nvic::enable(peripheral_interrupts::NvicIdx::RADIO);
     }
 
     pub fn disable_nvic(&self) {
-        nvic::disable(NvicIdx::RADIO);
+        nvic::disable(peripheral_interrupts::NvicIdx::RADIO);
     }
 
     pub fn reset_payload(&self) {
-        // reset contents except header || address
-        for i in 9..39 {
-            unsafe {
-                PAYLOAD[i] = 0;
-            }
-        }
-        unsafe {
-            PAYLOAD[1] = 6;
-        }
     }
 
     // these are used by ble_advertising_driver and are therefore public
-    // FIXME: should be moved to the HIL later
+
+    // FIXME: Support for other PDU types than ADV_NONCONN_IND
+    // NOT USED ATM
+    pub fn set_payload_header_pdu(&self, pdu: u8) {
+        unsafe {PAYLOAD[PAYLOAD_HDR_PDU] = pdu;}
+    }
+
+    pub fn set_payload_header_len(&self, len: u8) {
+        unsafe { PAYLOAD[PAYLOAD_HDR_LEN] = len; }
+    }
+
+    // pre-condition addr buffer is 6 bytes ensured by the capsule
+    pub fn set_advertisement_address(&self, addr: &'static mut [u8]) -> &'static mut [u8]{
+        for (i,c) in addr.as_ref()[0..6].iter().enumerate() {
+            unsafe { PAYLOAD[i+PAYLOAD_ADDR_START] = *c; }
+        }
+        addr
+    }
 
     pub fn start_adv(&self) {
         self.init_radio_ble();
     }
 
+    // configures new data in the payload
     pub fn set_adv_data(&self,
                         ad_type: usize,
                         data: &'static mut [u8],
                         len: usize,
                         offset: usize)
                         -> &'static mut [u8] {
-        if offset == 9 {
-            //FIXME: move call to the capsule!?
-            self.reset_payload();
+
+        if offset == PAYLOAD_DATA_START {
+            self.clear_adv_data();
         }
+        // set ad type length and type
         unsafe {
             PAYLOAD[offset] = (len + 1) as u8;
             PAYLOAD[offset + 1] = ad_type as u8;
         }
-
+        // set payload
         for (i, c) in data.as_ref()[0..len].iter().enumerate() {
             unsafe {
                 PAYLOAD[i + offset + 2] = *c;
@@ -425,22 +426,28 @@ impl Radio {
     }
 
     pub fn clear_adv_data(&self) {
-        self.reset_payload();
+        // reset contents except header || address
+        for i in PAYLOAD_DATA_START..PAYLOAD_LENGTH {
+            unsafe {
+                PAYLOAD[i] = 0;
+            }
+        }
+        // configures a payload with only ADV address
+        self.set_payload_header_len(6);
     }
 
     // FIXME: added a temporary variable in struct that keeps
     // track of the twpower because we turn off the radio
     // between advertisements,
     // it is configured to 0 by default or the latest configured value
-    pub fn set_adv_txpower(&self, dbm: usize) -> ReturnCode {
+    pub fn set_adv_txpower(&self, dbm: usize) -> kernel::ReturnCode {
         match dbm {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
-            e @ 0x04 | e @ 0x00 | e @ 0xF4 | e @ 0xFC | e @ 0xF8 | e @ 0xF0 | e @ 0xEC |
-            e @ 0xD8 => {
-                self.txpower.set(e);
-                ReturnCode::SUCCESS
+            0x04 | 0x00 | 0xF4 | 0xFC | 0xF8 | 0xF0 | 0xEC | 0xD8 => {
+                self.txpower.set(dbm);
+                kernel::ReturnCode::SUCCESS
             }
-            _ => ReturnCode::ENOSUPPORT,
+            _ => kernel::ReturnCode::ENOSUPPORT,
         }
     }
 }
@@ -449,8 +456,8 @@ impl Radio {
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn RADIO_Handler() {
     use kernel::common::Queue;
-    nvic::disable(NvicIdx::RADIO);
+    nvic::disable(peripheral_interrupts::NvicIdx::RADIO);
     chip::INTERRUPT_QUEUE.as_mut()
         .unwrap()
-        .enqueue(NvicIdx::RADIO);
+        .enqueue(peripheral_interrupts::NvicIdx::RADIO);
 }

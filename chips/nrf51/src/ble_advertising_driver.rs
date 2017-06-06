@@ -1,4 +1,4 @@
-//! Radio/BLE Capsule
+//! BLE Capsule
 //!
 //! The capsule is implemented on top of a virtual timer
 //! in order to send periodic BLE advertisements without blocking
@@ -165,6 +165,33 @@ impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
         ReturnCode::SUCCESS
     }
 
+    // FIXME: More verbose error indication
+    fn set_adv_addr(&self) -> ReturnCode {
+        let mut ret = ReturnCode::FAIL;
+        for cntr in self.app.iter() {
+            cntr.enter(|app, _| {
+                app.app_write
+                    .as_ref()
+                    .map(|slice| {
+                        if slice.len() == 6 {
+                            self.kernel_tx
+                                .take()
+                                .map(|data| {
+                                    for (out, inp) in data.iter_mut()
+                                        .zip(slice.as_ref()[0..slice.len()].iter()) {
+                                        *out = *inp;
+                                    }
+                                    let tmp = self.radio.set_advertisement_address(data);
+                                    self.kernel_tx.replace(tmp);
+                                    ret = ReturnCode::SUCCESS;
+                                });
+                        }
+                    });
+            });
+        }
+        ret
+    }
+
     fn configure_periodic_alarm(&self) {
         let interval_in_tics = self.alarm.now().wrapping_add(self.advertisement_interval.get());
         self.alarm.set_alarm(interval_in_tics);
@@ -226,28 +253,28 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, A> {
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match (allow_num, self.busy.get()) {
             // See this as a giant case switch or if else statements
-            (e @ BLE_HS_ADV_TYPE_FLAGS, false) |
-            (e @ BLE_HS_ADV_TYPE_INCOMP_UUIDS16, false) |
-            (e @ BLE_HS_ADV_TYPE_COMP_UUIDS16, false) |
-            (e @ BLE_HS_ADV_TYPE_INCOMP_UUIDS32, false) |
-            (e @ BLE_HS_ADV_TYPE_COMP_UUIDS32, false) |
-            (e @ BLE_HS_ADV_TYPE_INCOMP_UUIDS128, false) |
-            (e @ BLE_HS_ADV_TYPE_COMP_UUIDS128, false) |
-            (e @ BLE_HS_ADV_TYPE_INCOMP_NAME, false) |
-            (e @ BLE_HS_ADV_TYPE_COMP_NAME, false) |
-            (e @ BLE_HS_ADV_TYPE_TX_PWR_LVL, false) |
-            (e @ BLE_HS_ADV_TYPE_SLAVE_ITVL_RANGE, false) |
-            (e @ BLE_HS_ADV_TYPE_SOL_UUIDS16, false) |
-            (e @ BLE_HS_ADV_TYPE_SOL_UUIDS128, false) |
-            (e @ BLE_HS_ADV_TYPE_SVC_DATA_UUID16, false) |
-            (e @ BLE_HS_ADV_TYPE_PUBLIC_TGT_ADDR, false) |
-            (e @ BLE_HS_ADV_TYPE_RANDOM_TGT_ADDR, false) |
-            (e @ BLE_HS_ADV_TYPE_APPEARANCE, false) |
-            (e @ BLE_HS_ADV_TYPE_ADV_ITVL, false) |
-            (e @ BLE_HS_ADV_TYPE_SVC_DATA_UUID32, false) |
-            (e @ BLE_HS_ADV_TYPE_SVC_DATA_UUID128, false) |
-            (e @ BLE_HS_ADV_TYPE_URI, false) |
-            (e @ BLE_HS_ADV_TYPE_MFG_DATA, false) => {
+            (BLE_HS_ADV_TYPE_FLAGS, false) |
+            (BLE_HS_ADV_TYPE_INCOMP_UUIDS16, false) |
+            (BLE_HS_ADV_TYPE_COMP_UUIDS16, false) |
+            (BLE_HS_ADV_TYPE_INCOMP_UUIDS32, false) |
+            (BLE_HS_ADV_TYPE_COMP_UUIDS32, false) |
+            (BLE_HS_ADV_TYPE_INCOMP_UUIDS128, false) |
+            (BLE_HS_ADV_TYPE_COMP_UUIDS128, false) |
+            (BLE_HS_ADV_TYPE_INCOMP_NAME, false) |
+            (BLE_HS_ADV_TYPE_COMP_NAME, false) |
+            (BLE_HS_ADV_TYPE_TX_PWR_LVL, false) |
+            (BLE_HS_ADV_TYPE_SLAVE_ITVL_RANGE, false) |
+            (BLE_HS_ADV_TYPE_SOL_UUIDS16, false) |
+            (BLE_HS_ADV_TYPE_SOL_UUIDS128, false) |
+            (BLE_HS_ADV_TYPE_SVC_DATA_UUID16, false) |
+            (BLE_HS_ADV_TYPE_PUBLIC_TGT_ADDR, false) |
+            (BLE_HS_ADV_TYPE_RANDOM_TGT_ADDR, false) |
+            (BLE_HS_ADV_TYPE_APPEARANCE, false) |
+            (BLE_HS_ADV_TYPE_ADV_ITVL, false) |
+            (BLE_HS_ADV_TYPE_SVC_DATA_UUID32, false) |
+            (BLE_HS_ADV_TYPE_SVC_DATA_UUID128, false) |
+            (BLE_HS_ADV_TYPE_URI, false) |
+            (BLE_HS_ADV_TYPE_MFG_DATA, false) => {
                 let ret = self.app
                     .enter(appid, |app, _| {
                         app.app_write = Some(slice);
@@ -259,8 +286,26 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, A> {
                         Error::NoSuchApp => ReturnCode::EINVAL,
                     });
                 if ret == ReturnCode::SUCCESS {
-                    self.set_adv_data(e)
+                    self.set_adv_data(allow_num)
                 } else {
+                    ret
+                }
+            }
+            (0x30, false) => {
+                let ret = self.app
+                    .enter(appid, |app, _| {
+                        app.app_write = Some(slice);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    });
+                if ret == ReturnCode::SUCCESS {
+                   self.set_adv_addr()
+                }
+                else {
                     ret
                 }
             }

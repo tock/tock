@@ -2,16 +2,19 @@
 
 #include <tock.h>
 
-/*------- SYSCALLS------------*/
 #define DRIVER_RADIO      33
 
-// commands calls
+/*---------------------SYSCALLS---------------------------------------------*/
+
+/*--COMMAND CALLS-------------------------------------*/
 #define BLE_ADV_START      0
 #define BLE_ADV_STOP       1
 #define CFG_TX_POWER       2
 #define CFG_ADV_INTERVAL   3
 #define BLE_ADV_CLEAR_DATA 4
-/*----------------------------*/
+/*----END COMMAND CALLS-------------------------------*/
+
+/*--ALLOW CALLS---------------------------------------*/
 
 // AD Types
 #define BLE_HS_ADV_TYPE_FLAGS                   0x01
@@ -37,6 +40,13 @@
 #define BLE_HS_ADV_TYPE_URI                     0x24
 #define BLE_HS_ADV_TYPE_MFG_DATA                0xff
 
+// ETC
+#define BLE_CFG_ADV_ADDR                        0x30
+
+/*-----END ALLOW CALLS---------------------------------*/
+
+
+
 // TX power
 // FIXME: Not platform independent.
 typedef enum {
@@ -60,6 +70,7 @@ int ble_adv_set_txpower(TX_Power_t power);
 int ble_adv_set_interval(uint16_t);
 int ble_adv_start(void);
 int ble_adv_stop(void);
+int ble_adv_set_address(const unsigned char *data, uint8_t len);
 
 #ifdef __cplusplus
 }

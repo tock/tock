@@ -25,3 +25,7 @@ int ble_adv_start(void){
 int ble_adv_stop(void) {
   return command(DRIVER_RADIO, BLE_ADV_STOP, 1);
 }
+
+int ble_adv_set_address(const unsigned char *data, uint8_t len) {
+  return allow(DRIVER_RADIO, BLE_CFG_ADV_ADDR, data, len);
+}
