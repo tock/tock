@@ -67,36 +67,9 @@ int main(void) {
     wbuf[i] = i;
   }
   spi_slave_init();
-  // All of these calls should fail (return ENOSUPPORT)
-  if (spi_slave_set_chip_select(1) >= 0) {
-    error = true;
-  }
-  if (spi_slave_get_chip_select() != 0) {
-    error = true;
-  }
-  if (spi_slave_set_rate(10000) >= 0) {
-    error = true;
-  }
-  if (spi_slave_get_rate() >= 0) {
-    error = true;
-  }
-  if (spi_slave_hold_low() >= 0) {
-    error = true;
-  }
-  if (spi_slave_release_low() >= 0) {
-    error = true;
-  }
-
-  // If any of the calls succeeded, return -1 and
-  // set the LED and GPIO pin
-  if (error == true) {
-    led_on(0);
-    gpio_set(GPIO_PIN);
-    return -1;
-  }
 
   spi_slave_set_polarity(false);
   spi_slave_set_phase(false);
   spi_slave_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
-  spi_slave_chip_selected(selected_cb);
+  spi_slave_chip_selected(selected_cb, NULL);
 }

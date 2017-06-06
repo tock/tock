@@ -25,7 +25,7 @@ int spi_slave_get_polarity(void);
 int spi_slave_write_byte(unsigned char byte);
 
 /* This registers a callback for when the slave is selected. */
-int spi_slave_chip_selected(subscribe_cb cb);
+int spi_slave_chip_selected(subscribe_cb cb, bool* cond);
 
 int spi_slave_read_buf(const char* str, size_t len);
 int spi_slave_write(const char* str, size_t len, subscribe_cb cb, bool* cond);

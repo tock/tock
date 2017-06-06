@@ -85,5 +85,5 @@ int main(void) {
   int err = spi_slave_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
   printf("After asynch call: %d\n", err);
 
-  spi_slave_chip_selected(selected_cb);
+  spi_slave_chip_selected(selected_cb, NULL);
 }
