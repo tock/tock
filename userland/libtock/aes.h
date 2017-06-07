@@ -13,7 +13,6 @@ extern "C" {
 #define AES_DEC    3
 #define AES_CTR    4
 
-
 // set the function called by the encryption or decryption operations are 
 // complete
 //
