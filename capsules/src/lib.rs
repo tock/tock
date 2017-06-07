@@ -2,7 +2,7 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(debug, static_fmt)]
+#[macro_use(debug)]
 extern crate kernel;
 
 pub mod button;

@@ -203,13 +203,9 @@ impl EndpointConfig {
     }
 }
 
-impl ToWord for EndpointConfig {
-    fn to_word(self) -> u32 { self.0 }
-}
-
-impl FromWord for EndpointConfig {
-    fn from_word(_w: u32) -> Self {
-        panic!("Unimplemented");
+impl From<EndpointConfig> for u32 {
+    fn from(epc: EndpointConfig) -> u32 {
+        epc.0
     }
 }
 

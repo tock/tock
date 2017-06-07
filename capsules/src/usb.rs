@@ -1,7 +1,9 @@
 //! Platform-independent USB 2.0 protocol library
 
+use core::cell::Cell;
 use core::fmt;
 use core::convert::From;
+use kernel::common::volatile_cell::VolatileCell;
 
 /// The datastructure sent in a SETUP handshake
 #[derive(Debug, Copy, Clone)]
@@ -14,17 +16,17 @@ pub struct SetupData {
 }
 
 impl SetupData {
-    /// Create a `SetupData` structure from a buffer as received from the wire
-    pub fn get(buf: &[u8]) -> Option<Self> {
-        if buf.len() != 8 {
+    /// Create a `SetupData` structure from a packet received from the wire
+    pub fn get(p: &[VolatileCell<u8>]) -> Option<Self> {
+        if p.len() != 8 {
             return None;
         }
         Some(SetupData {
-            request_type: DeviceRequestType(buf[0]),
-            request_code: buf[1],
-            value: get_u16(&buf[2..4]).unwrap(),
-            index: get_u16(&buf[4..6]).unwrap(),
-            length: get_u16(&buf[6..8]).unwrap(),
+            request_type: DeviceRequestType(p[0].get()),
+            request_code: p[1].get(),
+            value: get_u16(p[2].get(), p[3].get()),
+            index: get_u16(p[4].get(), p[5].get()),
+            length: get_u16(p[6].get(), p[7].get()),
         })
     }
 
@@ -245,7 +247,7 @@ pub trait Descriptor {
     fn size(&self) -> usize;
 
     /// Serialize the descriptor to a buffer for transmission on the bus
-    fn write_to(&self, buf: &mut [u8]) -> usize;
+    fn write_to(&self, buf: &[Cell<u8>]) -> usize;
 }
 
 pub struct DeviceDescriptor {
@@ -285,21 +287,21 @@ impl Default for DeviceDescriptor {
 impl Descriptor for DeviceDescriptor {
     fn size(&self) -> usize { 18 }
 
-    fn write_to(&self, b: &mut [u8]) -> usize {
-        b[0] = 18;  // Size of descriptor
-        b[1] = DescriptorType::Device as u8;
-        put_u16(&mut b[2..4], self.usb_release);
-        b[4] = self.class;
-        b[5] = self.subclass;
-        b[6] = self.protocol;
-        b[7] = self.max_packet_size_ep0;
-        put_u16(&mut b[8..10], self.vendor_id);
-        put_u16(&mut b[10..12], self.product_id);
-        put_u16(&mut b[12..14], self.device_release);
-        b[14] = self.manufacturer_string;
-        b[15] = self.product_string;
-        b[16] = self.serial_number_string;
-        b[17] = self.num_configurations;
+    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+        buf[0].set(18);  // Size of descriptor
+        buf[1].set(DescriptorType::Device as u8);
+        put_u16(&buf[2..4], self.usb_release);
+        buf[4].set(self.class);
+        buf[5].set(self.subclass);
+        buf[6].set(self.protocol);
+        buf[7].set(self.max_packet_size_ep0);
+        put_u16(&buf[8..10], self.vendor_id);
+        put_u16(&buf[10..12], self.product_id);
+        put_u16(&buf[12..14], self.device_release);
+        buf[14].set(self.manufacturer_string);
+        buf[15].set(self.product_string);
+        buf[16].set(self.serial_number_string);
+        buf[17].set(self.num_configurations);
         18
     }
 }
@@ -329,15 +331,15 @@ impl Default for ConfigurationDescriptor {
 impl Descriptor for ConfigurationDescriptor {
     fn size(&self) -> usize { 9 }
 
-    fn write_to(&self, buf: &mut [u8]) -> usize {
-        buf[0] = 9; // Size of descriptor
-        buf[1] = DescriptorType::Configuration as u8;
-        put_u16(&mut buf[2..4], (9 + self.related_descriptor_length) as u16);
-        buf[4] = self.num_interfaces;
-        buf[5] = self.configuration_value;
-        buf[6] = self.string_index;
-        buf[7] = From::from(self.attributes);
-        buf[8] = self.max_power;
+    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+        buf[0].set(9); // Size of descriptor
+        buf[1].set(DescriptorType::Configuration as u8);
+        put_u16(&buf[2..4], (9 + self.related_descriptor_length) as u16);
+        buf[4].set(self.num_interfaces);
+        buf[5].set(self.configuration_value);
+        buf[6].set(self.string_index);
+        buf[7].set(From::from(self.attributes));
+        buf[8].set(self.max_power);
         9
     }
 }
@@ -386,16 +388,16 @@ impl Default for InterfaceDescriptor {
 impl Descriptor for InterfaceDescriptor {
     fn size(&self) -> usize { 9 }
 
-    fn write_to(&self, buf: &mut [u8]) -> usize {
-        buf[0] = 9; // Size of descriptor
-        buf[1] = DescriptorType::Interface as u8;
-        buf[2] = self.interface_number;
-        buf[3] = self.alternate_setting;
-        buf[4] = self.num_endpoints;
-        buf[5] = self.interface_class;
-        buf[6] = self.interface_subclass;
-        buf[7] = self.interface_protocol;
-        buf[8] = self.string_index;
+    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+        buf[0].set(9); // Size of descriptor
+        buf[1].set(DescriptorType::Interface as u8);
+        buf[2].set(self.interface_number);
+        buf[3].set(self.alternate_setting);
+        buf[4].set(self.num_endpoints);
+        buf[5].set(self.interface_class);
+        buf[6].set(self.interface_subclass);
+        buf[7].set(self.interface_protocol);
+        buf[8].set(self.string_index);
         9
     }
 }
@@ -409,12 +411,12 @@ impl<'a> Descriptor for LanguagesDescriptor<'a> {
         2 + (2 * self.langs.len())
     }
 
-    fn write_to(&self, buf: &mut [u8]) -> usize {
+    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
         let len = self.size();
-        buf[0] = len as u8;
-        buf[1] = DescriptorType::String as u8;
+        buf[0].set(len as u8);
+        buf[1].set(DescriptorType::String as u8);
         for (i, lang) in self.langs.iter().enumerate() {
-            put_u16(&mut buf[2 + (2 * i) .. 4 + (2 * i)], *lang);
+            put_u16(&buf[2 + (2 * i) .. 4 + (2 * i)], *lang);
         }
         len
     }
@@ -434,34 +436,28 @@ impl<'a> Descriptor for StringDescriptor<'a> {
     }
 
     // Encode as utf16-le
-    fn write_to(&self, buf: &mut [u8]) -> usize {
-        buf[1] = DescriptorType::String as u8;
+    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+        buf[1].set(DescriptorType::String as u8);
         let mut i = 2;
         for ch in self.string.chars() {
             let mut chbuf = [0; 2];
             for w in ch.encode_utf16(&mut chbuf) {
-                put_u16(&mut buf[i .. i+2], *w);
+                put_u16(&buf[i .. i+2], *w);
                 i += 2;
             }
         }
-        buf[0] = i as u8;
+        buf[0].set(i as u8);
         i
     }
 }
 
-/// Parse a `u16` from a two-byte buffer as received on the bus
-fn get_u16(buf: &[u8]) -> Option<u16> {
-    if buf.len() != 2 {
-        return None;
-    }
-    Some ((buf[0] as u16) | ((buf[1] as u16) << 8))
+/// Parse a `u16` from two bytes as received on the bus
+fn get_u16(b0: u8, b1: u8) -> u16 {
+    (b0 as u16) | ((b1 as u16) << 8)
 }
 
 /// Write a `u16` to a buffer for transmission on the bus
-fn put_u16<'a>(buf: &'a mut [u8], n: u16) {
-    if buf.len() != 2 {
-        panic!("Wrong length");
-    }
-    buf[0] = (n & 0xff) as u8;
-    buf[1] = (n >> 8) as u8;
+fn put_u16<'a>(buf: &'a [Cell<u8>], n: u16) {
+    buf[0].set((n & 0xff) as u8);
+    buf[1].set((n >> 8) as u8);
 }

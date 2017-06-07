@@ -398,9 +398,11 @@ pub unsafe fn reset_handler() {
     rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
     rf233.set_config_client(radio_capsule);
 
+    // Configure the USB controller
     let usb_client = static_init!(
         capsules::usb_simple::SimpleClient<'static, sam4l::usbc::Usbc<'static>>,
-        capsules::usb_simple::SimpleClient::new(&sam4l::usbc::USBC), 288/8);
+        capsules::usb_simple::SimpleClient::new(&sam4l::usbc::USBC),
+        448/8);
     sam4l::usbc::USBC.set_client(usb_client);
 
     let imix = Imix {

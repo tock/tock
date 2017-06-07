@@ -18,11 +18,11 @@ reg![0x0018, "Device Global Interrupt Enable Set Register", UDINTESET, "W"];
 reg![0x001C, "Endpoint Enable/Reset Register", UERST, "RW"];
 reg![0x0020, "Device Frame Number Register", UDFNUM, "R"];
 
-reg![0x0100, "DEBUG UECFG0", UECFG0, "RW", EndpointConfig];
+reg![0x0100, "DEBUG UECFG0", UECFG0, "RW"];
 reg![0x01C0, "DEBUG UECON0", UECON0, "R"];
 reg![0x01F0, "DEBUG UECON0SET", UECON0SET, "W"];
 
-regs![0x0100, "Endpoint n Configuration Register", UECFGn, "RW", 8, EndpointConfig];
+regs![0x0100, "Endpoint n Configuration Register", UECFGn, "RW", 8];
 regs![0x0130, "Endpoint n Status Register", UESTAn, "R", 8];
 regs![0x0160, "Endpoint n Status Clear Register", UESTAnCLR, "W", 8];
 regs![0x0190, "Endpoint n Status Set Register", UESTAnSET, "W", 8];

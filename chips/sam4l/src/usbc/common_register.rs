@@ -3,34 +3,25 @@
 use core::marker::PhantomData;
 
 /// A memory-mapped register
+#[repr(C)]
 #[derive(Copy, Clone)]
-pub struct Reg<T> {
-    addr: *mut u32,
-    phantom: PhantomData<*mut T>,
-}
+pub struct Reg(*mut u32);
 
-impl<T: FromWord + ToWord> Reg<T> {
-    pub const fn new(addr: *mut u32) -> Self {
-        Reg { addr: addr, phantom: PhantomData }
+impl Reg {
+    pub const unsafe fn new(addr: *mut u32) -> Self {
+        Reg(addr)
     }
 
     #[inline]
-    pub fn read(self) -> T {
-        T::from_word(self.read_word())
+    pub fn read(self) -> u32 {
+        unsafe { ::core::ptr::read_volatile(self.0) }
     }
 
     #[inline]
-    pub fn write(self, val: T) {
-        unsafe { ::core::ptr::write_volatile(self.addr, T::to_word(val)); }
+    pub fn write(self, val: u32) {
+        unsafe { ::core::ptr::write_volatile(self.0, val); }
     }
 
-    #[inline]
-    pub fn read_word(self) -> u32 {
-        unsafe { ::core::ptr::read_volatile(self.addr) }
-    }
-}
-
-impl Reg<u32> {
     #[inline]
     pub fn set_bit(self, bit_index: u32) {
         let w = self.read();
@@ -39,7 +30,7 @@ impl Reg<u32> {
     }
 
     #[inline]
-    pub fn clr_bit(self, bit_index: u32) {
+    pub fn clear_bit(self, bit_index: u32) {
         let w = self.read();
         let bit = 1 << bit_index;
         self.write(w & (!bit));
@@ -47,23 +38,20 @@ impl Reg<u32> {
 }
 
 /// A write-only memory-mapped register, where any zero bits written have no effect
-pub struct RegW<T> {
-    addr: *mut u32,
-    phantom: PhantomData<*mut T>,
-}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RegW(*mut u32);
 
-impl<T: FromWord + ToWord> RegW<T> {
-    pub const fn new(addr: *mut u32) -> Self {
-        RegW { addr: addr, phantom: PhantomData }
+impl RegW {
+    pub const unsafe fn new(addr: *mut u32) -> Self {
+        RegW(addr)
     }
 
     #[inline]
-    pub fn write(self, val: T) {
-        unsafe { ::core::ptr::write_volatile(self.addr, T::to_word(val)); }
+    pub fn write(self, val: u32) {
+        unsafe { ::core::ptr::write_volatile(self.0, val) }
     }
-}
 
-impl RegW<u32> {
     #[inline]
     pub fn set_bit(self, bit_index: u32) {
         // For this kind of register, reads always return zero
@@ -75,79 +63,25 @@ impl RegW<u32> {
 }
 
 /// A read-only memory-mapped register
-pub struct RegR<T> {
-    addr: *const u32,
-    phantom: PhantomData<*mut T>,
-}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct RegR(*const u32);
 
-impl<T: FromWord + ToWord> RegR<T> {
-    pub const fn new(addr: *const u32) -> Self {
-        RegR { addr: addr, phantom: PhantomData }
+impl RegR {
+    pub const unsafe fn new(addr: *const u32) -> Self {
+        RegR(addr)
     }
 
     #[inline]
-    pub fn read(self) -> T {
-        T::from_word(self.read_word())
-    }
-
-    #[inline]
-    pub fn read_word(self) -> u32 {
-        unsafe { ::core::ptr::read_volatile(self.addr) }
-    }
-}
-
-/// An array of memory-mapped registers
-pub struct Regs<T> {
-    addr: *mut u32,
-    phantom: PhantomData<*mut T>,
-}
-
-impl<T: FromWord + ToWord> Regs<T> {
-    pub const fn new(addr: *mut u32) -> Self {
-        Regs { addr: addr, phantom: PhantomData }
-    }
-
-    pub fn n(&self, index: u32) -> Reg<T> {
-        unsafe { Reg::new(self.addr.offset(index as isize)) }
-    }
-}
-
-/// An array of write-only memory-mapped registers
-pub struct RegsW<T> {
-    addr: *mut u32,
-    phantom: PhantomData<*mut T>,
-}
-
-impl<T: FromWord + ToWord> RegsW<T> {
-    pub const fn new(addr: *mut u32) -> Self {
-        RegsW { addr: addr, phantom: PhantomData }
-    }
-
-    pub fn n(&self, index: u32) -> RegW<T> {
-        unsafe { RegW::new(self.addr.offset(index as isize)) }
-    }
-}
-
-/// An array of read-only memory-mapped registers
-pub struct RegsR<T> {
-    addr: *const u32,
-    phantom: PhantomData<*const T>,
-}
-
-impl<T: FromWord + ToWord> RegsR<T> {
-    pub const fn new(addr: *const u32) -> Self {
-        RegsR { addr: addr, phantom: PhantomData }
-    }
-
-    pub fn n(&self, index: u32) -> RegR<T> {
-        unsafe { RegR::new(self.addr.offset(index as isize)) }
+    pub fn read(self) -> u32 {
+        unsafe { ::core::ptr::read_volatile(self.0) }
     }
 }
 
 /// A bitfield of a memory-mapped register
 pub struct BitField<T> {
     /// The register that hosts this bitfield
-    reg: Reg<u32>,
+    reg: Reg,
     /// Bit offset of the value within a word
     shift: u32,
     /// Bit pattern of the value (e.g. 0b111 for a three-bit field)
@@ -156,7 +90,7 @@ pub struct BitField<T> {
 }
 
 impl<T: ToWord> BitField<T> {
-    pub const fn new(reg: Reg<u32>, shift: u32, bits: u32) -> Self {
+    pub const fn new(reg: Reg, shift: u32, bits: u32) -> Self {
         BitField { reg: reg, shift: shift, bits: bits, phantom: PhantomData }
     }
 
@@ -172,14 +106,14 @@ impl<T: ToWord> BitField<T> {
 /// A bitfield of a write-only memory-mapped register,
 /// where any zeros written have no effect
 pub struct BitFieldW<T> {
-    reg: RegW<u32>,
+    reg: RegW,
     shift: u32,
     bits: u32,
     phantom: PhantomData<*mut T>,
 }
 
 impl<T: ToWord> BitFieldW<T> {
-    pub const fn new(reg: RegW<u32>, shift: u32, bits: u32) -> Self {
+    pub const fn new(reg: RegW, shift: u32, bits: u32) -> Self {
         BitFieldW { reg: reg, shift: shift, bits: bits, phantom: PhantomData }
     }
 
@@ -191,14 +125,14 @@ impl<T: ToWord> BitFieldW<T> {
 }
 
 pub struct BitFieldR<T> {
-    reg: RegR<u32>,
+    reg: RegR,
     shift: u32,
     bits: u32,
     phantom: PhantomData<*mut T>,
 }
 
 impl<T: FromWord> BitFieldR<T> {
-    pub const fn new(reg: RegR<u32>, shift: u32, bits: u32) -> Self {
+    pub const fn new(reg: RegR, shift: u32, bits: u32) -> Self {
         BitFieldR { reg: reg, shift: shift, bits: bits, phantom: PhantomData }
     }
 
