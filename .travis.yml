@@ -34,5 +34,5 @@ script:
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then make allboards; fi
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then pushd userland/examples && ./build_all.sh; popd; fi
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then pushd userland/examples && ./format_all.sh; popd; fi
-  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; tools/toc.sh; fi
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then tools/toc.sh; fi
 

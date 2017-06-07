@@ -1,9 +1,8 @@
 #!/bin/bash
 
 set -e
-set -u
 
-# Wrapper script that will help install uncrustify if it's missing
+# install uncrustify if it's missing
 if ! command -v uncrustify >/dev/null; then
   echo "Formatting requires the uncrustify utility, which is not installed"
   case "$OSTYPE" in
@@ -52,4 +51,20 @@ if ! command -v uncrustify >/dev/null; then
   esac
 fi
 
-exec uncrustify "$@"
+
+set +e
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+COMMON_FLAGS="-c $SCRIPT_DIR/uncrustify.cfg"
+if [ "$CI" == "true" ]; then
+  uncrustify $COMMON_FLAGS --check "$@"
+  if [ $? -ne 0 ]; then
+    uncrustify $COMMON_FLAGS --if-changed "$@"
+    for f in $(ls *.uncrustify); do
+      diff -y ${f%.*} $f
+    done
+    exit 1
+  fi
+else
+  exec uncrustify $COMMON_FLAGS --no-backup "$@"
+fi

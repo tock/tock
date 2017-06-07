@@ -192,7 +192,7 @@ clean::
 
 .PHONY: fmt format
 fmt format:
-	$(Q)$(UNCRUSTIFY) $(UNCRUSTIFY_FLAGS) $(C_SRCS) $(CXX_SRCS)
+	$(Q)$(UNCRUSTIFY) $(C_SRCS) $(CXX_SRCS)
 
 
 
