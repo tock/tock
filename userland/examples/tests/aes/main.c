@@ -55,7 +55,7 @@
    Output Block   e89c399ff0f198c6d40a31db156cabfe
    Ciphertext     1e031dda2fbe03d1792170a0f3009cee
    Plaintext      f69f2445df4f9b17ad2b417be66c3710
- */
+*/
 
 int main(void)
 {
