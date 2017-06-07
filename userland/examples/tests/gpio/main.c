@@ -1,22 +1,21 @@
 /* vim: set sw=2 expandtab tw=80: */
 
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-#include <tock.h>
 #include <console.h>
 #include <gpio.h>
-#include <timer.h>
 #include <led.h>
+#include <timer.h>
+#include <tock.h>
 
 // callback for timers
 static void timer_cb (__attribute__ ((unused)) int arg0,
-               __attribute__ ((unused)) int arg1,
-               __attribute__ ((unused)) int arg2,
-               __attribute__ ((unused)) void* userdata) {
-}
+                      __attribute__ ((unused)) int arg1,
+                      __attribute__ ((unused)) int arg2,
+                      __attribute__ ((unused)) void* userdata) {}
 
 //**************************************************
 // GPIO output example
@@ -59,10 +58,9 @@ static void gpio_input(void) {
 // GPIO interrupt example
 //**************************************************
 static void gpio_cb (__attribute__ ((unused)) int pin_num,
-              __attribute__ ((unused)) int arg2,
-              __attribute__ ((unused)) int arg3,
-              __attribute__ ((unused)) void* userdata) {
-}
+                     __attribute__ ((unused)) int arg2,
+                     __attribute__ ((unused)) int arg3,
+                     __attribute__ ((unused)) void* userdata) {}
 
 static void gpio_interrupt(void) {
   putstr("Print GPIO 0 pin reading whenever its value changes\n");

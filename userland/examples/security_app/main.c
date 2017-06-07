@@ -1,13 +1,13 @@
 /* vim: set sw=2 expandtab tw=80: */
 
-#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
-#include "tock.h"
 #include "console.h"
 #include "gpio.h"
 #include "led.h"
+#include "tock.h"
 
 typedef struct {
   uint8_t pir;
@@ -21,9 +21,9 @@ static SensorData_t sensor_data = {
 
 // callback for gpio interrupts
 static void gpio_cb (int pin_num,
-              int pin_val,
-              __attribute__ ((unused)) int unused,
-              __attribute__ ((unused)) void* userdata) {
+                     int pin_val,
+                     __attribute__ ((unused)) int unused,
+                     __attribute__ ((unused)) void* userdata) {
 
   // save sensor data
   if (pin_num == 1) {
@@ -63,7 +63,7 @@ int main(void) {
     {
       char buf[64];
       sprintf(buf, "\tPIR:\t\t%d\n\tReed Switch:\t%d\n\n",
-          sensor_data.pir, sensor_data.reed_switch);
+              sensor_data.pir, sensor_data.reed_switch);
       putstr(buf);
     }
   }

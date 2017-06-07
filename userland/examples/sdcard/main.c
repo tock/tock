@@ -1,12 +1,12 @@
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-#include <tock.h>
 #include <console.h>
-#include <timer.h>
 #include <sdcard.h>
+#include <timer.h>
+#include <tock.h>
 
 uint8_t read_buf[512] = {0};
 uint8_t write_buf[512] = {0};
@@ -37,7 +37,7 @@ int main (void) {
   }
   printf("SD Card Initialized!\n");
   printf("\tBlock size: %lu bytes\n\tSize:       %lu kB\n\n",
-      block_size, size_in_kB);
+         block_size, size_in_kB);
 
   // Give buffers to SD card
   err = sdcard_set_read_buffer(read_buf, 512);
@@ -58,9 +58,9 @@ int main (void) {
     return -1;
   }
   printf("Original data:     [%X, %X, %X, %X, ...]\n\n",
-      read_buf[0], read_buf[1], read_buf[2], read_buf[3]);
+         read_buf[0], read_buf[1], read_buf[2], read_buf[3]);
 
-  for (int i=0; i<10; i++) {
+  for (int i = 0; i < 10; i++) {
     // write first block of the SD card
     write_buf[0] = 0x1A;
     write_buf[1] = 0xB1;
@@ -72,7 +72,7 @@ int main (void) {
       return -1;
     }
     printf("Wrote to SD card:  [%X, %X, %X, %X, ...]\n",
-        write_buf[0], write_buf[1], write_buf[2], write_buf[3]);
+           write_buf[0], write_buf[1], write_buf[2], write_buf[3]);
 
     // read first block of the SD card again
     err = sdcard_read_block_sync(0);
@@ -81,10 +81,10 @@ int main (void) {
       return -1;
     }
     printf("Read from SD card: [%X, %X, %X, %X, ...]\n",
-        read_buf[0], read_buf[1], read_buf[2], read_buf[3]);
+           read_buf[0], read_buf[1], read_buf[2], read_buf[3]);
 
     // actually check buffers
-    for (int j=0; j<512; j++) {
+    for (int j = 0; j < 512; j++) {
       if (read_buf[i] != write_buf[i]) {
         printf("ERROR: buffers do not match!\n");
         return -1;

@@ -12,11 +12,11 @@
 #include <stdint.h>
 #include <timer.h>
 
-#include "rf233-const.h"
-#include "rf233-config.h"
 #include "rf233-arch.h"
-#include "trx_access.h"
+#include "rf233-config.h"
+#include "rf233-const.h"
 #include "rf233.h"
+#include "trx_access.h"
 
 #define RADIO_SLP 8
 #define RADIO_RST 9
@@ -50,7 +50,7 @@ enum {
 
 typedef struct {
   uint16_t fcf;
-  uint8_t  seq;
+  uint8_t seq;
   uint16_t pan;
   uint16_t dest;
   uint16_t src;
@@ -84,34 +84,34 @@ int rf233_pending_packet(void);
 // Used for debugging output
 static const char* state_str(uint8_t state) {
   switch (state) {
-  case STATE_P_ON:
-    return "STATE_POWER_ON";
-  case STATE_BUSY_RX:
-    return "STATE_BUSY_RX";
-  case STATE_BUSY_TX:
-    return "STATE_BUSY_TX";
-  case STATE_RX_ON:
-    return "STATE_RX_ON";
-  case STATE_TRX_OFF:
-    return "STATE_TRX_OFF";
-  case STATE_PLL_ON:
-    return "STATE_PLL_ON";
-  case STATE_SLEEP:
-    return "STATE_SLEEP";
-  case STATE_PREP_DEEP_SLEEP:
-    return "STATE_PREP_DEEP_SLEEP";
-  case STATE_BUSY_RX_AACK:
-    return "STATE_BUSY_RX_AACK";
-  case STATE_BUSY_TX_ARET:
-    return "STATE_BUSY_TX_ARET";
-  case STATE_RX_AACK_ON:
-    return "STATE_RX_AACK_ON";
-  case STATE_TX_ARET_ON:
-    return "STATE_TX_ARET_ON";
-  case STATE_TRANSITION:
-    return "STATE_TRANSITION";
-  default:
-    return "STATE UNKNOWN!!!";
+    case STATE_P_ON:
+      return "STATE_POWER_ON";
+    case STATE_BUSY_RX:
+      return "STATE_BUSY_RX";
+    case STATE_BUSY_TX:
+      return "STATE_BUSY_TX";
+    case STATE_RX_ON:
+      return "STATE_RX_ON";
+    case STATE_TRX_OFF:
+      return "STATE_TRX_OFF";
+    case STATE_PLL_ON:
+      return "STATE_PLL_ON";
+    case STATE_SLEEP:
+      return "STATE_SLEEP";
+    case STATE_PREP_DEEP_SLEEP:
+      return "STATE_PREP_DEEP_SLEEP";
+    case STATE_BUSY_RX_AACK:
+      return "STATE_BUSY_RX_AACK";
+    case STATE_BUSY_TX_ARET:
+      return "STATE_BUSY_TX_ARET";
+    case STATE_RX_AACK_ON:
+      return "STATE_RX_AACK_ON";
+    case STATE_TX_ARET_ON:
+      return "STATE_TX_ARET_ON";
+    case STATE_TRANSITION:
+      return "STATE_TRANSITION";
+    default:
+      return "STATE UNKNOWN!!!";
   }
 }
 
@@ -127,7 +127,7 @@ static const char* state_str(uint8_t state) {
 static void calibrate_filters(void) {
   PRINTF("RF233: Calibrating filters.\n");
   trx_reg_write(RF233_REG_FTN_CTRL, 0x80);
-  while (trx_reg_read(RF233_REG_FTN_CTRL) & 0x80);
+  while (trx_reg_read(RF233_REG_FTN_CTRL) & 0x80) ;
 }
 
 uint8_t recv_data[PACKETBUF_SIZE];
@@ -139,48 +139,48 @@ static void* packetbuf_dataptr(void) {
 
 static void packetbuf_clear(void) {
   int* ptr = (int*)packetbuf;
-  for (int i = 0; i <  PACKETBUF_SIZE / 4; i++) {
+  for (int i = 0; i < PACKETBUF_SIZE / 4; i++) {
     *ptr++ = 0x00000000;
   }
 }
 
 uint8_t trx_reg_read(uint8_t addr) {
-        uint8_t command = addr | READ_ACCESS_COMMAND;
-        char buf[2];
-        buf[0] = command;
-        buf[1] = 0;
-        spi_read_write_sync(buf, buf, 2);
-        return buf[1];
+  uint8_t command = addr | READ_ACCESS_COMMAND;
+  char buf[2];
+  buf[0] = command;
+  buf[1] = 0;
+  spi_read_write_sync(buf, buf, 2);
+  return buf[1];
 }
 
 uint8_t trx_bit_read(uint8_t addr, uint8_t mask, uint8_t pos) {
-        uint8_t ret;
-        ret = trx_reg_read(addr);
-        ret &= mask;
-        ret >>= pos;
-        return ret;
+  uint8_t ret;
+  ret = trx_reg_read(addr);
+  ret &= mask;
+  ret >>= pos;
+  return ret;
 }
 
 void trx_reg_write(uint8_t addr, uint8_t data) {
-        uint8_t command = addr | WRITE_ACCESS_COMMAND;
-        char buf[2];
-        buf[0] = command;
-        buf[1] = data;
-        spi_write_sync(buf, 2);
-        return;
+  uint8_t command = addr | WRITE_ACCESS_COMMAND;
+  char buf[2];
+  buf[0] = command;
+  buf[1] = data;
+  spi_write_sync(buf, 2);
+  return;
 }
 
 void trx_bit_write(uint8_t reg_addr,
                    uint8_t mask,
                    uint8_t pos,
                    uint8_t new_value) {
-        uint8_t current_reg_value;
-        current_reg_value = trx_reg_read(reg_addr);
-        current_reg_value &= ~mask;
-        new_value <<= pos;
-        new_value &= mask;
-        new_value |= current_reg_value;
-        trx_reg_write(reg_addr, new_value);
+  uint8_t current_reg_value;
+  current_reg_value = trx_reg_read(reg_addr);
+  current_reg_value &= ~mask;
+  new_value <<= pos;
+  new_value &= mask;
+  new_value |= current_reg_value;
+  trx_reg_write(reg_addr, new_value);
 }
 
 void trx_sram_read(uint8_t addr, uint8_t *data, uint8_t length)  {
@@ -227,8 +227,8 @@ void trx_frame_write(uint8_t *data, uint8_t length) {
  * \return     The radio channel
  */
 int rf_get_channel(void) {
-        uint8_t channel;
-  channel=trx_reg_read(RF233_REG_PHY_CC_CCA) & PHY_CC_CCA_CHANNEL;
+  uint8_t channel;
+  channel = trx_reg_read(RF233_REG_PHY_CC_CCA) & PHY_CC_CCA_CHANNEL;
   //printf("rf233 channel%d\n",channel);
   return (int)channel;
 }
@@ -242,13 +242,13 @@ int rf_get_channel(void) {
 int rf_set_channel(uint8_t ch) {
   uint8_t temp;
   PRINTF("RF233: setting channel %u\n", ch);
-  if(ch > 26 || ch < 11) {
+  if (ch > 26 || ch < 11) {
     return -1;
   }
 
   /* read-modify-write to conserve other settings */
   temp = trx_reg_read(RF233_REG_PHY_CC_CCA);
-  temp &=~ PHY_CC_CCA_CHANNEL;
+  temp &= ~PHY_CC_CCA_CHANNEL;
   temp |= ch;
   trx_reg_write(RF233_REG_PHY_CC_CCA, temp);
   return 0;
@@ -271,7 +271,7 @@ int rf233_get_txp(void) {
  */
 int rf233_set_txp(uint8_t txp) {
   PRINTF("RF233: setting txp %u\n", txp);
-  if(txp > TXP_M17) {
+  if (txp > TXP_M17) {
     /* undefined */
     return -1;
   }
@@ -284,12 +284,11 @@ static bool radio_pll;
 static bool radio_tx;
 static bool radio_rx;
 
-static void interrupt_callback(
-    int    _a __attribute__((unused)),
-    int    _b __attribute__((unused)),
-    int    _c __attribute__((unused)),
-    void* _ud __attribute__((unused))
-    ) {
+static void interrupt_callback(int _a __attribute__((unused)),
+                               int _b __attribute__((unused)),
+                               int _c __attribute__((unused)),
+                               void* _ud __attribute__((unused))
+                               ) {
   volatile uint8_t irq_source;
   PRINTF("RF233: interrupt handler.\n");
   /* handle IRQ source (for what IRQs are enabled, see rf233-config.h) */
@@ -398,7 +397,7 @@ int rf233_setup(void) {
   // PHASE = 0 means sample leading edge
   spi_set_phase(0);
 
-    /* reset will put us into TRX_OFF state */
+  /* reset will put us into TRX_OFF state */
   /* reset the radio core */
   gpio_enable_output(RADIO_RST);
   gpio_enable_output(RADIO_SLP);
@@ -414,7 +413,7 @@ int rf233_setup(void) {
   PRINTF("Reading part num...\n");
   regtemp = trx_reg_read(RF233_REG_PART_NUM);
   PRINTF("RegTemp Is: %u\n", regtemp); // on the wire thing right, but in
-                                        // something is off by one.
+                                       // something is off by one.
 
   /* before enabling interrupts, make sure we have cleared IRQ status */
   regtemp = trx_reg_read(RF233_REG_IRQ_STATUS);
@@ -462,7 +461,7 @@ int rf233_setup(void) {
   }
   rf_generate_random_seed();
 
-  for (uint8_t i = 0; i < 8; i++)   {
+  for (uint8_t i = 0; i < 8; i++) {
     regtemp = trx_reg_read(0x24 + i);
   }
 
@@ -501,11 +500,11 @@ static int rf233_prepare_without_header(const uint8_t *data, unsigned short data
 
   int i;
   // Copy over data into new buffer with header
-  for (i = 0; i < data_len; i ++) {
+  for (i = 0; i < data_len; i++) {
     data_with_header[i + HEADER_SIZE] = ((uint8_t*)data)[i];
   }
 
-  for (i = 0; i < data_len + HEADER_SIZE; i ++) {
+  for (i = 0; i < data_len + HEADER_SIZE; i++) {
     PRINTF("   data[%i] = %x\n", i, (uint8_t) data_with_header[i]);
   }
   // first 9 bytes are now MAC header
@@ -527,7 +526,7 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   uint8_t data[1 + MAX_PACKET_LEN + 2]; // Length + Payload + FCS
 
   PRINTF("RF233: prepare %u\n", payload_len);
-  if(payload_len > MAX_PACKET_LEN) {
+  if (payload_len > MAX_PACKET_LEN) {
     PRINTF("RF233: error, frame too large to tx\n");
     return RADIO_TX_ERR;
   }
@@ -540,11 +539,11 @@ int rf233_prepare(const void *payload, unsigned short payload_len) {
   }
   // TODO verify this is unnecessary bc of append_header?
   data[3] = (uint8_t)(radio_header.seq & 0xff);
-  radio_header.seq ++;
+  radio_header.seq++;
 
 #if DEBUG_PRINTDATA
   PRINTF("RF233 prepare (%u/%u): 0x", payload_len, templen);
-  for(i = 0; i < templen; i++) {
+  for (i = 0; i < templen; i++) {
     PRINTF("%02x", *(uint8_t *)(payload + i));
   }
   PRINTF("\n");
@@ -596,7 +595,7 @@ static int rf233_transmit(void) {
     RF233_COMMAND(TRXCMD_PLL_ON);   /* try again */
     static uint8_t state;
     state = rf233_status();
-    if(state != STATE_PLL_ON) {
+    if (state != STATE_PLL_ON) {
       PRINTF("RF233: graceful recovery (in tx) failed, giving up. State: 0x%02X\n", rf233_status());
       return RADIO_TX_ERR;
     }
@@ -607,7 +606,6 @@ static int rf233_transmit(void) {
   radio_tx = false;
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
   RF233_COMMAND(TRXCMD_TX_START);
-
 
   PRINTF("RF233:: Issued TX_START, wait for completion interrupt.\n");
   yield_for(&radio_tx);
@@ -667,7 +665,7 @@ int rf233_read(void *buf, unsigned short bufsize) {
   /* read out the data into the buffer, disregarding the length and metadata bytes */
   //spi_read_write_sync(wbuf, (char*)buf, len - 1);
   // TODO len or len - 1
-  for (uint8_t i = 0; i < len; i ++) {
+  for (uint8_t i = 0; i < len; i++) {
     uint8_t val = spi_write_byte(0);
     ((uint8_t*)buf)[i] = val;
     PRINTF("%02x ", ((uint8_t*)buf)[i]);
@@ -689,10 +687,10 @@ int rf233_read(void *buf, unsigned short bufsize) {
     PRINTF("  SRC: %x\n", header->src);
 
     // skip first 9 bytes of header
-    for (int i = 0; i < PACKETBUF_SIZE; i ++) {
+    for (int i = 0; i < PACKETBUF_SIZE; i++) {
       recv_data[i] = 0;
     }
-    for (int i = 0; i < len; i ++) {
+    for (int i = 0; i < len; i++) {
       recv_data[i] = header->payload[i];
     }
     // Call user callback function
@@ -746,7 +744,9 @@ int rf233_pending_packet(void) {
  * \retval 0   Success
  */
 int rf233_on(void) {
-  PRINTF("RF233: turning on from state %s\n  - sleeping radio will be POWER_ON since it doesn't respond to SPI and 0x0 is POWER_ON", state_str(rf233_status()));
+  PRINTF(
+    "RF233: turning on from state %s\n  - sleeping radio will be POWER_ON since it doesn't respond to SPI and 0x0 is POWER_ON",
+    state_str(rf233_status()));
   on();
   return 0;
 }
@@ -762,25 +762,25 @@ int rf233_off(void) {
 }
 
 void SetIEEEAddr(uint8_t *ieee_addr) {
-        uint8_t *ptr_to_reg = ieee_addr;
-        //for (uint8_t i = 0; i < 8; i++) {
-                trx_reg_write((0x2b), *ptr_to_reg);
-                ptr_to_reg++;
-                trx_reg_write((0x2a), *ptr_to_reg);
-                ptr_to_reg++;
-                trx_reg_write((0x29), *ptr_to_reg);
-                ptr_to_reg++;
-                trx_reg_write((0x28), *ptr_to_reg);
-                ptr_to_reg++;
-                trx_reg_write((0x27), *ptr_to_reg);
-                ptr_to_reg++;
-                trx_reg_write((0x26), *ptr_to_reg);
-                ptr_to_reg++;
-                trx_reg_write((0x25), *ptr_to_reg);
-                ptr_to_reg++;
-                trx_reg_write((0x24), *ptr_to_reg);
-                ptr_to_reg++;
-        //}
+  uint8_t *ptr_to_reg = ieee_addr;
+  //for (uint8_t i = 0; i < 8; i++) {
+  trx_reg_write((0x2b), *ptr_to_reg);
+  ptr_to_reg++;
+  trx_reg_write((0x2a), *ptr_to_reg);
+  ptr_to_reg++;
+  trx_reg_write((0x29), *ptr_to_reg);
+  ptr_to_reg++;
+  trx_reg_write((0x28), *ptr_to_reg);
+  ptr_to_reg++;
+  trx_reg_write((0x27), *ptr_to_reg);
+  ptr_to_reg++;
+  trx_reg_write((0x26), *ptr_to_reg);
+  ptr_to_reg++;
+  trx_reg_write((0x25), *ptr_to_reg);
+  ptr_to_reg++;
+  trx_reg_write((0x24), *ptr_to_reg);
+  ptr_to_reg++;
+  //}
 }
 
 void SetPanId(uint16_t panId) {
@@ -832,7 +832,7 @@ int on(void) {
 /*---------------------------------------------------------------------------*/
 /* switch the radio off */
 int off(void) {
-  if(rf233_status() != STATE_RX_ON ) {
+  if (rf233_status() != STATE_RX_ON ) {
     /* fail, we need the radio transceiver to be in this state */
     return -1;
   }
@@ -872,9 +872,7 @@ static void flush_buffer(void) {
   trx_frame_write(&temp, 1);
 }
 
-void goto_sleep(void) {
-
-}
+void goto_sleep(void) {}
 
 void wake_from_sleep(void) {
   /*
@@ -884,11 +882,10 @@ void wake_from_sleep(void) {
    * Note: this is the only thing that can get the radio from state SLEEP or
    * state DEEP_SLEEP!
    */
-
 }
 
 uint8_t rf233_status(void) {
-  return (trx_reg_read(RF233_REG_TRX_STATUS) & TRX_STATUS);
+  return trx_reg_read(RF233_REG_TRX_STATUS) & TRX_STATUS;
 }
 /*---------------------------------------------------------------------------*/
 
@@ -923,35 +920,36 @@ uint8_t rf233_status(void) {
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
+
 /**
-* Copyright (c) 2015 Atmel Corporation and
-* 2012 - 2013, Thingsquare, http://www.thingsquare.com/. All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*
-* 1. Redistributions of source code must retain the above copyright notice, this
-* list of conditions and the following disclaimer.
-*
-* 2. Redistributions in binary form must reproduce the above copyright notice,
-* this list of conditions and the following disclaimer in the documentation
-* and/or other materials provided with the distribution.
-*
-* 3. Neither the name of Atmel nor the name of Thingsquare nor the names of its
-* contributors may be used to endorse or promote products derived
-* from this software without specific prior written permission.
-*
-* 4. This software may only be redistributed and used in connection with an
-* Atmel microcontroller or Atmel wireless product.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-* ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-* LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-* CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
-* GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-* STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-* OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ * Copyright (c) 2015 Atmel Corporation and
+ * 2012 - 2013, Thingsquare, http://www.thingsquare.com/. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ * list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of Atmel nor the name of Thingsquare nor the names of its
+ * contributors may be used to endorse or promote products derived
+ * from this software without specific prior written permission.
+ *
+ * 4. This software may only be redistributed and used in connection with an
+ * Atmel microcontroller or Atmel wireless product.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */

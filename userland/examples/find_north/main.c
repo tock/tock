@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <math.h>
+#include <stdio.h>
 
 #include <led.h>
 #include <ninedof.h>
@@ -13,7 +13,7 @@ int main(void) {
   int num_leds = led_count();
   if (num_leds > 1) led = 1;
 
-  while(1) {
+  while (1) {
     ninedof_read_magenetometer_sync(&x, &y, &z);
     printf("x: %d, y: %d, z: %d\n", x, y, z);
 

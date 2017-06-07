@@ -2,9 +2,10 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <timer.h>
+
+#include "lauxlib.h"
 #include "lua.h"
 #include "lualib.h"
-#include "lauxlib.h"
 
 // POSIX wrapper for `nanosleep` to make this compilable and runnable on
 // Linux/OS X/BSD for testing.
@@ -29,7 +30,7 @@ int main(void) {
   err = luaL_loadstring(L, "main = function() print(\"Hello from Lua!\") end");
 
   if (err != LUA_OK) {
-    switch(err) {
+    switch (err) {
       case LUA_ERRSYNTAX:
         printf("Syntax error\n");
         break;

@@ -9,14 +9,14 @@ static uint16_t service_handle;
 static ble_gatts_char_handles_t temp_char_handle;
 static ble_gatts_char_handles_t irradiance_char_handle;
 
-static int16_t  temperature;
+static int16_t temperature;
 static uint16_t irradiance;
 
 static void add_irradiance_char(void) {
   uint32_t err_code;
   ble_gatts_char_md_t char_md;
-  ble_gatts_attr_t    attr_char_value;
-  ble_uuid_t          char_uuid;
+  ble_gatts_attr_t attr_char_value;
+  ble_uuid_t char_uuid;
   ble_gatts_attr_md_t attr_md;
 
   // set characteristic metadata
@@ -44,15 +44,17 @@ static void add_irradiance_char(void) {
   attr_char_value.p_value   = (uint8_t*)&irradiance;
 
   err_code = sd_ble_gatts_characteristic_add(service_handle,
-          &char_md, &attr_char_value, &irradiance_char_handle);
+                                             &char_md,
+                                             &attr_char_value,
+                                             &irradiance_char_handle);
   APP_ERROR_CHECK(err_code);
 }
 
 static void add_temperature_char(void) {
   uint32_t err_code;
   ble_gatts_char_md_t char_md;
-  ble_gatts_attr_t    attr_char_value;
-  ble_uuid_t          char_uuid;
+  ble_gatts_attr_t attr_char_value;
+  ble_uuid_t char_uuid;
   ble_gatts_attr_md_t attr_md;
 
   // set characteristic metadata
@@ -80,7 +82,9 @@ static void add_temperature_char(void) {
   attr_char_value.p_value   = (uint8_t*)&temperature;
 
   err_code = sd_ble_gatts_characteristic_add(service_handle,
-          &char_md, &attr_char_value, &temp_char_handle);
+                                             &char_md,
+                                             &attr_char_value,
+                                             &temp_char_handle);
   APP_ERROR_CHECK(err_code);
 }
 
@@ -91,7 +95,8 @@ void env_sense_service_init(void) {
   };
 
   uint32_t err_code = sd_ble_gatts_service_add(BLE_GATTS_SRVC_TYPE_PRIMARY,
-                &uuid, &service_handle);
+                                               &uuid,
+                                               &service_handle);
   APP_ERROR_CHECK(err_code);
 
   add_temperature_char();
@@ -109,8 +114,8 @@ static uint32_t notify(uint16_t conn, uint16_t handle) {
 
   err_code = sd_ble_gatts_hvx(conn, &hvx_params);
   if (err_code == NRF_ERROR_INVALID_STATE) {
-      // error means notify is not enabled by the client. IGNORE
-      return NRF_SUCCESS;
+    // error means notify is not enabled by the client. IGNORE
+    return NRF_SUCCESS;
   }
 
   // since this isn't a configuration-time call, actually return the error
@@ -123,12 +128,13 @@ uint32_t env_sense_update_irradiance(uint16_t conn, uint16_t new_irradiance) {
   uint32_t err_code;
 
   ble_gatts_value_t value = {
-      .len = 2,
-      .offset = 0,
-      .p_value = (uint8_t*)&new_irradiance,
+    .len = 2,
+    .offset = 0,
+    .p_value = (uint8_t*)&new_irradiance,
   };
   err_code = sd_ble_gatts_value_set(BLE_CONN_HANDLE_INVALID,
-              irradiance_char_handle.value_handle, &value);
+                                    irradiance_char_handle.value_handle,
+                                    &value);
 
   if (err_code != NRF_SUCCESS) {
     return err_code;
@@ -142,12 +148,12 @@ uint32_t env_sense_update_temperature(uint16_t conn, int16_t new_temperature) {
   uint32_t err_code;
 
   ble_gatts_value_t value = {
-      .len = 2,
-      .offset = 0,
-      .p_value = (uint8_t*)&new_temperature,
+    .len = 2,
+    .offset = 0,
+    .p_value = (uint8_t*)&new_temperature,
   };
   err_code = sd_ble_gatts_value_set(conn,
-              temp_char_handle.value_handle, &value);
+                                    temp_char_handle.value_handle, &value);
 
   if (err_code != NRF_SUCCESS) {
     return err_code;

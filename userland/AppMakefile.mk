@@ -188,6 +188,13 @@ clean::
 	rm -Rf $(BUILDDIR)
 
 
+# Rules for running the C linter
+
+.PHONY: fmt format
+fmt format:
+	$(Q)$(UNCRUSTIFY) $(UNCRUSTIFY_FLAGS) $(C_SRCS) $(CXX_SRCS)
+
+
 
 #########################################################################################
 # Include dependency rules for picking up header changes (by convention at bottom of makefile)

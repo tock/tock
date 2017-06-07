@@ -1,14 +1,14 @@
-#include <string.h>
+#include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <math.h>
-#include <timer.h>
 
-#include <tock.h>
 #include <console.h>
+#include <timer.h>
+#include <tock.h>
 
 #include "ninedof.h"
 
@@ -33,7 +33,7 @@ int main(void) {
   for (unsigned ii = 0; ii < num_measurements - 1; ii++) {
     if (accel_mags[ii] < 0 && accel_mags[ii + 1] > 0) {
       // step occurred
-      steps ++;
+      steps++;
     }
   }
 

@@ -1,15 +1,15 @@
 /* vim: set sw=2 expandtab tw=80: */
 
-#include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-#include <stdint.h>
-#include <stdbool.h>
 
-#include <tock.h>
 #include <console.h>
 #include <tmp006.h>
+#include <tock.h>
 
 
 //********************************************************************************
@@ -38,9 +38,9 @@ int32_t error_val;
 
 // Callback to receive asynchronous data
 static void temp_callback(int temp_value,
-                   int error_code,
-                   __attribute__ ((unused)) int unused,
-                   __attribute__ ((unused)) void* callback_args) {
+                          int error_code,
+                          __attribute__ ((unused)) int unused,
+                          __attribute__ ((unused)) void* callback_args) {
   temp_reading = (int16_t) temp_value;
   error_val = error_code;
 }
