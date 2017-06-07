@@ -1,6 +1,5 @@
 #include "aes.h"
 
-
 // used for creating synchronous versions of functions
 //
 // fired -  set when the callback has been called
