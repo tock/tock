@@ -27,7 +27,7 @@
 uint16_t conn_handle = BLE_CONN_HANDLE_INVALID;
 
 // Intervals for advertising and connections
-//char device_name[] = "FSTORM";
+// char device_name[] = "FSTORM";
 simple_ble_config_t ble_config = {
   .platform_id       = 0x00,                // used as 4th octect in device BLE address
   .device_id         = DEVICE_ID_DEFAULT,

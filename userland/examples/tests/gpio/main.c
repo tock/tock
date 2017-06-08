@@ -17,9 +17,9 @@ static void timer_cb (__attribute__ ((unused)) int arg0,
                       __attribute__ ((unused)) int arg2,
                       __attribute__ ((unused)) void* userdata) {}
 
-//**************************************************
+// **************************************************
 // GPIO output example
-//**************************************************
+// **************************************************
 static void gpio_output(void) {
   putstr("Periodically blinking LED\n");
 
@@ -33,9 +33,9 @@ static void gpio_output(void) {
   }
 }
 
-//**************************************************
+// **************************************************
 // GPIO input example
-//**************************************************
+// **************************************************
 static void gpio_input(void) {
   putstr("Periodically reading value of the GPIO 0 pin\n");
   putstr("Jump pin high to test (defaults to low)\n");
@@ -54,9 +54,9 @@ static void gpio_input(void) {
   }
 }
 
-//**************************************************
+// **************************************************
 // GPIO interrupt example
-//**************************************************
+// **************************************************
 static void gpio_cb (__attribute__ ((unused)) int pin_num,
                      __attribute__ ((unused)) int arg2,
                      __attribute__ ((unused)) int arg3,

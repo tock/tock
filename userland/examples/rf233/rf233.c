@@ -66,11 +66,11 @@ int rf233_pending_packet(void);
 
 /*---------------------------------------------------------------------------*/
 /* convenience macros */
-//#define RF233_STATUS()                    rf233_arch_status()
+// #define RF233_STATUS()                    rf233_arch_status()
 #define RF233_COMMAND(c)                  trx_reg_write(RF233_REG_TRX_STATE, c)
 
 /* each frame has a footer consisting of LQI, ED, RX_STATUS added by the radio */
-//#define FOOTER_LEN                        3   /* bytes */
+// #define FOOTER_LEN                        3   /* bytes */
 #define MAX_PACKET_LEN                    127 /* bytes, excluding the length (first) byte */
 #define PACKETBUF_SIZE                    128 /* bytes, for even int writes */
 #define HEADER_SIZE                       9 /* bytes */
@@ -229,7 +229,7 @@ void trx_frame_write(uint8_t *data, uint8_t length) {
 int rf_get_channel(void) {
   uint8_t channel;
   channel = trx_reg_read(RF233_REG_PHY_CC_CCA) & PHY_CC_CCA_CHANNEL;
-  //printf("rf233 channel%d\n",channel);
+  // printf("rf233 channel%d\n",channel);
   return (int)channel;
 }
 /*---------------------------------------------------------------------------*/
@@ -315,7 +315,7 @@ static void interrupt_callback(int _a __attribute__((unused)),
       radio_tx = true;
       return;
     } else {
-      //PRINTF("RF233: Interrupt receive.\n");
+      // PRINTF("RF233: Interrupt receive.\n");
       packetbuf_clear();
       pending_frame = 1;
       int len = rf233_read(packetbuf_dataptr(), MAX_PACKET_LEN);
@@ -420,7 +420,7 @@ int rf233_setup(void) {
   PRINTF("RF233: After wake from sleep\n");
   radio_state = rf233_status();
   PRINTF("RF233: Radio state 0x%04x\n", radio_state);
-  //calibrate_filters();
+  // calibrate_filters();
   if (radio_state == STATE_P_ON) {
     trx_reg_write(RF233_REG_TRX_STATE, TRXCMD_TRX_OFF);
   }
@@ -626,7 +626,7 @@ static int rf233_transmit(void) {
  * \retval -4  Failed, CRC/FCS failed (if USE_HW_FCS_CHECK is true)
  */
 int rf233_read(void *buf, unsigned short bufsize) {
-  //uint8_t radio_state;
+  // uint8_t radio_state;
   // uint8_t ed;       /* frame metadata */
   uint8_t frame_len = 0;
   uint8_t len = 0;
@@ -663,7 +663,7 @@ int rf233_read(void *buf, unsigned short bufsize) {
   }
 
   /* read out the data into the buffer, disregarding the length and metadata bytes */
-  //spi_read_write_sync(wbuf, (char*)buf, len - 1);
+  // spi_read_write_sync(wbuf, (char*)buf, len - 1);
   // TODO len or len - 1
   for (uint8_t i = 0; i < len; i++) {
     uint8_t val = spi_write_byte(0);
@@ -677,7 +677,7 @@ int rf233_read(void *buf, unsigned short bufsize) {
   PRINTF("\n");
   spi_release_low();
 
-  //trx_sram_read(1, (uint8_t *)buf, len);
+  // trx_sram_read(1, (uint8_t *)buf, len);
   if (len >= 10) {
     header_t* header = (header_t*)buf;
     PRINTF("  FCF: %x\n", header->fcf);
@@ -763,7 +763,7 @@ int rf233_off(void) {
 
 void SetIEEEAddr(uint8_t *ieee_addr) {
   uint8_t *ptr_to_reg = ieee_addr;
-  //for (uint8_t i = 0; i < 8; i++) {
+  // for (uint8_t i = 0; i < 8; i++) {
   trx_reg_write((0x2b), *ptr_to_reg);
   ptr_to_reg++;
   trx_reg_write((0x2a), *ptr_to_reg);
@@ -780,7 +780,7 @@ void SetIEEEAddr(uint8_t *ieee_addr) {
   ptr_to_reg++;
   trx_reg_write((0x24), *ptr_to_reg);
   ptr_to_reg++;
-  //}
+  // }
 }
 
 void SetPanId(uint16_t panId) {
@@ -849,7 +849,7 @@ int rf233_sleep(void) {
   /* Check whether we're already sleeping */
   if (!sleep_on) {
     PRINTF("RF233: Putting to sleep.\n");
-    //delay_ms(1);
+    // delay_ms(1);
     sleep_on = 1;
     /* Turn off the Radio */
     rf233_off();

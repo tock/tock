@@ -51,10 +51,10 @@ int main(void) {
   gpio_enable_interrupt(1, PullUp, Change);
 
   // configure accelerometer
-  //TODO
+  // TODO
 
   // configure radio
-  //TODO
+  // TODO
 
   while (1) {
     yield();

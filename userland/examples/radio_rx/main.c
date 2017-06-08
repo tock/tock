@@ -20,7 +20,7 @@ static void callback(__attribute__ ((unused)) int unused0,
 
 int main(void) {
   int i;
-  //printf("Starting 802.15.4 packet reception app.\n");
+  // printf("Starting 802.15.4 packet reception app.\n");
   for (i = 0; i < BUF_SIZE; i++) {
     packet_rx[i] = packet_tx[i] = i;
   }
