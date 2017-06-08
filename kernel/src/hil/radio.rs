@@ -74,7 +74,7 @@ pub trait RadioData {
     fn packet_get_dest(&self, packet: &'static [u8]) -> u16;
     fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8; 8];
     fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8; 8];
-    fn packet_get_length(&self, packet: &'static [u8]) -> u16;
+    fn packet_get_length(&self, packet: &'static [u8]) -> u8;
     fn packet_get_pan(&self, packet: &'static [u8]) -> u16;
     fn packet_has_src_long(&self, packet: &'static [u8]) -> bool;
     fn packet_has_dest_long(&self, packet: &'static [u8]) -> bool;
