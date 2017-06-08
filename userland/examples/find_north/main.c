@@ -9,7 +9,7 @@ int main(void) {
 
   // Choose the LED to use. We want green (which is usually
   // second in RGB), but will take anything.
-  int led = 0;
+  int led      = 0;
   int num_leds = led_count();
   if (num_leds > 1) led = 1;
 

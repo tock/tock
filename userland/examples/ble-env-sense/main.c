@@ -47,8 +47,8 @@ const char eddystone_url[] = "goo.gl/8685Uw";
 uint8_t mdata[4] = {BLE_APP_ID, BLE_APP_VERSION_NUM, 0xFF, 0xFF};
 ble_advdata_manuf_data_t mandata = {
   .company_identifier = UMICH_COMPANY_IDENTIFIER,
-  .data.p_data = mdata,
-  .data.size   = sizeof(mdata)
+  .data.p_data        = mdata,
+  .data.size          = sizeof(mdata)
 };
 
 __attribute__ ((const))
@@ -132,10 +132,10 @@ int main (void) {
 
   srdata.name_type = BLE_ADVDATA_FULL_NAME;
   srdata.p_manuf_specific_data = &mandata;
-  ble_uuid_t PHYSWEB_SERVICE_UUID[] = {{0x181A, BLE_UUID_TYPE_BLE}};
+  ble_uuid_t PHYSWEB_SERVICE_UUID[]    = {{0x181A, BLE_UUID_TYPE_BLE}};
   ble_advdata_uuid_list_t service_list = {
     .uuid_cnt = 1,
-    .p_uuids = PHYSWEB_SERVICE_UUID
+    .p_uuids  = PHYSWEB_SERVICE_UUID
   };
   srdata.uuids_complete = service_list;
 

@@ -13,7 +13,7 @@
 #include <time.h>
 void delay_ms(int ms) {
   struct timespec ts;
-  ts.tv_sec = 0;
+  ts.tv_sec  = 0;
   ts.tv_nsec = (long)ms * 1000 * 1000;
   nanosleep(&ts, NULL);
 }
@@ -53,7 +53,7 @@ int main(void) {
     lua_getglobal(L, "main");
     lua_call(L, 0, 0);
 
-    int kb = lua_gc(L, LUA_GCCOUNT, 0);
+    int kb    = lua_gc(L, LUA_GCCOUNT, 0);
     int bytes = lua_gc(L, LUA_GCCOUNT, 0);
     printf("> %dKB and %d bytes used\n", kb, bytes);
     delay_ms(500);

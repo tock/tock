@@ -15,7 +15,7 @@ typedef struct {
 } SensorData_t;
 
 static SensorData_t sensor_data = {
-  .pir = 0,
+  .pir         = 0,
   .reed_switch = 0,
 };
 

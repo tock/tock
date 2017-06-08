@@ -34,7 +34,7 @@ static uint32_t read_cpsr(void) {
 __attribute__((noinline))
 static void dowork(uint8_t* from, uint8_t* to, uint32_t incr) {
   volatile uint8_t* p_from = from;
-  volatile uint8_t* p_to = to;
+  volatile uint8_t* p_to   = to;
 
   printf("%p -> %p, incr 0x%lx\n", p_from, p_to, incr);
   printf("       CPSR: %08lx\n", read_cpsr());
@@ -58,10 +58,10 @@ static bool overrun(void) {
 
 int main(void) {
   uint8_t* memory_start = tock_app_memory_begins_at();
-  uint8_t* memory_end = tock_app_memory_ends_at();
-  uint8_t* flash_start = tock_app_flash_begins_at();
-  uint8_t* flash_end = tock_app_flash_ends_at();
-  uint8_t* grant_start = tock_app_grant_begins_at();
+  uint8_t* memory_end   = tock_app_memory_ends_at();
+  uint8_t* flash_start  = tock_app_flash_begins_at();
+  uint8_t* flash_end    = tock_app_flash_ends_at();
+  uint8_t* grant_start  = tock_app_grant_begins_at();
 
   unsigned grant_len = memory_end - grant_start;
   // http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2

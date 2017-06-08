@@ -11,11 +11,11 @@
 #include <tsl2561.h>
 
 static bool isl29035 = false;
-static bool tmp006 = false;
-static bool tsl2561 = false;
-static bool lps25hb = false;
-static bool si7021 = false;
-static bool ninedof = false;
+static bool tmp006   = false;
+static bool tsl2561  = false;
+static bool lps25hb  = false;
+static bool si7021   = false;
+static bool ninedof  = false;
 
 static void timer_fired(__attribute__ ((unused)) int arg0,
                         __attribute__ ((unused)) int arg1,
@@ -56,11 +56,11 @@ int main(void) {
   printf("[Sensors] All available sensors on the platform will be sampled.\n");
 
   isl29035 = driver_exists(DRIVER_NUM_ISL29035);
-  tmp006 = driver_exists(DRIVER_NUM_TMP006);
-  tsl2561 = driver_exists(DRIVER_NUM_TSL2561);
-  lps25hb = driver_exists(DRIVER_NUM_LPS25HB);
-  si7021 = driver_exists(DRIVER_NUM_SI7021);
-  ninedof = driver_exists(DRIVER_NUM_NINEDOF);
+  tmp006   = driver_exists(DRIVER_NUM_TMP006);
+  tsl2561  = driver_exists(DRIVER_NUM_TSL2561);
+  lps25hb  = driver_exists(DRIVER_NUM_LPS25HB);
+  si7021   = driver_exists(DRIVER_NUM_SI7021);
+  ninedof  = driver_exists(DRIVER_NUM_NINEDOF);
 
   // Setup periodic timer to sample the sensors.
   timer_subscribe(timer_fired, NULL);

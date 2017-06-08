@@ -27,11 +27,11 @@ static int on(void);
 static int off(void);
 static void rf_generate_random_seed(void);
 static void flush_buffer(void);
-static uint8_t flag_transmit = 0;
-static uint8_t ack_status = 0;
-static volatile int radio_is_on = 0;
+static uint8_t flag_transmit      = 0;
+static uint8_t ack_status         = 0;
+static volatile int radio_is_on   = 0;
 static volatile int pending_frame = 0;
-static volatile int sleep_on = 0;
+static volatile int sleep_on      = 0;
 static int rf233_prepare_without_header(const uint8_t *data, unsigned short data_len);
 static int rf233_setup(void);
 static int rf233_prepare(const void *payload, unsigned short payload_len);
@@ -42,9 +42,9 @@ static int set_callback = 0;
 #define IEEE802154_CONF_PANID 0x1111
 
 enum {
-  RADIO_TX_OK        = 0,
-  RADIO_TX_ERR       = 1,
-  RADIO_TX_NOACK     = 2,
+  RADIO_TX_OK = 0,
+  RADIO_TX_ERR = 1,
+  RADIO_TX_NOACK = 2,
   RADIO_TX_COLLISION = 3
 };
 
@@ -155,8 +155,8 @@ uint8_t trx_reg_read(uint8_t addr) {
 
 uint8_t trx_bit_read(uint8_t addr, uint8_t mask, uint8_t pos) {
   uint8_t ret;
-  ret = trx_reg_read(addr);
-  ret &= mask;
+  ret   = trx_reg_read(addr);
+  ret  &= mask;
   ret >>= pos;
   return ret;
 }
@@ -175,11 +175,11 @@ void trx_bit_write(uint8_t reg_addr,
                    uint8_t pos,
                    uint8_t new_value) {
   uint8_t current_reg_value;
-  current_reg_value = trx_reg_read(reg_addr);
+  current_reg_value  = trx_reg_read(reg_addr);
   current_reg_value &= ~mask;
-  new_value <<= pos;
-  new_value &= mask;
-  new_value |= current_reg_value;
+  new_value        <<= pos;
+  new_value         &= mask;
+  new_value         |= current_reg_value;
   trx_reg_write(reg_addr, new_value);
 }
 
@@ -247,7 +247,7 @@ int rf_set_channel(uint8_t ch) {
   }
 
   /* read-modify-write to conserve other settings */
-  temp = trx_reg_read(RF233_REG_PHY_CC_CCA);
+  temp  = trx_reg_read(RF233_REG_PHY_CC_CCA);
   temp &= ~PHY_CC_CCA_CHANNEL;
   temp |= ch;
   trx_reg_write(RF233_REG_PHY_CC_CCA, temp);
@@ -340,9 +340,9 @@ int rf233_init(uint16_t channel, uint16_t from_addr, uint16_t pan_id) {
   PRINTF("RF233: init.\n");
   // 0x61 0xAA
   radio_header.dest = channel; // TODO ??
-  radio_header.fcf = 0xAA61; // TODO verify
-  radio_header.src = from_addr;
-  radio_header.pan = pan_id;
+  radio_header.fcf  = 0xAA61; // TODO verify
+  radio_header.src  = from_addr;
+  radio_header.pan  = pan_id;
   spi_set_chip_select(1);
   spi_set_rate(1000000);
   spi_set_phase(0);
@@ -357,7 +357,7 @@ int rf233_init(uint16_t channel, uint16_t from_addr, uint16_t pan_id) {
  * \retval 0   Success
  */
 int rf233_rx_data(int (*callback)(void*, int, uint16_t, uint16_t, uint16_t)) {
-  rx_callback = callback;
+  rx_callback  = callback;
   set_callback = 1;
   return 0;
 }
@@ -603,7 +603,7 @@ static int rf233_transmit(void) {
 
   /* perform transmission */
   flag_transmit = 1;
-  radio_tx = false;
+  radio_tx      = false;
   RF233_COMMAND(TRXCMD_TX_ARET_ON);
   RF233_COMMAND(TRXCMD_TX_START);
 
@@ -629,7 +629,7 @@ int rf233_read(void *buf, unsigned short bufsize) {
   // uint8_t radio_state;
   // uint8_t ed;       /* frame metadata */
   uint8_t frame_len = 0;
-  uint8_t len = 0;
+  uint8_t len       = 0;
 
   PRINTF("RF233: Receiving.\n");
 

@@ -54,7 +54,7 @@ static void sample_sensors (void) {
   unsigned humi;
   si7021_get_temperature_humidity_sync(&temp, &humi);
   uint32_t accel_mag = ninedof_read_accel_mag();
-  int light = isl29035_read_light_intensity();
+  int light          = isl29035_read_light_intensity();
 
   // Analog inputs: A0-A5
   uint16_t val;

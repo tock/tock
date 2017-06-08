@@ -42,7 +42,7 @@ static void temp_callback(int temp_value,
                           __attribute__ ((unused)) int unused,
                           __attribute__ ((unused)) void* callback_args) {
   temp_reading = (int16_t) temp_value;
-  error_val = error_code;
+  error_val    = error_code;
 }
 
 // Start periodic temperature sampling, then print data, sleeping in between
@@ -70,7 +70,7 @@ static void read_periodic (void) {
 
     // reset values
     temp_reading = 0xDEAD;
-    error_val = 0;
+    error_val    = 0;
   }
 }
 

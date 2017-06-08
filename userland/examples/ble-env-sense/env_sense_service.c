@@ -32,7 +32,7 @@ static void add_irradiance_char(void) {
   memset(&attr_md, 0, sizeof(attr_md));
   BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
   BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-  attr_md.vloc    = BLE_GATTS_VLOC_STACK;
+  attr_md.vloc = BLE_GATTS_VLOC_STACK;
 
   // set attribute data
   memset(&attr_char_value, 0, sizeof(attr_char_value));
@@ -70,7 +70,7 @@ static void add_temperature_char(void) {
   memset(&attr_md, 0, sizeof(attr_md));
   BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
   BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-  attr_md.vloc    = BLE_GATTS_VLOC_STACK;
+  attr_md.vloc = BLE_GATTS_VLOC_STACK;
 
   // set attribute data
   memset(&attr_char_value, 0, sizeof(attr_char_value));
@@ -107,9 +107,9 @@ static uint32_t notify(uint16_t conn, uint16_t handle) {
   uint32_t err_code;
   ble_gatts_hvx_params_t hvx_params;
   hvx_params.handle = handle;
-  hvx_params.type = BLE_GATT_HVX_NOTIFICATION;
+  hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
   hvx_params.offset = 0;
-  hvx_params.p_len = NULL; // notify full length. No response wanted
+  hvx_params.p_len  = NULL; // notify full length. No response wanted
   hvx_params.p_data = NULL; // use existing value
 
   err_code = sd_ble_gatts_hvx(conn, &hvx_params);
@@ -128,8 +128,8 @@ uint32_t env_sense_update_irradiance(uint16_t conn, uint16_t new_irradiance) {
   uint32_t err_code;
 
   ble_gatts_value_t value = {
-    .len = 2,
-    .offset = 0,
+    .len     = 2,
+    .offset  = 0,
     .p_value = (uint8_t*)&new_irradiance,
   };
   err_code = sd_ble_gatts_value_set(BLE_CONN_HANDLE_INVALID,
@@ -148,8 +148,8 @@ uint32_t env_sense_update_temperature(uint16_t conn, int16_t new_temperature) {
   uint32_t err_code;
 
   ble_gatts_value_t value = {
-    .len = 2,
-    .offset = 0,
+    .len     = 2,
+    .offset  = 0,
     .p_value = (uint8_t*)&new_temperature,
   };
   err_code = sd_ble_gatts_value_set(conn,
