@@ -50,7 +50,7 @@ static void continuous_sample_cb(uint8_t channel,
 
     // start buffered sampling
     printf("Beginning buffered sampling on channel %d at %d Hz\n",
-        ADC_CHANNEL, ADC_HIGHSPEED_FREQUENCY);
+           ADC_CHANNEL, ADC_HIGHSPEED_FREQUENCY);
     err = adc_continuous_buffered_sample(ADC_CHANNEL, ADC_HIGHSPEED_FREQUENCY);
     if (err < SUCCESS) {
       printf("continuous buffered sample error: %d\n", err);
@@ -70,7 +70,7 @@ static void continuous_buffered_sample_cb(uint8_t channel,
   uint32_t sum = 0;
   uint16_t min = 0xFFFF;
   uint16_t max = 0;
-  for (uint32_t i=0; i<length; i++) {
+  for (uint32_t i = 0; i < length; i++) {
     uint16_t sample = (buf_ptr[i] * 3300 / 4095);
     sum += sample;
     if (sample < min) {
@@ -81,7 +81,7 @@ static void continuous_buffered_sample_cb(uint8_t channel,
     }
   }
   printf("Channel: %u\tCount: %d\tAvg: %lu\tMin: %u\tMax: %u\n",
-      channel, BUF_SIZE, sum/BUF_SIZE, min, max);
+         channel, BUF_SIZE, sum / BUF_SIZE, min, max);
 
   // determine when to switch sampling method
   counter++;
@@ -97,7 +97,7 @@ static void continuous_buffered_sample_cb(uint8_t channel,
 
     // start single sampling
     printf("Beginning continuous sampling on channel %d at %d Hz\n",
-        ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
+           ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
     err = adc_continuous_sample(ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
     if (err < SUCCESS) {
       printf("continuous sample error: %d\n", err);
@@ -146,7 +146,7 @@ int main(void) {
 
   // begin continuous sampling
   printf("Beginning continuous sampling on channel %d at %d Hz\n",
-      ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
+         ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
   err = adc_continuous_sample(ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
   if (err < SUCCESS) {
     printf("continuous sample error: %d\n", err);

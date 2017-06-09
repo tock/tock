@@ -19,6 +19,7 @@ thoughts behind how applications function.
 - [Libraries](#libraries)
   * [Newlib](#newlib)
   * [libtock](#libtock)
+- [Style & Format](#style--format)
 - [Related](#related)
 
 <!-- tocstop -->
@@ -251,6 +252,23 @@ a synchronous interface to a driver using an internal callback and `yield_for`
 an implementation for the system calls
 ([`tock.c`](https://github.com/helena-project/tock/blob/master/userland/libtock/tock.c)),
 and pin definitions for platforms.
+
+
+## Style & Format
+
+We try to keep a consistent style in mainline userland code. For C/C++, we use
+[uncrustify](https://github.com/uncrustify/uncrustify). High level:
+
+  - Two space character indents
+  - Braces on the same line
+  - Spaces around most operators
+
+For details, see the [configuration](../userland/tools/uncrustify).
+
+Travis will automatically check formatting. You can format code locally using
+`make format`, or check the whole codebase with
+[format_all.sh](../userland/examples/format_all.sh). Formatting will overwrite
+files when it runs.
 
 
 ## Related

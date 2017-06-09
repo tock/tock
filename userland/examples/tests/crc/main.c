@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <timer.h>
+
 #include <crc.h>
 #include <rng.h>
+#include <timer.h>
 
 struct test_case {
   enum crc_alg alg;
@@ -63,8 +64,7 @@ int main(void) {
           printf("(OK)");
         else
           printf("(Expected %08lx)", t->output);
-      }
-      else {
+      } else {
         printf("failed with status %d\n", r);
       }
       printf("\n");
