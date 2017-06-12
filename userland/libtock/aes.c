@@ -34,11 +34,73 @@ int aes128_set_callback(subscribe_cb callback, void *ud) {
   return subscribe(AES_DRIVER, 0, callback, ud);
 }
 
+// Internal function to configure a payload to encrypt or decrypt
+int aes128_set_data(const unsigned char *data, unsigned char len) {
+  return allow(AES_DRIVER, AES_DATA, (void*)data, len);
+}
+
+// Internal function to configure a initial counter to be used on counter-mode
+int aes128_set_ctr(const unsigned char* ctr, unsigned char len) {
+  return allow(AES_DRIVER, AES_CTR, (void*)ctr, len);
+}
+
+// Internal function to trigger encryption operation. Note that this don't
+// work by itself aes128_set_data() and aes128_set_ctr() must be called first
+// FIXME: better name?
+int aes128_encrypt(void) {
+  return command(AES_DRIVER, AES_ENC, 0);
+}
+
+// Internal function to trigger encryption operation. Note that this don't
+// work by itself aes128_set_data() and aes128_set_ctr() must be called first
+// FIXME: better name?
+int aes128_decrypt(void) {
+  return command(AES_DRIVER, AES_DEC, 0);
+}
+
+// Function to encrypt by aes128 counter-mode with a given payload and 
+// initial counter asynchronously
+int aes128_encrypt_ctr(unsigned const char* buf, unsigned char buf_len, 
+    unsigned const char* ctr, unsigned char ctr_len, subscribe_cb callback) {
+  
+  int err;
+
+  err = aes128_set_callback(callback, NULL);
+  if (err < SUCCESS) return err;
+
+  err = aes128_set_data(buf, buf_len);
+  if (err < SUCCESS) return err;
+
+  err = aes128_set_ctr(ctr, ctr_len); 
+  if (err < SUCCESS) return err;
+
+  return aes128_encrypt();
+}
+
+// Function to decrypt by aes128 counter-mode with a given payload and 
+// initial counter asynchronously
+int aes128_decrypt_ctr(const unsigned char* buf, unsigned char buf_len, 
+    const unsigned char* ctr, unsigned char ctr_len, subscribe_cb callback) {
+  
+  int err;
+
+  err = aes128_set_callback(callback, NULL);
+  if (err < SUCCESS) return err;
+
+  err = aes128_set_data(buf, buf_len);
+  if (err < SUCCESS) return err;
+
+  err = aes128_set_ctr(ctr, ctr_len); 
+  if (err < SUCCESS) return err;
+
+  return aes128_decrypt();
+}
+
 // ***** Synchronous Calls *****
 
 
 // Call to configure a buffer with an encryption key in the
-// kernel. No need to for a callback for this since it is syncronous in
+// kernel. No need to for a callback for this since it is synchronous in
 // the kernel as well.
 int aes128_set_key_sync(const unsigned char* key, unsigned char len) {
   
@@ -51,6 +113,8 @@ int aes128_set_key_sync(const unsigned char* key, unsigned char len) {
 }
 
 
+// Function to encrypt by aes128 counter-mode with a given payload and 
+// initial counter synchronously
 int aes128_encrypt_ctr_sync(unsigned const char* buf, unsigned char buf_len, 
     unsigned const char* ctr, unsigned char ctr_len) {
   
@@ -60,13 +124,13 @@ int aes128_encrypt_ctr_sync(unsigned const char* buf, unsigned char buf_len,
   err = aes128_set_callback(aes_cb, &result);
   if (err < SUCCESS) return err;
 
-  err = allow(AES_DRIVER, AES_DATA, (void*)buf, buf_len);
+  err = aes128_set_data(buf, buf_len);
   if (err < SUCCESS) return err;
 
-  err = allow(AES_DRIVER, AES_CTR, (void*)ctr, ctr_len);
+  err = aes128_set_ctr(ctr, ctr_len); 
   if (err < SUCCESS) return err;
 
-  err = command(AES_DRIVER, AES_ENC, 0);
+  err = aes128_encrypt();
   if (err < SUCCESS) return err;
 
   yield_for(&result.fired);
@@ -75,6 +139,8 @@ int aes128_encrypt_ctr_sync(unsigned const char* buf, unsigned char buf_len,
 }
 
 
+// Function to decrypt by aes128 counter-mode with a given payload and 
+// initial counter synchronously
 int aes128_decrypt_ctr_sync(const unsigned char* buf, unsigned char buf_len, 
     const unsigned char* ctr, unsigned char ctr_len) {
   
@@ -84,13 +150,13 @@ int aes128_decrypt_ctr_sync(const unsigned char* buf, unsigned char buf_len,
   err = aes128_set_callback(aes_cb, &result);
   if (err < SUCCESS) return err;
 
-  err = allow(AES_DRIVER, AES_DATA, (void*)buf, buf_len);
+  err = aes128_set_data(buf, buf_len);
   if (err < SUCCESS) return err;
 
-  err = allow(AES_DRIVER, AES_CTR, (void*)ctr, ctr_len);
+  err = aes128_set_ctr(ctr, ctr_len); 
   if (err < SUCCESS) return err;
 
-  err = command(AES_DRIVER, AES_DEC, 0);
+  err = aes128_decrypt();
   if (err < SUCCESS) return err;
 
   yield_for(&result.fired);
