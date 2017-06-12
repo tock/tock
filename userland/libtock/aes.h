@@ -40,15 +40,13 @@ int aes128_set_ctr(const unsigned char *ctr, unsigned char len);
 // Internal function to trigger encryption operation. 
 // Note that this has no effect if not aes128_set_data() and aes128_set_ctr()
 // have been invoked
-// FIXME: better name?
-int aes128_encrypt(void);
+int aes128_encrypt_start(void);
 
 
 // Internal function to trigger decryption operation. 
 // Note that this has no effect if not aes128_set_data() and aes128_set_ctr()
 // have been invoked
-// FIXME: better name?
-int aes128_decrypt(void);
+int aes128_decrypt_start(void);
 
 
 // decrypts a payload according to aes-128 counter-mode asynchronously

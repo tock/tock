@@ -44,17 +44,15 @@ int aes128_set_ctr(const unsigned char* ctr, unsigned char len) {
   return allow(AES_DRIVER, AES_CTR, (void*)ctr, len);
 }
 
-// Internal function to trigger encryption operation. Note that this don't
+// Internal function to trigger encryption operation. Note that this doesn't
 // work by itself aes128_set_data() and aes128_set_ctr() must be called first
-// FIXME: better name?
-int aes128_encrypt(void) {
+int aes128_encrypt_start(void) {
   return command(AES_DRIVER, AES_ENC, 0);
 }
 
-// Internal function to trigger encryption operation. Note that this don't
+// Internal function to trigger encryption operation. Note that this doesn't
 // work by itself aes128_set_data() and aes128_set_ctr() must be called first
-// FIXME: better name?
-int aes128_decrypt(void) {
+int aes128_decrypt_start(void) {
   return command(AES_DRIVER, AES_DEC, 0);
 }
 
@@ -74,7 +72,7 @@ int aes128_encrypt_ctr(unsigned const char* buf, unsigned char buf_len,
   err = aes128_set_ctr(ctr, ctr_len); 
   if (err < SUCCESS) return err;
 
-  return aes128_encrypt();
+  return aes128_encrypt_start();
 }
 
 // Function to decrypt by aes128 counter-mode with a given payload and 
@@ -93,7 +91,7 @@ int aes128_decrypt_ctr(const unsigned char* buf, unsigned char buf_len,
   err = aes128_set_ctr(ctr, ctr_len); 
   if (err < SUCCESS) return err;
 
-  return aes128_decrypt();
+  return aes128_decrypt_start();
 }
 
 // ***** Synchronous Calls *****
@@ -130,7 +128,7 @@ int aes128_encrypt_ctr_sync(unsigned const char* buf, unsigned char buf_len,
   err = aes128_set_ctr(ctr, ctr_len); 
   if (err < SUCCESS) return err;
 
-  err = aes128_encrypt();
+  err = aes128_encrypt_start();
   if (err < SUCCESS) return err;
 
   yield_for(&result.fired);
@@ -156,7 +154,7 @@ int aes128_decrypt_ctr_sync(const unsigned char* buf, unsigned char buf_len,
   err = aes128_set_ctr(ctr, ctr_len); 
   if (err < SUCCESS) return err;
 
-  err = aes128_decrypt();
+  err = aes128_decrypt_start();
   if (err < SUCCESS) return err;
 
   yield_for(&result.fired);
