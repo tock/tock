@@ -1,26 +1,30 @@
 //! chips::sam4l::flashcalw -- Implementation of a flash controller.
 //!
-//! This implementation of the flash controller for at sam4l flash controller
-//! uses interrupts to handle main tasks of a flash -- write, reads, and erases.
-//! If modifying this file, you should check whether the flash commands (issued
-//! via issue_command) generates an interrupt and design a higher level function
-//! based off of that.
+//! This implementation of the flash controller for at sam4l flash
+//! controller uses interrupts to handle main tasks of a flash --
+//! write, reads, and erases.  If modifying this file, you should
+//! check whether the flash commands (issued via issue_command)
+//! generates an interrupt and design a higher level function based
+//! off of that.
 //!
-//! Although the datasheet says that when the FRDY interrupt is on, an interrupt will
-//! be generated after a command is complete, it doesn't appear to occur for some
-//! commands.
+//! Although the datasheet says that when the FRDY interrupt is on, an
+//! interrupt will be generated after a command is complete, it
+//! doesn't appear to occur for some commands.
 //!
-//! A clean interface for reading from flash, writing pages and erasing pages is
-//! defined below and should be used to handle the complexity of these tasks.
+//! A clean interface for reading from flash, writing pages and
+//! erasing pages is defined below and should be used to handle the
+//! complexity of these tasks.
 //!
-//! The driver should be configure()'d before use, and a Client should be set to
-//! enable a callback after a command is completed.
+//! The driver should be configure()'d before use, and a Client should
+//! be set to enable a callback after a command is completed.
 //!
-//! Almost all of the flash controller functionality is implemented (except for
-//! general purpose fuse bits, and more granular control of the cache).
+//! Almost all of the flash controller functionality is implemented
+//! (except for general purpose fuse bits, and more granular control
+//! of the cache).
 //!
 //! Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
-//! Date: July 27, 2016
+//! Author:  Philip Levis <pal@cs.stanford.edu>
+//! Date: June 9, 2017
 //!
 
 use core::cell::Cell;
@@ -30,9 +34,27 @@ use kernel::common::take_cell::MapCell;
 use nvic;
 use pm;
 
-//  These are the registers of the PicoCache -- a cache dedicated to the flash.
+// Struct of the FLASHCALW registers. Section 14.10 of the datasheet
+const FLASHCALW_BASE_ADDRS: usize = 0x400A0000;
+#[repr(C, packed)]
 #[allow(dead_code)]
-struct PicocacheRegisters {
+struct Registers {
+    control: VolatileCell<u32>,
+    command: VolatileCell<u32>,
+    status: VolatileCell<u32>,
+    parameter: VolatileCell<u32>,
+    version: VolatileCell<u32>,
+    general_purpose_fuse_register_hi: VolatileCell<u32>,
+    general_purpose_fuse_register_lo: VolatileCell<u32>,
+}
+
+
+//  These are the registers of the PicoCache -- a cache dedicated to
+//  the flash. They start at offset 0x400 from FLASHCALW registers
+//  (Section 7 of the datasheet).
+const PICOCACHE_OFFSET: usize = 0x400;
+#[allow(dead_code)]
+struct PicoCacheRegisters {
     _reserved_1: [u8; 8],
     control: VolatileCell<u32>,
     status: VolatileCell<u32>,
@@ -47,25 +69,6 @@ struct PicocacheRegisters {
     version: VolatileCell<u32>,
 }
 
-//  Section 7 (the memory diagram) says the register starts at 0x400A0400
-const PICOCACHE_OFFSET: usize = 0x400;
-
-
-// Struct of the FLASHCALW registers. Section 14.10 of the datasheet
-#[repr(C, packed)]
-#[allow(dead_code)]
-struct Registers {
-    control: VolatileCell<u32>,
-    command: VolatileCell<u32>,
-    status: VolatileCell<u32>,
-    parameter: VolatileCell<u32>,
-    version: VolatileCell<u32>,
-    general_purpose_fuse_register_hi: VolatileCell<u32>,
-    general_purpose_fuse_register_lo: VolatileCell<u32>,
-}
-
-const FLASHCALW_BASE_ADDRS: usize = 0x400A0000;
-
 #[allow(dead_code)]
 enum RegKey {
     CONTROL,
@@ -77,8 +80,9 @@ enum RegKey {
     GPFRLO,
 }
 
-/// Error codes are used to inform the Client if the command completed successfully
-/// or whether there was an error and what type of error it was.
+/// Error codes are used to inform the Client if the command completed
+/// successfully or whether there was an error and what type of error
+/// it was.
 pub enum Error {
     CommandComplete, // Command Complete
     LockE, // Lock Error (i.e. tried writing to locked page)
@@ -104,9 +108,9 @@ pub enum Command {
 
 
 
-/// There are 18 recognized commands for the flash. These are 'bare-bones' commands
-/// and values that are written to the Flash's command register to inform
-/// the flash what to do. Table 14-5.
+/// There are 18 recognized commands for the flash. These are
+/// 'bare-bones' commands and values that are written to the Flash's
+/// command register to inform the flash what to do. Table 14-5.
 #[derive(Clone, Copy, PartialEq)]
 pub enum FlashCMD {
     NOP,
@@ -136,10 +140,11 @@ pub enum Speed {
     HighSpeed,
 }
 
-/// FlashState is used to track the current state of the flash in high level
-/// command.
+/// FlashState is used to track the current state of the flash in high
+/// level command.
 ///
-/// Combined with Command, it defines a unique function the flash is preforming.
+/// Combined with Command, it defines a unique function the flash is
+/// preforming.
 #[derive(Clone, Copy, PartialEq)]
 pub enum FlashState {
     Locking, // The Flash is locking a region
@@ -151,9 +156,9 @@ pub enum FlashState {
 }
 
 // The FLASHCALW controller
-pub struct FLASHCALW {
+pub struct FlashCalw {
     registers: *mut Registers,
-    cache: *mut PicocacheRegisters,
+    cache: *mut PicoCacheRegisters,
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
@@ -166,7 +171,7 @@ pub struct FLASHCALW {
 }
 
 // static instance for the board. Only one FLASHCALW on chip.
-pub static mut FLASH_CONTROLLER: FLASHCALW = FLASHCALW::new(FLASHCALW_BASE_ADDRS,
+pub static mut FLASH_CONTROLLER: FlashCalw = FlashCalw::new(FLASHCALW_BASE_ADDRS,
                                                             pm::HSBClock::FLASHCALW,
                                                             pm::HSBClock::FLASHCALWP,
                                                             pm::PBBClock::FLASHCALW);
@@ -201,15 +206,15 @@ pub trait Client {
     fn command_complete(&self, err: Error);
 }
 
-impl FLASHCALW {
+impl FlashCalw {
     const fn new(base_addr: usize,
                  ahb_clk: pm::HSBClock,
                  hramc1_clk: pm::HSBClock,
                  pb_clk: pm::PBBClock)
-                 -> FLASHCALW {
-        FLASHCALW {
+                 -> FlashCalw {
+        FlashCalw {
             registers: base_addr as *mut Registers,
-            cache: (base_addr + PICOCACHE_OFFSET) as *mut PicocacheRegisters,
+            cache: (base_addr + PICOCACHE_OFFSET) as *mut PicoCacheRegisters,
             ahb_clock: pm::Clock::HSB(ahb_clk),
             hramc1_clock: pm::Clock::HSB(hramc1_clk),
             pb_clock: pm::Clock::PBB(pb_clk),
@@ -227,12 +232,12 @@ impl FLASHCALW {
 
     //  Flush the cache. Should be called after every write!
     fn invalidate_cache(&self) {
-        let regs: &PicocacheRegisters = unsafe { mem::transmute(self.cache) };
+        let regs: &PicoCacheRegisters = unsafe { mem::transmute(self.cache) };
         regs.maintenance_register_0.set(0x1);
     }
 
     pub fn enable_picocache(&self, enable: bool) {
-        let regs: &PicocacheRegisters = unsafe { mem::transmute(self.cache) };
+        let regs: &PicoCacheRegisters = unsafe { mem::transmute(self.cache) };
         if enable {
             regs.control.set(0x1);
         } else {
@@ -241,25 +246,9 @@ impl FLASHCALW {
     }
 
     pub fn pico_enabled(&self) -> bool {
-        let regs: &PicocacheRegisters = unsafe { mem::transmute(self.cache) };
+        let regs: &PicoCacheRegisters = unsafe { mem::transmute(self.cache) };
         regs.status.get() & 0x1 != 0
     }
-
-    // Helper to read a flashcalw register (espically if your function is doing so once)
-    fn read_register(&self, key: RegKey) -> u32 {
-        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
-
-        match key {
-            RegKey::CONTROL => registers.control.get(),
-            RegKey::COMMAND => registers.command.get(),
-            RegKey::STATUS => registers.status.get(),
-            RegKey::PARAMETER => registers.parameter.get(),
-            RegKey::VERSION => registers.version.get(),
-            RegKey::GPFRHI => registers.general_purpose_fuse_register_hi.get(),
-            RegKey::GPFRLO => registers.general_purpose_fuse_register_lo.get(),
-        }
-    }
-
 
     pub fn handle_interrupt(&self) {
         unsafe {
@@ -307,12 +296,14 @@ impl FLASHCALW {
                         self.flashcalw_erase_page(page, true);
                     }
                     FlashState::Erasing => {
-                        //  Write page buffer isn't really a command, and
-                        //  clear page buffer dosn't trigger an interrupt thus
-                        //  I'm combining these with an actual command, write_page,
-                        //  which generates and interrupt and saves the page.
+                        //  Write page buffer isn't really a command,
+                        //  and clear page buffer dosn't trigger an
+                        //  interrupt thus I'm combining these with an
+                        //  actual command, write_page, which
+                        //  generates and interrupt and saves the
+                        //  page.
                         self.clear_page_buffer();
-                        self.write_to_page_buffer(page as usize * PAGE_SIZE as usize);
+                        self.write_to_page_buffer(page as usize * self.get_page_size() as usize);
 
                         self.current_state.set(FlashState::Writing);
                         self.flashcalw_write_page(page);
@@ -367,14 +358,36 @@ impl FLASHCALW {
 
 
     /// FLASH properties.
+
+    pub fn get_version(&self) -> u32 {
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
+        registers.version.get() & 0xfff
+    }
+
     pub fn get_flash_size(&self) -> u32 {
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
         let flash_sizes = [4, 8, 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048];
         // get the FSZ number and lookup in the table for the size.
-        flash_sizes[self.read_register(RegKey::PARAMETER) as usize & 0xf] << 10
+        flash_sizes[registers.parameter.get() as usize & 0xf] << 10
+    }
+
+    pub fn get_page_size(&self) -> u32 {
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
+        match (registers.parameter.get() >> 8) as usize {
+            0 => 32,
+            1 => 64,
+            2 => 128,
+            3 => 256,
+            4 => 512,
+            5 => 1024,
+            6 => 2048,
+            7 => 4096,
+            _ => 0
+       }
     }
 
     pub fn get_page_count(&self) -> u32 {
-        self.get_flash_size() / PAGE_SIZE
+        self.get_flash_size() / self.get_page_size()
     }
 
     pub fn get_page_count_per_region(&self) -> u32 {
@@ -398,7 +411,8 @@ impl FLASHCALW {
     /// FLASHC Control
     #[allow(dead_code)]
     fn get_wait_state(&self) -> u32 {
-        if self.read_register(RegKey::CONTROL) & bit!(6) == 0 {
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
+        if (registers.control.get() & bit!(6)) == 0 {
             0
         } else {
             1
@@ -478,7 +492,8 @@ impl FLASHCALW {
 
     #[allow(dead_code)]
     fn is_ready_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::CONTROL) & bit!(0)) != 0
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
+        (registers.control.get() & bit!(0)) != 0
     }
 
     fn enable_ready_int(&self, enable: bool) {
@@ -492,7 +507,8 @@ impl FLASHCALW {
 
     #[allow(dead_code)]
     fn is_lock_error_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::CONTROL) & bit!(2)) != 0
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
+        (registers.control.get() & bit!(2)) != 0
     }
 
     fn enable_lock_error_int(&self, enable: bool) {
@@ -506,7 +522,8 @@ impl FLASHCALW {
 
     #[allow(dead_code)]
     fn is_prog_error_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::CONTROL) & bit!(3)) != 0
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
+        (registers.control.get() & bit!(3)) != 0
     }
 
     fn enable_prog_error_int(&self, enable: bool) {
@@ -520,58 +537,64 @@ impl FLASHCALW {
 
     #[allow(dead_code)]
     fn is_ecc_int_enabled(&self) -> bool {
-        (self.read_register(RegKey::CONTROL) & bit!(4)) != 0
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
+        (registers.control.get() & bit!(4)) != 0
     }
 
     fn enable_ecc_int(&self, enable: bool) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.registers) };
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
         if enable {
-            regs.control.set(regs.control.get() | bit!(4));
+            registers.control.set(registers.control.get() | bit!(4));
         } else {
-            regs.control.set(regs.control.get() & !bit!(4));
+            registers.control.set(registers.control.get() & !bit!(4));
         }
     }
 
     /// Flashcalw status
 
     pub fn is_ready(&self) -> bool {
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
         unsafe {
             pm::enable_clock(self.pb_clock);
         }
-        self.read_register(RegKey::STATUS) & bit!(0) != 0
+        (registers.status.get() & bit!(0)) != 0
     }
 
     fn get_error_status(&self) -> u32 {
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
         unsafe {
             pm::enable_clock(self.pb_clock);
         }
-        self.read_register(RegKey::STATUS) & (bit!(3) | bit!(2))
+        registers.status.get() & (bit!(3) | bit!(2))
     }
 
     #[allow(dead_code)]
     fn is_lock_error(&self) -> bool {
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
         unsafe {
             pm::enable_clock(self.pb_clock);
         }
-        self.read_register(RegKey::STATUS) & bit!(2) != 0
+        (registers.status.get() & bit!(2)) != 0
     }
 
     #[allow(dead_code)]
     fn is_programming_error(&self) -> bool {
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
         unsafe {
             pm::enable_clock(self.pb_clock);
         }
-        self.read_register(RegKey::STATUS) & bit!(3) != 0
+        (registers.status.get() & bit!(3)) != 0
     }
 
     /// Flashcalw command control
     fn get_page_number(&self) -> u32 {
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
         // create a mask for the page number field
         let mut page_mask: u32 = bit!(8) - 1;
         page_mask |= page_mask << 24;
         page_mask = !page_mask;
 
-        (self.read_register(RegKey::COMMAND) & page_mask) >> 8
+        (registers.command.get() & page_mask) >> 8
     }
 
     pub fn issue_command(&self, command: FlashCMD, page_number: i32) {
@@ -619,7 +642,8 @@ impl FLASHCALW {
     /// FLASHCALW Protection Mechanisms
     #[allow(dead_code)]
     fn is_security_bit_active(&self) -> bool {
-        (self.read_register(RegKey::STATUS) & bit!(4)) != 0
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
+        (registers.status.get() & bit!(4)) != 0
     }
 
     #[allow(dead_code)]
@@ -632,7 +656,8 @@ impl FLASHCALW {
     }
 
     pub fn is_region_locked(&self, region: u32) -> bool {
-        (self.read_register(RegKey::STATUS) & bit!(region + 16)) != 0
+        let registers: &mut Registers = unsafe { mem::transmute(self.registers) };
+        (registers.status.get() & bit!(region + 16)) != 0
     }
 
     pub fn lock_page_region(&self, page_number: i32, lock: bool) {
@@ -727,7 +752,8 @@ impl FLASHCALW {
 
             let mut start_buffer: *const u8 = &buffer[0] as *const u8;
             let mut data_transfered: u32 = 0;
-            while data_transfered < PAGE_SIZE {
+            let page_size = self.get_page_size();
+            while data_transfered < page_size {
 
                 // errata copy..
                 ptr::copy(clr_ptr, page_buffer, 8);
@@ -747,10 +773,32 @@ impl FLASHCALW {
     pub fn debug_error_status(&self) -> u32 {
         self.error_status.get()
     }
+
+    pub fn lock_kernel(&self, lock: bool) {
+        unsafe {
+            extern "C" {
+                static _stext: *const u32;
+                static _etext: *const u32;
+                static _sapps: *const u32;
+            }
+            let start_page = (&_stext as *const*const u32) as u32 / self.get_page_size();
+            let end_page = (&_etext as *const*const u32) as u32 / self.get_page_size();
+            let start_region = self.get_page_region(start_page as i32);
+            let end_region = self.get_page_region(end_page as i32);
+            let app_page = (&_sapps as *const*const u32) as u32 / self.get_page_size();
+            let app_region = self.get_page_region(app_page as i32);
+            debug!("{} kernel pages {}-{}.", if lock { "Locking" } else {"Unlocking"} , start_page, end_page);
+            debug!("App code starts on page {}, region {}.", app_page, app_region);
+            for p in start_region..end_region+1 {
+                self.lock_region(p, lock);
+                debug!("{} region {}", if lock {"Locking"} else {"Unlocking"}, p);
+            }
+        }
+    }
 }
 
 // Implementation of high level calls using the low-lv functions.
-impl FLASHCALW {
+impl FlashCalw {
     pub fn set_client(&self, client: &'static Client) {
         self.client.set(Some(client));
     }
@@ -787,10 +835,6 @@ impl FLASHCALW {
         self.enable_picocache(true);
 
         self.current_state.set(FlashState::Ready);
-    }
-
-    pub fn get_page_size(&self) -> u32 {
-        PAGE_SIZE
     }
 
     pub fn get_number_pages(&self) -> u32 {
@@ -872,8 +916,8 @@ pub unsafe extern "C" fn flash_handler() {
     use kernel::common::Queue;
     use chip;
 
-    //  disable the nvic interrupt line for flash, turn of the perherial interrupt,
-    //  and queue a handle interrupt.
+    //  disable the nvic interrupt line for flash, turn of the
+    //  perherial interrupt, and queue a handle interrupt.
     FLASH_CONTROLLER.enable_ready_int(false);
     nvic::disable(nvic::NvicIdx::HFLASHC);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nvic::NvicIdx::HFLASHC);

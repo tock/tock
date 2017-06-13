@@ -54,8 +54,9 @@ struct Imix {
 // The RF233 radio stack requires our buffers for its SPI operations:
 //
 //   1. buf: a packet-sized buffer for SPI operations, which is
-//      used as the read buffer when it writes a packet passed to it and the write
-//      buffer when it reads a packet into a buffer passed to it.
+//      used as the read buffer when it writes a packet passed to it
+//      and the write buffer when it reads a packet into a buffer
+//      passed to it.
 //   2. rx_buf: buffer to receive packets into
 //   3 + 4: two small buffers for performing registers
 //      operations (one read, one write).
@@ -421,9 +422,36 @@ pub unsafe fn reset_handler() {
     rf233.config_set_address(0x1008);
     //    rf233.config_commit();
 
-    rf233.start();
+    extern {
+        static _stext:     *const u32;
+        static _etext:     *const u32;
+        static _sapps:     *const u32;
+        static _srelocate: *const u32;
+        static _erelocate: *const u32;
+        static _szero:     *const u32;
+        static _ezero:     *const u32;
+        static _sstack:    *const u32;
+        static _estack:    *const u32;
+    }
 
-    debug!("Initialization complete. Entering main loop");
+    rf233.start();
+    debug!("");
+    debug!("Booting TockOS.");
+    debug!("  Kernel code:  {:p}-{:p}", &_stext, &_etext);
+    debug!("  App code      {:p}", &_sapps);
+    debug!("  Kernel data:  {:p}-{:p}", &_srelocate, &_erelocate);
+    debug!("  Kernel BSS:   {:p}-{:p}", &_szero, &_ezero);
+    debug!("  Kernel stack: {:p}-{:p}", &_sstack, &_estack);
+
+    //debug!("Starting flash diagnostics...");
+    // debug!("  version:     {}", sam4l::flashcalw::FLASH_CONTROLLER.get_version());
+    //debug!("  flash size:  {}kB", sam4l::flashcalw::FLASH_CONTROLLER.get_flash_size() >> 10);
+    //debug!("  page count:  {}", sam4l::flashcalw::FLASH_CONTROLLER.get_page_count());
+    // debug!("  page/region: {}", sam4l::flashcalw::FLASH_CONTROLLER.get_page_count_per_region());
+    // debug!("  page size:   {}B", sam4l::flashcalw::FLASH_CONTROLLER.get_page_size());
+    // debug!("  ready:       {}", sam4l::flashcalw::FLASH_CONTROLLER.is_ready());
+    sam4l::flashcalw::FLASH_CONTROLLER.lock_kernel(false);
+    debug!("Initialization complete. Entering main loop\n");
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);
 }
 
