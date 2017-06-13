@@ -1,0 +1,21 @@
+# Makefile for loading applications for the Imix platform
+
+$(call check_defined, TOCK_USERLAND_BASE_DIR)
+$(call check_defined, BUILDDIR)
+$(call check_defined, PACKAGE_NAME)
+
+TOCK_ARCH = cortex-m4
+BOARD_BUILDDIR = $(BUILDDIR)/$(TOCK_ARCH)
+
+APP_FLASH = $(TOCK_USERLAND_BASE_DIR)/tools/flash/imix.sh
+
+# Upload programs over uart (does not work for Imix)
+.PHONY: program
+program: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+	# Can we just use SLOAD here? -Pat
+	$(error No program rule for imix)
+
+# Upload programs over JTAG
+.PHONY: flash
+flash: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+	$(APP_FLASH) $<
