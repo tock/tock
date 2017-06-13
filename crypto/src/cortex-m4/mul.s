@@ -32,7 +32,9 @@ multiply256x256_asm:
 	/////////BEGIN LOW PART //////////////////////
 		/////////MUL128/////////////
 			//MUL64
-			//Instructions for the variant of subtractive karasuba multiplication for the 0th and 1st two u32 result
+			//Instructions for the variant of subtractive karasuba multiplication for the 0th and 1st two u32 result (64 bits)
+			// Input operands in r4,r5 and r2,r3
+			
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
@@ -69,7 +71,8 @@ multiply256x256_asm:
 		//////////////////////////
 	mov r4, r12
 	stm r4!, {r0,r1} 
-	//Instructions for the variant of subtractive karasuba multiplication for the 2nd and 3rd lower u32 result
+	//Instructions for the variant of subtractive karasuba multiplication for the 2nd and 3rd lower u32 result (64 bits)
+	
 	push {r4}
 		push {r0,r1}
 		mov r1, r10
@@ -99,6 +102,7 @@ multiply256x256_asm:
 		mov r12, r7
 		push {r0, r1}
 			//MUL64
+			// Input operands in r4,r5 and r2,r3
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
@@ -217,7 +221,8 @@ multiply256x256_asm:
 	/////////BEGIN HIGH PART////////////////
 		/////////MUL128/////////////
 			//MUL64
-			//Instructions for the variant of subtractive karasuba multiplication for part of the lower 4th, 5th, 6th and 7th u32 result
+			//Instructions for the variant of subtractive karasuba multiplication for part of the lower 4th, 5th, 6th and 7th u32 result  (64 bits)
+			// Input operands in r4,r5 and r2,r3
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
@@ -404,7 +409,7 @@ multiply256x256_asm:
 	adc r3, r7
 	pop {r7}
 	stm r7!, {r0-r3}
-	//Instructions for the variant of subtractive karasuba multiplication for part of the lower 8th, 9th, 10th and 11th u32 result
+	//Instructions for the variant of subtractive karasuba multiplication for part of the lower 8th, 9th, 10th and 11th u32 result 
 	mov r10, r7
 	eor r0,r0
 	mov r6, r8
@@ -465,6 +470,7 @@ multiply256x256_asm:
 		/////////MUL128/////////////
 			//MUL64
 			//Instructions for the variant of subtractive karasuba multiplication for part of the lower 4th, 5th, 6th and 7th u32 result
+			// Input operands in r4,r5 and r2,r3
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
@@ -528,6 +534,7 @@ multiply256x256_asm:
 		mov r12, r7
 		push {r0, r1}
 			//MUL64
+			// Input operands in r4,r5 and r2,r3
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
