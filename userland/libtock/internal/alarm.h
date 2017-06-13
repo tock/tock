@@ -14,7 +14,7 @@ extern "C" {
  *
  * Side-effects: cancels any existing/outstanding timers
  */
-int timer_subscribe(subscribe_cb cb, void *userdata);
+int alarm_internal_subscribe(subscribe_cb cb, void *userdata);
 
 /*
  * Starts a repeating timer
@@ -23,7 +23,7 @@ int timer_subscribe(subscribe_cb cb, void *userdata);
  *
  * Side-effects: cancels any existing/outstanding timers
  */
-int timer_start_repeating(uint32_t interval_ms);
+int alarm_internal_start_repeating(uint32_t interval_ms);
 
 /*
  * Starts a oneshot timer
@@ -32,7 +32,7 @@ int timer_start_repeating(uint32_t interval_ms);
  *
  * Side-effects: cancels any existing/outstanding timers
  */
-int timer_oneshot(uint32_t interval_ms);
+int alarm_internal_oneshot(uint32_t interval_ms);
 
 /*
  * Starts a oneshot alarm
@@ -41,27 +41,19 @@ int timer_oneshot(uint32_t interval_ms);
  *
  * Side-effects: cancels any existing/outstanding timers
  */
-int timer_absolute(uint32_t tics);
+int alarm_internal_absolute(uint32_t tics);
 
-int timer_stop(void);
+int alarm_internal_stop(void);
 
 /*
  * Get the current counter value of the timer.
  */
-unsigned int timer_read(void);
+unsigned int alarm_internal_read(void);
 
 /*
  * Get the the timer frequency in Hz.
  */
-unsigned int timer_frequency(void);
-
-/*
- * Blocks for the given amount of time in millisecond.
- *
- * This is a wrapper around the `timer` interface, so calling this will cancel
- * any outstanding timers as well as replace the timer callback.
- */
-void delay_ms(uint32_t ms);
+unsigned int alarm_internal_frequency(void);
 
 #ifdef __cplusplus
 }
