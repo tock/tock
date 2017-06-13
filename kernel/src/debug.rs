@@ -8,11 +8,12 @@ use mem::AppSlice;
 use returncode::ReturnCode;
 
 pub const APPID_IDX: usize = 255;
+const BUF_SIZE: usize = 1024;
 
 pub struct DebugWriter {
     driver: Option<&'static Driver>,
     pub container: Option<*mut u8>,
-    output_buffer: [u8; 1024],
+    output_buffer: [u8; BUF_SIZE],
     output_head: usize,
     output_tail: usize,
     output_active_len: usize,
@@ -22,7 +23,7 @@ pub struct DebugWriter {
 static mut DEBUG_WRITER: DebugWriter = DebugWriter {
     driver: None,
     container: None,
-    output_buffer: [0; 1024],
+    output_buffer: [0; BUF_SIZE],
     output_head: 0, // ........ first valid index in output_buffer
     output_tail: 0, // ........ one past last valid index (wraps to 0)
     output_active_len: 0, //... how big is the current transaction?
