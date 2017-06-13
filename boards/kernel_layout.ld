@@ -42,6 +42,7 @@ SECTIONS
     .text :
     {
         . = ALIGN(4);
+        _stext = .;
         _textstart = .;         /* Symbol expected by some MS build toolchains */
 
         /* Place vector table at the beginning of ROM.
@@ -177,9 +178,6 @@ SECTIONS
         . = ALIGN(4);
         _erelocate = .;
     } > ram
-
-
-
 
     .sram (NOLOAD) :
     {
