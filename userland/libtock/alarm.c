@@ -1,6 +1,7 @@
+#include <limits.h>
 #include <stdlib.h>
 #include <timer.h>
-#include "virtual_timer.h"
+#include "alarm.h"
 
 // Returns < 0 if expiration0 is earlier, > 0 if expiration1 is earlier, and 0
 // if they are equal.
@@ -134,7 +135,7 @@ static void callback( uint32_t now,
   free(timer);
 }
 
-virtual_timer_t *virtual_timer_start(uint32_t expiration, subscribe_cb cb, void* ud) {
+virtual_timer_t *alarm_start(uint32_t expiration, subscribe_cb cb, void* ud) {
   virtual_timer_t *timer = (virtual_timer_t*)malloc(sizeof(virtual_timer_t));
   timer->expiration = expiration;
   timer->callback = cb;
@@ -150,6 +151,42 @@ virtual_timer_t *virtual_timer_start(uint32_t expiration, subscribe_cb cb, void*
   }
 
   return timer;
+}
+
+virtual_timer_t* alarm_in(uint32_t ms, subscribe_cb cb, void* ud) {
+  uint32_t now = timer_read();
+  uint32_t expiration = INT_MAX - now >= ms ? now + ms : ms - (INT_MAX - now);
+  return alarm_start(expiration, cb, ud);
+}
+
+struct repeating {
+  uint32_t interval;
+  subscribe_cb* cb;
+  void* ud;
+  virtual_timer_t* timer;
+};
+
+static void repeating_cb( uint32_t now,
+                      __attribute__ ((unused)) int unused1,
+                      __attribute__ ((unused)) int unused2,
+                      void* uud) {
+  struct repeating* udwrapper = (struct repeating*)uud;
+  uint32_t ms = udwrapper->interval;
+  uint32_t expiration = INT_MAX - now >= ms ? now + ms : ms - (INT_MAX - now);
+  uint32_t cur_exp = udwrapper->timer->expiration;
+  udwrapper->timer = alarm_start(expiration, (subscribe_cb*)repeating_cb, (void*)udwrapper);
+  udwrapper->cb(now, cur_exp, 0, udwrapper->ud);
+}
+
+void* alarm_every(uint32_t ms, subscribe_cb cb, void* ud) {
+  uint32_t now = timer_read();
+  uint32_t expiration = INT_MAX - now >= ms ? now + ms : ms - (INT_MAX - now);
+  struct repeating* uud = (struct repeating*)malloc(sizeof(struct repeating));
+  uud->interval = ms;
+  uud->cb = cb;
+  uud->ud = ud;
+  uud->timer = alarm_start(expiration, (subscribe_cb*)repeating_cb, (void*)uud);
+  return (void*)uud;
 }
 
 void virtual_timer_cancel(virtual_timer_t* timer) {
