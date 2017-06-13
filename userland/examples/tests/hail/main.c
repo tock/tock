@@ -9,6 +9,7 @@
 #include <simple_ble.h>
 
 #include <adc.h>
+#include <alarm.h>
 #include <button.h>
 #include <gpio.h>
 #include <isl29035.h>
@@ -16,7 +17,6 @@
 #include <ninedof.h>
 #include <nrf51_serialization.h>
 #include <si7021.h>
-#include <timer.h>
 
 // Intervals for BLE advertising and connections
 simple_ble_config_t ble_config = {

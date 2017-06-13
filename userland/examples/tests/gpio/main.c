@@ -5,10 +5,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <alarm.h>
 #include <console.h>
 #include <gpio.h>
 #include <led.h>
-#include <timer.h>
 #include <tock.h>
 
 // callback for timers
@@ -24,8 +24,7 @@ static void gpio_output(void) {
   putstr("Periodically blinking LED\n");
 
   // Start repeating timer
-  timer_subscribe(timer_cb, NULL);
-  timer_start_repeating(500);
+  alarm_every(500, timer_cb, NULL);
 
   while (1) {
     led_toggle(0);
@@ -43,8 +42,7 @@ static void gpio_input(void) {
   // set LED pin as input and start repeating timer
   // pin is configured with a pull-down resistor, so it should read 0 as default
   gpio_enable_input(0, PullDown);
-  timer_subscribe(timer_cb, NULL);
-  timer_start_repeating(500);
+  alarm_every(500, timer_cb, NULL);
 
   while (1) {
     // print pin value

@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include <timer.h>
+#include <alarm.h>
 
 class Base {
 public:

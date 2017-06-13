@@ -1,9 +1,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include <alarm.h>
 #include <led.h>
 #include <radio.h>
-#include <timer.h>
 
 #define BUF_SIZE 60
 char packet_rx[BUF_SIZE];

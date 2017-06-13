@@ -1,9 +1,9 @@
 #include <stdbool.h>
 
+#include "alarm.h"
 #include "gpio.h"
 #include "led.h"
 #include "radio.h"
-#include "timer.h"
 #include "tock.h"
 
 #define BUF_SIZE 60

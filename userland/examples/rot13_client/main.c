@@ -1,8 +1,8 @@
+#include <alarm.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <ipc.h>
-#include <timer.h>
 
 int rot13_svc_num = 0;
 

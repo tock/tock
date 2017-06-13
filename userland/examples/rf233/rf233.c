@@ -7,10 +7,10 @@
 // Date: April 18 2016
 
 
+#include <alarm.h>
 #include <gpio.h>
 #include <spi.h>
 #include <stdint.h>
-#include <timer.h>
 
 #include "rf233-arch.h"
 #include "rf233-config.h"

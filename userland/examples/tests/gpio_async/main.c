@@ -1,8 +1,8 @@
 #include <stdio.h>
 
+#include <alarm.h>
 #include <gpio.h>
 #include <gpio_async.h>
-#include <timer.h>
 
 int interrupt_count = 0;
 

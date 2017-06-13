@@ -1,3 +1,9 @@
+#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <tock.h>
 
 typedef struct alarm alarm_t;

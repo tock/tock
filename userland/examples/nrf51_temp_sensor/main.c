@@ -1,7 +1,6 @@
-#include <stdio.h>
-#include <timer.h>
-
 #include "temperature.h"
+#include <alarm.h>
+#include <stdio.h>
 
 static void callback(int temp,
                      __attribute__ ((unused)) int not_used2,

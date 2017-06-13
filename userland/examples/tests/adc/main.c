@@ -4,8 +4,8 @@
 #include <unistd.h>
 
 #include <adc.h>
+#include <alarm.h>
 #include <console.h>
-#include <timer.h>
 #include <tock.h>
 
 // List of frequencies to sample at

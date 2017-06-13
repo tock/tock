@@ -153,7 +153,8 @@ alarm_t *alarm_start(uint32_t expiration, subscribe_cb cb, void* ud) {
 
 alarm_t* alarm_in(uint32_t ms, subscribe_cb cb, void* ud) {
   uint32_t now = alarm_internal_read();
-  uint32_t expiration = INT_MAX - now >= ms ? now + ms : ms - (INT_MAX - now);
+  uint32_t interval = ms * alarm_internal_frequency() / 1000;
+  uint32_t expiration = now + interval;
   return alarm_start(expiration, cb, ud);
 }
 
@@ -169,8 +170,8 @@ static void repeating_cb( uint32_t now,
                       __attribute__ ((unused)) int unused2,
                       void* uud) {
   alarm_repeating_t* udwrapper = (alarm_repeating_t*)uud;
-  uint32_t ms = udwrapper->interval;
-  uint32_t expiration = now + ms;
+  uint32_t interval = udwrapper->interval;
+  uint32_t expiration = now + interval;
   uint32_t cur_exp = udwrapper->timer->expiration;
   udwrapper->timer = alarm_start(expiration, (subscribe_cb*)repeating_cb, (void*)udwrapper);
   udwrapper->cb(now, cur_exp, 0, udwrapper->ud);
@@ -178,9 +179,10 @@ static void repeating_cb( uint32_t now,
 
 alarm_repeating_t* alarm_every(uint32_t ms, subscribe_cb cb, void* ud) {
   uint32_t now = alarm_internal_read();
-  uint32_t expiration = now + ms;
+  uint32_t interval = ms * alarm_internal_frequency() / 1000;
+  uint32_t expiration = now + interval;
   alarm_repeating_t* uud = (alarm_repeating_t*)malloc(sizeof(alarm_repeating_t));
-  uud->interval = ms;
+  uud->interval = interval;
   uud->cb = cb;
   uud->ud = ud;
   uud->timer = alarm_start(expiration, (subscribe_cb*)repeating_cb, (void*)uud);

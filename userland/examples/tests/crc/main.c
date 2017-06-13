@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <alarm.h>
 #include <crc.h>
 #include <rng.h>
-#include <timer.h>
 
 struct test_case {
   enum crc_alg alg;
