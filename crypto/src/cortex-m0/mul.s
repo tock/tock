@@ -20,7 +20,7 @@ multiply256x256_asm:
 	/////////BEGIN LOW PART //////////////////////
 		/////////MUL128/////////////
 			//MUL64
-			//Instructions for the variant of subtractive karasuba multiplication for the 0th and 1st two u32 result
+			//Instructions for the variant of subtractive karasuba multiplication for the 1st and 2nd 32 bits of each input
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
@@ -105,7 +105,6 @@ multiply256x256_asm:
 		//////////////////////////
 	mov r4, r12
 	stm r4!, {r0,r1} 
-	//Instructions for the variant of subtractive karasuba multiplication for the 2nd and 3rd lower u32 result
 	push {r4}
 		push {r0,r1}
 		mov r1, r10
@@ -135,6 +134,7 @@ multiply256x256_asm:
 		mov r12, r7
 		push {r0, r1}
 			//MUL64
+			//Instructions for the variant of subtractive karasuba multiplication for the 3rd and 4th 32 bits of each input
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
@@ -337,7 +337,6 @@ multiply256x256_asm:
 	////////END LOW PART/////////////////////
 	pop {r0}
 	stm r0!, {r2,r3}
-	//Instructions for the variant of subtractive karasuba multiplication for part of the lower 4th, 5th, 6th and 7th u32 result
 	pop {r1,r2}
 	push {r0}
 	push {r4-r7}
@@ -347,7 +346,9 @@ multiply256x256_asm:
 	ldm r2, {r2, r3}
 	/////////BEGIN HIGH PART////////////////
 		/////////MUL128/////////////
+		    
 			//MUL64
+			//Instructions for the variant of subtractive karasuba multiplication for the 5th and 6th 32 bits of each input
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
@@ -457,6 +458,7 @@ multiply256x256_asm:
 		mov r12, r7
 		push {r0, r1}
 			//MUL64
+			//Instructions for the variant of subtractive karasuba multiplication for the 7th and 8th 32 bits of each input
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
@@ -669,7 +671,7 @@ multiply256x256_asm:
 	adc r3, r7
 	pop {r7}
 	stm r7!, {r0-r3}
-	/Instructions for the variant of subtractive karasuba multiplication for part of the lower 8th, 9th, 10th and 11th u32 result
+	
 	mov r10, r7
 	eor r0,r0
 	mov r6, r8
@@ -700,7 +702,7 @@ multiply256x256_asm:
 	mov r12, r4 //carry
 	mov r5, r10
 	stm r5!, {r0-r3}
-	//Instructions for the variant of subtractive karasuba multiplication for part of the lower 12th, 13th, 14th and 15th u32 result
+	//Instructions for the variant of subtractive karasuba multiplication for part of the lower 8th, 9th, 10th and 11th u32 result
 	mov r11, r5
 	mov r8, r0
 	mov r9, r1
@@ -728,8 +730,9 @@ multiply256x256_asm:
 	mov r3, r9
 	/////////BEGIN MIDDLE PART////////////////
 		/////////MUL128/////////////
+		//Instructions for the variant of subtractive karasuba multiplication for the middle 
 			//MUL64
-			//Instructions for the variant of subtractive karasuba multiplication for part of the lower 4th, 5th, 6th and 7th u32 result
+			
 			mov r6, r5
 			mov r1, r2
 			sub r5, r4
@@ -750,7 +753,7 @@ multiply256x256_asm:
 			lsr r2,#16
 			mul r0,r5//00
 			mul r5,r1//10
-			mul r4,r2//01
+			mul r4,r2//01/////////MUL128/////////////
 			mul r1,r2//11
 			lsl r2,r4,#16
 			lsr r4,r4,#16
@@ -1039,6 +1042,7 @@ multiply256x256_asm:
 		adc r6, r0
 		adc r7, r1
 	//////////END MIDDLE PART////////////////
+	//Instructions for calculating lower 4th, 5th, 6th, 7th u32 result
 	pop {r0,r1} //r0,r1
 	mov r12, r0 //negative
 	eor r2, r0
@@ -1073,7 +1077,7 @@ multiply256x256_asm:
 	mov r9, r4
 	mov r4, r11
 	stm r4!, {r0-r3}
-	//Instructions for the variant of subtractive karasuba multiplication for part of the lower 8th, 9th, 10th and 11th u32 result
+	//Instructions for calculating lower 8th, 9th, 10th and 11th u32 result
 	mov r11, r4
 	pop {r0-r3}
 	mov r4, r9
@@ -1094,7 +1098,7 @@ multiply256x256_asm:
 	mov r8, r0
 	mov r0, r11
 	stm r0!, {r4-r7}
-	//Instructions for the variant of subtractive karasuba multiplication for part of the lower 12th, 13th, 14th and 15th u32 result
+	//Instructions for calculating lower 12th, 13th, 14th and 15th u32 result
 	mov r11, r0
 	mov r0, r8
 	mov r6, r12
