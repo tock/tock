@@ -257,7 +257,7 @@ and pin definitions for platforms.
 ## Style & Format
 
 We try to keep a consistent style in mainline userland code. For C/C++, we use
-[uncrustify](https://github.com/uncrustify/uncrustify) (>= v0.59). High level:
+[uncrustify](https://github.com/uncrustify/uncrustify). High level:
 
   - Two space character indents
   - Braces on the same line
