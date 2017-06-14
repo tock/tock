@@ -329,91 +329,46 @@ impl<'a, S: SpiSlaveDevice> SpiSlave<'a, S> {
 }
 
 impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
+
+    /// Provide read/write buffers to SpiSlave
+    ///
+    /// allow_num 0: Provides an app_read buffer to receive transfers into.
+    ///
+    /// allow_num 1: Provides an app_write buffer to send transfers from.
+    ///
     fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
-        // 0: Provides an app_read buffer
-        // 1: Provides an app_write buffer
         match allow_num {
             0 => {
-                let appc = match self.app.take() {
-                    None => {
-                        SlaveApp {
-                            callback: None,
-                            selected_callback: None,
-                            app_read: Some(slice),
-                            app_write: None,
-                            len: 0,
-                            index: 0,
-                        }
-                    }
-                    Some(mut appc) => {
-                        appc.app_read = Some(slice);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| app.app_read = Some(slice));
                 ReturnCode::SUCCESS
             }
             1 => {
-                let appc = match self.app.take() {
-                    None => {
-                        SlaveApp {
-                            callback: None,
-                            selected_callback: None,
-                            app_read: None,
-                            app_write: Some(slice),
-                            len: 0,
-                            index: 0,
-                        }
-                    }
-                    Some(mut appc) => {
-                        appc.app_write = Some(slice);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| app.app_write = Some(slice));
                 ReturnCode::SUCCESS
             }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
 
-    #[inline(never)]
+    /// Setup callbacks for SpiSlave
+    ///
+    /// subscribe_num 0: Sets up a callback for when read_write completes. This
+    ///                  is called after completing a transfer/reception with
+    ///                  the Spi master. Note that this occurs after the pending
+    ///                  DMA transfer initiated by read_write_bytes completes.
+    ///
+    /// subscribe_num 1: Sets up a callback for when the chip select line is
+    ///                  driven low, meaning that the slave was selected by
+    ///                  the Spi master. This occurs immediately before
+    ///                  a data transfer.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* read_write */ => {
-                let appc = match self.app.take() {
-                    None => SlaveApp {
-                        callback: Some(callback),
-                        selected_callback: None,
-                        app_read: None,
-                        app_write: None,
-                        len: 0,
-                        index: 0,
-                    },
-                    Some(mut appc) => {
-                        appc.callback = Some(callback);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| app.callback = Some(callback));
                 ReturnCode::SUCCESS
             },
             1 /* chip selected */ => {
-                let appc = match self.app.take() {
-                    None => SlaveApp {
-                        callback: None,
-                        selected_callback: Some(callback),
-                        app_read: None,
-                        app_write: None,
-                        len: 0,
-                        index: 0,
-                    },
-                    Some(mut appc) => {
-                        appc.selected_callback = Some(callback);
-                        appc
-                    }
-                };
-                self.app.replace(appc);
+                self.app.map(|app| app.selected_callback = Some(callback));
                 ReturnCode::SUCCESS
             },
             _ => ReturnCode::ENOSUPPORT
@@ -421,40 +376,25 @@ impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
     }
 
     /// 0: check if present
-    /// 1: read/write a single byte (blocking)
-    ///   - No longer supported
-    /// 2: read/write buffers
+    /// 1: read/write buffers
     ///   - read and write buffers optional
     ///   - fails if arg1 (bytes to write) >
     ///     write_buffer.len()
-    /// 3: set chip select
-    ///   - not supported in slave mode
-    /// 4: get chip select
+    /// 2: get chip select
     ///   - returns current selected peripheral
     ///   - in slave mode, always returns 0
-    /// 5: set rate on current peripheral
-    ///   - not supported in slave mode
-    /// 6: get rate on current peripheral
-    ///   - not supported in slave mode
-    /// 7: set clock phase on current peripheral
+    /// 3: set clock phase on current peripheral
     ///   - 0 is sample leading
     ///   - non-zero is sample trailing
-    /// 8: get clock phase on current peripheral
+    /// 4: get clock phase on current peripheral
     ///   - 0 is sample leading
     ///   - non-zero is sample trailing
-    /// 9: set clock polarity on current peripheral
+    /// 5: set clock polarity on current peripheral
     ///   - 0 is idle low
     ///   - non-zero is idle high
-    /// 10: get clock polarity on current peripheral
+    /// 6: get clock polarity on current peripheral
     ///   - 0 is idle low
     ///   - non-zero is idle high
-    ///
-    /// 11: hold CS line low between transfers
-    ///   - set CSAAT bit of control register
-    ///   - not supported for slave
-    /// 12: release CS line (high) between transfers
-    ///   - clear CSAAT bit of control register
-    ///   - not supported for slave
     ///
     /// x: lock spi
     ///   - if you perform an operation without the lock,
@@ -470,9 +410,7 @@ impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
     fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
-            // No longer supported, wrap inside a read_write_bytes
-            1 /* read_write_byte */ => ReturnCode::ENOSUPPORT,
-            2 /* read_write_bytes */ => {
+            1 /* read_write_bytes */ => {
                 if self.busy.get() {
                     return ReturnCode::EBUSY;
                 }
@@ -495,38 +433,28 @@ impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
                     }
                 })
             }
-            3 /* set chip select */ => {
-                // Not supported in slave mode
-                ReturnCode::ENOSUPPORT
-            }
-            4 /* get chip select */ => {
+            2 /* get chip select */ => {
                 // When in slave mode, the only possible chip select is 0
                 ReturnCode::SuccessWithValue { value: 0 }
             }
-            5 /* set baud rate */ => {
-                ReturnCode::ENOSUPPORT
-            }
-            6 /* get baud rate */ => {
-                ReturnCode::ENOSUPPORT
-            }
-            7 /* set phase */ => {
+            3 /* set phase */ => {
                 match arg1 {
                     0 => self.spi_slave.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_slave.set_phase(ClockPhase::SampleTrailing),
                 };
                 ReturnCode::SUCCESS
             }
-            8 /* get phase */ => {
+            4 /* get phase */ => {
                 ReturnCode::SuccessWithValue { value: self.spi_slave.get_phase() as usize }
             }
-            9 /* set polarity */ => {
+            5 /* set polarity */ => {
                 match arg1 {
                     0 => self.spi_slave.set_polarity(ClockPolarity::IdleLow),
                     _ => self.spi_slave.set_polarity(ClockPolarity::IdleHigh),
                 };
                 ReturnCode::SUCCESS
             }
-            10 /* get polarity */ => {
+            6 /* get polarity */ => {
                 ReturnCode::SuccessWithValue { value: self.spi_slave.get_polarity() as usize }
             }
             _ => ReturnCode::ENOSUPPORT

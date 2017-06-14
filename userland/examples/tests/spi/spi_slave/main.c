@@ -1,16 +1,13 @@
 #include <stdbool.h>
 
-#include "led.h"
-#include "spi_slave.h"
-#include "gpio.h"
-
-#define GPIO_PIN 31
+#include <led.h>
+#include <spi_slave.h>
+#include <gpio.h>
 
 #define BUF_SIZE 200
 char rbuf[BUF_SIZE];
 char wbuf[BUF_SIZE];
 bool toggle = true;
-bool error = false;
 
 static void write_cb(__attribute__ ((unused)) int arg0,
               __attribute__ ((unused)) int arg2,
@@ -31,10 +28,8 @@ static void selected_cb(__attribute__ ((unused)) int arg0,
               __attribute__ ((unused)) void* userdata) {
     if (toggle) {
       led_on(0);
-      gpio_clear(GPIO_PIN);
     } else {
       led_off(0);
-      gpio_set(GPIO_PIN);
     }
     toggle = !toggle;
 }
@@ -60,13 +55,10 @@ static void selected_cb(__attribute__ ((unused)) int arg0,
 // will be 0..n rather than all 0s.
 
 int main(void) {
-  gpio_enable_output(GPIO_PIN);
-
   int i;
   for (i = 0; i < 200; i++) {
     wbuf[i] = i;
   }
-  spi_slave_init();
 
   spi_slave_set_polarity(false);
   spi_slave_set_phase(false);

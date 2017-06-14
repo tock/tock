@@ -1,8 +1,8 @@
 #include <stdbool.h>
 
-#include "led.h"
-#include "spi.h"
-#include "button.h"
+#include <led.h>
+#include <spi.h>
+#include <button.h>
 
 #define BUF_SIZE 16
 char rbuf[BUF_SIZE];

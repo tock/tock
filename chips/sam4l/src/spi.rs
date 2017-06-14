@@ -395,8 +395,8 @@ impl Spi {
     }
 
     /// Asynchronous buffer read/write of SPI.
-    /// returns true if operation starts (will receive callback through SpiMasterClient),
-    /// returns false if the operation does not start.
+    /// returns SUCCESS if operation starts (will receive callback through SpiMasterClient),
+    /// returns EBUSY if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,
@@ -497,9 +497,9 @@ impl spi::SpiMaster for Spi {
     /// Asynchronous buffer read/write of SPI.
     /// write_buffer must  be Some; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
-    /// minimum of two buffer lengths; returns true if operation
+    /// minimum of two buffer lengths; returns SUCCESS if operation
     /// starts (will receive callback through SpiMasterClient), returns
-    /// false if the operation does not start.
+    /// EBUSY if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,
@@ -585,23 +585,6 @@ impl spi::SpiSlave for Spi {
     fn set_write_byte(&self, write_byte: u8) {
         let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
         regs.tdr.set(write_byte as u32);
-    }
-
-    // Synchronous version
-    fn read_write_byte(&self, write_byte: u8) -> u8 {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
-
-        // wait for serializer to say TDRE (E = empty)
-        while (regs.sr.get() & spi_consts::sr::TDRE) == 0 {}
-
-        // write byte
-        regs.tdr.set(write_byte as u32);
-
-        // wait for byte to come in RDRF (F = full)
-        while (regs.sr.get() & spi_consts::sr::RDRF) == 0 {}
-
-        // read byte
-        regs.rdr.get() as u8
     }
 
     fn read_write_bytes(&self,

@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "led.h"
-#include "spi_slave.h"
+#include <led.h>
+#include <spi_slave.h>
 
 #define BUF_SIZE 16
 char rbuf[BUF_SIZE];
@@ -72,18 +72,12 @@ int main(void) {
     ibuf[i] = i;
   }
 
-  printf("Before init!\n");
-  spi_slave_init();
-  printf("After init!\n");
-
-
   spi_slave_set_polarity(false);
   spi_slave_set_phase(false);
-  printf("After init pt 2!\n");
-  // We write wbuf, read rbuf here
-  printf("Asynch call\n");
   int err = spi_slave_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
-  printf("After asynch call: %d\n", err);
+  if (err < 0) {
+    printf("Error: spi_slave_read_write: %d\n", err);
+  }
 
   spi_slave_chip_selected(selected_cb, NULL);
 }

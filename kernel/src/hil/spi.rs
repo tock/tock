@@ -149,10 +149,10 @@ pub trait SpiMasterDevice {
 }
 
 pub trait SpiSlaveClient {
-    // This is called whenever the slave is selected by the master
+    /// This is called whenever the slave is selected by the master
     fn chip_selected(&self);
 
-    // This is called as a DMA interrupt when a transfer has completed
+    /// This is called as a DMA interrupt when a transfer has completed
     fn read_write_done(&self,
                        write_buffer: Option<&'static mut [u8]>,
                        read_buffer: Option<&'static mut [u8]>,
@@ -161,14 +161,10 @@ pub trait SpiSlaveClient {
 
 pub trait SpiSlave {
     fn init(&self);
+    /// Returns true if there is a client.
     fn has_client(&self) -> bool;
-    // return if there is a client.
 
     fn set_client(&self, client: Option<&'static SpiSlaveClient>);
-
-    // buffer level or byte-level?
-    // fn set_transfer_mode(&self, transfor_mode: TransferMode);
-    // fn get_transfer_mode(&self) -> TransferMode;
 
     fn set_write_byte(&self, write_byte: u8);
     fn read_write_bytes(&self,
@@ -176,11 +172,6 @@ pub trait SpiSlave {
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
                         -> ReturnCode;
-    // fn write_byte(&self, val: u8);
-    // fn read_byte(&self) -> u8;
-    // fn read_write_byte(&self, val: u8) -> u8;
-
-    fn read_write_byte(&self, write_byte: u8) -> u8;
 
     fn set_clock(&self, polarity: ClockPolarity);
     fn get_clock(&self) -> ClockPolarity;

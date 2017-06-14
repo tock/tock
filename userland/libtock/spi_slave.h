@@ -7,7 +7,6 @@ extern "C" {
 #endif
 
 /* SPI system calls */
-int spi_slave_init(void);
 /* Get chip select always returns 0 in slave mode. */
 int spi_slave_get_chip_select(void);
 
@@ -20,9 +19,6 @@ int spi_slave_get_phase(void);
    * true means an idle clock is high. */
 int spi_slave_set_polarity(bool pol);
 int spi_slave_get_polarity(void);
-
-/* Write byte is no longer supported. */
-int spi_slave_write_byte(unsigned char byte);
 
 /* This registers a callback for when the slave is selected. */
 int spi_slave_chip_selected(subscribe_cb cb, bool* cond);
