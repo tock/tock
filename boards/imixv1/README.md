@@ -1,19 +1,28 @@
-imix: Platform-Specific Instructions
+imix v1: Platform-Specific Instructions
 =====================================
 
-This board file is for imix version 2. For older versions, see the imixv1 board.
+This is the legacy board file for older versions of imix (version 1). It will
+be removed in a future release of Tock.
+
+Kernel and userland software can be flashed onto the imix using
+[openocd](http://openocd.org/). We require at least version `0.8.0`.
+
+```bash
+(Linux): sudo apt-get install openocd
+(MacOS): brew install open-ocd
+```
 
 
 ## Flashing the kernel
 
-To program the Tock kernel onto the imix, `cd` into the `boards/imix` directory
+To program the Tock kernel onto the imix, `cd` into the `boards/imixv1` directory
 and run:
 
 ```bash
 $ make flash
 ```
 
-This will build `boards/imix/target/sam4l/release/imix/imix` and use tockloader to
+This will build `boards/imixv1/target/sam4l/release/imixv1/imixv1` and use openocd to
 flash it to the board.
 
 
@@ -27,36 +36,35 @@ To compile an app, `cd` to the desired app and `make`. For example:
 
 ```bash
 $ cd userland/examples/blink/
-$ make
+$ make TOCK_BOARD=imixv1
 ```
 
-This will build the app, generate a binary in Tock Binary Format (using the
-`elf2tbf` utility), and create a TAB (Tock Application Bundle):
-`userland/examples/blink/build/blink.tab`.
+This will build the app and generate a binary in Tock Binary Format (using the
+`elf2tbf` utility): `userland/examples/blink/build/cortex-m4/app.bin`. This
+binary should be flashed separately from the kernel.
 
 Apps can be built and automatically uploaded from the root directory of Tock:
 
 ```bash
-$ make examples/blink
+$ make TOCK_BOARD=imixv1 examples/blink
 ```
 
-Apps can be uploaded with `make program` (to use the serial bootloader):
+Like the kernel, apps can be uploaded with `make flash`:
 
 ```bash
 $ cd userland/examples/blink/
-$ make program
+$ make TOCK_BOARD=imixv1 flash
 ```
 
 This builds and loads only a single app. Tock is capable of running multiple apps
-concurrently. Use `tockloader install` to add additional apps, and `tockloader list`
-to see the list of installed applications.
+concurrently. **TODO**
 
 ## Debugging
 
 To debug a loaded kernel with `openocd`:
 
 ```bash
-$ cd boards/imix/
+$ cd boards/imixv1/
 $ openocd -f connect.cfg
 ```
 
@@ -64,8 +72,8 @@ Then, in another terminal (assuming you have loaded a kernel image built using
 the `release` profile):
 
 ```bash
-$ cd boards/imix/
-$ arm-none-eabi-gdb target/sam4l/release/imix.elf
+$ cd boards/imixv1/
+$ arm-none-eabi-gdb target/sam4l/release/imixv1.elf
 (gdb) target remote localhost:3333
 (gdb) monitor reset halt
 (gdb) break <?>   # try tab-completion to find useful name-mangled breakpoints
@@ -89,12 +97,6 @@ one closer to the middle), and then use `miniterm.py` to open that serial port:
 
 ```bash
 $ miniterm.py --dtr 0 --rts 1 /dev/ttyUSB0 115200
-```
-
-or
-
-```bash
-tockloader listen
 ```
 
 (Note that you may need to configure your system to allow user access to the
