@@ -74,6 +74,17 @@ if ! command -v uncrustify >/dev/null; then
   esac
 fi
 
+# Validate uncrustify version
+VERSION=$(uncrustify --version | egrep -o '0.[0-9]+' | cut -d '.' -f2)
+if [[ "$VERSION" < 59 ]]; then
+  echo ""
+  echo "$(tput bold)Your uncrustify version is too old. >= v0.59 is required.$(tput sgr0)"
+  echo ""
+  echo "uncrustify --version"
+  uncrustify --version
+  echo ""
+  exit 1
+fi
 
 set +e
 
