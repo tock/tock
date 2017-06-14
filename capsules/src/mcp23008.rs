@@ -23,14 +23,12 @@
 //! // Configure the MCP23008. Device address 0x20.
 //! let mcp23008_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
-//!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x20),
-//!     32);
+//!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x20));
 //! let mcp23008 = static_init!(
 //!     capsules::mcp23008::MCP23008<'static>,
 //!     capsules::mcp23008::MCP23008::new(mcp23008_i2c,
 //!                                       Some(&sam4l::gpio::PA[04]),
-//!                                       &mut capsules::mcp23008::BUFFER),
-//!     352/8);
+//!                                       &mut capsules::mcp23008::BUFFER));
 //! mcp23008_i2c.set_client(mcp23008);
 //! sam4l::gpio::PA[04].set_client(mcp23008);
 //!
@@ -38,16 +36,12 @@
 //! // administrative layer that provides a single interface to them all.
 //! let async_gpio_ports = static_init!(
 //!     [&'static capsules::mcp23008::MCP23008; 1],
-//!     [mcp23008],
-//!     32/8
-//! );
+//!     [mcp23008]);
 //!
 //! // `gpio_async` is the object that manages all of the extenders.
 //! let gpio_async = static_init!(
 //!     capsules::gpio_async::GPIOAsync<'static, capsules::mcp23008::MCP23008<'static>>,
-//!     capsules::gpio_async::GPIOAsync::new(async_gpio_ports),
-//!     384/8
-//! );
+//!     capsules::gpio_async::GPIOAsync::new(async_gpio_ports));
 //! // Setup the clients correctly.
 //! for port in async_gpio_ports.iter() {
 //!     port.set_client(gpio_async);
