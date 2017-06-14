@@ -27,7 +27,7 @@ static void aes_async(int callback_type,
       printf("%02x ", data[i]);
     }
     printf("\r\n");
-  }else if (callback_type == 2)  {
+  } else if (callback_type == 2) {
     printf("async decrypt:\r\n");
     for (uint8_t i = 0; i < sizeof(data); i++) {
       printf("%02x ", data[i]);
