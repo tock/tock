@@ -329,7 +329,6 @@ impl<'a, S: SpiSlaveDevice> SpiSlave<'a, S> {
 }
 
 impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
-
     /// Provide read/write buffers to SpiSlave
     ///
     /// allow_num 0: Provides an app_read buffer to receive transfers into.
