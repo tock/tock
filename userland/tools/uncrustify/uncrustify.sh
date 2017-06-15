@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Format overwrites changes, which is probably good, but it's nice to see
 # what it has done
@@ -25,70 +26,62 @@ if git status --porcelain | grep '^.M.*\.[ch].*' -q; then
 	fi
 fi
 
-# install uncrustify if it's missing
-if ! command -v uncrustify >/dev/null; then
-  echo "Formatting requires the uncrustify utility, which is not installed"
-  case "$OSTYPE" in
-    darwin*)
-      if command -v brew; then
-        echo "You have homebrew installed, press enter to automatically run"
-        echo "  brew install uncrustify"
-        echo "Or Ctrl-C to quit"
-        read
-        set -x
-        brew install uncrustify
-        set +x
-      else
-        echo "Cannot auto-install uncrustify"
-        exit 1
-      fi
-      ;;
-    linux*)
-      echo "LINUX"
-      if command -v apt; then
-        echo "You have apt installed, press enter to automatically run"
-        echo "  sudo apt install uncrustify"
-        echo "Or Ctrl-C to quit"
-        read
-        set -x
-        sudo apt install uncrustify
-        set +x
-      elif command -v pacman; then
-        echo "You have pacman installed, press enter to automatically run"
-        echo "  sudo pacman -S uncrustify"
-        echo "Or Ctrl-C to quit"
-        read
-        set -x
-        sudo packman -S uncrustify
-        set +x
-      else
-        echo "Cannot auto-install uncrustify"
-        exit 1
-      fi
-      ;;
-    *)
-      echo "unknown: $OSTYPE"
-      echo "Cannot auto-install uncrustify"
-      exit 1
-      ;;
-  esac
+# The version we are currently using
+UNCRUSTIFY_VERSION=65
+
+if [ -x $SCRIPT_DIR/uncrustify-uncrustify-0.$UNCRUSTIFY_VERSION/build/uncrustify ]; then
+  PATH="$SCRIPT_DIR/uncrustify-uncrustify-0.$UNCRUSTIFY_VERSION/build:$PATH"
 fi
 
-# Validate uncrustify version
-VERSION=$(uncrustify --version | egrep -o '0.[0-9]+' | cut -d '.' -f2)
-if [[ "$VERSION" < 59 ]]; then
+# Check if the right version is already installed
+do_install=false
+if ! command -v uncrustify >/dev/null; then
+  do_install=true
+else
+  # Validate uncrustify version
+  VERSION=$(uncrustify --version | egrep -o '0.[0-9]+' | cut -d '.' -f2)
+  if [[ "$VERSION" != $UNCRUSTIFY_VERSION ]]; then
+    do_install=true
+  fi
+fi
+
+# install uncrustify if it's missing
+if $do_install; then
+  echo "$(tput bold)"
+  echo "INFO: uncrustify version 0.$UNCRUSTIFY_VERSION not installed. Installing."
+  echo "$(tput sgr0)(This will take a moment)"
   echo ""
-  echo "$(tput bold)Your uncrustify version is too old. >= v0.59 is required.$(tput sgr0)"
+
+  # Check that we can, cmake is probably the only thing missing
+  if ! command -v cmake >/dev/null; then
+    echo "$(tput bold) ERR: cmake not installed, required to build uncrustify$(tput sgr0)"
+    echo ""
+    echo "Please install either uncrustify version 0.$UNCRUSTIFY_VERSION or cmake"
+    exit 1
+  fi
+
+  pushd "$SCRIPT_DIR" > /dev/null
+
+  echo " * Downloading sources..."
+  wget -q https://github.com/uncrustify/uncrustify/archive/uncrustify-0.$UNCRUSTIFY_VERSION.tar.gz
+  tar -xzf uncrustify-0.$UNCRUSTIFY_VERSION.tar.gz
+  mkdir "uncrustify-uncrustify-0.$UNCRUSTIFY_VERSION/build"
+  pushd "uncrustify-uncrustify-0.$UNCRUSTIFY_VERSION/build" > /dev/null
+
+  echo " * Building..."
+  cmake .. > /dev/null
+  cmake --build . > /dev/null
+
+  echo " * Done"
+  popd > /dev/null
+  popd > /dev/null
+
+  PATH="$SCRIPT_DIR/uncrustify-uncrustify-0.$UNCRUSTIFY_VERSION/build:$PATH"
   echo ""
-  echo "uncrustify --version"
-  uncrustify --version
-  echo ""
-  exit 1
 fi
 
 set +e
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 COMMON_FLAGS="-c $SCRIPT_DIR/uncrustify.cfg"
 if [ "$CI" == "true" ]; then
   uncrustify $COMMON_FLAGS --check "$@"
