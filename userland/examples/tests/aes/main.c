@@ -1,7 +1,7 @@
 #include <aes.h>
 #include <stdio.h>
 #include <string.h>
-#include <timer.h>
+#include <alarm.h>
 
 
 unsigned char data[] = {
