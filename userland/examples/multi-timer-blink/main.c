@@ -1,22 +1,33 @@
 #include <alarm.h>
 #include <led.h>
 
-typedef struct {
-  int led_num;
-} led_event;
+static int interval;
 
-void event_cb(int, int, int, void*);
-void event_cb(__attribute__ ((unused)) int now,
+static void toggle(int led_num) {
+  led_toggle(led_num);
+  delay_ms(300);
+  led_off(led_num);
+}
+
+static void event_cb(__attribute__ ((unused)) int now,
               __attribute__ ((unused)) int expiration,
               __attribute__ ((unused)) int unused, void* ud) {
-  int led_num = (int)ud;
-  led_toggle(led_num);
+  toggle((int)ud);
+}
+
+static void start_cb(__attribute__ ((unused)) int now,
+              __attribute__ ((unused)) int expiration,
+              __attribute__ ((unused)) int unused, void* ud) {
+  alarm_every(interval, event_cb, ud);
+  toggle((int)ud);
 }
 
 int main(void) {
-  int slow_interval = 1000;
-  int fast_interval = 333;
+  int spacing = 1000; // 1 second between each led
+  int num_leds = led_count();
+  interval = spacing * num_leds;
 
-  alarm_every(slow_interval, event_cb, (void*)0);
-  alarm_every(fast_interval, event_cb, (void*)1);
+  for (int i = 0; i < num_leds; i++) {
+    alarm_in(spacing * (i + 1), start_cb, (void*)i);
+  }
 }
