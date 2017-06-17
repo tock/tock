@@ -5,6 +5,35 @@
 
 #include "tock.h"
 
+typedef struct {
+  subscribe_cb *cb;
+  int arg0;
+  int arg1;
+  int arg2;
+  void* ud;
+} tock_task_t;
+
+#define TASK_QUEUE_SIZE  16
+static tock_task_t task_queue[TASK_QUEUE_SIZE];
+static int task_cur = 0;
+static int task_last = 0;
+
+int tock_enqueue(subscribe_cb cb, int arg0, int arg1, int arg2, void* ud) {
+  int next_task_last = (task_last + 1) % TASK_QUEUE_SIZE;
+  if (next_task_last == task_cur) {
+    return -1;
+  }
+
+  task_queue[task_last].cb = cb;
+  task_queue[task_last].arg0 = arg0;
+  task_queue[task_last].arg1 = arg1;
+  task_queue[task_last].arg2 = arg2;
+  task_queue[task_last].ud = ud;
+  task_last = next_task_last;
+
+  return task_last;
+}
+
 void yield_for(bool *cond) {
   while (!*cond) {
     yield();
@@ -12,35 +41,40 @@ void yield_for(bool *cond) {
 }
 
 void yield(void) {
-  // Note: A process stops yielding when there is a callback ready to run,
-  // which the kernel executes by modifying the stack frame pushed by the
-  // hardware. The kernel copies the PC value from the stack frame to the
-  // LR field, and sets the PC value to callback to run. When this frame is
-  // unstacked during the interrupt return, the effectively clobbers the LR
-  // register.
-  //
-  // At this point, the callback function is now executing, which may itself
-  // clobber any of the other caller-saved registers. Thus we mark this inline
-  // assembly as conservatively clobbering all caller-saved registers, forcing
-  // yield to save any live registers.
-  //
-  // Upon direct observation of this function, the LR is the only register that
-  // is live across the SVC invocation, however, if the yield call is inlined,
-  // it is possible that the LR won't be live at all (commonly seen for the
-  // `while (1) { yield(); }` idiom) or that other registers are live, thus it
-  // is important to let the compiler do the work here.
-  //
-  // According to the AAPCS:
-  //   A subroutine must preserve the contents of the registers r4-r8, r10, r11
-  //   and SP (and r9 in PCS variants that designate r9 as v6)
-  // As our compilation flags mark r9 as the PIC base register, it does not need
-  // to be saved. Thus we must clobber r0-3, r12, and LR
-  asm volatile (
-    "svc 0       \n"
-    :
-    :
-    : "memory", "r0", "r1", "r2", "r3", "r12", "lr"
-    );
+  if (task_cur != task_last) {
+    tock_task_t task = task_queue[task_cur];
+    task_cur = (task_cur + 1) % TASK_QUEUE_SIZE;
+    task.cb(task.arg0, task.arg1, task.arg2, task.ud);
+  } else {
+    // Note: A process stops yielding when there is a callback ready to run,
+    // which the kernel executes by modifying the stack frame pushed by the
+    // hardware. The kernel copies the PC value from the stack frame to the LR
+    // field, and sets the PC value to callback to run. When this frame is
+    // unstacked during the interrupt return, the effectively clobbers the LR
+    // register.
+    //
+    // At this point, the callback function is now executing, which may itself
+    // clobber any of the other caller-saved registers. Thus we mark this
+    // inline assembly as conservatively clobbering all caller-saved registers,
+    // forcing yield to save any live registers.
+    //
+    // Upon direct observation of this function, the LR is the only register
+    // that is live across the SVC invocation, however, if the yield call is
+    // inlined, it is possible that the LR won't be live at all (commonly seen
+    // for the `while (1) { yield(); }` idiom) or that other registers are
+    // live, thus it is important to let the compiler do the work here.
+    //
+    // According to the AAPCS: A subroutine must preserve the contents of the
+    // registers r4-r8, r10, r11 and SP (and r9 in PCS variants that designate
+    // r9 as v6) As our compilation flags mark r9 as the PIC base register, it
+    // does not need to be saved. Thus we must clobber r0-3, r12, and LR
+    asm volatile (
+      "svc 0       \n"
+      :
+      :
+      : "memory", "r0", "r1", "r2", "r3", "r12", "lr"
+      );
+  }
 }
 
 int subscribe(uint32_t driver, uint32_t subscribe,
