@@ -117,7 +117,7 @@ static void callback( __attribute__ ((unused)) int unused0,
   int i = 0;
   for (alarm_t* alarm = heap_peek(); alarm != NULL; alarm = heap_peek()) {
     i++;
-    uint32_t now = alarm_internal_read();
+    uint32_t now = alarm_read();
     // has the alarm not expired yet? (distance from `now` has to be larger or
     // equal to distance from current clock value.
     if (alarm->expiration - alarm->t0 > now - alarm->t0) {
@@ -137,9 +137,9 @@ static void callback( __attribute__ ((unused)) int unused0,
   }
 }
 
-alarm_t *alarm_start(uint32_t expiration, subscribe_cb cb, void* ud) {
+alarm_t *alarm_at(uint32_t expiration, subscribe_cb cb, void* ud) {
   alarm_t *alarm = (alarm_t*)malloc(sizeof(alarm_t));
-  alarm->t0 = alarm_internal_read();
+  alarm->t0 = alarm_read();
   alarm->expiration = expiration;
   alarm->callback = cb;
   alarm->ud = ud;
@@ -156,9 +156,9 @@ alarm_t *alarm_start(uint32_t expiration, subscribe_cb cb, void* ud) {
 
 alarm_t* alarm_in(uint32_t ms, subscribe_cb cb, void* ud) {
   uint32_t interval = ms * alarm_internal_frequency() / 1000;
-  uint32_t now = alarm_internal_read();
+  uint32_t now = alarm_read();
   uint32_t expiration = now + interval;
-  return alarm_start(expiration, cb, ud);
+  return alarm_at(expiration, cb, ud);
 }
 
 struct alarm_repeating {
@@ -176,7 +176,7 @@ static void repeating_cb( uint32_t now,
   uint32_t interval = udwrapper->interval;
   uint32_t expiration = now + interval;
   uint32_t cur_exp = udwrapper->alarm->expiration;
-  udwrapper->alarm = alarm_start(expiration, (subscribe_cb*)repeating_cb, (void*)udwrapper);
+  udwrapper->alarm = alarm_at(expiration, (subscribe_cb*)repeating_cb, (void*)udwrapper);
   udwrapper->cb(now, cur_exp, 0, udwrapper->ud);
 }
 
@@ -188,10 +188,10 @@ alarm_repeating_t* alarm_every(uint32_t ms, subscribe_cb cb, void* ud) {
   uud->cb = cb;
   uud->ud = ud;
 
-  uint32_t now = alarm_internal_read();
+  uint32_t now = alarm_read();
   uint32_t expiration = now + interval;
 
-  uud->alarm = alarm_start(expiration, (subscribe_cb*)repeating_cb, (void*)uud);
+  uud->alarm = alarm_at(expiration, (subscribe_cb*)repeating_cb, (void*)uud);
   return (void*)uud;
 }
 
@@ -199,6 +199,10 @@ void alarm_cancel(alarm_t* alarm) {
   // Removing from a heap is tricky, so just remove the callback and let it get
   // lazily removed.
   alarm->callback = NULL;
+}
+
+uint32_t alarm_read(void) {
+  return (uint32_t) command(3, 4, 0);
 }
 
 void delay_ms(uint32_t ms) {

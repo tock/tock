@@ -23,7 +23,3 @@ int alarm_internal_stop(void) {
 unsigned int alarm_internal_frequency(void) {
   return (unsigned int) command(3, 6, 0);
 }
-
-unsigned int alarm_internal_read(void) {
-  return (unsigned int) command(3, 4, 0);
-}

@@ -46,11 +46,6 @@ int alarm_internal_absolute(uint32_t tics);
 int alarm_internal_stop(void);
 
 /*
- * Get the current counter value of the timer.
- */
-unsigned int alarm_internal_read(void);
-
-/*
  * Get the the timer frequency in Hz.
  */
 unsigned int alarm_internal_frequency(void);

@@ -8,7 +8,7 @@ extern "C" {
 
 typedef struct alarm alarm_t;
 
-alarm_t *alarm_start(uint32_t expiration, subscribe_cb, void*);
+alarm_t *alarm_at(uint32_t expiration, subscribe_cb, void*);
 
 alarm_t *alarm_in(uint32_t ms, subscribe_cb, void*);
 
@@ -17,6 +17,11 @@ typedef struct alarm_repeating alarm_repeating_t;
 alarm_repeating_t* alarm_every(uint32_t ms, subscribe_cb, void*);
 
 void alarm_cancel(alarm_t*);
+
+/*
+ * Get the current counter value of the timer.
+ */
+uint32_t alarm_read(void);
 
 /*
  * Blocks for the given amount of time in millisecond.
