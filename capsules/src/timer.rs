@@ -24,7 +24,7 @@ impl Default for TimerData {
     fn default() -> TimerData {
         TimerData {
             t0: 0,
-            expiration: Expiration::Abs(0),
+            expiration: Expiration::Disabled,
             callback: None,
         }
     }
