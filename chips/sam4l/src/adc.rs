@@ -259,11 +259,30 @@ impl Adc {
     // value have no effect. Using the slowest clock also ensures efficient discrete
     // sampling.
     fn config_and_enable(&self, frequency: u32) -> ReturnCode {
-        if frequency == self.adc_clk_freq.get() {
+        if self.active.get() {
+            // disallow reconfiguration during sampling
+            ReturnCode::EBUSY
+        } else if frequency == self.adc_clk_freq.get() {
             // already configured to work on this frequency
             ReturnCode::SUCCESS
         } else {
             let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
+
+            // disabling the ADC before switching clocks is necessary to avoid leaving it
+            // in undefined state
+            // disable ADC
+            regs.cr.set(1 << 9);
+
+            // wait until status is disabled
+            let mut timeout = 10000;
+            while regs.sr.get() & (0x1 << 24) == (0x1 << 24) {
+                timeout -= 1;
+                if timeout == 0 {
+                    // ADC never enabled
+                    return ReturnCode::FAIL;
+                }
+            }
+
             self.enabled.set(true);
 
             // First, enable the clocks
@@ -274,16 +293,23 @@ impl Adc {
                 // as the CPU clock
                 pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
                 nvic::enable(nvic::NvicIdx::ADCIFE);
-                if frequency <= 3600 {
+                // the maximum sampling frequency with the RC clocks is 1/32th of their clock
+                // frequency. This is because of the minimum PRESCAL by a factor of 4 and the
+                // 7+1 cycles needed for conversion in continuous mode. Hence, 4*(7+1)=32.
+                if frequency <= 115000 / 32 {
                     // RC oscillator
                     self.cpu_clock.set(false);
-                    let max_freq:u32;
-                    if frequency <= 1000 {
-                        scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::RC32K);
-                        max_freq = 1000;
+                    let max_freq: u32;
+                    if frequency <= 32000 / 32 {
+                        // frequency of the RC32K is 32KHz.
+                        scif::generic_clock_enable(scif::GenericClock::GCLK10,
+                                                   scif::ClockSource::RC32K);
+                        max_freq = 32000 / 32;
                     } else {
-                        scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::RCSYS);
-                        max_freq = 3600;
+                        // frequency of the RCSYS is 115KHz.
+                        scif::generic_clock_enable(scif::GenericClock::GCLK10,
+                                                   scif::ClockSource::RCSYS);
+                        max_freq = 115000 / 32;
                     }
                     let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
                     clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
@@ -292,7 +318,8 @@ impl Adc {
                 } else {
                     // CPU clock
                     self.cpu_clock.set(true);
-                    scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::CLK_CPU);
+                    scif::generic_clock_enable(scif::GenericClock::GCLK10,
+                                               scif::ClockSource::CLK_CPU);
                     // determine clock divider
                     // we need the ADC_CLK to be a maximum of 1.5 MHz in frequency,
                     // so we need to find the PRESCAL value that will make this
@@ -364,13 +391,6 @@ impl Adc {
 impl hil::adc::Adc for Adc {
     type Channel = AdcChannel;
 
-    /// Enable and configure the ADC.
-    /// This can be called multiple times with no side effects.
-    fn initialize(&self) -> ReturnCode {
-        // always configure to 1KHz to get the slowest clock
-        self.config_and_enable(1000)
-    }
-
     /// Capture a single analog sample, calling the client when complete.
     /// Returns an error if the ADC is already sampling.
     ///
@@ -378,7 +398,13 @@ impl hil::adc::Adc for Adc {
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
 
-        if !self.enabled.get() {
+        // always configure to 1KHz to get the slowest clock with single sampling
+        let res = self.config_and_enable(1000);
+
+        if res != ReturnCode::SUCCESS {
+            return res;
+
+        } else if !self.enabled.get() {
             ReturnCode::EOFF
 
         } else if self.active.get() {
@@ -430,7 +456,7 @@ impl hil::adc::Adc for Adc {
         let res = self.config_and_enable(frequency);
 
         if res != ReturnCode::SUCCESS {
-            return res
+            return res;
 
         } else if !self.enabled.get() {
             ReturnCode::EOFF
@@ -603,7 +629,7 @@ impl hil::adc::AdcHighSpeed for Adc {
         let res = self.config_and_enable(frequency);
 
         if res != ReturnCode::SUCCESS {
-            return (res, Some(buffer1), Some(buffer2))
+            return (res, Some(buffer1), Some(buffer2));
 
         } else if !self.enabled.get() {
             (ReturnCode::EOFF, Some(buffer1), Some(buffer2))

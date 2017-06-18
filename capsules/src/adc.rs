@@ -70,7 +70,7 @@ pub static mut ADC_BUFFER1: [u16; 128] = [0; 128];
 pub static mut ADC_BUFFER2: [u16; 128] = [0; 128];
 pub static mut ADC_BUFFER3: [u16; 128] = [0; 128];
 
-/// Functions to create, initialize, and interact with the ADC
+/// Functions to create and interact with the ADC
 impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
     /// Create a new Adc application interface
     ///
@@ -108,12 +108,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
             adc_buf2: TakeCell::new(adc_buf2),
             adc_buf3: TakeCell::new(adc_buf3),
         }
-    }
-
-    /// Initialize the ADC
-    /// This can be called harmlessly if the ADC has already been initialized
-    fn initialize(&self) -> ReturnCode {
-        self.adc.initialize()
     }
 
     /// Store a buffer we've regained ownership of and return a handle to it
@@ -159,12 +153,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
             return ReturnCode::EBUSY;
         }
 
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
-        }
-
         // convert channel index
         if channel >= self.channels.len() {
             return ReturnCode::EINVAL;
@@ -198,12 +186,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
-        }
-
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
         }
 
         // convert channel index
@@ -241,12 +223,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
-        }
-
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
         }
 
         // convert channel index
@@ -328,12 +304,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
-        }
-
-        // always initialize. Initialization will be skipped if already complete
-        let res = self.initialize();
-        if res != ReturnCode::SUCCESS {
-            return res;
         }
 
         // convert channel index
