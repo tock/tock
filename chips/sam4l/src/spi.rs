@@ -1,3 +1,11 @@
+//! Implementation of DMA-based SPI master and slave communication for the
+//! SAM4L.
+//!
+//! Driver for the SPI hardware (separate from the USARTS), described in chapter
+//! 26 of the datasheet.
+//!
+//! - Authors: Sam Crow <samcrow@uw.edu>, Philip Levis <pal@cs.stanford.edu>
+
 use core::cell::Cell;
 use core::cmp;
 use core::mem;
@@ -17,13 +25,6 @@ use kernel::hil::spi::SpiSlaveClient;
 use nvic;
 use pm;
 
-/// Implementation of DMA-based SPI master communication for
-/// the Atmel SAM4L CortexM4 microcontroller.
-/// Authors: Sam Crow <samcrow@uw.edu>
-///          Philip Levis <pal@cs.stanford.edu>
-///
-// Driver for the SPI hardware (separate from the USARTS),
-// described in chapter 26 of the datasheet
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
 struct SpiRegisters {
@@ -395,8 +396,8 @@ impl Spi {
     }
 
     /// Asynchronous buffer read/write of SPI.
-    /// returns SUCCESS if operation starts (will receive callback through SpiMasterClient),
-    /// returns EBUSY if the operation does not start.
+    /// returns `SUCCESS` if operation starts (will receive callback through SpiMasterClient),
+    /// returns `EBUSY` if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,
@@ -497,9 +498,9 @@ impl spi::SpiMaster for Spi {
     /// Asynchronous buffer read/write of SPI.
     /// write_buffer must  be Some; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
-    /// minimum of two buffer lengths; returns SUCCESS if operation
+    /// minimum of two buffer lengths; returns `SUCCESS` if operation
     /// starts (will receive callback through SpiMasterClient), returns
-    /// EBUSY if the operation does not start.
+    /// `EBUSY` if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,

@@ -1,3 +1,5 @@
+//! ARM SysTick peripheral.
+
 use kernel;
 use kernel::common::VolatileCell;
 

@@ -1,3 +1,8 @@
+//! Board file for Hail development platform.
+//!
+//! - https://github.com/helena-project/tock/tree/master/boards/hail
+//! - https://github.com/lab11/hail
+
 #![no_std]
 #![no_main]
 #![feature(asm,const_fn,drop_types_in_const,lang_items,compiler_builtins_lib)]

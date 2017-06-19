@@ -1,4 +1,29 @@
-//! Driver for the ISL29035 digital light sensor
+//! Driver for the ISL29035 digital light sensor.
+//!
+//! http://bit.ly/2rA00cH
+//!
+//! > The ISL29035 is an integrated ambient and infrared light-to-digital
+//! > converter with I2C (SMBus compatible) Interface. Its advanced self-
+//! > calibrated photodiode array emulates human eye response with excellent IR
+//! > rejection. The on-chip ADC is capable of rejecting 50Hz and 60Hz flicker
+//! > caused by artificial light sources. The Lux range select feature allows
+//! > users to program the Lux range for optimized counts/Lux.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x44));
+//! let isl29035_virtual_alarm = static_init!(
+//!     VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+//!     VirtualMuxAlarm::new(mux_alarm));
+//! let isl29035 = static_init!(
+//!     capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+//!     capsules::isl29035::Isl29035::new(isl29035_i2c, isl29035_virtual_alarm,
+//!                                       &mut capsules::isl29035::BUF));
+//! isl29035_i2c.set_client(isl29035);
+//! isl29035_virtual_alarm.set_client(isl29035);
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};

@@ -1,3 +1,5 @@
+//! Interrupt mapping and DMA channel setup.
+
 use adc;
 use ast;
 use cortexm4;

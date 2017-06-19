@@ -1,5 +1,3 @@
-//! Timer Capsule
-//!
 //! Provides userspace applications with a timer API.
 
 use core::cell::Cell;

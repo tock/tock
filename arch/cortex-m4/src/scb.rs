@@ -1,4 +1,6 @@
-// Based on: http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CIHFDJCA.html
+//! ARM System Control Block
+//!
+//! http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CIHFDJCA.html
 
 use kernel::common::VolatileCell;
 

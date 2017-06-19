@@ -1,3 +1,5 @@
+//! Interface for flash storage.
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     PageBoundary,

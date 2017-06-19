@@ -1,7 +1,23 @@
-//! Driver for the FXOS8700CQ accelerometer
+//! Driver for the FXOS8700CQ accelerometer.
+//!
 //! http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf
+//!
 //! The driver provides x, y, and z acceleration data to a callback function.
-//! To use readings from the sensor in userland, see FXOS8700CQ.h in libtock.
+//! It implements the `hil::ninedof::NineDof` trait.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x1e));
+//! let fxos8700 = static_init!(
+//!     capsules::fxos8700cq::Fxos8700cq<'static>,
+//!     capsules::fxos8700cq::Fxos8700cq::new(fxos8700_i2c,
+//!                                           &sam4l::gpio::PA[9], // Interrupt pin
+//!                                           &mut capsules::fxos8700cq::BUF));
+//! fxos8700_i2c.set_client(fxos8700);
+//! sam4l::gpio::PA[9].set_client(fxos8700);
+//! ```
 
 use core::cell::Cell;
 use kernel::ReturnCode;

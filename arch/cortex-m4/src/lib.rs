@@ -1,3 +1,5 @@
+//! Shared implementations for ARM Cortex-M4 MCUs.
+
 #![crate_name = "cortexm4"]
 #![crate_type = "rlib"]
 #![feature(asm,const_fn,naked_functions)]

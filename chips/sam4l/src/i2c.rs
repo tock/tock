@@ -1,4 +1,4 @@
-//! TWIM Driver for the SAM4L
+//! Implementation of the SAM4L TWIMS peripheral.
 //!
 //! The implementation, especially of repeated starts, is quite sensitive to the
 //! ordering of operations (e.g. setup DMA, then set command register, then next
@@ -8,8 +8,6 @@
 //!
 //! The point is that until this changes, and this notice is taken away: IF YOU
 //! CHANGE THIS DRIVER, TEST RIGOROUSLY!!!
-//!
-
 
 use core::cell::Cell;
 use core::mem;

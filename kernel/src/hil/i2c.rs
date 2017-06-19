@@ -1,3 +1,5 @@
+//! Interface for I2C master and slave peripherals.
+
 use core::fmt::{Display, Formatter, Result};
 
 /// The type of error encoutered during an I2C command transmission.

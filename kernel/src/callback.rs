@@ -1,6 +1,9 @@
+//! Data structure for storing a callback to userspace or kernelspace.
+
 use core::nonzero::NonZero;
 use process;
 
+/// Userspace app identifier.
 #[derive(Clone, Copy, Debug)]
 pub struct AppId {
     idx: usize,
@@ -38,6 +41,7 @@ pub enum RustOrRawFnPtr {
     Rust { func: fn(usize, usize, usize, usize), },
 }
 
+/// Wrapper around a function pointer.
 #[derive(Clone, Copy, Debug)]
 pub struct Callback {
     app_id: AppId,

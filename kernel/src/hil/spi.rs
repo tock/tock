@@ -1,4 +1,4 @@
-//! Traits and parameters for SPI master communication.
+//! Interfaces for SPI master and slave communication.
 
 use core::option::Option;
 

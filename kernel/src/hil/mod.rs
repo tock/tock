@@ -1,3 +1,5 @@
+//! Public traits for interfaces between Tock components.
+
 pub mod led;
 pub mod time;
 pub mod gpio;
@@ -15,6 +17,7 @@ pub mod symmetric_encryption;
 pub mod ninedof;
 pub mod gpio_async;
 
+/// Shared interface for configuring components.
 pub trait Controller {
     type Config;
 

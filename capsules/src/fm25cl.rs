@@ -1,4 +1,6 @@
-//! Driver for the FM25CL FRAM chip (http://www.cypress.com/part/fm25cl64b-dg)
+//! Driver for the FM25CL FRAM chip.
+//!
+//! http://www.cypress.com/part/fm25cl64b-dg
 
 use core::cell::Cell;
 use core::cmp;

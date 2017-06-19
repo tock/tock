@@ -1,4 +1,4 @@
-//! Generic interface for CRC computation
+//! Interface for CRC computation.
 
 use returncode::ReturnCode;
 

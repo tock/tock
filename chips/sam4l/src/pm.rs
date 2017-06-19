@@ -1,3 +1,5 @@
+//! Implementation of the power manager peripheral.
+
 use kernel::common::VolatileCell;
 
 #[repr(C, packed)]
