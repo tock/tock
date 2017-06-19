@@ -118,17 +118,6 @@ pub struct Platform {
 
 
 impl kernel::Platform for Platform {
-    // TODO: Why is this not inlined, you might ask? Well... we seem to be
-    // hitting some sort of LLVM codegen issue (maybe a bug in LLVM, maybe a bug
-    // in Tock), where certain compilation variants of the below match
-    // statement, when inlined, result in totally unexpected assembly that
-    // results in trying to jump to an instruction that doesn't exist. It _only_
-    // appears in thumbv6, only when the 17-valued branch below is not commented
-    // out, only with optimization level 2 or higher, and only when inlined. So
-    // for now, we're not inlining it until we resolve the issue. So far it's
-    // been raised as an issue on the Rust project:
-    // https://github.com/rust-lang/rust/issues/42248
-    #[inline(never)]
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
