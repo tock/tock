@@ -1,7 +1,8 @@
-#include <ipc.h>
 #include <stdio.h>
-#include <timer.h>
 #include <string.h>
+
+#include <ipc.h>
+#include <timer.h>
 
 int rot13_svc_num = 0;
 

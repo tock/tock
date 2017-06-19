@@ -1,4 +1,4 @@
-//! Driver for the LTC294X line of coloumb counters.
+//! Driver for the LTC294X line of coulomb counters.
 //!
 //! http://www.linear.com/product/LTC2941
 //! http://www.linear.com/product/LTC2942
@@ -28,20 +28,17 @@
 //! ```rust
 //! let ltc294x_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
-//!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x64),
-//!     32);
+//!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x64));
 //! let ltc294x = static_init!(
 //!     capsules::ltc294x::LTC294X<'static>,
-//!     capsules::ltc294x::LTC294X::new(ltc294x_i2c, None, &mut capsules::ltc294x::BUFFER),
-//!     288/8);
+//!     capsules::ltc294x::LTC294X::new(ltc294x_i2c, None, &mut capsules::ltc294x::BUFFER));
 //! ltc294x_i2c.set_client(ltc294x);
 //!
 //! // Optionally create the object that provides an interface for the coulomb
 //! // counter for applications.
 //! let ltc294x_driver = static_init!(
 //!     capsules::ltc294x::LTC294XDriver<'static>,
-//!     capsules::ltc294x::LTC294XDriver::new(ltc294x),
-//!     192/8);
+//!     capsules::ltc294x::LTC294XDriver::new(ltc294x));
 //! ltc294x.set_client(ltc294x_driver);
 //! ```
 //!

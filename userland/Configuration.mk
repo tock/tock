@@ -212,6 +212,10 @@ override CXXFLAGS += -Wzero-as-null-pointer-constant # use of 0 as NULL
 ##################################################################################################
 
 
+# C/C++ Linter configuration
+UNCRUSTIFY := $(TOCK_USERLAND_BASE_DIR)/tools/uncrustify/uncrustify.sh
+
+
 # Dump configuration for verbose builds
 ifneq ($(V),)
   $(info )

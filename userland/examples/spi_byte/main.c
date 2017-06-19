@@ -5,7 +5,7 @@
 int main(void) {
   int i;
   spi_set_chip_select(0);
-  for (i = 0;; i++) {
+  for (i = 0; ; i++) {
     led_off(0);
 
     spi_write_byte((unsigned char)i & 0xff);

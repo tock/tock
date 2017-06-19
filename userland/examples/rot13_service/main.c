@@ -8,7 +8,7 @@ struct rot13_buf {
 
 static void rot13_callback(int pid, int len, int buf, __attribute__ ((unused)) void* ud) {
   struct rot13_buf *rb = (struct rot13_buf*)buf;
-  int length = rb->length;
+  int length           = rb->length;
   if (length > len - 1) {
     length = len - 1;
   }

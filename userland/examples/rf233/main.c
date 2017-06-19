@@ -5,16 +5,16 @@
  */
 
 #include <gpio.h>
+#include <led.h>
 #include <spi.h>
 #include <stdint.h>
 #include <timer.h>
-#include <led.h>
 
-#include "rf233-const.h"
-#include "rf233-config.h"
 #include "rf233-arch.h"
-#include "trx_access.h"
+#include "rf233-config.h"
+#include "rf233-const.h"
 #include "rf233.h"
+#include "trx_access.h"
 
 // Callback function supplied by user
 int callback(void*, int, uint16_t, uint16_t, uint16_t);
@@ -44,9 +44,9 @@ int callback(void* buffer,
              __attribute__ ((unused)) uint16_t src,
              __attribute__ ((unused)) uint16_t dest,
              __attribute__ ((unused)) uint16_t pan_id) {
-        printf("Rx callback!\n");
+  printf("Rx callback!\n");
   uint8_t* bytes = (uint8_t*) buffer;
-  for (int i = 0; i < buffer_len; i ++) {
+  for (int i = 0; i < buffer_len; i++) {
     printf("  Byte %i = %02x\n", i, bytes[i]);
   }
   return 0;
