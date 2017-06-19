@@ -81,7 +81,7 @@ debug:	target/$(TARGET)/debug/$(PLATFORM).bin
 
 .PHONY: doc
 doc:
-	$(Q)XARGO doc $(VERBOSE) --release --target=$(TARGET)
+	$(Q)$(XARGO) doc $(VERBOSE) --release --target=$(TARGET)
 
 target/$(TARGET)/release/$(PLATFORM).elf: target/$(TARGET)/release/$(PLATFORM)
 	$(Q)cp target/$(TARGET)/release/$(PLATFORM) target/$(TARGET)/release/$(PLATFORM).elf
