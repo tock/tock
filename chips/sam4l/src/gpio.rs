@@ -1,4 +1,4 @@
-
+//! Implementation of the GPIO controller.
 
 use self::Pin::*;
 use core::cell::Cell;
@@ -81,8 +81,8 @@ const SIZE: usize = 0x200;
 
 /// Name of the GPIO pin on the SAM4L.
 ///
-/// The "Package and Pinout" section[^1] of the SAM4L datasheet shows the mapping
-/// between these names and hardware pins on different chip packages.
+/// The "Package and Pinout" section[^1] of the SAM4L datasheet shows the
+/// mapping between these names and hardware pins on different chip packages.
 ///
 /// [^1]: Section 3.1, pages 10-18
 #[derive(Copy,Clone)]

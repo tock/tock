@@ -1,5 +1,3 @@
-//! ADC Capsule
-//!
 //! Provides userspace applications with the ability to sample
 //! analog signals.
 

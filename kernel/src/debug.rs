@@ -1,3 +1,16 @@
+//! Provides a `debug!` macro for in-kernel debugging.
+//!
+//! This module uses an internal buffer to write the strings into. If you are
+//! writing and the buffer fills up, you can make the size of `output_buffer`
+//! larger.
+//!
+//! Example
+//! -------
+//!
+//! ```rust
+//! debug!("Yes the code gets here with value {}", i);
+//! ```
+
 use callback::{AppId, Callback};
 use core::cmp::min;
 use core::fmt::{Arguments, Result, Write, write};
@@ -278,6 +291,7 @@ pub fn begin_debug(msg: &str, file_line: &(&'static str, u32)) {
     }
 }
 
+/// In-kernel `printf()` debugging.
 #[macro_export]
 macro_rules! debug {
     () => ({

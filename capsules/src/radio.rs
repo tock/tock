@@ -1,5 +1,5 @@
-//! The radio capsule provides userspace applications with the ability
-//! to send and receive 802.15.4 packets
+//! Provides userspace applications with the ability
+//! to send and receive 802.15.4 packets.
 
 // System call interface for sending and receiving 802.15.4 packets.
 //

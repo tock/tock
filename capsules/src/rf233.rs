@@ -1,24 +1,23 @@
-// I like them sometimes, for formatting -pal
-#![allow(unused_parens)]
-
-///
-/// Capsule for sending 802.15.4 packets with an Atmel RF233.
-///
-/// This implementation is completely non-blocking. This means that
-/// the state machine is somewhat complex, as it must interleave interrupt
-/// handling with requests and radio state management. See the SPI
-/// read_write_done handler for details.
-///
-/// To do items:
-///    - Support TX power control
-///    - Support channel selection
-///    - Support link-layer acknowledgements
-///    - Support power management (turning radio off)
-// Capsule for sending 802.15.4 packets with an Atmel RF233.
+//! Driver for sending 802.15.4 packets with an Atmel RF233.
+//!
+//! This implementation is completely non-blocking. This means that the state
+//! machine is somewhat complex, as it must interleave interrupt handling with
+//! requests and radio state management. See the SPI `read_write_done` handler
+//! for details.
+//!
+//! To do items:
+//!
+//! - Support TX power control
+//! - Support channel selection
+//! - Support link-layer acknowledgements
+//! - Support power management (turning radio off)
 //
 // Author: Philip Levis
 // Date: Jan 12 2017
 //
+
+// I like them sometimes, for formatting -pal
+#![allow(unused_parens)]
 
 use core::cell::Cell;
 use kernel::ReturnCode;

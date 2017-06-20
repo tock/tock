@@ -1,8 +1,20 @@
-//! Nrf51822Serialization is the kernel-level driver that provides
-//! the UART API that the nRF51822 serialization library requires.
+//! Provides userspace with the UART API that the nRF51822 serialization library
+//! requires.
 //!
-//! This capsule handles interfacing with the UART driver, and includes
-//! some nuances that keep the Nordic BLE serialization library happy.
+//! This capsule handles interfacing with the UART driver, and includes some
+//! nuances that keep the Nordic BLE serialization library happy.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let nrf_serialization = static_init!(
+//!     Nrf51822Serialization<usart::USART>,
+//!     Nrf51822Serialization::new(&usart::USART3,
+//!                                &mut nrf51822_serialization::WRITE_BUF,
+//!                                &mut nrf51822_serialization::READ_BUF));
+//! hil::uart::UART::set_client(&usart::USART3, nrf_serialization);
+//! ```
 
 use kernel::{AppId, Callback, AppSlice, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};

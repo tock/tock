@@ -1,4 +1,4 @@
-//! TRNG driver for the SAM4L
+//! Implementation of the SAM4L TRNG.
 
 use core::cell::Cell;
 use kernel::common::VolatileCell;

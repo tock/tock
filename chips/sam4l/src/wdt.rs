@@ -1,3 +1,5 @@
+//! Implementation of the SAM4L hardware watchdog timer.
+
 use core::cell::Cell;
 use core::mem;
 use kernel::common::VolatileCell;

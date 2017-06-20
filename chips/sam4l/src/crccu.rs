@@ -1,12 +1,12 @@
-//! CRCCU implementation for the SAM4L
+//! Implementation of the SAM4L CRCCU.
 //!
 //! See datasheet section "41. Cyclic Redundancy Check Calculation Unit (CRCCU)".
 //!
 //! The SAM4L can compute CRCs using three different polynomials:
 //!
-//!   * 0x04C11DB7 (as used in "CRC-32"; Atmel calls this "CCIT8023")
-//!   * 0x1EDC6F41 (as used in "CRC-32C"; Atmel calls this "CASTAGNOLI")
-//!   * 0x1021     (as used in "CRC-16-CCITT"; Atmel calls this "CCIT16")
+//!   * `0x04C11DB7` (as used in "CRC-32"; Atmel calls this "CCIT8023")
+//!   * `0x1EDC6F41` (as used in "CRC-32C"; Atmel calls this "CASTAGNOLI")
+//!   * `0x1021`     (as used in "CRC-16-CCITT"; Atmel calls this "CCIT16")
 //!
 //! (The integers above give each polynomial from most-significant to least-significant
 //! bit, except that the most significant bit is omitted because it is always 1.)

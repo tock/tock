@@ -1,6 +1,10 @@
-/// Allocates a global array of static size, initially set to zero. When this
-/// macro is hit, it will initialize the array to the value given and return a
-/// `&'static mut` reference to it.
+//! Utility macros including `static_init!`.
+
+/// Allocates a global array of static size to initialize data structures.
+///
+/// The global array is initially set to zero. When this macro is hit, it will
+/// initialize the array to the value given and return a `&'static mut`
+/// reference to it.
 ///
 /// Note that you will have to specify the array-size as an argument, but a
 /// wrong size will result in a compile-time error. This argument will be

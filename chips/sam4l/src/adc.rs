@@ -1,19 +1,19 @@
-// adc.rs -- Implementation of SAM4L ADCIFE.
-//
-// This is an implementation of the SAM4L analog to digital converter. It is
-// bare-bones because it provides little flexibility on how samples are taken.
-// Currently, all samples
-//   - are 12 bits
-//   - use the ground pad as the negative reference
-//   - use a VCC/2 positive reference
-//   - are right justified
-//
-// Samples can either be collected individually or continuously at a specified
-// frequency
-//
-// Author: Philip Levis <pal@cs.stanford.edu>, Branden Ghena <brghena@umich.edu>
-// Updated: May 1, 2017
-//
+//! Implementation of the SAM4L ADCIFE.
+//!
+//! This is an implementation of the SAM4L analog to digital converter. It is
+//! bare-bones because it provides little flexibility on how samples are taken.
+//! Currently, all samples:
+//!
+//! - are 12 bits
+//! - use the ground pad as the negative reference
+//! - use a VCC/2 positive reference
+//! - are right justified
+//!
+//! Samples can either be collected individually or continuously at a specified
+//! frequency.
+//!
+//! - Author: Philip Levis <pal@cs.stanford.edu>, Branden Ghena <brghena@umich.edu>
+//! - Updated: May 1, 2017
 
 use core::{cmp, mem, slice};
 use core::cell::Cell;
@@ -62,8 +62,9 @@ enum Channel {
 /// Initialization of an ADC channel.
 impl AdcChannel {
     /// Create a new ADC channel.
-    /// channel - Channel enum representing the channel number and whether it is
-    ///           internal
+    ///
+    /// - `channel`: Channel enum representing the channel number and whether it
+    ///   is internal
     const fn new(channel: Channel) -> AdcChannel {
         AdcChannel {
             chan_num: ((channel as u8) & 0x0F) as u32,
@@ -161,8 +162,8 @@ pub static mut ADC0: Adc = Adc::new(BASE_ADDRESS, dma::DMAPeripheral::ADCIFE_RX)
 impl Adc {
     /// Create a new ADC driver.
     ///
-    /// base_address - pointer to the ADC's memory mapped I/O registers
-    /// rx_dma_peripheral - type used for DMA transactions
+    /// - `base_address`: pointer to the ADC's memory mapped I/O registers
+    /// - `rx_dma_peripheral`: type used for DMA transactions
     const fn new(base_address: *mut AdcRegisters, rx_dma_peripheral: dma::DMAPeripheral) -> Adc {
         Adc {
             // pointer to memory mapped I/O registers
@@ -194,14 +195,14 @@ impl Adc {
 
     /// Sets the client for this driver.
     ///
-    /// client - reference to capsule which handles responses
+    /// - `client`: reference to capsule which handles responses
     pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
         self.client.set(Some(client));
     }
 
     /// Sets the DMA channel for this driver.
     ///
-    /// rx_dma - reference to the DMA channel the ADC should use
+    /// - `rx_dma`: reference to the DMA channel the ADC should use
     pub fn set_dma(&self, rx_dma: &'static dma::DMAChannel) {
         self.rx_dma.set(Some(rx_dma));
     }
@@ -340,7 +341,7 @@ impl hil::adc::Adc for Adc {
     /// Capture a single analog sample, calling the client when complete.
     /// Returns an error if the ADC is already sampling.
     ///
-    /// channel - the ADC channel to sample
+    /// - `channel`: the ADC channel to sample
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
 
@@ -388,8 +389,8 @@ impl hil::adc::Adc for Adc {
     /// microseconds (10000 samples per second). To sample faster, use the
     /// sample_highspeed function.
     ///
-    /// channel - the ADC channel to sample
-    /// frequency - the number of samples per second to collect
+    /// - `channel`: the ADC channel to sample
+    /// - `frequency`: the number of samples per second to collect
     fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
 
@@ -531,12 +532,12 @@ impl hil::adc::AdcHighSpeed for Adc {
     /// frequency range of the ADC is from 187 kHz to 23 Hz (although its
     /// precision is limited at higher frequencies due to aliasing).
     ///
-    /// channel - the ADC channel to sample
-    /// frequency - frequency to sample at
-    /// buffer1 - first buffer to fill with samples
-    /// length1 - number of samples to collect (up to buffer length)
-    /// buffer2 - second buffer to fill once the first is full
-    /// length2 - number of samples to collect (up to buffer length)
+    /// - `channel`: the ADC channel to sample
+    /// - `frequency`: frequency to sample at
+    /// - `buffer1`: first buffer to fill with samples
+    /// - `length1`: number of samples to collect (up to buffer length)
+    /// - `buffer2`: second buffer to fill once the first is full
+    /// - `length2`: number of samples to collect (up to buffer length)
     fn sample_highspeed(&self,
                         channel: &Self::Channel,
                         frequency: u32,
@@ -629,8 +630,8 @@ impl hil::adc::AdcHighSpeed for Adc {
     /// Provide a new buffer to send on-going buffered continuous samples to.
     /// This is expected to be called after the `samples_ready` callback.
     ///
-    /// buf - buffer to fill with samples
-    /// length - number of samples to collect (up to buffer length)
+    /// - `buf`: buffer to fill with samples
+    /// - `length`: number of samples to collect (up to buffer length)
     fn provide_buffer(&self,
                       buf: &'static mut [u16],
                       length: usize)
@@ -679,7 +680,7 @@ impl hil::adc::AdcHighSpeed for Adc {
 impl dma::DMAClient for Adc {
     /// Handler for DMA transfer completion.
     ///
-    /// pid - the DMA peripheral that is complete
+    /// - `pid`: the DMA peripheral that is complete
     fn xfer_done(&self, pid: dma::DMAPeripheral) {
         // check if this was an RX transfer
         if pid == self.rx_dma_peripheral {

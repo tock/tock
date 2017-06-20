@@ -1,6 +1,20 @@
-//! ST LPS25HB Pressure Sensor Driver
+//! Driver for the ST LPS25HB pressure sensor.
 //!
 //! http://www.st.com/en/mems-and-sensors/lps25hb.html
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let lps25hb_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x5C));
+//! let lps25hb = static_init!(
+//!     capsules::lps25hb::LPS25HB<'static>,
+//!     capsules::lps25hb::LPS25HB::new(lps25hb_i2c,
+//!         &sam4l::gpio::PA[10],
+//!         &mut capsules::lps25hb::BUFFER));
+//! lps25hb_i2c.set_client(lps25hb);
+//! sam4l::gpio::PA[10].set_client(lps25hb);
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};

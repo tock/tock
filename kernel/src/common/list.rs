@@ -1,3 +1,5 @@
+//! Linked list implementation.
+
 use core::cell::Cell;
 
 pub struct ListLink<'a, T: 'a>(Cell<Option<&'a T>>);

@@ -1,4 +1,4 @@
-//! Virtualize a Spi Master bus to enable multiple users of the Spi bus.
+//! Virtualize a SPI master bus to enable multiple users of the SPI bus.
 
 use core::cell::Cell;
 use kernel::ReturnCode;

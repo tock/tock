@@ -1,3 +1,5 @@
+//! Implementation of the ARM memory protection unit.
+
 use kernel;
 use kernel::common::VolatileCell;
 use kernel::common::math::PowerOfTwo;

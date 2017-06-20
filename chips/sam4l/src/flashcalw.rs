@@ -1,27 +1,25 @@
-//! chips::sam4l::flashcalw -- Implementation of a flash controller.
+//! Implementation of the SAM4L flash controller.
 //!
-//! This implementation of the flash controller for at sam4l flash controller
-//! uses interrupts to handle main tasks of a flash -- write, reads, and erases.
-//! If modifying this file, you should check whether the flash commands (issued
-//! via issue_command) generates an interrupt and design a higher level function
-//! based off of that.
+//! This implementation of the flash controller for the SAM4L uses interrupts to
+//! handle main tasks of a flash -- write, reads, and erases. If modifying this
+//! file, you should check whether the flash commands (issued via issue_command)
+//! generates an interrupt and design a higher level function based off of that.
 //!
-//! Although the datasheet says that when the FRDY interrupt is on, an interrupt will
-//! be generated after a command is complete, it doesn't appear to occur for some
-//! commands.
+//! Although the datasheet says that when the FRDY interrupt is on, an interrupt
+//! will be generated after a command is complete, it doesn't appear to occur
+//! for some commands.
 //!
 //! A clean interface for reading from flash, writing pages and erasing pages is
 //! defined below and should be used to handle the complexity of these tasks.
 //!
-//! The driver should be configure()'d before use, and a Client should be set to
-//! enable a callback after a command is completed.
+//! The driver should be `configure()`'d before use, and a Client should be set
+//! to enable a callback after a command is completed.
 //!
 //! Almost all of the flash controller functionality is implemented (except for
 //! general purpose fuse bits, and more granular control of the cache).
 //!
-//! Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
-//! Date: July 27, 2016
-//!
+//! - Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
+//! - Date: July 27, 2016
 
 use core::cell::Cell;
 use core::mem;
@@ -30,7 +28,7 @@ use kernel::common::take_cell::MapCell;
 use nvic;
 use pm;
 
-//  These are the registers of the PicoCache -- a cache dedicated to the flash.
+/// These are the registers of the PicoCache -- a cache dedicated to the flash.
 #[allow(dead_code)]
 struct PicocacheRegisters {
     _reserved_1: [u8; 8],
@@ -47,11 +45,11 @@ struct PicocacheRegisters {
     version: VolatileCell<u32>,
 }
 
-//  Section 7 (the memory diagram) says the register starts at 0x400A0400
+/// Section 7 (the memory diagram) says the register starts at `0x400A0400`.
 const PICOCACHE_OFFSET: usize = 0x400;
 
 
-// Struct of the FLASHCALW registers. Section 14.10 of the datasheet
+/// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
 #[repr(C, packed)]
 #[allow(dead_code)]
 struct Registers {
@@ -77,8 +75,8 @@ enum RegKey {
     GPFRLO,
 }
 
-/// Error codes are used to inform the Client if the command completed successfully
-/// or whether there was an error and what type of error it was.
+/// Error codes are used to inform the Client if the command completed
+/// successfully or whether there was an error and what type of error it was.
 pub enum Error {
     CommandComplete, // Command Complete
     LockE, // Lock Error (i.e. tried writing to locked page)
@@ -90,9 +88,12 @@ pub enum Error {
 /// High level commands to issue to the flash. Usually to track the state of
 /// a command especially if it's multiple FlashCMDs.
 ///
-/// For example an erase is: 1) Unlock Page  (UP)
-///                          2) Erase Page   (EP)
-///                          3) Lock Page    (LP)
+/// For example an erase is:
+///
+///  1. Unlock Page  (UP)
+///  2. Erase Page   (EP)
+///  3. Lock Page    (LP)
+///
 /// Store what high level command we're doing allows us to track the state and
 /// continue the steps of the command in handle_interrupt.
 #[derive(Clone, Copy, PartialEq)]
@@ -104,9 +105,9 @@ pub enum Command {
 
 
 
-/// There are 18 recognized commands for the flash. These are 'bare-bones' commands
-/// and values that are written to the Flash's command register to inform
-/// the flash what to do. Table 14-5.
+/// There are 18 recognized commands for the flash. These are "bare-bones"
+/// commands and values that are written to the Flash's command register to
+/// inform the flash what to do. Table 14-5.
 #[derive(Clone, Copy, PartialEq)]
 pub enum FlashCMD {
     NOP,
@@ -129,7 +130,7 @@ pub enum FlashCMD {
     HSDIS,
 }
 
-// The two Flash speeds
+//. The two Flash speeds.
 #[derive(Clone, Copy)]
 pub enum Speed {
     Standard,
@@ -866,8 +867,8 @@ impl FLASHCALW {
     }
 }
 
-///  Assumes the only Peripheral Interrupt enabled for the FLASHCALW is the
-///  FRDY (Flash Ready) interrupt.
+/// Assumes the only Peripheral Interrupt enabled for the FLASHCALW is the
+/// FRDY (Flash Ready) interrupt.
 pub unsafe extern "C" fn flash_handler() {
     use kernel::common::Queue;
     use chip;

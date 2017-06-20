@@ -1,5 +1,5 @@
-//! returncode.rs -- Standard return type for invoking operations, returning
-//! success or an error code.
+//! Standard return type for invoking operations, returning success or an error
+//! code.
 //!
 //!  Author: Philip Levis <pal@cs.stanford.edu>
 //!  Date: Dec 22, 2016

@@ -1,3 +1,7 @@
+//! Implementation of the SAM4L USART peripheral.
+//!
+//! Supports UART and SPI master modes.
+
 use core::cell::Cell;
 use core::cmp;
 use core::mem;
