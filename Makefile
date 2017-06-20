@@ -3,7 +3,7 @@ TOCK_BOARD ?= hail
 
 
 # rules for making the kernel
-.PHONY: all allboards fmt format
+.PHONY: all allboards doc fmt format
 all: $(TOCK_BOARD)
 
 $(TOCK_BOARD): boards/$(TOCK_BOARD)/
