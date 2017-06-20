@@ -41,6 +41,7 @@ ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VE
     $(warning You may experience unexpected compilation warnings or errors)
     $(warning To fix, install `rustup` from https://rustup.rs/, then run: `rustup install $(RUSTUP_TOOLCHAIN)`)
   endif
+  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component add rust-src)
 endif
 
 # Check that xargo is installed
@@ -88,7 +89,6 @@ target/$(TARGET)/release/$(PLATFORM).elf: target/$(TARGET)/release/$(PLATFORM)
 
 .PHONY: target/$(TARGET)/release/$(PLATFORM)
 target/$(TARGET)/release/$(PLATFORM):
-	$(Q)rustup component add rust-src
 	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) build --target=$(TARGET) $(VERBOSE) --release
 	$(Q)$(SIZE) $@
 
@@ -117,7 +117,6 @@ target/$(TARGET)/debug/$(PLATFORM).bin: target/$(TARGET)/debug/$(PLATFORM).elf
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)rustup component add rust-src
 	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) check --target=$(TARGET) $(VERBOSE) --release
 
 .PHONY: clean
