@@ -297,7 +297,7 @@ impl Adc {
                 // the maximum sampling frequency with the RC clocks is 1/32th of their clock
                 // frequency. This is because of the minimum PRESCAL by a factor of 4 and the
                 // 7+1 cycles needed for conversion in continuous mode. Hence, 4*(7+1)=32.
-                if frequency <= 115000 / 32 {
+                if frequency <= 113600 / 32 {
                     // RC oscillator
                     self.cpu_clock.set(false);
                     let max_freq: u32;
@@ -310,7 +310,7 @@ impl Adc {
                         // frequency of the RCSYS is 115KHz.
                         scif::generic_clock_enable(scif::GenericClock::GCLK10,
                                                    scif::ClockSource::RCSYS);
-                        max_freq = 115000 / 32;
+                        max_freq = 113600 / 32;
                     }
                     let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
                     clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
@@ -391,6 +391,13 @@ impl Adc {
 /// Implements an ADC capable reading ADC samples on any channel.
 impl hil::adc::Adc for Adc {
     type Channel = AdcChannel;
+
+    /// Enable and configure the ADC.
+    /// This can be called multiple times with no side effects.
+    fn initialize(&self) -> ReturnCode {
+        // always configure to 1KHz to get the slowest clock
+        self.config_and_enable(1000)
+    }
 
     /// Capture a single analog sample, calling the client when complete.
     /// Returns an error if the ADC is already sampling.
