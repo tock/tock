@@ -1078,7 +1078,61 @@ impl<'a> Process<'a> {
         } else {
             let _ = writer.write_fmt(format_args!("Unknown Load Info\r\n"));
         }
+        let _ = writer.write_fmt(format_args!("\r\n"));
+
+        let _ = writer.write_fmt(format_args!("\r\n MPU Configuration:\r\n"));
+        self.mpu_str(writer);
+
         let _ = writer.write_fmt(format_args!("\r\n\r\n"));
+    }
+
+    pub unsafe fn debug_region_hack<W: Write>(&mut self, writer: &mut W, region: mpu::Region) {
+        // Ideally, this would be the implementation in arch/cortex-m4
+        let enable = region.attributes & 0x1;
+        let size = (region.attributes >> 1) & 0x1f;  // size is 2^(size+1)
+        let subregion_disable_bits = (region.attributes >> 8) & 0xff; // 1->disabled
+        let B = (region.attributes >> 16) & 0x1;
+        let C = (region.attributes >> 17) & 0x1;
+        let S = (region.attributes >> 18) & 0x1; // shareable?
+        let tex = (region.attributes >> 19) & 0x7;
+        let ap = (region.attributes >> 24) & 0x7;
+        let xn = (region.attributes >> 28) & 0x1; // executable?
+
+        // N = Log2(Region size in bytes) = "size" + 1
+        let N = size + 1;
+        let region_number = region.base_address & 0xf;
+        let region_start = region.base_address & !((1<<N) - 1); // bits [31:N]
+
+        let _ = writer.write_fmt(format_args!("  {}:", region_number));
+        if enable==1 {
+            let region_end = region_start + (1 << (size + 1));
+            let _ = writer.write_fmt(format_args!(" {:#010x}-{:#010x}", region_start, region_end));
+            let _ = writer.write_fmt(format_args!(" Sub ✘'s {:#04x}", subregion_disable_bits));
+            let _ = writer.write_fmt(format_args!(" S {}", if S==1 {"✔"} else {"✘"}));
+            let _ = writer.write_fmt(format_args!(" X {}", if xn==0 {"✔"} else {"✘"})); // avoid dbl neg
+            let _ = writer.write_fmt(format_args!(" B {}", if B==1 {"✔"} else {"✘"}));
+            let _ = writer.write_fmt(format_args!(" C {}", if C==1 {"✔"} else {"✘"}));
+            let _ = writer.write_fmt(format_args!(" TEX {:x}", tex));
+            let _ = writer.write_fmt(format_args!(" AP {:x}", ap));
+        } else {
+            let _ = writer.write_fmt(format_args!(" Disabled."));
+        }
+        let _ = writer.write_fmt(format_args!("\r\n"));
+    }
+
+    pub unsafe fn mpu_str<W: Write>(&mut self, writer: &mut W) {
+        // HACK: Ideally we'd have cached regions, instead read the registers
+        const _MPU_TYPE: *mut u32 = 0xE000ED90 as *mut u32;
+        const _CONTROL: *mut u32 = 0xE000ED94 as *mut u32;
+        const REGION_NUMBER: *mut u32 = 0xE000ED98 as *mut u32;
+        const REGION_BASE_ADDRESS: *mut u32 = 0xE000ED9C as *mut u32;
+        const REGION_ATTRIBUTES_AND_SIZE: *mut u32 = 0xE000EDA0 as *mut u32;
+
+        for i in 0..8 {
+            *REGION_NUMBER = i;
+            let region = mpu::Region::new(*REGION_BASE_ADDRESS, *REGION_ATTRIBUTES_AND_SIZE);
+            self.debug_region_hack(writer, region);
+        }
     }
 }
 
