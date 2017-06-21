@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include <alarm.h>
+#include <timer.h>
 #include <gpio.h>
 #include <gpio_async.h>
 

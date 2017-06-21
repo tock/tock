@@ -1,6 +1,6 @@
 #include <stdbool.h>
 
-#include "alarm.h"
+#include "timer.h"
 #include "gpio.h"
 #include "led.h"
 #include "radio.h"

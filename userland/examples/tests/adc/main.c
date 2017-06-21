@@ -4,7 +4,7 @@
 #include <unistd.h>
 
 #include <adc.h>
-#include <alarm.h>
+#include <timer.h>
 #include <console.h>
 #include <tock.h>
 

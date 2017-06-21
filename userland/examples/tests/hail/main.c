@@ -9,7 +9,7 @@
 #include <simple_ble.h>
 
 #include <adc.h>
-#include <alarm.h>
+#include <timer.h>
 #include <button.h>
 #include <gpio.h>
 #include <isl29035.h>

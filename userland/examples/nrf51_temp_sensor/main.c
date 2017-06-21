@@ -1,5 +1,5 @@
 #include "temperature.h"
-#include <alarm.h>
+#include <timer.h>
 #include <stdio.h>
 
 static void callback(int temp,

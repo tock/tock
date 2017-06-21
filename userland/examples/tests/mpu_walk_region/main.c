@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <alarm.h>
+#include <timer.h>
 #include <button.h>
 #include <console.h>
 

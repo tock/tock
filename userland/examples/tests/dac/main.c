@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #include <dac.h>
-#include <alarm.h>
+#include <timer.h>
 #include <tock.h>
 
 uint16_t sine_samples[100] = {

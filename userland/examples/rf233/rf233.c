@@ -7,7 +7,7 @@
 // Date: April 18 2016
 
 
-#include <alarm.h>
+#include <timer.h>
 #include <gpio.h>
 #include <spi.h>
 #include <stdint.h>

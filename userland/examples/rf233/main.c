@@ -4,7 +4,7 @@
  * and is called by rf233 interrupt handler.
  */
 
-#include <alarm.h>
+#include <timer.h>
 #include <gpio.h>
 #include <led.h>
 #include <spi.h>

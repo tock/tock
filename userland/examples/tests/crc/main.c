@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <alarm.h>
+#include <timer.h>
 #include <crc.h>
 #include <rng.h>
 

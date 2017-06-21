@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <alarm.h>
+#include <timer.h>
 #include <rng.h>
 
 uint8_t randbuf[256];

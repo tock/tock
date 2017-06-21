@@ -1,7 +1,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include <alarm.h>
+#include <timer.h>
 #include <led.h>
 #include <radio.h>
 

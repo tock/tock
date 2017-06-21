@@ -1,4 +1,4 @@
-#include <alarm.h>
+#include <timer.h>
 #include <led.h>
 
 int main(void) {

@@ -1,4 +1,4 @@
-#include <alarm.h>
+#include <timer.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdlib.h>

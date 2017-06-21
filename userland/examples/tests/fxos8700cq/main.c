@@ -6,7 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <alarm.h>
+#include <timer.h>
 #include <console.h>
 #include <tock.h>
 

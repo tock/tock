@@ -1,7 +1,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include <alarm.h>
+#include <timer.h>
 #include <isl29035.h>
 #include <lps25hb.h>
 #include <ninedof.h>
@@ -17,7 +17,7 @@ static bool lps25hb  = false;
 static bool si7021   = false;
 static bool ninedof  = false;
 
-static void alarm_fired(__attribute__ ((unused)) int arg0,
+static void timer_fired(__attribute__ ((unused)) int arg0,
                         __attribute__ ((unused)) int arg1,
                         __attribute__ ((unused)) int arg2,
                         __attribute__ ((unused)) void* ud) {
@@ -62,8 +62,8 @@ int main(void) {
   si7021   = driver_exists(DRIVER_NUM_SI7021);
   ninedof  = driver_exists(DRIVER_NUM_NINEDOF);
 
-  // Setup periodic alarm to sample the sensors.
-  alarm_every(1000, alarm_fired, NULL);
+  // Setup periodic timer to sample the sensors.
+  timer_every(1000, timer_fired, NULL);
 
   return 0;
 }
