@@ -1,5 +1,6 @@
 #include "alarm.h"
 #include "internal/alarm.h"
+#include "timer.h"
 #include <limits.h>
 #include <stdlib.h>
 
@@ -161,25 +162,38 @@ alarm_t *alarm_at(uint32_t expiration, subscribe_cb cb, void* ud) {
   return alarm;
 }
 
-alarm_t* alarm_in(uint32_t ms, subscribe_cb cb, void* ud) {
-  uint32_t interval   = ms * alarm_internal_frequency() / 1000;
-  uint32_t now        = alarm_read();
-  uint32_t expiration = now + interval;
-  return alarm_at(expiration, cb, ud);
+void alarm_cancel(alarm_t* alarm) {
+  // Removing from a heap is tricky, so just remove the callback and let it get
+  // lazily removed.
+  alarm->callback = NULL;
 }
 
-struct alarm_repeating {
+uint32_t alarm_read(void) {
+  return (uint32_t) command(3, 4, 0);
+}
+
+// Timer implementation
+
+struct timer_repeating {
   uint32_t interval;
   subscribe_cb* cb;
   void* ud;
   alarm_t* alarm;
 };
 
+
+alarm_t* timer_in(uint32_t ms, subscribe_cb cb, void* ud) {
+  uint32_t interval   = ms * alarm_internal_frequency() / 1000;
+  uint32_t now        = alarm_read();
+  uint32_t expiration = now + interval;
+  return alarm_at(expiration, cb, ud);
+}
+
 static void repeating_cb( uint32_t now,
                           __attribute__ ((unused)) int unused1,
                           __attribute__ ((unused)) int unused2,
                           void* ud) {
-  alarm_repeating_t* repeating = (alarm_repeating_t*)ud;
+  timer_repeating_t* repeating = (timer_repeating_t*)ud;
   uint32_t interval   = repeating->interval;
   uint32_t expiration = now + interval;
   uint32_t cur_exp    = repeating->alarm->expiration;
@@ -188,11 +202,11 @@ static void repeating_cb( uint32_t now,
   repeating->cb(now, cur_exp, 0, (void*)repeating);
 }
 
-alarm_repeating_t* alarm_every(uint32_t ms, subscribe_cb cb, void* ud) {
+timer_repeating_t* timer_every(uint32_t ms, subscribe_cb cb, void* ud) {
   uint32_t interval = ms * alarm_internal_frequency() / 1000;
 
-  alarm_repeating_t* repeating =
-    (alarm_repeating_t*)malloc(sizeof(alarm_repeating_t));
+  timer_repeating_t* repeating =
+    (timer_repeating_t*)malloc(sizeof(timer_repeating_t));
   if (repeating == NULL) {
     return NULL;
   }
@@ -208,14 +222,11 @@ alarm_repeating_t* alarm_every(uint32_t ms, subscribe_cb cb, void* ud) {
   return (void*)repeating;
 }
 
-void alarm_cancel(alarm_t* alarm) {
+void timer_cancel(timer_repeating_t* timer) {
   // Removing from a heap is tricky, so just remove the callback and let it get
   // lazily removed.
-  alarm->callback = NULL;
-}
-
-uint32_t alarm_read(void) {
-  return (uint32_t) command(3, 4, 0);
+  timer->alarm->callback = NULL;
+  free(timer);
 }
 
 void delay_ms(uint32_t ms) {
@@ -227,7 +238,7 @@ void delay_ms(uint32_t ms) {
   }
 
   bool cond = false;
-  alarm_in(ms, delay_cb, &cond);
+  timer_in(ms, delay_cb, &cond);
   yield_for(&cond);
 }
 

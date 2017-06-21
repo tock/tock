@@ -1,4 +1,4 @@
-#include <alarm.h>
+#include <timer.h>
 #include <led.h>
 
 static int interval;
@@ -18,7 +18,7 @@ static void event_cb(__attribute__ ((unused)) int now,
 static void start_cb(__attribute__ ((unused)) int now,
               __attribute__ ((unused)) int expiration,
               __attribute__ ((unused)) int unused, void* ud) {
-  alarm_every(interval, event_cb, ud);
+  timer_every(interval, event_cb, ud);
   toggle((int)ud);
 }
 
@@ -28,6 +28,6 @@ int main(void) {
   interval = spacing * num_leds;
 
   for (int i = 0; i < num_leds; i++) {
-    alarm_in(spacing * (i + 1), start_cb, (void*)i);
+    timer_in(spacing * (i + 1), start_cb, (void*)i);
   }
 }
