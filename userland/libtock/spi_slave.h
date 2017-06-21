@@ -1,6 +1,6 @@
 #pragma once
 
-#include <tock.h>
+#include "tock.h"
 
 #ifdef __cplusplus
 extern "C" {

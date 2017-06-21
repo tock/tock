@@ -155,3 +155,12 @@ clean::
 	rm -Rf $(1)
 endef
 $(eval $(call CLEAN_RULE,$($(LIBNAME)_BUILDDIR)))
+
+
+# Rules for running the C linter
+define FORMAT_RULE
+.PHONY: fmt format
+fmt format::
+	$(Q)$(UNCRUSTIFY) $(1)
+endef
+$(eval $(call FORMAT_RULE,$($(LIBNAME)_SRCS)))

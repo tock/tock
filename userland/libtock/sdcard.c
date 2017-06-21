@@ -1,7 +1,7 @@
 // SD card interface
 
-#include "tock.h"
 #include "sdcard.h"
+#include "tock.h"
 
 // used for creating synchronous versions of functions
 //
@@ -47,7 +47,7 @@ static void sdcard_cb (int callback_type, int arg1, int arg2, void* callback_arg
       // init_done
       result->block_size = arg1;
       result->size_in_kB = arg2;
-      result->error = SUCCESS;
+      result->error      = SUCCESS;
       break;
 
     case 2:
