@@ -15,7 +15,7 @@ typedef struct {
 
 #define TASK_QUEUE_SIZE  16
 static tock_task_t task_queue[TASK_QUEUE_SIZE];
-static int task_cur = 0;
+static int task_cur  = 0;
 static int task_last = 0;
 
 int tock_enqueue(subscribe_cb cb, int arg0, int arg1, int arg2, void* ud) {
@@ -24,11 +24,11 @@ int tock_enqueue(subscribe_cb cb, int arg0, int arg1, int arg2, void* ud) {
     return -1;
   }
 
-  task_queue[task_last].cb = cb;
+  task_queue[task_last].cb   = cb;
   task_queue[task_last].arg0 = arg0;
   task_queue[task_last].arg1 = arg1;
   task_queue[task_last].arg2 = arg2;
-  task_queue[task_last].ud = ud;
+  task_queue[task_last].ud   = ud;
   task_last = next_task_last;
 
   return task_last;

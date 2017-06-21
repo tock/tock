@@ -1,7 +1,7 @@
+#include "alarm.h"
+#include "internal/alarm.h"
 #include <limits.h>
 #include <stdlib.h>
-#include "internal/alarm.h"
-#include "alarm.h"
 
 // Returns < 0 if exp0 is earlier, > 0 if exp1 is earlier, and 0
 // if they are equal.
@@ -23,17 +23,20 @@ typedef struct {
 } heap_t;
 
 static heap_t alarm_heap = {
-  .data = NULL,
+  .data     = NULL,
   .capacity = 0,
-  .size = 0,
+  .size     = 0,
 };
 
-static void heap_insert(alarm_t* alarm) {
+static int heap_insert(alarm_t* alarm) {
   if (alarm_heap.capacity - alarm_heap.size <= 0) {
     // Heap too small! Make it bigger
     int new_capacity = (alarm_heap.capacity + 1) * 2;
     alarm_heap.data = (alarm_t**)realloc(alarm_heap.data,
-        new_capacity * sizeof(alarm_t*));
+                                         new_capacity * sizeof(alarm_t*));
+    if (alarm_heap.data == NULL) {
+      return ENOMEM;
+    }
     alarm_heap.capacity = new_capacity;
   }
 
@@ -43,17 +46,19 @@ static void heap_insert(alarm_t* alarm) {
   alarm_heap.size++;
 
   // then up-heap...
-  while(idx != 0) {
-    int parent_idx = (idx - 1) / 2;
+  while (idx != 0) {
+    int parent_idx  = (idx - 1) / 2;
     alarm_t *parent = alarm_heap.data[parent_idx];
     if (cmp_exp(alarm->t0, alarm->expiration, parent->expiration) < 0) {
-      alarm_heap.data[idx] = parent;
+      alarm_heap.data[idx]        = parent;
       alarm_heap.data[parent_idx] = alarm;
       idx = parent_idx;
     } else {
       break;
     }
   }
+
+  return 0;
 }
 
 static alarm_t* heap_pop(uint32_t now) {
@@ -91,10 +96,10 @@ static alarm_t* heap_pop(uint32_t now) {
         cmp_exp(now, alarm->expiration, childr->expiration) <= 0) {
       break;
     } else if (cmp_exp(now, childl->expiration, childr->expiration) < 0) {
-      alarm_heap.data[idx] = childl;
+      alarm_heap.data[idx]        = childl;
       alarm_heap.data[childl_idx] = alarm;
     } else {
-      alarm_heap.data[idx] = childr;
+      alarm_heap.data[idx]        = childr;
       alarm_heap.data[childr_idx] = alarm;
     }
   }
@@ -127,10 +132,7 @@ static void callback( __attribute__ ((unused)) int unused0,
       heap_pop(now);
 
       if (alarm->callback) {
-        // alarm->callback callback _could_ yield, which might result in
-        // reentering this function.
         tock_enqueue(alarm->callback, now, alarm->expiration, 0, alarm->ud);
-        //alarm->callback(now, alarm->expiration, 0, alarm->ud);
       }
       free(alarm);
     }
@@ -139,12 +141,17 @@ static void callback( __attribute__ ((unused)) int unused0,
 
 alarm_t *alarm_at(uint32_t expiration, subscribe_cb cb, void* ud) {
   alarm_t *alarm = (alarm_t*)malloc(sizeof(alarm_t));
-  alarm->t0 = alarm_read();
+  if (alarm == NULL) {
+    return NULL;
+  }
+  alarm->t0         = alarm_read();
   alarm->expiration = expiration;
-  alarm->callback = cb;
-  alarm->ud = ud;
+  alarm->callback   = cb;
+  alarm->ud         = ud;
 
-  heap_insert(alarm);
+  if (heap_insert(alarm) != 0) {
+    return NULL;
+  }
 
   if (heap_peek() == alarm) {
     alarm_internal_subscribe((subscribe_cb*)callback, NULL);
@@ -155,8 +162,8 @@ alarm_t *alarm_at(uint32_t expiration, subscribe_cb cb, void* ud) {
 }
 
 alarm_t* alarm_in(uint32_t ms, subscribe_cb cb, void* ud) {
-  uint32_t interval = ms * alarm_internal_frequency() / 1000;
-  uint32_t now = alarm_read();
+  uint32_t interval   = ms * alarm_internal_frequency() / 1000;
+  uint32_t now        = alarm_read();
   uint32_t expiration = now + interval;
   return alarm_at(expiration, cb, ud);
 }
@@ -169,30 +176,36 @@ struct alarm_repeating {
 };
 
 static void repeating_cb( uint32_t now,
-                      __attribute__ ((unused)) int unused1,
-                      __attribute__ ((unused)) int unused2,
-                      void* uud) {
-  alarm_repeating_t* udwrapper = (alarm_repeating_t*)uud;
-  uint32_t interval = udwrapper->interval;
+                          __attribute__ ((unused)) int unused1,
+                          __attribute__ ((unused)) int unused2,
+                          void* ud) {
+  alarm_repeating_t* repeating = (alarm_repeating_t*)ud;
+  uint32_t interval   = repeating->interval;
   uint32_t expiration = now + interval;
-  uint32_t cur_exp = udwrapper->alarm->expiration;
-  udwrapper->alarm = alarm_at(expiration, (subscribe_cb*)repeating_cb, (void*)udwrapper);
-  udwrapper->cb(now, cur_exp, 0, udwrapper->ud);
+  uint32_t cur_exp    = repeating->alarm->expiration;
+  repeating->alarm = alarm_at(expiration, (subscribe_cb*)repeating_cb,
+                              (void*)repeating);
+  repeating->cb(now, cur_exp, 0, (void*)repeating);
 }
 
 alarm_repeating_t* alarm_every(uint32_t ms, subscribe_cb cb, void* ud) {
   uint32_t interval = ms * alarm_internal_frequency() / 1000;
 
-  alarm_repeating_t* uud = (alarm_repeating_t*)malloc(sizeof(alarm_repeating_t));
-  uud->interval = interval;
-  uud->cb = cb;
-  uud->ud = ud;
+  alarm_repeating_t* repeating =
+    (alarm_repeating_t*)malloc(sizeof(alarm_repeating_t));
+  if (repeating == NULL) {
+    return NULL;
+  }
+  repeating->interval = interval;
+  repeating->cb       = cb;
+  repeating->ud       = ud;
 
-  uint32_t now = alarm_read();
+  uint32_t now        = alarm_read();
   uint32_t expiration = now + interval;
 
-  uud->alarm = alarm_at(expiration, (subscribe_cb*)repeating_cb, (void*)uud);
-  return (void*)uud;
+  repeating->alarm = alarm_at(expiration, (subscribe_cb*)repeating_cb,
+                              (void*)repeating);
+  return (void*)repeating;
 }
 
 void alarm_cancel(alarm_t* alarm) {
