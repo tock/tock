@@ -3,7 +3,7 @@
 MAKEFLAGS += -r
 MAKEFLAGS += -R
 
-export RUSTUP_TOOLCHAIN ?= nightly-2017-06-19
+export RUSTUP_TOOLCHAIN ?= nightly-2017-06-20
 
 TOOLCHAIN ?= arm-none-eabi
 
@@ -32,7 +32,7 @@ endif
 export TOCK_KERNEL_VERSION := $(shell git describe --always || echo notgit)
 
 # Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
-RUSTC_VERSION_STRING := rustc 1.19.0-nightly (10d7cb44c 2017-06-18)
+RUSTC_VERSION_STRING := rustc 1.19.0-nightly (04145943a 2017-06-19)
 ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
   DUMMY := $(shell rustup install $(RUSTUP_TOOLCHAIN))
   ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
