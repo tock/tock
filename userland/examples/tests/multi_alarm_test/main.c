@@ -4,7 +4,7 @@
 static int interval;
 
 static void toggle(int led_num) {
-  led_toggle(led_num);
+  led_on(led_num);
   delay_ms(300);
   led_off(led_num);
 }

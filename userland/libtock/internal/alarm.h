@@ -43,6 +43,12 @@ int alarm_internal_oneshot(uint32_t interval_ms);
  */
 int alarm_internal_absolute(uint32_t tics);
 
+
+/*
+ * Stops any outstanding hardware alarm.
+ *
+ * Side-effects: cancels any existing/outstanding timers
+ */
 int alarm_internal_stop(void);
 
 /*

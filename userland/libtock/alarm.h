@@ -49,7 +49,7 @@ extern "C" {
  * management is handled by the underlying implementation.
  *
  * \bug Memory mangaement shouldn't be handled by the underlying
- * implementation. This makes it pretty dangerous to every use `alarm_cancel`.
+ * implementation. This makes it pretty dangerous to ever use `alarm_cancel`.
  */
 typedef struct alarm alarm_t;
 
