@@ -41,6 +41,9 @@ ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VE
     $(warning You may experience unexpected compilation warnings or errors)
     $(warning To fix, install `rustup` from https://rustup.rs/, then run: `rustup install $(RUSTUP_TOOLCHAIN)`)
   endif
+endif
+
+ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component list | grep rust-src),rust-src (installed))
   $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component add rust-src)
 endif
 
