@@ -1,10 +1,10 @@
 #pragma once
 
+#include "tock.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <tock.h>
 
 /*
  * Sets the callback for timers

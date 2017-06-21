@@ -1,11 +1,12 @@
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <stdbool.h>
+
 #include "tock.h"
 
 void yield_for(bool *cond) {
-  while(!*cond) {
+  while (!*cond) {
     yield();
   }
 }
@@ -34,69 +35,69 @@ void yield(void) {
   //   and SP (and r9 in PCS variants that designate r9 as v6)
   // As our compilation flags mark r9 as the PIC base register, it does not need
   // to be saved. Thus we must clobber r0-3, r12, and LR
-  asm volatile(
-      "svc 0       \n"
-      :
-      :
-      : "memory", "r0", "r1", "r2", "r3", "r12", "lr"
-      );
+  asm volatile (
+    "svc 0       \n"
+    :
+    :
+    : "memory", "r0", "r1", "r2", "r3", "r12", "lr"
+    );
 }
 
 int subscribe(uint32_t driver, uint32_t subscribe,
               subscribe_cb cb, void* userdata) {
-  register uint32_t r0 asm("r0") = driver;
-  register uint32_t r1 asm("r1") = subscribe;
-  register void*    r2 asm("r2") = cb;
-  register void*    r3 asm("r3") = userdata;
+  register uint32_t r0 asm ("r0") = driver;
+  register uint32_t r1 asm ("r1") = subscribe;
+  register void*    r2 asm ("r2") = cb;
+  register void*    r3 asm ("r3") = userdata;
   register int ret asm ("r0");
-  asm volatile(
-      "svc 1"
-      : "=r" (ret)
-      : "r" (r0), "r" (r1), "r" (r2), "r" (r3)
-      : "memory");
+  asm volatile (
+    "svc 1"
+    : "=r" (ret)
+    : "r" (r0), "r" (r1), "r" (r2), "r" (r3)
+    : "memory");
   return ret;
 }
 
 
 int command(uint32_t driver, uint32_t command, int data) {
-  register uint32_t r0 asm("r0") = driver;
-  register uint32_t r1 asm("r1") = command;
-  register uint32_t r2 asm("r2") = data;
+  register uint32_t r0 asm ("r0") = driver;
+  register uint32_t r1 asm ("r1") = command;
+  register uint32_t r2 asm ("r2") = data;
   register int ret asm ("r0");
-  asm volatile(
-      "svc 2"
-      : "=r" (ret)
-      : "r" (r0), "r" (r1), "r" (r2)
-      : "memory"
-      );
+  asm volatile (
+    "svc 2"
+    : "=r" (ret)
+    : "r" (r0), "r" (r1), "r" (r2)
+    : "memory"
+    );
   return ret;
 }
 
 int allow(uint32_t driver, uint32_t allow, void* ptr, size_t size) {
-  register uint32_t r0 asm("r0") = driver;
-  register uint32_t r1 asm("r1") = allow;
-  register void*    r2 asm("r2") = ptr;
-  register size_t   r3 asm("r3") = size;
+  register uint32_t r0 asm ("r0") = driver;
+  register uint32_t r1 asm ("r1") = allow;
+  register void*    r2 asm ("r2") = ptr;
+  register size_t r3 asm ("r3")   = size;
   register int ret asm ("r0");
-  asm volatile(
-      "svc 3"
-      : "=r" (ret)
-      : "r" (r0), "r" (r1), "r" (r2), "r" (r3)
-      : "memory"
-      );
+  asm volatile (
+    "svc 3"
+    : "=r" (ret)
+    : "r" (r0), "r" (r1), "r" (r2), "r" (r3)
+    : "memory"
+    );
   return ret;
 }
 
 void* memop(uint32_t op_type, int arg1) {
-  register uint32_t r0 asm("r0") = op_type;
-  register int      r1 asm("r1") = arg1;
-  register void*   ret asm("r0");
-  asm volatile(
-      "svc 4"
-      : "=r" (ret)
-      : "r" (r0), "r" (r1)
-      : "memory"
-      );
+  register uint32_t r0 asm ("r0") = op_type;
+  register int r1 asm ("r1")      = arg1;
+  register void*   ret asm ("r0");
+  asm volatile (
+    "svc 4"
+    : "=r" (ret)
+    : "r" (r0), "r" (r1)
+    : "memory"
+    );
   return ret;
 }
 
@@ -106,21 +107,21 @@ bool driver_exists(uint32_t driver) {
 }
 
 void* tock_app_memory_begins_at(void) {
-	return memop(2, 0);
+  return memop(2, 0);
 }
 
 void* tock_app_memory_ends_at(void) {
-	return memop(3, 0);
+  return memop(3, 0);
 }
 
 void* tock_app_flash_begins_at(void) {
-	return memop(4, 0);
+  return memop(4, 0);
 }
 
 void* tock_app_flash_ends_at(void) {
-	return memop(5, 0);
+  return memop(5, 0);
 }
 
 void* tock_app_grant_begins_at(void) {
-	return memop(6, 0);
+  return memop(6, 0);
 }

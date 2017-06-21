@@ -12,6 +12,9 @@ function opt_rebuild {
 	fi
 }
 
+echo ""
+echo "${bold}Formatting examples${normal}"
+
 for mkfile in `find . -maxdepth 3 -name Makefile`; do
 	dir=`dirname $mkfile`
 	if [ $dir == "." ]; then continue; fi
@@ -20,10 +23,10 @@ for mkfile in `find . -maxdepth 3 -name Makefile`; do
 
 	pushd $dir > /dev/null
 	echo ""
-	echo "Building $dir"
+	echo "Fromatting $dir"
 	make format || (echo "${bold} ⤤ Failure formatting $dir${normal}" ; opt_rebuild $dir; exit 1)
 	popd > /dev/null
 done
 
 echo ""
-echo "${bold}All Built.${normal}"
+echo "${bold}All formatted.${normal}"

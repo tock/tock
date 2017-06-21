@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-#include "ninedof.h"
 #include "math.h"
+#include "ninedof.h"
 
 struct ninedof_data {
   int x;
@@ -15,9 +15,9 @@ static struct ninedof_data res = { .fired = false };
 // internal callback for faking synchronous reads
 static void ninedof_cb(int x, int y, int z, void* ud) {
   struct ninedof_data* result = (struct ninedof_data*) ud;
-  result->x = x;
-  result->y = y;
-  result->z = z;
+  result->x     = x;
+  result->y     = y;
+  result->z     = z;
   result->fired = true;
 }
 
@@ -53,41 +53,41 @@ int ninedof_start_magnetometer_reading(void) {
 }
 
 int ninedof_read_acceleration_sync(int* x, int* y, int* z) {
-    int err;
-    res.fired = false;
+  int err;
+  res.fired = false;
 
-    err = ninedof_subscribe(ninedof_cb, (void*) &res);
-    if (err < 0) return err;
+  err = ninedof_subscribe(ninedof_cb, (void*) &res);
+  if (err < 0) return err;
 
-    err = ninedof_start_accel_reading();
-    if (err < 0) return err;
+  err = ninedof_start_accel_reading();
+  if (err < 0) return err;
 
-    // Wait for the callback.
-    yield_for(&res.fired);
+  // Wait for the callback.
+  yield_for(&res.fired);
 
-    *x = res.x;
-    *y = res.y;
-    *z = res.z;
+  *x = res.x;
+  *y = res.y;
+  *z = res.z;
 
-    return 0;
+  return 0;
 }
 
 int ninedof_read_magenetometer_sync(int* x, int* y, int* z) {
-    int err;
-    res.fired = false;
+  int err;
+  res.fired = false;
 
-    err = ninedof_subscribe(ninedof_cb, (void*) &res);
-    if (err < 0) return err;
+  err = ninedof_subscribe(ninedof_cb, (void*) &res);
+  if (err < 0) return err;
 
-    err = ninedof_start_magnetometer_reading();
-    if (err < 0) return err;
+  err = ninedof_start_magnetometer_reading();
+  if (err < 0) return err;
 
-    // Wait for the callback.
-    yield_for(&res.fired);
+  // Wait for the callback.
+  yield_for(&res.fired);
 
-    *x = res.x;
-    *y = res.y;
-    *z = res.z;
+  *x = res.x;
+  *y = res.y;
+  *z = res.z;
 
-    return 0;
+  return 0;
 }

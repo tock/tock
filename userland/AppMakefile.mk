@@ -191,7 +191,7 @@ clean::
 # Rules for running the C linter
 
 .PHONY: fmt format
-fmt format:
+fmt format::
 	$(Q)$(UNCRUSTIFY) $(C_SRCS) $(CXX_SRCS)
 
 

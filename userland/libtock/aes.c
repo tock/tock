@@ -17,9 +17,9 @@ typedef struct {
 // callback_args - user data passed into the set_callback function
 //
 static void aes_cb(int callback_type,
-    __attribute__ ((unused)) int unused1,
-    __attribute__ ((unused)) int unused2,
-    void *callback_args) {
+                   __attribute__ ((unused)) int unused1,
+                   __attribute__ ((unused)) int unused2,
+                   void *callback_args) {
 
   aes_data_t *result = (aes_data_t*)callback_args;
   result->fired = true;
@@ -56,11 +56,11 @@ int aes128_decrypt_start(void) {
   return command(AES_DRIVER, AES_DEC, 0);
 }
 
-// Function to encrypt by aes128 counter-mode with a given payload and 
+// Function to encrypt by aes128 counter-mode with a given payload and
 // initial counter asynchronously
-int aes128_encrypt_ctr(unsigned const char* buf, unsigned char buf_len, 
-    unsigned const char* ctr, unsigned char ctr_len, subscribe_cb callback) {
-  
+int aes128_encrypt_ctr(unsigned const char* buf, unsigned char buf_len,
+                       unsigned const char* ctr, unsigned char ctr_len, subscribe_cb callback) {
+
   int err;
 
   err = aes128_set_callback(callback, NULL);
@@ -69,17 +69,17 @@ int aes128_encrypt_ctr(unsigned const char* buf, unsigned char buf_len,
   err = aes128_set_data(buf, buf_len);
   if (err < SUCCESS) return err;
 
-  err = aes128_set_ctr(ctr, ctr_len); 
+  err = aes128_set_ctr(ctr, ctr_len);
   if (err < SUCCESS) return err;
 
   return aes128_encrypt_start();
 }
 
-// Function to decrypt by aes128 counter-mode with a given payload and 
+// Function to decrypt by aes128 counter-mode with a given payload and
 // initial counter asynchronously
-int aes128_decrypt_ctr(const unsigned char* buf, unsigned char buf_len, 
-    const unsigned char* ctr, unsigned char ctr_len, subscribe_cb callback) {
-  
+int aes128_decrypt_ctr(const unsigned char* buf, unsigned char buf_len,
+                       const unsigned char* ctr, unsigned char ctr_len, subscribe_cb callback) {
+
   int err;
 
   err = aes128_set_callback(callback, NULL);
@@ -88,7 +88,7 @@ int aes128_decrypt_ctr(const unsigned char* buf, unsigned char buf_len,
   err = aes128_set_data(buf, buf_len);
   if (err < SUCCESS) return err;
 
-  err = aes128_set_ctr(ctr, ctr_len); 
+  err = aes128_set_ctr(ctr, ctr_len);
   if (err < SUCCESS) return err;
 
   return aes128_decrypt_start();
@@ -101,7 +101,7 @@ int aes128_decrypt_ctr(const unsigned char* buf, unsigned char buf_len,
 // kernel. No need to for a callback for this since it is synchronous in
 // the kernel as well.
 int aes128_set_key_sync(const unsigned char* key, unsigned char len) {
-  
+
   int err;
 
   err = allow(AES_DRIVER, AES_KEY, (void*)key, len);
@@ -111,11 +111,11 @@ int aes128_set_key_sync(const unsigned char* key, unsigned char len) {
 }
 
 
-// Function to encrypt by aes128 counter-mode with a given payload and 
+// Function to encrypt by aes128 counter-mode with a given payload and
 // initial counter synchronously
-int aes128_encrypt_ctr_sync(unsigned const char* buf, unsigned char buf_len, 
-    unsigned const char* ctr, unsigned char ctr_len) {
-  
+int aes128_encrypt_ctr_sync(unsigned const char* buf, unsigned char buf_len,
+                            unsigned const char* ctr, unsigned char ctr_len) {
+
   int err;
   aes_data_t result = { .fired = false, .error = SUCCESS };
 
@@ -125,7 +125,7 @@ int aes128_encrypt_ctr_sync(unsigned const char* buf, unsigned char buf_len,
   err = aes128_set_data(buf, buf_len);
   if (err < SUCCESS) return err;
 
-  err = aes128_set_ctr(ctr, ctr_len); 
+  err = aes128_set_ctr(ctr, ctr_len);
   if (err < SUCCESS) return err;
 
   err = aes128_encrypt_start();
@@ -137,11 +137,11 @@ int aes128_encrypt_ctr_sync(unsigned const char* buf, unsigned char buf_len,
 }
 
 
-// Function to decrypt by aes128 counter-mode with a given payload and 
+// Function to decrypt by aes128 counter-mode with a given payload and
 // initial counter synchronously
-int aes128_decrypt_ctr_sync(const unsigned char* buf, unsigned char buf_len, 
-    const unsigned char* ctr, unsigned char ctr_len) {
-  
+int aes128_decrypt_ctr_sync(const unsigned char* buf, unsigned char buf_len,
+                            const unsigned char* ctr, unsigned char ctr_len) {
+
   int err;
   aes_data_t result = { .fired = false, .error = SUCCESS };
 
@@ -151,13 +151,13 @@ int aes128_decrypt_ctr_sync(const unsigned char* buf, unsigned char buf_len,
   err = aes128_set_data(buf, buf_len);
   if (err < SUCCESS) return err;
 
-  err = aes128_set_ctr(ctr, ctr_len); 
+  err = aes128_set_ctr(ctr, ctr_len);
   if (err < SUCCESS) return err;
 
   err = aes128_decrypt_start();
   if (err < SUCCESS) return err;
 
   yield_for(&result.fired);
-  
+
   return result.error;
 }
