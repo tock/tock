@@ -4,6 +4,7 @@ use adc;
 use ast;
 use cortexm4;
 use crccu;
+use dac;
 use dma;
 use flashcalw;
 use gpio;
@@ -130,6 +131,7 @@ impl Chip for Sam4l {
 
                     HFLASHC => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
                     ADCIFE => adc::ADC0.handle_interrupt(),
+                    DACC => dac::DAC.handle_interrupt(),
 
                     TRNG => trng::TRNG.handle_interrupt(),
                     _ => {}
