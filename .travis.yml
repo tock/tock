@@ -13,7 +13,7 @@ os:
 
 # If you change this, you must also change README and Common.mk
 rust:
-  - nightly-2017-05-24
+  - nightly-2017-06-20
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./.travis-install-gcc; fi
