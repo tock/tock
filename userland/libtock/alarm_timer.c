@@ -199,7 +199,7 @@ static void repeating_cb( uint32_t now,
   uint32_t cur_exp    = repeating->alarm->expiration;
   repeating->alarm = alarm_at(expiration, (subscribe_cb*)repeating_cb,
                               (void*)repeating);
-  repeating->cb(now, cur_exp, 0, (void*)repeating);
+  repeating->cb(now, cur_exp, 0, repeating->ud);
 }
 
 timer_repeating_t* timer_every(uint32_t ms, subscribe_cb cb, void* ud) {
