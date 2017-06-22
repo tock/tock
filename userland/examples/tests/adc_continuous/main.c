@@ -4,8 +4,8 @@
 #include <unistd.h>
 
 #include <adc.h>
+#include <alarm.h>
 #include <console.h>
-#include <timer.h>
 #include <tock.h>
 
 // Sample the first channel. On Hail, this is external pin A0 (AD0)

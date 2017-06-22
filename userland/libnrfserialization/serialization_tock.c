@@ -151,10 +151,6 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
 //
 
 uint32_t ser_app_hal_hw_init() {
-    // Configure the pin for the reset pin. We don't have the actual !RESET
-    // pin pinned to the Storm, so we will use this one.
-    gpio_enable_output(STORM_INT);
-
     return NRF_SUCCESS;
 }
 
@@ -163,11 +159,9 @@ void ser_app_hal_delay (uint32_t ms)  {
 }
 
 void ser_app_hal_nrf_reset_pin_clear() {
-    gpio_clear(STORM_INT);
 }
 
 void ser_app_hal_nrf_reset_pin_set() {
-    gpio_set(STORM_INT);
 }
 
 void ser_app_hal_nrf_evt_irq_priority_set () {
@@ -372,9 +366,9 @@ uint32_t app_timer_start (app_timer_id_t timer_id,
 
     if (p_node->mode == APP_TIMER_MODE_REPEATED) {
         p_node->p_context = p_context;
-        timer_subscribe(serialization_timer_cb, timer_id);
         // timer_repeating_subscribe(p_node->p_timeout_handler, &timer_id);
-        timer_start_repeating(APP_TIMER_MS(timeout_ticks, 0)); // Use 0 for the prescaler
+        // Use 0 for the prescaler
+        timer_every(APP_TIMER_MS(timeout_ticks, 0), serialization_timer_cb, timer_id);
     } else {
         // timer_oneshot_subscribe(p_node->p_timeout_handler, &timer_id);
     }

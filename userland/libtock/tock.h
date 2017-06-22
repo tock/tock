@@ -10,6 +10,8 @@ extern "C" {
 
 typedef void (subscribe_cb)(int, int, int,void*);
 
+int tock_enqueue(subscribe_cb cb, int arg0, int arg1, int arg2, void* ud);
+
 void yield(void);
 void yield_for(bool*);
 
