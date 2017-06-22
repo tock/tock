@@ -38,3 +38,4 @@ pub mod ltc294x;
 pub mod mcp23008;
 pub mod gpio_async;
 pub mod max17205;
+pub mod pca9544a;
