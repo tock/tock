@@ -117,7 +117,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* PDCA13 */        Option::Some(dma::pdca13_handler),
     /* PDCA14 */        Option::Some(dma::pdca14_handler),
     /* PDCA15 */        Option::Some(dma::pdca15_handler),
-    /* CRCCU */         Option::Some(crccu::interrupt_handler),
+    /* CRCCU */         Option::Some(crccu::crccu_handler),
     /* USBC */          Option::Some(unhandled_interrupt),
     /* PEVC_TR */       Option::Some(unhandled_interrupt),
     /* PEVC_OV */       Option::Some(unhandled_interrupt),
