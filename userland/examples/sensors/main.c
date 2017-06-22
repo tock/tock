@@ -1,11 +1,11 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include <timer.h>
 #include <isl29035.h>
 #include <lps25hb.h>
 #include <ninedof.h>
 #include <si7021.h>
+#include <timer.h>
 #include <tmp006.h>
 #include <tock.h>
 #include <tsl2561.h>

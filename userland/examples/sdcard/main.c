@@ -3,9 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <timer.h>
 #include <console.h>
 #include <sdcard.h>
+#include <timer.h>
 #include <tock.h>
 
 uint8_t read_buf[512]  = {0};

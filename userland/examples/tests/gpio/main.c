@@ -5,10 +5,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <timer.h>
 #include <console.h>
 #include <gpio.h>
 #include <led.h>
+#include <timer.h>
 #include <tock.h>
 
 // callback for timers

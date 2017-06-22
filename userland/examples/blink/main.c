@@ -1,5 +1,5 @@
-#include <timer.h>
 #include <led.h>
+#include <timer.h>
 
 int main(void) {
   // Ask the kernel how many LEDs are on this board.

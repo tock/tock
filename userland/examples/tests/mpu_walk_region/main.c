@@ -5,9 +5,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <timer.h>
 #include <button.h>
 #include <console.h>
+#include <timer.h>
 
 static uint32_t read_cpsr(void) {
   register uint32_t ret asm ("r0");

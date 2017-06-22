@@ -4,11 +4,11 @@
  * and is called by rf233 interrupt handler.
  */
 
-#include <timer.h>
 #include <gpio.h>
 #include <led.h>
 #include <spi.h>
 #include <stdint.h>
+#include <timer.h>
 
 #include "rf233-arch.h"
 #include "rf233-config.h"
