@@ -67,6 +67,7 @@ impl Sam4l {
             systick: cortexm4::systick::SysTick::new(),
         }
     }
+
 }
 
 impl Chip for Sam4l {
@@ -134,7 +135,7 @@ impl Chip for Sam4l {
                     DACC => dac::DAC.handle_interrupt(),
 
                     TRNG => trng::TRNG.handle_interrupt(),
-                    _ => {}
+                    foo => {panic!("Unexpected interrupt {:?}", foo)}
                 }
                 nvic::enable(interrupt);
             }
@@ -151,5 +152,18 @@ impl Chip for Sam4l {
 
     fn systick(&self) -> &cortexm4::systick::SysTick {
         self.systick
+    }
+
+    fn prepare_for_sleep(&self) {
+        if ::pm::deep_sleep_ready() {
+            unsafe {
+                panic!("Going into deep sleep bro!");
+                cortexm4::scb::set_sleepdeep();
+            }
+        } else {
+            unsafe {
+                cortexm4::scb::unset_sleepdeep();
+            }
+        }
     }
 }
