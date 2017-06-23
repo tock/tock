@@ -38,6 +38,10 @@ flash: boards/$(TOCK_BOARD)/
 fmt format:
 	@./tools/run_cargo_fmt.sh
 
+.PHONY: formatall
+formatall: format
+	@cd userland/examples && ./format_all.sh
+
 .PHONY: list list-boards list-platforms
 list list-boards list-platforms:
 	@./tools/list_boards.sh
