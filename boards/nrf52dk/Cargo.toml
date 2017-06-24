@@ -18,5 +18,4 @@ lto = true
 cortexm4 = { path = "../../arch/cortex-m4" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-# FIX REPLACE WITH NRF52
 nrf52 = { path = "../../chips/nrf52" }
