@@ -276,8 +276,8 @@ pub unsafe fn reset_handler() {
         MuxSpiMaster::new(&sam4l::spi::SPI));
 
     sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
-    sam4l::spi::SPI.enable();
+    //sam4l::spi::SPI.init();
+    //sam4l::spi::SPI.enable();
 
     // Create a virtualized client for SPI system call interface
     // CS line is CS0
@@ -396,7 +396,7 @@ pub unsafe fn reset_handler() {
         capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(hail.console), kc);
 
-    hail.nrf51822.initialize();
+    //hail.nrf51822.initialize();
 
     let mut chip = sam4l::chip::Sam4l::new();
     chip.mpu().enable_mpu();
