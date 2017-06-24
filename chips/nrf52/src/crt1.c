@@ -7,6 +7,10 @@
  * Copyright 2016, Michael Andersen <m.andersen@eecs.berkeley.edu>
  */
 
+/* https://github.com/NordicSemiconductor/nrf52-hardware-startup-hands-on/blob/master/pca10040/s132/arm5_no_packs/RTE/Device/nRF52832_xxAA/arm_startup_nrf52.s */
+ 
+/* https://github.com/NordicSemiconductor/nRF52-ble-app-lbs/blob/master/pca10040/s132/arm5_no_packs/RTE/Device/nRF52832_xxAA/system_nrf52.c */
+
 #include <stdint.h>
 #include <string.h>
 
@@ -56,17 +60,61 @@ void init(void)
 	uint32_t *pSrc, *pDest;
 
 	/* Apply early initialization workarounds for anomalies documented on
-	 * nRF51822-PAN v2.4. Note that they have been validated only for xxAA
-	 * variant. For other variants, please refer to the applicable
-	 * nRF51822-PAN. */
+     2015-12-11 nRF52832 Errata v1.2
+     http://infocenter.nordicsemi.com/pdf/nRF52832_Errata_v1.2.pdf 
+  */
 
-	/* Power on RAM blocks manually (PAN #16). Note that xxAA/xxAB variants
-	 * have only two RAM blocks. For xxAC, change to 0x0000000F. */
-	*((uint32_t volatile * ) 0x40000524) = 0x00000003;
+    /* Workaround for Errata 12 "COMP: Reference ladder not correctly callibrated" found at the Errate doc */
+        *(volatile uint32_t *)0x40013540 = (*(uint32_t *)0x10000324 & 0x00001F00) >> 8;
+    
+    /* Workaround for Errata 16 "System: RAM may be corrupt on wakeup from CPU IDLE" found at the Errata doc */
+        *(volatile uint32_t *)0x4007C074 = 3131961357ul;
 
-	/* Setup peripherals manually (PAN #26) */
-	*((uint32_t volatile * ) 0x40000504) = 0xC007FFDF;
-	*((uint32_t volatile * ) 0x40006C18) = 0x00008000;
+    /* Workaround for Errata 31 "CLOCK: Calibration values are not correctly loaded from FICR at reset" found at the Errata doc */
+        *(volatile uint32_t *)0x4000053C = ((*(volatile uint32_t *)0x10000244) & 0x0000E000) >> 13;
+
+    /* Workaround for Errata 32 "DIF: Debug session automatically enables TracePort pins" found at the Errata doc
+        CoreDebug->DEMCR &= ~CoreDebug_DEMCR_TRCENA_Msk; */
+
+    /* Workaround for Errata 36 "CLOCK: Some registers are not reset when expected" found at the Errata doc
+        NRF_CLOCK->EVENTS_DONE = 0;
+        NRF_CLOCK->EVENTS_CTTO = 0;
+        NRF_CLOCK->CTIV = 0;
+    }
+    */
+
+    /* Workaround for Errata 37 "RADIO: Encryption engine is slow by default" found at the Errata document doc */
+        *(volatile uint32_t *)0x400005A0 = 0x3;
+
+    /* Workaround for Errata 57 "NFCT: NFC Modulation amplitude" found at the Errata doc */
+        *(volatile uint32_t *)0x40005610 = 0x00000005;
+        *(volatile uint32_t *)0x40005688 = 0x00000001;
+        *(volatile uint32_t *)0x40005618 = 0x00000000;
+        *(volatile uint32_t *)0x40005614 = 0x0000003F;
+
+    /* Workaround for Errata 66 "TEMP: Linearity specification not met with default settings" found at the Errata doc
+        NRF_TEMP->A0 = NRF_FICR->TEMP.A0;
+        NRF_TEMP->A1 = NRF_FICR->TEMP.A1;
+        NRF_TEMP->A2 = NRF_FICR->TEMP.A2;
+        NRF_TEMP->A3 = NRF_FICR->TEMP.A3;
+        NRF_TEMP->A4 = NRF_FICR->TEMP.A4;
+        NRF_TEMP->A5 = NRF_FICR->TEMP.A5;
+        NRF_TEMP->B0 = NRF_FICR->TEMP.B0;
+        NRF_TEMP->B1 = NRF_FICR->TEMP.B1;
+        NRF_TEMP->B2 = NRF_FICR->TEMP.B2;
+        NRF_TEMP->B3 = NRF_FICR->TEMP.B3;
+        NRF_TEMP->B4 = NRF_FICR->TEMP.B4;
+        NRF_TEMP->B5 = NRF_FICR->TEMP.B5;
+        NRF_TEMP->T0 = NRF_FICR->TEMP.T0;
+        NRF_TEMP->T1 = NRF_FICR->TEMP.T1;
+        NRF_TEMP->T2 = NRF_FICR->TEMP.T2;
+        NRF_TEMP->T3 = NRF_FICR->TEMP.T3;
+        NRF_TEMP->T4 = NRF_FICR->TEMP.T4;
+    }
+    */
+
+    /* Workaround for Errata 108 "RAM: RAM content cannot be trusted upon waking up from System ON Idle or System OFF mode" found at the Errata doc */
+        *(volatile uint32_t *)0x40000EE4 = *(volatile uint32_t *)0x10000258 & 0x0000004F;
 
 	/* Move the relocate segment
 	 * This assumes it is located after the
