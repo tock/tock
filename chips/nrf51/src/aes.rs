@@ -27,7 +27,7 @@
 use chip;
 use core::cell::Cell;
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::symmetric_encryption::{SymmetricEncryptionDriver, Client};
+use kernel::hil::symmetric_encryption::{SymmetricEncryption, Client};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{AESECB_REGS, AESECB_BASE};
@@ -175,10 +175,6 @@ impl AesECB {
         nvic::disable(NvicIdx::ECB);
     }
 
-    pub fn set_client<C: Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
-    }
-
     pub fn set_initial_ctr(&self, iv: &'static mut [u8]) {
         // read bytes as big-endian
         let mut ctr: [u8; 16] = [0; 16];
@@ -189,7 +185,11 @@ impl AesECB {
     }
 }
 
-impl SymmetricEncryptionDriver for AesECB {
+impl SymmetricEncryption for AesECB {
+    fn set_client(&self, client: &'static Client) {
+        self.client.set(Some(client));
+    }
+
     // This Function is called once Tock is booted
     fn init(&self) {
         self.ecb_init();

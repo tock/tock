@@ -47,6 +47,7 @@ extern crate nrf51;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
+use kernel::hil::symmetric_encryption::SymmetricEncryption;
 use kernel::hil::uart::UART;
 use nrf51::pinmux::Pinmux;
 use nrf51::rtc::{RTC, Rtc};
@@ -261,7 +262,7 @@ pub unsafe fn reset_handler() {
                                                     &mut capsules::symmetric_encryption::IV),
         288/8);
     nrf51::aes::AESECB.ecb_init();
-    nrf51::aes::AESECB.set_client(aes);
+    SymmetricEncryption::set_client(&nrf51::aes::AESECB, aes);
 
     let ble_radio = static_init!(
      nrf51::ble_advertising_driver::BLE<VirtualMuxAlarm<'static, Rtc>>,
