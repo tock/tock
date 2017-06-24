@@ -1,0 +1,6 @@
+r
+loadfile target/thumbv7em-none-eabi/release/nrf52dk.hex
+r
+g
+q
+

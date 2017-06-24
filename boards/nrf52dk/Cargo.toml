@@ -1,0 +1,22 @@
+[package]
+name = "nrf52dk"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+
+[profile.dev]
+panic = "abort"
+lto = true
+opt-level = 0
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+
+[dependencies]
+cortexm4 = { path = "../../arch/cortex-m4" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+# FIX REPLACE WITH NRF52
+#nrf51 = { path = "../../chips/nrf51" }

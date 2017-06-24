@@ -1,0 +1,27 @@
+[root]
+name = "nrf52dk"
+version = "0.1.0"
+dependencies = [
+ "capsules 0.1.0",
+ "cortexm4 0.1.0",
+ "kernel 0.1.0",
+]
+
+[[package]]
+name = "capsules"
+version = "0.1.0"
+dependencies = [
+ "kernel 0.1.0",
+]
+
+[[package]]
+name = "cortexm4"
+version = "0.1.0"
+dependencies = [
+ "kernel 0.1.0",
+]
+
+[[package]]
+name = "kernel"
+version = "0.1.0"
+
