@@ -72,7 +72,7 @@
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::symmetric_encryption::{SymmetricEncryptionDriver, Client};
+use kernel::hil::symmetric_encryption::{SymmetricEncryption, Client};
 use kernel::process::Error;
 
 pub static mut BUF: [u8; 128] = [0; 128];
@@ -108,7 +108,7 @@ impl Default for App {
     }
 }
 
-pub struct Crypto<'a, E: SymmetricEncryptionDriver + 'a> {
+pub struct Crypto<'a, E: SymmetricEncryption + 'a> {
     crypto: &'a E,
     apps: Container<App>,
     kernel_key: TakeCell<'static, [u8]>,
@@ -119,7 +119,7 @@ pub struct Crypto<'a, E: SymmetricEncryptionDriver + 'a> {
     state: Cell<CryptoState>,
 }
 
-impl<'a, E: SymmetricEncryptionDriver + 'a> Crypto<'a, E> {
+impl<'a, E: SymmetricEncryption + 'a> Crypto<'a, E> {
     pub fn new(crypto: &'a E,
                container: Container<App>,
                key: &'static mut [u8],
@@ -175,7 +175,7 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Crypto<'a, E> {
     }
 }
 
-impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
+impl<'a, E: SymmetricEncryption + 'a> Client for Crypto<'a, E> {
     fn crypt_done(&self,
                   data: &'static mut [u8],
                   dmy: &'static mut [u8],
@@ -203,7 +203,7 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
     }
 }
 
-impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
+impl<'a, E: SymmetricEncryption> Driver for Crypto<'a, E> {
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {

@@ -13,7 +13,10 @@
 
 use returncode::ReturnCode;
 
-pub trait SymmetricEncryptionDriver {
+pub trait SymmetricEncryption {
+    /// Set the callback client.
+    fn set_client(&self, client: &'static Client);
+
     /// Initialization of the chip register
     fn init(&self);
 
