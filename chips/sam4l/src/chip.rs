@@ -1,6 +1,7 @@
 //! Interrupt mapping and DMA channel setup.
 
 use adc;
+use aes;
 use ast;
 use cortexm4;
 use crccu;
@@ -134,6 +135,7 @@ impl Chip for Sam4l {
                     DACC => dac::DAC.handle_interrupt(),
 
                     TRNG => trng::TRNG.handle_interrupt(),
+                    AESA => aes::AES.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);

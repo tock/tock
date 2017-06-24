@@ -32,6 +32,7 @@ pub mod wdt;
 pub mod trng;
 pub mod crccu;
 pub mod dac;
+pub mod aes;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -121,7 +122,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* USBC */          Option::Some(unhandled_interrupt),
     /* PEVC_TR */       Option::Some(unhandled_interrupt),
     /* PEVC_OV */       Option::Some(unhandled_interrupt),
-    /* AESA */          Option::Some(unhandled_interrupt),
+    /* AESA */          Option::Some(aes::aes_handler),
     /* PM */            Option::Some(unhandled_interrupt),
     /* SCIF */          Option::Some(unhandled_interrupt),
     /* FREQM */         Option::Some(unhandled_interrupt),
