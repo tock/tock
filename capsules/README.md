@@ -90,6 +90,8 @@ simultaneously) support for generic sensor interfaces.
 - **[Asynchronous GPIO](src/gpio_async.rs)**: GPIO pins accessed by split-phase
   calls.
 - **[9DOF](src/ninedof.rs)**: 9DOF sensors (acceleration, magnetometer, gyroscope).
+- **[Nonvolatile Storage](src/nonvolatile_storage.rs)**: Persistent storage for
+  userspace.
 
 
 ### Virtualized Hardware Resources
