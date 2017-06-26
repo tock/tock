@@ -35,16 +35,16 @@ static void putstr_cb(int _x __attribute__ ((unused)),
 }
 
 int putnstr(const char *str, size_t len) {
-  int ret = SUCCESS;
+  int ret = TOCK_SUCCESS;
 
   putstr_data_t* data = (putstr_data_t*)malloc(sizeof(putstr_data_t));
-  if (data == NULL) return ENOMEM;
+  if (data == NULL) return TOCK_ENOMEM;
 
   data->len    = len;
   data->called = false;
   data->buf    = (char*)malloc(len * sizeof(char));
   if (data->buf == NULL) {
-    ret = ENOMEM;
+    ret = TOCK_ENOMEM;
     goto putnstr_fail_buf_alloc;
   }
   strncpy(data->buf, str, len);

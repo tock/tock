@@ -44,7 +44,7 @@ int crc_compute(const void *buf, size_t buflen, enum crc_alg alg, uint32_t *resu
   crc_request(alg);
   yield_for(&d.fired);
 
-  if (d.status == SUCCESS)
+  if (d.status == TOCK_SUCCESS)
     *result = d.result;
 
   return d.status;
