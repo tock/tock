@@ -1,29 +1,3 @@
-use core::ops::{BitOr, BitAnd};
-
-pub fn read_volatile<T>(item: &T) -> T {
-    unsafe { ::core::ptr::read_volatile(item) }
-}
-
-pub fn write_volatile<T>(item: &mut T, val: T) {
-    unsafe { ::core::ptr::write_volatile(item, val) }
-}
-
-pub fn transform_volatile<F, T>(item: &mut T, f: F)
-    where F: FnOnce(T) -> T
-{
-    let x = read_volatile(item);
-    write_volatile(item, f(x))
-}
-
-#[allow(dead_code)]
-pub fn volatile_bitwise_or<T: BitOr<Output = T>>(item: &mut T, val: T) {
-    transform_volatile(item, |t| t | val);
-}
-
-#[allow(dead_code)]
-pub fn volatile_bitwise_and<T: BitAnd<Output = T>>(item: &mut T, val: T) {
-    transform_volatile(item, |t| t & val);
-}
 
 /// Define a function for an interrupt and enqueue the interrupt on the global
 /// queue.
