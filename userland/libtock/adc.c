@@ -52,33 +52,33 @@ static void adc_cb(int callback_type,
 
   switch (callback_type) {
     case SingleSample:
-      result->error   = SUCCESS;
+      result->error   = TOCK_SUCCESS;
       result->channel = arg1;
       result->sample  = arg2;
       break;
 
     case ContinuousSample:
-      result->error   = SUCCESS;
+      result->error   = TOCK_SUCCESS;
       result->channel = arg1;
       result->sample  = arg2;
       break;
 
     case SingleBuffer:
-      result->error   = SUCCESS;
+      result->error   = TOCK_SUCCESS;
       result->channel = (arg1 & 0xFF);
       result->length  = ((arg1 >> 8) & 0xFFFFFF);
       result->buffer  = (uint16_t*)arg2;
       break;
 
     case ContinuousBuffer:
-      result->error   = SUCCESS;
+      result->error   = TOCK_SUCCESS;
       result->channel = (arg1 & 0xFF);
       result->length  = ((arg1 >> 8) & 0xFFFFFF);
       result->buffer  = (uint16_t*)arg2;
       break;
 
     default:
-      result->error = FAIL;
+      result->error = TOCK_FAIL;
       break;
   }
 
@@ -234,13 +234,13 @@ int adc_sample_sync(uint8_t channel, uint16_t* sample) {
   int err;
   adc_data_t result = {0};
   result.fired = false;
-  result.error = SUCCESS;
+  result.error = TOCK_SUCCESS;
 
   err = adc_set_callback(adc_cb, (void*) &result);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = adc_single_sample(channel);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   // wait for callback
   yield_for(&result.fired);
@@ -255,23 +255,23 @@ int adc_sample_buffer_sync(uint8_t channel, uint32_t frequency, uint16_t* buffer
   int err;
   adc_data_t result = {0};
   result.fired = false;
-  result.error = SUCCESS;
+  result.error = TOCK_SUCCESS;
 
   err = adc_set_callback(adc_cb, (void*) &result);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = adc_set_buffer(buffer, length);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = adc_buffered_sample(channel, frequency);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   // wait for callback
   yield_for(&result.fired);
 
   // copy over result
   if (result.buffer != buffer) {
-    return FAIL;
+    return TOCK_FAIL;
   }
 
   return result.error;

@@ -40,20 +40,20 @@ void* tock_app_grant_begins_at(void);
 // Checks to see if the given driver number exists on this platform.
 bool driver_exists(uint32_t driver);
 
-#define SUCCESS   0
-#define FAIL     -1
-#define EBUSY    -2
-#define EALREADY -3
-#define EOFF     -4
-#define ERESERVE -5
-#define EINVAL   -6
-#define ESIZE    -7
-#define ECANCEL  -8
-#define ENOMEM   -9
-#define ENOSUPPORT -10
-#define ENODEVICE  -11
-#define EUNINSTALLED -12
-#define ENOACK -13
+#define TOCK_SUCCESS       0
+#define TOCK_FAIL         -1
+#define TOCK_EBUSY        -2
+#define TOCK_EALREADY     -3
+#define TOCK_EOFF         -4
+#define TOCK_ERESERVE     -5
+#define TOCK_EINVAL       -6
+#define TOCK_ESIZE        -7
+#define TOCK_ECANCEL      -8
+#define TOCK_ENOMEM       -9
+#define TOCK_ENOSUPPORT   -10
+#define TOCK_ENODEVICE    -11
+#define TOCK_EUNINSTALLED -12
+#define TOCK_ENOACK       -13
 
 #ifdef __cplusplus
 }

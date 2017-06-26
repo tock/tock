@@ -52,13 +52,13 @@ int main(void) {
       struct test_case *t = &test_cases[test_index];
 
       uint32_t result;
-      if ((r = crc_compute(t->input, strlen(t->input), t->alg, &result)) != SUCCESS) {
+      if ((r = crc_compute(t->input, strlen(t->input), t->alg, &result)) != TOCK_SUCCESS) {
         printf("CRC compute failed: %d\n", r);
         exit(1);
       }
 
       printf("[%8lx] Case %2d: ", procid, test_index);
-      if (r == SUCCESS) {
+      if (r == TOCK_SUCCESS) {
         printf("result=%08lx ", result);
         if (result == t->output)
           printf("(OK)");

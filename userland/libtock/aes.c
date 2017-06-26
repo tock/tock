@@ -64,13 +64,13 @@ int aes128_encrypt_ctr(unsigned const char* buf, unsigned char buf_len,
   int err;
 
   err = aes128_set_callback(callback, NULL);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_set_data(buf, buf_len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_set_ctr(ctr, ctr_len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   return aes128_encrypt_start();
 }
@@ -83,13 +83,13 @@ int aes128_decrypt_ctr(const unsigned char* buf, unsigned char buf_len,
   int err;
 
   err = aes128_set_callback(callback, NULL);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_set_data(buf, buf_len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_set_ctr(ctr, ctr_len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   return aes128_decrypt_start();
 }
@@ -105,7 +105,7 @@ int aes128_set_key_sync(const unsigned char* key, unsigned char len) {
   int err;
 
   err = allow(AES_DRIVER, AES_KEY, (void*)key, len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   return command(AES_DRIVER, AES_KEY, 0);
 }
@@ -117,19 +117,19 @@ int aes128_encrypt_ctr_sync(unsigned const char* buf, unsigned char buf_len,
                             unsigned const char* ctr, unsigned char ctr_len) {
 
   int err;
-  aes_data_t result = { .fired = false, .error = SUCCESS };
+  aes_data_t result = { .fired = false, .error = TOCK_SUCCESS };
 
   err = aes128_set_callback(aes_cb, &result);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_set_data(buf, buf_len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_set_ctr(ctr, ctr_len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_encrypt_start();
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   yield_for(&result.fired);
 
@@ -143,19 +143,19 @@ int aes128_decrypt_ctr_sync(const unsigned char* buf, unsigned char buf_len,
                             const unsigned char* ctr, unsigned char ctr_len) {
 
   int err;
-  aes_data_t result = { .fired = false, .error = SUCCESS };
+  aes_data_t result = { .fired = false, .error = TOCK_SUCCESS };
 
   err = aes128_set_callback(aes_cb, &result);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_set_data(buf, buf_len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_set_ctr(ctr, ctr_len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = aes128_decrypt_start();
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   yield_for(&result.fired);
 

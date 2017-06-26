@@ -76,9 +76,9 @@ int radio_send(unsigned short addr, const char* packet, unsigned char len) {
   } else {
     yield_for(&cond);
     if (tx_acked) {
-      return SUCCESS;
+      return TOCK_SUCCESS;
     } else {
-      return ENOACK;
+      return TOCK_ENOACK;
     }
   }
 }
@@ -101,15 +101,15 @@ int radio_set_power(char power) {
 int radio_commit(void) {
   bool cond = false;
   int err   = subscribe(SYS_RADIO, EVT_CFG, cb_config, &cond);
-  if (err != SUCCESS) {
+  if (err != TOCK_SUCCESS) {
     return err;
   }
   err = command(SYS_RADIO, COM_COMMIT, 0);
-  if (err != SUCCESS) {
+  if (err != TOCK_SUCCESS) {
     return err;
   }
   yield_for(&cond);
-  return SUCCESS;
+  return TOCK_SUCCESS;
 }
 
 // Valid channels are 10-26
@@ -146,5 +146,5 @@ int radio_receive_callback(subscribe_cb callback,
 }
 
 int radio_ready(void) {
-  return command(SYS_RADIO, COM_READY, 0) == SUCCESS;
+  return command(SYS_RADIO, COM_READY, 0) == TOCK_SUCCESS;
 }

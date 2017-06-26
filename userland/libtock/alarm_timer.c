@@ -36,7 +36,7 @@ static int heap_insert(alarm_t* alarm) {
     alarm_heap.data = (alarm_t**)realloc(alarm_heap.data,
                                          new_capacity * sizeof(alarm_t*));
     if (alarm_heap.data == NULL) {
-      return ENOMEM;
+      return TOCK_ENOMEM;
     }
     alarm_heap.capacity = new_capacity;
   }
