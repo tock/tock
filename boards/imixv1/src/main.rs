@@ -235,8 +235,8 @@ pub unsafe fn reset_handler() {
         MuxSpiMaster::new(&sam4l::spi::SPI),
         12);
     sam4l::spi::SPI.set_client(mux_spi);
-    sam4l::spi::SPI.init();
-    sam4l::spi::SPI.enable();
+    //sam4l::spi::SPI.init();
+    //sam4l::spi::SPI.enable();
 
     // Create a virtualized client for SPI system call interface,
     // then the system call capsule
@@ -382,8 +382,8 @@ pub unsafe fn reset_handler() {
         capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()),
         128/8);
 
-    rf233_spi.set_client(rf233);
-    rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
+    //rf233_spi.set_client(rf233);
+    //rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
 
     let radio_capsule = static_init!(
         capsules::radio::RadioDriver<'static,
@@ -416,14 +416,14 @@ pub unsafe fn reset_handler() {
 
     chip.mpu().enable_mpu();
 
-    rf233.reset();
-    rf233.config_set_pan(0xABCD);
-    rf233.config_set_address(0x1008);
+    //rf233.reset();
+    //rf233.config_set_pan(0xABCD);
+    //rf233.config_set_address(0x1008);
     //    rf233.config_commit();
 
-    rf233.start();
+    //rf233.start();
 
-    debug!("Initialization complete. Entering main loop");
+    //debug!("Initialization complete. Entering main loop");
     kernel::main(&imixv1, &mut chip, load_processes(), &imixv1.ipc);
 }
 

@@ -157,7 +157,6 @@ impl Chip for Sam4l {
     fn prepare_for_sleep(&self) {
         if ::pm::deep_sleep_ready() {
             unsafe {
-                panic!("Going into deep sleep bro!");
                 cortexm4::scb::set_sleepdeep();
             }
         } else {
