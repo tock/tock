@@ -33,6 +33,22 @@ const SCB_BASE: usize = 0xE000ED00;
 
 static mut SCB: *mut ScbRegisters = SCB_BASE as *mut ScbRegisters;
 
+/// Allow the core to go into deep sleep on WFI.
+///
+/// The specific definition of "deep sleep" is chip specific.
+pub unsafe fn set_sleepdeep() {
+    let scr = (*SCB).scr.get();
+    (*SCB).scr.set(scr | 1 << 2);
+}
+
+/// Do not allow the core to go into deep sleep on WFI.
+///
+/// The specific definition of "deep sleep" is chip specific.
+pub unsafe fn unset_sleepdeep() {
+    let scr = (*SCB).scr.get();
+    (*SCB).scr.set(scr & !(1 << 2));
+}
+
 /// Software reset using the ARM System Control Block
 pub unsafe fn reset() {
     let aircr = (*SCB).aircr.get();
