@@ -1,25 +1,20 @@
-/* vim: set sw=2 expandtab tw=80: */
-
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
 #include <console.h>
 #include <tmp006.h>
 #include <tock.h>
 
 
-// ********************************************************************************
+// *****************************************************************************
 // Example of synchronously reading the temperature sensor
-// ********************************************************************************
+// *****************************************************************************
 
 // Repeatedly read from the temperature sensor
 static void read_sync (void) {
   int err;
   int16_t temperature;
+
+  printf("Reading measurements synchronously in a loop.\n");
 
   while (1) {
     err = tmp006_read_sync(&temperature);
@@ -29,9 +24,9 @@ static void read_sync (void) {
 }
 
 
-// ********************************************************************************
+// *****************************************************************************
 // Example of asynchronously reading the temperature sensor with callbacks
-// ********************************************************************************
+// *****************************************************************************
 
 int16_t temp_reading;
 int32_t error_val;
@@ -51,7 +46,7 @@ static void read_periodic (void) {
   int err;
 
   // start sampling at 1 sample per second (0x2)
-  putstr("Start Subscribe.\n");
+  printf("Start Subscribe.\n");
   err = tmp006_start_sampling(0x2, temp_callback, NULL);
   if (error_val != 0) {
     printf("\tError(%d) [0x%X]\n\n", err, err);
@@ -59,7 +54,7 @@ static void read_periodic (void) {
 
   while (1) {
     // yield for callbacks
-    putstr("Sleeping...\n");
+    printf("Sleeping...\n");
     yield();
 
     // print new temp reading
@@ -75,13 +70,13 @@ static void read_periodic (void) {
 }
 
 
-// ********************************************************************************
+// *****************************************************************************
 // Demonstration code for the TMP006 temperature sensor
-// ********************************************************************************
+// *****************************************************************************
 
 // Demonstrate both synchronous and asynchronous reading from a driver
 int main(void) {
-  putstr("Welcome to Tock in C (with libc)\nReading temperature...\n");
+  printf("[TMP006] Test App\n");
 
   // Set mode to whichever example you want
   uint8_t mode = 0;
