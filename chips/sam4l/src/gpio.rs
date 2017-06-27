@@ -449,11 +449,10 @@ impl hil::Controller for GPIOPin {
 
 
     fn configure(&self, config: Self::Config) {
-        // Unassign the pin from its current peripheral function.
-        self.enable();
-
-        // If config is Some, select the desired peripheral.
-        config.map(|c| { self.select_peripheral(c); });
+        match config {
+            Some(c) => self.select_peripheral(c),
+            None => self.enable()
+        }
     }
 }
 
