@@ -227,11 +227,11 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let hop_limit_flag = {
             match ip6_header.hop_limit {
                 // Compressed
-                1 => lowpan_iphc::HLIM_1,
-                64 => lowpan_iphc::HLIM_64, 
+                1   => lowpan_iphc::HLIM_1,
+                64  => lowpan_iphc::HLIM_64, 
                 255 => lowpan_iphc::HLIM_255,
                 // Uncompressed
-                _ => {
+                _   => {
                     buf[*offset] = ip6_header.hop_limit;
                     *offset += 1;
                     lowpan_iphc::HLIM_INLINE
