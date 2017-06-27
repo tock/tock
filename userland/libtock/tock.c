@@ -135,11 +135,6 @@ void* memop(uint32_t op_type, int arg1) {
   return ret;
 }
 
-bool driver_exists(uint32_t driver) {
-  int ret = command(driver, 0, 0);
-  return ret >= 0;
-}
-
 void* tock_app_memory_begins_at(void) {
   return memop(2, 0);
 }
@@ -158,4 +153,9 @@ void* tock_app_flash_ends_at(void) {
 
 void* tock_app_grant_begins_at(void) {
   return memop(6, 0);
+}
+
+bool driver_exists(uint32_t driver) {
+  int ret = command(driver, 0, 0);
+  return ret >= 0;
 }
