@@ -170,15 +170,16 @@ pub enum MainClock {
     RC1M,
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub enum Clock {
     HSB(HSBClock),
     PBA(PBAClock),
     PBB(PBBClock),
+    PBC(PBCClock),
     PBD(PBDClock),
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub enum HSBClock {
     PDCA,
     FLASHCALW,
@@ -192,7 +193,7 @@ pub enum HSBClock {
     AESA,
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub enum PBAClock {
     IISC,
     SPI,
@@ -220,7 +221,7 @@ pub enum PBAClock {
     LCDCA,
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub enum PBBClock {
     FLASHCALW,
     HRAMC1,
@@ -231,7 +232,16 @@ pub enum PBBClock {
     PEVC,
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
+pub enum PBCClock {
+    PM,
+    CHIPID,
+    SCIF,
+    FREQM,
+    GPIO,
+}
+
+#[derive(Copy,Clone,Debug)]
 pub enum PBDClock {
     BPM,
     BSCIF,
@@ -265,6 +275,7 @@ const FLASHCALW_BASE: usize = 0x400A0000;
 const HSB_MASK_OFFSET: u32 = 0x24;
 const PBA_MASK_OFFSET: u32 = 0x28;
 const PBB_MASK_OFFSET: u32 = 0x2C;
+const PBC_MASK_OFFSET: u32 = 0x30;
 const PBD_MASK_OFFSET: u32 = 0x34;
 
 static mut PM: *mut PmRegisters = PM_BASE as *mut PmRegisters;
@@ -487,6 +498,53 @@ macro_rules! mask_clock {
         let val = (*PM).$field.get() | ($mask);
         (*PM).$field.set(val);
     });
+
+    ($module:ident: $field:ident & $mask:expr) => ({
+        unlock(concat_idents!($module, _MASK_OFFSET));
+        let val = (*PM).$field.get() & ($mask);
+        (*PM).$field.set(val);
+    });
+}
+
+// Clock masks that allow us to go into deep sleep without disabling any active
+// peripherals.
+
+// FLASHCALW clocks and APBx clocks are allowed
+//
+// This is identical to the reset value of the HSBMASK except it allows the
+// PicoCache RAM clock to be on as well.
+const DEEP_SLEEP_HSBMASK: u32 = 0x1e6;
+
+// No clocks allowed on PBA
+const DEEP_SLEEP_PBAMASK: u32 = 0x0;
+
+// FLASHCALW and HRAMC1 clocks allowed
+//
+// This is identical to the reset value of the PBBMASK except it allows the
+// flash's HRAMC1 clock as well.
+const DEEP_SLEEP_PBBMASK: u32 = 0x3;
+
+// All allowed, but this is just temporary... GPIO should probably be handled
+// somewhat specially. For now, GPIO interrupts are just not gonna work
+// sometimes.
+const DEEP_SLEEP_PBCMASK: u32 = 0x1f;
+
+/// Determines if the chip can safely go into deep sleep without preventing
+/// currently active peripherals from operating.
+///
+/// We look at the PM's clock mask registers and compare them against a set of
+/// known masks that include no peripherals that can't operate in deep
+/// sleep (or that have no function during sleep).
+///
+/// This means it is the responsibility of each peripheral to disable it's clock
+/// mask whenever it is idle.
+pub fn deep_sleep_ready() -> bool {
+    unsafe {
+        (*PM).hsbmask.get() & !(DEEP_SLEEP_HSBMASK) == 0 &&
+        (*PM).pbamask.get() & !(DEEP_SLEEP_PBAMASK) == 0 &&
+        (*PM).pbbmask.get() & !(DEEP_SLEEP_PBBMASK) == 0 &&
+        (*PM).pbcmask.get() & !(DEEP_SLEEP_PBCMASK) == 0
+    }
 }
 
 pub unsafe fn enable_clock(clock: Clock) {
@@ -494,15 +552,17 @@ pub unsafe fn enable_clock(clock: Clock) {
         Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
         Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
         Clock::PBB(v) => mask_clock!(PBB: pbbmask | 1 << (v as u32)),
+        Clock::PBC(v) => mask_clock!(PBC: pbcmask | 1 << (v as u32)),
         Clock::PBD(v) => mask_clock!(PBD: pbdmask | 1 << (v as u32)),
     }
 }
 
 pub unsafe fn disable_clock(clock: Clock) {
     match clock {
-        Clock::HSB(v) => mask_clock!(HSB: hsbmask | !(1 << (v as u32))),
-        Clock::PBA(v) => mask_clock!(PBA: pbamask | !(1 << (v as u32))),
-        Clock::PBB(v) => mask_clock!(PBB: pbbmask | !(1 << (v as u32))),
-        Clock::PBD(v) => mask_clock!(PBD: pbdmask | !(1 << (v as u32))),
+        Clock::HSB(v) => mask_clock!(HSB: hsbmask & !(1 << (v as u32))),
+        Clock::PBA(v) => mask_clock!(PBA: pbamask & !(1 << (v as u32))),
+        Clock::PBB(v) => mask_clock!(PBB: pbbmask & !(1 << (v as u32))),
+        Clock::PBC(v) => mask_clock!(PBC: pbcmask & !(1 << (v as u32))),
+        Clock::PBD(v) => mask_clock!(PBD: pbdmask & !(1 << (v as u32))),
     }
 }
