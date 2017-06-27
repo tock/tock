@@ -181,12 +181,12 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // TODO: All of this needs to be checked for endian-ness and correctness
         // TODO: Remove version?
         let version = ip6_header.version_class_flow[0] >> 4;
-        let class   = ((ip6_header.version_class_flow[0] << 4) & 0xf)
+        let class   = ((ip6_header.version_class_flow[0] << 4) & 0xf0)
                     | ((ip6_header.version_class_flow[1] >> 4) & 0x0f);
-        let ecn     = (class >> 6) & 0b11000000; // Gets leading 2 bits
-        let dscp    = class & 0b00111111;  // Gets trailing 6 bits
+        let ecn     = (class >> 6) & 0b11; // Gets leading 2 bits
+        let dscp    = class & 0b111111;  // Gets trailing 6 bits
         let mut flow: [u8; 3];
-        flow[0] = ip6_header.version_class_flow[1] & 0xf; // Zero upper 4 bits
+        flow[0] = ip6_header.version_class_flow[1] & 0x0f; // Zero upper 4 bits
         flow[1] = ip6_header.version_class_flow[2];
         flow[2] = ip6_header.version_class_flow[3];
 
@@ -204,7 +204,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             // If flow *not* elided, combine with ECN
             // 01 case
             if tf_encoding == 0 {
-                buf[*offset] = (ecn << 6 & 0b11000000) | flow[0];
+                buf[*offset] = (ecn << 6) | flow[0];
                 buf[*offset + 1] = flow[1];
                 buf[*offset + 2] = flow[2];
                 *offset += 3;
@@ -218,7 +218,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
 
             // 00 case
             if tf_encoding == 0 {
-                buf[*offset] = flow[0] & 0xf;
+                buf[*offset] = flow[0];
                 buf[*offset + 1] = flow[1];
                 buf[*offset + 2] = flow[2];
                 *offset += 3;
