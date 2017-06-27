@@ -150,6 +150,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // Source Address
         self.compress_src(&ip6_header.src_addr, &src_mac_addr, &src_ctx, buf, &mut offset);
 
+        // Destination Address
+        self.compress_dst(&ip6_header.dst_addr, &dst_mac_addr, &dst_ctx, buf, &mut offset);
+
         offset
     }
 
@@ -272,6 +275,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         buf[0] |= hop_limit_flag;
     }
 
+    // TODO: We should check to see whether context or link local compression
+    // schemes gives the better compression; currently, we will always match
+    // on link local even if we could get better compression through context.
     fn compress_src(&self,
                     src_ip_addr: &IPAddr,
                     src_mac_addr: &MacAddr,
@@ -283,11 +289,11 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             buf[1] |= lowpan_iphc::SAC;
         } else if IP6::addr_is_link_local(src_ip_addr) {
             // SAC = 0, SAM = 01, 10, 11
-            self.compress_src_iid(src_ip_addr, src_mac_addr, src_ctx, buf, offset);
+            self.compress_iid(src_ip_addr, src_mac_addr, true, buf, offset);
         } else if !src_ctx.is_none() {
             // SAC = 1, SAM = 01, 10, 11
             buf[1] |= lowpan_iphc::SAC;
-            self.compress_src_iid(src_ip_addr, src_mac_addr, src_ctx, buf, offset);
+            self.compress_iid(src_ip_addr, src_mac_addr, true, buf, offset);
         } else {
             // SAC = 0, SAM = 00
             buf[*offset..*offset + 16].copy_from_slice(src_ip_addr);
@@ -295,28 +301,74 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
-    fn compress_src_iid(&self,
-                        src_ip_addr: &IPAddr,
-                        src_mac_addr: &MacAddr,
-                        src_ctx: &Option<Context>,
-                        buf: &'static mut [u8],
-                        offset: &mut usize) {
-        let iid: [u8; 8] = lowpan_iphc::compute_iid(src_mac_addr);
-        if src_ip_addr[8..16] == iid {
-            // SAM = 11
-            buf[1] |= lowpan_iphc::SAM_0;
-        } else if src_ip_addr[8..14] == lowpan_iphc::MAC_BASE[0..6] {
-            // SAM = 10
-            buf[1] |= lowpan_iphc::SAM_16;
-            buf[*offset..*offset + 2].copy_from_slice(&src_ip_addr[14..16]);
+    fn compress_iid(&self,
+                    ip_addr: &IPAddr,
+                    mac_addr: &MacAddr,
+                    is_src_addr: bool,
+                    buf: &'static mut [u8],
+                    offset: &mut usize) {
+        let iid: [u8; 8] = lowpan_iphc::compute_iid(mac_addr);
+        if ip_addr[8..16] == iid {
+            // SAM/DAM = 11
+            buf[1] |= if is_src_addr {
+                lowpan_iphc::SAM_0
+            } else {
+                lowpan_iphc::DAM_0
+            };
+        } else if ip_addr[8..14] == lowpan_iphc::MAC_BASE[0..6] {
+            // SAM/DAM = 10
+            buf[1] |= if is_src_addr {
+                lowpan_iphc::SAM_16
+            } else {
+                lowpan_iphc::DAM_16
+            };
+            buf[*offset..*offset + 2].copy_from_slice(&ip_addr[14..16]);
             *offset += 2;
         } else {
-            // SAM = 01
-            buf[1] |= lowpan_iphc::SAM_64;
-            buf[*offset..*offset + 8].copy_from_slice(&src_ip_addr[8..16]);
+            // SAM/DAM = 01
+            buf[1] |= if is_src_addr {
+                lowpan_iphc::SAM_64
+            } else {
+                lowpan_iphc::DAM_64
+            };
+            buf[*offset..*offset + 8].copy_from_slice(&ip_addr[8..16]);
             *offset += 8;
         }
     }
+
+    // Compresses destination address and multicast
+    // TODO: We should check to see whether context or link local compression
+    // schemes gives the better compression; currently, we will always match
+    // on link local even if we could get better compression through context.
+    fn compress_dst (&self, 
+                     dst_ip_addr: &IPAddr,
+                     dst_mac_addr: &MacAddr,
+                     dst_ctx: &Option<Context>,
+                     buf: &'static mut [u8], 
+                     offset: &mut usize) {
+        // Assumes multicast sets M flag, and that by default M=0
+        if IP6::addr_is_mulicast(dst_ip_addr) {
+        // Multicast compression
+            // TODO: Implement
+            //self.compress_multicast();
+        } else if IP6::addr_is_link_local(dst_ip_addr) {
+            // Link local compression
+            // M = 0, DAC = 0, DAM = 01,10,11
+            self.compress_iid (dst_ip_addr, dst_mac_addr, false, buf, offset);
+        } else if !src_ctx.is_none() {
+            // Context compression
+            // DAC = 1, DAM = 01, 10, 11
+            buf[1] |= lowpan_iphc::DAC;
+            self.compress_iid (dst_ip_addr, dst_mac_addr, false, buf, offset);
+        } else {
+            // Full address inline
+            // DAC = 0, DAM = 00
+            buf[*offset..*offset + 16].copy_from_slice(dst_ip_addr);
+            *offset += 16;
+        }
+    }
+
+    fn compress_multicast (&self);
 
     /// Decodes the compressed header into a full IPv6 header given the 16-bit
     /// MAC addresses. `buf` is expected to be a slice starting from the
