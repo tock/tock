@@ -135,11 +135,6 @@ void* memop(uint32_t op_type, int arg1) {
   return ret;
 }
 
-bool driver_exists(uint32_t driver) {
-  int ret = command(driver, 0, 0);
-  return ret >= 0;
-}
-
 void* tock_app_memory_begins_at(void) {
   return memop(2, 0);
 }
@@ -158,4 +153,43 @@ void* tock_app_flash_ends_at(void) {
 
 void* tock_app_grant_begins_at(void) {
   return memop(6, 0);
+}
+
+bool driver_exists(uint32_t driver) {
+  int ret = command(driver, 0, 0);
+  return ret >= 0;
+}
+
+const char* tock_strerror(int tock_errno) {
+  switch (tock_errno) {
+    case TOCK_SUCCESS:
+      return "Success";
+    case TOCK_FAIL:
+      return "Unknown Error";
+    case TOCK_EBUSY:
+      return "Underlying system is busy; retry";
+    case TOCK_EALREADY:
+      return "The state requested is already set";
+    case TOCK_EOFF:
+      return "The component is powered down";
+    case TOCK_ERESERVE:
+      return "Reservation required before use";
+    case TOCK_EINVAL:
+      return "An invalid parameter was passed";
+    case TOCK_ESIZE:
+      return "Parameter passed was too large";
+    case TOCK_ECANCEL:
+      return "Operation cancelled by a call";
+    case TOCK_ENOMEM:
+      return "Memory required not available";
+    case TOCK_ENOSUPPORT:
+      return "Operation or command is unsupported";
+    case TOCK_ENODEVICE:
+      return "Device does not exist";
+    case TOCK_EUNINSTALLED:
+      return "Device is not physically installed";
+    case TOCK_ENOACK:
+      return "Packet transmission not acknowledged";
+  }
+  return "Invalid error number";
 }

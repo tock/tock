@@ -55,6 +55,8 @@ bool driver_exists(uint32_t driver);
 #define TOCK_EUNINSTALLED -12
 #define TOCK_ENOACK       -13
 
+const char* tock_strerror(int tock_errno);
+
 #ifdef __cplusplus
 }
 #endif
