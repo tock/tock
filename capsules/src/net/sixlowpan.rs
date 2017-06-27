@@ -168,8 +168,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         if flow[0] == 0 && flow[1] == 0 && flow[2] == 0 {
             // The 1X cases
             tf_encoding |= lowpan_iphc::TF_FLOW_LABEL;
-        } else {
-
         }
 
         // DSCP can be elided, but ECN elided only if flow also elided
