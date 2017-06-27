@@ -1,7 +1,7 @@
 /// Implements the 6LoWPAN specification for sending IPv6 datagrams over
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
 
-use net::ip::{IP6Header, MacAddr, IPAddr, IP6Proto};
+use net::ip::{IP6Header, IP6, MacAddr, IPAddr, IP6Proto};
 use core::result::Result;
 
 pub struct Context<'a> {
@@ -30,6 +30,9 @@ impl<'a> ContextStore<'a> for DummyStore {
 }
 
 pub mod lowpan_iphc {
+    use net::ip::MacAddr;
+    use net::ip::MacAddr::*;
+
     pub const DISPATCH: [u8; 2]    = [0x60, 0x00];
 
     // First byte masks
@@ -66,6 +69,28 @@ pub mod lowpan_iphc {
     pub const DAM_64: u8           = 0x01;
     pub const DAM_16: u8           = 0x02;
     pub const DAM_0: u8            = 0x03;
+
+    // Address compression
+    pub const MAC_BASE: [u8; 8] = [0x00, 0x00, 0x00, 0xff, 0xfe, 0x00, 0x00, 0x00];
+    pub const MAC_UL: u8 = 0x02;
+
+    pub fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
+        match mac_addr {
+            &ShortAddr(short_addr) => {
+                // IID is 0000:00ff:fe00:XXXX, where XXXX is 16-bit MAC
+                let mut iid: [u8; 8] = MAC_BASE;
+                iid[6] = (short_addr >> 1) as u8;
+                iid[7] = (short_addr & 0xff) as u8;
+                iid
+            },
+            &LongAddr(long_addr) => {
+                // IID is IEEE EUI-64 with universal/local bit inverted
+                let mut iid: [u8; 8] = long_addr;
+                long_addr[0] ^= MAC_UL;
+                iid
+            }
+        }
+    }
 }
 
 pub mod lowpan_nhc {
@@ -119,8 +144,11 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // Next Header
         self.compress_nh(ip6_header, buf, &mut offset);
 
-        // Hop limit
+        // Hop Limit
         // self.compress_hl(ip6_header, buf, &mut offset);
+
+        // Source Address
+        self.compress_src(&ip6_header.src_addr, &src_mac_addr, &src_ctx, buf, &mut offset);
 
         offset
     }
@@ -224,6 +252,52 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     }
 
     //fn compress_hl (
+
+    fn compress_src(&self,
+                    src_ip_addr: &IPAddr,
+                    src_mac_addr: &MacAddr,
+                    src_ctx: &Option<Context>,
+                    buf: &'static mut [u8],
+                    offset: &mut usize) {
+        if IP6::addr_is_unspecified(src_ip_addr) {
+            // SAC = 1, SAM = 00
+            buf[1] |= lowpan_iphc::SAC;
+        } else if IP6::addr_is_link_local(src_ip_addr) {
+            // SAC = 0, SAM = 01, 10, 11
+            self.compress_src_iid(src_ip_addr, src_mac_addr, src_ctx, buf, offset);
+        } else if !src_ctx.is_none() {
+            // SAC = 1, SAM = 01, 10, 11
+            buf[1] |= lowpan_iphc::SAC;
+            self.compress_src_iid(src_ip_addr, src_mac_addr, src_ctx, buf, offset);
+        } else {
+            // SAC = 0, SAM = 00
+            buf[*offset..*offset + 16].copy_from_slice(src_ip_addr);
+            *offset += 16;
+        }
+    }
+
+    fn compress_src_iid(&self,
+                        src_ip_addr: &IPAddr,
+                        src_mac_addr: &MacAddr,
+                        src_ctx: &Option<Context>,
+                        buf: &'static mut [u8],
+                        offset: &mut usize) {
+        let iid: [u8; 8] = lowpan_iphc::compute_iid(src_mac_addr);
+        if src_ip_addr[8..16] == iid {
+            // SAM = 11
+            buf[1] |= lowpan_iphc::SAM_0;
+        } else if src_ip_addr[8..14] == lowpan_iphc::MAC_BASE[0..6] {
+            // SAM = 10
+            buf[1] |= lowpan_iphc::SAM_16;
+            buf[*offset..*offset + 2].copy_from_slice(&src_ip_addr[14..16]);
+            *offset += 2;
+        } else {
+            // SAM = 01
+            buf[1] |= lowpan_iphc::SAM_64;
+            buf[*offset..*offset + 8].copy_from_slice(&src_ip_addr[8..16]);
+            *offset += 8;
+        }
+    }
 
     /// Decodes the compressed header into a full IPv6 header given the 16-bit
     /// MAC addresses. `buf` is expected to be a slice starting from the

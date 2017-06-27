@@ -8,9 +8,24 @@ pub struct IP6Header {
     pub dst_addr: IPAddr,
 }
 
-pub type MacAddr = u16;
+pub enum MacAddr {
+    ShortAddr(u16),
+    LongAddr([u8; 8])
+}
 
-pub type IPAddr = [u8; 8];
+pub type IPAddr = [u8; 16];
+
+pub mod IP6 {
+    use net::ip::IPAddr;
+
+    pub fn addr_is_unspecified(ip_addr: &IPAddr) -> bool {
+        false
+    }
+
+    pub fn addr_is_link_local(ip_addr: &IPAddr) -> bool {
+        false
+    }
+}
 
 pub mod IP6Proto {
     pub const HOP_OPTS: u8 = 0;
