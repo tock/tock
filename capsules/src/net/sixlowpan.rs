@@ -132,6 +132,58 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
+    fn compress_tf (ip6_header: &IP6Header, buf: &'static mut [u8], &mut offset) {
+        // TODO: All of this needs to be checked for endian-ness and correctness
+        // TODO: Remove version?
+        let version = ip6_header.version_class_flow[0] >> 4;
+        let class   = ((ip6_header.version_class_flow[0] << 4) & 0xf)
+                    | ((ip6_header.version_class_flow[1] >> 4) & 0x0f);
+        let ecn     = (class >> 6) & ~0x3; // Gets leading 2 bits
+        let dscp    = class & 0b00111111;  // Gets trailing 6 bits
+        let mut flow: [u8, 3];
+        flow[0] = ip6_header.version_class_flow[1] & 0xf; // Zero upper 4 bits
+        flow[1] = ip6_header.version_class_flow[2];
+        flow[2] = ip6_header.version_class_flow[3];
+
+        let mut tf_encoding = 0;
+
+        // Flow label is all zeroes and can be elided
+        if flow[0] == 0 && flow[1] == 0 && flow[2] == 0 {
+            // The 1X cases
+            tf_encoding |= TF_FLOW_LABEL;
+        } else {
+
+        }
+
+        // DSCP can be elided, but ECN elided only if flow also elided
+        // X1 cases
+        if dscp == 0 {
+            // If flow *not* elided, combine with ECN
+            // 01 case 
+            if tf_encoding == 0 {
+                buf[offset] = (ecn << 6 & 0b11000000) | flow[0];
+                buf[offset + 1] = flow[1];
+                buf[offset + 2] = flow[2];
+                offset += 3;
+            }
+            tf_encoding |= TF_TRAFFIC_CLASS;
+        // X0 cases
+        } else {
+            // If DSCP cannot be elided
+            buf[offset] = class;
+            offset += 1;
+
+            // 00 case
+            if tf_encoding == 0 {
+                buf[offset] = (0xf & flow[0]);
+                buf[offset + 1] = flow[1];
+                buf[offset + 2] = flow[2];
+                offset += 3;
+            }
+        }
+        buf[0] |= tf_encoding;
+    }
+
     /// Decodes the compressed header into a full IPv6 header given the 16-bit
     /// MAC addresses. `buf` is expected to be a slice starting from the
     /// beginning of the IP header.  Returns the number of bytes taken up by the
