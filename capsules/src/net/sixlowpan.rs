@@ -1,27 +1,30 @@
 /// Implements the 6LoWPAN specification for sending IPv6 datagrams over
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
 
-pub struct Context {
-    prefix: &[u8],
+use net::ip::{IP6Header, MacAddr, IPAddr};
+use core::result::Result;
+
+pub struct Context<'a> {
+    prefix: &'a [u8],
     prefix_len: u8,
     id: u8,
     compress: bool,
 }
 
-pub trait ContextStore {
-    fn get_context(ip_addr: IP6Address) -> Option<Context>;
-    fn get_context(ctx_id: u8) -> Option<Context>;
+pub trait ContextStore<'a> {
+    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>>;
+    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context<'a>>;
 }
 
 pub struct DummyStore {
 }
 
-pub impl ContextStore for DummyStore {
-    fn get_context(ip_addr: IP6Address) -> Option<Context> {
+impl<'a> ContextStore<'a> for DummyStore {
+    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>> {
         None
     }
 
-    fn get_context(ctx_id: u8) -> Option<Context> {
+    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context<'a>> {
         None
     }
 }
@@ -65,11 +68,11 @@ pub mod lowpan_iphc {
     pub const DAM_0: u8            = 0x03;
 }
 
-pub struct LoWPAN<'a, C: ContextStore> {
-    ctx_store: 'a &C,
+pub struct LoWPAN<'a, C: ContextStore<'a> + 'a> {
+    ctx_store: &'a C,
 }
 
-impl<'a, C: ContextStore> LoWPAN {
+impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     pub fn new(ctx_store: &'a C) -> LoWPAN<'a, C> {
         LoWPAN {
             ctx_store: ctx_store,
@@ -82,15 +85,15 @@ impl<'a, C: ContextStore> LoWPAN {
                     ip6_header: &IP6Header,
                     src_mac_addr: MacAddr,
                     dest_mac_addr: MacAddr,
-                    buf: &'static mut [u8]) -> u8 {
+                    buf: &'static mut [u8]) -> usize {
         // The first two bytes are the LOWPAN_IPHC header
-        let mut offset: u8 = 2;
+        let mut offset: usize = 2;
 
         // Initialize the LOWPAN_IPHC header
         buf[0..2].copy_from_slice(&lowpan_iphc::DISPATCH);
 
-        let mut src_ctx: Option<Context> = self.ctx_store.get_context(ip6_header.src_addr);
-        let mut dst_ctx: Option<Context> = self.ctx_store.get_context(ip6_header.dst_addr);
+        let mut src_ctx: Option<Context> = self.ctx_store.get_context_from_addr(ip6_header.src_addr);
+        let mut dst_ctx: Option<Context> = self.ctx_store.get_context_from_addr(ip6_header.dst_addr);
 
         // Do not use these contexts if they are not to be used for compression
         src_ctx = src_ctx.and_then(|ctx| { if ctx.compress { Some(ctx) } else { None } });
@@ -104,13 +107,15 @@ impl<'a, C: ContextStore> LoWPAN {
 
         // Next Header
         self.compress_nh(ip6_header, buf, &mut offset);
+
+        offset
     }
 
     fn compress_cie(&self,
                     src_ctx: &Option<Context>,
                     dst_ctx: &Option<Context>,
                     buf: &'static mut [u8],
-                    offset: &mut u8) {
+                    offset: &mut usize) {
         let mut cie: u8 = 0;
 
         src_ctx.map(|ctx| {
@@ -122,8 +127,8 @@ impl<'a, C: ContextStore> LoWPAN {
 
         if cie != 0 {
             buf[1] |= lowpan_iphc::CID;
-            buf[offset] = cie;
-            ++offset;
+            buf[*offset] = cie;
+            *offset += 1;
         }
     }
 
@@ -137,6 +142,7 @@ impl<'a, C: ContextStore> LoWPAN {
                       buf: &'static mut [u8],
                       src_mac_addr: MacAddr,
                       dest_mac_addr: MacAddr,
-                      mesh_local_prefix: &[u8]) -> Ok<(IP6Header, u8, Option<FragInfo>)> {
+                      mesh_local_prefix: &[u8])
+                      -> Result<(IP6Header, usize, Option<FragInfo>), ()> {
     }
 }
