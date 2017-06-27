@@ -1,7 +1,7 @@
 /// Implements the 6LoWPAN specification for sending IPv6 datagrams over
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
 
-use net::ip::{IP6Header, MacAddr, IPAddr};
+use net::ip::{IP6Header, MacAddr, IPAddr, IP6Proto};
 use core::result::Result;
 
 pub struct Context<'a> {
@@ -68,6 +68,17 @@ pub mod lowpan_iphc {
     pub const DAM_0: u8            = 0x03;
 }
 
+pub mod lowpan_nhc {
+    pub const DISPATCH: u8 = 0xe0;
+
+    pub const HOP_OPTS: u8 = 0 << 1;
+    pub const ROUTING: u8  = 1 << 1;
+    pub const FRAGMENT: u8 = 2 << 1;
+    pub const DST_OPTS: u8 = 3 << 1;
+    pub const MOBILITY: u8 = 4 << 1;
+    pub const IP6: u8      = 7 << 1;
+}
+
 pub struct LoWPAN<'a, C: ContextStore<'a> + 'a> {
     ctx_store: &'a C,
 }
@@ -128,6 +139,30 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         if cie != 0 {
             buf[1] |= lowpan_iphc::CID;
             buf[*offset] = cie;
+            *offset += 1;
+        }
+    }
+
+    fn ip6_proto_to_nhc_eid(next_header: u8) -> Option<u8> {
+        match next_header {
+            IP6Proto::HOP_OPTS => Some(lowpan_nhc::HOP_OPTS),
+            IP6Proto::ROUTING  => Some(lowpan_nhc::ROUTING),
+            IP6Proto::FRAGMENT => Some(lowpan_nhc::FRAGMENT),
+            IP6Proto::DST_OPTS => Some(lowpan_nhc::DST_OPTS),
+            IP6Proto::MOBILITY => Some(lowpan_nhc::MOBILITY),
+            IP6Proto::IP6      => Some(lowpan_nhc::IP6),
+            _ => None,
+        }
+    }
+
+    fn compress_nh(&self,
+                   ip6_header: &IP6Header,
+                   buf: &'static mut [u8],
+                   offset: &mut usize) {
+        if LoWPAN::ip6_proto_to_nhc_eid(ip6_header.next_header).is_some() {
+            buf[0] |= lowpan_iphc::NH;
+        } else {
+            buf[*offset] = ip6_header.next_header;
             *offset += 1;
         }
     }
