@@ -145,7 +145,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         self.compress_nh(ip6_header, buf, &mut offset);
 
         // Hop Limit
-        // self.compress_hl(ip6_header, buf, &mut offset);
+        self.compress_hl(ip6_header, buf, &mut offset);
 
         // Source Address
         self.compress_src(&ip6_header.src_addr, &src_mac_addr, &src_ctx, buf, &mut offset);
@@ -251,7 +251,26 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
-    //fn compress_hl (
+    fn compress_hl(&self,
+                   ip6_header: &IP6Header,
+                   buf: &'static mut [u8],
+                   offset: &mut usize) {
+        let hop_limit_flag = {
+            match ip6_header.hop_limit {
+                // Compressed
+                1   => lowpan_iphc::HLIM_1,
+                64  => lowpan_iphc::HLIM_64, 
+                255 => lowpan_iphc::HLIM_255,
+                // Uncompressed
+                _   => {
+                    buf[*offset] = ip6_header.hop_limit;
+                    *offset += 1;
+                    lowpan_iphc::HLIM_INLINE
+                },
+            }
+        };
+        buf[0] |= hop_limit_flag;
+    }
 
     fn compress_src(&self,
                     src_ip_addr: &IPAddr,
