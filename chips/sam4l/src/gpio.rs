@@ -451,7 +451,7 @@ impl hil::Controller for GPIOPin {
     fn configure(&self, config: Self::Config) {
         match config {
             Some(c) => self.select_peripheral(c),
-            None => self.enable()
+            None => self.enable(),
         }
     }
 }
