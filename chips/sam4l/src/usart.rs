@@ -160,12 +160,14 @@ impl USART {
     }
 
     pub fn enable_rx(&self) {
+        self.enable_clock();
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         let cr_val = 0x00000000 | (1 << 4); // RXEN
         regs.cr.set(cr_val);
     }
 
     pub fn enable_tx(&self) {
+        self.enable_clock();
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         let cr_val = 0x00000000 | (1 << 6); // TXEN
         regs.cr.set(cr_val);
@@ -177,6 +179,9 @@ impl USART {
         regs.cr.set(cr_val);
 
         self.usart_rx_state.set(USARTStateRX::Idle);
+        if self.usart_tx_state.get() == USARTStateTX::Idle { // TX disabled too
+            self.disable_clock();
+        }
     }
 
     pub fn disable_tx(&self) {
@@ -185,6 +190,9 @@ impl USART {
         regs.cr.set(cr_val);
 
         self.usart_tx_state.set(USARTStateTX::Idle);
+        if self.usart_rx_state.get() == USARTStateRX::Idle { // RX disabled too
+            self.disable_clock();
+        }
     }
 
     pub fn abort_rx(&self, error: hil::uart::Error) {
@@ -241,6 +249,17 @@ impl USART {
                 });
             });
         }
+    }
+
+    pub fn enable_tx_empty_interrupt(&self) {
+        self.enable_nvic();
+        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        regs.ier.set(1 << 9);
+    }
+
+    pub fn disable_tx_empty_interrupt(&self) {
+        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        regs.idr.set(1 << 9);
     }
 
     pub fn enable_rx_error_interrupts(&self) {
@@ -300,6 +319,12 @@ impl USART {
     pub fn handle_interrupt(&self) {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
         let status = regs.csr.get();
+        let mask = regs.imr.get();
+
+        if status & (1 << 9) != 0 && mask & (1 << 9) != 0 {
+            self.disable_tx();
+            self.disable_tx_empty_interrupt();
+        }
 
         if status & (1 << 12) != 0 {
             // DO NOTHING. Why are we here!?
@@ -329,6 +354,12 @@ impl USART {
     fn enable_clock(&self) {
         unsafe {
             pm::enable_clock(self.clock);
+        }
+    }
+
+    fn disable_clock(&self) {
+        unsafe {
+            pm::disable_clock(self.clock);
         }
     }
 
@@ -428,7 +459,6 @@ impl dma::DMAClient for USART {
     fn xfer_done(&self, pid: dma::DMAPeripheral) {
         match self.usart_mode.get() {
             UsartMode::Uart => {
-
                 // determine if it was an RX or TX transfer
                 if pid == self.rx_dma_peripheral {
                     // RX transfer was completed
@@ -464,8 +494,10 @@ impl dma::DMAClient for USART {
                 } else if pid == self.tx_dma_peripheral {
                     // TX transfer was completed
 
-                    // note that the DMA has finished but TX cannot be disabled yet
+                    // note that the DMA has finished but TX cannot yet be disabled yet because
+                    // there may still be bytes left in the TX buffer.
                     self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
+                    self.enable_tx_empty_interrupt();
 
                     // get buffer
                     let buffer = self.tx_dma.get().map_or(None, |tx_dma| {
@@ -584,6 +616,8 @@ impl hil::uart::UART for USART {
 
         // Set baud rate
         self.set_baud_rate(params.baud_rate);
+
+        self.disable_clock();
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {

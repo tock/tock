@@ -15,7 +15,7 @@ struct Nvic {
 }
 
 #[repr(C)]
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub enum NvicIdx {
     HFLASHC,
     PDCA0,

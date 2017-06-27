@@ -175,6 +175,7 @@ pub enum Clock {
     HSB(HSBClock),
     PBA(PBAClock),
     PBB(PBBClock),
+    PBC(PBCClock),
     PBD(PBDClock),
 }
 
@@ -232,6 +233,15 @@ pub enum PBBClock {
 }
 
 #[derive(Copy,Clone)]
+pub enum PBCClock {
+    PM,
+    CHIPID,
+    SCIF,
+    FREQM,
+    GPIO,
+}
+
+#[derive(Copy,Clone)]
 pub enum PBDClock {
     BPM,
     BSCIF,
@@ -265,6 +275,7 @@ const FLASHCALW_BASE: usize = 0x400A0000;
 const HSB_MASK_OFFSET: u32 = 0x24;
 const PBA_MASK_OFFSET: u32 = 0x28;
 const PBB_MASK_OFFSET: u32 = 0x2C;
+const PBC_MASK_OFFSET: u32 = 0x30;
 const PBD_MASK_OFFSET: u32 = 0x34;
 
 static mut PM: *mut PmRegisters = PM_BASE as *mut PmRegisters;
@@ -487,6 +498,40 @@ macro_rules! mask_clock {
         let val = (*PM).$field.get() | ($mask);
         (*PM).$field.set(val);
     });
+
+    ($module:ident: $field:ident & $mask:expr) => ({
+        unlock(concat_idents!($module, _MASK_OFFSET));
+        let val = (*PM).$field.get() & ($mask);
+        (*PM).$field.set(val);
+    });
+}
+
+const DS_HSBMASK: u32 = 0x1e6;
+const DS_PBAMASK: u32 = 0x0;
+const DS_PBBMASK: u32 = 0x3;
+const DS_PBCMASK: u32 = 0x1f;
+
+pub fn deep_sleep_ready() -> bool {
+    unsafe {
+        /*if (*PM).hsbmask.get() & !(DS_HSBMASK) != 0 {
+            panic!("Can't interrupt HSB {:#x}", (*PM).hsbmask.get());
+        }
+        if (*PM).pbamask.get() & !(DS_PBAMASK) != 0 {
+            panic!("Can't interrupt PBA {:#x}", (*PM).pbamask.get());
+        }
+        if (*PM).pbbmask.get() & !(DS_PBBMASK) != 0 {
+            panic!("Can't interrupt PBB {:#x}", (*PM).pbbmask.get());
+        }
+        if (*PM).pbcmask.get() & !(DS_PBCMASK) != 0 {
+            panic!("Can't interrupt PBC {:#x}", (*PM).pbcmask.get());
+        }
+        return true;*/
+
+        (*PM).hsbmask.get() & !(DS_HSBMASK) == 0 &&
+        (*PM).pbamask.get() & !(DS_PBAMASK) == 0 &&
+        (*PM).pbbmask.get() & !(DS_PBBMASK) == 0 &&
+        (*PM).pbcmask.get() & !(DS_PBCMASK) == 0
+    }
 }
 
 pub unsafe fn enable_clock(clock: Clock) {
@@ -494,15 +539,17 @@ pub unsafe fn enable_clock(clock: Clock) {
         Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
         Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
         Clock::PBB(v) => mask_clock!(PBB: pbbmask | 1 << (v as u32)),
+        Clock::PBC(v) => mask_clock!(PBC: pbcmask | 1 << (v as u32)),
         Clock::PBD(v) => mask_clock!(PBD: pbdmask | 1 << (v as u32)),
     }
 }
 
 pub unsafe fn disable_clock(clock: Clock) {
     match clock {
-        Clock::HSB(v) => mask_clock!(HSB: hsbmask | !(1 << (v as u32))),
-        Clock::PBA(v) => mask_clock!(PBA: pbamask | !(1 << (v as u32))),
-        Clock::PBB(v) => mask_clock!(PBB: pbbmask | !(1 << (v as u32))),
-        Clock::PBD(v) => mask_clock!(PBD: pbdmask | !(1 << (v as u32))),
+        Clock::HSB(v) => mask_clock!(HSB: hsbmask & !(1 << (v as u32))),
+        Clock::PBA(v) => mask_clock!(PBA: pbamask & !(1 << (v as u32))),
+        Clock::PBB(v) => mask_clock!(PBB: pbbmask & !(1 << (v as u32))),
+        Clock::PBC(v) => mask_clock!(PBC: pbcmask & !(1 << (v as u32))),
+        Clock::PBD(v) => mask_clock!(PBD: pbdmask & !(1 << (v as u32))),
     }
 }
