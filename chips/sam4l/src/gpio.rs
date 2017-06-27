@@ -448,7 +448,11 @@ impl hil::Controller for GPIOPin {
     type Config = Option<PeripheralFunction>;
 
 
-    fn configure(&self, config: Option<PeripheralFunction>) {
+    fn configure(&self, config: Self::Config) {
+        // Unassign the pin from its current peripheral function.
+        self.enable();
+
+        // If config is Some, select the desired peripheral.
         config.map(|c| { self.select_peripheral(c); });
     }
 }
