@@ -448,8 +448,11 @@ impl hil::Controller for GPIOPin {
     type Config = Option<PeripheralFunction>;
 
 
-    fn configure(&self, config: Option<PeripheralFunction>) {
-        config.map(|c| { self.select_peripheral(c); });
+    fn configure(&self, config: Self::Config) {
+        match config {
+            Some(c) => self.select_peripheral(c),
+            None => self.enable(),
+        }
     }
 }
 
