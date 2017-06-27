@@ -124,8 +124,8 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
             hal_rx_buf = NULL;
 
             if (_ser_phy_event_handler) {
-                _ser_phy_event_handler(_ser_phy_rx_event);
                 _receiving_packet = false;
+                _ser_phy_event_handler(_ser_phy_rx_event);
             }
         } else {
             // Buffer is NULL
@@ -133,8 +133,8 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
             // the serialization library that we did so.
             _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_PKT_DROPPED;
             if (_ser_phy_event_handler) {
-                _ser_phy_event_handler(_ser_phy_rx_event);
                 _receiving_packet = false;
+                _ser_phy_event_handler(_ser_phy_rx_event);
             }
         }
     }
