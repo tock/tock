@@ -76,9 +76,9 @@ pub mod lowpan_iphc {
     pub const DAC: u8              = 0x04;
     pub const DAM_MASK: u8         = 0x03;
     pub const DAM_INLINE: u8       = 0x00;
-    pub const DAM_64: u8           = 0x01;
-    pub const DAM_16: u8           = 0x02;
-    pub const DAM_0: u8            = 0x03;
+    pub const DAM_MODE1: u8        = 0x01;
+    pub const DAM_MODE2: u8        = 0x02;
+    pub const DAM_MODE3: u8        = 0x03;
 
     // Address compression
     pub const MAC_BASE: [u8; 8] = [0x00, 0x00, 0x00, 0xff, 0xfe, 0x00, 0x00, 0x00];
@@ -377,14 +377,14 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             buf[1] |= if is_src_addr {
                 lowpan_iphc::SAM_0
             } else {
-                lowpan_iphc::DAM_0
+                lowpan_iphc::DAM_MODE3
             };
         } else if ip_addr[8..14] == lowpan_iphc::MAC_BASE[0..6] {
             // SAM/DAM = 10
             buf[1] |= if is_src_addr {
                 lowpan_iphc::SAM_16
             } else {
-                lowpan_iphc::DAM_16
+                lowpan_iphc::DAM_MODE2
             };
             buf[*offset..*offset + 2].copy_from_slice(&ip_addr[14..16]);
             *offset += 2;
@@ -393,7 +393,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             buf[1] |= if is_src_addr {
                 lowpan_iphc::SAM_64
             } else {
-                lowpan_iphc::DAM_64
+                lowpan_iphc::DAM_MODE1
             };
             buf[*offset..*offset + 8].copy_from_slice(&ip_addr[8..16]);
             *offset += 8;
@@ -443,11 +443,10 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             buf[*offset + 2..*offset + 6].copy_from_slice(&dst_ip_addr[12..16]);
             *offset += 6;
         } else {
-            // TODO: rename lowpan_iphc::DAM_*
             // M = 1, DAC = 0
             if dst_ip_addr[1] == 0x02 && lowpan_iphc::is_zero(&dst_ip_addr[2..15]) {
                 // DAM = 11
-                buf[1] |= lowpan_iphc::DAM_0;
+                buf[1] |= lowpan_iphc::DAM_MODE3;
                 buf[*offset] = dst_ip_addr[15];
                 *offset += 1;
             } else {
@@ -458,13 +457,13 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     *offset += 16;
                 } else if !lowpan_iphc::is_zero(&dst_ip_addr[11..13]) {
                     // DAM = 01, ffXX::00XX:XXXX:XXXX
-                    buf[1] |= lowpan_iphc::DAM_64;
+                    buf[1] |= lowpan_iphc::DAM_MODE1;
                     buf[*offset] = dst_ip_addr[1];
                     buf[*offset + 1..*offset + 6].copy_from_slice(&dst_ip_addr[11..16]);
                     *offset += 6;
                 } else {
                     // DAM = 10, ffXX::00XX:XXXX
-                    buf[1] |= lowpan_iphc::DAM_16;
+                    buf[1] |= lowpan_iphc::DAM_MODE2;
                     buf[*offset] = dst_ip_addr[1];
                     buf[*offset + 1..*offset + 4].copy_from_slice(&dst_ip_addr[13..16]);
                     *offset += 4;
