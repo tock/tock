@@ -49,10 +49,14 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
 }
 
 impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
+    /// Set callbacks.
+    ///
+    /// ### `subscribe_num`
+    ///
+    /// - `0`: Set callback for pin interrupts. Note setting this callback has
+    ///   no reliance on individual pins being configured as interrupts.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            // set callback for pin interrupts (no affect or reliance on individual pins being
-            // configured as interrupts)
             0 => {
                 self.callback
                     .enter(callback.app_id(), |cntr, _| {
@@ -71,12 +75,28 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
         }
     }
 
+    /// Configure interrupts and read state for buttons.
+    ///
+    /// `data` is the index of the button in the button array as passed to
+    /// `Button::new()`.
+    ///
+    /// All commands greater than zero return `EINVAL` if an invalid button
+    /// number is passed in.
+    ///
+    /// ### `command_num`
+    ///
+    /// - `0`: Driver check and get number of buttons on the board.
+    /// - `1`: Enable interrupts for a given button.
+    /// - `2`: Disable interrupts for a button. No affect or reliance on
+    ///   registered callback.
+    /// - `3`: Read the current state of the button.
     fn command(&self, command_num: usize, data: usize, appid: AppId) -> ReturnCode {
         let pins = self.pins.as_ref();
         match command_num {
-            // return pin count
+            // return button count
             0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
-            // enable interrupts on pin
+
+            // enable interrupts for a button
             1 => {
                 if data < pins.len() {
                     self.callback
@@ -90,15 +110,14 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                             Error::NoSuchApp => ReturnCode::EINVAL,
                         })
                 } else {
-                    ReturnCode::EINVAL /* impossible pin */
+                    ReturnCode::EINVAL /* impossible button */
                 }
             }
 
-            // disable interrupts on pin
-            // (no affect or reliance on registered callback)
+            // disable interrupts for a button
             2 => {
                 if data >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    ReturnCode::EINVAL /* impossible button */
                 } else {
                     self.callback
                         .enter(appid, |cntr, _| {
@@ -116,7 +135,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
             // read input
             3 => {
                 if data >= pins.len() {
-                    ReturnCode::EINVAL /* impossible pin */
+                    ReturnCode::EINVAL /* impossible button */
                 } else {
                     let pin_state = pins[data].read();
                     ReturnCode::SuccessWithValue { value: pin_state as usize }
