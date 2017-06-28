@@ -171,7 +171,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     ip6_header: &IP6Header,
                     src_mac_addr: MacAddr,
                     dst_mac_addr: MacAddr,
-                    buf: &'static mut [u8]) -> usize {
+                    mut buf: &mut [u8]) -> usize {
         // The first two bytes are the LOWPAN_IPHC header
         let mut offset: usize = 2;
 
@@ -199,35 +199,35 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         dst_ctx = dst_ctx.and_then(|ctx| { if ctx.compress { Some(ctx) } else { None } });
 
         // Context Identifier Extension
-        let buf = self.compress_cie(&src_ctx, &dst_ctx, buf, &mut offset);
+        self.compress_cie(&src_ctx, &dst_ctx, &mut buf, &mut offset);
 
         // Traffic Class & Flow Label
-        let buf = self.compress_tf(ip6_header, buf, &mut offset);
+        self.compress_tf(ip6_header, &mut buf, &mut offset);
 
         // Next Header
-        let buf = self.compress_nh(ip6_header, buf, &mut offset);
+        self.compress_nh(ip6_header, &mut buf, &mut offset);
 
         // Hop Limit
-        let buf = self.compress_hl(ip6_header, buf, &mut offset);
+        self.compress_hl(ip6_header, &mut buf, &mut offset);
 
         // Source Address
-        let buf = self.compress_src(&ip6_header.src_addr, &src_mac_addr, &src_ctx, buf, &mut offset);
+        self.compress_src(&ip6_header.src_addr, &src_mac_addr, &src_ctx, &mut buf, &mut offset);
 
         // Destination Address
         if ip::addr_is_multicast(&ip6_header.dst_addr) {
-            self.compress_multicast(&ip6_header.dst_addr, &dst_ctx, buf, &mut offset);
+            self.compress_multicast(&ip6_header.dst_addr, &dst_ctx, &mut buf, &mut offset);
         } else {
-            self.compress_dst(&ip6_header.dst_addr, &dst_mac_addr, &dst_ctx, buf, &mut offset);
+            self.compress_dst(&ip6_header.dst_addr, &dst_mac_addr, &dst_ctx, &mut buf, &mut offset);
         }
 
         offset
     }
 
-    fn compress_cie<'b>(&self,
-                        src_ctx: &Option<Context>,
-                        dst_ctx: &Option<Context>,
-                        buf: &'b mut [u8],
-                        offset: &mut usize) -> &'b mut [u8] {
+    fn compress_cie(&self,
+                    src_ctx: &Option<Context>,
+                    dst_ctx: &Option<Context>,
+                    buf: &mut [u8],
+                    offset: &mut usize) {
         let mut cie: u8 = 0;
 
         src_ctx.as_ref().map(|ctx| {
@@ -242,14 +242,12 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             buf[*offset] = cie;
             *offset += 1;
         }
-
-        buf
     }
 
-    fn compress_tf<'b>(&self,
-                       ip6_header: &IP6Header,
-                       buf: &'b mut [u8],
-                       offset: &mut usize) -> &'b mut [u8] {
+    fn compress_tf(&self,
+                   ip6_header: &IP6Header,
+                   buf: &mut [u8],
+                   offset: &mut usize) {
         // TODO: All of this needs to be checked for endian-ness and correctness
         // let version = ip6_header.version_class_flow[0] >> 4;
         let class   = ((ip6_header.version_class_flow[0] << 4) & 0xf0)
@@ -296,28 +294,24 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             }
         }
         buf[0] |= tf_encoding;
-
-        buf
     }
 
-    fn compress_nh<'b>(&self,
-                       ip6_header: &IP6Header,
-                       buf: &'b mut [u8],
-                       offset: &mut usize) -> &'b mut [u8] {
+    fn compress_nh(&self,
+                   ip6_header: &IP6Header,
+                   buf: &mut [u8],
+                   offset: &mut usize) {
         if ip6_nh_to_nhc_eid(ip6_header.next_header).is_some() {
             buf[0] |= iphc::NH;
         } else {
             buf[*offset] = ip6_header.next_header;
             *offset += 1;
         }
-
-        buf
     }
 
-    fn compress_hl<'b>(&self,
-                       ip6_header: &IP6Header,
-                       buf: &'b mut [u8],
-                       offset: &mut usize) -> &'b mut [u8] {
+    fn compress_hl(&self,
+                   ip6_header: &IP6Header,
+                   buf: &mut [u8],
+                   offset: &mut usize) {
         let hop_limit_flag = {
             match ip6_header.hop_limit {
                 // Compressed
@@ -333,44 +327,40 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             }
         };
         buf[0] |= hop_limit_flag;
-
-        buf
     }
 
     // TODO: We should check to see whether context or link local compression
     // schemes gives the better compression; currently, we will always match
     // on link local even if we could get better compression through context.
-    fn compress_src<'b>(&self,
-                        src_ip_addr: &IPAddr,
-                        src_mac_addr: &MacAddr,
-                        src_ctx: &Option<Context>,
-                        buf: &'b mut [u8],
-                        offset: &mut usize) -> &'b mut [u8] {
+    fn compress_src(&self,
+                    src_ip_addr: &IPAddr,
+                    src_mac_addr: &MacAddr,
+                    src_ctx: &Option<Context>,
+                    buf: &mut [u8],
+                    offset: &mut usize) {
         if ip::addr_is_unspecified(src_ip_addr) {
             // SAC = 1, SAM = 00
             buf[1] |= iphc::SAC;
-            buf
         } else if ip::addr_is_link_local(src_ip_addr) {
             // SAC = 0, SAM = 01, 10, 11
-            self.compress_iid(src_ip_addr, src_mac_addr, true, buf, offset)
+            self.compress_iid(src_ip_addr, src_mac_addr, true, buf, offset);
         } else if src_ctx.is_some() {
             // SAC = 1, SAM = 01, 10, 11
             buf[1] |= iphc::SAC;
-            self.compress_iid(src_ip_addr, src_mac_addr, true, buf, offset)
+            self.compress_iid(src_ip_addr, src_mac_addr, true, buf, offset);
         } else {
             // SAC = 0, SAM = 00
             buf[*offset..*offset + 16].copy_from_slice(src_ip_addr);
             *offset += 16;
-            buf
         }
     }
 
-    fn compress_iid<'b>(&self,
-                        ip_addr: &IPAddr,
-                        mac_addr: &MacAddr,
-                        is_src: bool,
-                        buf: &'b mut [u8],
-                        offset: &mut usize) -> &'b mut [u8] {
+    fn compress_iid(&self,
+                    ip_addr: &IPAddr,
+                    mac_addr: &MacAddr,
+                    is_src: bool,
+                    buf: &mut [u8],
+                    offset: &mut usize) {
         let iid: [u8; 8] = compute_iid(mac_addr);
         if ip_addr[8..16] == iid {
             // SAM/DAM = 11, 0 bits
@@ -386,45 +376,42 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             buf[*offset..*offset + 8].copy_from_slice(&ip_addr[8..16]);
             *offset += 8;
         }
-
-        buf
     }
 
     // Compresses non-multicast destination address
     // TODO: We should check to see whether context or link local compression
     // schemes gives the better compression; currently, we will always match
     // on link local even if we could get better compression through context.
-    fn compress_dst<'b>(&self,
-                        dst_ip_addr: &IPAddr,
-                        dst_mac_addr: &MacAddr,
-                        dst_ctx: &Option<Context>,
-                        buf: &'b mut [u8],
-                        offset: &mut usize) -> &'b mut [u8] {
+    fn compress_dst(&self,
+                    dst_ip_addr: &IPAddr,
+                    dst_mac_addr: &MacAddr,
+                    dst_ctx: &Option<Context>,
+                    buf: &mut [u8],
+                    offset: &mut usize) {
         // Assumes dst_ip_addr is not a multicast address (prefix ffXX)
         if ip::addr_is_link_local(dst_ip_addr) {
             // Link local compression
             // M = 0, DAC = 0, DAM = 01, 10, 11
-            self.compress_iid(dst_ip_addr, dst_mac_addr, false, buf, offset)
+            self.compress_iid(dst_ip_addr, dst_mac_addr, false, buf, offset);
         } else if dst_ctx.is_some() {
             // Context compression
             // DAC = 1, DAM = 01, 10, 11
             buf[1] |= iphc::DAC;
-            self.compress_iid(dst_ip_addr, dst_mac_addr, false, buf, offset)
+            self.compress_iid(dst_ip_addr, dst_mac_addr, false, buf, offset);
         } else {
             // Full address inline
             // DAC = 0, DAM = 00
             buf[*offset..*offset + 16].copy_from_slice(dst_ip_addr);
             *offset += 16;
-            buf
         }
     }
 
     // Compresses multicast destination addresses
-    fn compress_multicast<'b>(&self,
-                              dst_ip_addr: &IPAddr,
-                              dst_ctx: &Option<Context>,
-                              buf: &'b mut [u8],
-                              offset: &mut usize) -> &'b mut [u8] {
+    fn compress_multicast(&self,
+                          dst_ip_addr: &IPAddr,
+                          dst_ctx: &Option<Context>,
+                          buf: &mut [u8],
+                          offset: &mut usize) {
         // Assumes dst_ip_addr is indeed a multicast address (prefix ffXX)
         buf[1] |= iphc::MULTICAST;
         if dst_ctx.is_some() {
@@ -461,8 +448,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 }
             }
         }
-
-        buf
     }
 
     /// Decodes the compressed header into a full IPv6 header given the 16-bit
@@ -473,7 +458,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     /// packet is part of a set of fragments.
     #[allow(unused_variables,dead_code)]
     pub fn decompress(&self,
-                      buf: &'static mut [u8],
+                      buf: &mut [u8],
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
                       mesh_local_prefix: &[u8])
