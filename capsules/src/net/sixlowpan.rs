@@ -172,8 +172,6 @@ fn ip6_nh_to_nhc_eid(next_header: u8) -> Option<u8> {
     }
 }
 
-/// Maps values 
-
 /// Maps LoWPAN NHC-encoded EIDs to the corresponding IPv6 next header
 /// field value
 #[allow(dead_code)]
