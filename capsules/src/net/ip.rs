@@ -18,11 +18,16 @@ pub type IPAddr = [u8; 16];
 pub mod IP6 {
     use net::ip::IPAddr;
 
+    // TODO: Implement
     pub fn addr_is_unspecified(ip_addr: &IPAddr) -> bool {
         false
     }
 
     pub fn addr_is_link_local(ip_addr: &IPAddr) -> bool {
+        false
+    }
+
+    pub fn addr_is_multicast(ip_addr: &IPAddr) -> bool {
         false
     }
 }
