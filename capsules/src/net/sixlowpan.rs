@@ -1,52 +1,53 @@
+
+use core::result::Result;
 /// Implements the 6LoWPAN specification for sending IPv6 datagrams over
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
 
 use net::ip;
 use net::ip::{IP6Header, MacAddr, IPAddr, ip6_nh};
 use net::util;
-use core::result::Result;
 
 #[allow(unused_variables,dead_code)]
 mod iphc {
-    pub const DISPATCH: [u8; 2]    = [0x60, 0x00];
+    pub const DISPATCH: [u8; 2] = [0x60, 0x00];
 
     // First byte masks
 
-    pub const TF_MASK: u8          = 0x18;
+    pub const TF_MASK: u8 = 0x18;
     pub const TF_TRAFFIC_CLASS: u8 = 0x08;
-    pub const TF_FLOW_LABEL: u8    = 0x10;
+    pub const TF_FLOW_LABEL: u8 = 0x10;
 
-    pub const NH: u8               = 0x04;
+    pub const NH: u8 = 0x04;
 
-    pub const HLIM_MASK: u8        = 0x03;
-    pub const HLIM_INLINE: u8      = 0x00;
-    pub const HLIM_1: u8           = 0x01;
-    pub const HLIM_64: u8          = 0x02;
-    pub const HLIM_255: u8         = 0x03;
+    pub const HLIM_MASK: u8 = 0x03;
+    pub const HLIM_INLINE: u8 = 0x00;
+    pub const HLIM_1: u8 = 0x01;
+    pub const HLIM_64: u8 = 0x02;
+    pub const HLIM_255: u8 = 0x03;
 
     // Second byte masks
 
-    pub const CID: u8              = 0x80;
+    pub const CID: u8 = 0x80;
 
-    pub const SAC: u8              = 0x40;
+    pub const SAC: u8 = 0x40;
 
-    pub const SAM_MASK: u8         = 0x30;
-    pub const SAM_INLINE: u8       = 0x00;
-    pub const SAM_MODE1: u8           = 0x10;
-    pub const SAM_MODE2: u8           = 0x20;
-    pub const SAM_MODE3: u8            = 0x30;
+    pub const SAM_MASK: u8 = 0x30;
+    pub const SAM_INLINE: u8 = 0x00;
+    pub const SAM_MODE1: u8 = 0x10;
+    pub const SAM_MODE2: u8 = 0x20;
+    pub const SAM_MODE3: u8 = 0x30;
 
-    pub const MULTICAST: u8        = 0x01;
+    pub const MULTICAST: u8 = 0x01;
 
-    pub const DAC: u8              = 0x04;
-    pub const DAM_MASK: u8         = 0x03;
-    pub const DAM_INLINE: u8       = 0x00;
-    pub const DAM_MODE1: u8        = 0x01;
-    pub const DAM_MODE2: u8        = 0x02;
-    pub const DAM_MODE3: u8        = 0x03;
+    pub const DAC: u8 = 0x04;
+    pub const DAM_MASK: u8 = 0x03;
+    pub const DAM_INLINE: u8 = 0x00;
+    pub const DAM_MODE1: u8 = 0x01;
+    pub const DAM_MODE2: u8 = 0x02;
+    pub const DAM_MODE3: u8 = 0x03;
 
     // Address compression
-    pub const MAC_BASE: [u8; 8] = [0x00, 0x00, 0x00, 0xff, 0xfe, 0x00, 0x00, 0x00];
+    pub const MAC_BASE: [u8; 8] = [0, 0, 0, 0xff, 0xfe, 0, 0, 0];
     pub const MAC_UL: u8 = 0x02;
 }
 
@@ -55,11 +56,11 @@ mod nhc {
     pub const DISPATCH: u8 = 0xe0;
 
     pub const HOP_OPTS: u8 = 0 << 1;
-    pub const ROUTING: u8  = 1 << 1;
+    pub const ROUTING: u8 = 1 << 1;
     pub const FRAGMENT: u8 = 2 << 1;
     pub const DST_OPTS: u8 = 3 << 1;
     pub const MOBILITY: u8 = 4 << 1;
-    pub const IP6: u8      = 7 << 1;
+    pub const IP6: u8 = 7 << 1;
 }
 
 #[allow(unused_variables,dead_code)]
@@ -77,13 +78,13 @@ pub trait ContextStore<'a> {
 }
 
 #[allow(unused_variables,dead_code)]
-pub struct DummyStore {
-}
+pub struct DummyStore {}
 
 #[allow(unused_variables,dead_code)]
 impl<'a> ContextStore<'a> for DummyStore {
     // TODO: Implement these.
-    // Note: these should also check if the mesh local prefix is matched
+    // These methods should also include context 0 (the mesh-local prefix) as
+    // one of the possible options
 
     fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>> {
         None
@@ -93,9 +94,7 @@ impl<'a> ContextStore<'a> for DummyStore {
         None
     }
 
-    fn get_context_from_prefix(&self,
-                               prefix: &[u8],
-                               prefix_len: u8) -> Option<Context<'a>> {
+    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context<'a>> {
         None
     }
 }
@@ -115,7 +114,7 @@ fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
             iid[6] = (short_addr >> 1) as u8;
             iid[7] = (short_addr & 0xff) as u8;
             iid
-        },
+        }
         &MacAddr::LongAddr(long_addr) => {
             // IID is IEEE EUI-64 with universal/local bit inverted
             let mut iid: [u8; 8] = long_addr;
@@ -130,11 +129,11 @@ fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
 fn ip6_nh_to_nhc_eid(next_header: u8) -> Option<u8> {
     match next_header {
         ip6_nh::HOP_OPTS => Some(nhc::HOP_OPTS),
-        ip6_nh::ROUTING  => Some(nhc::ROUTING),
+        ip6_nh::ROUTING => Some(nhc::ROUTING),
         ip6_nh::FRAGMENT => Some(nhc::FRAGMENT),
         ip6_nh::DST_OPTS => Some(nhc::DST_OPTS),
         ip6_nh::MOBILITY => Some(nhc::MOBILITY),
-        ip6_nh::IP6      => Some(nhc::IP6),
+        ip6_nh::IP6 => Some(nhc::IP6),
         _ => None,
     }
 }
@@ -145,11 +144,11 @@ fn ip6_nh_to_nhc_eid(next_header: u8) -> Option<u8> {
 fn nhc_eid_to_ip6_nh(eid: u8) -> Option<u8> {
     match eid {
         nhc::HOP_OPTS => Some(ip6_nh::HOP_OPTS),
-        nhc::ROUTING  => Some(ip6_nh::ROUTING),
+        nhc::ROUTING => Some(ip6_nh::ROUTING),
         nhc::FRAGMENT => Some(ip6_nh::FRAGMENT),
         nhc::DST_OPTS => Some(ip6_nh::DST_OPTS),
         nhc::MOBILITY => Some(ip6_nh::MOBILITY),
-        nhc::IP6      => Some(ip6_nh::IP6),
+        nhc::IP6 => Some(ip6_nh::IP6),
         _ => None,
     }
 }
@@ -160,9 +159,7 @@ pub struct LoWPAN<'a, C: ContextStore<'a> + 'a> {
 
 impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     pub fn new(ctx_store: &'a C) -> LoWPAN<'a, C> {
-        LoWPAN {
-            ctx_store: ctx_store,
-        }
+        LoWPAN { ctx_store: ctx_store }
     }
 
     /// Constructs a 6LoWPAN header in `buf` from the given IPv6 header and
@@ -171,32 +168,31 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     ip6_header: &IP6Header,
                     src_mac_addr: MacAddr,
                     dst_mac_addr: MacAddr,
-                    mut buf: &mut [u8]) -> usize {
+                    mut buf: &mut [u8])
+                    -> usize {
         // The first two bytes are the LOWPAN_IPHC header
         let mut offset: usize = 2;
 
         // Initialize the LOWPAN_IPHC header
         buf[0..2].copy_from_slice(&iphc::DISPATCH);
 
-        let mut src_ctx: Option<Context> =
-            self.ctx_store.get_context_from_addr(ip6_header.src_addr);
-        let mut dst_ctx: Option<Context> =
-            if ip::addr_is_multicast(&ip6_header.dst_addr) {
-                let prefix_len: u8 = ip6_header.dst_addr[3];
-                let prefix: &[u8] = &ip6_header.dst_addr[4..12];
-                if util::verify_prefix_len(prefix, prefix_len) {
-                    // TODO: Also check if the prefix matches context 0 (mesh-local prefix)
-                    self.ctx_store.get_context_from_prefix(prefix, prefix_len)
-                } else {
-                    None
-                }
+        let mut src_ctx: Option<Context> = self.ctx_store
+            .get_context_from_addr(ip6_header.src_addr);
+        let mut dst_ctx: Option<Context> = if ip::addr_is_multicast(&ip6_header.dst_addr) {
+            let prefix_len: u8 = ip6_header.dst_addr[3];
+            let prefix: &[u8] = &ip6_header.dst_addr[4..12];
+            if util::verify_prefix_len(prefix, prefix_len) {
+                self.ctx_store.get_context_from_prefix(prefix, prefix_len)
             } else {
-                self.ctx_store.get_context_from_addr(ip6_header.dst_addr)
-            };
+                None
+            }
+        } else {
+            self.ctx_store.get_context_from_addr(ip6_header.dst_addr)
+        };
 
         // Do not use these contexts if they are not to be used for compression
-        src_ctx = src_ctx.and_then(|ctx| { if ctx.compress { Some(ctx) } else { None } });
-        dst_ctx = dst_ctx.and_then(|ctx| { if ctx.compress { Some(ctx) } else { None } });
+        src_ctx = src_ctx.and_then(|ctx| if ctx.compress { Some(ctx) } else { None });
+        dst_ctx = dst_ctx.and_then(|ctx| if ctx.compress { Some(ctx) } else { None });
 
         // Context Identifier Extension
         self.compress_cie(&src_ctx, &dst_ctx, &mut buf, &mut offset);
@@ -211,13 +207,21 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         self.compress_hl(ip6_header, &mut buf, &mut offset);
 
         // Source Address
-        self.compress_src(&ip6_header.src_addr, &src_mac_addr, &src_ctx, &mut buf, &mut offset);
+        self.compress_src(&ip6_header.src_addr,
+                          &src_mac_addr,
+                          &src_ctx,
+                          &mut buf,
+                          &mut offset);
 
         // Destination Address
         if ip::addr_is_multicast(&ip6_header.dst_addr) {
             self.compress_multicast(&ip6_header.dst_addr, &dst_ctx, &mut buf, &mut offset);
         } else {
-            self.compress_dst(&ip6_header.dst_addr, &dst_mac_addr, &dst_ctx, &mut buf, &mut offset);
+            self.compress_dst(&ip6_header.dst_addr,
+                              &dst_mac_addr,
+                              &dst_ctx,
+                              &mut buf,
+                              &mut offset);
         }
 
         offset
@@ -230,11 +234,11 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     offset: &mut usize) {
         let mut cie: u8 = 0;
 
-        src_ctx.as_ref().map(|ctx| {
-            if ctx.id != 0 { cie |= ctx.id << 4; }
+        src_ctx.as_ref().map(|ctx| if ctx.id != 0 {
+            cie |= ctx.id << 4;
         });
-        dst_ctx.as_ref().map(|ctx| {
-            if ctx.id != 0 { cie |= ctx.id; }
+        dst_ctx.as_ref().map(|ctx| if ctx.id != 0 {
+            cie |= ctx.id;
         });
 
         if cie != 0 {
@@ -244,16 +248,13 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
-    fn compress_tf(&self,
-                   ip6_header: &IP6Header,
-                   buf: &mut [u8],
-                   offset: &mut usize) {
+    fn compress_tf(&self, ip6_header: &IP6Header, buf: &mut [u8], offset: &mut usize) {
         // TODO: All of this needs to be checked for endian-ness and correctness
         // let version = ip6_header.version_class_flow[0] >> 4;
-        let class   = ((ip6_header.version_class_flow[0] << 4) & 0xf0)
-                    | ((ip6_header.version_class_flow[1] >> 4) & 0x0f);
-        let ecn     = (class >> 6) & 0b11; // Gets leading 2 bits
-        let dscp    = class & 0b111111;  // Gets trailing 6 bits
+        let class = ((ip6_header.version_class_flow[0] << 4) & 0xf0) |
+                    ((ip6_header.version_class_flow[1] >> 4) & 0x0f);
+        let ecn = (class >> 6) & 0b11; // Gets leading 2 bits
+        let dscp = class & 0b111111; // Gets trailing 6 bits
         let mut flow: [u8; 3] = [0; 3];
         flow[0] = ip6_header.version_class_flow[1] & 0x0f; // Zero upper 4 bits
         flow[1] = ip6_header.version_class_flow[2];
@@ -279,7 +280,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 *offset += 3;
             }
             tf_encoding |= iphc::TF_TRAFFIC_CLASS;
-        // X0 cases
+            // X0 cases
         } else {
             // If DSCP cannot be elided
             buf[*offset] = class;
@@ -296,10 +297,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         buf[0] |= tf_encoding;
     }
 
-    fn compress_nh(&self,
-                   ip6_header: &IP6Header,
-                   buf: &mut [u8],
-                   offset: &mut usize) {
+    fn compress_nh(&self, ip6_header: &IP6Header, buf: &mut [u8], offset: &mut usize) {
         if ip6_nh_to_nhc_eid(ip6_header.next_header).is_some() {
             buf[0] |= iphc::NH;
         } else {
@@ -308,22 +306,19 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
-    fn compress_hl(&self,
-                   ip6_header: &IP6Header,
-                   buf: &mut [u8],
-                   offset: &mut usize) {
+    fn compress_hl(&self, ip6_header: &IP6Header, buf: &mut [u8], offset: &mut usize) {
         let hop_limit_flag = {
             match ip6_header.hop_limit {
                 // Compressed
-                1   => iphc::HLIM_1,
-                64  => iphc::HLIM_64,
+                1 => iphc::HLIM_1,
+                64 => iphc::HLIM_64,
                 255 => iphc::HLIM_255,
                 // Uncompressed
-                _   => {
+                _ => {
                     buf[*offset] = ip6_header.hop_limit;
                     *offset += 1;
                     iphc::HLIM_INLINE
-                },
+                }
             }
         };
         buf[0] |= hop_limit_flag;
@@ -364,15 +359,27 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let iid: [u8; 8] = compute_iid(mac_addr);
         if ip_addr[8..16] == iid {
             // SAM/DAM = 11, 0 bits
-            buf[1] |= if is_src { iphc::SAM_MODE3 } else { iphc::DAM_MODE3 };
+            buf[1] |= if is_src {
+                iphc::SAM_MODE3
+            } else {
+                iphc::DAM_MODE3
+            };
         } else if ip_addr[8..14] == iphc::MAC_BASE[0..6] {
             // SAM/DAM = 10, 16 bits
-            buf[1] |= if is_src { iphc::SAM_MODE2 } else { iphc::DAM_MODE2 };
+            buf[1] |= if is_src {
+                iphc::SAM_MODE2
+            } else {
+                iphc::DAM_MODE2
+            };
             buf[*offset..*offset + 2].copy_from_slice(&ip_addr[14..16]);
             *offset += 2;
         } else {
             // SAM/DAM = 01, 64 bits
-            buf[1] |= if is_src { iphc::SAM_MODE1 } else { iphc::DAM_MODE1 };
+            buf[1] |= if is_src {
+                iphc::SAM_MODE1
+            } else {
+                iphc::DAM_MODE1
+            };
             buf[*offset..*offset + 8].copy_from_slice(&ip_addr[8..16]);
             *offset += 8;
         }
