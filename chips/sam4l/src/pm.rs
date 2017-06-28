@@ -495,7 +495,7 @@ pub unsafe fn get_system_frequency() -> u32 {
 }
 
 /// Utility macro to modify clock mask registers
-/// 
+///
 /// It takes one of two forms:
 ///
 ///     mask_clock!(CLOCK: pm_register | value)
