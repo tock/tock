@@ -254,7 +254,10 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
 
         // Destination Address
         if ip::addr_is_multicast(&ip6_header.dst_addr) {
-            self.compress_multicast(&ip6_header.dst_addr, &dst_ctx, &mut buf, &mut offset);
+            self.compress_multicast(&ip6_header.dst_addr,
+                                    &dst_ctx,
+                                    &mut buf,
+                                    &mut offset);
         } else {
             self.compress_dst(&ip6_header.dst_addr,
                               &dst_mac_addr,
