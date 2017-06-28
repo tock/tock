@@ -1,5 +1,7 @@
 //! Implementation of the power manager peripheral.
 
+use core::sync::atomic::Ordering;
+use gpio;
 use kernel::common::VolatileCell;
 
 #[repr(C, packed)]
@@ -524,26 +526,32 @@ const DEEP_SLEEP_PBAMASK: u32 = 0x0;
 // flash's HRAMC1 clock as well.
 const DEEP_SLEEP_PBBMASK: u32 = 0x3;
 
-// All allowed, but this is just temporary... GPIO should probably be handled
-// somewhat specially. For now, GPIO interrupts are just not gonna work
-// sometimes.
-const DEEP_SLEEP_PBCMASK: u32 = 0x1f;
-
 /// Determines if the chip can safely go into deep sleep without preventing
 /// currently active peripherals from operating.
 ///
 /// We look at the PM's clock mask registers and compare them against a set of
 /// known masks that include no peripherals that can't operate in deep
-/// sleep (or that have no function during sleep).
+/// sleep (or that have no function during sleep). Specifically:
+///
+///   * HSB may only have clocks for the flash (and PicoCache) and APBx bridges on.
+///
+///   * PBA may not have _any_ clocks on.
+///
+///   * PBB may only have clocks for the flash and HRAMC1 (also flash related) on.
+///
+///   * PBC and PBD may have any clocks on.
 ///
 /// This means it is the responsibility of each peripheral to disable it's clock
 /// mask whenever it is idle.
+///
+/// We also special case GPIO (which is in PBCMASK), and just see if any interrupts are pending
+/// through the INTERRUPT_COUNT variable.
 pub fn deep_sleep_ready() -> bool {
     unsafe {
         (*PM).hsbmask.get() & !(DEEP_SLEEP_HSBMASK) == 0 &&
         (*PM).pbamask.get() & !(DEEP_SLEEP_PBAMASK) == 0 &&
         (*PM).pbbmask.get() & !(DEEP_SLEEP_PBBMASK) == 0 &&
-        (*PM).pbcmask.get() & !(DEEP_SLEEP_PBCMASK) == 0
+        gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0
     }
 }
 

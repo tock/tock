@@ -4,6 +4,7 @@ use self::Pin::*;
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
+use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::common::VolatileCell;
 use kernel::hil;
 use nvic;
@@ -78,6 +79,18 @@ pub enum PeripheralFunction {
 
 const BASE_ADDRESS: usize = 0x400E1000;
 const SIZE: usize = 0x200;
+
+/// Reference count for the number of GPIO interrupts currently active.
+///
+/// This is used to determine if it's possible for the SAM4L to go into
+/// WAIT/RETENTION mode, since those modes will not be woken up by GPIO
+/// interrupts.
+///
+/// This is an `AtomicUsize` because it has to be a `Sync` type to live in a
+/// global---Rust has no way of knowing we're not going to use it across
+/// threads. Use `Ordering::Relaxed` when reading/writing the value to get LLVM
+/// to just use plain loads and stores instead of atomic operations.
+pub static INTERRUPT_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 /// Name of the GPIO pin on the SAM4L.
 ///
@@ -394,17 +407,23 @@ impl GPIOPin {
     pub fn enable_interrupt(&self) {
         unsafe {
             let port: &mut Registers = mem::transmute(self.port);
-            nvic::enable(self.nvic);
-            port.ier.set.set(self.pin_mask);
+            if port.ier.val.get() & self.pin_mask == 0 {
+                INTERRUPT_COUNT.fetch_add(1, Ordering::Relaxed);
+                nvic::enable(self.nvic);
+                port.ier.set.set(self.pin_mask);
+            }
         }
     }
 
     pub fn disable_interrupt(&self) {
         let port: &mut Registers = unsafe { mem::transmute(self.port) };
-        port.ier.clear.set(self.pin_mask);
-        if port.ier.val.get() == 0 {
-            unsafe {
-                nvic::disable(self.nvic);
+        if port.ier.val.get() & self.pin_mask != 0 {
+            INTERRUPT_COUNT.fetch_sub(1, Ordering::Relaxed);
+            port.ier.clear.set(self.pin_mask);
+            if port.ier.val.get() == 0 {
+                unsafe {
+                    nvic::disable(self.nvic);
+                }
             }
         }
     }
