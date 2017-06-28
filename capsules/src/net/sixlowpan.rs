@@ -529,6 +529,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
 
         while is_next && bytes_left > 0 {
 
+            // TODO: IPv6 encapsulation not properly implemented; this function
+            // will not be called if IPv6 packet is next, and the while loop
+            // does not behave as desired.
             if header_type == ip6_nh::IP6 {
                 // TODO: Recursion whoo!
                 return; // Should be entirely done
@@ -545,7 +548,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             nhc_header |= ip6_nh_to_nhc_eid(header_type).unwrap();
 
             // Get next header
-            let next_header_offset: usize = header_len as usize;
+            let next_header_offset: usize = header_offset + header_len as usize;
             let next_header_type = next_headers[next_header_offset]; 
             let next_header_len = self.get_header_size(next_headers, 
                                                        next_header_offset, 
@@ -561,9 +564,11 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 }
             }
             // Set nhc header and header len
+            // TODO: Don't copy over len if fragment
             buf[*offset] = nhc_header;
             buf[*offset + 1] = header_len as u8;
             *offset += 2;
+            bytes_left -= 2;
 
             // TODO: Additional (optional) compression defined in RFC (pad elision)
             
