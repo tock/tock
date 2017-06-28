@@ -195,10 +195,29 @@ clean::
 
 
 # Rules for running the C linter
+FORMATTED_FILES := $(patsubst %.c,$(BUILDDIR)/format/%.uncrustify,$(C_SRCS))
+FORMATTED_FILES += $(patsubst %.cc,$(BUILDDIR)/format/%.uncrustify,$(filter %.cc, $(CXX_SRCS)))
+FORMATTED_FILES += $(patsubst %.cpp,$(BUILDDIR)/format/%.uncrustify,$(filter %.cpp, $(CXX_SRCS)))
+FORMATTED_FILES += $(patsubst %.cxx,$(BUILDDIR)/format/%.uncrustify,$(filter %.cxx, $(CXX_SRCS)))
+
+$(BUILDDIR)/format:
+	@mkdir -p $@
 
 .PHONY: fmt format
-fmt format::
-	$(Q)$(UNCRUSTIFY) $(C_SRCS) $(CXX_SRCS)
+fmt format:: $(FORMATTED_FILES)
+
+$(BUILDDIR)/format/%.uncrustify: %.c
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" == "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$(BUILDDIR)/format/%.uncrustify: %.cc
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" == "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$(BUILDDIR)/format/%.uncrustify: %.cpp
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" == "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$(BUILDDIR)/format/%.uncrustify: %.cxx
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" == "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
 
 
 

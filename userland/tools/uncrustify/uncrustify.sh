@@ -83,15 +83,4 @@ fi
 set +e
 
 COMMON_FLAGS="-c $SCRIPT_DIR/uncrustify.cfg"
-if [ "$CI" == "true" ]; then
-  uncrustify $COMMON_FLAGS --check "$@"
-  if [ $? -ne 0 ]; then
-    uncrustify $COMMON_FLAGS --if-changed "$@"
-    for f in $(ls *.uncrustify); do
-      diff -y ${f%.*} $f
-    done
-    exit 1
-  fi
-else
-  exec uncrustify $COMMON_FLAGS --no-backup "$@"
-fi
+exec uncrustify $COMMON_FLAGS "$@"

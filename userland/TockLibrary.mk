@@ -160,9 +160,17 @@ $(eval $(call CLEAN_RULE,$($(LIBNAME)_BUILDDIR)))
 
 
 # Rules for running the C linter
-define FORMAT_RULE
+$(LIBNAME)_FORMATTED_FILES := $(patsubst %.c,$($(LIBNAME)_BUILDDIR)/format/%.uncrustify,$(filter %.c, $($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_FORMATTED_FILES += $(patsubst %.cc,$($(LIBNAME)_BUILDDIR)/format/%.uncrustify,$(filter %.cc, $($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_FORMATTED_FILES += $(patsubst %.cpp,$($(LIBNAME)_BUILDDIR)/format/%.uncrustify,$(filter %.cpp, $($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_FORMATTED_FILES += $(patsubst %.cxx,$($(LIBNAME)_BUILDDIR)/format/%.uncrustify,$(filter %.cxx, $($(LIBNAME)_SRCS_FLAT)))
+
+$($(LIBNAME)_BUILDDIR)/format:
+	@mkdir -p $@
+
 .PHONY: fmt format
-fmt format::
-	$(Q)$(UNCRUSTIFY) $(1)
-endef
-$(eval $(call FORMAT_RULE,$($(LIBNAME)_SRCS)))
+fmt format:: $($(LIBNAME)_FORMATTED_FILES)
+
+$($(LIBNAME)_BUILDDIR)/format/%.uncrustify: %.c
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" == "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
