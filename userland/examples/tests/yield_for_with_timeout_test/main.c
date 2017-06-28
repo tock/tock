@@ -13,14 +13,14 @@ int main(void) {
     bool done = false;
     timer_in(1500, timer_cb, &done);
 
-    int ret = yield_for_timeout(&done, 1000);
+    int ret = yield_for_with_timeout(&done, 1000);
     if (ret == TOCK_SUCCESS) {
       led_on(0);
     } else {
       led_off(0);
     }
 
-    ret = yield_for_timeout(&done, 1000);
+    ret = yield_for_with_timeout(&done, 1000);
     if (ret == TOCK_SUCCESS) {
       led_on(0);
     } else {

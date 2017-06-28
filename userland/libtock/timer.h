@@ -82,7 +82,7 @@ void delay_ms(uint32_t ms);
  * \param ms the amount of time before returning without the condition.
  * \return An error code. Either TOCK_SUCCESS or TOCK_FAIL for timeout.
  */
-int yield_for_timeout(bool* cond, uint32_t ms);
+int yield_for_with_timeout(bool* cond, uint32_t ms);
 
 
 #ifdef __cplusplus
