@@ -12,6 +12,7 @@ use i2c;
 use kernel::Chip;
 use kernel::common::{RingBuffer, Queue};
 use nvic;
+use pm;
 use spi;
 use trng;
 use usart;
@@ -151,5 +152,17 @@ impl Chip for Sam4l {
 
     fn systick(&self) -> &cortexm4::systick::SysTick {
         self.systick
+    }
+
+    fn prepare_for_sleep(&self) {
+        if pm::deep_sleep_ready() {
+            unsafe {
+                cortexm4::scb::set_sleepdeep();
+            }
+        } else {
+            unsafe {
+                cortexm4::scb::unset_sleepdeep();
+            }
+        }
     }
 }

@@ -73,6 +73,17 @@ void timer_cancel(timer_repeating_t*);
  */
 void delay_ms(uint32_t ms);
 
+/** \brief Functions as yield_for with a timeout.
+ *
+ * This yields on a condition variable, but will return early
+ * if that condition is not met before the timeout in milliseconds. 
+ *
+ * \param cond the condition to yield_for.
+ * \param ms the amount of time before returning without the condition.
+ * \return An error code. Either TOCK_SUCCESS or TOCK_FAIL for timeout.
+ */
+int yield_for_with_timeout(bool* cond, uint32_t ms);
+
 
 #ifdef __cplusplus
 }
