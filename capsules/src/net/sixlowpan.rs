@@ -2,42 +2,8 @@
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
 
 use net::ip::{IP6Header, IP6, MacAddr, IPAddr, IP6Proto};
+use net::util;
 use core::result::Result;
-
-pub struct Context<'a> {
-    prefix: &'a [u8],
-    prefix_len: u8,
-    id: u8,
-    compress: bool,
-}
-
-pub trait ContextStore<'a> {
-    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>>;
-    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context<'a>>;
-    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context<'a>>;
-}
-
-pub struct DummyStore {
-}
-
-impl<'a> ContextStore<'a> for DummyStore {
-    // TODO: Implement these.
-    // Note: these should also check if the mesh local prefix is matched
-
-    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>> {
-        None
-    }
-
-    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context<'a>> {
-        None
-    }
-
-    fn get_context_from_prefix(&self,
-                               prefix: &[u8],
-                               prefix_len: u8) -> Option<Context<'a>> {
-        None
-    }
-}
 
 mod iphc {
     pub const DISPATCH: [u8; 2]    = [0x60, 0x00];
@@ -80,10 +46,9 @@ mod iphc {
     // Address compression
     pub const MAC_BASE: [u8; 8] = [0x00, 0x00, 0x00, 0xff, 0xfe, 0x00, 0x00, 0x00];
     pub const MAC_UL: u8 = 0x02;
-
 }
 
-pub mod nhc {
+mod nhc {
     pub const DISPATCH: u8 = 0xe0;
 
     pub const HOP_OPTS: u8 = 0 << 1;
@@ -94,8 +59,47 @@ pub mod nhc {
     pub const IP6: u8      = 7 << 1;
 }
 
-/// Utility function to compute the LoWPAN Interface Identifier from either the
-/// 16-bit short MAC or the IEEE EUI-64 that is derived from the 48-bit MAC.
+pub struct Context<'a> {
+    prefix: &'a [u8],
+    prefix_len: u8,
+    id: u8,
+    compress: bool,
+}
+
+pub trait ContextStore<'a> {
+    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>>;
+    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context<'a>>;
+    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context<'a>>;
+}
+
+pub struct DummyStore {
+}
+
+impl<'a> ContextStore<'a> for DummyStore {
+    // TODO: Implement these.
+    // Note: these should also check if the mesh local prefix is matched
+
+    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>> {
+        None
+    }
+
+    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context<'a>> {
+        None
+    }
+
+    fn get_context_from_prefix(&self,
+                               prefix: &[u8],
+                               prefix_len: u8) -> Option<Context<'a>> {
+        None
+    }
+}
+
+pub struct FragInfo {
+    dummy: u8,
+}
+
+/// Computes the LoWPAN Interface Identifier from either the 16-bit short MAC or
+/// the IEEE EUI-64 that is derived from the 48-bit MAC.
 fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
     match mac_addr {
         &MacAddr::ShortAddr(short_addr) => {
@@ -114,44 +118,9 @@ fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
     }
 }
 
-/// Utility function that verifies that all bits beyond prefix_len in the slice
-/// are zero
-fn verify_prefix_len(prefix: &[u8], prefix_len: u8) -> bool {
-    let bytes: u8 = (prefix_len / 8) + ((prefix_len & 0x7 != 0) as u8);
-    if bytes as usize > prefix.len() {
-        return false;
-    }
-
-    // Ensure that the bits between the prefix and the next byte boundary are 0
-    if prefix_len != bytes * 8 {
-        let partial_byte_mask = (0x1 << (bytes * 8 - prefix_len)) - 1;
-        if prefix[(prefix_len / 8) as usize] & partial_byte_mask != 0 {
-            return false;
-        }
-    }
-
-    // Ensure that the remaining bytes are also 0
-    for i in (bytes as usize)..prefix.len() {
-        if prefix[i] != 0 {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-/// Utility function that verifies that all bytes are zero
-fn is_zero(buf: &[u8]) -> bool {
-    for i in 0..buf.len() {
-        if buf[i] != 0 {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-fn ip6_proto_to_nhc_eid(next_header: u8) -> Option<u8> {
+/// Maps values of a IPv6 next header field to a corresponding LoWPAN
+/// NHC-encoding extension ID
+fn ip6_nh_to_nhc_eid(next_header: u8) -> Option<u8> {
     match next_header {
         IP6Proto::HOP_OPTS => Some(nhc::HOP_OPTS),
         IP6Proto::ROUTING  => Some(nhc::ROUTING),
@@ -159,6 +128,20 @@ fn ip6_proto_to_nhc_eid(next_header: u8) -> Option<u8> {
         IP6Proto::DST_OPTS => Some(nhc::DST_OPTS),
         IP6Proto::MOBILITY => Some(nhc::MOBILITY),
         IP6Proto::IP6      => Some(nhc::IP6),
+        _ => None,
+    }
+}
+
+/// Maps LoWPAN NHC-encoded EIDs to the corresponding IPv6 next header
+/// field value
+fn nhc_eid_to_ip6_nh(eid: u8) -> Option<u8> {
+    match eid {
+        nhc::HOP_OPTS => Some(IP6Proto::HOP_OPTS),
+        nhc::ROUTING  => Some(IP6Proto::ROUTING),
+        nhc::FRAGMENT => Some(IP6Proto::FRAGMENT),
+        nhc::DST_OPTS => Some(IP6Proto::DST_OPTS),
+        nhc::MOBILITY => Some(IP6Proto::MOBILITY),
+        nhc::IP6      => Some(IP6Proto::IP6),
         _ => None,
     }
 }
@@ -193,7 +176,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             if IP6::addr_is_multicast(&ip6_header.dst_addr) {
                 let prefix_len: u8 = ip6_header.dst_addr[3];
                 let prefix: &[u8] = &ip6_header.dst_addr[4..12];
-                if verify_prefix_len(prefix, prefix_len) {
+                if util::verify_prefix_len(prefix, prefix_len) {
                     // TODO: Also check if the prefix matches context 0 (mesh-local prefix)
                     self.ctx_store.get_context_from_prefix(prefix, prefix_len)
                 } else {
@@ -310,7 +293,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                    ip6_header: &IP6Header,
                    buf: &'static mut [u8],
                    offset: &mut usize) {
-        if ip6_proto_to_nhc_eid(ip6_header.next_header).is_some() {
+        if ip6_nh_to_nhc_eid(ip6_header.next_header).is_some() {
             buf[0] |= iphc::NH;
         } else {
             buf[*offset] = ip6_header.next_header;
@@ -432,18 +415,18 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             *offset += 6;
         } else {
             // M = 1, DAC = 0
-            if dst_ip_addr[1] == 0x02 && is_zero(&dst_ip_addr[2..15]) {
+            if dst_ip_addr[1] == 0x02 && util::is_zero(&dst_ip_addr[2..15]) {
                 // DAM = 11
                 buf[1] |= iphc::DAM_MODE3;
                 buf[*offset] = dst_ip_addr[15];
                 *offset += 1;
             } else {
-                if !is_zero(&dst_ip_addr[2..11]) {
+                if !util::is_zero(&dst_ip_addr[2..11]) {
                     // DAM = 00
                     buf[1] |= iphc::DAM_INLINE;
                     buf[*offset..*offset + 16].copy_from_slice(dst_ip_addr);
                     *offset += 16;
-                } else if !is_zero(&dst_ip_addr[11..13]) {
+                } else if !util::is_zero(&dst_ip_addr[11..13]) {
                     // DAM = 01, ffXX::00XX:XXXX:XXXX
                     buf[1] |= iphc::DAM_MODE1;
                     buf[*offset] = dst_ip_addr[1];
@@ -472,5 +455,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       dst_mac_addr: MacAddr,
                       mesh_local_prefix: &[u8])
                       -> Result<(IP6Header, usize, Option<FragInfo>), ()> {
+        Err(())
     }
 }
