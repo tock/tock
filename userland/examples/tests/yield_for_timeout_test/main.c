@@ -20,7 +20,7 @@ int main(void) {
       led_off(0);
     }
 
-    ret = yield_for_timeout(&done, 2000);
+    ret = yield_for_timeout(&done, 1000);
     if(ret == TOCK_SUCCESS) {
       led_on(0);
     } else {

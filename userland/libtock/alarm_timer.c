@@ -242,7 +242,6 @@ void delay_ms(uint32_t ms) {
   yield_for(&cond);
 }
 
-
 int yield_for_timeout(bool* cond, uint32_t ms) {
   void yield_for_timeout_cb(__attribute__ ((unused)) int unused0,
                             __attribute__ ((unused)) int unused1,
@@ -252,10 +251,9 @@ int yield_for_timeout(bool* cond, uint32_t ms) {
   }
 
   bool timeout = false;
-  timer_in(ms, yield_for_timeout_cb, &timeout);
+  alarm_t* a = timer_in(ms, yield_for_timeout_cb, &timeout);
 
   while(!*cond) {
-
     if(timeout) {
       return TOCK_FAIL;
     }
@@ -263,5 +261,6 @@ int yield_for_timeout(bool* cond, uint32_t ms) {
     yield();
   }
 
+  alarm_cancel(a);
   return TOCK_SUCCESS;
 }
