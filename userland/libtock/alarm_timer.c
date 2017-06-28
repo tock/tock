@@ -251,10 +251,10 @@ int yield_for_timeout(bool* cond, uint32_t ms) {
   }
 
   bool timeout = false;
-  alarm_t* a = timer_in(ms, yield_for_timeout_cb, &timeout);
+  alarm_t* a   = timer_in(ms, yield_for_timeout_cb, &timeout);
 
-  while(!*cond) {
-    if(timeout) {
+  while (!*cond) {
+    if (timeout) {
       return TOCK_FAIL;
     }
 
