@@ -9,6 +9,7 @@ extern crate kernel;
 extern crate sam4l;
 
 use capsules::rf233::RF233;
+#[allow(unused_imports)]
 use capsules::net::sixlowpan;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
