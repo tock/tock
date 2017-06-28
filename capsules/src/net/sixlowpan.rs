@@ -39,10 +39,7 @@ impl<'a> ContextStore<'a> for DummyStore {
     }
 }
 
-pub mod lowpan_iphc {
-    use net::ip::MacAddr;
-    use net::ip::MacAddr::*;
-
+mod iphc {
     pub const DISPATCH: [u8; 2]    = [0x60, 0x00];
 
     // First byte masks
@@ -67,9 +64,9 @@ pub mod lowpan_iphc {
 
     pub const SAM_MASK: u8         = 0x30;
     pub const SAM_INLINE: u8       = 0x00;
-    pub const SAM_64: u8           = 0x10;
-    pub const SAM_16: u8           = 0x20;
-    pub const SAM_0: u8            = 0x30;
+    pub const SAM_MODE1: u8           = 0x10;
+    pub const SAM_MODE2: u8           = 0x20;
+    pub const SAM_MODE3: u8            = 0x30;
 
     pub const MULTICAST: u8        = 0x01;
 
@@ -84,63 +81,9 @@ pub mod lowpan_iphc {
     pub const MAC_BASE: [u8; 8] = [0x00, 0x00, 0x00, 0xff, 0xfe, 0x00, 0x00, 0x00];
     pub const MAC_UL: u8 = 0x02;
 
-    pub fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
-        match mac_addr {
-            &ShortAddr(short_addr) => {
-                // IID is 0000:00ff:fe00:XXXX, where XXXX is 16-bit MAC
-                let mut iid: [u8; 8] = MAC_BASE;
-                iid[6] = (short_addr >> 1) as u8;
-                iid[7] = (short_addr & 0xff) as u8;
-                iid
-            },
-            &LongAddr(long_addr) => {
-                // IID is IEEE EUI-64 with universal/local bit inverted
-                let mut iid: [u8; 8] = long_addr;
-                long_addr[0] ^= MAC_UL;
-                iid
-            }
-        }
-    }
-
-    /// Utility function that verifies that all bits beyond prefix_len in the
-    /// slice are zero
-    pub fn verify_prefix_len(prefix: &[u8], prefix_len: u8) -> bool {
-        let bytes: u8 = (prefix_len / 8) + ((prefix_len & 0x7 != 0) as u8);
-        if bytes as usize > prefix.len() {
-            return false;
-        }
-
-        // Ensure that the bits between the prefix and the next byte boundary are 0
-        if prefix_len != bytes * 8 {
-            let partial_byte_mask = (0x1 << (bytes * 8 - prefix_len)) - 1;
-            if prefix[(prefix_len / 8) as usize] & partial_byte_mask != 0 {
-                return false;
-            }
-        }
-
-        // Ensure that the remaining bytes are also 0
-        for i in (bytes as usize)..prefix.len() {
-            if prefix[i] != 0 {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /// Utility function that verifies that all bytes are zero
-    pub fn is_zero(buf: &[u8]) -> bool {
-        for i in 0..buf.len() {
-            if buf[i] != 0 {
-                return false;
-            }
-        }
-
-        return true;
-    }
 }
 
-pub mod lowpan_nhc {
+pub mod nhc {
     pub const DISPATCH: u8 = 0xe0;
 
     pub const HOP_OPTS: u8 = 0 << 1;
@@ -149,6 +92,75 @@ pub mod lowpan_nhc {
     pub const DST_OPTS: u8 = 3 << 1;
     pub const MOBILITY: u8 = 4 << 1;
     pub const IP6: u8      = 7 << 1;
+}
+
+/// Utility function to compute the LoWPAN Interface Identifier from either the
+/// 16-bit short MAC or the IEEE EUI-64 that is derived from the 48-bit MAC.
+fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
+    match mac_addr {
+        &MacAddr::ShortAddr(short_addr) => {
+            // IID is 0000:00ff:fe00:XXXX, where XXXX is 16-bit MAC
+            let mut iid: [u8; 8] = iphc::MAC_BASE;
+            iid[6] = (short_addr >> 1) as u8;
+            iid[7] = (short_addr & 0xff) as u8;
+            iid
+        },
+        &MacAddr::LongAddr(long_addr) => {
+            // IID is IEEE EUI-64 with universal/local bit inverted
+            let mut iid: [u8; 8] = long_addr;
+            long_addr[0] ^= iphc::MAC_UL;
+            iid
+        }
+    }
+}
+
+/// Utility function that verifies that all bits beyond prefix_len in the slice
+/// are zero
+fn verify_prefix_len(prefix: &[u8], prefix_len: u8) -> bool {
+    let bytes: u8 = (prefix_len / 8) + ((prefix_len & 0x7 != 0) as u8);
+    if bytes as usize > prefix.len() {
+        return false;
+    }
+
+    // Ensure that the bits between the prefix and the next byte boundary are 0
+    if prefix_len != bytes * 8 {
+        let partial_byte_mask = (0x1 << (bytes * 8 - prefix_len)) - 1;
+        if prefix[(prefix_len / 8) as usize] & partial_byte_mask != 0 {
+            return false;
+        }
+    }
+
+    // Ensure that the remaining bytes are also 0
+    for i in (bytes as usize)..prefix.len() {
+        if prefix[i] != 0 {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/// Utility function that verifies that all bytes are zero
+fn is_zero(buf: &[u8]) -> bool {
+    for i in 0..buf.len() {
+        if buf[i] != 0 {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+fn ip6_proto_to_nhc_eid(next_header: u8) -> Option<u8> {
+    match next_header {
+        IP6Proto::HOP_OPTS => Some(nhc::HOP_OPTS),
+        IP6Proto::ROUTING  => Some(nhc::ROUTING),
+        IP6Proto::FRAGMENT => Some(nhc::FRAGMENT),
+        IP6Proto::DST_OPTS => Some(nhc::DST_OPTS),
+        IP6Proto::MOBILITY => Some(nhc::MOBILITY),
+        IP6Proto::IP6      => Some(nhc::IP6),
+        _ => None,
+    }
 }
 
 pub struct LoWPAN<'a, C: ContextStore<'a> + 'a> {
@@ -173,7 +185,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let mut offset: usize = 2;
 
         // Initialize the LOWPAN_IPHC header
-        buf[0..2].copy_from_slice(&lowpan_iphc::DISPATCH);
+        buf[0..2].copy_from_slice(&iphc::DISPATCH);
 
         let mut src_ctx: Option<Context> =
             self.ctx_store.get_context_from_addr(ip6_header.src_addr);
@@ -181,7 +193,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             if IP6::addr_is_multicast(&ip6_header.dst_addr) {
                 let prefix_len: u8 = ip6_header.dst_addr[3];
                 let prefix: &[u8] = &ip6_header.dst_addr[4..12];
-                if lowpan_iphc::verify_prefix_len(prefix, prefix_len) {
+                if verify_prefix_len(prefix, prefix_len) {
                     // TODO: Also check if the prefix matches context 0 (mesh-local prefix)
                     self.ctx_store.get_context_from_prefix(prefix, prefix_len)
                 } else {
@@ -235,7 +247,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         });
 
         if cie != 0 {
-            buf[1] |= lowpan_iphc::CID;
+            buf[1] |= iphc::CID;
             buf[*offset] = cie;
             *offset += 1;
         }
@@ -262,7 +274,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // Flow label is all zeroes and can be elided
         if flow[0] == 0 && flow[1] == 0 && flow[2] == 0 {
             // The 1X cases
-            tf_encoding |= lowpan_iphc::TF_FLOW_LABEL;
+            tf_encoding |= iphc::TF_FLOW_LABEL;
         }
 
         // DSCP can be elided, but ECN elided only if flow also elided
@@ -276,7 +288,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 buf[*offset + 2] = flow[2];
                 *offset += 3;
             }
-            tf_encoding |= lowpan_iphc::TF_TRAFFIC_CLASS;
+            tf_encoding |= iphc::TF_TRAFFIC_CLASS;
         // X0 cases
         } else {
             // If DSCP cannot be elided
@@ -294,24 +306,12 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         buf[0] |= tf_encoding;
     }
 
-    fn ip6_proto_to_nhc_eid(next_header: u8) -> Option<u8> {
-        match next_header {
-            IP6Proto::HOP_OPTS => Some(lowpan_nhc::HOP_OPTS),
-            IP6Proto::ROUTING  => Some(lowpan_nhc::ROUTING),
-            IP6Proto::FRAGMENT => Some(lowpan_nhc::FRAGMENT),
-            IP6Proto::DST_OPTS => Some(lowpan_nhc::DST_OPTS),
-            IP6Proto::MOBILITY => Some(lowpan_nhc::MOBILITY),
-            IP6Proto::IP6      => Some(lowpan_nhc::IP6),
-            _ => None,
-        }
-    }
-
     fn compress_nh(&self,
                    ip6_header: &IP6Header,
                    buf: &'static mut [u8],
                    offset: &mut usize) {
-        if LoWPAN::ip6_proto_to_nhc_eid(ip6_header.next_header).is_some() {
-            buf[0] |= lowpan_iphc::NH;
+        if ip6_proto_to_nhc_eid(ip6_header.next_header).is_some() {
+            buf[0] |= iphc::NH;
         } else {
             buf[*offset] = ip6_header.next_header;
             *offset += 1;
@@ -325,14 +325,14 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let hop_limit_flag = {
             match ip6_header.hop_limit {
                 // Compressed
-                1   => lowpan_iphc::HLIM_1,
-                64  => lowpan_iphc::HLIM_64, 
-                255 => lowpan_iphc::HLIM_255,
+                1   => iphc::HLIM_1,
+                64  => iphc::HLIM_64,
+                255 => iphc::HLIM_255,
                 // Uncompressed
                 _   => {
                     buf[*offset] = ip6_header.hop_limit;
                     *offset += 1;
-                    lowpan_iphc::HLIM_INLINE
+                    iphc::HLIM_INLINE
                 },
             }
         };
@@ -350,13 +350,13 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     offset: &mut usize) {
         if IP6::addr_is_unspecified(src_ip_addr) {
             // SAC = 1, SAM = 00
-            buf[1] |= lowpan_iphc::SAC;
+            buf[1] |= iphc::SAC;
         } else if IP6::addr_is_link_local(src_ip_addr) {
             // SAC = 0, SAM = 01, 10, 11
             self.compress_iid(src_ip_addr, src_mac_addr, true, buf, offset);
         } else if src_ctx.is_some() {
             // SAC = 1, SAM = 01, 10, 11
-            buf[1] |= lowpan_iphc::SAC;
+            buf[1] |= iphc::SAC;
             self.compress_iid(src_ip_addr, src_mac_addr, true, buf, offset);
         } else {
             // SAC = 0, SAM = 00
@@ -368,33 +368,21 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     fn compress_iid(&self,
                     ip_addr: &IPAddr,
                     mac_addr: &MacAddr,
-                    is_src_addr: bool,
+                    is_src: bool,
                     buf: &'static mut [u8],
                     offset: &mut usize) {
-        let iid: [u8; 8] = lowpan_iphc::compute_iid(mac_addr);
+        let iid: [u8; 8] = compute_iid(mac_addr);
         if ip_addr[8..16] == iid {
-            // SAM/DAM = 11
-            buf[1] |= if is_src_addr {
-                lowpan_iphc::SAM_0
-            } else {
-                lowpan_iphc::DAM_MODE3
-            };
-        } else if ip_addr[8..14] == lowpan_iphc::MAC_BASE[0..6] {
-            // SAM/DAM = 10
-            buf[1] |= if is_src_addr {
-                lowpan_iphc::SAM_16
-            } else {
-                lowpan_iphc::DAM_MODE2
-            };
+            // SAM/DAM = 11, 0 bits
+            buf[1] |= if is_src { iphc::SAM_MODE3 } else { iphc::DAM_MODE3 };
+        } else if ip_addr[8..14] == iphc::MAC_BASE[0..6] {
+            // SAM/DAM = 10, 16 bits
+            buf[1] |= if is_src { iphc::SAM_MODE2 } else { iphc::DAM_MODE2 };
             buf[*offset..*offset + 2].copy_from_slice(&ip_addr[14..16]);
             *offset += 2;
         } else {
-            // SAM/DAM = 01
-            buf[1] |= if is_src_addr {
-                lowpan_iphc::SAM_64
-            } else {
-                lowpan_iphc::DAM_MODE1
-            };
+            // SAM/DAM = 01, 64 bits
+            buf[1] |= if is_src { iphc::SAM_MODE1 } else { iphc::DAM_MODE1 };
             buf[*offset..*offset + 8].copy_from_slice(&ip_addr[8..16]);
             *offset += 8;
         }
@@ -418,7 +406,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         } else if dst_ctx.is_some() {
             // Context compression
             // DAC = 1, DAM = 01, 10, 11
-            buf[1] |= lowpan_iphc::DAC;
+            buf[1] |= iphc::DAC;
             self.compress_iid(dst_ip_addr, dst_mac_addr, false, buf, offset);
         } else {
             // Full address inline
@@ -435,35 +423,35 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                           buf: &'static mut [u8],
                           offset: &mut usize) {
         // Assumes dst_ip_addr is indeed a multicast address (prefix ffXX)
-        buf[1] |= lowpan_iphc::MULTICAST;
+        buf[1] |= iphc::MULTICAST;
         if dst_ctx.is_some() {
             // M = 1, DAC = 1, DAM = 00
-            buf[1] |= lowpan_iphc::DAC;
+            buf[1] |= iphc::DAC;
             buf[*offset..*offset + 2].copy_from_slice(&dst_ip_addr[1..3]);
             buf[*offset + 2..*offset + 6].copy_from_slice(&dst_ip_addr[12..16]);
             *offset += 6;
         } else {
             // M = 1, DAC = 0
-            if dst_ip_addr[1] == 0x02 && lowpan_iphc::is_zero(&dst_ip_addr[2..15]) {
+            if dst_ip_addr[1] == 0x02 && is_zero(&dst_ip_addr[2..15]) {
                 // DAM = 11
-                buf[1] |= lowpan_iphc::DAM_MODE3;
+                buf[1] |= iphc::DAM_MODE3;
                 buf[*offset] = dst_ip_addr[15];
                 *offset += 1;
             } else {
-                if !lowpan_iphc::is_zero(&dst_ip_addr[2..11]) {
+                if !is_zero(&dst_ip_addr[2..11]) {
                     // DAM = 00
-                    buf[1] |= lowpan_iphc::DAM_INLINE;
+                    buf[1] |= iphc::DAM_INLINE;
                     buf[*offset..*offset + 16].copy_from_slice(dst_ip_addr);
                     *offset += 16;
-                } else if !lowpan_iphc::is_zero(&dst_ip_addr[11..13]) {
+                } else if !is_zero(&dst_ip_addr[11..13]) {
                     // DAM = 01, ffXX::00XX:XXXX:XXXX
-                    buf[1] |= lowpan_iphc::DAM_MODE1;
+                    buf[1] |= iphc::DAM_MODE1;
                     buf[*offset] = dst_ip_addr[1];
                     buf[*offset + 1..*offset + 6].copy_from_slice(&dst_ip_addr[11..16]);
                     *offset += 6;
                 } else {
                     // DAM = 10, ffXX::00XX:XXXX
-                    buf[1] |= lowpan_iphc::DAM_MODE2;
+                    buf[1] |= iphc::DAM_MODE2;
                     buf[*offset] = dst_ip_addr[1];
                     buf[*offset + 1..*offset + 4].copy_from_slice(&dst_ip_addr[13..16]);
                     *offset += 4;
