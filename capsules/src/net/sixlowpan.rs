@@ -94,6 +94,7 @@ pub mod lowpan_iphc {
 }
 
 pub mod lowpan_nhc {
+    pub type NHC_HEADER = u8;
     pub const DISPATCH: u8 = 0xe0;
 
     pub const HOP_OPTS: u8 = 0 << 1;
@@ -119,6 +120,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     /// 16-bit MAC addresses.  Returns the number of bytes written into `buf`.
     pub fn compress(&self,
                     ip6_header: &IP6Header,
+                    next_headers: &'static [u8],
                     src_mac_addr: MacAddr,
                     dest_mac_addr: MacAddr,
                     buf: &'static mut [u8]) -> usize {
@@ -153,8 +155,15 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // Destination Address
         self.compress_dst(&ip6_header.dst_addr, &dst_mac_addr, &dst_ctx, buf, &mut offset);
 
+        // Next Headers
+        if buf[0] & lowpan_iphc::NH != 0 {
+            // Next header flag is set
+
+        }
+
         offset
     }
+
 
     fn compress_cie(&self,
                     src_ctx: &Option<Context>,
@@ -242,6 +251,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
+    // TODO: Need to check that next header len <= 255; otherwise can't compress
     fn compress_nh(&self,
                    ip6_header: &IP6Header,
                    buf: &'static mut [u8],
@@ -368,7 +378,116 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
-    fn compress_multicast (&self);
+    //fn compress_multicast (&self);
+
+    fn get_header_size(&self,
+                       next_headers: &'static [u8],
+                       nh_offset: usize,
+                       header_type: u8) -> u32 {
+        // The length is initially in octets of 8, discounting the first 8-octet
+        // We want it to count all bytes *after* the len field
+        let mut header_len = 6;
+        if (header_type == IP6Proto::HOP_OPTS || header_type == IP6Proto::ROUTING
+                || header_type == IP6Proto::DST_OPTS 
+                || header_type == IP6Proto::MOBILITY) {
+            // If nh_offset +1 is not a valid index
+            if next_headers.len() < nh_offset + 2 {
+                // TODO: Error
+            }
+            header_len += next_headers[nh_offset + 1] * 8;
+        }
+        // Size in bytes after the length field
+        return header_len;
+    }
+
+    fn is_next_header(&self,
+                      header_type: u8,
+                      header_len: u32) -> bool {
+
+        // Note that for UDP, we do not check the length
+        match header_type {
+            IP6Proto::TCP | IP6Proto:: ICMP => return false,
+            IP6Proto::UDP => return true,
+            IP6Proto::HOP_OPTS | IP6Proto::IP6 | IP6Proto::ROUTING 
+                | IP6Proto::FRAGMENT | IP6Proto::DST_OPTS 
+                | IP6Proto::MOBILITY => {
+                    if header_len > 255 {
+                        return false
+                    } else {
+                        return true
+                    }
+                },
+            // TODO: What to do if unknown next header type?
+            _ => return false,
+        }
+    }
+
+    fn compress_next_headers(&self,
+                             ip6_header: &IP6Header,
+                             next_headers: &'static [u8],
+                             buf: &'static mut [u8],
+                             offset: &mut usize) {
+
+        let mut bytes_left = next_headers.len();
+        let mut header_offset = 0;
+        // TODO: Handle error case
+        let mut header_type = ip6_header.next_header;
+        let mut header_len = self.get_header_size(next_headers, header_offset, header_type);
+        // The correctness of the first header should already have been checked
+        let mut is_next = true;
+
+        while is_next && bytes_left > 0 {
+
+            if header_type == IP6Proto::IP6 {
+                // TODO: Recursion whoo!
+                return; // Should be entirely done
+            }
+            if header_len > bytes_left {
+                // TODO: Error
+            }
+            if header_len > 255 {
+                // TODO: Can't compress
+            }
+
+            let mut nhc_header: lowpan_nhc::NHC_HEADER = 0;
+            // TODO: Unwrap/error check
+            nhc_header |= self.ip6_proto_to_nhc_eid(header_type);
+
+            // Get next header
+            let next_header_offset = header_len;
+            let next_header_type = next_headers[next_header_offset]; 
+            let next_header_len = self.get_header_size(next_headers, 
+                                                       next_header_offset, 
+                                                       next_header_type);
+
+            is_next = self.is_next_header(next_header_type, next_header_len);
+            if is_next {
+                nhc_header |= 0b10000000; // Set next header bit, TODO: Make constant
+                if next_header_type == IP6Proto::UDP {
+                    // TODO: Compress UDP, return?
+                    // ?
+                    is_next = false;
+                }
+            }
+            // Set nhc header and header len
+            buf[offset] = nhc_header;
+            buf[offset + 1] = (header_len as u8);
+            offset += 2;
+
+            // TODO: Additional (optional) compression defined in RFC (pad elision)
+            
+            // Copy over the remaining packet data
+            for i: usize in 0..header_len {
+                buf[offset] = next_header[header_offset + i];
+                offset += 1;
+            }
+
+            bytes_left -= header_len;
+            header_type = next_header_type;
+            header_offset = next_header_offset;
+            header_len = next_header_len;
+        }
+    }
 
     /// Decodes the compressed header into a full IPv6 header given the 16-bit
     /// MAC addresses. `buf` is expected to be a slice starting from the

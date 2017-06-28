@@ -34,6 +34,8 @@ pub mod IP6Proto {
     pub const IP6: u8      = 41;
     pub const ROUTING: u8  = 43;
     pub const FRAGMENT: u8 = 44;
+    pub const ICMP: u8     = 58;
+    pub const NO_NEXT: u8  = 59;
     pub const DST_OPTS: u8 = 60;
     pub const MOBILITY: u8 = 135;
 }
