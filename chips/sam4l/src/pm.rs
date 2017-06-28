@@ -494,6 +494,22 @@ pub unsafe fn get_system_frequency() -> u32 {
     SYSTEM_FREQUENCY.get()
 }
 
+/// Utility macro to modify clock mask registers
+/// 
+/// It takes one of two forms:
+///
+///     mask_clock!(CLOCK: pm_register | value)
+///
+/// which performs a logical-or on the existing register value, or
+///
+///     mask_clock!(CLOCK: pm_register & value)
+///
+/// which performs a logical-and.
+///
+/// CLOCK is one of HSB, PBA, PBB, PBC or PBD
+///
+/// pm_register is one of hsbmask, pbamask, pbbmask, pbcmask or pbdmask.
+///
 macro_rules! mask_clock {
     ($module:ident: $field:ident | $mask:expr) => ({
         unlock(concat_idents!($module, _MASK_OFFSET));
