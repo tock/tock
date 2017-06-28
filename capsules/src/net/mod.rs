@@ -2,3 +2,4 @@
 
 pub mod ip;
 pub mod sixlowpan;
+pub mod util;
