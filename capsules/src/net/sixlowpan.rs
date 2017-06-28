@@ -53,14 +53,17 @@ mod iphc {
 
 #[allow(unused_variables,dead_code)]
 mod nhc {
-    pub const DISPATCH: u8 = 0xe0;
+    pub const DISPATCH_NHC: u8 = 0xe0;
+    pub const DISPATCH_UDP: u8 = 0xf8;
 
-    pub const HOP_OPTS: u8 = 0 << 1;
-    pub const ROUTING: u8 = 1 << 1;
-    pub const FRAGMENT: u8 = 2 << 1;
-    pub const DST_OPTS: u8 = 3 << 1;
-    pub const MOBILITY: u8 = 4 << 1;
-    pub const IP6: u8 = 7 << 1;
+    pub const HOP_OPTS: u8     = 0 << 1;
+    pub const ROUTING: u8      = 1 << 1;
+    pub const FRAGMENT: u8     = 2 << 1;
+    pub const DST_OPTS: u8     = 3 << 1;
+    pub const MOBILITY: u8     = 4 << 1;
+    pub const IP6: u8          = 7 << 1;
+
+    pub const NH: u8           = 0x01;
 }
 
 #[allow(unused_variables,dead_code)]
@@ -124,19 +127,52 @@ fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
     }
 }
 
+fn is_ip6_nh_compressible(next_header: u8,
+                          next_headers: &[u8],
+                          nh_offset: usize) -> Result<(bool, u8), ()> {
+    match next_header {
+        // IP6 encapsulated headers are always compressed
+        ip6_nh::IP6 => Ok((true, 0)),
+        // UDP headers are always compresed
+        ip6_nh::UDP => Ok((true, 0)),
+        ip6_nh::FRAGMENT
+        | ip6_nh::HOP_OPTS
+        | ip6_nh::ROUTING
+        | ip6_nh::DST_OPTS
+        | ip6_nh::MOBILITY => {
+            let mut header_len: u32 = 6;
+            if next_header != ip6_nh::FRAGMENT {
+                if next_headers.len() < nh_offset + 2 {
+                    return Err(());
+                } else {
+                    header_len += (next_headers[nh_offset + 1] as u32) * 8;
+                }
+            }
+            if header_len <= 255 {
+                Ok((true, header_len as u8))
+            } else {
+                Ok((false, 0))
+            }
+        },
+        _ => Ok((false, 0)),
+    }
+}
+
 /// Maps values of a IPv6 next header field to a corresponding LoWPAN
 /// NHC-encoding extension ID
 fn ip6_nh_to_nhc_eid(next_header: u8) -> Option<u8> {
     match next_header {
         ip6_nh::HOP_OPTS => Some(nhc::HOP_OPTS),
-        ip6_nh::ROUTING => Some(nhc::ROUTING),
+        ip6_nh::ROUTING  => Some(nhc::ROUTING),
         ip6_nh::FRAGMENT => Some(nhc::FRAGMENT),
         ip6_nh::DST_OPTS => Some(nhc::DST_OPTS),
         ip6_nh::MOBILITY => Some(nhc::MOBILITY),
-        ip6_nh::IP6 => Some(nhc::IP6),
+        ip6_nh::IP6      => Some(nhc::IP6),
         _ => None,
     }
 }
+
+/// Maps values 
 
 /// Maps LoWPAN NHC-encoded EIDs to the corresponding IPv6 next header
 /// field value
@@ -144,11 +180,11 @@ fn ip6_nh_to_nhc_eid(next_header: u8) -> Option<u8> {
 fn nhc_eid_to_ip6_nh(eid: u8) -> Option<u8> {
     match eid {
         nhc::HOP_OPTS => Some(ip6_nh::HOP_OPTS),
-        nhc::ROUTING => Some(ip6_nh::ROUTING),
+        nhc::ROUTING  => Some(ip6_nh::ROUTING),
         nhc::FRAGMENT => Some(ip6_nh::FRAGMENT),
         nhc::DST_OPTS => Some(ip6_nh::DST_OPTS),
         nhc::MOBILITY => Some(ip6_nh::MOBILITY),
-        nhc::IP6 => Some(ip6_nh::IP6),
+        nhc::IP6      => Some(ip6_nh::IP6),
         _ => None,
     }
 }
@@ -170,7 +206,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     src_mac_addr: MacAddr,
                     dst_mac_addr: MacAddr,
                     mut buf: &mut [u8])
-                    -> usize {
+                    -> Result<usize, ()> {
         // The first two bytes are the LOWPAN_IPHC header
         let mut offset: usize = 2;
 
@@ -202,7 +238,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         self.compress_tf(ip6_header, &mut buf, &mut offset);
 
         // Next Header
-        self.compress_nh(ip6_header, &mut buf, &mut offset);
+        let (mut is_nhc, mut nh_len): (bool, u8) =
+            is_ip6_nh_compressible(ip6_header.next_header, next_headers, 0)?;
+        self.compress_nh(ip6_header, is_nhc, &mut buf, &mut offset);
 
         // Hop Limit
         self.compress_hl(ip6_header, &mut buf, &mut offset);
@@ -226,16 +264,70 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
 
         // Next Headers
-        if buf[0] & iphc::NH != 0 {
-            // Next header flag is set
-            self.compress_next_headers(ip6_header, next_headers, 
-                                       &mut buf, &mut offset);
+        let mut nh_offset: usize = 0;
+        let mut ip6_nh_type: u8 = ip6_header.next_header;
+        while is_nhc {
+            match ip6_nh_type {
+                ip6_nh::IP6 => {
+                    let nhc_header = nhc::DISPATCH_NHC | nhc::IP6;
+                    buf[offset] = nhc_header;
+                    offset += 1;
+                    // TODO: recurse on IP6
+                    break;
+                },
+                ip6_nh::UDP => {
+                    let mut nhc_header = nhc::DISPATCH_UDP;
+                    // TODO: Perform UDP compression
+                    break;
+                },
+                ip6_nh::FRAGMENT
+                | ip6_nh::HOP_OPTS
+                | ip6_nh::ROUTING
+                | ip6_nh::DST_OPTS
+                | ip6_nh::MOBILITY => {
+                    // The NHC EID is guaranteed not to be 0 here.
+                    let mut nhc_header = nhc::DISPATCH_NHC
+                        | ip6_nh_to_nhc_eid(ip6_nh_type).unwrap_or(0);
+                    let next_nh_offset = nh_offset + 2 + (nh_len as usize);
 
+                    // Determine if the next header is compressible
+                    let (next_is_nhc, next_nh_len) =
+                        is_ip6_nh_compressible(next_headers[nh_offset],
+                                               next_headers,
+                                               next_nh_offset)?;
+                    if next_is_nhc {
+                        nhc_header |= nhc::NH;
+                    }
+
+                    // Place NHC ID in buffer
+                    buf[offset] = nhc_header;
+                    if ip6_nh_type != ip6_nh::FRAGMENT {
+                        // Fragment extension does not have a length field
+                        buf[offset + 1] = nh_len;
+                    }
+                    offset += 2;
+
+                    // Copy over the remaining packet data
+                    for i in 0..nh_len {
+                        buf[offset] = next_headers[nh_offset + 2 + (i as usize)];
+                        offset += 1;
+                    }
+
+                    ip6_nh_type = next_headers[nh_offset];
+                    is_nhc = next_is_nhc;
+                    nh_len = next_nh_len;
+                    nh_offset = next_nh_offset;
+                },
+                _ => {
+                    // This case should not be reached, since is_nh_compressed
+                    // is set by is_ip6_nh_compressible
+                    return Err(());
+                },
+            }
         }
 
-        offset
+        Ok(offset)
     }
-
 
     fn compress_cie(&self,
                     src_ctx: &Option<Context>,
@@ -307,12 +399,12 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         buf[0] |= tf_encoding;
     }
 
-    // TODO: Need to check that next header len <= 255; otherwise can't compress
     fn compress_nh(&self,
                    ip6_header: &IP6Header,
+                   is_nhc: bool,
                    buf: &mut [u8],
                    offset: &mut usize) {
-        if ip6_nh_to_nhc_eid(ip6_header.next_header).is_some() {
+        if is_nhc {
             buf[0] |= iphc::NH;
         } else {
             buf[*offset] = ip6_header.next_header;
@@ -468,120 +560,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     *offset += 4;
                 }
             }
-        }
-    }
-
-    fn get_header_size(&self,
-                       next_headers: &[u8],
-                       nh_offset: usize,
-                       header_type: u8) -> u32 {
-        // The length is initially in octets of 8, discounting the first 8-octet
-        // We want it to count all bytes *after* the len field
-        let mut header_len: u32 = 6;
-        if header_type == ip6_nh::HOP_OPTS || header_type == ip6_nh::ROUTING
-                || header_type == ip6_nh::DST_OPTS 
-                || header_type == ip6_nh::MOBILITY {
-            // If nh_offset +1 is not a valid index
-            if next_headers.len() < nh_offset + 2 {
-                // TODO: Error
-            }
-            header_len += (next_headers[nh_offset + 1] * 8) as u32;
-        }
-        // Size in bytes after the length field
-        return header_len;
-    }
-
-    fn is_next_header(&self,
-                      header_type: u8,
-                      header_len: u32) -> bool {
-
-        // Note that for UDP, we do not check the length
-        match header_type {
-            ip6_nh::TCP | ip6_nh:: ICMP => return false,
-            ip6_nh::UDP => return true,
-            ip6_nh::HOP_OPTS | ip6_nh::IP6 | ip6_nh::ROUTING 
-                | ip6_nh::FRAGMENT | ip6_nh::DST_OPTS 
-                | ip6_nh::MOBILITY => {
-                    if header_len > 255 {
-                        return false
-                    } else {
-                        return true
-                    }
-                },
-            // TODO: What to do if unknown next header type?
-            _ => return false,
-        }
-    }
-
-    fn compress_next_headers(&self,
-                             ip6_header: &IP6Header,
-                             next_headers: &[u8],
-                             buf: &mut [u8],
-                             offset: &mut usize) {
-
-        let mut bytes_left: u32 = next_headers.len() as u32;
-        let mut header_offset: usize = 0;
-        // TODO: Handle error case
-        let mut header_type = ip6_header.next_header;
-        let mut header_len = self.get_header_size(next_headers, header_offset, header_type);
-        // The correctness of the first header should already have been checked
-        let mut is_next = true;
-
-        while is_next && bytes_left > 0 {
-
-            // TODO: IPv6 encapsulation not properly implemented; this function
-            // will not be called if IPv6 packet is next, and the while loop
-            // does not behave as desired.
-            if header_type == ip6_nh::IP6 {
-                // TODO: Recursion whoo!
-                return; // Should be entirely done
-            }
-            if header_len > bytes_left {
-                // TODO: Error
-            }
-            if header_len > 255 {
-                // TODO: Can't compress
-            }
-
-            let mut nhc_header: u8 = 0;
-            // TODO: Unwrap/error check
-            nhc_header |= ip6_nh_to_nhc_eid(header_type).unwrap();
-
-            // Get next header
-            let next_header_offset: usize = header_offset + header_len as usize;
-            let next_header_type = next_headers[next_header_offset]; 
-            let next_header_len = self.get_header_size(next_headers, 
-                                                       next_header_offset, 
-                                                       next_header_type);
-
-            is_next = self.is_next_header(next_header_type, next_header_len);
-            if is_next {
-                nhc_header |= 0b10000000; // Set next header bit, TODO: Make constant
-                if next_header_type == ip6_nh::UDP {
-                    // TODO: Compress UDP, return?
-                    // ?
-                    is_next = false;
-                }
-            }
-            // Set nhc header and header len
-            // TODO: Don't copy over len if fragment
-            buf[*offset] = nhc_header;
-            buf[*offset + 1] = header_len as u8;
-            *offset += 2;
-            bytes_left -= 2;
-
-            // TODO: Additional (optional) compression defined in RFC (pad elision)
-            
-            // Copy over the remaining packet data
-            for i in 0..header_len {
-                buf[*offset] = next_headers[header_offset + (i as usize)];
-                *offset += 1;
-            }
-
-            bytes_left -= header_len;
-            header_type = next_header_type;
-            header_offset = next_header_offset;
-            header_len = next_header_len;
         }
     }
 
