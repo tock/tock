@@ -12,6 +12,7 @@ debug = true
 
 [profile.release]
 panic = "abort"
+debug = true
 lto = true
 
 [dependencies]

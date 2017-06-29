@@ -9,6 +9,8 @@ use process::{Process, Task};
 use returncode::ReturnCode;
 use syscall::Syscall;
 
+#[inline(never)]
+#[no_mangle]
 pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                                                chip: &mut C,
                                                process: &mut Process,

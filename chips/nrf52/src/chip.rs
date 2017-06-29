@@ -2,6 +2,7 @@ use kernel;
 use kernel::common::{RingBuffer, Queue};
 use nvic;
 use peripheral_interrupts::NvicIdx;
+use gpio;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
@@ -29,11 +30,14 @@ impl kernel::Chip for NRF52 {
         &self.0
     }
 
+    #[inline(never)]
+    #[no_mangle]
     fn service_pending_interrupts(&mut self) {
         unsafe {
             INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
                 match interrupt {
-                    _ => {}
+                    NvicIdx::GPIOTE => gpio::PORT.handle_interrupt(),
+                    _ => (),
                 }
                 nvic::enable(interrupt);
             });

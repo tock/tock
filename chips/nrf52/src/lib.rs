@@ -10,8 +10,10 @@ extern "C" {
 }
 
 mod peripheral_interrupts;
+mod peripheral_registers;
 mod nvic;
 
 
 pub mod chip;
+pub mod gpio;
 pub use chip::NRF52;

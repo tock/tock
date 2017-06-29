@@ -17,7 +17,14 @@ monitor speed auto
 # Setup GDB FOR FASTER DOWNLOADS
 set remote memory-write-packet-size 1024
 set remote memory-write-packet-size fixed
-tui enable
-layout split
-layout regs
-
+# Niklas breakpoits
+b main.rs:24
+b main.rs:71
+b reset_handler
+b main.rs:129
+b chip.rs:35
+b gpio.rs:140
+b gpio.rs:144
+b chips/nrf52/src/chip.rs:45
+b nrf52::chip::{{impl}}::service_pending_interrupts
+b capsules::gpio::{{impl}}::fired<nrf52::gpio::GPIOPin>
