@@ -249,15 +249,11 @@ impl I2CHw {
                     self.disable_master_clock();
 
                     self.master_client.get().map(|client| {
-                        let buf = match self.dma.get() {
-                            Some(dma) => {
-                                let b = dma.abort_xfer();
-                                self.dma.set(Some(dma));
-                                b
-                            }
-                            None => None,
-                        };
-                        buf.map(|buf| { client.command_complete(buf, err); });
+                        self.dma.get().map(|dma| {
+                            let buf = dma.abort_xfer();
+                            dma.disable();
+                            buf.map(|buf| client.command_complete(buf, err));
+                        });
                     });
                 });
             }
@@ -730,7 +726,7 @@ impl hil::i2c::I2CMaster for I2CHw {
         self.enable_master_clock();
 
         //disable the i2c slave peripheral
-        hil::i2c::I2CSlave::disable(self);  
+        hil::i2c::I2CSlave::disable(self);
 
         let regs: &TWIMRegisters = unsafe { &*self.registers };
 
@@ -747,6 +743,7 @@ impl hil::i2c::I2CMaster for I2CHw {
 
         // clear interrupts
         regs.status_clear.set(!0);
+        self.disable_master_clock();
     }
 
     /// This disables the entire I2C peripheral
@@ -759,14 +756,17 @@ impl hil::i2c::I2CMaster for I2CHw {
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
+        self.enable_master_clock();
         I2CHw::write(self, addr, START | STOP, data, len);
     }
 
     fn read(&self, addr: u8, data: &'static mut [u8], len: u8) {
+        self.enable_master_clock();
         I2CHw::read(self, addr, START | STOP, data, len);
     }
 
     fn write_read(&self, addr: u8, data: &'static mut [u8], write_len: u8, read_len: u8) {
+        self.enable_master_clock();
         I2CHw::write_read(self, addr, data, write_len, read_len)
     }
 }
@@ -800,6 +800,7 @@ impl hil::i2c::I2CSlave for I2CHw {
         });
 
         self.slave_enabled.set(true);
+        self.disable_slave_clock();
     }
 
     /// This disables the entire I2C peripheral
@@ -816,18 +817,22 @@ impl hil::i2c::I2CSlave for I2CHw {
     }
 
     fn set_address(&self, addr: u8) {
+        self.enable_slave_clock();
         self.slave_set_address(addr);
     }
 
     fn write_receive(&self, data: &'static mut [u8], max_len: u8) {
+        self.enable_slave_clock();
         self.slave_write_receive(data, max_len);
     }
 
     fn read_send(&self, data: &'static mut [u8], max_len: u8) {
+        self.enable_slave_clock();
         self.slave_read_send(data, max_len);
     }
 
     fn listen(&self) {
+        self.enable_slave_clock();
         self.slave_listen();
     }
 }
