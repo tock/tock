@@ -10,68 +10,68 @@ use net::util;
 
 #[allow(unused_variables,dead_code)]
 mod iphc {
-    pub const DISPATCH: [u8; 2] = [0x60, 0x00];
+    pub const DISPATCH: [u8; 2]    = [0x60, 0x00];
 
     // First byte masks
 
-    pub const TF_MASK: u8 = 0x18;
+    pub const TF_MASK: u8          = 0x18;
     pub const TF_TRAFFIC_CLASS: u8 = 0x08;
-    pub const TF_FLOW_LABEL: u8 = 0x10;
+    pub const TF_FLOW_LABEL: u8    = 0x10;
 
-    pub const NH: u8 = 0x04;
+    pub const NH: u8               = 0x04;
 
-    pub const HLIM_MASK: u8 = 0x03;
-    pub const HLIM_INLINE: u8 = 0x00;
-    pub const HLIM_1: u8 = 0x01;
-    pub const HLIM_64: u8 = 0x02;
-    pub const HLIM_255: u8 = 0x03;
+    pub const HLIM_MASK: u8        = 0x03;
+    pub const HLIM_INLINE: u8      = 0x00;
+    pub const HLIM_1: u8           = 0x01;
+    pub const HLIM_64: u8          = 0x02;
+    pub const HLIM_255: u8         = 0x03;
 
     // Second byte masks
 
-    pub const CID: u8 = 0x80;
+    pub const CID: u8              = 0x80;
 
-    pub const SAC: u8 = 0x40;
+    pub const SAC: u8              = 0x40;
 
-    pub const SAM_MASK: u8 = 0x30;
-    pub const SAM_INLINE: u8 = 0x00;
-    pub const SAM_MODE1: u8 = 0x10;
-    pub const SAM_MODE2: u8 = 0x20;
-    pub const SAM_MODE3: u8 = 0x30;
+    pub const SAM_MASK: u8         = 0x30;
+    pub const SAM_INLINE: u8       = 0x00;
+    pub const SAM_MODE1: u8        = 0x10;
+    pub const SAM_MODE2: u8        = 0x20;
+    pub const SAM_MODE3: u8        = 0x30;
 
-    pub const MULTICAST: u8 = 0x01;
+    pub const MULTICAST: u8        = 0x01;
 
-    pub const DAC: u8 = 0x04;
-    pub const DAM_MASK: u8 = 0x03;
-    pub const DAM_INLINE: u8 = 0x00;
-    pub const DAM_MODE1: u8 = 0x01;
-    pub const DAM_MODE2: u8 = 0x02;
-    pub const DAM_MODE3: u8 = 0x03;
+    pub const DAC: u8              = 0x04;
+    pub const DAM_MASK: u8         = 0x03;
+    pub const DAM_INLINE: u8       = 0x00;
+    pub const DAM_MODE1: u8        = 0x01;
+    pub const DAM_MODE2: u8        = 0x02;
+    pub const DAM_MODE3: u8        = 0x03;
 
     // Address compression
-    pub const MAC_BASE: [u8; 8] = [0, 0, 0, 0xff, 0xfe, 0, 0, 0];
-    pub const MAC_UL: u8 = 0x02;
+    pub const MAC_BASE: [u8; 8]    = [0, 0, 0, 0xff, 0xfe, 0, 0, 0];
+    pub const MAC_UL: u8           = 0x02;
 }
 
 #[allow(unused_variables,dead_code)]
 mod nhc {
-    pub const DISPATCH_NHC: u8 = 0xe0;
-    pub const DISPATCH_UDP: u8 = 0xf8;
+    pub const DISPATCH_NHC: u8         = 0xe0;
+    pub const DISPATCH_UDP: u8         = 0xf8;
 
-    pub const HOP_OPTS: u8     = 0 << 1;
-    pub const ROUTING: u8      = 1 << 1;
-    pub const FRAGMENT: u8     = 2 << 1;
-    pub const DST_OPTS: u8     = 3 << 1;
-    pub const MOBILITY: u8     = 4 << 1;
-    pub const IP6: u8          = 7 << 1;
+    pub const HOP_OPTS: u8             = 0 << 1;
+    pub const ROUTING: u8              = 1 << 1;
+    pub const FRAGMENT: u8             = 2 << 1;
+    pub const DST_OPTS: u8             = 3 << 1;
+    pub const MOBILITY: u8             = 4 << 1;
+    pub const IP6: u8                  = 7 << 1;
 
-    pub const NH: u8           = 0x01;
+    pub const NH: u8                   = 0x01;
 
-    pub const UDP_PORT_PREFIX: u16 = 0xf0b0;
+    pub const UDP_PORT_PREFIX: u16     = 0xf0b0;
     pub const UDP_SHORT_PORT_MASK: u16 = 0xf;
-    pub const UDP_PORT_MASK: u16 = 0xff;
-    pub const UDP_SRC_PORT_FLAG: u8 = 0b10;
-    pub const UDP_DST_PORT_FLAG: u8 = 0b1;
-    pub const UDP_CHKSUM_FLAG: u8 = 0b100;
+    pub const UDP_PORT_MASK: u16       = 0xff;
+    pub const UDP_SRC_PORT_FLAG: u8    = 0b10;
+    pub const UDP_DST_PORT_FLAG: u8    = 0b1;
+    pub const UDP_CHKSUM_FLAG: u8      = 0b100;
 }
 
 #[allow(unused_variables,dead_code)]
@@ -125,7 +125,7 @@ fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
             iid[6] = (short_addr >> 1) as u8;
             iid[7] = (short_addr & 0xff) as u8;
             iid
-        }
+        },
         &MacAddr::LongAddr(long_addr) => {
             // IID is IEEE EUI-64 with universal/local bit inverted
             let mut iid: [u8; 8] = long_addr;
