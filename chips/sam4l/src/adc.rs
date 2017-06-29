@@ -279,7 +279,7 @@ impl Adc {
             while regs.sr.get() & (0x1 << 24) == (0x1 << 24) {
                 timeout -= 1;
                 if timeout == 0 {
-                    // ADC never enabled
+                    // ADC never disabled
                     return ReturnCode::FAIL;
                 }
             }
@@ -350,6 +350,10 @@ impl Adc {
 
 
             regs.cfg.set(cfg_val);
+
+            let tim_val = (0x1 << 8) | // ENSTUP
+                          (0x17 << 0); // wait 24 cycles
+            regs.tim.set(tim_val);
 
             // software reset (does not clear registers)
             regs.cr.set(1);
