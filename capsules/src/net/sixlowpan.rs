@@ -302,23 +302,26 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     // Keep this so we know where the UDP nh is
                     let udp_header_offset = offset;
                     // TODO: Make this a macro/function
-                    let udp_packet_len: u32 = (next_headers[nh_offset + 5] as u32
-                        | ((next_headers[nh_offset + 6] as u32) << 8));
+                    let udp_packet_len =
+                        (next_headers[nh_offset + 5] as u16
+                        | ((next_headers[nh_offset + 6] as u16) << 8));
                     // TODO: Check if length is valid, should be minus one?
-                    let udp_packet 
-                        = &next_headers[nh_offset..(udp_packet_len-1) as usize];
-                    nhc_header |= self.compress_udp_ports(udp_packet, 
-                                                          &mut buf, 
+                    let udp_packet =
+                        &next_headers[nh_offset..(udp_packet_len-1) as usize];
+                    nhc_header |= self.compress_udp_ports(udp_packet,
+                                                          &mut buf,
                                                           &mut offset);
                     // TODO: Checksum elision is currently not supported
-                    nhc_header |= self.compress_udp_chksum(udp_packet, 
+                    nhc_header |= self.compress_udp_chksum(udp_packet,
                                                            udp_packet_len,
-                                                           &mut buf, 
+                                                           &mut buf,
                                                            &mut offset);
                     buf[udp_header_offset] = nhc_header;
-                    buf[offset..offset+(udp_packet_len-1) as usize]
+                    buf[offset..offset + (udp_packet_len - 1) as usize]
                         .copy_from_slice(udp_packet);
                     offset += udp_packet_len as usize;
+
+                    // There cannot be any more next headers after UDP
                     break;
                 },
                 ip6_nh::FRAGMENT
@@ -647,18 +650,17 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         return udp_port_nhc;
     }
 
-    
-    fn compress_udp_chksum(&self, 
-                           udp_packet: &[u8], 
-                           packet_len: u32,
-                           buf: &mut [u8], 
+    fn compress_udp_chksum(&self,
+                           udp_packet: &[u8],
+                           packet_len: u16,
+                           buf: &mut [u8],
                            offset: &mut usize) -> u8 {
         // TODO: As with the reference implementations, we currently
         // do not support eliding the UDP checksum.
         buf[*offset] = udp_packet[6];
         buf[*offset+1] = udp_packet[7];
         *offset += 2;
-        // Since the UDP checksum compression is not implemented, the flag is 0 
+        // Since the UDP checksum compression is not implemented, the flag is 0
         return 0;
     }
 
