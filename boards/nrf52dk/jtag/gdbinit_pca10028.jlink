@@ -17,7 +17,7 @@ monitor speed auto
 # Setup GDB FOR FASTER DOWNLOADS
 set remote memory-write-packet-size 1024
 set remote memory-write-packet-size fixed
-# Niklas breakpoits
+# Niklas breakpoints
 b main.rs:24
 b main.rs:71
 b reset_handler
