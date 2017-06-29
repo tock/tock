@@ -19,6 +19,7 @@
 //! }
 //! ```
 
+use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver, ReturnCode};
 use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
@@ -36,9 +37,8 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
                container: Container<(Option<Callback>, SubscribeMap)>)
                -> Button<'a, G> {
         // Make all pins output and off
-        for (i, pin) in pins.iter().enumerate() {
+        for pin in pins.iter() {
             pin.make_input();
-            pin.enable_interrupt(i, InterruptMode::EitherEdge);
         }
 
         Button {
@@ -91,7 +91,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
     ///   registered callback.
     /// - `3`: Read the current state of the button.
     fn command(&self, command_num: usize, data: usize, appid: AppId) -> ReturnCode {
-        let pins = self.pins.as_ref();
+        let pins = self.pins;
         match command_num {
             // return button count
             0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
@@ -102,6 +102,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                     self.callback
                         .enter(appid, |cntr, _| {
                             cntr.1 |= 1 << data;
+                            pins[data].enable_interrupt(data, InterruptMode::EitherEdge);
                             ReturnCode::SUCCESS
                         })
                         .unwrap_or_else(|err| match err {
@@ -119,7 +120,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                 if data >= pins.len() {
                     ReturnCode::EINVAL /* impossible button */
                 } else {
-                    self.callback
+                    let res = self.callback
                         .enter(appid, |cntr, _| {
                             cntr.1 &= !(1 << data);
                             ReturnCode::SUCCESS
@@ -128,7 +129,22 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                             Error::OutOfMemory => ReturnCode::ENOMEM,
                             Error::AddressOutOfBounds => ReturnCode::EINVAL,
                             Error::NoSuchApp => ReturnCode::EINVAL,
-                        })
+                        });
+
+                    // are any processes waiting for this button?
+                    let interrupt_count = Cell::new(0);
+                    self.callback.each(|cntr| {
+                        cntr.0.map(|_| if cntr.1 & (1 << data) != 0 {
+                            interrupt_count.set(interrupt_count.get() + 1);
+                        });
+                    });
+
+                    // if not, disable the interrupt
+                    if interrupt_count.get() == 0 {
+                        self.pins[data].disable_interrupt();
+                    }
+
+                    res
                 }
             }
 
@@ -151,14 +167,22 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
 impl<'a, G: hil::gpio::Pin> Client for Button<'a, G> {
     fn fired(&self, pin_num: usize) {
         // read the value of the pin
-        let pins = self.pins.as_ref();
-        let pin_state = pins[pin_num].read();
+        let pin_state = self.pins[pin_num].read();
+        let interrupt_count = Cell::new(0);
 
         // schedule callback with the pin number and value
         self.callback.each(|cntr| {
             cntr.0.map(|mut callback| if cntr.1 & (1 << pin_num) != 0 {
+                interrupt_count.set(interrupt_count.get() + 1);
                 callback.schedule(pin_num, pin_state as usize, 0);
             });
         });
+
+        // It's possible we got an interrupt for a process that has since died
+        // (and didn't unregister the interrupt). Lazily disable interrupts for
+        // this button if so.
+        if interrupt_count.get() == 0 {
+            self.pins[pin_num].disable_interrupt();
+        }
     }
 }
