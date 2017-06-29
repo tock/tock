@@ -64,6 +64,13 @@ mod nhc {
     pub const IP6: u8          = 7 << 1;
 
     pub const NH: u8           = 0x01;
+
+    pub const UDP_PORT_PREFIX: u16 = 0xf0b0;
+    pub const UDP_SHORT_PORT_MASK: u16 = 0xf;
+    pub const UDP_PORT_MASK: u16 = 0xff;
+    pub const UDP_SRC_PORT_FLAG: u8 = 0b10;
+    pub const UDP_DST_PORT_FLAG: u8 = 0b1;
+    pub const UDP_CHKSUM_FLAG: u8 = 0b100;
 }
 
 #[allow(unused_variables,dead_code)]
@@ -277,7 +284,26 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 },
                 ip6_nh::UDP => {
                     let mut nhc_header = nhc::DISPATCH_UDP;
-                    // TODO: Perform UDP compression
+                    // Keep this so we know where the UDP nh is
+                    let udp_header_offset = offset;
+                    // TODO: Make this a macro/function
+                    let udp_packet_len: u32 = (next_headers[nh_offset + 5] as u32
+                        | ((next_headers[nh_offset + 6] as u32) << 8));
+                    // TODO: Check if length is valid, should be minus one?
+                    let udp_packet 
+                        = &next_headers[nh_offset..(udp_packet_len-1) as usize];
+                    nhc_header |= self.compress_udp_ports(udp_packet, 
+                                                          &mut buf, 
+                                                          &mut offset);
+                    // TODO: Checksum elision is currently not supported
+                    nhc_header |= self.compress_udp_chksum(udp_packet, 
+                                                           udp_packet_len,
+                                                           &mut buf, 
+                                                           &mut offset);
+                    buf[udp_header_offset] = nhc_header;
+                    buf[offset..offset+(udp_packet_len-1) as usize]
+                        .copy_from_slice(udp_packet);
+                    offset += udp_packet_len as usize;
                     break;
                 },
                 ip6_nh::FRAGMENT
@@ -561,6 +587,64 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 }
             }
         }
+    }
+
+    fn compress_udp_ports(&self, 
+                          udp_header: &[u8],
+                          buf: &mut [u8],
+                          offset: &mut usize) -> u8 {
+        // Little endian conversion
+        // TODO: Make macro?
+        let src_port: u16 = udp_header[0] as u16 | (udp_header[1] as u16) << 8;
+        let dst_port: u16 = udp_header[2] as u16 | (udp_header[3] as u16) << 8;
+
+        let mut udp_port_nhc = 0;
+        if (src_port & !nhc::UDP_SHORT_PORT_MASK) == nhc::UDP_PORT_PREFIX
+            && (dst_port & !nhc::UDP_SHORT_PORT_MASK) == nhc::UDP_PORT_PREFIX {
+            // Both can be compressed to 4 bits
+            udp_port_nhc |= (nhc::UDP_SRC_PORT_FLAG | nhc::UDP_DST_PORT_FLAG);
+            // This should compress the ports to a single 8-bit value,
+            // with the source port before the destination port
+            let short_ports: u8 = ((src_port & 0xf) | ((dst_port >> 4) & 0xf0)) as u8;
+            // TODO: Need to keep track of offset stuff...
+            buf[*offset] = short_ports;
+            *offset += 1;
+        } else if (src_port & !nhc::UDP_PORT_MASK) == nhc::UDP_PORT_PREFIX {
+            // Source port compressed to 8 bits, destination port uncompressed
+            udp_port_nhc |= (nhc::UDP_SRC_PORT_FLAG);
+            buf[*offset] = udp_header[0];
+            buf[*offset+1] = udp_header[2];
+            buf[*offset+2] = udp_header[3];
+            *offset += 3;
+        } else if (dst_port & !nhc::UDP_PORT_MASK) == nhc::UDP_PORT_PREFIX {
+            udp_port_nhc |= (nhc::UDP_DST_PORT_FLAG);
+            buf[*offset] = udp_header[0];
+            buf[*offset+1] = udp_header[1];
+            buf[*offset+2] = udp_header[2];
+            *offset += 3;
+        } else {
+            buf[*offset] = udp_header[0];
+            buf[*offset+1] = udp_header[1];
+            buf[*offset+2] = udp_header[2];
+            buf[*offset+3] = udp_header[3];
+            *offset += 4;
+        }
+        return udp_port_nhc;
+    }
+
+    
+    fn compress_udp_chksum(&self, 
+                           udp_packet: &[u8], 
+                           packet_len: u32,
+                           buf: &mut [u8], 
+                           offset: &mut usize) -> u8 {
+        // TODO: As with the reference implementations, we currently
+        // do not support eliding the UDP checksum.
+        buf[*offset] = udp_packet[6];
+        buf[*offset+1] = udp_packet[7];
+        *offset += 2;
+        // Since the UDP checksum compression is not implemented, the flag is 0 
+        return 0;
     }
 
     /// Decodes the compressed header into a full IPv6 header given the 16-bit
