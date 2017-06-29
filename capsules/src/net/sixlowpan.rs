@@ -1,7 +1,8 @@
-
-use core::result::Result;
 /// Implements the 6LoWPAN specification for sending IPv6 datagrams over
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
+
+use core::mem;
+use core::result::Result;
 
 use net::ip;
 use net::ip::{IP6Header, MacAddr, IPAddr, ip6_nh};
@@ -270,10 +271,23 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         while is_nhc {
             match ip6_nh_type {
                 ip6_nh::IP6 => {
+                    // For IPv6 encapsulation, the NH bit in the NHC ID is 0
                     let nhc_header = nhc::DISPATCH_NHC | nhc::IP6;
                     buf[offset] = nhc_header;
                     offset += 1;
-                    // TODO: recurse on IP6
+
+                    // Recursively place IPHC-encoded IPv6 after the NHC ID
+                    let ip6_header: &IP6Header = unsafe {
+                        mem::transmute(&next_headers[nh_offset..].as_ptr())
+                    };
+                    offset += self.compress(
+                        ip6_header,
+                        &next_headers[nh_offset + mem::size_of::<IP6Header>()..],
+                        src_mac_addr,
+                        dst_mac_addr,
+                        &mut buf)?;
+
+                    // The above recursion handles the rest of the packet
                     break;
                 },
                 ip6_nh::UDP => {
