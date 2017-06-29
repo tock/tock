@@ -246,6 +246,8 @@ impl I2CHw {
                     regs.control.set(0x1 << 7);
                     regs.control.set(0x1 << 1);
 
+                    self.disable_master_clock();
+
                     self.master_client.get().map(|client| {
                         let buf = match self.dma.get() {
                             Some(dma) => {
@@ -689,6 +691,32 @@ impl I2CHw {
             regs.control.set((control as u32) | 0x1);
         });
     }
+
+    fn enable_master_clock(&self) {
+        unsafe {
+            pm::enable_clock(self.master_clock);
+        }
+    }
+
+    fn disable_master_clock(&self) {
+        unsafe {
+            pm::disable_clock(self.master_clock);
+        }
+    }
+
+    fn enable_slave_clock(&self) {
+        // If exists, disable slave clock
+        self.slave_clock.map(|slave_clock| unsafe {
+            pm::enable_clock(slave_clock);
+        });
+    }
+
+    fn disable_slave_clock(&self) {
+        // If exists, disable slave clock
+        self.slave_clock.map(|slave_clock| unsafe {
+            pm::disable_clock(slave_clock);
+        });
+    }
 }
 
 impl DMAClient for I2CHw {
@@ -699,12 +727,10 @@ impl hil::i2c::I2CMaster for I2CHw {
     /// This enables the entire I2C peripheral
     fn enable(&self) {
         // Enable the clock for the TWIM module
-        unsafe {
-            pm::enable_clock(self.master_clock);
-        }
+        self.enable_master_clock();
 
         //disable the i2c slave peripheral
-        hil::i2c::I2CSlave::disable(self);
+        hil::i2c::I2CSlave::disable(self);  
 
         let regs: &TWIMRegisters = unsafe { &*self.registers };
 
@@ -727,10 +753,9 @@ impl hil::i2c::I2CMaster for I2CHw {
     fn disable(&self) {
         let regs: &TWIMRegisters = unsafe { &*self.registers };
         regs.control.set(0x1 << 1);
-        unsafe {
-            pm::disable_clock(self.master_clock);
-        }
+
         self.disable_interrupts();
+        self.disable_master_clock();
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
@@ -748,10 +773,8 @@ impl hil::i2c::I2CMaster for I2CHw {
 
 impl hil::i2c::I2CSlave for I2CHw {
     fn enable(&self) {
-        self.slave_clock.map(|slave_clock| unsafe {
-            pm::disable_clock(self.master_clock);
-            pm::enable_clock(slave_clock);
-        });
+        self.disable_master_clock();
+        self.enable_slave_clock();
 
         self.slave_registers.map(|slave_registers| {
             let regs: &TWISRegisters = unsafe { &*slave_registers };
@@ -787,11 +810,9 @@ impl hil::i2c::I2CSlave for I2CHw {
             let regs: &TWISRegisters = unsafe { &*slave_registers };
 
             regs.control.set(0);
-            self.slave_clock.map(|slave_clock| unsafe {
-                pm::disable_clock(slave_clock);
-            });
         });
         self.slave_disable_interrupts();
+        self.disable_slave_clock();
     }
 
     fn set_address(&self, addr: u8) {
