@@ -624,7 +624,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             // This should compress the ports to a single 8-bit value,
             // with the source port before the destination port
             let short_ports: u8 = ((src_port & 0xf) | ((dst_port >> 4) & 0xf0)) as u8;
-            // TODO: Need to keep track of offset stuff...
             buf[*offset] = short_ports;
             *offset += 1;
         } else if (src_port & !nhc::UDP_PORT_MASK) == nhc::UDP_PORT_PREFIX {
