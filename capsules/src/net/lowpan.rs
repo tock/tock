@@ -396,7 +396,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
 
     fn compress_tf(&self, ip6_header: &IP6Header, buf: &mut [u8], offset: &mut usize) {
         // TODO: All of this needs to be checked for endian-ness and correctness
-        // let version = ip6_header.version_class_flow[0] >> 4;
         let class = ((ip6_header.version_class_flow[0] << 4) & 0xf0) |
                     ((ip6_header.version_class_flow[1] >> 4) & 0x0f);
         let ecn = (class >> 6) & 0b11; // Gets leading 2 bits
@@ -612,7 +611,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                           buf: &mut [u8],
                           offset: &mut usize) -> u8 {
         // Little endian conversion
-        // TODO: Make macro?
+        // TODO: Make macro? Also, think this is wrong order
         let src_port: u16 = udp_header[0] as u16 | (udp_header[1] as u16) << 8;
         let dst_port: u16 = udp_header[2] as u16 | (udp_header[3] as u16) << 8;
 
@@ -676,6 +675,68 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       dst_mac_addr: MacAddr,
                       mesh_local_prefix: &[u8])
                       -> Result<(IP6Header, usize, Option<FragInfo>), ()> {
+        // The first two bytes are the LOWPAN_IPHC header
+        let mut offset: usize = 2;
+
+        // Get the LOWPAN_IPHC header
+        let iphc_header: u16 = (buf[0] as u16) | (buf[1] as u16) << 8;
         Err(())
     }
+    /*
+
+    fn decompress_cie(iphc_header: u16, ) {
+    }
+    */
 }
+/*
+                    ip6_header: &IP6Header,
+                    next_headers: &[u8],
+                    src_mac_addr: MacAddr,
+                    dst_mac_addr: MacAddr,
+                    mut buf: &mut [u8])
+                    -> Result<usize, ()> {
+        // The first two bytes are the LOWPAN_IPHC header
+        let mut offset: usize = 2;
+
+        // Initialize the LOWPAN_IPHC header
+        buf[0..2].copy_from_slice(&iphc::DISPATCH);
+
+        let mut src_ctx: Option<Context> = self.ctx_store
+            .get_context_from_addr(ip6_header.src_addr);
+        let mut dst_ctx: Option<Context> = if ip::addr_is_multicast(&ip6_header.dst_addr) {
+            let prefix_len: u8 = ip6_header.dst_addr[3];
+            let prefix: &[u8] = &ip6_header.dst_addr[4..12];
+            if util::verify_prefix_len(prefix, prefix_len) {
+                self.ctx_store.get_context_from_prefix(prefix, prefix_len)
+            } else {
+                None
+            }
+        } else {
+            self.ctx_store.get_context_from_addr(ip6_header.dst_addr)
+        };
+
+        // Do not use these contexts if they are not to be used for compression
+        src_ctx = src_ctx.and_then(|ctx| if ctx.compress { Some(ctx) } else { None });
+        dst_ctx = dst_ctx.and_then(|ctx| if ctx.compress { Some(ctx) } else { None });
+
+        // Context Identifier Extension
+        self.compress_cie(&src_ctx, &dst_ctx, &mut buf, &mut offset);
+
+        // Traffic Class & Flow Label
+        self.compress_tf(ip6_header, &mut buf, &mut offset);
+
+        // Next Header
+        let (mut is_nhc, mut nh_len): (bool, u8) =
+            is_ip6_nh_compressible(ip6_header.next_header, next_headers, 0)?;
+        self.compress_nh(ip6_header, is_nhc, &mut buf, &mut offset);
+
+        // Hop Limit
+        self.compress_hl(ip6_header, &mut buf, &mut offset);
+
+        // Source Address
+        self.compress_src(&ip6_header.src_addr,
+                          &src_mac_addr,
+                          &src_ctx,
+                          &mut buf,
+                          &mut offset);
+*/
