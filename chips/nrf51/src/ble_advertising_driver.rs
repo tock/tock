@@ -110,6 +110,13 @@ pub const BLE_GAP_SCAN_MODE_NON: usize = 0x03;
 pub const BLE_GAP_SCAN_MODE_DIR: usize = 0x04;
 pub const BLE_GAP_SCAN_MODE_UND: usize = 0x05;
 
+
+// Temporary trait for BLE
+pub trait RxClient {
+    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+}
+
+
 #[derive(Default)]
 pub struct App {
     app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
@@ -229,7 +236,7 @@ impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::hil::time::Client for BLE<'a,
 }
 
 // FIXME: Temporary callback function *stolen* from the radio HIL
-impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::hil::radio::RxClient for BLE<'a, A> {
+impl<'a, A: kernel::hil::time::Alarm + 'a> RxClient for BLE<'a, A> {
     fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {

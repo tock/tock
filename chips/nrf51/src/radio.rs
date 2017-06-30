@@ -16,7 +16,7 @@ use kernel;
 use nvic;
 use peripheral_interrupts;
 use peripheral_registers;
-
+use ble_advertising_driver;
 
 // nrf51 specific constants
 pub const PACKET0_S1_SIZE: u32 = 0;
@@ -92,7 +92,7 @@ static mut PAYLOAD: [u8; 39] = [0x00; 39];
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
     txpower: Cell<usize>,
-    client: Cell<Option<&'static kernel::hil::radio::RxClient>>,
+    client: Cell<Option<&'static ble_advertising_driver::RxClient>>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -455,7 +455,7 @@ impl Radio {
         }
     }
 
-    pub fn set_client<C: kernel::hil::radio::RxClient>(&self, client: &'static C) {
+    pub fn set_client<C: ble_advertising_driver::RxClient>(&self, client: &'static C) {
         self.client.set(Some(client));
     }
 }
