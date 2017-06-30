@@ -670,23 +670,105 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     /// packet is part of a set of fragments.
     #[allow(unused_variables,dead_code)]
     pub fn decompress(&self,
-                      buf: &mut [u8],
+                      buf: &mut [u8], // TODO: Don't think this needs to be mut
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
                       mesh_local_prefix: &[u8])
                       -> Result<(IP6Header, usize, Option<FragInfo>), ()> {
-        // The first two bytes are the LOWPAN_IPHC header
+        // Get the LOWPAN_IPHC header (the first two bytes are the header)
+        let iphc_header: u16 = (buf[0] as u16) | (buf[1] as u16) << 8;
         let mut offset: usize = 2;
 
-        // Get the LOWPAN_IPHC header
-        let iphc_header: u16 = (buf[0] as u16) | (buf[1] as u16) << 8;
+        // Decompress CIE and get context
+        if iphc_header & iphc::CID != 0 {
+            self.decompress_cie(iphc_header);
+        }
+
+        // Traffic Class & Flow Label
+        self.decompress_tf(ip6_header, iphc_header, &mut buf, &mut offset);
+
+        // Next header
+        self.decompress_nh();
+        
+        // Decompress hop limit field
+        self.decompress_hl();
+
         Err(())
     }
-    /*
 
-    fn decompress_cie(iphc_header: u16, ) {
+    // TODO: Impl
+    fn decompress_cie(&self, iphc_header: u16) {
     }
-    */
+
+    fn decompress_tf(&self,
+                     ip6_header: &mut IP6Header,
+                     iphc_header: u16,
+                     buf: &mut [u8],
+                     offset: &mut usize) {
+        let fl_compressed = (iphc_header & iphc::TF_FLOW_LABEL) != 0;
+        let tc_compressed = (iphc_header & iphc::TF_TRAFFIC_CLASS) != 0;
+
+        // Both traffic class and flow label elided, must be zero
+        if fl_compressed && tc_compressed {
+            ip6_header.set_traffic_class(0);
+            ip6_header.set_flow_label_unshifted(0);
+        // Only flow label compressed (10 case)
+        } else if fl_compressed {
+            ip6_header.set_flow_label_unshifted(0);
+            // Traffic Class = ECN+DSCP
+            let traffic_class = buf[*offset];
+            ip6_header.set_traffic_class(traffic_class);
+            *offset += 1;
+        // Only traffic class compressed (01 case)
+        } else if tc_compressed {
+            // ECN is the lower two bits of the first byte
+            let ecn = buf[*offset] & 0b11;
+            // TODO: Here (and everywhere) ensure masking off unneeded bits
+            // TODO: Confirm correct
+            let fl_unshifted: u32 = (((buf[*offset] & 0xf0) as u32) << 8)
+                | ((buf[*offset+1] as u32) << 16)
+                | ((buf[*offset+2] as u32) << 24);
+            *offset += 3;
+            ip6_header.set_ecn(ecn);
+            ip6_header.set_flow_label_unshifted(fl_unshifted);
+        // Neither compressed (00 case)
+        } else {
+            let traffic_class = buf[*offset];
+            let fl_unshifted: u32 = (((buf[*offset] & 0xf0) as u32) << 8)
+                | ((buf[*offset+1] as u32) << 16)
+                | ((buf[*offset+2] as u32) << 24);
+            *offset += 4;
+            ip6_header.set_traffic_class(traffic_class);
+            ip6_header.set_flow_label_unshifted(fl_unshifted);
+        }
+    }
+
+    // TODO: impl
+    fn decompress_nh(&self,) {
+        if iphc_header & iphc::NH != 0 {
+            // TODO: Impl
+        }
+    }
+
+    fn decompress_hl(&self, 
+                     ip6_header: &mut IP6Header, 
+                     iphc_header: u16, 
+                     buf: &mut [u8], 
+                     offset: &mut usize) {
+        // TODO: Does this match work?
+        let hop_limit = match iphc_header & iphc::HLIM_MASK {
+            iphc::HLIM_1      => 1,
+            iphc::HLIM_64     => 64,
+            iphc::HLIM_255    => 255,
+            iphc::HLIM_INLINE => {
+                *offset +=1;
+                buf[*offset-1] 
+            },
+            // TODO: Unreachable
+            _                 => 0,
+        };
+        ip6_header.set_hop_limit(hop_limit);
+    }
 }
 /*
                     ip6_header: &IP6Header,
