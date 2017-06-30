@@ -3,6 +3,8 @@ use kernel::common::{RingBuffer, Queue};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use gpio;
+use timer;
+use rtc;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
@@ -36,7 +38,11 @@ impl kernel::Chip for NRF52 {
         unsafe {
             INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
                 match interrupt {
+                    NvicIdx::RTC1 => rtc::RTC.handle_interrupt(),
                     NvicIdx::GPIOTE => gpio::PORT.handle_interrupt(),
+                    NvicIdx::TIMER0 => timer::TIMER0.handle_interrupt(),
+                    NvicIdx::TIMER1 => timer::ALARM1.handle_interrupt(),
+                    NvicIdx::TIMER2 => timer::TIMER2.handle_interrupt(),
                     _ => (),
                 }
                 nvic::enable(interrupt);

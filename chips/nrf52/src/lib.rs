@@ -16,4 +16,6 @@ mod nvic;
 
 pub mod chip;
 pub mod gpio;
+pub mod timer;
+pub mod rtc;
 pub use chip::NRF52;

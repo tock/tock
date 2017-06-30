@@ -7,9 +7,11 @@ extern crate capsules;
 extern crate compiler_builtins;
 #[macro_use(debug, static_init)]
 extern crate kernel;
-use kernel::{Chip, SysTick};
 extern crate nrf52;
 
+use kernel::{Chip, SysTick};
+use capsules::timer::TimerDriver;
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::fmt::Arguments;
 
 // The nRF52 DK LEDs (see back of board)
@@ -62,17 +64,18 @@ unsafe fn load_process() -> &'static mut [Option<kernel::Process<'static>>] {
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
 }
 
 
 impl kernel::Platform for Platform {
     #[inline(never)]
-    #[no_mangle]
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
         match driver_num {
             1 => f(Some(self.gpio)),
+            3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
             _ => f(None),
         }
@@ -122,14 +125,38 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins),
         64/8);
 
+    let alarm = &nrf52::rtc::RTC;
+    alarm.start();
+    let mux_alarm = static_init!(MuxAlarm<'static, nrf52::rtc::Rtc>, MuxAlarm::new(&nrf52::rtc::RTC), 16);
+    alarm.set_client(mux_alarm);
+
+
+    let virtual_alarm1 = static_init!(
+        VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        VirtualMuxAlarm::new(mux_alarm),
+        24);
+    let timer = static_init!(
+        TimerDriver<'static, VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+        TimerDriver::new(virtual_alarm1,
+                         kernel::Container::create()),
+                         12);
+    virtual_alarm1.set_client(timer);
+
     let platform = Platform {
         led: led,
         gpio: gpio,
+        timer: timer,
     };
 
     let mut chip = nrf52::chip::NRF52::new();
     chip.systick().reset();
     chip.systick().enable(true);
+
+    kernel::main(&platform,
+                 &mut chip,
+                 load_process(),
+                 &kernel::ipc::IPC::new());
+
 }
 
 
