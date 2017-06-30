@@ -48,6 +48,8 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
 }
 
 impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
+    #[inline(never)]
+    #[no_mangle]
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         let pins_init = self.pins_init.as_ref();
         match command_num {

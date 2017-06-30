@@ -84,18 +84,6 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     nrf52::init();
 
-    // LEDs
-    let led_pins = static_init!(
-        [(&'static nrf52::gpio::GPIOPin, capsules::led::ActivationMode); 4],
-        [(&nrf52::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow),
-        (&nrf52::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow),
-        (&nrf52::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow),
-        (&nrf52::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow),
-        ], 256/8);
-    let led = static_init!(
-        capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins),
-        64/8);
 
     let gpio_pins = static_init!(
         [&'static nrf52::gpio::GPIOPin; 11],
@@ -121,6 +109,18 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
+    // LEDs
+    let led_pins = static_init!(
+        [(&'static nrf52::gpio::GPIOPin, capsules::led::ActivationMode); 4],
+        [(&nrf52::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow),
+        (&nrf52::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow),
+        (&nrf52::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow),
+        (&nrf52::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow),
+        ], 256/8);
+    let led = static_init!(
+        capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
+        capsules::led::LED::new(led_pins),
+        64/8);
 
     let platform = Platform {
         led: led,
@@ -128,7 +128,6 @@ pub unsafe fn reset_handler() {
     };
 
     let mut chip = nrf52::chip::NRF52::new();
-    // guess this enables interrupts etc...
     chip.systick().reset();
     chip.systick().enable(true);
 }

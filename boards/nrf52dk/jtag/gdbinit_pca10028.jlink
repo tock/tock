@@ -28,3 +28,5 @@ b gpio.rs:144
 b chips/nrf52/src/chip.rs:45
 b nrf52::chip::{{impl}}::service_pending_interrupts
 b capsules::gpio::{{impl}}::fired<nrf52::gpio::GPIOPin>
+b led.rs:55
+b led.rs:58

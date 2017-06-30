@@ -30,6 +30,7 @@ pub struct RTC1 {
     pub power: VolatileCell<u32>,
 }
 
+// OK!!!
 pub const GPIO_BASE: usize = 0x50000000;
 #[repr(C, packed)]
 pub struct GPIO {
