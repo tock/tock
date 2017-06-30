@@ -115,27 +115,33 @@ impl IP6Header {
     }
     // Version should always be 6
     pub fn get_version(&self) -> u8 {
-        self.version_class_flow[0] & 0xff00
+        (self.version_class_flow[0] & 0xf0) >> 4
     }
 
     // TODO: Confirm order
     pub fn get_traffic_class(&self) -> u8 {
-        self.version_class_flow[0] >> 4 | self.version_class_flow[1] << 4
-    }
-    
-    pub fn set_traffic_class(&mut self, new_tc: u8) {
-        self.version_class_flow[0] = (new_tc & 0xf) >> 4;
-        self.version_class_flow[1] = (new_tc & 0xf0) << 4;
+        (self.version_class_flow[0] & 0x0f) << 4 |
+        (self.version_class_flow[1] & 0xf0) >> 4
     }
 
-    // TODO: Should this be shifted?
-    pub fn get_dscp(&self) -> u8 {
+    pub fn set_traffic_class(&mut self, new_tc: u8) {
+        self.version_class_flow[0] &= 0xf0;
+        self.version_class_flow[0] |= (new_tc & 0xf0) >> 4;
+        self.version_class_flow[1] &= 0x0f;
+        self.version_class_flow[1] |= (new_tc & 0x0f) << 4;
+    }
+
+    fn get_dscp_unshifted(&self) -> u8 {
         self.get_traffic_class() & 0b11111100
+    }
+
+    pub fn get_dscp(&self) -> u8 {
+        self.get_dscp_unshifted() >> 2
     }
 
     pub fn set_dscp(&mut self, new_dscp: u8) {
         let ecn = self.get_ecn();
-        self.set_traffic_class(ecn | (new_dscp & 0b11111100)); 
+        self.set_traffic_class(ecn | ((new_dscp << 2) & 0b11111100));
     }
 
     pub fn get_ecn(&self) -> u8 {
@@ -143,37 +149,24 @@ impl IP6Header {
     }
 
     pub fn set_ecn(&mut self, new_ecn: u8) {
-        let dscp = self.get_dscp();
-        self.set_traffic_class(dscp | (new_ecn & 0b11)); 
+        let dscp_unshifted = self.get_dscp_unshifted();
+        self.set_traffic_class(dscp_unshifted | (new_ecn & 0b11));
     }
 
-    pub fn get_flow_label_value(&self) -> u32 {
-        let first_byte: u8 = (self.version_class_flow[1] & 0xf0) >> 4
-            | (self.version_class_flow[2] & 0xf) << 4;
-        let second_byte: u8 = (self.version_class_flow[2] & 0xf0) >> 4
-            | (self.version_class_flow[3] & 0xf) << 4;
-        let third_byte: u8 = (self.version_class_flow[3] & 0xf0) >> 4;
-        first_byte as u32 | (second_byte as u32) << 8 | (third_byte as u32) << 16
-    }
-
-    pub fn set_flow_label_value(&mut self, new_fl_val: u32) {
-        self.set_flow_label_unshifted(new_fl_val << 12);
-    }
-
-    // This returns the flow label without shifting it/converting it back to
-    // its integer value
-    pub fn get_flow_label_unshifted(&self) -> u32 {
+    // This returns the flow label as the lower 20 bits of a u32
+    pub fn get_flow_label(&self) -> u32 {
         let mut flow_label: u32 = 0;
-        flow_label |= ((self.version_class_flow[1] & 0xf0) as u32) << 8;
-        flow_label |= (self.version_class_flow[2] as u32) << 16;
-        flow_label |= (self.version_class_flow[3] as u32) << 24;
+        flow_label |= ((self.version_class_flow[1] & 0x0f) as u32) << 16;
+        flow_label |= (self.version_class_flow[2] as u32) << 8;
+        flow_label |= self.version_class_flow[3] as u32;
         flow_label
     }
 
-    pub fn set_flow_label_unshifted(&mut self, new_fl_val: u32) {
-        self.version_class_flow[1] = ((new_fl_val >> 8) & 0xff) as u8;
-        self.version_class_flow[2] = ((new_fl_val >> 16) & 0xff) as u8;
-        self.version_class_flow[3] = ((new_fl_val >> 24) & 0xff) as u8;
+    pub fn set_flow_label(&mut self, new_fl_val: u32) {
+        self.version_class_flow[1] &= 0xf0;
+        self.version_class_flow[1] |= ((new_fl_val >> 16) & 0x0f) as u8;
+        self.version_class_flow[2] = (new_fl_val >> 8) as u8;
+        self.version_class_flow[3] = new_fl_val as u8;
     }
 
     // TODO: Is this in network byte order?

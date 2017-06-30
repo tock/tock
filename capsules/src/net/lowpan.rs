@@ -54,24 +54,25 @@ mod iphc {
 
 #[allow(unused_variables,dead_code)]
 mod nhc {
-    pub const DISPATCH_NHC: u8         = 0xe0;
-    pub const DISPATCH_UDP: u8         = 0xf8;
+    pub const DISPATCH_NHC: u8           = 0xe0;
+    pub const DISPATCH_UDP: u8           = 0xf8;
 
-    pub const HOP_OPTS: u8             = 0 << 1;
-    pub const ROUTING: u8              = 1 << 1;
-    pub const FRAGMENT: u8             = 2 << 1;
-    pub const DST_OPTS: u8             = 3 << 1;
-    pub const MOBILITY: u8             = 4 << 1;
-    pub const IP6: u8                  = 7 << 1;
+    pub const HOP_OPTS: u8               = 0 << 1;
+    pub const ROUTING: u8                = 1 << 1;
+    pub const FRAGMENT: u8               = 2 << 1;
+    pub const DST_OPTS: u8               = 3 << 1;
+    pub const MOBILITY: u8               = 4 << 1;
+    pub const IP6: u8                    = 7 << 1;
 
-    pub const NH: u8                   = 0x01;
+    pub const NH: u8                     = 0x01;
 
-    pub const UDP_PORT_PREFIX: u16     = 0xf0b0;
-    pub const UDP_SHORT_PORT_MASK: u16 = 0xf;
-    pub const UDP_PORT_MASK: u16       = 0xff;
-    pub const UDP_SRC_PORT_FLAG: u8    = 0b10;
-    pub const UDP_DST_PORT_FLAG: u8    = 0b1;
-    pub const UDP_CHKSUM_FLAG: u8      = 0b100;
+    pub const UDP_SHORT_PORT_PREFIX: u16 = 0xf0b0;
+    pub const UDP_SHORT_PORT_MASK: u16   = 0xf;
+    pub const UDP_PORT_PREFIX: u16       = 0xf000;
+    pub const UDP_PORT_MASK: u16         = 0xff;
+    pub const UDP_SRC_PORT_FLAG: u8      = 0b10;
+    pub const UDP_DST_PORT_FLAG: u8      = 0b1;
+    pub const UDP_CHKSUM_FLAG: u8        = 0b100;
 }
 
 #[allow(unused_variables,dead_code)]
@@ -396,49 +397,31 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     }
 
     fn compress_tf(&self, ip6_header: &IP6Header, buf: &mut [u8], offset: &mut usize) {
-        // TODO: All of this needs to be checked for endian-ness and correctness
-        let class = ((ip6_header.version_class_flow[0] << 4) & 0xf0) |
-                    ((ip6_header.version_class_flow[1] >> 4) & 0x0f);
-        let ecn = (class >> 6) & 0b11; // Gets leading 2 bits
-        let dscp = class & 0b111111; // Gets trailing 6 bits
-        let mut flow: [u8; 3] = [0; 3];
-        flow[0] = ip6_header.version_class_flow[1] & 0x0f; // Zero upper 4 bits
-        flow[1] = ip6_header.version_class_flow[2];
-        flow[2] = ip6_header.version_class_flow[3];
+        let ecn = ip6_header.get_ecn();
+        let dscp = ip6_header.get_dscp();
+        let flow = ip6_header.get_flow_label();
 
         let mut tf_encoding = 0;
+        let old_offset = *offset;
 
-        // Flow label is all zeroes and can be elided
-        if flow[0] == 0 && flow[1] == 0 && flow[2] == 0 {
-            // The 1X cases
-            tf_encoding |= iphc::TF_FLOW_LABEL;
+        if dscp == 0 {
+            tf_encoding |= iphc::TF_TRAFFIC_CLASS;
+        } else {
+            buf[*offset] = dscp;
+            *offset += 1;
         }
 
-        // DSCP can be elided, but ECN elided only if flow also elided
-        // X1 cases
-        if dscp == 0 {
-            // If flow *not* elided, combine with ECN
-            // 01 case
-            if tf_encoding == 0 {
-                buf[*offset] = (ecn << 6) | flow[0];
-                buf[*offset + 1] = flow[1];
-                buf[*offset + 2] = flow[2];
-                *offset += 3;
-            }
-            tf_encoding |= iphc::TF_TRAFFIC_CLASS;
-            // X0 cases
+        if flow == 0 {
+            tf_encoding |= iphc::TF_FLOW_LABEL;
         } else {
-            // If DSCP cannot be elided
-            buf[*offset] = class;
-            *offset += 1;
+            buf[*offset]     = ((flow >> 16) & 0x0f) as u8;
+            buf[*offset + 1] = (flow >> 8) as u8;
+            buf[*offset + 2] = flow as u8;
+            *offset += 3;
+        }
 
-            // 00 case
-            if tf_encoding == 0 {
-                buf[*offset] = flow[0];
-                buf[*offset + 1] = flow[1];
-                buf[*offset + 2] = flow[2];
-                *offset += 3;
-            }
+        if tf_encoding != 0 {
+            buf[old_offset] |= ecn << 6;
         }
         buf[0] |= tf_encoding;
     }
@@ -617,8 +600,8 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let dst_port: u16 = udp_header[2] as u16 | (udp_header[3] as u16) << 8;
 
         let mut udp_port_nhc = 0;
-        if (src_port & !nhc::UDP_SHORT_PORT_MASK) == nhc::UDP_PORT_PREFIX
-            && (dst_port & !nhc::UDP_SHORT_PORT_MASK) == nhc::UDP_PORT_PREFIX {
+        if (src_port & !nhc::UDP_SHORT_PORT_MASK) == nhc::UDP_SHORT_PORT_PREFIX
+            && (dst_port & !nhc::UDP_SHORT_PORT_MASK) == nhc::UDP_SHORT_PORT_PREFIX {
             // Both can be compressed to 4 bits
             udp_port_nhc |= nhc::UDP_SRC_PORT_FLAG | nhc::UDP_DST_PORT_FLAG;
             // This should compress the ports to a single 8-bit value,
@@ -705,10 +688,10 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // Both traffic class and flow label elided, must be zero
         if fl_compressed && tc_compressed {
             ip6_header.set_traffic_class(0);
-            ip6_header.set_flow_label_unshifted(0);
+            ip6_header.set_flow_label(0);
         // Only flow label compressed (10 case)
         } else if fl_compressed {
-            ip6_header.set_flow_label_unshifted(0);
+            ip6_header.set_flow_label(0);
             // Traffic Class = ECN+DSCP
             let traffic_class = buf[*offset];
             ip6_header.set_traffic_class(traffic_class);
@@ -724,7 +707,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 | ((buf[*offset+2] as u32) << 24);
             *offset += 3;
             ip6_header.set_ecn(ecn);
-            ip6_header.set_flow_label_unshifted(fl_unshifted);
+            ip6_header.set_flow_label(fl_unshifted);
         // Neither compressed (00 case)
         } else {
             let traffic_class = buf[*offset];
@@ -733,7 +716,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 | ((buf[*offset+2] as u32) << 24);
             *offset += 4;
             ip6_header.set_traffic_class(traffic_class);
-            ip6_header.set_flow_label_unshifted(fl_unshifted);
+            ip6_header.set_flow_label(fl_unshifted);
         }
     }
 
