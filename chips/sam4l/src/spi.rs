@@ -253,7 +253,7 @@ impl Spi {
         // Divide and truncate, resulting in a n value that might be too low
         let mut scbr = clock / real_rate;
         // If the division was not exact, increase the n to get a slower baud rate
-        if clock % real_rate != 0 {
+        if clock % real_rate != 0 && scbr != 0xFF {
             scbr += 1;
         }
         let mut csr = self.read_active_csr();
@@ -422,7 +422,7 @@ impl Spi {
         self.dma_length.set(count);
 
         // We will have at least a write transfer in progress
-        self.transfers_in_progress.set(1);
+        self.transfers_in_progress.set(0);
 
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
