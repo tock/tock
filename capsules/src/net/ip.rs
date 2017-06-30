@@ -2,6 +2,7 @@ use core::cell::Cell;
 use kernel::common::take_cell::TakeCell;
 use net::util;
 
+#[derive(Copy,Clone)]
 pub enum MacAddr {
     ShortAddr(u16),
     LongAddr([u8; 8]),
