@@ -10,13 +10,13 @@
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
 //! Date: June 22, 2017
 
+use ble_advertising_driver;
 use chip;
 use core::cell::Cell;
 use kernel;
 use nvic;
 use peripheral_interrupts;
 use peripheral_registers;
-use ble_advertising_driver;
 
 // nrf51 specific constants
 pub const PACKET0_S1_SIZE: u32 = 0;
