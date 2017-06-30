@@ -26,10 +26,10 @@ int ble_adv_scan(const unsigned char *data, uint8_t len, subscribe_cb callback) 
   int err;
 
   err = subscribe(DRIVER_RADIO, BLE_SCAN_CALLBACK, callback, NULL);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   err = allow(DRIVER_RADIO, BLE_CFG_SCAN_BUF, (void*)data, len);
-  if (err < SUCCESS) return err;
+  if (err < TOCK_SUCCESS) return err;
 
   return command(DRIVER_RADIO, BLE_SCAN, 1);
 }
