@@ -199,6 +199,30 @@ impl IP6Header {
     pub fn set_hop_limit(&mut self, new_hl: u8) {
         self.hop_limit = new_hl;
     }
+
+    pub fn get_src_addr(&self, buf: &mut IPAddr) {
+        for i in 0..16 {
+            buf[i] = self.src_addr[i];
+        }
+    }
+
+    pub fn set_src_addr(&mut self, new_addr: [u8; 16]) {
+        for i in 0..16 {
+            self.src_addr[i] = new_addr[i];
+        }
+    }
+
+    pub fn get_dst_addr(&self, buf: &mut [u8; 16]) {
+        for i in 0..16 {
+            buf[i] = self.dst_addr[i];
+        }
+    }
+
+    pub fn set_dst_addr(&mut self, new_addr: [u8; 16]) {
+        for i in 0..16 {
+            self.dst_addr[i] = new_addr[i];
+        }
+    }
 }
 
 pub struct IP6ExtHeader {
