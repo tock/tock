@@ -110,6 +110,9 @@ impl Default for IP6Header {
 }
 
 impl IP6Header {
+    pub fn new() -> IP6Header {
+        IP6Header::default()
+    }
     // Version should always be 6
     pub fn get_version(&self) -> u8 {
         self.version_class_flow[0] & 0xff00

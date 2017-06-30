@@ -668,37 +668,39 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       mesh_local_prefix: &[u8])
                       -> Result<(IP6Header, usize, Option<FragInfo>), ()> {
         // Get the LOWPAN_IPHC header (the first two bytes are the header)
-        let iphc_header: &[u8] = &buf[0..2];
+        let iphc_header_1: u8 = buf[0];
+        let iphc_header_2: u8 = buf[1];
         let mut offset: usize = 2;
+        let mut ip6_header: IP6Header = IP6Header::new();
 
         // Decompress CIE and get context
-        if iphc_header[0] & iphc::CID != 0 {
-            self.decompress_cie(iphc_header);
+        if iphc_header_1 & iphc::CID != 0 {
+            self.decompress_cie(iphc_header_1);
         }
 
         // Traffic Class & Flow Label
-        // self.decompress_tf(ip6_header, iphc_header, &mut buf, &mut offset);
+        self.decompress_tf(&mut ip6_header, iphc_header_1, &buf, &mut offset);
 
         // Next header
-        // self.decompress_nh();
+        self.decompress_nh(iphc_header_1);
         
         // Decompress hop limit field
-        // self.decompress_hl();
+        self.decompress_hl(&mut ip6_header, iphc_header_1, &buf, &mut offset);
 
         Err(())
     }
 
     // TODO: Impl
-    fn decompress_cie(&self, iphc_header: &[u8]) {
+    fn decompress_cie(&self, iphc_header: u8) {
     }
 
     fn decompress_tf(&self,
                      ip6_header: &mut IP6Header,
-                     iphc_header: &[u8],
-                     buf: &mut [u8],
+                     iphc_header: u8,
+                     buf: &[u8],
                      offset: &mut usize) {
-        let fl_compressed = (iphc_header[0] & iphc::TF_FLOW_LABEL) != 0;
-        let tc_compressed = (iphc_header[0] & iphc::TF_TRAFFIC_CLASS) != 0;
+        let fl_compressed = (iphc_header & iphc::TF_FLOW_LABEL) != 0;
+        let tc_compressed = (iphc_header & iphc::TF_TRAFFIC_CLASS) != 0;
 
         // Both traffic class and flow label elided, must be zero
         if fl_compressed && tc_compressed {
@@ -736,21 +738,19 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     }
 
     // TODO: impl
-    fn decompress_nh(&self,
-                     ip6_header: &mut IP6Header,
-                     iphc_header: &[u8]) {
-        if iphc_header[0] & iphc::NH != 0 {
+    fn decompress_nh(&self, iphc_header: u8) {
+        if iphc_header & iphc::NH != 0 {
             // TODO: Impl
         }
     }
 
     fn decompress_hl(&self, 
-                     ip6_header: &mut IP6Header, 
-                     iphc_header: &[u8], 
-                     buf: &mut [u8], 
+                     ip6_header: &mut IP6Header,
+                     iphc_header: u8,
+                     buf: &[u8],
                      offset: &mut usize) {
         // TODO: Does this match work?
-        let hop_limit = match iphc_header[0] & iphc::HLIM_MASK {
+        let hop_limit = match (iphc_header & iphc::HLIM_MASK) {
             iphc::HLIM_1      => 1,
             iphc::HLIM_64     => 64,
             iphc::HLIM_255    => 255,
