@@ -25,6 +25,8 @@ pub fn volatile_bitwise_and<T: BitAnd<Output = T>>(item: &mut T, val: T) {
     transform_volatile(item, |t| t & val);
 }
 
+/// Define a function for an interrupt and enqueue the interrupt on the global
+/// queue.
 #[macro_export]
 macro_rules! interrupt_handler {
     ($name: ident, $nvic: ident $(, $body: expr)*) => {

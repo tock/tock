@@ -9,16 +9,16 @@ char wbuf[BUF_SIZE];
 bool toggle = true;
 
 static void write_cb(__attribute__ ((unused)) int arg0,
-              __attribute__ ((unused)) int arg2,
-              __attribute__ ((unused)) int arg3,
-              __attribute__ ((unused)) void* userdata) {
-    led_toggle(0);
-    if (toggle) {
-        spi_read_write(rbuf, wbuf, BUF_SIZE, write_cb, NULL);
-    } else {
-        spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
-    }
-    toggle = !toggle;
+                     __attribute__ ((unused)) int arg2,
+                     __attribute__ ((unused)) int arg3,
+                     __attribute__ ((unused)) void* userdata) {
+  led_toggle(0);
+  if (toggle) {
+    spi_read_write(rbuf, wbuf, BUF_SIZE, write_cb, NULL);
+  } else {
+    spi_read_write(wbuf, rbuf, BUF_SIZE, write_cb, NULL);
+  }
+  toggle = !toggle;
 }
 
 // This function can operate in one of two modes. Either

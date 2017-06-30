@@ -1,8 +1,8 @@
 /* vim: set sw=2 expandtab tw=80: */
 
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <button.h>
@@ -11,30 +11,30 @@
 
 static uint32_t read_cpsr(void) {
   register uint32_t ret asm ("r0");
-  asm volatile(
-      "mrs r0, CONTROL"
-      : "=r"(ret)
-      :
-      :
-      );
+  asm volatile (
+    "mrs r0, CONTROL"
+    : "=r" (ret)
+    :
+    :
+    );
   return ret;
 }
 
 /*
-static void clear_priv(void) {
-  asm volatile(
+   static void clear_priv(void) {
+   asm volatile(
       "mov r0, #1\n\tmsr CONTROL, r0"
       :
       :
       : "r0"
       );
-}
-*/
+   }
+ */
 
 __attribute__((noinline))
 static void dowork(uint8_t* from, uint8_t* to, uint32_t incr) {
   volatile uint8_t* p_from = from;
-  volatile uint8_t* p_to = to;
+  volatile uint8_t* p_to   = to;
 
   printf("%p -> %p, incr 0x%lx\n", p_from, p_to, incr);
   printf("       CPSR: %08lx\n", read_cpsr());
@@ -44,7 +44,7 @@ static void dowork(uint8_t* from, uint8_t* to, uint32_t incr) {
     fflush(stdout);
     printf("%08x\n", *p_from);
     p_from += incr;
-    asm("nop;");
+    asm ("nop;");
   }
 }
 
@@ -91,7 +91,7 @@ int main(void) {
     printf("\nWalking flash\n");
     if (do_overrun) printf("  ! Will overrun\n");
     putchar('\n');
-    dowork(flash_start, flash_end + ((do_overrun) ? 0x1000:0x0), 0x100);
+    dowork(flash_start, flash_end + ((do_overrun) ? 0x1000 : 0x0), 0x100);
 
     delay_ms(2000);
 
@@ -100,7 +100,7 @@ int main(void) {
     if (do_overrun) printf("  ! Will overrun\n");
     putchar('\n');
 
-    dowork(memory_start, memory_limit + ((do_overrun) ? 0x1000:0x0), 0x100);
+    dowork(memory_start, memory_limit + ((do_overrun) ? 0x1000 : 0x0), 0x100);
 
     delay_ms(2000);
   }

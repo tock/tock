@@ -1,5 +1,9 @@
 #pragma once
 
+#include <stdint.h>
+
+#include "tock.h"
+
 #define DRIVER_NUM_LTC294X 18
 
 #ifdef __cplusplus

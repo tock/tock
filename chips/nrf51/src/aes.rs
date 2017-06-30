@@ -104,18 +104,6 @@ impl AesECB {
         self.enable_interrupts();
     }
 
-    // precondition: key_len = 16 || 24 || 32
-    fn set_key(&self, key: &'static mut [u8], _: usize) {
-        for (i, c) in key.as_ref()[0..16].iter().enumerate() {
-            unsafe {
-                ECB_DATA[i] = *c;
-            }
-        }
-
-        self.client
-            .get()
-            .map(|client| unsafe { client.set_key_done(&mut INIT_CTR[0..16]) });
-    }
 
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
@@ -208,8 +196,14 @@ impl SymmetricEncryptionDriver for AesECB {
     }
 
     // capsule ensures that the key is 16 bytes
-    fn set_key(&self, key: &'static mut [u8], len: usize) {
-        self.set_key(key, len)
+    // precondition: key_len = 16 || 24 || 32
+    fn set_key(&self, key: &'static mut [u8], len: usize) -> &'static mut [u8] {
+        for (i, c) in key.as_ref()[0..len].iter().enumerate() {
+            unsafe {
+                ECB_DATA[i] = *c;
+            }
+        }
+        key
     }
 
     fn aes128_crypt_ctr(&self, data: &'static mut [u8], iv: &'static mut [u8], len: usize) {

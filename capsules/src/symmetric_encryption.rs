@@ -1,65 +1,73 @@
-//! Symmetric Block Cipher Capsule
+//! Provides userspace applications with the ability to encrypt and decrypt
+//! messages.
 //!
-//! Provides a driver for user space applications to encrypt and decrypt messages.
+//! Userspace Interface
+//! -------------------
 //!
-//! The system calls allow, subscribe and command are used to initiate the driver.
-//! The methods set_key_done() and crypt_done() are invoked by chip to send
-//! back the result of the operation and then passed the user application via
-//! the callback from the subscribe call.
+//! The system calls allow, subscribe and command are used to initiate the
+//! driver. The methods `set_key_done()` and `crypt_done()` are invoked by chip
+//! to send back the result of the operation and then passed the user
+//! application via the callback from the subscribe call.
 //!
-//! ---ALLOW SYSTEM CALL ------------------------------------------------------------
-//! The 'allow' system call is used to provide three different buffers and
-//! the following allow_num's are supported:
+//! ### `allow` System Call
 //!
-//!     * 0: A buffer with the key to be used for encryption and decryption.
-//!          Currently it can only configured once.
-//!     * 1: A buffer with data that will be encrypted and/or decrypted
-//!     * 4: A buffer to configure to initial counter when counter mode of
-//!          block cipher is used.
+//! The `allow` system call is used to provide three different buffers and the
+//! following allow_num's are supported:
 //!
-//! The possible return codes from the 'allow' system call indicate the following:
-//!     * SUCCESS: The buffer has successfully been filled
-//!     * ENOSUPPORT: Invalid allow_num
-//!     * ENOMEM: No sufficient memory available
-//!     * EINVAL => Invalid address of the buffer or other error
-//! ------------------------------------------------------------------------------
+//! * 0: A buffer with the key to be used for encryption and decryption.
+//!   Currently it can only configured once.
+//! * 1: A buffer with data that will be encrypted and/or decrypted
+//! * 4: A buffer to configure to initial counter when counter mode of block
+//!   cipher is used.
 //!
-//! ---SUBSCRIBE SYSTEM CALL----------------------------------------------------------
-//! The `subscribe` system call supports the single `subscribe_number`
-//! zero, which is used to provide a callback that will receive the
-//! result of configuring the key, encryption or decryption.
-//! The possible return from the 'subscribe' system call indicates the following:
-//!     * SUCCESS: the callback been successfully been configured
-//!     * ENOSUPPORT: Invalid allow_num
-//!     * ENOMEM: No sufficient memory available
-//!     * EINVAL => Invalid address of the buffer or other error
-//! ------------------------------------------------------------------------------
+//! The possible return codes from the 'allow' system call indicate the
+//! following:
 //!
-//! ---COMMAND SYSTEM CALL------------------------------------------------------------
-//! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
-//! 'cmd' is used to specify the specific operation, currently
-//! the following cmd's are supported:
-//!     * 0: configure the key
-//!     * 2: encryption
-//!     * 3: decryption
+//! * `SUCCESS`: The buffer has successfully been filled.
+//! * `ENOSUPPORT`: Invalid allow_num.
+//! * `ENOMEM`: No sufficient memory available.
+//! * `EINVAL`: Invalid address of the buffer or other error.
 //!
-//! 'sub_cmd' is used to specify the specific algorithm to be used and currently
+//!
+//! ### `subscribe` System Call
+//!
+//! The `subscribe` system call supports the single `subscribe_number` zero,
+//! which is used to provide a callback that will receive the result of
+//! configuring the key, encryption or decryption. The possible return from the
+//! `subscribe` system call indicates the following:
+//!
+//! * `SUCCESS`: the callback been successfully been configured.
+//! * `ENOSUPPORT`: Invalid allow_num.
+//! * `ENOMEM`: No sufficient memory available.
+//! * `EINVAL`: Invalid address of the buffer or other error.
+//!
+//!
+//! ### `command` System Call
+//!
+//! The `command` system call supports two arguments `cmd` and `sub_cmd`. `cmd`
+//! is used to specify the specific operation, currently the following cmd's are
+//! supported:
+//!
+//! * `0`: configure the key
+//! * `2`: encryption
+//! * `3`: decryption
+//!
+//! `sub_cmd` is used to specify the specific algorithm to be used and currently
 //!  the following sub_cmd's are supported:
-//!     * 0: aes128 counter-mode
+//!
+//! * `0`: aes128 counter-mode
 //!
 //! The possible return from the 'command' system call indicates the following:
-//!   * SUCCESS:    The operation has been successful
-//!   * EBUSY:      The driver is busy
-//!   * ESIZE:      Invalid key size currently is must be 16, 24 or 32 bytes
-//!   * ENOSUPPORT: Invalid 'cmd' or 'sub_cmd'
-//!   * EFAIL:      The key is configured or other error
-//! ------------------------------------------------------------------------------
 //!
-//!
-//!
-//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: March 31, 2017
+//! * `SUCCESS`:    The operation has been successful.
+//! * `EBUSY`:      The driver is busy.
+//! * `ESIZE`:      Invalid key size currently is must be 16, 24 or 32 bytes.
+//! * `ENOSUPPORT`: Invalid `cmd` or `sub_cmd`.
+//! * `EFAIL`:      The key is configured or other error.
+
+// Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+// Author: Fredrik Nilsson <frednils@student.chalmers.se>
+// Date: March 31, 2017
 
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
@@ -72,7 +80,7 @@ pub static mut KEY: [u8; 16] = [0; 16];
 pub static mut IV: [u8; 16] = [0; 16];
 
 
-// This enum shall keep track of the state of the AESDriver
+/// This enum shall keep track of the state of the AESDriver
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum CryptoState {
@@ -147,27 +155,14 @@ impl<'a, E: SymmetricEncryptionDriver + 'a> Client for Crypto<'a, E> {
                         d[i] = *c;
                     }
                 }
-                app.callback.map(|mut cb| { cb.schedule(self.state.get() as usize, 0, 0); });
+                app.callback
+                    .map(|mut cb| { cb.schedule(self.state.get() as usize, 0, 0); });
             });
         }
         self.busy.set(false);
         self.state.set(CryptoState::IDLE);
         self.kernel_data.replace(data);
         self.kernel_ctr.replace(dmy);
-        ReturnCode::SUCCESS
-    }
-
-    fn set_key_done(&self, key: &'static mut [u8]) -> ReturnCode {
-        for cntr in self.apps.iter() {
-            cntr.enter(|app, _| { app.callback.map(|mut cb| { cb.schedule(0, 0, 0); }); });
-        }
-        self.kernel_key.replace(key);
-        // indicate that the key is configured
-        self.key_configured.set(true);
-        // indicate that the encryption driver not busy
-        self.busy.set(false);
-
-        self.state.set(CryptoState::IDLE);
         ReturnCode::SUCCESS
     }
 }
@@ -247,22 +242,33 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                         self.state.set(CryptoState::SETKEY);
 
                         cntr.enter(|app, _| {
-                            app.key_buf.as_ref().map(|slice| {
-                                let len = slice.len();
-                                if len == 16 || len == 24 || len == 32 {
-                                    self.kernel_key.take().map(|buf| {
-                                        for (out, inp) in buf.iter_mut()
-                                            .zip(slice.as_ref()[0..len].iter()) {
-                                            *out = *inp;
-                                        }
-                                        self.crypto.set_key(buf, len);
-                                    });
-                                } else {
-                                    self.busy.set(false);
-                                    self.state.set(CryptoState::IDLE);
-                                    ret = ReturnCode::ESIZE;
-                                }
-                            });
+                            app.key_buf
+                                .as_ref()
+                                .map(|slice| {
+                                    let len = slice.len();
+                                    if len == 16 || len == 24 || len == 32 {
+                                        self.kernel_key
+                                            .take()
+                                            .map(|buf| {
+                                                for (out, inp) in buf.iter_mut()
+                                                    .zip(slice.as_ref()[0..len].iter()) {
+                                                    *out = *inp;
+                                                }
+                                                let tmp = self.crypto.set_key(buf, len);
+                                                self.kernel_key.replace(tmp);
+                                                // indicate that the key is configured
+                                                self.key_configured.set(true);
+                                                // indicate that the encryption driver not busy
+                                                self.busy.set(false);
+
+                                                self.state.set(CryptoState::IDLE);
+                                            });
+                                    } else {
+                                        self.busy.set(false);
+                                        self.state.set(CryptoState::IDLE);
+                                        ret = ReturnCode::ESIZE;
+                                    }
+                                });
                         });
                     }
                     ret
@@ -285,26 +291,38 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                                 cntr.enter(|app, _| {
                                     self.busy.set(true);
                                     self.state.set(CryptoState::ENCRYPT);
-                                    app.data_buf.as_ref().map(|slice| {
-                                        let len1 = slice.len();
-                                        self.kernel_data.take().map(|buf| {
-                                            for (out, inp) in buf.iter_mut()
-                                                .zip(slice.as_ref()[0..len1].iter()) {
-                                                *out = *inp;
-                                            }
-                                            app.ctr_buf.as_ref().map(|slice2| {
-                                                let len2 = slice2.len();
-                                                self.kernel_ctr.take().map(move |ctr| {
-                                                    for (out, inp) in ctr.iter_mut()
-                                                        .zip(slice2.as_ref()[0..len2].iter()) {
+                                    app.data_buf
+                                        .as_ref()
+                                        .map(|slice| {
+                                            let len1 = slice.len();
+                                            self.kernel_data
+                                                .take()
+                                                .map(|buf| {
+                                                    for (out, inp) in buf.iter_mut()
+                                                        .zip(slice.as_ref()[0..len1].iter()) {
                                                         *out = *inp;
                                                     }
-                                                    self.crypto
-                                                        .aes128_crypt_ctr(buf, ctr, len1);
+                                                    app.ctr_buf
+                                                        .as_ref()
+                                                        .map(|slice2| {
+                                                            let len2 = slice2.len();
+                                                            self.kernel_ctr
+                                                                .take()
+                                                                .map(move |ctr| {
+                                                                    for (out, inp) in ctr.iter_mut()
+                                                                        .zip(slice2.as_ref()
+                                                                                 [0..len2]
+                                                                            .iter()) {
+                                                                        *out = *inp;
+                                                                    }
+                                                                    self.crypto
+                                                                        .aes128_crypt_ctr(buf,
+                                                                                          ctr,
+                                                                                          len1);
+                                                                });
+                                                        });
                                                 });
-                                            });
                                         });
-                                    });
                                 });
                             }
                             ReturnCode::SUCCESS
@@ -330,26 +348,38 @@ impl<'a, E: SymmetricEncryptionDriver> Driver for Crypto<'a, E> {
                                 cntr.enter(|app, _| {
                                     self.busy.set(true);
                                     self.state.set(CryptoState::DECRYPT);
-                                    app.data_buf.as_ref().map(|slice| {
-                                        let len1 = slice.len();
-                                        self.kernel_data.take().map(|buf| {
-                                            for (out, inp) in buf.iter_mut()
-                                                .zip(slice.as_ref()[0..len1].iter()) {
-                                                *out = *inp;
-                                            }
-                                            app.ctr_buf.as_ref().map(|slice2| {
-                                                let len2 = slice2.len();
-                                                self.kernel_ctr.take().map(move |ctr| {
-                                                    for (out, inp) in ctr.iter_mut()
-                                                        .zip(slice2.as_ref()[0..len2].iter()) {
+                                    app.data_buf
+                                        .as_ref()
+                                        .map(|slice| {
+                                            let len1 = slice.len();
+                                            self.kernel_data
+                                                .take()
+                                                .map(|buf| {
+                                                    for (out, inp) in buf.iter_mut()
+                                                        .zip(slice.as_ref()[0..len1].iter()) {
                                                         *out = *inp;
                                                     }
-                                                    self.crypto
-                                                        .aes128_crypt_ctr(buf, ctr, len1);
+                                                    app.ctr_buf
+                                                        .as_ref()
+                                                        .map(|slice2| {
+                                                            let len2 = slice2.len();
+                                                            self.kernel_ctr
+                                                                .take()
+                                                                .map(move |ctr| {
+                                                                    for (out, inp) in ctr.iter_mut()
+                                                                        .zip(slice2.as_ref()
+                                                                                 [0..len2]
+                                                                            .iter()) {
+                                                                        *out = *inp;
+                                                                    }
+                                                                    self.crypto
+                                                                        .aes128_crypt_ctr(buf,
+                                                                                          ctr,
+                                                                                          len1);
+                                                                });
+                                                        });
                                                 });
-                                            });
                                         });
-                                    });
                                 });
                             }
                             ReturnCode::SUCCESS

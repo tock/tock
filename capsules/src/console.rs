@@ -1,7 +1,4 @@
-//! Console Capsule
-//!
-//! Console provides userspace with the ability to print text via a serial
-//! interface.
+//! Provides userspace with the ability to print text via a serial interface.
 
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver, ReturnCode};

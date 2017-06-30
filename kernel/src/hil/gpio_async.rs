@@ -1,3 +1,5 @@
+//! Interface for GPIO pins that require split-phase operation to control.
+
 use hil;
 use returncode::ReturnCode;
 

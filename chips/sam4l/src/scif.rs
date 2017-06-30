@@ -1,12 +1,11 @@
-// scif.rs -- System control interface for SAM4L
-//
-// This file includes support for the SCIF (Chapter 13 of SAML manual),
-// which configures system clocks. Does not currently support all
-// features/functionality: only main oscillator and generic clocks.
-//
-// Author: Philip Levis
-// Date: Aug 2, 2015
-//
+//! Implementation of the system control interface for the SAM4L.
+//!
+//! This file includes support for the SCIF (Chapter 13 of SAML manual), which
+//! configures system clocks. Does not currently support all
+//! features/functionality: only main oscillator and generic clocks.
+//!
+//! - Author: Philip Levis
+//! - Date: Aug 2, 2015
 
 use kernel::common::VolatileCell;
 
@@ -26,7 +25,7 @@ pub enum Register {
 pub enum ClockSource {
     RCSYS = 0,
     OSC32K = 1,
-    DFFL0 = 2,
+    DFLL0 = 2,
     OSC0 = 3,
     RC80M = 4,
     RCFAST = 5,

@@ -1,6 +1,6 @@
-/// Interfaces for analog to digital converter peripherals.
-use returncode::ReturnCode;
+//! Interfaces for analog to digital converter peripherals.
 
+use returncode::ReturnCode;
 
 // *** Interfaces for low-speed, single-sample ADCs ***
 

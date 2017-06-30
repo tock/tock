@@ -1,18 +1,18 @@
-//! Driver for the LTC294X line of coloumb counters.
+//! Driver for the LTC294X line of coulomb counters.
 //!
-//! http://www.linear.com/product/LTC2941
-//! http://www.linear.com/product/LTC2942
-//! http://www.linear.com/product/LTC2943
+//! - http://www.linear.com/product/LTC2941
+//! - http://www.linear.com/product/LTC2942
+//! - http://www.linear.com/product/LTC2943
 //!
-//! From the website:
-//!  "The LTC2941 measures battery charge state in battery-supplied handheld PC
-//!  and portable product applications. Its operating range is perfectly suited
-//!  for single-cell Li-Ion batteries. A precision coulomb counter integrates
-//!  current through a sense resistor between the battery’s positive terminal
-//!  and the load or charger. The measured charge is stored in internal
-//!  registers. An SMBus/I2C interface accesses and configures the device."
+//! > The LTC2941 measures battery charge state in battery-supplied handheld PC
+//! > and portable product applications. Its operating range is perfectly suited
+//! > for single-cell Li-Ion batteries. A precision coulomb counter integrates
+//! > current through a sense resistor between the battery’s positive terminal
+//! > and the load or charger. The measured charge is stored in internal
+//! > registers. An SMBus/I2C interface accesses and configures the device.
 //!
-//! ### Capsule Structure
+//! Structure
+//! ---------
 //!
 //! This file implements the LTC294X driver in two objects. First is the
 //! `LTC294X` struct. This implements all of the actual logic for the
@@ -21,46 +21,26 @@
 //! to potentially interface with the LTC294X chip rather than only provide
 //! it to userspace.
 //!
-//! ### Instantiating the LTC294X capsule
+//! Usage
+//! -----
 //!
 //! Here is a sample usage of this capsule in a board's main.rs file:
 //!
 //! ```rust
 //! let ltc294x_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
-//!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x64),
-//!     32);
+//!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x64));
 //! let ltc294x = static_init!(
 //!     capsules::ltc294x::LTC294X<'static>,
-//!     capsules::ltc294x::LTC294X::new(ltc294x_i2c, None, &mut capsules::ltc294x::BUFFER),
-//!     288/8);
+//!     capsules::ltc294x::LTC294X::new(ltc294x_i2c, None, &mut capsules::ltc294x::BUFFER));
 //! ltc294x_i2c.set_client(ltc294x);
 //!
 //! // Optionally create the object that provides an interface for the coulomb
 //! // counter for applications.
 //! let ltc294x_driver = static_init!(
 //!     capsules::ltc294x::LTC294XDriver<'static>,
-//!     capsules::ltc294x::LTC294XDriver::new(ltc294x),
-//!     192/8);
+//!     capsules::ltc294x::LTC294XDriver::new(ltc294x));
 //! ltc294x.set_client(ltc294x_driver);
-//! ```
-//!
-//! ### System call interface
-//!
-//! ```
-//! Command Number     Description
-//! ------------------------------
-//! 0                  Check if this driver exists
-//! 1                  Read the status of the LTC294X
-//! 2                  Configure the LTC294X
-//! 3                  Reset the accumulated charge to 0
-//! 4                  Set a high threshold for charge usage
-//! 5                  Set a low threshold for charge usage
-//! 6                  Get the current charge usage
-//! 7                  Shutdown the LTC294X
-//! 8                  Get the current voltage (only on 42 and 43)
-//! 9                  Get the current current (only on 43)
-//! 10                 Set the current LTC294X model in this capsule
 //! ```
 
 use core::cell::Cell;
@@ -103,6 +83,7 @@ enum State {
     Done,
 }
 
+/// Which version of the chip we are actually using.
 #[derive(Clone,Copy)]
 pub enum ChipModel {
     LTC2941 = 1,
@@ -110,12 +91,14 @@ pub enum ChipModel {
     LTC2943 = 3,
 }
 
+/// Settings for which interrupt we want.
 pub enum InterruptPinConf {
     Disabled = 0x00,
     ChargeCompleteMode = 0x01,
     AlertMode = 0x02,
 }
 
+/// Threshold options for battery alerts.
 pub enum VBatAlert {
     Off = 0x00,
     Threshold2V8 = 0x01,
@@ -123,6 +106,7 @@ pub enum VBatAlert {
     Threshold3V0 = 0x03,
 }
 
+/// Supported events for the LTC294X.
 pub trait LTC294XClient {
     fn interrupt(&self);
     fn status(&self,
@@ -137,6 +121,7 @@ pub trait LTC294XClient {
     fn done(&self);
 }
 
+/// Implementation of a driver for the LTC294X coulomb counters.
 pub struct LTC294X<'a> {
     i2c: &'a i2c::I2CDevice,
     interrupt_pin: Option<&'a gpio::Pin>,
@@ -455,6 +440,19 @@ impl<'a> LTC294XClient for LTC294XDriver<'a> {
 }
 
 impl<'a> Driver for LTC294XDriver<'a> {
+    /// Setup callbacks.
+    ///
+    /// ### `subscribe_num`
+    ///
+    /// - `0`: Set the callback that that is triggered when events finish and
+    ///   when readings are ready. The first argument represents which callback
+    ///   was triggered.
+    ///   - `0`: Interrupt occurred from the LTC294X.
+    ///   - `1`: Got the status.
+    ///   - `2`: Read the charge used.
+    ///   - `3`: `done()` was called.
+    ///   - `4`: Read the voltage.
+    ///   - `5`: Read the current.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -467,6 +465,23 @@ impl<'a> Driver for LTC294XDriver<'a> {
         }
     }
 
+    /// Request operations for the LTC294X chip.
+    ///
+    /// ### `command_num`
+    ///
+    /// - `0`: Driver check.
+    /// - `1`: Get status of the chip.
+    /// - `2`: Configure settings of the chip.
+    /// - `3`: Reset accumulated charge measurement to zero.
+    /// - `4`: Set the upper threshold for charge.
+    /// - `5`: Set the lower threshold for charge.
+    /// - `6`: Get the current charge accumulated.
+    /// - `7`: Shutdown the chip.
+    /// - `8`: Get the voltage reading. Only supported on the LTC2942 and
+    ///   LTC2943.
+    /// - `9`: Get the current reading. Only supported on the LTC2943.
+    /// - `10`: Set the model of the LTC294X actually being used. `data` is the
+    ///   value of the X.
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         match command_num {
             // Check this driver exists.

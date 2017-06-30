@@ -1,9 +1,8 @@
-// chips::sam4l::ast -- Implementation of a single hardware timer.
-//
-// Author: Amit Levy <levya@cs.stanford.edu>
-// Author: Philip Levis <pal@cs.stanford.edu>
-// Date: July 16, 2015
-//
+//! Implementation of a single hardware timer.
+//!
+//! - Author: Amit Levy <levya@cs.stanford.edu>
+//! - Author: Philip Levis <pal@cs.stanford.edu>
+//! - Date: July 16, 2015
 
 use core::cell::Cell;
 use kernel::common::VolatileCell;

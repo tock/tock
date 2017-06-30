@@ -5,6 +5,7 @@ cache:
   cargo: true
   directories:
     - $HOME/gcc-arm-none-eabi-6_2-2016q4
+    - $HOME/uncrustify-uncrustify-0.65
 
 os:
   - linux
@@ -12,14 +13,15 @@ os:
 
 # If you change this, you must also change README and Common.mk
 rust:
-  - nightly-2017-05-24
+  - nightly-2017-06-20
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./.travis-install-gcc; fi
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export PATH="$PATH:$HOME/gcc-arm-none-eabi-6_2-2016q4/bin"; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export PATH="$PATH:$HOME/uncrustify-uncrustify-0.65/build"; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then brew tap ARMmbed/homebrew-formulae; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then brew update; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then brew install arm-none-eabi-gcc; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then brew install arm-none-eabi-gcc uncrustify; fi
 
 before_script:
   - (cargo install --vers 0.7.1 rustfmt || true)
@@ -30,6 +32,7 @@ script:
   - export PATH=$HOME/.cargo/bin:$PATH
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then tools/run_cargo_fmt.sh diff; fi
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then make allboards; fi
-  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then pushd userland/examples && ./build_all.sh; fi
-  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then popd && tools/toc.sh; fi
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then pushd userland/examples; ./build_all.sh || exit; popd; fi
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then pushd userland/examples; ./format_all.sh || exit; popd; fi
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]] || [[ "$TRAVIS_BRANCH$TRAVIS_EVENT_TYPE" == "masterpush" ]]; then tools/toc.sh; fi
 

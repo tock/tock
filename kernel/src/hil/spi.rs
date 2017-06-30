@@ -1,4 +1,4 @@
-//! Traits and parameters for SPI master communication.
+//! Interfaces for SPI master and slave communication.
 
 use core::option::Option;
 
@@ -146,4 +146,59 @@ pub trait SpiMasterDevice {
     fn get_polarity(&self) -> ClockPolarity;
     fn get_phase(&self) -> ClockPhase;
     fn get_rate(&self) -> u32;
+}
+
+pub trait SpiSlaveClient {
+    /// This is called whenever the slave is selected by the master
+    fn chip_selected(&self);
+
+    /// This is called as a DMA interrupt when a transfer has completed
+    fn read_write_done(&self,
+                       write_buffer: Option<&'static mut [u8]>,
+                       read_buffer: Option<&'static mut [u8]>,
+                       len: usize);
+}
+
+pub trait SpiSlave {
+    fn init(&self);
+    /// Returns true if there is a client.
+    fn has_client(&self) -> bool;
+
+    fn set_client(&self, client: Option<&'static SpiSlaveClient>);
+
+    fn set_write_byte(&self, write_byte: u8);
+    fn read_write_bytes(&self,
+                        write_buffer: Option<&'static mut [u8]>,
+                        read_buffer: Option<&'static mut [u8]>,
+                        len: usize)
+                        -> ReturnCode;
+
+    fn set_clock(&self, polarity: ClockPolarity);
+    fn get_clock(&self) -> ClockPolarity;
+    fn set_phase(&self, phase: ClockPhase);
+    fn get_phase(&self) -> ClockPhase;
+}
+
+/// SPISlaveDevice provides a chip-specific interface to the SPI Slave
+/// hardware. The interface wraps the chip select line so that chip drivers
+/// cannot communicate with different SPI devices.
+pub trait SpiSlaveDevice {
+    /// Setup the SPI settings and speed of the bus.
+    fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase);
+
+    /// Perform an asynchronous read/write operation, whose
+    /// completion is signaled by invoking SpiSlaveClient.read_write_done on
+    /// the provided client. Either write_buffer or read_buffer may be
+    /// None. If read_buffer is Some, the length of the operation is the
+    /// minimum of the size of the two buffers.
+    fn read_write_bytes(&self,
+                        write_buffer: Option<&'static mut [u8]>,
+                        read_buffer: Option<&'static mut [u8]>,
+                        len: usize)
+                        -> ReturnCode;
+
+    fn set_polarity(&self, cpol: ClockPolarity);
+    fn get_polarity(&self) -> ClockPolarity;
+    fn set_phase(&self, cpal: ClockPhase);
+    fn get_phase(&self) -> ClockPhase;
 }

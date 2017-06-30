@@ -1,16 +1,17 @@
-//! Driver for the Microchip MCP23008 I2C GPIO Extender
+//! Driver for the Microchip MCP23008 I2C GPIO extender.
 //!
 //! http://www.microchip.com/wwwproducts/en/MCP23008
 //!
 //! Paraphrased from the website:
-//! "The MCP23008 device provides 8-bit, general purpose, parallel I/O expansion
-//! for I2C bus applications. The MCP23008 has three address pins and consists
-//! of multiple 8-bit configuration registers for input, output and polarity
-//! selection. The system master can enable the I/Os as either inputs or outputs
-//! by writing the I/O configuration bits. The data for each input or output is
-//! kept in the corresponding Input or Output register. The polarity of the
-//! Input Port register can be inverted with the Polarity Inversion register.
-//! All registers can be read by the system master."
+//!
+//! > The MCP23008 device provides 8-bit, general purpose, parallel I/O
+//! > expansion for I2C bus applications. The MCP23008 has three address pins
+//! > and consists of multiple 8-bit configuration registers for input, output
+//! > and polarity selection. The system master can enable the I/Os as either
+//! > inputs or outputs by writing the I/O configuration bits. The data for each
+//! > input or output is kept in the corresponding Input or Output register. The
+//! > polarity of the Input Port register can be inverted with the Polarity
+//! > Inversion register. All registers can be read by the system master.
 //!
 //! Usage
 //! -----
@@ -19,18 +20,17 @@
 //! trait.
 //!
 //! Example usage:
+//!
 //! ```rust
 //! // Configure the MCP23008. Device address 0x20.
 //! let mcp23008_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
-//!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x20),
-//!     32);
+//!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x20));
 //! let mcp23008 = static_init!(
 //!     capsules::mcp23008::MCP23008<'static>,
 //!     capsules::mcp23008::MCP23008::new(mcp23008_i2c,
 //!                                       Some(&sam4l::gpio::PA[04]),
-//!                                       &mut capsules::mcp23008::BUFFER),
-//!     352/8);
+//!                                       &mut capsules::mcp23008::BUFFER));
 //! mcp23008_i2c.set_client(mcp23008);
 //! sam4l::gpio::PA[04].set_client(mcp23008);
 //!
@@ -38,21 +38,18 @@
 //! // administrative layer that provides a single interface to them all.
 //! let async_gpio_ports = static_init!(
 //!     [&'static capsules::mcp23008::MCP23008; 1],
-//!     [mcp23008],
-//!     32/8
-//! );
+//!     [mcp23008]);
 //!
 //! // `gpio_async` is the object that manages all of the extenders.
 //! let gpio_async = static_init!(
 //!     capsules::gpio_async::GPIOAsync<'static, capsules::mcp23008::MCP23008<'static>>,
-//!     capsules::gpio_async::GPIOAsync::new(async_gpio_ports),
-//!     384/8
-//! );
+//!     capsules::gpio_async::GPIOAsync::new(async_gpio_ports));
 //! // Setup the clients correctly.
 //! for port in async_gpio_ports.iter() {
 //!     port.set_client(gpio_async);
 //! }
 //! ```
+//!
 //! Note that if interrupts are not needed, a `None` can be passed in when the
 //! `mcp23008` object is created.
 

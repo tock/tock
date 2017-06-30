@@ -1,4 +1,16 @@
-//! This allows a 9DOF sensor to be used by multiple apps.
+//! Provides userspace with virtualized access to 9DOF sensors.
+//!
+//! Usage
+//! -----
+//!
+//! You need a device that provides the `hil::ninedof::NineDof` trait.
+//!
+//! ``rust
+//! let ninedof = static_init!(
+//!     capsules::ninedof::NineDof<'static>,
+//!     capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
+//! hil::ninedof::NineDof::set_client(fxos8700, ninedof);
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver};

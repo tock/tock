@@ -1,3 +1,5 @@
+//! Implementation of the BPM peripheral.
+
 use kernel::common::VolatileCell;
 
 #[repr(C, packed)]

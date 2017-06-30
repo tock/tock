@@ -1,3 +1,6 @@
+//! Interface and default implementation for the system tick timer.
+
+/// Interface for the system tick timer.
 pub trait SysTick {
     /// Sets the timer as close as possible to the given interval in
     /// microseconds.  The clock is 24-bits wide and specific timing is

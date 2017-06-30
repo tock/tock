@@ -1,3 +1,7 @@
+//! Peripheral implementations for the SAM4L MCU.
+//!
+//! http://www.atmel.com/microsite/sam4l/default.aspx
+
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
 #![feature(asm,core_intrinsics,concat_idents,const_fn)]
@@ -27,6 +31,7 @@ pub mod flashcalw;
 pub mod wdt;
 pub mod trng;
 pub mod crccu;
+pub mod dac;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -112,7 +117,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* PDCA13 */        Option::Some(dma::pdca13_handler),
     /* PDCA14 */        Option::Some(dma::pdca14_handler),
     /* PDCA15 */        Option::Some(dma::pdca15_handler),
-    /* CRCCU */         Option::Some(crccu::interrupt_handler),
+    /* CRCCU */         Option::Some(crccu::crccu_handler),
     /* USBC */          Option::Some(unhandled_interrupt),
     /* PEVC_TR */       Option::Some(unhandled_interrupt),
     /* PEVC_OV */       Option::Some(unhandled_interrupt),
@@ -149,7 +154,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* EIC7 */          Option::Some(unhandled_interrupt),
     /* EIC8 */          Option::Some(unhandled_interrupt),
     /* IISC */          Option::Some(unhandled_interrupt),
-    /* SPI */           Option::Some(unhandled_interrupt),
+    /* SPI */           Option::Some(spi::spi_interrupt_handler),
     /* TC00 */          Option::Some(unhandled_interrupt),
     /* TC01 */          Option::Some(unhandled_interrupt),
     /* TC02 */          Option::Some(unhandled_interrupt),
@@ -165,7 +170,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* USART2 */        Option::Some(usart::usart2_handler),
     /* USART3 */        Option::Some(usart::usart3_handler),
     /* ADCIFE */        Option::Some(adc::adcife_handler),
-    /* DACC */          Option::Some(unhandled_interrupt),
+    /* DACC */          Option::Some(dac::dacc_handler),
     /* ACIFC */         Option::Some(unhandled_interrupt),
     /* ABDACB */        Option::Some(unhandled_interrupt),
     /* TRNG */          Option::Some(trng::trng_handler),

@@ -1,3 +1,5 @@
+//! Tock core scheduler.
+
 use core::nonzero::NonZero;
 use memop;
 use platform::{Chip, Platform};

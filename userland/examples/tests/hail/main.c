@@ -1,31 +1,31 @@
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
 
+#include <ble_advdata.h>
 #include <nordic_common.h>
 #include <nrf_error.h>
-#include <ble_advdata.h>
 
-#include <simple_ble.h>
 #include <simple_adv.h>
+#include <simple_ble.h>
 
-#include <timer.h>
-#include <isl29035.h>
-#include <si7021.h>
-#include <ninedof.h>
-#include <button.h>
-#include <led.h>
 #include <adc.h>
+#include <button.h>
 #include <gpio.h>
+#include <isl29035.h>
+#include <led.h>
+#include <ninedof.h>
 #include <nrf51_serialization.h>
+#include <si7021.h>
+#include <timer.h>
 
 // Intervals for BLE advertising and connections
 simple_ble_config_t ble_config = {
-    .platform_id       = 0x13,              // used as 4th octect in device BLE address
-    .device_id         = DEVICE_ID_DEFAULT,
-    .adv_name          = (char*)"Hail",
-    .adv_interval      = MSEC_TO_UNITS(1000, UNIT_0_625_MS),
-    .min_conn_interval = MSEC_TO_UNITS(1000, UNIT_1_25_MS),
-    .max_conn_interval = MSEC_TO_UNITS(1250, UNIT_1_25_MS),
+  .platform_id       = 0x13,                // used as 4th octect in device BLE address
+  .device_id         = DEVICE_ID_DEFAULT,
+  .adv_name          = (char*)"Hail",
+  .adv_interval      = MSEC_TO_UNITS(1000, UNIT_0_625_MS),
+  .min_conn_interval = MSEC_TO_UNITS(1000, UNIT_1_25_MS),
+  .max_conn_interval = MSEC_TO_UNITS(1250, UNIT_1_25_MS),
 };
 
 // Empty handler for setting BLE addresses
@@ -54,22 +54,22 @@ static void sample_sensors (void) {
   unsigned humi;
   si7021_get_temperature_humidity_sync(&temp, &humi);
   uint32_t accel_mag = ninedof_read_accel_mag();
-  int light = isl29035_read_light_intensity();
+  int light          = isl29035_read_light_intensity();
 
   // Analog inputs: A0-A5
   uint16_t val;
   adc_sample_sync(0, &val);
-  int a0 = (val * 3300)/ 4095;
+  int a0 = (val * 3300) / 4095;
   adc_sample_sync(1, &val);
-  int a1 = (val * 3300)/ 4095;
+  int a1 = (val * 3300) / 4095;
   adc_sample_sync(2, &val);
-  int a2 = (val * 3300)/ 4095;
+  int a2 = (val * 3300) / 4095;
   adc_sample_sync(3, &val);
-  int a3 = (val * 3300)/ 4095;
+  int a3 = (val * 3300) / 4095;
   adc_sample_sync(4, &val);
-  int a4 = (val * 3300)/ 4095;
+  int a4 = (val * 3300) / 4095;
   adc_sample_sync(5, &val);
-  int a5 = (val * 3300)/ 4095;
+  int a5 = (val * 3300) / 4095;
 
   // Digital inputs: D0, D1, D6, D7
   int d0 = gpio_read(0);

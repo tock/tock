@@ -30,7 +30,7 @@ static void callback(int status, int v1, __attribute__((unused)) int v2, void *d
 {
   struct data *d = data;
 
-  d->fired = true;
+  d->fired  = true;
   d->status = status;
   d->result = v1;
 }

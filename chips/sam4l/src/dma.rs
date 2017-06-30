@@ -1,3 +1,5 @@
+//! Implementation of the PDCA DMA peripheral.
+
 use core::{cmp, intrinsics, mem};
 use core::cell::Cell;
 use kernel::common::VolatileCell;
@@ -6,7 +8,7 @@ use kernel::common::take_cell::TakeCell;
 use nvic;
 use pm;
 
-/// Memory registers for a DMA channel. Section 16.6.1 of the datasheet
+/// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
 #[repr(C, packed)]
 #[allow(dead_code)]
 struct DMARegisters {
@@ -26,10 +28,10 @@ struct DMARegisters {
     _unused: [usize; 4],
 }
 
-/// The PDCA's base addresses in memory (Section 7.1 of manual)
+/// The PDCA's base addresses in memory (Section 7.1 of manual).
 const DMA_BASE_ADDR: usize = 0x400A2000;
 
-/// The number of bytes between each memory mapped DMA Channel (Section 16.6.1)
+/// The number of bytes between each memory mapped DMA Channel (Section 16.6.1).
 const DMA_CHANNEL_SIZE: usize = 0x40;
 
 /// Shared counter that Keeps track of how many DMA channels are currently
@@ -38,7 +40,7 @@ static mut NUM_ENABLED: usize = 0;
 
 /// The DMA channel number. Each channel transfers data between memory and a
 /// particular peripheral function (e.g., SPI read or SPI write, but not both
-/// simultaneously). There are 16 available channels (Section 16.7)
+/// simultaneously). There are 16 available channels (Section 16.7).
 #[derive(Copy,Clone)]
 pub enum DMAChannelNum {
     // Relies on the fact that assigns values 0-15 to each constructor in order
@@ -61,8 +63,8 @@ pub enum DMAChannelNum {
 }
 
 
-/// The peripheral function a channel is assigned to (Section 16.7)
-/// *_RX means transfer data from peripheral to memory, *_TX means transfer data
+/// The peripheral function a channel is assigned to (Section 16.7). `*_RX`
+/// means transfer data from peripheral to memory, `*_TX` means transfer data
 /// from memory to peripheral.
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]

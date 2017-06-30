@@ -30,7 +30,7 @@ KERNEL_HEAP_SIZE ?= 1024
 PACKAGE_NAME ?= $(notdir $(shell pwd))
 
 # Tock supported architectures
-TOCK_ARCHS := cortex-m0 cortex-m4
+TOCK_ARCHS ?= cortex-m0 cortex-m4
 
 # This could be replaced with an installed version of `elf2tbf`
 ELF2TBF ?= cargo run --manifest-path $(abspath $(TOCK_USERLAND_BASE_DIR))/tools/elf2tbf/Cargo.toml --
@@ -210,6 +210,10 @@ override CXXFLAGS += -Wzero-as-null-pointer-constant # use of 0 as NULL
 
 # END WARNINGS
 ##################################################################################################
+
+
+# C/C++ Linter configuration
+UNCRUSTIFY := $(TOCK_USERLAND_BASE_DIR)/tools/uncrustify/uncrustify.sh
 
 
 # Dump configuration for verbose builds

@@ -1,6 +1,17 @@
-//! Driver for the Taos TSL2561 Light Sensor
+//! Driver for the Taos TSL2561 light sensor.
 //!
 //! http://www.digikey.com/product-detail/en/ams-taos-usa-inc/TSL2561FN/TSL2561-FNCT-ND/3095298
+//!
+//! > The TSL2560 and TSL2561 are light-to-digital converters that transform
+//! > light intensity to a digital signal output capable of direct I2C
+//! > interface. Each device combines one broadband photodiode (visible plus
+//! > infrared) and one infrared-responding photodiodeon a single CMOS
+//! > integrated circuit capable of providing a near-photopic response over an
+//! > effective 20-bit dynamic range (16-bit resolution). Two integrating ADCs
+//! > convert the photodiode currents to a digital output that represents the
+//! > irradiance measured on each channel. This digital output can be input to a
+//! > microprocessor where illuminance (ambient light level) in lux is derived
+//! > using an empirical formula to approximate the human eye response.
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};
