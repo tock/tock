@@ -252,8 +252,11 @@ impl Spi {
 
         // Divide and truncate, resulting in a n value that might be too low
         let mut scbr = clock / real_rate;
-        // If the division was not exact, increase the n to get a slower baud rate
-        if clock % real_rate != 0 {
+        // If the division was not exact, increase the n to get a slower baud
+        // rate, but only if we are not at the slowest rate. Since scbr is the
+        // clock rate divisor, the highest divisor 0xFF corresponds to the
+        // lowest rate.
+        if clock % real_rate != 0 && scbr != 0xFF {
             scbr += 1;
         }
         let mut csr = self.read_active_csr();
@@ -421,8 +424,9 @@ impl Spi {
         let count = cmp::min(opt_len.unwrap_or(0), len);
         self.dma_length.set(count);
 
-        // We will have at least a write transfer in progress
-        self.transfers_in_progress.set(1);
+        // Reset the number of transfers in progress. This is incremented
+        // depending on the presence of the read/write below
+        self.transfers_in_progress.set(0);
 
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
