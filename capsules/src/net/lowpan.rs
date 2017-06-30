@@ -420,7 +420,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             *offset += 3;
         }
 
-        if tf_encoding != 0 {
+        if *offset != old_offset {
             buf[old_offset] |= ecn << 6;
         }
         buf[0] |= tf_encoding;
