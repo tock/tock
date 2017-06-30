@@ -30,7 +30,7 @@ pub unsafe fn sixlowpan_dummy_test<R: radio::Radio>(rf233: &R) {
         let mut ip6_header: &mut IP6Header = mem::transmute(ip6_datagram.as_mut_ptr());
         *ip6_header = IP6Header::new();
         ip6_header.set_src_addr(SRC_ADDR);
-        ip6_header.set_src_addr(DST_ADDR);
+        ip6_header.set_dst_addr(DST_ADDR);
         ip6_header.set_payload_len(PAYLOAD_LEN as u16);
     }
 

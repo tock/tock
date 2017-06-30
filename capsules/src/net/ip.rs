@@ -96,7 +96,7 @@ pub struct IP6Header {
 
 impl Default for IP6Header {
     fn default() -> IP6Header {
-        let version = 6;
+        let version = 0x60;
         let hop_limit = 255;
         IP6Header {
             version_class_flow: [version, 0, 0, 0],
