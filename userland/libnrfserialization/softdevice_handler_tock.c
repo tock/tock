@@ -101,7 +101,6 @@ static sys_evt_handler_t              m_sys_evt_handler;                /**< App
  */
 void softdevice_fault_handler(uint32_t id, uint32_t pc, uint32_t info)
 {
-    printf("gu\n");
     app_error_fault_handler(id, pc, info);
 }
 

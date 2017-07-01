@@ -14,13 +14,26 @@
 #include "app_timer.h"
 
 #include "nrf51_serialization.h"
+#include "ble_serialization.h"
+#include "ser_sd_transport.h"
+
+// Circular queue for event packets. Event packets are generated asynchronously
+// from the nRF (e.g. advertisement discovery or read requests).
+#define RX_BUFFER_SIZE 5
+static uint8_t rx_event_buffers[RX_BUFFER_SIZE][SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE];
+static uint8_t _head_event = 0;
+static uint8_t _tail_event = 0;
+
+// Single entry queue for receiving response packets after sending commands.
+static uint8_t rx_rsp_buffer[SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE];
+static bool _have_rsp_packet = false;
 
 // Buffer to receive packets from the nrf51 in.
 // The upper layer also has a buffer, which we could use, but to make
 // the timing work out better we just keep a buffer around that the kernel
 // can keep a pointer to.
 static uint8_t rx[SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE];
-// This is a pointer to the RX buffer passed in by the upper seralization
+// This is a pointer to the RX buffer passed in by the upper serialization
 // layer.
 static uint8_t* hal_rx_buf = NULL;
 
@@ -37,16 +50,57 @@ static ser_phy_evt_t _ser_phy_rx_event;
 static ser_phy_evt_t _ser_phy_tx_event;
 // Flag so we don't overwhelm the serialization library
 static bool _receiving_packet = false;
-// Keep track of how much data the kernel got between receiving the buffer
-// and passing it to the serialization layer.
-static int saved_rx_len = 0;
+// Need to call back into the nordic library after getting a buffer.
+static bool _need_wakeup = false;
+// Whether there are multiple packets in a single UART receive callback that
+// need to be processed.
+static bool _queued_packets = false;
+// Timer to detect when we fail to get a response message after sending a
+// command.
+static alarm_t* _timeout_timer = NULL;
+// yield() variable.
+static bool nrf_serialization_done = false;
 
+/*******************************************************************************
+ * Prototypes
+ ******************************************************************************/
+
+void timeout_timer_cb (int a, int b, int c, void* ud);
+void ble_serialization_callback (int callback_type, int rx_len, int c, void* other);
+
+uint32_t sd_app_evt_wait (void);
+void serialization_timer_cb (int a, int b, int c, void* timer_id);
+
+uint32_t ser_app_hal_hw_init (void);
+void ser_app_hal_delay (uint32_t ms);
+void ser_app_hal_nrf_reset_pin_clear (void);
+void ser_app_hal_nrf_reset_pin_set (void);
+void ser_app_hal_nrf_evt_irq_priority_set (void);
+void ser_app_hal_nrf_evt_pending (void);
+
+void ser_app_power_system_off_set (void);
+bool ser_app_power_system_off_get (void);
+void ser_app_power_system_off_enter (void);
+void critical_region_enter (void);
+void critical_region_exit (void);
 
 /*******************************************************************************
  * Callback from the UART layer in the kernel
  ******************************************************************************/
 
-static bool nrf_serialization_done = false;
+void timeout_timer_cb (int a, int b, int c, void* ud) {
+    UNUSED_PARAMETER(a);
+    UNUSED_PARAMETER(b);
+    UNUSED_PARAMETER(c);
+    UNUSED_PARAMETER(ud);
+
+    // Uh oh did not get a response to a command packet.
+    // Send up an error.
+    _ser_phy_rx_event.evt_type = SER_PHY_EVT_HW_ERROR;
+    if (_ser_phy_event_handler) {
+        _ser_phy_event_handler(_ser_phy_rx_event);
+    }
+}
 
 void ble_serialization_callback (int callback_type, int rx_len, int c, void* other) {
     UNUSED_PARAMETER(c);
@@ -70,22 +124,74 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
     } else if (callback_type == 4) {
         // RX entire buffer
 
-        // Make sure we received at 3 bytes (two length and then at least
-        // some payload). If not, this packet is not worth looking at.
-        if (rx_len < 3) {
-            return;
+        // Copy all received packets into our circular buffer
+        int offset = 0;
+        while (1 && (rx_len - offset >= SER_PHY_HEADER_SIZE)) {
+            int pktlen = (rx[offset] | rx[offset+1] << 8) + SER_PHY_HEADER_SIZE;
+            // Make sure that pktlen is reasonable
+            if (pktlen > (int) SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE ||
+                pktlen+offset > (int) SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE ||
+                pktlen > rx_len - offset) {
+                // Too big to copy, something went wrong.
+                break;
+            }
+
+            // Check which type of packet this is.
+            uint8_t packet_type = rx[offset+2];
+            switch (packet_type) {
+                case SER_PKT_TYPE_RESP:
+                case SER_PKT_TYPE_DTM_RESP:
+                    if (_have_rsp_packet) {
+                        printf("Already have response packet?\n");
+                    } else {
+                        _have_rsp_packet = true;
+                        memcpy(rx_rsp_buffer, rx+offset, pktlen);
+
+                        // Got a response, cancel any pending timer
+                        if (_timeout_timer != NULL) {
+                            alarm_cancel(_timeout_timer);
+                        }
+                    }
+                    break;
+
+                case SER_PKT_TYPE_EVT:
+                    // Check if there is room
+                    if ((_tail_event + 1) % RX_BUFFER_SIZE == _head_event) {
+                        // No empty slots in the queue
+                        break;
+                    }
+                    // Copy into open slot and increment the pointer.
+                    memcpy(rx_event_buffers[_tail_event], rx+offset, pktlen);
+                    _tail_event = (_tail_event + 1) % RX_BUFFER_SIZE;
+                    break;
+            }
+
+            // Check for another packet in the buffer.
+            offset += pktlen;
+            if (rx_len <= offset) {
+                break;
+            }
         }
 
-        // Only pass this buffer up if we don't have any others in flight.
-        // Ideally this would be a queue at some point.
+        // Only pass this buffer up if we don't have any others in flight. We
+        // can only ask for one buffer from serialization at a time.
         if (!_receiving_packet) {
+            uint16_t buf_len = 0;
 
-            // Make sure the packet is not too big. If it is, the upper layer
-            // is going to reject it, so lets just skip that and drop it now.
-            uint16_t buf_len = (rx[0] | rx[1] << 8) - SER_PHY_HEADER_SIZE;
-            if (buf_len < SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE) {
-                saved_rx_len = rx_len;
+            // Make sure we have a packet in the queue to send to the serialization
+            // library.
+            if (_have_rsp_packet) {
+                buf_len = (rx_rsp_buffer[0] | rx_rsp_buffer[1] << 8);
+            } else if (!ser_sd_transport_is_busy() && _head_event != _tail_event) {
+                // DO NOT PROCESS EVENTS IF THERE IS A CMD/RSP PAIR STILL
+                // OUTSTANDING. Processing an events can generate a new command
+                // and things break. We use ser_sd_transport_is_busy() to do
+                // this check because it is essentially contingent on there
+                // being an outstanding response for a request.
+                buf_len = (rx_event_buffers[_head_event][0] | rx_event_buffers[_head_event][1] << 8);
+            }
 
+            if (buf_len > 0) {
                 // Need a dummy request for a buffer to keep the state machines
                 // in the serialization library happy. We do use this buffer, but
                 // we don't block packet receive until we get it.
@@ -94,8 +200,8 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
 
                 if (_ser_phy_event_handler) {
                     // Need to mark things as busy on this end. The serialization state
-                    // machine does not like it if you do things out of order, so
-                    // just enforce some sanity on our end.
+                    // machine does not like it if you do things out of order, so just
+                    // enforce some sanity on our end.
                     _receiving_packet = true;
                     _ser_phy_event_handler(_ser_phy_rx_event);
                 }
@@ -103,34 +209,44 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
         }
 
     } else if (callback_type == 17) {
-        // Great, we're awake.
+        // Great, we have a serialization approved buffer to use.
 
         // Check that we actually have a buffer to pass to the upper layers.
         // This buffer MUST be the same buffer that it passed us.
         if (hal_rx_buf) {
+            uint16_t buf_len = 0;
 
-            uint16_t first_pkt_len = rx[0] | (((uint16_t) rx[1]) << 8);
-            if (first_pkt_len > saved_rx_len - SER_PHY_HEADER_SIZE) {
-                first_pkt_len = saved_rx_len - SER_PHY_HEADER_SIZE;
+            if (_have_rsp_packet) {
+                _have_rsp_packet = false;
+                buf_len = (rx_rsp_buffer[0] | rx_rsp_buffer[1] << 8);
+                memcpy(hal_rx_buf, rx_rsp_buffer+SER_PHY_HEADER_SIZE, buf_len);
+
+            } else {
+                buf_len = rx_event_buffers[_head_event][0] | (((uint16_t) rx_event_buffers[_head_event][1]) << 8);
+                memcpy(hal_rx_buf, rx_event_buffers[_head_event]+SER_PHY_HEADER_SIZE, buf_len);
+
+                // Remove this packet from our queue.
+                _head_event = (_head_event + 1) % RX_BUFFER_SIZE;
             }
 
-            // Copy our buffer into the upper layer's buffer.
-            memcpy(hal_rx_buf, rx+2, first_pkt_len);
-
             _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_PKT_RECEIVED;
-            _ser_phy_rx_event.evt_params.rx_pkt_received.num_of_bytes = first_pkt_len;
+            _ser_phy_rx_event.evt_params.rx_pkt_received.num_of_bytes = buf_len;
             _ser_phy_rx_event.evt_params.rx_pkt_received.p_buffer = hal_rx_buf;
 
             hal_rx_buf = NULL;
+
+            // Check if there are more packets in the queue.
+            if (_head_event != _tail_event || _have_rsp_packet) {
+                _queued_packets = true;
+            }
 
             if (_ser_phy_event_handler) {
                 _receiving_packet = false;
                 _ser_phy_event_handler(_ser_phy_rx_event);
             }
         } else {
-            // Buffer is NULL
-            // That means we have to drop this packet. We also need to notify
-            // the serialization library that we did so.
+            // Buffer is NULL. That means we have to drop this packet. We also
+            // need to notify the serialization library that we did so.
             _ser_phy_rx_event.evt_type = SER_PHY_EVT_RX_PKT_DROPPED;
             if (_ser_phy_event_handler) {
                 _receiving_packet = false;
@@ -138,9 +254,23 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
             }
         }
     }
+
+
+    // When we get here, we _may_ end up in a wait() state. Wait is good because
+    // it lets us check if we have any outstanding things to do and if so run
+    // them instead of calling yield. However, depending on where the nRF
+    // state machine is at, wait may not get called. We can check this by seeing
+    // if the nordic state machine thinks its busy.
+    if (!ser_sd_transport_is_busy()) {
+        if (_need_wakeup) {
+            _need_wakeup = false;
+            ble_serialization_callback(17, 0, 0, NULL);
+        } else if (_queued_packets) {
+            _queued_packets = false;
+            ble_serialization_callback(4, 0, 0, NULL);
+        }
+    }
 }
-
-
 
 /*******************************************************************************
  * Main API for upper layers of BLE serialization
@@ -150,7 +280,7 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
 // ser_app_hal_nrf51.c
 //
 
-uint32_t ser_app_hal_hw_init() {
+uint32_t ser_app_hal_hw_init (void) {
     return NRF_SUCCESS;
 }
 
@@ -158,19 +288,17 @@ void ser_app_hal_delay (uint32_t ms)  {
     delay_ms(ms);
 }
 
-void ser_app_hal_nrf_reset_pin_clear() {
-}
+void ser_app_hal_nrf_reset_pin_clear (void) {}
 
-void ser_app_hal_nrf_reset_pin_set() {
-}
+void ser_app_hal_nrf_reset_pin_set (void) {}
 
-void ser_app_hal_nrf_evt_irq_priority_set () {
+void ser_app_hal_nrf_evt_irq_priority_set (void) {
     // Since we aren't using an actual interrupt, not needed
 }
 
-void ser_app_hal_nrf_evt_pending() {
-    // Not sure if we can do software interrupts, so try just doing a
-    // function call.
+void ser_app_hal_nrf_evt_pending (void) {
+    // Not sure if we can do software interrupts, so try just doing a function
+    // call.
     TOCK_EVT_IRQHandler();
 }
 
@@ -180,6 +308,8 @@ void ser_app_hal_nrf_evt_pending() {
 //
 
 uint32_t ser_phy_open (ser_phy_events_handler_t events_handler) {
+    int ret;
+
     if (events_handler == NULL) {
         return NRF_ERROR_NULL;
     }
@@ -190,8 +320,11 @@ uint32_t ser_phy_open (ser_phy_events_handler_t events_handler) {
     }
 
     // Configure the serialization layer in the kernel
-    nrf51_serialization_subscribe(ble_serialization_callback);
-    nrf51_serialization_setup_rx_buffer((char*) rx, SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE);
+    ret = nrf51_serialization_subscribe(ble_serialization_callback);
+    if (ret < 0) return NRF_ERROR_INTERNAL;
+
+    ret = nrf51_serialization_setup_rx_buffer((char*) rx, SER_HAL_TRANSPORT_RX_MAX_PKT_SIZE);
+    if (ret < 0) return NRF_ERROR_INTERNAL;
 
     // Save the callback handler
     _ser_phy_event_handler = events_handler;
@@ -209,6 +342,11 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
 
     // Check if there is no ongoing transmission at the moment
     if (tx_len == 0) {
+        // We need to set a timer in case we never get the response packet.
+        if (ser_sd_transport_is_busy()) {
+            _timeout_timer = timer_in(100, timeout_timer_cb, NULL);
+        }
+
         // Encode the number of bytes as the first two bytes of the outgoing
         // packet.
         tx[0] = num_of_bytes & 0xFF;
@@ -221,7 +359,10 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
         tx_len = num_of_bytes + SER_PHY_HEADER_SIZE;
 
         // Call tx procedure to start transmission of a packet
-        nrf51_serialization_write((char*) tx, tx_len);
+        int ret = nrf51_serialization_write((char*) tx, tx_len);
+        if (ret < 0) {
+            return NRF_ERROR_INTERNAL;
+        }
     } else {
         return NRF_ERROR_BUSY;
     }
@@ -234,26 +375,37 @@ uint32_t ser_phy_rx_buf_set (uint8_t* p_buffer) {
     // Save a pointer to the buffer we can use.
     hal_rx_buf = p_buffer;
 
-    nrf51_wakeup();
+    _need_wakeup = true;
 
     return NRF_SUCCESS;
 }
 
-void ser_phy_close () {
+void ser_phy_close (void) {
     printf("close\n");
     _ser_phy_event_handler = NULL;
 }
 
-void ser_phy_interrupts_enable () { }
+void ser_phy_interrupts_enable (void) { }
 
-void ser_phy_interrupts_disable () { }
+void ser_phy_interrupts_disable (void) { }
 
 
 // Essentially sleep this process
-uint32_t sd_app_evt_wait () {
-  nrf_serialization_done = false;
-  yield_for(&nrf_serialization_done);
-  return NRF_SUCCESS;
+uint32_t sd_app_evt_wait (void) {
+    if (_need_wakeup == true) {
+        // We needed to let the nordic library get to its wait function, but we
+        // already have a buffer ready to pass to it. Rather than calling
+        // through the kernel, just call the function here.
+        _need_wakeup = false;
+        ble_serialization_callback(17, 0, 0, NULL);
+    } else if (_queued_packets) {
+        _queued_packets = false;
+        ble_serialization_callback(4, 0, 0, NULL);
+    } else {
+        nrf_serialization_done = false;
+        yield_for(&nrf_serialization_done);
+    }
+    return NRF_SUCCESS;
 }
 
 
@@ -397,7 +549,7 @@ uint32_t app_timer_stop (app_timer_id_t timer_id) {
  * @retval     NRF_ERROR_INVALID_STATE   If the application timer module has not been initialized.
  * @retval     NRF_ERROR_NO_MEM          If the timer operations queue was full.
  */
-uint32_t app_timer_stop_all () {
+uint32_t app_timer_stop_all (void) {
     return NRF_SUCCESS;
 }
 
@@ -429,29 +581,8 @@ uint32_t app_timer_cnt_diff_compute (uint32_t ticks_to,
     return NRF_SUCCESS;
 }
 
-
-
-
-
-void ser_app_power_system_off_set () {
-
-}
-
-bool ser_app_power_system_off_get () {
-    return false;
-}
-
-void ser_app_power_system_off_enter () {
-
-}
-
-void critical_region_enter () {
-
-}
-
-void critical_region_exit () {
-
-}
-
-
-
+void ser_app_power_system_off_set (void) {}
+bool ser_app_power_system_off_get (void) { return false; }
+void ser_app_power_system_off_enter (void) {}
+void critical_region_enter (void) {}
+void critical_region_exit (void) {}

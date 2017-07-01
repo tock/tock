@@ -21,8 +21,3 @@ int nrf51_serialization_write (char* tx, int tx_len) {
   ret = command(5, 1, 0);
   return ret;
 }
-
-int nrf51_wakeup (void) {
-  return command(5, 9001, 0);
-}
-
