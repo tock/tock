@@ -19,10 +19,6 @@ int nrf51_serialization_setup_rx_buffer (char* rx, int rx_len);
 __attribute__ ((warn_unused_result))
 int nrf51_serialization_write (char* tx, int tx_len);
 
-// Generate an event to wake the app from a yield
-__attribute__ ((warn_unused_result))
-int nrf51_wakeup (void);
-
 #ifdef __cplusplus
 }
 #endif
