@@ -10,8 +10,6 @@ extern crate kernel;
 extern crate nrf52;
 
 use kernel::{Chip, SysTick};
-use capsules::timer::TimerDriver;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::fmt::Arguments;
 
 // The nRF52 DK LEDs (see back of board)
@@ -64,7 +62,7 @@ unsafe fn load_process() -> &'static mut [Option<kernel::Process<'static>>] {
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+    timer: &'static capsules::timer::TimerDriver<'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
 }
 
 
@@ -87,7 +85,7 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     nrf52::init();
 
-
+    // GPIOs
     let gpio_pins = static_init!(
         [&'static nrf52::gpio::GPIOPin; 11],
         [&nrf52::gpio::PORT[1],  // Bottom left header on DK board
@@ -120,24 +118,30 @@ pub unsafe fn reset_handler() {
         (&nrf52::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow),
         (&nrf52::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow),
         ], 256/8);
+
     let led = static_init!(
         capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
         capsules::led::LED::new(led_pins),
         64/8);
 
+    
+    // Timers
     let alarm = &nrf52::rtc::RTC;
     alarm.start();
-    let mux_alarm = static_init!(MuxAlarm<'static, nrf52::rtc::Rtc>, MuxAlarm::new(&nrf52::rtc::RTC), 16);
+    let mux_alarm = static_init!(
+        capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
+        capsules::virtual_alarm::MuxAlarm::new(&nrf52::rtc::RTC), 16);
     alarm.set_client(mux_alarm);
 
 
     let virtual_alarm1 = static_init!(
-        VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
-        VirtualMuxAlarm::new(mux_alarm),
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
         24);
+
     let timer = static_init!(
-        TimerDriver<'static, VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
-        TimerDriver::new(virtual_alarm1,
+        capsules::timer::TimerDriver<'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+        capsules::timer::TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
                          12);
     virtual_alarm1.set_client(timer);
@@ -156,7 +160,6 @@ pub unsafe fn reset_handler() {
                  &mut chip,
                  load_process(),
                  &kernel::ipc::IPC::new());
-
 }
 
 

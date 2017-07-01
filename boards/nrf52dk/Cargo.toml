@@ -14,6 +14,7 @@ debug = true
 panic = "abort"
 debug = true
 lto = true
+opt-level = 1
 
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }

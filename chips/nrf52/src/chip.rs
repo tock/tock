@@ -1,10 +1,11 @@
+
+use gpio;
 use kernel;
 use kernel::common::{RingBuffer, Queue};
 use nvic;
 use peripheral_interrupts::NvicIdx;
-use gpio;
-use timer;
 use rtc;
+use timer;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];

@@ -12,7 +12,7 @@ int main(void)
     for (int i = 0; i < num_leds; i++) {
       led_toggle(i);
     }
-    /** delay_ms(250); */
+    delay_ms(250);
   }
 
   // This delay uses an underlying timer in the kernel.

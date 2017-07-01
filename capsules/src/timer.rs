@@ -88,7 +88,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
     ///
     /// ### `_subscribe_num`
     ///
-    /// - `0`: Subscribe to timer expieration
+    /// - `0`: Subscribe to timer expiration
     fn subscribe(&self, _subscribe_num: usize, callback: Callback) -> ReturnCode {
         self.app_timer
             .enter(callback.app_id(), |td, _allocator| {
