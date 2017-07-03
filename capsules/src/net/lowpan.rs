@@ -90,28 +90,6 @@ pub trait ContextStore<'a> {
 }
 
 #[allow(unused_variables,dead_code)]
-pub struct DummyStore {}
-
-#[allow(unused_variables,dead_code)]
-impl<'a> ContextStore<'a> for DummyStore {
-    // TODO: Implement these.
-    // These methods should also include context 0 (the mesh-local prefix) as
-    // one of the possible options
-
-    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>> {
-        None
-    }
-
-    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context<'a>> {
-        None
-    }
-
-    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context<'a>> {
-        None
-    }
-}
-
-#[allow(unused_variables,dead_code)]
 pub struct FragInfo {
     dummy: u8,
 }

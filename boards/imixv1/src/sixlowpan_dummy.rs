@@ -1,9 +1,28 @@
 //! A dummy sixlowpan/IP sender
 
-use capsules::net::lowpan::{DummyStore, LoWPAN};
+use capsules::net::lowpan::{ContextStore, Context, LoWPAN};
 use capsules::net::ip::{IP6Header, MacAddr, IPAddr};
 use core::mem;
 use kernel::hil::radio;
+
+pub struct DummyStore {}
+
+impl<'a> ContextStore<'a> for DummyStore {
+    // These methods should also include context 0 (the mesh-local prefix) as
+    // one of the possible options
+
+    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>> {
+        None
+    }
+
+    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context<'a>> {
+        None
+    }
+
+    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context<'a>> {
+        None
+    }
+}
 
 pub const SRC_ADDR: IPAddr = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
                               0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
