@@ -76,11 +76,12 @@ mod nhc {
 }
 
 #[allow(unused_variables,dead_code)]
+#[derive(Copy,Clone,Debug)]
 pub struct Context<'a> {
-    prefix: &'a [u8],
-    prefix_len: u8,
-    id: u8,
-    compress: bool,
+    pub prefix: &'a [u8],
+    pub prefix_len: u8,
+    pub id: u8,
+    pub compress: bool,
 }
 
 pub trait ContextStore<'a> {

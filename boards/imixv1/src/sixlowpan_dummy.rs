@@ -2,29 +2,54 @@
 
 use capsules::net::lowpan::{ContextStore, Context, LoWPAN};
 use capsules::net::ip::{IP6Header, MacAddr, IPAddr};
+use capsules::net::util;
 use core::mem;
 use kernel::hil::radio;
 
-pub struct DummyStore {}
+pub struct DummyStore<'a> {
+    context0: Context<'a>,
+}
 
-impl<'a> ContextStore<'a> for DummyStore {
+impl<'a> DummyStore<'a> {
+    pub fn new(context0: Context<'a>) -> DummyStore<'a> {
+        DummyStore { context0: context0 }
+    }
+}
+
+impl<'a> ContextStore<'a> for DummyStore<'a> {
     // These methods should also include context 0 (the mesh-local prefix) as
     // one of the possible options
 
     fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>> {
-        None
+        if util::matches_prefix(&ip_addr,
+                                self.context0.prefix,
+                                self.context0.prefix_len) {
+            Some(self.context0)
+        } else {
+            None
+        }
     }
 
     fn get_context_from_id(&self, ctx_id: u8) -> Option<Context<'a>> {
-        None
+        if ctx_id == 0 {
+            Some(self.context0)
+        } else {
+            None
+        }
     }
 
     fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context<'a>> {
-        None
+        if prefix_len == self.context0.prefix_len &&
+           util::matches_prefix(prefix, self.context0.prefix, prefix_len) {
+            Some(self.context0)
+        } else {
+            None
+        }
     }
 }
 
-pub const SRC_ADDR: IPAddr = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 
+pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
+pub const SRC_ADDR: IPAddr = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
                               0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
 pub const DST_ADDR: IPAddr = [0; 16];
 pub const SRC_MAC_ADDR: MacAddr = MacAddr::LongAddr([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
@@ -52,12 +77,13 @@ pub fn sixlowpan_dummy_test<R: radio::Radio>(radio: &R) {
         ip6_header.set_payload_len(PAYLOAD_LEN as u16);
     }
     unsafe {
-        send_ipv6_packet(radio, SRC_MAC_ADDR, DST_MAC_ADDR,
+        send_ipv6_packet(radio, &MLP, SRC_MAC_ADDR, DST_MAC_ADDR,
                          &ip6_datagram[0..IP6_HDR_SIZE + PAYLOAD_LEN]);
     }
 }
 
 pub unsafe fn send_ipv6_packet<R: radio::Radio>(radio: &R,
+                                                mesh_local_prefix: &[u8],
                                                 src_mac_addr: MacAddr,
                                                 dst_mac_addr: MacAddr,
                                                 ip6_datagram: &[u8]) {
@@ -77,7 +103,14 @@ pub unsafe fn send_ipv6_packet<R: radio::Radio>(radio: &R,
     };
     let offset = radio.payload_offset(src_long, dst_long) as usize;
 
-    let store = DummyStore {};
+    let store = DummyStore {
+        context0: Context {
+            prefix: mesh_local_prefix,
+            prefix_len: 64,
+            id: 0,
+            compress: true,
+        }
+    };
     let lowpan = LoWPAN::new(&store);
     let (consumed, written) = lowpan
         .compress(&ip6_datagram,
