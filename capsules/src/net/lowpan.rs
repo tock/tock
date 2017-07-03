@@ -97,7 +97,7 @@ pub struct FragInfo {
 
 /// Computes the LoWPAN Interface Identifier from either the 16-bit short MAC or
 /// the IEEE EUI-64 that is derived from the 48-bit MAC.
-fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
+pub fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
     match mac_addr {
         &MacAddr::ShortAddr(short_addr) => {
             // IID is 0000:00ff:fe00:XXXX, where XXXX is 16-bit MAC
