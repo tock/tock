@@ -76,11 +76,12 @@ mod nhc {
 }
 
 #[allow(unused_variables,dead_code)]
+#[derive(Copy,Clone,Debug)]
 pub struct Context<'a> {
-    prefix: &'a [u8],
-    prefix_len: u8,
-    id: u8,
-    compress: bool,
+    pub prefix: &'a [u8],
+    pub prefix_len: u8,
+    pub id: u8,
+    pub compress: bool,
 }
 
 pub trait ContextStore<'a> {
@@ -96,7 +97,7 @@ pub struct FragInfo {
 
 /// Computes the LoWPAN Interface Identifier from either the 16-bit short MAC or
 /// the IEEE EUI-64 that is derived from the 48-bit MAC.
-fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
+pub fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
     match mac_addr {
         &MacAddr::ShortAddr(short_addr) => {
             // IID is 0000:00ff:fe00:XXXX, where XXXX is 16-bit MAC

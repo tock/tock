@@ -35,3 +35,31 @@ pub fn is_zero(buf: &[u8]) -> bool {
 
     return true;
 }
+
+pub fn matches_prefix(buf1: &[u8], buf2: &[u8], prefix_len: u8) -> bool {
+    let full_bytes = (prefix_len / 8) as usize;
+    let remaining = prefix_len & 0x7;
+    let mut bytes = full_bytes;
+    if remaining != 0 {
+        bytes += 1;
+    }
+
+    if buf1.len() < bytes || buf2.len() < bytes {
+        return false;
+    }
+
+    for i in 0..full_bytes {
+        if buf1[i] != buf2[i] {
+            return false;
+        }
+    }
+
+    for i in 0..remaining {
+        let mask: u8 = 0x80 >> i;
+        if buf1[full_bytes] & mask != buf2[full_bytes] & mask {
+            return false;
+        }
+    }
+
+    true
+}
