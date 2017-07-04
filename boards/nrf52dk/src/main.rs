@@ -18,6 +18,10 @@ const LED2_PIN: usize = 18;
 const LED3_PIN: usize = 19;
 const LED4_PIN: usize = 20;
 
+#[macro_use]
+mod io;
+
+
 // load user-space processes!!!
 #[inline(never)]
 #[no_mangle]
@@ -155,21 +159,12 @@ pub unsafe fn reset_handler() {
     let mut chip = nrf52::chip::NRF52::new();
     chip.systick().reset();
     chip.systick().enable(true);
+    
+    //panic!("test");
 
     kernel::main(&platform,
                  &mut chip,
                  load_process(),
                  &kernel::ipc::IPC::new());
-}
 
-
-#[cfg(not(test))]
-#[lang="panic_fmt"]
-#[inline(never)]
-#[no_mangle]
-pub unsafe extern "C" fn rust_begin_unwind(_args: Arguments,
-                                           _file: &'static str,
-                                           _line: usize) -> ! {
-    // FIXME: "!" indicates that the function might never return
-    loop {}
 }

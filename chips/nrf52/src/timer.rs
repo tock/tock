@@ -194,13 +194,15 @@ impl Timer {
         self.timer().cc[0].set(val);
     }
 
+    #[inline(never)]
+    #[no_mangle]
     pub fn enable_interrupts(&self, interrupts: u32) {
         self.timer().intenset.set(interrupts << 16);
     }
     pub fn disable_interrupts(&self, interrupts: u32) {
         self.timer().intenclr.set(interrupts << 16);
     }
-
+    
     pub fn enable_nvic(&self) {
         nvic::enable(self.nvic);
     }
@@ -221,6 +223,9 @@ impl Timer {
     /// When an interrupt occurs, check if any of the 4 compares have
     /// created an event, and if so, add it to the bitmask of triggered
     /// events that is passed to the client.
+    
+    #[inline(never)]
+    #[no_mangle]
     pub fn handle_interrupt(&self) {
         nvic::clear_pending(self.nvic);
         self.client.get().map(|client| {
