@@ -114,6 +114,29 @@ fn compute_iid(mac_addr: &MacAddr) -> [u8; 8] {
     }
 }
 
+/// This function writes the context bits into an IP address. Note that this
+/// function must be called after the remaining bits of the IP address have
+/// been set.
+// NOTE: This function must always be called *after* the remaining bits
+// of the address have been set, since its length is in terms of bits,
+// and it "merges" the (nbits%8) context bits with the other bits.
+fn set_ctx_bits_in_addr(ip_addr: &mut IPAddr, ctx: &Context) {
+    // TODO: Check prefix len?
+    let nbits = ctx.prefix_len;
+    let nbytes = (nbits / 8) as usize;
+    let remainder = nbits % 8;
+    ip_addr[0..nbytes].copy_from_slice(&ctx.prefix[0..nbytes]);
+    if remainder != 0 {
+        // Assumes unsigned right shift
+        let mask: u8 = 0xff >> remainder;
+        // This combines the remaining bits of the context with the 
+        // bits of the set address. Note that per the 6LowPAN spec, the
+        // context bits are *always* used.
+        ip_addr[nbytes+1] = (ctx.prefix[nbytes+1] & !mask) 
+            | (ip_addr[nbytes+1] & mask);
+    }
+}
+
 fn is_ip6_nh_compressible(next_header: u8,
                           next_headers: &[u8]) -> Result<(bool, u8), ()> {
     match next_header {
@@ -461,6 +484,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
+    // TODO: For the SAC=0, SAM=11 case, we must also consider computing the
+    // address from an encapsulating IPv6 packet (e.g. when we recurse), not
+    // just from a 802.15.4 frame.
     fn compress_iid(&self,
                     ip_addr: &IPAddr,
                     mac_addr: &MacAddr,
@@ -626,7 +652,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       buf: &mut [u8], // TODO: Don't think this needs to be mut
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
-                      mesh_local_prefix: &[u8])
+                      mesh_local_prefix: &[u8]) // TODO: Same as ll prefix?
                       -> Result<(IP6Header, usize, Option<FragInfo>), ()> {
         // Get the LOWPAN_IPHC header (the first two bytes are the header)
         let iphc_header_1: u8 = buf[0];
@@ -635,9 +661,18 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let mut ip6_header: IP6Header = IP6Header::new();
 
         // Decompress CIE and get context
+        let mut cid = 0;
         if iphc_header_1 & iphc::CID != 0 {
-            self.decompress_cie(iphc_header_1);
+            let cid = self.decompress_cie(iphc_header_1);
         }
+
+        let context_opt = self.ctx_store.get_context_from_id(cid);
+        let context = if context_opt.is_none() {
+            // TODO: Handle error gracefully
+            self.ctx_store.get_context_from_id(0).unwrap() // **MUST** always exist
+        } else {
+            context_opt.unwrap()
+        };
 
         // Traffic Class & Flow Label
         self.decompress_tf(&mut ip6_header, iphc_header_1, &buf, &mut offset);
@@ -647,6 +682,16 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         
         // Decompress hop limit field
         self.decompress_hl(&mut ip6_header, iphc_header_1, &buf, &mut offset);
+
+        // Decompress source address
+        // TODO: Get ll prefix
+        self.decompress_src(&mut ip6_header,
+                            iphc_header_2,
+                            &mesh_local_prefix,
+                            &src_mac_addr,
+                            &context,
+                            &buf,
+                            &mut offset);
 
         Err(())
     }
@@ -724,14 +769,163 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         };
         ip6_header.set_hop_limit(hop_limit);
     }
+
+    fn decompress_src(&self,
+                      ip6_header: &mut IP6Header,
+                      iphc_header: u8,
+                      link_local_prefix: &[u8],
+                      mac_addr: &MacAddr,
+                      ctx: &Context, // Must be non-null
+                      buf: &[u8],
+                      offset: &mut usize) {
+        let uses_context = (iphc_header & iphc::SAC) != 0;
+        let sam_mode = iphc_header & iphc::SAM_MASK;
+        let mut ip_addr: IPAddr = [0 as u8; 16];
+        if uses_context && sam_mode == iphc::SAM_INLINE {
+            ip_addr[0..16].copy_from_slice(&[0 as u8; 16]);
+        } else if uses_context {
+            self.decompress_iid_context(sam_mode,
+                                        &mut ip_addr,
+                                        mac_addr,
+                                        ctx,
+                                        buf,
+                                        offset);
+        } else {
+            self.decompress_iid_no_context(sam_mode,
+                                           &mut ip_addr,
+                                           link_local_prefix,
+                                           mac_addr,
+                                           buf,
+                                           offset);
+        }
+        ip6_header.set_src_addr(ip_addr);
+    }
+
+    /*
+    fn decompress_dst(&self,
+                      iphc_header: u8,
+                      ip_addr: &mut IPAddr,
+                      link_local_prefix: &[u8],
+                      */
+
+    fn decompress_iid_no_context(&self,
+                                 addr_mode: u8,
+                                 ip_addr: &mut IPAddr,
+                                 link_local_prefix: &[u8], // TODO: Needs len?
+                                 mac_addr: &MacAddr,
+                                 buf: &[u8],
+                                 offset: &mut usize) {
+        let mode = addr_mode & (iphc::SAM_MASK | iphc::DAM_MASK);
+        match mode {
+            // SAM = 00, DAM = 00; address carried inline
+            iphc::SAM_INLINE | iphc::DAM_INLINE => {
+                ip_addr[0..16].copy_from_slice(&buf[*offset..*offset+16]);
+                *offset += 16;
+            },
+            // First 64-bits link local prefix, remaining 64 bits carried inline
+            iphc::SAM_MODE1 | iphc::DAM_MODE1 => {
+                ip_addr[0..8].copy_from_slice(&link_local_prefix[0..8]);
+                ip_addr[8..16].copy_from_slice(&buf[*offset..*offset+8]);
+                *offset += 8;
+            },
+            // First 112 bits elided; First 64 bits link-local prefix, remaining
+            // 64 bits are 0000:00ff:fe00:XXXX
+            iphc::SAM_MODE2 | iphc::DAM_MODE2 => {
+                ip_addr[0..8].copy_from_slice(&link_local_prefix[0..8]);
+                ip_addr[8..16].copy_from_slice(&iphc::MAC_BASE);
+                ip_addr[14..16].copy_from_slice(&(buf[*offset..*offset+2]));
+                *offset += 2;
+            },
+            // Address fully elided. First 64 bits link-local prefix, remaining
+            // 64 bits computed from encapsulating header.
+            iphc::SAM_MODE3 | iphc::DAM_MODE3 => {
+                ip_addr[0..8].copy_from_slice(link_local_prefix);
+                let iid = compute_iid(mac_addr); 
+                ip_addr[8..16].copy_from_slice(&iid);
+            },
+            // TODO: Unreachable error case
+            _ => { 
+            },
+        }
+    }
+
+    fn decompress_iid_context(&self,
+                              addr_mode: u8,
+                              ip_addr: &mut IPAddr,
+                              mac_addr: &MacAddr,
+                              ctx: &Context, // Must be non-null
+                              buf: &[u8],
+                              offset: &mut usize) {
+        let mode = addr_mode & (iphc::SAM_MASK | iphc::DAM_MASK);
+        match mode {
+            // SAM = 00, DAM = 00; address equals :: or reserved
+            iphc::SAM_INLINE | iphc::DAM_INLINE => {
+                // TODO: Error case; should be handled elsewhere(?)
+            },
+            // 64 bits; context information always used
+            iphc::SAM_MODE1 | iphc::DAM_MODE1 => {
+                ip_addr[8..16].copy_from_slice(&buf[*offset..*offset+8]);
+                *offset += 8;
+            },
+            // 16 bits inline; any IID bits not covered by context are taken
+            // from IID mapping
+            iphc::SAM_MODE2 | iphc::DAM_MODE2 => {
+                ip_addr[8..16].copy_from_slice(&iphc::MAC_BASE);
+                ip_addr[14..16].copy_from_slice(&buf[*offset..*offset+2]);
+                *offset += 2;
+            },
+            // Address elided, derived using context + encapsulating header
+            iphc::SAM_MODE3 | iphc::DAM_MODE3 => {
+                let iid = compute_iid(mac_addr);
+                ip_addr[8..16].copy_from_slice(&iid[0..8]);
+            },
+            // TODO: Unrechable; error case
+            _ => {
+            },
+        }
+        // Note that we copy the non-context bits into the ip_addr first, as
+        // we must always use the context bits, and we may need to mask/combine
+        // the context with the remaining bits (if ctx.prefix_len % 8 != 0).
+        set_ctx_bits_in_addr(ip_addr, ctx);
+    }
 }
 /*
-                    ip6_header: &IP6Header,
-                    next_headers: &[u8],
-                    src_mac_addr: MacAddr,
-                    dst_mac_addr: MacAddr,
-                    mut buf: &mut [u8])
-                    -> Result<usize, ()> {
+    fn compress_iid(&self,
+                    ip_addr: &IPAddr,
+                    mac_addr: &MacAddr,
+                    is_src: bool,
+                    buf: &mut [u8],
+                    offset: &mut usize) {
+        let iid: [u8; 8] = compute_iid(mac_addr);
+        if ip_addr[8..16] == iid {
+            // SAM/DAM = 11, 0 bits
+            buf[1] |= if is_src {
+                iphc::SAM_MODE3
+            } else {
+                iphc::DAM_MODE3
+            };
+        } else if ip_addr[8..14] == iphc::MAC_BASE[0..6] {
+            // SAM/DAM = 10, 16 bits
+            buf[1] |= if is_src {
+                iphc::SAM_MODE2
+            } else {
+                iphc::DAM_MODE2
+            };
+            buf[*offset..*offset + 2].copy_from_slice(&ip_addr[14..16]);
+            *offset += 2;
+        } else {
+            // SAM/DAM = 01, 64 bits
+            buf[1] |= if is_src {
+                iphc::SAM_MODE1
+            } else {
+                iphc::DAM_MODE1
+            };
+            buf[*offset..*offset + 8].copy_from_slice(&ip_addr[8..16]);
+            *offset += 8;
+        }
+    }
+ */
+/*
         // The first two bytes are the LOWPAN_IPHC header
         let mut offset: usize = 2;
 
