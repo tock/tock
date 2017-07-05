@@ -660,7 +660,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let iphc_header_2: u8 = buf[1];
         let mut offset: usize = 2;
 
-        let ip6_header: &mut IP6Header = unsafe {
+        let mut ip6_header: &mut IP6Header = unsafe {
             mem::transmute(out_buf.as_mut_ptr())
         };
         let mut out_offset: usize = mem::size_of::<IP6Header>();
@@ -794,7 +794,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     fn decompress_src(&self,
                       ip6_header: &mut IP6Header,
                       iphc_header: u8,
-                      link_local_prefix: &[u8],
                       mac_addr: &MacAddr,
                       ctx: &Context, // Must be non-null
                       buf: &[u8],
@@ -815,7 +814,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         } else {
             self.decompress_iid_no_context(sam_mode,
                                            &mut ip_addr,
-                                           link_local_prefix,
                                            mac_addr,
                                            buf,
                                            offset);
@@ -826,7 +824,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     fn decompress_dst(&self,
                       ip6_header: &mut IP6Header,
                       iphc_header: u8,
-                      link_local_prefix: &[u8],
                       mac_addr: &MacAddr,
                       ctx: &Context, // Must be non-null
                       buf: &[u8],
@@ -846,7 +843,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         } else {
             self.decompress_iid_no_context(dam_mode,
                                            &mut ip_addr,
-                                           link_local_prefix,
                                            mac_addr,
                                            buf,
                                            offset);
@@ -919,7 +915,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     fn decompress_iid_no_context(&self,
                                  addr_mode: u8,
                                  ip_addr: &mut IPAddr,
-                                 link_local_prefix: &[u8], // TODO: Needs len?
                                  mac_addr: &MacAddr,
                                  buf: &[u8],
                                  offset: &mut usize) {
@@ -932,14 +927,16 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             },
             // First 64-bits link local prefix, remaining 64 bits carried inline
             iphc::SAM_MODE1 | iphc::DAM_MODE1 => {
-                ip_addr[0..8].copy_from_slice(&link_local_prefix[0..8]);
+                ip::set_ll_prefix(ip_addr);
+                //ip_addr[0..8].copy_from_slice(&link_local_prefix[0..8]);
                 ip_addr[8..16].copy_from_slice(&buf[*offset..*offset+8]);
                 *offset += 8;
             },
             // First 112 bits elided; First 64 bits link-local prefix, remaining
             // 64 bits are 0000:00ff:fe00:XXXX
             iphc::SAM_MODE2 | iphc::DAM_MODE2 => {
-                ip_addr[0..8].copy_from_slice(&link_local_prefix[0..8]);
+                ip::set_ll_prefix(ip_addr);
+                //ip_addr[0..8].copy_from_slice(&link_local_prefix[0..8]);
                 ip_addr[8..16].copy_from_slice(&iphc::MAC_BASE);
                 ip_addr[14..16].copy_from_slice(&(buf[*offset..*offset+2]));
                 *offset += 2;
@@ -947,7 +944,8 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             // Address fully elided. First 64 bits link-local prefix, remaining
             // 64 bits computed from encapsulating header.
             iphc::SAM_MODE3 | iphc::DAM_MODE3 => {
-                ip_addr[0..8].copy_from_slice(link_local_prefix);
+                ip::set_ll_prefix(ip_addr);
+                //ip_addr[0..8].copy_from_slice(link_local_prefix);
                 let iid = compute_iid(mac_addr); 
                 ip_addr[8..16].copy_from_slice(&iid);
             },

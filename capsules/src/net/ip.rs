@@ -46,6 +46,13 @@ pub fn addr_is_multicast(ip_addr: &IPAddr) -> bool {
 }
 
 #[allow(unused_variables,dead_code)]
+pub fn set_ll_prefix(ip_addr: &mut IPAddr) {
+    ip_addr[0] = 0xfe;
+    ip_addr[1] = 0x80;
+    ip_addr[2..8].copy_from_slice(&[0; 6]);
+}
+
+#[allow(unused_variables,dead_code)]
 pub fn reverse_u16_bytes(short: u16) -> u16 {
     let mut result: u16 = 0;
     result |= (short & 0x00ff) >> 2;
