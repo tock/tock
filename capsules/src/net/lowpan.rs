@@ -653,7 +653,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       buf: &mut [u8], // TODO: Don't think this needs to be mut
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
-                      mesh_local_prefix: &[u8]) // TODO: Same as ll prefix?
+                      mesh_local_prefix: &[u8])
                       -> Result<(IP6Header, usize, Option<FragInfo>), ()> {
         // Get the LOWPAN_IPHC header (the first two bytes are the header)
         let iphc_header_1: u8 = buf[0];
@@ -662,18 +662,15 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let mut ip6_header: IP6Header = IP6Header::new();
 
         // Decompress CIE and get context
-        let mut cid = 0;
-        if iphc_header_1 & iphc::CID != 0 {
-            let cid = self.decompress_cie(iphc_header_1);
-        }
+        let (sci,dci) = self.decompress_cie(iphc_header_1, &buf, &mut offset);
 
-        let context_opt = self.ctx_store.get_context_from_id(cid);
-        let context = if context_opt.is_none() {
-            // TODO: Handle error gracefully
-            self.ctx_store.get_context_from_id(0).unwrap() // **MUST** always exist
-        } else {
-            context_opt.unwrap()
-        };
+        // TODO: Handle error gracefully
+        // Note that, since context with id 0 must *always* exist, we can unwrap
+        // it directly.
+        let src_context = self.ctx_store.get_context_from_id(sci)
+            .unwrap_or(self.ctx_store.get_context_from_id(0).unwrap());
+        let dst_context = self.ctx_store.get_context_from_id(dci)
+            .unwrap_or(self.ctx_store.get_context_from_id(0).unwrap());
 
         // Traffic Class & Flow Label
         self.decompress_tf(&mut ip6_header, iphc_header_1, &buf, &mut offset);
@@ -686,21 +683,38 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
 
         // Decompress source address
         // TODO: Get ll prefix
-        self.decompress_src(&mut ip6_header,
-                            iphc_header_2,
-                            &mesh_local_prefix,
-                            &src_mac_addr,
-                            &context,
-                            &buf,
-                            &mut offset);
+        self.decompress_src(&mut ip6_header, iphc_header_2, &mesh_local_prefix,
+                            &src_mac_addr, &src_context, &buf, &mut offset);
+
+        // Decompress destination address
+        if (iphc_header_2 & iphc::MULTICAST) != 0 {
+            self.decompress_multicast(&mut ip6_header, iphc_header_2, &dst_context,
+                                      &buf, &mut offset);
+        } else {
+            self.decompress_dst(&mut ip6_header, iphc_header_2, &mesh_local_prefix,
+                                &dst_mac_addr, &dst_context, &buf, &mut offset);
+        }
+
+        // TODO: Next headers
 
         Err(())
     }
 
-    // TODO: Impl
-    fn decompress_cie(&self, iphc_header: u8) {
+    fn decompress_cie(&self, 
+                      iphc_header: u8, 
+                      buf: &[u8], 
+                      offset: &mut usize) -> (u8, u8) {
+        let mut sci = 0;
+        let mut dci = 0;
+        if iphc_header & iphc::CID != 0 {
+            let sci = buf[*offset] >> 4;
+            let dci = buf[*offset] & 0xf;
+            *offset += 1;
+        }
+        return (sci, dci);
     }
 
+    // TODO: Check
     fn decompress_tf(&self,
                      ip6_header: &mut IP6Header,
                      iphc_header: u8,
@@ -782,6 +796,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let uses_context = (iphc_header & iphc::SAC) != 0;
         let sam_mode = iphc_header & iphc::SAM_MASK;
         let mut ip_addr: IPAddr = [0 as u8; 16];
+        // The UNSPECIFIED address ::
         if uses_context && sam_mode == iphc::SAM_INLINE {
             ip_addr[0..16].copy_from_slice(&[0 as u8; 16]);
         } else if uses_context {
@@ -802,12 +817,98 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         ip6_header.set_src_addr(ip_addr);
     }
 
-    /*
     fn decompress_dst(&self,
+                      ip6_header: &mut IP6Header,
                       iphc_header: u8,
-                      ip_addr: &mut IPAddr,
                       link_local_prefix: &[u8],
-                      */
+                      mac_addr: &MacAddr,
+                      ctx: &Context, // Must be non-null
+                      buf: &[u8],
+                      offset: &mut usize) {
+        let uses_context = (iphc_header & iphc::DAC) != 0;
+        let dam_mode = iphc_header & iphc::DAM_MASK;
+        let mut ip_addr: IPAddr = [0 as u8; 16];
+        if uses_context && dam_mode == iphc::DAM_INLINE {
+            // TODO: Reserved address: error
+        } else if uses_context {
+            self.decompress_iid_context(dam_mode,
+                                        &mut ip_addr,
+                                        mac_addr,
+                                        ctx,
+                                        buf,
+                                        offset);
+        } else {
+            self.decompress_iid_no_context(dam_mode,
+                                           &mut ip_addr,
+                                           link_local_prefix,
+                                           mac_addr,
+                                           buf,
+                                           offset);
+        }
+        ip6_header.set_src_addr(ip_addr);
+    }
+
+    fn decompress_multicast(&self,
+                            ip6_header: &mut IP6Header,
+                            iphc_header: u8,
+                            ctx: &Context,
+                            buf: &[u8],
+                            offset: &mut usize) {
+        let uses_context = (iphc_header & iphc::DAC) != 0;
+        let dam_mode = iphc_header & iphc::DAM_MASK;
+        let mut ip_addr: IPAddr = [0 as u8; 16];
+        if uses_context {
+            match dam_mode {
+                iphc::DAM_INLINE => {
+                    ip_addr[0] = 0xff;
+                    ip_addr[1] = buf[*offset];
+                    ip_addr[2] = buf[*offset+1];
+                    ip_addr[12..16].copy_from_slice(&buf[*offset+2..*offset+6]);
+                    *offset += 6;
+                    // TODO: Write from context
+                },
+                _ => {
+                    // TODO: Reserved/unsupported
+                },
+            }
+        } else {
+            match dam_mode {
+                // Full multicast address carried inline
+                iphc::DAM_INLINE => {
+                    ip_addr[0..16].copy_from_slice(&buf[*offset..*offset + 16]);
+                    *offset += 16;
+                },
+                // ffXX::00XX:XXXX:XXXX
+                iphc::DAM_MODE1  => {
+                    ip_addr[0] = 0xff;
+                    ip_addr[1] = buf[*offset];
+                    *offset += 1;
+                    ip_addr[11..16].copy_from_slice(&buf[*offset..*offset + 5]);
+                    *offset += 5;
+                },
+                // ffXX::00XX:XXXX
+                iphc::DAM_MODE2  => {
+                    ip_addr[0] = 0xff;
+                    ip_addr[1] = buf[*offset];
+                    *offset += 1;
+                    ip_addr[13..16].copy_from_slice(&buf[*offset..*offset + 3]);
+                    *offset += 3;
+                },
+                // ff02::00XX
+                iphc::DAM_MODE3  => {
+                    ip_addr[0] = 0xff;
+                    ip_addr[1] = 0x02;
+                    ip_addr[15] = buf[*offset];
+                    *offset += 1;
+                },
+                _ => {
+                    // TODO: Error case
+                },
+            }
+        }
+        ip6_header.set_src_addr(ip_addr);
+    }
+                            
 
     fn decompress_iid_no_context(&self,
                                  addr_mode: u8,
@@ -890,85 +991,3 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         set_ctx_bits_in_addr(ip_addr, ctx);
     }
 }
-/*
-    fn compress_iid(&self,
-                    ip_addr: &IPAddr,
-                    mac_addr: &MacAddr,
-                    is_src: bool,
-                    buf: &mut [u8],
-                    offset: &mut usize) {
-        let iid: [u8; 8] = compute_iid(mac_addr);
-        if ip_addr[8..16] == iid {
-            // SAM/DAM = 11, 0 bits
-            buf[1] |= if is_src {
-                iphc::SAM_MODE3
-            } else {
-                iphc::DAM_MODE3
-            };
-        } else if ip_addr[8..14] == iphc::MAC_BASE[0..6] {
-            // SAM/DAM = 10, 16 bits
-            buf[1] |= if is_src {
-                iphc::SAM_MODE2
-            } else {
-                iphc::DAM_MODE2
-            };
-            buf[*offset..*offset + 2].copy_from_slice(&ip_addr[14..16]);
-            *offset += 2;
-        } else {
-            // SAM/DAM = 01, 64 bits
-            buf[1] |= if is_src {
-                iphc::SAM_MODE1
-            } else {
-                iphc::DAM_MODE1
-            };
-            buf[*offset..*offset + 8].copy_from_slice(&ip_addr[8..16]);
-            *offset += 8;
-        }
-    }
- */
-/*
-        // The first two bytes are the LOWPAN_IPHC header
-        let mut offset: usize = 2;
-
-        // Initialize the LOWPAN_IPHC header
-        buf[0..2].copy_from_slice(&iphc::DISPATCH);
-
-        let mut src_ctx: Option<Context> = self.ctx_store
-            .get_context_from_addr(ip6_header.src_addr);
-        let mut dst_ctx: Option<Context> = if ip::addr_is_multicast(&ip6_header.dst_addr) {
-            let prefix_len: u8 = ip6_header.dst_addr[3];
-            let prefix: &[u8] = &ip6_header.dst_addr[4..12];
-            if util::verify_prefix_len(prefix, prefix_len) {
-                self.ctx_store.get_context_from_prefix(prefix, prefix_len)
-            } else {
-                None
-            }
-        } else {
-            self.ctx_store.get_context_from_addr(ip6_header.dst_addr)
-        };
-
-        // Do not use these contexts if they are not to be used for compression
-        src_ctx = src_ctx.and_then(|ctx| if ctx.compress { Some(ctx) } else { None });
-        dst_ctx = dst_ctx.and_then(|ctx| if ctx.compress { Some(ctx) } else { None });
-
-        // Context Identifier Extension
-        self.compress_cie(&src_ctx, &dst_ctx, &mut buf, &mut offset);
-
-        // Traffic Class & Flow Label
-        self.compress_tf(ip6_header, &mut buf, &mut offset);
-
-        // Next Header
-        let (mut is_nhc, mut nh_len): (bool, u8) =
-            is_ip6_nh_compressible(ip6_header.next_header, next_headers, 0)?;
-        self.compress_nh(ip6_header, is_nhc, &mut buf, &mut offset);
-
-        // Hop Limit
-        self.compress_hl(ip6_header, &mut buf, &mut offset);
-
-        // Source Address
-        self.compress_src(&ip6_header.src_addr,
-                          &src_mac_addr,
-                          &src_ctx,
-                          &mut buf,
-                          &mut offset);
-*/
