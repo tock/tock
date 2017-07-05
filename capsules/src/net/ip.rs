@@ -8,8 +8,6 @@ pub enum MacAddr {
     LongAddr([u8; 8]),
 }
 
-pub type IPAddr = [u8; 16];
-
 #[allow(unused_variables)]
 pub mod ip6_nh {
     pub const HOP_OPTS: u8 = 0;
@@ -24,25 +22,52 @@ pub mod ip6_nh {
     pub const MOBILITY: u8 = 135;
 }
 
-#[allow(unused_variables,dead_code)]
-pub fn addr_is_unspecified(ip_addr: &IPAddr) -> bool {
-    util::is_zero(ip_addr)
-}
+#[derive(Copy, Clone, Debug)]
+pub struct IPAddr(pub [u8; 16]);
 
-#[allow(unused_variables,dead_code)]
-pub fn addr_is_link_local(ip_addr: &IPAddr) -> bool {
-    // First 64 bits match fe80:: with mask ffc0::
-    ip_addr[0] == 0xfe
-    && (ip_addr[1] & 0xc0) == 0x80
-    // Remaining bits are 0
-    && (ip_addr[1] & 0x3f) == 0
-    && util::is_zero(&ip_addr[2..8])
-}
+impl IPAddr {
+    pub fn new() -> IPAddr {
+        // Defaults to the unspecified address
+        IPAddr([0; 16])
+    }
 
-#[allow(unused_variables,dead_code)]
-pub fn addr_is_multicast(ip_addr: &IPAddr) -> bool {
-    // Address is prefixed by ffxx::
-    ip_addr[0] == 0xff
+    pub fn is_unspecified(&self) -> bool {
+        util::is_zero(&self.0)
+    }
+
+    pub fn is_unicast_link_local(&self) -> bool {
+        self.0[0] == 0xfe
+        && (self.0[1] & 0xc0) == 0x80
+        && (self.0[1] & 0x3f) == 0
+        && util::is_zero(&self.0[2..8])
+    }
+
+    pub fn set_unicast_link_local(&mut self) {
+        self.0[0] = 0xfe;
+        self.0[1] = 0x80;
+        for i in 2..8 {
+            self.0[i] = 0;
+        }
+    }
+
+    // Panics if prefix slice does not contain enough bits
+    pub fn set_prefix(&mut self, prefix: &[u8], prefix_len: u8) {
+        let full_bytes = (prefix_len / 8) as usize;
+        let remaining = (prefix_len & 0x7) as usize;
+        let bytes = full_bytes + (if remaining != 0 { 1 } else { 0 });
+        assert!(bytes <= prefix.len());
+
+        self.0[0..full_bytes].copy_from_slice(&prefix[0..full_bytes]);
+        if remaining != 0 {
+            let mask = (0xff as u8) << (8 - remaining);
+            self.0[full_bytes] &= !mask;
+            self.0[full_bytes] |= mask & prefix[full_bytes];
+        }
+    }
+
+    pub fn is_multicast(&self) -> bool {
+        self.0[0] == 0xff
+    }
 }
 
 #[allow(unused_variables,dead_code)]
@@ -104,8 +129,8 @@ impl Default for IP6Header {
             payload_len: 0,
             next_header: ip6_nh::NO_NEXT,
             hop_limit: hop_limit,
-            src_addr: [0; 16],
-            dst_addr: [0; 16],
+            src_addr: IPAddr::new(),
+            dst_addr: IPAddr::new()
         }
     }
 }
@@ -199,30 +224,6 @@ impl IP6Header {
 
     pub fn set_hop_limit(&mut self, new_hl: u8) {
         self.hop_limit = new_hl;
-    }
-
-    pub fn get_src_addr(&self, buf: &mut IPAddr) {
-        for i in 0..16 {
-            buf[i] = self.src_addr[i];
-        }
-    }
-
-    pub fn set_src_addr(&mut self, new_addr: [u8; 16]) {
-        for i in 0..16 {
-            self.src_addr[i] = new_addr[i];
-        }
-    }
-
-    pub fn get_dst_addr(&self, buf: &mut [u8; 16]) {
-        for i in 0..16 {
-            buf[i] = self.dst_addr[i];
-        }
-    }
-
-    pub fn set_dst_addr(&mut self, new_addr: [u8; 16]) {
-        for i in 0..16 {
-            self.dst_addr[i] = new_addr[i];
-        }
     }
 }
 

@@ -18,11 +18,8 @@ impl<'a> DummyStore<'a> {
 }
 
 impl<'a> ContextStore<'a> for DummyStore<'a> {
-    // These methods should also include context 0 (the mesh-local prefix) as
-    // one of the possible options
-
     fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context<'a>> {
-        if util::matches_prefix(&ip_addr,
+        if util::matches_prefix(&ip_addr.0,
                                 self.context0.prefix,
                                 self.context0.prefix_len) {
             Some(self.context0)
@@ -50,11 +47,10 @@ impl<'a> ContextStore<'a> for DummyStore<'a> {
 }
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
-pub const LLP: [u8; 8] = [0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87];
-pub const SRC_ADDR: IPAddr = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                              0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f];
-pub const DST_ADDR: IPAddr = [0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
-                              0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f];
+pub const SRC_ADDR: IPAddr = IPAddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                                     0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
+pub const DST_ADDR: IPAddr = IPAddr([0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+                                     0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f]);
 pub const SRC_MAC_ADDR: MacAddr = MacAddr::LongAddr([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
 pub const DST_MAC_ADDR: MacAddr = MacAddr::LongAddr([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
 
@@ -166,6 +162,7 @@ pub fn sixlowpan_dummy_test<R: radio::Radio>(radio: &R) {
     ipv6_packet_test(radio, TrafficFlow::TrafficFlow, 42,
                      SAC::CtxIID, DAC::McastCtx);
 
+    // Prevent main application from loading
     loop {}
 }
 
@@ -205,120 +202,126 @@ fn ipv6_packet_test<R: radio::Radio>(radio: &R,
 
         ip6_header.set_hop_limit(hop_limit);
 
-        let mut src_addr: IPAddr = [0; 16];
         match sac {
-            SAC::Inline => { src_addr.copy_from_slice(&SRC_ADDR); }
+            SAC::Inline => {
+                ip6_header.src_addr = SRC_ADDR;
+            }
             SAC::LLP64 => {
                 // LLP::xxxx:xxxx:xxxx:xxxx
-                src_addr[0..8].copy_from_slice(&LLP);
-                src_addr[8..16].copy_from_slice(&SRC_ADDR[8..16]);
+                ip6_header.src_addr.set_unicast_link_local();
+                ip6_header.src_addr.0[8..16].copy_from_slice(&SRC_ADDR.0[8..16]);
             }
             SAC::LLP16 => {
                 // LLP::ff:fe00:xxxx
-                src_addr[0..8].copy_from_slice(&LLP);
+                ip6_header.src_addr.set_unicast_link_local();
                 // Distinct from compute_iid because the U/L bit is not flipped
-                src_addr[8..16].copy_from_slice(&MAC_BASE);
-                src_addr[15..16].copy_from_slice(&SRC_ADDR[15..16]);
+                ip6_header.src_addr.0[11] = 0xff;
+                ip6_header.src_addr.0[12] = 0xfe;
+                ip6_header.src_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
             }
             SAC::LLPIID => {
                 // LLP::IID
-                src_addr[0..8].copy_from_slice(&LLP);
-                src_addr[8..16].copy_from_slice(
+                ip6_header.src_addr.set_unicast_link_local();
+                ip6_header.src_addr.0[8..16].copy_from_slice(
                     &lowpan::compute_iid(&SRC_MAC_ADDR));
             }
             SAC::Unspecified => {}
             SAC::Ctx64 => {
                 // MLP::xxxx:xxxx:xxxx:xxxx
-                src_addr[0..8].copy_from_slice(&MLP);
+                ip6_header.src_addr.set_prefix(&MLP, 64);
+                ip6_header.src_addr.0[8..16].copy_from_slice(&SRC_ADDR.0[8..16]);
             }
             SAC::Ctx16 => {
                 // MLP::ff:fe00:xxxx
-                src_addr[0..8].copy_from_slice(&MLP);
+                ip6_header.src_addr.set_prefix(&MLP, 64);
                 // Distinct from compute_iid because the U/L bit is not flipped
-                src_addr[8..16].copy_from_slice(&MAC_BASE);
-                src_addr[15..16].copy_from_slice(&SRC_ADDR[15..16]);
+                ip6_header.src_addr.0[11] = 0xff;
+                ip6_header.src_addr.0[12] = 0xfe;
+                ip6_header.src_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
             }
             SAC::CtxIID => {
                 // MLP::IID
-                src_addr[0..8].copy_from_slice(&MLP);
-                src_addr[8..16].copy_from_slice(
+                ip6_header.src_addr.set_prefix(&MLP, 64);
+                ip6_header.src_addr.0[8..16].copy_from_slice(
                     &lowpan::compute_iid(&SRC_MAC_ADDR));
             }
         }
-        ip6_header.set_src_addr(src_addr);
 
-        let mut dst_addr: IPAddr = [0; 16];
         match dac {
-            DAC::Inline => { dst_addr.copy_from_slice(&DST_ADDR); }
+            DAC::Inline => {
+                ip6_header.dst_addr = DST_ADDR;
+            }
             DAC::LLP64 => {
                 // LLP::xxxx:xxxx:xxxx:xxxx
-                dst_addr[0..8].copy_from_slice(&LLP);
-                dst_addr[8..16].copy_from_slice(&DST_ADDR[8..16]);
+                ip6_header.dst_addr.set_unicast_link_local();
+                ip6_header.dst_addr.0[8..16].copy_from_slice(&DST_ADDR.0[8..16]);
             }
             DAC::LLP16 => {
                 // LLP::ff:fe00:xxxx
-                dst_addr[0..8].copy_from_slice(&LLP);
+                ip6_header.dst_addr.set_unicast_link_local();
                 // Distinct from compute_iid because the U/L bit is not flipped
-                dst_addr[8..16].copy_from_slice(&MAC_BASE);
-                dst_addr[15..16].copy_from_slice(&DST_ADDR[15..16]);
+                ip6_header.dst_addr.0[11] = 0xff;
+                ip6_header.dst_addr.0[12] = 0xfe;
+                ip6_header.dst_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
             }
             DAC::LLPIID => {
                 // LLP::IID
-                dst_addr[0..8].copy_from_slice(&LLP);
-                dst_addr[8..16].copy_from_slice(
+                ip6_header.dst_addr.set_unicast_link_local();
+                ip6_header.dst_addr.0[8..16].copy_from_slice(
                     &lowpan::compute_iid(&DST_MAC_ADDR));
             }
             DAC::Ctx64 => {
                 // MLP::xxxx:xxxx:xxxx:xxxx
-                dst_addr[0..8].copy_from_slice(&MLP);
+                ip6_header.dst_addr.set_prefix(&MLP, 64);
+                ip6_header.dst_addr.0[8..16].copy_from_slice(&SRC_ADDR.0[8..16]);
             }
             DAC::Ctx16 => {
                 // MLP::ff:fe00:xxxx
-                dst_addr[0..8].copy_from_slice(&MLP);
+                ip6_header.dst_addr.set_prefix(&MLP, 64);
                 // Distinct from compute_iid because the U/L bit is not flipped
-                dst_addr[8..16].copy_from_slice(&MAC_BASE);
-                dst_addr[15..16].copy_from_slice(&DST_ADDR[15..16]);
+                ip6_header.dst_addr.0[11] = 0xff;
+                ip6_header.dst_addr.0[12] = 0xfe;
+                ip6_header.dst_addr.0[14..16].copy_from_slice(&SRC_ADDR.0[14..16]);
             }
             DAC::CtxIID => {
                 // MLP::IID
-                dst_addr[0..8].copy_from_slice(&MLP);
-                dst_addr[8..16].copy_from_slice(
+                ip6_header.dst_addr.set_prefix(&MLP, 64);
+                ip6_header.dst_addr.0[8..16].copy_from_slice(
                     &lowpan::compute_iid(&DST_MAC_ADDR));
             }
             DAC::McastInline => {
                 // first byte is ff, that's all we know
-                dst_addr[0..16].copy_from_slice(&DST_ADDR);
-                dst_addr[0] = 0xff;
+                ip6_header.dst_addr = DST_ADDR;
+                ip6_header.dst_addr.0[0] = 0xff;
             }
             DAC::Mcast48 => {
                 // ffXX::00XX:XXXX:XXXX
-                dst_addr[0] = 0xff;
-                dst_addr[1] = DST_ADDR[1];
-                dst_addr[11..16].copy_from_slice(&DST_ADDR[11..16]);
+                ip6_header.dst_addr.0[0] = 0xff;
+                ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
+                ip6_header.dst_addr.0[11..16].copy_from_slice(&DST_ADDR.0[11..16]);
             }
             DAC::Mcast32 => {
                 // ffXX::00XX:XXXX
-                dst_addr[0] = 0xff;
-                dst_addr[1] = DST_ADDR[1];
-                dst_addr[13..16].copy_from_slice(&DST_ADDR[13..16]);
+                ip6_header.dst_addr.0[0] = 0xff;
+                ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
+                ip6_header.dst_addr.0[13..16].copy_from_slice(&DST_ADDR.0[13..16]);
             }
             DAC::Mcast8 => {
                 // ff02::00XX
-                dst_addr[0] = 0xff;
-                dst_addr[1] = DST_ADDR[1];
-                dst_addr[15] = DST_ADDR[15];
+                ip6_header.dst_addr.0[0] = 0xff;
+                ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
+                ip6_header.dst_addr.0[15] = DST_ADDR.0[15];
             }
             DAC::McastCtx => {
                 // ffXX:XX + plen + pfx64 + XXXX:XXXX
-                dst_addr[0] = 0xff;
-                dst_addr[1] = DST_ADDR[1];
-                dst_addr[2] = DST_ADDR[2];
-                dst_addr[3] = 64 as u8;
-                dst_addr[4..12].copy_from_slice(&MLP);
-                dst_addr[12..16].copy_from_slice(&DST_ADDR[12..16]);
+                ip6_header.dst_addr.0[0] = 0xff;
+                ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
+                ip6_header.dst_addr.0[2] = DST_ADDR.0[2];
+                ip6_header.dst_addr.0[3] = 64 as u8;
+                ip6_header.dst_addr.0[4..12].copy_from_slice(&MLP);
+                ip6_header.dst_addr.0[12..16].copy_from_slice(&DST_ADDR.0[12..16]);
             }
         }
-        ip6_header.set_dst_addr(dst_addr);
     }
     debug!("Packet with tf={:?} hl={} sac={:?} dac={:?}",
            tf, hop_limit, sac, dac);
