@@ -650,7 +650,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     /// packet is part of a set of fragments.
     #[allow(unused_variables,dead_code)]
     pub fn decompress(&self,
-                      buf: &[u8], // TODO: Don't think this needs to be mut
+                      buf: &[u8],
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
                       out_buf: &mut [u8])
@@ -670,13 +670,11 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // Decompress CIE and get context
         let (sci,dci) = self.decompress_cie(iphc_header_1, &buf, &mut offset);
 
-        // TODO: Handle error gracefully
+        // TODO: Proper error messages
         // Note that, since context with id 0 must *always* exist, we can unwrap
         // it directly.
-        let src_context = self.ctx_store.get_context_from_id(sci)
-            .unwrap_or(self.ctx_store.get_context_from_id(0).unwrap());
-        let dst_context = self.ctx_store.get_context_from_id(dci)
-            .unwrap_or(self.ctx_store.get_context_from_id(0).unwrap());
+        let src_context = self.ctx_store.get_context_from_id(sci).ok_or(())?;
+        let dst_context = self.ctx_store.get_context_from_id(dci).ok_or(())?;
 
         // Traffic Class & Flow Label
         self.decompress_tf(&mut ip6_header, iphc_header_1, &buf, &mut offset);
@@ -688,7 +686,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         self.decompress_hl(&mut ip6_header, iphc_header_1, &buf, &mut offset);
 
         // Decompress source address
-        // TODO: Get ll prefix
         self.decompress_src(&mut ip6_header, iphc_header_2,
                             &src_mac_addr, &src_context, &buf, &mut offset);
 
@@ -867,7 +864,15 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     ip_addr[2] = buf[*offset+1];
                     ip_addr[12..16].copy_from_slice(&buf[*offset+2..*offset+6]);
                     *offset += 6;
-                    // TODO: Write from context
+                    ip_addr[3] = ctx.prefix_len;
+                    let mut len = (ctx.prefix_len / 8) as usize;
+                    if (len % 8) != 0 {
+                        len += 1;
+                    } 
+                    // TODO: Check len <= 8
+                    // TODO: Fix all of this - bad coding style
+                    ip_addr[4..12].copy_from_slice(&[0; 8]);
+                    ip_addr[4..len].copy_from_slice(&ctx.prefix[0..len]);
                 },
                 _ => {
                     // TODO: Reserved/unsupported
