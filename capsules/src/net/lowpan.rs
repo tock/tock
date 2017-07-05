@@ -685,7 +685,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                                                iphc_header_1,
                                                                &buf,
                                                                &mut offset);
-        
+
         // Decompress hop limit field
         self.decompress_hl(&mut ip6_header, iphc_header_1, &buf, &mut offset);
 
@@ -716,7 +716,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     // Advance past the NHC field
                     offset += 1;
 
-                    let (encap_written, encap_processed) = 
+                    let (encap_written, encap_processed) =
                         self.decompress(&buf[offset..],
                                         src_mac_addr,
                                         dst_mac_addr,
@@ -734,9 +734,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 | ip6_nh::DST_OPTS
                 | ip6_nh::MOBILITY => {
                     // We want to advance past the LowPAN NHC field
-                    offset += 1;
                     // True if the next header is also compressed
-                    is_nhc = (next_header & nhc::DISPATCH_NHC) != 0;
+                    is_nhc = (buf[offset] & nhc::NH) != 0;
+                    offset += 1;
 
                     // len is the number of octets following the length field
                     let len = buf[offset] as usize;
@@ -757,6 +757,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     // TODO: Check length
                     next_headers[bytes_written..bytes_written+len]
                         .copy_from_slice(&buf[offset..offset+len]);
+                    // TODO: Add Pad1/PadN to fill hdr_len * 8 - len + 6 bytes
                     bytes_written += len;
                     offset += len;
                 },
@@ -769,9 +770,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         Ok((bytes_written, offset))
     }
 
-    fn decompress_cie(&self, 
-                      iphc_header: u8, 
-                      buf: &[u8], 
+    fn decompress_cie(&self,
+                      iphc_header: u8,
+                      buf: &[u8],
                       offset: &mut usize) -> (u8, u8) {
         let mut sci = 0;
         let mut dci = 0;
