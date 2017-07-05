@@ -668,8 +668,11 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         self.decompress_tf(&mut ip6_header, iphc_header_1, &buf, &mut offset);
 
         // Next header
-        self.decompress_nh(iphc_header_1);
-
+        let (mut is_nhc, mut next_header) = self.decompress_nh(&mut ip6_header,
+                                                               iphc_header_1,
+                                                               &buf,
+                                                               &mut offset);
+        
         // Decompress hop limit field
         self.decompress_hl(&mut ip6_header, iphc_header_1, &buf, &mut offset);
 
@@ -687,6 +690,35 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
 
         // TODO: Next headers
+        // Note that next_header is already set only if is_nhc is false
+        next_header = if is_nhc {
+            offset += 1;
+            nhc_eid_to_ip6_nh(buf[offset-1]).ok_or(())?
+        };
+        ip6_header.set_next_header(next_header);
+        // While the next header is still compressed
+        while is_nhc {
+            match next_header {
+                ip6_nh::IP6 => {
+                },
+                ip6_nh::UDP => {
+                },
+                ip6_nh::FRAGMENT
+                | ip6_nh::HOP_OPTS
+                | ip6_nh::ROUTING
+                | ip6_nh::DST_OPTS
+                | ip6_nh::MOBILITY => {
+                    // len is the number of octets following the length field
+                    let len = buf[offset];
+                    offset += 1;
+                    // TODO: This goes last
+                    out_buf[out_offset..out_offset+len]
+                        .copy_from_slice(buf[offset..offset+len]);
+                    out_offset += len;
+                    offset += len;
+                },
+            }
+        }
 
         Err(())
     }
@@ -698,8 +730,8 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let mut sci = 0;
         let mut dci = 0;
         if iphc_header & iphc::CID != 0 {
-            let sci = buf[*offset] >> 4;
-            let dci = buf[*offset] & 0xf;
+            sci = buf[*offset] >> 4;
+            dci = buf[*offset] & 0xf;
             *offset += 1;
         }
         return (sci, dci);
@@ -749,11 +781,18 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
-    // TODO: impl
-    fn decompress_nh(&self, iphc_header: u8) {
-        if iphc_header & iphc::NH != 0 {
-            // TODO: Impl
+    fn decompress_nh(&self,
+                     ip6_header: &mut IP6Header,
+                     iphc_header: u8,
+                     buf: &[u8],
+                     offset: &mut usize) -> (bool, u8) {
+        let is_nhc = (iphc_header & iphc::NH) != 0;
+        let mut next_header: u8 = 0;
+        if !is_nhc {
+            next_header = buf[*offset];
+            *offset += 1;
         }
+        return (is_nhc, next_header);
     }
 
     fn decompress_hl(&self, 
