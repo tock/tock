@@ -155,15 +155,20 @@ fn is_ip6_nh_compressible(next_header: u8,
     }
 }
 
-fn get_compressed_nh_type(is_compressed: bool, offset: usize, buf: &[u8]) -> u8 {
+fn get_compressed_nh_type(is_compressed: bool,
+                          offset: &mut usize,
+                          len: usize,
+                          buf: &[u8]) -> u8 {
     let next_header_type = if is_compressed {
         //TODO: ok_or(())? as we must return a valid type here
-        nhc_eid_to_ip6_nh(buf[offset]).unwrap()
+        nhc_eid_to_ip6_nh(buf[*offset+len]).unwrap()
     // If there's no more room, return NO_NEXT
-    } else if offset >= buf.len() {
+    } else if *offset+len >= buf.len() {
         ip6_nh::NO_NEXT
+    // Next header field inline
     } else {
-        buf[offset]
+        *offset += 1;
+        buf[*offset-1]
     };
     return next_header_type;
 }
@@ -704,8 +709,8 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
 
         // Note that next_header is already set only if is_nhc is false
         if is_nhc {
-            next_header = nhc_eid_to_ip6_nh(buf[offset]).ok_or(())?
-        };
+            next_header = nhc_eid_to_ip6_nh(buf[offset]).ok_or(())?;
+        }
         ip6_header.set_next_header(next_header);
         // While the next header is still compressed
         // Note that at each iteration, offset points to the NHC header field
@@ -741,6 +746,10 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     // len is the number of octets following the length field
                     let len = buf[offset] as usize;
                     offset += 1;
+                    // Longer than the buffer; error
+                    if offset + len >= buf.len() {
+                        return Err(());
+                    }
                     // Length in 8-octet units (per the IPv6 ext hdr spec)
                     let mut hdr_len_field = (len - 6) / 8;
                     if (len - 6) % 8 != 0 {
@@ -749,15 +758,32 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     // Gets the type of the subsequent next header. Note that
                     // if is_nhc is true, then it is an error to not have a 
                     // next header.
-                    next_header = get_compressed_nh_type(is_nhc, offset+len, &buf);
+                    next_header = get_compressed_nh_type(is_nhc, &mut offset, len, &buf);
                     next_headers[bytes_written] = next_header;
                     next_headers[bytes_written+1] = hdr_len_field as u8;
                     bytes_written += 2;
                     // This copies over the remaining options etc.
-                    // TODO: Check length
                     next_headers[bytes_written..bytes_written+len]
                         .copy_from_slice(&buf[offset..offset+len]);
-                    // TODO: Add Pad1/PadN to fill hdr_len * 8 - len + 6 bytes
+
+                    // Fill in padding
+                    let nbytes_pad = hdr_len_field * 8 - len + 6;
+                    // Pad1
+                    if nbytes_pad == 1 {
+                        next_headers[bytes_written] = 0;
+                        bytes_written += 1;
+                    }
+                    // PadN
+                    if nbytes_pad > 1 {
+                        next_headers[bytes_written] = 1;
+                        next_headers[bytes_written+1] = nbytes_pad - 2;
+                        bytes_written += 2;
+                        for i in 2..nbytes_pad {
+                            next_headers[bytes_written] = 0;
+                            bytes_written += 1;
+                        }
+                    }
+
                     bytes_written += len;
                     offset += len;
                 },
