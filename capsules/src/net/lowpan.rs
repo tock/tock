@@ -638,7 +638,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     /// packet is part of a set of fragments.
     #[allow(unused_variables,dead_code)]
     pub fn decompress(&self,
-                      buf: &[u8], // TODO: Don't think this needs to be mut
+                      buf: &[u8],
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
                       out_buf: &mut [u8])
@@ -658,13 +658,11 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // Decompress CIE and get context
         let (sci,dci) = self.decompress_cie(iphc_header_1, &buf, &mut offset);
 
-        // TODO: Handle error gracefully
+        // TODO: Proper error messages
         // Note that, since context with id 0 must *always* exist, we can unwrap
         // it directly.
-        let src_context = self.ctx_store.get_context_from_id(sci)
-            .unwrap_or(self.ctx_store.get_context_from_id(0).unwrap());
-        let dst_context = self.ctx_store.get_context_from_id(dci)
-            .unwrap_or(self.ctx_store.get_context_from_id(0).unwrap());
+        let src_context = self.ctx_store.get_context_from_id(sci).ok_or(())?;
+        let dst_context = self.ctx_store.get_context_from_id(dci).ok_or(())?;
 
         // Traffic Class & Flow Label
         self.decompress_tf(&mut ip6_header, iphc_header_1, &buf, &mut offset);
@@ -676,7 +674,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         self.decompress_hl(&mut ip6_header, iphc_header_1, &buf, &mut offset);
 
         // Decompress source address
-        // TODO: Get ll prefix
         self.decompress_src(&mut ip6_header, iphc_header_2,
                             &src_mac_addr, &src_context, &buf, &mut offset);
 
@@ -842,16 +839,21 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                             offset: &mut usize) {
         let uses_context = (iphc_header & iphc::DAC) != 0;
         let dam_mode = iphc_header & iphc::DAM_MASK;
-        let mut ip_addr: IPAddr = IPAddr::new();
+        let mut ip_addr: &mut IPAddr = &mut ip6_header.dst_addr;
         if uses_context {
             match dam_mode {
                 iphc::DAM_INLINE => {
+                    // ffXX:XX + plen + pfx64 + XXXX:XXXX
+                    // TODO: Check prefix_len <= 64
+                    let prefix_bytes = ((ctx.prefix_len + 7) / 8) as usize;
                     ip_addr.0[0] = 0xff;
                     ip_addr.0[1] = buf[*offset];
                     ip_addr.0[2] = buf[*offset+1];
-                    ip_addr.0[12..16].copy_from_slice(&buf[*offset+2..*offset+6]);
+                    ip_addr.0[3] = ctx.prefix_len;
+                    ip_addr.0[4..4 + prefix_bytes]
+                        .copy_from_slice(&ctx.prefix[0..prefix_bytes]);
+                    ip_addr.0[12..16].copy_from_slice(&buf[*offset + 2..*offset + 4]);
                     *offset += 6;
-                    // TODO: Write from context
                 },
                 _ => {
                     // TODO: Reserved/unsupported
@@ -892,7 +894,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 },
             }
         }
-        ip6_header.dst_addr = ip_addr;
     }
 
     fn decompress_iid_no_context(&self,
