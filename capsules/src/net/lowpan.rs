@@ -155,6 +155,19 @@ fn is_ip6_nh_compressible(next_header: u8,
     }
 }
 
+fn get_compressed_nh_type(is_compressed: bool, offset: usize, buf: &[u8]) -> u8 {
+    let next_header_type = if is_compressed {
+        //TODO: ok_or(())? as we must return a valid type here
+        nhc_eid_to_ip6_nh(next_header).unwrap()
+    // If there's no more room, return NO_NEXT
+    } else if offset >= buf.len() {
+        ip6_nh::NO_NEXT
+    } else {
+        next_header
+    };
+    return next_header_type;
+}
+
 /// Maps values of a IPv6 next header field to a corresponding LoWPAN
 /// NHC-encoding extension ID
 fn ip6_nh_to_nhc_eid(next_header: u8) -> Option<u8> {
@@ -642,7 +655,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
                       out_buf: &mut [u8])
-                      -> Result<usize, ()> {
+                      -> Result<(usize, usize) ()> {
         // Get the LOWPAN_IPHC header (the first two bytes are the header)
         let iphc_header_1: u8 = buf[0];
         let iphc_header_2: u8 = buf[1];
@@ -651,8 +664,8 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let mut ip6_header: &mut IP6Header = unsafe {
             mem::transmute(out_buf.as_mut_ptr())
         };
-        let mut out_offset: usize = mem::size_of::<IP6Header>();
-        let mut next_headers: &[u8] = &out_buf[out_offset..];
+        let mut bytes_written: usize = mem::size_of::<IP6Header>();
+        let mut next_headers: &mut [u8] = &mut out_buf[bytes_written..];
         *ip6_header = IP6Header::new();
 
         // Decompress CIE and get context
@@ -689,38 +702,72 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                 &dst_mac_addr, &dst_context, &buf, &mut offset);
         }
 
-        // TODO: Next headers
         // Note that next_header is already set only if is_nhc is false
-        next_header = if is_nhc {
-            offset += 1;
-            nhc_eid_to_ip6_nh(buf[offset-1]).ok_or(())?
+        if is_nhc {
+            next_header = nhc_eid_to_ip6_nh(buf[offset]).ok_or(())?
         };
         ip6_header.set_next_header(next_header);
         // While the next header is still compressed
+        // Note that at each iteration, offset points to the NHC header field
+        // and next_header refers to the type of this field.
         while is_nhc {
             match next_header {
                 ip6_nh::IP6 => {
+                    // Advance past the NHC field
+                    offset += 1;
+
+                    let (encap_written, encap_processed) = 
+                        self.decompress(next_headers,
+                                        src_mac_addr,
+                                        dst_mac_addr,
+                                        &mut buf[offset..])?;
+                    bytes_written += encap_written;
+                    offset += encap_processed;
+                    break;
                 },
                 ip6_nh::UDP => {
+                    // TODO
                 },
                 ip6_nh::FRAGMENT
                 | ip6_nh::HOP_OPTS
                 | ip6_nh::ROUTING
                 | ip6_nh::DST_OPTS
                 | ip6_nh::MOBILITY => {
-                    // len is the number of octets following the length field
-                    let len = buf[offset];
+                    // We want to advance past the LowPAN NHC field
                     offset += 1;
-                    // TODO: This goes last
-                    out_buf[out_offset..out_offset+len]
-                        .copy_from_slice(buf[offset..offset+len]);
-                    out_offset += len;
+                    // True if the next header is also compressed
+                    is_nhc = (next_header & nhc::DISPATCH_NHC) != 0;
+
+                    // len is the number of octets following the length field
+                    let len = buf[offset] as usize;
+                    offset += 1;
+                    // Length in 8-octet units (per the IPv6 ext hdr spec)
+                    let mut hdr_len_field = (len - 6) / 8;
+                    if (len - 6) % 8 != 0 {
+                        hdr_len_field += 1;
+                    }
+                    // Gets the type of the subsequent next header. Note that
+                    // if is_nhc is true, then it is an error to not have a 
+                    // next header.
+                    next_header = get_compressed_nh_type(is_nhc, offset+len, &buf);
+                    next_headers[0] = next_header;
+                    next_headers[1] = hdr_len_field as u8;
+                    bytes_written += 2;
+                    // This copies over the remaining options etc.
+                    // TODO: Check length
+                    next_headers[0..len]
+                        .copy_from_slice(&buf[offset..offset+len]);
+                    bytes_written += len;
                     offset += len;
+                    next_headers = &next_headers[len..];
+                },
+                _ => {
+                    // TODO: Should never happen
                 },
             }
         }
 
-        Err(())
+        Ok(bytes_written, offset)
     }
 
     fn decompress_cie(&self, 
