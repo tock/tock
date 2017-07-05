@@ -158,12 +158,12 @@ fn is_ip6_nh_compressible(next_header: u8,
 fn get_compressed_nh_type(is_compressed: bool, offset: usize, buf: &[u8]) -> u8 {
     let next_header_type = if is_compressed {
         //TODO: ok_or(())? as we must return a valid type here
-        nhc_eid_to_ip6_nh(next_header).unwrap()
+        nhc_eid_to_ip6_nh(buf[offset]).unwrap()
     // If there's no more room, return NO_NEXT
     } else if offset >= buf.len() {
         ip6_nh::NO_NEXT
     } else {
-        next_header
+        buf[offset]
     };
     return next_header_type;
 }
@@ -655,7 +655,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
                       out_buf: &mut [u8])
-                      -> Result<(usize, usize) ()> {
+                      -> Result<(usize, usize), ()> {
         // Get the LOWPAN_IPHC header (the first two bytes are the header)
         let iphc_header_1: u8 = buf[0];
         let iphc_header_2: u8 = buf[1];
@@ -717,10 +717,10 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     offset += 1;
 
                     let (encap_written, encap_processed) = 
-                        self.decompress(next_headers,
+                        self.decompress(&buf[offset..],
                                         src_mac_addr,
                                         dst_mac_addr,
-                                        &mut buf[offset..])?;
+                                        &mut next_headers[bytes_written..])?;
                     bytes_written += encap_written;
                     offset += encap_processed;
                     break;
@@ -750,16 +750,15 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     // if is_nhc is true, then it is an error to not have a 
                     // next header.
                     next_header = get_compressed_nh_type(is_nhc, offset+len, &buf);
-                    next_headers[0] = next_header;
-                    next_headers[1] = hdr_len_field as u8;
+                    next_headers[bytes_written] = next_header;
+                    next_headers[bytes_written+1] = hdr_len_field as u8;
                     bytes_written += 2;
                     // This copies over the remaining options etc.
                     // TODO: Check length
-                    next_headers[0..len]
+                    next_headers[bytes_written..bytes_written+len]
                         .copy_from_slice(&buf[offset..offset+len]);
                     bytes_written += len;
                     offset += len;
-                    next_headers = &next_headers[len..];
                 },
                 _ => {
                     // TODO: Should never happen
@@ -767,7 +766,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             }
         }
 
-        Ok(bytes_written, offset)
+        Ok((bytes_written, offset))
     }
 
     fn decompress_cie(&self, 
