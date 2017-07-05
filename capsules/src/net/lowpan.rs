@@ -650,16 +650,22 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     /// packet is part of a set of fragments.
     #[allow(unused_variables,dead_code)]
     pub fn decompress(&self,
-                      buf: &mut [u8], // TODO: Don't think this needs to be mut
+                      buf: &[u8], // TODO: Don't think this needs to be mut
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
-                      mesh_local_prefix: &[u8])
-                      -> Result<(IP6Header, usize, Option<FragInfo>), ()> {
+                      out_buf: &mut [u8])
+                      -> Result<usize, ()> {
         // Get the LOWPAN_IPHC header (the first two bytes are the header)
         let iphc_header_1: u8 = buf[0];
         let iphc_header_2: u8 = buf[1];
         let mut offset: usize = 2;
-        let mut ip6_header: IP6Header = IP6Header::new();
+
+        let ip6_header: &mut IP6Header = unsafe {
+            mem::transmute(out_buf.as_mut_ptr())
+        };
+        let mut out_offset: usize = mem::size_of::<IP6Header>();
+        let mut next_headers: &[u8] = &out_buf[out_offset..];
+        *ip6_header = IP6Header::new();
 
         // Decompress CIE and get context
         let (sci,dci) = self.decompress_cie(iphc_header_1, &buf, &mut offset);
@@ -683,7 +689,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
 
         // Decompress source address
         // TODO: Get ll prefix
-        self.decompress_src(&mut ip6_header, iphc_header_2, &mesh_local_prefix,
+        self.decompress_src(&mut ip6_header, iphc_header_2,
                             &src_mac_addr, &src_context, &buf, &mut offset);
 
         // Decompress destination address
@@ -691,7 +697,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             self.decompress_multicast(&mut ip6_header, iphc_header_2, &dst_context,
                                       &buf, &mut offset);
         } else {
-            self.decompress_dst(&mut ip6_header, iphc_header_2, &mesh_local_prefix,
+            self.decompress_dst(&mut ip6_header, iphc_header_2,
                                 &dst_mac_addr, &dst_context, &buf, &mut offset);
         }
 
