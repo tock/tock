@@ -2,6 +2,7 @@
 
 use kernel::common::VolatileCell;
 
+// seem to be OK perhaps add assertions for this
 pub const RTC1_BASE: usize = 0x40011000;
 #[repr(C, packed)]
 pub struct RTC1 {
@@ -27,7 +28,7 @@ pub struct RTC1 {
     _reserved6: [u32; 13],
     pub cc: [VolatileCell<u32>; 4],
     _reserved7: [u32; 683],
-    pub power: VolatileCell<u32>,
+    pub power: VolatileCell<u32>,    // this doesn't exist
 }
 
 // OK!!!

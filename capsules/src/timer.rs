@@ -95,11 +95,11 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                 td.callback = Some(callback);
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+        .unwrap_or_else(|err| match err {
+            Error::OutOfMemory => ReturnCode::ENOMEM,
+            Error::AddressOutOfBounds => ReturnCode::EINVAL,
+            Error::NoSuchApp => ReturnCode::EINVAL,
+        })
     }
 
     /// Setup and read the MAX17205.
@@ -196,6 +196,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                             self.num_armed.set(self.num_armed.get() + 1);
                         }
 
+
                         let now = self.alarm.now();
                         td.t0 = now;
                         td.expiration = Expiration::Abs(time as u32);
@@ -214,14 +215,14 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                     _ => (ReturnCode::ENOSUPPORT, false)
                 }
             })
-            .unwrap_or_else(|err| {
-                let e = match err {
-                    Error::OutOfMemory => ReturnCode::ENOMEM,
-                    Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                    Error::NoSuchApp => ReturnCode::EINVAL,
-                };
-                (e, false)
-            });
+        .unwrap_or_else(|err| {
+            let e = match err {
+                Error::OutOfMemory => ReturnCode::ENOMEM,
+                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                Error::NoSuchApp => ReturnCode::EINVAL,
+            };
+            (e, false)
+        });
         if reset {
             self.reset_active_timer();
         }

@@ -340,6 +340,7 @@ impl hil::time::Time for TimerAlarm {
 
 impl hil::time::Alarm for TimerAlarm {
     fn now(&self) -> u32 {
+        panic("");
         self.value()
     }
 
