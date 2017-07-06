@@ -174,6 +174,31 @@ fn get_compressed_nh_type(is_compressed: bool,
     return next_header_type;
 }
 
+// Note that this function returns a checksum in network-byte order
+fn compute_udp_checksum(udp_header: &[u8], payload: &[u8]) -> u16{
+    let len = payload.len();
+    let mut checksum: u32 = 0;
+    for i in 0..4 {
+        checksum += ((udp_header[i*2] as u32) << 8) | (udp_header[(i+1)*2] as u32);
+        if checksum > 0xffff {
+            checksum -= 0xffff;
+        }
+    }
+    for i in 0..len/2 {
+        checksum += ((payload[i*2] as u32) << 8) | (payload[(i+1)*2] as u32);
+        if checksum > 0xffff {
+            checksum -= 0xffff;
+        }
+    }
+    if len % 2 != 0 {
+        checksum += (payload[len] as u32) << 8;
+        if checksum > 0xffff {
+            checksum -= 0xffff;
+        }
+    }
+    ip::ntohs(checksum as u16)
+}
+
 /// Maps values of a IPv6 next header field to a corresponding LoWPAN
 /// NHC-encoding extension ID
 fn ip6_nh_to_nhc_eid(next_header: u8) -> Option<u8> {
@@ -1165,7 +1190,12 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                buf: &[u8],
                                offset: &mut usize) {
         if (udp_nhc & nhc::UDP_CHKSUM_FLAG) != 0 {
-            // TODO: Error
+            // TODO: Need to verify that the packet was sent with *some* kind
+            // of integrity check at a lower level (otherwise, we need to drop
+            // the packet)
+            let checksum = compute_udp_checksum(udp_header, &buf[*offset..]);
+            udp_header[6] = (checksum >> 8) as u8;
+            udp_header[7] = (checksum & 0xf) as u8;
         } else {
             udp_header[6] = buf[*offset];
             udp_header[7] = buf[*offset+1];
