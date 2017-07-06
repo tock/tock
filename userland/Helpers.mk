@@ -43,6 +43,12 @@ else
   endif
 endif
 
+
+# Format check rule
+.PHONY: _format_check_unstaged
+_format_check_unstaged:
+	$(Q)$(TOCK_USERLAND_BASE_DIR)/tools/check_unstaged.sh
+
 #########################################################################################
 ## Pretty-printing rules
 

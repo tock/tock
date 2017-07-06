@@ -206,16 +206,16 @@ $(BUILDDIR)/format:
 .PHONY: fmt format
 fmt format:: $(FORMATTED_FILES)
 
-$(BUILDDIR)/format/%.uncrustify: %.c
+$(BUILDDIR)/format/%.uncrustify: %.c | _format_check_unstaged
 	$(Q)$(UNCRUSTIFY) -f $< -o $@
 	$(Q)cmp -s $< $@ || (if [ "$$CI" == "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
-$(BUILDDIR)/format/%.uncrustify: %.cc
+$(BUILDDIR)/format/%.uncrustify: %.cc | _format_check_unstaged
 	$(Q)$(UNCRUSTIFY) -f $< -o $@
 	$(Q)cmp -s $< $@ || (if [ "$$CI" == "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
-$(BUILDDIR)/format/%.uncrustify: %.cpp
+$(BUILDDIR)/format/%.uncrustify: %.cpp | _format_check_unstaged
 	$(Q)$(UNCRUSTIFY) -f $< -o $@
 	$(Q)cmp -s $< $@ || (if [ "$$CI" == "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
-$(BUILDDIR)/format/%.uncrustify: %.cxx
+$(BUILDDIR)/format/%.uncrustify: %.cxx | _format_check_unstaged
 	$(Q)$(UNCRUSTIFY) -f $< -o $@
 	$(Q)cmp -s $< $@ || (if [ "$$CI" == "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
 
