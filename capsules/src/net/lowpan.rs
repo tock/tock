@@ -2,6 +2,7 @@
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
 
 use core::mem;
+use core::cmp::min;
 use core::result::Result;
 
 use net::ip;
@@ -675,19 +676,19 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                                                &mut offset);
 
         // Decompress hop limit field
-        self.decompress_hl(&mut ip6_header, iphc_header_1, &buf, &mut offset);
+        self.decompress_hl(&mut ip6_header, iphc_header_1, &buf, &mut offset)?;
 
         // Decompress source address
         self.decompress_src(&mut ip6_header, iphc_header_2,
-                            &src_mac_addr, &src_ctx, &buf, &mut offset);
+                            &src_mac_addr, &src_ctx, &buf, &mut offset)?;
 
         // Decompress destination address
         if (iphc_header_2 & iphc::MULTICAST) != 0 {
             self.decompress_multicast(&mut ip6_header, iphc_header_2, &dst_ctx,
-                                      &buf, &mut offset);
+                                      &buf, &mut offset)?;
         } else {
             self.decompress_dst(&mut ip6_header, iphc_header_2,
-                                &dst_mac_addr, &dst_ctx, &buf, &mut offset);
+                                &dst_mac_addr, &dst_ctx, &buf, &mut offset)?;
         }
 
         // Note that next_header is already set only if is_nhc is false
@@ -801,7 +802,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     offset += len;
                 },
                 _ => {
-                    // TODO: Should never happen
+                    // This should be unreachable
                     return Err(());
                 },
             }
@@ -887,9 +888,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                      ip6_header: &mut IP6Header,
                      iphc_header: u8,
                      buf: &[u8],
-                     offset: &mut usize) {
+                     offset: &mut usize) -> Result<(), ()> {
         // TODO: Does this match work?
-        let hop_limit = match (iphc_header & iphc::HLIM_MASK) {
+        let hop_limit = match iphc_header & iphc::HLIM_MASK {
             iphc::HLIM_1      => 1,
             iphc::HLIM_64     => 64,
             iphc::HLIM_255    => 255,
@@ -897,10 +898,13 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 *offset +=1;
                 buf[*offset-1]
             },
-            // TODO: Unreachable
-            _                 => 0,
+            // This case is unreachable
+            _                 => {
+                return Err(());
+            },
         };
         ip6_header.set_hop_limit(hop_limit);
+        Ok(())
     }
 
     fn decompress_src(&self,
@@ -909,7 +913,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       mac_addr: &MacAddr,
                       ctx: &Context, // Must be non-null
                       buf: &[u8],
-                      offset: &mut usize) {
+                      offset: &mut usize) -> Result<(), ()> {
         let uses_context = (iphc_header & iphc::SAC) != 0;
         let sam_mode = iphc_header & iphc::SAM_MASK;
         // The UNSPECIFIED address ::
@@ -921,14 +925,15 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                         mac_addr,
                                         ctx,
                                         buf,
-                                        offset);
+                                        offset)?;
         } else {
             self.decompress_iid_no_context(sam_mode,
                                            &mut ip6_header.src_addr,
                                            mac_addr,
                                            buf,
-                                           offset);
+                                           offset)?;
         }
+        Ok(())
     }
 
     fn decompress_dst(&self,
@@ -937,25 +942,27 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       mac_addr: &MacAddr,
                       ctx: &Context, // Must be non-null
                       buf: &[u8],
-                      offset: &mut usize) {
+                      offset: &mut usize) -> Result<(), ()> {
         let uses_context = (iphc_header & iphc::DAC) != 0;
         let dam_mode = iphc_header & iphc::DAM_MASK;
         if uses_context && dam_mode == iphc::DAM_INLINE {
-            // TODO: Reserved address: error
+            // This is a reserved address
+            return Err(());
         } else if uses_context {
             self.decompress_iid_context(dam_mode,
                                         &mut ip6_header.dst_addr,
                                         mac_addr,
                                         ctx,
                                         buf,
-                                        offset);
+                                        offset)?;
         } else {
             self.decompress_iid_no_context(dam_mode,
                                            &mut ip6_header.dst_addr,
                                            mac_addr,
                                            buf,
-                                           offset);
+                                           offset)?;
         }
+        Ok(())
     }
 
     fn decompress_multicast(&self,
@@ -963,7 +970,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                             iphc_header: u8,
                             ctx: &Context,
                             buf: &[u8],
-                            offset: &mut usize) {
+                            offset: &mut usize) -> Result<(), ()> {
         let uses_context = (iphc_header & iphc::DAC) != 0;
         let dam_mode = iphc_header & iphc::DAM_MASK;
         let mut ip_addr: &mut IPAddr = &mut ip6_header.dst_addr;
@@ -971,19 +978,23 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             match dam_mode {
                 iphc::DAM_INLINE => {
                     // ffXX:XX + plen + pfx64 + XXXX:XXXX
-                    // TODO: Check prefix_len <= 64
-                    let prefix_bytes = ((ctx.prefix_len + 7) / 8) as usize;
+                    // We want to copy over at most 8 bytes
+                    let prefix_bytes = min(((ctx.prefix_len + 7) / 8) as usize, 8);
                     ip_addr.0[0] = 0xff;
                     ip_addr.0[1] = buf[*offset];
                     ip_addr.0[2] = buf[*offset+1];
                     ip_addr.0[3] = ctx.prefix_len;
+                    // Zero out memory so that if prefix_bytes < 8, the prefix
+                    // is zero-padded
+                    ip_addr.0[4..12].copy_from_slice(&[0; 8]);
                     ip_addr.0[4..4 + prefix_bytes]
                         .copy_from_slice(&ctx.prefix[0..prefix_bytes]);
                     ip_addr.0[12..16].copy_from_slice(&buf[*offset + 2..*offset + 4]);
                     *offset += 6;
                 },
                 _ => {
-                    // TODO: Reserved/unsupported
+                    // No other options supported
+                    return Err(());
                 },
             }
         } else {
@@ -1017,10 +1028,12 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     *offset += 1;
                 },
                 _ => {
-                    // TODO: Error case
+                    // Unreachable error case
+                    return Err(());
                 },
             }
         }
+        Ok(())
     }
 
     fn decompress_iid_no_context(&self,
@@ -1028,11 +1041,11 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                  ip_addr: &mut IPAddr,
                                  mac_addr: &MacAddr,
                                  buf: &[u8],
-                                 offset: &mut usize) {
+                                 offset: &mut usize) -> Result<(), ()> {
         let mode = addr_mode & (iphc::SAM_MASK | iphc::DAM_MASK);
         match mode {
             // SAM = 00, DAM = 00; address carried inline
-            iphc::SAM_INLINE | iphc::DAM_INLINE => {
+            iphc::SAM_INLINE /* | iphc::DAM_INLINE */ => {
                 ip_addr.0.copy_from_slice(&buf);
                 *offset += 16;
             },
@@ -1056,10 +1069,12 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 ip_addr.set_unicast_link_local();
                 ip_addr.0[8..16].copy_from_slice(&compute_iid(mac_addr));
             },
-            // TODO: Unreachable error case
+            // Unreachable error case
             _ => { 
+                return Err(());
             },
         }
+        Ok(())
     }
 
     fn decompress_iid_context(&self,
@@ -1068,12 +1083,15 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                               mac_addr: &MacAddr,
                               ctx: &Context, // Must be non-null
                               buf: &[u8],
-                              offset: &mut usize) {
+                              offset: &mut usize) -> Result<(), ()> {
         let mode = addr_mode & (iphc::SAM_MASK | iphc::DAM_MASK);
         match mode {
             // SAM = 00, DAM = 00; address equals :: or reserved
-            iphc::SAM_INLINE | iphc::DAM_INLINE => {
-                // TODO: Error case; should be handled elsewhere(?)
+            iphc::SAM_INLINE /* | iphc::DAM_INLINE */ => {
+                // This case should be handled separately by the callers,
+                // as the behavior differs between source and destination
+                // addresses
+                return Err(());
             },
             // 64 bits; context information always used
             iphc::SAM_MODE1 | iphc::DAM_MODE1 => {
@@ -1092,13 +1110,15 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 let iid = compute_iid(mac_addr);
                 ip_addr.0[8..16].copy_from_slice(&iid[0..8]);
             },
-            // TODO: Unrechable; error case
+            // Unrechable; error case
             _ => {
+                return Err(());
             },
         }
         // Note that we copy the non-context bits into the ip_addr first, as
         // we must always use the context bits
         set_ctx_bits_in_addr(ip_addr, ctx);
+        Ok(())
     }
 
     fn decompress_udp_ports(&self,

@@ -231,6 +231,7 @@ impl IP6Header {
     }
 }
 
+#[allow(unused_variables,dead_code)]
 pub struct IP6ExtHeader {
     next_header: u8,
     header_len_or_reserved: u8,
@@ -252,6 +253,7 @@ impl IP6ExtHeader {
     }
 }
 
+#[allow(unused_variables,dead_code)]
 pub struct IP6Packet {
     header: Cell<IP6Header>,
     hop_opts: Cell<Option<IP6ExtHeader>>,
@@ -285,9 +287,11 @@ impl IP6Packet {
     // Returns number of bytes written to buf
     // TODO: We currently do not support Jumbograms
     pub fn prepare_packet(&self, buf: &mut [u8]) -> usize {
+        /*
+        let mut offset = 0;
+        offset
+        buf[0]
+        */
         0
-        // let mut offset = 0;
-        // offset
-        //buf[0]
     }
 }
