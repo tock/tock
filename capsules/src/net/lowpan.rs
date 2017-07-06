@@ -70,9 +70,9 @@ mod nhc {
     pub const NH: u8                     = 0x01;
 
     pub const UDP_4BIT_PORT: u16         = 0xf0b0;
-    pub const UDP_4BIT_PORT_MASK: u16    = 0xf;
+    pub const UDP_4BIT_PORT_MASK: u16    = 0xfff0;
     pub const UDP_8BIT_PORT: u16         = 0xf000;
-    pub const UDP_8BIT_PORT_MASK: u16    = 0xff;
+    pub const UDP_8BIT_PORT_MASK: u16    = 0xff00;
 
     pub const UDP_CHECKSUM_FLAG: u8      = 0b100;
     pub const UDP_SRC_PORT_FLAG: u8      = 0b010;
@@ -595,29 +595,29 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                           udp_header: &[u8],
                           buf: &mut [u8],
                           offset: &mut usize) -> u8 {
-        // TODO: Check endianness
-        let src_port: u16 = udp_header[0] as u16 | (udp_header[1] as u16) << 8;
-        let dst_port: u16 = udp_header[2] as u16 | (udp_header[3] as u16) << 8;
+        let src_port: u16 = ntohs(slice_to_u16(&udp_header[0..2]));
+        let dst_port: u16 = ntohs(slice_to_u16(&udp_header[2..4]));
 
         let mut udp_port_nhc = 0;
-        if (src_port & !nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT
-            && (dst_port & !nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT {
+        if (src_port & nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT
+            && (dst_port & nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT {
             // Both can be compressed to 4 bits
             udp_port_nhc |= nhc::UDP_SRC_PORT_FLAG | nhc::UDP_DST_PORT_FLAG;
             // This should compress the ports to a single 8-bit value,
             // with the source port before the destination port
-            let short_ports: u8 = (((src_port & 0xf) << 4)
-                                  | (dst_port & 0xf)) as u8;
-            buf[*offset] = short_ports;
+            buf[*offset] = (((src_port & !nhc::UDP_4BIT_PORT_MASK) << 4)
+                           | (dst_port & !nhc::UDP_4BIT_PORT_MASK)) as u8;
             *offset += 1;
-        } else if (src_port & !nhc::UDP_8BIT_PORT_MASK) == nhc::UDP_8BIT_PORT {
+        } else if (src_port & nhc::UDP_8BIT_PORT_MASK) == nhc::UDP_8BIT_PORT {
             // Source port compressed to 8 bits, destination port uncompressed
             udp_port_nhc |= nhc::UDP_SRC_PORT_FLAG;
-            buf[*offset..*offset + 3].copy_from_slice(&udp_header[0..3]);
+            buf[*offset] = (src_port & !nhc::UDP_8BIT_PORT_MASK) as u8;
+            u16_to_slice(htons(dst_port), &mut buf[*offset + 1..*offset + 3]);
             *offset += 3;
-        } else if (dst_port & !nhc::UDP_8BIT_PORT_MASK) == nhc::UDP_8BIT_PORT {
+        } else if (dst_port & nhc::UDP_8BIT_PORT_MASK) == nhc::UDP_8BIT_PORT {
             udp_port_nhc |= nhc::UDP_DST_PORT_FLAG;
-            buf[*offset..*offset + 3].copy_from_slice(&udp_header[0..3]);
+            u16_to_slice(htons(src_port), &mut buf[*offset..*offset + 2]);
+            buf[*offset + 3] = (dst_port & !nhc::UDP_8BIT_PORT_MASK) as u8;
             *offset += 3;
         } else {
             buf[*offset..*offset + 4].copy_from_slice(&udp_header[0..4]);
@@ -730,6 +730,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                                      &buf,
                                                      &mut offset)?;
 
+                    // Fill in uncompressed UDP header
                     u16_to_slice(htons(src_port), &mut next_headers[0..2]);
                     u16_to_slice(htons(dst_port), &mut next_headers[2..4]);
                     u16_to_slice(htons(udp_length), &mut next_headers[4..6]);
