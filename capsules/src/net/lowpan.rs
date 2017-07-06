@@ -160,6 +160,8 @@ fn is_ip6_nh_compressible(next_header: u8,
     }
 }
 
+// This function implements the one's complement addition used in calculating
+// the UDP checksum
 fn ones_complement_addition(val_1: u16, val_2: u16) -> u16 {
     let (sum, overflow) = val_1.overflowing_add(val_2);
     if overflow {
@@ -169,9 +171,7 @@ fn ones_complement_addition(val_1: u16, val_2: u16) -> u16 {
     }
 }
 
-// Note that this function returns a checksum in network-byte order
-// TODO: Set checksum field to zero
-// Note that there might be a possibility of the u32 overflowing
+// Note that this function returns a checksum in host-byte order
 fn compute_udp_checksum(ip6_header: &IP6Header, udp_header: &[u8], payload: &[u8]) -> u16 {
     let len = payload.len();
     let mut checksum: u16 = 0;
@@ -187,8 +187,8 @@ fn compute_udp_checksum(ip6_header: &IP6Header, udp_header: &[u8], payload: &[u8
     checksum = ones_complement_addition(checksum, ((udp_len >> 16) & 0xffff) as u16);
     checksum = ones_complement_addition(checksum, (udp_len & 0xffff) as u16);
     checksum = ones_complement_addition(checksum, 0x11); // UDP next header value
-    // UDP header
-    for i in 0..4 {
+    // UDP header (minus the checksum, which is all zeroes)
+    for i in 0..3 {
         let val = slice_to_u16(&udp_header[i*2..(i+1)*2]);
         checksum = ones_complement_addition(checksum, val);
     }
