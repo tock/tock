@@ -54,9 +54,6 @@ pub const DST_ADDR: IPAddr = IPAddr([0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0
 pub const SRC_MAC_ADDR: MacAddr = MacAddr::LongAddr([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
 pub const DST_MAC_ADDR: MacAddr = MacAddr::LongAddr([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
 
-// duplicated from lowpan::iphc to avoid making iphc public
-pub const MAC_BASE: [u8; 8] = [0, 0, 0, 0xff, 0xfe, 0, 0, 0];
-
 pub const IP6_HDR_SIZE: usize = 40;
 pub const PAYLOAD_LEN: usize = 10;
 pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_SIZE];
@@ -352,6 +349,7 @@ unsafe fn send_ipv6_packet<R: radio::Radio>(radio: &R,
     };
     let offset = radio.payload_offset(src_long, dst_long) as usize;
 
+    // Compress IPv6 packet into LoWPAN
     let store = DummyStore {
         context0: Context {
             prefix: mesh_local_prefix,
@@ -366,10 +364,51 @@ unsafe fn send_ipv6_packet<R: radio::Radio>(radio: &R,
                   src_mac_addr,
                   dst_mac_addr,
                   &mut RF233_BUF[offset..])
-        .expect("Error");
+        .expect("Error compressing packet");
     let payload_len = ip6_datagram.len() - consumed;
+    let total = written + payload_len;
     RF233_BUF[offset + written..offset + written + payload_len]
         .copy_from_slice(&ip6_datagram[consumed..ip6_datagram.len()]);
+    debug!("Compress:   from ip6 of len={}, consumed={}, payload={}",
+           ip6_datagram.len(), consumed, payload_len);
+    debug!("            into lowpan, written={}, payload={}, total={}",
+           written, payload_len, total);
+
+    // Decompress LoWPAN packet into IPv6
+    let mut out_ip6_datagram = [0 as u8; IP6_HDR_SIZE + PAYLOAD_LEN];
+    let (d_written, d_consumed) = lowpan
+        .decompress(&RF233_BUF[offset..offset + written + payload_len],
+                    src_mac_addr,
+                    dst_mac_addr,
+                    &mut out_ip6_datagram)
+        .expect("Error decompressing packet");
+    let d_payload_len = total - d_consumed;
+    let d_total = d_written + d_payload_len;
+    out_ip6_datagram[d_written..d_written + d_payload_len]
+        .copy_from_slice(&RF233_BUF[offset + d_consumed..
+                                    offset + d_consumed + d_payload_len]);
+    debug!("Decompress: from lowpan of len={}, consumed={}, payload={}",
+           total, d_consumed, d_payload_len);
+    debug!("            into ip6, written={}, payload={}, total={}",
+           d_written, d_payload_len, d_total);
+
+    // Check if compression/decompression round trip is lossless
+    let mut buffers_equal: bool = true;
+    for i in 0..ip6_datagram.len() {
+        if ip6_datagram[i] != out_ip6_datagram[i] {
+            buffers_equal = false;
+            break;
+        }
+    }
+    if !buffers_equal {
+        debug!("Compressed and decompressed buffers do not match.");
+        for i in 0..ip6_datagram.len() {
+            if ip6_datagram[i] != out_ip6_datagram[i] {
+                debug!("Byte {}: 0x{:02x} vs 0x{:02x}", i,
+                       ip6_datagram[i], out_ip6_datagram[i]);
+            }
+        }
+    }
 
     // Transmit len is 802.15.4 header + LoWPAN-compressed packet size
     let transmit_len = radio.header_size(src_long, dst_long)
