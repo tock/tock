@@ -692,18 +692,19 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                   buf: &mut [u8],
                                   offset: &mut usize) {
         // true if the header length is a multiple of 8-octets
-        let is_multiple = ((nh_len + 2) % 8) == 0;
+        let total_len = nh_len + 2;
+        let is_multiple = (total_len % 8) == 0;
         let correct_type = (nh_type == ip6_nh::HOP_OPTS) 
             || (nh_type == ip6_nh::DST_OPTS);
         // opt_offset points to the start of the end padding (if it exists)
         let mut opt_offset = 2; 
         let mut prev_was_padding = false;
         let mut is_padding = false;
-        if correct_type {
-            while opt_offset < nh_len {
+        if correct_type && is_multiple {
+            while opt_offset < total_len {
                 let opt_type = next_headers[opt_offset]; 
                 // This is the last byte
-                if opt_offset == nh_len - 1 {
+                if opt_offset == total_len - 1 {
                     // If last option is Pad1
                     if !prev_was_padding && opt_type == 0 {
                         is_padding = true;
@@ -718,7 +719,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 let opt_len = next_headers[opt_offset+1] as usize;
                 let new_opt_offset = opt_offset + opt_len + 2;
                 // PadN
-                if new_opt_offset == nh_len - 1 {
+                if new_opt_offset == total_len - 1 {
                     if opt_type == 1 && !prev_was_padding {
                         is_padding = true;
                     }
