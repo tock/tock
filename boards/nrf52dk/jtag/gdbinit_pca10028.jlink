@@ -18,14 +18,20 @@ monitor speed auto
 set remote memory-write-packet-size 1024
 set remote memory-write-packet-size fixed
 # Niklas breakpoints
-b main.rs:24
-b main.rs:71
-b reset_handler
-b main.rs:129
-b chip.rs:35
-b chips/nrf52/src/chip.rs:45
+b chip.rs:41
+b chip.rs:42
+b chip.rs:43
+b chip.rs:44
+b chip.rs:45
+b chip.rs:46
+b chip.rs:49
 b nrf52::chip::{{impl}}::service_pending_interrupts
 b command
 b subscribe
 b fired
-b handle_interrupt
+b start
+b get_alarm
+b set_alarm
+b now
+b RTC1_Handler
+b Dummy_Handler

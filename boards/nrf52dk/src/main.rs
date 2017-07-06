@@ -9,8 +9,13 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate nrf52;
 
-use kernel::{Chip, SysTick};
 use core::fmt::Arguments;
+use kernel::{Chip, SysTick};
+use capsules::timer::TimerDriver;
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use nrf52::rtc::{RTC, Rtc};
+
+mod test;
 
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: usize = 17;
@@ -45,10 +50,12 @@ unsafe fn load_process() -> &'static mut [Option<kernel::Process<'static>>] {
     let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
     let mut app_memory_size = APP_MEMORY.len();
     for i in 0..NUM_PROCS {
-        let (process, flash_offset, memory_offset) = kernel::Process::create(apps_in_flash_ptr,
-                                                                             app_memory_ptr,
-                                                                             app_memory_size,
-                                                                             FAULT_RESPONSE);
+        let (process, flash_offset, memory_offset) = kernel::Process::create(
+            apps_in_flash_ptr,
+            app_memory_ptr,
+            app_memory_size,
+            FAULT_RESPONSE,
+        );
 
         if process.is_none() {
             break;
@@ -73,7 +80,8 @@ pub struct Platform {
 impl kernel::Platform for Platform {
     #[inline(never)]
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-        where F: FnOnce(Option<&kernel::Driver>) -> R
+    where
+        F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
             1 => f(Some(self.gpio)),
@@ -128,27 +136,23 @@ pub unsafe fn reset_handler() {
         capsules::led::LED::new(led_pins),
         64/8);
 
-    
-    // Timers
     let alarm = &nrf52::rtc::RTC;
     alarm.start();
-    let mux_alarm = static_init!(
-        capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&nrf52::rtc::RTC), 16);
+    let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
     alarm.set_client(mux_alarm);
 
 
     let virtual_alarm1 = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
+        VirtualMuxAlarm<'static, Rtc>,
+        VirtualMuxAlarm::new(mux_alarm),
         24);
-
     let timer = static_init!(
-        capsules::timer::TimerDriver<'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
-        capsules::timer::TimerDriver::new(virtual_alarm1,
+        TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
+        TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
                          12);
     virtual_alarm1.set_client(timer);
+
 
     let platform = Platform {
         led: led,
@@ -159,12 +163,17 @@ pub unsafe fn reset_handler() {
     let mut chip = nrf52::chip::NRF52::new();
     chip.systick().reset();
     chip.systick().enable(true);
-    
-    //panic!("test");
 
-    kernel::main(&platform,
-                 &mut chip,
-                 load_process(),
-                 &kernel::ipc::IPC::new());
+    test::test_rtc_regs();
+    test::test_nvic_regs();
+
+
+
+    kernel::main(
+        &platform,
+        &mut chip,
+        load_process(),
+        &kernel::ipc::IPC::new(),
+    );
 
 }

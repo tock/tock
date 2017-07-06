@@ -27,8 +27,8 @@ pub struct RTC1 {
     pub prescaler: VolatileCell<u32>,
     _reserved6: [u32; 13],
     pub cc: [VolatileCell<u32>; 4],
-    _reserved7: [u32; 683],
-    pub power: VolatileCell<u32>,    // this doesn't exist
+    //_reserved7: [u32; 683],
+    //pub power: VolatileCell<u32>,    // this doesn't exist
 }
 
 // OK!!!

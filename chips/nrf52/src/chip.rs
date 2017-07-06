@@ -44,7 +44,7 @@ impl kernel::Chip for NRF52 {
                     NvicIdx::TIMER0 => timer::TIMER0.handle_interrupt(),
                     NvicIdx::TIMER1 => timer::ALARM1.handle_interrupt(),
                     NvicIdx::TIMER2 => timer::TIMER2.handle_interrupt(),
-                    _ => (),
+                    _ => panic!(""),
                 }
                 nvic::enable(interrupt);
             });

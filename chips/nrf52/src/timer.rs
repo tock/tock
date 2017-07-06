@@ -194,8 +194,6 @@ impl Timer {
         self.timer().cc[0].set(val);
     }
 
-    #[inline(never)]
-    #[no_mangle]
     pub fn enable_interrupts(&self, interrupts: u32) {
         self.timer().intenset.set(interrupts << 16);
     }
@@ -224,8 +222,6 @@ impl Timer {
     /// created an event, and if so, add it to the bitmask of triggered
     /// events that is passed to the client.
     
-    #[inline(never)]
-    #[no_mangle]
     pub fn handle_interrupt(&self) {
         nvic::clear_pending(self.nvic);
         self.client.get().map(|client| {
@@ -296,7 +292,6 @@ impl TimerAlarm {
         self.timer().task_stop.set(1);
     }
 
-    #[inline(never)]
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
         self.client.get().map(|client| { client.fired(); });
@@ -347,7 +342,7 @@ impl hil::time::Alarm for TimerAlarm {
     fn now(&self) -> u32 {
         self.value()
     }
-
+    
     fn set_alarm(&self, tics: u32) {
         self.disable_interrupts();
         self.timer().cc[ALARM_COMPARE].set(tics);
