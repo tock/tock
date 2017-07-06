@@ -396,12 +396,12 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                         buf[offset + 1] = nh_len;
                     }
                     offset += 2;
-
-                    // Copy over the remaining packet data
-                    for i in 0..nh_len {
-                        buf[offset] = next_headers[2 + (i as usize)];
-                        offset += 1;
-                    }
+                    
+                    self.compress_and_elide_padding(ip6_nh_type,
+                                                    nh_len as usize,
+                                                    &next_headers,
+                                                    &mut buf,
+                                                    &mut offset);
 
                     ip6_nh_type = next_headers[0];
                     is_nhc = next_is_nhc;
@@ -683,6 +683,68 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         *offset += 2;
         // Inline checksum corresponds to the 0 flag
         0
+    }
+
+    fn compress_and_elide_padding(&self,
+                                  nh_type: u8,
+                                  nh_len: usize,
+                                  next_headers: &[u8],
+                                  buf: &mut [u8],
+                                  offset: &mut usize) {
+        // true if the header length is a multiple of 8-octets
+        let is_multiple = ((nh_len + 2) % 8) == 0;
+        let correct_type = (nh_type == ip6_nh::HOP_OPTS) 
+            || (nh_type == ip6_nh::DST_OPTS);
+        // opt_offset points to the start of the end padding (if it exists)
+        let mut opt_offset = 2; 
+        let mut prev_was_padding = false;
+        let mut is_padding = false;
+        if correct_type {
+            while opt_offset < nh_len {
+                let opt_type = next_headers[opt_offset]; 
+                // This is the last byte
+                if opt_offset == nh_len - 1 {
+                    // If last option is Pad1
+                    if !prev_was_padding && opt_type == 0 {
+                        is_padding = true;
+                    }
+                    break;
+                }
+                if opt_type == 0 {
+                    prev_was_padding = true;
+                    opt_offset += 1;
+                    continue;
+                }
+                let opt_len = next_headers[opt_offset+1] as usize;
+                let new_opt_offset = opt_offset + opt_len + 2;
+                // PadN
+                if new_opt_offset == nh_len - 1 {
+                    if opt_type == 1 && !prev_was_padding {
+                        is_padding = true;
+                    }
+                    break;
+                }
+                if opt_type == 1 {
+                    prev_was_padding = true;
+                } else {
+                    prev_was_padding = false;
+                }
+                opt_offset = new_opt_offset;
+            }
+        }
+
+        // We only elide the padding if: 1) Encapsulating packet is a multiple
+        // of 8 octets in length, 2) the header is either hop options or dest
+        // options, and 3) if there is a single Pad1 or PadN trailing padding.
+        if is_multiple && correct_type && is_padding {
+            buf[*offset..*offset+opt_offset-2]
+                .copy_from_slice(&next_headers[2..opt_offset]);
+            *offset += opt_offset - 2;
+        } else {
+            // Copy over the remaining packet data
+            buf[*offset..*offset+nh_len].copy_from_slice(&next_headers[2..2+nh_len]);
+            *offset += nh_len;
+        }
     }
 
     /// Decodes the compressed header into a full IPv6 header given the 16-bit
