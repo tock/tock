@@ -153,6 +153,16 @@ pub unsafe fn reset_handler() {
                          12);
     virtual_alarm1.set_client(timer);
 
+    // Start all of the clocks. Low power operation will require a better
+    // approach than this.
+    nrf52::clock::CLOCK.low_stop();
+    nrf52::clock::CLOCK.high_stop();
+
+    nrf52::clock::CLOCK.low_set_source(nrf52::clock::LowClockSource::XTAL);
+    nrf52::clock::CLOCK.low_start();
+    nrf52::clock::CLOCK.high_start();
+    while !nrf52::clock::CLOCK.low_started() {}
+    while !nrf52::clock::CLOCK.high_started() {}
 
     let platform = Platform {
         led: led,
@@ -164,10 +174,8 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
-    test::test_rtc_regs();
-    test::test_nvic_regs();
-
-
+    //test::test_rtc_regs();
+    //test::test_nvic_regs();
 
     kernel::main(
         &platform,

@@ -16,6 +16,7 @@ pub mod nvic;
 
 
 pub mod chip;
+pub mod clock;
 pub mod gpio;
 pub mod timer;
 pub mod rtc;

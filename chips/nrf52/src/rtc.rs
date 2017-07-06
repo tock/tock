@@ -38,6 +38,7 @@ impl Rtc {
     pub fn start(&self) {
         // This function takes a nontrivial amount of time
         // So it should only be called during initialization, not each tick
+        rtc1().tasks_stop.set(1);
         rtc1().prescaler.set(0);
         rtc1().tasks_start.set(1);
         self.enable_interrupts();
@@ -62,7 +63,6 @@ impl Rtc {
     }
 
     pub fn handle_interrupt(&self) {
-        panic!("");
         rtc1().events_compare[0].set(0);
         rtc1().intenclr.set(COMPARE0_EVENT);
         self.callback.get().map(|cb| { cb.fired(); });
@@ -115,7 +115,6 @@ impl Alarm for Rtc {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn RTC1_Handler() {
-    panic!("");
     use kernel::common::Queue;
     nvic::disable(NvicIdx::RTC1);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::RTC1);
