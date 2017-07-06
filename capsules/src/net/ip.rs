@@ -72,20 +72,24 @@ impl IPAddr {
 
 #[allow(unused_variables,dead_code)]
 pub fn reverse_u16_bytes(short: u16) -> u16 {
-    let mut result: u16 = 0;
-    result |= (short & 0x00ff) >> 2;
-    result |= (short & 0xff00) << 2;
-    return result;
+    ((short & 0x00ff) << 8) | (short >> 8)
 }
 
 #[allow(unused_variables,dead_code)]
 pub fn reverse_u32_bytes(long: u32) -> u32 {
-    let mut result: u32 = 0;
-    result |= (long & 0x00ffffff) >> 6;
-    result |= (long & 0xff00ffff) >> 2;
-    result |= (long & 0xffff00ff) << 2;
-    result |= (long & 0xffffff00) << 6;
-    return result;
+    ((long & 0x000000ff) << 24) |
+    ((long & 0x0000ff00) << 8) |
+    ((long & 0x00ff0000) >> 8) |
+    (long >> 24)
+}
+
+pub fn slice_to_u16(buf: &[u8]) -> u16 {
+    ((buf[0] as u16) << 8) | (buf[1] as u16)
+}
+
+pub fn u16_to_slice(short: u16, slice: &mut [u8]) {
+    slice[0] = (short >> 8) as u8;
+    slice[1] = (short & 0xff) as u8;
 }
 
 #[allow(unused_variables,dead_code)]
