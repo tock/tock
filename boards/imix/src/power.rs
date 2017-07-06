@@ -54,10 +54,12 @@ impl PowerGated for ImixSubmodule {
                 pin.restore(function);
             }
         }
+        self.gate_pin.enable_output();
         self.gate_pin.set();
     }
 
     fn off(&self) {
+        self.gate_pin.enable_output();
         self.gate_pin.clear();
         if self.detachable_pins.is_some() {
             for it in self.detachable_pins.unwrap().iter() {
@@ -81,7 +83,7 @@ pub unsafe fn configure_module_power(enabled_modules: ModulePowerConfig) {
                                               (&PA[09], None),
                                               (&PA[10], None)]);
     let rf233 = static_init!(ImixSubmodule, 
-                             ImixSubmodule::new(Some(rf233_detachable_pins), &PA[18]));
+                             ImixSubmodule::new(Some(rf233_detachable_pins), &PC[18]));
 
     let nrf_detachable_pins = static_init!([DetachablePin; 6],
                                            [(&PB[07], None),
