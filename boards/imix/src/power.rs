@@ -3,9 +3,9 @@ extern crate sam4l;
 
 use kernel::hil::Controller;
 use sam4l::gpio::{PA, PB, PC};
+use sam4l::gpio::GPIOPin;
 use sam4l::gpio::PeripheralFunction;
 use sam4l::gpio::PeripheralFunction::{A, B};
-use sam4l::gpio::GPIOPin;
 
 type DetachablePin = (&'static GPIOPin, Option<PeripheralFunction>);
 
@@ -33,15 +33,16 @@ trait PowerGated {
 
 struct ImixSubmodule {
     gate_pin: &'static GPIOPin,
-    detachable_pins: Option<&'static [DetachablePin]>
+    detachable_pins: Option<&'static [DetachablePin]>,
 }
 
 impl ImixSubmodule {
-    const fn new(detachable_pins: Option<&'static [DetachablePin]>, 
-                 gate_pin: &'static GPIOPin) -> ImixSubmodule {
+    const fn new(detachable_pins: Option<&'static [DetachablePin]>,
+                 gate_pin: &'static GPIOPin)
+                 -> ImixSubmodule {
         ImixSubmodule {
             gate_pin: gate_pin,
-            detachable_pins: detachable_pins
+            detachable_pins: detachable_pins,
         }
     }
 }
@@ -74,15 +75,13 @@ pub struct ModulePowerConfig {
     pub rf233: bool,
     pub nrf51422: bool,
     pub sensors: bool,
-    pub trng: bool
+    pub trng: bool,
 }
 
 pub unsafe fn configure_module_power(enabled_modules: ModulePowerConfig) {
-    let rf233_detachable_pins = static_init!([DetachablePin; 3], 
-                                             [(&PA[08], None), 
-                                              (&PA[09], None),
-                                              (&PA[10], None)]);
-    let rf233 = static_init!(ImixSubmodule, 
+    let rf233_detachable_pins = static_init!([DetachablePin; 3],
+                                             [(&PA[08], None), (&PA[09], None), (&PA[10], None)]);
+    let rf233 = static_init!(ImixSubmodule,
                              ImixSubmodule::new(Some(rf233_detachable_pins), &PC[18]));
 
     let nrf_detachable_pins = static_init!([DetachablePin; 6],
@@ -96,25 +95,23 @@ pub unsafe fn configure_module_power(enabled_modules: ModulePowerConfig) {
     let nrf = static_init!(ImixSubmodule,
                            ImixSubmodule::new(Some(nrf_detachable_pins), &PC[17]));
 
-    let sensors = static_init!(ImixSubmodule,
-                               ImixSubmodule::new(None, &PC[16]));
-    let trng = static_init!(ImixSubmodule,
-                            ImixSubmodule::new(None, &PC[19]));
+    let sensors = static_init!(ImixSubmodule, ImixSubmodule::new(None, &PC[16]));
+    let trng = static_init!(ImixSubmodule, ImixSubmodule::new(None, &PC[19]));
 
     match enabled_modules.rf233 {
-        true  => rf233.on(),
-        false => rf233.off()
+        true => rf233.on(),
+        false => rf233.off(),
     }
     match enabled_modules.nrf51422 {
         true => nrf.on(),
-        false => nrf.off()
+        false => nrf.off(),
     }
     match enabled_modules.sensors {
         true => sensors.on(),
-        false => sensors.off()
+        false => sensors.off(),
     }
     match enabled_modules.trng {
         true => trng.on(),
-        false => trng.off()
+        false => trng.off(),
     }
 }

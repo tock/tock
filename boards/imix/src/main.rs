@@ -179,7 +179,7 @@ pub unsafe fn reset_handler() {
         rf233: true,
         nrf51422: true,
         sensors: true,
-        trng: true
+        trng: true,
     };
     power::configure_module_power(power_config);
 
