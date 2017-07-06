@@ -731,10 +731,13 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     break;
                 },
                 ip6_nh::UDP => {
+                    // Note that this should be correct, as we do not decompress
+                    // any of the remaining bytes
+                    let len = buf.len() - bytes_written;
                     let mut udp_header = &mut next_headers[bytes_written..];
                     self.decompress_udp_ports(next_header, udp_header, &buf, &mut offset);
-                    udp_header[4] = (buf.len() >> 8) as u8;
-                    udp_header[5] = (buf.len() & 0xf) as u8;
+                    udp_header[4] = (len >> 8) as u8;
+                    udp_header[5] = (len & 0xf) as u8;
                     self.decompress_udp_checksum(next_header, udp_header, &buf, &mut offset);
                     bytes_written += 8;
                     break;
@@ -800,6 +803,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             }
         }
 
+        ip6_header.payload_len = ip::htons((bytes_written - mem::size_of::<IP6Header>()) as u16);
         Ok((bytes_written, offset))
     }
 
