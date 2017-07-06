@@ -160,29 +160,50 @@ fn is_ip6_nh_compressible(next_header: u8,
     }
 }
 
+fn ones_complement_addition(val_1: u16, val_2: u16) -> u16 {
+    let (sum, overflow) = val_1.overflowing_add(val_2);
+    if overflow {
+        sum + 1
+    } else {
+        sum
+    }
+}
+
 // Note that this function returns a checksum in network-byte order
-fn compute_udp_checksum(udp_header: &[u8], payload: &[u8]) -> u16{
+// TODO: Set checksum field to zero
+// Note that there might be a possibility of the u32 overflowing
+fn compute_udp_checksum(ip6_header: &IP6Header, udp_header: &[u8], payload: &[u8]) -> u16 {
     let len = payload.len();
-    let mut checksum: u32 = 0;
+    let mut checksum: u16 = 0;
+    // IPv6 addresses
+    for i in 0..8 {
+        let val_1 = slice_to_u16(&ip6_header.src_addr.0[i*2..(i+1)*2]);
+        checksum = ones_complement_addition(checksum, val_1);
+        let val_2 = slice_to_u16(&ip6_header.dst_addr.0[i*2..(i+1)*2]);
+        checksum = ones_complement_addition(checksum, val_2);
+    }
+    // Length of payload + UDP header
+    let udp_len: u32 = (len + 8) as u32;
+    checksum = ones_complement_addition(checksum, ((udp_len >> 16) & 0xffff) as u16);
+    checksum = ones_complement_addition(checksum, (udp_len & 0xffff) as u16);
+    checksum = ones_complement_addition(checksum, 0x11); // UDP next header value
+    // UDP header
     for i in 0..4 {
-        checksum += ((udp_header[i*2] as u32) << 8) | (udp_header[(i+1)*2] as u32);
-        if checksum > 0xffff {
-            checksum -= 0xffff;
-        }
+        let val = slice_to_u16(&udp_header[i*2..(i+1)*2]);
+        checksum = ones_complement_addition(checksum, val);
     }
+    // Payload
     for i in 0..len/2 {
-        checksum += ((payload[i*2] as u32) << 8) | (payload[(i+1)*2] as u32);
-        if checksum > 0xffff {
-            checksum -= 0xffff;
-        }
+        let val = slice_to_u16(&payload[i*2..(i+1)*2]);
+        checksum = ones_complement_addition(checksum, val);
     }
+    // Remaining payload byte
     if len % 2 != 0 {
-        checksum += (payload[len] as u32) << 8;
-        if checksum > 0xffff {
-            checksum -= 0xffff;
-        }
+        let val = (payload[len] as u16) << 8;
+        checksum = ones_complement_addition(checksum, val);
     }
-    ip::ntohs(checksum as u16)
+    // Take the complement
+    !checksum
 }
 
 /// Maps values of a IPv6 next header field to a corresponding LoWPAN
@@ -751,17 +772,19 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                         self.decompress_udp_ports(nhc_header,
                                                   &buf,
                                                   &mut offset);
-                    let udp_checksum =
-                        self.decompress_udp_checksum(nhc_header,
-                                                     &next_headers[0..8],
-                                                     &buf,
-                                                     &mut offset);
-
                     // Fill in uncompressed UDP header
                     u16_to_slice(htons(src_port), &mut next_headers[0..2]);
                     u16_to_slice(htons(dst_port), &mut next_headers[2..4]);
                     u16_to_slice(htons(udp_length), &mut next_headers[4..6]);
-                    u16_to_slice(udp_checksum, &mut next_headers[6..8]);
+                    u16_to_slice(0, &mut next_headers[6..8]); // Zero out checksum
+                    // Need to fill in header values before computing the checksum
+                    let udp_checksum =
+                        self.decompress_udp_checksum(nhc_header,
+                                                     &next_headers[0..8],
+                                                     &ip6_header,
+                                                     &buf,
+                                                     &mut offset);
+                    u16_to_slice(htons(udp_checksum), &mut next_headers[6..8]);
 
                     bytes_written += 8;
                     break;
@@ -1188,13 +1211,14 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     fn decompress_udp_checksum(&self,
                                udp_nhc: u8,
                                udp_header: &[u8],
+                               ip6_header: &IP6Header,
                                buf: &[u8],
                                offset: &mut usize) -> u16{
         if (udp_nhc & nhc::UDP_CHECKSUM_FLAG) != 0 {
             // TODO: Need to verify that the packet was sent with *some* kind
             // of integrity check at a lower level (otherwise, we need to drop
             // the packet)
-            compute_udp_checksum(udp_header, &buf[*offset..])
+            compute_udp_checksum(ip6_header, udp_header, &buf[*offset..])
         } else {
             let checksum = slice_to_u16(&buf[*offset..*offset + 2]);
             *offset += 2;
