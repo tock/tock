@@ -617,7 +617,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             udp_port_nhc |= nhc::UDP_SRC_PORT_FLAG | nhc::UDP_DST_PORT_FLAG;
             // This should compress the ports to a single 8-bit value,
             // with the source port before the destination port
-            let short_ports: u8 = ((src_port & 0xf) | ((dst_port >> 4) & 0xf0)) as u8;
+            let short_ports: u8 = ((src_port & 0xf) | ((dst_port << 4) & 0xf0)) as u8;
             buf[*offset] = short_ports;
             *offset += 1;
         } else if (src_port & !nhc::UDP_PORT_MASK) == nhc::UDP_PORT_PREFIX {
@@ -731,7 +731,13 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     break;
                 },
                 ip6_nh::UDP => {
-                    // TODO
+                    let mut udp_header = &mut next_headers[bytes_written..];
+                    self.decompress_udp_ports(next_header, udp_header, &buf, &mut offset);
+                    udp_header[4] = (buf.len() >> 8) as u8;
+                    udp_header[5] = (buf.len() & 0xf) as u8;
+                    self.decompress_udp_checksum(next_header, udp_header, &buf, &mut offset);
+                    bytes_written += 8;
+                    break;
                 },
                 ip6_nh::FRAGMENT
                 | ip6_nh::HOP_OPTS
@@ -776,7 +782,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     // PadN
                     if nbytes_pad > 1 {
                         next_headers[bytes_written] = 1;
-                        next_headers[bytes_written+1] = nbytes_pad - 2;
+                        next_headers[bytes_written+1] = nbytes_pad as u8 - 2;
                         bytes_written += 2;
                         for i in 2..nbytes_pad {
                             next_headers[bytes_written] = 0;
@@ -789,6 +795,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 },
                 _ => {
                     // TODO: Should never happen
+                    return Err(());
                 },
             }
         }
@@ -1084,5 +1091,63 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // Note that we copy the non-context bits into the ip_addr first, as
         // we must always use the context bits
         set_ctx_bits_in_addr(ip_addr, ctx);
+    }
+
+    fn decompress_udp_ports(&self,
+                            udp_nhc: u8,
+                            udp_header: &mut [u8],
+                            buf: &[u8],
+                            offset: &mut usize) {
+
+        // TODO: Make/rename constants
+        let mode = udp_nhc & 0b11;
+        // Both inline
+        if mode == 0 {
+            udp_header[0..4].copy_from_slice(&buf[*offset..*offset+4]);
+            *offset += 4;
+        // Both compressed
+        } else if mode == 0b11 {
+            let mut source: u8 = 0xb0;
+            let mut dest: u8 = 0xb0;
+            source |= buf[*offset] & 0xf;
+            dest |= buf[*offset] >> 4;
+            *offset += 1;
+            udp_header[0] = 0xf0;
+            udp_header[1] = source;
+            udp_header[2] = 0xf0;
+            udp_header[3] = dest;
+        // Source port compressed
+        } else if mode == nhc::UDP_SRC_PORT_FLAG {
+            // Source port
+            udp_header[0] = 0xf0;
+            udp_header[1] = buf[*offset];
+            // Dest port
+            udp_header[2] = buf[*offset+1];
+            udp_header[3] = buf[*offset+2];
+            *offset += 3;
+        // Dest port compressed
+        } else {
+            // Source port
+            udp_header[0] = buf[*offset];
+            udp_header[1] = buf[*offset+1];
+            // Dest port
+            udp_header[2] = 0xf0;
+            udp_header[3] = buf[*offset+2];
+            *offset += 3;
+        }
+    }
+
+    fn decompress_udp_checksum(&self,
+                               udp_nhc: u8,
+                               udp_header: &mut [u8],
+                               buf: &[u8],
+                               offset: &mut usize) {
+        if (udp_nhc & nhc::UDP_CHKSUM_FLAG) != 0 {
+            // TODO: Error
+        } else {
+            udp_header[6] = buf[*offset];
+            udp_header[7] = buf[*offset+1];
+            *offset += 2;
+        }
     }
 }
