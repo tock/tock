@@ -6,6 +6,7 @@ use core::result::Result;
 
 use net::ip;
 use net::ip::{IP6Header, MacAddr, IPAddr, ip6_nh};
+use net::ip::{ntohs, htons, slice_to_u16, u16_to_slice};
 use net::util;
 
 #[allow(unused_variables,dead_code)]
@@ -68,10 +69,10 @@ mod nhc {
 
     pub const NH: u8                     = 0x01;
 
-    pub const UDP_SHORT_PORT_PREFIX: u16 = 0xf0b0;
-    pub const UDP_SHORT_PORT_MASK: u16   = 0xf;
-    pub const UDP_PORT_PREFIX: u16       = 0xf000;
-    pub const UDP_PORT_MASK: u16         = 0xff;
+    pub const UDP_4BIT_PORT: u16         = 0xf0b0;
+    pub const UDP_4BIT_PORT_MASK: u16    = 0xf;
+    pub const UDP_8BIT_PORT: u16         = 0xf000;
+    pub const UDP_8BIT_PORT_MASK: u16    = 0xff;
 
     pub const UDP_CHECKSUM_FLAG: u8      = 0b100;
     pub const UDP_SRC_PORT_FLAG: u8      = 0b010;
@@ -155,19 +156,6 @@ fn is_ip6_nh_compressible(next_header: u8,
             }
         },
         _ => Ok((false, 0)),
-    }
-}
-
-fn get_compressed_nh_type(is_compressed: bool, offset: usize, buf: &[u8]) -> u8 {
-    if is_compressed {
-        // TODO: if the next header is NHC-compressed, the LoWPAN NHC header
-        // must have a valid EID, otherwise we panic
-        nhc_to_ip6_nh(buf[offset]).unwrap() as u8
-    } else if offset >= buf.len() {
-        // If there's no more room, return NO_NEXT
-        ip6_nh::NO_NEXT
-    } else {
-        buf[offset]
     }
 }
 
@@ -612,8 +600,8 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let dst_port: u16 = udp_header[2] as u16 | (udp_header[3] as u16) << 8;
 
         let mut udp_port_nhc = 0;
-        if (src_port & !nhc::UDP_SHORT_PORT_MASK) == nhc::UDP_SHORT_PORT_PREFIX
-            && (dst_port & !nhc::UDP_SHORT_PORT_MASK) == nhc::UDP_SHORT_PORT_PREFIX {
+        if (src_port & !nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT
+            && (dst_port & !nhc::UDP_4BIT_PORT_MASK) == nhc::UDP_4BIT_PORT {
             // Both can be compressed to 4 bits
             udp_port_nhc |= nhc::UDP_SRC_PORT_FLAG | nhc::UDP_DST_PORT_FLAG;
             // This should compress the ports to a single 8-bit value,
@@ -622,12 +610,12 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                   | (dst_port & 0xf)) as u8;
             buf[*offset] = short_ports;
             *offset += 1;
-        } else if (src_port & !nhc::UDP_PORT_MASK) == nhc::UDP_PORT_PREFIX {
+        } else if (src_port & !nhc::UDP_8BIT_PORT_MASK) == nhc::UDP_8BIT_PORT {
             // Source port compressed to 8 bits, destination port uncompressed
             udp_port_nhc |= nhc::UDP_SRC_PORT_FLAG;
             buf[*offset..*offset + 3].copy_from_slice(&udp_header[0..3]);
             *offset += 3;
-        } else if (dst_port & !nhc::UDP_PORT_MASK) == nhc::UDP_PORT_PREFIX {
+        } else if (dst_port & !nhc::UDP_8BIT_PORT_MASK) == nhc::UDP_8BIT_PORT {
             udp_port_nhc |= nhc::UDP_DST_PORT_FLAG;
             buf[*offset..*offset + 3].copy_from_slice(&udp_header[0..3]);
             *offset += 3;
@@ -661,7 +649,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                       buf: &[u8],
                       src_mac_addr: MacAddr,
                       dst_mac_addr: MacAddr,
-                      out_buf: &mut [u8])
+                      mut out_buf: &mut [u8])
                       -> Result<(usize, usize), ()> {
         // Get the LOWPAN_IPHC header (the first two bytes are the header)
         let iphc_header_1: u8 = buf[0];
@@ -672,7 +660,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             mem::transmute(out_buf.as_mut_ptr())
         };
         let mut bytes_written: usize = mem::size_of::<IP6Header>();
-        let mut next_headers: &mut [u8] = &mut out_buf[bytes_written..];
         *ip6_header = IP6Header::new();
 
         // Decompress CID and CIE fields if they exist
@@ -683,8 +670,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         self.decompress_tf(&mut ip6_header, iphc_header_1, &buf, &mut offset);
 
         // Next Header
-        let (mut is_nhc, mut next_header) = self.decompress_nh(&mut ip6_header,
-                                                               iphc_header_1,
+        let (mut is_nhc, mut next_header) = self.decompress_nh(iphc_header_1,
                                                                &buf,
                                                                &mut offset);
 
@@ -717,6 +703,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             let nhc_header = buf[offset];
             offset += 1;
 
+            // Scoped mutable borrow of out_buf
+            let mut next_headers: &mut [u8] = &mut out_buf[bytes_written..];
+
             match next_header {
                 ip6_nh::IP6 => {
                     let (encap_written, encap_processed) =
@@ -731,29 +720,23 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 ip6_nh::UDP => {
                     // UDP length includes UDP header and data in bytes
                     let udp_length = (8 + (buf.len() - offset)) as u16;
-                    // Decompress UDP source and destination ports
+                    // Decompress UDP header fields
                     let (src_port, dst_port) =
                         self.decompress_udp_ports(nhc_header,
                                                   &buf,
                                                   &mut offset);
-                    // Decompress UDP checksum
                     let udp_checksum =
                         self.decompress_udp_checksum(nhc_header,
                                                      &buf,
                                                      &mut offset)?;
 
-                    // TODO: Check endianness
-                    next_headers[0] = (src_port & 0xff) as u8;
-                    next_headers[1] = ((src_port >> 8) & 0xff) as u8;
-                    next_headers[2] = (dst_port & 0xff) as u8;
-                    next_headers[3] = ((dst_port >> 8) & 0xff) as u8;
-                    next_headers[4] = ((udp_length >> 8) & 0xff) as u8;
-                    next_headers[5] = (udp_port & 0xff) as u8;
-                    next_headers[6] = ((udp_checksum >> 8) & 0xff) as u8;
-                    next_headers[7] = (udp_checksum & 0xff) as u8;
+                    u16_to_slice(htons(src_port), &mut next_headers[0..2]);
+                    u16_to_slice(htons(dst_port), &mut next_headers[2..4]);
+                    u16_to_slice(htons(udp_length), &mut next_headers[4..6]);
+                    u16_to_slice(udp_checksum, &mut next_headers[6..8]);
 
-                    next_headers = &mut next_headers[8..];
                     bytes_written += 8;
+                    break;
                 },
                 ip6_nh::FRAGMENT
                 | ip6_nh::HOP_OPTS
@@ -766,6 +749,14 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     // len is the number of octets following the length field
                     let len = buf[offset] as usize;
                     offset += 1;
+
+                    // Check that there is a next header in the buffer,
+                    // which must be the case if the last next header specifies
+                    // NH = 1
+                    if offset + len >= buf.len() {
+                        return Err(());
+                    }
+
                     // Length in 8-octet units after the first 8 octets
                     // (per the IPv6 ext hdr spec)
                     let mut hdr_len_field = (len - 6) / 8;
@@ -776,12 +767,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     // Gets the type of the subsequent next header.  If is_nhc
                     // is true, there must be a LoWPAN NHC header byte,
                     // otherwise there is either an uncompressed next header.
-                    next_header = if offset + len >= buf.len() {
-                        // There is no space for a next header or payload, so
-                        // the header is invalid. If there was NO_NEXT header,
-                        // a validly-compressed packet would have NH = 0
-                        return Err(())
-                    } else if is_nhc {
+                    next_header = if is_nhc {
                         // The next header is LoWPAN NHC-compressed
                         nhc_to_ip6_nh(buf[offset + len]).ok_or(())?
                     } else {
@@ -796,17 +782,37 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     next_headers[2..2 + len]
                         .copy_from_slice(&buf[offset..offset + len]);
 
-                    // TODO: Add Pad1/PadN to fill hdr_len * 8 - len + 6 bytes
-                    next_headers = &mut next_headers[2 + len..];
-                    bytes_written += 2 + len;
+                    // Fill in padding
+                    let pad_bytes = hdr_len_field * 8 - len + 6;
+                    if pad_bytes == 1 {
+                        // Pad1
+                        next_headers[2 + len] = 0;
+                    } else {
+                        // PadN, 2 <= pad_bytes <= 7
+                        next_headers[2 + len] = 1;
+                        next_headers[2 + len + 1] = pad_bytes as u8 - 2;
+                        for i in 2..pad_bytes {
+                            next_headers[2 + len + i] = 0;
+                        }
+                    }
+
+                    bytes_written += 8 + hdr_len_field * 8;
                     offset += len;
                 },
                 _ => {
                     // TODO: Should never happen
+                    return Err(());
                 },
             }
         }
 
+        // IPv6 header length field is the size of the IPv6 payload, including
+        // extension headers. This will be the number of bytes not consumed from
+        // the raw LoWPAN-compresed buffer + the number of bytes written that
+        // were not the IPv6 header
+        let total_len = (buf.len() - offset)
+                        + (bytes_written - mem::size_of::<IP6Header>());
+        ip6_header.payload_len = ip::htons(total_len as u16);
         Ok((bytes_written, offset))
     }
 
@@ -864,7 +870,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
     }
 
     fn decompress_nh(&self,
-                     ip6_header: &mut IP6Header,
                      iphc_header: u8,
                      buf: &[u8],
                      offset: &mut usize) -> (bool, u8) {
@@ -1033,7 +1038,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             // First 64-bits link local prefix, remaining 64 bits carried inline
             iphc::SAM_MODE1 | iphc::DAM_MODE1 => {
                 ip_addr.set_unicast_link_local();
-                ip_addr.0[8..16].copy_from_slice(&buf[*offset..*offset+8]);
+                ip_addr.0[8..16].copy_from_slice(&buf[*offset..*offset + 8]);
                 *offset += 8;
             },
             // First 112 bits elided; First 64 bits link-local prefix, remaining
@@ -1102,21 +1107,47 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let src_compressed = (udp_nhc & nhc::UDP_SRC_PORT_FLAG) != 0;
         let dst_compressed = (udp_nhc & nhc::UDP_DST_PORT_FLAG) != 0;
 
-        let mut src_port: u16 = 0;
-        let mut dst_port: u16 = 0;
-        if src_compresed && dst_compressed {
+        let src_port: u16;
+        let dst_port: u16;
+        if src_compressed && dst_compressed {
             // Both src and dst are compressed to 4 bits
             let src_short = ((buf[*offset] >> 4) & 0xf) as u16;
             let dst_short = (buf[*offset] & 0xf) as u16;
+            src_port = nhc::UDP_4BIT_PORT | src_short;
+            dst_port = nhc::UDP_4BIT_PORT | dst_short;
             *offset += 1;
-
-            src_port = nhc::UDP_SHORT_PORT_PREFIX | src_short;
-            dst_port = nhc::UDP_SHORT_PORT_PREFIX | dst_short;
         } else if src_compressed {
             // Source port is compressed to 8 bits
-            src_port = nhc::UDP_PORT_PREFIX | (buf[*offset] as u16);
+            src_port = nhc::UDP_8BIT_PORT | (buf[*offset] as u16);
             // Destination port is uncompressed
-            dst_port = buf[*offset + 1..*offset]
+            dst_port = ntohs(slice_to_u16(&buf[*offset + 1..*offset + 3]));
+            *offset += 3;
+        } else if dst_compressed {
+            // Source port is uncompressed
+            src_port = ntohs(slice_to_u16(&buf[*offset..*offset + 2]));
+            // Destination port is compressed to 8 bits
+            dst_port = nhc::UDP_8BIT_PORT | (buf[*offset + 2] as u16);
+            *offset += 3;
+        } else {
+            // Both ports are uncompressed
+            src_port = ntohs(slice_to_u16(&buf[*offset..*offset + 2]));
+            dst_port = ntohs(slice_to_u16(&buf[*offset + 2..*offset + 4]));
+            *offset += 4;
+        }
+        (src_port, dst_port)
+    }
+
+    fn decompress_udp_checksum(&self,
+                               udp_nhc: u8,
+                               buf: &[u8],
+                               offset: &mut usize) -> Result<u16, ()> {
+        if udp_nhc & nhc::UDP_CHECKSUM_FLAG != 0 {
+            // UDP checksum elision is not supported
+            Err(())
+        } else {
+            let checksum = slice_to_u16(&buf[*offset..*offset + 2]);
+            *offset += 2;
+            Ok(checksum)
         }
     }
 }
