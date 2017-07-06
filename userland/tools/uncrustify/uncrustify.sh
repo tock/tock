@@ -3,29 +3,6 @@
 set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Format overwrites changes, which is probably good, but it's nice to see
-# what it has done
-#
-# `git status --porcelain` formats things for scripting
-# | M changed file, unstaged
-# |M  changed file, staged (git add has run)
-# |MM changed file, some staged and some unstaged changes (git add then changes)
-# |?? untracked file
-if git status --porcelain | grep '^.M.*\.[ch].*' -q; then
-	echo "$(tput bold)Warning: Formatting will overwrite files in place.$(tput sgr0)"
-	echo "While this is probably what you want, it's often useful to"
-	echo "stage all of your changes (git add ...) before format runs,"
-	echo "just so you can double-check everything."
-	echo ""
-	echo "$(tput bold)git status:$(tput sgr0)"
-	git status
-	echo ""
-	read -p "Continue formatting with unstaged changes? [y/N] " response
-	if [[ ! ( "$(echo "$response" | tr :upper: :lower:)" == "y" ) ]]; then
-		exit 0
-	fi
-fi
-
 # The version we are currently using
 UNCRUSTIFY_VERSION=65
 

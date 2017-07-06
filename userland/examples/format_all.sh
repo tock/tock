@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 
 set -e
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 bold=$(tput bold)
 normal=$(tput sgr0)
+
+$SCRIPT_DIR/../tools/check_unstaged.sh || exit
+export TOCK_NO_CHECK_UNSTAGED=1
 
 function opt_rebuild {
 	if [ "$CI" == "true" ]; then
