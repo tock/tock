@@ -803,7 +803,8 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             }
         }
 
-        ip6_header.payload_len = ip::htons((bytes_written - mem::size_of::<IP6Header>()) as u16);
+        let total_len = buf.len() - offset + bytes_written - mem::size_of::<IP6Header>();
+        ip6_header.payload_len = ip::htons(total_len as u16);
         Ok((bytes_written, offset))
     }
 
