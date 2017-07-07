@@ -6,6 +6,7 @@ use nvic;
 use peripheral_interrupts::NvicIdx;
 use rtc;
 use timer;
+use uart;
 
 const IQ_SIZE: usize = 100;
 static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
@@ -44,6 +45,7 @@ impl kernel::Chip for NRF52 {
                     NvicIdx::TIMER0 => timer::TIMER0.handle_interrupt(),
                     NvicIdx::TIMER1 => timer::ALARM1.handle_interrupt(),
                     NvicIdx::TIMER2 => timer::TIMER2.handle_interrupt(),
+                    NvicIdx::UART0 => uart::UART0.handle_interrupt(),
                     _ => panic!(""),
                 }
                 nvic::enable(interrupt);

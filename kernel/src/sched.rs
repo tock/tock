@@ -9,8 +9,6 @@ use process::{Process, Task};
 use returncode::ReturnCode;
 use syscall::Syscall;
 
-#[inline(never)]
-#[no_mangle]
 pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                                                chip: &mut C,
                                                process: &mut Process,
@@ -21,7 +19,6 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
     systick.set_timer(10000);
     systick.enable(true);
 
-    #[no_mangle]
     loop {
         if chip.has_pending_interrupts() || systick.overflowed() || systick.value() <= 500 {
             break;

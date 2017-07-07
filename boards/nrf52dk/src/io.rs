@@ -11,7 +11,7 @@ pub static mut WRITER: Writer = Writer { initialized: false };
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
         // The UART is not enabled yet
-        /*let uart = unsafe { &mut nrf52::uart::UART0 };
+        let uart = unsafe { &mut nrf52::uart::UART0 };
         if !self.initialized {
             self.initialized = true;
             uart.init(uart::UARTParams {
@@ -27,7 +27,7 @@ impl Write for Writer {
                 uart.send_byte(c);
             }
             while !uart.tx_ready() {}
-        }*/
+        }
         Ok(())
     }
 }
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn rust_begin_unwind(
     const LED1_PIN: usize = 17;
     const LED2_PIN: usize = 18;
 
-    /*let writer = &mut WRITER;
+    let writer = &mut WRITER;
     let _ = writer.write_fmt(format_args!("\r\nKernel panic at {}:{}:\r\n\t\"", _file, _line));
     let _ = write(writer, _args);
     let _ = writer.write_str("\"\r\n");
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn rust_begin_unwind(
     let procs = &mut process::PROCS;
     for idx in 0..procs.len() {
         procs[idx].as_mut().map(|process| { process.statistics_str(writer); });
-    }*/
+    }
     let led0 = &nrf52::gpio::PORT[LED1_PIN];
     let led1 = &nrf52::gpio::PORT[LED2_PIN];
 

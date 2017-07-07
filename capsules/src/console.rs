@@ -127,6 +127,8 @@ impl<'a, U: UART> Console<'a, U> {
 }
 
 impl<'a, U: UART> Driver for Console<'a, U> {
+    #[inline(never)]
+    #[no_mangle]
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
@@ -158,6 +160,8 @@ impl<'a, U: UART> Driver for Console<'a, U> {
         }
     }
 
+    #[inline(never)]
+    #[no_mangle]
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* read line */ => {
@@ -179,6 +183,8 @@ impl<'a, U: UART> Driver for Console<'a, U> {
         }
     }
 
+    #[inline(never)]
+    #[no_mangle]
     fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
@@ -195,6 +201,8 @@ impl<'a, U: UART> Driver for Console<'a, U> {
 }
 
 impl<'a, U: UART> Client for Console<'a, U> {
+    #[inline(never)]
+    #[no_mangle]
     fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
         // Either print more from the AppSlice or send a callback to the
         // application.

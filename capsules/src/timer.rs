@@ -89,8 +89,6 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
     /// ### `_subscribe_num`
     ///
     /// - `0`: Subscribe to timer expiration
-    #[inline(never)]
-    #[no_mangle]
     fn subscribe(&self, _subscribe_num: usize, callback: Callback) -> ReturnCode {
         self.app_timer
             .enter(callback.app_id(), |td, _allocator| {
@@ -115,8 +113,6 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
     /// - `4`: Read the the current clock value
     /// - `5`: Set an alarm to fire at a give clock value `time`.
     /// - `6`: Return the clock frequency in Hz.
-    #[inline(never)]
-    #[no_mangle]
     fn command(&self, cmd_type: usize, time: usize, caller_id: AppId) -> ReturnCode {
         // Returns the error code to return to the user and whether we need to
         // reset which is the next active alarm. We only _don't_ reset if we're
@@ -235,8 +231,6 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
 }
 
 impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
-    #[inline(never)]
-    #[no_mangle]
     fn fired(&self) {
         let now = self.alarm.now();
 

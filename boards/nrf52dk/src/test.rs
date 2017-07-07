@@ -4,6 +4,10 @@ use kernel::common::VolatileCell;
 use core::mem;
 
 
+static mut uart_ptr: *mut u32 = nrf52::uart::UART_BASE as *mut u32;
+
+
+
 pub fn test_rtc_regs() {
     let mut ptr: *mut u32 = nrf52::peripheral_registers::RTC1_BASE as *mut u32;
     let regs: &mut nrf52::peripheral_registers::RTC1 = unsafe { mem::transmute(ptr)};
@@ -47,4 +51,10 @@ pub fn test_nvic_regs() {
 }
 
 
+#[inline(never)]
+#[no_mangle]
+pub fn test_uart_regs() {
+    let regs: &mut nrf52::uart::Registers = unsafe { mem::transmute(uart_ptr)};
+    assert_eq!(0x00 as *const VolatileCell<u32>, &regs.task_startrx as *const VolatileCell<u32>);
+}
 

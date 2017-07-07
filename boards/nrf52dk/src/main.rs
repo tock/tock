@@ -9,13 +9,10 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate nrf52;
 
-use core::fmt::Arguments;
 use kernel::{Chip, SysTick};
-use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use nrf52::rtc::{RTC, Rtc};
 
-mod test;
 
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: usize = 17;
@@ -27,9 +24,6 @@ const LED4_PIN: usize = 20;
 mod io;
 
 
-// load user-space processes!!!
-#[inline(never)]
-#[no_mangle]
 unsafe fn load_process() -> &'static mut [Option<kernel::Process<'static>>] {
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -71,6 +65,7 @@ unsafe fn load_process() -> &'static mut [Option<kernel::Process<'static>>] {
 }
 
 pub struct Platform {
+    console: &'static capsules::console::Console<'static, nrf52::uart::UART>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
     timer: &'static capsules::timer::TimerDriver<'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
@@ -84,6 +79,7 @@ impl kernel::Platform for Platform {
         F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
+            0 => f(Some(self.console)),
             1 => f(Some(self.gpio)),
             3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
@@ -147,11 +143,32 @@ pub unsafe fn reset_handler() {
         VirtualMuxAlarm::new(mux_alarm),
         24);
     let timer = static_init!(
-        TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
-        TimerDriver::new(virtual_alarm1,
+        capsules::timer::TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
+        capsules::timer::TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
                          12);
     virtual_alarm1.set_client(timer);
+
+    nrf52::uart::UART0.configure(nrf52::pinmux::Pinmux::new(6), /*. tx  */
+                                 nrf52::pinmux::Pinmux::new(8), /* rx  */
+                                 nrf52::pinmux::Pinmux::new(7), /* cts */
+                                 nrf52::pinmux::Pinmux::new(5)); /*. rts */
+    let console = static_init!(
+        capsules::console::Console<nrf52::uart::UART>,
+        capsules::console::Console::new(&nrf52::uart::UART0,
+                                        115200,
+                                        &mut capsules::console::WRITE_BUF,
+                                        kernel::Container::create()),
+                                        224/8);
+    kernel::hil::uart::UART::set_client(&nrf52::uart::UART0, console);
+    console.initialize();
+
+    // Attach the kernel debug interface to this console
+    let kc = static_init!(
+        capsules::console::App,
+        capsules::console::App::default(),
+        480/8);
+    kernel::debug::assign_console_driver(Some(console), kc);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
@@ -165,6 +182,7 @@ pub unsafe fn reset_handler() {
     while !nrf52::clock::CLOCK.high_started() {}
 
     let platform = Platform {
+        console: console,
         led: led,
         gpio: gpio,
         timer: timer,
@@ -174,9 +192,7 @@ pub unsafe fn reset_handler() {
     chip.systick().reset();
     chip.systick().enable(true);
 
-    //test::test_rtc_regs();
-    //test::test_nvic_regs();
-
+    debug!("Hello nRF52\r");
     kernel::main(
         &platform,
         &mut chip,
