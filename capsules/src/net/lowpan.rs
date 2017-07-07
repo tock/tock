@@ -742,44 +742,50 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                   next_headers: &[u8],
                                   buf: &mut [u8],
                                   written: &mut usize) {
-        // true if the header length is a multiple of 8-octets
         let total_len = nh_len + 2;
+        // is_multiple is true if the header length is a multiple of 8-octets
         let is_multiple = (total_len % 8) == 0;
         let correct_type = (nh_type == ip6_nh::HOP_OPTS)
-            || (nh_type == ip6_nh::DST_OPTS);
-        // opt_offset points to the start of the end padding (if it exists)
+                        || (nh_type == ip6_nh::DST_OPTS);
         let mut opt_offset = 2;
-        let mut prev_was_padding = false;
         let mut is_padding = false;
         if correct_type && is_multiple {
+            // Traverses the TLVs in the next header extension. We need to
+            // determine if there is a last padding TLV (Pad1 or PadN) that is
+            // not preceded by another padding TLV. Hence, we have a state
+            // machine that keeps track of whether the last TLV was a padding
+            // TLV. We only set is_padding to true if we encounter a padding
+            // byte that spans to the end of the TLV chain, and if the previous
+            // TLV was not a padding TLV. In that case, we break out of the loop
+            // so that opt_offset is the offset before the last padding TLV.
+            let mut prev_was_padding = false;
             while opt_offset < total_len {
                 let opt_type = next_headers[opt_offset];
-                // This is the last byte
-                if opt_offset == total_len - 1 {
-                    // If last option is Pad1
-                    if !prev_was_padding && opt_type == 0 {
-                        is_padding = true;
-                    }
-                    break;
-                }
-                if opt_type == 0 {
-                    prev_was_padding = true;
-                    opt_offset += 1;
-                    continue;
-                }
-                let opt_len = next_headers[opt_offset + 1] as usize;
-                let new_opt_offset = opt_offset + opt_len + 2;
-                // PadN
-                if new_opt_offset == total_len {
-                    if opt_type == 1 && !prev_was_padding {
-                        is_padding = true;
-                    }
-                    break;
-                }
-                if opt_type == 1 {
-                    prev_was_padding = true;
-                } else {
-                    prev_was_padding = false;
+                let new_opt_offset = match opt_type {
+                    // Pad1, PadN
+                    0 | 1 => {
+                        let new_opt_offset = match opt_type {
+                            0 => opt_offset + 1,
+                            1 => {
+                                let opt_len = next_headers[opt_offset + 1] as usize;
+                                opt_offset + opt_len + 2
+                            }
+                        };
+                        if new_opt_offset == total_len {
+                            if !prev_was_padding {
+                                is_padding = true;
+                            }
+                            break;
+                        }
+                        prev_was_padding = true;
+                        new_opt_offset
+                    },
+                    // Any other TLV type
+                    _ => {
+                        let opt_len = next_headers[opt_offset + 1] as usize;
+                        prev_was_padding = false;
+                        opt_offset + opt_len + 2
+                    },
                 }
                 opt_offset = new_opt_offset;
             }
