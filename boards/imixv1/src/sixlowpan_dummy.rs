@@ -378,7 +378,7 @@ unsafe fn send_ipv6_packet(radio: &'static Radio,
 
     // Decompress LoWPAN packet into IPv6
     let mut out_ip6_datagram = [0 as u8; IP6_HDR_SIZE + PAYLOAD_LEN];
-    let (d_written, d_consumed) = lowpan
+    let (d_consumed, d_written) = lowpan
         .decompress(&RF233_BUF[offset..offset + total],
                     src_mac_addr,
                     dst_mac_addr,
