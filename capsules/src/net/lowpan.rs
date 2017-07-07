@@ -719,7 +719,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 let opt_len = next_headers[opt_offset+1] as usize;
                 let new_opt_offset = opt_offset + opt_len + 2;
                 // PadN
-                if new_opt_offset == total_len - 1 {
+                if new_opt_offset == total_len {
                     if opt_type == 1 && !prev_was_padding {
                         is_padding = true;
                     }
