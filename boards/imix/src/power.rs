@@ -58,7 +58,7 @@ impl PowerGated for ImixSubmodule {
                     }
                 }
                 self.gate_pin.set();
-            },
+            }
             false => {
                 self.gate_pin.clear();
                 if self.detachable_pins.is_some() {
@@ -67,7 +67,7 @@ impl PowerGated for ImixSubmodule {
                         pin.detach();
                     }
                 }
-            },
+            }
         }
     }
 }
