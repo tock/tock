@@ -27,7 +27,7 @@ impl Detachable for GPIOPin {
 }
 
 trait PowerGated {
-    fn power(&self, setting: bool);
+    fn power(&self, state: bool);
 }
 
 struct ImixSubmodule {
@@ -47,9 +47,9 @@ impl ImixSubmodule {
 }
 
 impl PowerGated for ImixSubmodule {
-    fn power(&self, setting: bool) {
+    fn power(&self, state: bool) {
         self.gate_pin.enable_output();
-        match setting {
+        match state {
             true => {
                 if self.detachable_pins.is_some() {
                     for it in self.detachable_pins.unwrap().iter() {
