@@ -2,7 +2,6 @@
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
 
 use core::mem;
-use core::cmp::min;
 use core::result::Result;
 
 use net::ip;
@@ -40,7 +39,7 @@ mod iphc {
     pub const SAM_MODE2: u8        = 0x20;
     pub const SAM_MODE3: u8        = 0x30;
 
-    pub const MULTICAST: u8        = 0x01;
+    pub const MULTICAST: u8        = 0x08;
 
     pub const DAC: u8              = 0x04;
     pub const DAM_MASK: u8         = 0x03;
@@ -403,13 +402,16 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let mut tf_encoding = 0;
         let old_offset = *offset;
 
-        if dscp == 0 {
+        // If ECN != 0 we are forced to at least have one byte,
+        // otherwise we can elide dscp
+        if dscp == 0 && (ecn == 0 || flow != 0) {
             tf_encoding |= iphc::TF_TRAFFIC_CLASS;
         } else {
             buf[*offset] = dscp;
             *offset += 1;
         }
 
+        // We can elide flow if it is 0
         if flow == 0 {
             tf_encoding |= iphc::TF_FLOW_LABEL;
         } else {
@@ -844,19 +846,16 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let fl_compressed = (iphc_header & iphc::TF_FLOW_LABEL) != 0;
         let tc_compressed = (iphc_header & iphc::TF_TRAFFIC_CLASS) != 0;
 
-        let mut ecn: u8 = 0;
-        let mut dscp: u8 = 0;
-
         // Determine ECN and DSCP separately, they are in a different order.
-        if fl_compressed || tc_compressed {
-            ecn = buf[*offset] >> 6;
+        if !fl_compressed || !tc_compressed {
+            let ecn = buf[*offset] >> 6;
+            ip6_header.set_ecn(ecn);
         }
         if !tc_compressed {
-            dscp = buf[*offset] & 0b111111;
+            let dscp = buf[*offset] & 0b111111;
+            ip6_header.set_dscp(dscp);
             *offset += 1;
         }
-        ip6_header.set_ecn(ecn);
-        ip6_header.set_dscp(dscp);
 
         // Flow label is always in the same bit position relative to the last
         // three bytes in the inline fields
@@ -864,8 +863,8 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             ip6_header.set_flow_label(0);
         } else {
             let flow = (((buf[*offset] & 0x0f) as u32) << 16)
-                       | ((buf[*offset+1] as u32) << 8)
-                       | (buf[*offset+2] as u32);
+                       | ((buf[*offset + 1] as u32) << 8)
+                       | (buf[*offset + 2] as u32);
             *offset += 3;
             ip6_header.set_flow_label(flow);
         }
@@ -979,17 +978,20 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 iphc::DAM_INLINE => {
                     // ffXX:XX + plen + pfx64 + XXXX:XXXX
                     // We want to copy over at most 8 bytes
-                    let prefix_bytes = min(((ctx.prefix_len + 7) / 8) as usize, 8);
+                    let prefix_bytes = ((ctx.prefix_len + 7) / 8) as usize;
+                    if prefix_bytes > 8 {
+                        // The maximum prefix length for this mode is 64 bits
+                        return Err(());
+                    }
                     ip_addr.0[0] = 0xff;
                     ip_addr.0[1] = buf[*offset];
                     ip_addr.0[2] = buf[*offset+1];
                     ip_addr.0[3] = ctx.prefix_len;
-                    // Zero out memory so that if prefix_bytes < 8, the prefix
-                    // is zero-padded
-                    ip_addr.0[4..12].copy_from_slice(&[0; 8]);
+                    // Assume that ctx.prefix is valid and zero-padded, as
+                    // checked by util::verify_prefix_len
                     ip_addr.0[4..4 + prefix_bytes]
                         .copy_from_slice(&ctx.prefix[0..prefix_bytes]);
-                    ip_addr.0[12..16].copy_from_slice(&buf[*offset + 2..*offset + 4]);
+                    ip_addr.0[12..16].copy_from_slice(&buf[*offset + 2..*offset + 6]);
                     *offset += 6;
                 },
                 _ => {
@@ -1046,7 +1048,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         match mode {
             // SAM = 00, DAM = 00; address carried inline
             iphc::SAM_INLINE /* | iphc::DAM_INLINE */ => {
-                ip_addr.0.copy_from_slice(&buf);
+                ip_addr.0.copy_from_slice(&buf[*offset..*offset + 16]);
                 *offset += 16;
             },
             // First 64-bits link local prefix, remaining 64 bits carried inline

@@ -4,8 +4,11 @@ use capsules::net::lowpan;
 use capsules::net::lowpan::{ContextStore, Context, LoWPAN};
 use capsules::net::ip::{IP6Header, MacAddr, IPAddr, ip6_nh};
 use capsules::net::util;
+// use capsules::radio_debug;
 use core::mem;
+
 use kernel::hil::radio;
+use kernel::hil::radio::Radio;
 
 pub struct DummyStore<'a> {
     context0: Context<'a>,
@@ -58,7 +61,7 @@ pub const IP6_HDR_SIZE: usize = 40;
 pub const PAYLOAD_LEN: usize = 10;
 pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_SIZE];
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone,Debug,PartialEq)]
 enum TrafficFlow {
     Inline = 0b00,
     Traffic = 0b01,
@@ -94,7 +97,7 @@ enum DAC {
     McastCtx,
 }
 
-pub fn sixlowpan_dummy_test<R: radio::Radio>(radio: &R) {
+pub fn sixlowpan_dummy_test(radio: &'static Radio) {
     // Change TF compression
     ipv6_packet_test(radio, TrafficFlow::Inline, 255,
                      SAC::Inline, DAC::Inline);
@@ -158,16 +161,13 @@ pub fn sixlowpan_dummy_test<R: radio::Radio>(radio: &R) {
                      SAC::CtxIID, DAC::Mcast8);
     ipv6_packet_test(radio, TrafficFlow::TrafficFlow, 42,
                      SAC::CtxIID, DAC::McastCtx);
-
-    // Prevent main application from loading
-    loop {}
 }
 
-fn ipv6_packet_test<R: radio::Radio>(radio: &R,
-                                     tf: TrafficFlow,
-                                     hop_limit: u8,
-                                     sac: SAC,
-                                     dac: DAC) {
+fn ipv6_packet_test(radio: &'static Radio,
+                    tf: TrafficFlow,
+                    hop_limit: u8,
+                    sac: SAC,
+                    dac: DAC) {
     let mut ip6_datagram = [0 as u8; IP6_HDR_SIZE + PAYLOAD_LEN];
     {
         let mut payload = &mut ip6_datagram[IP6_HDR_SIZE..];
@@ -182,7 +182,9 @@ fn ipv6_packet_test<R: radio::Radio>(radio: &R,
         *ip6_header = IP6Header::new();
         ip6_header.set_payload_len(PAYLOAD_LEN as u16);
 
-        ip6_header.set_ecn(0b01);
+        if tf != TrafficFlow::TrafficFlow {
+            ip6_header.set_ecn(0b01);
+        }
         if (tf as u8) & (TrafficFlow::Traffic as u8) != 0 {
             ip6_header.set_dscp(0b000000);
         } else {
@@ -328,11 +330,11 @@ fn ipv6_packet_test<R: radio::Radio>(radio: &R,
     }
 }
 
-unsafe fn send_ipv6_packet<R: radio::Radio>(radio: &R,
-                                            mesh_local_prefix: &[u8],
-                                            src_mac_addr: MacAddr,
-                                            dst_mac_addr: MacAddr,
-                                            ip6_datagram: &[u8]) {
+unsafe fn send_ipv6_packet(radio: &'static Radio,
+                           mesh_local_prefix: &[u8],
+                           src_mac_addr: MacAddr,
+                           dst_mac_addr: MacAddr,
+                           ip6_datagram: &[u8]) {
     radio.config_set_pan(0xABCD);
     match src_mac_addr {
         MacAddr::ShortAddr(addr) => radio.config_set_address(addr),
@@ -367,30 +369,30 @@ unsafe fn send_ipv6_packet<R: radio::Radio>(radio: &R,
         .expect("Error compressing packet");
     let payload_len = ip6_datagram.len() - consumed;
     let total = written + payload_len;
-    RF233_BUF[offset + written..offset + written + payload_len]
-        .copy_from_slice(&ip6_datagram[consumed..ip6_datagram.len()]);
     debug!("Compress:   from ip6 of len={}, consumed={}, payload={}",
            ip6_datagram.len(), consumed, payload_len);
     debug!("            into lowpan, written={}, payload={}, total={}",
            written, payload_len, total);
+    RF233_BUF[offset + written..offset + total]
+        .copy_from_slice(&ip6_datagram[consumed..ip6_datagram.len()]);
 
     // Decompress LoWPAN packet into IPv6
     let mut out_ip6_datagram = [0 as u8; IP6_HDR_SIZE + PAYLOAD_LEN];
     let (d_written, d_consumed) = lowpan
-        .decompress(&RF233_BUF[offset..offset + written + payload_len],
+        .decompress(&RF233_BUF[offset..offset + total],
                     src_mac_addr,
                     dst_mac_addr,
                     &mut out_ip6_datagram)
         .expect("Error decompressing packet");
     let d_payload_len = total - d_consumed;
     let d_total = d_written + d_payload_len;
-    out_ip6_datagram[d_written..d_written + d_payload_len]
-        .copy_from_slice(&RF233_BUF[offset + d_consumed..
-                                    offset + d_consumed + d_payload_len]);
     debug!("Decompress: from lowpan of len={}, consumed={}, payload={}",
            total, d_consumed, d_payload_len);
     debug!("            into ip6, written={}, payload={}, total={}",
            d_written, d_payload_len, d_total);
+    out_ip6_datagram[d_written..d_total]
+        .copy_from_slice(&RF233_BUF[offset + d_consumed..
+                                    offset + d_consumed + d_payload_len]);
 
     // Check if compression/decompression round trip is lossless
     let mut buffers_equal: bool = true;
@@ -402,12 +404,10 @@ unsafe fn send_ipv6_packet<R: radio::Radio>(radio: &R,
     }
     if !buffers_equal {
         debug!("Compressed and decompressed buffers do not match.");
-        for i in 0..ip6_datagram.len() {
-            if ip6_datagram[i] != out_ip6_datagram[i] {
-                debug!("Byte {}: 0x{:02x} vs 0x{:02x}", i,
-                       ip6_datagram[i], out_ip6_datagram[i]);
-            }
-        }
+        // debug!("compressed:");
+        // radio_debug::print_buffer(&ip6_datagram);
+        // debug!("decompressed:");
+        // radio_debug::print_buffer(&out_ip6_datagram);
     }
 
     // Transmit len is 802.15.4 header + LoWPAN-compressed packet size
