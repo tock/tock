@@ -8,8 +8,6 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
-#[allow(unused_imports)]
-use capsules::net::lowpan;
 use capsules::rf233::RF233;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};

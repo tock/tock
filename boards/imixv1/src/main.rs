@@ -29,8 +29,6 @@ pub mod io;
 mod i2c_dummy;
 #[allow(dead_code)]
 mod spi_dummy;
-#[allow(dead_code)]
-mod sixlowpan_dummy;
 
 struct Imixv1 {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
