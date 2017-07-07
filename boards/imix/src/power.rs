@@ -27,8 +27,7 @@ impl Detachable for GPIOPin {
 }
 
 trait PowerGated {
-    fn on(&self);
-    fn off(&self);
+    fn power(&self, setting: bool);
 }
 
 struct ImixSubmodule {
@@ -48,25 +47,27 @@ impl ImixSubmodule {
 }
 
 impl PowerGated for ImixSubmodule {
-    fn on(&self) {
-        if self.detachable_pins.is_some() {
-            for it in self.detachable_pins.unwrap().iter() {
-                let &(pin, function) = it;
-                pin.restore(function);
-            }
-        }
+    fn power(&self, setting: bool) {
         self.gate_pin.enable_output();
-        self.gate_pin.set();
-    }
-
-    fn off(&self) {
-        self.gate_pin.enable_output();
-        self.gate_pin.clear();
-        if self.detachable_pins.is_some() {
-            for it in self.detachable_pins.unwrap().iter() {
-                let &(pin, _) = it;
-                pin.detach();
-            }
+        match setting {
+            true => {
+                if self.detachable_pins.is_some() {
+                    for it in self.detachable_pins.unwrap().iter() {
+                        let &(pin, function) = it;
+                        pin.restore(function);
+                    }
+                }
+                self.gate_pin.set();
+            },
+            false => {
+                self.gate_pin.clear();
+                if self.detachable_pins.is_some() {
+                    for it in self.detachable_pins.unwrap().iter() {
+                        let &(pin, _) = it;
+                        pin.detach();
+                    }
+                }
+            },
         }
     }
 }
@@ -98,20 +99,8 @@ pub unsafe fn configure_module_power(enabled_modules: ModulePowerConfig) {
     let sensors = static_init!(ImixSubmodule, ImixSubmodule::new(None, &PC[16]));
     let trng = static_init!(ImixSubmodule, ImixSubmodule::new(None, &PC[19]));
 
-    match enabled_modules.rf233 {
-        true => rf233.on(),
-        false => rf233.off(),
-    }
-    match enabled_modules.nrf51422 {
-        true => nrf.on(),
-        false => nrf.off(),
-    }
-    match enabled_modules.sensors {
-        true => sensors.on(),
-        false => sensors.off(),
-    }
-    match enabled_modules.trng {
-        true => trng.on(),
-        false => trng.off(),
-    }
+    rf233.power(enabled_modules.rf233);
+    nrf.power(enabled_modules.nrf51422);
+    sensors.power(enabled_modules.sensors);
+    trng.power(enabled_modules.trng);
 }
