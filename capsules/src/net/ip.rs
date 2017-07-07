@@ -1,5 +1,3 @@
-use core::cell::Cell;
-use kernel::common::take_cell::TakeCell;
 use net::util::{is_zero, htons, ntohs};
 
 #[derive(Copy,Clone)]
@@ -8,7 +6,6 @@ pub enum MacAddr {
     LongAddr([u8; 8]),
 }
 
-#[allow(unused_variables)]
 pub mod ip6_nh {
     pub const HOP_OPTS: u8 = 0;
     pub const TCP: u8      = 6;
@@ -71,7 +68,6 @@ impl IPAddr {
 }
 
 #[repr(C, packed)]
-#[allow(unused_variables)]
 #[derive(Copy, Clone)]
 pub struct IP6Header {
     pub version_class_flow: [u8; 4],
@@ -186,70 +182,5 @@ impl IP6Header {
 
     pub fn set_hop_limit(&mut self, new_hl: u8) {
         self.hop_limit = new_hl;
-    }
-}
-
-#[allow(unused_variables,dead_code)]
-pub struct IP6ExtHeader {
-    next_header: u8,
-    header_len_or_reserved: u8,
-    options: [u8; 2],
-    options_1: [u8; 4],
-    additional_options: TakeCell<'static, [u8]>,
-}
-
-// TODO: Make this more full-featured
-impl IP6ExtHeader {
-    pub fn new(next_header: u8) -> IP6ExtHeader {
-        IP6ExtHeader {
-            next_header: next_header,
-            header_len_or_reserved: 0,
-            options: [0, 0],
-            options_1: [0, 0, 0, 0],
-            additional_options: TakeCell::empty(),
-        }
-    }
-}
-
-#[allow(unused_variables,dead_code)]
-pub struct IP6Packet {
-    header: Cell<IP6Header>,
-    hop_opts: Cell<Option<IP6ExtHeader>>,
-    dest_opts: Cell<Option<IP6ExtHeader>>,
-    routing: Cell<Option<IP6ExtHeader>>,
-    fragment: Cell<Option<IP6ExtHeader>>,
-    auth: Cell<Option<IP6ExtHeader>>,
-    esp: Cell<Option<IP6ExtHeader>>,
-    dest_opts_second: Cell<Option<IP6ExtHeader>>,
-    mobility: Cell<Option<IP6ExtHeader>>,
-    payload: TakeCell<'static, [u8]>,
-}
-
-
-impl IP6Packet {
-    pub fn new() -> IP6Packet {
-        IP6Packet {
-            header: Cell::new(IP6Header::default()),
-            hop_opts: Cell::new(None),
-            dest_opts: Cell::new(None),
-            routing: Cell::new(None),
-            fragment: Cell::new(None),
-            auth: Cell::new(None),
-            esp: Cell::new(None),
-            dest_opts_second: Cell::new(None),
-            mobility: Cell::new(None),
-            payload: TakeCell::empty(),
-        }
-    }
-
-    // Returns number of bytes written to buf
-    // TODO: We currently do not support Jumbograms
-    pub fn prepare_packet(&self, buf: &mut [u8]) -> usize {
-        /*
-        let mut offset = 0;
-        offset
-        buf[0]
-        */
-        0
     }
 }
