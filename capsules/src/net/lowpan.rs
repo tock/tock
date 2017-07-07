@@ -185,7 +185,8 @@ fn compute_udp_checksum(ip6_header: &IP6Header, udp_header: &[u8], payload: &[u8
     let udp_len: u32 = (len + 8) as u32;
     checksum = ones_complement_addition(checksum, ((udp_len >> 16) & 0xffff) as u16);
     checksum = ones_complement_addition(checksum, (udp_len & 0xffff) as u16);
-    checksum = ones_complement_addition(checksum, 0x11); // UDP next header value
+    // checksum = ones_complement_addition(checksum, 0x0);
+    checksum = ones_complement_addition(checksum, 0x0011); // UDP next header value
     // UDP header (minus the checksum, which is all zeroes)
     for i in 0..3 {
         let val = slice_to_u16(&udp_header[i*2..(i+1)*2]);
@@ -778,7 +779,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                     u16_to_slice(htons(src_port), &mut next_headers[0..2]);
                     u16_to_slice(htons(dst_port), &mut next_headers[2..4]);
                     u16_to_slice(htons(udp_length), &mut next_headers[4..6]);
-                    u16_to_slice(0, &mut next_headers[6..8]); // Zero out checksum
                     // Need to fill in header values before computing the checksum
                     let udp_checksum =
                         self.decompress_udp_checksum(nhc_header,
@@ -1222,7 +1222,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
             // the packet)
             compute_udp_checksum(ip6_header, udp_header, &buf[*offset..])
         } else {
-            let checksum = slice_to_u16(&buf[*offset..*offset + 2]);
+            let checksum = ntohs(slice_to_u16(&buf[*offset..*offset + 2]));
             *offset += 2;
             checksum
         }
