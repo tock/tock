@@ -1,6 +1,6 @@
 use core::cell::Cell;
 use kernel::common::take_cell::TakeCell;
-use net::util;
+use net::util::{is_zero, htons, ntohs};
 
 #[derive(Copy,Clone)]
 pub enum MacAddr {
@@ -32,14 +32,14 @@ impl IPAddr {
     }
 
     pub fn is_unspecified(&self) -> bool {
-        util::is_zero(&self.0)
+        is_zero(&self.0)
     }
 
     pub fn is_unicast_link_local(&self) -> bool {
         self.0[0] == 0xfe
         && (self.0[1] & 0xc0) == 0x80
         && (self.0[1] & 0x3f) == 0
-        && util::is_zero(&self.0[2..8])
+        && is_zero(&self.0[2..8])
     }
 
     pub fn set_unicast_link_local(&mut self) {
@@ -68,48 +68,6 @@ impl IPAddr {
     pub fn is_multicast(&self) -> bool {
         self.0[0] == 0xff
     }
-}
-
-#[allow(unused_variables,dead_code)]
-pub fn reverse_u16_bytes(short: u16) -> u16 {
-    ((short & 0x00ff) << 8) | (short >> 8)
-}
-
-#[allow(unused_variables,dead_code)]
-pub fn reverse_u32_bytes(long: u32) -> u32 {
-    ((long & 0x000000ff) << 24) |
-    ((long & 0x0000ff00) << 8) |
-    ((long & 0x00ff0000) >> 8) |
-    (long >> 24)
-}
-
-pub fn slice_to_u16(buf: &[u8]) -> u16 {
-    ((buf[0] as u16) << 8) | (buf[1] as u16)
-}
-
-pub fn u16_to_slice(short: u16, slice: &mut [u8]) {
-    slice[0] = (short >> 8) as u8;
-    slice[1] = (short & 0xff) as u8;
-}
-
-#[allow(unused_variables,dead_code)]
-pub fn ntohs(net_short: u16) -> u16 {
-    return reverse_u16_bytes(net_short);
-}
-
-#[allow(unused_variables,dead_code)]
-pub fn ntohl(net_long: u32) -> u32 {
-    return reverse_u32_bytes(net_long);
-}
-
-#[allow(unused_variables,dead_code)]
-pub fn htons(host_short: u16) -> u16 {
-    return reverse_u16_bytes(host_short);
-}
-
-#[allow(unused_variables,dead_code)]
-pub fn htonl(host_long: u32) -> u32 {
-    return reverse_u32_bytes(host_long);
 }
 
 #[repr(C, packed)]

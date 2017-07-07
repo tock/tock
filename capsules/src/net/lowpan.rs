@@ -4,10 +4,9 @@
 use core::mem;
 use core::result::Result;
 
-use net::ip;
 use net::ip::{IP6Header, MacAddr, IPAddr, ip6_nh};
-use net::ip::{ntohs, htons, slice_to_u16, u16_to_slice};
 use net::util;
+use net::util::{ntohs, htons, slice_to_u16, u16_to_slice};
 
 /// Contains bit masks and constants related to the two-byte header of the
 /// LoWPAN_IPHC encoding format.
@@ -99,7 +98,7 @@ pub trait ContextStore<'a> {
     fn get_context_0(&self) -> Context<'a> {
         match self.get_context_from_id(0) {
             Some(ctx) => ctx,
-            None => panic!("Context 0 not found"),
+            None      => panic!("Context 0 not found"),
         }
     }
     fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context<'a>>;
@@ -366,6 +365,8 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
 
         // Next Headers
+        // At each iteration, next_headers begins at the first byte of the
+        // current uncompressed next header.
         let mut ip6_nh_type: u8 = ip6_header.next_header;
         while is_nhc {
             match ip6_nh_type {
@@ -416,9 +417,14 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 | ip6_nh::ROUTING
                 | ip6_nh::DST_OPTS
                 | ip6_nh::MOBILITY => {
-                    // The NHC EID is guaranteed not to be 0 here.
+                    // is_ip6_nh_compressible guarantees that the IPv6 next
+                    // header corresponds to a valid LoWPAN_NHC EID
                     let mut nhc_header = nhc::DISPATCH_NHC
-                        | ip6_nh_to_nhc_eid(ip6_nh_type).unwrap_or(0);
+                        | match ip6_nh_to_nhc_eid(ip6_nh_type) {
+                            Some(eid) => eid,
+                            None      => panic!("Unreachable case"),
+                        };
+
                     // next_nh_offset includes the next header field and the
                     // length byte, while nh_len does not
                     let next_nh_offset = 2 + (nh_len as usize);
@@ -457,7 +463,6 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 _ => panic!("Unreachable case"),
             }
         }
-
         Ok((consumed, offset))
     }
 
@@ -482,7 +487,10 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
-    fn compress_tf(&self, ip6_header: &IP6Header, buf: &mut [u8], offset: &mut usize) {
+    fn compress_tf(&self,
+                   ip6_header: &IP6Header,
+                   buf: &mut [u8],
+                   offset: &mut usize) {
         let ecn = ip6_header.get_ecn();
         let dscp = ip6_header.get_dscp();
         let flow = ip6_header.get_flow_label();
@@ -528,19 +536,18 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
-    fn compress_hl(&self, ip6_header: &IP6Header, buf: &mut [u8], offset: &mut usize) {
-        let hop_limit_flag = {
-            match ip6_header.hop_limit {
-                // Compressed
-                1 => iphc::HLIM_1,
-                64 => iphc::HLIM_64,
-                255 => iphc::HLIM_255,
-                // Uncompressed
-                _ => {
-                    buf[*offset] = ip6_header.hop_limit;
-                    *offset += 1;
-                    iphc::HLIM_INLINE
-                }
+    fn compress_hl(&self,
+                   ip6_header: &IP6Header,
+                   buf: &mut [u8],
+                   offset: &mut usize) {
+        let hop_limit_flag = match ip6_header.hop_limit {
+            1   => iphc::HLIM_1,
+            64  => iphc::HLIM_64,
+            255 => iphc::HLIM_255,
+            _   => {
+                buf[*offset] = ip6_header.hop_limit;
+                *offset += 1;
+                iphc::HLIM_INLINE
             }
         };
         buf[0] |= hop_limit_flag;
@@ -572,9 +579,9 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         }
     }
 
-    // TODO: For the SAC=0, SAM=11 case, we must also consider computing the
-    // address from an encapsulating IPv6 packet (e.g. when we recurse), not
-    // just from a 802.15.4 frame.
+    // TODO: For the SAC = 0, SAM = 11 case in IPv6-encapsulated headers,
+    // it might be that we have to compute the IID from the encapsulating
+    // IPv6 header address instead of the EUI-64 from the 802.15.4 layer
     fn compress_iid(&self,
                     ip_addr: &IPAddr,
                     mac_addr: &MacAddr,
@@ -811,6 +818,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         let iphc_header_2: u8 = buf[1];
         let mut offset: usize = 2;
 
+        // First, reset the IPv6 fixed header to the default values
         let mut ip6_header: &mut IP6Header = unsafe {
             mem::transmute(out_buf.as_mut_ptr())
         };
@@ -829,14 +837,14 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                                                &buf,
                                                                &mut offset);
 
-        // Decompress hop limit field
+        // Hop Limit
         self.decompress_hl(&mut ip6_header, iphc_header_1, &buf, &mut offset)?;
 
-        // Decompress source address
+        // Source Address
         self.decompress_src(&mut ip6_header, iphc_header_2,
                             &src_mac_addr, &src_ctx, &buf, &mut offset)?;
 
-        // Decompress destination address
+        // Destination Address
         if (iphc_header_2 & iphc::MULTICAST) != 0 {
             self.decompress_multicast(&mut ip6_header, iphc_header_2, &dst_ctx,
                                       &buf, &mut offset)?;
@@ -845,14 +853,16 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                                 &dst_mac_addr, &dst_ctx, &buf, &mut offset)?;
         }
 
-        // Note that next_header is already set only if is_nhc is false
+        // next_header is already set if is_nhc is false, otherwise it can be
+        // determined from the LoWPAN NHC header byte
         if is_nhc {
             next_header = nhc_to_ip6_nh(buf[offset])?;
         }
         ip6_header.set_next_header(next_header);
-        // While the next header is still compressed
-        // Note that at each iteration, offset points to the NHC header field
-        // and next_header refers to the type of this field.
+
+        // Next headers after the IPv6 fixed header
+        // At each iteration, offset points to the first byte of the compressed
+        // next header in buf.
         while is_nhc {
             // Advance past the LoWPAN NHC byte
             let nhc_header = buf[offset];
@@ -967,7 +977,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // size of the IPv6 packet - the fixed IPv6 header.
         let payload_len = bytes_written + (buf.len() - offset)
                           - mem::size_of::<IP6Header>();
-        ip6_header.payload_len = ip::htons(payload_len as u16);
+        ip6_header.payload_len = htons(payload_len as u16);
         Ok((offset, bytes_written))
     }
 
@@ -1163,7 +1173,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 },
                 // DAC = 0, DAM = 01: 48 bits
                 // ffXX::00XX:XXXX:XXXX
-                iphc::DAM_MODE1  => {
+                iphc::DAM_MODE1 => {
                     ip_addr.0[0] = 0xff;
                     ip_addr.0[1] = buf[*offset];
                     *offset += 1;
@@ -1172,7 +1182,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 },
                 // DAC = 0, DAM = 10: 32 bits
                 // ffXX::00XX:XXXX
-                iphc::DAM_MODE2  => {
+                iphc::DAM_MODE2 => {
                     ip_addr.0[0] = 0xff;
                     ip_addr.0[1] = buf[*offset];
                     *offset += 1;
@@ -1181,7 +1191,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                 },
                 // DAC = 0, DAM = 11: 8 bits
                 // ff02::00XX
-                iphc::DAM_MODE3  => {
+                iphc::DAM_MODE3 => {
                     ip_addr.0[0] = 0xff;
                     ip_addr.0[1] = 0x02;
                     ip_addr.0[15] = buf[*offset];

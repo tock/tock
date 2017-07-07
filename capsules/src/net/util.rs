@@ -63,3 +63,39 @@ pub fn matches_prefix(buf1: &[u8], buf2: &[u8], prefix_len: u8) -> bool {
 
     true
 }
+
+fn reverse_u16_bytes(short: u16) -> u16 {
+    ((short & 0x00ff) << 8) | (short >> 8)
+}
+
+fn reverse_u32_bytes(long: u32) -> u32 {
+    ((long & 0x000000ff) << 24) |
+    ((long & 0x0000ff00) << 8) |
+    ((long & 0x00ff0000) >> 8) |
+    (long >> 24)
+}
+
+pub fn slice_to_u16(buf: &[u8]) -> u16 {
+    ((buf[0] as u16) << 8) | (buf[1] as u16)
+}
+
+pub fn u16_to_slice(short: u16, slice: &mut [u8]) {
+    slice[0] = (short >> 8) as u8;
+    slice[1] = (short & 0xff) as u8;
+}
+
+pub fn ntohs(net_short: u16) -> u16 {
+    reverse_u16_bytes(net_short)
+}
+
+pub fn ntohl(net_long: u32) -> u32 {
+    reverse_u32_bytes(net_long)
+}
+
+pub fn htons(host_short: u16) -> u16 {
+    reverse_u16_bytes(host_short)
+}
+
+pub fn htonl(host_long: u32) -> u32 {
+    reverse_u32_bytes(host_long)
+}
