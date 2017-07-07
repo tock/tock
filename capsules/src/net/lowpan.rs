@@ -396,7 +396,7 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
                         buf[offset + 1] = nh_len;
                     }
                     offset += 2;
-                    
+
                     self.compress_and_elide_padding(ip6_nh_type,
                                                     nh_len as usize,
                                                     &next_headers,
@@ -697,15 +697,15 @@ impl<'a, C: ContextStore<'a> + 'a> LoWPAN<'a, C> {
         // true if the header length is a multiple of 8-octets
         let total_len = nh_len + 2;
         let is_multiple = (total_len % 8) == 0;
-        let correct_type = (nh_type == ip6_nh::HOP_OPTS) 
+        let correct_type = (nh_type == ip6_nh::HOP_OPTS)
             || (nh_type == ip6_nh::DST_OPTS);
         // opt_offset points to the start of the end padding (if it exists)
-        let mut opt_offset = 2; 
+        let mut opt_offset = 2;
         let mut prev_was_padding = false;
         let mut is_padding = false;
         if correct_type && is_multiple {
             while opt_offset < total_len {
-                let opt_type = next_headers[opt_offset]; 
+                let opt_type = next_headers[opt_offset];
                 // This is the last byte
                 if opt_offset == total_len - 1 {
                     // If last option is Pad1
