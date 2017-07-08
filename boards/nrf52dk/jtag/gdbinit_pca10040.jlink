@@ -1,4 +1,6 @@
 #
+#
+#
 # J-LINK GDB SERVER initialization
 #
 # This connects to a GDB Server listening
@@ -11,21 +13,13 @@ monitor reset
 # CPU core initialization (to be done by user)
 #
 # Set the processor mode
-monitor reg cpsr = 0xd3
+# monitor reg cpsr = 0xd3
 # Set auto JTAG speed
 monitor speed auto
 # Setup GDB FOR FASTER DOWNLOADS
 set remote memory-write-packet-size 1024
 set remote memory-write-packet-size fixed
-# Niklas breakpoints
-b nrf52::chip::{{impl}}::service_pending_interrupts
-b command
-b subscribe
-b allow
-b UART0_Handler
-b handle_interrupt
-b transmit
-b uart.rs:254
-b uart.rs:179
-b uart.rs:254
-b uart.rs:267
+# tui enable
+# layout split
+# layout service_pending_interrupts
+b reset_handler

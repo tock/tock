@@ -1,14 +1,12 @@
 /*
  * This file has been relicensed by the original author from GPLv3 to Apache 2.0
  * The original version of the file, under GPL can be found at
- * https://github.com/SoftwareDefinedBuildings/
- *     stormport/blob/rebase0/tos/platforms/storm/stormcrt1.c
+ * https://github.com/SoftwareDefinedBuildings/stormport/blob/rebase0/tos/platforms/storm/stormcrt1.c
  * 
  * Copyright 2016, Michael Andersen <m.andersen@eecs.berkeley.edu>
  */
 
 /* https://github.com/NordicSemiconductor/nrf52-hardware-startup-hands-on/blob/master/pca10040/s132/arm5_no_packs/RTE/Device/nRF52832_xxAA/arm_startup_nrf52.s */
- 
 /* https://github.com/NordicSemiconductor/nRF52-ble-app-lbs/blob/master/pca10040/s132/arm5_no_packs/RTE/Device/nRF52832_xxAA/system_nrf52.c */
 
 #include <stdint.h>

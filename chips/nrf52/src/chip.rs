@@ -1,4 +1,3 @@
-
 use gpio;
 use kernel;
 use kernel::common::{RingBuffer, Queue};

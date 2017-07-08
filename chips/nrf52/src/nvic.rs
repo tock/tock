@@ -3,8 +3,7 @@ use kernel::common::VolatileCell;
 use peripheral_interrupts::NvicIdx;
 
 // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0439b/Cihfihfe.html
-// FIXME: switch to private
-pub const NVIC_BASE: usize = 0xE000E100;
+const NVIC_BASE: usize = 0xE000E100;
 #[repr(C, packed)]
 pub struct NVIC {
     pub iser: [VolatileCell<u32>; 7],

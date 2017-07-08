@@ -1,58 +1,18 @@
-//! The nRF51822 timer system operates off of the high frequency clock
-//! (HFCLK) and provides three timers from the clock. Timer0 is tied
-//! to the radio through some hard-coded peripheral linkages (e.g., there
-//! are dedicated PPI connections between Timer0's compare events and
-//! radio tasks, its capture tasks and radio events).
-//!
-//! This implementation provides a full-fledged Timer interface to
-//! timers 0 and 2, and exposes Timer1 as an HIL Alarm, for a Tock
-//! timer system. It may be that the Tock timer system should be ultimately
-//! placed on top of the RTC (from the low frequency clock). It's currently
-//! implemented this way as a demonstration that it can be and because
-//! the full RTC/clock interface hasn't been finalized yet.
-//!
-//! This approach should be rewritten, such that the timer system uses
-//! the RTC from the low frequency clock (lower power) and the scheduler
-//! uses the high frequency clock.
-//!
-//! Author: Philip Levis <pal@cs.stanford.edu>
-//! Date: August 18, 2016
+//! nRF52 Timer
+//! Completly copy-pasted from the implementation of nRF51
+//! but the registers have been moved to peripheral_registers.rs
+//! However, nRF52 comes with two additional timers that are not
+//! supported at the moment
+
 
 use chip;
 use core::cell::Cell;
 use core::mem;
-use kernel::common::VolatileCell;
 use kernel::hil;
 use nvic;
 use peripheral_interrupts::NvicIdx;
+use peripheral_registers;
 
-#[repr(C, packed)]
-struct Registers {
-    pub task_start: VolatileCell<u32>,
-    pub task_stop: VolatileCell<u32>,
-    pub task_count: VolatileCell<u32>,
-    pub task_clear: VolatileCell<u32>,
-    pub task_shutdown: VolatileCell<u32>,
-    _reserved0: [VolatileCell<u32>; 11],
-    pub task_capture: [VolatileCell<u32>; 4], // 0x40
-    _reserved1: [VolatileCell<u32>; 60], // 0x140
-    pub event_compare: [VolatileCell<u32>; 4],
-    _reserved2: [VolatileCell<u32>; 44], // 0x150
-    pub shorts: VolatileCell<u32>, // 0x200
-    _reserved3: [VolatileCell<u32>; 64], // 0x204
-    pub intenset: VolatileCell<u32>, // 0x304
-    pub intenclr: VolatileCell<u32>, // 0x308
-    _reserved4: [VolatileCell<u32>; 126], // 0x30C
-    pub mode: VolatileCell<u32>, // 0x504
-    pub bitmode: VolatileCell<u32>, // 0x508
-    _reserved5: VolatileCell<u32>,
-    pub prescaler: VolatileCell<u32>, // 0x510
-    _reserved6: [VolatileCell<u32>; 11], // 0x514
-    pub cc: [VolatileCell<u32>; 4], // 0x540
-}
-
-const SIZE: usize = 0x1000;
-const TIMER_BASE: usize = 0x40008000;
 
 #[derive(Copy,Clone)]
 pub enum Location {
@@ -80,8 +40,9 @@ pub static mut TIMER2: Timer = Timer {
 };
 
 #[allow(non_snake_case)]
-fn TIMER(location: Location) -> &'static Registers {
-    let ptr = TIMER_BASE + (location as usize) * SIZE;
+fn TIMER(location: Location) -> &'static peripheral_registers::TIMER {
+    let ptr = peripheral_registers::TIMER_BASE +
+              (location as usize) * peripheral_registers::TIMER_SIZE;
     unsafe { mem::transmute(ptr) }
 }
 
@@ -97,7 +58,7 @@ pub struct Timer {
 }
 
 impl Timer {
-    fn timer(&self) -> &'static Registers {
+    fn timer(&self) -> &'static peripheral_registers::TIMER {
         TIMER(self.which)
     }
 
@@ -200,7 +161,7 @@ impl Timer {
     pub fn disable_interrupts(&self, interrupts: u32) {
         self.timer().intenclr.set(interrupts << 16);
     }
-    
+
     pub fn enable_nvic(&self) {
         nvic::enable(self.nvic);
     }
@@ -221,7 +182,7 @@ impl Timer {
     /// When an interrupt occurs, check if any of the 4 compares have
     /// created an event, and if so, add it to the bitmask of triggered
     /// events that is passed to the client.
-    
+
     pub fn handle_interrupt(&self) {
         nvic::clear_pending(self.nvic);
         self.client.get().map(|client| {
@@ -253,7 +214,7 @@ const ALARM_COMPARE: usize = 1;
 const ALARM_INTERRUPT_BIT: u32 = 1 << (16 + ALARM_COMPARE);
 
 impl TimerAlarm {
-    fn timer(&self) -> &'static Registers {
+    fn timer(&self) -> &'static peripheral_registers::TIMER {
         TIMER(self.which)
     }
 
@@ -342,7 +303,7 @@ impl hil::time::Alarm for TimerAlarm {
     fn now(&self) -> u32 {
         self.value()
     }
-    
+
     fn set_alarm(&self, tics: u32) {
         self.disable_interrupts();
         self.timer().cc[ALARM_COMPARE].set(tics);

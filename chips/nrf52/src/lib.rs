@@ -10,9 +10,8 @@ extern "C" {
 }
 
 mod peripheral_interrupts;
-// temp used for tests
-pub mod peripheral_registers;
-pub mod nvic;
+mod peripheral_registers;
+mod nvic;
 
 
 pub mod chip;

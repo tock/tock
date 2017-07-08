@@ -67,7 +67,7 @@ impl Rtc {
         rtc1().intenclr.set(COMPARE0_EVENT);
         self.callback.get().map(|cb| { cb.fired(); });
     }
-    
+
     #[inline(never)]
     #[no_mangle]
     pub fn set_client(&self, client: &'static time::Client) {
@@ -88,7 +88,6 @@ impl Time for Rtc {
 }
 
 impl Alarm for Rtc {
-    
     #[inline(never)]
     #[no_mangle]
     fn now(&self) -> u32 {
