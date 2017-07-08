@@ -40,8 +40,8 @@ standard Tock instructions (the "Getting Started" guide).
 Because the nRF52DK has integrated JTAG support, you can debug it
 directly using gdb. In this setup, gdb connects to a process that
 gives access to the device over JTAG. There exist already prepared scripts
-to support debugging in [/jtag](/jtag/). Preferable open two separate terminal
-windows and change directory to _"tock/boards/nrf52dk/jtag"_.
+to support debugging in [tock/boards/nrf52dk/jtag](https://github.com/helena-project/tock/tree/master/boards/nrf52dk/jtag). Preferable open two separate terminal
+windows and change directory to __"tock/boards/nrf52dk/jtag"__.
 
 In the first window start the JLink gdb server:
 
