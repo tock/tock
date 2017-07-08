@@ -1,6 +1,3 @@
-// stolen from  https://github.com/apache/mynewt-core/blob/master/hw/mcu/nordic/src/ext/nRF5_SDK_11.0.0_89a8197/components/device/nrf52.h
-
-
 #[allow(non_camel_case_types, dead_code)]
 #[derive(Copy, Clone)]
 pub enum NvicIdx {

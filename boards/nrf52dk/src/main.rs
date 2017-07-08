@@ -63,7 +63,8 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static, nrf52::uart::UART>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
-    timer: &'static capsules::timer::TimerDriver<'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+    timer: &'static capsules::timer::TimerDriver
+        <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
 }
 
 
@@ -128,7 +129,9 @@ pub unsafe fn reset_handler() {
 
     let alarm = &nrf52::rtc::RTC;
     alarm.start();
-    let mux_alarm = static_init!(capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>, capsules::virtual_alarm::MuxAlarm::new(&nrf52::rtc::RTC), 16);
+    let mux_alarm = static_init!(
+        capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
+        capsules::virtual_alarm::MuxAlarm::new(&nrf52::rtc::RTC), 16);
     alarm.set_client(mux_alarm);
 
 
@@ -137,7 +140,8 @@ pub unsafe fn reset_handler() {
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
         24);
     let timer = static_init!(
-        capsules::timer::TimerDriver<'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+        capsules::timer::TimerDriver<'static,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
         capsules::timer::TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
                          12);
