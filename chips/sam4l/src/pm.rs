@@ -1,5 +1,6 @@
 //! Implementation of the power manager peripheral.
 
+use bpm;
 use core::sync::atomic::Ordering;
 use gpio;
 use kernel::common::VolatileCell;
@@ -474,6 +475,9 @@ unsafe fn configure_external_oscillator_pll() {
 
 pub unsafe fn setup_system_clock(clock_source: SystemClockSource, frequency: u32) {
     SYSTEM_FREQUENCY.set(frequency);
+
+    // For now, always go to PS2 as it enables all core speeds
+    bpm::set_power_scaling(bpm::PowerScaling::PS2);
 
     match clock_source {
         SystemClockSource::DfllRc32k => {
