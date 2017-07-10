@@ -8,6 +8,7 @@ export RUSTUP_TOOLCHAIN ?= nightly-2017-06-20
 TOOLCHAIN ?= arm-none-eabi
 
 XARGO ?= xargo
+MINIMUM_XARGO_VERSION ?= 0.3.8
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually
 RUSTFLAGS_FOR_XARGO_LINKING := "-C link-arg=-nostartfiles -C link-arg=-Tlayout.ld"
 
@@ -47,12 +48,24 @@ ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component list | grep
   $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component add rust-src)
 endif
 
-# Check that xargo is installed
-ifneq ($(strip $(firstword $(shell $(XARGO) --version 2>&1))), xargo)
+# Check that xargo is installed and up-to-date
+XARGO_CALL := $(shell $(XARGO) --version 2>&1)
+XARGO_NAME := $(strip $(firstword $(XARGO_CALL)))
+XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
+ifneq ($(XARGO_NAME), xargo)
   $(warning Required tool `xargo` not installed.)
   $(warning Running `cargo install xargo` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3s)
   $(shell cargo install xargo)
+  XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
+else ifeq ($(shell expr $(XARGO_VERSION) \< $(MINIMUM_XARGO_VERSION)), 1)
+  $(warning Required tool `xargo` is out-of-date.)
+  $(warning Running `cargo install cargo-update` and `cargo install-update xargo` in 3 seconds (ctrl-c to cancel))
+  $(shell sleep 3s)
+  $(shell cargo install cargo-update)
+  XARGO_UPDATE_RESULT := $(shell cargo install-update xargo))
+  $(info $(XARGO_UPDATE_RESULT))
+  XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
 endif
 
 # Dump configuration for verbose builds
@@ -66,6 +79,7 @@ ifneq ($(V),)
   $(info OBJCOPY=$(OBJCOPY))
   $(info PLATFORM=$(PLATFORM))
   $(info RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN))
+  $(info XARGO_VERSION=$(XARGO_VERSION))
   $(info TARGET=$(TARGET))
   $(info TOCK_KERNEL_VERSION=$(TOCK_KERNEL_VERSION))
   $(info TOOLCHAIN=$(TOOLCHAIN))
