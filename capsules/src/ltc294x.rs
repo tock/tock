@@ -173,6 +173,8 @@ impl<'a> LTC294X<'a> {
                  vbat_alert: VBatAlert)
                  -> ReturnCode {
         self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+            self.i2c.enable();
+
             buffer[0] = Registers::Control as u8;
             buffer[1] = ((int_pin_conf as u8) << 1) | (prescaler << 3) | ((vbat_alert as u8) << 6);
 
