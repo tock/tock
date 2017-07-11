@@ -15,114 +15,58 @@ struct alarm {
   uint32_t expiration;
   subscribe_cb *callback;
   void* ud;
+  alarm_t* next;
+  alarm_t* prev;
 };
 
-typedef struct {
-  alarm_t** data;
-  int capacity;
-  int size;
-} heap_t;
+static alarm_t* root = NULL;
 
-static heap_t alarm_heap = {
-  .data     = NULL,
-  .capacity = 0,
-  .size     = 0,
-};
-
-static int heap_insert(alarm_t* alarm) {
-  if (alarm_heap.capacity - alarm_heap.size <= 0) {
-    // Heap too small! Make it bigger
-    int new_capacity = (alarm_heap.capacity + 1) * 2;
-    alarm_heap.data = (alarm_t**)realloc(alarm_heap.data,
-                                         new_capacity * sizeof(alarm_t*));
-    if (alarm_heap.data == NULL) {
-      return TOCK_ENOMEM;
-    }
-    alarm_heap.capacity = new_capacity;
+static int root_insert(alarm_t* alarm) {
+  if (root == NULL) {
+    root = alarm;
+    root->next = NULL;
+    root->prev = NULL;
   }
-
-  // insert it at the end...
-  int idx = alarm_heap.size;
-  alarm_heap.data[idx] = alarm;
-  alarm_heap.size++;
-
-  // then up-heap...
-  while (idx != 0) {
-    int parent_idx  = (idx - 1) / 2;
-    alarm_t *parent = alarm_heap.data[parent_idx];
-    if (cmp_exp(alarm->t0, alarm->expiration, parent->expiration) < 0) {
-      alarm_heap.data[idx]        = parent;
-      alarm_heap.data[parent_idx] = alarm;
-      idx = parent_idx;
-    } else {
-      break;
+  alarm_t **cur = &root;
+  alarm_t *prev = NULL;
+  while (*cur != NULL) {
+    if (cmp_exp(alarm->t0, alarm->expiration, (*cur)->expiration) < 0) {
+      // insert before
+      alarm_t *tmp = *cur;
+      *cur = alarm;
+      alarm->next = tmp;
+      alarm->prev = prev;
+      tmp->prev = alarm;
     }
+    prev = *cur;
+    cur = &(*cur)->next;
   }
-
   return 0;
 }
 
-static alarm_t* heap_pop(uint32_t now) {
-  if (alarm_heap.size == 0) {
+static alarm_t* root_pop(uint32_t now) {
+  if (root == NULL) {
     return NULL;
-  }
-
-  alarm_t* ret = alarm_heap.data[0];
-
-  // swap leaf element to root
-  alarm_heap.size--;
-  if (alarm_heap.size == 0) {
-    return ret;
-  }
-  alarm_t *alarm = alarm_heap.data[alarm_heap.size];
-  alarm_heap.data[0] = alarm;
-
-  // sift-down
-  int idx = 0;
-  while (idx < alarm_heap.size) {
-    int childl_idx = (idx + 1) * 2;
-    int childr_idx = (idx + 2) * 2;
-
-    if (childl_idx >= alarm_heap.size) {
-      childl_idx = idx;
+  } else {
+    alarm_t *res = root;
+    root = root->next;
+    if (root != NULL) {
+      root->prev = NULL;
     }
-    if (childr_idx >= alarm_heap.size) {
-      childr_idx = idx;
-    }
-
-    alarm_t* childl = alarm_heap.data[childl_idx];
-    alarm_t* childr = alarm_heap.data[childr_idx];
-
-    if (cmp_exp(now, alarm->expiration, childl->expiration) <= 0 &&
-        cmp_exp(now, alarm->expiration, childr->expiration) <= 0) {
-      break;
-    } else if (cmp_exp(now, childl->expiration, childr->expiration) < 0) {
-      alarm_heap.data[idx]        = childl;
-      alarm_heap.data[childl_idx] = alarm;
-    } else {
-      alarm_heap.data[idx]        = childr;
-      alarm_heap.data[childr_idx] = alarm;
-    }
+    res->next = NULL;
+    return res;
   }
-
-  return ret;
 }
 
-static alarm_t* heap_peek(void) {
-  if (alarm_heap.size > 0) {
-    return alarm_heap.data[0];
-  } else {
-    return NULL;
-  }
+static alarm_t* root_peek(void) {
+  return root;
 }
 
 static void callback( __attribute__ ((unused)) int unused0,
                       __attribute__ ((unused)) int unused1,
                       __attribute__ ((unused)) int unused2,
                       __attribute__ ((unused)) void* ud) {
-  int i = 0;
-  for (alarm_t* alarm = heap_peek(); alarm != NULL; alarm = heap_peek()) {
-    i++;
+  for (alarm_t* alarm = root_peek(); alarm != NULL; alarm = root_peek()) {
     uint32_t now = alarm_read();
     // has the alarm not expired yet? (distance from `now` has to be larger or
     // equal to distance from current clock value.
@@ -130,7 +74,7 @@ static void callback( __attribute__ ((unused)) int unused0,
       alarm_internal_absolute(alarm->expiration);
       break;
     } else {
-      heap_pop(now);
+      root_pop(now);
 
       if (alarm->callback) {
         tock_enqueue(alarm->callback, now, alarm->expiration, 0, alarm->ud);
@@ -149,12 +93,14 @@ alarm_t *alarm_at(uint32_t expiration, subscribe_cb cb, void* ud) {
   alarm->expiration = expiration;
   alarm->callback   = cb;
   alarm->ud         = ud;
+  alarm->prev       = NULL;
+  alarm->next       = NULL;
 
-  if (heap_insert(alarm) != 0) {
+  if (root_insert(alarm) != 0) {
     return NULL;
   }
 
-  if (heap_peek() == alarm) {
+  if (root_peek() == alarm) {
     alarm_internal_subscribe((subscribe_cb*)callback, NULL);
     alarm_internal_absolute(alarm->expiration);
   }
@@ -163,9 +109,23 @@ alarm_t *alarm_at(uint32_t expiration, subscribe_cb cb, void* ud) {
 }
 
 void alarm_cancel(alarm_t* alarm) {
-  // Removing from a heap is tricky, so just remove the callback and let it get
-  // lazily removed.
-  alarm->callback = NULL;
+  if (alarm->prev != NULL) {
+    alarm->prev->next = alarm->next;
+  }
+  if (alarm->next != NULL) {
+    alarm->next->prev = alarm->prev;
+  }
+
+  if (root == alarm) {
+    root = alarm->next;
+    if (root != NULL) {
+      alarm_internal_absolute(root->expiration);
+    }
+  }
+
+  alarm->prev = NULL;
+  alarm->next = NULL;
+
 }
 
 uint32_t alarm_read(void) {
@@ -223,10 +183,8 @@ timer_repeating_t* timer_every(uint32_t ms, subscribe_cb cb, void* ud) {
 }
 
 void timer_cancel(timer_repeating_t* timer) {
-  // Removing from a heap is tricky, so just remove the callback and let it get
-  // lazily removed.
-  timer->alarm->callback = NULL;
-  free(timer);
+  alarm_cancel(timer->alarm);
+  free(timer->alarm);
 }
 
 void delay_ms(uint32_t ms) {
@@ -262,5 +220,6 @@ int yield_for_with_timeout(bool* cond, uint32_t ms) {
   }
 
   alarm_cancel(a);
+  free(a);
   return TOCK_SUCCESS;
 }
