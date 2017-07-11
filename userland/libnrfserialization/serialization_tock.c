@@ -150,6 +150,8 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
                         // Got a response, cancel any pending timer
                         if (_timeout_timer != NULL) {
                             alarm_cancel(_timeout_timer);
+                            free(_timeout_timer);
+                            _timeout_timer = NULL;
                         }
                     }
                     break;
