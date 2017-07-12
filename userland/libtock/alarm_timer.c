@@ -14,7 +14,7 @@ static alarm_t* root = NULL;
 
 static void root_insert(alarm_t* alarm) {
   if (root == NULL) {
-    root = alarm;
+    root       = alarm;
     root->next = NULL;
     root->prev = NULL;
     return;
@@ -26,17 +26,17 @@ static void root_insert(alarm_t* alarm) {
     if (cmp_exp(alarm->t0, alarm->expiration, (*cur)->expiration) < 0) {
       // insert before
       alarm_t *tmp = *cur;
-      *cur = alarm;
+      *cur        = alarm;
       alarm->next = tmp;
       alarm->prev = prev;
-      tmp->prev = alarm;
+      tmp->prev   = alarm;
       return;
     }
     prev = *cur;
-    cur = &prev->next;
+    cur  = &prev->next;
   }
   // didn't return, so prev points to the last in the list
-  prev->next = alarm;
+  prev->next  = alarm;
   alarm->prev = prev;
   alarm->next = NULL;
 
@@ -139,11 +139,11 @@ static void repeating_cb( uint32_t now,
                           __attribute__ ((unused)) int unused2,
                           void* ud) {
   tock_timer_t* repeating = (tock_timer_t*)ud;
-  uint32_t interval   = repeating->interval;
-  uint32_t expiration = now + interval;
-  uint32_t cur_exp    = repeating->alarm.expiration;
+  uint32_t interval       = repeating->interval;
+  uint32_t expiration     = now + interval;
+  uint32_t cur_exp        = repeating->alarm.expiration;
   alarm_at(expiration, (subscribe_cb*)repeating_cb,
-                              (void*)repeating, &repeating->alarm);
+           (void*)repeating, &repeating->alarm);
   repeating->cb(now, cur_exp, 0, repeating->ud);
 }
 
@@ -158,7 +158,7 @@ void timer_every(uint32_t ms, subscribe_cb cb, void* ud, tock_timer_t* repeating
   uint32_t expiration = now + interval;
 
   alarm_at(expiration, (subscribe_cb*)repeating_cb,
-      (void*)repeating, &repeating->alarm);
+           (void*)repeating, &repeating->alarm);
 }
 
 void timer_cancel(tock_timer_t* timer) {

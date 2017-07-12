@@ -1,6 +1,6 @@
 #include <led.h>
-#include <timer.h>
 #include <stdlib.h>
+#include <timer.h>
 
 static int interval;
 
