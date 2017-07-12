@@ -9,9 +9,7 @@
  *
  * # Structures
  *
- * `timer_repeating_t` represents a handle to a continuous, repeating alarm. In
- * addition, the single-shot timer uses the `alarm_t` structure defined in
- * alarm.h.
+ * `tock_timer_t` represents a handle to a timer.
  *
  * ## Example
  *
@@ -38,31 +36,42 @@ extern "C" {
  *
  * An opaque handle to a repeating alarm created by `alarm_every`.
  */
-typedef struct timer_repeating timer_repeating_t;
+typedef struct tock_timer {
+  uint32_t interval;
+  subscribe_cb* cb;
+  void* ud;
+  alarm_t alarm;
+} tock_timer_t;
+
+
 
 /** \brief Create a new alarm to fire in `ms` milliseconds.
  *
  * \param ms the number of milliseconds to fire the alarm after.
  * \param callback a callback to be invoked when the alarm expires.
  * \param userdata passed to the callback.
- * \return A handle to the alarm that was created.
+ * \param A handle to the alarm that was created.
  */
-alarm_t *timer_in(uint32_t ms, subscribe_cb, void*);
+void timer_in(uint32_t ms, subscribe_cb, void*, tock_timer_t* timer);
 
 /** \brief Create a new repeating alarm to fire every `ms` milliseconds.
+ *
+ * The `timer` parameter is allocated by the caller and must live as long as
+ * the timer is outstanding.
  *
  * \param ms the interval to fire the alarm at in milliseconds.
  * \param callback a callback to be invoked when the alarm expires.
  * \param userdata passed to the callback.
- * \return A handle to the repeating alarm that was created.
+ * \param a pointer to a new tock_timer_t to be used by the implementation to
+ *        keep track of the alarm.
  */
-timer_repeating_t* timer_every(uint32_t ms, subscribe_cb, void*);
+void timer_every(uint32_t ms, subscribe_cb, void*, tock_timer_t* timer);
 
 /** \brief Cancels an existing alarm.
  *
  * \param alarm
  */
-void timer_cancel(timer_repeating_t*);
+void timer_cancel(tock_timer_t*);
 
 /** \brief Blocks for the given amount of time in millisecond.
  *
