@@ -11,7 +11,8 @@ int main(void) {
 
   while (1) {
     bool done = false;
-    timer_in(1500, timer_cb, &done);
+    tock_timer_t timer;
+    timer_in(1500, timer_cb, &done, &timer);
 
     int ret = yield_for_with_timeout(&done, 1000);
     if (ret == TOCK_SUCCESS) {
