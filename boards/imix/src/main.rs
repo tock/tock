@@ -138,7 +138,7 @@ unsafe fn set_pin_primary_functions() {
     PC[05].configure(Some(A)); // MOSI        --  SPI MOSI
     PC[06].configure(Some(A)); // SCK         --  SPI CLK
     PC[07].configure(Some(B)); // RTS2 (BLE)  -- USART2_RTS
-    PC[08].configure(Some(B)); // CTS2 (BLE)  -- USART2_CTS
+    PC[08].configure(Some(E)); // CTS2 (BLE)  -- USART2_CTS
     PC[09].configure(None); //... NRF GPIO    -- GPIO
     PC[10].configure(None); //... USER LED    -- GPIO
     PC[11].configure(Some(B)); // RX2 (BLE)   -- USART2_RX
