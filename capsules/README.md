@@ -103,7 +103,7 @@ These allow for multiple users of shared hardware resources in the kernel.
 - **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
 
 
-### Utilty Capsules
+### Utility Capsules
 
 Other capsules that implement reusable logic.
 
