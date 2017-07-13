@@ -736,11 +736,9 @@ impl hil::i2c::I2CMaster for I2CHw {
         unsafe {
             pm::enable_clock(self.master_clock);
         }
-
-        // If exists, disable slave clock
-        self.slave_clock.map(|slave_clock| unsafe {
-            pm::disable_clock(slave_clock);
-        });
+        
+        //disable the i2c slave peripheral
+        hil::i2c::I2CSlave::disable(self);
 
         let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
 
