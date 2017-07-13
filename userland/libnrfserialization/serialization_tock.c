@@ -57,7 +57,7 @@ static bool _need_wakeup = false;
 static bool _queued_packets = false;
 // Timer to detect when we fail to get a response message after sending a
 // command.
-static alarm_t* _timeout_timer = NULL;
+static tock_timer_t* _timeout_timer = NULL;
 // yield() variable.
 static bool nrf_serialization_done = false;
 
@@ -149,7 +149,9 @@ void ble_serialization_callback (int callback_type, int rx_len, int c, void* oth
 
                         // Got a response, cancel any pending timer
                         if (_timeout_timer != NULL) {
-                            alarm_cancel(_timeout_timer);
+                            timer_cancel(_timeout_timer);
+                            free(_timeout_timer);
+                            _timeout_timer = NULL;
                         }
                     }
                     break;
@@ -344,7 +346,8 @@ uint32_t ser_phy_tx_pkt_send (const uint8_t* p_buffer, uint16_t num_of_bytes) {
     if (tx_len == 0) {
         // We need to set a timer in case we never get the response packet.
         if (ser_sd_transport_is_busy()) {
-            _timeout_timer = timer_in(100, timeout_timer_cb, NULL);
+            _timeout_timer = (tock_timer_t*)malloc(sizeof(tock_timer_t));
+            timer_in(100, timeout_timer_cb, NULL, _timeout_timer);
         }
 
         // Encode the number of bytes as the first two bytes of the outgoing
@@ -520,7 +523,8 @@ uint32_t app_timer_start (app_timer_id_t timer_id,
         p_node->p_context = p_context;
         // timer_repeating_subscribe(p_node->p_timeout_handler, &timer_id);
         // Use 0 for the prescaler
-        timer_every(APP_TIMER_MS(timeout_ticks, 0), serialization_timer_cb, timer_id);
+        tock_timer_t* timer = (tock_timer_t*)malloc(sizeof(tock_timer_t));
+        timer_every(APP_TIMER_MS(timeout_ticks, 0), serialization_timer_cb, timer_id, timer);
     } else {
         // timer_oneshot_subscribe(p_node->p_timeout_handler, &timer_id);
     }

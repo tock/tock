@@ -18,7 +18,8 @@
  *
  *     uint32_t frequency = alarm_frequency();
  *     uint32_t now = alarm_now();
- *     alarm_at(now + frequency, callback, (void*)"1 second elapsed");
+ *     static alarm_t alarm;
+ *     alarm_at(now + frequency, callback, (void*)"1 second elapsed", &alarm);
  *
  */
 
@@ -34,22 +35,33 @@ extern "C" {
  *
  * An opaque handle to an alarm created by `alarm_at` or `alarm_in`. Memory
  * management is handled by the underlying implementation.
- *
- * \bug Memory mangaement shouldn't be handled by the underlying
- * implementation. This makes it pretty dangerous to ever use `alarm_cancel`.
  */
-typedef struct alarm alarm_t;
+typedef struct alarm {
+  uint32_t t0;
+  uint32_t expiration;
+  subscribe_cb *callback;
+  void* ud;
+  struct alarm* next;
+  struct alarm* prev;
+} alarm_t;
+
 
 /** \brief Create a new alarm to fire at a particular clock value.
+ *
+ * The `alarm` parameter is allocated by the caller and must live as long as
+ * the alarm is outstanding.
  *
  * \param expiration the clock value to schedule the alarm for.
  * \param callback a callback to be invoked when the alarm expires.
  * \param userdata passed to the callback.
- * \return A handle to the alarm that was created.
+ * \param a pointer to a new alarm_t to be used by the implementation to keep
+ *        track of the alarm.
  */
-alarm_t *alarm_at(uint32_t expiration, subscribe_cb, void*);
+void alarm_at(uint32_t expiration, subscribe_cb, void*, alarm_t *alarm);
 
 /** \brief Cancels an existing alarm.
+ *
+ * The caller is responsible for freeing the `alarm_t`.
  *
  * \param alarm
  */
