@@ -736,7 +736,7 @@ impl hil::i2c::I2CMaster for I2CHw {
         unsafe {
             pm::enable_clock(self.master_clock);
         }
-        
+
         //disable the i2c slave peripheral
         hil::i2c::I2CSlave::disable(self);
 
