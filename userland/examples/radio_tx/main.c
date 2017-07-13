@@ -16,10 +16,9 @@ int main(void) {
     packet[i] = i;
   }
   gpio_enable_output(0);
-  radio_init();
   radio_set_addr(0x1540);
-  radio_init();
   radio_set_pan(0xABCD);
+  radio_commit();
   radio_init();
   while (1) {
     led_toggle(0);
