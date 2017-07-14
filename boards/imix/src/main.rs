@@ -175,13 +175,12 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
-    let power_config = power::ModulePowerConfig {
+    power::configure_submodules(power::SubmoduleConfig {
         rf233: true,
         nrf51422: true,
         sensors: true,
         trng: true,
-    };
-    power::configure_module_power(power_config);
+    });
 
     // # CONSOLE
 

@@ -1,3 +1,24 @@
+//! Implements a helper function for enabling/disabling power on the imix
+//! submodules.
+//  On imix, submodules are powered on/off via power gate ICs. The MCU has an
+//  enable pin connected to each power gate. Setting an enable pin high or low
+//  turns on or off the corresponding submodule.
+//
+//  For the RF233, NRF, and sensors, there is an additional IC which electrically
+//  connects/disconnects the I2C and SPI busses to the appropriate submodules,
+//  depending on their power state. This is because the busses can inadvertently
+//  supply power to the connected submodules. The correct behavior is all handled
+//  in hardware via the enable pins.
+//
+//  For the RF233 and NRF, there are still some remaining GPIO pins that need to
+//  be configured when these submodules are turned off. These pins are not gated
+//  by a switch like the I2C and SPI busses are, so if the kernel does not
+//  explicitly pull them to ground, the submodule will be powered through the GPIO.
+//
+//  This file exports `configure_submodules`, which hides the complexity
+//  of correctly turning the submodules on and off. It allows the caller to
+//  conveniently disable and enable the individual submodules at will.
+
 extern crate kernel;
 extern crate sam4l;
 
@@ -5,102 +26,116 @@ use kernel::hil::Controller;
 use sam4l::gpio::{PA, PB, PC};
 use sam4l::gpio::GPIOPin;
 use sam4l::gpio::PeripheralFunction;
-use sam4l::gpio::PeripheralFunction::{A, B};
+use sam4l::gpio::PeripheralFunction::{A, B, E};
 
-type DetachablePin = (&'static GPIOPin, Option<PeripheralFunction>);
-
-trait Detachable {
-    fn detach(&self);
-    fn restore(&self, function: Option<PeripheralFunction>);
+struct DetachablePin {
+    pin: &'static GPIOPin,
+    function: Option<PeripheralFunction>,
 }
 
-impl Detachable for GPIOPin {
+impl DetachablePin {
     fn detach(&self) {
-        self.configure(None);
-        self.enable_output();
-        self.clear();
+        self.pin.configure(None);
+        self.pin.enable_output();
+        self.pin.clear();
     }
 
-    fn restore(&self, function: Option<PeripheralFunction>) {
-        self.configure(function);
+    fn restore(&self) {
+        self.pin.configure(self.function);
     }
 }
 
-trait PowerGated {
-    fn power(&self, state: bool);
-}
-
-struct ImixSubmodule {
+struct Submodule<'a> {
     gate_pin: &'static GPIOPin,
-    detachable_pins: Option<&'static [DetachablePin]>,
+    detachable_pins: &'a [DetachablePin],
 }
 
-impl ImixSubmodule {
-    const fn new(detachable_pins: Option<&'static [DetachablePin]>,
-                 gate_pin: &'static GPIOPin)
-                 -> ImixSubmodule {
-        ImixSubmodule {
-            gate_pin: gate_pin,
-            detachable_pins: detachable_pins,
-        }
-    }
-}
-
-impl PowerGated for ImixSubmodule {
+impl<'a> Submodule<'a> {
     fn power(&self, state: bool) {
         self.gate_pin.enable_output();
         match state {
             true => {
-                if self.detachable_pins.is_some() {
-                    for it in self.detachable_pins.unwrap().iter() {
-                        let &(pin, function) = it;
-                        pin.restore(function);
-                    }
+                for d in self.detachable_pins.iter() {
+                    d.restore();
                 }
                 self.gate_pin.set();
             }
             false => {
                 self.gate_pin.clear();
-                if self.detachable_pins.is_some() {
-                    for it in self.detachable_pins.unwrap().iter() {
-                        let &(pin, _) = it;
-                        pin.detach();
-                    }
+                for d in self.detachable_pins.iter() {
+                    d.detach();
                 }
             }
         }
     }
 }
 
-pub struct ModulePowerConfig {
+pub struct SubmoduleConfig {
     pub rf233: bool,
     pub nrf51422: bool,
     pub sensors: bool,
     pub trng: bool,
 }
 
-pub unsafe fn configure_module_power(enabled_modules: ModulePowerConfig) {
-    let rf233_detachable_pins = static_init!([DetachablePin; 3],
-                                             [(&PA[08], None), (&PA[09], None), (&PA[10], None)]);
-    let rf233 = static_init!(ImixSubmodule,
-                             ImixSubmodule::new(Some(rf233_detachable_pins), &PC[18]));
+pub unsafe fn configure_submodules(enabled_submodules: SubmoduleConfig) {
+    let rf233_detachable_pins = [DetachablePin {
+                                     pin: &PA[08],
+                                     function: None,
+                                 },
+                                 DetachablePin {
+                                     pin: &PA[09],
+                                     function: None,
+                                 },
+                                 DetachablePin {
+                                     pin: &PA[10],
+                                     function: None,
+                                 }];
+    let rf233 = Submodule {
+        gate_pin: &PC[18],
+        detachable_pins: &rf233_detachable_pins,
+    };
 
-    let nrf_detachable_pins = static_init!([DetachablePin; 6],
-                                           [(&PB[07], None),
-                                            (&PA[17], None),
-                                            (&PA[18], Some(A)),
-                                            (&PC[07], Some(B)),
-                                            (&PC[08], Some(B)),
-                                            (&PC[09], None)]);
+    let nrf_detachable_pins = [DetachablePin {
+                                   pin: &PB[07],
+                                   function: None,
+                               },
+                               DetachablePin {
+                                   pin: &PA[17],
+                                   function: None,
+                               },
+                               DetachablePin {
+                                   pin: &PA[18],
+                                   function: Some(A),
+                               },
+                               DetachablePin {
+                                   pin: &PC[07],
+                                   function: Some(B),
+                               },
+                               DetachablePin {
+                                   pin: &PC[08],
+                                   function: Some(E),
+                               },
+                               DetachablePin {
+                                   pin: &PC[09],
+                                   function: None,
+                               }];
+    let nrf = Submodule {
+        gate_pin: &PC[17],
+        detachable_pins: &nrf_detachable_pins,
+    };
 
-    let nrf = static_init!(ImixSubmodule,
-                           ImixSubmodule::new(Some(nrf_detachable_pins), &PC[17]));
+    let sensors = Submodule {
+        gate_pin: &PC[16],
+        detachable_pins: &[],
+    };
 
-    let sensors = static_init!(ImixSubmodule, ImixSubmodule::new(None, &PC[16]));
-    let trng = static_init!(ImixSubmodule, ImixSubmodule::new(None, &PC[19]));
+    let trng = Submodule {
+        gate_pin: &PC[19],
+        detachable_pins: &[],
+    };
 
-    rf233.power(enabled_modules.rf233);
-    nrf.power(enabled_modules.nrf51422);
-    sensors.power(enabled_modules.sensors);
-    trng.power(enabled_modules.trng);
+    rf233.power(enabled_submodules.rf233);
+    nrf.power(enabled_submodules.nrf51422);
+    sensors.power(enabled_submodules.sensors);
+    trng.power(enabled_submodules.trng);
 }
