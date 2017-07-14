@@ -43,10 +43,14 @@
 //! Then a basic implementation of this trait should look like:
 //!
 //! ```rust
+//!
+//! impl hil::flash::HasClient for NewChipStruct {
+//!     fn set_client(&'a self, client: &'a C) { }
+//! }
+//!
 //! impl hil::flash::Flash for NewChipStruct {
 //!     type Page = NewChipPage;
 //!
-//!     fn set_client(&self, client: &'static hil::flash::Client<Self>) { }
 //!     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { }
 //!     fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode { }
 //!     fn erase_page(&self, page_number: usize) -> ReturnCode { }
@@ -89,14 +93,16 @@ pub enum Error {
     FlashError,
 }
 
+pub trait HasClient<'a, C> {
+    /// Set the client for this flash peripheral. The client will be called
+    /// when operations complete.
+    fn set_client(&'a self, client: &'a C);
+}
+
 /// A page of writable persistent flash memory.
 pub trait Flash {
     /// Type of a single flash page for the given implementation.
     type Page: AsMut<[u8]>;
-
-    /// Set the client for this flash peripheral. The client will be called
-    /// when operations complete.
-    fn set_client(&self, client: &'static Client<Self>);
 
     /// Read a page of flash into the buffer.
     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode;

@@ -27,7 +27,7 @@
 //!     capsules::nonvolatile_to_pages::NonvolatileToPages::new(
 //!         &mut sam4l::flashcalw::FLASH_CONTROLLER,
 //!         &mut PAGEBUFFER));
-//! hil::flash::Flash::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
+//! hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
 //! ```
 
 use core::cell::Cell;

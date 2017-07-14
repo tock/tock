@@ -905,12 +905,14 @@ impl FLASHCALW {
     }
 }
 
-impl hil::flash::Flash for FLASHCALW {
-    type Page = Sam4lPage;
-
-    fn set_client(&self, client: &'static hil::flash::Client<Self>) {
+impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FLASHCALW {
+    fn set_client(&self, client: &'static C) {
         self.client.set(Some(client));
     }
+}
+
+impl hil::flash::Flash for FLASHCALW {
+    type Page = Sam4lPage;
 
     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
         self.read_range(page_number * (PAGE_SIZE as usize), buf.len(), buf)
