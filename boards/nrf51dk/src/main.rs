@@ -272,7 +272,7 @@ pub unsafe fn reset_handler() {
          &mut nrf51::ble_advertising_driver::BUF,
          ble_radio_virtual_alarm),
         256/8);
-    //nrf51::radio::RADIO.set_client(ble_radio);
+    nrf51::radio::RADIO.set_client(ble_radio);
     ble_radio_virtual_alarm.set_client(ble_radio);
 
     // Start all of the clocks. Low power operation will require a better
