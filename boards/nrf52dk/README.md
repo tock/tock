@@ -50,7 +50,7 @@ $ ./jdbserver_pca10040.sh
 ```
 Alternative launch it manually:
 ```bash
-$ JLinkGDBServer -device nrf51422 -speed 1200 -if swd -AutoConnect 1 -port 2331
+$ JLinkGDBServer -device nrf52 -speed 1200 -if swd -AutoConnect 1 -port 2331
 ```
 In the second terminal start gdb and tell it to use the `gdbinit`:
 
