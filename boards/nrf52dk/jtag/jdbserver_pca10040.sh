@@ -1,1 +1,1 @@
-JLinkGDBServer -if swd -speed 1200 -device nrf52
+JLinkGDBServer -device nrf52 -speed 1200 -if swd -AutoConnect 1 -port 2331
