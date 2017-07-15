@@ -66,7 +66,7 @@ pub const PAYLOAD_LENGTH: usize = 39;
 // Byte #1
 // PDU Type (4 bits) - see below for info
 // RFU (2 bits)      - don't care
-// TXAdd (1 bit)     - don't used yet (use public or private addr)
+// TXAdd (1 bit)     - don't used yet (use public or private address)
 // RXAdd (1 bit)     - don't care (not used for beacons)
 //
 // Byte #2
@@ -87,12 +87,13 @@ pub const PAYLOAD_LENGTH: usize = 39;
 //  ADV_NONCONN_IND    Yes           No          No          Non-connectible Undirected Advertising
 //  ADV_SCAN_IND       Yes           Yes         No          Scannable Undirected Advertising
 
-static mut PAYLOAD: [u8; 39] = [0x00; 39];
+static mut PAYLOAD: [u8; PAYLOAD_LENGTH] = [0x00; PAYLOAD_LENGTH];
 
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
     txpower: Cell<usize>,
     client: Cell<Option<&'static ble_advertising_driver::RxClient>>,
+    freq: Cell<u32>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -103,6 +104,7 @@ impl Radio {
             regs: peripheral_registers::RADIO_BASE as *const peripheral_registers::RADIO_REGS,
             txpower: Cell::new(0),
             client: Cell::new(None),
+            freq: Cell::new(0),
         }
     }
 
@@ -157,8 +159,15 @@ impl Radio {
         // BLE MODE
         self.set_channel_rate(0x03);
 
-        self.set_channel_freq(37);
-        self.set_data_white_iv(37);
+        // temporary to listen on all advertising frequencies
+        match self.freq.get() {
+            37 => self.freq.set(38),
+            38 => self.freq.set(39),
+            _ => self.freq.set(37), 
+        }
+
+        self.set_channel_freq(self.freq.get());
+        self.set_data_white_iv(self.freq.get());
 
         // Set PREFIX | BASE Address
         regs.PREFIX0.set(0x0000008e);
@@ -265,8 +274,8 @@ impl Radio {
         regs.POWER.set(0);
     }
 
-    // pre-condition validated before arrving here
-    // argue where the put the returncode
+    // pre-condition validated before arriving here
+    // argue where the put the return code
     fn set_txpower(&self) {
         let regs = unsafe { &*self.regs };
         regs.TXPOWER.set(self.txpower.get() as u32);
@@ -345,7 +354,7 @@ impl Radio {
                         unsafe {
                             self.client.get().map(|client| {
                                 client.receive(&mut PAYLOAD,
-                                               39,
+                                               PAYLOAD_LENGTH as u8,
                                                kernel::returncode::ReturnCode::SUCCESS)
                             });
                         }

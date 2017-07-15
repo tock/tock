@@ -235,7 +235,6 @@ impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::hil::time::Client for BLE<'a,
     }
 }
 
-// FIXME: Temporary callback function *stolen* from the radio HIL
 impl<'a, A: kernel::hil::time::Alarm + 'a> RxClient for BLE<'a, A> {
     fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         for cntr in self.app.iter() {
