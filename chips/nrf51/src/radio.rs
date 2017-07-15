@@ -66,7 +66,7 @@ pub const PAYLOAD_LENGTH: usize = 39;
 // Byte #1
 // PDU Type (4 bits) - see below for info
 // RFU (2 bits)      - don't care
-// TXAdd (1 bit)     - don't used yet (use public or private address)
+// TXAdd (1 bit)     - don't used yet (use public or private addr)
 // RXAdd (1 bit)     - don't care (not used for beacons)
 //
 // Byte #2
@@ -163,7 +163,7 @@ impl Radio {
         match self.freq.get() {
             37 => self.freq.set(38),
             38 => self.freq.set(39),
-            _ => self.freq.set(37), 
+            _ => self.freq.set(37),
         }
 
         self.set_channel_freq(self.freq.get());
@@ -274,8 +274,8 @@ impl Radio {
         regs.POWER.set(0);
     }
 
-    // pre-condition validated before arriving here
-    // argue where the put the return code
+    // pre-condition validated before arrving here
+    // argue where the put the returncode
     fn set_txpower(&self) {
         let regs = unsafe { &*self.regs };
         regs.TXPOWER.set(self.txpower.get() as u32);
