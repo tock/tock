@@ -96,7 +96,7 @@ const BUTTON4_PIN: usize = 16;
 const BUTTON_RST_PIN: usize = 21;
 
 #[macro_use]
-mod io;
+pub mod io;
 
 
 unsafe fn load_process() -> &'static mut [Option<kernel::Process<'static>>] {

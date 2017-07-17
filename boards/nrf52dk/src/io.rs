@@ -51,12 +51,9 @@ macro_rules! println {
 }
 
 #[cfg(not(test))]
-#[lang = "panic_fmt"]
 #[no_mangle]
-pub unsafe extern "C" fn rust_begin_unwind(_args: Arguments,
-                                           _file: &'static str,
-                                           _line: usize)
-                                           -> ! {
+#[lang="panic_fmt"]
+pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u32) -> ! {
     use kernel::hil::gpio::Pin;
     use kernel::process;
     // The nRF52 DK LEDs (see back of board)
@@ -64,8 +61,8 @@ pub unsafe extern "C" fn rust_begin_unwind(_args: Arguments,
     const LED2_PIN: usize = 18;
 
     let writer = &mut WRITER;
-    let _ = writer.write_fmt(format_args!("\r\nKernel panic at {}:{}:\r\n\t\"", _file, _line));
-    let _ = write(writer, _args);
+    let _ = writer.write_fmt(format_args!("\r\nKernel panic at {}:{}:\r\n\t\"", file, line));
+    let _ = write(writer, args);
     let _ = writer.write_str("\"\r\n");
 
     // Print version of the kernel
