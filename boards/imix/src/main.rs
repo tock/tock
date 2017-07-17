@@ -30,6 +30,9 @@ mod i2c_dummy;
 #[allow(dead_code)]
 mod spi_dummy;
 
+#[allow(dead_code)]
+mod power;
+
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -171,6 +174,13 @@ pub unsafe fn reset_handler() {
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
 
     set_pin_primary_functions();
+
+    power::configure_submodules(power::SubmoduleConfig {
+        rf233: true,
+        nrf51422: true,
+        sensors: true,
+        trng: true,
+    });
 
     // # CONSOLE
 
