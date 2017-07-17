@@ -30,9 +30,9 @@ int radio_init(void) {
   return 0;
 } // Do nothing for now
 
-int rx_result = 0;
+int rx_result      = 0;
 int rx_payload_len = 0;
-int tx_acked = 0;
+int tx_acked       = 0;
 
 static void cb_tx(__attribute__ ((unused)) int len,
                   int acked,
@@ -46,9 +46,9 @@ static void cb_rx(int result,
                   int payload_len,
                   __attribute__ ((unused)) int unused2,
                   void* ud) {
-  rx_result = result;
+  rx_result      = result;
   rx_payload_len = payload_len;
-  *((bool*)ud) = true;
+  *((bool*)ud)   = true;
 }
 
 static void cb_config(__attribute__ ((unused)) int unused0,
