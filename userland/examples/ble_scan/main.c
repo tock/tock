@@ -1,8 +1,6 @@
 #include <ble.h>
-#include <led.h>
 #include <stdio.h>
 #include <string.h>
-#include <timer.h>
 
 /*
  * BLE Demo Application
@@ -61,7 +59,8 @@ int main(void)
 bool isDetected(void)
 {
   for (int i = 0; i < scan_list.size; i++) {
-    if (memcmp(scan_list.data[i], scan, BUF_SIZE) == 0) {
+    // only compare address
+    if (memcmp(scan_list.data[i], scan, 8) == 0) {
       return true;
     }
   }

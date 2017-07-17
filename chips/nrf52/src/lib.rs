@@ -14,6 +14,7 @@ mod peripheral_registers;
 mod nvic;
 
 
+pub mod ble_advertising_driver;
 pub mod chip;
 pub mod clock;
 pub mod gpio;
@@ -23,4 +24,5 @@ pub mod uart;
 pub mod nvmc;
 pub mod uicr;
 pub mod pinmux;
+pub mod radio;
 pub use chip::NRF52;

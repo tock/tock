@@ -33,8 +33,6 @@ impl Controller for Rtc {
 const COMPARE0_EVENT: u32 = 1 << 16;
 
 impl Rtc {
-    #[inline(never)]
-    #[no_mangle]
     pub fn start(&self) {
         // This function takes a nontrivial amount of time
         // So it should only be called during initialization, not each tick
@@ -68,8 +66,6 @@ impl Rtc {
         self.callback.get().map(|cb| { cb.fired(); });
     }
 
-    #[inline(never)]
-    #[no_mangle]
     pub fn set_client(&self, client: &'static time::Client) {
         self.callback.set(Some(client));
     }
@@ -88,14 +84,10 @@ impl Time for Rtc {
 }
 
 impl Alarm for Rtc {
-    #[inline(never)]
-    #[no_mangle]
     fn now(&self) -> u32 {
         rtc1().counter.get()
     }
 
-    #[inline(never)]
-    #[no_mangle]
     fn set_alarm(&self, tics: u32) {
         // Similarly to the disable function, here we don't restart the timer
         // Instead, we just listen for it again
@@ -103,8 +95,6 @@ impl Alarm for Rtc {
         rtc1().intenset.set(COMPARE0_EVENT);
     }
 
-    #[inline(never)]
-    #[no_mangle]
     fn get_alarm(&self) -> u32 {
         rtc1().cc[0].get()
     }
