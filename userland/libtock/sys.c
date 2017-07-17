@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -76,6 +77,12 @@ int _kill(pid_t pid, int sig)
 
 caddr_t _sbrk(int incr)
 {
-  return memop(1, incr);
+  void* ret;
+  ret = memop(1, incr);
+  if ( ((int) ret) == TOCK_ENOMEM) {
+    errno = ENOMEM;
+    return (caddr_t) -1;
+  }
+  return ret;
 }
 
