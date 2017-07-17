@@ -1,7 +1,6 @@
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Date: July 8, 2017
 
-
 use chip;
 use core::cell::Cell;
 use kernel;
@@ -10,9 +9,10 @@ use peripheral_interrupts;
 use peripheral_registers;
 use pinmux;
 
+// this could potentially be replaced to point directly to
+// the WRITE_BUFFER in capsules::console::WRITE_BUFFER
 const BUF_SIZE: usize = 64;
 static mut BUF: [u8; BUF_SIZE] = [0; BUF_SIZE];
-
 
 pub struct UART {
     regs: *const peripheral_registers::UART,
@@ -28,12 +28,6 @@ pub struct UARTParams {
 }
 
 pub static mut UART0: UART = UART::new();
-
-// This UART implementation uses pins 5-8:
-//   pin 5: RTS
-//   pin 6: TX
-//   pin 7 CTS
-//   pin 8: RX
 
 impl UART {
     pub const fn new() -> UART {
@@ -168,6 +162,7 @@ impl UART {
         let regs = &*self.regs;
 
         self.remaining_bytes.set(1);
+        self.offset.set(0);
         regs.event_endtx.set(0);
         BUF[0] = byte;
         self.set_dma_pointer_to_buffer();
@@ -188,15 +183,11 @@ impl UART {
         regs.event_endrx.get() & 0b1 != 0
     }
 
-    // this could potentially to replaced to point directly to
-    // the WRITE_BUFFER in capsules::console::WRITE_BUFFER
     fn set_dma_pointer_to_buffer(&self) {
         let regs = unsafe { &*self.regs };
         unsafe { regs.txd_ptr.set((&BUF[self.offset.get()] as *const u8) as u32) }
     }
 
-    // this could potentially to replaced by using the WRITE_BUFFER in
-    // capsules::console::WRITE_BUFFER directly
     fn copy_data_to_uart_buffer(&self, tx_len: usize) {
         self.buffer.map(|buffer| for i in 0..tx_len {
             unsafe { BUF[i] = buffer[i] }

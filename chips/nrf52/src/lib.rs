@@ -20,5 +20,7 @@ pub mod gpio;
 pub mod timer;
 pub mod rtc;
 pub mod uart;
+pub mod nvmc;
+pub mod uicr;
 pub mod pinmux;
 pub use chip::NRF52;
