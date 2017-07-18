@@ -1,6 +1,5 @@
 use chip;
 use core::cell::Cell;
-use core::mem;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart;
@@ -53,7 +52,7 @@ pub struct Registers {
 const UART_BASE: u32 = 0x40002000;
 
 pub struct UART {
-    regs: *mut Registers,
+    regs: *const Registers,
     client: Cell<Option<&'static uart::Client>>,
     buffer: TakeCell<'static, [u8]>,
     len: Cell<usize>,
@@ -84,7 +83,7 @@ impl UART {
     }
 
     pub fn configure(&self, tx: Pinmux, rx: Pinmux, cts: Pinmux, rts: Pinmux) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
 
         regs.pseltxd.set(tx);
         regs.pselrxd.set(rx);
@@ -93,7 +92,7 @@ impl UART {
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         match baud_rate {
             1200 => regs.baudrate.set(0x0004F000),
             2400 => regs.baudrate.set(0x0009D000),
@@ -115,7 +114,7 @@ impl UART {
     }
 
     pub fn enable(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.enable.set(0b100);
     }
 
@@ -128,27 +127,27 @@ impl UART {
     }
 
     pub fn enable_rx_interrupts(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.intenset.set(1 << 3 as u32);
     }
 
     pub fn enable_tx_interrupts(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.intenset.set(1 << 7 as u32);
     }
 
     pub fn disable_rx_interrupts(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.intenclr.set(1 << 3 as u32);
     }
 
     pub fn disable_tx_interrupts(&self) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.intenclr.set(1 << 7 as u32);
     }
 
     pub fn handle_interrupt(&mut self) {
-        let regs: &Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         // let rx = regs.event_rxdrdy.get() != 0;
         let tx = regs.event_txdrdy.get() != 0;
 
@@ -184,7 +183,7 @@ impl UART {
     }
 
     pub unsafe fn send_byte(&self, byte: u8) {
-        let regs: &mut Registers = mem::transmute(self.regs);
+        let regs = &*self.regs;
 
         self.index.set(1);
         self.len.set(1);
@@ -197,12 +196,12 @@ impl UART {
     }
 
     pub fn tx_ready(&self) -> bool {
-        let regs: &Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.event_txdrdy.get() & 0b1 != 0
     }
 
     fn rx_ready(&self) -> bool {
-        let regs: &Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.event_rxdrdy.get() & 0b1 != 0
     }
 }
@@ -218,7 +217,7 @@ impl uart::UART for UART {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        let regs: &mut Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
 
         if tx_len == 0 {
             return;
@@ -236,7 +235,7 @@ impl uart::UART for UART {
     }
 
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
-        let regs: &Registers = unsafe { mem::transmute(self.regs) };
+        let regs = unsafe { &*self.regs };
         regs.task_startrx.set(1);
         let mut i = 0;
         while i < rx_len {

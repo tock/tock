@@ -1,3 +1,5 @@
+//! Support for creating and running userspace applications.
+
 use callback::AppId;
 use common::{RingBuffer, Queue, VolatileCell};
 
@@ -388,7 +390,7 @@ impl<'a> Process<'a> {
         // Setup IPC MPU regions
         for (i, region) in self.mpu_regions.iter().enumerate() {
             if region.get().0 == ptr::null() {
-                mpu.set_mpu(mpu::Region::empty());
+                mpu.set_mpu(mpu::Region::empty(i + 3));
                 continue;
             }
             match MPU::create_region(i + 3,

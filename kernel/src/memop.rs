@@ -1,4 +1,4 @@
-//! Implementation of the MEMOP family of syscalls
+//! Implementation of the MEMOP family of syscalls.
 
 use process::Process;
 use returncode::ReturnCode;

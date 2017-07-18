@@ -1,5 +1,7 @@
+//! Implementation of the SAM4L interrupt controller.
+
 use core::intrinsics;
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 
 #[repr(C, packed)]
 struct Nvic {

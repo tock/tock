@@ -1,3 +1,16 @@
+//! Provides a `debug!` macro for in-kernel debugging.
+//!
+//! This module uses an internal buffer to write the strings into. If you are
+//! writing and the buffer fills up, you can make the size of `output_buffer`
+//! larger.
+//!
+//! Example
+//! -------
+//!
+//! ```rust
+//! debug!("Yes the code gets here with value {}", i);
+//! ```
+
 use callback::{AppId, Callback};
 use core::cmp::min;
 use core::fmt::{Arguments, Result, Write, write};
@@ -8,11 +21,12 @@ use mem::AppSlice;
 use returncode::ReturnCode;
 
 pub const APPID_IDX: usize = 255;
+const BUF_SIZE: usize = 1024;
 
 pub struct DebugWriter {
     driver: Option<&'static Driver>,
     pub container: Option<*mut u8>,
-    output_buffer: [u8; 1024],
+    output_buffer: [u8; BUF_SIZE],
     output_head: usize,
     output_tail: usize,
     output_active_len: usize,
@@ -22,7 +36,7 @@ pub struct DebugWriter {
 static mut DEBUG_WRITER: DebugWriter = DebugWriter {
     driver: None,
     container: None,
-    output_buffer: [0; 1024],
+    output_buffer: [0; BUF_SIZE],
     output_head: 0, // ........ first valid index in output_buffer
     output_tail: 0, // ........ one past last valid index (wraps to 0)
     output_active_len: 0, //... how big is the current transaction?
@@ -278,6 +292,7 @@ pub fn begin_debug(msg: &str, file_line: &(&'static str, u32)) {
     }
 }
 
+/// In-kernel `printf()` debugging.
 #[macro_export]
 macro_rules! debug {
     () => ({

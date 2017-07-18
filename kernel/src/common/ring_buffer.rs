@@ -1,3 +1,5 @@
+//! Implementation of a ring buffer.
+
 use common::queue;
 use core::ptr::read_volatile;
 

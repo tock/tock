@@ -19,7 +19,7 @@ use peripheral_registers::{GPIO_BASE, GPIO};
 /// (GPIO Task and Event) channel, and bind the channel to the desired
 /// pin. There are 4 channels. This means that requesting an interrupt
 /// can fail, if there are already 4 allocated.
-
+#[repr(C, packed)]
 struct GpioteRegisters {
     pub out0: VolatileCell<u32>, // 0x0
     pub out1: VolatileCell<u32>, // 0x4

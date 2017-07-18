@@ -35,7 +35,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items,compiler_builtins_lib)]
+#![feature(lang_items,drop_types_in_const,compiler_builtins_lib)]
 
 extern crate cortexm0;
 extern crate capsules;
@@ -47,6 +47,7 @@ extern crate nrf51;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
+use kernel::hil::symmetric_encryption::SymmetricEncryption;
 use kernel::hil::uart::UART;
 use nrf51::pinmux::Pinmux;
 use nrf51::rtc::{RTC, Rtc};
@@ -66,7 +67,7 @@ const BUTTON2_PIN: usize = 18;
 const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
 
-unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'static>>] {
+unsafe fn load_process() -> &'static mut [Option<kernel::Process<'static>>] {
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -80,17 +81,16 @@ unsafe fn load_process() -> &'static mut [Option<kernel::process::Process<'stati
     #[link_section = ".app_memory"]
     static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-    static mut PROCESSES: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None];
+    static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
     let mut apps_in_flash_ptr = &_sapps as *const u8;
     let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
     let mut app_memory_size = APP_MEMORY.len();
     for i in 0..NUM_PROCS {
-        let (process, flash_offset, memory_offset) =
-            kernel::process::Process::create(apps_in_flash_ptr,
-                                             app_memory_ptr,
-                                             app_memory_size,
-                                             FAULT_RESPONSE);
+        let (process, flash_offset, memory_offset) = kernel::Process::create(apps_in_flash_ptr,
+                                                                             app_memory_ptr,
+                                                                             app_memory_size,
+                                                                             FAULT_RESPONSE);
 
         if process.is_none() {
             break;
@@ -114,6 +114,7 @@ pub struct Platform {
     temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
     aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
+    ble_radio: &'static nrf51::ble_advertising_driver::BLE<'static, VirtualMuxAlarm<'static, Rtc>>,
 }
 
 
@@ -129,6 +130,7 @@ impl kernel::Platform for Platform {
             9 => f(Some(self.button)),
             14 => f(Some(self.rng)),
             17 => f(Some(self.aes)),
+            33 => f(Some(self.ble_radio)),
             36 => f(Some(self.temp)),
             _ => f(None),
         }
@@ -146,8 +148,7 @@ pub unsafe fn reset_handler() {
         (&nrf51::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow), // 22
         (&nrf51::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow), // 23
         (&nrf51::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow), // 24
-        ],
-        256/8);
+        ], 256/8);
     let led = static_init!(
         capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
         capsules::led::LED::new(led_pins),
@@ -195,9 +196,9 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
-    nrf51::uart::UART0.configure(Pinmux::new(9) /*. tx  */,
-                                 Pinmux::new(11) /* rx  */,
-                                 Pinmux::new(10) /* cts */,
+    nrf51::uart::UART0.configure(Pinmux::new(9), /*. tx  */
+                                 Pinmux::new(11), /* rx  */
+                                 Pinmux::new(10), /* cts */
                                  Pinmux::new(8) /*. rts */);
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
@@ -233,6 +234,13 @@ pub unsafe fn reset_handler() {
                          12);
     virtual_alarm1.set_client(timer);
 
+    let ble_radio_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, Rtc>,
+        VirtualMuxAlarm::new(mux_alarm),
+        192/8);
+
+
+
     let temp = static_init!(
         capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
         capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP,
@@ -254,8 +262,18 @@ pub unsafe fn reset_handler() {
                                                     &mut capsules::symmetric_encryption::IV),
         288/8);
     nrf51::aes::AESECB.ecb_init();
-    nrf51::aes::AESECB.set_client(aes);
+    SymmetricEncryption::set_client(&nrf51::aes::AESECB, aes);
 
+    let ble_radio = static_init!(
+     nrf51::ble_advertising_driver::BLE<VirtualMuxAlarm<'static, Rtc>>,
+     nrf51::ble_advertising_driver::BLE::new(
+         &mut nrf51::radio::RADIO,
+         kernel::Container::create(),
+         &mut nrf51::ble_advertising_driver::BUF,
+         ble_radio_virtual_alarm),
+        256/8);
+    nrf51::radio::RADIO.set_client(ble_radio);
+    ble_radio_virtual_alarm.set_client(ble_radio);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
@@ -277,6 +295,7 @@ pub unsafe fn reset_handler() {
         temp: temp,
         rng: rng,
         aes: aes,
+        ble_radio: ble_radio,
     };
 
     alarm.start();

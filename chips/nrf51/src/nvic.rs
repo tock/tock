@@ -3,6 +3,7 @@ use kernel::common::VolatileCell;
 use peripheral_interrupts::NvicIdx;
 
 const NVIC_BASE: usize = 0xE000E100;
+#[repr(C, packed)]
 struct NVIC {
     pub iser: [VolatileCell<u32>; 7],
     _reserved1: [u32; 25],

@@ -1,4 +1,4 @@
-//! TWIM Driver for the SAM4L
+//! Implementation of the SAM4L TWIMS peripheral.
 //!
 //! The implementation, especially of repeated starts, is quite sensitive to the
 //! ordering of operations (e.g. setup DMA, then set command register, then next
@@ -8,14 +8,12 @@
 //!
 //! The point is that until this changes, and this notice is taken away: IF YOU
 //! CHANGE THIS DRIVER, TEST RIGOROUSLY!!!
-//!
-
 
 use core::cell::Cell;
 use core::mem;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
+use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
-use kernel::common::volatile_cell::VolatileCell;
 
 use kernel::hil;
 use nvic;
@@ -739,10 +737,8 @@ impl hil::i2c::I2CMaster for I2CHw {
             pm::enable_clock(self.master_clock);
         }
 
-        // If exists, disable slave clock
-        self.slave_clock.map(|slave_clock| unsafe {
-            pm::disable_clock(slave_clock);
-        });
+        //disable the i2c slave peripheral
+        hil::i2c::I2CSlave::disable(self);
 
         let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
 

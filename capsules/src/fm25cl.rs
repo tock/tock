@@ -1,12 +1,48 @@
-//! Driver for the FM25CL FRAM chip (http://www.cypress.com/part/fm25cl64b-dg)
+//! Driver for the FM25CL FRAM chip.
+//!
+//! http://www.cypress.com/part/fm25cl64b-dg
+//!
+//! From the FM25CL website:
+//!
+//! > The FM25CL64B is a 64-Kbit nonvolatile memory employing an advanced
+//! > ferroelectric process. A ferroelectric random access memory or F-RAM is
+//! > nonvolatile and performs reads and writes similar to a RAM. It provides
+//! > reliable data retention for 151 years while eliminating the complexities,
+//! > overhead, and system level reliability problems caused by serial flash,
+//! > EEPROM, and other nonvolatile memories.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! // Create a SPI device for this chip.
+//! let fm25cl_spi = static_init!(
+//!     capsules::virtual_spi::VirtualSpiMasterDevice<'static, usart::USART>,
+//!     capsules::virtual_spi::VirtualSpiMasterDevice::new(mux_spi, Some(&sam4l::gpio::PA[25])));
+//! // Setup the actual FM25CL driver.
+//! let fm25cl = static_init!(
+//!     capsules::fm25cl::FM25CL<'static,
+//!     capsules::virtual_spi::VirtualSpiMasterDevice<'static, usart::USART>>,
+//!     capsules::fm25cl::FM25CL::new(fm25cl_spi,
+//!         &mut capsules::fm25cl::TXBUFFER, &mut capsules::fm25cl::RXBUFFER));
+//! fm25cl_spi.set_client(fm25cl);
+//! ```
+//!
+//! This capsule provides two interfaces:
+//! - `hil::nonvolatile_storage::NonvolatileStorage`
+//! - `FM25CLCustom`
+//!
+//! The first is the generic interface for nonvolatile storage. This allows
+//! this driver to work with capsules like the `nonvolatile_storage_driver`
+//! that provide virtualization and a userspace interface. The second is a
+//! custom interface that exposes other chip-specific functions.
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
+use kernel::ReturnCode;
 
-use kernel::common::take_cell::{MapCell, TakeCell};
+use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-
 
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];
@@ -42,6 +78,9 @@ enum State {
     ReadMemory,
 }
 
+pub trait FM25CLCustom {
+    fn read_status(&self) -> ReturnCode;
+}
 
 pub trait FM25CLClient {
     fn status(&self, status: u8);
@@ -54,7 +93,8 @@ pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice + 'a> {
     state: Cell<State>,
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
-    client: Cell<Option<&'static FM25CLClient>>,
+    client: Cell<Option<&'static hil::nonvolatile_storage::NonvolatileStorageClient>>,
+    client_custom: Cell<Option<&'static FM25CLClient>>,
     client_buffer: TakeCell<'static, [u8]>, // Store buffer and state for passing back to client
     client_write_address: Cell<u16>,
     client_write_len: Cell<u16>,
@@ -72,6 +112,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
             txbuffer: TakeCell::new(txbuffer),
             rxbuffer: TakeCell::new(rxbuffer),
             client: Cell::new(None),
+            client_custom: Cell::new(None),
             client_buffer: TakeCell::empty(),
             client_write_address: Cell::new(0),
             client_write_len: Cell::new(0),
@@ -79,7 +120,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
     }
 
     pub fn set_client<C: FM25CLClient>(&self, client: &'static C) {
-        self.client.set(Some(client));
+        self.client_custom.set(Some(client));
     }
 
     /// Setup SPI for this chip
@@ -89,27 +130,10 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
                            SPI_SPEED);
     }
 
-    pub fn read_status(&self) {
+    pub fn write(&self, address: u16, buffer: &'static mut [u8], len: u16) -> ReturnCode {
         self.configure_spi();
 
-        self.txbuffer.take().map(|txbuffer| {
-            self.rxbuffer.take().map(move |rxbuffer| {
-                txbuffer[0] = Opcodes::ReadStatusRegister as u8;
-
-                // Use 4 bytes instead of the required 2 because that works better
-                // with DMA for some reason.
-                self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4);
-                // self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 2);
-                self.state.set(State::ReadStatus);
-            });
-        });
-    }
-
-    pub fn write(&self, address: u16, buffer: &'static mut [u8], len: u16) {
-        self.configure_spi();
-
-        self.txbuffer.take().map(move |txbuffer| {
-
+        self.txbuffer.take().map_or(ReturnCode::ERESERVE, move |txbuffer| {
             txbuffer[0] = Opcodes::WriteEnable as u8;
 
             let write_len = cmp::min(txbuffer.len(), len as usize);
@@ -121,15 +145,15 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
             self.client_write_len.set(write_len as u16);
 
             self.state.set(State::WriteEnable);
-            self.spi.read_write_bytes(txbuffer, None, 1);
-        });
+            self.spi.read_write_bytes(txbuffer, None, 1)
+        })
     }
 
-    pub fn read(&self, address: u16, buffer: &'static mut [u8], len: u16) {
+    pub fn read(&self, address: u16, buffer: &'static mut [u8], len: u16) -> ReturnCode {
         self.configure_spi();
 
-        self.txbuffer.take().map(|txbuffer| {
-            self.rxbuffer.take().map(move |rxbuffer| {
+        self.txbuffer.take().map_or(ReturnCode::ERESERVE, |txbuffer| {
+            self.rxbuffer.take().map_or(ReturnCode::ERESERVE, move |rxbuffer| {
                 txbuffer[0] = Opcodes::ReadMemory as u8;
                 txbuffer[1] = ((address >> 8) & 0xFF) as u8;
                 txbuffer[2] = (address & 0xFF) as u8;
@@ -140,9 +164,9 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
                 let read_len = cmp::min(rxbuffer.len() - 3, len as usize);
 
                 self.state.set(State::ReadMemory);
-                self.spi.read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3);
-            });
-        });
+                self.spi.read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3)
+            })
+        })
     }
 }
 
@@ -165,7 +189,7 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
                     // Also replace this buffer
                     self.rxbuffer.replace(read_buffer);
 
-                    self.client.get().map(|client| { client.status(status); });
+                    self.client_custom.get().map(|client| client.status(status));
                 });
             }
             State::WriteEnable => {
@@ -189,13 +213,15 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
             State::WriteMemory => {
                 self.state.set(State::Idle);
 
+                let write_len = cmp::min(write_buffer.len(), self.client_write_len.get() as usize);
+
                 // Replace these buffers
                 self.txbuffer.replace(write_buffer);
                 read_buffer.map(|read_buffer| { self.rxbuffer.replace(read_buffer); });
 
                 // Call done with the write() buffer
                 self.client_buffer.take().map(move |buffer| {
-                    self.client.get().map(move |client| { client.done(buffer); });
+                    self.client.get().map(move |client| client.write_done(buffer, write_len));
                 });
             }
             State::ReadMemory => {
@@ -214,7 +240,9 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
 
                         self.rxbuffer.replace(read_buffer);
 
-                        self.client.get().map(move |client| { client.read(buffer, read_len); });
+                        self.client.get().map(move |client| {
+                            client.read_done(buffer, read_len - 3)
+                        });
                     });
                 });
             }
@@ -223,176 +251,39 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
     }
 }
 
-/// Holds buffers and whatnot that the application has passed us.
-struct AppState {
-    callback: Option<Callback>,
-    read_buffer: Option<AppSlice<Shared, u8>>,
-    write_buffer: Option<AppSlice<Shared, u8>>,
-}
+// Implement the custom interface that exposes chip-specific commands.
+impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLCustom for FM25CL<'a, S> {
+    fn read_status(&self) -> ReturnCode {
+        self.configure_spi();
 
-/// Default implementation of the FM25CL driver that provides a Driver
-/// interface for providing access to applications.
-pub struct FM25CLDriver<'a, S: hil::spi::SpiMasterDevice + 'a> {
-    fm25cl: &'a FM25CL<'a, S>,
-    app_state: MapCell<AppState>,
-    kernel_read: TakeCell<'static, [u8]>,
-    kernel_write: TakeCell<'static, [u8]>,
-}
+        self.txbuffer.take().map_or(ReturnCode::ERESERVE, |txbuffer| {
+            self.rxbuffer.take().map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                txbuffer[0] = Opcodes::ReadStatusRegister as u8;
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLDriver<'a, S> {
-    pub fn new(fm25: &'a FM25CL<S>,
-               write_buf: &'static mut [u8],
-               read_buf: &'static mut [u8])
-               -> FM25CLDriver<'a, S> {
-        FM25CLDriver {
-            fm25cl: fm25,
-            app_state: MapCell::empty(),
-            kernel_read: TakeCell::new(read_buf),
-            kernel_write: TakeCell::new(write_buf),
-        }
+                // Use 4 bytes instead of the required 2 because that works better
+                // with DMA for some reason.
+                self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4);
+                self.state.set(State::ReadStatus);
+                ReturnCode::SUCCESS
+            })
+        })
     }
 }
 
-impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLClient for FM25CLDriver<'a, S> {
-    fn status(&self, status: u8) {
-        self.app_state.map(|app_state| {
-            app_state.callback.map(|mut cb| { cb.schedule(0, status as usize, 0); });
-        });
+/// Implement the generic `NonvolatileStorage` interface common to chips that
+/// provide nonvolatile memory.
+impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::nonvolatile_storage::NonvolatileStorage
+    for
+    FM25CL<'a, S> {
+    fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
+        self.client.set(Some(client));
     }
 
-    fn read(&self, data: &'static mut [u8], len: usize) {
-        self.app_state.map(|app_state| {
-            let mut read_len: usize = 0;
-
-            app_state.read_buffer.as_mut().map(move |read_buffer| {
-                read_len = cmp::min(read_buffer.len(), len);
-
-                let d = &mut read_buffer.as_mut()[0..(read_len as usize)];
-                for (i, c) in data[0..read_len].iter().enumerate() {
-                    d[i] = *c;
-                }
-
-                self.kernel_read.replace(data);
-            });
-
-            app_state.callback.map(|mut cb| { cb.schedule(1, read_len, 0); });
-        });
+    fn read(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+        self.read(address as u16, buffer, length as u16)
     }
 
-    fn done(&self, buffer: &'static mut [u8]) {
-        self.kernel_write.replace(buffer);
-
-        self.app_state
-            .map(|app_state| { app_state.callback.map(|mut cb| { cb.schedule(2, 0, 0); }); });
-    }
-}
-
-impl<'a, S: hil::spi::SpiMasterDevice + 'a> Driver for FM25CLDriver<'a, S> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
-        match allow_num {
-            // Pass read buffer in from application
-            0 => {
-                let appst = match self.app_state.take() {
-                    None => {
-                        AppState {
-                            callback: None,
-                            read_buffer: Some(slice),
-                            write_buffer: None,
-                        }
-                    }
-                    Some(mut appst) => {
-                        appst.read_buffer = Some(slice);
-                        appst
-                    }
-                };
-                self.app_state.replace(appst);
-                ReturnCode::SUCCESS
-            }
-            // Pass write buffer in from application
-            1 => {
-                if self.app_state.is_none() {
-                    self.app_state.put(AppState {
-                        callback: None,
-                        write_buffer: Some(slice),
-                        read_buffer: None,
-                    });
-                } else {
-                    self.app_state.map(|appst| appst.write_buffer = Some(slice));
-                }
-                ReturnCode::SUCCESS
-            }
-            _ => ReturnCode::ENOSUPPORT,
-        }
-    }
-
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
-        match subscribe_num {
-            0 => {
-                if self.app_state.is_none() {
-                    self.app_state.put(AppState {
-                        callback: Some(callback),
-                        write_buffer: None,
-                        read_buffer: None,
-                    });
-                } else {
-                    self.app_state.map(|appst| appst.callback = Some(callback));
-                }
-                ReturnCode::SUCCESS
-            }
-
-            // default
-            _ => ReturnCode::ENOSUPPORT,
-        }
-    }
-
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
-        match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
-            // get status
-            1 => {
-                self.fm25cl.read_status();
-                ReturnCode::SUCCESS
-            }
-
-            // read
-            2 => {
-                let address = (data & 0xFFFF) as u16;
-                let len = (data >> 16) & 0xFFFF;
-
-                self.kernel_read.take().map(|kernel_read| {
-                    let read_len = cmp::min(len, kernel_read.len());
-
-                    self.fm25cl.read(address, kernel_read, read_len as u16);
-                });
-                ReturnCode::SUCCESS
-            }
-
-            // write
-            3 => {
-                let address = (data & 0xFFFF) as u16;
-                let len = ((data >> 16) & 0xFFFF) as usize;
-
-                self.app_state.map(|app_state| {
-                    app_state.write_buffer.as_mut().map(|write_buffer| {
-                        self.kernel_write.take().map(|kernel_write| {
-                            // Check bounds for write length
-                            let buf_len = cmp::min(write_buffer.len(), kernel_write.len());
-                            let write_len = cmp::min(buf_len, len);
-
-                            let d = &mut write_buffer.as_mut()[0..write_len];
-                            for (i, c) in kernel_write[0..write_len].iter_mut().enumerate() {
-                                *c = d[i];
-                            }
-
-                            self.fm25cl.write(address, kernel_write, write_len as u16);
-                        });
-                    });
-                });
-                ReturnCode::SUCCESS
-            }
-
-            // default
-            _ => ReturnCode::ENOSUPPORT,
-        }
+    fn write(&self, buffer: &'static mut [u8], address: usize, length: usize) -> ReturnCode {
+        self.write(address as u16, buffer, length as u16)
     }
 }

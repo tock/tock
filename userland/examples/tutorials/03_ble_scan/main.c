@@ -1,7 +1,7 @@
-#include <string.h>
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 // From the simple_ble library in https://github.com/lab11/nrf5x-base
@@ -24,7 +24,6 @@ simple_ble_config_t ble_config = {
   .max_conn_interval = MSEC_TO_UNITS(1250, UNIT_1_25_MS)
 };
 
-#pragma GCC diagnostic ignored "-Wsuggest-attribute=const"
 void app_error_fault_handler(__attribute__ ((unused)) uint32_t error_code,
                              __attribute__ ((unused)) uint32_t line_num,
                              __attribute__ ((unused)) uint32_t info) {
@@ -33,7 +32,6 @@ void app_error_fault_handler(__attribute__ ((unused)) uint32_t error_code,
   // The application can continue.
 }
 
-#pragma GCC diagnostic ignored "-Wsuggest-attribute=const"
 void ble_address_set (void) {
   // Need to redefine this function so that we do not try to set the address
   // on the main processor.
@@ -48,9 +46,9 @@ void ble_evt_adv_report (ble_evt_t* p_ble_evt) {
 
   // Print some details about the discovered advertisement.
   printf("Recv Advertisement: [%02x:%02x:%02x:%02x:%02x:%02x] RSSI: %d, Len: %d\n",
-    adv->peer_addr.addr[5], adv->peer_addr.addr[4], adv->peer_addr.addr[3],
-    adv->peer_addr.addr[2], adv->peer_addr.addr[1], adv->peer_addr.addr[0],
-    adv->rssi, adv->dlen);
+         adv->peer_addr.addr[5], adv->peer_addr.addr[4], adv->peer_addr.addr[3],
+         adv->peer_addr.addr[2], adv->peer_addr.addr[1], adv->peer_addr.addr[0],
+         adv->rssi, adv->dlen);
 
   // Also toggle the first LED.
   led_toggle(0);
@@ -61,12 +59,12 @@ void ble_evt_adv_report (ble_evt_t* p_ble_evt) {
  ******************************************************************************/
 
 int main (void) {
-    printf("[Tutorial] BLE Scanning\n");
+  printf("[Tutorial] BLE Scanning\n");
 
-    // Setup BLE. See the simple_ble library for more information:
-    // https://github.com/lab11/nrf5x-base/tree/master/lib
-    simple_ble_init(&ble_config);
+  // Setup BLE. See the simple_ble library for more information:
+  // https://github.com/lab11/nrf5x-base/tree/master/lib
+  simple_ble_init(&ble_config);
 
-    // Scan for advertisements.
-    simple_ble_scan_start();
+  // Scan for advertisements.
+  simple_ble_scan_start();
 }

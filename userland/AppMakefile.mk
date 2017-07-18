@@ -53,7 +53,7 @@ EXTERN_LIB_NAME_$(notdir $(1)) := $(notdir $(1))
 
 # If this library has an include directory, add it to search path
 ifneq "$$(wildcard $(1)/include)" ""
-  CPPFLAGS += -I$(1)/include
+  override CPPFLAGS += -I$(1)/include
 endif
 
 # Add arch-specific rules for each library
@@ -123,9 +123,15 @@ $$(BUILDDIR)/$(1)/%.o: %.cpp | $$(BUILDDIR)/$(1)
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
+$$(BUILDDIR)/$(1)/%.o: %.cxx | $$(BUILDDIR)/$(1)
+	$$(TRACE_CXX)
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+
 OBJS_$(1) += $$(patsubst %.c,$$(BUILDDIR)/$(1)/%.o,$$(C_SRCS))
 OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)))
 OBJS_$(1) += $$(patsubst %.cpp,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$(CXX_SRCS)))
+OBJS_$(1) += $$(patsubst %.cxx,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cxx, $$(CXX_SRCS)))
 
 # Collect all desired built output.
 $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
@@ -186,6 +192,32 @@ debug:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).lst)
 .PHONY:
 clean::
 	rm -Rf $(BUILDDIR)
+
+
+# Rules for running the C linter
+FORMATTED_FILES := $(patsubst %.c,$(BUILDDIR)/format/%.uncrustify,$(C_SRCS))
+FORMATTED_FILES += $(patsubst %.cc,$(BUILDDIR)/format/%.uncrustify,$(filter %.cc, $(CXX_SRCS)))
+FORMATTED_FILES += $(patsubst %.cpp,$(BUILDDIR)/format/%.uncrustify,$(filter %.cpp, $(CXX_SRCS)))
+FORMATTED_FILES += $(patsubst %.cxx,$(BUILDDIR)/format/%.uncrustify,$(filter %.cxx, $(CXX_SRCS)))
+
+$(BUILDDIR)/format:
+	@mkdir -p $@
+
+.PHONY: fmt format
+fmt format:: $(FORMATTED_FILES)
+
+$(BUILDDIR)/format/%.uncrustify: %.c | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$(BUILDDIR)/format/%.uncrustify: %.cc | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$(BUILDDIR)/format/%.uncrustify: %.cpp | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$(BUILDDIR)/format/%.uncrustify: %.cxx | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
 
 
 

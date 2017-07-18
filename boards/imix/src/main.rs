@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(asm,const_fn,lang_items,compiler_builtins_lib)]
+#![feature(asm,const_fn,drop_types_in_const,lang_items,compiler_builtins_lib)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -30,6 +30,9 @@ mod i2c_dummy;
 #[allow(dead_code)]
 mod spi_dummy;
 
+#[allow(dead_code)]
+mod power;
+
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -39,7 +42,7 @@ struct Imix {
     isl29035: &'static capsules::isl29035::Isl29035<'static,
                                                     VirtualMuxAlarm<'static,
                                                                     sam4l::ast::Ast<'static>>>,
-    adc: &'static capsules::adc::ADC<'static, sam4l::adc::Adc>,
+    adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
@@ -99,8 +102,8 @@ unsafe fn set_pin_primary_functions() {
 
     // Right column: Imix pin name
     // Left  column: SAM4L peripheral function
-    PA[04].configure(Some(C)); // LI_INT      --  EIC EXTINT2
-    PA[05].configure(Some(A)); // AD0         --  ADCIFE AD1
+    PA[04].configure(Some(A)); // AD0         --  ADCIFE AD0
+    PA[05].configure(Some(A)); // AD1         --  ADCIFE AD1
     PA[06].configure(Some(C)); // EXTINT1     --  EIC EXTINT1
     PA[07].configure(Some(A)); // AD1         --  ADCIFE AD2
     PA[08].configure(None); //... RF233 IRQ   --  GPIO pin
@@ -110,16 +113,17 @@ unsafe fn set_pin_primary_functions() {
     PA[14].configure(None); //... TRNG_OUT    --  GPIO pin
     PA[17].configure(None); //... NRF INT     -- GPIO pin
     PA[18].configure(Some(A)); // NRF CLK     -- USART2_CLK
+    PA[20].configure(None); //... D8          -- GPIO pin
     PA[21].configure(Some(E)); // TWI2 SDA    -- TWIM2_SDA
     PA[22].configure(Some(E)); // TWI2 SCL    --  TWIM2 TWCK
     PA[25].configure(Some(A)); // USB_N       --  USB DM
     PA[26].configure(Some(A)); // USB_P       --  USB DP
     PB[00].configure(Some(A)); // TWI1_SDA    --  TWIMS1 TWD
     PB[01].configure(Some(A)); // TWI1_SCL    --  TWIMS1 TWCK
-    PB[02].configure(Some(A)); // AD2         --  ADCIFE AD3
-    PB[03].configure(Some(A)); // AD3         --  ADCIFE AD4
-    PB[04].configure(Some(A)); // AD4         --  ADCIFE AD5
-    PB[05].configure(Some(A)); // AD5         --  ADCIFE AD6
+    PB[02].configure(Some(A)); // AD3         --  ADCIFE AD3
+    PB[03].configure(Some(A)); // AD4         --  ADCIFE AD4
+    PB[04].configure(Some(A)); // AD5         --  ADCIFE AD5
+    PB[05].configure(Some(A)); // VHIGHSAMPLE --  ADCIFE AD6
     PB[06].configure(Some(A)); // RTS3        --  USART3 RTS
     PB[07].configure(None); //... NRF RESET   --  GPIO
     PB[09].configure(Some(A)); // RX3         --  USART3 RX
@@ -130,14 +134,14 @@ unsafe fn set_pin_primary_functions() {
     PB[14].configure(Some(A)); // RX0         --  USART0 RX
     PB[15].configure(Some(A)); // TX0         --  USART0 TX
     PC[00].configure(Some(A)); // CS2         --  SPI NPCS2
-    PC[01].configure(Some(A)); // CS3 (RF233) -- SPI NPCS3
+    PC[01].configure(Some(A)); // CS3 (RF233) --  SPI NPCS3
     PC[02].configure(Some(A)); // CS1         --  SPI NPCS1
     PC[03].configure(Some(A)); // CS0         --  SPI NPCS0
     PC[04].configure(Some(A)); // MISO        --  SPI MISO
     PC[05].configure(Some(A)); // MOSI        --  SPI MOSI
     PC[06].configure(Some(A)); // SCK         --  SPI CLK
     PC[07].configure(Some(B)); // RTS2 (BLE)  -- USART2_RTS
-    PC[08].configure(Some(B)); // CTS2 (BLE)  -- USART2_CTS
+    PC[08].configure(Some(E)); // CTS2 (BLE)  -- USART2_CTS
     PC[09].configure(None); //... NRF GPIO    -- GPIO
     PC[10].configure(None); //... USER LED    -- GPIO
     PC[11].configure(Some(B)); // RX2 (BLE)   -- USART2_RX
@@ -148,8 +152,9 @@ unsafe fn set_pin_primary_functions() {
     PC[17].configure(None); //... NRF_PWR     --  GPIO pin
     PC[18].configure(None); //... RF233_PWR   --  GPIO pin
     PC[19].configure(None); //... TRNG_PWR    -- GPIO Pin
+    PC[22].configure(None); //... KERNEL LED  -- GPIO Pin
     PC[24].configure(None); //... USER_BTN    -- GPIO Pin
-    PC[25].configure(None); //... D8          -- GPIO Pin
+    PC[25].configure(Some(B)); // LI_INT      --  EIC EXTINT2
     PC[26].configure(None); //... D7          -- GPIO Pin
     PC[27].configure(None); //... D6          -- GPIO Pin
     PC[28].configure(None); //... D5          -- GPIO Pin
@@ -162,12 +167,20 @@ unsafe fn set_pin_primary_functions() {
 pub unsafe fn reset_handler() {
     sam4l::init();
 
-    sam4l::pm::setup_system_clock(sam4l::pm::SystemClockSource::DfllRc32k, 48000000);
+    sam4l::pm::setup_system_clock(sam4l::pm::SystemClockSource::ExternalOscillatorPll,
+                                  48000000);
 
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
 
     set_pin_primary_functions();
+
+    power::configure_submodules(power::SubmoduleConfig {
+        rf233: true,
+        nrf51422: true,
+        sensors: true,
+        trng: true,
+    });
 
     // # CONSOLE
 
@@ -176,16 +189,14 @@ pub unsafe fn reset_handler() {
         capsules::console::Console::new(&sam4l::usart::USART3,
                      115200,
                      &mut capsules::console::WRITE_BUF,
-                     kernel::Container::create()),
-        224/8);
+                     kernel::Container::create()));
     hil::uart::UART::set_client(&sam4l::usart::USART3, console);
     console.initialize();
 
     // Attach the kernel debug interface to this console
     let kc = static_init!(
         capsules::console::App,
-        capsules::console::App::default(),
-        480/8);
+        capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(console), kc);
 
     // # TIMER
@@ -194,46 +205,40 @@ pub unsafe fn reset_handler() {
 
     let mux_alarm = static_init!(
         MuxAlarm<'static, sam4l::ast::Ast>,
-        MuxAlarm::new(&sam4l::ast::AST),
-        16);
+        MuxAlarm::new(&sam4l::ast::AST));
     ast.configure(mux_alarm);
 
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm),
-        24);
+        VirtualMuxAlarm::new(mux_alarm));
     let timer = static_init!(
         TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        TimerDriver::new(virtual_alarm1, kernel::Container::create()),
-        12);
+        TimerDriver::new(virtual_alarm1, kernel::Container::create()));
     virtual_alarm1.set_client(timer);
 
     // # I2C Sensors
 
-    let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2), 20);
+    let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C2));
     sam4l::i2c::I2C2.set_master_client(mux_i2c);
 
     // Configure the ISL29035, device address 0x44
-    let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x44), 32);
+    let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x44));
     let isl29035_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm),
-        192/8);
+        VirtualMuxAlarm::new(mux_alarm));
     let isl29035 = static_init!(
         capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         capsules::isl29035::Isl29035::new(
             isl29035_i2c,
             isl29035_virtual_alarm,
-            &mut capsules::isl29035::BUF),
-        384/8);
+            &mut capsules::isl29035::BUF));
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
     // Set up an SPI MUX, so there can be multiple clients
     let mux_spi = static_init!(
         MuxSpiMaster<'static, sam4l::spi::Spi>,
-        MuxSpiMaster::new(&sam4l::spi::SPI),
-        12);
+        MuxSpiMaster::new(&sam4l::spi::SPI));
     sam4l::spi::SPI.set_client(mux_spi);
     sam4l::spi::SPI.init();
     sam4l::spi::SPI.enable();
@@ -242,14 +247,12 @@ pub unsafe fn reset_handler() {
     // then the system call capsule
     let syscall_spi_device = static_init!(
         VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
-        VirtualSpiMasterDevice::new(mux_spi, 3),
-        352/8);
+        VirtualSpiMasterDevice::new(mux_spi, 3));
 
     // Create the SPI systemc call capsule, passing the client
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
-        capsules::spi::Spi::new(syscall_spi_device),
-        672/8);
+        capsules::spi::Spi::new(syscall_spi_device));
 
     // System call capsule requires static buffers so it can
     // copy from application slices to DMA
@@ -262,20 +265,17 @@ pub unsafe fn reset_handler() {
     // Configure the SI7021, device address 0x40
     let si7021_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm),
-        24);
-    let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x40), 32);
+        VirtualMuxAlarm::new(mux_alarm));
+    let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x40));
     let si7021 = static_init!(
         capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-        capsules::si7021::SI7021::new(si7021_i2c, si7021_alarm, &mut capsules::si7021::BUFFER),
-        352/8);
+        capsules::si7021::SI7021::new(si7021_i2c, si7021_alarm, &mut capsules::si7021::BUFFER));
     si7021_i2c.set_client(si7021);
     si7021_alarm.set_client(si7021);
 
     // Create a second virtualized SPI client, for the RF233
     let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
-                                 VirtualSpiMasterDevice::new(mux_spi, 3),
-                                 352/8);
+                                 VirtualSpiMasterDevice::new(mux_spi, 3));
     // Create the RF233 driver, passing its pins and SPI client
     let rf233: &RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>> =
         static_init!(RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
@@ -283,92 +283,91 @@ pub unsafe fn reset_handler() {
                                         &sam4l::gpio::PA[09],    // reset
                                         &sam4l::gpio::PA[10],    // sleep
                                         &sam4l::gpio::PA[08],    // irq
-                                        &sam4l::gpio::PA[08]),   // irq_ctl
-                                        1056/8);
-
+                                        &sam4l::gpio::PA[08])); //  irq_ctl
     sam4l::gpio::PA[08].set_client(rf233);
 
     // FXOS8700CQ accelerometer, device address 0x1e
-    let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e), 32);
+    let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(mux_i2c, 0x1e));
     let fxos8700 = static_init!(
         capsules::fxos8700cq::Fxos8700cq<'static>,
         capsules::fxos8700cq::Fxos8700cq::new(fxos8700_i2c,
                                                &sam4l::gpio::PC[13],
-                                               &mut capsules::fxos8700cq::BUF),
-        320/8);
+                                               &mut capsules::fxos8700cq::BUF));
     fxos8700_i2c.set_client(fxos8700);
     sam4l::gpio::PC[13].set_client(fxos8700);
     let ninedof = static_init!(
         capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()),
-        160/8);
+        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
     hil::ninedof::NineDof::set_client(fxos8700, ninedof);
 
     // Clear sensors enable pin to enable sensor rail
     // sam4l::gpio::PC[16].enable_output();
     // sam4l::gpio::PC[16].clear();
 
-    // # ADC
-
     // Setup ADC
+    let adc_channels = static_init!(
+        [&'static sam4l::adc::AdcChannel; 6],
+        [&sam4l::adc::CHANNEL_AD1, // AD0
+         &sam4l::adc::CHANNEL_AD2, // AD1
+         &sam4l::adc::CHANNEL_AD3, // AD2
+         &sam4l::adc::CHANNEL_AD4, // AD3
+         &sam4l::adc::CHANNEL_AD5, // AD4
+         &sam4l::adc::CHANNEL_AD6, // AD5
+        ]);
     let adc = static_init!(
-        capsules::adc::ADC<'static, sam4l::adc::Adc>,
-        capsules::adc::ADC::new(&mut sam4l::adc::ADC, kernel::Container::create()),
-        96/8);
-    sam4l::adc::ADC.set_client(adc);
+        capsules::adc::Adc<'static, sam4l::adc::Adc>,
+        capsules::adc::Adc::new(&mut sam4l::adc::ADC0, adc_channels,
+                                &mut capsules::adc::ADC_BUFFER1,
+                                &mut capsules::adc::ADC_BUFFER2,
+                                &mut capsules::adc::ADC_BUFFER3));
+    sam4l::adc::ADC0.set_client(adc);
 
     // # GPIO
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 8],
+        [&'static sam4l::gpio::GPIOPin; 7],
         [&sam4l::gpio::PC[31], // P2
          &sam4l::gpio::PC[30], // P3
          &sam4l::gpio::PC[29], // P4
          &sam4l::gpio::PC[28], // P5
          &sam4l::gpio::PC[27], // P6
          &sam4l::gpio::PC[26], // P7
-         &sam4l::gpio::PC[25], // P8
-         &sam4l::gpio::PC[25]], // Dummy Pin (regular GPIO)
-        8 * 4
-    );
+         &sam4l::gpio::PA[20], // P8
+         ]);
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins),
-        224/8);
+        capsules::gpio::GPIO::new(gpio_pins));
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
 
     // # LEDs
     let led_pins = static_init!(
-        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 1],
-        [(&sam4l::gpio::PC[10], capsules::led::ActivationMode::ActiveHigh)],
-        64/8);
+        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 2],
+        [(&sam4l::gpio::PC[22], capsules::led::ActivationMode::ActiveHigh),
+         (&sam4l::gpio::PC[10], capsules::led::ActivationMode::ActiveHigh)
+        ]);
     let led = static_init!(
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins),
-        64/8);
+        capsules::led::LED::new(led_pins));
 
     // # BUTTONs
 
     let button_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 1],
-        [&sam4l::gpio::PC[24]],
-        1 * 4);
+        [&sam4l::gpio::PC[24]]);
 
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Container::create()),
-        96/8);
+        capsules::button::Button::new(button_pins, kernel::Container::create()));
     for btn in button_pins.iter() {
         btn.set_client(button);
     }
 
     let crc = static_init!(
         capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()),
-        128/8);
+        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()));
 
     rf233_spi.set_client(rf233);
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
@@ -377,8 +376,7 @@ pub unsafe fn reset_handler() {
         capsules::radio::RadioDriver<'static,
                                      RF233<'static,
                                            VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
-        capsules::radio::RadioDriver::new(rf233),
-        832/8);
+        capsules::radio::RadioDriver::new(rf233));
     radio_capsule.config_buffer(&mut RADIO_BUF);
     rf233.set_transmit_client(radio_capsule);
     rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
@@ -415,7 +413,7 @@ pub unsafe fn reset_handler() {
     kernel::main(&imix, &mut chip, load_processes(), &imix.ipc);
 }
 
-unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'static>>] {
+unsafe fn load_processes() -> &'static mut [Option<kernel::Process<'static>>] {
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -429,17 +427,16 @@ unsafe fn load_processes() -> &'static mut [Option<kernel::process::Process<'sta
     #[link_section = ".app_memory"]
     static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
-    static mut PROCESSES: [Option<kernel::process::Process<'static>>; NUM_PROCS] = [None, None];
+    static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None];
 
     let mut apps_in_flash_ptr = &_sapps as *const u8;
     let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
     let mut app_memory_size = APP_MEMORY.len();
     for i in 0..NUM_PROCS {
-        let (process, flash_offset, memory_offset) =
-            kernel::process::Process::create(apps_in_flash_ptr,
-                                             app_memory_ptr,
-                                             app_memory_size,
-                                             FAULT_RESPONSE);
+        let (process, flash_offset, memory_offset) = kernel::Process::create(apps_in_flash_ptr,
+                                                                             app_memory_ptr,
+                                                                             app_memory_size,
+                                                                             FAULT_RESPONSE);
 
         if process.is_none() {
             break;

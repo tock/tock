@@ -1,13 +1,14 @@
+//! Implementation of the PDCA DMA peripheral.
+
+use core::{cmp, intrinsics, mem};
 use core::cell::Cell;
-use core::intrinsics;
-use core::mem;
+use kernel::common::VolatileCell;
 
 use kernel::common::take_cell::TakeCell;
-use kernel::common::volatile_cell::VolatileCell;
 use nvic;
 use pm;
 
-/// Memory registers for a DMA channel. Section 16.6.1 of the datasheet
+/// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
 #[repr(C, packed)]
 #[allow(dead_code)]
 struct DMARegisters {
@@ -27,10 +28,10 @@ struct DMARegisters {
     _unused: [usize; 4],
 }
 
-/// The PDCA's base addresses in memory (Section 7.1 of manual)
+/// The PDCA's base addresses in memory (Section 7.1 of manual).
 const DMA_BASE_ADDR: usize = 0x400A2000;
 
-/// The number of bytes between each memory mapped DMA Channel (Section 16.6.1)
+/// The number of bytes between each memory mapped DMA Channel (Section 16.6.1).
 const DMA_CHANNEL_SIZE: usize = 0x40;
 
 /// Shared counter that Keeps track of how many DMA channels are currently
@@ -39,7 +40,7 @@ static mut NUM_ENABLED: usize = 0;
 
 /// The DMA channel number. Each channel transfers data between memory and a
 /// particular peripheral function (e.g., SPI read or SPI write, but not both
-/// simultaneously). There are 16 available channels (Section 16.7)
+/// simultaneously). There are 16 available channels (Section 16.7).
 #[derive(Copy,Clone)]
 pub enum DMAChannelNum {
     // Relies on the fact that assigns values 0-15 to each constructor in order
@@ -62,8 +63,8 @@ pub enum DMAChannelNum {
 }
 
 
-/// The peripheral function a channel is assigned to (Section 16.7)
-/// *_RX means transfer data from peripheral to memory, *_TX means transfer data
+/// The peripheral function a channel is assigned to (Section 16.7). `*_RX`
+/// means transfer data from peripheral to memory, `*_TX` means transfer data
 /// from memory to peripheral.
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq)]
@@ -109,6 +110,14 @@ pub enum DMAPeripheral {
     LCDCA_ABMDR_TX = 38,
 }
 
+#[derive(Copy,Clone,Debug,PartialEq)]
+#[repr(u8)]
+pub enum DMAWidth {
+    Width8Bit = 0,
+    Width16Bit = 1,
+    Width32Bit = 2,
+}
+
 pub static mut DMA_CHANNELS: [DMAChannel; 16] =
     [DMAChannel::new(DMAChannelNum::DMAChannel00, nvic::NvicIdx::PDCA0),
      DMAChannel::new(DMAChannelNum::DMAChannel01, nvic::NvicIdx::PDCA1),
@@ -130,7 +139,8 @@ pub static mut DMA_CHANNELS: [DMAChannel; 16] =
 pub struct DMAChannel {
     registers: *mut DMARegisters,
     nvic: nvic::NvicIdx,
-    pub client: Option<&'static mut DMAClient>,
+    client: Cell<Option<&'static DMAClient>>,
+    width: Cell<DMAWidth>,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -144,10 +154,16 @@ impl DMAChannel {
         DMAChannel {
             registers: (DMA_BASE_ADDR + (channel as usize) * DMA_CHANNEL_SIZE) as *mut DMARegisters,
             nvic: nvic,
-            client: None,
+            client: Cell::new(None),
+            width: Cell::new(DMAWidth::Width8Bit),
             enabled: Cell::new(false),
             buffer: TakeCell::empty(),
         }
+    }
+
+    pub fn initialize(&self, client: &'static mut DMAClient, width: DMAWidth) {
+        self.client.set(Some(client));
+        self.width.set(width);
     }
 
     pub fn enable(&self) {
@@ -194,7 +210,7 @@ impl DMAChannel {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
         let channel = registers.peripheral_select.get();
 
-        self.client.as_mut().map(|client| { client.xfer_done(channel); });
+        self.client.get().as_mut().map(|client| { client.xfer_done(channel); });
     }
 
     pub fn start_xfer(&self) {
@@ -204,11 +220,18 @@ impl DMAChannel {
 
     pub fn prepare_xfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
         // TODO(alevy): take care of zero length case
-        if len > buf.len() {
-            len = buf.len();
-        }
 
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+
+        let maxlen = buf.len() /
+                     match self.width.get() {
+                DMAWidth::Width8Bit /*  DMA is acting on bytes     */ => 1,
+                DMAWidth::Width16Bit /* DMA is acting on halfwords */ => 2,
+                DMAWidth::Width32Bit /* DMA is acting on words     */ => 4,
+            };
+        len = cmp::min(len, maxlen);
+        registers.mode.set(self.width.get() as u32);
+
         registers.peripheral_select.set(pid);
         registers.memory_address_reload.set(&buf[0] as *const u8 as u32);
         registers.transfer_counter_reload.set(len as u32);

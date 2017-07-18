@@ -1,6 +1,8 @@
+//! Implementation of the SAM4L hardware watchdog timer.
+
 use core::cell::Cell;
 use core::mem;
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 use kernel::hil;
 use pm::{self, Clock, PBDClock};
 

@@ -3,11 +3,12 @@
 MAKEFLAGS += -r
 MAKEFLAGS += -R
 
-export RUSTUP_TOOLCHAIN ?= nightly-2017-05-24
+export RUSTUP_TOOLCHAIN ?= nightly-2017-06-20
 
 TOOLCHAIN ?= arm-none-eabi
 
 XARGO ?= xargo
+MINIMUM_XARGO_VERSION ?= 0.3.8
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually
 RUSTFLAGS_FOR_XARGO_LINKING := "-C link-arg=-nostartfiles -C link-arg=-Tlayout.ld"
 
@@ -32,7 +33,7 @@ endif
 export TOCK_KERNEL_VERSION := $(shell git describe --always || echo notgit)
 
 # Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
-RUSTC_VERSION_STRING := rustc 1.19.0-nightly (5b13bff52 2017-05-23)
+RUSTC_VERSION_STRING := rustc 1.19.0-nightly (04145943a 2017-06-19)
 ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
   DUMMY := $(shell rustup install $(RUSTUP_TOOLCHAIN))
   ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
@@ -43,12 +44,28 @@ ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VE
   endif
 endif
 
-# Check that xargo is installed
-ifneq ($(strip $(firstword $(shell $(XARGO) --version 2>&1))), xargo)
+ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component list | grep rust-src),rust-src (installed))
+  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustup component add rust-src)
+endif
+
+# Check that xargo is installed and up-to-date
+XARGO_CALL := $(shell $(XARGO) --version 2>&1)
+XARGO_NAME := $(strip $(firstword $(XARGO_CALL)))
+XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
+ifneq ($(XARGO_NAME), xargo)
   $(warning Required tool `xargo` not installed.)
   $(warning Running `cargo install xargo` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3s)
-  $(shell cargo install xargo)
+  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install xargo)
+  XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
+else ifeq ($(shell expr $(XARGO_VERSION) \< $(MINIMUM_XARGO_VERSION)), 1)
+  $(warning Required tool `xargo` is out-of-date.)
+  $(warning Running `cargo install cargo-update` and `cargo install-update xargo` in 3 seconds (ctrl-c to cancel))
+  $(shell sleep 3s)
+  $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install cargo-update)
+  XARGO_UPDATE_RESULT := $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install-update xargo))
+  $(info $(XARGO_UPDATE_RESULT))
+  XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
 endif
 
 # Dump configuration for verbose builds
@@ -58,11 +75,11 @@ ifneq ($(V),)
   $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD)
   $(info **************************************************)
   $(info Config:)
-  $(info CHIP=$(CHIP))
   $(info MAKEFLAGS=$(MAKEFLAGS))
   $(info OBJCOPY=$(OBJCOPY))
   $(info PLATFORM=$(PLATFORM))
   $(info RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN))
+  $(info XARGO_VERSION=$(XARGO_VERSION))
   $(info TARGET=$(TARGET))
   $(info TOCK_KERNEL_VERSION=$(TOCK_KERNEL_VERSION))
   $(info TOOLCHAIN=$(TOOLCHAIN))
@@ -81,14 +98,13 @@ debug:	target/$(TARGET)/debug/$(PLATFORM).bin
 
 .PHONY: doc
 doc:
-	$(Q)XARGO doc $(VERBOSE) --release --target=$(TARGET)
+	$(Q)$(XARGO) doc $(VERBOSE) --release --target=$(TARGET)
 
 target/$(TARGET)/release/$(PLATFORM).elf: target/$(TARGET)/release/$(PLATFORM)
 	$(Q)cp target/$(TARGET)/release/$(PLATFORM) target/$(TARGET)/release/$(PLATFORM).elf
 
 .PHONY: target/$(TARGET)/release/$(PLATFORM)
 target/$(TARGET)/release/$(PLATFORM):
-	$(Q)rustup component add rust-src
 	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) build --target=$(TARGET) $(VERBOSE) --release
 	$(Q)$(SIZE) $@
 
@@ -112,6 +128,12 @@ target/$(TARGET)/release/$(PLATFORM).bin: target/$(TARGET)/release/$(PLATFORM).e
 
 target/$(TARGET)/debug/$(PLATFORM).bin: target/$(TARGET)/debug/$(PLATFORM).elf
 	$(Q)$(OBJCOPY) -Obinary $^ $@
+
+# `make check` runs the Rust compiler but does not actually output the final
+# binary. This makes checking for Rust errors much faster.
+.PHONY: check
+check:
+	$(Q)RUSTFLAGS=$(RUSTFLAGS_FOR_XARGO_LINKING) $(XARGO) check --target=$(TARGET) $(VERBOSE) --release
 
 .PHONY: clean
 clean::

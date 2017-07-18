@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <timer.h>
+
 #include <crc.h>
 #include <rng.h>
+#include <timer.h>
 
 struct test_case {
   enum crc_alg alg;
@@ -51,20 +52,19 @@ int main(void) {
       struct test_case *t = &test_cases[test_index];
 
       uint32_t result;
-      if ((r = crc_compute(t->input, strlen(t->input), t->alg, &result)) != SUCCESS) {
+      if ((r = crc_compute(t->input, strlen(t->input), t->alg, &result)) != TOCK_SUCCESS) {
         printf("CRC compute failed: %d\n", r);
         exit(1);
       }
 
       printf("[%8lx] Case %2d: ", procid, test_index);
-      if (r == SUCCESS) {
+      if (r == TOCK_SUCCESS) {
         printf("result=%08lx ", result);
         if (result == t->output)
           printf("(OK)");
         else
           printf("(Expected %08lx)", t->output);
-      }
-      else {
+      } else {
         printf("failed with status %d\n", r);
       }
       printf("\n");

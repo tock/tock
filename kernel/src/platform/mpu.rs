@@ -1,3 +1,5 @@
+//! Interface for configuring the Memory Protection Unit.
+
 #[derive(Debug)]
 pub enum AccessPermission {
     //                                 Privileged  Unprivileged
@@ -31,9 +33,9 @@ impl Region {
         }
     }
 
-    pub fn empty() -> Region {
+    pub fn empty(region_num: usize) -> Region {
         Region {
-            base_address: 0,
+            base_address: (region_num as u32) | 1 << 4,
             attributes: 0,
         }
     }
@@ -83,7 +85,7 @@ impl MPU for () {
                      _: ExecutePermission,
                      _: AccessPermission)
                      -> Option<Region> {
-        Some(Region::empty())
+        Some(Region::empty(0))
     }
 
     fn set_mpu(&self, _: Region) {}

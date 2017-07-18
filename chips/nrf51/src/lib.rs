@@ -20,6 +20,8 @@ pub mod pinmux;
 pub use chip::NRF51;
 pub mod temperature;
 pub mod trng;
+pub mod radio;
+pub mod ble_advertising_driver;
 
 use core::ptr::write_volatile;
 
@@ -50,7 +52,6 @@ extern "C" {
 
     // Defined in arch/cortex-m0/src/lib.rs
     fn SVC_Handler();
-    fn systick_handler();
 
     fn generic_isr();
 
@@ -81,7 +82,7 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     /* DebugMon */      unhandled_interrupt,
     unhandled_interrupt,
     /* PendSV */        unhandled_interrupt,
-    /* SysTick */       systick_handler
+    /* SysTick */       unhandled_interrupt, // SysTick not available
 ];
 
 #[link_section=".vectors"]

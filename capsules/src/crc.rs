@@ -1,67 +1,69 @@
-//! CRC driver
-//!
-//! This capsule provides userspace access to a CRC unit.
+//! Provides userspace access to a CRC unit.
 //!
 //! ## Instantiation
 //!
-//! Instatiate the capsule for use as a system call driver with a hardware implementation and a
-//! `Container` for the `App` type, and set the result as a client of the hardware implementation.
-//! For example, using the SAM4L's `CRCU` driver:
+//! Instantiate the capsule for use as a system call driver with a hardware
+//! implementation and a `Container` for the `App` type, and set the result as a
+//! client of the hardware implementation. For example, using the SAM4L's `CRCU`
+//! driver:
 //!
-//! ```
+//! ```rust
 //! let crc = static_init!(
 //!     capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-//!     capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()),
-//!     128/8);
+//!     capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()));
 //! sam4l::crccu::CRCCU.set_client(crc);
 //!
 //! ```
 //!
 //! ## CRC Algorithms
 //!
-//! The capsule supports two general purpose CRC algorithms, as well as a few hardware specific
-//! algorithms implemented on the Atmel SAM4L.
+//! The capsule supports two general purpose CRC algorithms, as well as a few
+//! hardware specific algorithms implemented on the Atmel SAM4L.
 //!
-//! In the values used to identify polynomials below, more-significant bits correspond to
-//! higher-order terms, and the most significant bit is omitted because it always equals one.  All
-//! algorithms listed here consume each input byte from most-significant bit to least-significant.
+//! In the values used to identify polynomials below, more-significant bits
+//! correspond to higher-order terms, and the most significant bit is omitted
+//! because it always equals one.  All algorithms listed here consume each input
+//! byte from most-significant bit to least-significant.
 //!
 //! ### CRC-32
 //!
-//! __Polynomial__: 0x04C11DB7
+//! __Polynomial__: `0x04C11DB7`
 //!
-//! This algorithm is used in Ethernet and many other applications. It bit-reverses and then
-//! bit-inverts the output.
+//! This algorithm is used in Ethernet and many other applications. It bit-
+//! reverses and then bit-inverts the output.
 //!
 //! ### CRC-32C
 //!
-//! __Polynomial__: 0x1EDC6F41
+//! __Polynomial__: `0x1EDC6F41`
 //!
-//! Bit-reverses and then bit-inverts the output. It *may* be equivalent to various CRC functions
-//! using the same name.
+//! Bit-reverses and then bit-inverts the output. It *may* be equivalent to
+//! various CRC functions using the same name.
 //!
 //! ### SAM4L-16
 //!
-//! __Polynomial__: 0x1021
+//! __Polynomial__: `0x1021`
 //!
-//! This algorithm does no post-processing on the output value. The sixteen-bit CRC result is
-//! placed in the low-order bits of the returned result value, and the high-order bits will all be
-//! set.  That is, result values will always be of the form `0xFFFFxxxx` for this algorithm.  It
-//! can be performed purely in hardware on the SAM4L.
+//! This algorithm does no post-processing on the output value. The sixteen-bit
+//! CRC result is placed in the low-order bits of the returned result value, and
+//! the high-order bits will all be set.  That is, result values will always be
+//! of the form `0xFFFFxxxx` for this algorithm.  It can be performed purely in
+//! hardware on the SAM4L.
 //!
 //! ### SAM4L-32
 //!
-//! __Polynomial__: 0x04C11DB7
+//! __Polynomial__: `0x04C11DB7`
 //!
-//! This algorithm uses the same polynomial as `CRC-32`, but does no post-processing on the output
-//! value.  It can be perfomed purely in hardware on the SAM4L.
+//! This algorithm uses the same polynomial as `CRC-32`, but does no post-
+//! processing on the output value.  It can be perfomed purely in hardware on
+//! the SAM4L.
 //!
 //! ### SAM4L-32C
 //!
-//! __Polynomial__: 0x1EDC6F41
+//! __Polynomial__: `0x1EDC6F41`
 //!
-//! This algorithm uses the same polynomial as `CRC-32C`, but does no post-processing on the output
-//! value.  It can be performed purely in hardware on the SAM4L.
+//! This algorithm uses the same polynomial as `CRC-32C`, but does no post-
+//! processing on the output value.  It can be performed purely in hardware on
+//! the SAM4L.
 
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};

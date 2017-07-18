@@ -1,7 +1,4 @@
-//! Console Capsule
-//!
-//! Console provides userspace with the ability to print text via a serial
-//! interface.
+//! Provides userspace with the ability to print text via a serial interface.
 
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver, ReturnCode};
@@ -85,13 +82,10 @@ impl<'a, U: UART> Console<'a, U> {
     /// Returns true if this send is still active, or false if it has completed
     fn send_continue(&self, app_id: AppId, app: &mut App) -> Result<bool, ReturnCode> {
         if app.write_remaining > 0 {
-            match app.write_buffer.take() {
-                Some(slice) => {
-                    self.send(app_id, app, slice);
-                    Ok(true)
-                }
-                None => Err(ReturnCode::FAIL),
-            }
+            app.write_buffer.take().map_or(Err(ReturnCode::ERESERVE), |slice| {
+                self.send(app_id, app, slice);
+                Ok(true)
+            })
         } else {
             Ok(false)
         }

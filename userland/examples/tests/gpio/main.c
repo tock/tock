@@ -1,32 +1,31 @@
 /* vim: set sw=2 expandtab tw=80: */
 
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-#include <tock.h>
 #include <console.h>
 #include <gpio.h>
-#include <timer.h>
 #include <led.h>
+#include <timer.h>
+#include <tock.h>
 
 // callback for timers
 static void timer_cb (__attribute__ ((unused)) int arg0,
-               __attribute__ ((unused)) int arg1,
-               __attribute__ ((unused)) int arg2,
-               __attribute__ ((unused)) void* userdata) {
-}
+                      __attribute__ ((unused)) int arg1,
+                      __attribute__ ((unused)) int arg2,
+                      __attribute__ ((unused)) void* userdata) {}
 
-//**************************************************
+// **************************************************
 // GPIO output example
-//**************************************************
+// **************************************************
 static void gpio_output(void) {
   putstr("Periodically blinking LED\n");
 
   // Start repeating timer
-  timer_subscribe(timer_cb, NULL);
-  timer_start_repeating(500);
+  tock_timer_t timer;
+  timer_every(500, timer_cb, NULL, &timer);
 
   while (1) {
     led_toggle(0);
@@ -34,9 +33,9 @@ static void gpio_output(void) {
   }
 }
 
-//**************************************************
+// **************************************************
 // GPIO input example
-//**************************************************
+// **************************************************
 static void gpio_input(void) {
   putstr("Periodically reading value of the GPIO 0 pin\n");
   putstr("Jump pin high to test (defaults to low)\n");
@@ -44,8 +43,8 @@ static void gpio_input(void) {
   // set LED pin as input and start repeating timer
   // pin is configured with a pull-down resistor, so it should read 0 as default
   gpio_enable_input(0, PullDown);
-  timer_subscribe(timer_cb, NULL);
-  timer_start_repeating(500);
+  tock_timer_t timer;
+  timer_every(500, timer_cb, NULL, &timer);
 
   while (1) {
     // print pin value
@@ -55,14 +54,13 @@ static void gpio_input(void) {
   }
 }
 
-//**************************************************
+// **************************************************
 // GPIO interrupt example
-//**************************************************
+// **************************************************
 static void gpio_cb (__attribute__ ((unused)) int pin_num,
-              __attribute__ ((unused)) int arg2,
-              __attribute__ ((unused)) int arg3,
-              __attribute__ ((unused)) void* userdata) {
-}
+                     __attribute__ ((unused)) int arg2,
+                     __attribute__ ((unused)) int arg3,
+                     __attribute__ ((unused)) void* userdata) {}
 
 static void gpio_interrupt(void) {
   putstr("Print GPIO 0 pin reading whenever its value changes\n");

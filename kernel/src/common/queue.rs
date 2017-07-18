@@ -1,3 +1,5 @@
+//! Interface for queue structure.
+
 pub trait Queue<T> {
     fn has_elements(&self) -> bool;
     fn is_full(&self) -> bool;

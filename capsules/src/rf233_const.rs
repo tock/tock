@@ -1,3 +1,5 @@
+//! Support for the RF233 capsule.
+
 #![allow(non_camel_case_types)]
 
 #[derive(PartialEq, Copy, Clone, Debug)]

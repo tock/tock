@@ -1,24 +1,23 @@
 #include "nrf51_serialization.h"
 
-void nrf51_serialization_subscribe (subscribe_cb cb) {
+int nrf51_serialization_subscribe (subscribe_cb cb) {
   // get some callback love
-  subscribe(5, 0, cb, NULL);
+  return subscribe(5, 0, cb, NULL);
 }
 
-void nrf51_serialization_setup_rx_buffer (char* rx, int rx_len) {
+int nrf51_serialization_setup_rx_buffer (char* rx, int rx_len) {
   // Pass the RX buffer for the UART module to use.
-  allow(5, 0, rx, rx_len);
+  return allow(5, 0, rx, rx_len);
 }
 
-void nrf51_serialization_write (char* tx, int tx_len) {
+int nrf51_serialization_write (char* tx, int tx_len) {
+  int ret;
+
   // Pass in the TX buffer.
-  allow(5, 1, tx, tx_len);
+  ret = allow(5, 1, tx, tx_len);
+  if (ret < 0) return ret;
 
   // Do the write!!!!!
-  command(5, 1, 0);
+  ret = command(5, 1, 0);
+  return ret;
 }
-
-void nrf51_wakeup (void) {
-  command(5, 9001, 0);
-}
-

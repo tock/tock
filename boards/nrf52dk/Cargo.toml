@@ -1,0 +1,23 @@
+[package]
+name = "nrf52dk"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+
+[profile.dev]
+panic = "abort"
+lto = true
+opt-level = 0
+debug = true
+
+[profile.release]
+panic = "abort"
+debug = true
+lto = true
+opt-level = 1
+
+[dependencies]
+cortexm4 = { path = "../../arch/cortex-m4" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+nrf52 = { path = "../../chips/nrf52" }

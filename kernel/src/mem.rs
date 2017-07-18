@@ -1,3 +1,5 @@
+//! Data structure for passing application memory to the kernel.
+
 use AppId;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
@@ -68,8 +70,8 @@ impl<L, T> AppSlice<L, T> {
         self.len
     }
 
-    pub unsafe fn ptr(&self) -> *const T {
-        self.ptr.ptr.as_ref() as *const T
+    pub fn ptr(&self) -> *const T {
+        unsafe { self.ptr.ptr.as_ref() as *const T }
     }
 
     pub unsafe fn expose_to(&self, appid: AppId) -> bool {
@@ -90,6 +92,14 @@ impl<L, T> AppSlice<L, T> {
 
     pub fn iter_mut(&mut self) -> slice::IterMut<T> {
         self.as_mut().iter_mut()
+    }
+
+    pub fn chunks(&self, size: usize) -> slice::Chunks<T> {
+        self.as_ref().chunks(size)
+    }
+
+    pub fn chunks_mut(&mut self, size: usize) -> slice::ChunksMut<T> {
+        self.as_mut().chunks_mut(size)
     }
 }
 

@@ -1,8 +1,8 @@
 /* vim: set sw=2 expandtab tw=80: */
 
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <console.h>
@@ -28,7 +28,7 @@ static void grow_stack(void) {
 
   uint32_t buffer[GROW_BY];
   printf("stack: %p - buffer: %p - STACK_SIZE: 0x%x - at_least: 0x%4lx\n",
-      sp, buffer, STACK_SIZE, size_is_at_least);
+         sp, buffer, STACK_SIZE, size_is_at_least);
 
   write_ptr(buffer);
   read_ptr(buffer);
@@ -44,11 +44,10 @@ static void grow_stack(void) {
 
 // Try not to move the stack much so main's reading the sp reg is meaningful
 __attribute__((noinline))
-static void start(
-    void* mem_start,
-    void* app_heap_break,
-    void* kernel_memory_break,
-    void* sp) {
+static void start(void* mem_start,
+                  void* app_heap_break,
+                  void* kernel_memory_break,
+                  void* sp) {
   printf("\n[TEST] MPU Stack Growth\n");
 
   printf("This test should recursively add stack frames until exceeding\n");
@@ -72,11 +71,10 @@ static void start(
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
 __attribute__ ((section(".start"), used))
 __attribute__ ((noreturn))
-void _start(
-    void* mem_start,
-    void* app_heap_break,
-    void* kernel_memory_break) {
+void _start(void* mem_start,
+            void* app_heap_break,
+            void* kernel_memory_break) {
   register uint32_t* sp asm ("sp");
   start(mem_start, app_heap_break, kernel_memory_break, sp);
-  while(1) { yield(); }
+  while (1) { yield(); }
 }

@@ -1,8 +1,8 @@
-//! A bare-metal library supplying functions rustc may lower code to
+//! A bare-metal library supplying functions rustc may lower code to.
 //!
 //! This library is not intended for general use, and is superseded by a system
 //! libc if one is available. In a freestanding context, however, common
-//! functions such as memset, memcpy, etc are not implemented. This library
+//! functions such as memset, memcpy, etc. are not implemented. This library
 //! provides an implementation of these functions which are either required by
 //! libcore or called by rustc implicitly.
 //!
