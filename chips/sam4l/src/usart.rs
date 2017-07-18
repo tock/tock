@@ -352,7 +352,7 @@ impl USART {
     fn set_baud_rate(&self, baud_rate: u32) {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
 
-        let system_frequency = unsafe { pm::get_system_frequency() };
+        let system_frequency = pm::get_system_frequency();
 
         // The clock divisor is calculated differently in UART and SPI modes.
         let cd = match self.usart_mode.get() {
@@ -781,14 +781,14 @@ impl hil::spi::SpiMaster for USART {
         self.set_baud_rate(rate);
 
         // Calculate what rate will actually be
-        let system_frequency = unsafe { pm::get_system_frequency() };
+        let system_frequency = pm::get_system_frequency();
         let cd = system_frequency / rate;
         system_frequency / cd
     }
 
     fn get_rate(&self) -> u32 {
         let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
-        let system_frequency = unsafe { pm::get_system_frequency() };
+        let system_frequency = pm::get_system_frequency();
         let cd = regs.brgr.get() & 0xFFFF;
         system_frequency / cd
     }

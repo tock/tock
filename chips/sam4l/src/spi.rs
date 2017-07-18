@@ -241,7 +241,7 @@ impl Spi {
     pub fn set_baud_rate(&self, rate: u32) -> u32 {
         // Main clock frequency
         let mut real_rate = rate;
-        let clock = unsafe { pm::get_system_frequency() };
+        let clock = pm::get_system_frequency();
 
         if real_rate < 188235 {
             real_rate = 188235;
