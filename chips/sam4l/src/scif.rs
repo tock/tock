@@ -7,6 +7,7 @@
 //! - Author: Philip Levis
 //! - Date: Aug 2, 2015
 
+use bscif;
 use kernel::common::VolatileCell;
 
 pub enum Register {
@@ -142,6 +143,97 @@ pub fn oscillator_disable() {
     unsafe {
         (*SCIF).oscctrl0.set(0);
     }
+}
+
+pub unsafe fn setup_dfll_rc32k_48mhz() {
+    // Check to see if the DFLL is already setup.
+    //
+    if (((*SCIF).dfll0conf.get() & 0x03) == 0) || (((*SCIF).pclksr.get() & (1 << 2)) == 0) {
+
+        // Enable the GENCLK_SRC_RC32K
+        bscif::enable_rc32k();
+
+        // Next init closed loop mode.
+        //
+        // Must do a SCIF sync before reading the SCIF register
+        (*SCIF).dfll0sync.set(0x01);
+        // Wait for it to be ready
+        while (*SCIF).pclksr.get() & (1 << 3) == 0 {}
+
+        // Read the current DFLL settings
+        let scif_dfll0conf = (*SCIF).dfll0conf.get();
+        // Set the new values
+        //                                        enable     closed loop
+        let scif_dfll0conf_new1 = scif_dfll0conf | (1 << 0) | (1 << 1);
+        let scif_dfll0conf_new2 = scif_dfll0conf_new1 & (!(3 << 16));
+        // frequency range 2
+        let scif_dfll0conf_new3 = scif_dfll0conf_new2 | (2 << 16);
+        // Enable the general clock. Yeah getting this fields is complicated.
+        //                 enable     RC32K       no divider
+        let scif_gcctrl0 = (1 << 0) | (13 << 8) | (0 << 1) | (0 << 16);
+        (*SCIF).gcctrl0.set(scif_gcctrl0);
+
+        // Setup DFLL. Must wait after every operation for the ready bit to go high.
+        // First, enable dfll apparently
+        // unlock dfll0conf
+        (*SCIF).unlock.set(0xAA000028);
+        // enable
+        (*SCIF).dfll0conf.set(0x01);
+        while (*SCIF).pclksr.get() & (1 << 3) == 0 {}
+        // Set step values
+        // unlock
+        (*SCIF).unlock.set(0xAA000034);
+        // 4, 4
+        (*SCIF).dfll0step.set((4 << 0) | (4 << 16));
+        while (*SCIF).pclksr.get() & (1 << 3) == 0 {}
+        // Set multiply value
+        // unlock
+        (*SCIF).unlock.set(0xAA000030);
+        // 1464 = 48000000 / 32768
+        (*SCIF).dfll0mul.set(1464);
+        while (*SCIF).pclksr.get() & (1 << 3) == 0 {}
+        // Set SSG value
+        // unlock
+        (*SCIF).unlock.set(0xAA000038);
+        // just set to zero to disable
+        (*SCIF).dfll0ssg.set(0);
+        while (*SCIF).pclksr.get() & (1 << 3) == 0 {}
+        // Set actual configuration
+        // unlock
+        (*SCIF).unlock.set(0xAA000028);
+        // we already prepared this value
+        (*SCIF).dfll0conf.set(scif_dfll0conf_new3);
+
+        // Now wait for it to be ready (DFLL0LOCKF)
+        while (*SCIF).pclksr.get() & (1 << 2) == 0 {}
+    }
+}
+
+pub unsafe fn setup_osc_16mhz_fast_startup() {
+    // Enable the OSC0
+    (*SCIF).unlock.set(0xAA000020);
+    // enable, 557 us startup time, gain level 4 (sortof), is crystal.
+    (*SCIF).oscctrl0.set((1 << 16) | (1 << 8) | (4 << 1) | (1 << 0));
+    // Wait for oscillator to be ready
+    while (*SCIF).pclksr.get() & (1 << 0) == 0 {}
+}
+
+pub unsafe fn setup_osc_16mhz_slow_startup() {
+    // Enable the OSC0
+    (*SCIF).unlock.set(0xAA000020);
+    // enable, 8.9 ms startup time, gain level 4 (sortof), is crystal.
+    (*SCIF).oscctrl0.set((1 << 16) | (14 << 8) | (4 << 1) | (1 << 0));
+    // Wait for oscillator to be ready
+    while (*SCIF).pclksr.get() & (1 << 0) == 0 {}
+}
+
+pub unsafe fn setup_pll_osc_48mhz() {
+    // Enable the PLL0 register
+    (*SCIF).unlock.set(0xAA000024);
+    // Maximum startup time, multiply by 5, divide=1, divide output by 2, enable.
+    (*SCIF).pll0.set((0x3F << 24) | (5 << 16) | (1 << 8) | (1 << 4) | (1 << 0));
+    // Wait for the PLL to be ready
+    while (*SCIF).pclksr.get() & (1 << 6) == 0 {}
 }
 
 pub fn generic_clock_disable(clock: GenericClock) {

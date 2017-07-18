@@ -196,7 +196,7 @@ impl I2CHw {
     /// in the CWGR register to make the bus run at a particular I2C speed.
     fn set_bus_speed(&self) {
         // Set I2C waveform timing parameters based on ASF code
-        let system_frequency = unsafe { pm::get_system_frequency() };
+        let system_frequency = pm::get_system_frequency();
         let mut exp = 0;
         let mut f_prescaled = system_frequency / 400000 / 2;
         while (f_prescaled > 0xff) && (exp <= 0x7) {
