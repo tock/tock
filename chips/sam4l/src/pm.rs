@@ -143,24 +143,39 @@ pub enum PBDClock {
     PICOUART,
 }
 
-/// Which source the system clock should be generated from.
+/// Which source the system clock should be generated from. These are specified
+/// as system clock source appended with the clock that it is sourced from
+/// appended with the final frequency of the system. So for example, one option
+/// is to use the DFLL sourced from the RC32K with a final frequency of 48 MHz.
+///
+/// When new options (either sources or final frequencies) are needed, they
+/// should be added to this list, and then the `setup_system_clock` function
+/// can be modified to support it. This is necessary because configurations
+/// must be changed not just with the input source but also based on the
+/// desired final frequency.
 pub enum SystemClockSource {
     /// Use the internal digital frequency locked loop (DFLL) sourced from
     /// the internal RC32K clock. Note this typically requires calibration
-    /// of the RC32K to have a consistent clock.
+    /// of the RC32K to have a consistent clock. Final frequency of 48 MHz.
     DfllRc32kAt48MHz,
 
     /// Use an external crystal oscillator as the direct source for the
-    /// system clock.
+    /// system clock. Its expected that the oscillator runs at 16 MHz, and the
+    /// final frequency of the system will be 16 MHz as well.
     ExternalOscillatorAt16MHz,
 
-    /// Use an external crystal oscillator as the input to the internal
-    /// PLL for the system clock. This expects a 16 MHz crystal.
+    /// Use an external crystal oscillator as the input to the internal phase
+    /// locked loop (PLL) for the system clock. This expects a 16 MHz crystal
+    /// and results in a final frequency of 48 MHz.
     PllExternalOscillatorAt48MHz,
 }
 
-/// Which frequency range does your external oscillator fall in? Configuration
-/// needs to change based on this.
+/// Frequency of the external oscillator. For the SAM4L, different
+/// configurations are needed for different ranges of oscillator frequency, so
+/// based on the input frequency, various configurations may need to change.
+/// When additional oscillator frequencies are needed, they should be added
+/// here and the `specify_external_oscillator` function should be modified to
+/// support it.
 pub enum OscClock {
     /// 16 MHz external oscillator
     Frequency16MHz,
@@ -168,7 +183,9 @@ pub enum OscClock {
 
 /// Configuration for the startup time of the external oscillator. In practice
 /// we have found that some boards work with a short startup time, while others
-/// need a slow start in order to properly wake from sleep.
+/// need a slow start in order to properly wake from sleep. In general, we find
+/// that for systems that do not work, at fast speed, they will hang or panic
+/// after several entries into WAIT mode.
 #[derive(Copy,Clone,Debug)]
 pub enum OscStartupMode {
     /// Use a fast startup. ~0.5 ms in practice.
