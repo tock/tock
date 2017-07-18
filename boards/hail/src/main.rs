@@ -185,7 +185,8 @@ unsafe fn set_pin_primary_functions() {
 pub unsafe fn reset_handler() {
     sam4l::init();
 
-    sam4l::pm::PM.specify_external_oscillator(sam4l::pm::OscClock::Frequency16MHz, sam4l::pm::OscStartupMode::FastStart);
+    sam4l::pm::PM.specify_external_oscillator(sam4l::pm::OscClock::Frequency16MHz,
+                                              sam4l::pm::OscStartupMode::FastStart);
     sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz);
 
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)

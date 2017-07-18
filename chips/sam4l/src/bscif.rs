@@ -64,4 +64,3 @@ pub unsafe fn enable_rc32k() {
     // Write the BSCIF::RC32KTUNE register
     (*BSCIF).rc32ktune.set(0x001d0015);
 }
-

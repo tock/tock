@@ -1,13 +1,13 @@
 //! Implementation of the power manager (PM) peripheral.
 
-use core::cell::Cell;
-use core::sync::atomic::Ordering;
-use kernel::common::VolatileCell;
 
 use bpm;
 use bscif;
+use core::cell::Cell;
+use core::sync::atomic::Ordering;
 use flashcalw;
 use gpio;
+use kernel::common::VolatileCell;
 use scif;
 
 #[repr(C, packed)]
@@ -205,7 +205,9 @@ impl PowerManager {
         }
     }
 
-    pub unsafe fn specify_external_oscillator(&self, oscillator_clock: OscClock, startup_mode: OscStartupMode) {
+    pub unsafe fn specify_external_oscillator(&self,
+                                              oscillator_clock: OscClock,
+                                              startup_mode: OscStartupMode) {
         match oscillator_clock {
             OscClock::Frequency16MHz => self.oscillator_frequency.set(16000000),
         };
@@ -235,7 +237,6 @@ impl PowerManager {
             }
         }
     }
-
 }
 
 unsafe fn unlock(register_offset: u32) {
@@ -310,9 +311,7 @@ unsafe fn configure_external_oscillator_pll(startup_mode: OscStartupMode) {
 }
 
 pub fn get_system_frequency() -> u32 {
-    unsafe {
-        PM.system_frequency.get()
-    }
+    unsafe { PM.system_frequency.get() }
 }
 
 /// Utility macro to modify clock mask registers
