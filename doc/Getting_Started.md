@@ -9,7 +9,7 @@ developing Tock.
 1. [Rust](http://www.rust-lang.org/) (install `rustup` so Tock will choose the right version automatically)
 1. [Xargo](http://www.rust-lang.org/) (Rust `cargo` wrapper that installs core library for embedded targets)
 2. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
-3. Command line utilities: wget, sed, make
+3. Command line utilities: wget, sed, make, cmake
 
 ### Installing Requirements
 
