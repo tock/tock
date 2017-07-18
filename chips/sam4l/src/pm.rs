@@ -143,40 +143,14 @@ pub enum PBDClock {
     PICOUART,
 }
 
-/// Which source the system clock should be generated from. These are specified
-/// as system clock source appended with the clock that it is sourced from
-/// appended with the final frequency of the system. So for example, one option
-/// is to use the DFLL sourced from the RC32K with a final frequency of 48 MHz.
-///
-/// When new options (either sources or final frequencies) are needed, they
-/// should be added to this list, and then the `setup_system_clock` function
-/// can be modified to support it. This is necessary because configurations
-/// must be changed not just with the input source but also based on the
-/// desired final frequency.
-pub enum SystemClockSource {
-    /// Use the internal digital frequency locked loop (DFLL) sourced from
-    /// the internal RC32K clock. Note this typically requires calibration
-    /// of the RC32K to have a consistent clock. Final frequency of 48 MHz.
-    DfllRc32kAt48MHz,
-
-    /// Use an external crystal oscillator as the direct source for the
-    /// system clock. Its expected that the oscillator runs at 16 MHz, and the
-    /// final frequency of the system will be 16 MHz as well.
-    ExternalOscillatorAt16MHz,
-
-    /// Use an external crystal oscillator as the input to the internal phase
-    /// locked loop (PLL) for the system clock. This expects a 16 MHz crystal
-    /// and results in a final frequency of 48 MHz.
-    PllExternalOscillatorAt48MHz,
-}
-
 /// Frequency of the external oscillator. For the SAM4L, different
 /// configurations are needed for different ranges of oscillator frequency, so
 /// based on the input frequency, various configurations may need to change.
 /// When additional oscillator frequencies are needed, they should be added
-/// here and the `specify_external_oscillator` function should be modified to
-/// support it.
-pub enum OscClock {
+/// here and the `setup_system_clock` function should be modified to support
+/// it.
+#[derive(Copy,Clone,Debug)]
+pub enum OscillatorFrequency {
     /// 16 MHz external oscillator
     Frequency16MHz,
 }
@@ -187,12 +161,54 @@ pub enum OscClock {
 /// that for systems that do not work, at fast speed, they will hang or panic
 /// after several entries into WAIT mode.
 #[derive(Copy,Clone,Debug)]
-pub enum OscStartupMode {
+pub enum OscillatorStartup {
     /// Use a fast startup. ~0.5 ms in practice.
     FastStart,
 
     /// Use a slow startup. ~8.9 ms in practice.
     SlowStart,
+}
+
+/// Which source the system clock should be generated from. These are specified
+/// as system clock source appended with the clock that it is sourced from
+/// appended with the final frequency of the system. So for example, one option
+/// is to use the DFLL sourced from the RC32K with a final frequency of 48 MHz.
+///
+/// When new options (either sources or final frequencies) are needed, they
+/// should be added to this list, and then the `setup_system_clock` function
+/// can be modified to support it. This is necessary because configurations
+/// must be changed not just with the input source but also based on the
+/// desired final frequency.
+///
+/// For options utilizing an external oscillator, the configurations for that
+/// oscillator must also be provided.
+#[derive(Copy,Clone,Debug)]
+pub enum SystemClockSource {
+    /// Use the RCSYS clock (which the system starts up on anyways). Final
+    /// system frequency will be 115 kHz. Note that while this is the default,
+    /// Tock is NOT guaranteed to work on this setting and will likely fail.
+    RcsysAt115kHz,
+
+    /// Use the internal digital frequency locked loop (DFLL) sourced from
+    /// the internal RC32K clock. Note this typically requires calibration
+    /// of the RC32K to have a consistent clock. Final frequency of 48 MHz.
+    DfllRc32kAt48MHz,
+
+    /// Use an external crystal oscillator as the direct source for the
+    /// system clock. The final system frequency will match the frequency of
+    /// the external oscillator.
+    ExternalOscillator {
+        frequency: OscillatorFrequency,
+        startup_mode: OscillatorStartup,
+    },
+
+    /// Use an external crystal oscillator as the input to the internal phase
+    /// locked loop (PLL) for the system clock. This results in a final
+    /// frequency of 48 MHz.
+    PllExternalOscillatorAt48MHz {
+        frequency: OscillatorFrequency,
+        startup_mode: OscillatorStartup,
+    },
 }
 
 const PM_BASE: usize = 0x400E0000;
@@ -204,52 +220,57 @@ const PBC_MASK_OFFSET: u32 = 0x30;
 const PBD_MASK_OFFSET: u32 = 0x34;
 
 static mut PM_REGS: *mut PmRegisters = PM_BASE as *mut PmRegisters;
-pub static mut PM: PowerManager = PowerManager::new();
 
+/// Contains state for the power management peripheral. This includes the
+/// configurations for various system clocks and the final frequency that the
+/// system is running at.
 pub struct PowerManager {
+    /// Frequency at which the system clock is running.
     system_frequency: Cell<u32>,
-    oscillator_frequency: Cell<u32>,
-    oscillator_startup: Cell<OscStartupMode>,
+
+    /// Clock source configuration
+    system_clock_source: Cell<SystemClockSource>,
 }
 
+pub static mut PM: PowerManager = PowerManager {
+    /// Set to the RCSYS frequency by default (115 kHz).
+    system_frequency: Cell::new(115000),
+
+    /// Set to the RCSYS by default.
+    system_clock_source: Cell::new(SystemClockSource::RcsysAt115kHz),
+};
+
 impl PowerManager {
-    const fn new() -> PowerManager {
-        // initialize with default values
-        PowerManager {
-            system_frequency: Cell::new(0),
-            oscillator_frequency: Cell::new(0),
-            oscillator_startup: Cell::new(OscStartupMode::FastStart),
-        }
-    }
-
-    pub unsafe fn specify_external_oscillator(&self,
-                                              oscillator_clock: OscClock,
-                                              startup_mode: OscStartupMode) {
-        match oscillator_clock {
-            OscClock::Frequency16MHz => self.oscillator_frequency.set(16000000),
-        };
-
-        self.oscillator_startup.set(startup_mode);
-    }
-
+    /// Sets up the system clock. This should be called as one of the first
+    /// lines in the `reset_handler` within the platform's `main.rs`.
     pub unsafe fn setup_system_clock(&self, clock_source: SystemClockSource) {
+
+        // save configuration
+        self.system_clock_source.set(clock_source);
 
         // For now, always go to PS2 as it enables all core speeds
         bpm::set_power_scaling(bpm::PowerScaling::PS2);
 
         match clock_source {
+            SystemClockSource::RcsysAt115kHz => {
+                // no configurations necessary, already running off the RCSYS
+                self.system_frequency.set(115000);
+            }
+
             SystemClockSource::DfllRc32kAt48MHz => {
                 configure_48mhz_dfll();
                 self.system_frequency.set(48000000);
             }
 
-            SystemClockSource::ExternalOscillatorAt16MHz => {
-                configure_external_oscillator(self.oscillator_startup.get());
-                self.system_frequency.set(16000000);
+            SystemClockSource::ExternalOscillator { frequency, startup_mode } => {
+                configure_external_oscillator(frequency, startup_mode);
+                match frequency {
+                    OscillatorFrequency::Frequency16MHz => self.system_frequency.set(16000000),
+                };
             }
 
-            SystemClockSource::PllExternalOscillatorAt48MHz => {
-                configure_external_oscillator_pll(self.oscillator_startup.get());
+            SystemClockSource::PllExternalOscillatorAt48MHz { frequency, startup_mode } => {
+                configure_external_oscillator_pll(frequency, startup_mode);
                 self.system_frequency.set(48000000);
             }
         }
@@ -283,7 +304,8 @@ unsafe fn configure_48mhz_dfll() {
 }
 
 /// Configure the system clock to use the 16 MHz external crystal directly
-unsafe fn configure_external_oscillator(startup_mode: OscStartupMode) {
+unsafe fn configure_external_oscillator(frequency: OscillatorFrequency,
+                                        startup_mode: OscillatorStartup) {
     // Use the cache
     flashcalw::FLASH_CONTROLLER.enable_cache();
 
@@ -291,10 +313,14 @@ unsafe fn configure_external_oscillator(startup_mode: OscStartupMode) {
     bscif::enable_rc32k();
 
     // start the external oscillator
-    match startup_mode {
-        OscStartupMode::FastStart => scif::setup_osc_16mhz_fast_startup(),
-        OscStartupMode::SlowStart => scif::setup_osc_16mhz_slow_startup(),
-    };
+    match frequency {
+        OscillatorFrequency::Frequency16MHz => {
+            match startup_mode {
+                OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
+                OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
+            };
+        }
+    }
 
     // Go to high speed flash mode
     flashcalw::FLASH_CONTROLLER.enable_high_speed_flash();
@@ -304,7 +330,8 @@ unsafe fn configure_external_oscillator(startup_mode: OscStartupMode) {
 }
 
 /// Configure the system clock to use the PLL with the 16 MHz external crystal
-unsafe fn configure_external_oscillator_pll(startup_mode: OscStartupMode) {
+unsafe fn configure_external_oscillator_pll(frequency: OscillatorFrequency,
+                                            startup_mode: OscillatorStartup) {
     // Use the cache
     flashcalw::FLASH_CONTROLLER.enable_cache();
 
@@ -312,10 +339,14 @@ unsafe fn configure_external_oscillator_pll(startup_mode: OscStartupMode) {
     bscif::enable_rc32k();
 
     // start the external oscillator
-    match startup_mode {
-        OscStartupMode::FastStart => scif::setup_osc_16mhz_fast_startup(),
-        OscStartupMode::SlowStart => scif::setup_osc_16mhz_slow_startup(),
-    };
+    match frequency {
+        OscillatorFrequency::Frequency16MHz => {
+            match startup_mode {
+                OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
+                OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
+            };
+        }
+    }
 
     // Setup the PLL
     scif::setup_pll_osc_48mhz();
