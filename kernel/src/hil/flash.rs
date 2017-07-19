@@ -125,3 +125,34 @@ pub trait Client<F: Flash> {
     /// Flash erase complete.
     fn erase_complete(&self, error: Error);
 }
+
+pub trait FlashInfo {
+    fn flash_size(&self) -> u32;
+    fn num_pages(&self) -> u32;
+    fn page_size(&self) -> u32;
+    fn num_lock_units(&self) -> u32;
+    fn lock_unit_size(&self) -> u32;
+    fn pages_per_lock_unit(&self) -> u32;
+    fn page_to_lock_unit(&self, page: u32) -> u32;
+}
+
+pub trait FlashLocking {
+    fn lock_unit(&self, page: u32);
+    fn unlock_unit(&self, page: u32);
+    // Locks/unlocks [first,last]
+    fn lock_units(&self, first: u32, last: u32);
+    fn unlock_units(&self, first: u32, last: u32);
+
+}
+
+pub trait FlashLayout {
+    fn kernel_start_address(&self) -> u32;
+    fn kernel_end_address(&self) -> u32;
+    fn kernel_first_page(&self) -> u32;
+    fn kernel_last_page(&self) -> u32;
+
+    fn apps_start_address(&self) -> u32;
+    fn apps_end_address(&self) -> u32;
+    fn apps_first_page(&self) -> u32;
+    fn apps_last_page(&self) -> u32;
+}

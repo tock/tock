@@ -174,21 +174,21 @@ impl AsMut<[u8]> for Sam4lPage {
 }
 
 // The FLASHCALW controller
-pub struct FLASHCALW {
+pub struct FlashCalw {
     registers: *mut FlashcalwRegisters,
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
     error_status: Cell<u32>,
     ready: Cell<bool>,
-    client: Cell<Option<&'static hil::flash::Client<FLASHCALW>>>,
+    client: Cell<Option<&'static hil::flash::Client<FlashCalw>>>,
     current_state: Cell<FlashState>,
     current_command: Cell<Command>,
     buffer: TakeCell<'static, Sam4lPage>,
 }
 
 // static instance for the board. Only one FLASHCALW on chip.
-pub static mut FLASH_CONTROLLER: FLASHCALW = FLASHCALW::new(FLASHCALW_BASE_ADDRS,
+pub static mut FLASH_CONTROLLER: FlashCalw = FlashCalw::new(FLASHCALW_BASE_ADDRS,
                                                             pm::HSBClock::FLASHCALW,
                                                             pm::HSBClock::FLASHCALWP,
                                                             pm::PBBClock::FLASHCALW);
@@ -217,13 +217,13 @@ macro_rules! bit {
     ($w:expr) => (0x1u32 << $w);
 }
 
-impl FLASHCALW {
+impl FlashCalw {
     const fn new(base_addr: usize,
                  ahb_clk: pm::HSBClock,
                  hramc1_clk: pm::HSBClock,
                  pb_clk: pm::PBBClock)
-                 -> FLASHCALW {
-        FLASHCALW {
+                 -> FlashCalw {
+        FlashCalw {
             registers: base_addr as *mut FlashcalwRegisters,
             ahb_clock: pm::Clock::HSB(ahb_clk),
             hramc1_clock: pm::Clock::HSB(hramc1_clk),
@@ -800,7 +800,7 @@ impl FLASHCALW {
 }
 
 // Implementation of high level calls using the low-lv functions.
-impl FLASHCALW {
+impl FlashCalw {
     pub fn configure(&mut self) {
         // Enable all clocks (if they aren't on already...).
         unsafe {
@@ -924,13 +924,13 @@ impl FLASHCALW {
     }
 }
 
-impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FLASHCALW {
+impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FlashCalw {
     fn set_client(&self, client: &'static C) {
         self.client.set(Some(client));
     }
 }
 
-impl hil::flash::Flash for FLASHCALW {
+impl hil::flash::Flash for FlashCalw {
     type Page = Sam4lPage;
 
     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
@@ -945,6 +945,102 @@ impl hil::flash::Flash for FLASHCALW {
         self.erase_page(page_number as i32)
     }
 }
+
+impl hil::flash::FlashInfo for FlashCalw {
+    fn flash_size(&self) -> u32 {
+        self.get_flash_size()
+    }
+    fn num_pages(&self) -> u32 {
+        self.get_page_count()
+    }
+    fn page_size(&self) -> u32 {
+        self.get_page_size()
+    }
+    fn num_lock_units(&self) -> u32 {
+        NB_OF_REGIONS
+    }
+    fn lock_unit_size(&self) -> u32 {
+        self.flash_size() / self.num_lock_units()
+    }
+    fn pages_per_lock_unit(&self) -> u32 {
+        self.get_page_count_per_region()
+    }
+    fn page_to_lock_unit(&self, page: u32) -> u32 {
+        self.get_page_region(page as i32)
+    }
+}
+
+impl hil::flash::FlashLocking for FlashCalw {
+    fn lock_unit(&self, unit: u32) {
+        self.lock_region(unit as u32, true);
+    }
+    fn unlock_unit(&self, unit: u32) {
+        self.lock_region(unit as u32, false);
+    }
+
+    /// Locks [first,last]
+    fn lock_units(&self, first: u32, last: u32) {
+        for unit in first..last+1 {
+            self.lock_unit(unit)
+        }
+    }
+    fn unlock_units(&self, first: u32, last: u32) {
+        for unit in first..last+1 {
+            self.lock_unit(unit)
+        }
+    }
+}
+
+impl hil::flash::FlashLayout for FlashCalw {
+    fn kernel_start_address(&self) -> u32 {
+        unsafe {
+            extern "C" {
+                static _stext: *const u32;
+            }
+            (&_stext as *const*const u32) as u32
+        }
+    }
+
+    fn kernel_end_address(&self) -> u32 {
+        unsafe {
+            extern "C" {
+                static _etext: *const u32;
+            }
+            (&_etext as *const*const u32) as u32
+        }
+    }
+
+    fn kernel_first_page(&self) -> u32 {
+        self.kernel_start_address() / self.get_page_size()
+    }
+
+    fn kernel_last_page(&self) -> u32 {
+        self.kernel_end_address() / self.get_page_size()
+    }
+
+    fn apps_start_address(&self) -> u32 {
+        unsafe {
+            extern "C" {
+                static _sapps: *const u32;
+            }
+            (&_sapps as *const*const u32) as u32
+        }
+    }
+
+    fn apps_end_address(&self) -> u32 {
+        self.get_flash_size() - 1
+    }
+
+    fn apps_first_page(&self) -> u32 {
+        self.apps_start_address() / self.get_page_size()
+    }
+
+    fn apps_last_page(&self) -> u32 {
+        self.apps_end_address() / self.get_page_size()
+    }
+}
+
+
 
 /// Assumes the only Peripheral Interrupt enabled for the FLASHCALW is the
 /// FRDY (Flash Ready) interrupt.
