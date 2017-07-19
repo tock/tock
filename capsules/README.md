@@ -1,18 +1,111 @@
 Tock Capsules
 =============
 
-Capsules are drivers that live in the kernel and are written in Rust. They are required
-to conform to Rust's type system (i.e. no `unsafe`). Capules are platform agnostic and
-provide a range of features:
+Capsules are drivers that live in the kernel and are written in Rust. They are
+required to conform to Rust's type system (i.e. no `unsafe`). Capsules are
+platform agnostic and provide a range of features:
 - Drivers for sensors or other ICs
 - Virtualization of hardware resources
 - Syscall interfaces for userland applications
 
-When using hardware resources, capsules must only use features provided by the HIL (hardware
-interface layer). This ensures they can be used on multiple microcontrollers and hardware
-platforms.
+When using hardware resources, capsules must only use features provided by the
+HIL (hardware interface layer). This ensures they can be used on multiple
+microcontrollers and hardware platforms.
 
-Capsules have some flexibility in how they present access to a sensor or virtualized hardware
-resource. Some capsules directly implement the `Driver` trait and can be used by userland
-applications. Others provide an internal interface that can be used by other in-kernel
-capsules as well as a `Driver` interface for applications.
+Capsules have some flexibility in how they present access to a sensor or
+virtualized hardware resource. Some capsules directly implement the `Driver`
+trait and can be used by userland applications. Others provide an internal
+interface that can be used by other in-kernel capsules as well as a `Driver`
+interface for applications.
+
+
+List of Tock Capsules
+---------------------
+
+The list of Tock capsules and a brief description.
+
+### Sensor Drivers
+
+These implement a driver to setup and read various physical sensors.
+
+- **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
+- **[ISL29035](src/isl29035.rs)**: Light sensor.
+- **[LPS29035](src/isl29035.rs)**: Pressure sensor.
+- **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
+- **[TMP006](src/tmp006.rs)**: Infrared temperature sensor.
+- **[TSL2561](src/tsl2561.rs)**: Light sensor.
+
+
+### Other IC Drivers
+
+These drivers provide support for various ICs.
+
+- **[FM25CL](src/fm25cl.rs)**: FRAM chip.
+- **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
+- **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
+- **[MCP23008](src/mcp23008.rs)**: I2C GPIO extender.
+- **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
+- **[SD Card](src/sdcard.rs)**: Support for SD cards.
+
+
+### Wireless
+
+Support for wireless radios.
+
+- **[nRF51822 Serialization](src/nrf51822_serialization.rs)**: Kernel support
+  for using the nRF51 serialization library.
+- **[IEEE 802.15.4 Radio](src/radio.rs)**: Userspace library for 15.4 radios.
+- **[RF233](src/rf233.rs)**: Driver for RF233 radio.
+
+
+### MCU Peripherals for Userspace
+
+These capsules provide a `Driver` interface for common MCU peripherals.
+
+- **[ADC](src/adc.rs)**: Individual and continuous samples.
+- **[CRC](src/crc.rs)**: CRC calculation.
+- **[DAC](src/dac.rs)**: Digital to analog conversion.
+- **[GPIO](src/gpio.rs)**: GPIO configuring and control.
+- **[I2C](src/i2c_master_slave_driver.rs)**: I2C master and slave access.
+- **[RNG](src/rng.rs)**: Random number generation.
+- **[SPI](src/spi.rs)**: SPI master and slave.
+- **[Symmetric Encryption](src/symmetric_encryption.rs)**: AES encryption.
+- **[Timer](src/timer.rs)**: Oneshot and periodic timers.
+
+
+### Helpful Userspace Capsules
+
+These provide common and better abstractions for userspace.
+
+- **[Button](src/button.rs)**: Detect button presses.
+- **[Console](src/console.rs)**: UART console support.
+- **[LED](src/led.rs)**: Turn on and off LEDs.
+
+
+### Virtualized Sensor Capsules for Userspace
+
+These provide virtualized (i.e. multiple applications can use them
+simultaneously) support for generic sensor interfaces.
+
+- **[Asynchronous GPIO](src/gpio_async.rs)**: GPIO pins accessed by split-phase
+  calls.
+- **[9DOF](src/ninedof.rs)**: 9DOF sensors (acceleration, magnetometer, gyroscope).
+- **[Nonvolatile Storage](src/nonvolatile_storage.rs)**: Persistent storage for
+  userspace.
+
+
+### Virtualized Hardware Resources
+
+These allow for multiple users of shared hardware resources in the kernel.
+
+- **[Virtual Alarm](src/virtual_alarm.rs)**: Shared alarm resource.
+- **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
+- **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
+
+
+### Utilty Capsules
+
+Other capsules that implement reusable logic.
+
+- **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
+  and writes to flash pages.

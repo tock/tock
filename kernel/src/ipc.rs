@@ -1,4 +1,4 @@
-//! IPC mechanism for Tock.
+//! Inter-process communication mechanism for Tock.
 //!
 //! This is a special syscall driver that allows userspace applications to
 //! share memory.

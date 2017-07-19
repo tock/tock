@@ -1,7 +1,8 @@
-#include <ble.h>
 #include <stdio.h>
 #include <string.h>
-#include <timer.h>
+
+#include <alarm.h>
+#include <ble.h>
 
 /*
  * BLE Demo Application

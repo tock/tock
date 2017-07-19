@@ -1,7 +1,22 @@
-//! Provide capsule driver for controlling LEDs on a board.
-//! This allows for much more cross platform controlling of LEDs
-//! without having to know which of the GPIO pins exposed across
-//! the syscall interface are LEDs.
+//! Provides userspace access to LEDs on a board.
+//!
+//! This allows for much more cross platform controlling of LEDs without having
+//! to know which of the GPIO pins exposed across the syscall interface are
+//! LEDs.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let led_pins = static_init!(
+//!     [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 3],
+//!     [(&sam4l::gpio::PA[13], capsules::led::ActivationMode::ActiveLow),   // Red
+//!      (&sam4l::gpio::PA[15], capsules::led::ActivationMode::ActiveLow),   // Green
+//!      (&sam4l::gpio::PA[14], capsules::led::ActivationMode::ActiveLow)]); // Blue
+//! let led = static_init!(
+//!     capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+//!     capsules::led::LED::new(led_pins));
+//! ```
 
 use kernel::{AppId, Driver, ReturnCode};
 use kernel::hil;

@@ -1,6 +1,23 @@
-//! Provide capsule driver for controlling buttons on a board.  This allows for much more cross
-//! platform controlling of buttons without having to know which of the GPIO pins exposed across
-//! the syscall interface are buttons.
+//! Provides capsule driver for controlling buttons on a board.
+//!
+//! This allows for much more cross platform controlling of buttons without
+//! having to know which of the GPIO pins exposed across the syscall interface
+//! are buttons.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let button_pins = static_init!(
+//!     [&'static sam4l::gpio::GPIOPin; 1],
+//!     [&sam4l::gpio::PA[16]]);
+//! let button = static_init!(
+//!     capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+//!     capsules::button::Button::new(button_pins, kernel::Container::create()));
+//! for btn in button_pins.iter() {
+//!     btn.set_client(button);
+//! }
+//! ```
 
 use kernel::{AppId, Container, Callback, Driver, ReturnCode};
 use kernel::hil;

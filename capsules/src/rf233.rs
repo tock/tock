@@ -1,24 +1,23 @@
-// I like them sometimes, for formatting -pal
-#![allow(unused_parens)]
-
-///
-/// Capsule for sending 802.15.4 packets with an Atmel RF233.
-///
-/// This implementation is completely non-blocking. This means that
-/// the state machine is somewhat complex, as it must interleave interrupt
-/// handling with requests and radio state management. See the SPI
-/// read_write_done handler for details.
-///
-/// To do items:
-///    - Support TX power control
-///    - Support channel selection
-///    - Support link-layer acknowledgements
-///    - Support power management (turning radio off)
-// Capsule for sending 802.15.4 packets with an Atmel RF233.
+//! Driver for sending 802.15.4 packets with an Atmel RF233.
+//!
+//! This implementation is completely non-blocking. This means that the state
+//! machine is somewhat complex, as it must interleave interrupt handling with
+//! requests and radio state management. See the SPI `read_write_done` handler
+//! for details.
+//!
+//! To do items:
+//!
+//! - Support TX power control
+//! - Support channel selection
+//! - Support link-layer acknowledgements
+//! - Support power management (turning radio off)
 //
 // Author: Philip Levis
 // Date: Jan 12 2017
 //
+
+// I like them sometimes, for formatting -pal
+#![allow(unused_parens)]
 
 use core::cell::Cell;
 use kernel::ReturnCode;
@@ -1103,8 +1102,14 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
     // have to copy it into a buffer whose byte 0 is the frame read/write
     // command.
     fn payload_offset(&self, long_src: bool, long_dest: bool) -> u8 {
-        let mut len: u8 = 1; // The SPI command at the head of the buffer
-        len += radio::HEADER_SIZE; // Size if both addresses are short
+        // The SPI command at the head of the buffer takes up 1 byte
+        1 + self.header_size(long_src, long_dest)
+    }
+
+    // Returns the total length (in bytes) of the header depending on
+    // whether or not the source and destination addresses are long
+    fn header_size(&self, long_src: bool, long_dest: bool) -> u8 {
+        let mut len: u8 = radio::HEADER_SIZE;
         if long_src {
             len += 6;
         }
@@ -1114,16 +1119,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
         len
     }
 
-    fn header_size(&self, long_src: bool, long_dest: bool) -> u8 {
-        let mut len: u8 = radio::HEADER_SIZE;
-        if long_src {
-            len += 6;
-        } else if long_dest {
-            len += 6;
-        }
-        len
-    }
-
+    // Returns the total length (in bytes) of the header in an
+    // existing packet
     fn packet_header_size(&self, packet: &'static [u8]) -> u8 {
         if packet.len() < radio::HEADER_SIZE as usize {
             0
@@ -1264,21 +1261,22 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
         }
     }
 
-    fn packet_get_length(&self, packet: &'static [u8]) -> u16 {
+    fn packet_get_length(&self, packet: &'static [u8]) -> u8 {
         if packet.len() < radio::HEADER_SIZE as usize {
             return 0;
         } else {
-            return 0;
+            // -2 for CRC, +1 for length byte: see prepare_packet()
+            return packet[1] - 2 + 1;
         }
     }
+
     fn packet_get_pan(&self, packet: &'static [u8]) -> u16 {
         if packet.len() < radio::HEADER_SIZE as usize {
             return 0;
         } else {
-            return 0;
+            return (packet[5] as u16) | ((packet[6] as u16) << 8);
         }
     }
-
 
     fn set_transmit_client(&self, client: &'static radio::TxClient) {
         self.tx_client.set(Some(client));

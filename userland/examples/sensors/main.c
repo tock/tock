@@ -63,8 +63,7 @@ int main(void) {
   ninedof  = driver_exists(DRIVER_NUM_NINEDOF);
 
   // Setup periodic timer to sample the sensors.
-  timer_subscribe(timer_fired, NULL);
-  timer_start_repeating(1000);
+  timer_every(1000, timer_fired, NULL);
 
   return 0;
 }

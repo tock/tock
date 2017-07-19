@@ -1,3 +1,5 @@
+//! Interface for configuring the Memory Protection Unit.
+
 #[derive(Debug)]
 pub enum AccessPermission {
     //                                 Privileged  Unprivileged

@@ -7,11 +7,11 @@ struct isl_data {
 
 // internal callback for faking synchronous reads
 static void isl29035_cb(int intensity,
-                           __attribute__ ((unused)) int unused1,
-                           __attribute__ ((unused)) int unused2, void* ud) {
+                        __attribute__ ((unused)) int unused1,
+                        __attribute__ ((unused)) int unused2, void* ud) {
   struct isl_data* result = (struct isl_data*)ud;
   result->intensity = intensity;
-  result->fired = true;
+  result->fired     = true;
 }
 
 int isl29035_read_light_intensity(void) {

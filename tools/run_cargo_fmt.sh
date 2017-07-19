@@ -38,8 +38,15 @@ fi
 
 # CI setup has correct rustfmt install globally already
 if [ ! "$CI" == "true" ]; then
+	needs_install=false
 	# Check to make sure that cargo format is installed
 	if [ ! -x tools/local_cargo/bin/rustfmt ]; then
+		needs_install=true
+	elif [ $(tools/local_cargo/bin/rustfmt --version | cut -d' ' -f1) != "$RUSTFMT_VERSION" ]; then
+		needs_install=true
+	fi
+
+	if $needs_install; then
 		echo "INFO: rustfmt v$RUSTFMT_VERSION not installed. Installing."
 		echo "(This will take a few minutes)"
 		echo ""

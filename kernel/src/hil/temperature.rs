@@ -1,3 +1,5 @@
+//! Interface for sampling a temperature sensor.
+
 use returncode::ReturnCode;
 
 pub trait TemperatureDriver {

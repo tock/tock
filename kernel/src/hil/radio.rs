@@ -1,11 +1,11 @@
-/// Hardware independent interface for an 802.15.4 radio.
-/// Note that configuration commands are asynchronous and
-/// must be committed with a call to config_commit. For
-/// example, calling set_address will change the source address
-/// of packets but does not change the address stored in hardware
-/// used for address recognition. This must be committed to hardware
-/// with a call to config_commit. Please see the relevant TRD for
-/// more details.
+//! Interface for sending and receiving IEEE 802.15.4 packets.
+//!
+//! Hardware independent interface for an 802.15.4 radio. Note that
+//! configuration commands are asynchronous and must be committed with a call to
+//! config_commit. For example, calling set_address will change the source
+//! address of packets but does not change the address stored in hardware used
+//! for address recognition. This must be committed to hardware with a call to
+//! config_commit. Please see the relevant TRD for more details.
 
 use returncode::ReturnCode;
 pub trait TxClient {
@@ -31,9 +31,10 @@ pub const MIN_PACKET_SIZE: u8 = HEADER_SIZE + 2; // +2 for CRC
 
 pub trait Radio: RadioConfig + RadioData {}
 
+/// Configure the 802.15.4 radio.
 pub trait RadioConfig {
     /// buf must be at least MAX_BUF_SIZE in length, and
-    /// reg_read and reg_write must be 2 bytes
+    /// reg_read and reg_write must be 2 bytes.
     fn initialize(&self,
                   spi_buf: &'static mut [u8],
                   reg_write: &'static mut [u8],
@@ -74,7 +75,7 @@ pub trait RadioData {
     fn packet_get_dest(&self, packet: &'static [u8]) -> u16;
     fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8; 8];
     fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8; 8];
-    fn packet_get_length(&self, packet: &'static [u8]) -> u16;
+    fn packet_get_length(&self, packet: &'static [u8]) -> u8;
     fn packet_get_pan(&self, packet: &'static [u8]) -> u16;
     fn packet_has_src_long(&self, packet: &'static [u8]) -> bool;
     fn packet_has_dest_long(&self, packet: &'static [u8]) -> bool;

@@ -1,6 +1,37 @@
-//! Silicon Labs SI7021 Temperature/Humidity Sensor
+//! Driver for the Silicon Labs SI7021 temperature/humidity sensor.
 //!
 //! https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx
+//!
+//! > The Si7006/13/20/21/34 devices are Silicon Labs’ latest generation I2C
+//! > relative humidity and temperature sensors. All members of this device
+//! > family combine fully factory-calibrated humidity and temperature sensor
+//! > elements with an analog to digital converter, signal processing and an I2C
+//! > host interface. Patented use of industry-standard low-K polymer
+//! > dielectrics provides excellent accuracy and long term stability, along
+//! > with low drift and low hysteresis. The innovative CMOS design also offers
+//! > the lowest power consumption in the industry for a relative humidity and
+//! > temperature sensor. The Si7013/20/21/34 devices are designed for high-
+//! > accuracy applications, while the Si7006 is targeted toward lower-accuracy
+//! > applications that traditionally have used discrete RH/T sensors.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let si7021_i2c = static_init!(
+//!     capsules::virtual_i2c::I2CDevice,
+//!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x40));
+//! let si7021_virtual_alarm = static_init!(
+//!     VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+//!     VirtualMuxAlarm::new(mux_alarm));
+//! let si7021 = static_init!(
+//!     capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+//!     capsules::si7021::SI7021::new(si7021_i2c,
+//!         si7021_virtual_alarm,
+//!         &mut capsules::si7021::BUFFER));
+//! si7021_i2c.set_client(si7021);
+//! si7021_virtual_alarm.set_client(si7021);
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};

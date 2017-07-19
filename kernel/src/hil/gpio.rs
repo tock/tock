@@ -1,5 +1,6 @@
-/// Enum for configuring any pull-up or pull-down
-/// resistors on the GPIO pin.
+//! Interface for direct control of GPIO pins.
+
+/// Enum for configuring any pull-up or pull-down resistors on the GPIO pin.
 #[derive(Debug)]
 pub enum InputMode {
     PullUp,
@@ -7,8 +8,7 @@ pub enum InputMode {
     PullNone,
 }
 
-/// Enum for selecting which edge to trigger interrupts
-/// on.
+/// Enum for selecting which edge to trigger interrupts on.
 #[derive(Debug)]
 pub enum InterruptMode {
     RisingEdge,

@@ -172,7 +172,6 @@ int main(void)
     printf("\r\n");
   }
 
-
   // Test that asyncronous version works as well
   err = aes128_encrypt_ctr(data, sizeof(data), ctr, sizeof(ctr), aes_async);
   if (err < 0) printf("aes128_encrypt_ctr error %d\r\n", err);

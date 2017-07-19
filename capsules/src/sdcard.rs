@@ -1,5 +1,35 @@
-//! Provide capsule driver for accessing an SD Card.
-//! This allows initialization and block reads or writes on top of SPI
+//! Provides driver for accessing an SD Card and a userspace Driver.
+//!
+//! This allows initialization and block reads or writes on top of SPI.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let sdcard_spi = static_init!(
+//!     capsules::virtual_spi::VirtualSpiMasterDevice<'static, usart::USART>,
+//!     capsules::virtual_spi::VirtualSpiMasterDevice::new(mux_spi,
+//!                                                        Some(&sam4l::gpio::PA[13])));
+//! let sdcard_virtual_alarm = static_init!(
+//!     VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+//!     VirtualMuxAlarm::new(mux_alarm));
+//!
+//! let sdcard = static_init!(
+//!     capsules::sdcard::SDCard<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+//!     capsules::sdcard::SDCard::new(sdcard_spi,
+//!                                   sdcard_virtual_alarm,
+//!                                   Some(&sam4l::gpio::PA[17]),
+//!                                   &mut capsules::sdcard::TXBUFFER,
+//!                                   &mut capsules::sdcard::RXBUFFER));
+//! sdcard_spi.set_client(sdcard);
+//! sdcard_virtual_alarm.set_client(sdcard);
+//! sam4l::gpio::PA[17].set_client(sdcard);
+//!
+//! let sdcard_driver = static_init!(
+//!     capsules::sdcard::SDCardDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+//!     capsules::sdcard::SDCardDriver::new(sdcard, &mut capsules::sdcard::KERNEL_BUFFER));
+//! sdcard.set_client(sdcard_driver);
+//! ```
 
 // Resources for SD Card API:
 //  * elm-chan.org/docs/mmc/mmc_e.html

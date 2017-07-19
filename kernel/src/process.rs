@@ -1,3 +1,5 @@
+//! Support for creating and running userspace applications.
+
 use callback::AppId;
 use common::{RingBuffer, Queue, VolatileCell};
 

@@ -1,8 +1,7 @@
-//! Mux and Virtualize an I2C Master Bus
+//! Virtualize an I2C master bus.
 //!
-//! `MuxI2C` provides shared access to a single I2C Master Bus
-//! for multiple users.
-//! `I2CDevice` provides access to a specific I2C address.
+//! `MuxI2C` provides shared access to a single I2C Master Bus for multiple
+//! users. `I2CDevice` provides access to a specific I2C address.
 
 use core::cell::Cell;
 use kernel::common::{List, ListLink, ListNode};

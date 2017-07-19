@@ -1,10 +1,18 @@
-//! RNG Capsule
-//!
 //! Provides a simple driver for userspace applications to request randomness.
-//! The RNG accepts a user-defined callback and buffer to hold received randomness.
-//! A single command starts the RNG, the callback is called when the requested
-//! amount of randomness is received, or the buffer is filled.
-
+//!
+//! The RNG accepts a user-defined callback and buffer to hold received
+//! randomness. A single command starts the RNG, the callback is called when the
+//! requested amount of randomness is received, or the buffer is filled.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let rng = static_init!(
+//!         capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
+//!         capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Container::create()));
+//! sam4l::trng::TRNG.set_client(rng);
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};

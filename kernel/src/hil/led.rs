@@ -1,4 +1,4 @@
-//! led.rs -- Drivers for LEDs that abstract away polarity and pin.
+//! Interface for LEDs that abstract away polarity and pin.
 //!
 //!  Author: Philip Levis <pal@cs.stanford.edu>
 //!  Date: July 31, 2015
