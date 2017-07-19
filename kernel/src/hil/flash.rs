@@ -1,4 +1,6 @@
-//! Interface for reading, writing, and erasing flash storage pages.
+//! Interfaces for reading, writing, and erasing flash storage pages as
+//! well as querying the layout and locking/unlocking lock units. A
+//! lock unit consists of one or more pages.
 //!
 //! Operates on single pages. The page size is set by the associated type
 //! `page`. Here is an example of a page type:
@@ -130,8 +132,11 @@ pub trait FlashInfo {
     fn flash_size(&self) -> u32;
     fn num_pages(&self) -> u32;
     fn page_size(&self) -> u32;
+    /// Return 0 if flash does not support locking
     fn num_lock_units(&self) -> u32;
+    /// Return 0 if flash does not support locking
     fn lock_unit_size(&self) -> u32;
+    /// Return 0 if flash does not support locking
     fn pages_per_lock_unit(&self) -> u32;
     fn page_to_lock_unit(&self, page: u32) -> u32;
 }

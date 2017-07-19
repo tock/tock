@@ -19,7 +19,8 @@
 //! general purpose fuse bits, and more granular control of the cache).
 //!
 //! - Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
-//! - Date: July 27, 2016
+//! - Author:  Philip Levis <pal@cs.stanford.edu>
+//! - Date: July 19, 2017
 
 use core::cell::Cell;
 use core::mem;
