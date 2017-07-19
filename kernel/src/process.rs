@@ -63,10 +63,17 @@ pub unsafe fn load_processes(start_of_flash: *const u8,
                                                                      fault_response);
 
         if process.is_none() {
-            break;
+            // We did not get a valid process, but we may have gotten a disabled
+            // process or padding. Therefore we want to skip this chunk of flash
+            // and see if there is a valid app there. However, if we cannot
+            // advance the flash pointer, then we are done.
+            if flash_offset == 0 && memory_offset == 0 {
+                break;
+            }
+        } else {
+            procs[i] = process;
         }
 
-        procs[i] = process;
         apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
         app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
         app_memory_size -= memory_offset;
