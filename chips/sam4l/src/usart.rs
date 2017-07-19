@@ -319,39 +319,48 @@ impl USART {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
-        let status = regs.csr.get();
-        let mask = regs.imr.get();
+        // only handle interrupts if the clock is enabled for this peripheral.
+        // Now, why are we occasionally getting interrupts with the clock
+        // disabled? That is a good question that I don't have the answer to.
+        // They don't even seem to be causing a problem, but seemed bad, so I
+        // stopped it from occurring just in case it caused issues in the
+        // future.
+        if self.is_clock_enabled() {
 
-        if status & (1 << 9) != 0 && mask & (1 << 9) != 0 {
-            self.disable_tx();
-            self.disable_tx_empty_interrupt();
-            self.usart_tx_state.set(USARTStateTX::Idle);
+            let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+            let status = regs.csr.get();
+            let mask = regs.imr.get();
+
+            if status & (1 << 9) != 0 && mask & (1 << 9) != 0 {
+                self.disable_tx_empty_interrupt();
+                self.disable_tx();
+                self.usart_tx_state.set(USARTStateTX::Idle);
+            }
+
+            if status & (1 << 12) != 0 {
+                // DO NOTHING. Why are we here!?
+
+            } else if status & (1 << 8) != 0 {
+                // TIMEOUT
+                self.disable_rx_timeout();
+                self.abort_rx(hil::uart::Error::CommandComplete);
+
+            } else if status & (1 << 7) != 0 {
+                // PARE
+                self.abort_rx(hil::uart::Error::ParityError);
+
+            } else if status & (1 << 6) != 0 {
+                // FRAME
+                self.abort_rx(hil::uart::Error::FramingError);
+
+            } else if status & (1 << 5) != 0 {
+                // OVRE
+                self.abort_rx(hil::uart::Error::OverrunError);
+            }
+
+            // reset status registers
+            regs.cr.set(1 << 8); // RSTSTA
         }
-
-        if status & (1 << 12) != 0 {
-            // DO NOTHING. Why are we here!?
-
-        } else if status & (1 << 8) != 0 {
-            // TIMEOUT
-            self.disable_rx_timeout();
-            self.abort_rx(hil::uart::Error::CommandComplete);
-
-        } else if status & (1 << 7) != 0 {
-            // PARE
-            self.abort_rx(hil::uart::Error::ParityError);
-
-        } else if status & (1 << 6) != 0 {
-            // FRAME
-            self.abort_rx(hil::uart::Error::FramingError);
-
-        } else if status & (1 << 5) != 0 {
-            // OVRE
-            self.abort_rx(hil::uart::Error::OverrunError);
-        }
-
-        // reset status registers
-        regs.cr.set(1 << 8); // RSTSTA
     }
 
     fn enable_clock(&self) {
@@ -364,6 +373,10 @@ impl USART {
         unsafe {
             pm::disable_clock(self.clock);
         }
+    }
+
+    fn is_clock_enabled(&self) -> bool {
+        unsafe { pm::is_clock_enabled(self.clock) }
     }
 
     fn enable_nvic(&self) {
@@ -627,6 +640,10 @@ impl hil::uart::UART for USART {
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
+        // enable USART clock
+        //  must do this before writing any registers
+        self.enable_clock();
+
         // quit current transmission if any
         self.abort_tx(hil::uart::Error::RepeatCallError);
 
@@ -643,6 +660,10 @@ impl hil::uart::UART for USART {
     }
 
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
+        // enable USART clock
+        //  must do this before writing any registers
+        self.enable_clock();
+
         // quit current reception if any
         self.abort_rx(hil::uart::Error::RepeatCallError);
 
@@ -668,6 +689,10 @@ impl hil::uart::UART for USART {
 
 impl hil::uart::UARTAdvanced for USART {
     fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8) {
+        // enable USART clock
+        //  must do this before writing any registers
+        self.enable_clock();
+
         // quit current reception if any
         self.abort_rx(hil::uart::Error::RepeatCallError);
 
@@ -689,6 +714,10 @@ impl hil::uart::UARTAdvanced for USART {
     }
 
     fn receive_until_terminator(&self, rx_buffer: &'static mut [u8], terminator: u8) {
+        // enable USART clock
+        //  must do this before writing any registers
+        self.enable_clock();
+
         // quit current reception if any
         self.abort_rx(hil::uart::Error::RepeatCallError);
 

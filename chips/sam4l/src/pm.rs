@@ -392,6 +392,15 @@ macro_rules! mask_clock {
     });
 }
 
+/// Utility macro to get value of clock register. Used to check if a specific
+/// clock is enabled or not. See above description of `make_clock!`.
+macro_rules! get_clock {
+    ($module:ident: $field:ident & $mask:expr) => ({
+        unlock(concat_idents!($module, _MASK_OFFSET));
+        ((*PM_REGS).$field.get() & ($mask)) != 0
+    });
+}
+
 // Clock masks that allow us to go into deep sleep without disabling any active
 // peripherals.
 
@@ -456,5 +465,15 @@ pub unsafe fn disable_clock(clock: Clock) {
         Clock::PBB(v) => mask_clock!(PBB: pbbmask & !(1 << (v as u32))),
         Clock::PBC(v) => mask_clock!(PBC: pbcmask & !(1 << (v as u32))),
         Clock::PBD(v) => mask_clock!(PBD: pbdmask & !(1 << (v as u32))),
+    }
+}
+
+pub unsafe fn is_clock_enabled(clock: Clock) -> bool {
+    match clock {
+        Clock::HSB(v) => get_clock!(HSB: hsbmask & (1 << (v as u32))),
+        Clock::PBA(v) => get_clock!(PBA: pbamask & (1 << (v as u32))),
+        Clock::PBB(v) => get_clock!(PBB: pbbmask & (1 << (v as u32))),
+        Clock::PBC(v) => get_clock!(PBC: pbcmask & (1 << (v as u32))),
+        Clock::PBD(v) => get_clock!(PBD: pbdmask & (1 << (v as u32))),
     }
 }
