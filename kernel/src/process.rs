@@ -404,6 +404,35 @@ impl TbfHeader {
             _ => "",
         }
     }
+
+    /// Get the number of flash regions this app has specified in its header.
+    fn number_writeable_flash_regions(&self) -> usize {
+        match *self {
+            TbfHeader::TbfHeaderV1(_) => 0,
+            TbfHeader::TbfHeaderV2(hd) => {
+                hd.writeable_regions.map_or(0, |wr| wr.len())
+            }
+            _ => 0,
+        }
+    }
+
+    /// Get the offset and size of a given flash region.
+    fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
+        match *self {
+            TbfHeader::TbfHeaderV1(_) => (0, 0),
+            TbfHeader::TbfHeaderV2(hd) => {
+                hd.writeable_regions.map_or((0, 0), |wr| {
+                    if wr.len() > index {
+                        (wr[index].writeable_flash_region_offset,
+                         wr[index].writeable_flash_region_size)
+                    } else {
+                        (0, 0)
+                    }
+                })
+            }
+            _ => (0, 0),
+        }
+    }
 }
 
 /// Converts a pointer to memory to a TbfHeader struct
@@ -780,6 +809,30 @@ impl<'a> Process<'a> {
 
     pub fn kernel_memory_break(&self) -> *const u8 {
         self.kernel_memory_break
+    }
+
+    pub fn number_writeable_flash_regions(&self) -> usize {
+        self.header.number_writeable_flash_regions()
+    }
+
+    pub fn get_writeable_flash_region(&self, region_index: usize) -> (u32, u32) {
+        self.header.get_writeable_flash_region(region_index)
+    }
+
+    pub fn update_stack_start_pointer(&mut self, stack_pointer: *const u8) {
+        if stack_pointer >= self.mem_start() && stack_pointer < self.mem_end() {
+            self.debug.app_stack_start_pointer = Some(stack_pointer);
+
+            // We also reset the minimum stack pointer because whatever value
+            // we had could be entirely wrong by now.
+            self.debug.min_stack_pointer = stack_pointer;
+        }
+    }
+
+    pub fn update_heap_start_pointer(&mut self, heap_pointer: *const u8) {
+        if heap_pointer >= self.mem_start() && heap_pointer < self.mem_end() {
+            self.debug.app_heap_start_pointer = Some(heap_pointer);
+        }
     }
 
     pub fn setup_mpu<MPU: mpu::MPU>(&self, mpu: &MPU) {

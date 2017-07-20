@@ -37,6 +37,55 @@ pub fn memop(process: &mut Process) -> ReturnCode {
         /// Op Type 6: Grant region begin
         6 => ReturnCode::SuccessWithValue { value: process.kernel_memory_break() as usize },
 
+        /// Op Type 7: Number of defined writeable regions in the TBF header.
+        7 => ReturnCode::SuccessWithValue { value: process.number_writeable_flash_regions() },
+
+        /// Op Type 8: The start address of the writeable region indexed by r1.
+        /// Returns (void*) -1 on failure, meaning the selected writeable region
+        /// does not exist.
+        8 => {
+            let flash_start = process.flash_start() as usize;
+            let (offset, size) = process.get_writeable_flash_region(r1);
+            if size == 0 {
+                ReturnCode::FAIL
+            } else {
+                ReturnCode::SuccessWithValue { value: flash_start + offset as usize }
+            }
+        }
+
+        /// Op Type 9: The end address of the writeable region indexed by r1.
+        /// Returns (void*) -1 on failure, meaning the selected writeable region
+        /// does not exist.
+        9 => {
+            let flash_start = process.flash_start() as usize;
+            let (offset, size) = process.get_writeable_flash_region(r1);
+            if size == 0 {
+                ReturnCode::FAIL
+            } else {
+                ReturnCode::SuccessWithValue { value: flash_start +
+                                                      offset as usize +
+                                                      size as usize }
+            }
+        }
+
+        /// Op Type 10: Specify where the start of the app stack is. This tells
+        /// the kernel where the app has put the start of its stack. This is not
+        /// strictly necessary for correct operation, but allows for better
+        /// debugging if the app crashes.
+        10 => {
+            process.update_stack_start_pointer(r1 as *const u8);
+            ReturnCode::SUCCESS
+        }
+
+        /// Op Type 11: Specify where the start of the app heap is. This tells
+        /// the kernel where the app has put the start of its heap. This is not
+        /// strictly necessary for correct operation, but allows for better
+        /// debugging if the app crashes.
+        11 => {
+            process.update_heap_start_pointer(r1 as *const u8);
+            ReturnCode::SUCCESS
+        }
+
         _ => ReturnCode::ENOSUPPORT,
     }
 }
