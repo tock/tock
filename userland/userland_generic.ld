@@ -20,12 +20,6 @@ MEMORY {
 }
 
 SECTIONS {
-/* Load information, used by runtime to load app */
-    .load_info :
-    {
-        KEEP(*(.load_info))
-    } > FLASH =0xFF
-
 /* Text section, Code! */
     .text :
     {
