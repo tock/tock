@@ -59,6 +59,10 @@ override CPPFLAGS += \
 	    -mpic-register=r9\
 	    -mno-pic-data-is-text-relative
 
+# This allows Tock to add additional warnings for functions that frequently cause problems.
+# See the included header for more details.
+override CPPFLAGS += -include $(TOCK_USERLAND_BASE_DIR)/support/warning_header.h
+
 # Flags for creating application Object files
 OBJDUMP_FLAGS += --disassemble-all --source --disassembler-options=force-thumb -C --section-headers
 

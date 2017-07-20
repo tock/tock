@@ -87,7 +87,3 @@ int putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) 
   ret = subscribe(0, 1, cb, userdata);
   return ret;
 }
-
-int putstr(const char *str) {
-  return putnstr(str, strlen(str));
-}
