@@ -981,12 +981,12 @@ impl hil::flash::FlashLocking for FlashCalw {
 
     /// Locks [first,last]
     fn lock_units(&self, first: u32, last: u32) {
-        for unit in first..last+1 {
+        for unit in first..last + 1 {
             self.lock_unit(unit)
         }
     }
     fn unlock_units(&self, first: u32, last: u32) {
-        for unit in first..last+1 {
+        for unit in first..last + 1 {
             self.lock_unit(unit)
         }
     }
@@ -998,7 +998,7 @@ impl hil::flash::FlashLayout for FlashCalw {
             extern "C" {
                 static _stext: *const u32;
             }
-            (&_stext as *const*const u32) as u32
+            (&_stext as *const *const u32) as u32
         }
     }
 
@@ -1007,7 +1007,7 @@ impl hil::flash::FlashLayout for FlashCalw {
             extern "C" {
                 static _etext: *const u32;
             }
-            (&_etext as *const*const u32) as u32
+            (&_etext as *const *const u32) as u32
         }
     }
 
@@ -1024,7 +1024,7 @@ impl hil::flash::FlashLayout for FlashCalw {
             extern "C" {
                 static _sapps: *const u32;
             }
-            (&_sapps as *const*const u32) as u32
+            (&_sapps as *const *const u32) as u32
         }
     }
 

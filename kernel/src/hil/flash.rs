@@ -147,7 +147,6 @@ pub trait FlashLocking {
     // Locks/unlocks [first,last]
     fn lock_units(&self, first: u32, last: u32);
     fn unlock_units(&self, first: u32, last: u32);
-
 }
 
 pub trait FlashLayout {
