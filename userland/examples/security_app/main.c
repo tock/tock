@@ -61,7 +61,7 @@ int main(void) {
     led_toggle(0);
 
     printf("\tPIR:\t\t%d\n\tReed Switch:\t%d\n\n",
-        sensor_data.pir, sensor_data.reed_switch);
+           sensor_data.pir, sensor_data.reed_switch);
   }
 
   return 0;
