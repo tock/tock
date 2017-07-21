@@ -112,8 +112,8 @@ impl kernel::mpu::MPU for MPU {
     fn enable_mpu(&self) {
         let regs = unsafe { &*self.0 };
 
-        // Enable the MPU, disable it during HardFault/NMI handlers, disable it
-        // when privileged code runs
+        // Enable the MPU, disable it during HardFault/NMI handlers, allow
+        // privileged code access to all unprotected memory.
         regs.control.set(0b101);
 
         let mpu_type = regs.mpu_type.get();
@@ -122,6 +122,11 @@ impl kernel::mpu::MPU for MPU {
             panic!("Tock currently assumes 8 MPU regions. This chip has {}",
                    regions);
         }
+    }
+
+    fn disable_mpu(&self) {
+        let regs = unsafe { &*self.0 };
+        regs.control.set(0b0);
     }
 
     fn create_region(region_num: usize,
