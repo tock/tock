@@ -413,7 +413,6 @@ pub unsafe fn reset_handler() {
     hail.nrf51822.initialize();
 
     let mut chip = sam4l::chip::Sam4l::new();
-    chip.mpu().enable_mpu();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
