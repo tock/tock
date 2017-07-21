@@ -71,6 +71,14 @@ pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u3
         procs[idx].as_mut().map(|process| { process.statistics_str(writer); });
     }
 
+    // turn off the non panic leds, just in case
+    let ledg = &sam4l::gpio::PA[14];
+    ledg.enable_output();
+    ledg.set();
+    let ledb = &sam4l::gpio::PA[15];
+    ledb.enable_output();
+    ledb.set();
+
     // blink the panic signal
     let led = &sam4l::gpio::PA[13];
     led.enable_output();
