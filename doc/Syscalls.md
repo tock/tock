@@ -296,6 +296,7 @@ will get routed to the console, and all other driver numbers will return
 | 30            | App Flash        | Allow apps to write their own flash        |
 | 33            | BLE              | Bluetooth low energy communication         |
 | 34            | USB              | Universal Serial Bus interface             |
+| 35            | Humidity Sensor  | Humdity Sensor                             |
 | 154           | Radio            | 15.4 radio interface                       |
 | 255           | IPC              | Inter-process communication                |
 

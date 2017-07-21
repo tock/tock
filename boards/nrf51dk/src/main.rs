@@ -88,7 +88,7 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
     led: &'static capsules::led::LED<'static, nrf51::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, nrf51::gpio::GPIOPin>,
-    temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf51::trng::Trng<'static>>,
     aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf51::aes::AesECB>,
     ble_radio: &'static nrf51::ble_advertising_driver::BLE<'static, VirtualMuxAlarm<'static, Rtc>>,
@@ -105,10 +105,10 @@ impl kernel::Platform for Platform {
             3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            10 => f(Some(self.temp)),
             14 => f(Some(self.rng)),
             17 => f(Some(self.aes)),
             33 => f(Some(self.ble_radio)),
-            36 => f(Some(self.temp)),
             _ => f(None),
         }
     }
@@ -219,10 +219,10 @@ pub unsafe fn reset_handler() {
 
 
     let temp = static_init!(
-        capsules::temp_nrf51dk::Temperature<'static, nrf51::temperature::Temperature>,
-        capsules::temp_nrf51dk::Temperature::new(&mut nrf51::temperature::TEMP,
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(&mut nrf51::temperature::TEMP,
                                                  kernel::Container::create()), 96/8);
-    nrf51::temperature::TEMP.set_client(temp);
+    kernel::hil::sensor::TemperatureDriver::set_client(&nrf51::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf51::trng::Trng>,

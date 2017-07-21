@@ -52,9 +52,11 @@ struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    si7021: &'static capsules::si7021::SI7021<'static,
+    /*si7021: &'static capsules::si7021::SI7021<'static,
                                               VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-
+    */
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
@@ -101,10 +103,11 @@ impl kernel::Platform for Imix {
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
-            10 => f(Some(self.si7021)),
+            10 => f(Some(self.temp)),
             11 => f(Some(self.ninedof)),
             16 => f(Some(self.crc)),
             34 => f(Some(self.usb_driver)),
+            35 => f(Some(self.humidity)),
             154 => f(Some(self.radio)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
@@ -295,6 +298,18 @@ pub unsafe fn reset_handler() {
         capsules::si7021::SI7021::new(si7021_i2c, si7021_alarm, &mut capsules::si7021::BUFFER));
     si7021_i2c.set_client(si7021);
     si7021_alarm.set_client(si7021);
+    let temp = static_init!(
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(si7021,
+                                                 kernel::Container::create()), 96/8);
+    kernel::hil::sensor::TemperatureDriver::set_client(si7021, temp);
+    let humidity = static_init!(
+        capsules::humidity::HumiditySensor<'static>,
+        capsules::humidity::HumiditySensor::new(si7021,
+                                                 kernel::Container::create()), 96/8);
+    kernel::hil::sensor::HumidityDriver::set_client(si7021, humidity);
+
+
 
     // Create a second virtualized SPI client, for the RF233
     let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
@@ -428,7 +443,8 @@ pub unsafe fn reset_handler() {
         console: console,
         timer: timer,
         gpio: gpio,
-        si7021: si7021,
+        temp: temp,
+        humidity: humidity,
         ambient_light: ambient_light,
         adc: adc,
         led: led,
