@@ -240,6 +240,7 @@ functionality that is handled by the kernel. `command`, `subscribe`, and
 | 25            | SPI Slave        | Raw SPI slave interface                    |
 | 26            | DAC              | Digital to analog converter                |
 | 27            | Nonvolatile Storage | Generic interface for persistent storage |
+| 30            | App Flash        | Allow apps to write their own flash        |
 | 33            | BLE              | Bluetooth low energy communication         |
 | 154           | Radio            | 15.4 radio interface                       |
 | 255           | IPC              | Inter-process communication                |
