@@ -96,8 +96,11 @@ all:	target/$(TARGET)/release/$(PLATFORM).bin
 .PHONY: debug
 debug:	target/$(TARGET)/debug/$(PLATFORM).bin
 
+target:
+	@mkdir -p target
+
 .PHONY: doc
-doc:
+doc: | target
 	@# Need to make a wrapper script so we can pass flags to `rustdoc`.
 	@# This allows us to tell rustdoc to document internal functions and fields.
 	$(Q)printf '#!/bin/bash\nexec rustdoc $$@ --no-defaults --passes "collapse-docs" --passes "unindent-comments"\n' > target/rustdoc
