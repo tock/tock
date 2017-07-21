@@ -199,8 +199,8 @@ impl USART {
 
     pub fn abort_rx(&self, error: hil::uart::Error) {
         if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
-            self.disable_rx();
             self.disable_rx_interrupts();
+            self.disable_rx();
             self.usart_rx_state.set(USARTStateRX::Idle);
 
             // get buffer
@@ -227,8 +227,8 @@ impl USART {
 
     pub fn abort_tx(&self, error: hil::uart::Error) {
         if self.usart_tx_state.get() == USARTStateTX::DMA_Transmitting {
-            self.disable_tx();
             self.disable_tx_interrupts();
+            self.disable_tx();
             self.usart_tx_state.set(USARTStateTX::Idle);
 
             // get buffer
@@ -315,10 +315,12 @@ impl USART {
         regs.cr.set(cr_val);
 
         self.abort_rx(hil::uart::Error::ResetError);
+        self.enable_clock(); // in case abort_rx turned them off
         self.abort_tx(hil::uart::Error::ResetError);
     }
 
     pub fn handle_interrupt(&self) {
+
         // only handle interrupts if the clock is enabled for this peripheral.
         // Now, why are we occasionally getting interrupts with the clock
         // disabled? That is a good question that I don't have the answer to.
@@ -331,20 +333,18 @@ impl USART {
             let status = regs.csr.get();
             let mask = regs.imr.get();
 
-            if status & (1 << 9) != 0 && mask & (1 << 9) != 0 {
-                self.disable_tx_empty_interrupt();
-                self.disable_tx();
-                self.usart_tx_state.set(USARTStateTX::Idle);
-            }
+            // Reset status registers. We need to do this first because some
+            // interrupts signal us to turn off our clock.
+            regs.cr.set(1 << 8); // RSTSTA
 
-            if status & (1 << 12) != 0 {
-                // DO NOTHING. Why are we here!?
-
-            } else if status & (1 << 8) != 0 {
+            if status & (1 << 8) != 0 && mask & (1 << 8) != 0 {
                 // TIMEOUT
                 self.disable_rx_timeout();
                 self.abort_rx(hil::uart::Error::CommandComplete);
-
+            } else if status & (1 << 9) != 0 && mask & (1 << 9) != 0 {
+                self.disable_tx_empty_interrupt();
+                self.disable_tx();
+                self.usart_tx_state.set(USARTStateTX::Idle);
             } else if status & (1 << 7) != 0 {
                 // PARE
                 self.abort_rx(hil::uart::Error::ParityError);
@@ -357,9 +357,6 @@ impl USART {
                 // OVRE
                 self.abort_rx(hil::uart::Error::OverrunError);
             }
-
-            // reset status registers
-            regs.cr.set(1 << 8); // RSTSTA
         }
     }
 
@@ -480,8 +477,8 @@ impl dma::DMAClient for USART {
                     // RX transfer was completed
 
                     // disable RX and RX interrupts
-                    self.disable_rx();
                     self.disable_rx_interrupts();
+                    self.disable_rx();
                     self.usart_rx_state.set(USARTStateRX::Idle);
 
                     // get buffer
@@ -607,6 +604,7 @@ impl hil::uart::UART for USART {
 
         // stop any TX and RX and clear status
         self.reset();
+        self.enable_clock();
 
         // set USART mode register
         let mut mode = 0x00000000;
