@@ -800,21 +800,37 @@ impl hil::spi::SpiMaster for USART {
             cs.clear();
         });
 
-        // Set up dma transfer and start transmission
-        self.tx_dma.get().map(move |dma| {
-            self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
-            self.usart_rx_state.set(USARTStateRX::Idle);
-            dma.enable();
-            dma.do_xfer(self.tx_dma_peripheral, write_buffer, count);
-        });
+        // Check if we should read and write or just write.
+        if read_buffer.is_some() {
+            // We are reading and writing.
+            read_buffer.map(|rbuf| {
+                self.tx_dma.get().map(move |dma| {
+                    self.rx_dma.get().map(move |read| {
+                        // Do all the maps before starting anything in case
+                        // they take too much time.
 
-        read_buffer.map(|rbuf| {
-            self.rx_dma.get().map(move |read| {
-                self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
-                read.enable();
-                read.do_xfer(self.rx_dma_peripheral, rbuf, count);
+                        // Start the write transaction.
+                        self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
+                        self.usart_rx_state.set(USARTStateRX::Idle);
+                        dma.enable();
+                        dma.do_xfer(self.tx_dma_peripheral, write_buffer, count);
+
+                        // Start the read transaction.
+                        self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
+                        read.enable();
+                        read.do_xfer(self.rx_dma_peripheral, rbuf, count);
+                    });
+                });
             });
-        });
+        } else {
+            // We are just writing.
+            self.tx_dma.get().map(move |dma| {
+                self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
+                self.usart_rx_state.set(USARTStateRX::Idle);
+                dma.enable();
+                dma.do_xfer(self.tx_dma_peripheral, write_buffer, count);
+            });
+        }
 
         ReturnCode::SUCCESS
     }
