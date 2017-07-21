@@ -11,7 +11,7 @@ pub enum AccessPermission {
     Reserved = 0b100, //.............. undef       undef
     PrivilegedOnlyReadOnly = 0b101, // R-          --
     ReadOnly = 0b110, //.............. R-          R-
-    ReadOnlyAlais = 0b111, //......... R-          R-
+    ReadOnlyAlias = 0b111, //......... R-          R-
 }
 
 #[derive(Debug)]
