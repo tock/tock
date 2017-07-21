@@ -31,6 +31,12 @@ SECTIONS {
         _etext = .;
     } > FLASH =0xFF
 
+/* App state section. Used for persistent app data. */
+    .app_state :
+    {
+        KEEP (*(.app_state))
+    } > FLASH =0xFF
+
 /* ARM Exception support
  *
  * This contains compiler-generated support for unwinding the stack,
