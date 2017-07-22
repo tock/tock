@@ -8,12 +8,13 @@ kernel, applications, and supporting state.
 
 <!-- toc -->
 
+- [Flash](#flash)
 - [Kernel code](#kernel-code)
 - [Process code](#process-code)
 - [RAM](#ram)
 - [Hardware Implementations](#hardware-implementations)
   * [SAM4L](#sam4l)
-    + [Flash](#flash)
+    + [Flash](#flash-1)
     + [RAM](#ram-1)
 
 <!-- tocstop -->
@@ -25,6 +26,11 @@ high-level layout of the address space, the exact layout of Tock can
 differ from board to board. Most boards simply define the beginning and
 end of flash and SRAM in their `layout.ld` file and then include the
 [generic Tock memory map](../boards/kernel_layout.ld).
+
+## Flash
+
+The nonvolatile flash memory hold the kernel code and a linked-list of sorts of
+process code.
 
 ## Kernel code
 
@@ -38,27 +44,23 @@ flash to SRAM as part of its initialization (see [Startup](Startup.md)).
 
 ## Process code
 
-Processes can either be statically compiled into a Tock image,
-or dynamically loaded onto the microcontroller. The symbol `_sapps`
-denotes the start of the process code section. The process code section
-has one or more process code blocks in it; the kernel defines a static
-limit for how many processes can be supported. Imix, for example, currently
-supports two processes. This is a static number so that the kernel does
-not have to dynamically allocate memory.
-
-Each process starts with a Tock Binary Format (TBF) header and then the actual
-application binary. Processes are placed continuously in flash. The end of the
-valid processes are denoted by an invalid TBF header. Typically the flash page
-after the last valid process is set to all 0x00 or 0xFF.
+Processes are placed in flash starting at a known address which can be retrieved
+in the kernel using the symbol `_sapps`. Each process starts with a Tock Binary
+Format (TBF) header and then the actual application binary. Processes are placed
+continuously in flash, and each process's TBF header includes the entire size of
+the process in flash. This creates a linked-list structure that the kernel uses
+to traverse apps. The end of the valid processes are denoted by an invalid TBF
+header. Typically the flash page after the last valid process is set to all 0x00
+or 0xFF.
 
 ## RAM
 
 RAM contains four major regions:
 
-* kernel data (initialized memory, copied from flash at boot),
-* kernel BSS (uninitialized memory, zeroed at boot),
-* the kernel stack,
-* process memory.
+1. Kernel data: initialized memory, copied from flash at boot.
+2. Kernel BSS: uninitialized memory, zeroed at boot.
+3. Kernel stack.
+4. Process memory: memory space divided between all running apps.
 
 
 ## Hardware Implementations
