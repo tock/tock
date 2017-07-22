@@ -155,6 +155,21 @@ void* tock_app_grant_begins_at(void) {
   return memop(6, 0);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wbad-function-cast"
+int tock_app_number_writeable_flash_regions(void) {
+  return (int) memop(7, 0);
+}
+#pragma GCC diagnostic pop
+
+void* tock_app_writeable_flash_region_begins_at(int region_index) {
+  return memop(8, region_index);
+}
+
+void* tock_app_writeable_flash_region_ends_at(int region_index) {
+  return memop(9, region_index);
+}
+
 bool driver_exists(uint32_t driver) {
   int ret = command(driver, 0, 0);
   return ret >= 0;
