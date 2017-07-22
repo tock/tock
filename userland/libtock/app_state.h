@@ -55,7 +55,8 @@ extern "C" {
 //     struct my_state_t memory_copy;
 //
 // The variable `memory_copy` is available as regular C structure, however
-// users must explicitly `load` and `save` application state as appropriate
+// users must explicitly `load` and `save` application state as appropriate.
+// Note that each process may only use APP_STATE_DECLARE once.
 #define APP_STATE_DECLARE(_type, _identifier)                         \
   __attribute__((section(".app_state")))                              \
   _type _app_state_flash;                                             \
