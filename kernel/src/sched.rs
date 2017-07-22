@@ -3,6 +3,7 @@
 use core::nonzero::NonZero;
 use memop;
 use platform::{Chip, Platform};
+use platform::mpu::MPU;
 use platform::systick::SysTick;
 use process;
 use process::{Process, Task};
@@ -27,9 +28,11 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
         match process.current_state() {
             process::State::Running => {
                 process.setup_mpu(chip.mpu());
+                chip.mpu().enable_mpu();
                 systick.enable(true);
                 process.switch_to();
                 systick.enable(false);
+                chip.mpu().disable_mpu();
             }
             process::State::Yielded => {
                 match process.dequeue_task() {
