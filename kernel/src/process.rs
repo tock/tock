@@ -100,6 +100,27 @@ pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
     }
 }
 
+/// Returns the full address of the start and end of the flash region that the
+/// app owns and can write to. This includes the app's code and data and any
+/// padding at the end of the app. It does not include the TBF header, or any
+/// space that the kernel is using for any potential bookkeeping.
+pub fn get_editable_flash_range(app_idx: usize) -> (usize, usize) {
+    let procs = unsafe { &mut PROCS };
+    if app_idx >= procs.len() {
+        return (0, 0);
+    }
+
+    match procs[app_idx] {
+        None => (0, 0),
+        Some(ref mut p) => {
+            // TODO(alevy): validate appid liveness
+            let start = p.flash_non_protected_start() as usize;
+            let end = p.flash_end() as usize;
+            (start, end)
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     NoSuchApp,
@@ -801,6 +822,10 @@ impl<'a> Process<'a> {
 
     pub fn flash_start(&self) -> *const u8 {
         self.text.as_ptr()
+    }
+
+    pub fn flash_non_protected_start(&self) -> *const u8 {
+        ((self.text.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
     }
 
     pub fn flash_end(&self) -> *const u8 {

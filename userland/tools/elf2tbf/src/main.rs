@@ -69,6 +69,13 @@ struct TbfHeaderPicOption1Fields {
     minimum_stack_length: u32,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+struct TbfHeaderWriteableFlashRegion {
+    offset: u32,
+    size: u32,
+}
+
 impl fmt::Display for TbfHeaderBase {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "
@@ -123,6 +130,19 @@ relocation_data_offset: {:>8} {:>#10X}
         self.got_offset, self.got_offset,
         self.got_size, self.got_size,
         self.minimum_stack_length, self.minimum_stack_length,
+        )
+    }
+}
+
+impl fmt::Display for TbfHeaderWriteableFlashRegion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "
+    flash region:
+                offset: {:>8} {:>#10X}
+                  size: {:>8} {:>#10X}
+",
+        self.offset, self.offset,
+        self.size, self.size,
         )
     }
 }
@@ -225,6 +245,7 @@ fn do_work(input: &elf::File,
     let got = get_section(input, ".got");
     let data = get_section(input, ".data");
     let bss = get_section(input, ".bss");
+    let appstate = get_section(input, ".app_state");
 
     // For these, we only care about the length
     let stack_len = get_section(input, ".stack").data.len() as u32;
@@ -243,9 +264,16 @@ fn do_work(input: &elf::File,
     // If we need the kernel to do PIC fixup for us add the space for that.
     header_length += mem::size_of::<TbfHeaderPicOption1Fields>();
 
+    // We have one app flash region, add that.
+    if appstate.data.len() > 0 {
+        header_length += mem::size_of::<TbfHeaderTlv>() +
+                         mem::size_of::<TbfHeaderWriteableFlashRegion>();
+    }
+
     // Now we can calculate the entire size of the app in flash.
     let mut total_size = (header_length + rel_data.len() + text.data.len() + got.data.len() +
-                          data.data.len()) as u32;
+                          data.data.len() +
+                          appstate.data.len()) as u32;
 
     let ending_pad = if total_size.count_ones() > 1 {
         let power2len = cmp::max(1 << (32 - total_size.leading_zeros()), 512);
@@ -257,13 +285,21 @@ fn do_work(input: &elf::File,
 
     // Calculate the offset between the start of the flash region and the actual
     // app code. Also need to get the padding size.
-    let relocation_data_offset = align8!(header_length) as u32;
-    let post_header_pad = relocation_data_offset as usize - header_length;
+    let app_start_offset = align8!(header_length);
+    let post_header_pad = app_start_offset as usize - header_length;
 
     // To start we just restrict the app from writing all of the space before
     // its actual code and whatnot.
-    let protected_size = relocation_data_offset;
+    let protected_size = app_start_offset;
 
+    // First up is the app writeable app_state section. If this is not used or
+    // non-existent, it will just be zero and won't matter. But we put it first
+    // so that changes to the app won't move it.
+    let appstate_offset = app_start_offset as u32;
+    let appstate_size = appstate.shdr.size as u32;
+    let relocation_data_offset = align8!(appstate_offset + appstate_size);
+    // Make sure we pad back to a multiple of 8.
+    let post_appstate_pad = relocation_data_offset - (appstate_offset + appstate_size);
     let text_offset = relocation_data_offset + (relocation_data_size as u32);
     let text_size = text.shdr.size as u32;
     let init_fn_offset = (input.ehdr.entry ^ 0x80000000) as u32 + text_offset;
@@ -295,7 +331,7 @@ fn do_work(input: &elf::File,
             length: (mem::size_of::<TbfHeaderMain>() - mem::size_of::<TbfHeaderTlv>()) as u16,
         },
         init_fn_offset: init_fn_offset,
-        protected_size: protected_size,
+        protected_size: protected_size as u32,
         minimum_ram_size: minimum_ram_size,
     };
 
@@ -322,10 +358,21 @@ fn do_work(input: &elf::File,
         length: package_name.len() as u16,
     };
 
+    let tbf_flash_regions_tlv = TbfHeaderTlv {
+        tipe: TbfHeaderTypes::TbfHeaderWriteableFlashRegions,
+        length: 8,
+    };
+
+    let tbf_flash_region = TbfHeaderWriteableFlashRegion {
+        offset: appstate_offset,
+        size: appstate_size,
+    };
+
     if verbose {
         print!("{}", tbf_header);
         print!("{}", tbf_main);
         print!("{}", tbf_pic);
+        print!("{}", tbf_flash_region);
     }
 
     // Calculate the header checksum.
@@ -337,6 +384,12 @@ fn do_work(input: &elf::File,
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_package_name_tlv) }));
     try!(header_buf.write_all(package_name.as_ref()));
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_pic) }));
+
+    // Only put these in the header if the app_state section is nonzero.
+    if appstate.data.len() > 0 {
+        try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_flash_regions_tlv) }));
+        try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_flash_region) }));
+    }
 
     // Start from the beginning and iterate through the buffer as words.
     try!(header_buf.seek(SeekFrom::Start(0)));
@@ -384,6 +437,8 @@ fn do_work(input: &elf::File,
     // Write the header and actual app to a binary file.
     try!(output.write_all(header_buf.get_ref()));
     try!(do_pad(output, post_header_pad as usize));
+    try!(output.write_all(appstate.data.as_ref()));
+    try!(do_pad(output, post_appstate_pad as usize));
     try!(output.write_all(rel_data.as_ref()));
     try!(output.write_all(text.data.as_ref()));
     try!(output.write_all(got.data.as_ref()));
