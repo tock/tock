@@ -20,11 +20,10 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
-use kernel::{Chip, Platform};
+use kernel::Platform;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
-use kernel::mpu::MPU;
 use sam4l::usart;
 
 #[macro_use]
