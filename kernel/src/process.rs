@@ -39,6 +39,47 @@ extern "C" {
 
 pub static mut PROCS: &'static mut [Option<Process<'static>>] = &mut [];
 
+/// Helper function to load processes from flash into an array of active
+/// processes. This is the default template for loading processes, but a board
+/// is able to create its own `load_processes()` function and use that instead.
+///
+/// Processes are found in flash starting from the given address and iterating
+/// through Tock Binary Format headers. Processes are given memory out of the
+/// `app_memory` buffer until either the memory is exhausted or the allocated
+/// number of processes are created, with process structures placed in the
+/// provided array. How process faults are handled by the kernel is also
+/// selected.
+pub unsafe fn load_processes(start_of_flash: *const u8,
+                             app_memory: &mut [u8],
+                             procs: &mut [Option<Process<'static>>],
+                             fault_response: FaultResponse) {
+    let mut apps_in_flash_ptr = start_of_flash;
+    let mut app_memory_ptr = app_memory.as_mut_ptr();
+    let mut app_memory_size = app_memory.len();
+    for i in 0..procs.len() {
+        let (process, flash_offset, memory_offset) = Process::create(apps_in_flash_ptr,
+                                                                     app_memory_ptr,
+                                                                     app_memory_size,
+                                                                     fault_response);
+
+        if process.is_none() {
+            // We did not get a valid process, but we may have gotten a disabled
+            // process or padding. Therefore we want to skip this chunk of flash
+            // and see if there is a valid app there. However, if we cannot
+            // advance the flash pointer, then we are done.
+            if flash_offset == 0 && memory_offset == 0 {
+                break;
+            }
+        } else {
+            procs[i] = process;
+        }
+
+        apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
+        app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
+        app_memory_size -= memory_offset;
+    }
+}
+
 pub fn schedule(callback: FunctionCall, appid: AppId) -> bool {
     let procs = unsafe { &mut PROCS };
     let idx = appid.idx();
