@@ -190,7 +190,6 @@ ifdef RAM_START
     _USERLAND_DEBUG_ALL_NEEDED_VARS := 1
   endif
 endif
-READELF := $$(shell which readelf || which greadelf || echo "")
 
 $$(BUILDDIR)/$(1)/$(1).userland_debug.ld: $$(TOCK_USERLAND_BASE_DIR)/userland_generic.ld $$(BUILDDIR)/$(1)/$(1).elf _FORCE_USERLAND_DEBUG_LD
 ifndef _USERLAND_DEBUG_ALL_NEEDED_VARS
@@ -201,7 +200,6 @@ ifndef _USERLAND_DEBUG_ALL_NEEDED_VARS
 else
 	@# Start with a copy of the template / generic ld script
 	$$(Q)cp $$< $$@
-	@if [ -z "$$(READELF)" ] ; then echo "ERROR: Need to install 'readelf' utility (binutils package)" && exit 1; fi
 	@# And with apologies to future readers, this is easier as one shell command/script so
 	@# we can set intervening variables, away we go
 	@#
