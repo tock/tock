@@ -213,7 +213,7 @@ need one of:
 
 #### `tockloader`
 
-Tock requires `tockloader` version `0.6.1`. To install:
+Tock requires `tockloader` version `0.7.1`. To install:
 
 ```bash
 (Linux): sudo pip3 install tockloader==0.7.1
@@ -234,8 +234,7 @@ support the SAM4L on `imix`.
 
 If you want to upload code through a [JLink JTAG
 debugger](https://www.segger.com/j-link-edu.html) (available on
-[Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)
-), you should install JLinkExe. We require a version greater than or equal to `5.0`.
+[Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)), you should install JLinkExe. We require a version greater than or equal to `5.0`.
 
 It is available [here](https://www.segger.com/downloads/jlink). You want to the
 "J-Link Software and Documentation Pack". There are various packages available
