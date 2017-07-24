@@ -2,8 +2,9 @@
 //! well as querying the layout and locking/unlocking lock units. A
 //! lock unit consists of one or more pages.
 //!
-//! Operates on single pages. The page size is set by the associated type
-//! `page`. Here is an example of a page type:
+//! Read, write and erase operate on single pages. The page size is
+//! set by the associated type `page`. Here is an example of a page
+//! type:
 //!
 //! ```rust
 //! // Size in bytes
@@ -82,6 +83,17 @@
 //!     fn erase_complete(&self, error: hil::flash::Error) {}
 //! }
 //! ```
+//!
+//! In addition to reading, writing, and erasing pages, most flash chips
+//! support locking the chip against writes. This is important, for example,
+//! if you want to make sure that a buggy capsule doesn't accidentally
+//! overwrite the kernel.
+//!
+//! Locking is in terms of "units", which can be as small as a single
+//! page but are typically much larger (e.g., 6-16 units for the entire
+//! flash). If the kernel locks some pages (and does not unlock them), then
+//! those pages cannot be written, even by a JTAG programmer; they must
+//! be unlocked either by software or by special JTAG commands.
 
 use returncode::ReturnCode;
 
@@ -129,35 +141,69 @@ pub trait Client<F: Flash> {
 }
 
 pub trait FlashInfo {
-    fn flash_size(&self) -> u32;
+    /// Return the number of pages (the unit of read/write/erase)
     fn num_pages(&self) -> u32;
+    /// Return the size of each page in bytes
     fn page_size(&self) -> u32;
-    /// Return 0 if flash does not support locking
+    /// Return the size of the flash in bytes
+    fn flash_size(&self) -> u32 {
+        self.page_size() * self.num_pages()
+    }
+
+
+    /// Returns the number of lock units in the flash, 0
+    /// if the flash does not support locking.
     fn num_lock_units(&self) -> u32;
-    /// Return 0 if flash does not support locking
+
+    /// Returns the size of a lock unit in bytes, 0 if
+    /// the flash does not support locking. Note that
+    /// some flashes support only locking a subset of
+    /// the flash, so num_lock_units * lock_unit_size
+    /// may not be equal to flash_size.
     fn lock_unit_size(&self) -> u32;
-    /// Return 0 if flash does not support locking
+
+    /// Returns the number of pages in a lock unit, 0
+    /// 0 if flash does not support locking.
     fn pages_per_lock_unit(&self) -> u32;
+    /// Simple helper function that returns the lock unit for
+    /// a particular page number: page / lock_unit_size, returns
+    /// 0xffffffff if locking is not supported for that page. Note that
+    /// since some flashes support locking of only some of their
+    /// pages, the return value of this function is not necessarily
+    /// (page * page_size) / lock_unit_size
     fn page_to_lock_unit(&self, page: u32) -> u32;
 }
 
 pub trait FlashLocking {
-    fn lock_unit(&self, page: u32);
-    fn unlock_unit(&self, page: u32);
-    // Locks/unlocks [first,last]
+    /// Lock a particular lock unit.
+    fn lock_unit(&self, unit: u32);
+    /// Unlock a particular lock unit.
+    fn unlock_unit(&self, unit: u32);
+    /// Locks [first,last] units (inclusive)
     fn lock_units(&self, first: u32, last: u32);
+    /// Unlocks [first,last] units (inclusive)
     fn unlock_units(&self, first: u32, last: u32);
 
 }
 
 pub trait FlashLayout {
+    /// Return the address at which the kernel image starts.
     fn kernel_start_address(&self) -> u32;
+    /// Return the address at which the kernel image ends.
     fn kernel_end_address(&self) -> u32;
+    /// Return the page number of the first page of the kernel image.
     fn kernel_first_page(&self) -> u32;
+    /// Return the page number of the last page of the kernel image.
     fn kernel_last_page(&self) -> u32;
 
+    /// Return the start address of the block of flash memory reserved for
+    /// application images.
     fn apps_start_address(&self) -> u32;
+    /// Return the last address of the block of flash memory reserved for
+    /// application images.
     fn apps_end_address(&self) -> u32;
+    /// Return the page number of the first page of the application region.
     fn apps_first_page(&self) -> u32;
+    /// Return the page number of the last page of the application region.
     fn apps_last_page(&self) -> u32;
 }
