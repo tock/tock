@@ -16,10 +16,13 @@ use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
 use kernel::Chip;
 use kernel::hil;
 use kernel::hil::Controller;
+use kernel::hil::flash::{FlashInfo, FlashLocking};
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
+use kernel::image::*;
 use kernel::mpu::MPU;
+
 
 #[macro_use]
 pub mod io;
@@ -422,6 +425,12 @@ pub unsafe fn reset_handler() {
     //    rf233.config_commit();
 
     rf233.start();
+    debug!("Starting flash diagnostics...");
+    debug!("  version:     {}", sam4l::flashcalw::FLASH_CONTROLLER.get_version());
+    debug!("  flash size:  {}kB", sam4l::flashcalw::FLASH_CONTROLLER.flash_size() >> 10);
+    debug!("  Kernel code: {:x}-{:x}", kernel_start_address() as usize, kernel_end_address() as usize);
+    debug!("  App code:    {:x}-{:x}", apps_start_address(), apps_end_address());
+    //sam4l::flashcalw::FLASH_CONTROLLER.lock_kernel(false);
 
     debug!("Initialization complete. Entering main loop");
     kernel::main(&imixv1, &mut chip, load_processes(), &imixv1.ipc);

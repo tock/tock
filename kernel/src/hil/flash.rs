@@ -183,27 +183,4 @@ pub trait FlashLocking {
     fn lock_units(&self, first: u32, last: u32);
     /// Unlocks [first,last] units (inclusive)
     fn unlock_units(&self, first: u32, last: u32);
-
-}
-
-pub trait FlashLayout {
-    /// Return the address at which the kernel image starts.
-    fn kernel_start_address(&self) -> u32;
-    /// Return the address at which the kernel image ends.
-    fn kernel_end_address(&self) -> u32;
-    /// Return the page number of the first page of the kernel image.
-    fn kernel_first_page(&self) -> u32;
-    /// Return the page number of the last page of the kernel image.
-    fn kernel_last_page(&self) -> u32;
-
-    /// Return the start address of the block of flash memory reserved for
-    /// application images.
-    fn apps_start_address(&self) -> u32;
-    /// Return the last address of the block of flash memory reserved for
-    /// application images.
-    fn apps_end_address(&self) -> u32;
-    /// Return the page number of the first page of the application region.
-    fn apps_first_page(&self) -> u32;
-    /// Return the page number of the last page of the application region.
-    fn apps_last_page(&self) -> u32;
 }

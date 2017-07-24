@@ -836,6 +836,11 @@ impl FlashCalw {
         self.current_state.set(FlashState::Ready);
     }
 
+    pub fn get_version(&self) -> u32 {
+        let registers: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        registers.fvr.get() & 0xfff
+    }
+
     pub fn get_page_size(&self) -> u32 {
         PAGE_SIZE
     }
@@ -981,66 +986,16 @@ impl hil::flash::FlashLocking for FlashCalw {
 
     /// Locks [first,last]
     fn lock_units(&self, first: u32, last: u32) {
-        for unit in first..last+1 {
+        for unit in first..last + 1 {
             self.lock_unit(unit)
         }
     }
     fn unlock_units(&self, first: u32, last: u32) {
-        for unit in first..last+1 {
+        for unit in first..last + 1 {
             self.lock_unit(unit)
         }
     }
 }
-
-impl hil::flash::FlashLayout for FlashCalw {
-    fn kernel_start_address(&self) -> u32 {
-        unsafe {
-            extern "C" {
-                static _stext: *const u32;
-            }
-            (&_stext as *const*const u32) as u32
-        }
-    }
-
-    fn kernel_end_address(&self) -> u32 {
-        unsafe {
-            extern "C" {
-                static _etext: *const u32;
-            }
-            (&_etext as *const*const u32) as u32
-        }
-    }
-
-    fn kernel_first_page(&self) -> u32 {
-        self.kernel_start_address() / self.get_page_size()
-    }
-
-    fn kernel_last_page(&self) -> u32 {
-        self.kernel_end_address() / self.get_page_size()
-    }
-
-    fn apps_start_address(&self) -> u32 {
-        unsafe {
-            extern "C" {
-                static _sapps: *const u32;
-            }
-            (&_sapps as *const*const u32) as u32
-        }
-    }
-
-    fn apps_end_address(&self) -> u32 {
-        self.get_flash_size() - 1
-    }
-
-    fn apps_first_page(&self) -> u32 {
-        self.apps_start_address() / self.get_page_size()
-    }
-
-    fn apps_last_page(&self) -> u32 {
-        self.apps_end_address() / self.get_page_size()
-    }
-}
-
 
 
 /// Assumes the only Peripheral Interrupt enabled for the FLASHCALW is the

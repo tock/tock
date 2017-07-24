@@ -43,6 +43,7 @@ SECTIONS
     {
         . = ALIGN(4);
         _textstart = .;         /* Symbol expected by some MS build toolchains */
+        _stext = .;
 
         /* Place vector table at the beginning of ROM.
          *
@@ -155,6 +156,7 @@ SECTIONS
         /* Optional .app sections a convenience mechanism to bundle tock
            kernel and apps into a single image */
         KEEP (*(.app.*))
+        _eapps = PROG_ORIGIN + PROG_LENGTH - 1;
     } > prog
 
 
