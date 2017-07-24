@@ -1457,7 +1457,7 @@ impl<'a> Process<'a> {
         let sram_grant_size = sram_end - sram_grant_start;
         let sram_heap_size = sram_heap_end - sram_heap_start;
         let sram_data_size = sram_heap_start - sram_heap_start;
-        let sram_stack_size = sram_heap_start - sram_stack_bottom;
+        let sram_stack_size = sram_stack_start - sram_stack_bottom;
         let sram_grant_allocated = sram_end - sram_grant_start;
         let sram_heap_allocated = sram_grant_start - sram_heap_start;
         let sram_stack_allocated = sram_stack_start - sram_start;
