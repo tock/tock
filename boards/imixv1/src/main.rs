@@ -421,10 +421,16 @@ pub unsafe fn reset_handler() {
 
     rf233.start();
     debug!("Starting flash diagnostics...");
-    debug!("  Flash version: {}", sam4l::flashcalw::FLASH_CONTROLLER.get_version());
-    debug!("  Flash size:    {}kB", sam4l::flashcalw::FLASH_CONTROLLER.flash_size() >> 10);
-    debug!("  Kernel code:   0x{:05x}-0x{:x}", kernel_start_address() as usize, kernel_end_address() as usize);
-    debug!("  App code:      0x{:x}-0x{:x}", apps_start_address(), apps_end_address());
+    debug!("  Flash version: {}",
+           sam4l::flashcalw::FLASH_CONTROLLER.get_version());
+    debug!("  Flash size:    {}kB",
+           sam4l::flashcalw::FLASH_CONTROLLER.flash_size() >> 10);
+    debug!("  Kernel code:   0x{:05x}-0x{:x}",
+           kernel_start_address(),
+           kernel_end_address());
+    debug!("  App code:      0x{:x}-0x{:x}",
+           apps_start_address(),
+           apps_end_address());
     //sam4l::flashcalw::FLASH_CONTROLLER.lock_kernel(false);
 
     debug!("Initialization complete. Entering main loop");
