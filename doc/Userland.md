@@ -168,9 +168,14 @@ If an application crashes, Tock can provide a lot of useful information.
 By default, when an application crashes Tock prints a crash dump over the
 platform's default console interface.
 
-Note that because an application is relocated when it is loaded, this trace
-will print both relocated addresses and the original symbol address where
-appropriate.
+Note that because an application is relocated when it is loaded, the binaries
+and debugging .lst files generated when the app was originally compiled will not
+match the actual executing application on the board. To generate matching files
+(and in particular a matching .lst file), you can use the `make_debug_lst.sh`
+script in the userland tools directory to create an appropriate linker file
+which can generate a binary and .lst file that matches how the application was
+actually executed. See the end of the debug print out for an example command
+invocation.
 
 ```
 ---| Fault Status |---
@@ -181,45 +186,50 @@ Fault Status Register (CFSR):       0x00000082
 Hard Fault Status Register (HFSR):  0x40000000
 
 ---| App Status |---
-App: sensors
-[Fault]  -  Events Queued: 0  Syscall Count: 24
+App: printf_long   -   [Yielded]
+ Events Queued: 0   Syscall Count: 12   Last Syscall: YIELD
 
-╔═══════════╤══════════════════════════════════════════╗
-║  Address  │ Region Name    Used | Allocated (bytes)  ║
-╚0x20006000═╪══════════════════════════════════════════╝
-            │ ▼ Grant         356 |   1024
- 0x20005E9C ┼───────────────────────────────────────────
-            │ Unused
- 0x20004FB4 ┼───────────────────────────────────────────
-            │ ▲ Heap         1580 |   1024 EXCEEDED!     S
- 0x20004988 ┼─────────────────────────────────────────── R
-            │ ▼ Stack          48 |   2048               A
- 0x20004958 ┼─────────────────────────────────────────── M
-            │ Unused
- 0x20004188 ┼───────────────────────────────────────────
-            │ Data            392 |    392
- 0x20004000 ┴───────────────────────────────────────────
-            .....
- 0x00034000 ┬───────────────────────────────────────────
-            │ Unused
- 0x00033BBF ┼─────────────────────────────────────────── F
-            │ Data            329                        L
- 0x00033A76 ┼─────────────────────────────────────────── A
-            │ Text          14842                        S
- 0x0003007C ┼─────────────────────────────────────────── H
-            │ Header          124
- 0x00030000 ┴───────────────────────────────────────────
+ ╔═══════════╤══════════════════════════════════════════╗
+ ║  Address  │ Region Name    Used | Allocated (bytes)  ║
+ ╚0x20006000═╪══════════════════════════════════════════╝
+             │ ▼ Grant         332 |    332
+  0x20005EB4 ┼───────────────────────────────────────────
+             │ Unused
+  0x2000506C ┼───────────────────────────────────────────
+             │ ▲ Heap         1596 |   5252               S
+  0x20004A30 ┼─────────────────────────────────────────── R
+             │ Data              0 |      0               A
+  0x20004800 ┼─────────────────────────────────────────── M
+             │ ▼ Stack         880 |   2048
+  0x200046C0 ┼───────────────────────────────────────────
+             │ Unused
+  0x20004000 ┴───────────────────────────────────────────
+             .....
+  0x00031000 ┬─────────────────────────────────────────── F
+             │ App Flash      4000                        L
+  0x00030060 ┼─────────────────────────────────────────── A
+             │ Protected        96                        S
+  0x00030000 ┴─────────────────────────────────────────── H
 
- R0 : 0x00000000    R6 : 0x00000000
- R1 : 0x00000005    R7 : 0x20004978
- R2 : 0x00000103    R8 : 0x00000000
- R3 : 0x00000000    R10: 0x00000000
- R4 : 0x00000000    R11: 0x00000000
- R5 : 0x00000000    R12: 0x00000000
- R9 : 0x20004000 (Static Base Register)
- SP : 0x20004070 (Process Stack Pointer)
- LR : 0x00031667 [0x800015EA in lst file]
- PC : 0x0003036A [0x800002EE in lst file]
+  R0 : 0x20004800    R6 : 0x200048CC
+  R1 : 0x00000000    R7 : 0x00000000
+  R2 : 0x00000000    R8 : 0x00000000
+  R3 : 0x00000000    R10: 0x00000000
+  R4 : 0x00000000    R11: 0x00000000
+  R5 : 0x00000000    R12: 0x00000000
+  R9 : 0x20004800 (Static Base Register)
+  SP : 0x200047E0 (Process Stack Pointer)
+  LR : 0x00030093
+  PC : 0x00000000
+ YPC : 0x0003010C
+
+ APSR: N 0 Z 0 C 0 V 0 Q 0
+       GE 0 0 1 1
+ IPSR: Exception Type - IRQn
+ EPSR: ICI.IT 0x00
+       ThumbBit false !!ERROR - Cortex M Thumb only!
+ To debug, run `make debug RAM_START=0x20004000 FLASH_INIT=0x30089`
+ in the app's folder.
 ```
 
 ## Libraries

@@ -13,7 +13,6 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
-use kernel::Chip;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::flash::FlashInfo;
@@ -21,8 +20,6 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::image::*;
-use kernel::mpu::MPU;
-
 
 #[macro_use]
 pub mod io;
@@ -417,8 +414,6 @@ pub unsafe fn reset_handler() {
 
     let mut chip = sam4l::chip::Sam4l::new();
 
-    chip.mpu().enable_mpu();
-
     rf233.reset();
     rf233.config_set_pan(0xABCD);
     rf233.config_set_address(0x1008);
@@ -428,7 +423,7 @@ pub unsafe fn reset_handler() {
     debug!("Starting flash diagnostics...");
     debug!("  Flash version: {}", sam4l::flashcalw::FLASH_CONTROLLER.get_version());
     debug!("  Flash size:    {}kB", sam4l::flashcalw::FLASH_CONTROLLER.flash_size() >> 10);
-    debug!("  Kernel code:   0x{:x}-0x{:x}", kernel_start_address() as usize, kernel_end_address() as usize);
+    debug!("  Kernel code:   0x{:05x}-0x{:x}", kernel_start_address() as usize, kernel_end_address() as usize);
     debug!("  App code:      0x{:x}-0x{:x}", apps_start_address(), apps_end_address());
     //sam4l::flashcalw::FLASH_CONTROLLER.lock_kernel(false);
 

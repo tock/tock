@@ -33,6 +33,10 @@ impl AppId {
     pub fn idx(&self) -> usize {
         self.idx
     }
+
+    pub fn get_editable_flash_range(&self) -> (usize, usize) {
+        process::get_editable_flash_range(self.idx)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

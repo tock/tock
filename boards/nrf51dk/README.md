@@ -26,26 +26,6 @@ Tock with JTAG. To compile and install the Tock kernel on the nrf51dk
 using JTAG, follow the standard Tock instructions (the "Getting
 Started" guide).
 
-### Programming with mbed file system (currently unsupported)
-
-The nRF51DK supports ARM mbed development. This means that under Mac OS and 
-Windows, plugging the nRF51DK in over USB causes it to appear as a file
-system (a storage device). Copying an executable in the ihex format  
-named 'firmware.hex' to the device causes it to reprogram. When this
-occurs successfully, the nRF51DK will remove itself and re-mount itself.
-It does this because it isn't actually a storage device: firmware.hex
-doesn't persist, and the only way to make sure the OS doesn't think it's
-still there is to disconnect and reconnect.
-
-To program with the mbed file system, run
-
-```bash
-$ make TOCK_BOARD=nrf51dk hex
-```
-
-This will build `boards/nrf51dk/target/nrf51/release/nrf51dk.hex`. Next,
-copy this file to your mbed device, renaming it to `firmware.hex`. 
-
 ## Programming user-level applications
 
 To compile and install compile applications for the nrf51dk, follow the
