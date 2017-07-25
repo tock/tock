@@ -241,6 +241,12 @@ pub fn encode_u32(buf: &mut [u8], b: u32) -> SResult {
     stream_done!(4);
 }
 
+pub fn encode_bytes(buf: &mut [u8], bs: &[u8]) -> SResult {
+    stream_len_cond!(buf, bs.len());
+    buf[..bs.len()].copy_from_slice(bs);
+    stream_done!(bs.len());
+}
+
 // This function assumes that the host is little-endian
 pub fn encode_bytes_be(buf: &mut [u8], bs: &[u8]) -> SResult {
     stream_len_cond!(buf, bs.len());
@@ -264,6 +270,13 @@ pub fn decode_u32(buf: &[u8]) -> SResult<u32> {
     stream_len_cond!(buf, 4);
     let b = (buf[0] as u32) << 24 | (buf[1] as u32) << 16 | (buf[2] as u32) << 8 | (buf[3] as u32);
     stream_done!(4, b);
+}
+
+pub fn decode_bytes(buf: &[u8], out: &mut [u8]) -> SResult {
+    stream_len_cond!(buf, out.len());
+    let len = out.len();
+    out.copy_from_slice(&buf[..len]);
+    stream_done!(out.len());
 }
 
 // This function assumes that the host is little-endian
