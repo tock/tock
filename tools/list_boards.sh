@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # http://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
+oneline=0
 while getopts "h?1" opt; do
     case "$opt" in
     h|\?)

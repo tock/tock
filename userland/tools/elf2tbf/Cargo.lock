@@ -1,6 +1,6 @@
 [root]
 name = "elf2tbf"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "elf 0.0.6 (git+https://github.com/cole14/rust-elf)",
  "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",

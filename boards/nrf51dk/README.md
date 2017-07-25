@@ -102,9 +102,9 @@ layout reg
 ```
 
 will give you a 3-window layout, showing the current state of the
-main registers, and the current assembly instruction. Note that currently
-Rust does not output debugging symbols that allow you to do source-level
-debugging. You have to use the generated assembly.
+main registers, and the current assembly instruction. 
+Note that Rust support debugging symbols but there is too little memory available on nrf51dk to enable that. 
+You have to use the generated assembly.
 
 Since Rust heavily optimized and inlines code, it can be difficult to
 understand, from the assembly, exactly where you are in source code. Two
@@ -119,7 +119,7 @@ entry. However, since Rust often emits complex symbol names, you also
 might want to use
 
 ```rust
-$[no_mangle]
+#[no_mangle]
 ```
 
 which will keep the function's symbol identical to the function name.

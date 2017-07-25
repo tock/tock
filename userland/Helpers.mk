@@ -35,13 +35,23 @@ ifeq (1,$(shell expr $(CC_VERSION_MAJOR) \>= 6))
   override CPPFLAGS += -Wnull-dereference # deref of NULL (thought default if -fdelete-null-pointer-checks, in -Os, but no?)
 else
   ifneq (5,$(CC_VERSION_MAJOR))
+    $(info CC=$(CC))
+    $(info $$(CC) -dumpversion: $(shell $(CC) -dumpversion))
     $(error Your compiler is too old. Need gcc version > 5.1)
   endif
     CC_VERSION_MINOR := $(shell $(CC) -dumpversion | cut -d '.' -f2)
   ifneq (1,$(shell expr $(CC_VERSION_MINOR) \> 1))
+    $(info CC=$(CC))
+    $(info $$(CC) -dumpversion: $(shell $(CC) -dumpversion))
     $(error Your compiler is too old. Need gcc version > 5.1)
   endif
 endif
+
+
+# Format check rule
+.PHONY: _format_check_unstaged
+_format_check_unstaged:
+	$(Q)$(TOCK_USERLAND_BASE_DIR)/tools/check_unstaged.sh
 
 #########################################################################################
 ## Pretty-printing rules

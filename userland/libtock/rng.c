@@ -1,5 +1,5 @@
-#include <tock.h>
 #include <rng.h>
+#include <tock.h>
 
 struct rng_data {
   bool fired;
@@ -14,7 +14,7 @@ static void rng_cb(__attribute__ ((unused)) int callback_type,
                    __attribute__ ((unused)) int val2,
                    void* ud) {
   struct rng_data* data = (struct rng_data*) ud;
-  data->fired = true;
+  data->fired    = true;
   data->received = received;
 }
 

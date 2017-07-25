@@ -1,3 +1,5 @@
+//! Interface for a watchdog timer.
+
 pub trait Watchdog {
     /// Enable the watchdog timer. Period is the time in milliseconds
     /// the watchdog will timeout if not serviced.

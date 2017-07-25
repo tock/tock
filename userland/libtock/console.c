@@ -14,14 +14,13 @@ typedef struct putstr_data {
 static putstr_data_t *putstr_head = NULL;
 static putstr_data_t *putstr_tail = NULL;
 
-static void putstr_cb(
-                int _x __attribute__ ((unused)),
-                int _y __attribute__ ((unused)),
-                int _z __attribute__ ((unused)),
-                void* ud __attribute__ ((unused))) {
+static void putstr_cb(int _x __attribute__ ((unused)),
+                      int _y __attribute__ ((unused)),
+                      int _z __attribute__ ((unused)),
+                      void* ud __attribute__ ((unused))) {
   putstr_data_t* data = putstr_head;
   data->called = true;
-  putstr_head = data->next;
+  putstr_head  = data->next;
 
   if (putstr_head == NULL) {
     putstr_tail = NULL;
@@ -36,16 +35,16 @@ static void putstr_cb(
 }
 
 int putnstr(const char *str, size_t len) {
-  int ret = SUCCESS;
+  int ret = TOCK_SUCCESS;
 
   putstr_data_t* data = (putstr_data_t*)malloc(sizeof(putstr_data_t));
-  if (data == NULL) return ENOMEM;
+  if (data == NULL) return TOCK_ENOMEM;
 
-  data->len = len;
+  data->len    = len;
   data->called = false;
-  data->buf = (char*)malloc(len * sizeof(char));
+  data->buf    = (char*)malloc(len * sizeof(char));
   if (data->buf == NULL) {
-    ret = ENOMEM;
+    ret = TOCK_ENOMEM;
     goto putnstr_fail_buf_alloc;
   }
   strncpy(data->buf, str, len);
@@ -59,7 +58,7 @@ int putnstr(const char *str, size_t len) {
     putstr_tail = data;
   } else {
     putstr_tail->next = data;
-    putstr_tail = data;
+    putstr_tail       = data;
   }
 
   yield_for(&data->called);
@@ -87,8 +86,4 @@ int putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) 
 
   ret = subscribe(0, 1, cb, userdata);
   return ret;
-}
-
-int putstr(const char *str) {
-  return putnstr(str, strlen(str));
 }

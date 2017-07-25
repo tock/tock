@@ -1,3 +1,5 @@
+//! Helper functions for common mathematical operations.
+
 use core::convert::{From, Into};
 use core::intrinsics as int;
 

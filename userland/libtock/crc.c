@@ -30,7 +30,7 @@ static void callback(int status, int v1, __attribute__((unused)) int v2, void *d
 {
   struct data *d = data;
 
-  d->fired = true;
+  d->fired  = true;
   d->status = status;
   d->result = v1;
 }
@@ -44,7 +44,7 @@ int crc_compute(const void *buf, size_t buflen, enum crc_alg alg, uint32_t *resu
   crc_request(alg);
   yield_for(&d.fired);
 
-  if (d.status == SUCCESS)
+  if (d.status == TOCK_SUCCESS)
     *result = d.result;
 
   return d.status;

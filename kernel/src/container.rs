@@ -1,3 +1,5 @@
+//! Data structure to store a list of userspace applications.
+
 use callback::AppId;
 use core::marker::PhantomData;
 use core::mem::size_of;

@@ -9,8 +9,7 @@
 #include <tock.h>
 
 // List of frequencies to sample at
-const uint32_t FREQS[10] =
-    {25, 100, 500, 1000, 5000, 10000, 44100, 100000, 150000, 175000};
+const uint32_t FREQS[10] = {25, 100, 500, 1000, 5000, 10000, 44100, 100000, 150000, 175000};
 
 static void test_single_samples(uint8_t channel) {
   uint16_t sample;
@@ -39,7 +38,7 @@ static void test_sampling_buffer(uint8_t channel, int index) {
 
   } else {
     printf("\t[ ");
-    for (uint32_t i=0; i<length; i++) {
+    for (uint32_t i = 0; i < length; i++) {
       // convert to millivolts
       printf("%u ", (buf[i] * 3300) / 4095);
     }
@@ -59,16 +58,16 @@ int main(void) {
 
   while (1) {
     // iterate through the channels
-    for (uint8_t channel=0; channel<adc_channel_count(); channel++) {
+    for (uint8_t channel = 0; channel < adc_channel_count(); channel++) {
 
       printf("\nSingle Samples - Channel %u\n", channel);
-      for (uint32_t i=0; i<10; i++) {
+      for (uint32_t i = 0; i < 10; i++) {
         test_single_samples(channel);
         delay_ms(100);
       }
 
       printf("\nBuffered Samples - Channel %u\n", channel);
-      for (uint32_t i=0; i<10; i++) {
+      for (uint32_t i = 0; i < 10; i++) {
         test_sampling_buffer(channel, i);
         delay_ms(100);
       }

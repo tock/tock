@@ -1,5 +1,9 @@
 #pragma once
 
+#include <stdint.h>
+
+#include "tock.h"
+
 #define DRIVER_NUM_LTC294X 18
 
 #ifdef __cplusplus
@@ -119,6 +123,7 @@ int ltc294x_shutdown_sync(void);
 //
 // Helpers
 //
+int ltc294x_convert_to_coulomb_uah(int c, int Rsense, uint16_t prescaler, ltc294x_model_e model) __attribute__((const));
 int ltc294x_convert_to_voltage_mv(int v) __attribute__((const));
 int ltc294x_convert_to_current_ua(int c, int Rsense) __attribute__((const));
 

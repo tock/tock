@@ -123,9 +123,15 @@ $$(BUILDDIR)/$(1)/%.o: %.cpp | $$(BUILDDIR)/$(1)
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
 	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
 
+$$(BUILDDIR)/$(1)/%.o: %.cxx | $$(BUILDDIR)/$(1)
+	$$(TRACE_CXX)
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -MF"$$(@:.o=.d)" -MG -MM -MP -MT"$$(@:.o=.d)@" -MT"$$@" "$$<"
+	$$(Q)$$(CXX) $$(CXXFLAGS) -mcpu=$(1) $$(CPPFLAGS) -c -o $$@ $$<
+
 OBJS_$(1) += $$(patsubst %.c,$$(BUILDDIR)/$(1)/%.o,$$(C_SRCS))
 OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)))
 OBJS_$(1) += $$(patsubst %.cpp,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$(CXX_SRCS)))
+OBJS_$(1) += $$(patsubst %.cxx,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cxx, $$(CXX_SRCS)))
 
 # Collect all desired built output.
 $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
@@ -145,6 +151,8 @@ $$(BUILDDIR)/$(1)/$(1).bin: $$(BUILDDIR)/$(1)/$(1).elf | $$(BUILDDIR)/$(1) valid
 	$$(TRACE_BIN)
 	$$(Q)$$(ELF2TBF) $$(ELF2TBF_ARGS) -o $$@ $$<
 
+# NOTE: This rule creates an lst file for the elf as flashed on the board
+#       (i.e. at address 0x80000000). This is not likely what you want.
 $$(BUILDDIR)/$(1)/$(1).lst: $$(BUILDDIR)/$(1)/$(1).elf
 	$$(TRACE_LST)
 	$$(Q)$$(OBJDUMP) $$(OBJDUMP_FLAGS) $$< > $$@
@@ -157,6 +165,77 @@ ifndef TOCK_NO_CHECK_SWITCHES
 	$$(Q)$$(READELF) -p .GCC.command.line $$< 2>&1 | grep -q "does not exist" && { echo "Error: Missing section .GCC.command.line"; echo ""; echo "Tock requires that applications are built with"; echo "  -frecord-gcc-switches"; echo "to validate that all required flags were used"; echo ""; echo "You can skip this check by defining the make variable TOCK_NO_CHECK_SWITCHES"; exit 1; } || exit 0
 	$$(Q)$$(READELF) -p .GCC.command.line $$< | grep -q -- -msingle-pic-base && $$(READELF) -p .GCC.command.line $$< | grep -q -- -mpic-register=r9 && $$(READELF) -p .GCC.command.line $$< | grep -q -- -mno-pic-data-is-text-relative || { echo "Error: Missing required build flags."; echo ""; echo "Tock requires applications are built with"; echo "  -msingle-pic-base"; echo "  -mpic-register=r9"; echo "  -mno-pic-data-is-text-relative"; echo "But one or more of these flags are missing"; echo ""; echo "To see the flags your application was built with, run"; echo "$$(READELF) -p .GCC.command.line $$<"; echo ""; exit 1; }
 endif
+
+
+
+############################################################################################
+# DEBUGGING STUFF
+#
+# The approach here is that we're going create a new elf file that is compiled
+# at the actual flash and ram offset of the loaded program
+#
+# We want to build a rule that fails if these needed env variables aren't set
+# only when actually trying to use them to build the lst file. We also want to
+# force this to rerun every time it's invoked so that it picks up new env
+# variable settings
+
+
+# Step 0: Force this to be built every time
+.PHONY: _FORCE_USERLAND_DEBUG_LD
+
+# Step 1: Create a new linker script. Note this depends on original (non-shifted) elf
+# (supposedly this could be one-lined, but I couldn't make that work, so here goes)
+ifdef RAM_START
+  ifdef FLASH_INIT
+    _USERLAND_DEBUG_ALL_NEEDED_VARS := 1
+  endif
+endif
+
+$$(BUILDDIR)/$(1)/$(1).userland_debug.ld: $$(TOCK_USERLAND_BASE_DIR)/userland_generic.ld $$(BUILDDIR)/$(1)/$(1).elf _FORCE_USERLAND_DEBUG_LD
+ifndef _USERLAND_DEBUG_ALL_NEEDED_VARS
+	@echo "ERROR: Required variables RAM_START and FLASH_INIT are not set."
+	@echo "       These are needed to compute the offset your program was loaded at."
+	@echo "       See the kernel panic message for these values."
+	@exit 1
+else
+	@# Start with a copy of the template / generic ld script
+	$$(Q)cp $$< $$@
+	@# And with apologies to future readers, this is easier as one shell command/script so
+	@# we can set intervening variables, away we go
+	@#
+	@# Get the offset between the init function and the start of text (0x80000000).
+	@# We then use that offset to calculate where the start of text was on the actual MCU.
+	@# Create a new LD file at the correct flash and ram locations.
+	$$(Q)set -e ;\
+	  ORIGINAL_ENTRY=`$$(READELF) -h $$(BUILDDIR)/$(1)/$(1).elf | grep Entry | awk '{print $$$$4}'` ;\
+	  INIT_OFFSET=$$$$(($$$$ORIGINAL_ENTRY - 0x80000000)) ;\
+	  FLASH_START=$$$$(($$$$FLASH_INIT-$$$$INIT_OFFSET)) ;\
+	  sed -i -E "s/(FLASH.*ORIGIN[ =]*)([x0-9]*)(,.*LENGTH)/\1$$$$FLASH_START\3/" $$@ ;\
+	  sed -i -E "s/(SRAM.*ORIGIN[ =]*)([x0-9]*)(,.*LENGTH)/\1$$$$RAM_START\3/" $$@
+endif
+
+# Step 2: Create a new ELF with the layout that matches what's loaded
+$$(BUILDDIR)/$(1)/$(1).userland_debug.elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBS_$(1)) $$(BUILDDIR)/$(1)/$(1).userland_debug.ld | $$(BUILDDIR)/$(1)
+	$$(TRACE_LD)
+	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS)\
+	    --entry=_start\
+	    -Xlinker --defsym=STACK_SIZE=$$(STACK_SIZE)\
+	    -Xlinker --defsym=APP_HEAP_SIZE=$$(APP_HEAP_SIZE)\
+	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
+	    -T $$(BUILDDIR)/$(1)/$(1).userland_debug.ld\
+	    -nostdlib\
+	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS) -Wl,--end-group\
+	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
+	    -o $$@
+
+# Step 3: Now we can finally generate an LST
+$$(BUILDDIR)/$(1)/$(1).userland_debug.lst: $$(BUILDDIR)/$(1)/$(1).userland_debug.elf
+	$$(TRACE_LST)
+	$$(Q)$$(OBJDUMP) $$(OBJDUMP_FLAGS) $$< > $$@
+	@echo $$$$(tput bold)Listings generated at $$@$$$$(tput sgr0)
+
+# END DEBUGGING STUFF
+############################################################################################
 endef
 
 # To see the generated rules, run:
@@ -181,11 +260,37 @@ size:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).elf)
 	@$(SIZE) $^
 
 .PHONY: debug
-debug:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).lst)
+debug:	$(foreach arch, $(TOCK_ARCHS), $(BUILDDIR)/$(arch)/$(arch).userland_debug.lst)
 
 .PHONY:
 clean::
 	rm -Rf $(BUILDDIR)
+
+
+# Rules for running the C linter
+FORMATTED_FILES := $(patsubst %.c,$(BUILDDIR)/format/%.uncrustify,$(C_SRCS))
+FORMATTED_FILES += $(patsubst %.cc,$(BUILDDIR)/format/%.uncrustify,$(filter %.cc, $(CXX_SRCS)))
+FORMATTED_FILES += $(patsubst %.cpp,$(BUILDDIR)/format/%.uncrustify,$(filter %.cpp, $(CXX_SRCS)))
+FORMATTED_FILES += $(patsubst %.cxx,$(BUILDDIR)/format/%.uncrustify,$(filter %.cxx, $(CXX_SRCS)))
+
+$(BUILDDIR)/format:
+	@mkdir -p $@
+
+.PHONY: fmt format
+fmt format:: $(FORMATTED_FILES)
+
+$(BUILDDIR)/format/%.uncrustify: %.c | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$(BUILDDIR)/format/%.uncrustify: %.cc | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$(BUILDDIR)/format/%.uncrustify: %.cpp | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$(BUILDDIR)/format/%.uncrustify: %.cxx | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
 
 
 

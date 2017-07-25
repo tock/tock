@@ -1,19 +1,19 @@
-// adc.rs -- Implementation of SAM4L ADCIFE.
-//
-// This is an implementation of the SAM4L analog to digital converter. It is
-// bare-bones because it provides little flexibility on how samples are taken.
-// Currently, all samples
-//   - are 12 bits
-//   - use the ground pad as the negative reference
-//   - use a VCC/2 positive reference
-//   - are right justified
-//
-// Samples can either be collected individually or continuously at a specified
-// frequency
-//
-// Author: Philip Levis <pal@cs.stanford.edu>, Branden Ghena <brghena@umich.edu>
-// Updated: May 1, 2017
-//
+//! Implementation of the SAM4L ADCIFE.
+//!
+//! This is an implementation of the SAM4L analog to digital converter. It is
+//! bare-bones because it provides little flexibility on how samples are taken.
+//! Currently, all samples:
+//!
+//! - are 12 bits
+//! - use the ground pad as the negative reference
+//! - use a VCC/2 positive reference
+//! - are right justified
+//!
+//! Samples can either be collected individually or continuously at a specified
+//! frequency.
+//!
+//! - Author: Philip Levis <pal@cs.stanford.edu>, Branden Ghena <brghena@umich.edu>
+//! - Updated: May 1, 2017
 
 use core::{cmp, mem, slice};
 use core::cell::Cell;
@@ -62,8 +62,9 @@ enum Channel {
 /// Initialization of an ADC channel.
 impl AdcChannel {
     /// Create a new ADC channel.
-    /// channel - Channel enum representing the channel number and whether it is
-    ///           internal
+    ///
+    /// - `channel`: Channel enum representing the channel number and whether it
+    ///   is internal
     const fn new(channel: Channel) -> AdcChannel {
         AdcChannel {
             chan_num: ((channel as u8) & 0x0F) as u32,
@@ -110,6 +111,7 @@ pub struct Adc {
     active: Cell<bool>,
     continuous: Cell<bool>,
     dma_running: Cell<bool>,
+    cpu_clock: Cell<bool>,
 
     // timer fire counting for slow sampling rates
     timer_repeats: Cell<u8>,
@@ -161,8 +163,8 @@ pub static mut ADC0: Adc = Adc::new(BASE_ADDRESS, dma::DMAPeripheral::ADCIFE_RX)
 impl Adc {
     /// Create a new ADC driver.
     ///
-    /// base_address - pointer to the ADC's memory mapped I/O registers
-    /// rx_dma_peripheral - type used for DMA transactions
+    /// - `base_address`: pointer to the ADC's memory mapped I/O registers
+    /// - `rx_dma_peripheral`: type used for DMA transactions
     const fn new(base_address: *mut AdcRegisters, rx_dma_peripheral: dma::DMAPeripheral) -> Adc {
         Adc {
             // pointer to memory mapped I/O registers
@@ -174,6 +176,7 @@ impl Adc {
             active: Cell::new(false),
             continuous: Cell::new(false),
             dma_running: Cell::new(false),
+            cpu_clock: Cell::new(false),
 
             // timer repeating state for slow sampling rates
             timer_repeats: Cell::new(0),
@@ -194,14 +197,14 @@ impl Adc {
 
     /// Sets the client for this driver.
     ///
-    /// client - reference to capsule which handles responses
+    /// - `client`: reference to capsule which handles responses
     pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
         self.client.set(Some(client));
     }
 
     /// Sets the DMA channel for this driver.
     ///
-    /// rx_dma - reference to the DMA channel the ADC should use
+    /// - `rx_dma`: reference to the DMA channel the ADC should use
     pub fn set_dma(&self, rx_dma: &'static dma::DMAChannel) {
         self.rx_dma.set(Some(rx_dma));
     }
@@ -251,18 +254,36 @@ impl Adc {
             regs.scr.set(0x2F);
         }
     }
-}
 
-/// Implements an ADC capable reading ADC samples on any channel.
-impl hil::adc::Adc for Adc {
-    type Channel = AdcChannel;
+    // Configures the ADC with the slowest clock that can provide continuous sampling at
+    // the desired frequency and enables the ADC. Subsequent calls with the same frequency
+    // value have no effect. Using the slowest clock also ensures efficient discrete
+    // sampling.
+    fn config_and_enable(&self, frequency: u32) -> ReturnCode {
+        if self.active.get() {
+            // disallow reconfiguration during sampling
+            ReturnCode::EBUSY
+        } else if frequency == self.adc_clk_freq.get() {
+            // already configured to work on this frequency
+            ReturnCode::SUCCESS
+        } else {
+            let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
 
-    /// Enable and configure the ADC.
-    /// This can be called multiple times with no side effects.
-    fn initialize(&self) -> ReturnCode {
-        let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
+            // disabling the ADC before switching clocks is necessary to avoid leaving it
+            // in undefined state
+            // disable ADC
+            regs.cr.set(1 << 9);
 
-        if !self.enabled.get() {
+            // wait until status is disabled
+            let mut timeout = 10000;
+            while regs.sr.get() & (0x1 << 24) == (0x1 << 24) {
+                timeout -= 1;
+                if timeout == 0 {
+                    // ADC never disabled
+                    return ReturnCode::FAIL;
+                }
+            }
+
             self.enabled.set(true);
 
             // First, enable the clocks
@@ -273,33 +294,66 @@ impl hil::adc::Adc for Adc {
                 // as the CPU clock
                 pm::enable_clock(Clock::PBA(PBAClock::ADCIFE));
                 nvic::enable(nvic::NvicIdx::ADCIFE);
-
-                // turn on GCLK10. The Generic Clock is needed for the ADC to
-                // work, although I have no idea what it is needed for. Its
-                // speed does not seem to matter, so let's just peg it to the
-                // CPU clock
-                scif::generic_clock_enable(scif::GenericClock::GCLK10, scif::ClockSource::CLK_CPU);
-
-                // determine clock divider
-                // we need the ADC_CLK to be a maximum of 1.5 MHz in frequency,
-                // so we need to find the PRESCAL value that will make this
-                // happen.
-                // Formula: f(ADC_CLK) = f(CLK_CPU)/2^(N+2) <= 1.5 MHz
-                // and we solve for N
-                // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
-                let cpu_frequency = pm::get_system_frequency();
-                let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
-                clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) - 2;
-                clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
-                self.adc_clk_freq.set(cpu_frequency / (1 << (clock_divisor + 2)));
+                // the maximum sampling frequency with the RC clocks is 1/32th of their clock
+                // frequency. This is because of the minimum PRESCAL by a factor of 4 and the
+                // 7+1 cycles needed for conversion in continuous mode. Hence, 4*(7+1)=32.
+                if frequency <= 113600 / 32 {
+                    // RC oscillator
+                    self.cpu_clock.set(false);
+                    let max_freq: u32;
+                    if frequency <= 32000 / 32 {
+                        // frequency of the RC32K is 32KHz.
+                        scif::generic_clock_enable(scif::GenericClock::GCLK10,
+                                                   scif::ClockSource::RC32K);
+                        max_freq = 32000 / 32;
+                    } else {
+                        // frequency of the RCSYS is 115KHz.
+                        scif::generic_clock_enable(scif::GenericClock::GCLK10,
+                                                   scif::ClockSource::RCSYS);
+                        max_freq = 113600 / 32;
+                    }
+                    let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
+                    clock_divisor = math::log_base_two(math::closest_power_of_two(divisor));
+                    clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
+                    self.adc_clk_freq.set(max_freq / (1 << (clock_divisor)));
+                } else {
+                    // CPU clock
+                    self.cpu_clock.set(true);
+                    scif::generic_clock_enable(scif::GenericClock::GCLK10,
+                                               scif::ClockSource::CLK_CPU);
+                    // determine clock divider
+                    // we need the ADC_CLK to be a maximum of 1.5 MHz in frequency,
+                    // so we need to find the PRESCAL value that will make this
+                    // happen.
+                    // Formula: f(ADC_CLK) = f(CLK_CPU)/2^(N+2) <= 1.5 MHz
+                    // and we solve for N
+                    // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
+                    let cpu_frequency = pm::get_system_frequency();
+                    let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
+                    clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) - 2;
+                    clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
+                    self.adc_clk_freq.set(cpu_frequency / (1 << (clock_divisor + 2)));
+                }
             }
 
             // configure the ADC
+            let clksel;
+            if self.cpu_clock.get() {
+                clksel = 1 // CLKSEL: use ADCIFE clock
+            } else {
+                clksel = 0 // CLKSEL: use GCLOCK clock
+            }
             let cfg_val = (clock_divisor << 8) | // PRESCAL: clock divider
-                          (0x1 << 6) | // CLKSEL: use ADCIFE clock
-                          (0x0 << 4) | // SPEED: maximum 300 ksps
-                          (0x4 << 1); // REFSEL: VCC/2 reference
+                              (clksel << 6) | // CLKSEL
+                              (0x0 << 4) | // SPEED: maximum 300 ksps
+                              (0x4 << 1); // REFSEL: VCC/2 reference
+
+
             regs.cfg.set(cfg_val);
+
+            let tim_val = (0x1 << 8) | // ENSTUP
+                          (0x17 << 0); // wait 24 cycles
+            regs.tim.set(tim_val);
 
             // software reset (does not clear registers)
             regs.cr.set(1);
@@ -332,19 +386,37 @@ impl hil::adc::Adc for Adc {
                     return ReturnCode::FAIL;
                 }
             }
-        }
 
-        ReturnCode::SUCCESS
+            ReturnCode::SUCCESS
+        }
+    }
+}
+
+/// Implements an ADC capable reading ADC samples on any channel.
+impl hil::adc::Adc for Adc {
+    type Channel = AdcChannel;
+
+    /// Enable and configure the ADC.
+    /// This can be called multiple times with no side effects.
+    fn initialize(&self) -> ReturnCode {
+        // always configure to 1KHz to get the slowest clock
+        self.config_and_enable(1000)
     }
 
     /// Capture a single analog sample, calling the client when complete.
     /// Returns an error if the ADC is already sampling.
     ///
-    /// channel - the ADC channel to sample
+    /// - `channel`: the ADC channel to sample
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
 
-        if !self.enabled.get() {
+        // always configure to 1KHz to get the slowest clock with single sampling
+        let res = self.config_and_enable(1000);
+
+        if res != ReturnCode::SUCCESS {
+            return res;
+
+        } else if !self.enabled.get() {
             ReturnCode::EOFF
 
         } else if self.active.get() {
@@ -388,12 +460,17 @@ impl hil::adc::Adc for Adc {
     /// microseconds (10000 samples per second). To sample faster, use the
     /// sample_highspeed function.
     ///
-    /// channel - the ADC channel to sample
-    /// frequency - the number of samples per second to collect
+    /// - `channel`: the ADC channel to sample
+    /// - `frequency`: the number of samples per second to collect
     fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
 
-        if !self.enabled.get() {
+        let res = self.config_and_enable(frequency);
+
+        if res != ReturnCode::SUCCESS {
+            return res;
+
+        } else if !self.enabled.get() {
             ReturnCode::EOFF
 
         } else if self.active.get() {
@@ -408,12 +485,19 @@ impl hil::adc::Adc for Adc {
             self.active.set(true);
             self.continuous.set(true);
 
+            let trgsel;
+            if self.cpu_clock.get() {
+                trgsel = 1; // internal timer trigger
+            } else {
+                trgsel = 3; // continuous mode
+            }
+
             let cfg = (0x7 << 20) | // MUXNEG: ground pad
                       (channel.chan_num << 16) | // MUXPOS: selection
                       (0x1 << 15) | // INTERNAL: internal neg
                       (channel.internal << 14) | // INTERNAL: pos selection
                       (0x0 << 12) | // RES: 12-bit resolution
-                      (0x1 <<  8) | // TRGSEL: internal timer trigger
+                      (trgsel <<  8) | // TRGSEL
                       (0x0 <<  7) | // GCOMP: no gain compensation
                       (0x7 <<  4) | // GAIN: 0.5x gain
                       (0x0 <<  2) | // BIPOLAR: unipolar mode
@@ -423,36 +507,43 @@ impl hil::adc::Adc for Adc {
             // stop timer if running
             regs.cr.set(0x02);
 
-            // setup timer for low-frequency samples. Based on the ADC clock,
-            // the minimum timer frequency is:
-            // 1500000 / (0xFFFF + 1) = 22.888 Hz.
-            // So for any frequency less than 23 Hz, we will keep our own
-            // counter in addition and only actually perform a callback every N
-            // timer fires. This is important to enable low-jitter sampling in
-            // the 1-22 Hz range.
-            let timer_frequency;
-            if frequency < 23 {
-                // set a number of timer repeats before the callback is
-                // performed. 60 here is an arbitrary number which limits the
-                // actual itimer frequency to between 42 and 60 in the desired
-                // range of 1-22 Hz, which seems slow enough to keep the system
-                // from getting bogged down with interrupts
-                let counts = 60 / frequency;
-                self.timer_repeats.set(counts as u8);
-                self.timer_counts.set(0);
-                timer_frequency = frequency * counts;
+            if self.cpu_clock.get() {
+                // This logic only applies for sampling off the CPU
+                // setup timer for low-frequency samples. Based on the ADC clock,
+                // the minimum timer frequency is:
+                // 1500000 / (0xFFFF + 1) = 22.888 Hz.
+                // So for any frequency less than 23 Hz, we will keep our own
+                // counter in addition and only actually perform a callback every N
+                // timer fires. This is important to enable low-jitter sampling in
+                // the 1-22 Hz range.
+                let timer_frequency;
+                if frequency < 23 {
+                    // set a number of timer repeats before the callback is
+                    // performed. 60 here is an arbitrary number which limits the
+                    // actual itimer frequency to between 42 and 60 in the desired
+                    // range of 1-22 Hz, which seems slow enough to keep the system
+                    // from getting bogged down with interrupts
+                    let counts = 60 / frequency;
+                    self.timer_repeats.set(counts as u8);
+                    self.timer_counts.set(0);
+                    timer_frequency = frequency * counts;
+                } else {
+                    // we can sample at this frequency directly with the timer
+                    self.timer_repeats.set(0);
+                    self.timer_counts.set(0);
+                    timer_frequency = frequency;
+                }
+
+                // set timer, limit to bounds
+                // f(timer) = f(adc) / (counter + 1)
+                let mut counter = (self.adc_clk_freq.get() / timer_frequency) - 1;
+                counter = cmp::max(cmp::min(counter, 0xFFFF), 0);
+                regs.itimer.set(counter);
             } else {
                 // we can sample at this frequency directly with the timer
                 self.timer_repeats.set(0);
                 self.timer_counts.set(0);
-                timer_frequency = frequency;
             }
-
-            // set timer, limit to bounds
-            // f(timer) = f(adc) / (counter + 1)
-            let mut counter = (self.adc_clk_freq.get() / timer_frequency) - 1;
-            counter = cmp::max(cmp::min(counter, 0xFFFF), 0);
-            regs.itimer.set(counter);
 
             // clear any current status
             regs.scr.set(0x2F);
@@ -531,12 +622,12 @@ impl hil::adc::AdcHighSpeed for Adc {
     /// frequency range of the ADC is from 187 kHz to 23 Hz (although its
     /// precision is limited at higher frequencies due to aliasing).
     ///
-    /// channel - the ADC channel to sample
-    /// frequency - frequency to sample at
-    /// buffer1 - first buffer to fill with samples
-    /// length1 - number of samples to collect (up to buffer length)
-    /// buffer2 - second buffer to fill once the first is full
-    /// length2 - number of samples to collect (up to buffer length)
+    /// - `channel`: the ADC channel to sample
+    /// - `frequency`: frequency to sample at
+    /// - `buffer1`: first buffer to fill with samples
+    /// - `length1`: number of samples to collect (up to buffer length)
+    /// - `buffer2`: second buffer to fill once the first is full
+    /// - `length2`: number of samples to collect (up to buffer length)
     fn sample_highspeed(&self,
                         channel: &Self::Channel,
                         frequency: u32,
@@ -547,7 +638,12 @@ impl hil::adc::AdcHighSpeed for Adc {
                         -> (ReturnCode, Option<&'static mut [u16]>, Option<&'static mut [u16]>) {
         let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
 
-        if !self.enabled.get() {
+        let res = self.config_and_enable(frequency);
+
+        if res != ReturnCode::SUCCESS {
+            return (res, Some(buffer1), Some(buffer2));
+
+        } else if !self.enabled.get() {
             (ReturnCode::EOFF, Some(buffer1), Some(buffer2))
 
         } else if self.active.get() {
@@ -572,13 +668,20 @@ impl hil::adc::AdcHighSpeed for Adc {
             self.next_dma_buffer.replace(buffer2);
             self.next_dma_length.set(length2);
 
+            let trgsel;
+            if self.cpu_clock.get() {
+                trgsel = 1; // internal timer trigger
+            } else {
+                trgsel = 3; // continuous mode
+            }
+
             // adc sequencer configuration
             let cfg = (0x7 << 20) | // MUXNEG: ground pad
                       (channel.chan_num << 16) | // MUXPOS: selection
                       (0x1 << 15) | // INTERNAL: internal neg
                       (channel.internal << 14) | // INTERNAL: pos selection
                       (0x0 << 12) | // RES: 12-bit resolution
-                      (0x1 <<  8) | // TRGSEL: internal timer trigger
+                      (trgsel <<  8) | // TRGSEL
                       (0x0 <<  7) | // GCOMP: no gain compensation
                       (0x7 <<  4) | // GAIN: 0.5x gain
                       (0x0 <<  2) | // BIPOLAR: unipolar mode
@@ -588,11 +691,13 @@ impl hil::adc::AdcHighSpeed for Adc {
             // stop timer if running
             regs.cr.set(0x02);
 
-            // set timer, limit to bounds
-            // f(timer) = f(adc) / (counter + 1)
-            let mut counter = (self.adc_clk_freq.get() / frequency) - 1;
-            counter = cmp::max(cmp::min(counter, 0xFFFF), 0);
-            regs.itimer.set(counter);
+            if self.cpu_clock.get() {
+                // set timer, limit to bounds
+                // f(timer) = f(adc) / (counter + 1)
+                let mut counter = (self.adc_clk_freq.get() / frequency) - 1;
+                counter = cmp::max(cmp::min(counter, 0xFFFF), 0);
+                regs.itimer.set(counter);
+            }
 
             // clear any current status
             regs.scr.set(0x2F);
@@ -629,8 +734,8 @@ impl hil::adc::AdcHighSpeed for Adc {
     /// Provide a new buffer to send on-going buffered continuous samples to.
     /// This is expected to be called after the `samples_ready` callback.
     ///
-    /// buf - buffer to fill with samples
-    /// length - number of samples to collect (up to buffer length)
+    /// - `buf`: buffer to fill with samples
+    /// - `length`: number of samples to collect (up to buffer length)
     fn provide_buffer(&self,
                       buf: &'static mut [u16],
                       length: usize)
@@ -679,7 +784,7 @@ impl hil::adc::AdcHighSpeed for Adc {
 impl dma::DMAClient for Adc {
     /// Handler for DMA transfer completion.
     ///
-    /// pid - the DMA peripheral that is complete
+    /// - `pid`: the DMA peripheral that is complete
     fn xfer_done(&self, pid: dma::DMAPeripheral) {
         // check if this was an RX transfer
         if pid == self.rx_dma_peripheral {

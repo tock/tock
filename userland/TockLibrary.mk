@@ -60,6 +60,7 @@ vpath %.s $(VPATH_DIRS)
 vpath %.c $(VPATH_DIRS)
 vpath %.cc $(VPATH_DIRS)
 vpath %.cpp $(VPATH_DIRS)
+vpath %.cxx $(VPATH_DIRS)
 
 # Now, VPATH allows _make_ to find all the sources, but gcc needs to be told
 # how to find all of the headers. We do this by `-I`'ing any folder that had a
@@ -103,6 +104,7 @@ $(LIBNAME)_OBJS_$(1) += $$(patsubst %.s,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filt
 $(LIBNAME)_OBJS_$(1) += $$(patsubst %.c,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.c, $$($(LIBNAME)_SRCS_FLAT)))
 $(LIBNAME)_OBJS_$(1) += $$(patsubst %.cc,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$($(LIBNAME)_SRCS_FLAT)))
 $(LIBNAME)_OBJS_$(1) += $$(patsubst %.cpp,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_OBJS_$(1) += $$(patsubst %.cxx,$$($(LIBNAME)_BUILDDIR)/$(1)/%.o,$$(filter %.cxx, $$($(LIBNAME)_SRCS_FLAT)))
 
 # Dependency rules for picking up header changes
 -include $$($(LIBNAME)_OBJS_$(1):.o=.d)
@@ -155,3 +157,29 @@ clean::
 	rm -Rf $(1)
 endef
 $(eval $(call CLEAN_RULE,$($(LIBNAME)_BUILDDIR)))
+
+
+# Rules for running the C linter
+$(LIBNAME)_FORMATTED_FILES := $(patsubst %.c,$($(LIBNAME)_BUILDDIR)/format/%.uncrustify,$(filter %.c, $($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_FORMATTED_FILES += $(patsubst %.cc,$($(LIBNAME)_BUILDDIR)/format/%.uncrustify,$(filter %.cc, $($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_FORMATTED_FILES += $(patsubst %.cpp,$($(LIBNAME)_BUILDDIR)/format/%.uncrustify,$(filter %.cpp, $($(LIBNAME)_SRCS_FLAT)))
+$(LIBNAME)_FORMATTED_FILES += $(patsubst %.cxx,$($(LIBNAME)_BUILDDIR)/format/%.uncrustify,$(filter %.cxx, $($(LIBNAME)_SRCS_FLAT)))
+
+$($(LIBNAME)_BUILDDIR)/format:
+	@mkdir -p $@
+
+.PHONY: fmt format
+fmt format:: $($(LIBNAME)_FORMATTED_FILES)
+
+$($(LIBNAME)_BUILDDIR)/format/%.uncrustify: %.c | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$($(LIBNAME)_BUILDDIR)/format/%.uncrustify: %.cc | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$($(LIBNAME)_BUILDDIR)/format/%.uncrustify: %.cpp | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)
+$($(LIBNAME)_BUILDDIR)/format/%.uncrustify: %.cxx | _format_check_unstaged
+	$(Q)$(UNCRUSTIFY) -f $< -o $@
+	$(Q)cmp -s $< $@ || (if [ "$$CI" = "true" ]; then diff -y $< $@; rm $@; exit 1; else cp $@ $<; fi)

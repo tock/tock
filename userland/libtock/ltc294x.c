@@ -1,5 +1,5 @@
-#include "tock.h"
 #include "ltc294x.h"
+#include "tock.h"
 
 
 struct ltc294x_data {
@@ -16,7 +16,7 @@ static void ltc294x_cb(__attribute__ ((unused)) int callback_type,
                        void* ud) {
   struct ltc294x_data* data = (struct ltc294x_data*) ud;
   data->charge = value;
-  data->fired = true;
+  data->fired  = true;
 }
 
 int ltc294x_set_callback (subscribe_cb callback, void* callback_args) {
@@ -34,14 +34,14 @@ int ltc294x_configure(ltc294x_model_e model,
   uint8_t M = 0;
   if (model == LTC2941 || model == LTC2942) {
     // ltc2941/2 expects log_2 of prescaler value
-    for(int i = 0; i < 8; i++) {
-      if ((1<<i) & prescaler) {
+    for (int i = 0; i < 8; i++) {
+      if ((1 << i) & prescaler) {
         M = i;
       }
     }
   } else if (model == LTC2943) {
     // See Table 3 in the datasheet.
-    switch(prescaler) {
+    switch (prescaler) {
       case 1:    M = 0; break;
       case 4:    M = 1; break;
       case 16:   M = 2; break;
@@ -237,10 +237,18 @@ int ltc294x_shutdown_sync(void) {
   return 0;
 }
 
+int ltc294x_convert_to_coulomb_uah(int c, int Rsense, uint16_t prescaler, ltc294x_model_e model) {
+  if (model == LTC2941 || model == LTC2942) {
+    return (int)(c * 85 * (50.0 / Rsense) * (prescaler / 128.0));
+  } else {
+    return (int)(c * 340 * (50.0 / Rsense) * (prescaler / 4096.0));
+  }
+}
+
 int ltc294x_convert_to_voltage_mv (int v) {
-  return 23.6*(v/(float)0xFFFF)*1000;
+  return 23.6 * (v / (float)0xFFFF) * 1000;
 }
 
 int ltc294x_convert_to_current_ua (int c, int Rsense) {
-  return (int)((60.0/Rsense)*((c-0x7FFF)/(float)0x7FFF)*1000000.0);
+  return (int)((60.0 / Rsense) * ((c - 0x7FFF) / (float)0x7FFF) * 1000000.0);
 }

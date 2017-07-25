@@ -1,13 +1,13 @@
 /* vim: set sw=2 expandtab tw=80: */
 
-#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
-#include "tock.h"
 #include "console.h"
 #include "gpio.h"
 #include "led.h"
+#include "tock.h"
 
 typedef struct {
   uint8_t pir;
@@ -15,15 +15,15 @@ typedef struct {
 } SensorData_t;
 
 static SensorData_t sensor_data = {
-  .pir = 0,
+  .pir         = 0,
   .reed_switch = 0,
 };
 
 // callback for gpio interrupts
 static void gpio_cb (int pin_num,
-              int pin_val,
-              __attribute__ ((unused)) int unused,
-              __attribute__ ((unused)) void* userdata) {
+                     int pin_val,
+                     __attribute__ ((unused)) int unused,
+                     __attribute__ ((unused)) void* userdata) {
 
   // save sensor data
   if (pin_num == 1) {
@@ -42,8 +42,8 @@ static void gpio_cb (int pin_num,
 //  * Accelerometer (movement)
 //  and makes that available over RF communication
 int main(void) {
-  putstr("*********************\n");
-  putstr("Security Application\n");
+  printf("*********************\n");
+  printf("Security Application\n");
 
   // configure pins
   gpio_interrupt_callback(gpio_cb, NULL);
@@ -51,21 +51,17 @@ int main(void) {
   gpio_enable_interrupt(1, PullUp, Change);
 
   // configure accelerometer
-  //TODO
+  // TODO
 
   // configure radio
-  //TODO
+  // TODO
 
   while (1) {
     yield();
     led_toggle(0);
 
-    {
-      char buf[64];
-      sprintf(buf, "\tPIR:\t\t%d\n\tReed Switch:\t%d\n\n",
-          sensor_data.pir, sensor_data.reed_switch);
-      putstr(buf);
-    }
+    printf("\tPIR:\t\t%d\n\tReed Switch:\t%d\n\n",
+           sensor_data.pir, sensor_data.reed_switch);
   }
 
   return 0;

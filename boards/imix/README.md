@@ -1,13 +1,7 @@
 imix: Platform-Specific Instructions
 =====================================
 
-Kernel and userland software can be flashed onto the imix using
-[openocd](http://openocd.org/). We require at least version `0.8.0`.
-
-```bash
-(Linux): sudo apt-get install openocd
-(MacOS): brew install open-ocd
-```
+This board file is for imix version 2. For older versions, see the imixv1 board.
 
 
 ## Flashing the kernel
@@ -19,7 +13,7 @@ and run:
 $ make flash
 ```
 
-This will build `boards/imix/target/sam4l/release/imix/imix` and use openocd to
+This will build `boards/imix/target/sam4l/release/imix/imix` and use tockloader to
 flash it to the board.
 
 
@@ -33,28 +27,29 @@ To compile an app, `cd` to the desired app and `make`. For example:
 
 ```bash
 $ cd userland/examples/blink/
-$ make TOCK_BOARD=imix
+$ make
 ```
 
-This will build the app and generate a binary in Tock Binary Format (using the
-`elf2tbf` utility): `userland/examples/blink/build/cortex-m4/app.bin`. This
-binary should be flashed separately from the kernel.
+This will build the app, generate a binary in Tock Binary Format (using the
+`elf2tbf` utility), and create a TAB (Tock Application Bundle):
+`userland/examples/blink/build/blink.tab`.
 
 Apps can be built and automatically uploaded from the root directory of Tock:
 
 ```bash
-$ make TOCK_BOARD=imix examples/blink
+$ make examples/blink
 ```
 
-Like the kernel, apps can be uploaded with `make flash`:
+Apps can be uploaded with `make program` (to use the serial bootloader):
 
 ```bash
 $ cd userland/examples/blink/
-$ make TOCK_BOARD=imix flash
+$ make program
 ```
 
 This builds and loads only a single app. Tock is capable of running multiple apps
-concurrently. **TODO**
+concurrently. Use `tockloader install` to add additional apps, and `tockloader list`
+to see the list of installed applications.
 
 ## Debugging
 
@@ -94,6 +89,12 @@ one closer to the middle), and then use `miniterm.py` to open that serial port:
 
 ```bash
 $ miniterm.py --dtr 0 --rts 1 /dev/ttyUSB0 115200
+```
+
+or
+
+```bash
+tockloader listen
 ```
 
 (Note that you may need to configure your system to allow user access to the

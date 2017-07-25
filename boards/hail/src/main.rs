@@ -1,6 +1,11 @@
+//! Board file for Hail development platform.
+//!
+//! - https://github.com/helena-project/tock/tree/master/boards/hail
+//! - https://github.com/lab11/hail
+
 #![no_std]
 #![no_main]
-#![feature(asm,const_fn,lang_items,compiler_builtins_lib)]
+#![feature(asm,const_fn,drop_types_in_const,lang_items,compiler_builtins_lib)]
 
 extern crate capsules;
 extern crate cortexm4;
@@ -15,11 +20,10 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
-use kernel::{Chip, Platform};
+use kernel::Platform;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
-use kernel::mpu::MPU;
 use sam4l::usart;
 
 #[macro_use]
@@ -30,43 +34,20 @@ mod test_take_map_cell;
 static mut SPI_READ_BUF: [u8; 64] = [0; 64];
 static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 
-unsafe fn load_processes() -> &'static mut [Option<kernel::Process<'static>>] {
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-    }
+// State for loading and holding applications.
 
-    const NUM_PROCS: usize = 4;
+// Number of concurrent processes this platform supports.
+const NUM_PROCS: usize = 4;
 
-    // how should the kernel respond when a process faults
-    const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+// How should the kernel respond when a process faults.
+const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
-    #[link_section = ".app_memory"]
-    static mut APP_MEMORY: [u8; 49152] = [0; 49152];
+#[link_section = ".app_memory"]
+static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
-    static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
+// Actual memory for holding the active process structures.
+static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
 
-    let mut apps_in_flash_ptr = &_sapps as *const u8;
-    let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
-    let mut app_memory_size = APP_MEMORY.len();
-    for i in 0..NUM_PROCS {
-        let (process, flash_offset, memory_offset) = kernel::Process::create(apps_in_flash_ptr,
-                                                                             app_memory_ptr,
-                                                                             app_memory_size,
-                                                                             FAULT_RESPONSE);
-
-        if process.is_none() {
-            break;
-        }
-
-        PROCESSES[i] = process;
-        apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
-        app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
-        app_memory_size -= memory_offset;
-    }
-
-    &mut PROCESSES
-}
 
 struct Hail {
     console: &'static Console<'static, usart::USART>,
@@ -86,6 +67,8 @@ struct Hail {
     rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    dac: &'static capsules::dac::Dac<'static>,
+    aes: &'static capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
 }
 
 impl Platform for Hail {
@@ -110,6 +93,9 @@ impl Platform for Hail {
             14 => f(Some(self.rng)),
 
             16 => f(Some(self.crc)),
+            17 => f(Some(self.aes)),
+
+            26 => f(Some(self.dac)),
 
             0xff => f(Some(&self.ipc)),
             _ => f(None),
@@ -175,8 +161,10 @@ unsafe fn set_pin_primary_functions() {
 pub unsafe fn reset_handler() {
     sam4l::init();
 
-    sam4l::pm::setup_system_clock(sam4l::pm::SystemClockSource::ExternalOscillatorPll,
-                                  48000000);
+    sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
+        frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
+        startup_mode: sam4l::pm::OscillatorStartup::FastStart,
+    });
 
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
@@ -188,8 +176,7 @@ pub unsafe fn reset_handler() {
         Console::new(&usart::USART0,
                      115200,
                      &mut console::WRITE_BUF,
-                     kernel::Container::create()),
-        224/8);
+                     kernel::Container::create()));
     hil::uart::UART::set_client(&usart::USART0, console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
@@ -198,87 +185,75 @@ pub unsafe fn reset_handler() {
         Nrf51822Serialization<usart::USART>,
         Nrf51822Serialization::new(&usart::USART3,
                                    &mut nrf51822_serialization::WRITE_BUF,
-                                   &mut nrf51822_serialization::READ_BUF),
-        608/8);
+                                   &mut nrf51822_serialization::READ_BUF));
     hil::uart::UART::set_client(&usart::USART3, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
 
     let mux_alarm = static_init!(
         MuxAlarm<'static, sam4l::ast::Ast>,
-        MuxAlarm::new(&sam4l::ast::AST),
-        16);
+        MuxAlarm::new(&sam4l::ast::AST));
     ast.configure(mux_alarm);
 
-    let sensors_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C1), 20);
+    let sensors_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C1));
     sam4l::i2c::I2C1.set_master_client(sensors_i2c);
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021_i2c = static_init!(
         capsules::virtual_i2c::I2CDevice,
-        capsules::virtual_i2c::I2CDevice::new(sensors_i2c, 0x40),
-        32);
+        capsules::virtual_i2c::I2CDevice::new(sensors_i2c, 0x40));
     let si7021_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm),
-        192/8);
+        VirtualMuxAlarm::new(mux_alarm));
     let si7021 = static_init!(
         capsules::si7021::SI7021<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         capsules::si7021::SI7021::new(si7021_i2c,
             si7021_virtual_alarm,
-            &mut capsules::si7021::BUFFER),
-        352/8);
+            &mut capsules::si7021::BUFFER));
     si7021_i2c.set_client(si7021);
     si7021_virtual_alarm.set_client(si7021);
 
     // Configure the ISL29035, device address 0x44
-    let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x44), 32);
+    let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x44));
     let isl29035_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm),
-        192/8);
+        VirtualMuxAlarm::new(mux_alarm));
     let isl29035 = static_init!(
         capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         capsules::isl29035::Isl29035::new(isl29035_i2c, isl29035_virtual_alarm,
-                                          &mut capsules::isl29035::BUF),
-        384/8);
+                                          &mut capsules::isl29035::BUF));
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
     // Timer
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm),
-        24);
+        VirtualMuxAlarm::new(mux_alarm));
     let timer = static_init!(
         TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        TimerDriver::new(virtual_alarm1, kernel::Container::create()),
-        12);
+        TimerDriver::new(virtual_alarm1, kernel::Container::create()));
     virtual_alarm1.set_client(timer);
 
     // FXOS8700CQ accelerometer, device address 0x1e
-    let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e), 32);
+    let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e));
     let fxos8700 = static_init!(
         capsules::fxos8700cq::Fxos8700cq<'static>,
         capsules::fxos8700cq::Fxos8700cq::new(fxos8700_i2c,
                                                &sam4l::gpio::PA[9],
-                                               &mut capsules::fxos8700cq::BUF),
-        320/8);
+                                               &mut capsules::fxos8700cq::BUF));
     fxos8700_i2c.set_client(fxos8700);
     sam4l::gpio::PA[9].set_client(fxos8700);
 
     let ninedof = static_init!(
         capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()),
-        160/8);
+        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
     hil::ninedof::NineDof::set_client(fxos8700, ninedof);
 
     // Initialize and enable SPI HAL
     // Set up an SPI MUX, so there can be multiple clients
     let mux_spi = static_init!(
         MuxSpiMaster<'static, sam4l::spi::Spi>,
-        MuxSpiMaster::new(&sam4l::spi::SPI),
-        96/8);
+        MuxSpiMaster::new(&sam4l::spi::SPI));
 
     sam4l::spi::SPI.set_client(mux_spi);
     sam4l::spi::SPI.init();
@@ -288,14 +263,12 @@ pub unsafe fn reset_handler() {
     // CS line is CS0
     let syscall_spi_device = static_init!(
         VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
-        VirtualSpiMasterDevice::new(mux_spi, 0),
-        352/8);
+        VirtualSpiMasterDevice::new(mux_spi, 0));
 
     // Create the SPI systemc call capsule, passing the client
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
-        capsules::spi::Spi::new(syscall_spi_device),
-        672/8);
+        capsules::spi::Spi::new(syscall_spi_device));
 
     spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
     syscall_spi_device.set_client(spi_syscalls);
@@ -303,24 +276,20 @@ pub unsafe fn reset_handler() {
     // LEDs
     let led_pins = static_init!(
         [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 3],
-        [(&sam4l::gpio::PA[13], capsules::led::ActivationMode::ActiveLow),  // Red
-         (&sam4l::gpio::PA[15], capsules::led::ActivationMode::ActiveLow),  // Green
-         (&sam4l::gpio::PA[14], capsules::led::ActivationMode::ActiveLow)], // Blue
-        192/8);
+        [(&sam4l::gpio::PA[13], capsules::led::ActivationMode::ActiveLow),   // Red
+         (&sam4l::gpio::PA[15], capsules::led::ActivationMode::ActiveLow),   // Green
+         (&sam4l::gpio::PA[14], capsules::led::ActivationMode::ActiveLow)]); // Blue
     let led = static_init!(
         capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins),
-        64/8);
+        capsules::led::LED::new(led_pins));
 
     // BUTTONs
     let button_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 1],
-        [&sam4l::gpio::PA[16]],
-        1 * 4);
+        [&sam4l::gpio::PA[16]]);
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Container::create()),
-        96/8);
+        capsules::button::Button::new(button_pins, kernel::Container::create()));
     for btn in button_pins.iter() {
         btn.set_client(button);
     }
@@ -334,39 +303,32 @@ pub unsafe fn reset_handler() {
          &sam4l::adc::CHANNEL_AD4, // A3
          &sam4l::adc::CHANNEL_AD5, // A4
          &sam4l::adc::CHANNEL_AD6, // A5
-        ],
-        192/8
-    );
+        ]);
     let adc = static_init!(
         capsules::adc::Adc<'static, sam4l::adc::Adc>,
         capsules::adc::Adc::new(&mut sam4l::adc::ADC0, adc_channels,
                                 &mut capsules::adc::ADC_BUFFER1,
                                 &mut capsules::adc::ADC_BUFFER2,
-                                &mut capsules::adc::ADC_BUFFER3),
-        864/8);
+                                &mut capsules::adc::ADC_BUFFER3));
     sam4l::adc::ADC0.set_client(adc);
 
     // Setup RNG
     let rng = static_init!(
             capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
-            capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Container::create()),
-            96/8);
+            capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Container::create()));
     sam4l::trng::TRNG.set_client(rng);
 
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio_pins = static_init!(
         [&'static sam4l::gpio::GPIOPin; 4],
-        [&sam4l::gpio::PB[14],  // D0
-         &sam4l::gpio::PB[15],  // D1
-         &sam4l::gpio::PB[11],  // D6
-         &sam4l::gpio::PB[12]], // D7
-        4 * 4
-    );
+        [&sam4l::gpio::PB[14],   // D0
+         &sam4l::gpio::PB[15],   // D1
+         &sam4l::gpio::PB[11],   // D6
+         &sam4l::gpio::PB[12]]); // D7
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins),
-        224/8);
+        capsules::gpio::GPIO::new(gpio_pins));
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
@@ -374,10 +336,23 @@ pub unsafe fn reset_handler() {
     // CRC
     let crc = static_init!(
         capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()),
-        128/8);
+        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()));
     sam4l::crccu::CRCCU.set_client(crc);
 
+    // DAC
+    let dac = static_init!(
+        capsules::dac::Dac<'static>,
+        capsules::dac::Dac::new(&mut sam4l::dac::DAC));
+
+    // AES
+    let aes = static_init!(
+        capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
+        capsules::symmetric_encryption::Crypto::new(&mut sam4l::aes::AES,
+                                                    kernel::Container::create(),
+                                                    &mut capsules::symmetric_encryption::KEY,
+                                                    &mut capsules::symmetric_encryption::BUF,
+                                                    &mut capsules::symmetric_encryption::IV));
+    hil::symmetric_encryption::SymmetricEncryption::set_client(&sam4l::aes::AES, aes);
 
     let hail = Hail {
         console: console,
@@ -394,6 +369,8 @@ pub unsafe fn reset_handler() {
         rng: rng,
         ipc: kernel::ipc::IPC::new(),
         crc: crc,
+        dac: dac,
+        aes: aes,
     };
 
     // Need to reset the nRF on boot
@@ -406,18 +383,24 @@ pub unsafe fn reset_handler() {
     // Attach the kernel debug interface to this console
     let kc = static_init!(
         capsules::console::App,
-        capsules::console::App::default(),
-        480/8);
+        capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(hail.console), kc);
 
     hail.nrf51822.initialize();
 
     let mut chip = sam4l::chip::Sam4l::new();
-    chip.mpu().enable_mpu();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
     // debug!("Initialization complete. Entering main loop");
-    kernel::main(&hail, &mut chip, load_processes(), &hail.ipc);
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+    }
+    kernel::process::load_processes(&_sapps as *const u8,
+                                    &mut APP_MEMORY,
+                                    &mut PROCESSES,
+                                    FAULT_RESPONSE);
+    kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
 }

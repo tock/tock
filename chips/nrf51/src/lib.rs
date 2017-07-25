@@ -24,3 +24,5 @@ pub mod pinmux;
 pub use chip::NRF51;
 pub mod temperature;
 pub mod trng;
+pub mod radio;
+pub mod ble_advertising_driver;

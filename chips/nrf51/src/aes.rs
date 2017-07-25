@@ -27,7 +27,7 @@
 use chip;
 use core::cell::Cell;
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::symmetric_encryption::{SymmetricEncryptionDriver, Client};
+use kernel::hil::symmetric_encryption::{SymmetricEncryption, Client};
 use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{AESECB_REGS, AESECB_BASE};
@@ -104,18 +104,6 @@ impl AesECB {
         self.enable_interrupts();
     }
 
-    // precondition: key_len = 16 || 24 || 32
-    fn set_key(&self, key: &'static mut [u8], _: usize) {
-        for (i, c) in key.as_ref()[0..16].iter().enumerate() {
-            unsafe {
-                ECB_DATA[i] = *c;
-            }
-        }
-
-        self.client
-            .get()
-            .map(|client| unsafe { client.set_key_done(&mut INIT_CTR[0..16]) });
-    }
 
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
@@ -187,10 +175,6 @@ impl AesECB {
         nvic::disable(NvicIdx::ECB);
     }
 
-    pub fn set_client<C: Client>(&self, client: &'static C) {
-        self.client.set(Some(client));
-    }
-
     pub fn set_initial_ctr(&self, iv: &'static mut [u8]) {
         // read bytes as big-endian
         let mut ctr: [u8; 16] = [0; 16];
@@ -201,15 +185,25 @@ impl AesECB {
     }
 }
 
-impl SymmetricEncryptionDriver for AesECB {
+impl SymmetricEncryption for AesECB {
+    fn set_client(&self, client: &'static Client) {
+        self.client.set(Some(client));
+    }
+
     // This Function is called once Tock is booted
     fn init(&self) {
         self.ecb_init();
     }
 
     // capsule ensures that the key is 16 bytes
-    fn set_key(&self, key: &'static mut [u8], len: usize) {
-        self.set_key(key, len)
+    // precondition: key_len = 16 || 24 || 32
+    fn set_key(&self, key: &'static mut [u8], len: usize) -> &'static mut [u8] {
+        for (i, c) in key.as_ref()[0..len].iter().enumerate() {
+            unsafe {
+                ECB_DATA[i] = *c;
+            }
+        }
+        key
     }
 
     fn aes128_crypt_ctr(&self, data: &'static mut [u8], iv: &'static mut [u8], len: usize) {

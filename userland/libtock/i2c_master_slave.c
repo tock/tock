@@ -1,5 +1,5 @@
-#include "tock.h"
 #include "i2c_master_slave.h"
+#include "tock.h"
 
 struct i2c_master_slave_data {
   bool fired;
@@ -16,8 +16,8 @@ static void i2c_master_slave_cb(int callback_type,
                                 void* ud) {
   struct i2c_master_slave_data* data = (struct i2c_master_slave_data*) ud;
   data->callback_type = callback_type;
-  data->length = length;
-  data->fired = true;
+  data->length        = length;
+  data->fired         = true;
 }
 
 

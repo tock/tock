@@ -4,8 +4,8 @@
 #include <unistd.h>
 
 #include <adc.h>
+#include <alarm.h>
 #include <console.h>
-#include <timer.h>
 #include <tock.h>
 
 // Sample the first channel. On Hail, this is external pin A0 (AD0)
@@ -43,16 +43,16 @@ static void continuous_sample_cb(uint8_t channel,
 
     // stop single sampling
     int err = adc_stop_sampling();
-    if (err < SUCCESS) {
+    if (err < TOCK_SUCCESS) {
       printf("Failed to stop sampling: %d\n", err);
       return;
     }
 
     // start buffered sampling
     printf("Beginning buffered sampling on channel %d at %d Hz\n",
-        ADC_CHANNEL, ADC_HIGHSPEED_FREQUENCY);
+           ADC_CHANNEL, ADC_HIGHSPEED_FREQUENCY);
     err = adc_continuous_buffered_sample(ADC_CHANNEL, ADC_HIGHSPEED_FREQUENCY);
-    if (err < SUCCESS) {
+    if (err < TOCK_SUCCESS) {
       printf("continuous buffered sample error: %d\n", err);
       return;
     }
@@ -70,7 +70,7 @@ static void continuous_buffered_sample_cb(uint8_t channel,
   uint32_t sum = 0;
   uint16_t min = 0xFFFF;
   uint16_t max = 0;
-  for (uint32_t i=0; i<length; i++) {
+  for (uint32_t i = 0; i < length; i++) {
     uint16_t sample = (buf_ptr[i] * 3300 / 4095);
     sum += sample;
     if (sample < min) {
@@ -81,7 +81,7 @@ static void continuous_buffered_sample_cb(uint8_t channel,
     }
   }
   printf("Channel: %u\tCount: %d\tAvg: %lu\tMin: %u\tMax: %u\n",
-      channel, BUF_SIZE, sum/BUF_SIZE, min, max);
+         channel, BUF_SIZE, sum / BUF_SIZE, min, max);
 
   // determine when to switch sampling method
   counter++;
@@ -90,16 +90,16 @@ static void continuous_buffered_sample_cb(uint8_t channel,
 
     // stop single sampling
     int err = adc_stop_sampling();
-    if (err < SUCCESS) {
+    if (err < TOCK_SUCCESS) {
       printf("Failed to stop sampling: %d\n", err);
       return;
     }
 
     // start single sampling
     printf("Beginning continuous sampling on channel %d at %d Hz\n",
-        ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
+           ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
     err = adc_continuous_sample(ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
-    if (err < SUCCESS) {
+    if (err < TOCK_SUCCESS) {
       printf("continuous sample error: %d\n", err);
       return;
     }
@@ -119,19 +119,19 @@ int main(void) {
 
   // set ADC callbacks
   err = adc_set_continuous_sample_callback(continuous_sample_cb, NULL);
-  if (err < SUCCESS) {
+  if (err < TOCK_SUCCESS) {
     printf("set continuous sample callback error: %d\n", err);
     return -1;
   }
   err = adc_set_continuous_buffered_sample_callback(continuous_buffered_sample_cb, NULL);
-  if (err < SUCCESS) {
+  if (err < TOCK_SUCCESS) {
     printf("set continuous buffered sample callback error: %d\n", err);
     return -1;
   }
 
   // set main buffer for ADC samples
   err = adc_set_buffer(sample_buffer1, BUF_SIZE);
-  if (err < SUCCESS) {
+  if (err < TOCK_SUCCESS) {
     printf("set buffer error: %d\n", err);
     return -1;
   }
@@ -139,16 +139,16 @@ int main(void) {
   // set secondary buffer for ADC samples. In continuous mode, the ADC will
   // automatically switch between the two each callback
   err = adc_set_double_buffer(sample_buffer2, BUF_SIZE);
-  if (err < SUCCESS) {
+  if (err < TOCK_SUCCESS) {
     printf("set double buffer error: %d\n", err);
     return -1;
   }
 
   // begin continuous sampling
   printf("Beginning continuous sampling on channel %d at %d Hz\n",
-      ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
+         ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
   err = adc_continuous_sample(ADC_CHANNEL, ADC_LOWSPEED_FREQUENCY);
-  if (err < SUCCESS) {
+  if (err < TOCK_SUCCESS) {
     printf("continuous sample error: %d\n", err);
     return -1;
   }

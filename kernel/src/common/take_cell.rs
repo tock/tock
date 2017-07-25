@@ -1,3 +1,5 @@
+//! Tock specific `Cell` types for sharing references.
+
 use core::{mem, ptr};
 use core::cell::{Cell, UnsafeCell};
 

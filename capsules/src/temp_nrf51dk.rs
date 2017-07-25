@@ -1,8 +1,4 @@
-//! NRF51DK Temperature Sensor Capsule
-//!
-//!
-//! Provides a simple driver for userspace applications to perform temperature measurements
-
+//! Provides userspace with access to the NRF51DK onboard temperature sensor.
 
 use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver, ReturnCode};

@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <limits.h>
+#include <stdio.h>
 
 #include <led.h>
 #include <ninedof.h>

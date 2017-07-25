@@ -1,0 +1,13 @@
+[package]
+name = "nrf52"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+build = "build.rs"
+
+[dependencies]
+cortexm4 = { path = "../../arch/cortex-m4" }
+kernel = { path = "../../kernel" }
+
+[build-dependencies]
+gcc = "0.3"

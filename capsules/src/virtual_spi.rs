@@ -1,4 +1,4 @@
-//! Virtualize a Spi Master bus to enable multiple users of the Spi bus.
+//! Virtualize a SPI master bus to enable multiple users of the SPI bus.
 
 use core::cell::Cell;
 use kernel::ReturnCode;
@@ -181,5 +181,71 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
 
     fn get_rate(&self) -> u32 {
         self.mux.spi.get_rate()
+    }
+}
+
+pub struct VirtualSpiSlaveDevice<'a, Spi: hil::spi::SpiSlave + 'a> {
+    spi: &'a Spi,
+    client: Cell<Option<&'a hil::spi::SpiSlaveClient>>,
+}
+
+impl<'a, Spi: hil::spi::SpiSlave> VirtualSpiSlaveDevice<'a, Spi> {
+    pub const fn new(spi: &'a Spi) -> VirtualSpiSlaveDevice<'a, Spi> {
+        VirtualSpiSlaveDevice {
+            spi: spi,
+            client: Cell::new(None),
+        }
+    }
+
+    pub fn set_client(&'a self, client: &'a hil::spi::SpiSlaveClient) {
+        self.client.set(Some(client));
+    }
+}
+
+impl<'a, Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for VirtualSpiSlaveDevice<'a, Spi> {
+    fn read_write_done(&self,
+                       write_buffer: Option<&'static mut [u8]>,
+                       read_buffer: Option<&'static mut [u8]>,
+                       len: usize) {
+        self.client
+            .get()
+            .map(move |client| { client.read_write_done(write_buffer, read_buffer, len); });
+    }
+
+    fn chip_selected(&self) {
+        self.client
+            .get()
+            .map(move |client| { client.chip_selected(); });
+    }
+}
+
+impl<'a, Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for VirtualSpiSlaveDevice<'a, Spi> {
+    fn configure(&self, cpol: hil::spi::ClockPolarity, cpal: hil::spi::ClockPhase) {
+        self.spi.set_clock(cpol);
+        self.spi.set_phase(cpal);
+    }
+
+    fn read_write_bytes(&self,
+                        write_buffer: Option<&'static mut [u8]>,
+                        read_buffer: Option<&'static mut [u8]>,
+                        len: usize)
+                        -> ReturnCode {
+        self.spi.read_write_bytes(write_buffer, read_buffer, len)
+    }
+
+    fn set_polarity(&self, cpol: hil::spi::ClockPolarity) {
+        self.spi.set_clock(cpol);
+    }
+
+    fn set_phase(&self, cpal: hil::spi::ClockPhase) {
+        self.spi.set_phase(cpal);
+    }
+
+    fn get_polarity(&self) -> hil::spi::ClockPolarity {
+        self.spi.get_clock()
+    }
+
+    fn get_phase(&self) -> hil::spi::ClockPhase {
+        self.spi.get_phase()
     }
 }

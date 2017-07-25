@@ -1,8 +1,11 @@
+//! Interrupt mapping and DMA channel setup.
+
 use adc;
+use aes;
 use ast;
 use cortexm4;
 use crccu;
-use usbc;
+use dac;
 use dma;
 use flashcalw;
 use gpio;
@@ -10,9 +13,11 @@ use i2c;
 use kernel::Chip;
 use kernel::common::{RingBuffer, Queue};
 use nvic;
+use pm;
 use spi;
 use trng;
 use usart;
+use usbc;
 
 pub struct Sam4l {
     pub mpu: cortexm4::mpu::MPU,
@@ -118,6 +123,8 @@ impl Chip for Sam4l {
                     GPIO10 => gpio::PC.handle_interrupt(),
                     GPIO11 => gpio::PC.handle_interrupt(),
 
+                    SPI => spi::SPI.handle_interrupt(),
+
                     TWIM0 => i2c::I2C0.handle_interrupt(),
                     TWIM1 => i2c::I2C1.handle_interrupt(),
                     TWIM2 => i2c::I2C2.handle_interrupt(),
@@ -128,8 +135,10 @@ impl Chip for Sam4l {
 
                     HFLASHC => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
                     ADCIFE => adc::ADC0.handle_interrupt(),
+                    DACC => dac::DAC.handle_interrupt(),
 
                     TRNG => trng::TRNG.handle_interrupt(),
+                    AESA => aes::AES.handle_interrupt(),
                     _ => {}
                 }
                 nvic::enable(interrupt);
@@ -147,5 +156,17 @@ impl Chip for Sam4l {
 
     fn systick(&self) -> &cortexm4::systick::SysTick {
         self.systick
+    }
+
+    fn prepare_for_sleep(&self) {
+        if pm::deep_sleep_ready() {
+            unsafe {
+                cortexm4::scb::set_sleepdeep();
+            }
+        } else {
+            unsafe {
+                cortexm4::scb::unset_sleepdeep();
+            }
+        }
     }
 }

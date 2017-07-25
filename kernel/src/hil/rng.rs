@@ -1,4 +1,4 @@
-//! Interfaces for accessing a random number generator
+//! Interfaces for accessing a random number generator.
 //!
 //! A random number generator produces a stream of random numbers, either from
 //! hardware or based on an initial seed. The [RNG](trait.RNG.html) trait

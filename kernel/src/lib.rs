@@ -36,6 +36,7 @@ pub use platform::systick::SysTick;
 pub use process::{Process, State};
 pub use returncode::ReturnCode;
 
+/// Main loop.
 pub fn main<P: Platform, C: Chip>(platform: &P,
                                   chip: &mut C,
                                   processes: &'static mut [Option<process::Process<'static>>],
@@ -59,6 +60,7 @@ pub fn main<P: Platform, C: Chip>(platform: &P,
             }
 
             support::atomic(|| if !chip.has_pending_interrupts() && process::processes_blocked() {
+                chip.prepare_for_sleep();
                 support::wfi();
             })
         };
