@@ -997,7 +997,6 @@ impl hil::flash::FlashLocking for FlashCalw {
     }
 }
 
-
 /// Assumes the only Peripheral Interrupt enabled for the FLASHCALW is the
 /// FRDY (Flash Ready) interrupt.
 pub unsafe extern "C" fn flash_handler() {
