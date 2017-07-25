@@ -1,6 +1,6 @@
 //! Tock kernel for the Nordic Semiconductor nRF51 development
 //! kit (DK), a.k.a. the PCA10028. This is an nRF51422 SoC (a
-//! Cortex M0 core with a BLE transciver) with many exported
+//! Cortex M0 core with a BLE transceiver) with many exported
 //! pins, LEDs, and buttons. Currently the kernel provides
 //! application timers, and GPIO. It will provide a console
 //! once the UART is fully implemented and debugged. The
