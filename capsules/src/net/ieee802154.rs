@@ -1,8 +1,8 @@
-use kernel::common::SResult;
-use kernel::common::stream::{decode_u8, decode_u16, decode_u32, decode_bytes_be};
-use kernel::common::stream::{encode_u8, encode_u16, encode_u32, encode_bytes_be};
+use net::stream::{SResult};
+use net::stream::{decode_u8, decode_u16, decode_u32, decode_bytes_be};
+use net::stream::{encode_u8, encode_u16, encode_u32, encode_bytes_be};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum MacAddress {
     Short(u16),
     Long([u8; 8]),
@@ -50,7 +50,7 @@ mod frame_control {
 }
 
 #[repr(u16)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum FrameType {
     Beacon = 0b000,
     Data = 0b001,
@@ -78,7 +78,7 @@ impl FrameType {
 }
 
 #[repr(u16)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum FrameVersion {
     V2003 = 0x0000,
     V2006 = 0x1000,
@@ -98,7 +98,7 @@ impl FrameVersion {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum AddressMode {
     NotPresent = 0b00,
     Short = 0b10,
@@ -138,7 +138,7 @@ mod security_control {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum SecurityLevel {
     None = 0b000,
     Mic32 = 0b001,
@@ -166,7 +166,7 @@ impl SecurityLevel {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum KeyIdMode {
     Implicit = 0x00,
     Index = 0x08,
@@ -186,7 +186,7 @@ impl KeyIdMode {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum KeyId {
     Implicit,
     Index(u8),
@@ -245,7 +245,7 @@ impl<'a> From<&'a KeyId> for KeyIdMode {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Security {
     level: SecurityLevel,
     asn_in_nonce: bool,
@@ -311,8 +311,8 @@ impl Security {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct MacFrameHeader {
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub struct Header {
     frame_type: FrameType,
     frame_pending: bool,
     ack_requested: bool,
@@ -325,7 +325,7 @@ pub struct MacFrameHeader {
     security: Option<Security>,
 }
 
-impl MacFrameHeader {
+impl Header {
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         // The frame control field is collected in the course of encoding the
         // various other fields of the header and then written only at the end
@@ -459,7 +459,7 @@ impl MacFrameHeader {
         stream_done!(off, pan_id_compression);
     }
 
-    pub fn decode(buf: &mut [u8]) -> SResult<MacFrameHeader> {
+    pub fn decode(buf: &mut [u8]) -> SResult<Self> {
         // Frame control field
         let (off, fcf_be) = dec_try!(buf; decode_u16);
         let fcf = u16::from_be(fcf_be);
@@ -507,7 +507,7 @@ impl MacFrameHeader {
         stream_cond!(!ie_present);
 
         stream_done!(off,
-                     MacFrameHeader {
+                     Header {
                          frame_type: frame_type,
                          frame_pending: frame_pending,
                          ack_requested: ack_requested,

@@ -3,8 +3,6 @@
 
 #[allow(unused_imports)]
 #[macro_use(debug)]
-#[macro_use(stream_cond, stream_len_cond, stream_done, stream_err, stream_from_option)]
-#[macro_use(enc_try, enc_consume, dec_try, dec_consume)]
 extern crate kernel;
 
 pub mod button;
