@@ -1,18 +1,19 @@
 //! SAM4L USB controller
 
-    mod common_register;
-    #[macro_use]
-    mod register_macros;
-    mod registers;
 pub mod data;
+
+#[macro_use]
+mod common;
+mod registers;
 
 use core::fmt;
 use core::slice;
+use core::cell::Cell;
 
 use kernel::hil;
 use kernel::hil::usb::*;
+use kernel::common::VolatileCell;
 use kernel::common::take_cell::MapCell;
-use kernel::common::volatile_cell::VolatileCell;
 
 use nvic;
 use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
@@ -20,6 +21,7 @@ use scif;
 
 use self::data::*;
 use self::registers::*;
+use self::common::register::*;
 
 macro_rules! client_err {
     [ $msg:expr ] => {
@@ -36,7 +38,14 @@ pub struct Usbc<'a> {
     state: MapCell<State>,
 }
 
+#[derive(Default)]
+pub struct EP {
+    pub index: u32
+}
+
 impl<'a> UsbController for Usbc<'a> {
+    type EndpointState = Cell<Option<EP>>;
+
     fn attach(&self) {
         self._attach();
     }
@@ -44,6 +53,10 @@ impl<'a> UsbController for Usbc<'a> {
     fn enable_device(&self, full_speed: bool) {
         let speed = if full_speed { Speed::Full } else { Speed::Low };
         self._enable(Mode::device_at_speed(speed));
+    }
+
+    fn endpoint_configure(&self, e: &'static Self::EndpointState, index: u32) {
+        e.set(Some(EP { index: index }));
     }
 
     fn endpoint_set_buffer<'b>(&'b self, e: u32, buf: &[VolatileCell<u8>]) {

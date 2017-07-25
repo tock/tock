@@ -3,11 +3,15 @@
 //! It responds to standard device requests and can be enumerated.
 
 use usb::*;
-use kernel::common::volatile_cell::*;
+use kernel::common::VolatileCell;
+use kernel::hil;
 use kernel::hil::usb::*;
 use core::cell::Cell;
 use core::default::Default;
 use core::cmp::min;
+
+const VENDOR_ID: u16 = 0x6667;
+const PRODUCT_ID: u16 = 0xabcd;
 
 static LANGUAGES: &'static [u16] = &[
     0x0409, // English (United States)
@@ -21,7 +25,7 @@ static STRINGS: &'static [&'static str] = &[
 
 const DESCRIPTOR_BUFLEN: usize = 30;
 
-pub struct SimpleClient<'a, C: 'a> {
+pub struct Client<'a, C: 'a> {
     controller: &'a C,
     state: Cell<State>,
     ep0_storage: [VolatileCell<u8>; 8],
@@ -37,12 +41,15 @@ enum State {
     /// remaining to send
     CtrlIn(usize, usize),
 
+    /// We will accept data from the host
+    CtrlOut,
+
     SetAddress,
 }
 
-impl<'a, C: UsbController> SimpleClient<'a, C> {
+impl<'a, C: UsbController> Client<'a, C> {
     pub fn new(controller: &'a C) -> Self {
-        SimpleClient{
+        Client {
             controller: controller,
             state: Cell::new(State::Init),
             ep0_storage: [VolatileCell::new(0); 8],
@@ -61,11 +68,15 @@ impl<'a, C: UsbController> SimpleClient<'a, C> {
     }
 }
 
-impl<'a, C: UsbController> Client for SimpleClient<'a, C> {
+impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
     fn enable(&self) {
         self.controller.endpoint_set_buffer(0, self.ep0_buf());
         self.controller.enable_device(false);
         self.controller.endpoint_ctrl_out_enable(0);
+
+        // XXX
+        // static es: C::EndpointState = Default::default();
+        // self.controller.endpoint_configure(&es, 0);
     }
 
     fn attach(&self) {
@@ -81,7 +92,25 @@ impl<'a, C: UsbController> Client for SimpleClient<'a, C> {
     fn ctrl_setup(&self) -> CtrlSetupResult {
         SetupData::get(self.ep0_buf()).map_or(CtrlSetupResult::ErrNoParse, |setup_data| {
             setup_data.get_standard_request().map_or_else(
-                || { CtrlSetupResult::ErrNonstandardRequest },
+                || {
+                    // CtrlSetupResult::ErrNonstandardRequest
+
+                    match setup_data.request_type.transfer_direction() {
+                        TransferDirection::HostToDevice => {
+                            self.state.set(State::CtrlOut);
+                            CtrlSetupResult::Ok
+                        }
+                        TransferDirection::DeviceToHost => {
+                            // Arrange to some crap back
+                            let buf = self.descriptor_buf();
+                            buf[0].set(0xa);
+                            buf[1].set(0xb);
+                            buf[2].set(0xc);
+                            self.state.set(State::CtrlIn(0, 3));
+                            CtrlSetupResult::Ok
+                        }
+                    }
+                },
                 |request| {
                 match request {
                     StandardDeviceRequest::GetDescriptor{ descriptor_type,
@@ -93,6 +122,8 @@ impl<'a, C: UsbController> Client for SimpleClient<'a, C> {
                                 0 => {
                                     let buf = self.descriptor_buf();
                                     let d = DeviceDescriptor {
+                                                vendor_id: VENDOR_ID,
+                                                product_id: PRODUCT_ID,
                                                 manufacturer_string: 1,
                                                 product_string: 2,
                                                 serial_number_string: 3,
@@ -214,9 +245,18 @@ impl<'a, C: UsbController> Client for SimpleClient<'a, C> {
     }
 
     /// Handle a Control Out transaction
-    ///   (for now, return an error)
-    fn ctrl_out(&self, _packet_bytes: u32) -> CtrlOutResult {
-        CtrlOutResult::Halted
+    fn ctrl_out(&self, packet_bytes: u32) -> CtrlOutResult {
+        match self.state.get() {
+            State::CtrlOut => {
+                debug!("Received {} vendor control bytes", packet_bytes);
+                       // &self.ep0_buf()[0 .. packet_bytes as usize]
+                CtrlOutResult::Ok
+            }
+            _ => {
+                // Bad state
+                CtrlOutResult::Halted
+            }
+        }
     }
 
     fn ctrl_status(&self) {

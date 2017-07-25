@@ -44,4 +44,5 @@ pub mod nonvolatile_to_pages;
 pub mod nonvolatile_storage_driver;
 pub mod app_flash_driver;
 pub mod usb;
-pub mod usb_simple;
+pub mod usb_user;
+pub mod usbc_client;

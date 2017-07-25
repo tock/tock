@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::fmt;
 use core::convert::From;
-use kernel::common::volatile_cell::VolatileCell;
+use kernel::common::VolatileCell;
 
 /// The datastructure sent in a SETUP handshake
 #[derive(Debug, Copy, Clone)]

@@ -1,12 +1,17 @@
 //! Interface to USB controller hardware
 
-use common::volatile_cell::*;
+use common::VolatileCell;
+use core::default::Default;
 
 /// USB controller interface
 pub trait UsbController {
+    type EndpointState: Default;
+
     fn enable_device(&self, full_speed: bool);
 
     fn attach(&self);
+
+    fn endpoint_configure(&self, &'static Self::EndpointState, index: u32);
 
     fn endpoint_set_buffer(&self, e: u32, buf: &[VolatileCell<u8>]);
 

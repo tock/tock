@@ -62,7 +62,8 @@ struct Imix {
                                                  capsules::rf233::RF233<'static,
                                                  VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-    usb: &'static capsules::usb_simple::SimpleClient<'static, sam4l::usbc::Usbc<'static>>,
+    usb_driver: &'static capsules::usb_user::UsbSyscallDriver<'static,
+                        capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -100,6 +101,7 @@ impl kernel::Platform for Imix {
             10 => f(Some(self.si7021)),
             11 => f(Some(self.ninedof)),
             16 => f(Some(self.crc)),
+            17 => f(Some(self.usb_driver)),
             154 => f(Some(self.radio)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
@@ -397,10 +399,16 @@ pub unsafe fn reset_handler() {
 
     // Configure the USB controller
     let usb_client = static_init!(
-        capsules::usb_simple::SimpleClient<'static, sam4l::usbc::Usbc<'static>>,
-        capsules::usb_simple::SimpleClient::new(&sam4l::usbc::USBC),
-        448/8);
+        capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+        capsules::usbc_client::Client::new(&sam4l::usbc::USBC));
     sam4l::usbc::USBC.set_client(usb_client);
+
+    // Configure the USB userspace driver
+    let usb_driver = static_init!(
+        capsules::usb_user::UsbSyscallDriver<'static,
+            capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
+        capsules::usb_user::UsbSyscallDriver::new(
+            usb_client, kernel::Container::create()));
 
     let imix = Imix {
         console: console,
@@ -416,7 +424,7 @@ pub unsafe fn reset_handler() {
         ipc: kernel::ipc::IPC::new(),
         ninedof: ninedof,
         radio: radio_capsule,
-        usb: usb_client,
+        usb_driver: usb_driver,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
@@ -427,10 +435,6 @@ pub unsafe fn reset_handler() {
     //    rf233.config_commit();
 
     rf233.start();
-
-    // Test USB
-    imix.usb.enable();
-    imix.usb.attach();
 
     debug!("Initialization complete. Entering main loop");
     extern "C" {
