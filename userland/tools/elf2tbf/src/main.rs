@@ -154,6 +154,7 @@ fn main() {
     opts.optopt("o", "", "set output file name", "OUTFILE");
     opts.optopt("n", "", "set package name", "PACKAGE_NAME");
     opts.optflag("v", "verbose", "be verbose");
+    opts.optflag("p", "include-pic-info", "include PIC information");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -162,6 +163,7 @@ fn main() {
     let output = matches.opt_str("o");
     let package_name = matches.opt_str("n");
     let verbose = matches.opt_present("v");
+    let pic = matches.opt_present("p");
     let input = if !matches.free.is_empty() {
         matches.free[0].clone()
     } else {
@@ -179,11 +181,11 @@ fn main() {
     match output {
             None => {
                 let mut out = io::stdout();
-                do_work(&file, &mut out, package_name, verbose)
+                do_work(&file, &mut out, package_name, verbose, pic)
             }
             Some(name) => {
                 match File::create(Path::new(&name)) {
-                    Ok(mut f) => do_work(&file, &mut f, package_name, verbose),
+                    Ok(mut f) => do_work(&file, &mut f, package_name, verbose, pic),
                     Err(e) => panic!("Error: {:?}", e),
                 }
             }
@@ -231,7 +233,8 @@ unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
 fn do_work(input: &elf::File,
            output: &mut Write,
            package_name: Option<String>,
-           verbose: bool)
+           verbose: bool,
+           pic: bool)
            -> io::Result<()> {
     let package_name = package_name.unwrap_or(String::new());
     let (relocation_data_size, rel_data) = match input.sections
@@ -262,7 +265,9 @@ fn do_work(input: &elf::File,
     }
 
     // If we need the kernel to do PIC fixup for us add the space for that.
-    header_length += mem::size_of::<TbfHeaderPicOption1Fields>();
+    if pic {
+        header_length += mem::size_of::<TbfHeaderPicOption1Fields>();
+    }
 
     // We have one app flash region, add that.
     if appstate.data.len() > 0 {
@@ -371,7 +376,9 @@ fn do_work(input: &elf::File,
     if verbose {
         print!("{}", tbf_header);
         print!("{}", tbf_main);
-        print!("{}", tbf_pic);
+        if pic {
+            print!("{}", tbf_pic);
+        }
         print!("{}", tbf_flash_region);
     }
 
@@ -383,7 +390,9 @@ fn do_work(input: &elf::File,
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_main) }));
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_package_name_tlv) }));
     try!(header_buf.write_all(package_name.as_ref()));
-    try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_pic) }));
+    if pic {
+        try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_pic) }));
+    }
 
     // Only put these in the header if the app_state section is nonzero.
     if appstate.data.len() > 0 {

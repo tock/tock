@@ -34,7 +34,7 @@ TOCK_ARCHS ?= cortex-m0 cortex-m4
 
 # This could be replaced with an installed version of `elf2tbf`
 ELF2TBF ?= cargo run --manifest-path $(abspath $(TOCK_USERLAND_BASE_DIR))/tools/elf2tbf/Cargo.toml --
-ELF2TBF_ARGS += -n $(PACKAGE_NAME)
+ELF2TBF_ARGS += --include-pic-info -n $(PACKAGE_NAME)
 
 # Flags for building app Assembly, C, C++ files
 # n.b. make convention is that CPPFLAGS are shared for C and C++ sources
