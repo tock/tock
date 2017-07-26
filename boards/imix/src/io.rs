@@ -20,7 +20,6 @@ impl Write for Writer {
                 parity: uart::Parity::None,
                 hw_flow_control: false,
             });
-            uart.reset();
             uart.enable_tx();
 
         }

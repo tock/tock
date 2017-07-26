@@ -1,3 +1,8 @@
+//! Board file for Hail development platform.
+//!
+//! - https://github.com/helena-project/tock/tree/master/boards/hail
+//! - https://github.com/lab11/hail
+
 #![no_std]
 #![no_main]
 #![feature(asm,const_fn,drop_types_in_const,lang_items,compiler_builtins_lib)]
@@ -15,11 +20,10 @@ use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
-use kernel::{Chip, Platform};
+use kernel::Platform;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
-use kernel::mpu::MPU;
 use sam4l::usart;
 
 #[macro_use]
@@ -30,43 +34,20 @@ mod test_take_map_cell;
 static mut SPI_READ_BUF: [u8; 64] = [0; 64];
 static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 
-unsafe fn load_processes() -> &'static mut [Option<kernel::Process<'static>>] {
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-    }
+// State for loading and holding applications.
 
-    const NUM_PROCS: usize = 4;
+// Number of concurrent processes this platform supports.
+const NUM_PROCS: usize = 4;
 
-    // how should the kernel respond when a process faults
-    const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+// How should the kernel respond when a process faults.
+const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
-    #[link_section = ".app_memory"]
-    static mut APP_MEMORY: [u8; 49152] = [0; 49152];
+#[link_section = ".app_memory"]
+static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
-    static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
+// Actual memory for holding the active process structures.
+static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
 
-    let mut apps_in_flash_ptr = &_sapps as *const u8;
-    let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
-    let mut app_memory_size = APP_MEMORY.len();
-    for i in 0..NUM_PROCS {
-        let (process, flash_offset, memory_offset) = kernel::Process::create(apps_in_flash_ptr,
-                                                                             app_memory_ptr,
-                                                                             app_memory_size,
-                                                                             FAULT_RESPONSE);
-
-        if process.is_none() {
-            break;
-        }
-
-        PROCESSES[i] = process;
-        apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
-        app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
-        app_memory_size -= memory_offset;
-    }
-
-    &mut PROCESSES
-}
 
 struct Hail {
     console: &'static Console<'static, usart::USART>,
@@ -86,6 +67,8 @@ struct Hail {
     rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
     ipc: kernel::ipc::IPC,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    dac: &'static capsules::dac::Dac<'static>,
+    aes: &'static capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
 }
 
 impl Platform for Hail {
@@ -110,6 +93,9 @@ impl Platform for Hail {
             14 => f(Some(self.rng)),
 
             16 => f(Some(self.crc)),
+            17 => f(Some(self.aes)),
+
+            26 => f(Some(self.dac)),
 
             0xff => f(Some(&self.ipc)),
             _ => f(None),
@@ -175,8 +161,10 @@ unsafe fn set_pin_primary_functions() {
 pub unsafe fn reset_handler() {
     sam4l::init();
 
-    sam4l::pm::setup_system_clock(sam4l::pm::SystemClockSource::ExternalOscillatorPll,
-                                  48000000);
+    sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
+        frequency: sam4l::pm::OscillatorFrequency::Frequency16MHz,
+        startup_mode: sam4l::pm::OscillatorStartup::FastStart,
+    });
 
     // Source 32Khz and 1Khz clocks from RC23K (SAM4L Datasheet 11.6.8)
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
@@ -351,6 +339,20 @@ pub unsafe fn reset_handler() {
         capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()));
     sam4l::crccu::CRCCU.set_client(crc);
 
+    // DAC
+    let dac = static_init!(
+        capsules::dac::Dac<'static>,
+        capsules::dac::Dac::new(&mut sam4l::dac::DAC));
+
+    // AES
+    let aes = static_init!(
+        capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
+        capsules::symmetric_encryption::Crypto::new(&mut sam4l::aes::AES,
+                                                    kernel::Container::create(),
+                                                    &mut capsules::symmetric_encryption::KEY,
+                                                    &mut capsules::symmetric_encryption::BUF,
+                                                    &mut capsules::symmetric_encryption::IV));
+    hil::symmetric_encryption::SymmetricEncryption::set_client(&sam4l::aes::AES, aes);
 
     let hail = Hail {
         console: console,
@@ -367,6 +369,8 @@ pub unsafe fn reset_handler() {
         rng: rng,
         ipc: kernel::ipc::IPC::new(),
         crc: crc,
+        dac: dac,
+        aes: aes,
     };
 
     // Need to reset the nRF on boot
@@ -385,11 +389,18 @@ pub unsafe fn reset_handler() {
     hail.nrf51822.initialize();
 
     let mut chip = sam4l::chip::Sam4l::new();
-    chip.mpu().enable_mpu();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
     // debug!("Initialization complete. Entering main loop");
-    kernel::main(&hail, &mut chip, load_processes(), &hail.ipc);
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+    }
+    kernel::process::load_processes(&_sapps as *const u8,
+                                    &mut APP_MEMORY,
+                                    &mut PROCESSES,
+                                    FAULT_RESPONSE);
+    kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
 }

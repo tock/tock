@@ -1,8 +1,8 @@
-#include "tock.h"
 #include "gpio_async.h"
+#include "tock.h"
 
-#define CONCAT_PORT_PIN(port, pin) (((pin & 0xFF)<<8) | (port & 0xFF))
-#define CONCAT_PORT_PIN_DATA(port, pin, data) (((data & 0xFFFF)<<16) | ((pin & 0xFF)<<8) | (port & 0xFF))
+#define CONCAT_PORT_PIN(port, pin) (((pin & 0xFF) << 8) | (port & 0xFF))
+#define CONCAT_PORT_PIN_DATA(port, pin, data) (((data & 0xFFFF) << 16) | ((pin & 0xFF) << 8) | (port & 0xFF))
 
 
 struct gpio_async_data {
@@ -20,8 +20,8 @@ static void gpio_async_cb(__attribute__ ((unused)) int callback_type,
                           void* ud) {
   struct gpio_async_data* myresult = (struct gpio_async_data*) ud;
   myresult->callback_type = callback_type;
-  myresult->value = value;
-  myresult->fired = true;
+  myresult->value         = value;
+  myresult->fired         = true;
 }
 
 
@@ -71,7 +71,6 @@ int gpio_async_interrupt_callback(subscribe_cb callback, void* callback_args) {
 
 
 
-
 int gpio_async_make_output_sync(uint32_t port, uint8_t pin) {
   int err;
   result.fired = false;
@@ -91,7 +90,6 @@ int gpio_async_make_output_sync(uint32_t port, uint8_t pin) {
 int gpio_async_set_sync(uint32_t port, uint8_t pin) {
   int err;
   result.fired = false;
-
 
   err = gpio_async_set_callback(gpio_async_cb, (void*) &result);
   if (err < 0) return err;

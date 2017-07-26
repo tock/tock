@@ -1,18 +1,22 @@
-//! Interfaces for accessing encryption and decryption of symmetric ciphers
-//! (only AES-128-ctr for suppported nrf51dk "at the moment")
+//! Interfaces for accessing encryption and decryption of symmetric ciphers.
 //!
-//! The interface is supposed to work for hardware supported crypto but
-//! should work for software implemented crypto as well.
+//! Only AES-128-ctr supported at the moment.
+//!
+//! The interface is supposed to work for hardware supported crypto but should
+//! work for software implemented crypto as well.
 //!
 //! State Machine:
-//!  1. init()
-//!  2. set_key()
-//!  3. aes128_crypt_ctr()   - can be used arbitary number of times
 //!
+//! 1. `init()`
+//! 2. `set_key()`
+//! 3. `aes128_crypt_ctr()`: can be used arbitrary number of times.
 
 use returncode::ReturnCode;
 
-pub trait SymmetricEncryptionDriver {
+pub trait SymmetricEncryption {
+    /// Set the callback client.
+    fn set_client(&self, client: &'static Client);
+
     /// Initialization of the chip register
     fn init(&self);
 

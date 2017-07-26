@@ -6,7 +6,7 @@ make clean
 
 # Commit hash of the https://github.com/lab11/nrf5x-base repository
 # to use to make the library.
-NRF5X_BASE_SHA=86e69e37b4a544a7f53fadfa0b8db40e06e9ab12
+NRF5X_BASE_SHA=f813b5dbfef3b7a71044bca72e2ab8b3c4d9e593
 
 if [ ! -f $NRF5X_BASE_SHA.zip ]; then
 	wget https://github.com/lab11/nrf5x-base/archive/$NRF5X_BASE_SHA.zip

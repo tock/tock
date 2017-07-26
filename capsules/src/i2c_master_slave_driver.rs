@@ -1,5 +1,6 @@
-//! Capsule for presenting both an I2C Master and I2C Slave interface to
-//! applications. By calling `listen` this module will wait for I2C messages
+//! Provides both an I2C Master and I2C Slave interface to userspace.
+//!
+//! By calling `listen` this module will wait for I2C messages
 //! send to it by other masters on the I2C bus. If this device wants to
 //! transmit as an I2C master, this module will put the I2C hardware in master
 //! mode, transmit the read/write, then go back to listening (if listening

@@ -1,6 +1,27 @@
-//! Provide userspace applications with a driver interface to asynchronous
-//! GPIO pins. These are pins that exist on something like a GPIO extender or
-//! a radio that has controllable GPIOs.
+//! Provides userspace applications with a driver interface to asynchronous GPIO
+//! pins.
+//!
+//! Async GPIO pins are pins that exist on something like a GPIO extender or a
+//! radio that has controllable GPIOs.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! Generate a list of ports to group into one userspace driver.
+//! let async_gpio_ports = static_init!(
+//!     [&'static capsules::mcp23008::MCP23008; 1],
+//!     [mcp23008]);
+//!
+//! let gpio_async = static_init!(
+//!     capsules::gpio_async::GPIOAsync<'static, capsules::mcp23008::MCP23008<'static>>,
+//!     capsules::gpio_async::GPIOAsync::new(async_gpio_ports));
+//!
+//! // Setup the clients correctly.
+//! for port in async_gpio_ports.iter() {
+//!     port.set_client(gpio_async);
+//! }
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
@@ -59,20 +80,18 @@ impl<'a, Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, 
 impl<'a, Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
     /// Setup callbacks for gpio_async events.
     ///
-    /// subscribe_num 0: Setup a callback for when split-phase operations
-    ///                  complete. This callback gets called from the gpio_async
-    ///                  `done()` event and signals the end of operations like
-    ///                  asserting a GPIO pin or configuring an interrupt pin.
-    ///                  The callback will be called with two valid arguments.
-    ///                  The first is the callback type, which is currently 0
-    ///                  for all done() events. The second is a value, which
-    ///                  is only useful for operations which should return
-    ///                  something, like a GPIO read.
+    /// ### `subscribe_num`
     ///
-    /// subscribe_num 1: Setup a callback for when a GPIO interrupt occurs.
-    ///                  This callback will be called with two arguments,
-    ///                  the first being the port number of the interrupting
-    ///                  pin, and the second being the pin number.
+    /// - `0`: Setup a callback for when **split-phase operations complete**.
+    ///   This callback gets called from the gpio_async `done()` event and
+    ///   signals the end of operations like asserting a GPIO pin or configuring
+    ///   an interrupt pin. The callback will be called with two valid
+    ///   arguments. The first is the callback type, which is currently 0 for
+    ///   all `done()` events. The second is a value, which is only useful for
+    ///   operations which should return something, like a GPIO read.
+    /// - `1`: Setup a callback for when a **GPIO interrupt** occurs. This
+    ///   callback will be called with two arguments, the first being the port
+    ///   number of the interrupting pin, and the second being the pin number.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // Set callback for `done()` events
@@ -98,23 +117,23 @@ impl<'a, Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
     /// number, the next lowest 8 bits as the pin number, and the remaining
     /// upper bits as a command-specific value.
     ///
-    /// command_num 0: Driver check and get number of GPIO ports supported.
-    /// command_num 1: Set a pin as an output.
-    /// command_num 2: Set a pin high by setting it to 1.
-    /// command_num 3: Clear a pin by setting it to 0.
-    /// command_num 4: Toggle a pin.
-    /// command_num 5: Set a pin as an input and configure its pull-up or
-    ///                pull-down state. The command-specific field should be
-    ///                set to 0 for a pull-up, 1 for a pull-down, or 2 for
-    ///                neither.
-    /// command_num 6: Read a GPIO pin state, and have its value returned
-    ///                in the done() callback.
-    /// command_num 7: Enable an interrupt on a GPIO pin. The command-specific
-    ///                data should be 0 for an either-edge interrupt, 1 for
-    ///                a rising edge interrupt, and 2 for a falling edge
-    ///                interrupt.
-    /// command_num 8: Disable an interrupt on a pin.
-    /// command_num 9: Disable a GPIO pin.
+    /// ### `command_num`
+    ///
+    /// - `0`: Driver check and get number of GPIO ports supported.
+    /// - `1`: Set a pin as an output.
+    /// - `2`: Set a pin high by setting it to 1.
+    /// - `3`: Clear a pin by setting it to 0.
+    /// - `4`: Toggle a pin.
+    /// - `5`: Set a pin as an input and configure its pull-up or pull-down
+    ///   state. The command-specific field should be set to 0 for a pull-up, 1
+    ///   for a pull-down, or 2 for neither.
+    /// - `6`: Read a GPIO pin state, and have its value returned in the done()
+    ///   callback.
+    /// - `7`: Enable an interrupt on a GPIO pin. The command-specific data
+    ///   should be 0 for an either-edge interrupt, 1 for a rising edge
+    ///   interrupt, and 2 for a falling edge interrupt.
+    /// - `8`: Disable an interrupt on a pin.
+    /// - `9`: Disable a GPIO pin.
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         let port = data & 0xFF;
         let pin = (data >> 8) & 0xFF;

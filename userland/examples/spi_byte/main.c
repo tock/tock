@@ -1,6 +1,6 @@
-#include "led.h"
-#include "spi.h"
-#include "timer.h"
+#include <led.h>
+#include <spi.h>
+#include <timer.h>
 
 int main(void) {
   int i;

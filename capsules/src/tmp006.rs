@@ -1,6 +1,12 @@
-//! Driver for the TI TMP006 Infrared Thermopile Contactless Temperature Sensor
+//! Driver for the TI TMP006 infrared thermopile contactless temperature sensor.
 //!
 //! http://www.ti.com/product/TMP006
+//!
+//! > The TMP006 and TMP006B are fully integrated MEMs thermopile sensors that
+//! > measure the temperature of an object without having to be in direct
+//! > contact. The thermopile absorbs passive infrared energy from an object at
+//! > wavelengths between 4 um to 16 um within the end-user defined field of
+//! > view.
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};

@@ -92,6 +92,8 @@ static void aes_async(int callback_type,
 
 int main(void)
 {
+  printf("[AES] Test App\n");
+
   /* SET KEY */
   unsigned char key[] = {
     0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
@@ -172,8 +174,7 @@ int main(void)
     printf("\r\n");
   }
 
-
-  // Test that asyncronous version works as well
+  // Test that asynchronous version works as well
   err = aes128_encrypt_ctr(data, sizeof(data), ctr, sizeof(ctr), aes_async);
   if (err < 0) printf("aes128_encrypt_ctr error %d\r\n", err);
 

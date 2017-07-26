@@ -1,11 +1,11 @@
-/// Hardware independent interface for an 802.15.4 radio.
-/// Note that configuration commands are asynchronous and
-/// must be committed with a call to config_commit. For
-/// example, calling set_address will change the source address
-/// of packets but does not change the address stored in hardware
-/// used for address recognition. This must be committed to hardware
-/// with a call to config_commit. Please see the relevant TRD for
-/// more details.
+//! Interface for sending and receiving IEEE 802.15.4 packets.
+//!
+//! Hardware independent interface for an 802.15.4 radio. Note that
+//! configuration commands are asynchronous and must be committed with a call to
+//! config_commit. For example, calling set_address will change the source
+//! address of packets but does not change the address stored in hardware used
+//! for address recognition. This must be committed to hardware with a call to
+//! config_commit. Please see the relevant TRD for more details.
 
 use returncode::ReturnCode;
 pub trait TxClient {
@@ -13,7 +13,7 @@ pub trait TxClient {
 }
 
 pub trait RxClient {
-    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+    fn receive(&self, buf: &'static mut [u8], frame_len: u8, result: ReturnCode);
 }
 
 pub trait ConfigClient {
@@ -24,16 +24,40 @@ pub trait PowerClient {
     fn changed(&self, on: bool);
 }
 
-pub const HEADER_SIZE: u8 = 10;
-pub const MAX_PACKET_SIZE: u8 = 128;
-pub const MAX_BUF_SIZE: usize = 129; // +1 for opcode
-pub const MIN_PACKET_SIZE: u8 = HEADER_SIZE + 2; // +2 for CRC
+/// These constants are used for interacting with the SPI buffer, which contains
+/// a 1-byte SPI command, a 1-byte PHY header, and then the 802.15.4 frame. In
+/// theory, the number of extra bytes in front of the frame can depend on the
+/// particular method used to communicate with the radio, but we leave this as a
+/// constant in this generic trait for now.
+///
+/// Furthermore, the minimum MHR size assumes that
+/// - The source PAN ID is omitted
+/// - There is no auxiliary security header
+/// - There are no IEs
+///
+/// +---------+-----+-----+-------------+-----+
+/// | SPI com | PHR | MHR | MAC payload | MFR |
+/// +---------+-----+-----+-------------+-----+
+/// \______ Static buffer rx/txed to SPI _____/
+///                 \__ PSDU / frame length __/
+/// \___ 2 bytes ___/
+
+pub const MIN_MHR_SIZE: usize = 9;
+pub const MFR_SIZE: usize = 2;
+pub const MAX_MTU: usize = 127;
+pub const MIN_FRAME_SIZE: usize = MIN_MHR_SIZE + MFR_SIZE;
+pub const MAX_FRAME_SIZE: usize = MAX_MTU;
+
+pub const PSDU_OFFSET: usize = 2;
+pub const MAX_BUF_SIZE: usize = PSDU_OFFSET + MAX_MTU;
+pub const MIN_PAYLOAD_OFFSET: usize = PSDU_OFFSET + MIN_MHR_SIZE;
 
 pub trait Radio: RadioConfig + RadioData {}
 
+/// Configure the 802.15.4 radio.
 pub trait RadioConfig {
     /// buf must be at least MAX_BUF_SIZE in length, and
-    /// reg_read and reg_write must be 2 bytes
+    /// reg_read and reg_write must be 2 bytes.
     fn initialize(&self,
                   spi_buf: &'static mut [u8],
                   reg_write: &'static mut [u8],
@@ -69,15 +93,16 @@ pub trait RadioConfig {
 pub trait RadioData {
     fn payload_offset(&self, long_src: bool, long_dest: bool) -> u8;
     fn header_size(&self, long_src: bool, long_dest: bool) -> u8;
-    fn packet_header_size(&self, packet: &'static [u8]) -> u8;
-    fn packet_get_src(&self, packet: &'static [u8]) -> u16;
-    fn packet_get_dest(&self, packet: &'static [u8]) -> u16;
-    fn packet_get_src_long(&self, packet: &'static [u8]) -> [u8; 8];
-    fn packet_get_dest_long(&self, packet: &'static [u8]) -> [u8; 8];
-    fn packet_get_length(&self, packet: &'static [u8]) -> u16;
-    fn packet_get_pan(&self, packet: &'static [u8]) -> u16;
-    fn packet_has_src_long(&self, packet: &'static [u8]) -> bool;
-    fn packet_has_dest_long(&self, packet: &'static [u8]) -> bool;
+    fn packet_payload_offset(&self, spi_buf: &[u8]) -> u8;
+    fn packet_header_size(&self, spi_buf: &[u8]) -> u8;
+    fn packet_get_src(&self, spi_buf: &[u8]) -> u16;
+    fn packet_get_dest(&self, spi_buf: &[u8]) -> u16;
+    fn packet_get_src_long(&self, spi_buf: &[u8]) -> [u8; 8];
+    fn packet_get_dest_long(&self, spi_buf: &[u8]) -> [u8; 8];
+    fn packet_get_length(&self, spi_buf: &[u8]) -> u8;
+    fn packet_get_pan(&self, spi_buf: &[u8]) -> u16;
+    fn packet_has_src_long(&self, spi_buf: &[u8]) -> bool;
+    fn packet_has_dest_long(&self, spi_buf: &[u8]) -> bool;
 
     fn set_transmit_client(&self, client: &'static TxClient);
     fn set_receive_client(&self, client: &'static RxClient, receive_buffer: &'static mut [u8]);
@@ -85,14 +110,14 @@ pub trait RadioData {
 
     fn transmit(&self,
                 dest: u16,
-                tx_data: &'static mut [u8],
-                tx_len: u8,
+                spi_buf: &'static mut [u8],
+                payload_len: u8,
                 source_long: bool)
                 -> ReturnCode;
     fn transmit_long(&self,
                      dest: [u8; 8],
-                     tx_data: &'static mut [u8],
-                     tx_len: u8,
+                     spi_buf: &'static mut [u8],
+                     payload_len: u8,
                      source_long: bool)
                      -> ReturnCode;
 }

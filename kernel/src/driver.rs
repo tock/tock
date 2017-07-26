@@ -1,4 +1,4 @@
-//! Driver implemented system call interface.
+//! System call interface for userspace applications.
 //!
 //! Drivers implement these interfaces to expose operations to applications.
 //!
@@ -47,7 +47,7 @@ use returncode::ReturnCode;
 /// system calls are assigned to drivers.
 pub trait Driver {
     /// `subscribe` lets an application pass a callback to the driver to be
-    /// called later.
+    /// called later. This returns `ENOSUPPORT` if not used.
     ///
     /// Calls to subscribe should do minimal synchronous work.  Instead, they
     /// should defer most work and returns results to the application via the
@@ -74,7 +74,8 @@ pub trait Driver {
         ReturnCode::ENOSUPPORT
     }
 
-    /// `command` instructs a driver to perform some action synchronously.
+    /// `command` instructs a driver to perform some action synchronously. This
+    /// returns `ENOSUPPORT` if not used.
     ///
     /// The return value should reflect the result of an action. For example,
     /// enabling/disabling a peripheral should return a success or error code.
@@ -94,7 +95,7 @@ pub trait Driver {
     }
 
     /// `allow` lets an application give the driver access to a buffer in the
-    /// application's memory.
+    /// application's memory. This returns `ENOSUPPORT` if not used.
     ///
     /// The buffer is __shared__ between the application and driver, meaning the
     /// driver should not rely on the contents of the buffer to remain

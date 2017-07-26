@@ -1,16 +1,17 @@
-//! Driver for the Microchip MCP23008 I2C GPIO Extender
+//! Driver for the Microchip MCP23008 I2C GPIO extender.
 //!
 //! http://www.microchip.com/wwwproducts/en/MCP23008
 //!
 //! Paraphrased from the website:
-//! "The MCP23008 device provides 8-bit, general purpose, parallel I/O expansion
-//! for I2C bus applications. The MCP23008 has three address pins and consists
-//! of multiple 8-bit configuration registers for input, output and polarity
-//! selection. The system master can enable the I/Os as either inputs or outputs
-//! by writing the I/O configuration bits. The data for each input or output is
-//! kept in the corresponding Input or Output register. The polarity of the
-//! Input Port register can be inverted with the Polarity Inversion register.
-//! All registers can be read by the system master."
+//!
+//! > The MCP23008 device provides 8-bit, general purpose, parallel I/O
+//! > expansion for I2C bus applications. The MCP23008 has three address pins
+//! > and consists of multiple 8-bit configuration registers for input, output
+//! > and polarity selection. The system master can enable the I/Os as either
+//! > inputs or outputs by writing the I/O configuration bits. The data for each
+//! > input or output is kept in the corresponding Input or Output register. The
+//! > polarity of the Input Port register can be inverted with the Polarity
+//! > Inversion register. All registers can be read by the system master.
 //!
 //! Usage
 //! -----
@@ -19,6 +20,7 @@
 //! trait.
 //!
 //! Example usage:
+//!
 //! ```rust
 //! // Configure the MCP23008. Device address 0x20.
 //! let mcp23008_i2c = static_init!(
@@ -47,6 +49,7 @@
 //!     port.set_client(gpio_async);
 //! }
 //! ```
+//!
 //! Note that if interrupts are not needed, a `None` can be passed in when the
 //! `mcp23008` object is created.
 

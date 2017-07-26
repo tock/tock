@@ -1,4 +1,4 @@
-//! Hardware agnostic interfaces for counter-like resources
+//! Hardware agnostic interfaces for counter-like resources.
 
 pub trait Time {
     type Frequency: Frequency;

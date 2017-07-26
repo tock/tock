@@ -1,3 +1,11 @@
+//! Implementation of DMA-based SPI master and slave communication for the
+//! SAM4L.
+//!
+//! Driver for the SPI hardware (separate from the USARTS), described in chapter
+//! 26 of the datasheet.
+//!
+//! - Authors: Sam Crow <samcrow@uw.edu>, Philip Levis <pal@cs.stanford.edu>
+
 use core::cell::Cell;
 use core::cmp;
 use core::mem;
@@ -17,13 +25,6 @@ use kernel::hil::spi::SpiSlaveClient;
 use nvic;
 use pm;
 
-/// Implementation of DMA-based SPI master communication for
-/// the Atmel SAM4L CortexM4 microcontroller.
-/// Authors: Sam Crow <samcrow@uw.edu>
-///          Philip Levis <pal@cs.stanford.edu>
-///
-// Driver for the SPI hardware (separate from the USARTS),
-// described in chapter 26 of the datasheet
 /// The registers used to interface with the hardware
 #[repr(C, packed)]
 struct SpiRegisters {
@@ -240,7 +241,7 @@ impl Spi {
     pub fn set_baud_rate(&self, rate: u32) -> u32 {
         // Main clock frequency
         let mut real_rate = rate;
-        let clock = unsafe { pm::get_system_frequency() };
+        let clock = pm::get_system_frequency();
 
         if real_rate < 188235 {
             real_rate = 188235;
@@ -251,8 +252,11 @@ impl Spi {
 
         // Divide and truncate, resulting in a n value that might be too low
         let mut scbr = clock / real_rate;
-        // If the division was not exact, increase the n to get a slower baud rate
-        if clock % real_rate != 0 {
+        // If the division was not exact, increase the n to get a slower baud
+        // rate, but only if we are not at the slowest rate. Since scbr is the
+        // clock rate divisor, the highest divisor 0xFF corresponds to the
+        // lowest rate.
+        if clock % real_rate != 0 && scbr != 0xFF {
             scbr += 1;
         }
         let mut csr = self.read_active_csr();
@@ -395,8 +399,8 @@ impl Spi {
     }
 
     /// Asynchronous buffer read/write of SPI.
-    /// returns SUCCESS if operation starts (will receive callback through SpiMasterClient),
-    /// returns EBUSY if the operation does not start.
+    /// returns `SUCCESS` if operation starts (will receive callback through SpiMasterClient),
+    /// returns `EBUSY` if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,
@@ -420,8 +424,9 @@ impl Spi {
         let count = cmp::min(opt_len.unwrap_or(0), len);
         self.dma_length.set(count);
 
-        // We will have at least a write transfer in progress
-        self.transfers_in_progress.set(1);
+        // Reset the number of transfers in progress. This is incremented
+        // depending on the presence of the read/write below
+        self.transfers_in_progress.set(0);
 
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
@@ -497,9 +502,9 @@ impl spi::SpiMaster for Spi {
     /// Asynchronous buffer read/write of SPI.
     /// write_buffer must  be Some; read_buffer may be None;
     /// if read_buffer is Some, then length of read/write is the
-    /// minimum of two buffer lengths; returns SUCCESS if operation
+    /// minimum of two buffer lengths; returns `SUCCESS` if operation
     /// starts (will receive callback through SpiMasterClient), returns
-    /// EBUSY if the operation does not start.
+    /// `EBUSY` if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(&self,

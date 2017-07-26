@@ -1,8 +1,25 @@
-//! GPIO Capsule
+//! Provides userspace applications with access to GPIO pins.
 //!
-//! Provides a driver for userspace applications to control GPIO pins.
-//! GPIOs are presented through a driver interface with synchronous comands
+//! GPIOs are presented through a driver interface with synchronous commands
 //! and a callback for interrupts.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! let gpio_pins = static_init!(
+//!     [&'static sam4l::gpio::GPIOPin; 4],
+//!     [&sam4l::gpio::PB[14],
+//!      &sam4l::gpio::PB[15],
+//!      &sam4l::gpio::PB[11],
+//!      &sam4l::gpio::PB[12]]);
+//! let gpio = static_init!(
+//!     capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+//!     capsules::gpio::GPIO::new(gpio_pins));
+//! for pin in gpio_pins.iter() {
+//!     pin.set_client(gpio);
+//! }
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};

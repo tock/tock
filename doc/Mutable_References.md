@@ -13,7 +13,7 @@ prevent race conditions and make it impossible to write code that produces
 dangling pointers.
 
 Borrowing is the Rust mechanism to allow references to
-memory. Similarly references in C++ and other languages, borrows make
+memory. Similar to references in C++ and other languages, borrows make
 it possible to efficiently pass large structures by passing pointers
 rather than copying the entire structure.  The Rust compiler, however,
 limits borrows so that they cannot create race conditions, which are

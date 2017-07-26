@@ -1,5 +1,5 @@
-#include "radio.h"
 #include "gpio.h"
+#include "radio.h"
 /*
  * Userland library for sending and receiving 802.15.4 packets.
  *
@@ -13,16 +13,16 @@ const int SYS_RADIO = 154;
 const int BUF_RX = 0;
 const int BUF_TX = 1;
 
-const int COM_ADDR = 1;
-const int COM_PAN = 2;
-const int COM_CHAN = 3;
-const int COM_POWER = 4;
-const int COM_TX = 5;
-const int COM_READY = 6;
+const int COM_ADDR   = 1;
+const int COM_PAN    = 2;
+const int COM_CHAN   = 3;
+const int COM_POWER  = 4;
+const int COM_TX     = 5;
+const int COM_READY  = 6;
 const int COM_COMMIT = 7;
 
-const int EVT_TX = 0;
-const int EVT_RX = 1;
+const int EVT_TX  = 0;
+const int EVT_RX  = 1;
 const int EVT_CFG = 2;
 
 int radio_init(void) {
@@ -30,27 +30,31 @@ int radio_init(void) {
   return 0;
 } // Do nothing for now
 
-int tx_acked = 0;
+int rx_result      = 0;
+int rx_payload_len = 0;
+int tx_acked       = 0;
 
-static void cb_tx( __attribute__ ((unused)) int len,
-                int acked,
-                __attribute__ ((unused)) int unused2,
-                void* ud) {
-  tx_acked = acked;
+static void cb_tx(__attribute__ ((unused)) int len,
+                  int acked,
+                  __attribute__ ((unused)) int unused2,
+                  void* ud) {
+  tx_acked     = acked;
   *((bool*)ud) = true;
 }
 
-static void cb_rx( __attribute__ ((unused)) int unused0,
-                __attribute__ ((unused)) int unused1,
-                __attribute__ ((unused)) int unused2,
-                void* ud) {
-  *((bool*)ud) = true;
+static void cb_rx(int result,
+                  int payload_len,
+                  __attribute__ ((unused)) int unused2,
+                  void* ud) {
+  rx_result      = result;
+  rx_payload_len = payload_len;
+  *((bool*)ud)   = true;
 }
 
-static void cb_config( __attribute__ ((unused)) int unused0,
-                       __attribute__ ((unused)) int unused1,
-                       __attribute__ ((unused)) int unused2,
-                       void* ud) {
+static void cb_config(__attribute__ ((unused)) int unused0,
+                      __attribute__ ((unused)) int unused1,
+                      __attribute__ ((unused)) int unused2,
+                      void* ud) {
   *((bool*)ud) = true;
 }
 
@@ -58,7 +62,7 @@ static void cb_config( __attribute__ ((unused)) int unused0,
 // be copied into a packet buffer with header space within the kernel.
 int radio_send(unsigned short addr, const char* packet, unsigned char len) {
   bool cond = false;
-  int err = allow(SYS_RADIO, BUF_TX, (void*)packet, len);
+  int err   = allow(SYS_RADIO, BUF_TX, (void*)packet, len);
   if (err < 0) {
     return err;
   }
@@ -70,15 +74,15 @@ int radio_send(unsigned short addr, const char* packet, unsigned char len) {
   // the 32-bit argument.
   unsigned int param = addr;
   param |= (len << 16);
-  err = command(SYS_RADIO, COM_TX, param);
+  err    = command(SYS_RADIO, COM_TX, param);
   if (err != 0) {
     return err;
   } else {
     yield_for(&cond);
     if (tx_acked) {
-      return SUCCESS;
+      return TOCK_SUCCESS;
     } else {
-      return ENOACK;
+      return TOCK_ENOACK;
     }
   }
 }
@@ -100,16 +104,16 @@ int radio_set_power(char power) {
 
 int radio_commit(void) {
   bool cond = false;
-  int err = subscribe(SYS_RADIO, EVT_CFG, cb_config, &cond);
-  if (err != SUCCESS) {
+  int err   = subscribe(SYS_RADIO, EVT_CFG, cb_config, &cond);
+  if (err != TOCK_SUCCESS) {
     return err;
   }
   err = command(SYS_RADIO, COM_COMMIT, 0);
-  if (err != SUCCESS) {
+  if (err != TOCK_SUCCESS) {
     return err;
   }
   yield_for(&cond);
-  return SUCCESS;
+  return TOCK_SUCCESS;
 }
 
 // Valid channels are 10-26
@@ -119,7 +123,7 @@ int radio_set_channel(unsigned char channel) {
 
 int radio_receive(const char* packet, unsigned char len) {
   bool cond = false;
-  int err = allow(SYS_RADIO, BUF_RX, (void*)packet, len);
+  int err   = allow(SYS_RADIO, BUF_RX, (void*)packet, len);
   if (err < 0) {
     return err;
   }
@@ -128,7 +132,10 @@ int radio_receive(const char* packet, unsigned char len) {
     return err;
   }
   yield_for(&cond);
-  return (int)packet[1];
+  if (rx_result < 0) {
+    return rx_result;
+  }
+  return rx_payload_len;
 }
 
 int radio_receive_callback(subscribe_cb callback,
@@ -146,5 +153,5 @@ int radio_receive_callback(subscribe_cb callback,
 }
 
 int radio_ready(void) {
-  return command(SYS_RADIO, COM_READY, 0) == SUCCESS;
+  return command(SYS_RADIO, COM_READY, 0) == TOCK_SUCCESS;
 }

@@ -16,15 +16,14 @@ int main(void) {
     packet[i] = i;
   }
   gpio_enable_output(0);
-  radio_init();
   radio_set_addr(0x1540);
-  radio_init();
   radio_set_pan(0xABCD);
+  radio_commit();
   radio_init();
   while (1) {
     led_toggle(0);
     int err = radio_send(0x0802, packet, BUF_SIZE);
-    if (err != SUCCESS) {
+    if (err != TOCK_SUCCESS) {
       gpio_toggle(0);
     }
     delay_ms(250);

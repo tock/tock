@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -18,9 +19,9 @@
 // XXX Also suppress attribute suggestions as these are stubs
 #pragma GCC diagnostic ignored "-Wsuggest-attribute=const"
 
-//------------------------------
+// ------------------------------
 // LIBC SUPPORT STUBS
-//------------------------------
+// ------------------------------
 
 void* __dso_handle = 0;
 
@@ -30,11 +31,10 @@ int _unlink(const char *pathname) {
 
 int _isatty(int fd)
 {
-    if (fd == 0)
-    {
-        return 1;
-    }
-    return 0;
+  if (fd == 0) {
+    return 1;
+  }
+  return 0;
 }
 int _open(const char* path, int flags, ...)
 {
@@ -42,29 +42,29 @@ int _open(const char* path, int flags, ...)
 }
 int _write(int fd, const void *buf, uint32_t count)
 {
-    putnstr((const char*)buf, count);
-    return count;
+  putnstr((const char*)buf, count);
+  return count;
 }
 int _close(int fd)
 {
-    return -1;
+  return -1;
 }
 int _fstat(int fd, struct stat *st)
 {
-    st->st_mode = S_IFCHR;
-    return 0;
+  st->st_mode = S_IFCHR;
+  return 0;
 }
 int _lseek(int fd, uint32_t offset, int whence)
 {
-    return 0;
+  return 0;
 }
 int _read(int fd, void *buf, uint32_t count)
 {
-    return 0; //k_read(fd, (uint8_t*) buf, count);
+  return 0;   // k_read(fd, (uint8_t*) buf, count);
 }
 void _exit(int __status)
 {
-  while(666) {}
+  while (666) {}
 }
 int _getpid(void)
 {
@@ -77,6 +77,12 @@ int _kill(pid_t pid, int sig)
 
 caddr_t _sbrk(int incr)
 {
-  return memop(1, incr);
+  void* ret;
+  ret = memop(1, incr);
+  if ( ((int) ret) == TOCK_ENOMEM) {
+    errno = ENOMEM;
+    return (caddr_t) -1;
+  }
+  return ret;
 }
 

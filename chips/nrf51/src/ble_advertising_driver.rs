@@ -4,7 +4,7 @@
 //! in order to send periodic BLE advertisements without blocking
 //! the kernel
 //!
-//! The advertisment interval is configured from the user application. The allowed range
+//! The advertisement interval is configured from the user application. The allowed range
 //! is between 20 ms and 10240 ms, lower or higher values will be set to these values.
 //! Advertisements are sent on channels 37, 38 and 39 with a very shortly time between each
 //! transmission.
@@ -34,19 +34,26 @@
 //! ----------------------------------------------------------------------------------
 //!
 //! ---SUBSCRIBE SYSTEM CALL----------------------------------------------------------
-//!  NOT NEEDED NOT FOR PURE ADVERTISEMENTS
+//!  The 'subscribe' system call supports two arguments `subscribe_num' and 'callback'.
+//! 'subscribe' is used to specify the specific operation, currently:
+//!     * 0: provides a callback user-space when a device scanning for advertisements
+//!          and the callback is used to invoke user-space processes.
 //!
+//! The possible return codes from the 'allow' system call indicate the following:
+//!        * ENOMEM:    Not sufficient amount memory
+//!        * EINVAL:    Invalid operation
 //! ------------------------------------------------------------------------------
 //!
 //! ---COMMAND SYSTEM CALL------------------------------------------------------------
 //! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
 //! 'cmd' is used to specify the specific operation, currently
 //! the following cmd's are supported:
-//!     * 0: start advertisment
-//!     * 1: stop advertisment
+//!     * 0: start advertisement
+//!     * 1: stop advertisement
 //!     * 2: configure tx power
 //!     * 3: configure advertise interval
 //!     * 4: clear the advertisement payload
+//!     * 5: start scanning
 //!
 //! The possible return codes from the 'command' system call indicate the following:
 //!     * SUCCESS:      The command was successful
@@ -56,17 +63,17 @@
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: June 2, 2017
+//! Date: June 22, 2017
 
 
 use core::cell::Cell;
-use kernel::{AppId, Driver, AppSlice, Shared, Container};
-use kernel::common::take_cell::TakeCell;
-use kernel::hil;
+use kernel;
 use kernel::hil::time::Frequency;
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
 use radio;
+
+
 pub static mut BUF: [u8; 32] = [0; 32];
 
 
@@ -94,34 +101,51 @@ pub const BLE_HS_ADV_TYPE_SVC_DATA_UUID128: usize = 0x21;
 pub const BLE_HS_ADV_TYPE_URI: usize = 0x24;
 pub const BLE_HS_ADV_TYPE_MFG_DATA: usize = 0xff;
 
+// Advertising Modes
+// FIXME: Only BLE_GAP_CONN_MODE_NON supported
+pub const BLE_GAP_CONN_MODE_NON: usize = 0x00;
+pub const BLE_GAP_CONN_MODE_DIR: usize = 0x01;
+pub const BLE_GAP_CONN_MODE_UND: usize = 0x02;
+pub const BLE_GAP_SCAN_MODE_NON: usize = 0x03;
+pub const BLE_GAP_SCAN_MODE_DIR: usize = 0x04;
+pub const BLE_GAP_SCAN_MODE_UND: usize = 0x05;
+
+
+// Temporary trait for BLE
+pub trait RxClient {
+    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+}
+
 
 #[derive(Default)]
 pub struct App {
-    app_write: Option<AppSlice<Shared, u8>>,
+    app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    scan_callback: Option<kernel::Callback>,
 }
 
-pub struct BLE<'a, A: hil::time::Alarm + 'a> {
+pub struct BLE<'a, A: kernel::hil::time::Alarm + 'a> {
     radio: &'a radio::Radio,
     busy: Cell<bool>,
-    app: Container<App>,
-    kernel_tx: TakeCell<'static, [u8]>,
+    app: kernel::Container<App>,
+    kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
     alarm: &'a A,
     advertisement_interval: Cell<u32>,
     is_advertising: Cell<bool>,
     offset: Cell<usize>,
 }
 
-impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
+impl<'a, A: kernel::hil::time::Alarm + 'a> BLE<'a, A> {
     pub fn new(radio: &'a radio::Radio,
-               container: Container<App>,
-               buf: &'static mut [u8],
+               container: kernel::Container<App>,
+               tx_buf: &'static mut [u8],
                alarm: &'a A)
                -> BLE<'a, A> {
         BLE {
             radio: radio,
             busy: Cell::new(false),
             app: container,
-            kernel_tx: TakeCell::new(buf),
+            kernel_tx: kernel::common::take_cell::TakeCell::new(tx_buf),
             alarm: alarm,
             advertisement_interval: Cell::new(150 * <A::Frequency>::frequency() / 1000),
             is_advertising: Cell::new(false),
@@ -142,10 +166,10 @@ impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
                     .map(|slice| {
                         let len = slice.len();
                         // Each AD TYP consists of TYPE (1 byte), LENGTH (1 byte) and
-                        // PAYLOAD (0 - 30 bytes)
+                        // PAYLOAD (0 - 31 bytes)
                         // This is why we add 2 to start the payload at the correct position.
                         let i = self.offset.get() + len + 2;
-                        if i < 31 {
+                        if i <= 31 {
                             self.kernel_tx
                                 .take()
                                 .map(|data| {
@@ -154,7 +178,7 @@ impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
                                         *out = *inp;
                                     }
                                     let tmp = self.radio
-                                        .set_adv_data(ad_type, data, len, self.offset.get() + 9);
+                                        .set_adv_data(ad_type, data, len, self.offset.get() + 8);
                                     self.kernel_tx.replace(tmp);
                                     self.offset.set(i);
                                 });
@@ -196,29 +220,50 @@ impl<'a, A: hil::time::Alarm + 'a> BLE<'a, A> {
     }
 }
 
-impl<'a, A: hil::time::Alarm + 'a> hil::time::Client for BLE<'a, A> {
+impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::hil::time::Client for BLE<'a, A> {
     // this method is called once the virtual timer has been expired
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
-        self.radio.start_adv();
-        self.configure_periodic_alarm();
+        if self.busy.get() {
+            if self.is_advertising.get() {
+                self.radio.start_adv_tx();
+            } else {
+                self.radio.start_adv_rx();
+            }
+            self.configure_periodic_alarm();
+        }
+    }
+}
+
+impl<'a, A: kernel::hil::time::Alarm + 'a> RxClient for BLE<'a, A> {
+    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
+        for cntr in self.app.iter() {
+            cntr.enter(|app, _| {
+                if app.app_read.is_some() {
+                    let dest = app.app_read.as_mut().unwrap();
+                    let d = &mut dest.as_mut();
+                    // write to buffer in userland
+                    for (i, c) in buf[0..len as usize].iter().enumerate() {
+                        d[i] = *c;
+                    }
+                }
+                app.scan_callback
+                    .map(|mut cb| { cb.schedule(usize::from(result), 0, 0); });
+            });
+        }
     }
 }
 
 // Implementation of SYSCALL interface
-impl<'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, A> {
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::Driver for BLE<'a, A> {
+    fn command(&self, command_num: usize, data: usize, _: kernel::AppId) -> ReturnCode {
         match (command_num, self.busy.get()) {
             // START BLE
             (0, false) => {
-                if self.busy.get() == false {
-                    self.busy.set(true);
-                    self.is_advertising.set(true);
-                    self.configure_periodic_alarm();
-                    ReturnCode::SUCCESS
-                } else {
-                    ReturnCode::FAIL
-                }
+                self.busy.set(true);
+                self.is_advertising.set(true);
+                self.configure_periodic_alarm();
+                ReturnCode::SUCCESS
             }
             //Stop ADV_BLE
             (1, _) => {
@@ -238,17 +283,29 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, A> {
                 }
                 ReturnCode::SUCCESS
             }
+            // Clear payload
             (4, false) => {
                 self.offset.set(0);
                 self.radio.clear_adv_data();
                 ReturnCode::SUCCESS
             }
+            // Passive scanning mode
+            (5, false) => {
+                self.busy.set(true);
+                self.configure_periodic_alarm();
+                ReturnCode::SUCCESS
+            }
+
             (_, true) => ReturnCode::EBUSY,
             (_, _) => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(&self,
+             appid: kernel::AppId,
+             allow_num: usize,
+             slice: kernel::AppSlice<kernel::Shared, u8>)
+             -> ReturnCode {
         match (allow_num, self.busy.get()) {
             // See this as a giant case switch or if else statements
             (BLE_HS_ADV_TYPE_FLAGS, false) |
@@ -289,6 +346,7 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, A> {
                     ret
                 }
             }
+            // Set advertisement address
             (0x30, false) => {
                 let ret = self.app
                     .enter(appid, |app, _| {
@@ -306,9 +364,42 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for BLE<'a, A> {
                     ret
                 }
             }
+            // Passive scanning
+            (0x31, false) => {
+                self.app
+                    .enter(appid, |app, _| {
+                        app.app_read = Some(slice);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
+            }
             (_, true) => ReturnCode::EBUSY,
 
             (_, _) => ReturnCode::ENOSUPPORT,
+        }
+    }
+
+
+    fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
+        match subscribe_num {
+            // Callback for scanning
+            0 => {
+                self.app
+                    .enter(callback.app_id(), |app, _| {
+                        app.scan_callback = Some(callback);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
+            }
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 }

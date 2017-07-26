@@ -26,26 +26,6 @@ Tock with JTAG. To compile and install the Tock kernel on the nrf51dk
 using JTAG, follow the standard Tock instructions (the "Getting
 Started" guide).
 
-### Programming with mbed file system (currently unsupported)
-
-The nRF51DK supports ARM mbed development. This means that under Mac OS and 
-Windows, plugging the nRF51DK in over USB causes it to appear as a file
-system (a storage device). Copying an executable in the ihex format  
-named 'firmware.hex' to the device causes it to reprogram. When this
-occurs successfully, the nRF51DK will remove itself and re-mount itself.
-It does this because it isn't actually a storage device: firmware.hex
-doesn't persist, and the only way to make sure the OS doesn't think it's
-still there is to disconnect and reconnect.
-
-To program with the mbed file system, run
-
-```bash
-$ make TOCK_BOARD=nrf51dk hex
-```
-
-This will build `boards/nrf51dk/target/nrf51/release/nrf51dk.hex`. Next,
-copy this file to your mbed device, renaming it to `firmware.hex`. 
-
 ## Programming user-level applications
 
 To compile and install compile applications for the nrf51dk, follow the
@@ -102,9 +82,9 @@ layout reg
 ```
 
 will give you a 3-window layout, showing the current state of the
-main registers, and the current assembly instruction. Note that currently
-Rust does not output debugging symbols that allow you to do source-level
-debugging. You have to use the generated assembly.
+main registers, and the current assembly instruction. 
+Note that Rust support debugging symbols but there is too little memory available on nrf51dk to enable that. 
+You have to use the generated assembly.
 
 Since Rust heavily optimized and inlines code, it can be difficult to
 understand, from the assembly, exactly where you are in source code. Two
@@ -119,7 +99,7 @@ entry. However, since Rust often emits complex symbol names, you also
 might want to use
 
 ```rust
-$[no_mangle]
+#[no_mangle]
 ```
 
 which will keep the function's symbol identical to the function name.

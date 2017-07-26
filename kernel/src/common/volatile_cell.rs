@@ -1,3 +1,5 @@
+//! Implementation of types for accessing MCU registers.
+
 // Source: https://github.com/hackndev/zinc/tree/master/volatile_cell
 #[derive(Copy, Clone)]
 #[repr(C)]

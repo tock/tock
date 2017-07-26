@@ -1,6 +1,6 @@
 //! Tock kernel for the Nordic Semiconductor nRF51 development
 //! kit (DK), a.k.a. the PCA10028. This is an nRF51422 SoC (a
-//! Cortex M0 core with a BLE transciver) with many exported
+//! Cortex M0 core with a BLE transceiver) with many exported
 //! pins, LEDs, and buttons. Currently the kernel provides
 //! application timers, and GPIO. It will provide a console
 //! once the UART is fully implemented and debugged. The
@@ -47,6 +47,7 @@ extern crate nrf51;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
+use kernel::hil::symmetric_encryption::SymmetricEncryption;
 use kernel::hil::uart::UART;
 use nrf51::pinmux::Pinmux;
 use nrf51::rtc::{RTC, Rtc};
@@ -66,43 +67,20 @@ const BUTTON2_PIN: usize = 18;
 const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
 
-unsafe fn load_process() -> &'static mut [Option<kernel::Process<'static>>] {
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-    }
 
-    const NUM_PROCS: usize = 1;
+// State for loading and holding applications.
 
-    // how should the kernel respond when a process faults
-    const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
+// How should the kernel respond when a process faults.
+const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
-    #[link_section = ".app_memory"]
-    static mut APP_MEMORY: [u8; 8192] = [0; 8192];
+// Number of concurrent processes this platform supports.
+const NUM_PROCS: usize = 1;
 
-    static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
+#[link_section = ".app_memory"]
+static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
-    let mut apps_in_flash_ptr = &_sapps as *const u8;
-    let mut app_memory_ptr = APP_MEMORY.as_mut_ptr();
-    let mut app_memory_size = APP_MEMORY.len();
-    for i in 0..NUM_PROCS {
-        let (process, flash_offset, memory_offset) = kernel::Process::create(apps_in_flash_ptr,
-                                                                             app_memory_ptr,
-                                                                             app_memory_size,
-                                                                             FAULT_RESPONSE);
+static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
-        if process.is_none() {
-            break;
-        }
-
-        PROCESSES[i] = process;
-        apps_in_flash_ptr = apps_in_flash_ptr.offset(flash_offset as isize);
-        app_memory_ptr = app_memory_ptr.offset(memory_offset as isize);
-        app_memory_size -= memory_offset;
-    }
-
-    &mut PROCESSES
-}
 
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf51::gpio::GPIOPin>,
@@ -118,17 +96,6 @@ pub struct Platform {
 
 
 impl kernel::Platform for Platform {
-    // TODO: Why is this not inlined, you might ask? Well... we seem to be
-    // hitting some sort of LLVM codegen issue (maybe a bug in LLVM, maybe a bug
-    // in Tock), where certain compilation variants of the below match
-    // statement, when inlined, result in totally unexpected assembly that
-    // results in trying to jump to an instruction that doesn't exist. It _only_
-    // appears in thumbv6, only when the 17-valued branch below is not commented
-    // out, only with optimization level 2 or higher, and only when inlined. So
-    // for now, we're not inlining it until we resolve the issue. So far it's
-    // been raised as an issue on the Rust project:
-    // https://github.com/rust-lang/rust/issues/42248
-    #[inline(never)]
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
@@ -272,7 +239,7 @@ pub unsafe fn reset_handler() {
                                                     &mut capsules::symmetric_encryption::IV),
         288/8);
     nrf51::aes::AESECB.ecb_init();
-    nrf51::aes::AESECB.set_client(aes);
+    SymmetricEncryption::set_client(&nrf51::aes::AESECB, aes);
 
     let ble_radio = static_init!(
      nrf51::ble_advertising_driver::BLE<VirtualMuxAlarm<'static, Rtc>>,
@@ -282,7 +249,7 @@ pub unsafe fn reset_handler() {
          &mut nrf51::ble_advertising_driver::BUF,
          ble_radio_virtual_alarm),
         256/8);
-    //nrf51::radio::RADIO.set_client(ble_radio);
+    nrf51::radio::RADIO.set_client(ble_radio);
     ble_radio_virtual_alarm.set_client(ble_radio);
 
     // Start all of the clocks. Low power operation will require a better
@@ -315,9 +282,16 @@ pub unsafe fn reset_handler() {
     chip.systick().enable(true);
 
     debug!("Initialization complete. Entering main loop");
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+    }
+    kernel::process::load_processes(&_sapps as *const u8,
+                                    &mut APP_MEMORY,
+                                    &mut PROCESSES,
+                                    FAULT_RESPONSE);
     kernel::main(&platform,
                  &mut chip,
-                 load_process(),
+                 &mut PROCESSES,
                  &kernel::ipc::IPC::new());
-
 }

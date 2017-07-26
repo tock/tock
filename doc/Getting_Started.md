@@ -9,13 +9,13 @@ developing Tock.
 1. [Rust](http://www.rust-lang.org/) (install `rustup` so Tock will choose the right version automatically)
 1. [Xargo](http://www.rust-lang.org/) (Rust `cargo` wrapper that installs core library for embedded targets)
 2. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
-3. Command line utilities: wget, sed, make
+3. Command line utilities: wget, sed, make, cmake
 
 ### Installing Requirements
 
 #### Rust (nightly)
 
-We are using `rustc 1.19.0-nightly (5b13bff52 2017-05-23)`. We recommend
+We are using `rustc 1.19.0-nightly (04145943a 2017-06-19)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -30,7 +30,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2017-05-24
+$ rustup install nightly-2017-06-20
 ```
 
 #### Xargo
@@ -197,12 +197,13 @@ $ make examples/blink
 
 ### Optional Requirements
 
-For some boards, currently `Hail`, you will need `tockloader`. `tockloader`
-also has features that are generally useful to all Tock boards, such as easy to
-manage serial connections, and the ability to list, add, replace, and remove
-applications over JTAG (or USB if a bootloader is installed).
+For some boards, currently `Hail` and `imix` (but not `imixv1`), you will need
+`tockloader`. `tockloader` also has features that are generally useful to all
+Tock boards, such as easy to manage serial connections, and the ability to
+list, add, replace, and remove applications over JTAG (or USB if a bootloader
+is installed).
 
-1. [tockloader](https://github.com/helena-project/tockloader) (version 0.6.1)
+1. [tockloader](https://github.com/helena-project/tockloader) (version 0.7.1)
 
 Installing applications over JTAG, depending on your JTAG Debugger, you will
 need one of:
@@ -212,11 +213,11 @@ need one of:
 
 #### `tockloader`
 
-Tock requires `tockloader` version `0.6.1`. To install:
+Tock requires `tockloader` version `0.7.1`. To install:
 
 ```bash
-(Linux): sudo pip3 install tockloader==0.6.1
-(MacOS): pip3 install tockloader==0.6.1
+(Linux): sudo pip3 install tockloader==0.7.1
+(MacOS): pip3 install tockloader==0.7.1
 ```
 
 #### `openocd`
@@ -233,8 +234,7 @@ support the SAM4L on `imix`.
 
 If you want to upload code through a [JLink JTAG
 debugger](https://www.segger.com/j-link-edu.html) (available on
-[Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)
-), you should install JLinkExe. We require a version greater than or equal to `5.0`.
+[Digikey](https://www.digikey.com/product-detail/en/segger-microcontroller-systems/8.08.90-J-LINK-EDU/899-1008-ND/2263130)), you should install JLinkExe. We require a version greater than or equal to `5.0`.
 
 It is available [here](https://www.segger.com/downloads/jlink). You want to the
 "J-Link Software and Documentation Pack". There are various packages available

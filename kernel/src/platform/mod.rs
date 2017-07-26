@@ -3,10 +3,12 @@ use driver::Driver;
 pub mod mpu;
 pub mod systick;
 
+/// Interface for individual boards.
 pub trait Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R where F: FnOnce(Option<&Driver>) -> R;
 }
 
+/// Interface for individual MCUs.
 pub trait Chip {
     type MPU: mpu::MPU;
     type SysTick: systick::SysTick;
@@ -15,4 +17,5 @@ pub trait Chip {
     fn has_pending_interrupts(&self) -> bool;
     fn mpu(&self) -> &Self::MPU;
     fn systick(&self) -> &Self::SysTick;
+    fn prepare_for_sleep(&self) {}
 }

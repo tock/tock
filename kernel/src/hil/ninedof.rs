@@ -1,3 +1,5 @@
+//! Interface for chips that provide 9DOF functionality.
+//!
 //! This trait file provides a standard interface for chips that implement
 //! some or all of a nine degrees of freedom (accelerometer, magnetometer,
 //! gyroscope) sensor. Any interface functions that a chip cannot implement

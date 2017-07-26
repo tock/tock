@@ -1,22 +1,22 @@
 //! Radio/BLE Driver for nrf51dk
 //!
 //! Sending BLE advertisement packets
-//! Possible payload is 30 bytes
+//! Possible payload is 31 bytes
 //!
 //! Currently all fields in PAYLOAD array are configurable from user-space
 //! except the PDU_TYPE.
 //!
 //! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: June 6, 2017
+//! Date: June 22, 2017
 
+use ble_advertising_driver;
 use chip;
 use core::cell::Cell;
 use kernel;
 use nvic;
 use peripheral_interrupts;
 use peripheral_registers;
-
 
 // nrf51 specific constants
 pub const PACKET0_S1_SIZE: u32 = 0;
@@ -36,6 +36,8 @@ pub const PACKET_LENGTH_FIELD_SIZE: u32 = 0;
 pub const PACKET_PAYLOAD_MAXSIZE: u32 = 64;
 pub const PACKET_BASE_ADDRESS_LENGTH: u32 = 4;
 pub const PACKET_STATIC_LENGTH: u32 = 64;
+pub const NRF_LFLEN_LEN_1BYTE: u32 = 8;
+pub const NRF_S0_LEN_1BYTE: u32 = 1;
 
 
 // internal Radio State
@@ -53,86 +55,66 @@ pub const RADIO_STATE_TXDISABLE: u32 = 12;
 // constants for readability purposes
 pub const PAYLOAD_HDR_PDU: usize = 0;
 pub const PAYLOAD_HDR_LEN: usize = 1;
-pub const PAYLOAD_ADDR_START: usize = 3;
-pub const PAYLOAD_ADDR_END: usize = 8;
-pub const PAYLOAD_DATA_START: usize = 9;
+pub const PAYLOAD_ADDR_START: usize = 2;
+pub const PAYLOAD_ADDR_END: usize = 7;
+pub const PAYLOAD_DATA_START: usize = 8;
 pub const PAYLOAD_LENGTH: usize = 39;
 
-// FROM LEFT
-// ADVTYPE      ;;      4 bits
-// RFU          ;;      2 bits
-// TxAdd        ;;      1 bit
-// RxAdd        ;;      1 bit
-// Length       ;;       6 bits
-// RFU          ;;      2 bits
-// AdvD         ;;      6 bytes
-// AdvData      ;;      31 bytes
 
-// Header (2 bytes) || Address (6 bytes) || Payload 31 bytes
-static mut PAYLOAD: [u8; 39] = [// ADV_IND, public addr  [HEADER]
-                                0x02,
-                                0x00,
-                                // Padding   FIXME: Remove get payload of 31 bytes
-                                0x00,
-                                // Address          [ADV ADDRESS]
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                // [LEN, AD-TYPE, LEN-1 bytes of data ...]
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00,
-                                0x00]; //[DATA]
+// Header (2 bytes) which consist of:
+//
+// Byte #1
+// PDU Type (4 bits) - see below for info
+// RFU (2 bits)      - don't care
+// TXAdd (1 bit)     - don't used yet (use public or private addr)
+// RXAdd (1 bit)     - don't care (not used for beacons)
+//
+// Byte #2
+// Length of the total packet
+
+// PDU TYPES
+// 0x00 - ADV_IND
+// 0x01 - ADV_DIRECT_IND
+// 0x02 - ADV_NONCONN_IND
+// 0x03 - SCAN_REQ
+// 0x04 - SCAN_RSP
+// 0x05 - CONNECT_REQ
+// 0x06 - ADV_SCAN_IND
+
+//  Advertising Type   Connectable  Scannable   Directed    GAP Name
+//  ADV_IND            Yes           Yes         No          Connectable Undirected Advertising
+//  ADV_DIRECT_IND     Yes           No          Yes         Connectable Directed Advertising
+//  ADV_NONCONN_IND    Yes           No          No          Non-connectible Undirected Advertising
+//  ADV_SCAN_IND       Yes           Yes         No          Scannable Undirected Advertising
+
+static mut PAYLOAD: [u8; PAYLOAD_LENGTH] = [0x00; PAYLOAD_LENGTH];
 
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
     txpower: Cell<usize>,
+    client: Cell<Option<&'static ble_advertising_driver::RxClient>>,
+    freq: Cell<u32>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
-
 
 impl Radio {
     pub const fn new() -> Radio {
         Radio {
             regs: peripheral_registers::RADIO_BASE as *const peripheral_registers::RADIO_REGS,
             txpower: Cell::new(0),
+            client: Cell::new(None),
+            freq: Cell::new(0),
         }
     }
 
-    fn init_radio_ble(&self) {
+    // Used configure to radio to send BLE advertisements
+    pub fn start_adv_tx(&self) {
         let regs = unsafe { &*self.regs };
 
         self.radio_on();
+
+        self.set_payload_header_pdu(0x02);
 
         // TX Power acc. to twpower variable in the struct
         self.set_txpower();
@@ -158,7 +140,7 @@ impl Radio {
         self.set_crc_config();
 
         // Buffer configuration
-        self.set_tx_buffer();
+        self.set_buffer();
 
         self.enable_interrupts();
         self.enable_nvic();
@@ -167,6 +149,49 @@ impl Radio {
         regs.TXEN.set(1);
     }
 
+    // Used configure to radio to listen for BLE advertisements
+    // FIXME: alot of boiler plate
+    pub fn start_adv_rx(&self) {
+        let regs = unsafe { &*self.regs };
+
+        self.radio_on();
+
+        // BLE MODE
+        self.set_channel_rate(0x03);
+
+        // temporary to listen on all advertising frequencies
+        match self.freq.get() {
+            37 => self.freq.set(38),
+            38 => self.freq.set(39),
+            _ => self.freq.set(37),
+        }
+
+        self.set_channel_freq(self.freq.get());
+        self.set_data_white_iv(self.freq.get());
+
+        // Set PREFIX | BASE Address
+        regs.PREFIX0.set(0x0000008e);
+        regs.BASE0.set(0x89bed600);
+
+        self.set_tx_address(0x00);
+        self.set_rx_address(0x01);
+        // regs.RXMATCH.set(0x00);
+
+        // Set Packet Config
+        self.set_packet_config(0x00);
+
+        // CRC Config
+        self.set_crc_config();
+
+        // Buffer configuration
+        self.set_buffer();
+
+        self.enable_interrupts();
+        self.enable_nvic();
+
+        regs.READY.set(0);
+        regs.RXEN.set(1);
+    }
     fn set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
         // CRC Config
@@ -182,33 +207,22 @@ impl Radio {
     fn set_packet_config(&self, _: u32) {
         let regs = unsafe { &*self.regs };
 
-        // This initialization have to do with the header in the PDU it is 2 bytes
-        // ADVTYPE      ;;      4 bits
-        // RFU          ;;      2 bits
-        // TxAdd        ;;      1 bit
-        // RxAdd        ;;      1 bit
-        // Length       ;;      6 bits
-        // RFU          ;;      2 bits
-
-        regs.PCNF0
-            .set(// set S0 to 1 byte
-                 (1 << RADIO_PCNF0_S0LEN_POS) |
-                     // set S1 to 2 bits
-                     (2 << RADIO_PCNF0_S1LEN_POS) |
-                     // set length to 6 bits
-                     (6 << RADIO_PCNF0_LFLEN_POS));
+        // sets the header of PDU TYPE to 1 byte
+        // sets the header length to 1 byte
+        regs.PCNF0.set((NRF_S0_LEN_1BYTE << RADIO_PCNF0_S0LEN_POS) |
+                       (NRF_LFLEN_LEN_1BYTE << RADIO_PCNF0_LFLEN_POS));
 
 
         regs.PCNF1
             .set((RADIO_PCNF1_WHITEEN_ENABLED << RADIO_PCNF1_WHITEEN_POS) |
-                // set little-endian
-                (0 << RADIO_PCNF1_ENDIAN_POS) |
-                // Set BASE + PREFIX address to 4 bytes
-                (3 << RADIO_PCNF1_BALEN_POS) |
-                // don't extend packet length
-                (0 << RADIO_PCNF1_STATLEN_POS) |
-                // max payload size 37
-                (37 << RADIO_PCNF1_MAXLEN_POS));
+                 // set little-endian
+                 (0 << RADIO_PCNF1_ENDIAN_POS) |
+                 // Set BASE + PREFIX address to 4 bytes
+                 (3 << RADIO_PCNF1_BALEN_POS) |
+                 // don't extend packet length
+                 (0 << RADIO_PCNF1_STATLEN_POS) |
+                 // max payload size 37
+                 (37 << RADIO_PCNF1_MAXLEN_POS));
     }
 
     // TODO set from capsules?!
@@ -267,15 +281,11 @@ impl Radio {
         regs.TXPOWER.set(self.txpower.get() as u32);
     }
 
-    fn set_tx_buffer(&self) {
+    fn set_buffer(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
             regs.PACKETPTR.set((&PAYLOAD as *const u8) as u32);
         }
-    }
-
-    fn set_rx_buffer(&self) {
-        unimplemented!();
     }
 
     #[inline(never)]
@@ -287,11 +297,6 @@ impl Radio {
         nvic::clear_pending(peripheral_interrupts::NvicIdx::RADIO);
 
         if regs.READY.get() == 1 {
-            if regs.STATE.get() <= 4 {
-                self.set_rx_buffer();
-            } else {
-                self.set_tx_buffer();
-            }
             regs.READY.set(0);
             regs.END.set(0);
             regs.START.set(1);
@@ -341,6 +346,20 @@ impl Radio {
                         }
                     }
                 }
+                RADIO_STATE_RXRU |
+                RADIO_STATE_RXIDLE |
+                RADIO_STATE_RXDISABLE |
+                RADIO_STATE_RX => {
+                    if regs.CRCSTATUS.get() == 1 {
+                        unsafe {
+                            self.client.get().map(|client| {
+                                client.receive(&mut PAYLOAD,
+                                               PAYLOAD_LENGTH as u8,
+                                               kernel::returncode::ReturnCode::SUCCESS)
+                            });
+                        }
+                    }
+                }
                 _ => (),
             }
         }
@@ -372,10 +391,7 @@ impl Radio {
 
     pub fn reset_payload(&self) {}
 
-    // these are used by ble_advertising_driver and are therefore public
-
     // FIXME: Support for other PDU types than ADV_NONCONN_IND
-    // NOT USED ATM
     pub fn set_payload_header_pdu(&self, pdu: u8) {
         unsafe {
             PAYLOAD[PAYLOAD_HDR_PDU] = pdu;
@@ -388,7 +404,7 @@ impl Radio {
         }
     }
 
-    // pre-condition addr buffer is 6 bytes ensured by the capsule
+    // pre-condition address buffer is 6 bytes ensured by the capsule
     pub fn set_advertisement_address(&self, addr: &'static mut [u8]) -> &'static mut [u8] {
         for (i, c) in addr.as_ref()[0..6].iter().enumerate() {
             unsafe {
@@ -396,10 +412,6 @@ impl Radio {
             }
         }
         addr
-    }
-
-    pub fn start_adv(&self) {
-        self.init_radio_ble();
     }
 
     // configures new data in the payload
@@ -410,9 +422,6 @@ impl Radio {
                         offset: usize)
                         -> &'static mut [u8] {
 
-        if offset == PAYLOAD_DATA_START {
-            self.clear_adv_data();
-        }
         // set ad type length and type
         unsafe {
             PAYLOAD[offset] = (len + 1) as u8;
@@ -424,9 +433,8 @@ impl Radio {
                 PAYLOAD[i + offset + 2] = *c;
             }
         }
-        unsafe {
-            PAYLOAD[1] = (offset - 1 + len) as u8;
-        }
+
+        self.set_payload_header_len((offset + len) as u8);
         data
     }
 
@@ -454,6 +462,10 @@ impl Radio {
             }
             _ => kernel::ReturnCode::ENOSUPPORT,
         }
+    }
+
+    pub fn set_client<C: ble_advertising_driver::RxClient>(&self, client: &'static C) {
+        self.client.set(Some(client));
     }
 }
 
