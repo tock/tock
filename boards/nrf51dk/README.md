@@ -57,7 +57,7 @@ JLinkGDBServer -device nrf51422 -speed 1200 -if swd -AutoConnect 1 -port 2331
 Third, start gdb in a new terminal, telling it to use the `.gdbinit`:
 
 ```bash
-arm-none-eabi-gdb -x .gdbinit boards/nrf51dk/target/nrf51/release/nrf51dk
+arm-none-eabi-gdb -x .gdbinit boards/nrf51dk/target/thumbv6m-none-eabi/release/nrf51dk
 ```
 
 The second parameter (`...nrf51dk`) is the binary image of the kernel,
