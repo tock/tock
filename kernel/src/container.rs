@@ -121,6 +121,38 @@ impl<'a> Allocator<'a> {
     }
 }
 
+pub struct Borrowed<'a, T: 'a + ?Sized> {
+    data: &'a mut T,
+    app_id: usize,
+}
+
+impl<'a, T: 'a + ?Sized> Borrowed<'a, T> {
+    pub fn new(data: &'a mut T, app_id: usize) -> Borrowed<T> {
+        Borrowed {
+            data: data,
+            app_id: app_id,
+        }
+    }
+
+    pub fn appid(&self) -> AppId {
+        AppId::new(self.app_id)
+    }
+}
+
+impl<'a, T: 'a + ?Sized> Deref for Borrowed<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.data
+    }
+}
+
+impl<'a, T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.data
+    }
+}
+
+
 impl<T: Default> Container<T> {
     pub unsafe fn create() -> Container<T> {
         let ctr = read_volatile(&CONTAINER_COUNTER);
@@ -162,14 +194,14 @@ impl<T: Default> Container<T> {
     }
 
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
-        where F: FnOnce(&mut Owned<T>, &mut Allocator) -> R,
+        where F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
               R: Copy
     {
         unsafe {
             let app_id = appid.idx();
             if AppId::is_kernel(appid) {
                 let root_ptr = kernel_container_for::<T>(app_id);
-                let mut root = Owned::new(root_ptr, app_id);
+                let mut root = Borrowed::new(&mut *root_ptr, app_id);
                 let mut allocator = Allocator {
                     app: None,
                     app_id: app_id,
@@ -181,7 +213,7 @@ impl<T: Default> Container<T> {
                     Some(ref mut app) => {
                         app.container_for_or_alloc::<T>(self.container_num)
                             .map_or(Err(Error::OutOfMemory), move |root_ptr| {
-                                let mut root = Owned::new(root_ptr, app_id);
+                                let mut root = Borrowed::new(&mut *root_ptr, app_id);
                                 let mut allocator = Allocator {
                                     app: Some(app),
                                     app_id: app_id,
