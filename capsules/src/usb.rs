@@ -247,21 +247,58 @@ pub trait Descriptor {
     fn size(&self) -> usize;
 
     /// Serialize the descriptor to a buffer for transmission on the bus
-    fn write_to(&self, buf: &[Cell<u8>]) -> usize;
+    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+        if self.size() > buf.len() {
+            0
+        }
+        else {
+            self.write_to_unchecked(buf)
+        }
+    }
+
+    /// Same as `write_to()`, but doesn't check that `buf` is long enough
+    /// before indexing into it.  This should be used only if the result
+    /// of `size()` is first consulted.
+    fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize;
 }
 
 pub struct DeviceDescriptor {
+    /// Valid values include 0x0100 (USB1.0), 0x0110 (USB1.1) and 0x0200 (USB2.0)
     pub usb_release: u16,
+
+    /// 0x00 means each interface defines its own class.
+    /// 0xFF means the class behavior is defined by the vendor.
+    /// All other values have meaning assigned by USB-IF
     pub class: u8,
+
+    /// Assigned by USB-IF if `class` is
     pub subclass: u8,
+
+    /// Assigned by USB-IF if `class` is
     pub protocol: u8,
+
+    /// Max packet size for endpoint 0.  Must be 8, 16, 32 or 64
     pub max_packet_size_ep0: u8,
+
+    /// Obtained from USB-IF
     pub vendor_id: u16,
+
+    /// Together with `vendor_id`, this must be unique to the product
     pub product_id: u16,
+
+    /// Device release number in binary coded decimal (BCD)
     pub device_release: u16,
+
+    /// Index of the string descriptor describing manufacturer, or 0 if none
     pub manufacturer_string: u8,
+
+    /// Index of the string descriptor describing product, or 0 if none
     pub product_string: u8,
+
+    /// Index of the string descriptor giving device serial number, or 0 if none
     pub serial_number_string: u8,
+
+    /// Number of configurations the device supports.  Must be at least one
     pub num_configurations: u8,
 }
 
@@ -287,7 +324,7 @@ impl Default for DeviceDescriptor {
 impl Descriptor for DeviceDescriptor {
     fn size(&self) -> usize { 18 }
 
-    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+    fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
         buf[0].set(18);  // Size of descriptor
         buf[1].set(DescriptorType::Device as u8);
         put_u16(&buf[2..4], self.usb_release);
@@ -331,7 +368,7 @@ impl Default for ConfigurationDescriptor {
 impl Descriptor for ConfigurationDescriptor {
     fn size(&self) -> usize { 9 }
 
-    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+    fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
         buf[0].set(9); // Size of descriptor
         buf[1].set(DescriptorType::Configuration as u8);
         put_u16(&buf[2..4], (9 + self.related_descriptor_length) as u16);
@@ -388,7 +425,7 @@ impl Default for InterfaceDescriptor {
 impl Descriptor for InterfaceDescriptor {
     fn size(&self) -> usize { 9 }
 
-    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+    fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
         buf[0].set(9); // Size of descriptor
         buf[1].set(DescriptorType::Interface as u8);
         buf[2].set(self.interface_number);
@@ -411,7 +448,7 @@ impl<'a> Descriptor for LanguagesDescriptor<'a> {
         2 + (2 * self.langs.len())
     }
 
-    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+    fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
         let len = self.size();
         buf[0].set(len as u8);
         buf[1].set(DescriptorType::String as u8);
@@ -436,7 +473,7 @@ impl<'a> Descriptor for StringDescriptor<'a> {
     }
 
     // Encode as utf16-le
-    fn write_to(&self, buf: &[Cell<u8>]) -> usize {
+    fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
         buf[1].set(DescriptorType::String as u8);
         let mut i = 2;
         for ch in self.string.chars() {
