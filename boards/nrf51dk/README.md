@@ -19,14 +19,19 @@ software](../../doc/Getting_Started.md#optional-requirements).
 ### Programming the kernel
 
 Once you have all software installed, you should be able to simply run
-`make flash` from this directory to install a fresh kernel.
+`make TOCK_BOARD=nrf51dk flash` to install a fresh kernel.
+
+You can omit `TOCK_BOARD` if you run `make flash` in the nrf51dk directory.
 
 ### Programming user-level applications
 
 After building (`make` in the application folder), you can program an
 application using tockloader:
 
-    tockloader install --jtag --board nrf51dk --arch cortex-m0 build/blink.tab
+    tockloader install --jtag --board nrf51dk --arch cortex-m0
+    
+If you run this in the application folder, `tockloader` will automatically
+find the tab to flash, otherwise you need to specify the path.
 
 ### Debugging
 
