@@ -30,9 +30,9 @@ macro_rules! client_err {
 }
 
 /// State for managing the USB controller
-#[repr(C)]
+#[repr(C)]         // This ensures the `descriptors` field is laid out first
+#[repr(align(8))]  // This provides the required alignment for the `descriptors` field
 pub struct Usbc<'a> {
-    _pad: u64,  // Will this give us eight-byte alignment for descriptors?
     descriptors: [Endpoint; 8],
     client: Option<&'a hil::usb::Client>,
     state: MapCell<State>,
@@ -105,7 +105,6 @@ impl<'a> Usbc<'a> {
                            new_endpoint(),
                            new_endpoint(),
                            new_endpoint() ],
-            _pad: 0,
         }
     }
 
@@ -192,10 +191,6 @@ impl<'a> Usbc<'a> {
                         USBCON_USBE.write(true);
 
                         UDESC.write(&self.descriptors as *const _ as u32);
-                        if UDESC.read() != &self.descriptors as *const _ as u32 {
-                            // XXX We are waiting for the feature #[repr(align = "8")]
-                            panic!("Unaligned USB descriptors");
-                        }
 
                         // Device interrupts
                         let udints = // UDINT_SUSP |
