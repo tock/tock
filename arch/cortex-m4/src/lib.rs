@@ -141,20 +141,16 @@ pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *con
 #[inline(never)]
 /// r0 is top of user stack, r1 Process GOT
 pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
-                                        process_got: *const u8,
                                         process_regs: &mut [usize; 8])
                                         -> *mut u8 {
     asm!("
     /* Load non-hardware-stacked registers from Process stack */
-    ldmia $3, {r4-r11}
+    ldmia $2, {r4-r11}
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, $0
 
-    /* Set PIC base pointer to the Process GOT */
-    mov r9, $2
-
-    /* Ensure that $3 is stored in a callee saved register */
-    mov r0, $3
+    /* Ensure that $2 is stored in a callee saved register */
+    mov r0, $2
 
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
@@ -165,7 +161,7 @@ pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
 
     mrs $0, PSP /* PSP into r0 */"
     : "=r"(user_stack)
-    : "r"(user_stack), "r"(process_got), "r"(process_regs)
+    : "r"(user_stack), "r"(process_regs)
     : "r4","r5","r6","r7","r8","r9","r10","r11");
     user_stack as *mut u8
 }
