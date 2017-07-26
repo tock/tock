@@ -4,7 +4,25 @@
 //!
 //! ## Instantiation
 //!
-//! _TODO_
+//! The `UsbSyscallDriver` must be created by passing a reference to something
+//! that implements `hil::usb::Client` (that is, something that is connected to
+//! the USBC), as well as a `Container` for managing application requests.  For
+//! example:
+//!
+//! ```rust
+//! // Configure the USB controller
+//! let usb_client = static_init!(
+//!     capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
+//!     capsules::usbc_client::Client::new(&sam4l::usbc::USBC));
+//! sam4l::usbc::USBC.set_client(usb_client);
+//!
+//! // Configure the USB userspace driver
+//! let usb_driver = static_init!(
+//!     capsules::usb_user::UsbSyscallDriver<'static,
+//!         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
+//!     capsules::usb_user::UsbSyscallDriver::new(
+//!         usb_client, kernel::Container::create()));
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver, ReturnCode};
