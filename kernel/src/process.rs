@@ -8,7 +8,7 @@ use core::{mem, ptr, slice, str};
 use core::cell::Cell;
 use core::fmt::Write;
 use core::intrinsics;
-use core::ptr::{read_volatile, write_volatile};
+use core::ptr::{read_volatile, write_volatile, write};
 
 use platform::mpu;
 use returncode::ReturnCode;
@@ -1142,7 +1142,11 @@ impl<'a> Process<'a> {
         if (*ctr_ptr).is_null() {
             self.alloc(mem::size_of::<T>()).map(|root_arr| {
                 let root_ptr = root_arr.as_mut_ptr() as *mut T;
-                *root_ptr = Default::default();
+                // Initialize the container contents using ptr::write, to
+                // ensure that we don't try to drop the contents of
+                // uninitialized memory when T implements Drop.
+                write(root_ptr, Default::default());
+                // Record the location in the container pointer.
                 write_volatile(ctr_ptr, root_ptr);
                 root_ptr
             })
