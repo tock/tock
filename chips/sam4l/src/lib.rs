@@ -18,6 +18,7 @@ mod helpers;
 pub mod chip;
 pub mod ast;
 pub mod bpm;
+pub mod bscif;
 pub mod dma;
 pub mod i2c;
 pub mod spi;

@@ -11,7 +11,7 @@ pub enum AccessPermission {
     Reserved = 0b100, //.............. undef       undef
     PrivilegedOnlyReadOnly = 0b101, // R-          --
     ReadOnly = 0b110, //.............. R-          R-
-    ReadOnlyAlais = 0b111, //......... R-          R-
+    ReadOnlyAlias = 0b111, //......... R-          R-
 }
 
 #[derive(Debug)]
@@ -50,9 +50,16 @@ impl Region {
 }
 
 pub trait MPU {
-    /// Enables MPU, allowing privileged software access to the default memory
-    /// map.
+    /// Enable the MPU.
+    ///
+    /// Both privileged and unprivileged code are subject to the constraints of
+    /// the active MPU regions. However, while unprivileged code cannot access
+    /// any memory space that is is not explicitly authorized to, privileged
+    /// code can access all unprotected (background) memory.
     fn enable_mpu(&self);
+
+    /// Completely disable the MPU.
+    fn disable_mpu(&self);
 
     /// Creates a new MPU-specific memory protection region
     ///
@@ -78,6 +85,8 @@ pub trait MPU {
 /// Noop implementation of MPU trait
 impl MPU for () {
     fn enable_mpu(&self) {}
+
+    fn disable_mpu(&self) {}
 
     fn create_region(_: usize,
                      _: usize,

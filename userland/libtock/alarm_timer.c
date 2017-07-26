@@ -128,7 +128,8 @@ uint32_t alarm_read(void) {
 // Timer implementation
 
 void timer_in(uint32_t ms, subscribe_cb cb, void* ud, tock_timer_t *timer) {
-  uint32_t interval   = ms * alarm_internal_frequency() / 1000;
+  uint32_t frequency  = alarm_internal_frequency();
+  uint32_t interval   = (ms / 1000) * frequency + (ms % 1000) * (frequency / 1000);
   uint32_t now        = alarm_read();
   uint32_t expiration = now + interval;
   alarm_at(expiration, cb, ud, &timer->alarm);
@@ -148,7 +149,8 @@ static void repeating_cb( uint32_t now,
 }
 
 void timer_every(uint32_t ms, subscribe_cb cb, void* ud, tock_timer_t* repeating) {
-  uint32_t interval = ms * alarm_internal_frequency() / 1000;
+  uint32_t frequency = alarm_internal_frequency();
+  uint32_t interval  = (ms / 1000) * frequency + (ms % 1000) * (frequency / 1000);
 
   repeating->interval = interval;
   repeating->cb       = cb;

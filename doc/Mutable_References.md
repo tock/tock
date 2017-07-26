@@ -13,7 +13,7 @@ prevent race conditions and make it impossible to write code that produces
 dangling pointers.
 
 Borrowing is the Rust mechanism to allow references to
-memory. Similarly references in C++ and other languages, borrows make
+memory. Similar to references in C++ and other languages, borrows make
 it possible to efficiently pass large structures by passing pointers
 rather than copying the entire structure.  The Rust compiler, however,
 limits borrows so that they cannot create race conditions, which are
@@ -182,4 +182,70 @@ TakeCell contains. So in this case, `cb` is the reference to an
 `SpiMasterClient`. Note that the closure passed to `client.map` then
 itself contains a closure, which uses `cb` to invoke a callback passing
 `txbuf`.
+
+
+#### `map` variants
+
+`TakeCell.map()` provides a convenient method for interacting with a
+`TakeCell`'s stored contents, but it also hides the case when the `TakeCell` is
+empty by simply not executing the closure. To allow for handling the cases when
+the `TakeCell` is empty, rust (and by extension Tock) provides additional
+functions.
+
+The first is `.map_or()`. This is useful for returning a value both when the
+`TakeCell` is empty and when it has a contained value. For example, rather than:
+
+```rust
+let return = if txbuf.is_some() {
+    txbuf.map(|txbuf| {
+        write_done(txbuf);
+    });
+    ReturnCode::SUCCESS
+} else {
+    ReturnCode::ERESERVE
+};
+```
+
+`.map_or()` allows us to do this instead:
+
+```rust
+let return = txbuf.map_or(ReturnCode::ERESERVE, |txbuf| {
+    write_done(txbuf);
+    ReturnCode::SUCCESS
+});
+```
+
+If the `TakeCell` is empty, the first argument (the error code) is returned,
+otherwise the closure is executed and `SUCCESS` is returned.
+
+Sometimes we may want to execute different code based on whether the `TakeCell`
+is empty or not. Again, we could do this:
+
+```rust
+if txbuf.is_some() {
+    txbuf.map(|txbuf| {
+        write_done(txbuf);
+    });
+} else {
+    write_done_failure();
+};
+```
+
+Instead, however, we can use the `.map_or_else()` function. This allows us to
+pass in two closures, one for if the `TakeCell` is empty, and one for if it has
+contents:
+
+```rust
+txbuf.map_or_else(|| {
+    write_done_failure();
+}, |txbuf| {
+    write_done(txbuf);
+});
+```
+
+Not in both the `.map_or()` and `.map_or_else()` cases, the first argument
+corresponds to when the `TakeCell` is empty.
+
+
+## `MapCell` Version
 

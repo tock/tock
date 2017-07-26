@@ -1,4 +1,6 @@
-# Application Code
+Userland
+========
+
 This document explains how application code works in Tock. This is not a guide
 to creating your own applications, but rather documentation of the design
 thoughts behind how applications function.
@@ -16,15 +18,22 @@ thoughts behind how applications function.
 - [Application Entry Point](#application-entry-point)
 - [Stack and Heap](#stack-and-heap)
 - [Debugging](#debugging)
-- [Libraries](#libraries)
-  * [Newlib](#newlib)
-  * [libtock](#libtock)
-- [Style & Format](#style--format)
-- [Related](#related)
+- [C Applications](#c-applications)
+  * [Entry Point](#entry-point)
+  * [Stack and Heap](#stack-and-heap-1)
+  * [Libraries](#libraries)
+    + [Newlib](#newlib)
+    + [libtock](#libtock)
+    + [libc++](#libc)
+    + [libnrfserialization](#libnrfserialization)
+    + [lua53](#lua53)
+  * [Style & Format](#style--format)
+- [Rust Applications](#rust-applications)
 
 <!-- tocstop -->
 
 ## Overview of Applications in Tock
+
 Applications in Tock are the user-level code meant to accomplish some type of
 task for the end user. Applications are distinguished from kernel code which
 handles device drivers, chip-specific details, and general operating system
@@ -56,6 +65,7 @@ interact with hardware, applications must make calls to the kernel.
 
 
 ## System Calls
+
 System calls (aka syscalls) are used to send commands to the kernel. These
 could include commands to drivers, subscriptions to callbacks, granting of
 memory to the kernel so it can store data related to the application,
@@ -87,6 +97,7 @@ documentation](./Syscalls.md).
 
 
 ## Callbacks
+
 Tock is designed to support embedded applications, which often handle
 asynchronous events through the use of [callback
 functions](https://en.wikipedia.org/wiki/Callback_(computer_programming)). For
@@ -138,29 +149,26 @@ See `ipc.h` in `libtock` for more information on these functions.
 
 __Warning: Unstable__
 
-Applications should define a `main` method:
+An application specifies the first function the kernel should call by setting
+the variable `init_fn_offset` in its TBF header. This function should have the
+following signature:
 
-    int main(void)
-
-Currently, main receives no arguments and its return value is ignored.
-Applications **should** return 0 from `main`.  Applications are not terminated
-when `main` returns, rather an implicit `while (1) { yield(); }` follows
-`main`, allowing applications to set up a series of event subscriptions in
-their `main` method and then return.
+```c
+void _start(void* mem_start, void* app_heap_break, void* kernel_memory_break);
+```
 
 ## Stack and Heap
-Applications can specify their required stack and heap sizes by defining the
-make variables `STACK_SIZE` and `APP_HEAP_SIZE`, which default to 2K and 1K
-respectively as of this writing.  Note that the Tock kernel treats these as
-minimum values, depending on the underlying platform, the stack and heap may be
-larger than requested, but will never be smaller.
+
+Applications can memory requirements by setting the `minimum_ram_size` variable
+in their TBF headers. Note that the Tock kernel treats this as a minimum,
+depending on the underlying platform, the amount of memory may be larger than
+requested, but will never be smaller.
 
 If there is insufficient memory to load your application, the kernel will fail
 during loading and print a message.
 
-If an application exceeds its alloted memory during runtime, the
-application will crash (see the [Debugging](#debugging) section for an
-example).
+If an application exceeds its alloted memory during runtime, the application
+will crash (see the [Debugging](#debugging) section for an example).
 
 ## Debugging
 
@@ -168,9 +176,13 @@ If an application crashes, Tock can provide a lot of useful information.
 By default, when an application crashes Tock prints a crash dump over the
 platform's default console interface.
 
-Note that because an application is relocated when it is loaded, this trace
-will print both relocated addresses and the original symbol address where
-appropriate.
+Note that because an application is relocated when it is loaded, the binaries
+and debugging .lst files generated when the app was originally compiled will not
+match the actual executing application on the board. To generate matching files
+(and in particular a matching .lst file), you can use the `make debug` target
+app directory to create an appropriate .lst file that matches how the
+application was actually executed. See the end of the debug print out for an
+example command invocation.
 
 ```
 ---| Fault Status |---
@@ -181,53 +193,92 @@ Fault Status Register (CFSR):       0x00000082
 Hard Fault Status Register (HFSR):  0x40000000
 
 ---| App Status |---
-App: sensors
-[Fault]  -  Events Queued: 0  Syscall Count: 24
+App: printf_long   -   [Yielded]
+ Events Queued: 0   Syscall Count: 12   Last Syscall: YIELD
 
-╔═══════════╤══════════════════════════════════════════╗
-║  Address  │ Region Name    Used | Allocated (bytes)  ║
-╚0x20006000═╪══════════════════════════════════════════╝
-            │ ▼ Grant         356 |   1024
- 0x20005E9C ┼───────────────────────────────────────────
-            │ Unused
- 0x20004FB4 ┼───────────────────────────────────────────
-            │ ▲ Heap         1580 |   1024 EXCEEDED!     S
- 0x20004988 ┼─────────────────────────────────────────── R
-            │ ▼ Stack          48 |   2048               A
- 0x20004958 ┼─────────────────────────────────────────── M
-            │ Unused
- 0x20004188 ┼───────────────────────────────────────────
-            │ Data            392 |    392
- 0x20004000 ┴───────────────────────────────────────────
-            .....
- 0x00034000 ┬───────────────────────────────────────────
-            │ Unused
- 0x00033BBF ┼─────────────────────────────────────────── F
-            │ Data            329                        L
- 0x00033A76 ┼─────────────────────────────────────────── A
-            │ Text          14842                        S
- 0x0003007C ┼─────────────────────────────────────────── H
-            │ Header          124
- 0x00030000 ┴───────────────────────────────────────────
+ ╔═══════════╤══════════════════════════════════════════╗
+ ║  Address  │ Region Name    Used | Allocated (bytes)  ║
+ ╚0x20006000═╪══════════════════════════════════════════╝
+             │ ▼ Grant         332 |    332
+  0x20005EB4 ┼───────────────────────────────────────────
+             │ Unused
+  0x2000506C ┼───────────────────────────────────────────
+             │ ▲ Heap         1596 |   5252               S
+  0x20004A30 ┼─────────────────────────────────────────── R
+             │ Data              0 |      0               A
+  0x20004800 ┼─────────────────────────────────────────── M
+             │ ▼ Stack         880 |   2048
+  0x200046C0 ┼───────────────────────────────────────────
+             │ Unused
+  0x20004000 ┴───────────────────────────────────────────
+             .....
+  0x00031000 ┬─────────────────────────────────────────── F
+             │ App Flash      4000                        L
+  0x00030060 ┼─────────────────────────────────────────── A
+             │ Protected        96                        S
+  0x00030000 ┴─────────────────────────────────────────── H
 
- R0 : 0x00000000    R6 : 0x00000000
- R1 : 0x00000005    R7 : 0x20004978
- R2 : 0x00000103    R8 : 0x00000000
- R3 : 0x00000000    R10: 0x00000000
- R4 : 0x00000000    R11: 0x00000000
- R5 : 0x00000000    R12: 0x00000000
- R9 : 0x20004000 (Static Base Register)
- SP : 0x20004070 (Process Stack Pointer)
- LR : 0x00031667 [0x800015EA in lst file]
- PC : 0x0003036A [0x800002EE in lst file]
+  R0 : 0x20004800    R6 : 0x200048CC
+  R1 : 0x00000000    R7 : 0x00000000
+  R2 : 0x00000000    R8 : 0x00000000
+  R3 : 0x00000000    R10: 0x00000000
+  R4 : 0x00000000    R11: 0x00000000
+  R5 : 0x00000000    R12: 0x00000000
+  R9 : 0x20004800 (Static Base Register)
+  SP : 0x200047E0 (Process Stack Pointer)
+  LR : 0x00030093
+  PC : 0x00000000
+ YPC : 0x0003010C
+
+ APSR: N 0 Z 0 C 0 V 0 Q 0
+       GE 0 0 1 1
+ IPSR: Exception Type - IRQn
+ EPSR: ICI.IT 0x00
+       ThumbBit false !!ERROR - Cortex M Thumb only!
+ To debug, run `make debug RAM_START=0x20004000 FLASH_INIT=0x30089`
+ in the app's folder.
 ```
 
-## Libraries
+## C Applications
+
+The bulk of Tock applications are written in C.
+
+### Entry Point
+
+Applications written in C that compile against libtock should define a `main`
+method with the following signature:
+
+```c
+int main(void);
+```
+
+Applications **should** return 0 from `main`, but `main` is called from `_start`
+and includes an implicit `while()` loop:
+
+```c
+void _start(void* mem_start, void* app_heap_break ,void* kernel_memory_break) {
+  main();
+  while (1) {
+    yield();
+  }
+}
+```
+
+Applications should set up a series of event subscriptions in their `main`
+method and then return.
+
+### Stack and Heap
+
+Applications can specify their required stack and heap sizes by defining the
+make variables `STACK_SIZE` and `APP_HEAP_SIZE`, which default to 2K and 1K
+respectively as of this writing.
+
+### Libraries
+
 Application code does not need to stand alone, libraries are available that can
 be utilized!
 
-
-### Newlib
+#### Newlib
 Application code written in C has access to most of the [C standard
 library](https://en.wikipedia.org/wiki/C_standard_library) which is implemented
 by [Newlib](https://en.wikipedia.org/wiki/Newlib). Newlib is focused on
@@ -236,8 +287,7 @@ providing capabilities for embedded systems. It provides interfaces such as
 library are available to applications. The built configuration of Newlib is
 specified in [build.sh](../userland/newlib/build.sh).
 
-
-### libtock
+#### libtock
 In order to interact with the Tock kernel, application code can use the
 `libtock` library. The majority of `libtock` are wrappers for interacting
 with Tock drivers through system calls. They provide the user a meaningful
@@ -245,7 +295,7 @@ function name and arguments and then internally translate these into a
 `command`, `subscribe`, etc. Where it makes sense, the libraries also provide
 a synchronous interface to a driver using an internal callback and `yield_for`
 (example:
-[`tmp006_read_sync`](https://github.com/helena-project/tock/blob/master/userland/libtock/tmp006.c#L20))
+[`tmp006_read_sync`](https://github.com/helena-project/tock/blob/master/userland/libtock/tmp006.c#L19))
 
 `libtock` also provides the startup code for applications
 ([`crt1.c`](https://github.com/helena-project/tock/blob/master/userland/libtock/crt1.c)),
@@ -253,15 +303,25 @@ an implementation for the system calls
 ([`tock.c`](https://github.com/helena-project/tock/blob/master/userland/libtock/tock.c)),
 and pin definitions for platforms.
 
+#### libc++
+Provides support for C++ apps. See `examples/cxx_hello`.
 
-## Style & Format
+#### libnrfserialization
+Provides a pre-compiled library for using the Nordic nRF serialization library
+for writing BLE apps.
+
+#### lua53
+Provides support for running a lua runtime as a Tock app. See
+`examples/lua-hello`.
+
+### Style & Format
 
 We try to keep a consistent style in mainline userland code. For C/C++, we use
 [uncrustify](https://github.com/uncrustify/uncrustify). High level:
 
-  - Two space character indents
-  - Braces on the same line
-  - Spaces around most operators
+  - Two space character indents.
+  - Braces on the same line.
+  - Spaces around most operators.
 
 For details, see the [configuration](../userland/tools/uncrustify).
 
@@ -271,9 +331,7 @@ Travis will automatically check formatting. You can format code locally using
 files when it runs.
 
 
-## Related
+## Rust Applications
 
- * For general information on Tock: [Overview](./Overview.md)
- * For more information on system calls: [Syscalls](./Syscalls.md)
- * For more information on compiling app and app binary format: [Compilation](./Compilation.md)
-
+See the [libtock-rs](https://github.com/helena-project/libtock-rs) repo for more
+information on writing userland rust apps.

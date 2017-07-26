@@ -239,9 +239,9 @@ int ltc294x_shutdown_sync(void) {
 
 int ltc294x_convert_to_coulomb_uah(int c, int Rsense, uint16_t prescaler, ltc294x_model_e model) {
   if (model == LTC2941 || model == LTC2942) {
-    return (int)(c * 0.085 * (50.0 / Rsense) * (prescaler / 128.0));
+    return (int)(c * 85 * (50.0 / Rsense) * (prescaler / 128.0));
   } else {
-    return (int)(c * 0.340 * (50.0 / Rsense) * (prescaler / 4096.0));
+    return (int)(c * 340 * (50.0 / Rsense) * (prescaler / 4096.0));
   }
 }
 

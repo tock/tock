@@ -36,6 +36,10 @@ void* tock_app_memory_ends_at(void);
 void* tock_app_flash_begins_at(void);
 void* tock_app_flash_ends_at(void);
 void* tock_app_grant_begins_at(void);
+int tock_app_number_writeable_flash_regions(void);
+void* tock_app_writeable_flash_region_begins_at(int region_index);
+void* tock_app_writeable_flash_region_ends_at(int region_index);
+
 
 // Checks to see if the given driver number exists on this platform.
 bool driver_exists(uint32_t driver);

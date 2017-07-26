@@ -10,7 +10,7 @@
 #include <tock.h>
 
 int main (void) {
-  putstr("[SI7021] Test App\n");
+  printf("[SI7021] Test App\n");
 
   // Start a measurement
   int temp;

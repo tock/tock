@@ -77,6 +77,8 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 
 These provide common and better abstractions for userspace.
 
+- **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
+  own flash.
 - **[Button](src/button.rs)**: Detect button presses.
 - **[Console](src/console.rs)**: UART console support.
 - **[LED](src/led.rs)**: Turn on and off LEDs.

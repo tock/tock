@@ -20,12 +20,6 @@ MEMORY {
 }
 
 SECTIONS {
-/* Load information, used by runtime to load app */
-    .load_info :
-    {
-        KEEP(*(.load_info))
-    } > FLASH =0xFF
-
 /* Text section, Code! */
     .text :
     {
@@ -35,6 +29,12 @@ SECTIONS {
         *(.rodata*)
         KEEP (*(.syscalls))
         _etext = .;
+    } > FLASH =0xFF
+
+/* App state section. Used for persistent app data. */
+    .app_state :
+    {
+        KEEP (*(.app_state))
     } > FLASH =0xFF
 
 /* ARM Exception support

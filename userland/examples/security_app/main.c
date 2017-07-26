@@ -42,8 +42,8 @@ static void gpio_cb (int pin_num,
 //  * Accelerometer (movement)
 //  and makes that available over RF communication
 int main(void) {
-  putstr("*********************\n");
-  putstr("Security Application\n");
+  printf("*********************\n");
+  printf("Security Application\n");
 
   // configure pins
   gpio_interrupt_callback(gpio_cb, NULL);
@@ -60,12 +60,8 @@ int main(void) {
     yield();
     led_toggle(0);
 
-    {
-      char buf[64];
-      sprintf(buf, "\tPIR:\t\t%d\n\tReed Switch:\t%d\n\n",
-              sensor_data.pir, sensor_data.reed_switch);
-      putstr(buf);
-    }
+    printf("\tPIR:\t\t%d\n\tReed Switch:\t%d\n\n",
+           sensor_data.pir, sensor_data.reed_switch);
   }
 
   return 0;
