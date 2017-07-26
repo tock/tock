@@ -28,11 +28,15 @@ static void callback(int status, __attribute__((unused)) int v1,
 
 int usb_enable_and_attach(void)
 {
-  struct data d = { .fired = false };
-  usb_subscribe(callback, (void *) &d);
+  int status;
 
-  int status = usb_enable_and_attach_async();
-  if (status != TOCK_SUCCESS) {
+  struct data d = { .fired = false };
+
+  if ((status = usb_subscribe(callback, (void *) &d)) != TOCK_SUCCESS) {
+    return status;
+  }
+
+  if ((status = usb_enable_and_attach_async()) != TOCK_SUCCESS) {
     return status;
   }
 
