@@ -16,6 +16,7 @@ use kernel::common::VolatileCell;
 use kernel::common::take_cell::MapCell;
 
 use nvic;
+use pm;
 use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
 use scif;
 
@@ -119,16 +120,20 @@ impl<'a> Usbc<'a> {
                     client_err!("Already attached");
                 }
                 State::Idle(mode) => {
-                    // XXX: This setting works only because the imix configures DFLL0 to
-                    // produce 48MHz
-                    scif::generic_clock_enable(scif::GenericClock::GCLK7, scif::ClockSource::DFLL0);
+                    if pm::get_system_frequency() == 48000000 {
+                        // XX: not clear that this always results in a usable USB clock
+                        scif::generic_clock_enable(scif::GenericClock::GCLK7, scif::ClockSource::CLK_HSB);
 
-                    while !USBSTA_CLKUSABLE.read() {}
+                        while !USBSTA_CLKUSABLE.read() {}
 
-                    UDCON_DETACH.write(false);
-                    debug!("Attached.");
+                        UDCON_DETACH.write(false);
+                        debug!("Attached.");
 
-                    *state = State::Active(mode);
+                        *state = State::Active(mode);
+                    }
+                    else {
+                        debug!("The system clock does not support USB");
+                    }
                 }
             }
         });
@@ -163,10 +168,6 @@ impl<'a> Usbc<'a> {
             match *state {
                 State::Reset => {
                     unsafe {
-                        /* XXX "To follow the usb data rate at 12Mbit/s in full-speed mode, the
-                         * CLK_USBC_AHB clock should be at minimum 12MHz."
-                         */
-
                         // Are the USBC clocks enabled at reset?
                         //   10.7.4 says no, but 17.5.3 says yes
                         // Also, "Being in Idle state does not require the USB clocks to be activated"
@@ -259,7 +260,7 @@ impl<'a> Usbc<'a> {
     }
 
     /// Configure and enable an endpoint
-    /// XXX: include addr and packetsize?
+    /// (XX: include addr and packetsize?)
     pub fn endpoint_enable(&self, endpoint: u32, cfg: EndpointConfig) {
         self.state.map(|state| {
             // Record config in case of later reset
@@ -299,7 +300,7 @@ impl<'a> Usbc<'a> {
         //      ERRORF | STALLED | CRCERR | RAMACERR
         endpoint_enable_only_interrupts(endpoint, RXSTP | RAMACERR);
 
-        // XXX: Set endpoint state to Init
+        // XX: Set endpoint state to Init
     }
 
     /// Set a client to receive data from the USBC
@@ -694,11 +695,11 @@ impl<'a> Usbc<'a> {
                         }
                     }
                     DeviceState::CtrlInDelay => {
-                        /* XXX: Spin fruitlessly */
+                        /* XX: Spin fruitlessly */
                     }
                 } // match dstate
 
-                // again = false; // XXX
+                // again = false; // XX
             } // while again
         } // for endpoint
     } // handle_device_interrupt
@@ -743,7 +744,7 @@ impl<'a> Usbc<'a> {
             Some(mode) => match mode {
                 Mode::Device{ speed, .. } => Some(speed),
                 Mode::Host => {
-                    None // XXX USBSTA.SPEED
+                    None // XX USBSTA.SPEED
                 }
             },
             _ => None
