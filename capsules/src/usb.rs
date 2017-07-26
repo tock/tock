@@ -1,8 +1,8 @@
 //! Platform-independent USB 2.0 protocol library
 
 use core::cell::Cell;
-use core::fmt;
 use core::convert::From;
+use core::fmt;
 use kernel::common::VolatileCell;
 
 /// The datastructure sent in a SETUP handshake
@@ -33,36 +33,36 @@ impl SetupData {
     /// If the `SetupData` represents a standard device request, return it
     pub fn get_standard_request(&self) -> Option<StandardDeviceRequest> {
         match self.request_type.request_type() {
-            RequestType::Standard =>
+            RequestType::Standard => {
                 match self.request_code {
-                    0 => Some(StandardDeviceRequest::GetStatus{
-                             recipient_index: self.index
-                         }),
-                    1 => Some(StandardDeviceRequest::ClearFeature{
+                    0 => Some(StandardDeviceRequest::GetStatus { recipient_index: self.index }),
+                    1 => {
+                        Some(StandardDeviceRequest::ClearFeature {
                             feature: FeatureSelector::get(self.value),
                             recipient_index: self.index,
-                         }),
-                    3 => Some(StandardDeviceRequest::SetFeature{
+                        })
+                    }
+                    3 => {
+                        Some(StandardDeviceRequest::SetFeature {
                             feature: FeatureSelector::get(self.value),
                             test_mode: (self.index >> 8) as u8,
                             recipient_index: self.index & 0xff,
-                         }),
-                    5 => Some(StandardDeviceRequest::SetAddress{
-                            device_address: self.value
-                         }),
+                        })
+                    }
+                    5 => Some(StandardDeviceRequest::SetAddress { device_address: self.value }),
                     6 => {
                         get_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
-                            Some(StandardDeviceRequest::GetDescriptor{
-                                    descriptor_type: dt,
-                                    descriptor_index: (self.value & 0xff) as u8,
-                                    lang_id: self.index,
-                                    requested_length: self.length,
+                            Some(StandardDeviceRequest::GetDescriptor {
+                                descriptor_type: dt,
+                                descriptor_index: (self.value & 0xff) as u8,
+                                lang_id: self.index,
+                                requested_length: self.length,
                             })
                         })
                     }
                     7 => {
                         get_set_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
-                            Some(StandardDeviceRequest::SetDescriptor{
+                            Some(StandardDeviceRequest::SetDescriptor {
                                 descriptor_type: dt,
                                 descriptor_index: (self.value & 0xff) as u8,
                                 lang_id: self.index,
@@ -71,16 +71,17 @@ impl SetupData {
                         })
                     }
                     8 => Some(StandardDeviceRequest::GetConfiguration),
-                    9 => Some(StandardDeviceRequest::SetConfiguration{
-                            configuration_value: (self.value & 0xff) as u8
-                         }),
-                    10 => Some(StandardDeviceRequest::GetInterface{
-                              interface: self.index
-                          }),
+                    9 => {
+                        Some(StandardDeviceRequest::SetConfiguration {
+                            configuration_value: (self.value & 0xff) as u8,
+                        })
+                    }
+                    10 => Some(StandardDeviceRequest::GetInterface { interface: self.index }),
                     11 => Some(StandardDeviceRequest::SetInterface),
                     12 => Some(StandardDeviceRequest::SynchFrame),
                     _ => None,
-                },
+                }
+            }
             _ => None,
         }
     }
@@ -88,40 +89,32 @@ impl SetupData {
 
 #[derive(Debug)]
 pub enum StandardDeviceRequest {
-    GetStatus{
-        recipient_index: u16,
-    },
-    ClearFeature{
+    GetStatus { recipient_index: u16 },
+    ClearFeature {
         feature: FeatureSelector,
         recipient_index: u16,
     },
-    SetFeature{
+    SetFeature {
         feature: FeatureSelector,
         test_mode: u8,
         recipient_index: u16,
     },
-    SetAddress{
-        device_address: u16,
-    },
-    GetDescriptor{
+    SetAddress { device_address: u16 },
+    GetDescriptor {
         descriptor_type: DescriptorType,
         descriptor_index: u8,
         lang_id: u16,
         requested_length: u16,
     },
-    SetDescriptor{
+    SetDescriptor {
         descriptor_type: DescriptorType,
         descriptor_index: u8,
         lang_id: u16,
         descriptor_length: u16,
     },
     GetConfiguration,
-    SetConfiguration{
-        configuration_value: u8,
-    },
-    GetInterface{
-        interface: u16,
-    },
+    SetConfiguration { configuration_value: u8 },
+    GetInterface { interface: u16 },
     SetInterface,
     SynchFrame,
 }
@@ -158,7 +151,7 @@ fn get_set_descriptor_type(byte: u8) -> Option<DescriptorType> {
         dt @ Some(DescriptorType::Device) => dt,
         dt @ Some(DescriptorType::Configuration) => dt,
         dt @ Some(DescriptorType::String) => dt,
-        _ => None
+        _ => None,
     }
 }
 
@@ -195,8 +188,11 @@ impl DeviceRequestType {
 
 impl fmt::Debug for DeviceRequestType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{{{:?}, {:?}, {:?}}}",
-               self.transfer_direction(), self.request_type(), self.recipient())
+        write!(f,
+               "{{{:?}, {:?}, {:?}}}",
+               self.transfer_direction(),
+               self.request_type(),
+               self.recipient())
     }
 }
 
@@ -250,8 +246,7 @@ pub trait Descriptor {
     fn write_to(&self, buf: &[Cell<u8>]) -> usize {
         if self.size() > buf.len() {
             0
-        }
-        else {
+        } else {
             self.write_to_unchecked(buf)
         }
     }
@@ -304,7 +299,7 @@ pub struct DeviceDescriptor {
 
 impl Default for DeviceDescriptor {
     fn default() -> Self {
-        DeviceDescriptor{
+        DeviceDescriptor {
             usb_release: 0x0200,
             class: 0,
             subclass: 0,
@@ -322,10 +317,12 @@ impl Default for DeviceDescriptor {
 }
 
 impl Descriptor for DeviceDescriptor {
-    fn size(&self) -> usize { 18 }
+    fn size(&self) -> usize {
+        18
+    }
 
     fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
-        buf[0].set(18);  // Size of descriptor
+        buf[0].set(18); // Size of descriptor
         buf[1].set(DescriptorType::Device as u8);
         put_u16(&buf[2..4], self.usb_release);
         buf[4].set(self.class);
@@ -344,12 +341,12 @@ impl Descriptor for DeviceDescriptor {
 }
 
 pub struct ConfigurationDescriptor {
-     pub num_interfaces: u8,
-     pub configuration_value: u8,
-     pub string_index: u8,
-     pub attributes: ConfigurationAttributes,
-     pub max_power: u8,   // in 2mA units
-     pub related_descriptor_length: usize,
+    pub num_interfaces: u8,
+    pub configuration_value: u8,
+    pub string_index: u8,
+    pub attributes: ConfigurationAttributes,
+    pub max_power: u8, // in 2mA units
+    pub related_descriptor_length: usize,
 }
 
 impl Default for ConfigurationDescriptor {
@@ -359,14 +356,16 @@ impl Default for ConfigurationDescriptor {
             configuration_value: 0,
             string_index: 0,
             attributes: ConfigurationAttributes::new(true, false),
-            max_power: 0,   // in 2mA units
-            related_descriptor_length: 0
+            max_power: 0, // in 2mA units
+            related_descriptor_length: 0,
         }
     }
 }
 
 impl Descriptor for ConfigurationDescriptor {
-    fn size(&self) -> usize { 9 }
+    fn size(&self) -> usize {
+        9
+    }
 
     fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
         buf[0].set(9); // Size of descriptor
@@ -386,9 +385,8 @@ pub struct ConfigurationAttributes(u8);
 
 impl ConfigurationAttributes {
     pub fn new(is_self_powered: bool, supports_remote_wakeup: bool) -> Self {
-        ConfigurationAttributes((1 << 7)
-                                | if is_self_powered { 1 << 6 } else { 0 }
-                                | if supports_remote_wakeup { 1 << 5 } else { 0 })
+        ConfigurationAttributes((1 << 7) | if is_self_powered { 1 << 6 } else { 0 } |
+                                if supports_remote_wakeup { 1 << 5 } else { 0 })
     }
 }
 
@@ -423,7 +421,9 @@ impl Default for InterfaceDescriptor {
 }
 
 impl Descriptor for InterfaceDescriptor {
-    fn size(&self) -> usize { 9 }
+    fn size(&self) -> usize {
+        9
+    }
 
     fn write_to_unchecked(&self, buf: &[Cell<u8>]) -> usize {
         buf[0].set(9); // Size of descriptor
@@ -453,7 +453,7 @@ impl<'a> Descriptor for LanguagesDescriptor<'a> {
         buf[0].set(len as u8);
         buf[1].set(DescriptorType::String as u8);
         for (i, lang) in self.langs.iter().enumerate() {
-            put_u16(&buf[2 + (2 * i) .. 4 + (2 * i)], *lang);
+            put_u16(&buf[2 + (2 * i)..4 + (2 * i)], *lang);
         }
         len
     }
@@ -479,7 +479,7 @@ impl<'a> Descriptor for StringDescriptor<'a> {
         for ch in self.string.chars() {
             let mut chbuf = [0; 2];
             for w in ch.encode_utf16(&mut chbuf) {
-                put_u16(&buf[i .. i+2], *w);
+                put_u16(&buf[i..i + 2], *w);
                 i += 2;
             }
         }

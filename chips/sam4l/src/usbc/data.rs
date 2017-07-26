@@ -2,21 +2,26 @@
 
 use core::fmt;
 use core::ptr;
-use usbc::common::register::*;
 use kernel::common::VolatileCell;
+use usbc::common::register::*;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Mode {
     Host,
-    Device { speed: Speed,
-             config: Option<EndpointConfig>,
-             state: DeviceState,
-           },
+    Device {
+        speed: Speed,
+        config: Option<EndpointConfig>,
+        state: DeviceState,
+    },
 }
 
 impl Mode {
     pub fn device_at_speed(speed: Speed) -> Mode {
-        Mode::Device{ speed: speed, config: None, state: DeviceState::Init }
+        Mode::Device {
+            speed: speed,
+            config: None,
+            state: DeviceState::Init,
+        }
     }
 }
 
@@ -37,7 +42,7 @@ impl ToWord for Mode {
     fn to_word(self) -> u32 {
         match self {
             Mode::Host => 0,
-            Mode::Device{ .. } => 1,
+            Mode::Device { .. } => 1,
         }
     }
 }
@@ -80,11 +85,12 @@ pub struct Bank {
 
 impl Bank {
     pub const fn new() -> Bank {
-        Bank { addr: VolatileCell::new(ptr::null_mut()),
-               packet_size: VolatileCell::new(PacketSize(0)),
-               ctrl_status: VolatileCell::new(ControlStatus(0)),
-               _pad: 0,
-             }
+        Bank {
+            addr: VolatileCell::new(ptr::null_mut()),
+            packet_size: VolatileCell::new(PacketSize(0)),
+            ctrl_status: VolatileCell::new(ControlStatus(0)),
+            _pad: 0,
+        }
     }
 
     pub fn set_addr(&self, addr: *mut u8) {
@@ -116,8 +122,7 @@ pub struct PacketSize(u32);
 
 impl PacketSize {
     pub fn new(byte_count: u32, multi_packet_size: u32, auto_zlp: bool) -> PacketSize {
-        PacketSize((byte_count & 0x7fff) |
-                   ((multi_packet_size & 0x7fff) << 16) |
+        PacketSize((byte_count & 0x7fff) | ((multi_packet_size & 0x7fff) << 16) |
                    ((if auto_zlp { 1 << 31 } else { 0 })))
     }
 
@@ -148,8 +153,12 @@ impl PacketSize {
 
 impl fmt::Debug for PacketSize {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "PacketSize {:x} {{ byte_count: {}, multi_packet_size: {}, {}auto_zlp }}",
-               self.0, self.byte_count(), self.multi_packet_size(), bang(self.auto_zlp()))
+        write!(f,
+               "PacketSize {:x} {{ byte_count: {}, multi_packet_size: {}, {}auto_zlp }}",
+               self.0,
+               self.byte_count(),
+               self.multi_packet_size(),
+               bang(self.auto_zlp()))
     }
 }
 
@@ -173,10 +182,12 @@ impl ControlStatus {
 
 impl fmt::Debug for ControlStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ControlStatus {:x} {{ {}underflow {}overflow {}crcerror }}",
-               self.0, bang(self.get_status_underflow()),
-                       bang(self.get_status_overflow()),
-                       bang(self.get_status_crcerror()))
+        write!(f,
+               "ControlStatus {:x} {{ {}underflow {}overflow {}crcerror }}",
+               self.0,
+               bang(self.get_status_underflow()),
+               bang(self.get_status_overflow()),
+               bang(self.get_status_crcerror()))
     }
 }
 
@@ -194,12 +205,10 @@ impl EndpointConfig {
                size: EndpointSize,
                dir: EndpointDirection,
                typ: EndpointType,
-               redir: EndpointIndex) -> EndpointConfig {
-        EndpointConfig(((banks as u32) << 2) |
-                       ((size as u32) << 4) |
-                       ((dir as u32) << 8) |
-                       ((typ as u32) << 11) |
-                       (redir.to_word() << 16))
+               redir: EndpointIndex)
+               -> EndpointConfig {
+        EndpointConfig(((banks as u32) << 2) | ((size as u32) << 4) | ((dir as u32) << 8) |
+                       ((typ as u32) << 11) | (redir.to_word() << 16))
     }
 }
 
@@ -246,11 +255,15 @@ impl EndpointIndex {
 }
 
 impl From<EndpointIndex> for usize {
-    fn from(ei: EndpointIndex) -> usize { ei.0 as usize }
+    fn from(ei: EndpointIndex) -> usize {
+        ei.0 as usize
+    }
 }
 
 impl ToWord for EndpointIndex {
-    fn to_word(self) -> u32 { self.0 }
+    fn to_word(self) -> u32 {
+        self.0
+    }
 }
 
 pub struct HexBuf<'a>(pub &'a [u8]);

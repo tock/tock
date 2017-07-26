@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <usb.h>
 #include <timer.h>
+#include <usb.h>
 
 int main(void) {
   int r;
@@ -17,8 +17,7 @@ int main(void) {
 
   if (r == TOCK_SUCCESS) {
     printf("Enabled and attached\n");
-  }
-  else {
+  } else {
     printf("Attach failed with status %d\n", r);
   }
 }

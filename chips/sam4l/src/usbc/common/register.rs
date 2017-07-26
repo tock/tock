@@ -42,17 +42,23 @@ pub trait ToWord {
 
 impl ToWord for u32 {
     #[inline]
-    fn to_word(self) -> u32 { self }
+    fn to_word(self) -> u32 {
+        self
+    }
 }
 
 impl ToWord for u8 {
     #[inline]
-    fn to_word(self) -> u32 { self as u32 }
+    fn to_word(self) -> u32 {
+        self as u32
+    }
 }
 
 impl ToWord for bool {
     #[inline]
-    fn to_word(self) -> u32 { if self { 1 } else { 0 } }
+    fn to_word(self) -> u32 {
+        if self { 1 } else { 0 }
+    }
 }
 
 pub trait FromWord {
@@ -61,7 +67,9 @@ pub trait FromWord {
 
 impl FromWord for u32 {
     #[inline]
-    fn from_word(w: u32) -> Self { w }
+    fn from_word(w: u32) -> Self {
+        w
+    }
 }
 
 impl FromWord for bool {

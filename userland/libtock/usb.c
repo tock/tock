@@ -17,9 +17,10 @@ struct data {
   int status;
 };
 
-static void callback(int status, __attribute__((unused)) int v1,
-                                 __attribute__((unused)) int v2,
-                                 void *data)
+static void callback(int status,
+                     __attribute__((unused)) int v1,
+                     __attribute__((unused)) int v2,
+                     void *data)
 {
   struct data *d = data;
   d->fired  = true;

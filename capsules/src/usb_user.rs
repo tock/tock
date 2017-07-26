@@ -8,8 +8,8 @@
 
 use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver, ReturnCode};
-use kernel::process::Error;
 use kernel::hil;
+use kernel::process::Error;
 
 #[derive(Default)]
 pub struct App {
@@ -24,8 +24,8 @@ pub struct UsbSyscallDriver<'a, C: hil::usb::Client + 'a> {
 }
 
 impl<'a, C> UsbSyscallDriver<'a, C>
-    where C: hil::usb::Client {
-
+    where C: hil::usb::Client
+{
     pub fn new(usbc_client: &'a C, apps: Container<App>) -> Self {
         UsbSyscallDriver {
             usbc_client: usbc_client,
@@ -78,8 +78,8 @@ enum Request {
 }
 
 impl<'a, C> Driver for UsbSyscallDriver<'a, C>
-    where C: hil::usb::Client {
-
+    where C: hil::usb::Client
+{
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // Set callback for result
@@ -106,7 +106,8 @@ impl<'a, C> Driver for UsbSyscallDriver<'a, C>
 
             // Enable USB controller, attach to bus, and service default control endpoint
             1 => {
-                let result = self.apps.enter(appid, |app, _| {
+                let result = self.apps
+                    .enter(appid, |app, _| {
                         if app.awaiting.is_some() {
                             // Each app may make only one request at a time
                             ReturnCode::EBUSY
