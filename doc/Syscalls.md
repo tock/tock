@@ -117,7 +117,7 @@ events.
 
 The Subscribe syscall takes two arguments:
 
- - `subscribe_number`: An integer index for which function is being subscribed
+ - `subscribe_number`: An integer index for which function is being subscribed.
  - `callback`: A pointer to a callback function to be executed when this event
  occurs. All callbacks conform to the C-style function signature:
  `void callback(int arg1, int arg2, int arg3, void* data)`.
