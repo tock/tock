@@ -3,29 +3,153 @@
 
 extern crate kernel;
 
+pub mod systick;
+
+#[cfg(target_os = "none")]
+#[no_mangle]
+#[naked]
+pub unsafe extern "C" fn systick_handler() {
+    asm!("
+        /* Skip saving process state if not coming from user-space */
+        ldr r0, EXC_RETURN_MSP_SYSTICK
+        cmp lr, r0
+        bne _systick_handler_no_stacking
+
+        /* We need the most recent kernel's version of r0, which points */
+        /* to the Process struct's stored registers field. The kernel's r0 */
+        /* lives in the first word of the hardware stacked registers on MSP */
+        mov r0, sp
+        ldr r0, [r0, #0]
+
+        /* Push non-hardware-stacked registers onto Process stack */
+        /* r0 points to user stack (see to_kernel) */
+        str r4, [r0, #16]
+        str r5, [r0, #20]
+        str r6, [r0, #24]
+        str r7, [r0, #28]
+
+        mov  r4, r8
+        mov  r5, r9
+        mov  r6, r10
+        mov  r7, r11
+
+        str r4, [r0, #0]
+        str r5, [r0, #4]
+        str r6, [r0, #8]
+        str r7, [r0, #12]
+
+    _systick_handler_no_stacking:
+        ldr r0, =OVERFLOW_FIRED
+        movs r1, #1
+        str r1, [r0, #0]
+
+        /* Set thread mode to privileged */
+        movs r0, #0
+        msr CONTROL, r0
+
+        ldr r1, EXC_RETURN_MSP_SYSTICK
+        mov lr, r1
+
+        /* This word needs to be near the PC of the instruction that ref's it */
+        .align 4
+        EXC_RETURN_MSP_SYSTICK:
+          .word 0xFFFFFFF9
+         ");
+}
+
 #[no_mangle]
 #[naked]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn SVC_Handler() {
     asm!("
-  ldr r0, EXC_RETURN_MSP
+  ldr r0, EXC_RETURN_MSP_SVC
   cmp lr, r0
   bne to_kernel
-  ldr r1, EXC_RETURN_PSP
+  ldr r1, EXC_RETURN_PSP_SVC
   bx r1
 
 to_kernel:
   ldr r0, =SYSCALL_FIRED
   movs r1, #1
   str r1, [r0, #0]
-  ldr r1, EXC_RETURN_MSP
+  ldr r1, EXC_RETURN_MSP_SVC
   bx r1
 
-EXC_RETURN_MSP:
+  /* This word needs to be near the PC of the instruction that ref's it */
+  .align 4
+EXC_RETURN_MSP_SVC:
   .word 0xFFFFFFF9
-EXC_RETURN_PSP:
+EXC_RETURN_PSP_SVC:
   .word 0xFFFFFFFD
   ");
+}
+
+#[no_mangle]
+/// All ISRs are caught by this handler which indirects to a custom handler by
+/// indexing into `INTERRUPT_TABLE` based on the ISR number.
+pub unsafe extern "C" fn generic_isr() {
+    asm!("
+    /* Skip saving process state if not coming from user-space */
+    ldr r0, EXC_RETURN_PSP_GENERIC_ISR
+    cmp lr, r0
+    bne _ggeneric_isr_no_stacking
+
+    /* We need the most recent kernel's version of r0, which points */
+    /* to the Process struct's stored registers field. The kernel's r0 */
+    /* lives in the first word of the hardware stacked registers on MSP */
+    mov r0, sp
+    ldr r0, [r0, #0]
+
+    /* Push non-hardware-stacked registers onto Process stack */
+    /* r0 points to user stack (see to_kernel) */
+    str r4, [r0, #16]
+    str r5, [r0, #20]
+    str r6, [r0, #24]
+    str r7, [r0, #28]
+
+    mov  r4, r8
+    mov  r5, r9
+    mov  r6, r10
+    mov  r7, r11
+
+    str r4, [r0, #0]
+    str r5, [r0, #4]
+    str r6, [r0, #8]
+    str r7, [r0, #12]
+
+_ggeneric_isr_no_stacking:
+    /* Find the ISR number by looking at the low byte of the IPSR registers */
+    mrs r0, IPSR
+    movs r1, #0xff
+    ands r0, r1
+    /* ISRs start at 16, so substract 16 to get zero-indexed */
+    subs r0, #16
+
+    /* INTERRUPT_TABLE contains function pointers, which are word sized, so
+     * multiply by 4 (the word size) */
+    lsls r0, r0, #2
+
+    ldr r1, =INTERRUPT_TABLE
+    ldr r0, [r1, r0]
+
+    push {lr}
+    blx r0
+    /* pop {lr} */
+    pop {r0}
+    mov lr, r0
+
+    /* Set thread mode to privileged */
+    movs r0, #0
+    msr CONTROL, r0
+
+    ldr r0, EXC_RETURN_PSP_GENERIC_ISR
+    mov lr, r0
+
+    /* This word needs to be near the PC of the instruction that ref's it */
+    .align 4
+EXC_RETURN_PSP_GENERIC_ISR:
+    .word 0xFFFFFFFD
+    ");
 }
 
 #[no_mangle]
