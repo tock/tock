@@ -80,8 +80,6 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate nrf52;
 
-use kernel::{Chip, SysTick};
-
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: usize = 17;
 const LED2_PIN: usize = 18;
@@ -313,9 +311,6 @@ pub unsafe fn reset_handler() {
     };
 
     let mut chip = nrf52::chip::NRF52::new();
-    chip.systick().reset();
-    chip.systick().enable(true);
-
 
     debug!("Initialization complete. Entering main loop\r");
     extern "C" {
