@@ -3,6 +3,7 @@ use kernel;
 use kernel::common::{RingBuffer, Queue};
 use nvic;
 use peripheral_interrupts::NvicIdx;
+use radio;
 use rtc;
 use timer;
 use uart;
@@ -33,8 +34,6 @@ impl kernel::Chip for NRF52 {
         &self.0
     }
 
-    #[inline(never)]
-    #[no_mangle]
     fn service_pending_interrupts(&mut self) {
         unsafe {
             INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
@@ -45,7 +44,8 @@ impl kernel::Chip for NRF52 {
                     NvicIdx::TIMER1 => timer::ALARM1.handle_interrupt(),
                     NvicIdx::TIMER2 => timer::TIMER2.handle_interrupt(),
                     NvicIdx::UART0 => uart::UART0.handle_interrupt(),
-                    _ => panic!(""),
+                    NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
+                    _ => debug!("NvicIdx not supported by Tock\r\n"),
                 }
                 nvic::enable(interrupt);
             });

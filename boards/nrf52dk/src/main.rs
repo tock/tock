@@ -114,7 +114,9 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
 
 pub struct Platform {
-    console: &'static capsules::console::Console<'static, nrf52::uart::UART>,
+    ble_radio: &'static nrf52::ble_advertising_driver::BLE
+        <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+    console: &'static capsules::console::Console<'static, nrf52::uart::UARTE>,
     button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
@@ -124,7 +126,6 @@ pub struct Platform {
 
 
 impl kernel::Platform for Platform {
-    #[inline(never)]
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
@@ -134,6 +135,7 @@ impl kernel::Platform for Platform {
             3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            33 => f(Some(self.ble_radio)),
             _ => f(None),
         }
     }
@@ -251,13 +253,17 @@ pub unsafe fn reset_handler() {
                          kernel::Container::create()),
                          12);
     virtual_alarm1.set_client(timer);
+    let ble_radio_virtual_alarm = static_init!(
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
+        192/8);
 
     nrf52::uart::UART0.configure(nrf52::pinmux::Pinmux::new(6), // tx
                                  nrf52::pinmux::Pinmux::new(8), // rx
                                  nrf52::pinmux::Pinmux::new(7), // cts
                                  nrf52::pinmux::Pinmux::new(5)); // rts
     let console = static_init!(
-        capsules::console::Console<nrf52::uart::UART>,
+        capsules::console::Console<nrf52::uart::UARTE>,
         capsules::console::Console::new(&nrf52::uart::UART0,
                                         115200,
                                         &mut capsules::console::WRITE_BUF,
@@ -273,6 +279,18 @@ pub unsafe fn reset_handler() {
         480/8);
     kernel::debug::assign_console_driver(Some(console), kc);
 
+    let ble_radio = static_init!(
+     nrf52::ble_advertising_driver::BLE
+     <capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+     nrf52::ble_advertising_driver::BLE::new(
+         &mut nrf52::radio::RADIO,
+         kernel::Container::create(),
+         &mut nrf52::ble_advertising_driver::BUF,
+         ble_radio_virtual_alarm),
+        256/8);
+    nrf52::radio::RADIO.set_client(ble_radio);
+    ble_radio_virtual_alarm.set_client(ble_radio);
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf52::clock::CLOCK.low_stop();
@@ -287,6 +305,7 @@ pub unsafe fn reset_handler() {
 
     let platform = Platform {
         button: button,
+        ble_radio: ble_radio,
         console: console,
         led: led,
         gpio: gpio,
