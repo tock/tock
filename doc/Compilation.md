@@ -186,7 +186,7 @@ struct TbfHeader {
     flags: u32,              // Various flags associated with the application
     checksum: u32,           // XOR of all 4 byte words in the header, including existing optional structs
 
-    // Optional structs.
+    // Optional structs. All optional structs start on a 4-byte boundary.
     main: Option<TbfHeaderMain>,
     pic_options: Option<TbfHeaderPicOption1Fields>,
     name: Option<TbfHeaderPackageName>,

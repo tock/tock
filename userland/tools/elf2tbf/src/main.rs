@@ -12,9 +12,14 @@ use std::mem;
 use std::path::Path;
 use std::slice;
 
-/// Takes a value and rounds it up to be aligned % 4
+/// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
     ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
+}
+
+/// Takes a value and rounds it up to be aligned % 4
+macro_rules! align4 {
+    ( $e:expr ) => ( ($e) + ((4 - (($e) % 4)) % 4 ) );
 }
 
 #[repr(u16)]
@@ -260,8 +265,14 @@ fn do_work(input: &elf::File,
     let mut header_length = mem::size_of::<TbfHeaderBase>() + mem::size_of::<TbfHeaderMain>();
 
     // If we have a package name, add that section.
+    let mut post_name_pad = 0;
     if package_name.len() > 0 {
-        header_length += mem::size_of::<TbfHeaderTlv>() + package_name.len();
+        let name_total_size = align4!(mem::size_of::<TbfHeaderTlv>() + package_name.len());
+        header_length += name_total_size;
+
+        // Calculate the padding required after the package name TLV. All blocks
+        // must be four byte aligned, so we may need to add some padding.
+        post_name_pad = name_total_size - (mem::size_of::<TbfHeaderTlv>() + package_name.len());
     }
 
     // If we need the kernel to do PIC fixup for us add the space for that.
@@ -390,6 +401,7 @@ fn do_work(input: &elf::File,
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_main) }));
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_package_name_tlv) }));
     try!(header_buf.write_all(package_name.as_ref()));
+    try!(do_pad(&mut header_buf, post_name_pad));
     if pic {
         try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_pic) }));
     }
