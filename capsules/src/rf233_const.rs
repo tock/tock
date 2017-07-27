@@ -68,6 +68,7 @@ pub const PHY_CC_CCA_MODE_CS_OR_ED: u8 = 0 << 5;
 pub const PHY_CC_CCA_MODE_ED: u8 = 1 << 5;
 pub const PHY_CC_CCA_MODE_CS: u8 = 2 << 5;
 pub const PHY_CC_CCA_MODE_CS_AND_ED: u8 = 3 << 5;
+pub const PHY_RSSI_RX_CRC_VALID: u8 = 1 << 7;
 pub const TRX_CTRL_2_RX_SAFE_MODE: u8 = 1 << 7;
 pub const TRX_CTRL_2_DATA_RATE_250: u8 = 0;
 pub const IRQ_TRXBUF_ACCESS_VIOLATION: u8 = 1 << 6;

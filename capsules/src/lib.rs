@@ -47,3 +47,4 @@ pub mod usb;
 pub mod usb_user;
 pub mod usbc_client;
 pub mod net;
+pub mod mac;
