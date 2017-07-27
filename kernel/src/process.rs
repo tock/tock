@@ -20,6 +20,11 @@ macro_rules! align8 {
     ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
 }
 
+/// Takes a value and rounds it up to be aligned % 4
+macro_rules! align4 {
+    ( $e:expr ) => ( ($e) + ((4 - (($e) % 4)) % 4 ) );
+}
+
 #[no_mangle]
 pub static mut SYSCALL_FIRED: usize = 0;
 
@@ -589,8 +594,10 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
                         }
                     }
 
-                    remaining_length -= tbf_tlv_header.length as usize;
-                    offset += tbf_tlv_header.length as isize;
+                    // All TLV blocks are padded to 4 bytes, so we need to skip
+                    // more if the length is not a multiple of 4.
+                    remaining_length -= align4!(tbf_tlv_header.length) as usize;
+                    offset += align4!(tbf_tlv_header.length) as isize;
                 }
 
                 main_pointer.map_or(None, |mp| {
