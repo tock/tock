@@ -53,11 +53,13 @@ pub trait Mac {
     fn get_address_long(&self) -> [u8; 8]; // 64-bit address
     fn get_pan(&self) -> u16; //........... The 16-bit PAN ID
     fn get_channel(&self) -> u8;
+    fn get_tx_power(&self) -> i8;
 
     fn set_address(&self, addr: u16);
     fn set_address_long(&self, addr: [u8; 8]);
     fn set_pan(&self, id: u16);
     fn set_channel(&self, chan: u8) -> ReturnCode;
+    fn set_tx_power(&self, power: i8) -> ReturnCode;
 
     fn config_commit(&self) -> ReturnCode;
 
@@ -98,7 +100,7 @@ enum TxState {
 
 pub struct MacDevice<'a, R: radio::Radio + 'a> {
     radio: &'a R,
-    data_sequence: u8,
+    data_sequence: Cell<u8>,
     config_in_progress: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
     tx_info: Cell<Option<FrameInfo>>,
@@ -111,7 +113,7 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
     pub fn new(radio: &'a R) -> MacDevice<'a, R> {
         MacDevice {
             radio: radio,
-            data_sequence: 0,
+            data_sequence: Cell::new(0),
             config_in_progress: Cell::new(false),
             tx_buf: TakeCell::empty(),
             tx_info: Cell::new(None),
@@ -181,6 +183,10 @@ impl<'a, R: radio::Radio + 'a> Mac for MacDevice<'a, R> {
         self.radio.get_channel()
     }
 
+    fn get_tx_power(&self) -> i8 {
+        self.radio.get_tx_power()
+    }
+
     fn set_address(&self, addr: u16) {
         self.radio.set_address(addr)
     }
@@ -195,6 +201,10 @@ impl<'a, R: radio::Radio + 'a> Mac for MacDevice<'a, R> {
 
     fn set_channel(&self, chan: u8) -> ReturnCode {
         self.radio.set_channel(chan)
+    }
+
+    fn set_tx_power(&self, power: i8) -> ReturnCode {
+        self.radio.set_tx_power(power)
     }
 
     fn config_commit(&self) -> ReturnCode {
@@ -232,7 +242,7 @@ impl<'a, R: radio::Radio + 'a> Mac for MacDevice<'a, R> {
             // Unicast data frames request acknowledgement
             ack_requested: true,
             version: FrameVersion::V2015,
-            seq: Some(self.data_sequence),
+            seq: Some(self.data_sequence.get()),
             dst_pan: Some(dst_pan),
             dst_addr: Some(dst_addr),
             src_pan: Some(src_pan),
@@ -277,6 +287,7 @@ impl<'a, R: radio::Radio + 'a> Mac for MacDevice<'a, R> {
 
 impl<'a, R: radio::Radio + 'a> radio::TxClient for MacDevice<'a, R> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+        self.data_sequence.set(self.data_sequence.get() + 1);
         self.tx_info.set(None);
         self.tx_client.get().map(move |client| { client.send_done(buf, acked, result); });
     }
@@ -342,11 +353,13 @@ impl<'a, R: radio::Radio + 'a> radio::RxClient for MacDevice<'a, R> {
 
 impl<'a, R: radio::Radio + 'a> radio::ConfigClient for MacDevice<'a, R> {
     fn config_done(&self, _: ReturnCode) {
-        self.config_in_progress.set(false);
-        let (rval, buf) = self.step_transmit_state();
-        if let Some(buf) = buf {
-            // Return the buffer to the transmit client
-            self.tx_client.get().map(move |client| { client.send_done(buf, false, rval); });
+        if self.config_in_progress.get() {
+            self.config_in_progress.set(false);
+            let (rval, buf) = self.step_transmit_state();
+            if let Some(buf) = buf {
+                // Return the buffer to the transmit client
+                self.tx_client.get().map(move |client| { client.send_done(buf, false, rval); });
+            }
         }
     }
 }

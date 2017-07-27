@@ -13,12 +13,11 @@ use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::ReturnCode;
 use kernel::common::take_cell::{MapCell, TakeCell};
 use mac;
-use net::ieee802154::{SecurityLevel, KeyId, MacAddress, Header};
+use net::ieee802154::{MacAddress, Header};
 
 struct App {
     tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
-    cfg_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
 }
@@ -28,7 +27,6 @@ impl Default for App {
         App {
             tx_callback: None,
             rx_callback: None,
-            cfg_callback: None,
             app_read: None,
             app_write: None,
         }
@@ -82,10 +80,6 @@ impl<'a, M: mac::Mac> Driver for RadioDriver<'a, M> {
                 self.app.map(|app| app.rx_callback = Some(callback));
                 ReturnCode::SUCCESS
             },
-            2 /* config */ => {
-                self.app.map(|app| app.cfg_callback = Some(callback));
-                ReturnCode::SUCCESS
-            }
             _ => ReturnCode::ENOSUPPORT
         }
     }
@@ -114,8 +108,7 @@ impl<'a, M: mac::Mac> Driver for RadioDriver<'a, M> {
             4 /* set tx power */ => {
                 let mut val = arg1 as i32;
                 val = val - 128; // Library adds 128 to make unsigned
-                // Currently we always transmit at max power
-                ReturnCode::ENOSUPPORT
+                self.mac.set_tx_power(val as i8)
             },
             5 /* tx packet */ => {
                 // Don't transmit if we're busy, the radio is off, or
@@ -154,7 +147,7 @@ impl<'a, M: mac::Mac> Driver for RadioDriver<'a, M> {
                         let src_addr = MacAddress::Short(self.mac.get_address());
                         let mut frame_info = match self.mac.prepare_data_frame(
                             tx_buf, pan, MacAddress::Short(addr), pan, src_addr,
-                            Some((SecurityLevel::EncMic32, KeyId::Implicit))) {
+                            None) {
                             Ok(info) => info,
                             Err(_) => {
                                 rval = ReturnCode::FAIL;
@@ -195,8 +188,7 @@ impl<'a, M: mac::Mac> Driver for RadioDriver<'a, M> {
                 }
             }
             7 /* commit config */ => {
-                self.mac.config_commit();
-                ReturnCode::SUCCESS
+                self.mac.config_commit()
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -218,7 +210,9 @@ impl<'a, M: mac::Mac> mac::TxClient for RadioDriver<'a, M> {
 impl<'a, M: mac::Mac> mac::RxClient for RadioDriver<'a, M> {
     fn receive<'b>(&self,
                    buf: &'b [u8],
-                   header: Header<'b>,
+                   /* We ignore the header because we pass the entire frame to
+                    * userspace */
+                   _: Header<'b>,
                    data_offset: usize,
                    data_len: usize,
                    result: ReturnCode) {
@@ -234,7 +228,6 @@ impl<'a, M: mac::Mac> mac::RxClient for RadioDriver<'a, M> {
                         cb.schedule(usize::from(result), data_offset, data_offset + data_len);
                     });
             });
-        } else {
         }
     }
 }

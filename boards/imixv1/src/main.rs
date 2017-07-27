@@ -283,8 +283,7 @@ pub unsafe fn reset_handler() {
     let rf233_spi = static_init!(VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
                                  VirtualSpiMasterDevice::new(mux_spi, 3));
     // Create the RF233 driver, passing its pins and SPI client
-    let rf233: &RF233Device =
-        static_init!(RF233Device,
+    let rf233: &RF233Device = static_init!(RF233Device,
                      RF233::new(rf233_spi,
                                 &sam4l::gpio::PA[09],    // reset
                                 &sam4l::gpio::PA[10],    // sleep
@@ -386,13 +385,13 @@ pub unsafe fn reset_handler() {
         capsules::radio::RadioDriver<'static,
                                      capsules::mac::MacDevice<'static, RF233Device>>,
         capsules::radio::RadioDriver::new(radio_mac),
-        832/8);
+        0);
     radio_capsule.config_buffer(&mut RADIO_BUF);
     radio_mac.set_transmit_client(radio_capsule);
     radio_mac.set_receive_client(radio_capsule);
     rf233.set_transmit_client(radio_mac);
     rf233.set_receive_client(radio_mac, &mut RF233_RX_BUF);
-    // rf233.set_config_client(radio_capsule);
+    rf233.set_config_client(radio_mac);
 
     // Configure the USB controller
     let usb_client = static_init!(

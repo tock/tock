@@ -868,6 +868,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> RF233<'a, S> {
         if self.spi_busy.get() {
             return ReturnCode::EBUSY;
         }
+
         let buf_len = radio::PSDU_OFFSET + frame_len as usize;
         let wbuf = self.spi_buf.take().unwrap();
         wbuf[0] = RF233BusCommand::FRAME_READ as u8;
@@ -1051,6 +1052,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioData for RF233<'a, S> {
             return (ReturnCode::ESIZE, Some(spi_buf));
         }
 
+        // Set PHY header to be the frame length
         spi_buf[1] = frame_len as u8;
         self.tx_buf.replace(spi_buf);
         self.tx_len.set(frame_len as u8);
