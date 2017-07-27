@@ -1,6 +1,10 @@
-use net::stream::{SResult};
+//! Implements IEEE 802.15.4-2015 header encoding and decoding.
+//! Supports the general MAC frame format, which encompasses data frames, beacon
+//! frames, MAC command frames, and the like.
+
 use net::stream::{decode_u8, decode_u16, decode_u32, decode_bytes_be};
 use net::stream::{encode_u8, encode_u16, encode_u32, encode_bytes, encode_bytes_be};
+use net::stream::SResult;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum MacAddress {
@@ -247,10 +251,10 @@ impl<'a> From<&'a KeyId> for KeyIdMode {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Security {
-    level: SecurityLevel,
-    asn_in_nonce: bool,
-    frame_counter: Option<u32>,
-    key_id: KeyId,
+    pub level: SecurityLevel,
+    pub asn_in_nonce: bool,
+    pub frame_counter: Option<u32>,
+    pub key_id: KeyId,
 }
 
 impl Security {
@@ -320,7 +324,7 @@ mod ie_control {
     // Payload IE constants
     pub const PAYLOAD_LEN_MAX: usize = (1 << 11) - 1;
     pub const PAYLOAD_LEN_MASK: u16 = PAYLOAD_LEN_MAX as u16;
-    pub const PAYLOAD_ID_MASK: u16 = 0xf; // Only 4 bits
+    pub const PAYLOAD_ID_MASK: u8 = 0xf; // Only 4 bits
     pub const PAYLOAD_ID_POS: usize = 11;
 
     pub const TYPE: u16 = 0x8000;
@@ -328,10 +332,7 @@ mod ie_control {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum HeaderIE<'a> {
-    Undissected {
-        element_id: u8,
-        content: &'a [u8],
-    },
+    Undissected { element_id: u8, content: &'a [u8] },
     Termination1,
     Termination2,
 }
@@ -345,7 +346,8 @@ impl<'a> Default for HeaderIE<'a> {
 impl<'a> HeaderIE<'a> {
     pub fn is_termination(&self) -> bool {
         match *self {
-            HeaderIE::Termination1 | HeaderIE::Termination2 => true,
+            HeaderIE::Termination1 |
+            HeaderIE::Termination2 => true,
             _ => false,
         }
     }
@@ -389,10 +391,12 @@ impl<'a> HeaderIE<'a> {
         let ie = match element_id {
             0x7e => Termination1,
             0x7f => Termination2,
-            element_id => Undissected {
-                element_id: element_id,
-                content: content,
-            },
+            element_id => {
+                Undissected {
+                    element_id: element_id,
+                    content: content,
+                }
+            }
         };
 
         stream_done!(off + content_len, ie);
@@ -401,10 +405,7 @@ impl<'a> HeaderIE<'a> {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum PayloadIE<'a> {
-    Undissected {
-        group_id: u8,
-        content: &'a [u8],
-    },
+    Undissected { group_id: u8, content: &'a [u8] },
     Termination,
 }
 
@@ -434,12 +435,12 @@ impl<'a> PayloadIE<'a> {
             Termination => 0xf,
         };
 
-        // Write the two octets that begin each header IE
+        // Write the two octets that begin each payload IE
         let content_len = off - 2;
         stream_cond!(content_len <= ie_control::PAYLOAD_LEN_MAX);
         let ie_ctl = ((content_len as u16) & ie_control::PAYLOAD_LEN_MASK) |
-                     (((group_id as u16) & ie_control::PAYLOAD_ID_MASK)
-                      << ie_control::PAYLOAD_ID_POS);
+                     ((group_id & ie_control::PAYLOAD_ID_MASK) as u16) <<
+                     ie_control::PAYLOAD_ID_POS;
         enc_consume!(buf; encode_u16, ie_ctl.to_be());
 
         stream_done!(off);
@@ -452,8 +453,8 @@ impl<'a> PayloadIE<'a> {
         // Payload IEs are type 1
         stream_cond!(ie_ctl & ie_control::TYPE != 0);
         let content_len = (ie_ctl & ie_control::PAYLOAD_LEN_MASK) as usize;
-        let element_id = ((ie_ctl >> ie_control::PAYLOAD_ID_POS)
-                          & ie_control::PAYLOAD_ID_MASK) as u8;
+        let element_id = ((ie_ctl >> ie_control::PAYLOAD_ID_POS) as u8) &
+                         ie_control::PAYLOAD_ID_MASK;
 
         stream_len_cond!(buf, off + content_len);
         let content = &buf[off..off + content_len];
@@ -461,10 +462,12 @@ impl<'a> PayloadIE<'a> {
         use self::PayloadIE::*;
         let ie = match element_id {
             0xf => Termination,
-            group_id => Undissected {
-                group_id: group_id,
-                content: content,
-            },
+            group_id => {
+                Undissected {
+                    group_id: group_id,
+                    content: content,
+                }
+            }
         };
 
         stream_done!(off + content_len, ie);
@@ -476,20 +479,20 @@ pub const MAX_PAYLOAD_IES: usize = 5;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Header<'a> {
-    frame_type: FrameType,
-    frame_pending: bool,
-    ack_requested: bool,
-    version: FrameVersion,
-    seq: Option<u8>,
-    dst_pan: Option<PanID>,
-    dst_addr: Option<MacAddress>,
-    src_pan: Option<PanID>,
-    src_addr: Option<MacAddress>,
-    security: Option<Security>,
-    header_ies: [HeaderIE<'a>; MAX_HEADER_IES],
-    header_ies_len: usize,
-    payload_ies: [PayloadIE<'a>; MAX_PAYLOAD_IES],
-    payload_ies_len: usize,
+    pub frame_type: FrameType,
+    pub frame_pending: bool,
+    pub ack_requested: bool,
+    pub version: FrameVersion,
+    pub seq: Option<u8>,
+    pub dst_pan: Option<PanID>,
+    pub dst_addr: Option<MacAddress>,
+    pub src_pan: Option<PanID>,
+    pub src_addr: Option<MacAddress>,
+    pub security: Option<Security>,
+    pub header_ies: [HeaderIE<'a>; MAX_HEADER_IES],
+    pub header_ies_len: usize,
+    pub payload_ies: [PayloadIE<'a>; MAX_PAYLOAD_IES],
+    pub payload_ies_len: usize,
 }
 
 impl<'a> Header<'a> {
@@ -529,6 +532,8 @@ impl<'a> Header<'a> {
         // in our lists.
         let has_header_ies = self.header_ies_len != 0;
         let has_payload_ies = self.payload_ies_len != 0;
+        stream_cond!(self.header_ies_len <= MAX_HEADER_IES);
+        stream_cond!(self.payload_ies_len <= MAX_PAYLOAD_IES);
         for ie in self.header_ies[..self.header_ies_len].iter() {
             stream_cond!(!ie.is_termination());
             off = enc_consume!(buf, off; ie; encode);
@@ -712,7 +717,9 @@ impl<'a> Header<'a> {
                         has_payload_ies = true;
                         break;
                     }
-                    HeaderIE::Termination2 => { break; }
+                    HeaderIE::Termination2 => {
+                        break;
+                    }
                     other_ie => {
                         stream_cond!(header_ies_len + 1 < MAX_HEADER_IES);
                         header_ies[header_ies_len] = other_ie;
@@ -728,7 +735,9 @@ impl<'a> Header<'a> {
                 let (next_off, ie) = dec_try!(buf, off; PayloadIE::decode);
                 off = next_off;
                 match ie {
-                    PayloadIE::Termination => { break; }
+                    PayloadIE::Termination => {
+                        break;
+                    }
                     other_ie => {
                         stream_cond!(payload_ies_len + 1 < MAX_PAYLOAD_IES);
                         payload_ies[payload_ies_len] = other_ie;
@@ -740,21 +749,22 @@ impl<'a> Header<'a> {
 
         stream_done!(off,
                      (Header {
-                         frame_type: frame_type,
-                         frame_pending: frame_pending,
-                         ack_requested: ack_requested,
-                         version: version,
-                         seq: seq,
-                         dst_pan: dst_pan,
-                         dst_addr: dst_addr,
-                         src_pan: src_pan,
-                         src_addr: src_addr,
-                         security: security,
-                         header_ies: header_ies,
-                         header_ies_len: header_ies_len,
-                         payload_ies: payload_ies,
-                         payload_ies_len: payload_ies_len,
-                     }, mac_payload_off));
+                          frame_type: frame_type,
+                          frame_pending: frame_pending,
+                          ack_requested: ack_requested,
+                          version: version,
+                          seq: seq,
+                          dst_pan: dst_pan,
+                          dst_addr: dst_addr,
+                          src_pan: src_pan,
+                          src_addr: src_addr,
+                          security: security,
+                          header_ies: header_ies,
+                          header_ies_len: header_ies_len,
+                          payload_ies: payload_ies,
+                          payload_ies_len: payload_ies_len,
+                      },
+                      mac_payload_off));
     }
 
     pub fn decode_addressing
