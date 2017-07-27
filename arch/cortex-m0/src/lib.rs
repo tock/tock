@@ -29,7 +29,6 @@ EXC_RETURN_PSP:
 }
 
 #[no_mangle]
-#[inline(never)]
 pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
                                         process_regs: &mut [usize; 8])
                                         -> *mut u8 {
@@ -47,35 +46,32 @@ pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, $0
 
-    /* Ensure process_regs is stored in a hardware stacked register */
-    /* so we have it when we return from SVC */
-    mov r0, $2
-
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
 
     /* Store non-hardware-stacked registers in process_regs */
-    /* r0 points to user stack */
-    str r4, [r0, #16]
-    str r5, [r0, #20]
-    str r6, [r0, #24]
-    str r7, [r0, #28]
+    /* $2 still points to process_regs because we are clobbering all */
+    /* non-hardware-stacked registers */
+    str r4, [$2, #16]
+    str r5, [$2, #20]
+    str r6, [$2, #24]
+    str r7, [$2, #28]
 
     mov  r4, r8
     mov  r5, r9
     mov  r6, r10
     mov  r7, r11
 
-    str r4, [r0, #0]
-    str r5, [r0, #4]
-    str r6, [r0, #8]
-    str r7, [r0, #12]
+    str r4, [$2, #0]
+    str r5, [$2, #4]
+    str r6, [$2, #8]
+    str r7, [$2, #12]
 
-    mrs $0, PSP /* PSP into r0 */
+    mrs $0, PSP /* PSP into user_stack */
 
     "
-    : "=r"(user_stack)
-    : "r"(user_stack), "r"(process_regs)
+    : "={r0}"(user_stack)
+    : "{r0}"(user_stack), "{r1}"(process_regs)
     : "r4","r5","r6","r7","r8","r9","r10","r11");
     user_stack as *mut u8
 }
