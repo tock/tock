@@ -31,6 +31,7 @@ int ltc294x_configure(ltc294x_model_e model,
                       interrupt_pin_conf_e int_pin,
                       uint16_t prescaler,
                       vbat_alert_adc_mode_e vbat) {
+  int rc;
   uint8_t M = 0;
   if (model == LTC2941 || model == LTC2942) {
     // ltc2941/2 expects log_2 of prescaler value
@@ -52,6 +53,10 @@ int ltc294x_configure(ltc294x_model_e model,
       default:   M = 4; break;
     }
   }
+
+  rc = command(DRIVER_NUM_LTC294X, 10, model);
+  if (rc != TOCK_SUCCESS) return rc;
+
   uint8_t cmd = (int_pin & 0x03) | ((M & 0x07) << 2) | ((vbat & 0x03) << 5);
   return command(DRIVER_NUM_LTC294X, 2, cmd);
 }
