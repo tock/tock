@@ -13,6 +13,7 @@ pub mod mem;
 pub mod memop;
 pub mod returncode;
 pub mod hil;
+pub mod image;
 
 // Work around https://github.com/rust-lang-nursery/rustfmt/issues/6
 // It's a little sad that we have to skip the whole module, but that's
@@ -26,6 +27,7 @@ mod sched;
 
 mod syscall;
 mod platform;
+
 
 pub use callback::{AppId, Callback};
 pub use container::Container;

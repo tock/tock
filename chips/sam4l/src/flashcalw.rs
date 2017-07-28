@@ -19,7 +19,8 @@
 //! general purpose fuse bits, and more granular control of the cache).
 //!
 //! - Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
-//! - Date: July 27, 2016
+//! - Author:  Philip Levis <pal@cs.stanford.edu>
+//! - Date: July 19, 2017
 
 use core::cell::Cell;
 use core::mem;
@@ -174,21 +175,21 @@ impl AsMut<[u8]> for Sam4lPage {
 }
 
 // The FLASHCALW controller
-pub struct FLASHCALW {
+pub struct FlashCalw {
     registers: *mut FlashcalwRegisters,
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
     error_status: Cell<u32>,
     ready: Cell<bool>,
-    client: Cell<Option<&'static hil::flash::Client<FLASHCALW>>>,
+    client: Cell<Option<&'static hil::flash::Client<FlashCalw>>>,
     current_state: Cell<FlashState>,
     current_command: Cell<Command>,
     buffer: TakeCell<'static, Sam4lPage>,
 }
 
 // static instance for the board. Only one FLASHCALW on chip.
-pub static mut FLASH_CONTROLLER: FLASHCALW = FLASHCALW::new(FLASHCALW_BASE_ADDRS,
+pub static mut FLASH_CONTROLLER: FlashCalw = FlashCalw::new(FLASHCALW_BASE_ADDRS,
                                                             pm::HSBClock::FLASHCALW,
                                                             pm::HSBClock::FLASHCALWP,
                                                             pm::PBBClock::FLASHCALW);
@@ -217,13 +218,13 @@ macro_rules! bit {
     ($w:expr) => (0x1u32 << $w);
 }
 
-impl FLASHCALW {
+impl FlashCalw {
     const fn new(base_addr: usize,
                  ahb_clk: pm::HSBClock,
                  hramc1_clk: pm::HSBClock,
                  pb_clk: pm::PBBClock)
-                 -> FLASHCALW {
-        FLASHCALW {
+                 -> FlashCalw {
+        FlashCalw {
             registers: base_addr as *mut FlashcalwRegisters,
             ahb_clock: pm::Clock::HSB(ahb_clk),
             hramc1_clock: pm::Clock::HSB(hramc1_clk),
@@ -800,7 +801,7 @@ impl FLASHCALW {
 }
 
 // Implementation of high level calls using the low-lv functions.
-impl FLASHCALW {
+impl FlashCalw {
     pub fn configure(&mut self) {
         // Enable all clocks (if they aren't on already...).
         unsafe {
@@ -833,6 +834,11 @@ impl FLASHCALW {
         self.enable_picocache(true);
 
         self.current_state.set(FlashState::Ready);
+    }
+
+    pub fn get_version(&self) -> u32 {
+        let registers: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        registers.fvr.get() & 0xfff
     }
 
     pub fn get_page_size(&self) -> u32 {
@@ -924,13 +930,13 @@ impl FLASHCALW {
     }
 }
 
-impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FLASHCALW {
+impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FlashCalw {
     fn set_client(&self, client: &'static C) {
         self.client.set(Some(client));
     }
 }
 
-impl hil::flash::Flash for FLASHCALW {
+impl hil::flash::Flash for FlashCalw {
     type Page = Sam4lPage;
 
     fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> ReturnCode {
@@ -943,6 +949,51 @@ impl hil::flash::Flash for FLASHCALW {
 
     fn erase_page(&self, page_number: usize) -> ReturnCode {
         self.erase_page(page_number as i32)
+    }
+}
+
+impl hil::flash::FlashInfo for FlashCalw {
+    fn flash_size(&self) -> u32 {
+        self.get_flash_size()
+    }
+    fn num_pages(&self) -> u32 {
+        self.get_page_count()
+    }
+    fn page_size(&self) -> u32 {
+        self.get_page_size()
+    }
+    fn num_lock_units(&self) -> u32 {
+        NB_OF_REGIONS
+    }
+    fn lock_unit_size(&self) -> u32 {
+        self.flash_size() / self.num_lock_units()
+    }
+    fn pages_per_lock_unit(&self) -> u32 {
+        self.get_page_count_per_region()
+    }
+    fn page_to_lock_unit(&self, page: u32) -> u32 {
+        self.get_page_region(page as i32)
+    }
+}
+
+impl hil::flash::FlashLocking for FlashCalw {
+    fn lock_unit(&self, unit: u32) {
+        self.lock_region(unit as u32, true);
+    }
+    fn unlock_unit(&self, unit: u32) {
+        self.lock_region(unit as u32, false);
+    }
+
+    /// Locks [first,last]
+    fn lock_units(&self, first: u32, last: u32) {
+        for unit in first..last + 1 {
+            self.lock_unit(unit)
+        }
+    }
+    fn unlock_units(&self, first: u32, last: u32) {
+        for unit in first..last + 1 {
+            self.lock_unit(unit)
+        }
     }
 }
 
