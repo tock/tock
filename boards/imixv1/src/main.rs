@@ -4,7 +4,7 @@
 
 extern crate capsules;
 extern crate compiler_builtins;
-#[macro_use(debug, static_init)]
+#[macro_use(debug, storage_volume, static_init)]
 extern crate kernel;
 extern crate sam4l;
 
@@ -19,7 +19,7 @@ use kernel::hil::flash::FlashInfo;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
-use kernel::image::*;
+use kernel::Platform;
 
 #[macro_use]
 pub mod io;
@@ -69,6 +69,8 @@ static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 // for reception.
 static mut RADIO_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 
+//storage_volume!(LOG, 32);
+
 impl kernel::Platform for Imixv1 {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
@@ -89,6 +91,42 @@ impl kernel::Platform for Imixv1 {
             154 => f(Some(self.radio)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
+        }
+    }
+
+    fn kernel_start_address(&self) -> u32 {
+        unsafe {
+            extern "C" {
+                static _stext: *const u32;
+            }
+            return (&_stext as *const *const u32) as u32;
+        }
+    }
+
+    fn kernel_end_address(&self) -> u32 {
+        unsafe {
+            extern "C" {
+                static _etext: *const u32;
+            }
+            return (&_etext as *const *const u32) as u32;
+        }
+    }
+
+    fn apps_start_address(&self) -> u32 {
+        unsafe {
+            extern "C" {
+                static _sapps: *const u32;
+            }
+            return (&_sapps as *const *const u32) as u32;
+        }
+    }
+
+    fn apps_end_address(&self) -> u32 {
+        unsafe {
+            extern "C" {
+                static _eapps: *const u32;
+            }
+            return (&_eapps as *const *const u32) as u32;
         }
     }
 }
@@ -161,6 +199,8 @@ unsafe fn set_pin_primary_functions() {
 #[no_mangle]
 pub unsafe fn reset_handler() {
     sam4l::init();
+
+    //debug!("Loaded volume LOG at {:p}.", &LOG);
 
     sam4l::pm::PM.setup_system_clock(sam4l::pm::SystemClockSource::DfllRc32kAt48MHz);
 
@@ -238,6 +278,7 @@ pub unsafe fn reset_handler() {
     sam4l::spi::SPI.init();
     sam4l::spi::SPI.enable();
 
+    //BAR[7] = 5;
     // Create a virtualized client for SPI system call interface,
     // then the system call capsule
     let syscall_spi_device = static_init!(
@@ -418,19 +459,19 @@ pub unsafe fn reset_handler() {
     rf233.config_set_pan(0xABCD);
     rf233.config_set_address(0x1008);
     //    rf233.config_commit();
-
     rf233.start();
+
     debug!("Starting flash diagnostics...");
     debug!("  Flash version: {}",
            sam4l::flashcalw::FLASH_CONTROLLER.get_version());
     debug!("  Flash size:    {}kB",
            sam4l::flashcalw::FLASH_CONTROLLER.flash_size() >> 10);
     debug!("  Kernel code:   0x{:05x}-0x{:x}",
-           kernel_start_address(),
-           kernel_end_address());
+           imixv1.kernel_start_address(),
+           imixv1.kernel_end_address());
     debug!("  App code:      0x{:x}-0x{:x}",
-           apps_start_address(),
-           apps_end_address());
+           imixv1.apps_start_address(),
+           imixv1.apps_end_address());
     //sam4l::flashcalw::FLASH_CONTROLLER.lock_kernel(false);
 
     debug!("Initialization complete. Entering main loop");

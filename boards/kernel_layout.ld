@@ -136,15 +136,19 @@ SECTIONS
     } > rom
     PROVIDE_HIDDEN (__exidx_end = .);
 
-
     /* Mark the end of static elements */
     . = ALIGN(4);
+    . = ALIGN(512);
+    .storage :
+    {
+       _sstorage = .;
+       *(.storage* storage*)
+       _estorage = .;
+    } > rom
+    . = ALIGN(512);
+
     _etext = .;
     _textend = .;   /* alias for _etext expected by some MS toolchains */
-
-
-
-
 
     /* STATIC ELEMENTS FOR TOCK APPLICATIONS */
     .apps :
@@ -158,8 +162,6 @@ SECTIONS
         KEEP (*(.app.*))
         _eapps = PROG_ORIGIN + PROG_LENGTH - 1;
     } > prog
-
-
 
     /* Kernel data that must be relocated. This is program data that is
      * exepected to live in SRAM, but is initialized with a value. This data is
@@ -179,9 +181,6 @@ SECTIONS
         . = ALIGN(4);
         _erelocate = .;
     } > ram
-
-
-
 
     .sram (NOLOAD) :
     {
