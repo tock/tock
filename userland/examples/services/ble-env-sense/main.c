@@ -12,13 +12,12 @@
 #include <simple_adv.h>
 #include <simple_ble.h>
 
-#include <isl29035.h>
+#include <ipc.h>
+#include <nrf.h>
 #include <nrf51_serialization.h>
-#include <tmp006.h>
+#include <tock.h>
 
 #include "env_sense_service.h"
-#include "nrf.h"
-
 
 /*******************************************************************************
  * BLE
@@ -27,28 +26,13 @@
 uint16_t conn_handle = BLE_CONN_HANDLE_INVALID;
 
 // Intervals for advertising and connections
-// char device_name[] = "FSTORM";
 simple_ble_config_t ble_config = {
   .platform_id       = 0x00,                // used as 4th octect in device BLE address
   .device_id         = DEVICE_ID_DEFAULT,
-  .adv_name          = "TOCK-BLE-ENV",
+  .adv_name          = "TOCK-ESS",
   .adv_interval      = MSEC_TO_UNITS(500, UNIT_0_625_MS),
   .min_conn_interval = MSEC_TO_UNITS(1000, UNIT_1_25_MS),
   .max_conn_interval = MSEC_TO_UNITS(1250, UNIT_1_25_MS)
-};
-
-// URL to advertise
-const char eddystone_url[] = "goo.gl/8685Uw";
-
-// Manufacturer specific data setup
-#define UMICH_COMPANY_IDENTIFIER 0x02E0
-#define BLE_APP_ID  0x15
-#define BLE_APP_VERSION_NUM 0x00
-uint8_t mdata[4] = {BLE_APP_ID, BLE_APP_VERSION_NUM, 0xFF, 0xFF};
-ble_advdata_manuf_data_t mandata = {
-  .company_identifier = UMICH_COMPANY_IDENTIFIER,
-  .data.p_data        = mdata,
-  .data.size          = sizeof(mdata)
 };
 
 __attribute__ ((const))
@@ -90,31 +74,53 @@ void ble_error (uint32_t error_code) {
   printf("BLE ERROR: Code = %d\n", (int)error_code);
 }
 
+// Will be called by the Simple BLE library.
 void services_init (void) {
   env_sense_service_init();
 }
 
 /*******************************************************************************
- * Sensing callbacks
+ * IPC
  ******************************************************************************/
 
-// Temperature read callback
-static void temp_callback (int temp_value, int error_code, int unused, void* ud) {
-  UNUSED_PARAMETER(error_code);
-  UNUSED_PARAMETER(unused);
-  UNUSED_PARAMETER(ud);
+typedef enum {
+  SENSOR_TEMPERATURE = 0,
+  SENSOR_IRRADIANCE = 1,
+  SENSOR_HUMIDITY = 2,
+} sensor_type_e;
 
-  int temp_reading = (int16_t)temp_value * 100;
-  printf("Temp reading = %d\n", (int)temp_reading);
+typedef struct {
+  int type;  // sensor type
+  int value; // sensor reading
+} sensor_update_t;
 
-  env_sense_update_temperature(conn_handle, temp_reading);
 
-  int lux = isl29035_read_light_intensity();
-  printf("Light (lux) reading = %d\n", lux);
+static void ipc_callback(int pid, int len, int buf, __attribute__ ((unused)) void* ud) {
+  if (len < (int) sizeof(sensor_update_t)) {
+    printf("Error! IPC message too short.\n");
+    ipc_notify_client(pid);
+    return;
+  }
 
-  // precision of 0.1 watts/m2, assuming sunlight efficacy of 93 lumens per watt.
-  uint16_t irradiance = lux * 10 / 93;
-  env_sense_update_irradiance(conn_handle, irradiance);
+  sensor_update_t *update = (sensor_update_t*) buf;
+
+  switch (update->type) {
+    case SENSOR_TEMPERATURE: {
+      env_sense_update_temperature(conn_handle, update->value);
+      break;
+    }
+
+    case SENSOR_IRRADIANCE: {
+      env_sense_update_irradiance(conn_handle,  update->value);
+      break;
+    }
+
+    case SENSOR_HUMIDITY: {
+      env_sense_update_humidity(conn_handle,  update->value);
+      break;
+    }
+  }
+  ipc_notify_client(pid);
 }
 
 /*******************************************************************************
@@ -122,27 +128,18 @@ static void temp_callback (int temp_value, int error_code, int unused, void* ud)
  ******************************************************************************/
 
 int main (void) {
-  printf("Starting BLE serialization example\n");
+  printf("[BLE] Environmental Sensing IPC Service\n");
 
   // Setup BLE
   conn_handle = simple_ble_init(&ble_config)->conn_handle;
 
-  ble_advdata_t srdata;
-  memset(&srdata, 0, sizeof(srdata));
-
-  srdata.name_type = BLE_ADVDATA_FULL_NAME;
-  srdata.p_manuf_specific_data = &mandata;
-  ble_uuid_t PHYSWEB_SERVICE_UUID[]    = {{0x181A, BLE_UUID_TYPE_BLE}};
-  ble_advdata_uuid_list_t service_list = {
-    .uuid_cnt = 1,
-    .p_uuids  = PHYSWEB_SERVICE_UUID
+  // Advertise the BLE environmental sensing service.
+  ble_uuid_t adv_uuid = {
+    .uuid = ENVIRONMENTAL_SENSING_SERVICE_UUID,
+    .type = BLE_UUID_TYPE_BLE
   };
-  srdata.uuids_complete = service_list;
+  simple_adv_service(&adv_uuid);
 
-  // And update advertising data
-  eddystone_adv(eddystone_url, &srdata);
-
-  // Setup reading from the temperature sensor
-  tmp006_start_sampling(0x2, temp_callback, NULL);
+  // Listen for IPC requests to configure the sensor values.
+  ipc_register_svc(ipc_callback, NULL);
 }
-
