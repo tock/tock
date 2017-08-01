@@ -135,7 +135,7 @@ impl AddressMode {
 }
 
 mod security_control {
-    pub const SECURITY_LEVEL_MASK: u8 = 0b11;
+    pub const SECURITY_LEVEL_MASK: u8 = 0b111;
     pub const KEY_ID_MODE_MASK: u8 = 0b11 << 3;
     pub const FRAME_COUNTER_SUPPRESSION: u8 = 1 << 5;
     pub const ASN_IN_NONCE: u8 = 1 << 6;
