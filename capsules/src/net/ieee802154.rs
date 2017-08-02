@@ -56,11 +56,11 @@ mod frame_control {
 #[repr(u16)]
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum FrameType {
+    // Reserved = 0b100,
     Beacon = 0b000,
     Data = 0b001,
     Acknowledgement = 0b010,
     MACCommand = 0b011,
-    // Reserved = 0b100,
     Multipurpose = 0b101,
     Fragment = 0b110,
     Extended = 0b111,
@@ -84,10 +84,10 @@ impl FrameType {
 #[repr(u16)]
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum FrameVersion {
+    // Reserved = 0x3000
     V2003 = 0x0000,
     V2006 = 0x1000,
     V2015 = 0x2000,
-    // Reserved = 0x3000,
 }
 
 impl FrameVersion {
@@ -144,11 +144,11 @@ mod security_control {
 #[repr(u8)]
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum SecurityLevel {
+    // Reserved = 0b100,
     None = 0b000,
     Mic32 = 0b001,
     Mic64 = 0b010,
     Mic128 = 0b011,
-    // Reserved = 0b100,
     EncMic32 = 0b101,
     EncMic64 = 0b110,
     EncMic128 = 0b111,
