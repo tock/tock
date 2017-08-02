@@ -1,7 +1,7 @@
 #include <stdbool.h>
 
-#include "led.h"
-#include "spi.h"
+#include <led.h>
+#include <spi.h>
 
 #define BUF_SIZE 200
 char rbuf[BUF_SIZE];
