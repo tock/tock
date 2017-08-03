@@ -7,7 +7,6 @@
  * Date: Jan 12 2017
  */
 
-
 const int SYS_RADIO = 154;
 
 const int BUF_RX = 0;
@@ -21,8 +20,8 @@ const int COM_TX     = 5;
 const int COM_READY  = 6;
 const int COM_COMMIT = 7;
 
-const int EVT_TX  = 0;
-const int EVT_RX  = 1;
+const int EVT_TX = 0;
+const int EVT_RX = 1;
 
 int radio_init(void) {
   // Spin until radio is on
