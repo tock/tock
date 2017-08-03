@@ -303,7 +303,7 @@ impl<'a, R: radio::Radio + 'a> radio::RxClient for MacDevice<'a, R> {
 
         // Try to read the MAC headers of the frame to determine if decryption is
         // needed. Otherwise, dispatch the parsed headers directly to the client
-        let decrypt = if let Some((data_offset, (header, mac_payload_offset))) =
+        let decrypt = if let Some((data_offset, (header, _))) =
             Header::decode(&buf[radio::PSDU_OFFSET..]).done() {
             // 802.15.4 Incoming frame security procedure
             let buf_data_offset = radio::PSDU_OFFSET + data_offset;
