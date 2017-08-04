@@ -1,6 +1,42 @@
-//! Provides userspace with the ability to print text via a serial interface.
+//! Provides userspace with access to a serial interface.
+//!
+//! Setup
+//! -----
+//!
+//! You need a device that provides the `hil::uart::UART` trait.
+//!
+//! ``rust
+//! let console = static_init!(
+//!     Console<usart::USART>,
+//!     Console::new(&usart::USART0,
+//!                  115200,
+//!                  &mut console::WRITE_BUF,
+//!                  kernel::Container::create()));
+//! hil::uart::UART::set_client(&usart::USART0, console);
+//! ```
+//!
+//! Usage
+//! -----
+//!
+//! Currently, only writing buffers to the serial device is implemented.
+//!
+//! The user must perform three steps in order to write a buffer:
+//!
+//! ```c
+//! // (Optional) Set a callback to be invoked when the buffer has been written
+//! subscribe(CONSOLE_DRIVER_NUM, 1, my_callback);
+//! // Share the buffer from userspace with the driver
+//! allow(CONSOLE_DRIVER_NUM, buffer, buffer_len_in_bytes);
+//! // Initiate the transaction
+//! command(CONSOLE_DRIVER_NUM, 1, len_to_write_in_bytes)
+//! ```
+//!
+//! When the buffer has been written successfully, the buffer is released from
+//! the driver. Successive writes must call `allow` each time a buffer is to be
+//! written.
 
 use core::cell::Cell;
+use core::cmp;
 use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
@@ -65,12 +101,11 @@ impl<'a, U: UART> Console<'a, U> {
     }
 
     /// Internal helper function for setting up a new send transaction
-    fn send_new(&self, app_id: AppId, app: &mut App, callback: Callback) -> ReturnCode {
+    fn send_new(&self, app_id: AppId, app: &mut App, len: usize) -> ReturnCode {
         match app.write_buffer.take() {
             Some(slice) => {
-                app.write_len = slice.len();
+                app.write_len = cmp::min(len, slice.len());
                 app.write_remaining = app.write_len;
-                app.write_callback = Some(callback);
                 self.send(app_id, app, slice);
                 ReturnCode::SUCCESS
             }
@@ -127,6 +162,12 @@ impl<'a, U: UART> Console<'a, U> {
 }
 
 impl<'a, U: UART> Driver for Console<'a, U> {
+    /// Setup shared buffers.
+    ///
+    /// ### `allow_num`
+    ///
+    /// - `0`: Writeable buffer for read line
+    /// - `1`: Writeable buffer for write buffer
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
@@ -158,6 +199,12 @@ impl<'a, U: UART> Driver for Console<'a, U> {
         }
     }
 
+    /// Setup callbacks.
+    ///
+    /// ### `subscribe_num`
+    ///
+    /// - `0`: Read line callback
+    /// - `1`: Write buffer completed callback
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 /* read line */ => {
@@ -166,7 +213,8 @@ impl<'a, U: UART> Driver for Console<'a, U> {
             },
             1 /* putstr/write_done */ => {
                 self.apps.enter(callback.app_id(), |app, _| {
-                    self.send_new(callback.app_id(), app, callback)
+                    app.write_callback = Some(callback);
+                    ReturnCode::SUCCESS
                 }).unwrap_or_else(|err| {
                     match err {
                         Error::OutOfMemory => ReturnCode::ENOMEM,
@@ -179,16 +227,28 @@ impl<'a, U: UART> Driver for Console<'a, U> {
         }
     }
 
-    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
+    /// Initiate serial transfers
+    ///
+    /// ### `command_num`
+    ///
+    /// - `0`: Driver check.
+    /// - `1`: Prints a buffer passed through `allow` up to the length passed in
+    ///        `arg1`
+    fn command(&self, cmd_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
-            1 /* putc */ => {
-                self.tx_buffer.take().map(|buffer| {
-                    buffer[0] = arg1 as u8;
-                    self.uart.transmit(buffer, 1);
-                });
-                ReturnCode::SuccessWithValue { value: 1 }
-            },
+            1 /* putstr */ => {
+                let len = arg1;
+                self.apps.enter(appid, |app, _| {
+                    self.send_new(appid, app, len)
+                }).unwrap_or_else(|err| {
+                    match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    }
+                })
+            }
             _ => ReturnCode::ENOSUPPORT
         }
     }

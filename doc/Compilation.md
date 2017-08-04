@@ -11,6 +11,7 @@ of how platforms program each onto an actual board.
 <!-- toc -->
 
 - [Compiling the kernel](#compiling-the-kernel)
+  * [Xargo](#xargo)
   * [Life of a Tock compilation](#life-of-a-tock-compilation)
 - [Compiling a process](#compiling-a-process)
   * [Position Independent Code](#position-independent-code)
@@ -70,6 +71,16 @@ the target specification which includes the LLVM data-layout definition,
 architecture definitions for the compiler, arguments to pass to the linker and
 compilation options such as floating-point support.
 
+### Xargo
+
+While Cargo does manage building the Tock rust crates, Tock actually uses a
+wrapper around Cargo called [Xargo](https://github.com/japaric/xargo). Xargo
+is designed to help cross-compile the `core` crate provided by rust itself.
+Once is has taken care of that cross-compilation, it passes through all commands
+to Cargo proper.
+
+In the future rust may incorporate support for building the core crates for ARM
+targets directly, and we will no longer need Xargo.
 
 ### Life of a Tock compilation
 
@@ -85,13 +96,14 @@ and combined into an executable ELF file by the compilation of the platform
 crate.
 
 You can see each command executed by `cargo` by passing it the `--verbose`
-argument.
+argument. In our build system, you can run `make V=1` to see the verbose
+commands.
 
 
 ## Compiling a process
 
 Unlike many other embedded systems, compilation of application code is entirely
-separated from the kernel in Tock. An application is combined with two
+separated from the kernel in Tock. An application is combined with at least two
 libraries: `libtock` and `newlib` and built into a free-standing binary. The
 binary can then be uploaded onto a Tock platform with an already existing
 kernel to be loaded and run. For more details about application code, see
@@ -102,16 +114,16 @@ applications are written in C. Therefore, compilation uses `arm-none-eabi-gcc`.
 Alternative languages and compilers are all possible for building applications,
 as long as they build code following several requirements:
 
- 1) The application must be built as position independent code (PIC)
+ 1. The application must be built as position independent code (PIC).
 
- 2) The application must be linked with a loader script that places Flash
-    contents above address `0x80000000` and RAM contents below it
+ 2. The application must be linked with a loader script that places Flash
+    contents above address `0x80000000` and RAM contents below it.
 
- 3) The application binary must start with a header detailing the location of
-    sections in the binary
+ 3. The application binary must start with a header detailing the location of
+    sections in the binary.
 
 The first requirement is explained directly below while the second two are
-detailed in [Tock Binary Format](#tock-binary-format). Again as with the
+detailed in [Tock Binary Format](#tock-binary-format). Again, as with the
 kernel, the compilation process is handled by Makefiles and the user does not
 normally need to interact with it.
 
@@ -144,12 +156,12 @@ MCU](http://www.tockos.org/blog/2016/dynamic-loading/).
 For applications compiled with `arm-none-eabi-gcc`, building PIC code for Tock
 requires four flags:
 
- - `-fPIC` - only emit code that uses relative addresses.
- - `-msingle-pic-base` - force the use of a consistent _base register_ for the
-   data sections
- - `-mpic-register=r9` - use register r9 as the base register
- - `-mno-pic-data-is-text-relative` - do not assume that the data segment is
-   placed at a constant offset from the text segment
+ - `-fPIC`: only emit code that uses relative addresses.
+ - `-msingle-pic-base`: force the use of a consistent _base register_ for the
+   data sections.
+ - `-mpic-register=r9`: use register r9 as the base register.
+ - `-mno-pic-data-is-text-relative`: do not assume that the data segment is
+   placed at a constant offset from the text segment.
 
 
 ### Tock Binary Format
@@ -174,7 +186,7 @@ struct TbfHeader {
     flags: u32,              // Various flags associated with the application
     checksum: u32,           // XOR of all 4 byte words in the header, including existing optional structs
 
-    // Optional structs.
+    // Optional structs. All optional structs start on a 4-byte boundary.
     main: Option<TbfHeaderMain>,
     pic_options: Option<TbfHeaderPicOption1Fields>,
     name: Option<TbfHeaderPackageName>,
@@ -308,33 +320,33 @@ architectures.
 
 To leverage the Tock build system, you must:
 
-  1. Set `TOCK_USERLAND_BASE_DIR` to the path to the Tock userland
-  2. `include $(TOCK_USERLAND_BASE_DIR)/AppMakefile.mk`
+  1. Set `TOCK_USERLAND_BASE_DIR` to the path to the Tock userland.
+  2. `include $(TOCK_USERLAND_BASE_DIR)/AppMakefile.mk`.
 
 This `include` should be the _last_ line of the Makefile for most applications.
 
 In addition, you must specify the sources for your application:
 
-  - `C_SRCS` - A list of C files to compile
-  - `CXX_SRCS` - A list of C++ files to compile
-  - `AS_SRCS` - A list of assembly files to compile
-  - `EXTERN_LIBS` - A list of directories for libraries [**compiled for Tock**](#compiling-libraries-for-tock)
+  - `C_SRCS`: A list of C files to compile.
+  - `CXX_SRCS`: A list of C++ files to compile.
+  - `AS_SRCS`: A list of assembly files to compile.
+  - `EXTERN_LIBS`: A list of directories for libraries [**compiled for Tock**](#compiling-libraries-for-tock).
 
 The build system respects all of the standard `CFLAGS` (C only), `CXXFLAGS`
 (C++ only), `CPPFLAGS` (C and C++), `ASFLAGS` (asm only), etc.
 
 Several Tock-specific variables are also useful:
 
-  - `STACK_SIZE` - The minimum application stack size
-  - `APP_HEAP_SIZE` - The minimum heap size for your application
-  - `KERNEL_HEAP_SIZE` - The minimum grant size for your application
-  - `PACKAGE_NAME` - The name for your application. Defaults to current folder
+  - `STACK_SIZE`: The minimum application stack size.
+  - `APP_HEAP_SIZE`: The minimum heap size for your application.
+  - `KERNEL_HEAP_SIZE`: The minimum grant size for your application.
+  - `PACKAGE_NAME`: The name for your application. Defaults to current folder.
 
-The build system is broken across three files:
+The build system is broken across three files in the `tock/userland` folder:
 
-  - `Configuration.mk` - Sets most variables used
-  - `Helpers.mk` - Generic rules and functions to support the build
-  - `AppMakefile.mk` - Includes the above files and supplies build recipes
+  - `Configuration.mk`: Sets most variables used.
+  - `Helpers.mk`: Generic rules and functions to support the build.
+  - `AppMakefile.mk`: Includes the above files and supplies build recipes.
 
 Applications wishing to define their own build rules can include only the
 `Configuration.mk` file to ensure all of the flags needed for Tock applications
@@ -366,8 +378,8 @@ libexample/                <-- Folder name must match library name
 Like applications, libraries can leverage the Tock build system to do most of
 the heavy lifting. Simply,
 
-  1. Set `TOCK_USERLAND_BASE_DIR` to the path to the Tock userland
-  2. `include $(TOCK_USERLAND_BASE_DIR)/TockLibrary.mk`
+  1. Set `TOCK_USERLAND_BASE_DIR` to the path to the Tock userland.
+  2. `include $(TOCK_USERLAND_BASE_DIR)/TockLibrary.mk`.
 
 and add sources using the same variables as applications.
 
@@ -394,9 +406,8 @@ these methods are subject to change based on whatever is easiest for users of
 the platform.
 
 In order to support multiple concurrent applications, the easiest option is to
-use a script in [userland/tools/program/](../userland/tools/program/) to
-combine multiple application binaries into a single image to be loaded.
-Importantly, while applications currently share the same upload process as the
-kernel, they are planned to support additional methods in the future.
-Application loading through wireless methods especially is targeted for future
-editions of Tock.
+use `tockloader` ([git repo](https://github.com/helena-project/tockloader)) to
+manage multiple applications on a platform. Importantly, while applications
+currently share the same upload process as the kernel, they are planned to
+support additional methods in the future. Application loading through wireless
+methods especially is targeted for future editions of Tock.

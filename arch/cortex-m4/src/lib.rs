@@ -25,15 +25,12 @@ pub unsafe extern "C" fn systick_handler() {
         cmp lr, #0xfffffffd
         bne _systick_handler_no_stacking
 
-        /* We need the most recent kernel's version of r0, which points */
-        /* to the Process struct's stored registers field. The kernel's r0 */
-        /* lives in the first word of the hardware stacked registers on MSP */
-        mov r0, sp
-        ldr r0, [r0, #0]
-
-        /* Push non-hardware-stacked registers onto Process stack */
-        /* r0 points to user stack (see to_kernel) */
-        stmia r0, {r4-r11}
+        /* We need the most recent kernel's version of r1, which points */
+        /* to the Process struct's stored registers field. The kernel's r1 */
+        /* lives in the second word of the hardware stacked registers on MSP */
+        mov r1, sp
+        ldr r1, [r1, #4]
+        stmia r1, {r4-r11}
     _systick_handler_no_stacking:
         ldr r0, =OVERFLOW_FIRED
         mov r1, #1
@@ -63,15 +60,12 @@ pub unsafe extern "C" fn generic_isr() {
     cmp lr, #0xfffffffd
     bne _ggeneric_isr_no_stacking
 
-    /* We need the most recent kernel's version of r0, which points */
-    /* to the Process struct's stored registers field. The kernel's r0 */
-    /* lives in the first word of the hardware stacked registers on MSP */
-    mov r0, sp
-    ldr r0, [r0, #0]
-
-    /* Push non-hardware-stacked registers onto Process stack */
-    /* r0 points to user stack (see to_kernel) */
-    stmia r0, {r4-r11}
+    /* We need the most recent kernel's version of r1, which points */
+    /* to the Process struct's stored registers field. The kernel's r1 */
+    /* lives in the second word of the hardware stacked registers on MSP */
+    mov r1, sp
+    ldr r1, [r1, #4]
+    stmia r1, {r4-r11}
 _ggeneric_isr_no_stacking:
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
@@ -138,34 +132,28 @@ pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *con
 
 #[cfg(target_os = "none")]
 #[no_mangle]
-#[inline(never)]
 /// r0 is top of user stack, r1 Process GOT
 pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
-                                        process_got: *const u8,
                                         process_regs: &mut [usize; 8])
                                         -> *mut u8 {
     asm!("
-    /* Load non-hardware-stacked registers from Process stack */
-    ldmia $3, {r4-r11}
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, $0
 
-    /* Set PIC base pointer to the Process GOT */
-    mov r9, $2
-
-    /* Ensure that $3 is stored in a callee saved register */
-    mov r0, $3
+    /* Load non-hardware-stacked registers from Process stack */
+    /* Ensure that $2 is stored in a callee saved register */
+    ldmia $2, {r4-r11}
 
     /* SWITCH */
     svc 0xff /* It doesn't matter which SVC number we use here */
 
     /* Push non-hardware-stacked registers into Process struct's */
     /* regs field */
-    stmia r0, {r4-r11}
+    stmia $2, {r4-r11}
 
     mrs $0, PSP /* PSP into r0 */"
-    : "=r"(user_stack)
-    : "r"(user_stack), "r"(process_got), "r"(process_regs)
+    : "={r0}"(user_stack)
+    : "{r0}"(user_stack), "{r1}"(process_regs)
     : "r4","r5","r6","r7","r8","r9","r10","r11");
     user_stack as *mut u8
 }

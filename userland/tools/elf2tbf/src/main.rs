@@ -12,9 +12,14 @@ use std::mem;
 use std::path::Path;
 use std::slice;
 
-/// Takes a value and rounds it up to be aligned % 4
+/// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
     ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
+}
+
+/// Takes a value and rounds it up to be aligned % 4
+macro_rules! align4 {
+    ( $e:expr ) => ( ($e) + ((4 - (($e) % 4)) % 4 ) );
 }
 
 #[repr(u16)]
@@ -154,6 +159,7 @@ fn main() {
     opts.optopt("o", "", "set output file name", "OUTFILE");
     opts.optopt("n", "", "set package name", "PACKAGE_NAME");
     opts.optflag("v", "verbose", "be verbose");
+    opts.optflag("p", "include-pic-info", "include PIC information");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -162,6 +168,7 @@ fn main() {
     let output = matches.opt_str("o");
     let package_name = matches.opt_str("n");
     let verbose = matches.opt_present("v");
+    let pic = matches.opt_present("p");
     let input = if !matches.free.is_empty() {
         matches.free[0].clone()
     } else {
@@ -179,11 +186,11 @@ fn main() {
     match output {
             None => {
                 let mut out = io::stdout();
-                do_work(&file, &mut out, package_name, verbose)
+                do_work(&file, &mut out, package_name, verbose, pic)
             }
             Some(name) => {
                 match File::create(Path::new(&name)) {
-                    Ok(mut f) => do_work(&file, &mut f, package_name, verbose),
+                    Ok(mut f) => do_work(&file, &mut f, package_name, verbose, pic),
                     Err(e) => panic!("Error: {:?}", e),
                 }
             }
@@ -231,7 +238,8 @@ unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
 fn do_work(input: &elf::File,
            output: &mut Write,
            package_name: Option<String>,
-           verbose: bool)
+           verbose: bool,
+           pic: bool)
            -> io::Result<()> {
     let package_name = package_name.unwrap_or(String::new());
     let (relocation_data_size, rel_data) = match input.sections
@@ -257,12 +265,20 @@ fn do_work(input: &elf::File,
     let mut header_length = mem::size_of::<TbfHeaderBase>() + mem::size_of::<TbfHeaderMain>();
 
     // If we have a package name, add that section.
+    let mut post_name_pad = 0;
     if package_name.len() > 0 {
-        header_length += mem::size_of::<TbfHeaderTlv>() + package_name.len();
+        let name_total_size = align4!(mem::size_of::<TbfHeaderTlv>() + package_name.len());
+        header_length += name_total_size;
+
+        // Calculate the padding required after the package name TLV. All blocks
+        // must be four byte aligned, so we may need to add some padding.
+        post_name_pad = name_total_size - (mem::size_of::<TbfHeaderTlv>() + package_name.len());
     }
 
     // If we need the kernel to do PIC fixup for us add the space for that.
-    header_length += mem::size_of::<TbfHeaderPicOption1Fields>();
+    if pic {
+        header_length += mem::size_of::<TbfHeaderPicOption1Fields>();
+    }
 
     // We have one app flash region, add that.
     if appstate.data.len() > 0 {
@@ -371,7 +387,9 @@ fn do_work(input: &elf::File,
     if verbose {
         print!("{}", tbf_header);
         print!("{}", tbf_main);
-        print!("{}", tbf_pic);
+        if pic {
+            print!("{}", tbf_pic);
+        }
         print!("{}", tbf_flash_region);
     }
 
@@ -383,7 +401,10 @@ fn do_work(input: &elf::File,
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_main) }));
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_package_name_tlv) }));
     try!(header_buf.write_all(package_name.as_ref()));
-    try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_pic) }));
+    try!(do_pad(&mut header_buf, post_name_pad));
+    if pic {
+        try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_pic) }));
+    }
 
     // Only put these in the header if the app_state section is nonzero.
     if appstate.data.len() > 0 {

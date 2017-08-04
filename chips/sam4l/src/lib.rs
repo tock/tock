@@ -4,7 +4,7 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(asm,core_intrinsics,concat_idents,const_fn)]
+#![feature(asm,core_intrinsics,concat_idents,const_fn,repr_align,attr_literals)]
 #![no_std]
 
 extern crate cortexm4;
@@ -34,6 +34,7 @@ pub mod trng;
 pub mod crccu;
 pub mod dac;
 pub mod aes;
+pub mod usbc;
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -120,7 +121,7 @@ pub static INTERRUPT_TABLE: [Option<unsafe extern fn()>; 80] = [
     /* PDCA14 */        Option::Some(dma::pdca14_handler),
     /* PDCA15 */        Option::Some(dma::pdca15_handler),
     /* CRCCU */         Option::Some(crccu::crccu_handler),
-    /* USBC */          Option::Some(unhandled_interrupt),
+    /* USBC */          Option::Some(usbc::usbc_handler),
     /* PEVC_TR */       Option::Some(unhandled_interrupt),
     /* PEVC_OV */       Option::Some(unhandled_interrupt),
     /* AESA */          Option::Some(aes::aes_handler),

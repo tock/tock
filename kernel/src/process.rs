@@ -8,7 +8,7 @@ use core::{mem, ptr, slice, str};
 use core::cell::Cell;
 use core::fmt::Write;
 use core::intrinsics;
-use core::ptr::{read_volatile, write_volatile};
+use core::ptr::{read_volatile, write_volatile, write};
 
 use platform::mpu;
 use returncode::ReturnCode;
@@ -18,6 +18,11 @@ use common::math;
 /// Takes a value and rounds it up to be aligned % 8
 macro_rules! align8 {
     ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
+}
+
+/// Takes a value and rounds it up to be aligned % 4
+macro_rules! align4 {
+    ( $e:expr ) => ( ($e) + ((4 - (($e) % 4)) % 4 ) );
 }
 
 #[no_mangle]
@@ -32,7 +37,6 @@ pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 #[allow(improper_ctypes)]
 extern "C" {
     pub fn switch_to_user(user_stack: *const u8,
-                          got_base: *const u8,
                           process_regs: &mut [usize; 8])
                           -> *mut u8;
 }
@@ -589,8 +593,10 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
                         }
                     }
 
-                    remaining_length -= tbf_tlv_header.length as usize;
-                    offset += tbf_tlv_header.length as isize;
+                    // All TLV blocks are padded to 4 bytes, so we need to skip
+                    // more if the length is not a multiple of 4.
+                    remaining_length -= align4!(tbf_tlv_header.length) as usize;
+                    offset += align4!(tbf_tlv_header.length) as isize;
                 }
 
                 main_pointer.map_or(None, |mp| {
@@ -681,10 +687,6 @@ pub struct Process<'a> {
 
     /// Saved when the app switches to the kernel.
     current_stack_pointer: *const u8,
-
-    /// Needed only the first time the app is run to set R9 if the kernel did
-    /// the PIC setup for the app.
-    data_start_pointer: *const u8,
 
     /// Process text segment
     text: &'static [u8],
@@ -1036,10 +1038,6 @@ impl<'a> Process<'a> {
                     app_break: load_result.initial_sbrk_pointer,
                     current_stack_pointer: load_result.initial_stack_pointer,
 
-                    // We need to keep this to set R9 the first time we switch
-                    // to the process.
-                    data_start_pointer: load_result.data_start_pointer,
-
                     text: slice::from_raw_parts(app_flash_address, app_flash_size),
 
                     stored_regs: Default::default(),
@@ -1142,7 +1140,11 @@ impl<'a> Process<'a> {
         if (*ctr_ptr).is_null() {
             self.alloc(mem::size_of::<T>()).map(|root_arr| {
                 let root_ptr = root_arr.as_mut_ptr() as *mut T;
-                *root_ptr = Default::default();
+                // Initialize the container contents using ptr::write, to
+                // ensure that we don't try to drop the contents of
+                // uninitialized memory when T implements Drop.
+                write(root_ptr, Default::default());
+                // Record the location in the container pointer.
                 write_volatile(ctr_ptr, root_ptr);
                 root_ptr
             })
@@ -1202,7 +1204,6 @@ impl<'a> Process<'a> {
     pub unsafe fn switch_to(&mut self) {
         write_volatile(&mut SYSCALL_FIRED, 0);
         let psp = switch_to_user(self.current_stack_pointer,
-                                 self.data_start_pointer,
                                  mem::transmute(&mut self.stored_regs));
         self.current_stack_pointer = psp;
         if self.current_stack_pointer < self.debug.min_stack_pointer {
@@ -1456,7 +1457,7 @@ impl<'a> Process<'a> {
         // SRAM sizes
         let sram_grant_size = sram_end - sram_grant_start;
         let sram_heap_size = sram_heap_end - sram_heap_start;
-        let sram_data_size = sram_heap_start - sram_heap_start;
+        let sram_data_size = sram_heap_start - sram_stack_start;
         let sram_stack_size = sram_stack_start - sram_stack_bottom;
         let sram_grant_allocated = sram_end - sram_grant_start;
         let sram_heap_allocated = sram_grant_start - sram_heap_start;
@@ -1611,9 +1612,6 @@ struct LoadResult {
     /// Where the sbrk initial end of process memory is set.
     initial_sbrk_pointer: *const u8,
 
-    /// Where the data section is.
-    data_start_pointer: *const u8,
-
     // Pass the header back to the caller.
     header: TbfHeader,
 }
@@ -1726,10 +1724,6 @@ unsafe fn load(tbf_header: TbfHeader,
                 // where the are.
                 initial_stack_pointer: mem_base.offset(aligned_stack_len as isize),
                 initial_sbrk_pointer: mem_base.offset(aligned_fixed_len as isize),
-                // Also need to keep track of where we put the data portion in
-                // RAM so that we can correctly set R9 when we first switch to
-                // the app.
-                data_start_pointer: got_base,
                 header: tbf_header,
             };
 
@@ -1742,12 +1736,10 @@ unsafe fn load(tbf_header: TbfHeader,
         // No PIC fixup requested from the kernel. We only need to set an
         // initial stack pointer and sbrk size. The app will do the rest on its
         // own.
-
         let load_result = LoadResult {
             // Set the initial stack and process memory size to 64 bytes.
             initial_stack_pointer: mem_base.offset(64),
             initial_sbrk_pointer: mem_base.offset(64),
-            data_start_pointer: ptr::null(),
             header: tbf_header,
         };
 

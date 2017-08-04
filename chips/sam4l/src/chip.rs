@@ -17,6 +17,7 @@ use pm;
 use spi;
 use trng;
 use usart;
+use usbc;
 
 pub struct Sam4l {
     pub mpu: cortexm4::mpu::MPU,
@@ -107,6 +108,7 @@ impl Chip for Sam4l {
                     PDCA15 => dma::DMA_CHANNELS[15].handle_interrupt(),
 
                     CRCCU => crccu::CRCCU.handle_interrupt(),
+                    USBC => usbc::USBC.handle_interrupt(),
 
                     GPIO0 => gpio::PA.handle_interrupt(),
                     GPIO1 => gpio::PA.handle_interrupt(),

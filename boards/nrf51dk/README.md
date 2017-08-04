@@ -8,30 +8,32 @@ radio. The kit is Arduino shield compatible and includes several
 buttons.  All code for the kit is compatible with the nRF51822 as
 well.
 
-## Necessary tools
+## Getting Started
 
-There are two ways to program the nRF51DK: JTAG or the mbed file
-system. If you choose to use JTAG (the recommended approach), this
-requires `JLinkExe`, a JTAG programming application.  It can be
-downloaded from [Segger](https://www.segger.com/downloads/jlink), you
-want the "Software and Documentation Pack".
+First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
-## Programming the kernel
+JTAG is the preferred method to program. The development kit has an
+integrated JTAG debugger, you simply need to [install JTAG
+software](../../doc/Getting_Started.md#optional-requirements).
 
-### Programming with JTAG (recommended)
+### Programming the kernel
 
-The nRF51DK, a Segger JTAG chip is included on the board. Connecting
-the board to your computer over USB allows you to program (and debug)
-Tock with JTAG. To compile and install the Tock kernel on the nrf51dk
-using JTAG, follow the standard Tock instructions (the "Getting
-Started" guide).
+Once you have all software installed, you should be able to simply run
+`make TOCK_BOARD=nrf51dk flash` to install a fresh kernel.
 
-## Programming user-level applications
+You can omit `TOCK_BOARD` if you run `make flash` in the nrf51dk directory.
 
-To compile and install compile applications for the nrf51dk, follow the
-standard Tock instructions (the "Getting Started" guide).
+### Programming user-level applications
 
-## Debugging
+After building (`make` in the application folder), you can program an
+application using tockloader:
+
+    tockloader install --jtag --board nrf51dk --arch cortex-m0
+    
+If you run this in the application folder, `tockloader` will automatically
+find the tab to flash, otherwise you need to specify the path.
+
+### Debugging
 
 Because the nRF51DK has integrated JTAG support, you can debug it
 directly using gdb. In this setup, gdb connects to a process that
@@ -57,7 +59,7 @@ JLinkGDBServer -device nrf51422 -speed 1200 -if swd -AutoConnect 1 -port 2331
 Third, start gdb in a new terminal, telling it to use the `.gdbinit`:
 
 ```bash
-arm-none-eabi-gdb -x .gdbinit boards/nrf51dk/target/nrf51/release/nrf51dk
+arm-none-eabi-gdb -x .gdbinit boards/nrf51dk/target/thumbv6m-none-eabi/release/nrf51dk
 ```
 
 The second parameter (`...nrf51dk`) is the binary image of the kernel,
@@ -71,7 +73,7 @@ contains symbols for debugging, the latter is a flat binary file.
 Finally, type `continue` or `c` to start execution. The device
 will break on entry to `reset_handler`.
 
-### Debugging Tricks
+#### Debugging Tricks
 
 When debugging in gdb, we recommend that you use tui:
 

@@ -17,8 +17,8 @@ Tock Guides
 - **[Mutable References](Mutable_References.md)** - How Tock safely shares resources between components.
 - **[Compilation](Compilation.md)** - How the kernel and applications are compiled.
 - **[Memory Layout](Memory_Layout.md)** - How the chip memory is divided for Tock.
-- **[Startup](Startup.md)** - What happens when Tock boots. **TODO**
-- **[Syscalls](Syscalls.md)** - Kernel/Userland abstraction. **TODO**
+- **[Startup](Startup.md)** - What happens when Tock boots.
+- **[Syscalls](Syscalls.md)** - Kernel/Userland abstraction.
 - **[Userland](Userland.md)** - Description of userland applications.
 
 ### Tock Setup and Usage

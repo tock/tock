@@ -14,8 +14,13 @@ use pinmux;
 const BUF_SIZE: usize = 64;
 static mut BUF: [u8; BUF_SIZE] = [0; BUF_SIZE];
 
-pub struct UART {
-    regs: *const peripheral_registers::UART,
+// NRF UARTE Specific
+const NRF_UARTE_INTR_ENDTX: u32 = 1 << 8;
+const NRF_UARTE_INTR_ENDRX: u32 = 1 << 4;
+const NRF_UARTE_ENABLE: u32 = 8;
+
+pub struct UARTE {
+    regs: *const peripheral_registers::UARTE,
     client: Cell<Option<&'static kernel::hil::uart::Client>>,
     buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
     remaining_bytes: Cell<usize>,
@@ -27,12 +32,12 @@ pub struct UARTParams {
     pub baud_rate: u32,
 }
 
-pub static mut UART0: UART = UART::new();
+pub static mut UART0: UARTE = UARTE::new();
 
-impl UART {
-    pub const fn new() -> UART {
-        UART {
-            regs: peripheral_registers::UART_BASE as *mut peripheral_registers::UART,
+impl UARTE {
+    pub const fn new() -> UARTE {
+        UARTE {
+            regs: peripheral_registers::UARTE_BASE as *mut peripheral_registers::UARTE,
             client: Cell::new(None),
             buffer: kernel::common::take_cell::TakeCell::empty(),
             remaining_bytes: Cell::new(0),
@@ -76,41 +81,42 @@ impl UART {
         }
     }
 
-    pub fn enable(&self) {
+    fn enable(&self) {
         let regs = unsafe { &*self.regs };
-        regs.enable.set(8);
+        regs.enable.set(NRF_UARTE_ENABLE);
     }
 
-    pub fn enable_nvic(&self) {
+    fn enable_nvic(&self) {
         nvic::enable(peripheral_interrupts::NvicIdx::UART0);
     }
 
-    pub fn disable_nvic(&self) {
+    fn disable_nvic(&self) {
         nvic::disable(peripheral_interrupts::NvicIdx::UART0);
     }
 
-    pub fn enable_rx_interrupts(&self) {
+    #[allow(dead_code)]
+    fn enable_rx_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenset.set(1 << 3 as u32);
+        regs.intenset.set(NRF_UARTE_INTR_ENDRX);
     }
 
-    pub fn enable_tx_interrupts(&self) {
+    fn enable_tx_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenset.set(1 << 8 as u32);
+        regs.intenset.set(NRF_UARTE_INTR_ENDTX);
     }
 
-    pub fn disable_rx_interrupts(&self) {
+    #[allow(dead_code)]
+    fn disable_rx_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenclr.set(1 << 3 as u32);
+        regs.intenclr.set(NRF_UARTE_INTR_ENDRX);
     }
 
-    pub fn disable_tx_interrupts(&self) {
+    fn disable_tx_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenclr.set(1 << 8 as u32);
+        regs.intenclr.set(NRF_UARTE_INTR_ENDTX);
     }
 
     #[inline(never)]
-    #[no_mangle]
     // only TX supported here
     pub fn handle_interrupt(&mut self) {
         // disable interrupts
@@ -129,15 +135,14 @@ impl UART {
 
             // More bytes transmitted than requested
             // Should not happen
+            // FIXME: Propogate error to the UART capsule?!
             if tx_bytes > rem {
                 debug!("error more bytes than requested\r\n");
-                self.remaining_bytes.set(0);
-                self.offset.set(0);
                 return;
-            } else {
-                self.remaining_bytes.set(rem - tx_bytes);
-                self.offset.set(tx_bytes);
             }
+
+            self.remaining_bytes.set(rem - tx_bytes);
+            self.offset.set(tx_bytes);
 
             if self.remaining_bytes.get() == 0 {
                 // Signal client write done
@@ -178,11 +183,6 @@ impl UART {
         regs.event_endtx.get() & 0b1 != 0
     }
 
-    fn rx_ready(&self) -> bool {
-        let regs = unsafe { &*self.regs };
-        regs.event_endrx.get() & 0b1 != 0
-    }
-
     fn set_dma_pointer_to_buffer(&self) {
         let regs = unsafe { &*self.regs };
         unsafe { regs.txd_ptr.set((&BUF[self.offset.get()] as *const u8) as u32) }
@@ -195,7 +195,7 @@ impl UART {
     }
 }
 
-impl kernel::hil::uart::UART for UART {
+impl kernel::hil::uart::UART for UARTE {
     fn set_client(&self, client: &'static kernel::hil::uart::Client) {
         self.client.set(Some(client));
     }
@@ -230,15 +230,9 @@ impl kernel::hil::uart::UART for UART {
         self.enable_nvic();
     }
 
+    #[allow(unused)]
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
-        let regs = unsafe { &*self.regs };
-        regs.task_startrx.set(1);
-        let mut i = 0;
-        while i < rx_len {
-            while !self.rx_ready() {}
-            rx_buffer[i] = regs.rxd_ptr.get() as u8;
-            i += 1;
-        }
+        unimplemented!()
     }
 }
 

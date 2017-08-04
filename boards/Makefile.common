@@ -93,6 +93,9 @@ endif
 .PHONY: all
 all:	target/$(TARGET)/release/$(PLATFORM).bin
 
+.PHONY: lst
+lst:	target/$(TARGET)/release/$(PLATFORM).lst
+
 .PHONY: debug
 debug:	target/$(TARGET)/debug/$(PLATFORM).bin
 
@@ -109,6 +112,9 @@ doc: | target
 
 target/$(TARGET)/release/$(PLATFORM).elf: target/$(TARGET)/release/$(PLATFORM)
 	$(Q)cp target/$(TARGET)/release/$(PLATFORM) target/$(TARGET)/release/$(PLATFORM).elf
+
+target/$(TARGET)/release/$(PLATFORM).lst: target/$(TARGET)/release/$(PLATFORM).elf
+	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > target/$(TARGET)/release/$(PLATFORM).lst
 
 .PHONY: target/$(TARGET)/release/$(PLATFORM)
 target/$(TARGET)/release/$(PLATFORM):
