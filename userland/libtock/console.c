@@ -85,5 +85,8 @@ int putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) 
   if (ret < 0) return ret;
 
   ret = subscribe(0, 1, cb, userdata);
+  if (ret < 0) return ret;
+
+  ret = command(0, 1, len);
   return ret;
 }
