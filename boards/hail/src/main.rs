@@ -87,7 +87,7 @@ impl Platform for Hail {
             5 => f(Some(self.nrf51822)),
             6 => f(Some(self.ambient_light)),
             7 => f(Some(self.adc)),
-            8 => f(Some(self.led)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             9 => f(Some(self.button)),
             10 => f(Some(self.temp)),
             11 => f(Some(self.ninedof)),
