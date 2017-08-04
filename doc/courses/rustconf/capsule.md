@@ -33,7 +33,7 @@ following questions:
 1. What is a `VolatileCell`? Find an example of its use and explain why it's used there. Hint: look inside `chips/sam4l/src`.
 2. What is a `TakeCell`? Describe a use case when a `TakeCell` is preferable to a standard `Cell`.
 
-#### 3. Read the Tock boot sequence 
+#### 3. Read the Tock boot sequence (20m)
 
 Open `boards/hail/src/main.rs` in your favorite editor. This file defines the
 Hail platform: how it boots, what capsules it uses, and what system calls it
@@ -118,4 +118,31 @@ that loads userspace processes off flash, then starts the kernel main loop:
                                     &mut PROCESSES,
                                     FAULT_RESPONSE);
     kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
+
+#### Brief Quiz (10 min)
+
+Take a look at the implementation of the `debug!` macro in
+`kernel/src/debug.rs`. Note that it has an output buffer of size
+`BUF_SIZE` (`debug.rs:29`). When the kernel calls `debug!`, does
+the macro return when the message has been written to the serial
+port (synchronous), or does it return and asynchonrously write
+out the debug message? Hint: the call to `subscribe` on line 120
+is what starts the write operation, resulting in the `callback` on
+line 130.
+
+#### Create a New Capsule (25m)
+
+Now that we've seen how Tock initializes and uses capsules, we're going
+to write a new one. This capsule will, when the system boots, start sampling
+the 9DOF sensor once a second and printing the results as serial output.
+
+First, make a branch of the Tock repository, so you'll have a clean master,
+as we're going to be modifying the boot sequence of Hail. We're going
+to replace the `NineDof` capsule, which provide access to the FXOS8700
+sensor to processes through system calls, with a capsule that reads the
+sensor and sends `debug!` messages with its values.
+
+In `capsules/src`, create a new capsule named `rustconf`. This capsule
+is going to use two other capules: `fxos8700cq` and 
+
 
