@@ -54,7 +54,7 @@ The method `reset_handler` is invoked when the chip resets (i.e., boots).
 It's pretty long because Hail has a lot of drivers that need to be created
 and initialized, and many of them depend on other, lower layer abstractions
 that need to be created and initialized as well. Take a look at the first
-few lines. You'll see that the boot sequence 
+few lines. You'll see that the boot sequence
 initializes memory (copies initialized variables into RAM, clears the BSS),
 sets up the system clocks, and configures the GPIO pins.
 
@@ -62,7 +62,7 @@ Next, it initializes the system console, which is what turns calls to `print!`
 into bytes sent to the USB serial port:
 
 
-    let console = static_init!( 
+    let console = static_init!(
         Console<usart::USART>,
         Console::new(&usart::USART0,
                      115200,
@@ -136,13 +136,83 @@ Now that we've seen how Tock initializes and uses capsules, we're going
 to write a new one. This capsule will, when the system boots, start sampling
 the 9DOF sensor once a second and printing the results as serial output.
 
-First, make a branch of the Tock repository, so you'll have a clean master,
-as we're going to be modifying the boot sequence of Hail. We're going
-to replace the `NineDof` capsule, which provide access to the FXOS8700
-sensor to processes through system calls, with a capsule that reads the
-sensor and sends `debug!` messages with its values.
+First, because we're going to be modifying the boot sequence of Hail,
+make a branch of the Tock repository; this will keep your master
+branch clean. We're going to replace the `NineDof` capsule, which
+provides access to the FXOS8700 sensor to processes through system
+calls, with a capsule that reads the sensor and sends `debug!`
+messages with its values.
 
-In `capsules/src`, create a new capsule named `rustconf`. This capsule
-is going to use two other capules: `fxos8700cq` and 
+First, in `capsules/src`, create a new capsule named
+`rustconf`. This capsule is going to use two other capsules:
+`virtual_alarm` and `fxos8700cq`.  Every second, the capsule will
+sample the FXOS and print those values using `debug!`. Your capsule
+will use `virtual_alarm` to receive a callback once a second, and
+`fxos8700cq` to sample the 9DOF sensor.
 
+Second, add `rustconf` to the capsules crate. In `capsules/src/lib.rs`,
+add `pub mod rustconf;` at the bottom of the file.
 
+Third, in `rustconf.rs`, define a generic struct called
+`RustConf`. This struct needs two generic type parameters: a lifetime
+and a generic data type that implements the trait `time::Alarm`:
+
+    pub struct RustConf<'a, A: time::Alarm + 'a> {
+
+It should have three fields: a reference with lifetime `'a` to a
+`hil::ninedof::NineDof``, a reference with lifetime '`a` to a
+`time::Alarm`` (`A`), and a `Cell<u32>` to store the interval at which
+the capsule should sample.
+
+Fourth (and fifth and sixth!), you'll need three `impl` sections. The
+basic one will contain `new`, which has the signature
+
+    pub fn new(driver: &'a hil::ninedof::NineDof,
+               alarm: &'a A) -> RustConf<'a, A> {
+
+as well as a method to start the capsule:
+
+    pub fn start(&self, interval: u32) -> ReturnCode {
+
+The second is for `time::Client`, which provides the callback from
+the virtual alarm:
+
+    impl<'a, A: time::Alarm + 'a> time::Client for RustConf<'a, A> {
+        fn fired(&self) {
+
+The last is for `hil::ninedof::NineDofClient``, which provides the callback
+for the 9DOF sensor to signal it has completed a sample:
+
+    impl<'a, A: time::Alarm + 'a> hil::ninedof::NineDofClient for RustConf<'a, A> {
+        fn callback(&self, arg1: usize, arg2: usize, arg3: usize) {
+
+The basic logic is that when a `RustConf` is instantiated, its interval is
+0. Calling `start` stores the interval in the structure and calls
+`alarm` to issue a callback interval ticks in the future. On Hail,
+there are 32kHz ticks/second, (it's based off an ultra-low power
+32kHz oscillator). So specifying an interval of 32768 (2^15) will
+tick once a second.
+
+The `fired` callback requests a reading from the 9DOF sensor. The
+9DOF API provides three functions to choose from:
+
+    fn read_accelerometer(&self) -> ReturnCode
+    fn read_magnetometer(&self) -> ReturnCode
+    fn read_gyroscope(&self) -> ReturnCode
+
+For starters, just call one of the three. You might want to add a
+small `debug!` statement in `fired` to make sure it's being
+called. Then, in `callback`, print out the three values (`arg1`,
+`arg2`, `arg3`) with a `debug!` statement.
+
+`ReturnCode` can take many values. If you wanted to do some detailed
+error reporting, you could match on the result. For now, it's OK to
+just check that it's `ReturnCode::SUCCESS` and print an error
+if it's not.
+
+Go to the top-level Tock directory and `make`. The Tock build process
+should try to compile your capsule and include it in the capsules crate.
+Once your code is compiling, we'll try incorporating it into the boot
+sequence and get it working.
+
+#### Add Your Capsule to the Boot Sequence (25m)
