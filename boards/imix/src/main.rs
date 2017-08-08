@@ -43,6 +43,9 @@ static mut APP_MEMORY: [u8; 16384] = [0; 16384];
 
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None];
 
+// Save some deep nesting
+type RF233Device = capsules::rf233::RF233<'static,
+                                          VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>;
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -59,8 +62,7 @@ struct Imix {
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     radio: &'static capsules::radio::RadioDriver<'static,
-                                                 capsules::rf233::RF233<'static,
-                                                 VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
+                                                 capsules::mac::MacDevice<'static, RF233Device>>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb_user::UsbSyscallDriver<'static,
                         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
@@ -387,15 +389,21 @@ pub unsafe fn reset_handler() {
     rf233_spi.set_client(rf233);
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
 
+    let radio_mac = static_init!(
+        capsules::mac::MacDevice<'static, RF233Device>,
+        capsules::mac::MacDevice::new(rf233),
+        0);
     let radio_capsule = static_init!(
         capsules::radio::RadioDriver<'static,
-                                     RF233<'static,
-                                           VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>>,
-        capsules::radio::RadioDriver::new(rf233));
+                                     capsules::mac::MacDevice<'static, RF233Device>>,
+        capsules::radio::RadioDriver::new(radio_mac),
+        0);
     radio_capsule.config_buffer(&mut RADIO_BUF);
-    rf233.set_transmit_client(radio_capsule);
-    rf233.set_receive_client(radio_capsule, &mut RF233_RX_BUF);
-    rf233.set_config_client(radio_capsule);
+    radio_mac.set_transmit_client(radio_capsule);
+    radio_mac.set_receive_client(radio_capsule);
+    rf233.set_transmit_client(radio_mac);
+    rf233.set_receive_client(radio_mac, &mut RF233_RX_BUF);
+    rf233.set_config_client(radio_mac);
 
     // Configure the USB controller
     let usb_client = static_init!(
@@ -430,8 +438,8 @@ pub unsafe fn reset_handler() {
     let mut chip = sam4l::chip::Sam4l::new();
 
     rf233.reset();
-    rf233.config_set_pan(0xABCD);
-    rf233.config_set_address(0x1008);
+    rf233.set_pan(0xABCD);
+    rf233.set_address(0x1008);
     //    rf233.config_commit();
 
     rf233.start();
