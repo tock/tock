@@ -78,7 +78,7 @@ variable with a call to `new`. The first parameter is the type, the second
 is the expression to produce an instance of the type. This call creates
 a `Console` that uses serial port 0 (`USART0`) at 115200 bits per second.
 
-Notice that we have to pass a write buffer to the console for it to use:
+Notice that you have to pass a write buffer to the console for it to use:
 this buffer has to have a `` `static`` lifetime. This is because low-level
 hardware drivers, especially those thayt use DMA, require `` `static`` buffers.
 Since Tock doesn't promise when a DMA operation will complete, and you
@@ -132,13 +132,13 @@ line 130.
 
 #### Create a New Capsule (25m)
 
-Now that we've seen how Tock initializes and uses capsules, we're going
+Now that you've seen how Tock initializes and uses capsules, you're going
 to write a new one. This capsule will, when the system boots, start sampling
 the 9DOF sensor once a second and printing the results as serial output.
 
-First, because we're going to be modifying the boot sequence of Hail,
+First, because you're going to be modifying the boot sequence of Hail,
 make a branch of the Tock repository; this will keep your master
-branch clean. We're going to replace the `NineDof` capsule, which
+branch clean. You're going to replace the `NineDof` capsule, which
 provides access to the FXOS8700 sensor to processes through system
 calls, with a capsule that reads the sensor and sends `debug!`
 messages with its values.
@@ -212,7 +212,80 @@ if it's not.
 
 Go to the top-level Tock directory and `make`. The Tock build process
 should try to compile your capsule and include it in the capsules crate.
-Once your code is compiling, we'll try incorporating it into the boot
+Once your code is compiling, you incorporate it into the boot
 sequence and get it working.
 
-#### Add Your Capsule to the Boot Sequence (25m)
+#### Add Your Capsule to the Boot Sequence (15m)
+
+Now that you have the `rustconf` capsule, you need to include it in the
+boot sequence so that Tock will initialize and start it. Open
+`boards/hail/src/main.rs` and modify `struct Hail`, replacing
+the `ninedof` field (which exposes a 9DOF sensor to user space through
+system calls) with a `rustconf` field with lifetime `'static` and
+whose alarm generic type is a `VirtualMux` with lifetime `'static`
+and type `sam4l::ast::Ast<'static>`:
+
+    rustconf: &'static capsules::rustconf::RustConf<'static,
+                                                    VirtualMuxAlarm<'static,
+                                                                    sam4l::ast::Ast<'static>>>,
+
+
+Remove `ninedof` from the system call lookup table in `with_driver`:
+
+            11 => f(Some(self.ninedof)), // Comment this out
+
+And, finally, remove the initialization of `ninedof` from the boot sequence:
+
+    let ninedof = static_init!(
+        capsules::ninedof::NineDof<'static>,
+        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
+    hil::ninedof::NineDof::set_client(fxos8700, ninedof);
+
+
+Now that `ninedof` has been removed from the kernel, you need to
+add `rustconf`. Since `rustconf` doesn't provide a system call
+interface, you don't need to add it to `with_driver`. All you need
+to do is initialize it and call `start`. The structure for `rustconf`
+looks like this:
+
+![Structure of `rustconf` capsule](rustconf.png)
+
+Recall from your code that the `rustconf` capsule
+takes a 9DOF sensor driver (`fxos8700`) and an alarm in its `new`.
+So the calls from `rustconf` to those objects can be made
+directly, using the references pass in `new`. Hail's
+`reset_handler` already creates `fxos8700`. You therefore
+need to createa a new virtualized alarm to pass to rustconf.
+Find where `reset_handler` creates `let si7021_virtual_alarm`;
+you want to repeat this code to create a `rx_virtual_alarm`, which
+you pass to `new` so you can create a `rustconf`:
+
+    let rustconf = static_init!(
+        capsules::rustconf::RustConf<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        capsules::rustconf::RustConf::new(fxos8700, rc_virtual_alarm));
+
+Next, you need to set up the callbacks -- `callback` and `fired`.
+This means installing `rustconf` as the client of both
+`rc_virtual_alarm` and `fxos8700`.
+
+Finally, start `rustconf`! Do this after `hail` is created
+at the end of `reset_handler`:
+
+    hail.rustconf.start(32768);
+
+Compile your kernel and install it with `make program`,
+then run `tockloader listen`. If everything is working
+correctly, you should see your debug statement printing
+out the sensor values.
+
+#### Extend Your Capsule to Sample the Full 9 Degrees (10m)
+
+Right now, your capsule samples only one of the three
+sensors. Let's extend it to sample all 3 sensors.
+
+Since the Tock kernel is non-blocking, you have to do this with event
+handlers. Since all three sensors have the same callback, your code
+has to keep state on which call was outstanding (e.g., through an
+`enum`). When the alarm fires, sample the first sensor. In the first
+ready event, orint out the value and sample the second sensor. In the
+second event handler, sample the third.
