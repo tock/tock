@@ -141,15 +141,16 @@ impl<'a, M: mac::Mac> Driver for RadioDriver<'a, M> {
                     }
 
                     // Copy the packet into the kernel frame
-                    let frame_info = self.kernel_tx.map_or(None, |tx_buf| {
+                    let frame = self.kernel_tx.take().and_then(|tx_buf| {
                         // Prepare frame headers
                         let pan = self.mac.get_pan();
                         let src_addr = MacAddress::Short(self.mac.get_address());
-                        let mut frame_info = match self.mac.prepare_data_frame(
+                        let mut frame = match self.mac.prepare_data_frame(
                             tx_buf, pan, MacAddress::Short(addr), pan, src_addr,
                             None) {
-                            Ok(info) => info,
-                            Err(_) => {
+                            Ok(frame) => frame,
+                            Err(tx_buf) => {
+                                self.kernel_tx.replace(tx_buf);
                                 rval = ReturnCode::FAIL;
                                 return None;
                             }
@@ -157,19 +158,14 @@ impl<'a, M: mac::Mac> Driver for RadioDriver<'a, M> {
 
                         // Copy the payload from userspace into kernelspace
                         app.app_write.as_mut().map(|src| {
-                            rval = frame_info.append_payload(tx_buf,
-                                                             &src.as_ref()[..len]);
+                            rval = frame.append_payload(&src.as_ref()[..len]);
                         });
-                        Some(frame_info)
+                        Some(frame)
                     });
-                    if rval != ReturnCode::SUCCESS {
-                        return;
-                    }
 
                     // Try to transmit the frame, otherwise at least get the
                     // frame back.
-                    let res = self.mac.transmit(self.kernel_tx.take().unwrap(),
-                                                frame_info.unwrap());
+                    let res = frame.map_or((rval, None), |frame| self.mac.transmit(frame));
                     if let Some(tx_buf) = res.1 {
                         self.kernel_tx.replace(tx_buf);
                     }
