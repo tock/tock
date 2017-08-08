@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_GPIO_ASYNC 20
+#define DRIVER_NUM_GPIO_ASYNC 0x80003
 
 // Callback for operation done events.
 // int arg1: callback type

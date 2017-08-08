@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define GPIO_DRIVER_NUM 1
+#define GPIO_DRIVER_NUM 0x4
 
 // GPIO pin enum is defined externally in platform headers
 typedef uint32_t GPIO_Pin_t;

@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_USB 34
+#define DRIVER_NUM_USB 0x20005
 
 // Does the driver exist?
 int usb_exists(void);

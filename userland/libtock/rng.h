@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_RNG 14
+#define DRIVER_NUM_RNG 0x40001
 
 /*  rng_async
  *  Asynchronous RNG request. Registers callback and buffer and starts RNG.

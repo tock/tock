@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_CRC 16
+#define DRIVER_NUM_CRC 0x40002
 
 // CRC algorithms
 //

@@ -122,7 +122,7 @@ void alarm_cancel(alarm_t* alarm) {
 }
 
 uint32_t alarm_read(void) {
-  return (uint32_t) command(3, 4, 0);
+  return (uint32_t) command(DRIVER_NUM_ALARM, 4, 0);
 }
 
 // Timer implementation

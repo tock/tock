@@ -6,6 +6,8 @@
 extern "C" {
 #endif
 
+#define DRIVER_NUM_ALARM 0x0
+
 /*
  * Sets the callback for timers
  *

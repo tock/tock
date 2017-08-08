@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_DAC 26
+#define DRIVER_NUM_DAC 0x6
 
 // Initialize and enable the DAC.
 int dac_initialize(void);

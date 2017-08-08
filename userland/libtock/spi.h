@@ -6,6 +6,8 @@
 extern "C" {
 #endif
 
+#define DRIVER_NUM_SPI 0x20001
+
 /* SPI system calls */
 int spi_init(void);
 /* All SPI operations depend on which peripheral is
