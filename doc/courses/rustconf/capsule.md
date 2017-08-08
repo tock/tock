@@ -62,13 +62,15 @@ Next, it initializes the system console, which is what turns calls to `print!`
 into bytes sent to the USB serial port:
 
 
-    let console = static_init!(
-        Console<usart::USART>,
-        Console::new(&usart::USART0,
-                     115200,
-                     &mut console::WRITE_BUF,
-                     kernel::Container::create()));
-    hil::uart::UART::set_client(&usart::USART0, console);
+```rust
+let console = static_init!(
+    Console<usart::USART>,
+    Console::new(&usart::USART0,
+                 115200,
+                 &mut console::WRITE_BUF,
+                 kernel::Container::create()));
+hil::uart::UART::set_client(&usart::USART0, console);
+```
 
 
 You're going to use this capsule to output data from the 9DOF sensor,
@@ -100,7 +102,9 @@ that its `console` field is initialized to the `console` capsule that
 was allocated in the code above. Around line 380, you'll see the console
 is initialized,
 
-    hail.console.initialize();
+```rust
+hail.console.initialize();
+```
 
 
 which configures the serial port to be as text consoles
@@ -113,11 +117,13 @@ on the serial port! Userspace processes can also print messages to the
 If you jump down just a few more lines, to line 400, you'll see the code
 that loads userspace processes off flash, then starts the kernel main loop:
 
-    kernel::process::load_processes(&_sapps as *const u8,
-                                    &mut APP_MEMORY,
-                                    &mut PROCESSES,
-                                    FAULT_RESPONSE);
-    kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
+```rust
+kernel::process::load_processes(&_sapps as *const u8,
+                                &mut APP_MEMORY,
+                                &mut PROCESSES,
+                                FAULT_RESPONSE);
+kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
+```
 
 #### 4. Check your understanding (10 min)
 
@@ -157,34 +163,44 @@ Third, in `rustconf.rs`, define a generic struct called
 `RustConf`. This struct needs two generic type parameters: a lifetime
 and a generic data type that implements the trait `time::Alarm`:
 
-    pub struct RustConf<'a, A: time::Alarm + 'a> {
+```rust
+pub struct RustConf<'a, A: time::Alarm + 'a> {
+```
 
 It should have three fields: a reference with lifetime `'a` to a
-`hil::ninedof::NineDof``, a reference with lifetime '`a` to a
-`time::Alarm`` (`A`), and a `Cell<u32>` to store the interval at which
+`hil::ninedof::NineDof`, a reference with lifetime '`a` to a
+`time::Alarm` (`A`), and a `Cell<u32>` to store the interval at which
 the capsule should sample.
 
 Fourth (and fifth and sixth!), you'll need three `impl` sections. The
 basic one will contain `new`, which has the signature
 
-    pub fn new(driver: &'a hil::ninedof::NineDof,
-               alarm: &'a A) -> RustConf<'a, A> {
+```rust
+pub fn new(driver: &'a hil::ninedof::NineDof,
+           alarm: &'a A) -> RustConf<'a, A> {
+```
 
 as well as a method to start the capsule:
 
-    pub fn start(&self, interval: u32) -> ReturnCode {
+```rust
+pub fn start(&self, interval: u32) -> ReturnCode {
+```
 
 The second is for `time::Client`, which provides the callback from
 the virtual alarm:
 
-    impl<'a, A: time::Alarm + 'a> time::Client for RustConf<'a, A> {
-        fn fired(&self) {
+```rust
+impl<'a, A: time::Alarm + 'a> time::Client for RustConf<'a, A> {
+    fn fired(&self) {
+```
 
-The last is for `hil::ninedof::NineDofClient``, which provides the callback
+The last is for `hil::ninedof::NineDofClient`, which provides the callback
 for the 9DOF sensor to signal it has completed a sample:
 
-    impl<'a, A: time::Alarm + 'a> hil::ninedof::NineDofClient for RustConf<'a, A> {
-        fn callback(&self, arg1: usize, arg2: usize, arg3: usize) {
+```rust
+impl<'a, A: time::Alarm + 'a> hil::ninedof::NineDofClient for RustConf<'a, A> {
+    fn callback(&self, arg1: usize, arg2: usize, arg3: usize) {
+```
 
 The basic logic is that when a `RustConf` is instantiated, its interval is
 0. Calling `start` stores the interval in the structure and calls
@@ -196,9 +212,11 @@ tick once a second.
 The `fired` callback requests a reading from the 9DOF sensor. The
 9DOF API provides three functions to choose from:
 
-    fn read_accelerometer(&self) -> ReturnCode
-    fn read_magnetometer(&self) -> ReturnCode
-    fn read_gyroscope(&self) -> ReturnCode
+```rust
+fn read_accelerometer(&self) -> ReturnCode
+fn read_magnetometer(&self) -> ReturnCode
+fn read_gyroscope(&self) -> ReturnCode
+```
 
 For starters, just call one of the three. You might want to add a
 small `debug!` statement in `fired` to make sure it's being
@@ -225,22 +243,27 @@ system calls) with a `rustconf` field with lifetime `'static` and
 whose alarm generic type is a `VirtualMux` with lifetime `'static`
 and type `sam4l::ast::Ast<'static>`:
 
-    rustconf: &'static capsules::rustconf::RustConf<'static,
-                                                    VirtualMuxAlarm<'static,
-                                                                    sam4l::ast::Ast<'static>>>,
+```rust
+rustconf: &'static capsules::rustconf::RustConf<'static,
+                                                VirtualMuxAlarm<'static,
+                                                                sam4l::ast::Ast<'static>>>,
+```
 
 
 Remove `ninedof` from the system call lookup table in `with_driver`:
 
-            11 => f(Some(self.ninedof)), // Comment this out
+```rust
+        11 => f(Some(self.ninedof)), // Comment this out
+```
 
 And, finally, remove the initialization of `ninedof` from the boot sequence:
 
-    let ninedof = static_init!(
-        capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
-    hil::ninedof::NineDof::set_client(fxos8700, ninedof);
-
+```rust
+let ninedof = static_init!(
+    capsules::ninedof::NineDof<'static>,
+    capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
+hil::ninedof::NineDof::set_client(fxos8700, ninedof);
+```
 
 Now that `ninedof` has been removed from the kernel, you need to
 add `rustconf`. Since `rustconf` doesn't provide a system call
@@ -260,9 +283,11 @@ Find where `reset_handler` creates `let si7021_virtual_alarm`;
 you want to repeat this code to create a `rx_virtual_alarm`, which
 you pass to `new` so you can create a `rustconf`:
 
-    let rustconf = static_init!(
-        capsules::rustconf::RustConf<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::rustconf::RustConf::new(fxos8700, rc_virtual_alarm));
+```rust
+let rustconf = static_init!(
+    capsules::rustconf::RustConf<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+    capsules::rustconf::RustConf::new(fxos8700, rc_virtual_alarm));
+```
 
 Next, you need to set up the callbacks -- `callback` and `fired`.
 This means installing `rustconf` as the client of both
@@ -271,7 +296,9 @@ This means installing `rustconf` as the client of both
 Finally, start `rustconf`! Do this after `hail` is created
 at the end of `reset_handler`:
 
-    hail.rustconf.start(32768);
+```rust
+hail.rustconf.start(32768);
+```
 
 Compile your kernel and install it with `make program`,
 then run `tockloader listen`. If everything is working
