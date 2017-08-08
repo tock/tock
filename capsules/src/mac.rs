@@ -244,6 +244,7 @@ enum TxState {
     /// There is a valid frame that needs to be secured before transmission.
     ReadyToEncrypt(FrameInfo, &'static mut [u8]),
     /// There is currently a frame being encrypted by the encryption facility.
+    #[allow(dead_code)]
     Encrypting(FrameInfo),
     /// There is a frame that is completely secured or does not require
     /// security, and is waiting to be passed to the radio.
@@ -318,7 +319,7 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
                 // difficult to forget to replace `tx_state`.
                 let (next_state, result) = match state {
                     TxState::Idle => (TxState::Idle, (ReturnCode::SUCCESS, None)),
-                    TxState::ReadyToEncrypt(info, buf) => {
+                    TxState::ReadyToEncrypt(_info, buf) => {
                         // TODO: implement encryption
                         (TxState::Idle, (ReturnCode::ENOSUPPORT, Some(buf)))
                     }
