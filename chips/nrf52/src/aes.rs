@@ -1,10 +1,11 @@
 //! AES128-CTR Driver
 //!
 //! Provides a simple driver for userspace applications to encrypt and decrypt messages
-//! using aes128-ctr mode on top of aes128-ecb
+//! using aes128-ctr mode on top of aes128-ecb.
 //!
 //! The initial counter configured according to the counter received from the user application.
 //! The capsule is invoked as follows:
+//!
 //!     - the key has been configured
 //!     - the entire buffer has been encrypted
 //!     - the entire buffer has been decrypted
@@ -13,15 +14,16 @@
 //! static mut...
 //!
 //! FIXME:
+//!
 //!     - maybe move some stuff to capsule instead
 //!     - INIT_CTR can be replaced with TakeCell
 //!     - ECB_DATA must be a static mut [u8]
 //!       and can't be located in the struct
 //!     - PAYLOAD size is restricted to 128 bytes
 //!
-//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: April 21, 2017
+//! - Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! - Author: Fredrik Nilsson <frednils@student.chalmers.se>
+//! - Date: April 21, 2017
 
 
 use chip;
@@ -43,9 +45,9 @@ pub struct AesECB {
     regs: *const peripheral_registers::AESECB_REGS,
     client: Cell<Option<&'static kernel::hil::symmetric_encryption::Client>>,
     ctr: Cell<[u8; 16]>,
-    // input either plaintext or ciphertext to be encrypted or decrypted
+    /// Input either plaintext or ciphertext to be encrypted or decrypted.
     input: TakeCell<'static, [u8]>,
-    // keystream to be XOR:ed with the input
+    /// Keystream to be XOR'ed with the input.
     keystream: Cell<[u8; 128]>,
     remaining: Cell<usize>,
     len: Cell<usize>,
