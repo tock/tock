@@ -3,7 +3,7 @@
 The goal of this part of the course is to make you comfortable with the
 Tock kernel and writing code for it. By the end of this part, you'll have
 written a new capsule that reads a 9DOF (nine degrees of freedom, consisting
-f a 3-axis accelerometer, magnetometer, and gyroscope) sensor and outputs
+of a 3-axis accelerometer, magnetometer, and gyroscope) sensor and outputs
 its readings over the serial port.
 
 During this you will:
