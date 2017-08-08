@@ -119,7 +119,7 @@ that loads userspace processes off flash, then starts the kernel main loop:
                                     FAULT_RESPONSE);
     kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
 
-#### Check your understanding (10 min)
+#### 4. Check your understanding (10 min)
 
 Take a look at the implementation of the `debug!` macro in
 `kernel/src/debug.rs`. Note that it has an output buffer of size
@@ -130,7 +130,7 @@ out the debug message? Hint: the call to `subscribe` on line 120
 is what starts the write operation, resulting in the `callback` on
 line 130.
 
-#### Create a New Capsule (35m)
+#### 5. Create a New Capsule (35m)
 
 Now that you've seen how Tock initializes and uses capsules, you're going
 to write a new one. This capsule will, when the system boots, start sampling
@@ -215,7 +215,7 @@ should try to compile your capsule and include it in the capsules crate.
 Once your code is compiling, you incorporate it into the boot
 sequence and get it working.
 
-#### Add Your Capsule to the Boot Sequence (35m)
+#### 6. Add Your Capsule to the Boot Sequence (35m)
 
 Now that you have the `rustconf` capsule, you need to include it in the
 boot sequence so that Tock will initialize and start it. Open
@@ -278,7 +278,7 @@ then run `tockloader listen`. If everything is working
 correctly, you should see your debug statement printing
 out the sensor values.
 
-#### Extend Your Capsule to Sample the Full 9 Degrees (10m)
+#### 7. Extend Your Capsule to Sample the Full 9 Degrees (10m)
 
 Right now, your capsule samples only one of the three
 sensors. Let's extend it to sample all 3 sensors.
@@ -290,7 +290,7 @@ has to keep state on which call was outstanding (e.g., through an
 ready event, orint out the value and sample the second sensor. In the
 second event handler, sample the third.
 
-#### 9DOF and Virtual Alarms Quiz (20m)
+#### 8. 9DOF and Virtual Alarms Quiz (20m)
 
 Your `rustconf` capsule used the fxos8700 and virtualized
 alarms. Take a look at the code behind each of these services to
