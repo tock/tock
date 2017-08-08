@@ -11,7 +11,7 @@ During this you will:
 1. Learn how Tock uses Rust's memory safety to provide isolation for free
 2. Read the Tock boot sequence, seeing how Tock uses static allocation
 3. Learn about Tock's event-driven programming
-4. Write a new capsule that reads a 3DOF sensor and prints it over serial
+4. Write a new capsule that reads a 9DOF sensor and prints it over serial
 
 #### 1. Listen to presentation on Tock's kernel and capsules (20 min)
 
