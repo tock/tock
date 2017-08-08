@@ -24,6 +24,9 @@ use kernel::{AppId, Grant, Callback, Driver, ReturnCode};
 use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
 
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x00000003;
+
 pub type SubscribeMap = u32;
 
 pub struct Button<'a, G: hil::gpio::Pin + 'a> {

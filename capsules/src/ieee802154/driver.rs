@@ -16,6 +16,9 @@ use net::stream::{decode_u8, decode_bytes, encode_u8, encode_bytes, SResult};
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x30001;
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 struct DeviceDescriptor {
     short_addr: u16,

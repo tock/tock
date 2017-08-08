@@ -71,6 +71,9 @@ use kernel::hil;
 use kernel::hil::crc::CrcAlg;
 use kernel::process::Error;
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x40002;
+
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]
 pub struct App {

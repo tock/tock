@@ -22,6 +22,9 @@ use kernel::{AppId, Callback, AppSlice, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::uart::{self, UARTAdvanced, Client};
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x80004;
+
 struct App {
     callback: Option<Callback>,
     tx_buffer: Option<AppSlice<Shared, u8>>,

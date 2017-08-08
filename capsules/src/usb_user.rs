@@ -28,6 +28,10 @@ use core::cell::Cell;
 use kernel::{AppId, Grant, Callback, Driver, ReturnCode};
 use kernel::hil;
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x20005;
+
+
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,

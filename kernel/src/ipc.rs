@@ -3,6 +3,9 @@
 //! This is a special syscall driver that allows userspace applications to
 //! share memory.
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x00010000;
+
 use {AppId, AppSlice, Grant, Callback, Driver, Shared};
 use process;
 use returncode::ReturnCode;

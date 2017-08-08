@@ -7,6 +7,9 @@ use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil;
 
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x00000005;
+
 /// ADC application driver, used by applications to interact with ADC.
 /// Not currently virtualized, only one application can use it at a time.
 pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> {

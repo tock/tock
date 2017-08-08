@@ -42,6 +42,9 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
 use kernel::process::Error;
 
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x00000001;
+
 pub struct App {
     write_callback: Option<Callback>,
     read_buffer: Option<AppSlice<Shared, u8>>,

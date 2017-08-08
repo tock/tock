@@ -21,6 +21,9 @@
 //! }
 //! ```
 
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x00000004;
+
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::hil::gpio::{Pin, PinCtl, InputMode, InterruptMode, Client};

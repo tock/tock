@@ -5,6 +5,9 @@ use kernel::{AppId, Callback, Grant, Driver, ReturnCode};
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::process::Error;
 
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x00000000;
+
 #[derive(Copy, Clone)]
 enum Expiration {
     Disabled,

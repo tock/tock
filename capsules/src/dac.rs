@@ -9,6 +9,9 @@
 //!     capsules::dac::Dac::new(&mut sam4l::dac::DAC));
 //! ```
 
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x00000006;
+
 use kernel::{AppId, Driver, ReturnCode};
 use kernel::hil;
 
