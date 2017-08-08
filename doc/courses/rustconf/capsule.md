@@ -28,10 +28,10 @@ why capsules work as they do, and understand what you'll be doing in the rest
 of this part of the course. After this presentation, please answer the
 following questions:
 
-#### 2. Brief quiz (15 min)
+#### 2. Check your understanding (15 min)
 
-1. What is a `VolatileCell`? Find an example of its use and explain why it's used there. Hint: look inside `chips/sam4l/src`.
-2. What is a `TakeCell`? Describe a use case when a `TakeCell` is preferable to a standard `Cell`.
+1. What is a `VolatileCell`? Can you find some uses of `VolatileCell`, and do you understand why they are needed? Hint: look inside `chips/sam4l/src`.
+2. What is a `TakeCell`? When is a `TakeCell` preferable to a standard `Cell`?
 
 #### 3. Read the Tock boot sequence (20m)
 
@@ -119,7 +119,7 @@ that loads userspace processes off flash, then starts the kernel main loop:
                                     FAULT_RESPONSE);
     kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
 
-#### Brief Quiz (10 min)
+#### Check your understanding (10 min)
 
 Take a look at the implementation of the `debug!` macro in
 `kernel/src/debug.rs`. Note that it has an output buffer of size
