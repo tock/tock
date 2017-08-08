@@ -90,22 +90,21 @@ impl kernel::Platform for Imix {
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
         match driver_num {
-            0 => f(Some(self.console)),
-            1 => f(Some(self.gpio)),
-
-            3 => f(Some(self.timer)),
-            4 => f(Some(self.spi)),
-            6 => f(Some(self.ambient_light)),
-            7 => f(Some(self.adc)),
-            8 => f(Some(self.led)),
-            9 => f(Some(self.button)),
-            10 => f(Some(self.temp)),
-            11 => f(Some(self.ninedof)),
-            16 => f(Some(self.crc)),
-            34 => f(Some(self.usb_driver)),
-            35 => f(Some(self.humidity)),
-            154 => f(Some(self.radio_driver)),
-            0xff => f(Some(&self.ipc)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::timer::DRIVER_NUM => f(Some(self.timer)),
+            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+            capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
+            capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }

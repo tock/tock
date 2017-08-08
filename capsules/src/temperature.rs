@@ -51,6 +51,9 @@ use kernel::{AppId, Callback, Grant, Driver};
 use kernel::ReturnCode;
 use kernel::hil;
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x60001;
+
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,

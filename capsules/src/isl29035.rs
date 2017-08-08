@@ -32,9 +32,6 @@ use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time::{self, Frequency};
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x70002;
-
 pub static mut BUF: [u8; 3] = [0; 3];
 
 #[derive(Copy,Clone,PartialEq)]

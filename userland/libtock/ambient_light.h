@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_AMBIENT_LIGHT 6
+#define DRIVER_NUM_AMBIENT_LIGHT 0x60001
 
 int ambient_light_subscribe(subscribe_cb callback, void* userdata);
 int ambient_light_start_intensity_reading(void);

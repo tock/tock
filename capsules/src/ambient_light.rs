@@ -1,8 +1,3 @@
-//! Ambient light sensor system call driver
-//!
-//! Usage
-//! -----
-//!
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
 //! ``rust
@@ -16,6 +11,9 @@
 use core::cell::Cell;
 use kernel::{AppId, Callback, Grant, Driver, ReturnCode};
 use kernel::hil;
+
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x60003;
 
 /// Per-process metdata
 #[derive(Default)]

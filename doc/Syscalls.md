@@ -332,8 +332,9 @@ will get routed to the console, and all other driver numbers will return
 |---|---------------|------------------|--------------------------------------------|
 | ✓ | 0x60000       | Ninedof          | Virtualized accelerometer/magnetometer/gyroscope |
 | ✓ | 0x60001       | Ambient Temp.    | Ambient temperature (centigrate)           |
-| ✓ | 0x60002       | Luminance        | Ambient Light Sensor (lumens)              |
-| x | 0x60003       | Pressure         | Pressure sensor                            |
+| ✓ | 0x60002       | Humidity         | Ambient Light Sensor (lumens)              |
+| ✓ | 0x60003       | Luminance        | Humidity Sensor (percent)                  |
+| x | 0x60004       | Pressure         | Pressure sensor                            |
 
 ### Sensor ICs
 
@@ -341,8 +342,6 @@ will get routed to the console, and all other driver numbers will return
 |---|---------------|------------------|--------------------------------------------|
 | x | 0x70000       | TSL2561          | Light sensor                               |
 | x | 0x70001       | TMP006           | Temperature sensor                         |
-| x | 0x70002       | ISL29035         | Light sensor                               |
-| x | 0x70003       | SI7021           | Temperature sensor                         |
 | x | 0x70004       | LPS25HB          | Pressure sensor                            |
 
 ### Other ICs

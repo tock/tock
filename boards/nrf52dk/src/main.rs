@@ -124,15 +124,15 @@ impl kernel::Platform for Platform {
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
         match driver_num {
-            0 => f(Some(self.console)),
-            1 => f(Some(self.gpio)),
-            3 => f(Some(self.timer)),
-            8 => f(Some(self.led)),
-            9 => f(Some(self.button)),
-            10 => f(Some(self.temp)),
-            14 => f(Some(self.rng)),
-            17 => f(Some(self.aes)),
-            33 => f(Some(self.ble_radio)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::timer::DRIVER_NUM => f(Some(self.timer)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
+            nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            nrf5x::temperature::DRIVER_NUM => f(Some(self.temp)),
             _ => f(None),
         }
     }

@@ -41,9 +41,6 @@ use kernel::hil::i2c;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
 
-/// Syscall number
-pub const DRIVER_NUM: usize = 0x70003;
-
 // Buffer to use for I2C messages
 pub static mut BUFFER: [u8; 14] = [0; 14];
 

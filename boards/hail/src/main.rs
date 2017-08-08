@@ -79,27 +79,28 @@ impl Platform for Hail {
     {
 
         match driver_num {
-            0 => f(Some(self.console)),
-            1 => f(Some(self.gpio)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
 
-            3 => f(Some(self.timer)),
-            4 => f(Some(self.spi)),
-            5 => f(Some(self.nrf51822)),
-            6 => f(Some(self.ambient_light)),
-            7 => f(Some(self.adc)),
+            capsules::timer::DRIVER_NUM => f(Some(self.timer)),
+            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
-            9 => f(Some(self.button)),
-            10 => f(Some(self.temp)),
-            11 => f(Some(self.ninedof)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
 
-            14 => f(Some(self.rng)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
 
-            16 => f(Some(self.crc)),
-            17 => f(Some(self.aes)),
+            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
 
-            26 => f(Some(self.dac)),
-            35 => f(Some(self.humidity)),
-            0xff => f(Some(&self.ipc)),
+            capsules::dac::DRIVER_NUM => f(Some(self.dac)),
+
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
