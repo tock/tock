@@ -1,79 +1,81 @@
-//! System Call implementation for the Bluetooth Low Energy driver
+//! BLE Capsule
 //!
 //! The capsule is implemented on top of a virtual timer
-//! in order to send periodic BLE advertisements without blocking the kernel.
+//! in order to send periodic BLE advertisements without blocking
+//! the kernel
 //!
-//! The advertisement interval is configured from the user application.
-//! The allowed range is between 20 ms and 10240 ms, lower or higher values will
-//! be set to these values. Advertisements are sent on channels 37, 38 and 39
-//! which are currently controlled by the chip.
+//! The advertisement interval is configured from the user application. The allowed range
+//! is between 20 ms and 10240 ms, lower or higher values will be set to these values.
+//! Advertisements are sent on channels 37, 38 and 39 with a very shortly time between each
+//! transmission.
 //!
-//! The total size of the combined payload is 31 bytes, the capsule ignores payloads
-//! which exceed this limit. To clear the payload, the `ble_adv_clear_data`
-//! function can be used. This function clears the payload, including the name.
+//! The radio chip module configures a default name which is replaced
+//! if a name is entered in user space.
+//!
+//! The total size of the combined payload is 30 bytes, the capsule ignores payloads which
+//! exceed this limit. To clear the payload, the ble_adv_clear_data can be used. This function
+//! clears the payload, including the name.
 //!
 //! Only start and send are asynchronous and need to use the busy flag.
 //! However, the synchronous calls such as set tx power, advertisement interval
 //! and set payload can only by performed once the radio is not active.
 //! The reason why is that they can be interleaved by an interrupt
 //!
-//! ### Allow system call
-//! Each advertisement type corresponds to an allow number from 0 to 0xFF which
-//! is handled by a giant pattern matching in this module
+//! ---ALLOW SYSTEM CALL ------------------------------------------------------------
+//! Each AD TYP corresponds to an allow number from 0 to 0xFF which is matched
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
+//!     * SUCCESS: The buffer has successfully been filled
+//!     * ENOSUPPORT: Invalid allow_num
+//!     * ENOMEM: No sufficient memory available
+//!     * EINVAL: Invalid address of the buffer or other error
+//!     * EBUSY: The driver is currently busy with other tasks
+//!     * ENOSUPPORT: The operation is not supported
+//! ----------------------------------------------------------------------------------
 //!
-//! * SUCCESS: The buffer has successfully been filled
-//! * ENOSUPPORT: Invalid allow_num
-//! * ENOMEM: No sufficient memory available
-//! * EINVAL: Invalid address of the buffer or other error
-//! * EBUSY: The driver is currently busy with other tasks
-//! * ENOSUPPORT: The operation is not supported
-//!
-//! ### Subscribe system call
+//! ---SUBSCRIBE SYSTEM CALL----------------------------------------------------------
 //!  The 'subscribe' system call supports two arguments `subscribe_num' and 'callback'.
 //! 'subscribe' is used to specify the specific operation, currently:
-//!
-//! * 0: provides a callback user-space when a device scanning for advertisements
+//!     * 0: provides a callback user-space when a device scanning for advertisements
 //!          and the callback is used to invoke user-space processes.
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
+//!        * ENOMEM:    Not sufficient amount memory
+//!        * EINVAL:    Invalid operation
+//! ------------------------------------------------------------------------------
 //!
-//! * ENOMEM:    Not sufficient amount memory
-//! * EINVAL:    Invalid operation
-//!
-//! ### Command system call
+//! ---COMMAND SYSTEM CALL------------------------------------------------------------
 //! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
 //! 'cmd' is used to specify the specific operation, currently
 //! the following cmd's are supported:
-//!
-//! * 0: start advertisement
-//! * 1: stop advertisement
-//! * 2: configure tx power
-//! * 3: configure advertise interval
-//! * 4: clear the advertisement payload
-//! * 5: start scanning
+//!     * 0: start advertisement
+//!     * 1: stop advertisement
+//!     * 2: configure tx power
+//!     * 3: configure advertise interval
+//!     * 4: clear the advertisement payload
+//!     * 5: start scanning
 //!
 //! The possible return codes from the 'command' system call indicate the following:
+//!     * SUCCESS:      The command was successful
+//!     * EBUSY:        The driver is currently busy with other tasks
+//!     * ENOSUPPORT:   The operation is not supported
+//! -----------------------------------------------------------------------------------
 //!
-//! * SUCCESS:      The command was successful
-//! * EBUSY:        The driver is currently busy with other tasks
-//! * ENOSUPPORT:   The operation is not supported
-//!
-//! ### Authors
-//! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! * Fredrik Nilsson <frednils@student.chalmers.se>
-//! * Date: June 22, 2017
+//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
+//! Date: June 22, 2017
 
 
-use ble_advertising_hil;
 use core::cell::Cell;
 use kernel;
 use kernel::hil::time::Frequency;
+use kernel::process::Error;
 use kernel::returncode::ReturnCode;
+use radio;
 
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x80_03_00_00;
+
 
 pub static mut BUF: [u8; 32] = [0; 32];
 
@@ -112,6 +114,10 @@ pub const BLE_GAP_SCAN_MODE_DIR: usize = 0x04;
 pub const BLE_GAP_SCAN_MODE_UND: usize = 0x05;
 
 
+// Temporary trait for BLE
+pub trait RxClient {
+    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+}
 
 
 #[derive(Default)]
@@ -121,13 +127,10 @@ pub struct App {
     scan_callback: Option<kernel::Callback>,
 }
 
-pub struct BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-          A: kernel::hil::time::Alarm + 'a
-{
-    radio: &'a B,
+pub struct BLE<'a, A: kernel::hil::time::Alarm + 'a> {
+    radio: &'a radio::Radio,
     busy: Cell<bool>,
-    app: kernel::Grant<App>,
+    app: kernel::Container<App>,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
     alarm: &'a A,
     advertisement_interval: Cell<u32>,
@@ -135,15 +138,12 @@ pub struct BLE<'a, B, A>
     offset: Cell<usize>,
 }
 
-impl<'a, B, A> BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-          A: kernel::hil::time::Alarm + 'a
-{
-    pub fn new(radio: &'a B,
-               container: kernel::Grant<App>,
+impl<'a, A: kernel::hil::time::Alarm + 'a> BLE<'a, A> {
+    pub fn new(radio: &'a radio::Radio,
+               container: kernel::Container<App>,
                tx_buf: &'static mut [u8],
                alarm: &'a A)
-               -> BLE<'a, B, A> {
+               -> BLE<'a, A> {
         BLE {
             radio: radio,
             busy: Cell::new(false),
@@ -164,24 +164,29 @@ impl<'a, B, A> BLE<'a, B, A>
     fn set_adv_data(&self, ad_type: usize) -> ReturnCode {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
-                app.app_write.as_ref().map(|slice| {
-                    let len = slice.len();
-                    // Each AD TYP consists of TYPE (1 byte), LENGTH (1 byte) and
-                    // PAYLOAD (0 - 31 bytes)
-                    // This is why we add 2 to start the payload at the correct position.
-                    let i = self.offset.get() + len + 2;
-                    if i <= 31 {
-                        self.kernel_tx.take().map(|data| {
-                            for (out, inp) in data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
-                                *out = *inp;
-                            }
-                            let tmp = self.radio
-                                .set_advertisement_data(ad_type, data, len, self.offset.get() + 8);
-                            self.kernel_tx.replace(tmp);
-                            self.offset.set(i);
-                        });
-                    }
-                });
+                app.app_write
+                    .as_ref()
+                    .map(|slice| {
+                        let len = slice.len();
+                        // Each AD TYP consists of TYPE (1 byte), LENGTH (1 byte) and
+                        // PAYLOAD (0 - 31 bytes)
+                        // This is why we add 2 to start the payload at the correct position.
+                        let i = self.offset.get() + len + 2;
+                        if i <= 31 {
+                            self.kernel_tx
+                                .take()
+                                .map(|data| {
+                                    for (out, inp) in data.iter_mut()
+                                        .zip(slice.as_ref()[0..len].iter()) {
+                                        *out = *inp;
+                                    }
+                                    let tmp = self.radio
+                                        .set_adv_data(ad_type, data, len, self.offset.get() + 8);
+                                    self.kernel_tx.replace(tmp);
+                                    self.offset.set(i);
+                                });
+                        }
+                    });
             });
         }
         ReturnCode::SUCCESS
@@ -192,17 +197,21 @@ impl<'a, B, A> BLE<'a, B, A>
         let mut ret = ReturnCode::FAIL;
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
-                app.app_write.as_ref().map(|slice| if slice.len() == 6 {
-                    self.kernel_tx.take().map(|data| {
-                        for (out, inp) in data.iter_mut()
-                            .zip(slice.as_ref()[0..slice.len()].iter()) {
-                            *out = *inp;
-                        }
-                        let tmp = self.radio.set_advertisement_address(data);
-                        self.kernel_tx.replace(tmp);
-                        ret = ReturnCode::SUCCESS;
+                app.app_write
+                    .as_ref()
+                    .map(|slice| if slice.len() == 6 {
+                        self.kernel_tx
+                            .take()
+                            .map(|data| {
+                                for (out, inp) in data.iter_mut()
+                                    .zip(slice.as_ref()[0..slice.len()].iter()) {
+                                    *out = *inp;
+                                }
+                                let tmp = self.radio.set_advertisement_address(data);
+                                self.kernel_tx.replace(tmp);
+                                ret = ReturnCode::SUCCESS;
+                            });
                     });
-                });
             });
         }
         ret
@@ -214,28 +223,22 @@ impl<'a, B, A> BLE<'a, B, A>
     }
 }
 
-impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-          A: kernel::hil::time::Alarm + 'a
-{
+impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::hil::time::Client for BLE<'a, A> {
     // this method is called once the virtual timer has been expired
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
         if self.busy.get() {
             if self.is_advertising.get() {
-                self.radio.start_advertisement_tx(37);
+                self.radio.start_adv_tx(37);
             } else {
-                self.radio.start_advertisement_rx(37);
+                self.radio.start_adv_rx();
             }
             self.configure_periodic_alarm();
         }
     }
 }
 
-impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-          A: kernel::hil::time::Alarm + 'a
-{
+impl<'a, A: kernel::hil::time::Alarm + 'a> RxClient for BLE<'a, A> {
     fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
@@ -255,10 +258,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 }
 
 // Implementation of SYSCALL interface
-impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-          A: kernel::hil::time::Alarm + 'a
-{
+impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::Driver for BLE<'a, A> {
     fn command(&self, command_num: usize, data: usize, _: kernel::AppId) -> ReturnCode {
         match (command_num, self.busy.get()) {
             // START BLE
@@ -274,7 +274,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                 self.busy.set(false);
                 ReturnCode::SUCCESS
             }
-            (2, false) => self.radio.set_advertisement_txpower(data),
+            (2, false) => self.radio.set_adv_txpower(data),
             (3, false) => {
                 if data < 20 {
                     self.advertisement_interval.set(20 * <A::Frequency>::frequency() / 1000);
@@ -338,7 +338,11 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                         app.app_write = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| err.into());
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    });
                 if ret == ReturnCode::SUCCESS {
                     self.set_adv_data(allow_num)
                 } else {
@@ -352,7 +356,11 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                         app.app_write = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| err.into());
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    });
                 if ret == ReturnCode::SUCCESS {
                     self.set_adv_addr()
                 } else {
@@ -366,14 +374,17 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                         app.app_read = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| err.into())
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
             (_, true) => ReturnCode::EBUSY,
 
             (_, _) => ReturnCode::ENOSUPPORT,
         }
     }
-
 
     fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
         match subscribe_num {
@@ -384,7 +395,11 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                         app.scan_callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| err.into())
+                    .unwrap_or_else(|err| match err {
+                        Error::OutOfMemory => ReturnCode::ENOMEM,
+                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                        Error::NoSuchApp => ReturnCode::EINVAL,
+                    })
             }
             _ => ReturnCode::ENOSUPPORT,
         }
