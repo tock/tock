@@ -10,6 +10,6 @@ BOARD_BUILDDIR = $(BUILDDIR)/$(TOCK_ARCH)
 NRF_LOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf52dk.py
 
 # Upload programs to nrf52dk
-.PHONY: flash
-flash: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+.PHONY: program
+program: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
 	$(NRF_LOAD) $<

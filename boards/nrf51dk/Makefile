@@ -1,4 +1,4 @@
-# Makefile for building the tock kernel for the nRF development kit
+# Makefile for building the tock kernel for the nRF51-DK development kit
 
 TOCK_ARCH=cortex-m0
 TARGET=thumbv6m-none-eabi
@@ -24,18 +24,21 @@ JLINK_SCRIPTS_DIR=jtag/
 
 # Upload the kernel over JTAG
 .PHONY: program
-flash: target/$(TARGET)/release/nrf51dk.hex
+program: target/$(TARGET)/release/nrf51dk.hex
 	$(JLINK) $(JLINK_OPTIONS) $(JLINK_SCRIPTS_DIR)/flash-kernel.jlink
 
+# ---------------------------------------------------------
+# THIS IS NOT ENABLED BY THE MAIN MAKEFILE AND NOT USED!!!
+# ---------------------------------------------------------
 # Upload kernel + app over JTAG
-.PHONY: program-full
-flash-full: target/$(TARGET)/release/nrf51dk-$(APP).hex
-	@$(eval TEMPFILE := $(shell mktemp -t nrf51dk-$(APP).jlink.XXXXXXXXXX))
-	@echo r > $(TEMPFILE)
-	@echo loadfile $< >> $(TEMPFILE)
-	@echo r >> $(TEMPFILE)
-	@echo g >> $(TEMPFILE)
-	@echo q >> $(TEMPFILE)
-	$(JLINK) $(JLINK_OPTIONS) $(TEMPFILE)
-	@rm $(TEMPFILE)
+#.PHONY: program-full
+# flash-full: target/$(TARGET)/release/nrf51dk-$(APP).hex
+#   @$(eval TEMPFILE := $(shell mktemp -t nrf51dk-$(APP).jlink.XXXXXXXXXX))
+#   @echo r > $(TEMPFILE)
+#   @echo loadfile $< >> $(TEMPFILE)
+#   @echo r >> $(TEMPFILE)
+#   @echo g >> $(TEMPFILE)
+#   @echo q >> $(TEMPFILE)
+#   $(JLINK) $(JLINK_OPTIONS) $(TEMPFILE)
+#   @rm $(TEMPFILE)
 
