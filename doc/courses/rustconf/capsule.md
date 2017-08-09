@@ -278,7 +278,7 @@ takes a 9DOF sensor driver (`fxos8700`) and an alarm in its `new`.
 So the calls from `rustconf` to those objects can be made
 directly, using the references passed in `new`. Hail's
 `reset_handler` already creates `fxos8700`. You therefore
-need to createa a new virtualized alarm to pass to rustconf.
+need to create a new virtualized alarm to pass to rustconf.
 Find where `reset_handler` creates `let si7021_virtual_alarm`;
 you want to repeat this code to create a `rx_virtual_alarm`, which
 you pass to `new` so you can create a `rustconf`:
@@ -314,14 +314,13 @@ Since the Tock kernel is non-blocking, you have to do this with event
 handlers. Since all three sensors have the same callback, your code
 has to keep state on which call was outstanding (e.g., through an
 `enum`). When the alarm fires, sample the first sensor. In the first
-ready event, orint out the value and sample the second sensor. In the
+ready event, print out the value and sample the second sensor. In the
 second event handler, sample the third.
 
-#### 8. 9DOF and Virtual Alarms Quiz (20m)
+#### 8. Some further questions and directions to explore (20m)
 
 Your `rustconf` capsule used the fxos8700 and virtualized
-alarms. Take a look at the code behind each of these services to
-answer these questions:
+alarms. Take a look at the code behind each of these services:
 
 1. Is the 9DOF sensor on-chip or a separate chip connected over a bus?
 2. What happens if you request two 9DOF sensors (e.g., acceleration and gyro) back-to-back?
