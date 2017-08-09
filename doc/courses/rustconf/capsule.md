@@ -157,7 +157,7 @@ will use `virtual_alarm` to receive a callback once a second, and
 `fxos8700cq` to sample the 9DOF sensor.
 
 Second, add `rustconf` to the capsules crate. In `capsules/src/lib.rs`,
-add `pub mod rustconf;` at the bottom of the file.
+add `pub mod rustconf;`.
 
 Third, in `rustconf.rs`, define a generic struct called
 `RustConf`. This struct needs two generic type parameters: a lifetime
