@@ -72,6 +72,15 @@ let console = static_init!(
 hil::uart::UART::set_client(&usart::USART0, console);
 ```
 
+> ##### A brief aside on `console::WRITE_BUF`
+>
+> It's a little weird that Console's `new` method takes in a reference to
+> itself. This is an ergonomics tradeoff. The Console needs a mutable static
+> buffer to use internally, which the Console capsule declares. However writing
+> global statics is unsafe. To avoid the unsafe operation in the Console
+> capsule itself, we make it the responsibility of the instantiator to give the
+> Console a buffer to use, without burdening the instantiator with sizing the
+> buffer.
 
 You're going to use this capsule to output data from the 9DOF sensor,
 so it's a useful example to see how you instantiate and initialize capsules.
