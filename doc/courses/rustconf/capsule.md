@@ -82,7 +82,7 @@ a `Console` that uses serial port 0 (`USART0`) at 115200 bits per second.
 
 Notice that you have to pass a write buffer to the console for it to use:
 this buffer has to have a `` `static`` lifetime. This is because low-level
-hardware drivers, especially those thayt use DMA, require `` `static`` buffers.
+hardware drivers, especially those that use DMA, require `` `static`` buffers.
 Since Tock doesn't promise when a DMA operation will complete, and you
 need to be able to promise that the buffer outlives the operation, the
 one lifetime that is assured to be alive at the end of an operation is
@@ -131,7 +131,7 @@ Take a look at the implementation of the `debug!` macro in
 `kernel/src/debug.rs`. Note that it has an output buffer of size
 `BUF_SIZE` (`debug.rs:29`). When the kernel calls `debug!`, does
 the macro return when the message has been written to the serial
-port (synchronous), or does it return and asynchonrously write
+port (synchronous), or does it return and asynchronously write
 out the debug message? Hint: the call to `subscribe` on line 120
 is what starts the write operation, resulting in the `callback` on
 line 130.
