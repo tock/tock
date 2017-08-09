@@ -290,8 +290,6 @@ pub unsafe fn reset_handler() {
                                 &sam4l::gpio::PA[10],    // sleep
                                 &sam4l::gpio::PA[08],    // irq
                                 &sam4l::gpio::PA[08])); //  irq_ctl
-    rf233.reset();
-    rf233.start();
 
     sam4l::gpio::PA[08].set_client(rf233);
 
@@ -395,10 +393,8 @@ pub unsafe fn reset_handler() {
     rf233.set_transmit_client(radio_mac);
     rf233.set_receive_client(radio_mac, &mut RF233_RX_BUF);
     rf233.set_config_client(radio_mac);
-
     radio_mac.set_pan(0xABCD);
     radio_mac.set_address(0x1008);
-    radio_mac.config_commit();
 
     // Configure the USB controller
     let usb_client = static_init!(
@@ -431,6 +427,11 @@ pub unsafe fn reset_handler() {
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
+
+    // These two lines need to be below the creation of the chip for
+    // initialization to work.
+    rf233.reset();
+    rf233.start();
 
     debug!("Initialization complete. Entering main loop");
     extern "C" {
