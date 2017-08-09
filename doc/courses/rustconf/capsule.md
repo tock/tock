@@ -276,7 +276,7 @@ looks like this:
 Recall from your code that the `rustconf` capsule
 takes a 9DOF sensor driver (`fxos8700`) and an alarm in its `new`.
 So the calls from `rustconf` to those objects can be made
-directly, using the references pass in `new`. Hail's
+directly, using the references passed in `new`. Hail's
 `reset_handler` already creates `fxos8700`. You therefore
 need to createa a new virtualized alarm to pass to rustconf.
 Find where `reset_handler` creates `let si7021_virtual_alarm`;
