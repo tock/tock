@@ -1,7 +1,7 @@
 imix: Platform-Specific Instructions
 =====================================
 
-This board file is for imix version 2. For older versions, see the imixv1 board.
+This board file is for imix version 2.
 
 
 ## Flashing the kernel
