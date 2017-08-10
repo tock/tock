@@ -11,23 +11,31 @@
 //    -- are Active and Pending Timestamp TLVs, respectively, required to be sent as well
 //    if either of the dataset tlvs are sent?
 
+// TODO:
+// - Decode functions that return buffer slice do not currently reorder bytes from network order
+//    - FAILS: Tentative soln: Copy decoded buffer back into input buffer...
+//    - Tentative soln: require user to allocate separate buffer to store decoded bytes
+
 
 use core::mem;
-#[macro_use]
-use net::stream::{encode_u8, encode_u16, encode_u32, encode_bytes, encode_bytes_be};
+use net::stream::{decode_u8, decode_u16, decode_u32, decode_bytes_be};
+use net::stream::{encode_u8, encode_u16, encode_u32, encode_bytes_be};
 use net::stream::SResult;
 
 pub enum Tlv<'a> {
     SourceAddress(u16),
     Mode(u8),
     Timeout(u32),
-    Challenge(&'a [u8]),
-    Response(&'a [u8]),
+    Challenge([u8; 8]),
+    Response([u8; 8]),
     LinkLayerFrameCounter(u32),
     // LinkQuality,                  // TLV type Not used in Thread
     // NetworkParameter,             // TLV type Not used in Thread
     MleFrameCounter(u32),
-    // Route64,                      // TODO: Not required to implement MLE for SED
+    /*
+    TODO: Not required to implement MLE for SED
+    Route64,
+    */
     Address16(u16),
     LeaderData {
         partition_id: u32,
@@ -53,15 +61,21 @@ pub enum Tlv<'a> {
     LinkMargin(u8),
     Status(u8),
     Version(u16),
-    // AddressRegistration          // TODO: Not required to implement MLE for SED
-    // AddressRegistration          // TODO: Not required to implement MLE for SED
-    // Channel                      // TODO: Not required to implement MLE for SED
-    // PanId                        // TODO: Not required to implement MLE for SED
-    // ActiveTimestamp              // TODO: Not required to implement MLE for SED
-    // PendingTimestamp             // TODO: Not required to implement MLE for SED
+    /*
+    TODO: Not required to implement MLE for SED
+    AddressRegistration
+    AddressRegistration
+    Channel
+    PanId
+    ActiveTimestamp
+    PendingTimestamp
+    */
     ActiveOperationalDataset(&'a [u8]),
     PendingOperationalDataset(&'a [u8]), 
-    // ThreadDiscovery              // TODO: Not required to implement MLE for Sleepy End Device
+    /*
+    TODO: Not required to implement MLE for SED
+    ThreadDiscovery
+    */
 }
 
 // Type and length fields of TLV are each one byte.
@@ -100,16 +114,16 @@ impl<'a> Tlv<'a> {
                 let offset = enc_consume!(buf, TL_WIDTH; encode_bytes_be, byte_str);
                 stream_done!(offset)
             }
-            Tlv::LinkLayerFrameCounter(ref frame_count) => {
+            Tlv::LinkLayerFrameCounter(ref frame_counter) => {
                 let value_width = mem::size_of::<u32>();
                 self.encode_tl(buf, value_width);
-                let offset = enc_consume!(buf, TL_WIDTH; encode_u32, frame_count.to_be());
+                let offset = enc_consume!(buf, TL_WIDTH; encode_u32, frame_counter.to_be());
                 stream_done!(offset)
             }
-            Tlv::MleFrameCounter(ref frame_count) => {
+            Tlv::MleFrameCounter(ref frame_counter) => {
                 let value_width = mem::size_of::<u32>();
                 self.encode_tl(buf, value_width);
-                let offset = enc_consume!(buf, TL_WIDTH; encode_u32, frame_count.to_be());
+                let offset = enc_consume!(buf, TL_WIDTH; encode_u32, frame_counter.to_be());
                 stream_done!(offset)
             }
             Tlv::Address16(ref mac_address) => {
@@ -230,15 +244,91 @@ impl<'a> Tlv<'a> {
         stream_done!(2)
     }
 
-    /*
-    pub fn decode(buf: &[u8], type: TlvType) -> SResult<Tlv> {
-        match type {
-            // TOOD:
-            // - finish Tlv
-            // - write decode
+    pub fn decode(buf: &mut [u8]) -> SResult<Option<Tlv>> {
+        let (offset, tlv_type) = dec_try!(buf; decode_u8);
+        let tlv_type = TlvType::from(tlv_type);
+        let (offset, length) = dec_try!(buf, offset; decode_u8);
+        match tlv_type {
+            TlvType::SourceAddress => {
+                let (offset, mac_address) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset, Some(Tlv::SourceAddress(mac_address)))
+            }
+            TlvType::Mode => {
+                let (offset, mode) = dec_try!(buf, offset; decode_u8);
+                stream_done!(offset, Some(Tlv::Mode(mode)))
+            }
+            TlvType::Timeout => {
+                let (offset, max_transmit_interval) = dec_try!(buf, offset; decode_u32);
+                stream_done!(offset, Some(Tlv::Timeout(max_transmit_interval)))
+            }
+            TlvType::Challenge => {
+                let mut byte_str = [0u8; 8]; // Byte string max length 8 bytes.
+                let offset = dec_consume!(buf, offset; decode_bytes_be, &mut byte_str);
+                stream_done!(offset, Some(Tlv::Challenge(byte_str)))
+            }
+            TlvType::Response => {
+                let mut byte_str = [0u8; 8]; // Byte string max length 8 bytes.
+                let offset = dec_consume!(buf, offset; decode_bytes_be, &mut byte_str);
+                stream_done!(offset, Some(Tlv::Response(byte_str)))
+            }
+            TlvType::LinkLayerFrameCounter => {
+                let (offset, frame_counter) = dec_try!(buf, offset; decode_u32);
+                stream_done!(offset, Some(Tlv::LinkLayerFrameCounter(frame_counter)))
+            }
+            TlvType::MleFrameCounter => {
+                let (offset, frame_counter) = dec_try!(buf, offset; decode_u32);
+                stream_done!(offset, Some(Tlv::MleFrameCounter(frame_counter)))
+            }
+            TlvType::Address16 => {
+                let (offset, mac_address) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset, Some(Tlv::Address16(mac_address)))
+            }
+            TlvType::LeaderData => {
+                let (offset, partition_id) = dec_try!(buf, offset; decode_u32);
+                let (offset, weighting) = dec_try!(buf, offset; decode_u8);
+                let (offset, data_version) = dec_try!(buf, offset; decode_u8);
+                let (offset, stable_data_version) = dec_try!(buf, offset; decode_u8);
+                let (offset, leader_router_id) = dec_try!(buf, offset; decode_u8);
+                stream_done!(offset, Some(Tlv::LeaderData {
+                                                partition_id: partition_id,
+                                                weighting: weighting,
+                                                data_version: data_version,
+                                                stable_data_version: stable_data_version,
+                                                leader_router_id: leader_router_id,
+                                            }))
+            }
+            TlvType::NetworkData => {
+                stream_done!(0, Some(Tlv::NetworkData(&buf[offset..offset + length as usize])))
+            }
+            TlvType::TlvRequest => {
+                stream_done!(0, None)
+            }
+            TlvType::ScanMask => {
+                stream_done!(0, None)
+            }
+            TlvType::Connectivity => {
+                stream_done!(0, None)
+            }
+            TlvType::LinkMargin => {
+                stream_done!(0, None)
+            }
+            TlvType::Status => {
+                stream_done!(0, None)
+            }
+            TlvType::Version => {
+                stream_done!(0, None)
+            }
+            TlvType::ActiveOperationalDataset => {
+                stream_done!(0, None)
+            }
+            TlvType::PendingOperationalDataset => {
+                stream_done!(0, None)
+            }
+            TlvType::NotPresent => {
+                stream_done!(offset, None)
+            }
         }
     }
-    */
 }
 
 #[repr(u8)]
@@ -249,10 +339,13 @@ pub enum TlvType {
     Challenge = 3,
     Response = 4,
     LinkLayerFrameCounter = 5,
-    // LinkQuality            = 6,  // TLV type not used in Thread
-    // NetworkParameter       = 7,  // TLV type not used in Thread
+    // LinkQuality = 6,         // TLV type not used in Thread
+    // NetworkParameter = 7,    // TLV type not used in Thread
     MleFrameCounter = 8,
-    // Route64                   = 9,  // TODO: Not required to implement MLE for SED
+    /*
+    TODO: Not required to implement MLE for SED
+    Route64 = 9,
+    */
     Address16 = 10,
     LeaderData = 11,
     NetworkData = 12,
@@ -262,14 +355,47 @@ pub enum TlvType {
     LinkMargin = 16,
     Status = 17,
     Version = 18,
-    // AddressRegistration       = 19, // TODO: Not required to implement MLE for SED
-    // Channel                   = 20, // TODO: Not required to implement MLE for SED
-    // PanId                     = 21, // TODO: Not required to implement MLE for SED
-    // ActiveTimestamp           = 22, // TODO: Not required to implement MLE for SED
-    // PendingTimestamp          = 23, // TODO: Not required to implement MLE for SED
+    /*
+    TODO: Not required to implement MLE for SED
+    AddressRegistration = 19,
+    Channel = 20,
+    PanId = 21,
+    ActiveTimestamp = 22,
+    PendingTimestamp = 23,
+    */
     ActiveOperationalDataset = 24,
     PendingOperationalDataset = 25, 
-    // ThreadDiscovery           = 26, // TODO: Not required to implement MLE for Sleepy End Device
+    /*
+    TODO: Not required to implement MLE for SED
+    ThreadDiscovery = 26,
+    */
+    NotPresent
+}
+
+impl From<u8> for TlvType {
+    fn from(tlv_type: u8) -> Self {
+        match tlv_type {
+            0 => TlvType::SourceAddress,
+            1 => TlvType::Mode,
+            2 => TlvType::Timeout,
+            3 => TlvType::Challenge,
+            4 => TlvType::Response,
+            5 => TlvType::LinkLayerFrameCounter,
+            8 => TlvType::MleFrameCounter,
+            10 => TlvType::Address16,
+            11 => TlvType::LeaderData,
+            12 => TlvType::NetworkData,
+            13 => TlvType::TlvRequest,
+            14 => TlvType::ScanMask,
+            15 => TlvType::Connectivity,
+            16 => TlvType::LinkMargin,
+            17 => TlvType::Status,
+            18 => TlvType::Version,
+            24 => TlvType::ActiveOperationalDataset,
+            25 => TlvType::PendingOperationalDataset,
+            _ => TlvType::NotPresent
+        }
+    }
 }
 
 impl<'a, 'b> From<&'a Tlv<'b>> for TlvType {
@@ -281,10 +407,7 @@ impl<'a, 'b> From<&'a Tlv<'b>> for TlvType {
             Tlv::Challenge(_) => TlvType::Challenge,
             Tlv::Response(_) => TlvType::Response,
             Tlv::LinkLayerFrameCounter(_) => TlvType::LinkLayerFrameCounter,
-            // Tlv::LinkQuality               => TlvType::LinkQuality,         // TLV type not used in Thread
-            // Tlv::NetworkParameter          => TlvType::NetworkParameter,    // TLV type not used in Thread
             Tlv::MleFrameCounter(_) => TlvType::MleFrameCounter,
-            // Tlv::Route64                   => TlvType::Route64,             // TODO: Not required to implement MLE for SED
             Tlv::Address16(_) => TlvType::Address16,
             Tlv::LeaderData { .. } => TlvType::LeaderData,
             Tlv::NetworkData(_) => TlvType::NetworkData,
@@ -294,14 +417,8 @@ impl<'a, 'b> From<&'a Tlv<'b>> for TlvType {
             Tlv::LinkMargin(_) => TlvType::LinkMargin,
             Tlv::Status(_) => TlvType::Status,
             Tlv::Version(_) => TlvType::Version,
-            // Tlv::AddressRegistration       => TlvType::AddressRegistration, // TODO: Not required to implement MLE for SED
-            // Tlv::Channel                   => TlvType::Channel,             // TODO: Not required to implement MLE for SED
-            // Tlv::PanId                     => TlvType::PanId,               // TODO: Not required to implement MLE for SED
-            // Tlv::ActiveTimestamp           => TlvType::ActiveTimestamp,     // TODO: Not required to implement MLE for SED
-            // Tlv::PendingTimestamp          => TlvType::PendingTimestamp,    // TODO: Not required to implement MLE for SED
-            Tlv::ActiveOperationalDataset(_) => TlvType::ActiveOperationalDataset, 
+            Tlv::ActiveOperationalDataset(_) => TlvType::ActiveOperationalDataset,
             Tlv::PendingOperationalDataset(_) => TlvType::PendingOperationalDataset,
-            // Tlv::ThreadDiscovery           => TlvType::ThreadDiscovery,     // TODO: Not required to implement MLE for SED
         }
     }
 }
@@ -325,7 +442,7 @@ pub enum ParentPriority {
     High = 0b01000000,
     Medium = 0b00000000,
     Low = 0b11000000, 
-    // Reserved = 0b10000000,
+    // Reserved = 0b10000000
 }
 
 pub enum NetworkDataTlv<'a> {
@@ -375,7 +492,12 @@ impl<'a> NetworkDataTlv<'a> {
                     mem::size_of::<u8>() + mem::size_of::<u32>() + mem::size_of::<u8>() +
                     s_service_data.len() + sub_tlvs.len();
                 self.encode_tl(buf, value_width, stable);
-                let first_byte: u8 = (thread_enterprise_number as u8) | (0b00001111 & s_id);
+                let t_bit: u8 = if thread_enterprise_number {
+                    1u8 << 7
+                } else {
+                    0
+                };
+                let first_byte: u8 = t_bit | (0b1111 & s_id);
                 let mut offset = enc_consume!(buf, TL_WIDTH; encode_u8, first_byte);
                 offset = enc_consume!(buf, offset; encode_u32, s_enterprise_number.to_be());
                 offset = enc_consume!(buf, offset; encode_u8, s_service_data_length);
@@ -393,6 +515,61 @@ impl<'a> NetworkDataTlv<'a> {
         buf[1] = value_width as u8;
         stream_done!(2)
     }
+
+    pub fn decode(buf: &[u8]) -> SResult<Option<(NetworkDataTlv, bool)>> {
+        let (offset, tlv_type_field) = dec_try!(buf; decode_u8);
+        let tlv_type_raw = tlv_type_field >> 1;
+        let tlv_type = NetworkDataTlvType::from(tlv_type_raw);
+        let stable = (tlv_type_field & 1u8) > 0;
+        let (offset, length) = dec_try!(buf, offset; decode_u8);
+        match tlv_type {
+            NetworkDataTlvType::Prefix => {
+                let (offset, domain_id) = dec_try!(buf, offset; decode_u8);
+                let (offset, prefix_length_bits) = dec_try!(buf, offset; decode_u8);
+                let prefix_length_bytes = (prefix_length_bits / 8) as usize +
+                                          if prefix_length_bits % 8 == 0 { 0 } else { 1 };
+                stream_done!(offset,
+                             Some((NetworkDataTlv::Prefix {
+                                       domain_id: domain_id,
+                                       prefix_length_bits: prefix_length_bits,
+                                       prefix: &buf[offset..offset + prefix_length_bytes],
+                                       sub_tlvs: &buf[offset + prefix_length_bytes..
+                                                  offset + length as usize],
+                                   },
+                                   stable)))
+            }
+            NetworkDataTlvType::CommissioningData => {
+                let (offset, com_length) = dec_try!(buf, offset; decode_u8);
+                stream_done!(offset,
+                             Some((NetworkDataTlv::CommissioningData {
+                                       com_length: com_length,
+                                       com_data: &buf[offset..offset + length as usize],
+                                   },
+                                   stable)))
+            }
+            NetworkDataTlvType::Service => {
+                let (offset, first_byte) = dec_try!(buf, offset; decode_u8);
+                let thread_enterprise_number = (first_byte >> 7) > 0;
+                let s_id = first_byte & 0b1111;
+                let (offset, s_enterprise_number) = dec_try!(buf, offset; decode_u32);
+                let (offset, s_service_data_length) = dec_try!(buf, offset; decode_u8);
+                stream_done!(offset,
+                             Some((NetworkDataTlv::Service {
+                                       thread_enterprise_number: thread_enterprise_number,
+                                       s_id: s_id,
+                                       s_enterprise_number: s_enterprise_number,
+                                       s_service_data_length: s_service_data_length,
+                                       s_service_data: &buf[offset..
+                                                        offset +
+                                                        s_service_data_length as usize],
+                                       sub_tlvs: &buf[offset + s_service_data_length as usize..
+                                                  offset + length as usize],
+                                   },
+                                   stable)))
+            }
+            NetworkDataTlvType::NotPresent => stream_done!(offset, None),
+        }
+    }
 }
 
 #[repr(u8)]
@@ -400,6 +577,18 @@ pub enum NetworkDataTlvType {
     Prefix = 1,
     CommissioningData = 4,
     Service = 5,
+    NotPresent,
+}
+
+impl From<u8> for NetworkDataTlvType {
+    fn from(tlv_type: u8) -> Self {
+        match tlv_type {
+            1 => NetworkDataTlvType::Prefix,
+            4 => NetworkDataTlvType::CommissioningData,
+            5 => NetworkDataTlvType::Service,
+            _ => NetworkDataTlvType::NotPresent,
+        }
+    }
 }
 
 impl<'a, 'b> From<&'a NetworkDataTlv<'b>> for NetworkDataTlvType {
@@ -456,6 +645,42 @@ impl<'a> PrefixSubTlv<'a> {
         buf[1] = value_width as u8;
         stream_done!(2)
     }
+
+    // Returns PrefixSubTlv and true if stabl, false otherwise.
+    pub fn decode(buf: &[u8]) -> SResult<Option<(PrefixSubTlv, bool)>> {
+        let (offset, tlv_type_field) = dec_try!(buf; decode_u8);
+        let tlv_type_raw = tlv_type_field >> 1;
+        let tlv_type = PrefixSubTlvType::from(tlv_type_raw);
+        let stable = (tlv_type_field & 1u8) > 0;
+        let (offset, length) = dec_try!(buf, offset; decode_u8);
+        match tlv_type {
+            PrefixSubTlvType::HasRoute => {
+                stream_done!(offset + buf[offset..].len(),
+                             Some((PrefixSubTlv::HasRoute(&buf[offset..offset + length as usize]),
+                                   stable)))
+            }
+            PrefixSubTlvType::BorderRouter => {
+                stream_done!(offset + buf[offset..].len(),
+                             Some((PrefixSubTlv::BorderRouter(&buf[offset..
+                                                               offset + length as usize]),
+                                   stable)))
+            }
+            PrefixSubTlvType::SixLoWpanId => {
+                let (offset, first_byte) = dec_try!(buf, offset; decode_u8);
+                let context_id_compress = (first_byte & 0b10000) > 0;
+                let context_id = first_byte & 0b1111;
+                let (offset, context_length) = dec_try!(buf, offset; decode_u8);
+                stream_done!(offset,
+                             Some((PrefixSubTlv::SixLoWpanId {
+                                       context_id_compress: context_id_compress,
+                                       context_id: context_id,
+                                       context_length: context_length,
+                                   },
+                                   stable)))
+            }
+            PrefixSubTlvType::NotPresent => stream_done!(offset, None),
+        }
+    }
 }
 
 #[repr(u8)]
@@ -463,6 +688,18 @@ pub enum PrefixSubTlvType {
     HasRoute = 0,
     BorderRouter = 2,
     SixLoWpanId = 3,
+    NotPresent,
+}
+
+impl From<u8> for PrefixSubTlvType {
+    fn from(tlv_type: u8) -> Self {
+        match tlv_type {
+            0 => PrefixSubTlvType::HasRoute,
+            2 => PrefixSubTlvType::BorderRouter,
+            3 => PrefixSubTlvType::SixLoWpanId,
+            _ => PrefixSubTlvType::NotPresent,
+        }
+    }
 }
 
 impl<'a, 'b> From<&'a PrefixSubTlv<'b>> for PrefixSubTlvType {
@@ -488,35 +725,53 @@ impl HasRouteTlvValue {
         offset = enc_consume!(buf, offset; encode_u8, last_byte);
         stream_done!(offset)
     }
+
+    pub fn decode(buf: &[u8]) -> SResult<HasRouteTlvValue> {
+        let (offset, r_border_router_16) = dec_try!(buf; decode_u16);
+        let (offset, r_preference) = dec_try!(buf, offset; decode_u8);
+        stream_done!(offset + buf[offset..].len(),
+                     HasRouteTlvValue {
+                         r_border_router_16: r_border_router_16,
+                         r_preference: r_preference,
+                     })
+    }
 }
 
 pub struct BorderRouterTlvValue {
     // See 15.8.3
     p_border_router_16: u16,
-    p_preference: u8,
-    p_preferred: u8,
-    p_slaac: u8,
-    p_dhcp: u8,
-    p_configure: u8,
-    p_default: u8,
-    p_on_mesh: u8,
-    p_nd_dns: u8,
+    p_bits: u16,
+}
+
+// See 5.18.3
+#[repr(u16)]
+pub enum BorderRouterTlvValueBit {
+    Prf = 0b1100000000000000,
+    P = 0b0010000000000000,
+    S = 0b0001000000000000,
+    D = 0b0000100000000000,
+    C = 0b0000010000000000,
+    R = 0b0000001000000000,
+    O = 0b0000000100000000,
+    N = 0b0000000010000000,
 }
 
 impl BorderRouterTlvValue {
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         stream_len_cond!(buf, 4); // Each Border Router TLV value is 32 bits wide.
         let mut offset = enc_consume!(buf, 0; encode_u16, self.p_border_router_16.to_be());
-        let mut bits: u16 = ((self.p_preference & 0b11) as u16) << 14;
-        bits = bits | ((self.p_preferred & 0b1) as u16) << 13;
-        bits = bits | ((self.p_slaac & 0b1) as u16) << 12;
-        bits = bits | ((self.p_dhcp & 0b1) as u16) << 11;
-        bits = bits | ((self.p_configure & 0b1) as u16) << 10;
-        bits = bits | ((self.p_default & 0b1) as u16) << 9;
-        bits = bits | ((self.p_on_mesh & 0b1) as u16) << 8;
-        bits = bits | ((self.p_nd_dns & 0b1) as u16) << 7;
-        offset = enc_consume!(buf, offset; encode_u16, bits);
+        offset = enc_consume!(buf, offset; encode_u16, self.p_bits.to_be());
         stream_done!(offset)
+    }
+
+    pub fn decode(buf: &[u8]) -> SResult<BorderRouterTlvValue> {
+        let (offset, p_border_router_16) = dec_try!(buf; decode_u16);
+        let (offset, p_bits) = dec_try!(buf, offset; decode_u16);
+        stream_done!(offset + buf[offset..].len(),
+                     BorderRouterTlvValue {
+                         p_border_router_16: p_border_router_16,
+                         p_bits: p_bits,
+                     })
     }
 }
 
@@ -547,11 +802,41 @@ impl<'a> ServiceSubTlv<'a> {
         buf[1] = value_width as u8;
         stream_done!(2)
     }
+
+    pub fn decode(buf: &[u8]) -> SResult<Option<(ServiceSubTlv, bool)>> {
+        let (offset, tlv_type_field) = dec_try!(buf; decode_u8);
+        let tlv_type_raw = tlv_type_field >> 1;
+        let tlv_type = ServiceSubTlvType::from(tlv_type_raw);
+        let stable = (tlv_type_field & 1u8) > 0;
+        let (offset, length) = dec_try!(buf, offset; decode_u8);
+        match tlv_type {
+            ServiceSubTlvType::Server => {
+                let (offset, s_server_16) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset + buf[offset..].len(),
+                             Some((ServiceSubTlv::Server {
+                                       s_server_16: s_server_16,
+                                       s_server_data: &buf[offset..offset + length as usize],
+                                   },
+                                   stable)))
+            }
+            ServiceSubTlvType::NotPresent => stream_done!(offset, None),
+        }
+    }
 }
 
 #[repr(u8)]
 pub enum ServiceSubTlvType {
     Server = 6,
+    NotPresent,
+}
+
+impl From<u8> for ServiceSubTlvType {
+    fn from(tlv_type: u8) -> Self {
+        match tlv_type {
+            6 => ServiceSubTlvType::Server,
+            _ => ServiceSubTlvType::NotPresent,
+        }
+    }
 }
 
 impl<'a, 'b> From<&'a ServiceSubTlv<'b>> for ServiceSubTlvType {
@@ -565,24 +850,30 @@ impl<'a, 'b> From<&'a ServiceSubTlv<'b>> for ServiceSubTlvType {
 pub enum NetworkManagementTlv<'a> {
     Channel { channel_page: u8, channel: u16 },
     PanId(u16),
-    ExtendedPanId(&'a [u8]),
+    ExtendedPanId([u8; 8]),
     NetworkName(&'a [u8]),
     Pskc(&'a [u8]),
-    NetworkMasterKey(&'a [u8]),
-    NetworkKeySequenceCounter(&'a [u8]),
-    NetworkMeshLocalPrefix(&'a [u8]),
+    NetworkMasterKey([u8; 16]),
+    NetworkKeySequenceCounter([u8; 4]),
+    NetworkMeshLocalPrefix([u8; 8]),
     SteeringData(&'a [u8]),
     BorderAgentLocator(u16),
     CommissionerId(&'a [u8]),
     CommissionerSessionId(u16),
     SecurityPolicy { rotation_time: u16, policy_bits: u8 },
-    ActiveTimestamp { timestamp_seconds: &'a [u8], timestamp_ticks: u16, u_bit: bool },
-    /*
-    CommissionerUdpPort,
-    PendingTimestamp,
-    DelayTimer,
-    ChannelMask,
-    */
+    ActiveTimestamp {
+        timestamp_seconds: [u8; 3],
+        timestamp_ticks: u16,
+        u_bit: bool,
+    },
+    CommissionerUdpPort(u16),
+    PendingTimestamp {
+        timestamp_seconds: [u8; 3],
+        timestamp_ticks: u16,
+        u_bit: bool,
+    },
+    DelayTimer(u32),
+    ChannelMask(&'a [u8]),
 }
 
 impl<'a> NetworkManagementTlv<'a> {
@@ -604,8 +895,7 @@ impl<'a> NetworkManagementTlv<'a> {
                 stream_done!(offset)
             }
             NetworkManagementTlv::ExtendedPanId(ref extended_pan_id) => {
-                stream_cond!(extended_pan_id.len() == 8); // Extended PAN ID length 8 bytes
-                let value_width = extended_pan_id.len();
+                let value_width = extended_pan_id.len(); // Extended PAN ID length 8 bytes.
                 self.encode_tl(buf, value_width);
                 let offset = enc_consume!(buf, TL_WIDTH; encode_bytes_be, extended_pan_id);
                 stream_done!(offset)
@@ -625,22 +915,19 @@ impl<'a> NetworkManagementTlv<'a> {
                 stream_done!(offset)
             }
             NetworkManagementTlv::NetworkMasterKey(ref network_key) => {
-                stream_cond!(network_key.len() == 16); // 128 bits
-                let value_width = network_key.len();
+                let value_width = network_key.len(); // Master key length 128 bits = 16 bytes.
                 self.encode_tl(buf, value_width);
                 let offset = enc_consume!(buf, TL_WIDTH; encode_bytes_be, network_key);
                 stream_done!(offset)
             }
             NetworkManagementTlv::NetworkKeySequenceCounter(ref counter) => {
-                stream_cond!(counter.len() == 4); // Counter length 4 bytes.
-                let value_width = counter.len();
+                let value_width = counter.len(); // Counter length 4 bytes.
                 self.encode_tl(buf, value_width);
                 let offset = enc_consume!(buf, TL_WIDTH; encode_bytes_be, counter);
                 stream_done!(offset)
             }
             NetworkManagementTlv::NetworkMeshLocalPrefix(ref prefix) => {
-                stream_cond!(prefix.len() == 8); // Mesh-Local Prefix length 8 bytes.
-                let value_width = prefix.len();
+                let value_width = prefix.len(); // Mesh-Local Prefix length 8 bytes.
                 self.encode_tl(buf, value_width);
                 let offset = enc_consume!(buf, TL_WIDTH; encode_bytes_be, prefix);
                 stream_done!(offset)
@@ -679,13 +966,44 @@ impl<'a> NetworkManagementTlv<'a> {
                 stream_done!(offset)
             }
             NetworkManagementTlv::ActiveTimestamp { timestamp_seconds, timestamp_ticks, u_bit } => {
-                stream_cond!(timestamp_seconds.len() == 3);    // Timestamp seconds is a 48-bit Unix time value.
-                let value_width = timestamp_seconds.len() + mem::size_of::<u16>();
+                let value_width =
+                    timestamp_seconds.len() // Timestamp seconds is a 48-bit Unix time value.
+                                + mem::size_of::<u16>();
                 self.encode_tl(buf, value_width);
-                let mut offset = enc_consume!(buf, TL_WIDTH; encode_bytes_be, timestamp_seconds);
+                let mut offset = enc_consume!(buf, TL_WIDTH; encode_bytes_be, &timestamp_seconds);
                 let u_bit_val = if u_bit { 1u16 } else { 0u16 };
                 let end_bytes = (timestamp_ticks << 1) | u_bit_val;
                 offset = enc_consume!(buf, offset; encode_u16, end_bytes.to_be());
+                stream_done!(offset)
+            }
+            NetworkManagementTlv::CommissionerUdpPort(ref udp_port) => {
+                let value_width = mem::size_of::<u16>();
+                self.encode_tl(buf, value_width);
+                let offset = enc_consume!(buf, TL_WIDTH; encode_u16, udp_port.to_be());
+                stream_done!(offset)
+            }
+            NetworkManagementTlv::PendingTimestamp { timestamp_seconds,
+                                                     timestamp_ticks,
+                                                     u_bit } => {
+                // Timestamp seconds is a 48-bit Unix time value.
+                let value_width = timestamp_seconds.len() + mem::size_of::<u16>();
+                self.encode_tl(buf, value_width);
+                let mut offset = enc_consume!(buf, TL_WIDTH; encode_bytes_be, &timestamp_seconds);
+                let u_bit_val = if u_bit { 1u16 } else { 0u16 };
+                let end_bytes = (timestamp_ticks << 1) | u_bit_val;
+                offset = enc_consume!(buf, offset; encode_u16, end_bytes.to_be());
+                stream_done!(offset)
+            }
+            NetworkManagementTlv::DelayTimer(ref time_remaining) => {
+                let value_width = mem::size_of::<u32>();
+                self.encode_tl(buf, value_width);
+                let offset = enc_consume!(buf, TL_WIDTH; encode_u32, time_remaining.to_be());
+                stream_done!(offset)
+            }
+            NetworkManagementTlv::ChannelMask(ref entries) => {
+                let value_width = entries.len();
+                self.encode_tl(buf, value_width);
+                let offset = enc_consume!(buf, TL_WIDTH; encode_bytes_be, entries);
                 stream_done!(offset)
             }
         }
@@ -696,6 +1014,138 @@ impl<'a> NetworkManagementTlv<'a> {
         buf[0] = NetworkManagementTlvType::from(self) as u8;
         buf[1] = value_width as u8;
         stream_done!(2)
+    }
+
+    pub fn decode(buf: &[u8]) -> SResult<Option<NetworkManagementTlv>> {
+        let (offset, tlv_type_raw) = dec_try!(buf; decode_u8);
+        let tlv_type = NetworkManagementTlvType::from(tlv_type_raw);
+        let (offset, length) = dec_try!(buf, offset; decode_u8);
+        match tlv_type {
+            NetworkManagementTlvType::Channel => {
+                let (offset, channel_page) = dec_try!(buf, offset; decode_u8);
+                let (offset, channel) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::Channel {
+                                 channel_page: channel_page,
+                                 channel: channel,
+                             }))
+            }
+            NetworkManagementTlvType::PanId => {
+                let (offset, pan_id) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset, Some(NetworkManagementTlv::PanId(pan_id)))
+            }
+            NetworkManagementTlvType::ExtendedPanId => {
+                let mut extended_pan_id = [0u8; 8]; // Extended PAN ID length 8 bytes.
+                let offset = dec_consume!(buf, offset; decode_bytes_be, &mut extended_pan_id);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::ExtendedPanId(extended_pan_id)))
+            }
+            NetworkManagementTlvType::NetworkName => {
+                // Network name max length 16 bytes.
+                stream_done!(offset + buf[offset..].len(),
+                             Some(NetworkManagementTlv::NetworkName(&buf[offset..
+                                                                     offset +
+                                                                     length as usize])))
+            }
+            NetworkManagementTlvType::Pskc => {
+                // PSKc max length 16 bytes.
+                stream_done!(offset + buf[offset..].len(),
+                             Some(NetworkManagementTlv::Pskc(&buf[offset..
+                                                              offset + length as usize])))
+            }
+            NetworkManagementTlvType::NetworkMasterKey => {
+                let mut network_key = [0u8; 16]; // Master key length 128 bits = 16 bytes.
+                let offset = dec_consume!(buf, offset; decode_bytes_be, &mut network_key);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::NetworkMasterKey(network_key)))
+            }
+            NetworkManagementTlvType::NetworkKeySequenceCounter => {
+                let mut counter = [0u8; 4]; // Counter length 4 bytes.
+                let offset = dec_consume!(buf, offset; decode_bytes_be, &mut counter);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::NetworkKeySequenceCounter(counter)))
+            }
+            NetworkManagementTlvType::NetworkMeshLocalPrefix => {
+                let mut prefix = [0u8; 8]; // Mesh-Local Prefix length 8 bytes.
+                let offset = dec_consume!(buf, offset; decode_bytes_be, &mut prefix);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::NetworkMeshLocalPrefix(prefix)))
+            }
+            NetworkManagementTlvType::SteeringData => {
+                // Bloom filter max length 16 bytes.
+                stream_done!(offset + buf[offset..].len(),
+                             Some(NetworkManagementTlv::SteeringData(&buf[offset..
+                                                                      offset +
+                                                                      length as usize])))
+            }
+            NetworkManagementTlvType::BorderAgentLocator => {
+                let (offset, rloc_16) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::BorderAgentLocator(rloc_16)))
+            }
+            NetworkManagementTlvType::CommissionerId => {
+                // Commissioner ID max length 64 bytes.
+                stream_done!(offset + buf[offset..].len(),
+                             Some(NetworkManagementTlv::CommissionerId(&buf[offset..
+                                                                        offset +
+                                                                        length as usize])))
+            }
+            NetworkManagementTlvType::CommissionerSessionId => {
+                let (offset, session_id) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::CommissionerSessionId(session_id)))
+            }
+            NetworkManagementTlvType::SecurityPolicy => {
+                let (offset, rotation_time) = dec_try!(buf, offset; decode_u16);
+                let (offset, policy_bits) = dec_try!(buf, offset; decode_u8);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::SecurityPolicy {
+                                 rotation_time: rotation_time,
+                                 policy_bits: policy_bits,
+                             }))
+            }
+            NetworkManagementTlvType::ActiveTimestamp => {
+                // Timestamp seconds is a 48-bit Unix time value.
+                let mut timestamp_seconds = [0u8; 3];
+                let offset = dec_consume!(buf, offset; decode_bytes_be, &mut timestamp_seconds);
+                let (offset, timestamp_ticks) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::ActiveTimestamp {
+                                 timestamp_seconds: timestamp_seconds,
+                                 timestamp_ticks: timestamp_ticks >> 1,
+                                 u_bit: (timestamp_ticks | 1u16) > 0,
+                             }))
+            }
+            NetworkManagementTlvType::CommissionerUdpPort => {
+                let (offset, udp_port) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::CommissionerUdpPort(udp_port)))
+            }
+            NetworkManagementTlvType::PendingTimestamp => {
+                // Timestamp seconds is a 48-bit Unix time value.
+                let mut timestamp_seconds = [0u8; 3];
+                let offset = dec_consume!(buf; decode_bytes_be, &mut timestamp_seconds);
+                let (offset, timestamp_ticks) = dec_try!(buf, offset; decode_u16);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::PendingTimestamp {
+                                 timestamp_seconds: timestamp_seconds,
+                                 timestamp_ticks: timestamp_ticks >> 1,
+                                 u_bit: (timestamp_ticks | 1u16) > 0,
+                             }))
+            }
+            NetworkManagementTlvType::DelayTimer => {
+                let (offset, time_remaining) = dec_try!(buf, offset; decode_u32);
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::DelayTimer(time_remaining)))
+            }
+            NetworkManagementTlvType::ChannelMask => {
+                stream_done!(offset + buf[offset..].len(),
+                             Some(NetworkManagementTlv::ChannelMask(&buf[offset..
+                                                                     offset +
+                                                                     length as usize])))
+            }
+            NetworkManagementTlvType::NotPresent => stream_done!(offset, None),
+        }
     }
 }
 
@@ -719,6 +1169,33 @@ pub enum NetworkManagementTlvType {
     PendingTimestamp = 51,
     DelayTimer = 52,
     ChannelMask = 53,
+    NotPresent,
+}
+
+impl From<u8> for NetworkManagementTlvType {
+    fn from(type_num: u8) -> Self {
+        match type_num {
+            0 => NetworkManagementTlvType::Channel,
+            1 => NetworkManagementTlvType::PanId,
+            2 => NetworkManagementTlvType::ExtendedPanId,
+            3 => NetworkManagementTlvType::NetworkName,
+            4 => NetworkManagementTlvType::Pskc,
+            5 => NetworkManagementTlvType::NetworkMasterKey,
+            6 => NetworkManagementTlvType::NetworkKeySequenceCounter,
+            7 => NetworkManagementTlvType::NetworkMeshLocalPrefix,
+            8 => NetworkManagementTlvType::SteeringData,
+            9 => NetworkManagementTlvType::BorderAgentLocator,
+            10 => NetworkManagementTlvType::CommissionerId,
+            11 => NetworkManagementTlvType::CommissionerSessionId,
+            12 => NetworkManagementTlvType::SecurityPolicy,
+            14 => NetworkManagementTlvType::ActiveTimestamp,
+            15 => NetworkManagementTlvType::CommissionerUdpPort,
+            51 => NetworkManagementTlvType::PendingTimestamp,
+            52 => NetworkManagementTlvType::DelayTimer,
+            53 => NetworkManagementTlvType::ChannelMask,
+            _ => NetworkManagementTlvType::NotPresent,
+        }
+    }
 }
 
 impl<'a, 'b> From<&'a NetworkManagementTlv<'b>> for NetworkManagementTlvType {
@@ -745,15 +1222,17 @@ impl<'a, 'b> From<&'a NetworkManagementTlv<'b>> for NetworkManagementTlvType {
                 NetworkManagementTlvType::CommissionerSessionId
             }
             NetworkManagementTlv::SecurityPolicy { .. } => NetworkManagementTlvType::SecurityPolicy,
-            NetworkManagementTlv::ActiveTimestamp { .. } => NetworkManagementTlvType::ActiveTimestamp,
-            /*
-            NetworkManagementTlv::CommissionerUdpPort => {
+            NetworkManagementTlv::ActiveTimestamp { .. } => {
+                NetworkManagementTlvType::ActiveTimestamp
+            }
+            NetworkManagementTlv::CommissionerUdpPort(_) => {
                 NetworkManagementTlvType::CommissionerUdpPort
             }
-            NetworkManagementTlv::PendingTimestamp => NetworkManagementTlvType::PendingTimestamp,
-            NetworkManagementTlv::DelayTimer => NetworkManagementTlvType::DelayTimer,
-            NetworkManagementTlv::ChannelMask => NetworkManagementTlvType::ChannelMask,
-            */
+            NetworkManagementTlv::PendingTimestamp { .. } => {
+                NetworkManagementTlvType::PendingTimestamp
+            }
+            NetworkManagementTlv::DelayTimer(_) => NetworkManagementTlvType::DelayTimer,
+            NetworkManagementTlv::ChannelMask(_) => NetworkManagementTlvType::ChannelMask,
         }
     }
 }
@@ -776,10 +1255,20 @@ pub struct ChannelMaskEntry<'a> {
 
 impl<'a> ChannelMaskEntry<'a> {
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
-        stream_len_cond!(buf, 3); // Each Has Route TLV value is 24 bits wide.
         let mut offset = enc_consume!(buf, 0; encode_u8, self.channel_page);
         offset = enc_consume!(buf, offset; encode_u8, self.mask_length);
         offset = enc_consume!(buf, offset; encode_bytes_be, self.channel_mask);
         stream_done!(offset)
+    }
+
+    pub fn decode(buf: &[u8]) -> SResult<ChannelMaskEntry> {
+        let (offset, channel_page) = dec_try!(buf; decode_u8);
+        let (offset, mask_length) = dec_try!(buf, offset; decode_u8);
+        stream_done!(offset + buf[offset..].len(),
+                     ChannelMaskEntry {
+                         channel_page: channel_page,
+                         mask_length: mask_length,
+                         channel_mask: &buf[offset..],
+                     })
     }
 }
