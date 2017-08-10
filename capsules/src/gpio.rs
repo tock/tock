@@ -101,10 +101,16 @@ impl<'a, G: Pin> Client for GPIO<'a, G> {
 }
 
 impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
+    /// Subscribe to GPIO pin events
+    ///
+    /// ### `subscribe_num`
+    ///
+    /// - `0`: Subscribe to interrupts from all pins with interrupts enables.
+    ///        The callback signature is `fn(pin_num: usize, pin_state: bool)`
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            // subscribe to all pin interrupts
-            // (no affect or reliance on individual pins being configured as interrupts)
+            // subscribe to all pin interrupts (no affect or reliance on
+            // individual pins being configured as interrupts)
             0 => {
                 self.callback.set(Some(callback));
                 ReturnCode::SUCCESS
@@ -115,6 +121,27 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
         }
     }
 
+    /// Controls and reads pin value and states
+    ///
+    /// The `data` argument has two fields. The lowest order byte is the pin
+    /// number (`pin`), the second byte is an internal resistor setting
+    /// `pin_config`, the remaining bytes are reserved and should be set to `0`.
+    ///
+    /// `pin_config` can be either `0` for a pull-up resistor, `1` for a
+    /// pull-down resistor or `2` for none.
+    ///
+    /// ### `command_num`
+    ///
+    /// - `0`: Number of pins
+    /// - `1`: Enable output on `pin`
+    /// - `2`: Set `pin`
+    /// - `3`: Clear `pin`
+    /// - `4`: Toggle `pin`
+    /// - `5`: Enable input on `pin` with `pin_config`
+    /// - `6`: Read `pin` value
+    /// - `7`: Enable interrupt on `pin` with `pin_config`
+    /// - `8`: Disable interrupt on `pin`
+    /// - `9`: Disable `pin`
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         let pins = self.pins.as_ref();
         match command_num {
