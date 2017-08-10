@@ -58,7 +58,7 @@ training starts.
 ## Agenda
 
 The training is divided into three sections, each starting with a short
-presentation to introduce some concepts, followed by a practical excercise.
+presentation to introduce some concepts, followed by a practical exercise.
 
 1. [Getting your environment set up](environment.md) (~1 hour)
 
