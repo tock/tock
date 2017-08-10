@@ -5,6 +5,7 @@
 #[macro_use(debug)]
 extern crate kernel;
 
+pub mod ambient_light;
 pub mod button;
 pub mod console;
 pub mod fm25cl;

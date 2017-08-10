@@ -8,8 +8,7 @@ pub trait AmbientLight {
     /// finished some command.  This is likely called in a board's `main.rs`.
     fn set_client(&self, client: &'static AmbientLightClient);
 
-    /// Get a single instantaneous reading of the acceleration in the
-    /// X,Y,Z directions.
+    /// Get a single instantaneous reading of the ambient light intensity.
     fn read_light_intensity(&self) -> ReturnCode {
         ReturnCode::ENODEVICE
     }
