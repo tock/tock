@@ -127,8 +127,8 @@ impl AddressMode {
     pub fn from_mode(mode: u16) -> Option<AddressMode> {
         match mode {
             0b00 => Some(AddressMode::NotPresent),
-            0b10 => Some(AddressMode::NotPresent),
-            0b11 => Some(AddressMode::NotPresent),
+            0b10 => Some(AddressMode::Short),
+            0b11 => Some(AddressMode::Long),
             _ => None,
         }
     }
@@ -707,7 +707,7 @@ impl<'a> Header<'a> {
         };
 
         // Sequence number
-        let (off, seq) = if seq_suppressed {
+        let (off, seq) = if !seq_suppressed {
             let (off, seq) = dec_try!(buf, off; decode_u8);
             (off, Some(seq))
         } else {

@@ -220,7 +220,7 @@ impl<'a, M: mac::Mac> mac::RxClient for RadioDriver<'a, M> {
                 .map(|mut cb| {
                     cb.schedule(usize::from(ReturnCode::SUCCESS),
                                 data_offset,
-                                data_offset + data_len);
+                                data_len);
                 });
         });
     }
