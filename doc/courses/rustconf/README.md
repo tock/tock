@@ -60,10 +60,10 @@ training starts.
 The training is divided into three sections, each starting with a short
 presentation to introduce some concepts, followed by a practical excercise.
 
-1. [Getting your environment set up](environment.md)
+1. [Getting your environment set up](environment.md) (~1 hour)
 
-2. [Add a new capsule to the kernel](capsule.md)
+2. [Add a new capsule to the kernel](capsule.md) (~2 hours)
 
 3. [Write an environment sensing Bluetooth Low Energy
-   application](application.md)
+   application](application.md) (~1 hour)
 
