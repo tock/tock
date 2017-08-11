@@ -51,9 +51,7 @@ struct Hail {
     timer: &'static capsules::timer::TimerDriver<'static,
                                                  VirtualMuxAlarm<'static,
                                                                  sam4l::ast::Ast<'static>>>,
-    isl29035: &'static capsules::isl29035::Isl29035<'static,
-                                                    VirtualMuxAlarm<'static,
-                                                                    sam4l::ast::Ast<'static>>>,
+    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     si7021: &'static capsules::si7021::SI7021<'static,
                                               VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
@@ -82,7 +80,7 @@ impl Platform for Hail {
             3 => f(Some(self.timer)),
             4 => f(Some(self.spi)),
             5 => f(Some(self.nrf51822)),
-            6 => f(Some(self.isl29035)),
+            6 => f(Some(self.ambient_light)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
@@ -224,6 +222,11 @@ pub unsafe fn reset_handler() {
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
+    let ambient_light = static_init!(
+        capsules::ambient_light::AmbientLight<'static>,
+        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Container::create()));
+    hil::ambient_light::AmbientLight::set_client(isl29035, ambient_light);
+
     // Timer
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
@@ -358,7 +361,7 @@ pub unsafe fn reset_handler() {
         gpio: gpio,
         timer: timer,
         si7021: si7021,
-        isl29035: isl29035,
+        ambient_light: ambient_light,
         ninedof: ninedof,
         spi: spi_syscalls,
         nrf51822: nrf_serialization,

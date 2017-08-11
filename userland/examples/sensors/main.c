@@ -1,7 +1,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include <isl29035.h>
+#include <ambient_light.h>
 #include <lps25hb.h>
 #include <ninedof.h>
 #include <si7021.h>
@@ -30,7 +30,7 @@ static void timer_fired(__attribute__ ((unused)) int arg0,
   int ninedof_x = 0, ninedof_y = 0, ninedof_z = 0;
 
   /* *INDENT-OFF* */
-  if (isl29035)   light = isl29035_read_light_intensity();
+  if (isl29035)   light = ambient_light_read_intensity();
   if (tmp006)     tmp006_read_sync(&tmp006_temp);
   if (tsl2561)    tsl2561_lux = tsl2561_get_lux_sync();
   if (lps25hb)    lps25hb_pressure = lps25hb_get_pressure_sync();
@@ -55,7 +55,7 @@ int main(void) {
   printf("[Sensors] Starting Sensors App.\n");
   printf("[Sensors] All available sensors on the platform will be sampled.\n");
 
-  isl29035 = driver_exists(DRIVER_NUM_ISL29035);
+  isl29035 = driver_exists(DRIVER_NUM_AMBIENT_LIGHT);
   tmp006   = driver_exists(DRIVER_NUM_TMP006);
   tsl2561  = driver_exists(DRIVER_NUM_TSL2561);
   lps25hb  = driver_exists(DRIVER_NUM_LPS25HB);

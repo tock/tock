@@ -26,8 +26,9 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
+use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
+use kernel::hil::ambient_light::{AmbientLight, AmbientLightClient};
 use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
 use kernel::hil::time::{self, Frequency};
 
@@ -47,7 +48,7 @@ pub struct Isl29035<'a, A: time::Alarm + 'a> {
     alarm: &'a A,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: Cell<Option<Callback>>,
+    client: Cell<Option<&'a AmbientLightClient>>,
 }
 
 impl<'a, A: time::Alarm + 'a> Isl29035<'a, A> {
@@ -57,7 +58,7 @@ impl<'a, A: time::Alarm + 'a> Isl29035<'a, A> {
             alarm: alarm,
             state: Cell::new(State::Disabled),
             buffer: TakeCell::new(buffer),
-            callback: Cell::new(None),
+            client: Cell::new(None),
         }
     }
 
@@ -85,26 +86,14 @@ impl<'a, A: time::Alarm + 'a> Isl29035<'a, A> {
     }
 }
 
-impl<'a, A: time::Alarm + 'a> Driver for Isl29035<'a, A> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
-        match subscribe_num {
-            0 => {
-                self.callback.set(Some(callback));
-                ReturnCode::SUCCESS
-            }
-            _ => ReturnCode::ENOSUPPORT,
-        }
+impl<'a, A: time::Alarm + 'a> AmbientLight for Isl29035<'a, A> {
+    fn set_client(&self, client: &'static AmbientLightClient) {
+        self.client.set(Some(client));
     }
 
-    fn command(&self, command_num: usize, _arg1: usize, _: AppId) -> ReturnCode {
-        match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
-            1 => {
-                self.start_read_lux();
-                ReturnCode::SUCCESS
-            }
-            _ => ReturnCode::ENOSUPPORT,
-        }
+    fn read_light_intensity(&self) -> ReturnCode {
+        self.start_read_lux();
+        ReturnCode::SUCCESS
     }
 }
 
@@ -156,7 +145,7 @@ impl<'a, A: time::Alarm + 'a> I2CClient for Isl29035<'a, A> {
                 self.i2c.disable();
                 self.state.set(State::Disabled);
                 self.buffer.replace(buffer);
-                self.callback.get().map(|mut cb| cb.schedule(lux, 0, 0));
+                self.client.get().map(|client| client.callback(lux));
             }
             _ => {}
         }

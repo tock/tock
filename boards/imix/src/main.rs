@@ -52,9 +52,8 @@ struct Imix {
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     si7021: &'static capsules::si7021::SI7021<'static,
                                               VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    isl29035: &'static capsules::isl29035::Isl29035<'static,
-                                                    VirtualMuxAlarm<'static,
-                                                                    sam4l::ast::Ast<'static>>>,
+
+    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
@@ -96,7 +95,7 @@ impl kernel::Platform for Imix {
 
             3 => f(Some(self.timer)),
             4 => f(Some(self.spi)),
-            6 => f(Some(self.isl29035)),
+            6 => f(Some(self.ambient_light)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
@@ -251,6 +250,11 @@ pub unsafe fn reset_handler() {
             &mut capsules::isl29035::BUF));
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
+
+    let ambient_light = static_init!(
+        capsules::ambient_light::AmbientLight<'static>,
+        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Container::create()));
+    hil::ambient_light::AmbientLight::set_client(isl29035, ambient_light);
 
     // Set up an SPI MUX, so there can be multiple clients
     let mux_spi = static_init!(
@@ -423,7 +427,7 @@ pub unsafe fn reset_handler() {
         timer: timer,
         gpio: gpio,
         si7021: si7021,
-        isl29035: isl29035,
+        ambient_light: ambient_light,
         adc: adc,
         led: led,
         button: button,
