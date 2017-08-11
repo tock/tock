@@ -50,8 +50,9 @@ time:
      
         $ pip3 install -U --user tockloader
 
-If you're comfortable working inside a Ubuntu virtual machine, you can download
-an image with all of the dependencies already installed [here](#). Feel free to
+If you're comfortable working inside a Debian virtual machine, you can download
+an image with all of the dependencies already installed
+[here](https://www.dropbox.com/s/5km04herxa9h05w/Tock.ova?dl=0). Feel free to
 customize it with whichever editors, window managers, etc you like before the
 training starts.
 
