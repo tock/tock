@@ -1,0 +1,3 @@
+LIBAUTOTEST_DIR := $(TOCK_USERLAND_BASE_DIR)/libautotest
+
+override CFLAGS += -I$(LIBAUTOTEST_DIR)
