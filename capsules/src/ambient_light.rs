@@ -1,10 +1,24 @@
 //! Ambient light sensor system call driver
+//!
+//! Usage
+//! -----
+//!
+//! You need a device that provides the `hil::ambient_light::AmbientLight` trait.
+//!
+//! ``rust
+//! let ninedof = static_init!(
+//!     capsules::ambient_light::AmbientLight<'static>,
+//!     capsules::ambient_light::AmbientLight::new(isl29035,
+//!         kernel::Container::create()));
+//! hil::ambient_light::AmbientLight::set_client(isl29035, ambient_light);
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver, ReturnCode};
 use kernel::hil;
 use kernel::process::Error;
 
+/// Per-process metdata
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
@@ -49,6 +63,12 @@ impl<'a> AmbientLight<'a> {
 }
 
 impl<'a> Driver for AmbientLight<'a> {
+    /// Subscribe to light intensity readings
+    ///
+    /// ### `subscribe`
+    ///
+    /// - `0`: Subscribe to light intensity readings. The callback signature is
+    /// `fn(lux: usize)`, where `lux` is the light intensity in lux (lx).
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -67,6 +87,17 @@ impl<'a> Driver for AmbientLight<'a> {
         }
     }
 
+    /// Initiate light intensity readings
+    ///
+    /// Sensor readings are coalesced if processes request them concurrently. If
+    /// multiple processes request have outstanding requests for a sensor
+    /// reading, only one command will be issued and the result is returned to
+    /// all subscribed processes.
+    ///
+    /// ### `command_num`
+    ///
+    /// - `0`: Check driver presence
+    /// - `1`: Start a light sensor reading
     fn command(&self, command_num: usize, _arg1: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
