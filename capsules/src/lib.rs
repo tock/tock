@@ -47,5 +47,6 @@ pub mod app_flash_driver;
 pub mod usb;
 pub mod usb_user;
 pub mod usbc_client;
+#[macro_use]
 pub mod net;
 pub mod mac;

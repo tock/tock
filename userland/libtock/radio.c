@@ -30,6 +30,7 @@ int radio_init(void) {
 }
 
 int rx_result      = 0;
+int rx_payload_off = 0;
 int rx_payload_len = 0;
 int tx_acked       = 0;
 
@@ -42,10 +43,11 @@ static void cb_tx(__attribute__ ((unused)) int len,
 }
 
 static void cb_rx(int result,
+                  int payload_off,
                   int payload_len,
-                  __attribute__ ((unused)) int unused2,
                   void* ud) {
   rx_result      = result;
+  rx_payload_off = payload_off;
   rx_payload_len = payload_len;
   *((bool*)ud)   = true;
 }
@@ -117,7 +119,8 @@ int radio_receive(const char* packet, unsigned char len) {
   if (rx_result < 0) {
     return rx_result;
   }
-  return rx_payload_len;
+  // Return the end of the frame, including the two header bytes.
+  return rx_payload_off + rx_payload_len;
 }
 
 int radio_receive_callback(subscribe_cb callback,

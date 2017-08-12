@@ -8,6 +8,7 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
+use capsules::mac::Mac;
 use capsules::rf233::RF233;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -46,6 +47,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 // Save some deep nesting
 type RF233Device = capsules::rf233::RF233<'static,
                                           VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>;
+
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -395,19 +397,19 @@ pub unsafe fn reset_handler() {
 
     let radio_mac = static_init!(
         capsules::mac::MacDevice<'static, RF233Device>,
-        capsules::mac::MacDevice::new(rf233),
-        0);
+        capsules::mac::MacDevice::new(rf233));
     let radio_capsule = static_init!(
         capsules::radio::RadioDriver<'static,
                                      capsules::mac::MacDevice<'static, RF233Device>>,
-        capsules::radio::RadioDriver::new(radio_mac),
-        0);
+        capsules::radio::RadioDriver::new(radio_mac));
     radio_capsule.config_buffer(&mut RADIO_BUF);
     radio_mac.set_transmit_client(radio_capsule);
     radio_mac.set_receive_client(radio_capsule);
     rf233.set_transmit_client(radio_mac);
     rf233.set_receive_client(radio_mac, &mut RF233_RX_BUF);
     rf233.set_config_client(radio_mac);
+    radio_mac.set_pan(0xABCD);
+    radio_mac.set_address(0x1008);
 
     // Configure the USB controller
     let usb_client = static_init!(
@@ -441,11 +443,9 @@ pub unsafe fn reset_handler() {
 
     let mut chip = sam4l::chip::Sam4l::new();
 
+    // These two lines need to be below the creation of the chip for
+    // initialization to work.
     rf233.reset();
-    rf233.set_pan(0xABCD);
-    rf233.set_address(0x1008);
-    //    rf233.config_commit();
-
     rf233.start();
 
     debug!("Initialization complete. Entering main loop");

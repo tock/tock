@@ -127,8 +127,8 @@ impl AddressMode {
     pub fn from_mode(mode: u16) -> Option<AddressMode> {
         match mode {
             0b00 => Some(AddressMode::NotPresent),
-            0b10 => Some(AddressMode::NotPresent),
-            0b11 => Some(AddressMode::NotPresent),
+            0b10 => Some(AddressMode::Short),
+            0b11 => Some(AddressMode::Long),
             _ => None,
         }
     }
@@ -165,6 +165,27 @@ impl SecurityLevel {
             0b110 => Some(SecurityLevel::EncMic64),
             0b111 => Some(SecurityLevel::EncMic128),
             _ => None,
+        }
+    }
+
+    pub fn encryption_needed(&self) -> bool {
+        match *self {
+            SecurityLevel::EncMic32 |
+            SecurityLevel::EncMic64 |
+            SecurityLevel::EncMic128 => true,
+            _ => false,
+        }
+    }
+
+    pub fn mic_len(&self) -> usize {
+        match *self {
+            SecurityLevel::Mic32 |
+            SecurityLevel::EncMic32 => 4,
+            SecurityLevel::Mic64 |
+            SecurityLevel::EncMic64 => 8,
+            SecurityLevel::Mic128 |
+            SecurityLevel::EncMic128 => 16,
+            _ => 0,
         }
     }
 }
@@ -657,7 +678,12 @@ impl<'a> Header<'a> {
         stream_done!(off, pan_id_compression);
     }
 
-    pub fn decode<'b>(buf: &'b [u8]) -> SResult<(Header<'b>, usize)> {
+    /// Decodes an IEEE 802.15.4 MAC header from a byte slice, where the MAC
+    /// header may contain slices into the given byte slice to represent
+    /// undissected information elements (IE). `unsecured` controls whether or
+    /// not payload IEs (which are encrypted if the frame has not yet been
+    /// unsecured) can be parsed.
+    pub fn decode<'b>(buf: &'b [u8], unsecured: bool) -> SResult<(Header<'b>, usize)> {
         // Frame control field
         let (off, fcf_be) = dec_try!(buf; decode_u16);
         let fcf = u16::from_be(fcf_be);
@@ -681,7 +707,7 @@ impl<'a> Header<'a> {
         };
 
         // Sequence number
-        let (off, seq) = if seq_suppressed {
+        let (off, seq) = if !seq_suppressed {
             let (off, seq) = dec_try!(buf, off; decode_u8);
             (off, Some(seq))
         } else {
@@ -728,9 +754,11 @@ impl<'a> Header<'a> {
                 }
             }
         }
-        // The MAC payload includes the payload IEs.
+        // The MAC payload includes the payload IEs. We can only parse them if
+        // the frame is not encrypted.
         let mac_payload_off = off;
-        if has_payload_ies {
+        let unencrypted = unsecured || !security_enabled;
+        if has_payload_ies && unencrypted {
             loop {
                 let (next_off, ie) = dec_try!(buf, off; PayloadIE::decode);
                 off = next_off;
