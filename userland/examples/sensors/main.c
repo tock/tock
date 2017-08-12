@@ -2,10 +2,10 @@
 #include <stdio.h>
 
 #include <ambient_light.h>
+#include <humidity.h>
 #include <lps25hb.h>
 #include <ninedof.h>
 #include <temperature.h>
-#include <humidity.h>
 #include <timer.h>
 #include <tmp006.h>
 #include <tock.h>
@@ -13,12 +13,12 @@
 
 static bool isl29035 = false;
 // remove tmp006  when the capsule is fixed!!!
-static bool tmp006   = false;
-static bool tsl2561  = false;
-static bool lps25hb  = false;
+static bool tmp006      = false;
+static bool tsl2561     = false;
+static bool lps25hb     = false;
 static bool temperature = false;
-static bool humidity = false;
-static bool ninedof  = false;
+static bool humidity    = false;
+static bool ninedof     = false;
 
 static void timer_fired(__attribute__ ((unused)) int arg0,
                         __attribute__ ((unused)) int arg1,
@@ -59,13 +59,13 @@ int main(void) {
   printf("[Sensors] Starting Sensors App.\n");
   printf("[Sensors] All available sensors on the platform will be sampled.\n");
 
-  isl29035      = driver_exists(DRIVER_NUM_AMBIENT_LIGHT);
-  tmp006        = driver_exists(DRIVER_NUM_TMP006);
-  tsl2561       = driver_exists(DRIVER_NUM_TSL2561);
-  lps25hb       = driver_exists(DRIVER_NUM_LPS25HB);
-  temperature   = driver_exists(DRIVER_NUM_TEMPERATURE);
-  humidity      = driver_exists(DRIVER_NUM_HUMIDITY);
-  ninedof       = driver_exists(DRIVER_NUM_NINEDOF);
+  isl29035    = driver_exists(DRIVER_NUM_AMBIENT_LIGHT);
+  tmp006      = driver_exists(DRIVER_NUM_TMP006);
+  tsl2561     = driver_exists(DRIVER_NUM_TSL2561);
+  lps25hb     = driver_exists(DRIVER_NUM_LPS25HB);
+  temperature = driver_exists(DRIVER_NUM_TEMPERATURE);
+  humidity    = driver_exists(DRIVER_NUM_HUMIDITY);
+  ninedof     = driver_exists(DRIVER_NUM_NINEDOF);
 
   // Setup periodic timer to sample the sensors.
   static tock_timer_t timer;

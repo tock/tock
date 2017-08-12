@@ -40,7 +40,7 @@ int temperature_ambient_get_sync(int* temperature) {
   yield_for(&result.fired);
 
   *temperature = result.temp;
-  
+
   return 0;
 }
 
@@ -62,6 +62,6 @@ int temperature_cpu_get_sync(int* temperature) {
   yield_for(&result.fired);
 
   *temperature = result.temp;
-  
+
   return 0;
 }

@@ -25,15 +25,16 @@ pub struct HumiditySensor<'a> {
 }
 
 impl<'a> HumiditySensor<'a> {
-    
-    pub fn new(driver: &'a hil::sensor::HumidityDriver, container: Container<App>) -> HumiditySensor<'a> {
+    pub fn new(driver: &'a hil::sensor::HumidityDriver,
+               container: Container<App>)
+               -> HumiditySensor<'a> {
         HumiditySensor {
             driver: driver,
             apps: container,
             busy: Cell::new(false),
         }
     }
-    
+
     fn enqueue_command(&self, command: HumidityCommand, arg1: usize, appid: AppId) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| if !self.busy.get() {
@@ -43,11 +44,11 @@ impl<'a> HumiditySensor<'a> {
             } else {
                 ReturnCode::EBUSY
             })
-        .unwrap_or_else(|err| match err {
-            Error::OutOfMemory => ReturnCode::ENOMEM,
-            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-            Error::NoSuchApp => ReturnCode::EINVAL,
-        })
+            .unwrap_or_else(|err| match err {
+                Error::OutOfMemory => ReturnCode::ENOMEM,
+                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                Error::NoSuchApp => ReturnCode::EINVAL,
+            })
     }
 
     fn call_driver(&self, command: HumidityCommand, _: usize) -> ReturnCode {
@@ -100,9 +101,7 @@ impl<'a> Driver for HumiditySensor<'a> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // subscribe to temperature reading with callback
-            0 => {
-                self.configure_callback(callback)
-            }
+            0 => self.configure_callback(callback),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -118,9 +117,7 @@ impl<'a> Driver for HumiditySensor<'a> {
 
             // un-subscribe callback,
             // might be un-necessary as subscribe replaces the existing callback
-            2 => {
-                self.reset_callback(appid)
-            }
+            2 => self.reset_callback(appid),
 
             _ => ReturnCode::ENOSUPPORT,
         }

@@ -187,7 +187,9 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
                 let temp_raw = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as u32;
                 let temp = (((temp_raw * 17572) / 65536) - 4685) as i16;
 
-                self.temp_callback.get().map(|cb| cb.callback(temp as usize, 0, ReturnCode::SUCCESS));
+                self.temp_callback
+                    .get()
+                    .map(|cb| cb.callback(temp as usize, 0, ReturnCode::SUCCESS));
 
                 self.set_idle(buffer);
             }
@@ -196,8 +198,9 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
                 let humidity_raw = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as u32;
                 let humidity = (((humidity_raw * 125 * 100) / 65536) - 600) as u16;
 
-                self.humidity_callback.get().map(|cb| cb.callback(humidity as usize, 0,
-                                                                  ReturnCode::SUCCESS));
+                self.humidity_callback
+                    .get()
+                    .map(|cb| cb.callback(humidity as usize, 0, ReturnCode::SUCCESS));
                 self.set_idle(buffer);
             }
             _ => {}
@@ -206,7 +209,7 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
 }
 
 
-impl <'a, A: time::Alarm + 'a> kernel::hil::sensor::TemperatureDriver for SI7021<'a, A> {
+impl<'a, A: time::Alarm + 'a> kernel::hil::sensor::TemperatureDriver for SI7021<'a, A> {
     fn read_ambient_temperature(&self) -> kernel::ReturnCode {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands
@@ -224,7 +227,7 @@ impl <'a, A: time::Alarm + 'a> kernel::hil::sensor::TemperatureDriver for SI7021
     }
 }
 
-impl <'a, A: time::Alarm + 'a> kernel::hil::sensor::HumidityDriver for SI7021<'a, A> {
+impl<'a, A: time::Alarm + 'a> kernel::hil::sensor::HumidityDriver for SI7021<'a, A> {
     fn read_humidity(&self) -> kernel::ReturnCode {
         self.buffer.take().map(|buffer| {
             // turn on i2c to send commands

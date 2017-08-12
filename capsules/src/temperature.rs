@@ -26,16 +26,21 @@ pub struct TemperatureSensor<'a> {
 }
 
 impl<'a> TemperatureSensor<'a> {
-    
-    pub fn new(driver: &'a hil::sensor::TemperatureDriver, container: Container<App>) -> TemperatureSensor<'a> {
+    pub fn new(driver: &'a hil::sensor::TemperatureDriver,
+               container: Container<App>)
+               -> TemperatureSensor<'a> {
         TemperatureSensor {
             driver: driver,
             apps: container,
             busy: Cell::new(false),
         }
     }
-    
-    fn enqueue_command(&self, command: TemperatureCommand, arg1: usize, appid: AppId) -> ReturnCode {
+
+    fn enqueue_command(&self,
+                       command: TemperatureCommand,
+                       arg1: usize,
+                       appid: AppId)
+                       -> ReturnCode {
         self.apps
             .enter(appid, |app, _| if !self.busy.get() {
                 app.subscribed = true;
@@ -44,11 +49,11 @@ impl<'a> TemperatureSensor<'a> {
             } else {
                 ReturnCode::EBUSY
             })
-        .unwrap_or_else(|err| match err {
-            Error::OutOfMemory => ReturnCode::ENOMEM,
-            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-            Error::NoSuchApp => ReturnCode::EINVAL,
-        })
+            .unwrap_or_else(|err| match err {
+                Error::OutOfMemory => ReturnCode::ENOMEM,
+                Error::AddressOutOfBounds => ReturnCode::EINVAL,
+                Error::NoSuchApp => ReturnCode::EINVAL,
+            })
     }
 
     fn call_driver(&self, command: TemperatureCommand, _: usize) -> ReturnCode {
@@ -89,9 +94,7 @@ impl<'a> Driver for TemperatureSensor<'a> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // subscribe to temperature reading with callback
-            0 => {
-                self.configure_callback(callback)
-            }
+            0 => self.configure_callback(callback),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -103,14 +106,10 @@ impl<'a> Driver for TemperatureSensor<'a> {
             0 => ReturnCode::SUCCESS,
 
             // read ambient temperature
-            1 => {
-                self.enqueue_command(TemperatureCommand::ReadAmbientTemperature, arg1, appid)
-            }
+            1 => self.enqueue_command(TemperatureCommand::ReadAmbientTemperature, arg1, appid),
 
             // read internal cpu temperature
-            2 => {
-                self.enqueue_command(TemperatureCommand::ReadCPUTemperature, arg1, appid)
-            }
+            2 => self.enqueue_command(TemperatureCommand::ReadCPUTemperature, arg1, appid),
 
             _ => ReturnCode::ENOSUPPORT,
         }

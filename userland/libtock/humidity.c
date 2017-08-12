@@ -14,8 +14,8 @@ static void cb(int humidity,
                __attribute__ ((unused)) int unused1,
                void* ud) {
   struct data* data = (struct data*) ud;
-  data->humidity  = humidity;
-  data->fired = true;
+  data->humidity = humidity;
+  data->fired    = true;
 }
 
 int humidity_set_callback(subscribe_cb callback, void* callback_args) {
@@ -40,6 +40,6 @@ int humidity_get_sync(unsigned* humidity) {
   yield_for(&result.fired);
 
   *humidity = result.humidity;
-  
+
   return 0;
 }

@@ -10,8 +10,8 @@ use chip;
 use core::cell::Cell;
 use kernel;
 use nvic;
-use peripheral_registers;
 use peripheral_interrupts;
+use peripheral_registers;
 
 const NRF_TEMP_DATARDY_INTR: u32 = 1;
 const NRF_TEMP_ENABLE: u32 = 1;
@@ -48,7 +48,9 @@ impl Temperature {
         regs.STOP.set(NRF_TEMP_DISABLE);
 
         // trigger callback with temperature
-        self.client.get().map(|client| client.callback(temp as usize, 0, kernel::ReturnCode::SUCCESS));
+        self.client
+            .get()
+            .map(|client| client.callback(temp as usize, 0, kernel::ReturnCode::SUCCESS));
         nvic::clear_pending(peripheral_interrupts::NvicIdx::TEMP);
     }
 
@@ -73,12 +75,12 @@ impl Temperature {
 
 impl kernel::hil::sensor::TemperatureDriver for Temperature {
     fn read_cpu_temperature(&self) -> kernel::ReturnCode {
-            let regs = unsafe { &*self.regs };
-            self.enable_nvic();
-            self.enable_interrupts();
-            regs.DATARDY.set(NRF_TEMP_DISABLE);
-            regs.START.set(NRF_TEMP_ENABLE);
-            kernel::ReturnCode::SUCCESS
+        let regs = unsafe { &*self.regs };
+        self.enable_nvic();
+        self.enable_interrupts();
+        regs.DATARDY.set(NRF_TEMP_DISABLE);
+        regs.START.set(NRF_TEMP_ENABLE);
+        kernel::ReturnCode::SUCCESS
     }
 
     fn set_client(&self, client: &'static kernel::hil::sensor::TemperatureClient) {
