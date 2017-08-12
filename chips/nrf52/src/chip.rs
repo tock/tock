@@ -1,3 +1,4 @@
+use aes;
 use gpio;
 use kernel;
 use kernel::common::{RingBuffer, Queue};
@@ -38,6 +39,7 @@ impl kernel::Chip for NRF52 {
         unsafe {
             INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
                 match interrupt {
+                    NvicIdx::ECB => aes::AESECB.handle_interrupt(),
                     NvicIdx::RTC1 => rtc::RTC.handle_interrupt(),
                     NvicIdx::GPIOTE => gpio::PORT.handle_interrupt(),
                     NvicIdx::TIMER0 => timer::TIMER0.handle_interrupt(),

@@ -112,6 +112,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
 
 pub struct Platform {
+    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf52::aes::AesECB>,
     ble_radio: &'static nrf52::ble_advertising_driver::BLE
         <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
     console: &'static capsules::console::Console<'static, nrf52::uart::UARTE>,
@@ -133,6 +134,7 @@ impl kernel::Platform for Platform {
             3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            17 => f(Some(self.aes)),
             33 => f(Some(self.ble_radio)),
             _ => f(None),
         }
@@ -289,6 +291,18 @@ pub unsafe fn reset_handler() {
     nrf52::radio::RADIO.set_client(ble_radio);
     ble_radio_virtual_alarm.set_client(ble_radio);
 
+    let aes = static_init!(
+        capsules::symmetric_encryption::Crypto<'static, nrf52::aes::AesECB>,
+        capsules::symmetric_encryption::Crypto::new(&mut nrf52::aes::AESECB,
+                                                    kernel::Container::create(),
+                                                    &mut capsules::symmetric_encryption::KEY,
+                                                    &mut capsules::symmetric_encryption::BUF,
+                                                    &mut capsules::symmetric_encryption::IV),
+        288/8);
+    nrf52::aes::AESECB.ecb_init();
+    kernel::hil::symmetric_encryption::SymmetricEncryption::set_client(&nrf52::aes::AESECB, aes);
+
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf52::clock::CLOCK.low_stop();
@@ -302,6 +316,7 @@ pub unsafe fn reset_handler() {
 
 
     let platform = Platform {
+        aes: aes,
         button: button,
         ble_radio: ble_radio,
         console: console,

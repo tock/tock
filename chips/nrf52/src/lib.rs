@@ -14,6 +14,7 @@ mod peripheral_registers;
 mod nvic;
 
 
+pub mod aes;
 pub mod ble_advertising_driver;
 pub mod chip;
 pub mod clock;
