@@ -12,7 +12,7 @@ NRF_LOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf51dk.py
 # Upload programs over uart (does not work for nRF)
 .PHONY: program
 program: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
-	$(error No program rule for nRF)
+	$(error Cannot program nRF51DK over USB. Use \'make flash\' and JTAG))
 
 # Upload programs to nrf51dk
 .PHONY: flash
