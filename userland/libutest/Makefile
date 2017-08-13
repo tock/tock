@@ -1,5 +1,5 @@
 TOCK_USERLAND_BASE_DIR ?= ..
-LIBNAME := libautotest
+LIBNAME := libutest
 $(LIBNAME)_DIR := $(TOCK_USERLAND_BASE_DIR)/$(LIBNAME)
 
 # List all C and Assembly files
