@@ -13,9 +13,10 @@ use ble_advertising_driver;
 use chip;
 use core::cell::Cell;
 use kernel;
-use nvic;
-use peripheral_interrupts;
+use nrf5x::nvic;
+use nrf5x::peripheral_interrupts;
 use peripheral_registers;
+
 
 pub const PACKET0_S1_SIZE: u32 = 0;
 pub const PACKET0_S0_SIZE: u32 = 0;

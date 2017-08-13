@@ -18,41 +18,13 @@
 //! Author: Philip Levis <pal@cs.stanford.edu>
 //! Date: August 18, 2016
 
-use chip;
 use core::cell::Cell;
 use core::mem;
-use kernel::common::VolatileCell;
 use kernel::hil;
 use nvic;
 use peripheral_interrupts::NvicIdx;
+use peripheral_registers;
 
-#[repr(C, packed)]
-struct Registers {
-    pub task_start: VolatileCell<u32>,
-    pub task_stop: VolatileCell<u32>,
-    pub task_count: VolatileCell<u32>,
-    pub task_clear: VolatileCell<u32>,
-    pub task_shutdown: VolatileCell<u32>,
-    _reserved0: [VolatileCell<u32>; 11],
-    pub task_capture: [VolatileCell<u32>; 4], // 0x40
-    _reserved1: [VolatileCell<u32>; 60], // 0x140
-    pub event_compare: [VolatileCell<u32>; 4],
-    _reserved2: [VolatileCell<u32>; 44], // 0x150
-    pub shorts: VolatileCell<u32>, // 0x200
-    _reserved3: [VolatileCell<u32>; 64], // 0x204
-    pub intenset: VolatileCell<u32>, // 0x304
-    pub intenclr: VolatileCell<u32>, // 0x308
-    _reserved4: [VolatileCell<u32>; 126], // 0x30C
-    pub mode: VolatileCell<u32>, // 0x504
-    pub bitmode: VolatileCell<u32>, // 0x508
-    _reserved5: VolatileCell<u32>,
-    pub prescaler: VolatileCell<u32>, // 0x510
-    _reserved6: [VolatileCell<u32>; 11], // 0x514
-    pub cc: [VolatileCell<u32>; 4], // 0x540
-}
-
-const SIZE: usize = 0x1000;
-const TIMER_BASE: usize = 0x40008000;
 
 #[derive(Copy,Clone)]
 pub enum Location {
@@ -80,8 +52,9 @@ pub static mut TIMER2: Timer = Timer {
 };
 
 #[allow(non_snake_case)]
-fn TIMER(location: Location) -> &'static Registers {
-    let ptr = TIMER_BASE + (location as usize) * SIZE;
+fn TIMER(location: Location) -> &'static peripheral_registers::TIMER {
+    let ptr = peripheral_registers::TIMER_BASE +
+              (location as usize) * peripheral_registers::TIMER_SIZE;
     unsafe { mem::transmute(ptr) }
 }
 
@@ -97,7 +70,7 @@ pub struct Timer {
 }
 
 impl Timer {
-    fn timer(&self) -> &'static Registers {
+    fn timer(&self) -> &'static peripheral_registers::TIMER {
         TIMER(self.which)
     }
 
@@ -221,6 +194,7 @@ impl Timer {
     /// When an interrupt occurs, check if any of the 4 compares have
     /// created an event, and if so, add it to the bitmask of triggered
     /// events that is passed to the client.
+
     pub fn handle_interrupt(&self) {
         nvic::clear_pending(self.nvic);
         self.client.get().map(|client| {
@@ -252,7 +226,7 @@ const ALARM_COMPARE: usize = 1;
 const ALARM_INTERRUPT_BIT: u32 = 1 << (16 + ALARM_COMPARE);
 
 impl TimerAlarm {
-    fn timer(&self) -> &'static Registers {
+    fn timer(&self) -> &'static peripheral_registers::TIMER {
         TIMER(self.which)
     }
 
@@ -291,7 +265,6 @@ impl TimerAlarm {
         self.timer().task_stop.set(1);
     }
 
-    #[inline(never)]
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
         self.client.get().map(|client| { client.fired(); });
@@ -353,32 +326,4 @@ impl hil::time::Alarm for TimerAlarm {
     fn get_alarm(&self) -> u32 {
         self.timer().cc[ALARM_COMPARE].get()
     }
-}
-
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn TIMER0_Handler() {
-    use kernel::common::Queue;
-
-    nvic::disable(NvicIdx::TIMER0);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER0);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn TIMER1_Handler() {
-    use kernel::common::Queue;
-
-    nvic::disable(NvicIdx::TIMER1);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER1);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn TIMER2_Handler() {
-    use kernel::common::Queue;
-
-    nvic::disable(NvicIdx::TIMER2);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::TIMER2);
 }

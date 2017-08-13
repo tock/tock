@@ -1,10 +1,11 @@
 //! AES128-CTR Driver
 //!
 //! Provides a simple driver for userspace applications to encrypt and decrypt messages
-//! using aes128-ctr mode on top of aes128-ecb
+//! using aes128-ctr mode on top of aes128-ecb.
 //!
-//! The initial counter configred according to the counter received from the user application.
+//! The initial counter configured according to the counter received from the user application.
 //! The capsule is invoked as follows:
+//!
 //!     - the key has been configured
 //!     - the entire buffer has been encrypted
 //!     - the entire buffer has been decrypted
@@ -13,24 +14,24 @@
 //! static mut...
 //!
 //! FIXME:
+//!
 //!     - maybe move some stuff to capsule instead
 //!     - INIT_CTR can be replaced with TakeCell
 //!     - ECB_DATA must be a static mut [u8]
 //!       and can't be located in the struct
 //!     - PAYLOAD size is restricted to 128 bytes
 //!
-//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: April 21, 2017
+//! - Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! - Author: Fredrik Nilsson <frednils@student.chalmers.se>
+//! - Date: April 21, 2017
 
 
-use chip;
 use core::cell::Cell;
+use kernel;
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::symmetric_encryption::{SymmetricEncryption, Client};
 use nvic;
 use peripheral_interrupts::NvicIdx;
-use peripheral_registers::{AESECB_REGS, AESECB_BASE};
+use peripheral_registers;
 
 // array that the AES-CHIP will mutate during AES-ECB
 // key 0-15     cleartext 16-32     ciphertext 32-47
@@ -40,12 +41,12 @@ static mut ECB_DATA: [u8; 48] = [0; 48];
 static mut INIT_CTR: [u8; 16] = [0; 16];
 
 pub struct AesECB {
-    regs: *mut AESECB_REGS,
-    client: Cell<Option<&'static Client>>,
+    regs: *const peripheral_registers::AESECB_REGS,
+    client: Cell<Option<&'static kernel::hil::symmetric_encryption::Client>>,
     ctr: Cell<[u8; 16]>,
-    // input either plaintext or ciphertext to be encrypted or decrypted
+    /// Input either plaintext or ciphertext to be encrypted or decrypted.
     input: TakeCell<'static, [u8]>,
-    // keystream to be XOR:ed with the input
+    /// Keystream to be XOR'ed with the input.
     keystream: Cell<[u8; 128]>,
     remaining: Cell<usize>,
     len: Cell<usize>,
@@ -54,10 +55,14 @@ pub struct AesECB {
 
 pub static mut AESECB: AesECB = AesECB::new();
 
+const NRF_INTR_ENDECB: u32 = 0;
+const NRF_INTR_ERRORECB: u32 = 1;
+
+
 impl AesECB {
     const fn new() -> AesECB {
         AesECB {
-            regs: AESECB_BASE as *mut AESECB_REGS,
+            regs: peripheral_registers::AESECB_BASE as *const peripheral_registers::AESECB_REGS,
             client: Cell::new(None),
             ctr: Cell::new([0; 16]),
             input: TakeCell::empty(),
@@ -68,10 +73,11 @@ impl AesECB {
         }
     }
 
+    // This Function is called once Tock is booted
     pub fn ecb_init(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
-            regs.ECBDATAPTR.set((&ECB_DATA as *const u8) as u32);
+            regs.ecbdataptr.set((&ECB_DATA as *const u8) as u32);
         }
     }
 
@@ -97,8 +103,8 @@ impl AesECB {
             }
         }
 
-        regs.ENDECB.set(0);
-        regs.STARTECB.set(1);
+        regs.event_endecb.set(0);
+        regs.task_startecb.set(1);
 
         self.enable_nvic();
         self.enable_interrupts();
@@ -113,7 +119,7 @@ impl AesECB {
         self.disable_interrupts();
         nvic::clear_pending(NvicIdx::ECB);
 
-        if regs.ENDECB.get() == 1 {
+        if regs.event_endecb.get() == 1 {
 
             let rem = self.remaining.get();
             let offset = self.offset.get();
@@ -153,18 +159,18 @@ impl AesECB {
             }
             self.keystream.set(ks);
         }
-        // else ERROR encrypt error do nothing
+        // FIXME: else ERROR encrypt error do nothing
     }
 
     fn enable_interrupts(&self) {
         // set ENDECB bit and ERROR bit
         let regs = unsafe { &*self.regs };
-        regs.INTENSET.set(1 | 1 << 1);
+        regs.intenset.set(NRF_INTR_ENDECB | NRF_INTR_ERRORECB);
     }
 
     fn disable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.INTENCLR.set(1 | 1 << 1);
+        regs.intenclr.set(NRF_INTR_ENDECB | NRF_INTR_ERRORECB);
     }
 
     fn enable_nvic(&self) {
@@ -185,15 +191,12 @@ impl AesECB {
     }
 }
 
-impl SymmetricEncryption for AesECB {
-    fn set_client(&self, client: &'static Client) {
+impl kernel::hil::symmetric_encryption::SymmetricEncryption for AesECB {
+    fn set_client(&self, client: &'static kernel::hil::symmetric_encryption::Client) {
         self.client.set(Some(client));
     }
 
-    // This Function is called once Tock is booted
-    fn init(&self) {
-        self.ecb_init();
-    }
+    fn init(&self) {}
 
     // capsule ensures that the key is 16 bytes
     // precondition: key_len = 16 || 24 || 32
@@ -214,14 +217,4 @@ impl SymmetricEncryption for AesECB {
         self.set_initial_ctr(iv);
         self.crypt();
     }
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn ECB_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(NvicIdx::ECB);
-    chip::INTERRUPT_QUEUE.as_mut()
-        .unwrap()
-        .enqueue(NvicIdx::ECB);
 }

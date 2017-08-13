@@ -79,6 +79,7 @@ extern crate compiler_builtins;
 #[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate nrf52;
+extern crate nrf5x;
 
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: usize = 17;
@@ -112,14 +113,17 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
 
 pub struct Platform {
+    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
     ble_radio: &'static nrf52::ble_advertising_driver::BLE
-        <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+        <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
+    button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static, nrf52::uart::UARTE>,
-    button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
-    led: &'static capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
+    gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
+    led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
+    rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
+    temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf5x::temperature::Temperature>,
     timer: &'static capsules::timer::TimerDriver
-        <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+        <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
 }
 
 
@@ -133,7 +137,10 @@ impl kernel::Platform for Platform {
             3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            14 => f(Some(self.rng)),
+            17 => f(Some(self.aes)),
             33 => f(Some(self.ble_radio)),
+            36 => f(Some(self.temp)),
             _ => f(None),
         }
     }
@@ -156,22 +163,22 @@ pub unsafe fn reset_handler() {
     // GPIOs
     // FIXME: Test if it works and remove un-commented code!
     let gpio_pins = static_init!(
-        [&'static nrf52::gpio::GPIOPin; 15],
-        [&nrf52::gpio::PORT[3],  // Bottom left header on DK board
-        &nrf52::gpio::PORT[4],   //
-        &nrf52::gpio::PORT[28],  //
-        &nrf52::gpio::PORT[29],  //
-        &nrf52::gpio::PORT[30],  //
-        &nrf52::gpio::PORT[31],  // -----
-        &nrf52::gpio::PORT[10],  // Top right header on DK board
-        &nrf52::gpio::PORT[9],   //
-        &nrf52::gpio::PORT[8],   //
-        &nrf52::gpio::PORT[7],   //
-        &nrf52::gpio::PORT[6],   //
-        &nrf52::gpio::PORT[5],   //
-        &nrf52::gpio::PORT[21],  //
-        &nrf52::gpio::PORT[1],   //
-        &nrf52::gpio::PORT[0],   // -----
+        [&'static nrf5x::gpio::GPIOPin; 15],
+        [&nrf5x::gpio::PORT[3],  // Bottom left header on DK board
+        &nrf5x::gpio::PORT[4],   //
+        &nrf5x::gpio::PORT[28],  //
+        &nrf5x::gpio::PORT[29],  //
+        &nrf5x::gpio::PORT[30],  //
+        &nrf5x::gpio::PORT[31],  // -----
+        &nrf5x::gpio::PORT[10],  // Top right header on DK board
+        &nrf5x::gpio::PORT[9],   //
+        &nrf5x::gpio::PORT[8],   //
+        &nrf5x::gpio::PORT[7],   //
+        &nrf5x::gpio::PORT[6],   //
+        &nrf5x::gpio::PORT[5],   //
+        &nrf5x::gpio::PORT[21],  //
+        &nrf5x::gpio::PORT[1],   //
+        &nrf5x::gpio::PORT[0],   // -----
         /*&nrf52::gpio::PORT[18],  // Top mid header on DK board
         &nrf52::gpio::PORT[17],  //
         &nrf52::gpio::PORT[16],  //
@@ -193,7 +200,7 @@ pub unsafe fn reset_handler() {
         4 * 11);
 
     let gpio = static_init!(
-        capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin>,
+        capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
         224/8);
     for pin in gpio_pins.iter() {
@@ -202,28 +209,28 @@ pub unsafe fn reset_handler() {
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static nrf52::gpio::GPIOPin, capsules::led::ActivationMode); 4],
-        [(&nrf52::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow),
-        (&nrf52::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow),
-        (&nrf52::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow),
-        (&nrf52::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow),
+        [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode); 4],
+        [(&nrf5x::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow),
+        (&nrf5x::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow),
+        (&nrf5x::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow),
+        (&nrf5x::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow),
         ], 256/8);
 
     let led = static_init!(
-        capsules::led::LED<'static, nrf52::gpio::GPIOPin>,
+        capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
         capsules::led::LED::new(led_pins),
         64/8);
 
     let button_pins = static_init!(
-        [&'static nrf52::gpio::GPIOPin; 4],
-        [&nrf52::gpio::PORT[BUTTON1_PIN], // 13
-        &nrf52::gpio::PORT[BUTTON2_PIN],  // 14
-        &nrf52::gpio::PORT[BUTTON3_PIN],  // 15
-        &nrf52::gpio::PORT[BUTTON4_PIN],  // 16
+        [&'static nrf5x::gpio::GPIOPin; 4],
+        [&nrf5x::gpio::PORT[BUTTON1_PIN], // 13
+        &nrf5x::gpio::PORT[BUTTON2_PIN],  // 14
+        &nrf5x::gpio::PORT[BUTTON3_PIN],  // 15
+        &nrf5x::gpio::PORT[BUTTON4_PIN],  // 16
         ],
         4 * 4);
     let button = static_init!(
-        capsules::button::Button<'static, nrf52::gpio::GPIOPin>,
+        capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
         capsules::button::Button::new(button_pins, kernel::Container::create()),
         96/8);
     for btn in button_pins.iter() {
@@ -232,34 +239,34 @@ pub unsafe fn reset_handler() {
         btn.set_client(button);
     }
 
-    let alarm = &nrf52::rtc::RTC;
+    let alarm = &nrf5x::rtc::RTC;
     alarm.start();
     let mux_alarm = static_init!(
-        capsules::virtual_alarm::MuxAlarm<'static, nrf52::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&nrf52::rtc::RTC), 16);
+        capsules::virtual_alarm::MuxAlarm<'static, nrf5x::rtc::Rtc>,
+        capsules::virtual_alarm::MuxAlarm::new(&nrf5x::rtc::RTC), 16);
     alarm.set_client(mux_alarm);
 
 
     let virtual_alarm1 = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
         24);
     let timer = static_init!(
         capsules::timer::TimerDriver<'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
         capsules::timer::TimerDriver::new(virtual_alarm1,
                          kernel::Container::create()),
                          12);
     virtual_alarm1.set_client(timer);
     let ble_radio_virtual_alarm = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
         192/8);
 
-    nrf52::uart::UART0.configure(nrf52::pinmux::Pinmux::new(6), // tx
-                                 nrf52::pinmux::Pinmux::new(8), // rx
-                                 nrf52::pinmux::Pinmux::new(7), // cts
-                                 nrf52::pinmux::Pinmux::new(5)); // rts
+    nrf52::uart::UART0.configure(nrf5x::pinmux::Pinmux::new(6), // tx
+                                 nrf5x::pinmux::Pinmux::new(8), // rx
+                                 nrf5x::pinmux::Pinmux::new(7), // cts
+                                 nrf5x::pinmux::Pinmux::new(5)); // rts
     let console = static_init!(
         capsules::console::Console<nrf52::uart::UARTE>,
         capsules::console::Console::new(&nrf52::uart::UART0,
@@ -279,7 +286,7 @@ pub unsafe fn reset_handler() {
 
     let ble_radio = static_init!(
      nrf52::ble_advertising_driver::BLE
-     <capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>>,
+     <capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
      nrf52::ble_advertising_driver::BLE::new(
          &mut nrf52::radio::RADIO,
          kernel::Container::create(),
@@ -289,24 +296,50 @@ pub unsafe fn reset_handler() {
     nrf52::radio::RADIO.set_client(ble_radio);
     ble_radio_virtual_alarm.set_client(ble_radio);
 
+    let temp = static_init!(
+        capsules::temp_nrf51dk::Temperature<'static, nrf5x::temperature::Temperature>,
+        capsules::temp_nrf51dk::Temperature::new(&mut nrf5x::temperature::TEMP,
+                                                 kernel::Container::create()), 96/8);
+    nrf5x::temperature::TEMP.set_client(temp);
+
+    let rng = static_init!(
+        capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
+        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Container::create()),
+        96/8);
+    nrf5x::trng::TRNG.set_client(rng);
+
+    let aes = static_init!(
+        capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
+        capsules::symmetric_encryption::Crypto::new(&mut nrf5x::aes::AESECB,
+                                                    kernel::Container::create(),
+                                                    &mut capsules::symmetric_encryption::KEY,
+                                                    &mut capsules::symmetric_encryption::BUF,
+                                                    &mut capsules::symmetric_encryption::IV),
+        288/8);
+    nrf5x::aes::AESECB.ecb_init();
+    kernel::hil::symmetric_encryption::SymmetricEncryption::set_client(&nrf5x::aes::AESECB, aes);
+
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
-    nrf52::clock::CLOCK.low_stop();
-    nrf52::clock::CLOCK.high_stop();
+    nrf5x::clock::CLOCK.low_stop();
+    nrf5x::clock::CLOCK.high_stop();
 
-    nrf52::clock::CLOCK.low_set_source(nrf52::clock::LowClockSource::XTAL);
-    nrf52::clock::CLOCK.low_start();
-    nrf52::clock::CLOCK.high_start();
-    while !nrf52::clock::CLOCK.low_started() {}
-    while !nrf52::clock::CLOCK.high_started() {}
+    nrf5x::clock::CLOCK.low_set_source(nrf5x::clock::LowClockSource::XTAL);
+    nrf5x::clock::CLOCK.low_start();
+    nrf5x::clock::CLOCK.high_start();
+    while !nrf5x::clock::CLOCK.low_started() {}
+    while !nrf5x::clock::CLOCK.high_started() {}
 
 
     let platform = Platform {
+        aes: aes,
         button: button,
         ble_radio: ble_radio,
         console: console,
         led: led,
         gpio: gpio,
+        rng: rng,
+        temp: temp,
         timer: timer,
     };
 

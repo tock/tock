@@ -6,6 +6,7 @@ dependencies = [
  "cortexm4 0.1.0",
  "kernel 0.1.0",
  "nrf52 0.1.0",
+ "nrf5x 0.1.0",
 ]
 
 [[package]]
@@ -37,6 +38,14 @@ version = "0.1.0"
 dependencies = [
  "cortexm4 0.1.0",
  "gcc 0.3.51 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kernel 0.1.0",
+ "nrf5x 0.1.0",
+]
+
+[[package]]
+name = "nrf5x"
+version = "0.1.0"
+dependencies = [
  "kernel 0.1.0",
 ]
 

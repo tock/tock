@@ -6,7 +6,6 @@
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
 //! Date: March 03, 2017
 
-use chip;
 use core::cell::Cell;
 use kernel;
 use nvic;
@@ -35,6 +34,17 @@ impl Temperature {
         }
     }
 
+    fn measure(&self) {
+        let regs = unsafe { &*self.regs };
+
+        self.enable_nvic();
+        self.enable_interrupts();
+
+        regs.event_datardy.set(0);
+        regs.task_start.set(1);
+    }
+
+    // MEASUREMENT DONE
     pub fn handle_interrupt(&self) {
         // disable interrupts
         self.disable_nvic();
@@ -47,6 +57,13 @@ impl Temperature {
 
         // stop measurement
         regs.STOP.set(NRF_TEMP_DISABLE);
+
+        // stop measurement
+        regs.task_stop.set(1);
+
+        // disable interrupts
+        self.disable_nvic();
+        self.disable_interrupts();
 
         // trigger callback with temperature
         self.client
@@ -87,12 +104,4 @@ impl kernel::hil::sensors::TemperatureDriver for Temperature {
     fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {
         self.client.set(Some(client));
     }
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn TEMP_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(peripheral_interrupts::NvicIdx::TEMP);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(peripheral_interrupts::NvicIdx::TEMP);
 }

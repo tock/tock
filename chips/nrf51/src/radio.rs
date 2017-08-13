@@ -14,8 +14,8 @@ use ble_advertising_driver;
 use chip;
 use core::cell::Cell;
 use kernel;
-use nvic;
-use peripheral_interrupts;
+use nrf5x::nvic;
+use nrf5x::peripheral_interrupts;
 use peripheral_registers;
 
 // nrf51 specific constants

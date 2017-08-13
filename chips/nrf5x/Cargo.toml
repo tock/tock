@@ -1,14 +1,7 @@
 [package]
-name = "nrf51"
+name = "nrf5x"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
-build = "build.rs"
-
 [dependencies]
-cortexm0 = { path = "../../arch/cortex-m0" }
 kernel = { path = "../../kernel" }
-nrf5x = { path = "../nrf5x" }
-
-[build-dependencies]
-gcc = "0.3"

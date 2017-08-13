@@ -1,6 +1,7 @@
 use core::fmt::{Write, write, Arguments};
 use kernel::hil::uart::{self, UART};
 use nrf52;
+use nrf5x;
 
 pub struct Writer {
     initialized: bool,
@@ -80,8 +81,8 @@ pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u3
     for idx in 0..procs.len() {
         procs[idx].as_mut().map(|process| { process.statistics_str(writer); });
     }
-    let led0 = &nrf52::gpio::PORT[LED1_PIN];
-    let led1 = &nrf52::gpio::PORT[LED2_PIN];
+    let led0 = &nrf5x::gpio::PORT[LED1_PIN];
+    let led1 = &nrf5x::gpio::PORT[LED2_PIN];
 
     led0.make_output();
     led1.make_output();

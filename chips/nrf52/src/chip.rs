@@ -1,11 +1,8 @@
-use gpio;
 use kernel;
 use kernel::common::{RingBuffer, Queue};
-use nvic;
-use peripheral_interrupts::NvicIdx;
+use nrf5x;
+use nrf5x::peripheral_interrupts::NvicIdx;
 use radio;
-use rtc;
-use timer;
 use uart;
 
 const IQ_SIZE: usize = 100;
@@ -38,16 +35,19 @@ impl kernel::Chip for NRF52 {
         unsafe {
             INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
                 match interrupt {
-                    NvicIdx::RTC1 => rtc::RTC.handle_interrupt(),
-                    NvicIdx::GPIOTE => gpio::PORT.handle_interrupt(),
-                    NvicIdx::TIMER0 => timer::TIMER0.handle_interrupt(),
-                    NvicIdx::TIMER1 => timer::ALARM1.handle_interrupt(),
-                    NvicIdx::TIMER2 => timer::TIMER2.handle_interrupt(),
-                    NvicIdx::UART0 => uart::UART0.handle_interrupt(),
+                    NvicIdx::ECB => nrf5x::aes::AESECB.handle_interrupt(),
+                    NvicIdx::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
                     NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
+                    NvicIdx::RNG => nrf5x::trng::TRNG.handle_interrupt(),
+                    NvicIdx::RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
+                    NvicIdx::TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
+                    NvicIdx::TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
+                    NvicIdx::TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
+                    NvicIdx::TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
+                    NvicIdx::UART0 => uart::UART0.handle_interrupt(),
                     _ => debug!("NvicIdx not supported by Tock\r\n"),
                 }
-                nvic::enable(interrupt);
+                nrf5x::nvic::enable(interrupt);
             });
         }
     }
