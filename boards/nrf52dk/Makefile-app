@@ -13,3 +13,7 @@ NRF_LOAD = $(TOCK_USERLAND_BASE_DIR)/tools/program/nrf52dk.py
 .PHONY: flash
 flash: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
 	$(NRF_LOAD) $<
+
+.PHONY: program
+program: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+	$(error Cannot program nRF52DK over USB. Use \'make flash\' and JTAG)

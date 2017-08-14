@@ -1,5 +1,6 @@
 //! Public traits for interfaces between Tock components.
 
+pub mod ambient_light;
 pub mod led;
 pub mod time;
 pub mod gpio;

@@ -8,6 +8,7 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
+use capsules::mac::Mac;
 use capsules::rf233::RF233;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -46,15 +47,15 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 // Save some deep nesting
 type RF233Device = capsules::rf233::RF233<'static,
                                           VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>;
+
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     si7021: &'static capsules::si7021::SI7021<'static,
                                               VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    isl29035: &'static capsules::isl29035::Isl29035<'static,
-                                                    VirtualMuxAlarm<'static,
-                                                                    sam4l::ast::Ast<'static>>>,
+
+    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
@@ -96,7 +97,7 @@ impl kernel::Platform for Imix {
 
             3 => f(Some(self.timer)),
             4 => f(Some(self.spi)),
-            6 => f(Some(self.isl29035)),
+            6 => f(Some(self.ambient_light)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
@@ -252,6 +253,11 @@ pub unsafe fn reset_handler() {
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
+    let ambient_light = static_init!(
+        capsules::ambient_light::AmbientLight<'static>,
+        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Container::create()));
+    hil::ambient_light::AmbientLight::set_client(isl29035, ambient_light);
+
     // Set up an SPI MUX, so there can be multiple clients
     let mux_spi = static_init!(
         MuxSpiMaster<'static, sam4l::spi::Spi>,
@@ -391,19 +397,19 @@ pub unsafe fn reset_handler() {
 
     let radio_mac = static_init!(
         capsules::mac::MacDevice<'static, RF233Device>,
-        capsules::mac::MacDevice::new(rf233),
-        0);
+        capsules::mac::MacDevice::new(rf233));
     let radio_capsule = static_init!(
         capsules::radio::RadioDriver<'static,
                                      capsules::mac::MacDevice<'static, RF233Device>>,
-        capsules::radio::RadioDriver::new(radio_mac),
-        0);
+        capsules::radio::RadioDriver::new(radio_mac));
     radio_capsule.config_buffer(&mut RADIO_BUF);
     radio_mac.set_transmit_client(radio_capsule);
     radio_mac.set_receive_client(radio_capsule);
     rf233.set_transmit_client(radio_mac);
     rf233.set_receive_client(radio_mac, &mut RF233_RX_BUF);
     rf233.set_config_client(radio_mac);
+    radio_mac.set_pan(0xABCD);
+    radio_mac.set_address(0x1008);
 
     // Configure the USB controller
     let usb_client = static_init!(
@@ -423,7 +429,7 @@ pub unsafe fn reset_handler() {
         timer: timer,
         gpio: gpio,
         si7021: si7021,
-        isl29035: isl29035,
+        ambient_light: ambient_light,
         adc: adc,
         led: led,
         button: button,
@@ -437,11 +443,9 @@ pub unsafe fn reset_handler() {
 
     let mut chip = sam4l::chip::Sam4l::new();
 
+    // These two lines need to be below the creation of the chip for
+    // initialization to work.
     rf233.reset();
-    rf233.set_pan(0xABCD);
-    rf233.set_address(0x1008);
-    //    rf233.config_commit();
-
     rf233.start();
 
     debug!("Initialization complete. Entering main loop");

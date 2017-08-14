@@ -210,20 +210,18 @@ impl<'a, M: mac::Mac> mac::RxClient for RadioDriver<'a, M> {
                     * userspace */
                    _: Header<'b>,
                    data_offset: usize,
-                   data_len: usize,
-                   result: ReturnCode) {
-        if self.app.is_some() {
-            self.app.map(move |app| if app.app_read.is_some() {
-                let dest = app.app_read.as_mut().unwrap();
-                let d = &mut dest.as_mut();
-                let len = cmp::min(d.len(), data_offset + data_len);
-                d[..len].copy_from_slice(&buf[..len]);
-                app.rx_callback
-                    .take()
-                    .map(|mut cb| {
-                        cb.schedule(usize::from(result), data_offset, data_offset + data_len);
-                    });
-            });
-        }
+                   data_len: usize) {
+        self.app.map(move |app| if let Some(dest) = app.app_read.as_mut() {
+            let d = &mut dest.as_mut();
+            let len = cmp::min(d.len(), data_offset + data_len);
+            d[..len].copy_from_slice(&buf[..len]);
+            app.rx_callback
+                .take()
+                .map(|mut cb| {
+                    cb.schedule(usize::from(ReturnCode::SUCCESS),
+                                data_offset,
+                                data_len);
+                });
+        });
     }
 }

@@ -1,4 +1,4 @@
-# Makefile for building the tock kernel for the nRF development kit
+# Makefile for building the tock kernel for the nRF51 development kit
 
 TOCK_ARCH=cortex-m0
 TARGET=thumbv6m-none-eabi
@@ -23,19 +23,10 @@ JLINK_OPTIONS+=-device nrf51422 -if swd -speed 1200 -AutoConnect 1
 JLINK_SCRIPTS_DIR=jtag/
 
 # Upload the kernel over JTAG
-.PHONY: program
+.PHONY: flash
 flash: target/$(TARGET)/release/nrf51dk.hex
 	$(JLINK) $(JLINK_OPTIONS) $(JLINK_SCRIPTS_DIR)/flash-kernel.jlink
 
-# Upload kernel + app over JTAG
-.PHONY: program-full
-flash-full: target/$(TARGET)/release/nrf51dk-$(APP).hex
-	@$(eval TEMPFILE := $(shell mktemp -t nrf51dk-$(APP).jlink.XXXXXXXXXX))
-	@echo r > $(TEMPFILE)
-	@echo loadfile $< >> $(TEMPFILE)
-	@echo r >> $(TEMPFILE)
-	@echo g >> $(TEMPFILE)
-	@echo q >> $(TEMPFILE)
-	$(JLINK) $(JLINK_OPTIONS) $(TEMPFILE)
-	@rm $(TEMPFILE)
-
+.PHONY: program
+program: target/$(TARGET)/release/nrf51dk.hex
+	$(error Cannot program nRF51DK over USB. Use \'make flash\' and JTAG)
