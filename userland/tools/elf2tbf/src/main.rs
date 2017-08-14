@@ -318,7 +318,7 @@ fn do_work(input: &elf::File,
     let post_appstate_pad = relocation_data_offset - (appstate_offset + appstate_size);
     let text_offset = relocation_data_offset + (relocation_data_size as u32);
     let text_size = text.shdr.size as u32;
-    let init_fn_offset = (input.ehdr.entry ^ 0x80000000) as u32 + text_offset;
+    let init_fn_offset = (input.ehdr.entry - text.shdr.addr) as u32 + text_offset;
     let got_offset = text_offset + text_size;
     let got_size = got.shdr.size as u32;
     let data_offset = got_offset + got_size;
