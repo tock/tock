@@ -8,12 +8,30 @@ extern "C" {
 
 #define DRIVER_NUM_TEMPERATURE 10
 
+// function to be called when the temperature measurement is finished
+//
+// callback       - pointer to function to be called
+// callback_args  - pointer to data provided to the callback
 int temperature_set_callback (subscribe_cb callback, void* callback_args);
 
+
+// initiate an ambient temperature measurement used both for syncronous and asyncronous readings
 int temperature_ambient_get(void);
+
+
+// initiate a syncronous ambient temperature measurement
+//
+// temperature     - pointer/address where the result of the temperature reading should be stored
 int temperature_ambient_get_sync (int* temperature);
 
+
+// initiate internal cpu temperature measurement used both for syncronous and asyncronous readings
 int temperature_cpu_get(void);
+
+
+// initiate a syncronous internal cpu temperature measurement
+//
+// temperature     - pointer/address where the result of the temperature reading should be stored
 int temperature_cpu_get_sync(int* temperature);
 
 #ifdef __cplusplus

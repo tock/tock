@@ -1,4 +1,51 @@
-//! Generic TemperatureSensor Interface
+//! Provides userspace with access to temperature sensors.
+//!
+//! Userspace Interface
+//! -------------------
+//!
+//! ### `subscribe` System Call
+//!
+//! The `subscribe` system call supports the single `subscribe_number` zero,
+//! which is used to provide a callback that will return back the result of
+//! a temperature sensor reading.
+//! The `subscribe`call return codes indicate the following:
+//!
+//! * `SUCCESS`: the callback been successfully been configured.
+//! * `ENOSUPPORT`: Invalid allow_num.
+//! * `ENOMEM`: No sufficient memory available.
+//! * `EINVAL`: Invalid address of the buffer or other error.
+//!
+//!
+//! ### `command` System Call
+//!
+//! The `command` system call support one argument `cmd` which is used to specify the specific
+//! operation, currently the following cmd's are supported:
+//!
+//! * `0`: check whether the driver exist
+//! * `1`: read the ambient temperature
+//! * `2`: read internal cpu temperature
+//!
+//!
+//! The possible return from the 'command' system call indicates the following:
+//!
+//! * `SUCCESS`:    The operation has been successful.
+//! * `EBUSY`:      The driver is busy.
+//! * `ENOSUPPORT`: Invalid `cmd`.
+//! * `ENOMEM`:     No sufficient memory available.
+//! * `EINVAL`:     Invalid address of the buffer or other error.
+//!
+//! Usage
+//! -----
+//!
+//! You need a device that provides the `hil::sensor::TemperatureDriver` trait.
+//!
+//! ``rust
+//! let temp = static_init!(
+//!        capsules::temperature::TemperatureSensor<'static>,
+//!        capsules::temperature::TemperatureSensor::new(si7021,
+//!                                                 kernel::Container::create()), 96/8);
+//! kernel::hil::sensor::TemperatureDriver::set_client(si7021, temp);
+//! ```
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver};
