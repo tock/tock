@@ -39,28 +39,6 @@ Read the Tock documentation for more details on its
    something as a process instead of a capsule and vice versa?
 
 ## 3. Compile and flash the kernel (10 min)
-To build the kernel, type `make` in the root directory, or in `boards/hail/`.
-
-`cd tock`
-`make`
-
-or
-
-`cd tock/boards/hail`
-`make`
-
-The root Makefile uses the `TOCK_BOARD` environment variable to determine the
-board and architecture to build the kernel for. All calls are then routed to
-that board's specific Makefile. By default, the root Makefile builds for the
-Hail platform. To build for another board, change the `TOCK_BOARD` environment
-variable to indicate another board: 
-
-`export TOCK_BOARD=imix`
-
-To flash the kernel, run `make program` in the `boards/hail/` directory.
-
-`cd tock/boards/hail`
-`make program`
 
 # Build the kernel
 
@@ -69,13 +47,14 @@ To build the kernel, just type make in the root directory, or in boards/hail/.
         $ cd boards/hail/
         $ make
 
-The root Makefile selects a board and architecture to build the kernel for and
-routes all calls to that board's specific Makefile. The root Makefile is also
-set up with `TOCK_BOARD ?= hail`. Thus it compiles for the Hail board by
-default.
-
 If this is the first time you are trying to make the kernel, cargo and rustup
 will now go ahead and install all the requirements of Tock.
+
+The root Makefile selects a board and architecture to build the kernel for and
+routes all calls to that board's specific Makefile. It's set up with
+`TOCK_BOARD ?= hail`, so it compiles for the Hail board by default. To compile
+for a different board, just change the `TOCK_BOARD` environment variable. For
+  example, to compile for the imix instead, use `export TOCK_BOARD=imix`.
 
 # Connect to a Hail board
 
