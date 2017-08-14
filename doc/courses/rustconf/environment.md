@@ -19,6 +19,28 @@ During this you will:
    something as a process instead of a capsule and vice versa?
 
 ## 3. Compile and flash the kernel (10 min)
+To build the kernel, type `make` in the root directory, or in `boards/hail/`.
+
+`cd tock`
+`make`
+
+or
+
+`cd tock/boards/hail`
+`make`
+
+The root Makefile uses the `TOCK_BOARD` environment variable to determine the
+board and architecture to build the kernel for. All calls are then routed to
+that board's specific Makefile. By default, the root Makefile builds for the
+Hail platform. To build for another board, change the `TOCK_BOARD` environment
+variable to indicate another board: 
+
+`export TOCK_BOARD=imix`
+
+To flash the kernel, run `make program` in the `boards/hail/` directory.
+
+`cd tock/boards/hail`
+`make program`
 
 ## 4. Customize, compile and flash the `ble-env-sense` service (10 min)
 
