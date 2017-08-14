@@ -8,6 +8,7 @@ pub mod volatile_cell;
 pub mod static_ref;
 pub mod list;
 pub mod math;
+pub mod virtualizer;
 
 pub use self::list::{List, ListLink, ListNode};
 pub use self::queue::Queue;
