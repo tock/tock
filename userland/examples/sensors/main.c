@@ -38,7 +38,7 @@ static void timer_fired(__attribute__ ((unused)) int arg0,
   if (tsl2561)      tsl2561_lux = tsl2561_get_lux_sync();
   if (lps25hb)      lps25hb_pressure = lps25hb_get_pressure_sync();
   if (temperature)  temperature_read_sync(&temp_ambient);
-  if (humidity)     humidity_get_sync(&humi);
+  if (humidity)     humidity_read_sync(&humi);
   if (ninedof)      ninedof_read_acceleration_sync(&ninedof_x, &ninedof_y, &ninedof_z);
 
   if (isl29035)       printf("ISL29035:   Light Intensity: %d\n", light);

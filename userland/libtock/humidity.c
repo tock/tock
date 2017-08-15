@@ -22,18 +22,18 @@ int humidity_set_callback(subscribe_cb callback, void* callback_args) {
   return subscribe(DRIVER_NUM_HUMIDITY, 0, callback, callback_args);
 }
 
-int humidity_get(void) {
+int humidity_read(void) {
   return command(DRIVER_NUM_HUMIDITY, 1, 0);
 }
 
-int humidity_get_sync(unsigned* humidity) {
+int humidity_read_sync(unsigned* humidity) {
   int err;
   result.fired = false;
 
   err = humidity_set_callback(cb, (void*) &result);
   if (err < 0) return err;
 
-  err = humidity_get();
+  err = humidity_read();
   if (err < 0) return err;
 
   // Wait for the callback.

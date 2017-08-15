@@ -16,12 +16,12 @@ int humidity_set_callback (subscribe_cb callback, void* callback_args);
 
 
 // initiate an humidity measurement used both for syncronous and asyncronous readings
-int humidity_get(void);
+int humidity_read(void);
 
 // initiate a syncronous humidity measurement
 //
 // humi           - pointer/address where the result of the humidity reading should be stored
-int humidity_get_sync (unsigned* humi);
+int humidity_read_sync (unsigned* humi);
 
 #ifdef __cplusplus
 }

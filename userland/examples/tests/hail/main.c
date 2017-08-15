@@ -54,7 +54,7 @@ static void sample_sensors (void) {
   int temp;
   temperature_read_sync(&temp);
   unsigned humi;
-  humidity_get_sync(&humi);
+  humidity_read_sync(&humi);
   uint32_t accel_mag = ninedof_read_accel_mag();
   int light          = ambient_light_read_intensity();
 
