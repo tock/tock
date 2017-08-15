@@ -37,14 +37,14 @@
 //! Usage
 //! -----
 //!
-//! You need a device that provides the `hil::sensor::TemperatureDriver` trait.
+//! You need a device that provides the `hil::sensors::TemperatureDriver` trait.
 //!
 //! ``rust
 //! let temp = static_init!(
 //!        capsules::temperature::TemperatureSensor<'static>,
 //!        capsules::temperature::TemperatureSensor::new(si7021,
 //!                                                 kernel::Container::create()), 96/8);
-//! kernel::hil::sensor::TemperatureDriver::set_client(si7021, temp);
+//! kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
 //! ```
 
 use core::cell::Cell;
@@ -67,13 +67,13 @@ pub struct App {
 }
 
 pub struct TemperatureSensor<'a> {
-    driver: &'a hil::sensor::TemperatureDriver,
+    driver: &'a hil::sensors::TemperatureDriver,
     apps: Container<App>,
     busy: Cell<bool>,
 }
 
 impl<'a> TemperatureSensor<'a> {
-    pub fn new(driver: &'a hil::sensor::TemperatureDriver,
+    pub fn new(driver: &'a hil::sensors::TemperatureDriver,
                container: Container<App>)
                -> TemperatureSensor<'a> {
         TemperatureSensor {
@@ -125,7 +125,7 @@ impl<'a> TemperatureSensor<'a> {
     }
 }
 
-impl<'a> hil::sensor::TemperatureClient for TemperatureSensor<'a> {
+impl<'a> hil::sensors::TemperatureClient for TemperatureSensor<'a> {
     fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| if app.subscribed {

@@ -12,7 +12,7 @@ pub mod adc;
 pub mod flash;
 pub mod watchdog;
 pub mod radio;
-pub mod sensor;
+pub mod sensors;
 pub mod crc;
 pub mod symmetric_encryption;
 pub mod ninedof;

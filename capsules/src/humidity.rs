@@ -36,14 +36,14 @@
 //! Usage
 //! -----
 //!
-//! You need a device that provides the `hil::sensor::HumidityDriver` trait.
+//! You need a device that provides the `hil::sensors::HumidityDriver` trait.
 //!
 //! ``rust
 //! let humidity = static_init!(
 //!        capsules::humidity::HumiditySensor<'static>,
 //!        capsules::humidity::HumiditySensor::new(si7021,
 //!                                                 kernel::Container::create()), 96/8);
-//! kernel::hil::sensor::HumidityDriver::set_client(si7021, humidity);
+//! kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 //! ```
 
 use core::cell::Cell;
@@ -65,13 +65,13 @@ pub struct App {
 }
 
 pub struct HumiditySensor<'a> {
-    driver: &'a hil::sensor::HumidityDriver,
+    driver: &'a hil::sensors::HumidityDriver,
     apps: Container<App>,
     busy: Cell<bool>,
 }
 
 impl<'a> HumiditySensor<'a> {
-    pub fn new(driver: &'a hil::sensor::HumidityDriver,
+    pub fn new(driver: &'a hil::sensors::HumidityDriver,
                container: Container<App>)
                -> HumiditySensor<'a> {
         HumiditySensor {
@@ -118,7 +118,7 @@ impl<'a> HumiditySensor<'a> {
     }
 }
 
-impl<'a> hil::sensor::HumidityClient for HumiditySensor<'a> {
+impl<'a> hil::sensors::HumidityClient for HumiditySensor<'a> {
     fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| if app.subscribed {

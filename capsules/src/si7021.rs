@@ -96,8 +96,8 @@ enum OnDeck {
 pub struct SI7021<'a, A: time::Alarm + 'a> {
     i2c: &'a i2c::I2CDevice,
     alarm: &'a A,
-    temp_callback: Cell<Option<&'static kernel::hil::sensor::TemperatureClient>>,
-    humidity_callback: Cell<Option<&'static kernel::hil::sensor::HumidityClient>>,
+    temp_callback: Cell<Option<&'static kernel::hil::sensors::TemperatureClient>>,
+    humidity_callback: Cell<Option<&'static kernel::hil::sensors::HumidityClient>>,
     state: Cell<State>,
     on_deck: Cell<OnDeck>,
     buffer: TakeCell<'static, [u8]>,
@@ -238,7 +238,7 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
 }
 
 
-impl<'a, A: time::Alarm + 'a> kernel::hil::sensor::TemperatureDriver for SI7021<'a, A> {
+impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
     fn read_ambient_temperature(&self) -> kernel::ReturnCode {
         self.buffer
             .take()
@@ -259,12 +259,12 @@ impl<'a, A: time::Alarm + 'a> kernel::hil::sensor::TemperatureDriver for SI7021<
             })
     }
 
-    fn set_client(&self, client: &'static kernel::hil::sensor::TemperatureClient) {
+    fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {
         self.temp_callback.set(Some(client));
     }
 }
 
-impl<'a, A: time::Alarm + 'a> kernel::hil::sensor::HumidityDriver for SI7021<'a, A> {
+impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
     fn read_humidity(&self) -> kernel::ReturnCode {
         self.buffer
             .take()
@@ -285,7 +285,7 @@ impl<'a, A: time::Alarm + 'a> kernel::hil::sensor::HumidityDriver for SI7021<'a,
             })
     }
 
-    fn set_client(&self, client: &'static kernel::hil::sensor::HumidityClient) {
+    fn set_client(&self, client: &'static kernel::hil::sensors::HumidityClient) {
         self.humidity_callback.set(Some(client));
     }
 }

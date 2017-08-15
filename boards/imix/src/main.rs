@@ -299,12 +299,12 @@ pub unsafe fn reset_handler() {
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(si7021,
                                                  kernel::Container::create()), 96/8);
-    kernel::hil::sensor::TemperatureDriver::set_client(si7021, temp);
+    kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
     let humidity = static_init!(
         capsules::humidity::HumiditySensor<'static>,
         capsules::humidity::HumiditySensor::new(si7021,
                                                  kernel::Container::create()), 96/8);
-    kernel::hil::sensor::HumidityDriver::set_client(si7021, humidity);
+    kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
 
 

@@ -222,7 +222,7 @@ pub unsafe fn reset_handler() {
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(&mut nrf51::temperature::TEMP,
                                                  kernel::Container::create()), 96/8);
-    kernel::hil::sensor::TemperatureDriver::set_client(&nrf51::temperature::TEMP, temp);
+    kernel::hil::sensors::TemperatureDriver::set_client(&nrf51::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf51::trng::Trng>,
