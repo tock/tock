@@ -1,6 +1,5 @@
 //! Public traits for interfaces between Tock components.
 
-pub mod ambient_light;
 pub mod led;
 pub mod time;
 pub mod gpio;
@@ -12,10 +11,9 @@ pub mod adc;
 pub mod flash;
 pub mod watchdog;
 pub mod radio;
-pub mod temperature;
+pub mod sensors;
 pub mod crc;
 pub mod symmetric_encryption;
-pub mod ninedof;
 pub mod gpio_async;
 pub mod dac;
 pub mod nonvolatile_storage;

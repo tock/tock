@@ -12,10 +12,11 @@
 #include <ambient_light.h>
 #include <button.h>
 #include <gpio.h>
+#include <humidity.h>
 #include <led.h>
 #include <ninedof.h>
 #include <nrf51_serialization.h>
-#include <si7021.h>
+#include <temperature.h>
 #include <timer.h>
 
 // Intervals for BLE advertising and connections
@@ -51,8 +52,9 @@ static void sample_sensors (void) {
 
   // Sensors: temperature/humidity, acceleration, light
   int temp;
+  temperature_read_sync(&temp);
   unsigned humi;
-  si7021_get_temperature_humidity_sync(&temp, &humi);
+  humidity_read_sync(&humi);
   uint32_t accel_mag = ninedof_read_accel_mag();
   int light          = ambient_light_read_intensity();
 

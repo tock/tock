@@ -52,9 +52,9 @@ struct Hail {
                                                  VirtualMuxAlarm<'static,
                                                                  sam4l::ast::Ast<'static>>>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    si7021: &'static capsules::si7021::SI7021<'static,
-                                              VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static,
                                                                                sam4l::usart::USART>,
@@ -84,7 +84,7 @@ impl Platform for Hail {
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
-            10 => f(Some(self.si7021)),
+            10 => f(Some(self.temp)),
             11 => f(Some(self.ninedof)),
 
             14 => f(Some(self.rng)),
@@ -93,7 +93,7 @@ impl Platform for Hail {
             17 => f(Some(self.aes)),
 
             26 => f(Some(self.dac)),
-
+            35 => f(Some(self.humidity)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -210,6 +210,20 @@ pub unsafe fn reset_handler() {
     si7021_i2c.set_client(si7021);
     si7021_virtual_alarm.set_client(si7021);
 
+    let temp = static_init!(
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(si7021,
+                                                 kernel::Container::create()), 96/8);
+    kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
+
+    let humidity = static_init!(
+        capsules::humidity::HumiditySensor<'static>,
+        capsules::humidity::HumiditySensor::new(si7021,
+                                                 kernel::Container::create()), 96/8);
+    kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
+
+
+
     // Configure the ISL29035, device address 0x44
     let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x44));
     let isl29035_virtual_alarm = static_init!(
@@ -225,7 +239,7 @@ pub unsafe fn reset_handler() {
     let ambient_light = static_init!(
         capsules::ambient_light::AmbientLight<'static>,
         capsules::ambient_light::AmbientLight::new(isl29035, kernel::Container::create()));
-    hil::ambient_light::AmbientLight::set_client(isl29035, ambient_light);
+    hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
     // Timer
     let virtual_alarm1 = static_init!(
@@ -249,7 +263,7 @@ pub unsafe fn reset_handler() {
     let ninedof = static_init!(
         capsules::ninedof::NineDof<'static>,
         capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
-    hil::ninedof::NineDof::set_client(fxos8700, ninedof);
+    hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
     // Initialize and enable SPI HAL
     // Set up an SPI MUX, so there can be multiple clients
@@ -360,8 +374,9 @@ pub unsafe fn reset_handler() {
         console: console,
         gpio: gpio,
         timer: timer,
-        si7021: si7021,
         ambient_light: ambient_light,
+        temp: temp,
+        humidity: humidity,
         ninedof: ninedof,
         spi: spi_syscalls,
         nrf51822: nrf_serialization,

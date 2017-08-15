@@ -34,8 +34,8 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
-
+use kernel;
+use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
 use kernel::hil::time;
@@ -68,6 +68,8 @@ enum Registers {
 #[derive(Clone,Copy,PartialEq)]
 enum State {
     Idle,
+    WaitTemp,
+    WaitRh,
 
     /// States to read the internal ID
     SelectElectronicId1,
@@ -76,17 +78,28 @@ enum State {
     ReadElectronicId2,
 
     /// States to take the current measurement
-    TakeMeasurementInit,
+    TakeTempMeasurementInit,
+    TakeRhMeasurementInit,
     ReadRhMeasurement,
     ReadTempMeasurement,
-    GotMeasurement,
+    GotTempMeasurement,
+    GotRhMeasurement,
+}
+
+#[derive(PartialEq, Eq, Copy, Clone)]
+enum OnDeck {
+    Nothing,
+    Temperature,
+    Humidity,
 }
 
 pub struct SI7021<'a, A: time::Alarm + 'a> {
     i2c: &'a i2c::I2CDevice,
     alarm: &'a A,
-    callback: Cell<Option<Callback>>,
+    temp_callback: Cell<Option<&'static kernel::hil::sensors::TemperatureClient>>,
+    humidity_callback: Cell<Option<&'static kernel::hil::sensors::HumidityClient>>,
     state: Cell<State>,
+    on_deck: Cell<OnDeck>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -96,8 +109,10 @@ impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {
         SI7021 {
             i2c: i2c,
             alarm: alarm,
-            callback: Cell::new(None),
+            temp_callback: Cell::new(None),
+            humidity_callback: Cell::new(None),
             state: Cell::new(State::Idle),
+            on_deck: Cell::new(OnDeck::Nothing),
             buffer: TakeCell::new(buffer),
         }
     }
@@ -114,15 +129,21 @@ impl<'a, A: time::Alarm + 'a> SI7021<'a, A> {
         });
     }
 
-    pub fn take_measurement(&self) {
-        self.buffer.take().map(|buffer| {
-            // turn on i2c to send commands
-            self.i2c.enable();
+    fn init_measurement(&self, buffer: &'static mut [u8]) {
+        let interval = (20 as u32) * <A::Frequency>::frequency() / 1000;
 
-            buffer[0] = Registers::MeasRelativeHumidityNoHoldMode as u8;
-            self.i2c.write(buffer, 1);
-            self.state.set(State::TakeMeasurementInit);
-        });
+        let tics = self.alarm.now().wrapping_add(interval);
+        self.alarm.set_alarm(tics);
+
+        // Now wait for timer to expire
+        self.buffer.replace(buffer);
+        self.i2c.disable();
+    }
+
+    fn set_idle(&self, buffer: &'static mut [u8]) {
+        self.buffer.replace(buffer);
+        self.i2c.disable();
+        self.state.set(State::Idle);
     }
 }
 
@@ -152,51 +173,120 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
                 self.state.set(State::ReadElectronicId2);
             }
             State::ReadElectronicId2 => {
-                self.buffer.replace(buffer);
-                self.i2c.disable();
-                self.state.set(State::Idle);
+                self.set_idle(buffer);
             }
-            State::TakeMeasurementInit => {
-
-                let interval = (20 as u32) * <A::Frequency>::frequency() / 1000;
-
-                let tics = self.alarm.now().wrapping_add(interval);
-                self.alarm.set_alarm(tics);
-
-                // Now wait for timer to expire
-                self.buffer.replace(buffer);
-                self.i2c.disable();
-                self.state.set(State::Idle);
+            State::TakeTempMeasurementInit => {
+                self.init_measurement(buffer);
+                self.state.set(State::WaitTemp);
+            }
+            State::TakeRhMeasurementInit => {
+                self.init_measurement(buffer);
+                self.state.set(State::WaitRh);
             }
             State::ReadRhMeasurement => {
-                buffer[2] = buffer[0];
-                buffer[3] = buffer[1];
-                buffer[0] = Registers::ReadTemperaturePreviousRHMeasurement as u8;
-                self.i2c.write(buffer, 1);
-                self.state.set(State::ReadTempMeasurement);
+                self.i2c.read(buffer, 2);
+                self.state.set(State::GotRhMeasurement);
             }
             State::ReadTempMeasurement => {
                 self.i2c.read(buffer, 2);
-                self.state.set(State::GotMeasurement);
+                self.state.set(State::GotTempMeasurement);
             }
-            State::GotMeasurement => {
-
+            State::GotTempMeasurement => {
                 // Temperature in hundredths of degrees centigrade
                 let temp_raw = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as u32;
                 let temp = (((temp_raw * 17572) / 65536) - 4685) as i16;
 
+                self.temp_callback
+                    .get()
+                    .map(|cb| cb.callback(temp as usize));
+
+                match self.on_deck.get() {
+                    OnDeck::Humidity => {
+                        self.on_deck.set(OnDeck::Nothing);
+                        buffer[0] = Registers::MeasRelativeHumidityNoHoldMode as u8;
+                        self.i2c.write(buffer, 1);
+                        self.state.set(State::TakeRhMeasurementInit);
+                    }
+                    _ => {
+                        self.set_idle(buffer);
+                    }
+                }
+            }
+            State::GotRhMeasurement => {
                 // Humidity in hundredths of percent
-                let humidity_raw = (((buffer[2] as u32) << 8) | (buffer[3] as u32)) as u32;
+                let humidity_raw = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as u32;
                 let humidity = (((humidity_raw * 125 * 100) / 65536) - 600) as u16;
 
-                self.callback.get().map(|mut cb| cb.schedule(temp as usize, humidity as usize, 0));
-
-                self.buffer.replace(buffer);
-                self.i2c.disable();
-                self.state.set(State::Idle);
+                self.humidity_callback
+                    .get()
+                    .map(|cb| cb.callback(humidity as usize));
+                match self.on_deck.get() {
+                    OnDeck::Temperature => {
+                        self.on_deck.set(OnDeck::Nothing);
+                        buffer[0] = Registers::MeasTemperatureNoHoldMode as u8;
+                        self.i2c.write(buffer, 1);
+                        self.state.set(State::TakeTempMeasurementInit);
+                    }
+                    _ => {
+                        self.set_idle(buffer);
+                    }
+                }
             }
             _ => {}
         }
+    }
+}
+
+
+impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
+    fn read_temperature(&self) -> kernel::ReturnCode {
+        self.buffer
+            .take()
+            .map(|buffer| {
+                // turn on i2c to send commands
+                self.i2c.enable();
+
+                buffer[0] = Registers::MeasTemperatureNoHoldMode as u8;
+                self.i2c.write(buffer, 1);
+                self.state.set(State::TakeTempMeasurementInit);
+                ReturnCode::SUCCESS
+            })
+            .unwrap_or_else(|| if self.on_deck.get() != OnDeck::Nothing {
+                ReturnCode::EBUSY
+            } else {
+                self.on_deck.set(OnDeck::Temperature);
+                ReturnCode::SUCCESS
+            })
+    }
+
+    fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {
+        self.temp_callback.set(Some(client));
+    }
+}
+
+impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::HumidityDriver for SI7021<'a, A> {
+    fn read_humidity(&self) -> kernel::ReturnCode {
+        self.buffer
+            .take()
+            .map(|buffer| {
+                // turn on i2c to send commands
+                self.i2c.enable();
+
+                buffer[0] = Registers::MeasRelativeHumidityNoHoldMode as u8;
+                self.i2c.write(buffer, 1);
+                self.state.set(State::TakeRhMeasurementInit);
+                ReturnCode::SUCCESS
+            })
+            .unwrap_or_else(|| if self.on_deck.get() != OnDeck::Nothing {
+                ReturnCode::EBUSY
+            } else {
+                self.on_deck.set(OnDeck::Humidity);
+                ReturnCode::SUCCESS
+            })
+    }
+
+    fn set_client(&self, client: &'static kernel::hil::sensors::HumidityClient) {
+        self.humidity_callback.set(Some(client));
     }
 }
 
@@ -207,36 +297,11 @@ impl<'a, A: time::Alarm + 'a> time::Client for SI7021<'a, A> {
             self.i2c.enable();
 
             self.i2c.read(buffer, 2);
-            self.state.set(State::ReadRhMeasurement);
+            match self.state.get() {
+                State::WaitRh => self.state.set(State::ReadRhMeasurement),
+                State::WaitTemp => self.state.set(State::ReadTempMeasurement),
+                _ => (),
+            }
         });
-    }
-}
-
-impl<'a, A: time::Alarm + 'a> Driver for SI7021<'a, A> {
-    fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
-        match subscribe_num {
-            // Set a callback
-            0 => {
-                // Set callback function
-                self.callback.set(Some(callback));
-                ReturnCode::SUCCESS
-            }
-            // default
-            _ => ReturnCode::ENOSUPPORT,
-        }
-    }
-
-    fn command(&self, command_num: usize, _: usize, _: AppId) -> ReturnCode {
-        match command_num {
-            0 /* check if present */ => ReturnCode::SUCCESS,
-            // Take a pressure measurement
-            1 => {
-                self.take_measurement();
-                ReturnCode::SUCCESS
-            }
-            // default
-            _ => ReturnCode::ENOSUPPORT,
-        }
-
     }
 }

@@ -1,48 +1,46 @@
-#include "si7021.h"
+#include "temperature.h"
 #include "tock.h"
 
 struct data {
   bool fired;
   int temp;
-  int humi;
 };
 
 static struct data result = { .fired = false };
 
 // Internal callback for faking synchronous reads
 static void cb(int temp,
-               int humidity,
                __attribute__ ((unused)) int unused,
+               __attribute__ ((unused)) int unused1,
                void* ud) {
   struct data* data = (struct data*) ud;
   data->temp  = temp;
-  data->humi  = humidity;
   data->fired = true;
 }
 
-int si7021_set_callback (subscribe_cb callback, void* callback_args) {
-  return subscribe(DRIVER_NUM_SI7021, 0, callback, callback_args);
+int temperature_set_callback(subscribe_cb callback, void* callback_args) {
+  return subscribe(DRIVER_NUM_TEMPERATURE, 0, callback, callback_args);
 }
 
-int si7021_get_temperature_humidity (void) {
-  return command(DRIVER_NUM_SI7021, 1, 0);
+int temperature_read(void) {
+  return command(DRIVER_NUM_TEMPERATURE, 1, 0);
 }
 
-int si7021_get_temperature_humidity_sync (int* temperature, unsigned* humidity) {
+int temperature_read_sync(int* temperature) {
   int err;
   result.fired = false;
 
-  err = si7021_set_callback(cb, (void*) &result);
+  err = temperature_set_callback(cb, (void*) &result);
   if (err < 0) return err;
 
-  err = si7021_get_temperature_humidity();
+  err = temperature_read();
   if (err < 0) return err;
 
   // Wait for the callback.
   yield_for(&result.fired);
 
   *temperature = result.temp;
-  *humidity    = result.humi;
 
   return 0;
 }
+
