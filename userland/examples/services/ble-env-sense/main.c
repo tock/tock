@@ -104,20 +104,17 @@ static void ipc_callback(int pid, int len, int buf, __attribute__ ((unused)) voi
 
   sensor_update_t *update = (sensor_update_t*) buf;
 
-  switch (update->type) {
-    case SENSOR_TEMPERATURE: {
-      env_sense_update_temperature(conn_handle, update->value);
-      break;
-    }
-
-    case SENSOR_IRRADIANCE: {
-      env_sense_update_irradiance(conn_handle,  update->value);
-      break;
-    }
-
-    case SENSOR_HUMIDITY: {
-      env_sense_update_humidity(conn_handle,  update->value);
-      break;
+  if (conn_handle != BLE_CONN_HANDLE_INVALID) {
+    switch (update->type) {
+      case SENSOR_TEMPERATURE:
+        env_sense_update_temperature(conn_handle, update->value);
+        break;
+      case SENSOR_IRRADIANCE:
+        env_sense_update_irradiance(conn_handle,  update->value);
+        break;
+      case SENSOR_HUMIDITY:
+        env_sense_update_humidity(conn_handle,  update->value);
+        break;
     }
   }
   ipc_notify_client(pid);
@@ -130,6 +127,9 @@ static void ipc_callback(int pid, int len, int buf, __attribute__ ((unused)) voi
 int main (void) {
   printf("[BLE] Environmental Sensing IPC Service\n");
 
+  // Listen for IPC requests to configure the sensor values.
+  ipc_register_svc(ipc_callback, NULL);
+
   // Setup BLE
   conn_handle = simple_ble_init(&ble_config)->conn_handle;
 
@@ -139,7 +139,4 @@ int main (void) {
     .type = BLE_UUID_TYPE_BLE
   };
   simple_adv_service(&adv_uuid);
-
-  // Listen for IPC requests to configure the sensor values.
-  ipc_register_svc(ipc_callback, NULL);
 }
