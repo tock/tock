@@ -38,14 +38,17 @@ Read the Tock documentation for more details on its
    and memory overhead does each entail? Why would you choose to write
    something as a process instead of a capsule and vice versa?
 
+3. Clearly, the kernel should never enter an infinite loop. But is it
+   acceptable for a process to spin? What about a capsule?
+
 ## 3. Compile and flash the kernel (10 min)
 
-# Build the kernel
+### Build the kernel
 
 To build the kernel, just type make in the root directory, or in boards/hail/.
 
-        $ cd boards/hail/
-        $ make
+    $ cd boards/hail/
+    $ make
 
 If this is the first time you are trying to make the kernel, cargo and rustup
 will now go ahead and install all the requirements of Tock.
@@ -56,7 +59,7 @@ routes all calls to that board's specific Makefile. It's set up with
 for a different board, just change the `TOCK_BOARD` environment variable. For
   example, to compile for the imix instead, use `export TOCK_BOARD=imix`.
 
-# Connect to a Hail board
+### Connect to a Hail board
 
 To connect your development machine to the Hail, connect them with a micro-USB
 cable. Any cable will do. Hail should come with the Tock kernel and the Hail
@@ -70,29 +73,29 @@ standard serial program (set to 115200 baud), tockloader makes this easier.
 Tockloader can read attributes from connected serial devices, and will
 automatically find your connected Hail. Simply run:
 
-        $ tockloader listen
-        No device name specified. Using default "tock"
-        Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
+    $ tockloader listen
+    No device name specified. Using default "tock"
+    Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
 
-        Listening for serial output.
+    Listening for serial output.
 
-        [Hail] Test App!
-        [Hail] Samples all sensors.
-        [Hail] Transmits name over BLE.
-        [Hail] Button controls LED.
-        [Hail Sensor Reading]
-          Temperature:  3174 1/100 degrees C
-          Humidity:     3915 0.01%
-          Light:        15
-          Acceleration: 987
-        ...
+    [Hail] Test App!
+    [Hail] Samples all sensors.
+    [Hail] Transmits name over BLE.
+    [Hail] Button controls LED.
+    [Hail Sensor Reading]
+      Temperature:  3174 1/100 degrees C
+      Humidity:     3915 0.01%
+      Light:        15
+      Acceleration: 987
+    ...
 
-# Flash the kernel
+### Flash the kernel
 
 Now that the Hail board is connected and you have verified that the kernel
 compiles, we can flash the Hail board with the latest Tock kernel:
 
-        $ make program
+    $ make program
 
 This command will compile the kernel if needed, and then use `tockloader` to
 flash it onto the Hail. When the flash command succeeds, the Hail test app
@@ -100,34 +103,49 @@ should no longer be working (i.e. the blue LED will not be blinking). Instead,
 the red LED will be blinking furiously, a sign that the kernel has panicked.
 Don't panic! This is because:
 
-# Clear out the applications and re-flash the test app.
+### Clear out the applications and re-flash the test app.
 
 The Tock Binary Format (TBF) was recently changed, and is incompatible with the
 app pre-loaded on the Hail board. To fix this, clear it out and re-flash it.
 
-        $ tockloader list
-        ...
-        [App 0]
-          Name:                  hail
-          Total Size in Flash:   65536 bytes
-        ...
+    $ tockloader list
+    ...
+    [App 0]
+      Name:                  hail
+      Total Size in Flash:   65536 bytes
+    ...
 
 As you can see, the old Hail test app is still installed on the board. This
 also nicely demonstrates that user applications are nicely isolated from the
 kernel: it is possible to update one independently of the other. Remove it with
 the following command:
 
-        $ tockloader uninstall hail
+    $ tockloader uninstall hail
 
-The red LED should no longer be blinking. Now compile and re-flash the Hail
-test app:
+The red LED should no longer blink. Compile and re-flash the Hail test app:
 
-        $ cd userland/examples/tests/hail/
-        $ make program
+    $ cd userland/examples/tests/hail/
+    $ make program
 
 You now have the bleeding-edge Tock kernel running on your Hail board!
 
 ## 4. Customize, compile and flash the `ble-env-sense` service (10 min)
+
+Later in this workshop, you will be working with the `ble-env-sense` service.
+Flash this service onto your Hail board the same way you flashed the test app
+earlier:
+
+    $ tockloader uninstall hail
+    $ cd userland/examples/services/ble-env-sense/
+    $ make program
+    $ tockloader listen
+    ...
+    [BLE] Environmental Sensing IPC Service
+    ...
+
+Also try modifying the application code in
+`userland/examples/services/ble-env-sense/main.c`. Examples for many userspace
+APIs can be found in `userland/examples/`.
 
 ## 5. (Optional) Familiarize yourself with `tockloader` commands (10 min)
 The `tockloader` tool supports several commands. The full list of commands can
