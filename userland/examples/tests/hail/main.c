@@ -12,11 +12,11 @@
 #include <ambient_light.h>
 #include <button.h>
 #include <gpio.h>
+#include <humidity.h>
 #include <led.h>
 #include <ninedof.h>
 #include <nrf51_serialization.h>
 #include <temperature.h>
-#include <humidity.h>
 #include <timer.h>
 
 // Intervals for BLE advertising and connections

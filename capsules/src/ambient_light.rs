@@ -32,9 +32,7 @@ pub struct AmbientLight<'a> {
 }
 
 impl<'a> AmbientLight<'a> {
-    pub fn new(sensor: &'a hil::sensors::AmbientLight,
-               container: Container<App>)
-               -> AmbientLight {
+    pub fn new(sensor: &'a hil::sensors::AmbientLight, container: Container<App>) -> AmbientLight {
         AmbientLight {
             sensor: sensor,
             command_pending: Cell::new(false),
