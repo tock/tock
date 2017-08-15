@@ -383,6 +383,18 @@ the heavy lifting. Simply,
 
 and add sources using the same variables as applications.
 
+##### Development vs Stable Libraries
+
+When developing a library, often it's useful to have the library rebuild automatically.
+In that case, simply include the library Makefile (i.e.
+`include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile`) in your application Makefile. For
+stable libraries, simply check in the built archive.
+
+There are examples of each in the Tock repository, libtock
+[builds with every application](https://github.com/helena-project/tock/blob/master/userland/AppMakefile.mk#L17)
+whereas libnrfserialization
+[ships a pre-built archive](https://github.com/helena-project/tock/tree/master/userland/libnrfserialization/build/cortex-m4).
+
 #### Including other libraries
 
 To manually include an external library, add the library to each `LIBS_$(arch)`
