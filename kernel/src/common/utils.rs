@@ -53,7 +53,6 @@ macro_rules! static_init {
 /// initialize their state. The linker script kernel_layout.ld makes
 /// sure that the .storage section is aligned on a 512-byte boundary
 /// and the next section is aligned as well.
-
 #[macro_export]
 macro_rules! storage_volume {
     ($N:ident, $kB:expr) => {
