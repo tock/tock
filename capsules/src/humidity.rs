@@ -119,12 +119,12 @@ impl<'a> HumiditySensor<'a> {
 }
 
 impl<'a> hil::sensor::HumidityClient for HumiditySensor<'a> {
-    fn callback(&self, tmp_val: usize, dont_care: usize, err: ReturnCode) {
+    fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| if app.subscribed {
                 self.busy.set(false);
                 app.subscribed = false;
-                app.callback.map(|mut cb| cb.schedule(tmp_val, dont_care, usize::from(err)));
+                app.callback.map(|mut cb| cb.schedule(tmp_val, 0, 0));
             });
         }
     }

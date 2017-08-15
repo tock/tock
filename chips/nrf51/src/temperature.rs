@@ -50,7 +50,7 @@ impl Temperature {
         // trigger callback with temperature
         self.client
             .get()
-            .map(|client| client.callback(temp as usize, 0, kernel::ReturnCode::SUCCESS));
+            .map(|client| client.callback(temp as usize));
         nvic::clear_pending(peripheral_interrupts::NvicIdx::TEMP);
     }
 

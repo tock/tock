@@ -126,12 +126,12 @@ impl<'a> TemperatureSensor<'a> {
 }
 
 impl<'a> hil::sensor::TemperatureClient for TemperatureSensor<'a> {
-    fn callback(&self, temp_val: usize, dont_care: usize, err: ReturnCode) {
+    fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| if app.subscribed {
                 self.busy.set(false);
                 app.subscribed = false;
-                app.callback.map(|mut cb| cb.schedule(temp_val, dont_care, usize::from(err)));
+                app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
             });
         }
     }

@@ -11,7 +11,7 @@ pub trait TemperatureDriver {
 }
 
 pub trait TemperatureClient {
-    fn callback(&self, value: usize, measurement_type: usize, err: ReturnCode);
+    fn callback(&self, value: usize);
 }
 
 pub trait HumidityDriver {
@@ -22,5 +22,5 @@ pub trait HumidityDriver {
 }
 
 pub trait HumidityClient {
-    fn callback(&self, value: usize, measurement_type: usize, err: ReturnCode);
+    fn callback(&self, value: usize);
 }

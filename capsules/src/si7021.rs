@@ -198,7 +198,7 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
 
                 self.temp_callback
                     .get()
-                    .map(|cb| cb.callback(temp as usize, 0, ReturnCode::SUCCESS));
+                    .map(|cb| cb.callback(temp as usize));
 
                 match self.on_deck.get() {
                     OnDeck::Humidity => {
@@ -219,7 +219,7 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
 
                 self.humidity_callback
                     .get()
-                    .map(|cb| cb.callback(humidity as usize, 0, ReturnCode::SUCCESS));
+                    .map(|cb| cb.callback(humidity as usize));
                 match self.on_deck.get() {
                     OnDeck::Temperature => {
                         self.on_deck.set(OnDeck::Nothing);
