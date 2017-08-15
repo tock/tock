@@ -38,6 +38,9 @@ Read the Tock documentation for more details on its
    and memory overhead does each entail? Why would you choose to write
    something as a process instead of a capsule and vice versa?
 
+3. Clearly, the kernel should never enter an infinite loop. But is it
+   acceptable for a process to spin? What about a capsule?
+
 ## 3. Compile and flash the kernel (10 min)
 
 ### Build the kernel
