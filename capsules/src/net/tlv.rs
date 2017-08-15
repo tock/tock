@@ -1,8 +1,6 @@
-//! Implements Thread 1.1.1 Specification Type-Length-Value (TLV) formats
-//!
-//! Acronym definitions:
-//!     MLE = Mesh Link Establishment
-//!     SED = Sleepy End Device
+//! Implements Thread 1.1.1 Specification Type-Length-Value (TLV) encoding
+//! and decoding. Used during mesh link establishment (MLE), outlined in
+//! Chapter 4 of the Specification
 //!
 //! To simplify variable-length TLV value decoding, values are assumed to
 //! have a maximum length of 128 bytes. This assumption is made only when
@@ -12,16 +10,21 @@
 //! before being interpreted (for example, sub-TLVs) are left untouched,
 //! and returned as a slice of the original buffer passed to the decode
 //! function.
+//!
+//! Currently supports minimum functionality required to connec a Sleepy
+//! End Device (SED) to a Thread network. See Chapter 4)
+//!
+//! Author: Mateo Garcia
+//!         mateog@stanford.edu
 
-// DEBUG NOTES:
+
+// NOTES FOR DEBUGGING:
 // - .to_be() may not have been called on values wider than one byte
 // - encode_bytes_be may have been used instead of encode_bytes
 // - decode_bytes_be may have been used instead of decode_bytes
 // - See 4.5.25 Active Operational Dataset TLV and 4.5.26 Pending Operational Dataset TLV
 //    - Are Active and Pending Timestamp TLVs, respectively, required to be sent as well
 //      if either of the dataset tlvs are sent?
-
-// TODO: If returning buffer slice, offset should be: offset + buf[offset..].len()
 
 
 use core::mem;
@@ -31,15 +34,15 @@ use net::stream::SResult;
 
 const TL_WIDTH: usize = 2; // Type and length fields of TLV are each one byte.
 const MAX_VALUE_LENGTH: usize = 128; // Assume a TLV value will be no longer than 128 bytes.
-                                     // Used to allocate fixed-length arrays for decoded
-                                     // byte strings.
+// Used to allocate fixed-length arrays for decoded
+// byte strings.
 
 pub enum Tlv<'a> {
     SourceAddress(u16),
     Mode(u8),
     Timeout(u32),
     Challenge([u8; 8]), // Byte string max length 8 bytes.
-    Response([u8; 8]),  // Byte string max length 8 bytes.
+    Response([u8; 8]), // Byte string max length 8 bytes.
     LinkLayerFrameCounter(u32),
     // LinkQuality,                  // TLV type Not used in Thread
     // NetworkParameter,             // TLV type Not used in Thread
@@ -298,19 +301,22 @@ impl<'a> Tlv<'a> {
                 let (offset, data_version) = dec_try!(buf, offset; decode_u8);
                 let (offset, stable_data_version) = dec_try!(buf, offset; decode_u8);
                 let (offset, leader_router_id) = dec_try!(buf, offset; decode_u8);
-                stream_done!(offset, Some(Tlv::LeaderData {
-                                                partition_id: partition_id,
-                                                weighting: weighting,
-                                                data_version: data_version,
-                                                stable_data_version: stable_data_version,
-                                                leader_router_id: leader_router_id,
-                                            }))
+                stream_done!(offset,
+                             Some(Tlv::LeaderData {
+                                 partition_id: partition_id,
+                                 weighting: weighting,
+                                 data_version: data_version,
+                                 stable_data_version: stable_data_version,
+                                 leader_router_id: leader_router_id,
+                             }))
             }
             TlvType::NetworkData => {
-                stream_done!(0, Some(Tlv::NetworkData(&buf[offset..offset + length as usize])))
+                stream_done!(offset + length as usize,
+                             Some(Tlv::NetworkData(&buf[offset..offset + length as usize])))
             }
             TlvType::TlvRequest => {
-                stream_done!(0, Some(Tlv::TlvRequest(&buf[offset..offset + length as usize])))
+                stream_done!(offset + length as usize,
+                             Some(Tlv::TlvRequest(&buf[offset..offset + length as usize])))
             }
             TlvType::ScanMask => {
                 let (offset, scan_mask) = dec_try!(buf, offset; decode_u8);
@@ -337,17 +343,18 @@ impl<'a> Tlv<'a> {
                     offset = new_offset;
                     sed_datagram_count = Some(sed_datagram_count_raw);
                 }
-                stream_done!(offset, Some(Tlv::Connectivity {
-                                                    parent_priority: parent_priority,
-                                                    link_quality_3: link_quality_3,
-                                                    link_quality_2: link_quality_2,
-                                                    link_quality_1: link_quality_1,
-                                                    leader_cost: leader_cost,
-                                                    id_sequence: id_sequence,
-                                                    active_routers: active_routers,
-                                                    sed_buffer_size: sed_buffer_size,
-                                                    sed_datagram_count: sed_datagram_count,
-                                                }))
+                stream_done!(offset,
+                             Some(Tlv::Connectivity {
+                                 parent_priority: parent_priority,
+                                 link_quality_3: link_quality_3,
+                                 link_quality_2: link_quality_2,
+                                 link_quality_1: link_quality_1,
+                                 leader_cost: leader_cost,
+                                 id_sequence: id_sequence,
+                                 active_routers: active_routers,
+                                 sed_buffer_size: sed_buffer_size,
+                                 sed_datagram_count: sed_datagram_count,
+                             }))
             }
             TlvType::LinkMargin => {
                 let (offset, link_margin) = dec_try!(buf, offset; decode_u8);
@@ -362,14 +369,16 @@ impl<'a> Tlv<'a> {
                 stream_done!(offset, Some(Tlv::Version(version)))
             }
             TlvType::ActiveOperationalDataset => {
-                stream_done!(0, Some(Tlv::ActiveOperationalDataset(&buf[offset..offset + length as usize])))
+                stream_done!(offset + length as usize,
+                             Some(Tlv::ActiveOperationalDataset(&buf[offset..
+                                                                 offset + length as usize])))
             }
             TlvType::PendingOperationalDataset => {
-                stream_done!(0, Some(Tlv::PendingOperationalDataset(&buf[offset..offset + length as usize])))
+                stream_done!(offset + length as usize,
+                             Some(Tlv::PendingOperationalDataset(&buf[offset..
+                                                                  offset + length as usize])))
             }
-            TlvType::NotPresent => {
-                stream_done!(offset, None)
-            }
+            TlvType::NotPresent => stream_done!(offset, None),
         }
     }
 }
@@ -407,12 +416,12 @@ pub enum TlvType {
     PendingTimestamp = 23,
     */
     ActiveOperationalDataset = 24,
-    PendingOperationalDataset = 25, 
+    PendingOperationalDataset = 25,
     /*
     TODO: Not required to implement MLE for SED
     ThreadDiscovery = 26,
     */
-    NotPresent
+    NotPresent,
 }
 
 impl From<u8> for TlvType {
@@ -436,7 +445,7 @@ impl From<u8> for TlvType {
             18 => TlvType::Version,
             24 => TlvType::ActiveOperationalDataset,
             25 => TlvType::PendingOperationalDataset,
-            _ => TlvType::NotPresent
+            _ => TlvType::NotPresent,
         }
     }
 }
@@ -495,7 +504,10 @@ pub enum NetworkDataTlv<'a> {
         prefix: [u8; 3], // IPv6 prefix max length 48 bits.
         sub_tlvs: &'a [u8],
     },
-    CommissioningData { com_length: u8, com_data: [u8; MAX_VALUE_LENGTH], },
+    CommissioningData {
+        com_length: u8,
+        com_data: [u8; MAX_VALUE_LENGTH],
+    },
     Service {
         thread_enterprise_number: bool,
         s_id: u8,
@@ -571,7 +583,7 @@ impl<'a> NetworkDataTlv<'a> {
                 let (offset, prefix_length_bits) = dec_try!(buf, offset; decode_u8);
                 let mut prefix = [0u8; 3];
                 let offset = dec_consume!(buf, offset; decode_bytes_be, &mut prefix);
-                stream_done!(offset,
+                stream_done!(offset + length as usize,
                              Some((NetworkDataTlv::Prefix {
                                        domain_id: domain_id,
                                        prefix_length_bits: prefix_length_bits,
@@ -599,7 +611,7 @@ impl<'a> NetworkDataTlv<'a> {
                 let (offset, s_service_data_length) = dec_try!(buf, offset; decode_u8);
                 let mut s_service_data = [0u8; MAX_VALUE_LENGTH];
                 let offset = dec_consume!(buf, offset; decode_bytes_be, &mut s_service_data);
-                stream_done!(offset,
+                stream_done!(offset + length as usize,
                              Some((NetworkDataTlv::Service {
                                        thread_enterprise_number: thread_enterprise_number,
                                        s_id: s_id,
@@ -698,10 +710,15 @@ impl<'a> PrefixSubTlv<'a> {
         let (offset, length) = dec_try!(buf, offset; decode_u8);
         match tlv_type {
             PrefixSubTlvType::HasRoute => {
-                stream_done!(offset, Some((PrefixSubTlv::HasRoute(&buf[offset..offset + length as usize]), stable)))
+                stream_done!(offset + length as usize,
+                             Some((PrefixSubTlv::HasRoute(&buf[offset..offset + length as usize]),
+                                   stable)))
             }
             PrefixSubTlvType::BorderRouter => {
-                stream_done!(offset, Some((PrefixSubTlv::BorderRouter(&buf[offset..offset + length as usize]), stable)))
+                stream_done!(offset + length as usize,
+                             Some((PrefixSubTlv::BorderRouter(&buf[offset..
+                                                               offset + length as usize]),
+                                   stable)))
             }
             PrefixSubTlvType::SixLoWpanId => {
                 let (offset, first_byte) = dec_try!(buf, offset; decode_u8);
@@ -769,7 +786,7 @@ impl HasRouteTlvValue {
         let (offset, r_border_router_16) = dec_try!(buf; decode_u16);
         let (offset, last_byte) = dec_try!(buf, offset; decode_u8);
         let r_preference = last_byte >> 6;
-        stream_done!(offset + buf[offset..].len(),
+        stream_done!(offset,
                      HasRouteTlvValue {
                          r_border_router_16: r_border_router_16,
                          r_preference: r_preference,
@@ -807,7 +824,7 @@ impl BorderRouterTlvValue {
     pub fn decode(buf: &[u8]) -> SResult<BorderRouterTlvValue> {
         let (offset, p_border_router_16) = dec_try!(buf; decode_u16);
         let (offset, p_bits) = dec_try!(buf, offset; decode_u16);
-        stream_done!(offset + buf[offset..].len(),
+        stream_done!(offset,
                      BorderRouterTlvValue {
                          p_border_router_16: p_border_router_16,
                          p_bits: p_bits,
@@ -888,8 +905,6 @@ impl<'a> From<&'a ServiceSubTlv> for ServiceSubTlvType {
         }
     }
 }
-
-// TODO: START HERE
 
 pub enum NetworkManagementTlv<'a> {
     Channel { channel_page: u8, channel: u16 },
@@ -1084,7 +1099,8 @@ impl<'a> NetworkManagementTlv<'a> {
             NetworkManagementTlvType::NetworkName => {
                 let mut network_name = [0u8; 16];
                 let offset = dec_consume!(buf, offset; decode_bytes_be, &mut network_name);
-                stream_done!(offset, Some(NetworkManagementTlv::NetworkName(network_name)))
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::NetworkName(network_name)))
             }
             NetworkManagementTlvType::Pskc => {
                 let mut pskc = [0u8; 16];
@@ -1112,7 +1128,8 @@ impl<'a> NetworkManagementTlv<'a> {
             NetworkManagementTlvType::SteeringData => {
                 let mut bloom_filter = [0u8; 16];
                 let offset = dec_consume!(buf, offset; decode_bytes_be, &mut bloom_filter);
-                stream_done!(offset, Some(NetworkManagementTlv::SteeringData(bloom_filter)))
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::SteeringData(bloom_filter)))
             }
             NetworkManagementTlvType::BorderAgentLocator => {
                 let (offset, rloc_16) = dec_try!(buf, offset; decode_u16);
@@ -1122,7 +1139,8 @@ impl<'a> NetworkManagementTlv<'a> {
             NetworkManagementTlvType::CommissionerId => {
                 let mut commissioner_id = [0u8; 64];
                 let offset = dec_consume!(buf, offset; decode_bytes_be, &mut commissioner_id);
-                stream_done!(offset, Some(NetworkManagementTlv::CommissionerId(commissioner_id)))
+                stream_done!(offset,
+                             Some(NetworkManagementTlv::CommissionerId(commissioner_id)))
             }
             NetworkManagementTlvType::CommissionerSessionId => {
                 let (offset, session_id) = dec_try!(buf, offset; decode_u16);
@@ -1171,7 +1189,7 @@ impl<'a> NetworkManagementTlv<'a> {
                              Some(NetworkManagementTlv::DelayTimer(time_remaining)))
             }
             NetworkManagementTlvType::ChannelMask => {
-                stream_done!(offset + buf[offset..].len(),
+                stream_done!(offset + length as usize,
                              Some(NetworkManagementTlv::ChannelMask(&buf[offset..
                                                                      offset +
                                                                      length as usize])))
