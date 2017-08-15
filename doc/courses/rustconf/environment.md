@@ -130,3 +130,30 @@ You now have the bleeding-edge Tock kernel running on your Hail board!
 ## 4. Customize, compile and flash the `ble-env-sense` service (10 min)
 
 ## 5. (Optional) Familiarize yourself with `tockloader` commands (10 min)
+The `tockloader` tool supports several commands. The full list of commands can
+be found in the tockloader repository, located at
+https://github.com/helena-project/tockloader. Below is a list of the more useful
+or important commands for programming and querying a board.
+
+### `tockloader install`
+This is the main tockloader command, used to load Tock applications onto a
+board. Use the `--no-replace` flag to install multiple copies of the same app.
+
+### `tockloader uninstall [application name(s)]`
+Removes one or more applications from the board by name.
+
+### `tockloader list`
+Prints basic information about the apps currently loaded onto the board.
+
+### `tockloader info`
+Shows all properties of the board, including information about currently
+loaded applications, their sizes and versions, and any set attributes.
+
+### `tockloader listen`
+This command prints output from Tock apps to the terminal. It listens via UART,
+and will print out all `printf()` data from a board.
+
+### `tockloader flash`
+Loads binaries onto hardware platforms that are running a compatible bootloader.
+This is used by the Tock Make system when kernel binaries are programmed to the
+board with `make program`.
