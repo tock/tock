@@ -126,7 +126,7 @@ Take a look at the implementation of the `debug!` macro in
 `BUF_SIZE` (`debug.rs:29`). When the kernel calls `debug!`, does
 the macro return when the message has been written to the serial
 port (synchronous), or does it return and asynchonrously write
-out the debug message? Hint: the call to `command` on line 120
+out the debug message? Hint: the call to `command` on line 123
 is what starts the write operation, resulting in the `callback` on
 line 130.
 
