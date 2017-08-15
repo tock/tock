@@ -239,7 +239,7 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
 
 
 impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
-    fn read_ambient_temperature(&self) -> kernel::ReturnCode {
+    fn read_temperature(&self) -> kernel::ReturnCode {
         self.buffer
             .take()
             .map(|buffer| {

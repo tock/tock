@@ -53,13 +53,6 @@ use kernel::ReturnCode;
 use kernel::hil;
 use kernel::process::Error;
 
-#[derive(Clone,Copy,PartialEq)]
-pub enum TemperatureCommand {
-    Exists,
-    ReadAmbientTemperature,
-    ReadCPUTemperature,
-}
-
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
@@ -83,16 +76,12 @@ impl<'a> TemperatureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self,
-                       command: TemperatureCommand,
-                       arg1: usize,
-                       appid: AppId)
-                       -> ReturnCode {
+    fn enqueue_command(&self, appid: AppId) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| if !self.busy.get() {
                 app.subscribed = true;
                 self.busy.set(true);
-                self.call_driver(command, arg1)
+                self.driver.read_temperature()
             } else {
                 ReturnCode::EBUSY
             })
@@ -101,14 +90,6 @@ impl<'a> TemperatureSensor<'a> {
                 Error::AddressOutOfBounds => ReturnCode::EINVAL,
                 Error::NoSuchApp => ReturnCode::EINVAL,
             })
-    }
-
-    fn call_driver(&self, command: TemperatureCommand, _: usize) -> ReturnCode {
-        match command {
-            TemperatureCommand::ReadAmbientTemperature => self.driver.read_ambient_temperature(),
-            TemperatureCommand::ReadCPUTemperature => self.driver.read_cpu_temperature(),
-            _ => ReturnCode::ENOSUPPORT,
-        }
     }
 
     fn configure_callback(&self, callback: Callback) -> ReturnCode {
@@ -146,18 +127,14 @@ impl<'a> Driver for TemperatureSensor<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
 
-            // check whether the driver exist!!
+            // check whether the driver exists!!
             0 => ReturnCode::SUCCESS,
 
-            // read ambient temperature
-            1 => self.enqueue_command(TemperatureCommand::ReadAmbientTemperature, arg1, appid),
-
-            // read internal cpu temperature
-            2 => self.enqueue_command(TemperatureCommand::ReadCPUTemperature, arg1, appid),
-
+            // read temperature
+            1 => self.enqueue_command(appid),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

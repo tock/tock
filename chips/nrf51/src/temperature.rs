@@ -22,7 +22,7 @@ const NRF_TEMP_DISABLE: u32 = 0;
 #[no_mangle]
 pub struct Temperature {
     regs: *const peripheral_registers::TEMP_REGS,
-    client: Cell<Option<&'static kernel::hil::sensor::TemperatureClient>>,
+    client: Cell<Option<&'static kernel::hil::sensors::TemperatureClient>>,
 }
 
 pub static mut TEMP: Temperature = Temperature::new();
@@ -73,8 +73,8 @@ impl Temperature {
     }
 }
 
-impl kernel::hil::sensor::TemperatureDriver for Temperature {
-    fn read_cpu_temperature(&self) -> kernel::ReturnCode {
+impl kernel::hil::sensors::TemperatureDriver for Temperature {
+    fn read_temperature(&self) -> kernel::ReturnCode {
         let regs = unsafe { &*self.regs };
         self.enable_nvic();
         self.enable_interrupts();
@@ -83,7 +83,7 @@ impl kernel::hil::sensor::TemperatureDriver for Temperature {
         kernel::ReturnCode::SUCCESS
     }
 
-    fn set_client(&self, client: &'static kernel::hil::sensor::TemperatureClient) {
+    fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {
         self.client.set(Some(client));
     }
 }

@@ -5,12 +5,7 @@ use returncode::ReturnCode;
 /// A basic interface for a temperature sensor
 pub trait TemperatureDriver {
     fn set_client(&self, client: &'static TemperatureClient);
-    fn read_ambient_temperature(&self) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
-    }
-    fn read_cpu_temperature(&self) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
-    }
+    fn read_temperature(&self) -> ReturnCode;
 }
 
 /// Client for receiving temperature readings.
@@ -25,9 +20,7 @@ pub trait TemperatureClient {
 /// A basic interface for a humidity sensor
 pub trait HumidityDriver {
     fn set_client(&self, client: &'static HumidityClient);
-    fn read_humidity(&self) -> ReturnCode {
-        ReturnCode::ENOSUPPORT
-    }
+    fn read_humidity(&self) -> ReturnCode;
 }
 
 /// Client for receiving temperature readings.
