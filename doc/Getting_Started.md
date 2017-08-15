@@ -197,11 +197,11 @@ $ make examples/blink
 
 ### Optional Requirements
 
-For some boards, currently `Hail` and `imix` (but not `imixv1`), you will need
-`tockloader`. `tockloader` also has features that are generally useful to all
-Tock boards, such as easy to manage serial connections, and the ability to
-list, add, replace, and remove applications over JTAG (or USB if a bootloader
-is installed).
+For some boards, currently `Hail` and `imix`, you will need `tockloader`.
+`tockloader` also has features that are generally useful to all Tock boards,
+such as easy to manage serial connections, and the ability to list, add,
+replace, and remove applications over JTAG (or USB if a bootloader is
+installed).
 
 1. [tockloader](https://github.com/helena-project/tockloader) (version 0.7.1)
 

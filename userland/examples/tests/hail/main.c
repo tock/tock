@@ -9,9 +9,9 @@
 #include <simple_ble.h>
 
 #include <adc.h>
+#include <ambient_light.h>
 #include <button.h>
 #include <gpio.h>
-#include <isl29035.h>
 #include <led.h>
 #include <ninedof.h>
 #include <nrf51_serialization.h>
@@ -54,7 +54,7 @@ static void sample_sensors (void) {
   unsigned humi;
   si7021_get_temperature_humidity_sync(&temp, &humi);
   uint32_t accel_mag = ninedof_read_accel_mag();
-  int light          = isl29035_read_light_intensity();
+  int light          = ambient_light_read_intensity();
 
   // Analog inputs: A0-A5
   uint16_t val;

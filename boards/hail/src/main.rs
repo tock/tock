@@ -14,17 +14,13 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
-use capsules::console::{self, Console};
-use capsules::nrf51822_serialization::{self, Nrf51822Serialization};
-use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
+use capsules::virtual_i2c::{MuxI2C, I2CDevice};
+use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::Platform;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
-use sam4l::usart;
 
 #[macro_use]
 pub mod io;
@@ -50,17 +46,18 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 
 
 struct Hail {
-    console: &'static Console<'static, usart::USART>,
+    console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    isl29035: &'static capsules::isl29035::Isl29035<'static,
-                                                    VirtualMuxAlarm<'static,
-                                                                    sam4l::ast::Ast<'static>>>,
+    timer: &'static capsules::timer::TimerDriver<'static,
+                                                 VirtualMuxAlarm<'static,
+                                                                 sam4l::ast::Ast<'static>>>,
+    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     si7021: &'static capsules::si7021::SI7021<'static,
                                               VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
-    nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
+    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static,
+                                                                               sam4l::usart::USART>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
@@ -83,7 +80,7 @@ impl Platform for Hail {
             3 => f(Some(self.timer)),
             4 => f(Some(self.spi)),
             5 => f(Some(self.nrf51822)),
-            6 => f(Some(self.isl29035)),
+            6 => f(Some(self.ambient_light)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
@@ -172,21 +169,21 @@ pub unsafe fn reset_handler() {
     set_pin_primary_functions();
 
     let console = static_init!(
-        Console<usart::USART>,
-        Console::new(&usart::USART0,
+        capsules::console::Console<sam4l::usart::USART>,
+        capsules::console::Console::new(&sam4l::usart::USART0,
                      115200,
-                     &mut console::WRITE_BUF,
+                     &mut capsules::console::WRITE_BUF,
                      kernel::Container::create()));
-    hil::uart::UART::set_client(&usart::USART0, console);
+    hil::uart::UART::set_client(&sam4l::usart::USART0, console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
     let nrf_serialization = static_init!(
-        Nrf51822Serialization<usart::USART>,
-        Nrf51822Serialization::new(&usart::USART3,
-                                   &mut nrf51822_serialization::WRITE_BUF,
-                                   &mut nrf51822_serialization::READ_BUF));
-    hil::uart::UART::set_client(&usart::USART3, nrf_serialization);
+        capsules::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART>,
+        capsules::nrf51822_serialization::Nrf51822Serialization::new(&sam4l::usart::USART3,
+                                   &mut capsules::nrf51822_serialization::WRITE_BUF,
+                                   &mut capsules::nrf51822_serialization::READ_BUF));
+    hil::uart::UART::set_client(&sam4l::usart::USART3, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
 
@@ -225,13 +222,18 @@ pub unsafe fn reset_handler() {
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
+    let ambient_light = static_init!(
+        capsules::ambient_light::AmbientLight<'static>,
+        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Container::create()));
+    hil::ambient_light::AmbientLight::set_client(isl29035, ambient_light);
+
     // Timer
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm));
     let timer = static_init!(
-        TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        TimerDriver::new(virtual_alarm1, kernel::Container::create()));
+        capsules::timer::TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        capsules::timer::TimerDriver::new(virtual_alarm1, kernel::Container::create()));
     virtual_alarm1.set_client(timer);
 
     // FXOS8700CQ accelerometer, device address 0x1e
@@ -359,7 +361,7 @@ pub unsafe fn reset_handler() {
         gpio: gpio,
         timer: timer,
         si7021: si7021,
-        isl29035: isl29035,
+        ambient_light: ambient_light,
         ninedof: ninedof,
         spi: spi_syscalls,
         nrf51822: nrf_serialization,

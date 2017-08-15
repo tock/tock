@@ -5,6 +5,7 @@
 #[macro_use(debug)]
 extern crate kernel;
 
+pub mod ambient_light;
 pub mod button;
 pub mod console;
 pub mod fm25cl;
@@ -46,3 +47,6 @@ pub mod app_flash_driver;
 pub mod usb;
 pub mod usb_user;
 pub mod usbc_client;
+#[macro_use]
+pub mod net;
+pub mod mac;

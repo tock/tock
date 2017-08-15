@@ -1,7 +1,7 @@
 imix: Platform-Specific Instructions
 =====================================
 
-This board file is for imix version 2. For older versions, see the imixv1 board.
+This board file is for imix version 2.
 
 
 ## Flashing the kernel
@@ -10,12 +10,18 @@ To program the Tock kernel onto the imix, `cd` into the `boards/imix` directory
 and run:
 
 ```bash
-$ make flash
+$ make program
 ```
 
 This will build `boards/imix/target/sam4l/release/imix/imix` and use tockloader to
 flash it to the board.
 
+If you have connected to the board over a JTAG interface, you should instead
+flash the kernel with:
+
+```bash
+$ make flash
+```
 
 ## Flashing apps
 

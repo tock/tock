@@ -7,7 +7,6 @@
  * Date: Jan 12 2017
  */
 
-
 const int SYS_RADIO = 154;
 
 const int BUF_RX = 0;
@@ -21,16 +20,17 @@ const int COM_TX     = 5;
 const int COM_READY  = 6;
 const int COM_COMMIT = 7;
 
-const int EVT_TX  = 0;
-const int EVT_RX  = 1;
-const int EVT_CFG = 2;
+const int EVT_TX = 0;
+const int EVT_RX = 1;
 
 int radio_init(void) {
+  // Spin until radio is on
   while (!radio_ready()) {}
-  return 0;
-} // Do nothing for now
+  return TOCK_SUCCESS;
+}
 
 int rx_result      = 0;
+int rx_payload_off = 0;
 int rx_payload_len = 0;
 int tx_acked       = 0;
 
@@ -43,19 +43,13 @@ static void cb_tx(__attribute__ ((unused)) int len,
 }
 
 static void cb_rx(int result,
+                  int payload_off,
                   int payload_len,
-                  __attribute__ ((unused)) int unused2,
                   void* ud) {
   rx_result      = result;
+  rx_payload_off = payload_off;
   rx_payload_len = payload_len;
   *((bool*)ud)   = true;
-}
-
-static void cb_config(__attribute__ ((unused)) int unused0,
-                      __attribute__ ((unused)) int unused1,
-                      __attribute__ ((unused)) int unused2,
-                      void* ud) {
-  *((bool*)ud) = true;
 }
 
 // packet contains the payload of the 802.15.4 packet; this will
@@ -103,17 +97,7 @@ int radio_set_power(char power) {
 }
 
 int radio_commit(void) {
-  bool cond = false;
-  int err   = subscribe(SYS_RADIO, EVT_CFG, cb_config, &cond);
-  if (err != TOCK_SUCCESS) {
-    return err;
-  }
-  err = command(SYS_RADIO, COM_COMMIT, 0);
-  if (err != TOCK_SUCCESS) {
-    return err;
-  }
-  yield_for(&cond);
-  return TOCK_SUCCESS;
+  return command(SYS_RADIO, COM_COMMIT, 0);
 }
 
 // Valid channels are 10-26
@@ -135,7 +119,8 @@ int radio_receive(const char* packet, unsigned char len) {
   if (rx_result < 0) {
     return rx_result;
   }
-  return rx_payload_len;
+  // Return the end of the frame, including the two header bytes.
+  return rx_payload_off + rx_payload_len;
 }
 
 int radio_receive_callback(subscribe_cb callback,
