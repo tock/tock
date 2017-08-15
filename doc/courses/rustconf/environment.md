@@ -148,14 +148,21 @@ Also try modifying the application code in
 APIs can be found in `userland/examples/`.
 
 ## 5. (Optional) Familiarize yourself with `tockloader` commands (10 min)
-The `tockloader` tool supports several commands. The full list of commands can
-be found in the tockloader repository, located at
+The `tockloader` tool is a useful and versitile tool for managing and installing
+applications on Tock. It supports a number of commands, and a more complete
+list can be found in the tockloader repository, located at 
 https://github.com/helena-project/tockloader. Below is a list of the more useful
-or important commands for programming and querying a board.
+and important commands for programming and querying a board.
 
 ### `tockloader install`
 This is the main tockloader command, used to load Tock applications onto a
 board. Use the `--no-replace` flag to install multiple copies of the same app.
+In order to install an app, navigate to the correct directory, make the program,
+then issue the install command:
+
+    $ cd tock/userland/examples/blink
+    $ make
+    $ tockloader install
 
 ### `tockloader uninstall [application name(s)]`
 Removes one or more applications from the board by name.
