@@ -81,6 +81,9 @@ extern crate kernel;
 extern crate nrf52;
 extern crate nrf5x;
 
+use capsules::virtual_alarm::VirtualMuxAlarm;
+use nrf5x::rtc::Rtc;
+
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: usize = 17;
 const LED2_PIN: usize = 18;
@@ -114,14 +117,14 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
 pub struct Platform {
     aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
-    ble_radio: &'static nrf52::ble_advertising_driver::BLE
-        <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
+    ble_radio: &'static nrf5x::ble_advertising_driver::BLE
+        <'static, nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static, nrf52::uart::UARTE>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
-    temp: &'static capsules::temp_nrf51dk::Temperature<'static, nrf5x::temperature::Temperature>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
     timer: &'static capsules::timer::TimerDriver
         <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
 }
@@ -137,10 +140,10 @@ impl kernel::Platform for Platform {
             3 => f(Some(self.timer)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
+            10 => f(Some(self.temp)),
             14 => f(Some(self.rng)),
             17 => f(Some(self.aes)),
             33 => f(Some(self.ble_radio)),
-            36 => f(Some(self.temp)),
             _ => f(None),
         }
     }
@@ -284,23 +287,26 @@ pub unsafe fn reset_handler() {
         480/8);
     kernel::debug::assign_console_driver(Some(console), kc);
 
+
     let ble_radio = static_init!(
-     nrf52::ble_advertising_driver::BLE
-     <capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
-     nrf52::ble_advertising_driver::BLE::new(
+     nrf5x::ble_advertising_driver::BLE
+        <'static, nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+     nrf5x::ble_advertising_driver::BLE::new(
          &mut nrf52::radio::RADIO,
          kernel::Container::create(),
-         &mut nrf52::ble_advertising_driver::BUF,
+         &mut nrf5x::ble_advertising_driver::BUF,
          ble_radio_virtual_alarm),
         256/8);
-    nrf52::radio::RADIO.set_client(ble_radio);
+    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_client(&nrf52::radio::RADIO, ble_radio);
     ble_radio_virtual_alarm.set_client(ble_radio);
 
+
     let temp = static_init!(
-        capsules::temp_nrf51dk::Temperature<'static, nrf5x::temperature::Temperature>,
-        capsules::temp_nrf51dk::Temperature::new(&mut nrf5x::temperature::TEMP,
+        capsules::temperature::TemperatureSensor<'static>,
+        capsules::temperature::TemperatureSensor::new(&mut nrf5x::temperature::TEMP,
                                                  kernel::Container::create()), 96/8);
-    nrf5x::temperature::TEMP.set_client(temp);
+    kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
+
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,

@@ -84,15 +84,17 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
 
 pub struct Platform {
-    gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
-    console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
-    led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
-    button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
     aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
-    ble_radio: &'static nrf51::ble_advertising_driver::BLE<'static, VirtualMuxAlarm<'static, Rtc>>,
+    ble_radio: &'static nrf5x::ble_advertising_driver::BLE<'static,
+                                                           nrf51::radio::Radio,
+                                                           VirtualMuxAlarm<'static, Rtc>>,
+    button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
+    console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
+    gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
+    led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
+    temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
+    rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
 }
 
 
@@ -217,13 +219,11 @@ pub unsafe fn reset_handler() {
         VirtualMuxAlarm::new(mux_alarm),
         192/8);
 
-
-
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(&mut nrf51::temperature::TEMP,
+        capsules::temperature::TemperatureSensor::new(&mut nrf5x::temperature::TEMP,
                                                  kernel::Container::create()), 96/8);
-    kernel::hil::sensors::TemperatureDriver::set_client(&nrf51::temperature::TEMP, temp);
+    kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
@@ -243,14 +243,15 @@ pub unsafe fn reset_handler() {
     SymmetricEncryption::set_client(&nrf5x::aes::AESECB, aes);
 
     let ble_radio = static_init!(
-     nrf51::ble_advertising_driver::BLE<VirtualMuxAlarm<'static, Rtc>>,
-     nrf51::ble_advertising_driver::BLE::new(
+     nrf5x::ble_advertising_driver::BLE
+        <'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+     nrf5x::ble_advertising_driver::BLE::new(
          &mut nrf51::radio::RADIO,
          kernel::Container::create(),
-         &mut nrf51::ble_advertising_driver::BUF,
+         &mut nrf5x::ble_advertising_driver::BUF,
          ble_radio_virtual_alarm),
         256/8);
-    nrf51::radio::RADIO.set_client(ble_radio);
+    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_client(&nrf51::radio::RADIO, ble_radio);
     ble_radio_virtual_alarm.set_client(ble_radio);
 
     // Start all of the clocks. Low power operation will require a better
@@ -265,15 +266,15 @@ pub unsafe fn reset_handler() {
     while !nrf5x::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        gpio: gpio,
-        timer: timer,
-        console: console,
-        led: led,
-        button: button,
-        temp: temp,
-        rng: rng,
         aes: aes,
         ble_radio: ble_radio,
+        button: button,
+        console: console,
+        gpio: gpio,
+        led: led,
+        rng: rng,
+        timer: timer,
+        temp: temp,
     };
 
     alarm.start();

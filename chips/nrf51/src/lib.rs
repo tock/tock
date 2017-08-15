@@ -13,7 +13,6 @@ extern "C" {
 
 mod peripheral_registers;
 
-pub mod ble_advertising_driver;
 pub mod chip;
 pub mod uart;
 pub use chip::NRF51;
@@ -77,4 +76,13 @@ pub unsafe extern "C" fn TIMER2_Handler() {
 pub unsafe extern "C" fn RTC1_Handler() {
     nrf5x::nvic::disable(nrf5x::peripheral_interrupts::NvicIdx::RTC1);
     chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nrf5x::peripheral_interrupts::NvicIdx::RTC1);
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn RADIO_Handler() {
+    nrf5x::nvic::disable(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
+    chip::INTERRUPT_QUEUE.as_mut()
+        .unwrap()
+        .enqueue(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
 }

@@ -10,12 +10,9 @@
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
 //! Date: June 22, 2017
 
-use ble_advertising_driver;
-use chip;
 use core::cell::Cell;
 use kernel;
-use nrf5x::nvic;
-use nrf5x::peripheral_interrupts;
+use nrf5x;
 use peripheral_registers;
 
 // nrf51 specific constants
@@ -92,7 +89,7 @@ static mut PAYLOAD: [u8; PAYLOAD_LENGTH] = [0x00; PAYLOAD_LENGTH];
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
     txpower: Cell<usize>,
-    client: Cell<Option<&'static ble_advertising_driver::RxClient>>,
+    client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
     freq: Cell<u32>,
 }
 
@@ -108,90 +105,9 @@ impl Radio {
         }
     }
 
-    // Used configure to radio to send BLE advertisements
-    pub fn start_adv_tx(&self) {
-        let regs = unsafe { &*self.regs };
+    // FIXME: Add to another trait for physical configuration of the Radio
+    // Will be useful later if a separate two or more CPUs are used etc
 
-        self.radio_on();
-
-        self.set_payload_header_pdu(0x02);
-
-        // TX Power acc. to twpower variable in the struct
-        self.set_txpower();
-
-        // BLE MODE
-        self.set_channel_rate(0x03);
-
-        self.set_channel_freq(37);
-        self.set_data_white_iv(37);
-
-        // Set PREFIX | BASE Address
-        regs.PREFIX0.set(0x0000008e);
-        regs.BASE0.set(0x89bed600);
-
-        self.set_tx_address(0x00);
-        self.set_rx_address(0x01);
-        // regs.RXMATCH.set(0x00);
-
-        // Set Packet Config
-        self.set_packet_config(0x00);
-
-        // CRC Config
-        self.set_crc_config();
-
-        // Buffer configuration
-        self.set_buffer();
-
-        self.enable_interrupts();
-        self.enable_nvic();
-
-        regs.READY.set(0);
-        regs.TXEN.set(1);
-    }
-
-    // Used configure to radio to listen for BLE advertisements
-    // FIXME: alot of boiler plate
-    pub fn start_adv_rx(&self) {
-        let regs = unsafe { &*self.regs };
-
-        self.radio_on();
-
-        // BLE MODE
-        self.set_channel_rate(0x03);
-
-        // temporary to listen on all advertising frequencies
-        match self.freq.get() {
-            37 => self.freq.set(38),
-            38 => self.freq.set(39),
-            _ => self.freq.set(37),
-        }
-
-        self.set_channel_freq(self.freq.get());
-        self.set_data_white_iv(self.freq.get());
-
-        // Set PREFIX | BASE Address
-        regs.PREFIX0.set(0x0000008e);
-        regs.BASE0.set(0x89bed600);
-
-        self.set_tx_address(0x00);
-        self.set_rx_address(0x01);
-        // regs.RXMATCH.set(0x00);
-
-        // Set Packet Config
-        self.set_packet_config(0x00);
-
-        // CRC Config
-        self.set_crc_config();
-
-        // Buffer configuration
-        self.set_buffer();
-
-        self.enable_interrupts();
-        self.enable_nvic();
-
-        regs.READY.set(0);
-        regs.RXEN.set(1);
-    }
     fn set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
         // CRC Config
@@ -274,8 +190,7 @@ impl Radio {
         regs.POWER.set(0);
     }
 
-    // pre-condition validated before arrving here
-    // argue where the put the returncode
+    // pre-condition validated before arriving here
     fn set_txpower(&self) {
         let regs = unsafe { &*self.regs };
         regs.TXPOWER.set(self.txpower.get() as u32);
@@ -294,7 +209,7 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         self.disable_nvic();
         self.disable_interrupts();
-        nvic::clear_pending(peripheral_interrupts::NvicIdx::RADIO);
+        nrf5x::nvic::clear_pending(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
 
         if regs.READY.get() == 1 {
             regs.READY.set(0);
@@ -382,14 +297,12 @@ impl Radio {
     }
 
     pub fn enable_nvic(&self) {
-        nvic::enable(peripheral_interrupts::NvicIdx::RADIO);
+        nrf5x::nvic::enable(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
     }
 
     pub fn disable_nvic(&self) {
-        nvic::disable(peripheral_interrupts::NvicIdx::RADIO);
+        nrf5x::nvic::disable(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
     }
-
-    pub fn reset_payload(&self) {}
 
     // FIXME: Support for other PDU types than ADV_NONCONN_IND
     pub fn set_payload_header_pdu(&self, pdu: u8) {
@@ -413,15 +326,26 @@ impl Radio {
         }
         addr
     }
+}
 
-    // configures new data in the payload
-    pub fn set_adv_data(&self,
-                        ad_type: usize,
-                        data: &'static mut [u8],
-                        len: usize,
-                        offset: usize)
-                        -> &'static mut [u8] {
 
+impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
+    fn clear_adv_data(&self) {
+        // reset contents except header || address
+        for i in PAYLOAD_DATA_START..PAYLOAD_LENGTH {
+            unsafe {
+                PAYLOAD[i] = 0;
+            }
+        }
+        // configures a payload with only ADV address
+        self.set_payload_header_len(6);
+    }
+    fn set_advertisement_data(&self,
+                              ad_type: usize,
+                              data: &'static mut [u8],
+                              len: usize,
+                              offset: usize)
+                              -> &'static mut [u8] {
         // set ad type length and type
         unsafe {
             PAYLOAD[offset] = (len + 1) as u8;
@@ -437,44 +361,106 @@ impl Radio {
         self.set_payload_header_len((offset + len) as u8);
         data
     }
-
-    pub fn clear_adv_data(&self) {
-        // reset contents except header || address
-        for i in PAYLOAD_DATA_START..PAYLOAD_LENGTH {
+    fn set_advertisement_address(&self, addr: &'static mut [u8]) -> &'static mut [u8] {
+        for (i, c) in addr.as_ref()[0..6].iter().enumerate() {
             unsafe {
-                PAYLOAD[i] = 0;
+                PAYLOAD[i + PAYLOAD_ADDR_START] = *c;
             }
         }
-        // configures a payload with only ADV address
-        self.set_payload_header_len(6);
+        addr
     }
-
-    // FIXME: added a temporary variable in struct that keeps
-    // track of the twpower because we turn off the radio
-    // between advertisements,
-    // it is configured to 0 by default or the latest configured value
-    pub fn set_adv_txpower(&self, dbm: usize) -> kernel::ReturnCode {
-        match dbm {
+    fn set_advertisement_txpower(&self, power: usize) -> kernel::ReturnCode {
+        match power {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
             0x04 | 0x00 | 0xF4 | 0xFC | 0xF8 | 0xF0 | 0xEC | 0xD8 => {
-                self.txpower.set(dbm);
+                self.txpower.set(power);
                 kernel::ReturnCode::SUCCESS
             }
             _ => kernel::ReturnCode::ENOSUPPORT,
         }
     }
+    fn start_advertisement_tx(&self, ch: usize) {
+        let regs = unsafe { &*self.regs };
 
-    pub fn set_client<C: ble_advertising_driver::RxClient>(&self, client: &'static C) {
+        self.radio_on();
+
+        self.set_payload_header_pdu(0x02);
+
+        // TX Power acc. to twpower variable in the struct
+        self.set_txpower();
+
+        // BLE MODE
+        self.set_channel_rate(0x03);
+
+        self.set_channel_freq(ch as u32);
+        self.set_data_white_iv(ch as u32);
+
+        // Set PREFIX | BASE Address
+        regs.PREFIX0.set(0x0000008e);
+        regs.BASE0.set(0x89bed600);
+
+        self.set_tx_address(0x00);
+        self.set_rx_address(0x01);
+        // regs.RXMATCH.set(0x00);
+
+        // Set Packet Config
+        self.set_packet_config(0x00);
+
+        // CRC Config
+        self.set_crc_config();
+
+        // Buffer configuration
+        self.set_buffer();
+
+        self.enable_interrupts();
+        self.enable_nvic();
+
+        regs.READY.set(0);
+        regs.TXEN.set(1);
+    }
+    fn start_advertisement_rx(&self, _: usize) {
+        let regs = unsafe { &*self.regs };
+
+        self.radio_on();
+
+        // BLE MODE
+        self.set_channel_rate(0x03);
+
+        // temporary to listen on all advertising frequencies
+        match self.freq.get() {
+            37 => self.freq.set(38),
+            38 => self.freq.set(39),
+            _ => self.freq.set(37),
+        }
+
+        self.set_channel_freq(self.freq.get());
+        self.set_data_white_iv(self.freq.get());
+
+        // Set PREFIX | BASE Address
+        regs.PREFIX0.set(0x0000008e);
+        regs.BASE0.set(0x89bed600);
+
+        self.set_tx_address(0x00);
+        self.set_rx_address(0x01);
+        // regs.RXMATCH.set(0x00);
+
+        // Set Packet Config
+        self.set_packet_config(0x00);
+
+        // CRC Config
+        self.set_crc_config();
+
+        // Buffer configuration
+        self.set_buffer();
+
+        self.enable_interrupts();
+        self.enable_nvic();
+
+        regs.READY.set(0);
+        regs.RXEN.set(1);
+    }
+
+    fn set_client(&self, client: &'static nrf5x::ble_advertising_hil::RxClient) {
         self.client.set(Some(client));
     }
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn RADIO_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(peripheral_interrupts::NvicIdx::RADIO);
-    chip::INTERRUPT_QUEUE.as_mut()
-        .unwrap()
-        .enqueue(peripheral_interrupts::NvicIdx::RADIO);
 }
