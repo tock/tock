@@ -23,11 +23,11 @@ pub trait HumidityDriver {
     fn read_humidity(&self) -> ReturnCode;
 }
 
-/// Client for receiving temperature readings.
+/// Client for receiving humidity readings.
 pub trait HumidityClient {
     /// Called when a humidity reading has completed.
     ///
-    /// - `value`: the most recently read temperature in hundredths of percent.
+    /// - `value`: the most recently read humidity in hundredths of percent.
     fn callback(&self, value: usize);
 }
 

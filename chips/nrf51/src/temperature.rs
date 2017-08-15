@@ -42,7 +42,8 @@ impl Temperature {
         let regs = unsafe { &*self.regs };
 
         // get temperature
-        let temp = regs.TEMP.get() / 4;
+        // Result of temperature measurement in °C, 2's complement format, 0.25 °C
+        let temp = (regs.TEMP.get() / 4) * 100;
 
         // stop measurement
         regs.STOP.set(NRF_TEMP_DISABLE);

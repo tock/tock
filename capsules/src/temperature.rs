@@ -22,8 +22,7 @@
 //! operation, currently the following cmd's are supported:
 //!
 //! * `0`: check whether the driver exist
-//! * `1`: read the ambient temperature
-//! * `2`: read internal cpu temperature
+//! * `1`: read the temperature
 //!
 //!
 //! The possible return from the 'command' system call indicates the following:
