@@ -1,18 +1,18 @@
 //! Implements Thread 1.1.1 Specification Type-Length-Value (TLV) encoding
 //! and decoding. Used during mesh link establishment (MLE), outlined in
-//! Chapter 4 of the Specification
+//! Chapter 4.
 //!
-//! To simplify variable-length TLV value decoding, values are assumed to
-//! have a maximum length of 128 bytes. This assumption is made only when
-//! a variable-length value must be decoded from network byte order in
-//! order to be interpreted correctly. By contrast, variable-length
-//! values that contain data that must later be decoded by the caller
-//! before being interpreted (for example, sub-TLVs) are left untouched,
-//! and returned as a slice of the original buffer passed to the decode
-//! function.
+//! To simplify variable-length TLV value decoding in Rust, values are
+//! assumed to have a maximum length of 128 bytes. This assumption is made
+//! only when a variable-length value must be decoded from network byte
+//! order before it can be interpreted correctly. Excluded from this case
+//! are variable-length values that contain data that must later be decoded
+//! by the caller before being interpreted (for example, sub-TLVs). These
+//! values are instead returned as a slice of the original buffer passed to
+//! the decode function.
 //!
-//! Currently supports minimum functionality required to connec a Sleepy
-//! End Device (SED) to a Thread network. See Chapter 4)
+//! This module currrently implements the minimum subset of TLVs required
+//! to connect a Sleepy End Device (SED) to a Thread network.
 //!
 //! Author: Mateo Garcia
 //!         mateog@stanford.edu
@@ -34,8 +34,6 @@ use net::stream::SResult;
 
 const TL_WIDTH: usize = 2; // Type and length fields of TLV are each one byte.
 const MAX_VALUE_LENGTH: usize = 128; // Assume a TLV value will be no longer than 128 bytes.
-// Used to allocate fixed-length arrays for decoded
-// byte strings.
 
 pub enum Tlv<'a> {
     SourceAddress(u16),
