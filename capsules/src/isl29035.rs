@@ -28,7 +28,7 @@
 use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::ambient_light::{AmbientLight, AmbientLightClient};
+use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::i2c::{I2CDevice, I2CClient, Error};
 use kernel::hil::time::{self, Frequency};
 

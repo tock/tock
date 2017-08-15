@@ -3,7 +3,7 @@
 //! http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf
 //!
 //! The driver provides x, y, and z acceleration data to a callback function.
-//! It implements the `hil::ninedof::NineDof` trait.
+//! It implements the `hil::sensors::NineDof` trait.
 //!
 //! Usage
 //! -----
@@ -179,7 +179,7 @@ pub struct Fxos8700cq<'a> {
     interrupt_pin1: &'a gpio::Pin,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    callback: Cell<Option<&'static hil::ninedof::NineDofClient>>,
+    callback: Cell<Option<&'static hil::sensors::NineDofClient>>,
 }
 
 impl<'a> Fxos8700cq<'a> {
@@ -309,8 +309,8 @@ impl<'a> I2CClient for Fxos8700cq<'a> {
     }
 }
 
-impl<'a> hil::ninedof::NineDof for Fxos8700cq<'a> {
-    fn set_client(&self, client: &'static hil::ninedof::NineDofClient) {
+impl<'a> hil::sensors::NineDof for Fxos8700cq<'a> {
+    fn set_client(&self, client: &'static hil::sensors::NineDofClient) {
         self.callback.set(Some(client));
     }
 

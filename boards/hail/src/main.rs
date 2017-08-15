@@ -239,7 +239,7 @@ pub unsafe fn reset_handler() {
     let ambient_light = static_init!(
         capsules::ambient_light::AmbientLight<'static>,
         capsules::ambient_light::AmbientLight::new(isl29035, kernel::Container::create()));
-    hil::ambient_light::AmbientLight::set_client(isl29035, ambient_light);
+    hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
     // Timer
     let virtual_alarm1 = static_init!(
@@ -263,7 +263,7 @@ pub unsafe fn reset_handler() {
     let ninedof = static_init!(
         capsules::ninedof::NineDof<'static>,
         capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
-    hil::ninedof::NineDof::set_client(fxos8700, ninedof);
+    hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
     // Initialize and enable SPI HAL
     // Set up an SPI MUX, so there can be multiple clients
