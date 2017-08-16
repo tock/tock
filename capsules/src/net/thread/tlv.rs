@@ -1,21 +1,53 @@
-//! Implements Thread 1.1.1 Specification Type-Length-Value (TLV) encoding
-//! and decoding. Used during mesh link establishment (MLE), outlined in
-//! Chapter 4.
+//! Implements Type-Length-Value (TLV) encoding and decoding as outlined
+//! in the Thread 1.1.1 Specification. TLVs are used to serialize
+//! information exchanged during mesh link establishment (MLE). MLE is
+//! covered in Chapter 4.
 //!
-//! To simplify variable-length TLV value decoding in Rust, values are
+//! MLE messages consist of a command type and a series of TLV parameters.
+//!
+//! This module, as it stands, implements the minimum subset of TLVs
+//! required to support MLE for attaching a Sleepy End Device (SED) to a
+//! Thread network.
+//!
+//! MLE for network attaching comprises a four-step handshake that works
+//! as follows:
+//!     1. A child device multicasts a Parent Request MLE command.
+//!     2. Each potential parent device on the network unicasts a Parent
+//!        Response MLE command.
+//!     3. The child device selects a parent based on a hierarchy of
+//!        connectivity metrics and unicasts a Child ID Request MLE
+//!        command.
+//!     4. The selected parent unicasts a Child ID Response MLE command.
+//!
+//! A TLV is comprised of three parts:
+//!     1. Type   - A one-byte TLV type number.
+//!     2. Length - A one-byte number representing the length of the TLV
+//!                 value in bytes.
+//!     3. Value  - The TLV value.
+//!
+//! For some TLVs, the TLV type number is shifted left by one to leave the
+//! least significant bit to denote whether information in the TLV value
+//! is stable. Stable network data is data that is expected to be stable
+//! over weeks or months (section 5.14).
+//! 
+//! TLVs can be nested within a TLV value. Some types of Network Data
+//! TLVs, for example, contain sub-TLVs inside of their TLV value.
+//!
+//! To simplify variable-length TLV value decoding in Rust, TLV values are
 //! assumed to have a maximum length of 128 bytes. This assumption is made
 //! only when a variable-length value must be decoded from network byte
 //! order before it can be interpreted correctly. Excluded from this case
-//! are variable-length values that contain data that must later be decoded
-//! by the caller before being interpreted (for example, sub-TLVs). These
-//! values are instead returned as a slice of the original buffer passed to
-//! the decode function.
+//! are variable-length values that contain data that must later be
+//! decoded by the caller before being interpreted (for example,
+//! sub-TLVs). Such a value is instead returned as a slice of the original
+//! buffer passed to the decode function.
 //!
-//! This module currrently implements the minimum subset of TLVs required
-//! to connect a Sleepy End Device (SED) to a Thread network.
 //!
 //! Author: Mateo Garcia
 //!         mateog@stanford.edu
+
+
+// TODO: Move the MLE explanation above to the MLE module, when it is created.
 
 
 // NOTES FOR DEBUGGING:
