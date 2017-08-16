@@ -357,10 +357,10 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
         // those that do nothing in the huge match statement below.
         if self.interrupt_pending.get() {
             match self.state.get() {
-                InternalState::READY
-                | InternalState::ON_PLL_SET
-                | InternalState::TX_PENDING
-                | InternalState::RX => {
+                InternalState::READY |
+                InternalState::ON_PLL_WAITING |
+                InternalState::TX_PENDING |
+                InternalState::RX => {
                     self.interrupt_pending.set(false);
                     self.handle_interrupt();
                     return;
