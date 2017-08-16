@@ -508,6 +508,7 @@ pub enum NetworkDataTlv<'a> {
     },
     Service {
         thread_enterprise_number: bool,
+        // See 5.18.6.
         s_id: u8,
         s_enterprise_number: u32,
         s_service_data_length: u8,
@@ -768,6 +769,7 @@ impl<'a, 'b> From<&'a PrefixSubTlv<'b>> for PrefixSubTlvType {
 }
 
 pub struct HasRouteTlvValue {
+    // See 5.18.1.
     r_border_router_16: u16,
     r_preference: u8,
 }
@@ -795,22 +797,22 @@ impl HasRouteTlvValue {
 }
 
 pub struct BorderRouterTlvValue {
-    // See 15.8.3
+    // See 5.18.3.
     p_border_router_16: u16,
     p_bits: u16,
 }
 
-// See 5.18.3
 #[repr(u16)]
 pub enum BorderRouterTlvValueBit {
-    Prf = 0b1100_0000_0000_0000,
-    P = 0b0010_0000_0000_0000,
-    S = 0b0001_0000_0000_0000,
-    D = 0b0000_1000_0000_0000,
-    C = 0b0000_0100_0000_0000,
-    R = 0b0000_0010_0000_0000,
-    O = 0b0000_0001_0000_0000,
-    N = 0b0000_0000_1000_0000,
+    // See 5.18.3 for a more detailed explanation of each.
+    Prf = 0b1100_0000_0000_0000, // Preference
+    P = 0b0010_0000_0000_0000,   // Preferred
+    S = 0b0001_0000_0000_0000,   // SLAAC
+    D = 0b0000_1000_0000_0000,   // DHCP
+    C = 0b0000_0100_0000_0000,   // Configure
+    R = 0b0000_0010_0000_0000,   // Default
+    O = 0b0000_0001_0000_0000,   // On mesh
+    N = 0b0000_0000_1000_0000,   // NDDNS
 }
 
 impl BorderRouterTlvValue {
@@ -834,6 +836,7 @@ impl BorderRouterTlvValue {
 
 pub enum ServiceSubTlv {
     Server {
+        // See 5.18.6.
         s_server_16: u16,
         s_server_data: [u8; MAX_VALUE_LENGTH],
     },
