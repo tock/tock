@@ -626,6 +626,7 @@ impl<'a> NetworkDataTlv<'a> {
     }
 }
 
+// Gaps in type numbers are fulled by PrefixSubTlv and ServiceSubTlv.
 #[repr(u8)]
 pub enum NetworkDataTlvType {
     Prefix = 1,
