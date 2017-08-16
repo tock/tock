@@ -352,20 +352,16 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
         // the interrupt by reading the IRQ_STATUS register over the SPI.
         //
         // However, we should not handle the interrupt if we are in the midst of
-        // receiveng or transmitting a frame, or writing some configuration
-        // options. The states where it is alright to handle interrupts are just
-        // those that do nothing in the huge match statement below.
+        // receiving a frame.
         if self.interrupt_pending.get() {
             match self.state.get() {
-                InternalState::READY
-                | InternalState::ON_PLL_SET
-                | InternalState::TX_PENDING
-                | InternalState::RX => {
+                InternalState::RX_READING_FRAME_DONE
+                | InternalState::RX_READING_FRAME_FCS_DONE => {},
+                _ => {
                     self.interrupt_pending.set(false);
                     self.handle_interrupt();
                     return;
                 }
-                _ => {}
             }
         }
 
