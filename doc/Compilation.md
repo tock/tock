@@ -21,6 +21,7 @@ of how platforms program each onto an actual board.
     + [Metadata](#metadata)
   * [Tock userland compilation environment](#tock-userland-compilation-environment)
     + [Compiling Libraries for Tock](#compiling-libraries-for-tock)
+      - [Development vs Stable Libraries](#development-vs-stable-libraries)
     + [Including other libraries](#including-other-libraries)
   * [Note for the Future](#note-for-the-future)
 - [Loading the kernel and processes onto a board](#loading-the-kernel-and-processes-onto-a-board)
