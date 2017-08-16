@@ -475,24 +475,24 @@ impl<'a, 'b> From<&'a Tlv<'b>> for TlvType {
 
 #[repr(u8)]
 pub enum LinkMode {
-    ReceiverOnWhenIdle = 0b00001000,
-    SecureDataRequests = 0b00000100,
-    FullThreadDevice = 0b00000010,
-    FullNetworkDataRequired = 0b00000001,
+    ReceiverOnWhenIdle = 0b0000_1000,
+    SecureDataRequests = 0b0000_0100,
+    FullThreadDevice = 0b0000_0010,
+    FullNetworkDataRequired = 0b0000_0001,
 }
 
 #[repr(u8)]
 pub enum MulticastResponder {
-    Router = 0b10000000,
-    EndDevice = 0b01000000,
+    Router = 0b1000_0000,
+    EndDevice = 0b0100_0000,
 }
 
 // Used in Connectivity TLV
 pub enum ParentPriority {
-    High = 0b01000000,
-    Medium = 0b00000000,
-    Low = 0b11000000, 
-    // Reserved = 0b10000000
+    High = 0b0100_0000,
+    Medium = 0b0000_0000,
+    Low = 0b1100_0000, 
+    // Reserved = 0b1000_0000
 }
 
 pub enum NetworkDataTlv<'a> {
@@ -722,7 +722,7 @@ impl<'a> PrefixSubTlv<'a> {
             }
             PrefixSubTlvType::SixLoWpanId => {
                 let (offset, first_byte) = dec_try!(buf, offset; decode_u8);
-                let context_id_compress = (first_byte & 0b10000) > 0;
+                let context_id_compress = (first_byte & 0b1_0000) > 0;
                 let context_id = first_byte & 0b1111;
                 let (offset, context_length) = dec_try!(buf, offset; decode_u8);
                 stream_done!(offset,
@@ -803,14 +803,14 @@ pub struct BorderRouterTlvValue {
 // See 5.18.3
 #[repr(u16)]
 pub enum BorderRouterTlvValueBit {
-    Prf = 0b1100000000000000,
-    P = 0b0010000000000000,
-    S = 0b0001000000000000,
-    D = 0b0000100000000000,
-    C = 0b0000010000000000,
-    R = 0b0000001000000000,
-    O = 0b0000000100000000,
-    N = 0b0000000010000000,
+    Prf = 0b1100_0000_0000_0000,
+    P = 0b0010_0000_0000_0000,
+    S = 0b0001_0000_0000_0000,
+    D = 0b0000_1000_0000_0000,
+    C = 0b0000_0100_0000_0000,
+    R = 0b0000_0010_0000_0000,
+    O = 0b0000_0001_0000_0000,
+    N = 0b0000_0000_1000_0000,
 }
 
 impl BorderRouterTlvValue {
@@ -1291,11 +1291,11 @@ impl<'a, 'b> From<&'a NetworkManagementTlv<'b>> for NetworkManagementTlvType {
 // See 8.10.1.15
 #[repr(u8)]
 pub enum SecurityPolicy {
-    O = 0b10000000,
-    N = 0b01000000,
-    R = 0b00100000,
-    C = 0b00010000,
-    B = 0b00001000,
+    O = 0b1000_0000,
+    N = 0b0100_0000,
+    R = 0b0010_0000,
+    C = 0b0001_0000,
+    B = 0b0000_1000,
 }
 
 pub struct ChannelMaskEntry {
