@@ -65,7 +65,7 @@ use net::stream::{encode_u8, encode_u16, encode_u32, encode_bytes, encode_bytes_
 use net::stream::SResult;
 
 const TL_WIDTH: usize = 2; // Type and length fields of TLV are each one byte.
-const MAX_VALUE_LENGTH: usize = 128; // Assume a TLV value will be no longer than 128 bytes.
+const MAX_VALUE_FIELD_LENGTH: usize = 128; // Assume a TLV value will be no longer than 128 bytes.
 
 /// Type-Length-Value structure.
 pub enum Tlv<'a> {
@@ -544,7 +544,7 @@ pub enum NetworkDataTlv<'a> {
     },
     CommissioningData {
         com_length: u8,
-        com_data: [u8; MAX_VALUE_LENGTH],
+        com_data: [u8; MAX_VALUE_FIELD_LENGTH],
     },
     Service {
         thread_enterprise_number: bool,
@@ -552,7 +552,7 @@ pub enum NetworkDataTlv<'a> {
         s_id: u8,
         s_enterprise_number: u32,
         s_service_data_length: u8,
-        s_service_data: [u8; MAX_VALUE_LENGTH],
+        s_service_data: [u8; MAX_VALUE_FIELD_LENGTH],
         sub_tlvs: &'a [u8],
     },
 }
@@ -641,7 +641,7 @@ impl<'a> NetworkDataTlv<'a> {
             }
             NetworkDataTlvType::CommissioningData => {
                 let (offset, com_length) = dec_try!(buf, offset; decode_u8);
-                let mut com_data = [0u8; MAX_VALUE_LENGTH];
+                let mut com_data = [0u8; MAX_VALUE_FIELD_LENGTH];
                 let offset = dec_consume!(buf, offset; decode_bytes_be, &mut com_data);
                 stream_done!(offset,
                              (NetworkDataTlv::CommissioningData {
@@ -656,7 +656,7 @@ impl<'a> NetworkDataTlv<'a> {
                 let s_id = first_byte & 0b1111;
                 let (offset, s_enterprise_number) = dec_try!(buf, offset; decode_u32);
                 let (offset, s_service_data_length) = dec_try!(buf, offset; decode_u8);
-                let mut s_service_data = [0u8; MAX_VALUE_LENGTH];
+                let mut s_service_data = [0u8; MAX_VALUE_FIELD_LENGTH];
                 let offset = dec_consume!(buf, offset; decode_bytes_be, &mut s_service_data);
                 stream_done!(offset + length as usize,
                              (NetworkDataTlv::Service {
@@ -903,7 +903,7 @@ pub enum ServiceSubTlv {
     Server {
         // See 5.18.6.
         s_server_16: u16,
-        s_server_data: [u8; MAX_VALUE_LENGTH],
+        s_server_data: [u8; MAX_VALUE_FIELD_LENGTH],
     },
 }
 
@@ -945,7 +945,7 @@ impl<'a> ServiceSubTlv {
         match tlv_type {
             ServiceSubTlvType::Server => {
                 let (offset, s_server_16) = dec_try!(buf, offset; decode_u16);
-                let mut s_server_data = [0u8; MAX_VALUE_LENGTH];
+                let mut s_server_data = [0u8; MAX_VALUE_FIELD_LENGTH];
                 let offset = dec_consume!(buf, offset; decode_bytes_be, &mut s_server_data);
                 stream_done!(offset,
                              (ServiceSubTlv::Server {
@@ -1383,7 +1383,7 @@ pub enum SecurityPolicy {
 pub struct ChannelMaskEntry {
     channel_page: u8,
     mask_length: u8,
-    channel_mask: [u8; MAX_VALUE_LENGTH],
+    channel_mask: [u8; MAX_VALUE_FIELD_LENGTH],
 }
 
 impl<'a> ChannelMaskEntry {
@@ -1399,7 +1399,7 @@ impl<'a> ChannelMaskEntry {
     pub fn decode(buf: &[u8]) -> SResult<ChannelMaskEntry> {
         let (offset, channel_page) = dec_try!(buf; decode_u8);
         let (offset, mask_length) = dec_try!(buf, offset; decode_u8);
-        let mut channel_mask = [0u8; MAX_VALUE_LENGTH];
+        let mut channel_mask = [0u8; MAX_VALUE_FIELD_LENGTH];
         let offset = dec_consume!(buf, offset; decode_bytes_be, &mut channel_mask);
         stream_done!(offset,
                      ChannelMaskEntry {
