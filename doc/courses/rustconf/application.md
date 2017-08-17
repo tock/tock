@@ -50,7 +50,10 @@ but same difference). Its functions are:
    Writes a string object to the Console.
 
 `Console` also implements `fmt::write`, which enables the `write!` macro to
-work.
+work. We recommend using
+[`write!`](https://doc.rust-lang.org/1.5.0/std/macro.write!.html) for this
+tutorial, as it allows you to use [format
+options](https://doc.rust-lang.org/1.5.0/std/fmt/) while printing.
 
 #### Timer
 
