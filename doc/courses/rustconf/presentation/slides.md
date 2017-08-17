@@ -336,7 +336,16 @@ pub trait NineDofClient {
   2. What is a `TakeCell`? When is a `TakeCell` preferable to a standard
      `Cell`?
 
-# Hands-on: Write and add a capsule to the kernel
+## Hands-on: Write and add a capsule to the kernel
+
+  1. Read the Hail boot sequence in `boards/hail/src/main.rs`
+
+  1. Create a new capsule that prints "Hello World" to the debug console every
+     second.
+
+  2. Add your capsule to the boot sequence
+
+  3. Extend your capsule to sample the 9dof sensor
 
 # Part 3: User space
 
@@ -430,7 +439,7 @@ extern fn callback(_: usize, _: usize, _: usize,
 2. What is a Grant? How do processes interact with grants? Hint: Think about
    memory exhaustion.
 
-# Hands-on: Write a BLE environment sensing application
+## Hands-on: Write a BLE environment sensing application
 
   1. Get a Rust application running on Hail
 
@@ -439,3 +448,4 @@ extern fn callback(_: usize, _: usize, _: usize,
 
   3. [Extend your app to report through the `ble-env-sense`
      service](https://gist.github.com/alevy/a274981a29ffc00230aa16101ee0b89f)
+

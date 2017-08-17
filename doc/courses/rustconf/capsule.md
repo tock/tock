@@ -336,5 +336,3 @@ alarms. Take a look at the code behind each of these services:
 3. Is there a limit on how many virtual alarms can be created?
 4. How many virtual alarms does the Hail boot sequence create?
 
-
-
