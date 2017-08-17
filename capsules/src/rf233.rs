@@ -355,8 +355,8 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
         // receiving a frame.
         if self.interrupt_pending.get() {
             match self.state.get() {
-                InternalState::RX_READING_FRAME_DONE
-                | InternalState::RX_READING_FRAME_FCS_DONE => {},
+                InternalState::RX_READING_FRAME_DONE |
+                InternalState::RX_READING_FRAME_FCS_DONE => {}
                 _ => {
                     self.interrupt_pending.set(false);
                     self.handle_interrupt();
