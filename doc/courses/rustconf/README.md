@@ -58,6 +58,7 @@ an image with all of the dependencies already installed
 VMWare users:
 [File → Open...](https://pubs.vmware.com/workstation-9/index.jsp?topic=%2Fcom.vmware.ws.using.doc%2FGUID-DDCBE9C0-0EC9-4D09-8042-18436DA62F7A.html)
 ).
+The VM account is "user" with password "user".
 Feel free to customize it with whichever editors, window managers, etc you like
 before the training starts.
 
