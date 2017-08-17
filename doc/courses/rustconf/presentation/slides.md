@@ -36,7 +36,7 @@ Tock has isolation primitives that allow you to build secure systems.
 
 ### Definition B
 
-> You'll likely be writting the kernel.
+> You'll likely be writing the kernel.
 
 ## Operating System
 
