@@ -396,8 +396,11 @@ pub unsafe fn reset_handler() {
     // test_take_map_cell::test_take_map_cell();
 
     // debug!("Initialization complete. Entering main loop");
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
+        ///
+        /// This symbol is defined in the linker script.
         static _sapps: u8;
     }
     kernel::process::load_processes(&_sapps as *const u8,
