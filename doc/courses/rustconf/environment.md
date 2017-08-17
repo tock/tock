@@ -25,15 +25,18 @@ loop). This is accomplished by the following architecture:
 
 ![Tock architecture](../../architecture.png)
 
-Tock includes three architectural components. A small trusted kernel, written
-in Rust, implements a hardware abstraction layer (HAL), scheduler and
-platform-specific configuration. Other system components are implemented in one
-of two protection mechanisms: capsules, which are compiled with the kernel and
-use Rust’s type and module systems for safety, and processes, which use the MPU
-for protection at runtime.
+Tock includes three architectural components:
+
+  - A small trusted kernel, written in Rust, that implements a hardware
+    abstraction layer (HAL), scheduler, and platform-specific configuration.
+  - _Capsules_, which are compiled with the kernel and use Rust's type and
+    module systems for safety.
+  - _Processes_, which use the MPU for protection at runtime.
 
 Read the Tock documentation for more details on its
 [design](https://www.tockos.org/documentation/design).
+
+[_Presentation slides are availble here._](presentation/presentation.pdf)
 
 ## 2. Check your understanding (10 min)
 
@@ -59,11 +62,12 @@ To build the kernel, just type make in the root directory, or in boards/hail/.
 If this is the first time you are trying to make the kernel, cargo and rustup
 will now go ahead and install all the requirements of Tock.
 
-The root Makefile selects a board and architecture to build the kernel for and
+If you're not in a board folder,
+the root Makefile selects a board and architecture to build the kernel for and
 routes all calls to that board's specific Makefile. It's set up with
-`TOCK_BOARD ?= hail`, so it compiles for the Hail board by default. To compile
-for a different board, just change the `TOCK_BOARD` environment variable. For
-  example, to compile for the imix instead, use `export TOCK_BOARD=imix`.
+`TOCK_BOARD ?= hail`, so it compiles for the Hail board by default. To change
+this default, just change the `TOCK_BOARD` environment variable. For example,
+to compile for the imix instead, `export TOCK_BOARD=imix` or `cd boards/imix/`.
 
 ### Connect to a Hail board
 
@@ -107,11 +111,12 @@ This command will compile the kernel if needed, and then use `tockloader` to
 flash it onto the Hail. When the flash command succeeds, the Hail test app
 should no longer be working (i.e. the blue LED will not be blinking). Instead,
 the red LED will be blinking furiously, a sign that the kernel has panicked.
-Don't panic! This is because:
+
+Don't panic! This is because...
 
 ### Clear out the applications and re-flash the test app.
 
-The Tock Binary Format (TBF) was recently changed, and is incompatible with the
+...the Tock Binary Format (TBF) was recently changed, and is incompatible with the
 app pre-loaded on the Hail board. To fix this, clear it out and re-flash it.
 
     $ tockloader list
@@ -170,6 +175,9 @@ then issue the install command:
     $ make
     $ tockloader install
 
+> *Tip:* You can add the `--make` flag to have tockloader automatically
+> run make before installing, i.e. `tockloader install --make`
+
 ### `tockloader uninstall [application name(s)]`
 Removes one or more applications from the board by name.
 
@@ -182,7 +190,12 @@ loaded applications, their sizes and versions, and any set attributes.
 
 ### `tockloader listen`
 This command prints output from Tock apps to the terminal. It listens via UART,
-and will print out all `printf()` data from a board.
+and will print out anything written to stdout/stderr from a board.
+
+> *Tip:* As a long-running command, `listen` interacts with other tockloader
+> sessions. You can leave a terminal window open and listening. If another
+> tockloader process needs access to the board (e.g. to install an app update),
+> tockloader will automatically pause and resume listening.
 
 ### `tockloader flash`
 Loads binaries onto hardware platforms that are running a compatible bootloader.
