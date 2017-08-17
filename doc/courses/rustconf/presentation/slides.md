@@ -318,4 +318,94 @@ pub trait NineDofClient {
 
 # Part 3: User space
 
-# Hands-on: Write a BLE environment sensing app
+## System calls
+
+| **Call**  | **Target** | **Description**                  |
+|:----------|:----------:|----------------------------------|
+| command   | Capsule    | Invoke an operation on a capsule |
+| allow     | Capsule    | Share memory with a capsule      |
+| subscribe | Capsule    | Register an upcall               |
+| memop     | Core       | Modify memory break              |
+| yield     | Core       | Bloc until next upcall is ready  |
+
+## System calls: Rust
+
+```rust
+pub unsafe fn command(major: u32, minor: u32,
+  arg: isize) -> isize;
+
+pub unsafe fn allow(major: u32, minor: u32,
+                    slice: &[u8]) -> isize;
+
+type ExternFn =
+  extern fn (usize, usize, usize, *const usize);
+
+pub unsafe fn subscribe(major: u32, minor: u32,
+  cb: ExternFn, ud: usize) -> isize {
+
+pub fn yieldk();
+pub fn yieldk_for<F: Fn() -> bool>(cond: F) {
+    while !cond() { yieldk(); }
+}
+```
+
+## Example: printing to the debug console
+
+```rust
+pub fn write(string: Box<[u8]>) {
+    let done: Cell<bool> = Cell::new(false);
+    syscalls::allow(DRIVER_NUM, 1, string);
+    syscalls::subscribe(DRIVER_NUM, 1, callback,
+          &done as *const _ as usiz);
+    syscalls::command(DRIVER_NUM, 1, string.len());
+    yieldk_for(|| done.get())
+}
+
+extern fn callback(_: usize, _: usize, _: usize,
+                   ud: *const usize) {
+    let done: &Cell<bool> = unsafe {
+        mem::transmute(ud)
+    };
+    done.set(true);
+}
+```
+
+## Process memory layout
+
+![](process_layout.png)
+
+## Current Rust userland
+
+### Supported drivers
+
+  * Debug console
+
+  * Timer
+
+  * Sensors:
+
+    * Accelerometer & magnetometer
+
+    * Ambient light
+
+    * Temperature
+
+### Caveats
+
+  * No global variables allowed!
+
+    * Waiting on LLD 5.0 to be released this month
+
+  * Fixed code offset
+
+  * Blocking library calls only
+
+## Check your understanding
+
+1. How does a process perform a blocking operation? Can you draw the flow of
+   operations when a process calls `delay_ms(1000)`?
+
+2. What is a Grant? How do processes interact with grants? Hint: Think about
+   memory exhaustion.
+
+# Hands-on: Write a BLE environment sensing application
