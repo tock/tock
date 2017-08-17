@@ -93,7 +93,7 @@ hardware drivers, especially those that use DMA, require `` `static`` buffers.
 Since Tock doesn't promise when a DMA operation will complete, and you
 need to be able to promise that the buffer outlives the operation, the
 one lifetime that is assured to be alive at the end of an operation is
-`` `static``. So other code which has buffers
+`` `static``. So that other code which has buffers
 without a `` `static`` lifetime, such as userspace processes, can use the
 `Console`, it copies them into its own internal `` `static`` buffer before
 passing it to the serial port. So the buffer passing architecture looks like
@@ -104,9 +104,10 @@ this:
 The final parameter, the `Container`, is for handling system calls:
 you don't need to worry about it for now.
 
-Next, jump to around line 360, where a `Hail` structure is allocated. Note
+Next, jump to around line 360, where a `Hail` structure is allocated
+(`let hail = Hail {`). Note
 that its `console` field is initialized to the `console` capsule that
-was allocated in the code above. Around line 380, you'll see the console
+was allocated in the code above. 20-30 lines later, you'll see the console
 is initialized,
 
 ```rust
@@ -121,8 +122,9 @@ connected to the `Console`. Now, kernel debug messages will be printed
 on the serial port! Userspace processes can also print messages to the
 `Console`, which handles interleaving them correctly.
 
-If you jump down just a few more lines, to line 400, you'll see the code
-that loads userspace processes off flash, then starts the kernel main loop:
+If you jump down just a few more lines, around line 400, you'll see the
+code that loads userspace processes from flash, then starts the kernel
+main loop:
 
 ```rust
 kernel::process::load_processes(&_sapps as *const u8,
