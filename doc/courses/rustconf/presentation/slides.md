@@ -26,13 +26,13 @@ header-includes:
 
 ## ~~_Secure_~~ Safe
 
-Tock has isolation primitives that allow you to build secure systems.
+### Tock has isolation primitives that allow you to build secure systems.
 
 ## Embedded
 
 ### Definition A
 
-> Operating system, applications and hardware are tightly integrated.
+> Kernel, applications and hardware are tightly integrated.
 
 ### Definition B
 
@@ -247,6 +247,28 @@ fn service_pending_interrupts(&mut self) {
 }
 ```
 
+## Event-driven execution model
+
+```rust
+impl Ast {
+    pub fn handle_interrupt(&self) {
+        self.clear_alarm();
+        self.callback.get().map(|cb| { cb.fired(); });
+    }
+}
+impl time::Client for MuxAlarm {
+    fn fired(&self) {
+        for cur in self.virtual_alarms.iter() {
+            if cur.should_fire() {
+                cur.armed.set(false);
+                self.enabled.set(self.enabled.get() - 1);
+                cur.fired();
+            }
+        }
+    }
+}
+```
+
 * * *
 
 ![Capsules reference each other directly, assisting inlining](rng.pdf)
@@ -285,19 +307,19 @@ match external {
 * * *
 
 ```rust
-pub struct Fxos8700cq<'a> {
-  i2c: &'a I2CDevice,
+pub struct Fxos8700cq<`a> {
+  i2c: &`a I2CDevice,
   state: Cell<State>,
-  buffer: TakeCell<'static, [u8]>,
+  buffer: TakeCell<`static, [u8]>,
   callback:
-    Cell<Option<&'a hil::ninedof::NineDofClient>>,
+    Cell<Option<&`a hil::ninedof::NineDofClient>>,
 }
 
-impl<'a> I2CClient for Fxos8700cq<'a> {
-  fn cmd_complete(&self, buf: &'static mut [u8]) { ... }
+impl<`a> I2CClient for Fxos8700cq<`a> {
+  fn cmd_complete(&self, buf: &`static mut [u8]) { ... }
 }
 
-impl<'a> hil::ninedof::NineDof for Fxos8700cq<'a> {
+impl<`a> hil::ninedof::NineDof for Fxos8700cq<`a> {
   fn read_accelerometer(&self) -> ReturnCode { ... }
 }
 
@@ -341,7 +363,7 @@ type ExternFn =
   extern fn (usize, usize, usize, *const usize);
 
 pub unsafe fn subscribe(major: u32, minor: u32,
-  cb: ExternFn, ud: usize) -> isize {
+  cb: ExternFn, ud: *const usize) -> isize {
 
 pub fn yieldk();
 pub fn yieldk_for<F: Fn() -> bool>(cond: F) {
@@ -409,3 +431,11 @@ extern fn callback(_: usize, _: usize, _: usize,
    memory exhaustion.
 
 # Hands-on: Write a BLE environment sensing application
+
+  1. Get a Rust application running on Hail
+
+  2. [Periodically sample on-board
+     sensors](https://gist.github.com/alevy/73d0a1e5c8784df066c86dc5da9d3107)
+
+  3. [Extend your app to report through the `ble-env-sense`
+     service](https://gist.github.com/alevy/a274981a29ffc00230aa16101ee0b89f)
