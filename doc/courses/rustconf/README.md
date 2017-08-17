@@ -50,6 +50,8 @@ time:
      
         $ pip3 install -U --user tockloader
 
+### Virtual Machine
+
 If you're comfortable working inside a Debian virtual machine, you can download
 an image with all of the dependencies already installed
 [here](https://www.dropbox.com/s/5km04herxa9h05w/Tock.ova?dl=0)
