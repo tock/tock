@@ -125,7 +125,6 @@ enum InternalState {
     RX_READING_FRAME, // Reading the packet out of the radio
     RX_READING_FRAME_DONE, // Now read a register to verify FCS
     RX_READING_FRAME_FCS_DONE,
-    UNKNOWN,
 }
 
 // There are two tricky parts to this capsule: buffer management
@@ -301,20 +300,9 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             self.spi_tx.replace(_write);
         }
 
-        // This first case is when an interrupt fired during an SPI operation:
-        // we wait for the SPI operation to complete then handle the
-        // interrupt by reading the IRQ_STATUS register over the SPI.
-        // Since itself is an SPI operation, return.
-        if self.interrupt_pending.get() == true {
-            self.interrupt_pending.set(false);
-            self.handle_interrupt();
-            return;
-        }
-        // This second case is when the SPI operation is reading the
-        // IRQ_STATUS register from handling an interrupt. Note that
-        // we're done handling the interrupt and continue with the
-        // state machine. This is an else because handle_interrupt
-        // sets interrupt_handling to true.
+        // This case is when the SPI operation is reading the IRQ_STATUS
+        // register from handling an interrupt. Note that we're done handling
+        // the interrupt and continue with the state machine.
         if handling {
             self.interrupt_handling.set(false);
             let state = self.state.get();
@@ -353,22 +341,44 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
             }
         }
 
-        match self.state.get() {
-            // Default on state; wait for transmit() call or receive
-            // interrupt
-            InternalState::READY => {
-                self.radio_on.set(true);
-                if self.config_pending.get() == true {
-                    self.state_transition_write(RF233Register::SHORT_ADDR_0,
-                                                (self.addr.get() & 0xff) as u8,
-                                                InternalState::CONFIG_SHORT0_SET);
+        // No matter what, if the READY state is reached, the radio is on. This
+        // needs to occur before handling the interrupt below.
+        if self.state.get() == InternalState::READY {
+            self.radio_on.set(true);
+        }
+
+        // An interrupt can only be pending if an interrupt was fired during an
+        // SPI operation: we wait for the SPI operation to complete then handle
+        // the interrupt by reading the IRQ_STATUS register over the SPI.
+        //
+        // However, we should not handle the interrupt if we are in the midst of
+        // receiving a frame.
+        if self.interrupt_pending.get() {
+            match self.state.get() {
+                InternalState::RX_READING_FRAME_DONE |
+                InternalState::RX_READING_FRAME_FCS_DONE => {}
+                _ => {
+                    self.interrupt_pending.set(false);
+                    self.handle_interrupt();
+                    return;
                 }
-                // Useful debug code to test radio can transmit without
-                // an app/calling system calls
-                //unsafe {
-                //    self.transmit(0xFFFF, &mut app_buf, 20);
-                //}
             }
+        }
+
+        // Similarly, if a configuration is pending, we only start the
+        // configuration process when we are in a state where it is legal to
+        // start the configuration process.
+        if self.config_pending.get() {
+            if self.state.get() == InternalState::READY {
+                self.state_transition_write(RF233Register::SHORT_ADDR_0,
+                                            (self.addr.get() & 0xff) as u8,
+                                            InternalState::CONFIG_SHORT0_SET);
+            }
+        }
+
+        match self.state.get() {
+            // Default on state; wait for transmit() call or receive interrupt
+            InternalState::READY => {}
 
             // Starting state, begin start sequence.
             InternalState::START => {
@@ -756,8 +766,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> spi::SpiMasterClient for RF233<'a, S> {
                 self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
                 self.cfg_client.get().map(|c| { c.config_done(ReturnCode::SUCCESS); });
             }
-
-            InternalState::UNKNOWN => {}
         }
     }
 }
