@@ -15,7 +15,7 @@ the system architecture.
 This tutorial assumes basic knowledge of Rust, including ownership, borrowing,
 traits and lifetimes. While not required, it is most appropriate for people who
 are familiar with the material covered in the Advanced Rust training, and
-attanding the morning Intermediate Rust training is highly encouraged.
+attending the morning Intermediate Rust training is highly encouraged.
 
 ## Pre-requisites
 
