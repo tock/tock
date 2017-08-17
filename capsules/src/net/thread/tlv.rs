@@ -28,8 +28,8 @@
 //! For some TLVs, the TLV type number is shifted left by one to leave the
 //! least significant bit to denote whether information in the TLV value
 //! is stable. Stable network data is data that is expected to be stable
-//! over weeks or months (section 5.14).
-//! 
+//! over weeks or months (Section 5.14).
+//!
 //! TLVs can be nested within a TLV value. Some types of Network Data
 //! TLVs, for example, contain sub-TLVs inside of their TLV value.
 //!
@@ -67,6 +67,7 @@ use net::stream::SResult;
 const TL_WIDTH: usize = 2; // Type and length fields of TLV are each one byte.
 const MAX_VALUE_LENGTH: usize = 128; // Assume a TLV value will be no longer than 128 bytes.
 
+/// Type-Length-Value structure.
 pub enum Tlv<'a> {
     SourceAddress(u16),
     Mode(u8),
@@ -121,6 +122,8 @@ pub enum Tlv<'a> {
 }
 
 impl<'a> Tlv<'a> {
+    /// Serializes TLV data in `buf` into the format specific to the TLV
+    /// type.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         match *self {
             Tlv::SourceAddress(ref mac_address) => {
@@ -283,7 +286,11 @@ impl<'a> Tlv<'a> {
         stream_done!(TL_WIDTH)
     }
 
-    pub fn decode(buf: &mut [u8]) -> SResult<Tlv> {
+    /// Deserializes TLV data from `buf` into the TLV variant specific to
+    /// the TLV type.
+    /// `SResult::Error` is returned if the type field does not match any
+    /// implemented TLV type.
+    pub fn decode(buf: &[u8]) -> SResult<Tlv> {
         let (offset, tlv_type) = dec_try!(buf; decode_u8);
         let tlv_type = TlvType::from(tlv_type);
         let (offset, length) = dec_try!(buf, offset; decode_u8);
@@ -408,6 +415,8 @@ impl<'a> Tlv<'a> {
     }
 }
 
+/// Value encoded in the type field of a Type-Length-Value (TLV)
+/// structure.
 #[repr(u8)]
 pub enum TlvType {
     SourceAddress = 0,
@@ -500,6 +509,7 @@ impl<'a, 'b> From<&'a Tlv<'b>> for TlvType {
     }
 }
 
+/// Used in Mode TLV.
 #[repr(u8)]
 pub enum LinkMode {
     ReceiverOnWhenIdle = 0b0000_1000,
@@ -508,13 +518,14 @@ pub enum LinkMode {
     FullNetworkDataRequired = 0b0000_0001,
 }
 
+/// Used in Scan Mask TLV.
 #[repr(u8)]
 pub enum MulticastResponder {
     Router = 0b1000_0000,
     EndDevice = 0b0100_0000,
 }
 
-// Used in Connectivity TLV
+/// Used in Connectivity TLV.
 pub enum ParentPriority {
     // Reserved = 0b1000_0000
     High = 0b0100_0000,
@@ -522,6 +533,8 @@ pub enum ParentPriority {
     Low = 0b1100_0000,
 }
 
+/// These TLVs are contained within the value of a Network Data TLV.
+/// See Section 5.18.
 pub enum NetworkDataTlv<'a> {
     Prefix {
         domain_id: u8,
@@ -545,6 +558,8 @@ pub enum NetworkDataTlv<'a> {
 }
 
 impl<'a> NetworkDataTlv<'a> {
+    /// Serializes TLV data in `buf` into the format specific to the
+    /// Network Data TLV type.
     pub fn encode(&self, buf: &mut [u8], stable: bool) -> SResult {
         match *self {
             NetworkDataTlv::Prefix { domain_id, prefix_length_bits, prefix, sub_tlvs } => {
@@ -597,7 +612,12 @@ impl<'a> NetworkDataTlv<'a> {
         stream_done!(TL_WIDTH)
     }
 
-    // Returns NetworkDataTlv and true if stable, false otherwise.
+    /// Deserializes TLV data from `buf` into the Network Data TLV variant
+    /// specific to the TLV type.
+    /// Returns NetworkDataTlv and true if the data stable, false
+    /// otherwise.
+    /// `SResult::Error` is returned if the type field does not match any
+    /// implemented TLV type.
     pub fn decode(buf: &[u8]) -> SResult<(NetworkDataTlv, bool)> {
         let (offset, tlv_type_field) = dec_try!(buf; decode_u8);
         let tlv_type_raw = tlv_type_field >> 1;
@@ -654,7 +674,8 @@ impl<'a> NetworkDataTlv<'a> {
     }
 }
 
-// Gaps in type numbers are fulled by PrefixSubTlv and ServiceSubTlv.
+/// Value encoded in the type field of a Network Data TLV.
+/// Gaps in type numbers are filled by PrefixSubTlv and ServiceSubTlv.
 #[repr(u8)]
 pub enum NetworkDataTlvType {
     Prefix = 1,
@@ -684,6 +705,7 @@ impl<'a, 'b> From<&'a NetworkDataTlv<'b>> for NetworkDataTlvType {
     }
 }
 
+/// These TLVs are contained within the value of a Prefix TLV.
 pub enum PrefixSubTlv<'a> {
     HasRoute(&'a [u8]),
     BorderRouter(&'a [u8]),
@@ -695,6 +717,8 @@ pub enum PrefixSubTlv<'a> {
 }
 
 impl<'a> PrefixSubTlv<'a> {
+    /// Serializes TLV data in `buf` into the format specific to the
+    /// Prefix sub-TLV type.
     pub fn encode(&self, buf: &mut [u8], stable: bool) -> SResult {
         match *self {
             PrefixSubTlv::HasRoute(ref r_border_router_16s) => {
@@ -729,7 +753,12 @@ impl<'a> PrefixSubTlv<'a> {
         stream_done!(TL_WIDTH)
     }
 
-    // Returns PrefixSubTlv and true if stable, false otherwise.
+    /// Deserializes TLV data from `buf` into the Prefix sub-TLV variant
+    /// specific to the TLV type.
+    /// Returns PrefixSubTlv and true if the data stable, false
+    /// otherwise.
+    /// `SResult::Error` is returned if the type field does not match any
+    /// implemented TLV type.
     pub fn decode(buf: &[u8]) -> SResult<(PrefixSubTlv, bool)> {
         let (offset, tlv_type_field) = dec_try!(buf; decode_u8);
         let tlv_type_raw = tlv_type_field >> 1;
@@ -765,6 +794,8 @@ impl<'a> PrefixSubTlv<'a> {
     }
 }
 
+/// Value encoded in the type field of a Prefix sub-TLV.
+/// Gaps in type numbers are filled by NetworkDataTlv and ServiceSubTlv.
 #[repr(u8)]
 pub enum PrefixSubTlvType {
     HasRoute = 0,
@@ -794,6 +825,7 @@ impl<'a, 'b> From<&'a PrefixSubTlv<'b>> for PrefixSubTlvType {
     }
 }
 
+/// Used in Has Route TLV.
 pub struct HasRouteTlvValue {
     // See 5.18.1.
     r_border_router_16: u16,
@@ -801,6 +833,7 @@ pub struct HasRouteTlvValue {
 }
 
 impl HasRouteTlvValue {
+    /// Serializes this Has Route TLV value into `buf`.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         stream_len_cond!(buf, 3);
         let mut offset = enc_consume!(buf, 0; encode_u16, self.r_border_router_16.to_be());
@@ -809,6 +842,7 @@ impl HasRouteTlvValue {
         stream_done!(offset)
     }
 
+    /// Deserializes Has Route TLV value from `buf` and returns it.
     pub fn decode(buf: &[u8]) -> SResult<HasRouteTlvValue> {
         stream_len_cond!(buf, 3);
         let (offset, r_border_router_16) = dec_try!(buf; decode_u16);
@@ -822,12 +856,14 @@ impl HasRouteTlvValue {
     }
 }
 
+/// Used in Border Router TLV.
 pub struct BorderRouterTlvValue {
     // See 5.18.3.
     p_border_router_16: u16,
     p_bits: u16,
 }
 
+/// Used in Border Router TLV value.
 #[repr(u16)]
 pub enum BorderRouterTlvValueBit {
     // See 5.18.3 for a more detailed explanation of each.
@@ -842,6 +878,7 @@ pub enum BorderRouterTlvValueBit {
 }
 
 impl BorderRouterTlvValue {
+    /// Serializes this Border Route TLV value into `buf`.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         stream_len_cond!(buf, 4); // Each Border Router TLV value is 32 bits wide.
         let mut offset = enc_consume!(buf, 0; encode_u16, self.p_border_router_16.to_be());
@@ -849,6 +886,7 @@ impl BorderRouterTlvValue {
         stream_done!(offset)
     }
 
+    /// Deserializes Border Route TLV value from `buf` and returns it.
     pub fn decode(buf: &[u8]) -> SResult<BorderRouterTlvValue> {
         let (offset, p_border_router_16) = dec_try!(buf; decode_u16);
         let (offset, p_bits) = dec_try!(buf, offset; decode_u16);
@@ -860,6 +898,7 @@ impl BorderRouterTlvValue {
     }
 }
 
+/// These TLVs are contained within the value of a Service TLV.
 pub enum ServiceSubTlv {
     Server {
         // See 5.18.6.
@@ -869,6 +908,8 @@ pub enum ServiceSubTlv {
 }
 
 impl<'a> ServiceSubTlv {
+    /// Serializes TLV data in `buf` into the format specific to the
+    /// Service sub-TLV type.
     pub fn encode(&self, buf: &mut [u8], stable: bool) -> SResult {
         match *self {
             ServiceSubTlv::Server { s_server_16, s_server_data } => {
@@ -889,7 +930,12 @@ impl<'a> ServiceSubTlv {
         stream_done!(TL_WIDTH)
     }
 
-    // Returns ServiceSubTlv and true if stable, false otherwise.
+    /// Deserializes TLV data from `buf` into the Service sub-TLV variant
+    /// specific to the TLV type.
+    /// Returns ServiceSubTlv and true if the data stable, false
+    /// otherwise.
+    /// `SResult::Error` is returned if the type field does not match any
+    /// implemented TLV type.
     pub fn decode(buf: &[u8]) -> SResult<(ServiceSubTlv, bool)> {
         let (offset, tlv_type_field) = dec_try!(buf; decode_u8);
         let tlv_type_raw = tlv_type_field >> 1;
@@ -913,6 +959,8 @@ impl<'a> ServiceSubTlv {
     }
 }
 
+/// Value encoded in the type field of a Service sub-TLV.
+/// Gaps in type numbers are filled by NetworkDataTlv and PrefixSubTlv.
 #[repr(u8)]
 pub enum ServiceSubTlvType {
     Server = 6,
@@ -936,6 +984,9 @@ impl<'a> From<&'a ServiceSubTlv> for ServiceSubTlvType {
     }
 }
 
+/// These TLVs are contained within the value of a Pending Operational
+/// Dataset TLV or an Active Operational Dataset TLV.
+/// See Section 8.10.1.
 pub enum NetworkManagementTlv<'a> {
     Channel { channel_page: u8, channel: u16 },
     PanId(u16),
@@ -966,6 +1017,8 @@ pub enum NetworkManagementTlv<'a> {
 }
 
 impl<'a> NetworkManagementTlv<'a> {
+    /// Serializes TLV data in `buf` into the format specific to the
+    /// Network Management TLV type.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         match *self {
             NetworkManagementTlv::Channel { channel_page, channel } => {
@@ -1102,6 +1155,12 @@ impl<'a> NetworkManagementTlv<'a> {
         stream_done!(TL_WIDTH)
     }
 
+    /// Deserializes TLV data from `buf` into the Network Management TLV
+    /// variant specific to the TLV type.
+    /// Returns ServiceSubTlv and true if the data stable, false
+    /// otherwise.
+    /// `SResult::Error` is returned if the type field does not match any
+    /// implemented TLV type.
     pub fn decode(buf: &[u8]) -> SResult<NetworkManagementTlv> {
         let (offset, tlv_type_raw) = dec_try!(buf; decode_u8);
         let tlv_type = NetworkManagementTlvType::from(tlv_type_raw);
@@ -1220,6 +1279,7 @@ impl<'a> NetworkManagementTlv<'a> {
     }
 }
 
+/// Value encoded in the type field of a Network Management TLV.
 #[repr(u8)]
 pub enum NetworkManagementTlvType {
     Channel = 0,
@@ -1308,16 +1368,18 @@ impl<'a, 'b> From<&'a NetworkManagementTlv<'b>> for NetworkManagementTlvType {
     }
 }
 
-// See 8.10.1.15
+/// Used in Security Policy TLV.
+/// See 8.10.1.15
 #[repr(u8)]
 pub enum SecurityPolicy {
-    O = 0b1000_0000,
-    N = 0b0100_0000,
-    R = 0b0010_0000,
-    C = 0b0001_0000,
-    B = 0b0000_1000,
+    O = 0b1000_0000, // Out-of-band commissioning enabled.
+    N = 0b0100_0000, // Native commissioning using PSKc is allowed.
+    R = 0b0010_0000, // Thread 1.x Routers are enabled.
+    C = 0b0001_0000, // External commissioner authentication is allowed using PSKc.
+    B = 0b0000_1000, // Thread 1.x Beacons are enabled.
 }
 
+/// Used in Channel Mask TLV.
 pub struct ChannelMaskEntry {
     channel_page: u8,
     mask_length: u8,
@@ -1325,6 +1387,7 @@ pub struct ChannelMaskEntry {
 }
 
 impl<'a> ChannelMaskEntry {
+    /// Serializes this Channel Mask Entry into `buf`.
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         let mut offset = enc_consume!(buf, 0; encode_u8, self.channel_page);
         offset = enc_consume!(buf, offset; encode_u8, self.mask_length);
@@ -1332,6 +1395,7 @@ impl<'a> ChannelMaskEntry {
         stream_done!(offset)
     }
 
+    /// Deserializes Channel Mask Entry from `buf` and returns it.
     pub fn decode(buf: &[u8]) -> SResult<ChannelMaskEntry> {
         let (offset, channel_page) = dec_try!(buf; decode_u8);
         let (offset, mask_length) = dec_try!(buf, offset; decode_u8);
