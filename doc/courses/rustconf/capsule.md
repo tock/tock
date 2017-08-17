@@ -25,10 +25,9 @@ model.
 
 This presentation will give you the intellectual framework to understand
 why capsules work as they do, and understand what you'll be doing in the rest
-of this part of the course. After this presentation, please answer the
-following questions:
+of this part of the course.
 
-#### 2. Check your understanding (15 min)
+#### 2. Check your understanding (10 min)
 
 1. What is a `VolatileCell`? Can you find some uses of `VolatileCell`, and do you understand why they are needed? Hint: look inside `chips/sam4l/src`.
 2. What is a `TakeCell`? When is a `TakeCell` preferable to a standard `Cell`?
@@ -47,8 +46,7 @@ lifetime. Second, all of the capsules take a lifetime as a parameter
 and this lifetime is `` `static``.  This reflects the fact that the
 Tock kernel doesn't have a dynamic memory pool: all of its RAM state
 is statically allocated. The implementations of these capsules,
-however, don't assume this in case dynamic allocation is needed in the
-future.
+however, do not rely on this assumption.
 
 The method `reset_handler` is invoked when the chip resets (i.e., boots).
 It's pretty long because Hail has a lot of drivers that need to be created
