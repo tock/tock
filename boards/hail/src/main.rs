@@ -38,6 +38,7 @@ const NUM_PROCS: usize = 4;
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
+// RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
@@ -45,6 +46,8 @@ static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
 
 
+/// A structure representing this platform that holds references to all
+/// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
@@ -68,6 +71,8 @@ struct Hail {
     aes: &'static capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
 }
 
+
+/// Mapping of integer syscalls to objects that implement syscalls.
 impl Platform for Hail {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
@@ -101,6 +106,7 @@ impl Platform for Hail {
 }
 
 
+/// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
     use sam4l::gpio::{PA, PB};
     use sam4l::gpio::PeripheralFunction::{A, B};
@@ -154,6 +160,12 @@ unsafe fn set_pin_primary_functions() {
     PB[15].configure(None); //... D1
 }
 
+/// Reset Handler.
+///
+/// This symbol is loaded into vector table by the SAM4L chip crate.
+/// When the chip first powers on or later does a hard reset, after the core
+/// initializes all the hardware, the address of this function is loaded and
+/// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
     sam4l::init();
