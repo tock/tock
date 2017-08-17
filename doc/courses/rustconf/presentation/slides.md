@@ -3,6 +3,9 @@ title: Tock Embedded OS Training
 date: RustConf 2017
 header-includes:
   - \beamertemplatenavigationsymbolsempty
+  - \usepackage{pifont}
+  - \newcommand{\cmark}{\color{green}\ding{51}}
+  - \newcommand{\xmark}{\color{red}\ding{55}}
 ---
 
 ## Tock is a...
@@ -163,6 +166,56 @@ $ tockloader listen
 
 # Part 2: The kernel
 
+## Components
+
+## Constraints
+
+## Event-driven execution model
+
+* * *
+
+![Capsules reference each other directly, assisting inlining](rng.pdf)
+
+## The mutable aliases problem
+
+```rust
+enum NumOrPointer {
+  Num(u32),
+  Pointer(&mut u32)
+}
+
+// n.b. will not compile
+let external : &mut NumOrPointer;
+match external {
+  Pointer(internal) => {
+    // This would violate safety and
+    // write to memory at 0xdeadbeef
+    *external = Num(0xdeadbeef);
+    *internal = 12345;  // Kaboom
+  },
+  ...
+}
+```
+
+## Interior mutability to the rescue
+
+| Type           | Copy-only | Mutual exclusion | Opt.      | Mem Opt. |
+|----------------|:---------:|:----------------:|:---------:|:--------:|
+| `Cell`         | \cmark{}  | \xmark{}         | \cmark{}  | \cmark{} |
+| `VolatileCell` | \cmark{}  | \xmark{}         | \xmark{}  | \cmark{} |
+| `TakeCell`     | \xmark{}  | \cmark{}         | \xmark{}  | \cmark{} |
+| `MapCell`      | \xmark{}  | \cmark{}         | \cmark{}  | \xmark{} |
+
+## Check your understanding
+
+  1. What is a `VolatileCell`? Can you find some uses of `VolatileCell`, and do
+     you understand why they are needed? Hint: look inside `chips/sam4l/src`.
+
+  2. What is a `TakeCell`? When is a `TakeCell` preferable to a standard
+     `Cell`?
+
 # Hands-on: Write and add a capsule to the kernel
 
 # Part 3: User space
+
+# Hands-on: Write a BLE environment sensing app
