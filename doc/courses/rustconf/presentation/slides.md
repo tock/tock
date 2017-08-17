@@ -145,8 +145,8 @@ $ tockloader listen
      and memory overhead does each entail? Why would you choose to write
      something as a process instead of a capsule and vice versa?
 
-  3. Clearly, the kernel should never enter an infinite loop. But is it
-     acceptable for a process to spin? What about a capsule?
+  3. Is it acceptable for a process to enter an infinte loop? What about a
+     capsule?
 
 ## Hands-on: Set-up development environment
 
@@ -166,11 +166,86 @@ $ tockloader listen
 
 # Part 2: The kernel
 
-## Components
+## Trusted Computing Base (`unsafe` allowed)
+
+  * Hardware Abstraction Layer
+
+  * Board configuration
+
+  * Event & Process scheduler
+
+  * Rust `core` library
+
+  * A few data structures
+
+```
+kernel/
+chips/
+```
+
+## Capsules (`unsafe` not allowed)
+
+  * Virtualization
+
+  * Peripheral drivers
+
+  * Communication protocols (IP, USB, etc)
+
+  * Application logic
+
+```
+capsules/
+```
 
 ## Constraints
 
+### Small isolation units
+
+Breaking a monolithic component into smaller ones should have low/no cost
+
+### Avoid memory exhaustion in the kernel
+
+No heap. Everything is allocated statically.
+
+### Low communication overhead
+
+Communicating between components as cheap as an internal function call. Ideally
+inlined.
+
 ## Event-driven execution model
+
+```rust
+pub fn main<P, C>(platform: &P, chip: &mut C,
+                  processes: &mut [Process]) {
+    loop {
+        chip.service_pending_interrupts();
+        for (i, p) in processes.iter_mut().enumerate() {
+            sched::do_process(platform, chip, process;
+        }
+
+        if !chip.has_pending_interrupts() {
+            chip.prepare_for_sleep();
+            support::wfi();
+        }
+    }
+}
+```
+
+## Event-driven execution model
+
+```rust
+fn service_pending_interrupts(&mut self) {
+    while let Some(interrupt) = get_interrupt() {
+        match interrupt {
+            ASTALARM => ast::AST.handle_interrupt(),
+            USART0 => usart::USART0.handle_interrupt(),
+            USART1 => usart::USART1.handle_interrupt(),
+            USART2 => usart::USART2.handle_interrupt(),
+            ...
+        }
+    }
+}
+```
 
 * * *
 
@@ -205,6 +280,31 @@ match external {
 | `VolatileCell` | \cmark{}  | \xmark{}         | \xmark{}  | \cmark{} |
 | `TakeCell`     | \xmark{}  | \cmark{}         | \xmark{}  | \cmark{} |
 | `MapCell`      | \xmark{}  | \cmark{}         | \cmark{}  | \xmark{} |
+
+
+* * *
+
+```rust
+pub struct Fxos8700cq<'a> {
+  i2c: &'a I2CDevice,
+  state: Cell<State>,
+  buffer: TakeCell<'static, [u8]>,
+  callback:
+    Cell<Option<&'a hil::ninedof::NineDofClient>>,
+}
+
+impl<'a> I2CClient for Fxos8700cq<'a> {
+  fn cmd_complete(&self, buf: &'static mut [u8]) { ... }
+}
+
+impl<'a> hil::ninedof::NineDof for Fxos8700cq<'a> {
+  fn read_accelerometer(&self) -> ReturnCode { ... }
+}
+
+pub trait NineDofClient {
+  fn callback(&self, x: usize, y: usize, z: usize);
+}
+```
 
 ## Check your understanding
 
