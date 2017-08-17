@@ -64,6 +64,11 @@ The VM account is "user" with password "user".
 Feel free to customize it with whichever editors, window managers, etc you like
 before the training starts.
 
+> #### Heads Up!
+> There's a small error in the VM configuration. You'll need to manually
+> `source ~/.profile` when you open a new terminal to set up all the needed
+> paths.
+
 ## Agenda
 
 The training is divided into three sections, each starting with a short
