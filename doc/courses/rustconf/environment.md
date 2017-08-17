@@ -1,5 +1,11 @@
 # Tock OS Course Part 1: Getting your environment set up
 
+> While we're getting set up and started, please make sure you have
+> completed all of the [tutorial pre-requisites](./#pre-requisites).
+> If you prefer, you can download a
+> [virtual machine image](./#virtual-machine) with all the pre-requisites
+> already installed.
+
 The goal of this part of the course is to make sure you have a working
 development environment for Tock.
 

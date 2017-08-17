@@ -13,7 +13,7 @@ write power- and memory-efficient applications. We will also give an overview of
 the system architecture.
 
 This tutorial assumes basic knowledge of Rust, including ownership, borrowing,
-traits and lifetimes. While not required, it is most appropriate for people who
+traits, and lifetimes. While not required, it is most appropriate for people who
 are familiar with the material covered in the Advanced Rust training, and
 attending the morning Intermediate Rust training is highly encouraged.
 
@@ -50,11 +50,19 @@ time:
      
         $ pip3 install -U --user tockloader
 
+### Virtual Machine
+
 If you're comfortable working inside a Debian virtual machine, you can download
 an image with all of the dependencies already installed
-[here](https://www.dropbox.com/s/5km04herxa9h05w/Tock.ova?dl=0). Feel free to
-customize it with whichever editors, window managers, etc you like before the
-training starts.
+[here](https://www.dropbox.com/s/5km04herxa9h05w/Tock.ova?dl=0)
+(VirtualBox users:
+[File → Import Appliance...](https://docs.oracle.com/cd/E26217_01/E26796/html/qs-import-vm.html),
+VMWare users:
+[File → Open...](https://pubs.vmware.com/workstation-9/index.jsp?topic=%2Fcom.vmware.ws.using.doc%2FGUID-DDCBE9C0-0EC9-4D09-8042-18436DA62F7A.html)
+).
+The VM account is "user" with password "user".
+Feel free to customize it with whichever editors, window managers, etc you like
+before the training starts.
 
 ## Agenda
 
