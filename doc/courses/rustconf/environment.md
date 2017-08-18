@@ -14,7 +14,7 @@ During this you will:
 - Get a high-level overview of how Tock works.
 - Learn how to compile and flash the kernel onto a Hail board.
 
-## 1. Presentation: Tock's goals, architecture and components (10 min)
+## 1. Presentation: Tock's goals, architecture and components
 
 The key contribution of Tock is that it uses Rust's borrow checker as a
 language sandbox for isolation and a cooperative scheduling model for
@@ -38,7 +38,7 @@ Read the Tock documentation for more details on its
 
 [_Presentation slides are availble here._](presentation/presentation.pdf)
 
-## 2. Check your understanding (10 min)
+## 2. Check your understanding
 
 1. What kinds of binaries exist on a Tock board? Hint: There are three, and
    only two can be programmed using `tockloader`.
@@ -50,7 +50,7 @@ Read the Tock documentation for more details on its
 3. Clearly, the kernel should never enter an infinite loop. But is it
    acceptable for a process to spin? What about a capsule?
 
-## 3. Compile and flash the kernel (10 min)
+## 3. Compile and flash the kernel
 
 ### Build the kernel
 
@@ -140,7 +140,7 @@ The red LED should no longer blink. Compile and re-flash the Hail test app:
 
 You now have the bleeding-edge Tock kernel running on your Hail board!
 
-## 4. (Optional) Familiarize yourself with `tockloader` commands (10 min)
+## 4. (Optional) Familiarize yourself with `tockloader` commands
 The `tockloader` tool is a useful and versatile tool for managing and installing
 applications on Tock. It supports a number of commands, and a more complete
 list can be found in the tockloader repository, located at 
@@ -187,7 +187,7 @@ Loads binaries onto hardware platforms that are running a compatible bootloader.
 This is used by the Tock Make system when kernel binaries are programmed to the
 board with `make program`.
 
-## 5. (Optional) Explore other Tock example applications (10 min)
+## 5. (Optional) Explore other Tock example applications
 
 Other applications can be found in the `userland/examples/` directory. Try
 loading them on your Hail and then try modifying them. By default,

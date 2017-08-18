@@ -13,7 +13,7 @@ During this you will:
 3. Learn about Tock's event-driven programming
 4. Write a new capsule that reads a 9DOF sensor and prints it over serial
 
-#### 1. Listen to presentation on Tock's kernel and capsules (20 min)
+#### 1. Listen to presentation on Tock's kernel and capsules
 
 This part of the course will start with a member of the Tock development
 team presenting its core software architecture. This will explain how a
@@ -27,7 +27,7 @@ This presentation will give you the intellectual framework to understand
 why capsules work as they do, and understand what you'll be doing in the rest
 of this part of the course.
 
-#### 2. Check your understanding (10 min)
+#### 2. Check your understanding
 
 1. What is a `VolatileCell`? Can you find some uses of `VolatileCell`, and do you understand why they are needed? Hint: look inside `chips/sam4l/src`.
 2. What is a `TakeCell`? When is a `TakeCell` preferable to a standard `Cell`?
@@ -237,20 +237,7 @@ kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
 From here, Tock is initialized, the kernel event loop takes over, and the
 system enters steady state operation.
 
-<!--
-#### 4. Check your understanding (10 min)
-
-Take a look at the implementation of the `debug!` macro in
-`kernel/src/debug.rs`. Note that it has an output buffer of size
-`BUF_SIZE` (`debug.rs:29`). When the kernel calls `debug!`, does
-the macro return when the message has been written to the serial
-port (synchronous), or does it return and asynchronously write
-out the debug message? Hint: the call to `command` on line 123
-is what starts the write operation, resulting in the `callback` on
-line 130.
--->
-
-#### 4. Create a "Hello World" capsule (20m)
+#### 4. Create a "Hello World" capsule
 
 Now that you've seen how Tock initializes and uses capsules, you're going to
 write a new one. At the end of this section, your capsule will sample the
@@ -304,7 +291,7 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.
 
 [Sample Solution](https://gist.github.com/alevy/56b0566e2d1a6ba582b7d4c09968ddc9)
 
-#### 5. Extend your capsule to print "Hello World" every second (35m)
+#### 5. Extend your capsule to print "Hello World" every second
 
 In order for your capsule to keep track of time, it will need to depend on
 another capsule that implements the Alarm interface. We'll have to do something
@@ -361,7 +348,7 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.
 
 [Sample Solution](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1)
 
-#### 6. Extend your capsule to sample the accelerometer once a second (35m)
+#### 6. Extend your capsule to sample the accelerometer once a second
 
 The steps for reading an accelerometer from your capsule are similar to using
 the alarm. You'll use a capsule that implements the NineDof (nine degrees of
@@ -444,7 +431,7 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.
 
 [Sample solution](https://gist.github.com/alevy/798d11dbfa5409e0aa56d870b4b7afcf)
 
-#### 7. Some further questions and directions to explore (20m)
+#### 7. Some further questions and directions to explore
 
 Your capsule used the fxos8700 and virtual alarm. Take a look at the
 code behind each of these services:
