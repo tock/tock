@@ -2,6 +2,9 @@
 
 ## 1. Presentation: Process overview, relocation model and system call API (10 min)
 
+In this section, we're going to learn about processes (a.k.a applications) in
+Tock, and build our own applications in Rust.
+
 ## 2. Check your understanding (5 min)
 
 1. How does a process perform a blocking operation? Can you draw the flow of
