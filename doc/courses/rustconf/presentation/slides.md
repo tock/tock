@@ -176,7 +176,7 @@ $ tockloader listen
 
   * Rust `core` library
 
-  * A few data structures
+  * Core Tock primitives
 
 ```
 kernel/
@@ -340,10 +340,13 @@ pub trait NineDofClient {
 
   1. Read the Hail boot sequence in `boards/hail/src/main.rs`
 
-  1. Create a new capsule that prints "Hello World" to the debug console every
-     second.
+  1. [Create a new capsule that prints "Hello World" to the debug console.]()
 
-  2. Add your capsule to the boot sequence
+  1. [Create a new capsule that prints "Hello World" to the debug console every
+     second.](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1#file-accelerate-rs)
+
+  2. [Add your capsule to the boot
+     sequence](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1#file-boot_sequence.rs)
 
   3. Extend your capsule to sample the 9dof sensor
 
