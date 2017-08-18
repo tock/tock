@@ -235,7 +235,7 @@ pub fn main<P, C>(platform: &P, chip: &mut C,
     loop {
         chip.service_pending_interrupts();
         for (i, p) in processes.iter_mut().enumerate() {
-            sched::do_process(platform, chip, process;
+            sched::do_process(platform, chip, process);
         }
 
         if !chip.has_pending_interrupts() {
