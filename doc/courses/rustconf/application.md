@@ -328,9 +328,10 @@ fn main() {
 ```
 
 To test that everything is working, you can connect to your Hail with a
-smartphone. We recommend the
-[nRF Connect](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp&hl=en)
-app. The BLE address of the Hail is labeled on its bottom, however iOS devices
+smartphone. We recommend the nRF Connect app [
+[Android](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp&hl=en)
+ | [iOS](https://itunes.apple.com/us/app/nrf-connect/id1054362403?mt=8)].
+The BLE address of the Hail is labeled on its bottom, however iOS devices
 cannot access the address of a BLE device.
 
 [Sample Solution](https://gist.github.com/alevy/a274981a29ffc00230aa16101ee0b89f).
