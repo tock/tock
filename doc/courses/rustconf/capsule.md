@@ -321,7 +321,7 @@ Modify your capsule to have a field of the type `&'a Alarm` and to accept an
 `&'a Alarm` in the `new` function.
 
 Your capsule will also need to implement the `AlarmClient` trait so it can
-recieve alarm events. The `AlarmClient` trait has a single method:
+receive alarm events. The `AlarmClient` trait has a single method:
 
 ```rust
 fn fired(&self)
@@ -460,7 +460,7 @@ code behind each of these services:
 
 #### 8. **Extra credit**: Write a virtualization capsule for 9dof (∞)
 
-Remeber how you had to remove the userspace facing `ninedof` driver from Hail
+Remember how you had to remove the userspace facing `ninedof` driver from Hail
 in order to use the accelerometer in your capsule? That was a bummer...
 
 If you have extra time, try writing a virtualization capsule for the `NineDof`
