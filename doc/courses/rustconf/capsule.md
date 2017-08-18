@@ -38,27 +38,41 @@ Open `boards/hail/src/main.rs` in your favorite editor. This file defines the
 Hail platform: how it boots, what capsules it uses, and what system calls it
 supports for userland applications.
 
-Find `struct Hail`. This declares the structure representing the
-platform: it has many fields, all of which are capsules, except `ipc`
-for inter-process procedure calls (IPC). You'll notice two
-things. First, every field is a reference to an object with a static
-lifetime. Second, all of the capsules take a lifetime as a parameter
-and this lifetime is `` `static``.  This reflects the fact that the
-Tock kernel doesn't have a dynamic memory pool: all of its RAM state
-is statically allocated. The implementations of these capsules,
-however, do not rely on this assumption.
+##### 3.1 How is everything organized?
+
+Find the declaration of `struct Hail` (it's pretty early in the file).
+This declares the structure representing the platform. It has many fields,
+all of which are capsules. These are the capsules that make up the Hail
+platform. For the most part, these map directly to hardware peripherals,
+but there are exceptions such as `IPC` (inter-process communication).
+
+Recall the discussion about how everything in the kernel is statically
+allocated? We can see that here. Every field in `struct Hail` is a reference to
+an object with a static lifetime.
+
+The capsules themselves take a lifetime as a parameter, which is currently
+always `` `static``.  The implementations of these capsules, however, do not
+rely on this assumption.
+
+The boot process is primarily the construction of this `Hail` structure. Once
+everything is set up, the board will pass the constructed `hail` to
+`kernel::main` and we're off to the races.
+
+##### 3.2 How do things get started?
 
 The method `reset_handler` is invoked when the chip resets (i.e., boots).
 It's pretty long because Hail has a lot of drivers that need to be created
 and initialized, and many of them depend on other, lower layer abstractions
-that need to be created and initialized as well. Take a look at the first
-few lines. You'll see that the boot sequence
+that need to be created and initialized as well.
+
+Take a look at the first few lines of the `reset_handler`. The boot sequence
 initializes memory (copies initialized variables into RAM, clears the BSS),
 sets up the system clocks, and configures the GPIO pins.
 
-Next, it initializes the system console, which is what turns calls to `print!`
-into bytes sent to the USB serial port:
+##### 3.3 How do capsules get created?
 
+The next lines of `reset_handler` create and initialize the system console,
+which is what turns calls to `print!` into bytes sent to the USB serial port:
 
 ```rust
 let console = static_init!(
@@ -70,7 +84,36 @@ let console = static_init!(
 hil::uart::UART::set_client(&usart::USART0, console);
 ```
 
-> ##### A brief aside on `console::WRITE_BUF`
+Eventually, once all of the capsules have been created, we will populate
+a Hail structure with them:
+
+```rust
+let hail = Hail {
+    console: console,
+    gpio: gpio,
+    ...
+```
+
+The `static_init!` macro is simply an easy way to allocate a static
+variable with a call to `new`. The first parameter is the type, the second
+is the expression to produce an instance of the type. This call creates
+a `Console` that uses serial port 0 (`USART0`) at 115200 bits per second.
+
+> ##### A brief aside on buffers:
+> 
+> Notice that you have to pass a write buffer to the console for it to use:
+> this buffer has to have a `` `static`` lifetime. This is because low-level
+> hardware drivers, especially those that use DMA, require `` `static`` buffers.
+> Since Tock doesn't promise when a DMA operation will complete, and you
+> need to be able to promise that the buffer outlives the operation, the
+> one lifetime that is assured to be alive at the end of an operation is
+> `` `static``. So that other code which has buffers
+> without a `` `static`` lifetime, such as userspace processes, can use the
+> `Console`, it copies them into its own internal `` `static`` buffer before
+> passing it to the serial port. So the buffer passing architecture looks like
+> this:
+> 
+> ![Console/UART buffer lifetimes](console.png)
 >
 > It's a little weird that Console's `new` method takes in a reference to
 > itself. This is an ergonomics tradeoff. The Console needs a mutable static
@@ -80,72 +123,134 @@ hil::uart::UART::set_client(&usart::USART0, console);
 > Console a buffer to use, without burdening the instantiator with sizing the
 > buffer.
 
-You're going to use this capsule to output data from the 9DOF sensor,
-so it's a useful example to see how you instantiate and initialize capsules.
-The `static_init!` macro is simply an easy way to allocate a static
-variable with a call to `new`. The first parameter is the type, the second
-is the expression to produce an instance of the type. This call creates
-a `Console` that uses serial port 0 (`USART0`) at 115200 bits per second.
-
-Notice that you have to pass a write buffer to the console for it to use:
-this buffer has to have a `` `static`` lifetime. This is because low-level
-hardware drivers, especially those that use DMA, require `` `static`` buffers.
-Since Tock doesn't promise when a DMA operation will complete, and you
-need to be able to promise that the buffer outlives the operation, the
-one lifetime that is assured to be alive at the end of an operation is
-`` `static``. So that other code which has buffers
-without a `` `static`` lifetime, such as userspace processes, can use the
-`Console`, it copies them into its own internal `` `static`` buffer before
-passing it to the serial port. So the buffer passing architecture looks like
-this:
-
-![Console/UART buffer lifetimes](console.png)
-
 The final parameter, the `Container`, is for handling system calls:
 you don't need to worry about it for now.
 
-Next, jump to around line 360, where a `Hail` structure is allocated
-(`let hail = Hail {`). Note
-that its `console` field is initialized to the `console` capsule that
-was allocated in the code above. 20-30 lines later, you'll see the console
-is initialized,
+##### 3.4 Let's make a Hail!
+
+The code continues on, creating all of the other capsules that are needed
+by the hail platform. By the time we get down to around line 360, we've
+created all of the capsules we need, and it's time to create the actual
+hail platform structure (`let hail = Hail {` ...).
+
+##### 3.5 Capsule _initialization_
+
+Up to this point we have been creating numerous structures and setting some
+static configuration options and mappings, but nothing dynamic has occurred
+(said another way, all methods invoked by `static_init!` must be `const fn`,
+however Tock's `static_init!` macro predates stabilization of `const fn`'s.
+A future iteration could possibly leverage these and obviate the need for the
+macro).
+
+Some capsules require _initialization_, some code that must be executed
+before they can be used. For example, a few lines after creating the hail
+struct, we initialize the console:
 
 ```rust
 hail.console.initialize();
 ```
 
+This method is responsible for actually writing the hardware registers that
+configure the associated UART peripheral for use as a text console
+(8 data bits, 1 stop bit, no parity bit, no hardware flow control).
 
-which configures the serial port to be as text consoles
-expect (8 data bits, 1 stop bit, no parity bit, no hardware flow control).
-Next -- and this is the key part! -- the kernel's debug interface is
-connected to the `Console`. Now, kernel debug messages will be printed
-on the serial port! Userspace processes can also print messages to the
-`Console`, which handles interleaving them correctly.
+##### 3.6 Inter-capsule dependencies
 
-If you jump down just a few more lines, around line 400, you'll see the
-code that loads userspace processes from flash, then starts the kernel
-main loop:
+Just after initializing the console capsule, we find this line:
+
+```rust
+kernel::debug::assign_console_driver(Some(hail.console), kc);
+```
+
+This configures the kernel's `debug!` macro to print messages to this console
+we've just created. The `debug!` mechanism can be very helpful during
+development and testing. Today we're going to use it to print output from the
+capsule you create.
+
+Let's try it out really quick:
+
+```diff
+--- a/boards/hail/src/main.rs
++++ b/boards/hail/src/main.rs
+@@ -10,7 +10,7 @@
+ extern crate capsules;
+ extern crate cortexm4;
+ extern crate compiler_builtins;
+-#[macro_use(static_init)]
++#[macro_use(debug, static_init)]
+ extern crate kernel;
+ extern crate sam4l;
+
+@@ -388,6 +388,8 @@ pub unsafe fn reset_handler() {
+         capsules::console::App::default());
+     kernel::debug::assign_console_driver(Some(hail.console), kc);
+
++    debug!("Testing 1, 2, 3...");
++
+     hail.nrf51822.initialize();
+```
+
+Compile and flash the kernel (`make program`) then look at the output
+(`tockloader listen`).
+
+  - What happens if you put the `debug!` before `assign_console_driver`?
+  - What happens if you put `hail.console.initialize()` after
+    `assign_console_driver`?
+
+As you can see, sometimes there are dependencies between capsules, and board
+authors must take care during initialization to ensure correctness.
+
+> **Note:** The `debug!` implementation is _asynchronous_. It copies messages
+> into a buffer and the console prints them via DMA as the UART peripheral is
+> available, interleaved with other console users (i.e. processes). You
+> shouldn't need to worry about the mechanics of this for now.
+
+
+##### 3.7 Loading processes
+
+Once the platform is all set up, the board is responsible for loading processes
+into memory:
 
 ```rust
 kernel::process::load_processes(&_sapps as *const u8,
                                 &mut APP_MEMORY,
                                 &mut PROCESSES,
                                 FAULT_RESPONSE);
+```
+
+A Tock process is represented by a `kernel::Process` struct. In principle, a
+platform could load processes by any means. In practice, all existing platforms
+write an array of Tock Binary Format (TBF) entries to flash. The kernel provides
+the `load_processes` helper function that takes in a flash address and begins
+iteratively parsing TBF entries and making `Process`es.
+
+##### 3.8 Starting the kernel
+
+Finally, the board passes a reference to the current platform, the chip the
+platform is built on (used for interrupt and power handling), the processes to
+run, and an IPC server instance to the main loop of the kernel:
+
+```rust
 kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
 ```
 
+From here, Tock is initialized, the kernel event loop takes over, and the
+system enters steady state operation.
+
+<!--
 #### 4. Check your understanding (10 min)
 
 Take a look at the implementation of the `debug!` macro in
 `kernel/src/debug.rs`. Note that it has an output buffer of size
 `BUF_SIZE` (`debug.rs:29`). When the kernel calls `debug!`, does
 the macro return when the message has been written to the serial
-port (synchronous), or does it return and asynchonrously write
+port (synchronous), or does it return and asynchronously write
 out the debug message? Hint: the call to `command` on line 123
 is what starts the write operation, resulting in the `callback` on
 line 130.
+-->
 
-#### 5. Create a "Hello World" capsule (20m)
+#### 4. Create a "Hello World" capsule (20m)
 
 Now that you've seen how Tock initializes and uses capsules, you're going to
 write a new one. At the end of this section, your capsule will sample the
@@ -197,7 +302,7 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.
 
 [Sample Solution](https://gist.github.com/alevy/56b0566e2d1a6ba582b7d4c09968ddc9)
 
-#### 6. Extend your capsule to print "Hello World" every second (35m)
+#### 5. Extend your capsule to print "Hello World" every second (35m)
 
 In order for your capsule to keep track of time, it will need to depend on
 another capsule that implements the Alarm interface. We'll have to do something
@@ -254,7 +359,7 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.
 
 [Sample Solution](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1)
 
-#### 7. Extend your capsule to sample the accelerometer once a second (35m)
+#### 6. Extend your capsule to sample the accelerometer once a second (35m)
 
 The steps for reading an accelerometer from your capsule are similar to using
 the alarm. You'll use a capsule that implements the NineDof (nine degrees of
@@ -337,9 +442,9 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.
 
 [Sample solution](https://gist.github.com/alevy/798d11dbfa5409e0aa56d870b4b7afcf)
 
-#### 8. Extra credit! Virtualize the 9dof capsule (∞)
+#### 7. Extra credit! Virtualize the 9dof capsule (∞)
 
-#### 9. Some further questions and directions to explore (20m)
+#### 8. Some further questions and directions to explore (20m)
 
 Your `rustconf` capsule used the fxos8700 and virtual alarm. Take a look at the
 code behind each of these services:
