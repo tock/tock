@@ -257,7 +257,7 @@ $ git checkout -b rustconf
 
 Next, create a new module in `boards/hail/src` and import it from
 `boards/hail/src/main.rs`. In your new module, make a new `struct` for your
-capsule (e.g. called `Acclerate`), a `new` function to construct it and a `start` method.
+capsule (e.g. called `Accelerate`), a `new` function to construct it and a `start` method.
 
 Eventually, the `start` method will kick off the state machine for periodic
 accelerometer readings, but for now, you'll just print "Hello World" to the
