@@ -195,6 +195,8 @@ Listening for serial output.
 TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:18: Hello World
 ```
 
+[Sample Solution](https://gist.github.com/alevy/56b0566e2d1a6ba582b7d4c09968ddc9)
+
 #### 6. Extend your capsule to print "Hello World" every second (35m)
 
 In order for your capsule to keep track of time, it will need to depend on
@@ -249,6 +251,8 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.
 TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:31: Hello World
 TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:31: Hello World
 ```
+
+[Sample Solution](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1)
 
 #### 7. Extend your capsule to sample the accelerometer once a second (35m)
 
@@ -331,15 +335,21 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.
 TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:31: 988 31 158
 ```
 
+[Sample solution](https://gist.github.com/alevy/798d11dbfa5409e0aa56d870b4b7afcf)
+
 #### 8. Extra credit! Virtualize the 9dof capsule (∞)
 
 #### 9. Some further questions and directions to explore (20m)
 
-Your `rustconf` capsule used the fxos8700 and virtualized
-alarms. Take a look at the code behind each of these services:
+Your `rustconf` capsule used the fxos8700 and virtual alarm. Take a look at the
+code behind each of these services:
 
 1. Is the 9DOF sensor on-chip or a separate chip connected over a bus?
-2. What happens if you request two 9DOF sensors (e.g., acceleration and gyro) back-to-back?
+
+2. What happens if you request two 9DOF sensors (e.g., acceleration and gyro)
+
+   back-to-back?
 3. Is there a limit on how many virtual alarms can be created?
+
 4. How many virtual alarms does the Hail boot sequence create?
 
