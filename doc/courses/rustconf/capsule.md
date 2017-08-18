@@ -451,7 +451,7 @@ code behind each of these services:
 
 1. Is the 9DOF sensor on-chip or a separate chip connected over a bus?
 
-2. What happens if you request two 9DOF sensors (e.g., acceleration and gyro)
+2. What happens if you request two 9DOF sensors (e.g., accelerometer and magnetometer)
 
    back-to-back?
 3. Is there a limit on how many virtual alarms can be created?
