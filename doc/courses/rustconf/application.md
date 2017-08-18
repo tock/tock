@@ -242,6 +242,17 @@ The BLE ESS service can be found in the main Tock repository under
 `userland/examples/services/ble-env-sense`. It accepts commands over IPC and
 updates the BLE ESS service, which is broadcasts through the BLE radio.
 
+Before we load the service though, you should chose modify its name so that
+you'll be able to tell your Hail apart from everyone else's (be sure to pick
+something short but reasonably unique). On Line 32, change the adv_name to a
+string of your choice. For example:
+
+```
+   .adv_name          = "AmitHail",
+```
+
+Once you've changed the name, we can load the service onto the Hail.
+
 ```
 $ tockloader erase-apps
 $ cd userland/examples/services/ble-env-sense/
@@ -335,7 +346,8 @@ smartphone. We recommend the nRF Connect app
 [[Android](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp&hl=en)
  | [iOS](https://itunes.apple.com/us/app/nrf-connect/id1054362403?mt=8)].
 The BLE address of the Hail is labeled on its bottom, however iOS devices
-cannot access the address of a BLE device.
+cannot access the address of a BLE device. However, you should be able to see
+the unique name that you chose earlier.
 
 [Sample Solution](https://gist.github.com/alevy/a274981a29ffc00230aa16101ee0b89f).
 
