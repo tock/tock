@@ -254,7 +254,7 @@ line 130.
 
 Now that you've seen how Tock initializes and uses capsules, you're going to
 write a new one. At the end of this section, your capsule will sample the
-accelerometer from the 9dof sensor once a second and printing the results as
+accelerometer from the 9dof sensor once a second and print the results as
 serial output. But you'll start with something simpler: printing "Hello World"
 to the debug console once on boot.
 
@@ -263,6 +263,8 @@ make a branch of the Tock repository. This will keep your master
 branch clean.
 
 ```bash
+# Possibly undo any changes from exploring debug! above:
+$ git reset --hard
 $ git checkout -b rustconf
 ```
 
@@ -279,7 +281,7 @@ debug!("Hello World");
 ```
 
 Finally, initialize this new capsule in the `main.rs` boot sequence. You'll
-want to use the `static_init!` macro to makesure it's initialized in static
+want to use the `static_init!` macro to make sure it's initialized in static
 memory. `static_init!` is already imported, and has the following signature:
 
 ```rust
@@ -308,8 +310,8 @@ In order for your capsule to keep track of time, it will need to depend on
 another capsule that implements the Alarm interface. We'll have to do something
 similar for reading the accelerometer, so this is good practice.
 
-The Alarm HIL includes several traits, `Alarm`, `AlarmClient` and `Frequency`,
-all in the `kernel::hil::time` module. You'll use the `set\_alarm` and `now`
+The Alarm HIL includes several traits, `Alarm`, `AlarmClient`, and `Frequency`,
+all in the `kernel::hil::time` module. You'll use the `set_alarm` and `now`
 methods from the `Alarm` trait to set an alarm for a particular value of the
 clock. The `Alarm` trait also has an associated type that implements the
 `Frequency` trait which lets us call its `frequency` method to get the clock
