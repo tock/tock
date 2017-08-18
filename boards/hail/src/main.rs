@@ -181,6 +181,8 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
+    let mut chip = sam4l::chip::Sam4l::new();
+
     let console = static_init!(
         capsules::console::Console<sam4l::usart::USART>,
         capsules::console::Console::new(&sam4l::usart::USART0,
@@ -417,8 +419,6 @@ pub unsafe fn reset_handler() {
     kernel::debug::assign_console_driver(Some(hail.console), kc);
 
     hail.nrf51822.initialize();
-
-    let mut chip = sam4l::chip::Sam4l::new();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
