@@ -55,6 +55,12 @@ time:
 
         $ export PATH=$HOME/Library/Python/3.6/bin/:$PATH
 
+> Similarly, on Linux distributions, this will typically install to
+> `$HOME/.local/bin`, and you may need to add that to your `$PATH` if not
+> already present:
+
+        $ PATH=$HOME/.local/bin:$PATH
+
 ### Virtual Machine
 
 If you're comfortable working inside a Debian virtual machine, you can download
