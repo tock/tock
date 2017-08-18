@@ -23,7 +23,7 @@ terms of resource consumption at the expense of preemptive scheduling (so a
 malicious component could block the system by, e.g., spinning in an infinite
 loop). This is accomplished by the following architecture:
 
-![Tock architecture](../../architecture.png)
+![Tock architecture](architecture.png)
 
 Tock includes three architectural components:
 

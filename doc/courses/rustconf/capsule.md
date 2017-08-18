@@ -444,11 +444,9 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.
 
 [Sample solution](https://gist.github.com/alevy/798d11dbfa5409e0aa56d870b4b7afcf)
 
-#### 7. Extra credit! Virtualize the 9dof capsule (∞)
+#### 7. Some further questions and directions to explore (20m)
 
-#### 8. Some further questions and directions to explore (20m)
-
-Your `rustconf` capsule used the fxos8700 and virtual alarm. Take a look at the
+Your capsule used the fxos8700 and virtual alarm. Take a look at the
 code behind each of these services:
 
 1. Is the 9DOF sensor on-chip or a separate chip connected over a bus?
@@ -459,4 +457,14 @@ code behind each of these services:
 3. Is there a limit on how many virtual alarms can be created?
 
 4. How many virtual alarms does the Hail boot sequence create?
+
+#### 8. **Extra credit**: Write a virtualization capsule for 9dof (∞)
+
+Remeber how you had to remove the userspace facing `ninedof` driver from Hail
+in order to use the accelerometer in your capsule? That was a bummer...
+
+If you have extra time, try writing a virtualization capsule for the `NineDof`
+HIL that will allow multiple clients to use it. This is a fairly open ended
+task, but you might find inspiration in the `virtua_alarm` and `virtual_i2c`
+capsules.
 
