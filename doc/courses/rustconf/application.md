@@ -41,7 +41,7 @@ modules that the Tock crate exports.
 #### Console
 
 `tock::console::Console` is used to send messages over the USB connection on a
-Hail (technically it sends serial data through a UART to and FTDI UART-to-USB
+Hail (technically it sends serial data through a UART to an FTDI UART-to-USB
 chip, but same difference). Its functions are:
 
          pub fn new() -> Console
