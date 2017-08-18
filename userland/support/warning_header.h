@@ -2,6 +2,7 @@
 // that commonly introduce bugs in (embedded) code. This header is injected as
 // part of the tock build, where we add warning attributes to functions.
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
