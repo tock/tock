@@ -29,6 +29,11 @@ The goal of `simple_ble.c` is to wrap the details of the nRF5 SDK and the
 intricacies of BLE in an easy-to-use library so you can get going with creating
 BLE devices and not learning the entire spec.
 
+
+Supported Boards
+----------------
+imix and hail
+
     ```c
     #include <simple_ble.h>
 

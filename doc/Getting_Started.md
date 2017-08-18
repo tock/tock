@@ -7,9 +7,9 @@ developing Tock.
 ## Requirements
 
 1. [Rust](http://www.rust-lang.org/) (install `rustup` so Tock will choose the right version automatically)
-1. [Xargo](http://www.rust-lang.org/) (Rust `cargo` wrapper that installs core library for embedded targets)
-2. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
-3. Command line utilities: wget, sed, make, cmake
+2. [Xargo](http://www.rust-lang.org/) (Rust `cargo` wrapper that installs core library for embedded targets)
+3. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
+4. Command line utilities: wget, sed, make, cmake
 
 ### Installing Requirements
 
@@ -172,7 +172,8 @@ This will build the app and generate a binary in Tock Binary Format
 `userland/examples/blink/build/cortex-m4/cortex-m4.bin`.
 
 Alternatively, apps can be built and automatically uploaded from the
-Tock root directory:
+Tock root directory: (this is currently only available for boards that support
+`program` i.e. programming via serial/USB):
 
 ```bash
 $ make examples/blink
@@ -233,7 +234,8 @@ the board specific READMEs:
 
 * [imix](../boards/imix/README.md)
 * [Hail](../boards/hail/README.md)
-* [nRF](../boards/nrf51dk/README.md)
+* [nRF51-DK](../boards/nrf51dk/README.md)
+* [nRF52-DK](../boards/nrf52dk/README.md)
 
 
 ## Formatting Rust Source Code
