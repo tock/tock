@@ -10,17 +10,22 @@
 extern crate capsules;
 extern crate cortexm4;
 extern crate compiler_builtins;
-#[macro_use(static_init)]
+#[macro_use(static_init, debug)]
 extern crate kernel;
 extern crate sam4l;
 
+use capsules::console::{self, Console};
+use capsules::nrf51822_serialization::{self, Nrf51822Serialization};
+use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_i2c::{MuxI2C, I2CDevice};
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
+
 use kernel::Platform;
 use kernel::hil;
 use kernel::hil::Controller;
 use kernel::hil::spi::SpiMaster;
+use sam4l::usart;
 
 #[macro_use]
 pub mod io;
@@ -38,7 +43,6 @@ const NUM_PROCS: usize = 4;
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
-// RAM to be shared by all application processes.
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 
@@ -46,21 +50,20 @@ static mut APP_MEMORY: [u8; 49152] = [0; 49152];
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
 
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform.
 struct Hail {
-    console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
+    console: &'static Console<'static, usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static capsules::timer::TimerDriver<'static,
-                                                 VirtualMuxAlarm<'static,
-                                                                 sam4l::ast::Ast<'static>>>,
-    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
+    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    isl29035: &'static capsules::isl29035::Isl29035<'static,
+                                                    VirtualMuxAlarm<'static,
+                                                                    sam4l::ast::Ast<'static>>>,
+    si7021: &'static capsules::si7021::SI7021<'static,
+                                              VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    rustconf: &'static capsules::rustconf::RustConf<'static,
+                                                    VirtualMuxAlarm<'static,
+                                                                    sam4l::ast::Ast<'static>>>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static,
-                                                                               sam4l::usart::USART>,
+    nrf51822: &'static Nrf51822Serialization<'static, usart::USART>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
@@ -71,8 +74,6 @@ struct Hail {
     aes: &'static capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
 }
 
-
-/// Mapping of integer syscalls to objects that implement syscalls.
 impl Platform for Hail {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
         where F: FnOnce(Option<&kernel::Driver>) -> R
@@ -85,12 +86,12 @@ impl Platform for Hail {
             3 => f(Some(self.timer)),
             4 => f(Some(self.spi)),
             5 => f(Some(self.nrf51822)),
-            6 => f(Some(self.ambient_light)),
+            6 => f(Some(self.isl29035)),
             7 => f(Some(self.adc)),
             8 => f(Some(self.led)),
             9 => f(Some(self.button)),
-            10 => f(Some(self.temp)),
-            11 => f(Some(self.ninedof)),
+            10 => f(Some(self.si7021)),
+            //11 => f(Some(self.ninedof)),
 
             14 => f(Some(self.rng)),
 
@@ -98,7 +99,7 @@ impl Platform for Hail {
             17 => f(Some(self.aes)),
 
             26 => f(Some(self.dac)),
-            35 => f(Some(self.humidity)),
+
             0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -106,7 +107,6 @@ impl Platform for Hail {
 }
 
 
-/// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions() {
     use sam4l::gpio::{PA, PB};
     use sam4l::gpio::PeripheralFunction::{A, B};
@@ -160,12 +160,6 @@ unsafe fn set_pin_primary_functions() {
     PB[15].configure(None); //... D1
 }
 
-/// Reset Handler.
-///
-/// This symbol is loaded into vector table by the SAM4L chip crate.
-/// When the chip first powers on or later does a hard reset, after the core
-/// initializes all the hardware, the address of this function is loaded and
-/// execution begins here.
 #[no_mangle]
 pub unsafe fn reset_handler() {
     sam4l::init();
@@ -181,21 +175,21 @@ pub unsafe fn reset_handler() {
     set_pin_primary_functions();
 
     let console = static_init!(
-        capsules::console::Console<sam4l::usart::USART>,
-        capsules::console::Console::new(&sam4l::usart::USART0,
+        Console<usart::USART>,
+        Console::new(&usart::USART0,
                      115200,
-                     &mut capsules::console::WRITE_BUF,
+                     &mut console::WRITE_BUF,
                      kernel::Container::create()));
-    hil::uart::UART::set_client(&sam4l::usart::USART0, console);
+    hil::uart::UART::set_client(&usart::USART0, console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
     // over UART to the nRF51822 radio.
     let nrf_serialization = static_init!(
-        capsules::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART>,
-        capsules::nrf51822_serialization::Nrf51822Serialization::new(&sam4l::usart::USART3,
-                                   &mut capsules::nrf51822_serialization::WRITE_BUF,
-                                   &mut capsules::nrf51822_serialization::READ_BUF));
-    hil::uart::UART::set_client(&sam4l::usart::USART3, nrf_serialization);
+        Nrf51822Serialization<usart::USART>,
+        Nrf51822Serialization::new(&usart::USART3,
+                                   &mut nrf51822_serialization::WRITE_BUF,
+                                   &mut nrf51822_serialization::READ_BUF));
+    hil::uart::UART::set_client(&usart::USART3, nrf_serialization);
 
     let ast = &sam4l::ast::AST;
 
@@ -222,20 +216,6 @@ pub unsafe fn reset_handler() {
     si7021_i2c.set_client(si7021);
     si7021_virtual_alarm.set_client(si7021);
 
-    let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(si7021,
-                                                 kernel::Container::create()), 96/8);
-    kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
-
-    let humidity = static_init!(
-        capsules::humidity::HumiditySensor<'static>,
-        capsules::humidity::HumiditySensor::new(si7021,
-                                                 kernel::Container::create()), 96/8);
-    kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
-
-
-
     // Configure the ISL29035, device address 0x44
     let isl29035_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x44));
     let isl29035_virtual_alarm = static_init!(
@@ -248,18 +228,13 @@ pub unsafe fn reset_handler() {
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
-    let ambient_light = static_init!(
-        capsules::ambient_light::AmbientLight<'static>,
-        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Container::create()));
-    hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
-
     // Timer
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm));
     let timer = static_init!(
-        capsules::timer::TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::timer::TimerDriver::new(virtual_alarm1, kernel::Container::create()));
+        TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        TimerDriver::new(virtual_alarm1, kernel::Container::create()));
     virtual_alarm1.set_client(timer);
 
     // FXOS8700CQ accelerometer, device address 0x1e
@@ -271,11 +246,16 @@ pub unsafe fn reset_handler() {
                                                &mut capsules::fxos8700cq::BUF));
     fxos8700_i2c.set_client(fxos8700);
     sam4l::gpio::PA[9].set_client(fxos8700);
+    let rc_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+        VirtualMuxAlarm::new(mux_alarm));
 
-    let ninedof = static_init!(
-        capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
-    hil::sensors::NineDof::set_client(fxos8700, ninedof);
+    let rustconf = static_init!(
+        capsules::rustconf::RustConf<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        capsules::rustconf::RustConf::new(fxos8700, rc_virtual_alarm));
+    hil::ninedof::NineDof::set_client(fxos8700, rustconf);
+    rc_virtual_alarm.set_client(rustconf);
+
 
     // Initialize and enable SPI HAL
     // Set up an SPI MUX, so there can be multiple clients
@@ -386,10 +366,9 @@ pub unsafe fn reset_handler() {
         console: console,
         gpio: gpio,
         timer: timer,
-        ambient_light: ambient_light,
-        temp: temp,
-        humidity: humidity,
-        ninedof: ninedof,
+        si7021: si7021,
+        isl29035: isl29035,
+        rustconf: rustconf,
         spi: spi_syscalls,
         nrf51822: nrf_serialization,
         adc: adc,
@@ -417,22 +396,24 @@ pub unsafe fn reset_handler() {
 
     hail.nrf51822.initialize();
 
+
     let mut chip = sam4l::chip::Sam4l::new();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
 
-    // debug!("Initialization complete. Entering main loop");
+    debug!("Initialization complete. Entering main loop");
+    debug!("Initialization complete. Entering main loop");
 
     extern "C" {
         /// Beginning of the ROM region containing app images.
-        ///
-        /// This symbol is defined in the linker script.
         static _sapps: u8;
     }
     kernel::process::load_processes(&_sapps as *const u8,
                                     &mut APP_MEMORY,
                                     &mut PROCESSES,
                                     FAULT_RESPONSE);
+    hail.rustconf.start(32768);
+
     kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
 }
