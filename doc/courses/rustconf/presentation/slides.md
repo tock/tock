@@ -95,7 +95,7 @@ Maybe...
 
 ## Agenda Today
 
-  1. Intro to hardware, rools and development environment
+  1. Intro to hardware, tools and development environment
 
   2. Add functionality to the Tock kernel
 
