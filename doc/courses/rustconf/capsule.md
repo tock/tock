@@ -145,124 +145,145 @@ out the debug message? Hint: the call to `command` on line 123
 is what starts the write operation, resulting in the `callback` on
 line 130.
 
-#### 5. Create a New Capsule (35m)
+#### 5. Create a "Hello World" capsule (20m)
 
-Now that you've seen how Tock initializes and uses capsules, you're going
-to write a new one. This capsule will, when the system boots, start sampling
-the 9DOF sensor once a second and printing the results as serial output.
+Now that you've seen how Tock initializes and uses capsules, you're going to
+write a new one. At the end of this section, your capsule will sample the
+accelerometer from the 9dof sensor once a second and printing the results as
+serial output. But you'll start with something simpler: printing "Hello World"
+to the debug console once on boot.
 
-First, because you're going to be modifying the boot sequence of Hail,
-make a branch of the Tock repository; this will keep your master
-branch clean. You're going to replace the `NineDof` capsule, which
-provides access to the FXOS8700 sensor to processes through system
-calls, with a capsule that reads the sensor and sends `debug!`
-messages with its values.
+To begin, because you're going to be modifying the boot sequence of Hail,
+make a branch of the Tock repository. This will keep your master
+branch clean.
 
-First, in `capsules/src`, create a new capsule named
-`rustconf`. This capsule is going to use two other capsules:
-`virtual_alarm` and `fxos8700cq`.  Every second, the capsule will
-sample the FXOS and print those values using `debug!`. Your capsule
-will use `virtual_alarm` to receive a callback once a second, and
-`fxos8700cq` to sample the 9DOF sensor.
-
-Second, add `rustconf` to the capsules crate. In `capsules/src/lib.rs`,
-add `pub mod rustconf;`.
-
-Third, in `rustconf.rs`, define a generic struct called
-`RustConf`. This struct needs two generic type parameters: a lifetime
-and a generic data type that implements the trait `time::Alarm`:
-
-```rust
-pub struct RustConf<'a, A: time::Alarm + 'a> {
+```bash
+$ git checkout -b rustconf
 ```
 
-It should have three fields: a reference with lifetime `'a` to a
-`hil::ninedof::NineDof`, a reference with lifetime '`a` to a
-`time::Alarm` (`A`), and a `Cell<u32>` to store the interval at which
-the capsule should sample.
+Next, create a new module in `boards/hail/src` and import it from
+`boards/hail/src/main.rs`. In your new module, make a new `struct` for your
+capsule (e.g. called `Acclerate`), a `new` function to construct it and a `start` method.
 
-Fourth (and fifth and sixth!), you'll need three `impl` sections. The
-basic one will contain `new`, which has the signature
-
-```rust
-pub fn new(driver: &'a hil::ninedof::NineDof,
-           alarm: &'a A) -> RustConf<'a, A> {
-```
-
-as well as a method to start the capsule:
+Eventually, the `start` method will kick off the state machine for periodic
+accelerometer readings, but for now, you'll just print "Hello World" to the
+debug console and return:
 
 ```rust
-pub fn start(&self, interval: u32) -> ReturnCode {
+debug!("Hello World");
 ```
 
-The second is for `time::Client`, which provides the callback from
-the virtual alarm:
+Finally, initialize this new capsule in the `main.rs` boot sequence. You'll
+want to use the `static_init!` macro to makesure it's initialized in static
+memory. `static_init!` is already imported, and has the following signature:
 
 ```rust
-impl<'a, A: time::Alarm + 'a> time::Client for RustConf<'a, A> {
-    fn fired(&self) {
+static_init!($T:ty, :expr -> $T) -> &'static T
 ```
 
-The last is for `hil::ninedof::NineDofClient`, which provides the callback
-for the 9DOF sensor to signal it has completed a sample:
+That is, the first parameter is the type of the thing you want to allocate and
+the second parameter is an expression constructing it. The result is a
+reference to the constructed value with `'static` lifetime.
+
+Compile and program your new kernel:
+
+```bash
+$ make program
+$ tockloader listen
+No device name specified. Using default "tock"                                                                         Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
+Listening for serial output.
+TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:18: Hello World
+```
+
+#### 6. Extend your capsule to print "Hello World" every second (35m)
+
+In order for your capsule to keep track of time, it will need to depend on
+another capsule that implements the Alarm interface. We'll have to do something
+similar for reading the accelerometer, so this is good practice.
+
+The Alarm HIL includes several traits, `Alarm`, `AlarmClient` and `Frequency`,
+all in the `kernel::hil::time` module. You'll use the `set\_alarm` and `now`
+methods from the `Alarm` trait to set an alarm for a particular value of the
+clock. The `Alarm` trait also has an associated type that implements the
+`Frequency` trait which lets us call its `frequency` method to get the clock
+frequency.
+
+Modify your capsule to have a field of the type `&'a Alarm` and to accept an
+`&'a Alarm` in the `new` function.
+
+Your capsule will also need to implement the `AlarmClient` trait so it can
+recieve alarm events. The `AlarmClient` trait has a single method:
 
 ```rust
-impl<'a, A: time::Alarm + 'a> hil::ninedof::NineDofClient for RustConf<'a, A> {
-    fn callback(&self, arg1: usize, arg2: usize, arg3: usize) {
+fn fired(&self)
 ```
 
-The basic logic is that when a `RustConf` is instantiated, its interval is
-0. Calling `start` stores the interval in the structure and calls
-`alarm` to issue a callback interval ticks in the future. On Hail,
-there are 32kHz ticks/second, (it's based off an ultra-low power
-32kHz oscillator). So specifying an interval of 32768 (2^15) will
-tick once a second.
+Your capsule should now set an alarm in the `start` method, print the debug
+message and set an alarm again when the alarm fires.
 
-The `fired` callback requests a reading from the 9DOF sensor. The
-9DOF API provides three functions to choose from:
+Finally, you'll need to modify the capsule initialization to pass in an alarm
+implementation. Since lots of other capsules use the alarm, you should use a
+virtual alarm. You can make a new one like this:
 
 ```rust
-fn read_accelerometer(&self) -> ReturnCode
-fn read_magnetometer(&self) -> ReturnCode
-fn read_gyroscope(&self) -> ReturnCode
+let my_virtual_alarm = static_init!(
+    VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+    VirtualMuxAlarm::new(mux_alarm));
 ```
 
-For starters, just call one of the three. You might want to add a
-small `debug!` statement in `fired` to make sure it's being
-called. Then, in `callback`, print out the three values (`arg1`,
-`arg2`, `arg3`) with a `debug!` statement.
-
-`ReturnCode` can take many values. If you wanted to do some detailed
-error reporting, you could match on the result. For now, it's OK to
-just check that it's `ReturnCode::SUCCESS` and print an error
-if it's not.
-
-Go to the top-level Tock directory and `make`. The Tock build process
-should try to compile your capsule and include it in the capsules crate.
-Once your code is compiling, you incorporate it into the boot
-sequence and get it working.
-
-#### 6. Add Your Capsule to the Boot Sequence (35m)
-
-Now that you have the `rustconf` capsule, you need to include it in the
-boot sequence so that Tock will initialize and start it. Open
-`boards/hail/src/main.rs` and modify `struct Hail`, replacing
-the `ninedof` field (which exposes a 9DOF sensor to user space through
-system calls) with a `rustconf` field with lifetime `'static` and
-whose alarm generic type is a `VirtualMux` with lifetime `'static`
-and type `sam4l::ast::Ast<'static>`:
+and you have to make sure to set your capsule as the client of the virtual alarm after initializing it:
 
 ```rust
-rustconf: &'static capsules::rustconf::RustConf<'static,
-                                                VirtualMuxAlarm<'static,
-                                                                sam4l::ast::Ast<'static>>>,
+my_virtual_alarm.set_client(my_capsule);
 ```
 
+Compile and program your new kernel:
+
+```bash
+$ make program
+$ tockloader listen
+No device name specified. Using default "tock"                                                                         Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
+Listening for serial output.
+TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:31: Hello World
+TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:31: Hello World
+TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:31: Hello World
+TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:31: Hello World
+```
+
+#### 7. Extend your capsule to sample the accelerometer once a second (35m)
+
+The steps for reading an accelerometer from your capsule are similar to using
+the alarm. You'll use a capsule that implements the NineDof (nine degrees of
+freedom) HIL, which includes the `NineDof` and `NineDofClient` traits, both in
+`kernel::hil::sensors`.
+
+The `NineDof` trait includes the method `read_accelerometer` which initiates an
+accelerometer reading. The `NineDofClient` trait has a single method for receiving readings:
+
+```rust
+fn callback(&self, x: usize, y: usize, z: usize);
+```
+
+However, unlike the alarm, there is no virtualization layer for the `NineDof`
+HIL (yet!) and there is already a driver used in Hail that exposes the 9dof
+sensor to userland. Fortunately, we can just remove it for our purposes.
+
+Remove the `ninedof` field from the `Hail` struct definition:
+
+```rust
+ninedof: &'static capsules::ninedof::NineDof<'static>,
+```
+
+and initialization:
+
+```rust
+ninedof: ninedof,
+```
 
 Remove `ninedof` from the system call lookup table in `with_driver`:
 
 ```rust
-        11 => f(Some(self.ninedof)), // Comment this out
+11 => f(Some(self.ninedof)), // Comment this out
 ```
 
 And, finally, remove the initialization of `ninedof` from the boot sequence:
@@ -274,59 +295,45 @@ let ninedof = static_init!(
 hil::ninedof::NineDof::set_client(fxos8700, ninedof);
 ```
 
-Now that `ninedof` has been removed from the kernel, you need to
-add `rustconf`. Since `rustconf` doesn't provide a system call
-interface, you don't need to add it to `with_driver`. All you need
-to do is initialize it and call `start`. The structure for `rustconf`
-looks like this:
+Follow the same steps you did for adding an alarm to your capsule for the 9dof
+sensor capsule:
+
+  1. Add a `&'a NineDof` field.
+
+  2. Accept one in the `new` function.
+
+  3. Implement the `NineDofClient` trait.
+
+Now, modify the Hail boot sequence passing in the `fxos8700` capsule, which
+implements the `NineDof` trait, to your capsule (it should already be
+initialized). Make sure to set your capsule as its client:
+
+```rust
+{
+  use hil::ninedof::NineDof
+  fxos8700.set_client(my_capsule);
+}
+```
+
+Finally, implement logic to initiate a accelerometer reading every second and
+report the results.
 
 ![Structure of `rustconf` capsule](rustconf.png)
 
-Recall from your code that the `rustconf` capsule
-takes a 9DOF sensor driver (`fxos8700`) and an alarm in its `new`.
-So the calls from `rustconf` to those objects can be made
-directly, using the references passed in `new`. Hail's
-`reset_handler` already creates `fxos8700`. You therefore
-need to create a new virtualized alarm to pass to rustconf.
-Find where `reset_handler` creates `let si7021_virtual_alarm`;
-you want to repeat this code to create a `rx_virtual_alarm`, which
-you pass to `new` so you can create a `rustconf`:
+Compile and program your kernel:
 
-```rust
-let rustconf = static_init!(
-    capsules::rustconf::RustConf<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-    capsules::rustconf::RustConf::new(fxos8700, rc_virtual_alarm));
+```bash
+$ make program
+$ tockloader listen
+No device name specified. Using default "tock"                                                                         Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
+Listening for serial output.
+TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:31: 982 33 166
+TOCK_DEBUG(0): /home/alevy/hack/helena/rustconf/tock/boards/hail/src/accelerate.rs:31: 988 31 158
 ```
 
-Next, you need to set up the callbacks -- `callback` and `fired`.
-This means installing `rustconf` as the client of both
-`rc_virtual_alarm` and `fxos8700`.
+#### 8. Extra credit! Virtualize the 9dof capsule (∞)
 
-Finally, start `rustconf`! Do this after `hail` is created
-at the end of `reset_handler`:
-
-```rust
-hail.rustconf.start(32768);
-```
-
-Compile your kernel and install it with `make program`,
-then run `tockloader listen`. If everything is working
-correctly, you should see your debug statement printing
-out the sensor values.
-
-#### 7. Extend Your Capsule to Sample the Full 9 Degrees (10m)
-
-Right now, your capsule samples only one of the three
-sensors. Let's extend it to sample all 3 sensors.
-
-Since the Tock kernel is non-blocking, you have to do this with event
-handlers. Since all three sensors have the same callback, your code
-has to keep state on which call was outstanding (e.g., through an
-`enum`). When the alarm fires, sample the first sensor. In the first
-ready event, print out the value and sample the second sensor. In the
-second event handler, sample the third.
-
-#### 8. Some further questions and directions to explore (20m)
+#### 9. Some further questions and directions to explore (20m)
 
 Your `rustconf` capsule used the fxos8700 and virtualized
 alarms. Take a look at the code behind each of these services:
