@@ -46,6 +46,10 @@ time:
 
 8. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 
+> Note that you can install the version packaged by your Linux distribution,
+> but make sure you install the newlib port as well. For instance, on Debian or
+> Ubuntu, install both gcc-arm-none-eabi and libnewlib-arm-none-eabi.
+
 9. [tockloader](https://github.com/helena-project/tockloader)
      
         $ pip3 install -U --user tockloader
