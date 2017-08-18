@@ -71,6 +71,10 @@ to compile for the imix instead, `export TOCK_BOARD=imix` or `cd boards/imix/`.
 
 ### Connect to a Hail board
 
+> On Linux, you might need to give your user access to the Hail's serial port. You can do this by adding a udev rule in:
+> `/etc/udev/rules.d/99-hail` containing the rule: `ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"`.
+> Detaching and re-attaching Hail should do the trick.
+
 To connect your development machine to the Hail, connect them with a micro-USB
 cable. Any cable will do. Hail should come with the Tock kernel and the Hail
 test app pre-loaded. When you plug in Hail, the blue LED should blink slowly
