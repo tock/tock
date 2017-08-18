@@ -131,7 +131,7 @@ also nicely demonstrates that user applications are nicely isolated from the
 kernel: it is possible to update one independently of the other. Remove it with
 the following command:
 
-    $ tockloader uninstall hail
+    $ tockloader erase-apps
 
 The red LED should no longer blink. Compile and re-flash the Hail test app:
 
@@ -140,26 +140,8 @@ The red LED should no longer blink. Compile and re-flash the Hail test app:
 
 You now have the bleeding-edge Tock kernel running on your Hail board!
 
-## 4. Customize, compile and flash the `ble-env-sense` service (10 min)
-
-Later in this workshop, you will be working with the `ble-env-sense` service.
-Flash this service onto your Hail board the same way you flashed the test app
-earlier:
-
-    $ tockloader uninstall hail
-    $ cd userland/examples/services/ble-env-sense/
-    $ make program
-    $ tockloader listen
-    ...
-    [BLE] Environmental Sensing IPC Service
-    ...
-
-Also try modifying the application code in
-`userland/examples/services/ble-env-sense/main.c`. Examples for many userspace
-APIs can be found in `userland/examples/`.
-
-## 5. (Optional) Familiarize yourself with `tockloader` commands (10 min)
-The `tockloader` tool is a useful and versitile tool for managing and installing
+## 4. (Optional) Familiarize yourself with `tockloader` commands (10 min)
+The `tockloader` tool is a useful and versatile tool for managing and installing
 applications on Tock. It supports a number of commands, and a more complete
 list can be found in the tockloader repository, located at 
 https://github.com/helena-project/tockloader. Below is a list of the more useful
@@ -181,6 +163,9 @@ then issue the install command:
 ### `tockloader uninstall [application name(s)]`
 Removes one or more applications from the board by name.
 
+### `tockloader erase-apps`
+Removes all applications from the board.
+
 ### `tockloader list`
 Prints basic information about the apps currently loaded onto the board.
 
@@ -201,3 +186,14 @@ and will print out anything written to stdout/stderr from a board.
 Loads binaries onto hardware platforms that are running a compatible bootloader.
 This is used by the Tock Make system when kernel binaries are programmed to the
 board with `make program`.
+
+## 5. (Optional) Explore other Tock example applications (10 min)
+
+Other applications can be found in the `userland/examples/` directory. Try
+loading them on your Hail and then try modifying them. By default,
+`tockloader install` adds the new application, but does not erase any others.
+Not all applications will work well together if they need the same resources.
+
+> *Tip:* You can add the `--erase` flag to have tockloader automatically
+> remove other applications when installing a new one.
+
