@@ -12,7 +12,9 @@ header-includes:
 > you prefer, you can download a virtual machine image with all the
 > pre-requisites already installed.
 
-<https://github.com/helena-project/tock/tree/master/doc/courses/rustconf>
+<https://github.com/helena-project/tock/tree/master/doc/courses/rustconf/README.md>
+
+<https://goo.gl/jjba3S>
 
 ## Tock is a...
 
@@ -90,6 +92,14 @@ Maybe...
 ## Two types of scheduling: cooperative and preemptive
 
 ![](execution.pdf)
+
+## Agenda Today
+
+  1. Intro to hardware, rools and development environment
+
+  2. Add functionality to the Tock kernel
+
+  3. Write an end-to-end Bluetooth Low Energy environment sensing application.
 
 # Part 1: Hardware, tools and development environment
 
