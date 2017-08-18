@@ -12,7 +12,7 @@ header-includes:
 > you prefer, you can download a virtual machine image with all the
 > pre-requisites already installed.
 
-<https://tockos.org/events/rustconf2017>
+<https://github.com/helena-project/tock/tree/master/doc/courses/rustconf>
 
 ## Tock is a...
 
