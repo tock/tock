@@ -50,6 +50,10 @@ time:
      
         $ pip3 install -U --user tockloader
 
+10. add tockloader to your path, for example:
+   
+        $ export PATH=$HOME/Library/Python/3.6/bin/:$PATH
+
 ### Virtual Machine
 
 If you're comfortable working inside a Debian virtual machine, you can download
