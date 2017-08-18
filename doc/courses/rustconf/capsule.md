@@ -297,7 +297,7 @@ In order for your capsule to keep track of time, it will need to depend on
 another capsule that implements the Alarm interface. We'll have to do something
 similar for reading the accelerometer, so this is good practice.
 
-The Alarm HIL includes several traits, `Alarm`, `AlarmClient`, and `Frequency`,
+The Alarm HIL includes several traits, `Alarm`, `Client`, and `Frequency`,
 all in the `kernel::hil::time` module. You'll use the `set_alarm` and `now`
 methods from the `Alarm` trait to set an alarm for a particular value of the
 clock. The `Alarm` trait also has an associated type that implements the
@@ -307,8 +307,8 @@ frequency.
 Modify your capsule to have a field of the type `&'a Alarm` and to accept an
 `&'a Alarm` in the `new` function.
 
-Your capsule will also need to implement the `AlarmClient` trait so it can
-receive alarm events. The `AlarmClient` trait has a single method:
+Your capsule will also need to implement the `Client` trait so it can
+receive alarm events. The `Client` trait has a single method:
 
 ```rust
 fn fired(&self)
@@ -408,7 +408,7 @@ initialized). Make sure to set your capsule as its client:
 
 ```rust
 {
-  use hil::ninedof::NineDof
+  use hil::ninedof::NineDof;
   fxos8700.set_client(my_capsule);
 }
 ```
