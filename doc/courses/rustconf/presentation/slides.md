@@ -8,6 +8,12 @@ header-includes:
   - \newcommand{\xmark}{\color{red}\ding{55}}
 ---
 
+> Please make sure you have completed all of the tutorial pre-requisites.  If
+> you prefer, you can download a virtual machine image with all the
+> pre-requisites already installed.
+
+<https://tockos.org/events/rustconf2017>
+
 ## Tock is a...
 
   1. Secure
@@ -93,21 +99,21 @@ Maybe...
 
 ## Binaries on-board
 
-  * Bootloader
+### Bootloader
 
-  * Kernel
+### Kernel
 
-  * Processes
+### Processes
 
 ## Tools
 
-  * `make`
+  * `make` (just instrumenting `xargo`)
 
-  * Rust nightly (`asm!`, compiling `core`)
+  * Rust (nightly for `asm!`, compiling `core`, etc)
 
   * `xargo` to automate compiling base libraries
 
-  * `arm-none-eabi` GCC to link binaries
+  * `arm-none-eabi` GCC/LD to link binaries
 
   * `tockloader` to interact with Hail and the bootloader
 
@@ -141,12 +147,11 @@ $ tockloader listen
   1. What kinds of binaries exist on a Tock board? Hint: There are three, and
      only two can be programmed using `tockloader`.
 
-  2. What are the differences between capsules and processes? What performance
-     and memory overhead does each entail? Why would you choose to write
-     something as a process instead of a capsule and vice versa?
+  2. Can you point to the chip on the Hail that runs the Tock kernel? How about
+     the processes?
 
-  3. Is it acceptable for a process to enter an infinte loop? What about a
-     capsule?
+  3. What steps would you follow to program a processes onto Hail? What about
+     to replace the kernel?
 
 ## Hands-on: Set-up development environment
 
@@ -340,15 +345,14 @@ pub trait NineDofClient {
 
   1. Read the Hail boot sequence in `boards/hail/src/main.rs`
 
-  1. [Create a new capsule that prints "Hello World" to the debug console.]()
+  2. [Write a new capsule that prints "Hello World" to the debug
+     console.](https://gist.github.com/alevy/56b0566e2d1a6ba582b7d4c09968ddc9)
 
-  1. [Create a new capsule that prints "Hello World" to the debug console every
-     second.](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1#file-accelerate-rs)
+  3. [Extend your capsule to print "Hello World" every second](https://gist.github.com/alevy/798d11dbfa5409e0aa56d870b4b7afcf)
 
-  2. [Add your capsule to the boot
-     sequence](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1#file-boot_sequence.rs)
+  4. [Extend your capsule to read and report the accelerometer](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1#file-boot_sequence.rs)
 
-  3. Extend your capsule to sample the 9dof sensor
+  5. Extra Credit: Write a 9dof virtualization capsule.
 
 # Part 3: User space
 
@@ -362,7 +366,7 @@ pub trait NineDofClient {
 | memop     | Core       | Modify memory break              |
 | yield     | Core       | Bloc until next upcall is ready  |
 
-## System calls: Rust
+## Rust System calls: `command` & `allow`
 
 ```rust
 pub unsafe fn command(major: u32, minor: u32,
@@ -370,14 +374,23 @@ pub unsafe fn command(major: u32, minor: u32,
 
 pub unsafe fn allow(major: u32, minor: u32,
                     slice: &[u8]) -> isize;
+```
 
+## Rust System calls: `subscribe`
+
+```rust
 type ExternFn =
   extern fn (usize, usize, usize, *const usize);
 
 pub unsafe fn subscribe(major: u32, minor: u32,
   cb: ExternFn, ud: *const usize) -> isize {
+```
 
+## Rust System calls: `yieldk` & `yieldk_for`
+
+```rust
 pub fn yieldk();
+
 pub fn yieldk_for<F: Fn() -> bool>(cond: F) {
     while !cond() { yieldk(); }
 }
@@ -404,9 +417,9 @@ extern fn callback(_: usize, _: usize, _: usize,
 }
 ```
 
-## Process memory layout
+## Inter Process Communication (IPC)
 
-![](process_layout.png)
+![](ipc.pdf)
 
 ## Current Rust userland
 
@@ -424,11 +437,11 @@ extern fn callback(_: usize, _: usize, _: usize,
 
     * Temperature
 
+  * IPC
+
 ### Caveats
 
   * No global variables allowed!
-
-    * Waiting on LLD 5.0 to be released this month
 
   * Fixed code offset
 
