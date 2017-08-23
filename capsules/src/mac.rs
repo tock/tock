@@ -327,7 +327,9 @@ pub trait RxClient {
 /// key descriptors. This trait interface enables the lookup procedure to be
 /// implemented either explicitly (managing a list of KeyDescriptors) or
 /// implicitly with some equivalent logic.
-pub trait KeyLookupProcedure {
+pub trait KeyProcedure {
+    /// Lookup the KeyDescriptor matching the provided security level and key ID
+    /// mode and return the key associatied with it.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])>;
 }
 
@@ -336,10 +338,11 @@ pub trait KeyLookupProcedure {
 /// device descriptors. This trait interface enables the lookup procedure to be
 /// implemented either explicitly (managing a list of DeviceDescriptors) or
 /// implicitly with some equivalent logic.
-pub trait DeviceLookupProcedure {
+pub trait DeviceProcedure {
     /// Look up the extended MAC address of a device given either its short or
     /// long address. As defined in the IEEE 802.15.4 spec, even if the provided
-    /// address is already
+    /// address is already long, a long address should be returned only if the
+    /// given address matches a known DeviceDescriptor.
     fn lookup_addr_long(&self, addr: MacAddress) -> Option<([u8; 8])>;
 }
 
@@ -395,9 +398,9 @@ pub struct MacDevice<'a, R: radio::Radio + 'a> {
     data_sequence: Cell<u8>,
 
     /// KeyDescriptor lookup procedure
-    key_lookup_procedure: Cell<Option<&'a KeyLookupProcedure>>,
+    key_procedure: Cell<Option<&'a KeyProcedure>>,
     /// DeviceDescriptor lookup procedure
-    device_lookup_procedure: Cell<Option<&'a DeviceLookupProcedure>>,
+    device_procedure: Cell<Option<&'a DeviceProcedure>>,
 
     /// Transmision pipeline state. This should never be `None`, except when
     /// transitioning between states. That is, any method that consumes the
@@ -417,8 +420,8 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
         MacDevice {
             radio: radio,
             data_sequence: Cell::new(0),
-            key_lookup_procedure: Cell::new(None),
-            device_lookup_procedure: Cell::new(None),
+            key_procedure: Cell::new(None),
+            device_procedure: Cell::new(None),
             tx_state: MapCell::new(TxState::Idle),
             tx_client: Cell::new(None),
             rx_state: MapCell::new(RxState::Idle),
@@ -426,19 +429,29 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
         }
     }
 
+    /// Sets the IEEE 802.15.4 key lookup procedure to be used.
+    pub fn set_key_procedure(&self, key_procedure: &'a KeyProcedure) {
+        self.key_procedure.set(Some(key_procedure));
+    }
+
+    /// Sets the IEEE 802.15.4 key lookup procedure to be used.
+    pub fn set_device_procedure(&self, device_procedure: &'a DeviceProcedure) {
+        self.device_procedure.set(Some(device_procedure));
+    }
+
     /// Look up the key using the IEEE 802.15.4 KeyDescriptor lookup prodecure
     /// implemented elsewhere.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])> {
-        self.key_lookup_procedure.get()
-            .and_then(|procedure| procedure.lookup_key(level, key_id))
+        self.key_procedure.get()
+            .and_then(|key_procedure| key_procedure.lookup_key(level, key_id))
     }
 
     /// Look up the extended address of a device using the IEEE 802.15.4
     /// DeviceDescriptor lookup prodecure implemented elsewhere.
     fn lookup_addr_long(&self, src_addr: Option<MacAddress>) -> Option<([u8; 8])> {
         src_addr.and_then(|addr| {
-            self.device_lookup_procedure.get().and_then(|procedure| {
-                procedure.lookup_addr_long(addr)
+            self.device_procedure.get().and_then(|device_procedure| {
+                device_procedure.lookup_addr_long(addr)
             })
         })
     }
