@@ -37,7 +37,7 @@ use mac;
 /// any pending transmission requests. Any received frames from the underlying
 /// MAC device are sent to all users.
 pub struct MuxMac<'a> {
-    mac: &'a mac::Mac,
+    mac: &'a mac::Mac<'a>,
     users: List<'a, MacUser<'a>>,
     inflight: Cell<Option<&'a MacUser<'a>>>,
 }
@@ -61,7 +61,7 @@ impl<'a> mac::RxClient for MuxMac<'a> {
 }
 
 impl<'a> MuxMac<'a> {
-    pub const fn new(mac: &'a mac::Mac) -> MuxMac<'a> {
+    pub const fn new(mac: &'a mac::Mac<'a>) -> MuxMac<'a> {
         MuxMac {
             mac: mac,
             users: List::new(),
@@ -206,7 +206,7 @@ impl<'a> ListNode<'a, MacUser<'a>> for MacUser<'a> {
     }
 }
 
-impl<'a> mac::Mac for MacUser<'a> {
+impl<'a> mac::Mac<'a> for MacUser<'a> {
     fn set_transmit_client(&self, client: &'a mac::TxClient) {
         self.tx_client.set(Some(client));
     }

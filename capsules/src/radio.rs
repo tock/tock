@@ -33,14 +33,14 @@ impl Default for App {
     }
 }
 
-pub struct RadioDriver<'a, M: mac::Mac + 'a> {
+pub struct RadioDriver<'a, M: mac::Mac<'a> + 'a> {
     mac: &'a M,
     busy: Cell<bool>,
     app: MapCell<App>,
     kernel_tx: TakeCell<'static, [u8]>,
 }
 
-impl<'a, M: mac::Mac> RadioDriver<'a, M> {
+impl<'a, M: mac::Mac<'a>> RadioDriver<'a, M> {
     pub fn new(mac: &'a M) -> RadioDriver<'a, M> {
         RadioDriver {
             mac: mac,
@@ -55,7 +55,7 @@ impl<'a, M: mac::Mac> RadioDriver<'a, M> {
     }
 }
 
-impl<'a, M: mac::Mac> Driver for RadioDriver<'a, M> {
+impl<'a, M: mac::Mac<'a>> Driver for RadioDriver<'a, M> {
     fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
@@ -191,7 +191,7 @@ impl<'a, M: mac::Mac> Driver for RadioDriver<'a, M> {
     }
 }
 
-impl<'a, M: mac::Mac> mac::TxClient for RadioDriver<'a, M> {
+impl<'a, M: mac::Mac<'a>> mac::TxClient for RadioDriver<'a, M> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.app.map(move |app| {
             self.kernel_tx.replace(tx_buf);
@@ -203,7 +203,7 @@ impl<'a, M: mac::Mac> mac::TxClient for RadioDriver<'a, M> {
     }
 }
 
-impl<'a, M: mac::Mac> mac::RxClient for RadioDriver<'a, M> {
+impl<'a, M: mac::Mac<'a>> mac::RxClient for RadioDriver<'a, M> {
     fn receive<'b>(&self,
                    buf: &'b [u8],
                    /* We ignore the header because we pass the entire frame to

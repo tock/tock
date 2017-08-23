@@ -215,11 +215,11 @@ pub const CRYPT_BUF_SIZE: usize = radio::MAX_MTU + 3 * 16;
 /// divide the responsibilities of software and hardware differently. For
 /// example, a radio chip might be able to completely inline the frame security
 /// procedure in hardware, as opposed to requiring a software implementation.
-pub trait Mac {
+pub trait Mac<'a> {
     /// Sets the transmission client of this MAC device
-    fn set_transmit_client(&self, client: &'static TxClient);
+    fn set_transmit_client(&self, client: &'a TxClient);
     /// Sets the receive client of this MAC device
-    fn set_receive_client(&self, client: &'static RxClient);
+    fn set_receive_client(&self, client: &'a RxClient);
 
     /// The short 16-bit address of the MAC device
     fn get_address(&self) -> u16;
@@ -322,6 +322,27 @@ pub trait RxClient {
     fn receive<'a>(&self, buf: &'a [u8], header: Header<'a>, data_offset: usize, data_len: usize);
 }
 
+/// IEEE 802.15.4-2015, 9.2.2, KeyDescriptor lookup procedure.
+/// Trait to be implemented by an upper layer that manages the list of 802.15.4
+/// key descriptors. This trait interface enables the lookup procedure to be
+/// implemented either explicitly (managing a list of KeyDescriptors) or
+/// implicitly with some equivalent logic.
+pub trait KeyLookupProcedure {
+    fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])>;
+}
+
+/// IEEE 802.15.4-2015, 9.2.5, DeviceDescriptor lookup procedure.
+/// Trait to be implemented by an upper layer that manages the list of 802.15.4
+/// device descriptors. This trait interface enables the lookup procedure to be
+/// implemented either explicitly (managing a list of DeviceDescriptors) or
+/// implicitly with some equivalent logic.
+pub trait DeviceLookupProcedure {
+    /// Look up the extended MAC address of a device given either its short or
+    /// long address. As defined in the IEEE 802.15.4 spec, even if the provided
+    /// address is already
+    fn lookup_addr_long(&self, addr: MacAddress) -> Option<([u8; 8])>;
+}
+
 /// This state enum describes the state of the transmission pipeline.
 /// Conditionally-present state is also included as fields in the enum variants.
 /// We can view the transmission process as a state machine driven by the
@@ -373,17 +394,22 @@ pub struct MacDevice<'a, R: radio::Radio + 'a> {
     radio: &'a R,
     data_sequence: Cell<u8>,
 
+    /// KeyDescriptor lookup procedure
+    key_lookup_procedure: Cell<Option<&'a KeyLookupProcedure>>,
+    /// DeviceDescriptor lookup procedure
+    device_lookup_procedure: Cell<Option<&'a DeviceLookupProcedure>>,
+
     /// Transmision pipeline state. This should never be `None`, except when
     /// transitioning between states. That is, any method that consumes the
     /// current state should always remember to replace it along with the
     /// associated state information.
     tx_state: MapCell<TxState>,
-    tx_client: Cell<Option<&'static TxClient>>,
+    tx_client: Cell<Option<&'a TxClient>>,
 
     /// Reception pipeline state. Similar to the above, this should never be
     /// `None`, except when transitioning between states.
     rx_state: MapCell<RxState>,
-    rx_client: Cell<Option<&'static RxClient>>,
+    rx_client: Cell<Option<&'a RxClient>>,
 }
 
 impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
@@ -391,6 +417,8 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
         MacDevice {
             radio: radio,
             data_sequence: Cell::new(0),
+            key_lookup_procedure: Cell::new(None),
+            device_lookup_procedure: Cell::new(None),
             tx_state: MapCell::new(TxState::Idle),
             tx_client: Cell::new(None),
             rx_state: MapCell::new(RxState::Idle),
@@ -398,23 +426,21 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
         }
     }
 
-    /// TODO: Look up the key in the list of thread neighbors
-    #[allow(unused_variables, dead_code)]
+    /// Look up the key using the IEEE 802.15.4 KeyDescriptor lookup prodecure
+    /// implemented elsewhere.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])> {
-        let fake_key = [0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB,
-                        0xCC, 0xCD, 0xCE, 0xCF];
-        if level == SecurityLevel::None {
-            None
-        } else {
-            Some(fake_key)
-        }
+        self.key_lookup_procedure.get()
+            .and_then(|procedure| procedure.lookup_key(level, key_id))
     }
 
-    /// TODO: Look up the extended device address from a short address
-    #[allow(unused_variables, dead_code)]
+    /// Look up the extended address of a device using the IEEE 802.15.4
+    /// DeviceDescriptor lookup prodecure implemented elsewhere.
     fn lookup_addr_long(&self, src_addr: Option<MacAddress>) -> Option<([u8; 8])> {
-        let fake_addr = [0xac, 0xde, 0x48, 0, 0, 0, 0, 1];
-        Some(fake_addr)
+        src_addr.and_then(|addr| {
+            self.device_lookup_procedure.get().and_then(|procedure| {
+                procedure.lookup_addr_long(addr)
+            })
+        })
     }
 
     /// IEEE 802.15.4-2015, 9.2.1, outgoing frame security procedure
@@ -476,6 +502,10 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
                         };
 
                         // Step f: Obtain the extended source address
+                        // TODO: For Thread, when the frame's security header
+                        // specifies `KeyIdMode::Source4Index`, the source
+                        // address used for the nonce is actually a constant
+                        // defined in their spec
                         let device_addr = match self.lookup_addr_long(header.src_addr) {
                             Some(addr) => addr,
                             None => {
@@ -664,12 +694,12 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
     }
 }
 
-impl<'a, R: radio::Radio + 'a> Mac for MacDevice<'a, R> {
-    fn set_transmit_client(&self, client: &'static TxClient) {
+impl<'a, R: radio::Radio + 'a> Mac<'a> for MacDevice<'a, R> {
+    fn set_transmit_client(&self, client: &'a TxClient) {
         self.tx_client.set(Some(client));
     }
 
-    fn set_receive_client(&self, client: &'static RxClient) {
+    fn set_receive_client(&self, client: &'a RxClient) {
         self.rx_client.set(Some(client));
     }
 
@@ -731,6 +761,10 @@ impl<'a, R: radio::Radio + 'a> Mac for MacDevice<'a, R> {
                           -> Result<Frame, &'static mut [u8]> {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
         // Steps a-e of the security procedure are implemented here.
+
+        // TODO: For Thread, in the case of `KeyIdMode::Source4Index`, the source
+        // address should instead be some constant defined in their
+        // specification.
         let src_addr_long = self.get_address_long();
         let security_desc = security_needed.and_then(|(level, key_id)| {
             self.lookup_key(level, key_id).map(|key| {
