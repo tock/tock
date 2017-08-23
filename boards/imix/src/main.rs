@@ -8,7 +8,7 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
-use capsules::mac::Mac;
+use capsules::ieee802154::mac::Mac;
 use capsules::rf233::RF233;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -407,21 +407,21 @@ pub unsafe fn reset_handler() {
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
 
     let rf233_mac = static_init!(
-        capsules::mac::MacDevice<'static, RF233Device>,
-        capsules::mac::MacDevice::new(rf233));
+        capsules::ieee802154::mac::MacDevice<'static, RF233Device>,
+        capsules::ieee802154::mac::MacDevice::new(rf233));
     rf233.set_transmit_client(rf233_mac);
     rf233.set_receive_client(rf233_mac, &mut RF233_RX_BUF);
     rf233.set_config_client(rf233_mac);
 
     let mux_mac = static_init!(
-        capsules::virtual_mac::MuxMac<'static>,
-        capsules::virtual_mac::MuxMac::new(rf233_mac));
+        capsules::ieee802154::virtual_mac::MuxMac<'static>,
+        capsules::ieee802154::virtual_mac::MuxMac::new(rf233_mac));
     rf233_mac.set_transmit_client(mux_mac);
     rf233_mac.set_receive_client(mux_mac);
 
     let radio_mac = static_init!(
-        capsules::virtual_mac::MacUser<'static>,
-        capsules::virtual_mac::MacUser::new(mux_mac));
+        capsules::ieee802154::virtual_mac::MacUser<'static>,
+        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac));
     mux_mac.add_user(radio_mac);
 
     let radio_driver = static_init!(

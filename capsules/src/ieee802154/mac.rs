@@ -21,8 +21,8 @@
 //! ```rust
 //! let radio: RF233Device = /* ... */;
 //! let radio_mac = static_init!(
-//!     capsules::mac::MacDevice<'static, RF233Device>,
-//!     capsules::mac::MacDevice::new(radio));
+//!     capsules::ieee802154::mac::MacDevice<'static, RF233Device>,
+//!     capsules::ieee802154::mac::MacDevice::new(radio));
 //! rf233.set_transmit_client(radio_mac);
 //! rf233.set_receive_client(radio_mac, &mut RF233_RX_BUF);
 //! rf233.set_config_client(radio_mac);
@@ -56,9 +56,8 @@
 //! 802.15.4 frames:
 //! ```rust
 //! let radio_capsule = static_init!(
-//!     capsules::radio::RadioDriver<'static,
-//!                                  capsules::mac::MacDevice<'static, RF233Device>>,
-//!     capsules::radio::RadioDriver::new(radio_mac));
+//!     capsules::ieee802154::RadioDriver<'static>,
+//!     capsules::ieee802154::RadioDriver::new(radio_mac));
 //! radio_capsule.config_buffer(&mut RADIO_BUF);
 //! radio_mac.set_transmit_client(radio_capsule);
 //! radio_mac.set_receive_client(radio_capsule);

@@ -14,15 +14,15 @@
 //! ```
 //! // Create the mux.
 //! let mux_mac = static_init!(
-//!     capsules::virtual_mac::MuxMac<'static>,
-//!     capsules::virtual_mac::MuxMac::new(&'static mac_device));
+//!     capsules::ieee802154::virtual_mac::MuxMac<'static>,
+//!     capsules::ieee802154::virtual_mac::MuxMac::new(&'static mac_device));
 //! mac_device.set_transmit_client(mux_mac);
 //! mac_device.set_receive_client(mux_mac);
 //!
 //! // Everything that uses the virtualized MAC device must create one of these.
 //! let virtual_mac = static_init!(
-//!     capsules::virtual_mac::MacUser<'static>,
-//!     capsules::virtual_mac::MacUser::new(mux_mac));
+//!     capsules::ieee802154::virtual_mac::MacUser<'static>,
+//!     capsules::ieee802154::virtual_mac::MacUser::new(mux_mac));
 //! mux_mac.add_user(virtual_mac);
 //! ```
 
@@ -31,7 +31,7 @@ use kernel::ReturnCode;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::common::take_cell::MapCell;
 use net::ieee802154::*;
-use mac;
+use ieee802154::mac;
 
 /// IEE 802.15.4 MAC device muxer that keeps a list of MAC users and sequences
 /// any pending transmission requests. Any received frames from the underlying

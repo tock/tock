@@ -47,8 +47,6 @@ pub mod usb_user;
 pub mod usbc_client;
 #[macro_use]
 pub mod net;
-pub mod mac;
-pub mod virtual_mac;
 pub mod ieee802154;
 pub mod temperature;
 pub mod humidity;

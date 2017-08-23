@@ -8,8 +8,8 @@ use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::ReturnCode;
 
-use mac;
 use net::ieee802154::{MacAddress, Header, SecurityLevel, KeyId};
+use ieee802154::mac;
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
