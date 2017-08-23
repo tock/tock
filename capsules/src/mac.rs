@@ -216,6 +216,11 @@ pub const CRYPT_BUF_SIZE: usize = radio::MAX_MTU + 3 * 16;
 /// example, a radio chip might be able to completely inline the frame security
 /// procedure in hardware, as opposed to requiring a software implementation.
 pub trait Mac {
+    /// Sets the transmission client of this MAC device
+    fn set_transmit_client(&self, client: &'static TxClient);
+    /// Sets the receive client of this MAC device
+    fn set_receive_client(&self, client: &'static RxClient);
+
     /// The short 16-bit address of the MAC device
     fn get_address(&self) -> u16;
     /// The long 64-bit address (EUI-64) of the MAC device
@@ -391,14 +396,6 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
             rx_state: MapCell::new(RxState::Idle),
             rx_client: Cell::new(None),
         }
-    }
-
-    pub fn set_transmit_client(&self, client: &'static TxClient) {
-        self.tx_client.set(Some(client));
-    }
-
-    pub fn set_receive_client(&self, client: &'static RxClient) {
-        self.rx_client.set(Some(client));
     }
 
     /// TODO: Look up the key in the list of thread neighbors
@@ -668,6 +665,14 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
 }
 
 impl<'a, R: radio::Radio + 'a> Mac for MacDevice<'a, R> {
+    fn set_transmit_client(&self, client: &'static TxClient) {
+        self.tx_client.set(Some(client));
+    }
+
+    fn set_receive_client(&self, client: &'static RxClient) {
+        self.rx_client.set(Some(client));
+    }
+
     fn get_address(&self) -> u16 {
         self.radio.get_address()
     }

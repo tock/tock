@@ -49,6 +49,7 @@ pub mod usbc_client;
 #[macro_use]
 pub mod net;
 pub mod mac;
+pub mod virtual_mac;
 pub mod temperature;
 pub mod humidity;
 //pub mod nrf_internal_temp_sensor;

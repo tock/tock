@@ -61,8 +61,7 @@ struct Imix {
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
-    radio: &'static capsules::radio::RadioDriver<'static,
-                                                 capsules::mac::MacDevice<'static, RF233Device>>,
+    radio: &'static capsules::radio::RadioDriver<'static, capsules::virtual_mac::MacUser<'static>>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb_user::UsbSyscallDriver<'static,
                         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
@@ -407,19 +406,30 @@ pub unsafe fn reset_handler() {
     rf233_spi.set_client(rf233);
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
 
-    let radio_mac = static_init!(
+    let rf233_mac = static_init!(
         capsules::mac::MacDevice<'static, RF233Device>,
         capsules::mac::MacDevice::new(rf233));
+    rf233.set_transmit_client(rf233_mac);
+    rf233.set_receive_client(rf233_mac, &mut RF233_RX_BUF);
+    rf233.set_config_client(rf233_mac);
+
+    let mux_mac = static_init!(
+        capsules::virtual_mac::MuxMac<'static>,
+        capsules::virtual_mac::MuxMac::new(rf233_mac));
+    rf233_mac.set_transmit_client(mux_mac);
+    rf233_mac.set_receive_client(mux_mac);
+
+    let radio_mac = static_init!(
+        capsules::virtual_mac::MacUser<'static>,
+        capsules::virtual_mac::MacUser::new(mux_mac));
+    mux_mac.add_user(radio_mac);
+
     let radio_capsule = static_init!(
-        capsules::radio::RadioDriver<'static,
-                                     capsules::mac::MacDevice<'static, RF233Device>>,
+        capsules::radio::RadioDriver<'static, capsules::virtual_mac::MacUser<'static>>,
         capsules::radio::RadioDriver::new(radio_mac));
     radio_capsule.config_buffer(&mut RADIO_BUF);
     radio_mac.set_transmit_client(radio_capsule);
     radio_mac.set_receive_client(radio_capsule);
-    rf233.set_transmit_client(radio_mac);
-    rf233.set_receive_client(radio_mac, &mut RF233_RX_BUF);
-    rf233.set_config_client(radio_mac);
     radio_mac.set_pan(0xABCD);
     radio_mac.set_address(0x1008);
 
