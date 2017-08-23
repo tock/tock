@@ -1,8 +1,9 @@
 Tock Documentation
 ==================
 
-Here you can find guides on how Tock works as well as [tutorials](tutorials)
-on how to use Tock, and [reference documents](reference) that detail internal interfaces.
+Here you can find guides on how Tock works, as well as short [tutorials](tutorials)
+and longer [workshop-style courses](courses) on how to use Tock, and
+[reference documents](reference) that detail internal interfaces.
 
 Tock Guides
 -----------
