@@ -154,41 +154,43 @@ pub unsafe fn reset_handler() {
     uicr.set_psel1_reset_pin(BUTTON_RST_PIN);
 
     // GPIOs
-    // FIXME: Test if it works and remove un-commented code!
+    // This complies with the actual port numbers but it can write over reserved pins for
+    // UART, Buttons, LEDs etc if the application is not careful
+    // e.g. gpio_toggle(1) will toggle P0.01
     let gpio_pins = static_init!(
-        [&'static nrf52::gpio::GPIOPin; 15],
-        [&nrf52::gpio::PORT[3],  // Bottom left header on DK board
-        &nrf52::gpio::PORT[4],   //
-        &nrf52::gpio::PORT[28],  //
-        &nrf52::gpio::PORT[29],  //
-        &nrf52::gpio::PORT[30],  //
-        &nrf52::gpio::PORT[31],  // -----
-        &nrf52::gpio::PORT[10],  // Top right header on DK board
-        &nrf52::gpio::PORT[9],   //
-        &nrf52::gpio::PORT[8],   //
-        &nrf52::gpio::PORT[7],   //
-        &nrf52::gpio::PORT[6],   //
-        &nrf52::gpio::PORT[5],   //
-        &nrf52::gpio::PORT[21],  //
-        &nrf52::gpio::PORT[1],   //
-        &nrf52::gpio::PORT[0],   // -----
-        /*&nrf52::gpio::PORT[18],  // Top mid header on DK board
-        &nrf52::gpio::PORT[17],  //
-        &nrf52::gpio::PORT[16],  //
-        &nrf52::gpio::PORT[15],  //
-        &nrf52::gpio::PORT[14],  //
-        &nrf52::gpio::PORT[13],  //
-        &nrf52::gpio::PORT[12],  //
-        &nrf52::gpio::PORT[11],  // ----
-        &nrf52::gpio::PORT[27],  // Top left header on DK board
-        &nrf52::gpio::PORT[26],  //
-        &nrf52::gpio::PORT[2],  //
-        &nrf52::gpio::PORT[25],  //
-        &nrf52::gpio::PORT[24],  //
-        &nrf52::gpio::PORT[23],  //
-        &nrf52::gpio::PORT[22],  //
-        &nrf52::gpio::PORT[20],  //
-        &nrf52::gpio::PORT[19],  // ----*/
+        [&'static nrf52::gpio::GPIOPin; 32],
+        [&nrf52::gpio::PORT[0],
+        &nrf52::gpio::PORT[1],
+        &nrf52::gpio::PORT[2],
+        &nrf52::gpio::PORT[3],
+        &nrf52::gpio::PORT[4],
+        &nrf52::gpio::PORT[5],  // UART RTS
+        &nrf52::gpio::PORT[6],  // UART TXD
+        &nrf52::gpio::PORT[7],  // UART CTS
+        &nrf52::gpio::PORT[8],  // UART RXD
+        &nrf52::gpio::PORT[9],  // NFC1 not configured though
+        &nrf52::gpio::PORT[10], // NFC2 not configured though
+        &nrf52::gpio::PORT[11],
+        &nrf52::gpio::PORT[12],
+        &nrf52::gpio::PORT[13], // Button1
+        &nrf52::gpio::PORT[14], // Button2
+        &nrf52::gpio::PORT[15], // Button3
+        &nrf52::gpio::PORT[16], // Button4
+        &nrf52::gpio::PORT[17], // LED1
+        &nrf52::gpio::PORT[18], // LED2
+        &nrf52::gpio::PORT[19], // LED3
+        &nrf52::gpio::PORT[20], // LED4
+        &nrf52::gpio::PORT[21], // Button_Reset
+        &nrf52::gpio::PORT[22],
+        &nrf52::gpio::PORT[23],
+        &nrf52::gpio::PORT[24],
+        &nrf52::gpio::PORT[25],
+        &nrf52::gpio::PORT[26],
+        &nrf52::gpio::PORT[27],
+        &nrf52::gpio::PORT[28],
+        &nrf52::gpio::PORT[29],
+        &nrf52::gpio::PORT[30],
+        &nrf52::gpio::PORT[31],
         ],
         4 * 11);
 
