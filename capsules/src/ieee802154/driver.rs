@@ -6,7 +6,7 @@ use core::cell::Cell;
 use core::cmp;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
-use kernel::ReturnCode;
+use kernel::{Container, ReturnCode};
 
 use net::ieee802154::{MacAddress, Header, SecurityLevel, KeyId};
 use ieee802154::mac;
@@ -46,6 +46,30 @@ impl Default for KeyDescriptor {
     }
 }
 
+pub struct App {
+    tx_callback: Option<Callback>,
+    rx_callback: Option<Callback>,
+    app_read: Option<AppSlice<Shared, u8>>,
+    app_write: Option<AppSlice<Shared, u8>>,
+    app_cfg: Option<AppSlice<Shared, u8>>,
+    pending_tx: Option<(usize, u16)>,
+    tx_security: Option<(SecurityLevel, KeyId)>,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        App {
+            tx_callback: None,
+            rx_callback: None,
+            app_read: None,
+            app_write: None,
+            app_cfg: None,
+            pending_tx: None,
+            tx_security: None,
+        }
+    }
+}
+
 pub struct RadioDriver<'a> {
     /// Underlying MAC device, possibly multiplexed
     mac: &'a mac::Mac<'a>,
@@ -61,16 +85,29 @@ pub struct RadioDriver<'a> {
     keys: MapCell<[KeyDescriptor; MAX_KEYS]>,
     /// Actual number of keys in the fixed size array of keys.
     num_keys: Cell<usize>,
+
+    /// Container of apps that use this radio driver.
+    apps: Container<App>,
+    /// ID of app whose transmission request is being processed.
+    current_app: Cell<Option<AppId>>,
+
+    /// Buffer that stores the IEEE 802.15.4 frame to be transmitted.
+    kernel_tx: TakeCell<'static, [u8]>,
 }
 
 impl<'a> RadioDriver<'a> {
-    pub fn new(mac: &'a mac::Mac<'a>) -> RadioDriver<'a> {
+    pub fn new(mac: &'a mac::Mac<'a>,
+               container: Container<App>,
+               kernel_tx: &'static mut [u8]) -> RadioDriver<'a> {
         RadioDriver {
             mac: mac,
             neighbors: MapCell::new(Default::default()),
             num_neighbors: Cell::new(0),
             keys: MapCell::new(Default::default()),
             num_keys: Cell::new(0),
+            apps: container,
+            current_app: Cell::new(None),
+            kernel_tx: TakeCell::new(kernel_tx),
         }
     }
 
@@ -216,7 +253,7 @@ impl<'a> mac::KeyProcedure for RadioDriver<'a> {
 }
 
 impl<'a> Driver for RadioDriver<'a> {
-    fn allow(&self, _appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(&self, app_id: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -228,8 +265,8 @@ impl<'a> Driver for RadioDriver<'a> {
         }
     }
 
-    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
-        match cmd_num {
+    fn command(&self, command_num: usize, arg1: usize, app_id: AppId) -> ReturnCode {
+        match command_num {
             _ => ReturnCode::ENOSUPPORT,
         }
     }

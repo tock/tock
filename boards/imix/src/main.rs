@@ -426,8 +426,9 @@ pub unsafe fn reset_handler() {
 
     let radio_driver = static_init!(
         capsules::ieee802154::RadioDriver<'static>,
-        capsules::ieee802154::RadioDriver::new(radio_mac));
-    // radio_driver.config_buffer(&mut RADIO_BUF);
+        capsules::ieee802154::RadioDriver::new(radio_mac,
+                                               kernel::Container::create(),
+                                               &mut RADIO_BUF));
     rf233_mac.set_key_procedure(radio_driver);
     rf233_mac.set_device_procedure(radio_driver);
     // radio_mac.set_transmit_client(radio_driver);
