@@ -19,3 +19,4 @@ cortexm0 = { path = "../../arch/cortex-m0" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 nrf51 = { path = "../../chips/nrf51" }
+nrf5x = { path = "../../chips/nrf5x" }

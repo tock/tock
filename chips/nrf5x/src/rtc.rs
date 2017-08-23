@@ -1,4 +1,3 @@
-use chip;
 use core::cell::Cell;
 use core::mem;
 use kernel::hil::Controller;
@@ -97,12 +96,4 @@ impl Alarm for Rtc {
     fn get_alarm(&self) -> u32 {
         rtc1().cc[0].get()
     }
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn RTC1_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(NvicIdx::RTC1);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::RTC1);
 }

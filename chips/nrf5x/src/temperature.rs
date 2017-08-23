@@ -6,7 +6,6 @@
 //! Author: Fredrik Nilsson <frednils@student.chalmers.se>
 //! Date: March 03, 2017
 
-use chip;
 use core::cell::Cell;
 use kernel;
 use nvic;
@@ -35,6 +34,7 @@ impl Temperature {
         }
     }
 
+    // MEASUREMENT DONE
     pub fn handle_interrupt(&self) {
         // disable interrupts
         self.disable_nvic();
@@ -43,10 +43,14 @@ impl Temperature {
 
         // get temperature
         // Result of temperature measurement in °C, 2's complement format, 0.25 °C
-        let temp = (regs.TEMP.get() / 4) * 100;
+        let temp = (regs.temp.get() / 4) * 100;
 
         // stop measurement
-        regs.STOP.set(NRF_TEMP_DISABLE);
+        regs.task_stop.set(NRF_TEMP_DISABLE);
+
+        // disable interrupts
+        self.disable_nvic();
+        self.disable_interrupts();
 
         // trigger callback with temperature
         self.client
@@ -57,12 +61,12 @@ impl Temperature {
 
     fn enable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.INTENSET.set(NRF_TEMP_DATARDY_INTR);
+        regs.intenset.set(NRF_TEMP_DATARDY_INTR);
     }
 
     fn disable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.INTENCLR.set(NRF_TEMP_DATARDY_INTR);
+        regs.intenclr.set(NRF_TEMP_DATARDY_INTR);
     }
 
     fn enable_nvic(&self) {
@@ -79,20 +83,12 @@ impl kernel::hil::sensors::TemperatureDriver for Temperature {
         let regs = unsafe { &*self.regs };
         self.enable_nvic();
         self.enable_interrupts();
-        regs.DATARDY.set(NRF_TEMP_DISABLE);
-        regs.START.set(NRF_TEMP_ENABLE);
+        regs.event_datardy.set(NRF_TEMP_DISABLE);
+        regs.task_start.set(NRF_TEMP_ENABLE);
         kernel::ReturnCode::SUCCESS
     }
 
     fn set_client(&self, client: &'static kernel::hil::sensors::TemperatureClient) {
         self.client.set(Some(client));
     }
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn TEMP_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(peripheral_interrupts::NvicIdx::TEMP);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(peripheral_interrupts::NvicIdx::TEMP);
 }

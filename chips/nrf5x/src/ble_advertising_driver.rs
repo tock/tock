@@ -66,13 +66,12 @@
 //! Date: June 22, 2017
 
 
+use ble_advertising_hil;
 use core::cell::Cell;
 use kernel;
 use kernel::hil::time::Frequency;
 use kernel::process::Error;
 use kernel::returncode::ReturnCode;
-use radio;
-
 
 pub static mut BUF: [u8; 32] = [0; 32];
 
@@ -111,10 +110,6 @@ pub const BLE_GAP_SCAN_MODE_DIR: usize = 0x04;
 pub const BLE_GAP_SCAN_MODE_UND: usize = 0x05;
 
 
-// Temporary trait for BLE
-pub trait RxClient {
-    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
-}
 
 
 #[derive(Default)]
@@ -124,8 +119,11 @@ pub struct App {
     scan_callback: Option<kernel::Callback>,
 }
 
-pub struct BLE<'a, A: kernel::hil::time::Alarm + 'a> {
-    radio: &'a radio::Radio,
+pub struct BLE<'a, B, A>
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
+{
+    radio: &'a B,
     busy: Cell<bool>,
     app: kernel::Container<App>,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
@@ -135,12 +133,15 @@ pub struct BLE<'a, A: kernel::hil::time::Alarm + 'a> {
     offset: Cell<usize>,
 }
 
-impl<'a, A: kernel::hil::time::Alarm + 'a> BLE<'a, A> {
-    pub fn new(radio: &'a radio::Radio,
+impl<'a, B, A> BLE<'a, B, A>
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
+{
+    pub fn new(radio: &'a B,
                container: kernel::Container<App>,
                tx_buf: &'static mut [u8],
                alarm: &'a A)
-               -> BLE<'a, A> {
+               -> BLE<'a, B, A> {
         BLE {
             radio: radio,
             busy: Cell::new(false),
@@ -161,29 +162,24 @@ impl<'a, A: kernel::hil::time::Alarm + 'a> BLE<'a, A> {
     fn set_adv_data(&self, ad_type: usize) -> ReturnCode {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
-                app.app_write
-                    .as_ref()
-                    .map(|slice| {
-                        let len = slice.len();
-                        // Each AD TYP consists of TYPE (1 byte), LENGTH (1 byte) and
-                        // PAYLOAD (0 - 31 bytes)
-                        // This is why we add 2 to start the payload at the correct position.
-                        let i = self.offset.get() + len + 2;
-                        if i <= 31 {
-                            self.kernel_tx
-                                .take()
-                                .map(|data| {
-                                    for (out, inp) in data.iter_mut()
-                                        .zip(slice.as_ref()[0..len].iter()) {
-                                        *out = *inp;
-                                    }
-                                    let tmp = self.radio
-                                        .set_adv_data(ad_type, data, len, self.offset.get() + 8);
-                                    self.kernel_tx.replace(tmp);
-                                    self.offset.set(i);
-                                });
-                        }
-                    });
+                app.app_write.as_ref().map(|slice| {
+                    let len = slice.len();
+                    // Each AD TYP consists of TYPE (1 byte), LENGTH (1 byte) and
+                    // PAYLOAD (0 - 31 bytes)
+                    // This is why we add 2 to start the payload at the correct position.
+                    let i = self.offset.get() + len + 2;
+                    if i <= 31 {
+                        self.kernel_tx.take().map(|data| {
+                            for (out, inp) in data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
+                                *out = *inp;
+                            }
+                            let tmp = self.radio
+                                .set_advertisement_data(ad_type, data, len, self.offset.get() + 8);
+                            self.kernel_tx.replace(tmp);
+                            self.offset.set(i);
+                        });
+                    }
+                });
             });
         }
         ReturnCode::SUCCESS
@@ -194,21 +190,17 @@ impl<'a, A: kernel::hil::time::Alarm + 'a> BLE<'a, A> {
         let mut ret = ReturnCode::FAIL;
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
-                app.app_write
-                    .as_ref()
-                    .map(|slice| if slice.len() == 6 {
-                        self.kernel_tx
-                            .take()
-                            .map(|data| {
-                                for (out, inp) in data.iter_mut()
-                                    .zip(slice.as_ref()[0..slice.len()].iter()) {
-                                    *out = *inp;
-                                }
-                                let tmp = self.radio.set_advertisement_address(data);
-                                self.kernel_tx.replace(tmp);
-                                ret = ReturnCode::SUCCESS;
-                            });
+                app.app_write.as_ref().map(|slice| if slice.len() == 6 {
+                    self.kernel_tx.take().map(|data| {
+                        for (out, inp) in data.iter_mut()
+                            .zip(slice.as_ref()[0..slice.len()].iter()) {
+                            *out = *inp;
+                        }
+                        let tmp = self.radio.set_advertisement_address(data);
+                        self.kernel_tx.replace(tmp);
+                        ret = ReturnCode::SUCCESS;
                     });
+                });
             });
         }
         ret
@@ -220,22 +212,28 @@ impl<'a, A: kernel::hil::time::Alarm + 'a> BLE<'a, A> {
     }
 }
 
-impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::hil::time::Client for BLE<'a, A> {
+impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
+{
     // this method is called once the virtual timer has been expired
     // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
         if self.busy.get() {
             if self.is_advertising.get() {
-                self.radio.start_adv_tx(37);
+                self.radio.start_advertisement_tx(37);
             } else {
-                self.radio.start_adv_rx();
+                self.radio.start_advertisement_rx(37);
             }
             self.configure_periodic_alarm();
         }
     }
 }
 
-impl<'a, A: kernel::hil::time::Alarm + 'a> RxClient for BLE<'a, A> {
+impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
+{
     fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
@@ -255,7 +253,10 @@ impl<'a, A: kernel::hil::time::Alarm + 'a> RxClient for BLE<'a, A> {
 }
 
 // Implementation of SYSCALL interface
-impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::Driver for BLE<'a, A> {
+impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
+{
     fn command(&self, command_num: usize, data: usize, _: kernel::AppId) -> ReturnCode {
         match (command_num, self.busy.get()) {
             // START BLE
@@ -271,7 +272,7 @@ impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::Driver for BLE<'a, A> {
                 self.busy.set(false);
                 ReturnCode::SUCCESS
             }
-            (2, false) => self.radio.set_adv_txpower(data),
+            (2, false) => self.radio.set_advertisement_txpower(data),
             (3, false) => {
                 if data < 20 {
                     self.advertisement_interval.set(20 * <A::Frequency>::frequency() / 1000);
@@ -382,6 +383,7 @@ impl<'a, A: kernel::hil::time::Alarm + 'a> kernel::Driver for BLE<'a, A> {
             (_, _) => ReturnCode::ENOSUPPORT,
         }
     }
+
 
     fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
         match subscribe_num {

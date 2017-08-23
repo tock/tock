@@ -3,9 +3,8 @@ use core::cell::Cell;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart;
-use nvic;
-use peripheral_interrupts::NvicIdx;
-use pinmux::Pinmux;
+use nrf5x;
+use nrf5x::pinmux::Pinmux;
 
 #[repr(C, packed)]
 pub struct Registers {
@@ -119,11 +118,11 @@ impl UART {
     }
 
     pub fn enable_nvic(&self) {
-        nvic::enable(NvicIdx::UART0);
+        nrf5x::nvic::enable(nrf5x::peripheral_interrupts::NvicIdx::UART0);
     }
 
     pub fn disable_nvic(&self) {
-        nvic::disable(NvicIdx::UART0);
+        nrf5x::nvic::disable(nrf5x::peripheral_interrupts::NvicIdx::UART0);
     }
 
     pub fn enable_rx_interrupts(&self) {
@@ -250,6 +249,6 @@ impl uart::UART for UART {
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn UART0_Handler() {
     use kernel::common::Queue;
-    nvic::disable(NvicIdx::UART0);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::UART0);
+    nrf5x::nvic::disable(nrf5x::peripheral_interrupts::NvicIdx::UART0);
+    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nrf5x::peripheral_interrupts::NvicIdx::UART0);
 }

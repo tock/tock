@@ -3,7 +3,6 @@
 //! Author: Philip Levis <pal@cs.stanford.edu>
 //! Date: August 18, 2016
 
-use chip;
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
@@ -273,11 +272,3 @@ pub static mut PORT: Port = Port {
            GPIOPin::new(30),
            GPIOPin::new(31)],
 };
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn GPIOTE_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(NvicIdx::GPIOTE);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(NvicIdx::GPIOTE);
-}
