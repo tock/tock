@@ -118,6 +118,19 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
         })
     }
 
+    /// Behaves the same as `map`, except the closure is allowed to return
+    /// an `Option`.
+    pub fn and_then<F, R>(&self, closure: F) -> Option<R>
+        where F: FnOnce(&mut T) -> Option<R>
+    {
+        let maybe_val = self.take();
+        maybe_val.and_then(|mut val| {
+            let res = closure(&mut val);
+            self.replace(val);
+            res
+        })
+    }
+
     /// Uses the first closure (`modify`) to modify the value in the `TakeCell`
     /// if it is present, otherwise, fills the `TakeCell` with the result of
     /// `mkval`.
@@ -252,6 +265,22 @@ impl<T> MapCell<T> {
         where F: FnOnce(&mut T) -> R
     {
         self.map(closure).unwrap_or(default)
+    }
+
+    /// Behaves the same as `map`, except the closure is allowed to return
+    /// an `Option`.
+    pub fn and_then<F, R>(&self, closure: F) -> Option<R>
+        where F: FnOnce(&mut T) -> Option<R>
+    {
+        if self.is_some() {
+            self.occupied.set(false);
+            let valref = unsafe { &mut *self.val.get() };
+            let res = closure(valref);
+            self.occupied.set(true);
+            res
+        } else {
+            None
+        }
     }
 
     pub fn modify_or_replace<F, G>(&self, modify: F, mkval: G)
