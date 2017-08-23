@@ -46,22 +46,22 @@ time:
 
 8. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 
-> Note that you can install the version packaged by your Linux distribution,
-> but make sure you install the newlib port as well. For instance, on Debian or
-> Ubuntu, install both gcc-arm-none-eabi and libnewlib-arm-none-eabi.
+    > Note that you can install the version packaged by your Linux distribution,
+    > but make sure you install the newlib port as well. For instance, on Debian or
+    > Ubuntu, install both gcc-arm-none-eabi and libnewlib-arm-none-eabi.
 
 9. [tockloader](https://github.com/helena-project/tockloader)
      
         $ pip3 install -U --user tockloader
 
-> Note: On MacOS, you may need to add `tockloader` to your path. If you
-> cannot run it after installation, run the following:
+    > Note: On MacOS, you may need to add `tockloader` to your path. If you
+    > cannot run it after installation, run the following:
 
         $ export PATH=$HOME/Library/Python/3.6/bin/:$PATH
 
-> Similarly, on Linux distributions, this will typically install to
-> `$HOME/.local/bin`, and you may need to add that to your `$PATH` if not
-> already present:
+    > Similarly, on Linux distributions, this will typically install to
+    > `$HOME/.local/bin`, and you may need to add that to your `$PATH` if not
+    > already present:
 
         $ PATH=$HOME/.local/bin:$PATH
 
