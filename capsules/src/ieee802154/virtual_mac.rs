@@ -75,6 +75,8 @@ impl<'a> MuxMac<'a> {
         self.users.push_head(user);
     }
 
+    /// Gets the next `MacUser` and operation to perform if an operation is not
+    /// already underway.
     fn get_next_op_if_idle(&self) -> Option<(&'a MacUser<'a>, Op)> {
         match self.inflight.get() {
             Some(_) => None,
@@ -96,18 +98,34 @@ impl<'a> MuxMac<'a> {
         }
     }
 
+    /// Performs a non-idle operation on a `MacUser` asynchronously: that is, if the
+    /// transmission operation results in immediate failure, then return the
+    /// buffer to the `MacUser` via its transmit client.
     fn perform_op_async(&self, node: &'a MacUser<'a>, op: Op) {
         if let Op::Transmit(frame) = op {
             let (result, mbuf) = self.mac.transmit(frame);
             // If a buffer is returned, the transmission failed,
             // otherwise it succeeded.
             mbuf.map(|buf| {
-                node.tx_client.get().map(move |client| {
-                    client.send_done(buf, false, result)
-                });
+                node.send_done(buf, false, result);
             }).unwrap_or_else(|| {
                 self.inflight.set(Some(node));
             });
+        }
+    }
+
+    /// Performs a non-idle operation on a `MacUser` synchronously, returning
+    /// the error code and the buffer immediately.
+    fn perform_op_sync(&self, node: &'a MacUser<'a>, op: Op)
+        -> Option<(ReturnCode, Option<&'static mut [u8]>)> {
+        if let Op::Transmit(frame) = op {
+            let (result, mbuf) = self.mac.transmit(frame);
+            if result == ReturnCode::SUCCESS {
+                self.inflight.set(Some(node));
+            }
+            Some((result, mbuf))
+        } else {
+            None
         }
     }
 
@@ -138,11 +156,7 @@ impl<'a> MuxMac<'a> {
             if node as *const _ == new_node as *const _ {
                 // The new node's operation is the one being scheduled, so the
                 // operation is synchronous
-                if let Op::Transmit(frame) = op {
-                    Some(self.mac.transmit(frame))
-                } else {
-                    None
-                }
+                self.perform_op_sync(node, op)
             } else {
                 // The operation being scheduled is not the new node, so the
                 // operation is asynchronous with respect to the new node.
