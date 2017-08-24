@@ -78,7 +78,7 @@ pub trait RadioConfig {
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.
-    fn config_commit(&self) -> ReturnCode;
+    fn config_commit(&self);
     fn set_config_client(&self, client: &'static ConfigClient);
 
     fn get_address(&self) -> u16; //....... The local 16-bit address

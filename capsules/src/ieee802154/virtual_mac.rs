@@ -269,7 +269,7 @@ impl<'a> mac::Mac<'a> for MacUser<'a> {
         self.mux.mac.set_tx_power(power)
     }
 
-    fn config_commit(&self) -> ReturnCode {
+    fn config_commit(&self) {
         self.mux.mac.config_commit()
     }
 

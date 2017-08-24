@@ -3,10 +3,8 @@
 //! known link neighbors, which is needed for 802.15.4 security.
 
 use core::cell::Cell;
-use core::cmp;
-use kernel::{AppId, Driver, Callback, AppSlice, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
-use kernel::{Container, ReturnCode};
+use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container, ReturnCode};
 
 use net::ieee802154::{MacAddress, Header, SecurityLevel, KeyId};
 use ieee802154::mac;
@@ -220,6 +218,44 @@ impl<'a> RadioDriver<'a> {
             None
         }
     }
+
+    #[inline]
+    fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
+        where F: FnOnce(&mut App) -> ReturnCode {
+        self.apps
+            .enter(appid, |app, _| closure(app))
+            .unwrap_or_else(|err| err.into())
+    }
+
+    #[inline]
+    fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+        where F: FnOnce(&[u8]) -> ReturnCode {
+        self.apps
+            .enter(appid, |app, _| {
+                app.app_cfg.as_ref().map_or(ReturnCode::EINVAL, |cfg| {
+                    if cfg.len() != len {
+                        return ReturnCode::EINVAL;
+                    }
+                    closure(cfg.as_ref())
+                })
+            })
+            .unwrap_or_else(|err| err.into())
+    }
+
+    #[inline]
+    fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
+        where F: FnOnce(&mut [u8]) -> ReturnCode {
+        self.apps
+            .enter(appid, |app, _| {
+                app.app_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
+                    if cfg.len() != len {
+                        return ReturnCode::EINVAL;
+                    }
+                    closure(cfg.as_mut())
+                })
+            })
+            .unwrap_or_else(|err| err.into())
+    }
 }
 
 impl<'a> mac::DeviceProcedure for RadioDriver<'a> {
@@ -253,8 +289,28 @@ impl<'a> mac::KeyProcedure for RadioDriver<'a> {
 }
 
 impl<'a> Driver for RadioDriver<'a> {
-    fn allow(&self, app_id: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    /// Setup buffers to read/write from.
+    ///
+    /// ### `allow_num`
+    ///
+    /// - `0`: Read buffer. Will contain the received frame.
+    /// - `1`: Write buffer. Contains the frame payload to be transmitted.
+    /// - `2`: Config buffer. Used to contain miscellaneous data associated with
+    ///        some commands because the system call parameters / return codes are
+    ///        not enough to convey the desired information.
+    fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
+            0 | 1 | 2 => {
+                self.do_with_app(appid, |app| {
+                    match allow_num {
+                        0 => app.app_read = Some(slice),
+                        1 => app.app_write = Some(slice),
+                        2 => app.app_cfg = Some(slice),
+                        _ => {}
+                    }
+                    ReturnCode::SUCCESS
+                })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -265,8 +321,96 @@ impl<'a> Driver for RadioDriver<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, app_id: AppId) -> ReturnCode {
+    /// IEEE 802.15.4 MAC device control.
+    /// 
+    /// For some of the below commands, one 32-bit argument is not enough to
+    /// contain the desired input parameters or output data. For those commands,
+    /// the config slice `app_cfg` is used as a channel to shuffle information
+    /// between kernel space and user space. The expected size of the slice
+    /// varies by command, and acts essentially like a custom FFI. That is, the
+    /// userspace library MUST `allow()` a buffer of the correct size, otherwise
+    /// the call is EINVAL. When used, the expected format is described below.
+    ///
+    /// ### `command_num`
+    ///
+    /// - `0`: Return radio status. SUCCESS/EOFF = on/off.
+    /// - `1`: Set short MAC address.
+    /// - `2`: Set long MAC address.
+    ///        app_cfg (in): 8 bytes: the long MAC address.
+    /// - `3`: Set PAN ID.
+    /// - `4`: Set channel.
+    /// - `5`: Set transmission power.
+    /// - `6`: Commit any configuration changes.
+    /// - `7`: Get the short MAC address.
+    /// - `8`: Get the long MAC address.
+    ///        app_cfg (out): 8 bytes: the long MAC address.
+    /// - `9`: Get the PAN ID.
+    /// - `10`: Get the channel.
+    /// - `11`: Get the transmission power.
+    fn command(&self, command_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
         match command_num {
+            0 => {
+                if self.mac.is_on() {
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EOFF
+                }
+            }
+            1 => {
+                self.mac.set_address(arg1 as u16);
+                ReturnCode::SUCCESS
+            }
+            2 => {
+                self.do_with_cfg(appid, 8, |cfg| {
+                    let mut addr_long = [0u8; 8];
+                    addr_long.copy_from_slice(cfg.as_ref());
+                    self.mac.set_address_long(addr_long);
+                    ReturnCode::SUCCESS
+                })
+            }
+            3 => {
+                self.mac.set_pan(arg1 as u16);
+                ReturnCode::SUCCESS
+            }
+            4 => {
+                self.mac.set_channel(arg1 as u8)
+            }
+            5 => {
+                // Userspace casts the i8 to a u8 before casting to u32, so this works.
+                self.mac.set_tx_power(arg1 as i8);
+                ReturnCode::SUCCESS
+            }
+            6 => {
+                self.mac.config_commit();
+                ReturnCode::SUCCESS
+            }
+            7 => {
+                // Guarantee that address is positive by adding 1
+                let addr = self.mac.get_address();
+                ReturnCode::SuccessWithValue { value: (addr as usize) + 1 }
+            }
+            8 => {
+                self.do_with_cfg_mut(appid, 8, |cfg| {
+                    cfg.copy_from_slice(&self.mac.get_address_long());
+                    ReturnCode::SUCCESS
+                })
+            }
+            9 => {
+                // Guarantee that the PAN is positive by adding 1
+                let pan = self.mac.get_pan();
+                ReturnCode::SuccessWithValue { value: (pan as usize) + 1 }
+            }
+            10 => {
+                // Guarantee that the PAN is positive by adding 1
+                let channel = self.mac.get_channel();
+                ReturnCode::SuccessWithValue { value: (channel as usize) + 1 }
+            }
+            11 => {
+                // Cast the power to unsigned, then ensure it is positive by
+                // adding 1
+                let power = self.mac.get_tx_power() as u8;
+                ReturnCode::SuccessWithValue { value: (power as usize) + 1 }
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }

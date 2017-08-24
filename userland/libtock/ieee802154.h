@@ -34,10 +34,10 @@ int ieee802154_set_address_long(unsigned char *addr_long);
 int ieee802154_set_pan(unsigned short pan);
 // Sets the 802.15.4 channel.
 // `channel` (in): 802.15.4 channel. 11 <= channel <= 26.
-int ieee802154_set_channel(unsigned short channel);
+int ieee802154_set_channel(unsigned char channel);
 // Sets the 802.15.4 transmission power.
 // `power` (in): Transmission power. -17 <= power <= 4.
-int ieee802154_set_tx_power(char power);
+int ieee802154_set_power(char power);
 // Commits any new configuration state to the radio.
 int ieee802154_config_commit(void);
 
@@ -57,12 +57,12 @@ int ieee802154_get_pan(unsigned short *pan);
 // successfully written into `channel`.
 // `channel` (out): 802.15.4 channel. If successful, `channel` will satisfy 11
 // <= channel <= 26.
-int ieee802154_get_channel(unsigned short *channel);
+int ieee802154_get_channel(unsigned char *channel);
 // Gets the 802.15.4 transmission power. Returns TOCK_SUCCESS if the power
 // was successfully written into `power`.
 // `power` (out): Transmission power. If successful, `power` will satisfy
 // -17 <= power <= 4.
-int ieee802154_get_tx_power(char *power);
+int ieee802154_get_power(char *power);
 
 // IEEE 802.15.4 neighbor list management. The list of known neighbors is
 // implemented as a variable-sized (up to a maximum of
@@ -201,7 +201,8 @@ int ieee802154_send(unsigned short addr,
 // `len` (in): The size of the buffer into which the frame will be placed.
 int ieee802154_receive_sync(const char *frame, unsigned char len);
 
-// Waits asynchronously for an IEEE 802.15.4 frame.
+// Waits asynchronously for an IEEE 802.15.4 frame. Only waits for one frame.
+// To receive more, subscribe to this event again after processing one.
 // `callback` (in): Callback to call when a frame is received.
 // `frame` (in): Buffer in which to put the full IEEE 802.15.4 frame data. See
 //   `ieee802154_receive_sync` for more details.

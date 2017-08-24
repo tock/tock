@@ -248,7 +248,7 @@ pub trait Mac<'a> {
     /// `set_*` is called without calling `config_commit`, there is no guarantee
     /// that the underlying hardware configuration (addresses, pan ID) is in
     /// line with this MAC device implementation.
-    fn config_commit(&self) -> ReturnCode;
+    fn config_commit(&self);
 
     /// Returns if the MAC device is currently on.
     fn is_on(&self) -> bool;
@@ -755,7 +755,7 @@ impl<'a, R: radio::Radio + 'a> Mac<'a> for MacDevice<'a, R> {
         self.radio.set_tx_power(power)
     }
 
-    fn config_commit(&self) -> ReturnCode {
+    fn config_commit(&self) {
         self.radio.config_commit()
     }
 

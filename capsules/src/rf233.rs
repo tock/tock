@@ -1008,7 +1008,7 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
         self.channel.get()
     }
 
-    fn config_commit(&self) -> ReturnCode {
+    fn config_commit(&self) {
         let pending = self.config_pending.get();
         if !pending {
             self.config_pending.set(true);
@@ -1026,7 +1026,6 @@ impl<'a, S: spi::SpiMasterDevice + 'a> radio::RadioConfig for RF233<'a, S> {
                 // and commit started
             }
         }
-        ReturnCode::SUCCESS
     }
 }
 
