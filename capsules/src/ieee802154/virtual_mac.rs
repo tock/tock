@@ -27,11 +27,11 @@
 //! ```
 
 use core::cell::Cell;
+use ieee802154::mac;
 use kernel::ReturnCode;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::common::take_cell::MapCell;
 use net::ieee802154::*;
-use ieee802154::mac;
 
 /// IEE 802.15.4 MAC device muxer that keeps a list of MAC users and sequences
 /// any pending transmission requests. Any received frames from the underlying
@@ -106,18 +106,17 @@ impl<'a> MuxMac<'a> {
             let (result, mbuf) = self.mac.transmit(frame);
             // If a buffer is returned, the transmission failed,
             // otherwise it succeeded.
-            mbuf.map(|buf| {
-                node.send_done(buf, false, result);
-            }).unwrap_or_else(|| {
-                self.inflight.set(Some(node));
-            });
+            mbuf.map(|buf| { node.send_done(buf, false, result); })
+                .unwrap_or_else(|| { self.inflight.set(Some(node)); });
         }
     }
 
     /// Performs a non-idle operation on a `MacUser` synchronously, returning
     /// the error code and the buffer immediately.
-    fn perform_op_sync(&self, node: &'a MacUser<'a>, op: Op)
-        -> Option<(ReturnCode, Option<&'static mut [u8]>)> {
+    fn perform_op_sync(&self,
+                       node: &'a MacUser<'a>,
+                       op: Op)
+                       -> Option<(ReturnCode, Option<&'static mut [u8]>)> {
         if let Op::Transmit(frame) = op {
             let (result, mbuf) = self.mac.transmit(frame);
             if result == ReturnCode::SUCCESS {
@@ -134,9 +133,7 @@ impl<'a> MuxMac<'a> {
     /// Since this is being called asynchronously, return any buffers to the active
     /// `tx_client` via the `send_done` callback in the event of failure.
     fn do_next_op_async(&self) {
-        self.get_next_op_if_idle().map(|(node, op)| {
-            self.perform_op_async(node, op)
-        });
+        self.get_next_op_if_idle().map(|(node, op)| self.perform_op_async(node, op));
     }
 
     /// Begins the next outstanding transmission if there is no ongoing
@@ -150,8 +147,9 @@ impl<'a> MuxMac<'a> {
     ///
     /// If the newly-enqueued transmission is immediately executed by this mux
     /// device but fails immediately, return the buffer synchronously.
-    fn do_next_op_sync(&self, new_node: &MacUser<'a>)
-        -> Option<(ReturnCode, Option<&'static mut [u8]>)> {
+    fn do_next_op_sync(&self,
+                       new_node: &MacUser<'a>)
+                       -> Option<(ReturnCode, Option<&'static mut [u8]>)> {
         self.get_next_op_if_idle().and_then(|(node, op)| {
             if node as *const _ == new_node as *const _ {
                 // The new node's operation is the one being scheduled, so the
@@ -285,12 +283,7 @@ impl<'a> mac::Mac<'a> for MacUser<'a> {
                           src_addr: MacAddress,
                           security_needed: Option<(SecurityLevel, KeyId)>)
                           -> Result<mac::Frame, &'static mut [u8]> {
-        self.mux.mac.prepare_data_frame(buf,
-                                        dst_pan,
-                                        dst_addr,
-                                        src_pan,
-                                        src_addr,
-                                        security_needed)
+        self.mux.mac.prepare_data_frame(buf, dst_pan, dst_addr, src_pan, src_addr, security_needed)
     }
 
     fn transmit(&self, frame: mac::Frame) -> (ReturnCode, Option<&'static mut [u8]>) {
@@ -300,18 +293,16 @@ impl<'a> mac::Mac<'a> for MacUser<'a> {
         // pending transmission then we must fail to entertain this one.
         self.operation
             .take()
-            .map_or((ReturnCode::FAIL, None), |op| {
-                match op {
-                    Op::Idle => {
-                        self.operation.replace(Op::Transmit(frame));
-                        self.mux
-                            .do_next_op_sync(self)
-                            .unwrap_or((ReturnCode::SUCCESS, None))
-                    }
-                    Op::Transmit(old_frame) => {
-                        self.operation.replace(Op::Transmit(old_frame));
-                        (ReturnCode::EBUSY, Some(frame.into_buf()))
-                    }
+            .map_or((ReturnCode::FAIL, None), |op| match op {
+                Op::Idle => {
+                    self.operation.replace(Op::Transmit(frame));
+                    self.mux
+                        .do_next_op_sync(self)
+                        .unwrap_or((ReturnCode::SUCCESS, None))
+                }
+                Op::Transmit(old_frame) => {
+                    self.operation.replace(Op::Transmit(old_frame));
+                    (ReturnCode::EBUSY, Some(frame.into_buf()))
                 }
             })
     }

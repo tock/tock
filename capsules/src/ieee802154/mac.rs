@@ -441,7 +441,8 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
     /// Look up the key using the IEEE 802.15.4 KeyDescriptor lookup prodecure
     /// implemented elsewhere.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])> {
-        self.key_procedure.get()
+        self.key_procedure
+            .get()
             .and_then(|key_procedure| key_procedure.lookup_key(level, key_id))
     }
 
@@ -449,9 +450,9 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
     /// DeviceDescriptor lookup prodecure implemented elsewhere.
     fn lookup_addr_long(&self, src_addr: Option<MacAddress>) -> Option<([u8; 8])> {
         src_addr.and_then(|addr| {
-            self.device_procedure.get().and_then(|device_procedure| {
-                device_procedure.lookup_addr_long(addr)
-            })
+            self.device_procedure
+                .get()
+                .and_then(|device_procedure| device_procedure.lookup_addr_long(addr))
         })
     }
 

@@ -3,11 +3,11 @@
 //! known link neighbors, which is needed for 802.15.4 security.
 
 use core::cell::Cell;
-use kernel::common::take_cell::{MapCell, TakeCell};
+use ieee802154::mac;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container, ReturnCode};
+use kernel::common::take_cell::{MapCell, TakeCell};
 
 use net::ieee802154::{MacAddress, Header, SecurityLevel, KeyId};
-use ieee802154::mac;
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
@@ -96,7 +96,8 @@ pub struct RadioDriver<'a> {
 impl<'a> RadioDriver<'a> {
     pub fn new(mac: &'a mac::Mac<'a>,
                container: Container<App>,
-               kernel_tx: &'static mut [u8]) -> RadioDriver<'a> {
+               kernel_tx: &'static mut [u8])
+               -> RadioDriver<'a> {
         RadioDriver {
             mac: mac,
             neighbors: MapCell::new(Default::default()),
@@ -118,7 +119,8 @@ impl<'a> RadioDriver<'a> {
     fn add_neighbor(&self, new_neighbor: DeviceDescriptor) -> Option<usize> {
         self.neighbors.and_then(|neighbors| {
             let num_neighbors = self.num_neighbors.get();
-            let position = neighbors[..num_neighbors].iter()
+            let position = neighbors[..num_neighbors]
+                .iter()
                 .position(|neighbor| *neighbor == new_neighbor);
             match position {
                 Some(index) => Some(index),
@@ -142,10 +144,8 @@ impl<'a> RadioDriver<'a> {
     fn remove_neighbor(&self, index: usize) -> ReturnCode {
         let num_neighbors = self.num_neighbors.get();
         if index < num_neighbors {
-            self.neighbors.map(|neighbors| {
-                for i in index..(num_neighbors - 1) {
-                    neighbors[i] = neighbors[i + 1];
-                }
+            self.neighbors.map(|neighbors| for i in index..(num_neighbors - 1) {
+                neighbors[i] = neighbors[i + 1];
             });
             self.num_neighbors.set(num_neighbors - 1);
             ReturnCode::SUCCESS
@@ -173,7 +173,8 @@ impl<'a> RadioDriver<'a> {
     fn add_key(&self, new_key: KeyDescriptor) -> Option<usize> {
         self.keys.and_then(|keys| {
             let num_keys = self.num_keys.get();
-            let position = keys[..num_keys].iter()
+            let position = keys[..num_keys]
+                .iter()
                 .position(|key| *key == new_key);
             match position {
                 Some(index) => Some(index),
@@ -197,10 +198,8 @@ impl<'a> RadioDriver<'a> {
     fn remove_key(&self, index: usize) -> ReturnCode {
         let num_keys = self.num_keys.get();
         if index < num_keys {
-            self.keys.map(|keys| {
-                for i in index..(num_keys - 1) {
-                    keys[i] = keys[i + 1];
-                }
+            self.keys.map(|keys| for i in index..(num_keys - 1) {
+                keys[i] = keys[i + 1];
             });
             self.num_keys.set(num_keys - 1);
             ReturnCode::SUCCESS
@@ -221,7 +220,8 @@ impl<'a> RadioDriver<'a> {
 
     #[inline]
     fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
-        where F: FnOnce(&mut App) -> ReturnCode {
+        where F: FnOnce(&mut App) -> ReturnCode
+    {
         self.apps
             .enter(appid, |app, _| closure(app))
             .unwrap_or_else(|err| err.into())
@@ -229,7 +229,8 @@ impl<'a> RadioDriver<'a> {
 
     #[inline]
     fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-        where F: FnOnce(&[u8]) -> ReturnCode {
+        where F: FnOnce(&[u8]) -> ReturnCode
+    {
         self.apps
             .enter(appid, |app, _| {
                 app.app_cfg.as_ref().map_or(ReturnCode::EINVAL, |cfg| {
@@ -244,7 +245,8 @@ impl<'a> RadioDriver<'a> {
 
     #[inline]
     fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-        where F: FnOnce(&mut [u8]) -> ReturnCode {
+        where F: FnOnce(&mut [u8]) -> ReturnCode
+    {
         self.apps
             .enter(appid, |app, _| {
                 app.app_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
@@ -263,12 +265,11 @@ impl<'a> mac::DeviceProcedure for RadioDriver<'a> {
     /// MAC address. If no such neighbor exists, returns `None`.
     fn lookup_addr_long(&self, addr: MacAddress) -> Option<([u8; 8])> {
         self.neighbors.and_then(|neighbors| {
-            neighbors[..self.num_neighbors.get()].iter()
-                .find(|neighbor| {
-                    match addr {
-                        MacAddress::Short(addr) => addr == neighbor.short_addr,
-                        MacAddress::Long(addr) => addr == neighbor.long_addr,
-                    }
+            neighbors[..self.num_neighbors.get()]
+                .iter()
+                .find(|neighbor| match addr {
+                    MacAddress::Short(addr) => addr == neighbor.short_addr,
+                    MacAddress::Long(addr) => addr == neighbor.long_addr,
                 })
                 .map(|neighbor| neighbor.long_addr)
         })
@@ -281,7 +282,8 @@ impl<'a> mac::KeyProcedure for RadioDriver<'a> {
     /// `None`.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<([u8; 16])> {
         self.keys.and_then(|keys| {
-            keys[..self.num_keys.get()].iter()
+            keys[..self.num_keys.get()]
+                .iter()
                 .find(|key| key.level == level && key.key_id == key_id)
                 .map(|key| key.key)
         })
@@ -317,12 +319,12 @@ impl<'a> Driver for RadioDriver<'a> {
 
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            _ => ReturnCode::ENOSUPPORT
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
     /// IEEE 802.15.4 MAC device control.
-    /// 
+    ///
     /// For some of the below commands, one 32-bit argument is not enough to
     /// contain the desired input parameters or output data. For those commands,
     /// the config slice `app_cfg` is used as a channel to shuffle information
@@ -372,9 +374,7 @@ impl<'a> Driver for RadioDriver<'a> {
                 self.mac.set_pan(arg1 as u16);
                 ReturnCode::SUCCESS
             }
-            4 => {
-                self.mac.set_channel(arg1 as u8)
-            }
+            4 => self.mac.set_channel(arg1 as u8),
             5 => {
                 // Userspace casts the i8 to a u8 before casting to u32, so this works.
                 self.mac.set_tx_power(arg1 as i8);
@@ -413,5 +413,17 @@ impl<'a> Driver for RadioDriver<'a> {
             }
             _ => ReturnCode::ENOSUPPORT,
         }
+    }
+}
+
+impl<'a> mac::TxClient for RadioDriver<'a> {
+    fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
+        unimplemented!();
+    }
+}
+
+impl<'a> mac::RxClient for RadioDriver<'a> {
+    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+        unimplemented!();
     }
 }
