@@ -85,12 +85,21 @@ int ieee802154_get_neighbor_address(unsigned index, unsigned short *addr);
 // `addr_long` (out): Long address of neighbor at `index`. Must point to 8
 // bytes of valid memory.
 int ieee802154_get_neighbor_address_long(unsigned index, unsigned char *addr_long);
+// Retrieves the neighbor at index `index` into `addr` and `addr_long`.
+// If successful, returns TOCK_SUCCESS.
+// `index` (in): Index in neighbor list.
+// `addr` (out): Short address of neighbor at `index`.
+// `addr_long` (out): Long address of neighbor at `index`. Must point to 8
+// bytes of valid memory.
+int ieee802154_get_neighbor(unsigned index,
+                            unsigned short *addr,
+                            unsigned char *addr_long);
 // Adds a new neighbor to the neighbor list.
 // If successful, returns TOCK_SUCCESS and writes the list index of the new neighbor
 // or existing neighbor with matching addresses into `index`.
 // `addr` (in): Short address of new neighbor.
 // `addr_long` (in): Long address of new neighbor. Must point to 8 bytes of valid memory.
-// `index` (out): New index in neighbor list.
+// `index` (out): New index in neighbor list. Can be NULL if the index is not needed.
 int ieee802154_add_neighbor(unsigned short addr, unsigned char *addr_long, unsigned *index);
 // Removes the neighbor at `index`. If successful, returns TOCK_SUCCESS,
 // otherwise TOCK_EINVAL.
@@ -135,18 +144,38 @@ int ieee802154_get_key_security_level(unsigned index, security_level_t *level);
 // `index` (in): Index in key list.
 // `key_id_mode` (out): Key ID mode of key at `index`.
 // `key_id` (out): Optional data depending on the value of `key_id_mode`.
+// Must point to 9 bytes of valid memory.
 //    - KEY_ID_IMPLICIT: This parameter is meaningless.
 //    - KEY_ID_INDEX: The key index (1 byte) will be written to `key_id`.
 //    - KEY_ID_SRC_4_INDEX: The key source (4 bytes) and index (1 byte) will
 //      be written to `key_id`.
 //    - KEY_ID_SRC_8_INDEX: The key source (8 bytes) and index (1 byte) will
 //      be written to `key_id`.
-int ieee802154_get_key_id(unsigned index, key_id_mode_t *key_id_mode, unsigned char *key_id);
+int ieee802154_get_key_id(unsigned index,
+                          key_id_mode_t *key_id_mode,
+                          unsigned char *key_id);
+// Returns the number of bytes that will be taken up by a key id with the given
+// `key_id_mode`. Returns either 0, 1, 5, or 9. If the key ID mode is invalid,
+// returns 0.  See `ieee802154_get_key_id()` for details.
+int ieee802154_key_id_bytes(key_id_mode_t key_id_mode);
 // Retrieves the key at index `index` into `key`.
 // If successful, returns TOCK_SUCCESS.
 // `index` (in): Index in key list.
 // `key` (out): Key. Must point to 16 bytes of valid memory.
 int ieee802154_get_key(unsigned index, unsigned char *key);
+// Retrieves the key at index `index` along with all the accompanying information.
+// If successful, returns TOCK_SUCCESS.
+// `index` (in): Index in key list.
+// `level` (out): Security level of key at `index`. Will not be SEC_LEVEL_NONE.
+// `key_id_mode` (out): Key ID mode of key at `index`.
+// `key_id` (out): Optional data depending on the value of `key_id_mode`.
+// Must point to 9 bytes of valid memory. See `ieee802154_get_key_id()` for details.
+// `key` (out): Key. Must point to 16 bytes of valid memory.
+int ieee802154_get_key_desc(unsigned index,
+                            security_level_t *level,
+                            key_id_mode_t *key_id_mode,
+                            unsigned char *key_id,
+                            unsigned char *key);
 // Adds a new key into the list of keys, if space remains.
 // If successful, returns TOCK_SUCCESS and writes the list index of the new key
 // or existing key with matching addresses into `index`. If an existing key

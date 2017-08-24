@@ -8,6 +8,7 @@ use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container, ReturnCode};
 use kernel::common::take_cell::{MapCell, TakeCell};
 
 use net::ieee802154::{MacAddress, Header, SecurityLevel, KeyId};
+use net::stream::{decode_u8, decode_bytes, encode_u8, encode_bytes, SResult};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
@@ -27,6 +28,79 @@ impl Default for DeviceDescriptor {
     }
 }
 
+#[repr(u8)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum KeyIdModeUserland {
+    Implicit = 0,
+    Index = 1,
+    Source4Index = 2,
+    Source8Index = 3,
+}
+
+impl KeyIdModeUserland {
+    pub fn from_u8(byte: u8) -> Option<KeyIdModeUserland> {
+        match byte {
+            0 => Some(KeyIdModeUserland::Implicit),
+            1 => Some(KeyIdModeUserland::Index),
+            2 => Some(KeyIdModeUserland::Source4Index),
+            3 => Some(KeyIdModeUserland::Source8Index),
+            _ => None,
+        }
+    }
+}
+
+fn encode_key_id(key_id: &KeyId, buf: &mut [u8]) -> SResult {
+    let off = enc_consume!(buf; encode_u8, KeyIdModeUserland::from(key_id) as u8);
+    let off = match *key_id {
+        KeyId::Implicit => 0,
+        KeyId::Index(index) => enc_consume!(buf, off; encode_u8, index),
+        KeyId::Source4Index(ref src, index) => {
+            let off = enc_consume!(buf, off; encode_bytes, src);
+            enc_consume!(buf, off; encode_u8, index)
+        }
+        KeyId::Source8Index(ref src, index) => {
+            let off = enc_consume!(buf, off; encode_bytes, src);
+            enc_consume!(buf, off; encode_u8, index)
+        }
+    };
+    stream_done!(off);
+}
+
+fn decode_key_id(buf: &[u8]) -> SResult<KeyId> {
+    stream_len_cond!(buf, 1);
+    let mode = stream_from_option!(KeyIdModeUserland::from_u8(buf[0]));
+    match mode {
+        KeyIdModeUserland::Implicit => stream_done!(0, KeyId::Implicit),
+        KeyIdModeUserland::Index => {
+            let (off, index) = dec_try!(buf; decode_u8);
+            stream_done!(off, KeyId::Index(index));
+        }
+        KeyIdModeUserland::Source4Index => {
+            let mut src = [0u8; 4];
+            let off = dec_consume!(buf; decode_bytes, &mut src);
+            let (off, index) = dec_try!(buf, off; decode_u8);
+            stream_done!(off, KeyId::Source4Index(src, index));
+        }
+        KeyIdModeUserland::Source8Index => {
+            let mut src = [0u8; 8];
+            let off = dec_consume!(buf; decode_bytes, &mut src);
+            let (off, index) = dec_try!(buf, off; decode_u8);
+            stream_done!(off, KeyId::Source8Index(src, index));
+        }
+    }
+}
+
+impl<'a> From<&'a KeyId> for KeyIdModeUserland {
+    fn from(key_id: &'a KeyId) -> Self {
+        match *key_id {
+            KeyId::Implicit => KeyIdModeUserland::Implicit,
+            KeyId::Index(_) => KeyIdModeUserland::Index,
+            KeyId::Source4Index(_, _) => KeyIdModeUserland::Source4Index,
+            KeyId::Source8Index(_, _) => KeyIdModeUserland::Source8Index,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 struct KeyDescriptor {
     level: SecurityLevel,
@@ -41,6 +115,22 @@ impl Default for KeyDescriptor {
             key_id: KeyId::Implicit,
             key: [0; 16],
         }
+    }
+}
+
+impl KeyDescriptor {
+    fn decode(buf: &[u8]) -> SResult<KeyDescriptor> {
+        stream_len_cond!(buf, 27);
+        let level = stream_from_option!(SecurityLevel::from_scf(buf[0]));
+        let (_, key_id) = dec_try!(buf, 1; decode_key_id);
+        let mut key = [0u8; 16];
+        let off = dec_consume!(buf, 11; decode_bytes, &mut key);
+        stream_done!(off,
+                     KeyDescriptor {
+                         level: level,
+                         key_id: key_id,
+                         key: key,
+                     });
     }
 }
 
@@ -349,6 +439,28 @@ impl<'a> Driver for RadioDriver<'a> {
     /// - `9`: Get the PAN ID.
     /// - `10`: Get the channel.
     /// - `11`: Get the transmission power.
+    /// - `12`: Get the maximum number of neighbors.
+    /// - `13`: Get the current number of neighbors.
+    /// - `14`: Get the short address of the neighbor at an index.
+    /// - `15`: Get the long address of the neighbor at an index.
+    ///        app_cfg (out): 8 bytes: the long MAC address.
+    /// - `16`: Add a new neighbor with the given short and long address.
+    ///        app_cfg (in): 8 bytes: the long MAC address.
+    /// - `17`: Remove the neighbor at an index.
+    /// - `18`: Get the maximum number of keys.
+    /// - `19`: Get the current number of keys.
+    /// - `20`: Get the security level of the key at an index.
+    /// - `21`: Get the key id of the key at an index.
+    ///        app_cfg (out): 1 byte: the key ID mode +
+    ///                       up to 9 bytes: the key ID.
+    /// - `22`: Get the key at an index.
+    ///        app_cfg (out): 16 bytes: the key.
+    /// - `23`: Add a new key with the given descripton.
+    ///        app_cfg (in): 1 byte: the security level +
+    ///                      1 byte: the key ID mode +
+    ///                      9 bytes: the key ID (might not use all bytes) +
+    ///                      16 bytes: the key.
+    /// - `24`: Remove the key at an index.
     fn command(&self, command_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => {
@@ -365,7 +477,7 @@ impl<'a> Driver for RadioDriver<'a> {
             2 => {
                 self.do_with_cfg(appid, 8, |cfg| {
                     let mut addr_long = [0u8; 8];
-                    addr_long.copy_from_slice(cfg.as_ref());
+                    addr_long.copy_from_slice(cfg);
                     self.mac.set_address_long(addr_long);
                     ReturnCode::SUCCESS
                 })
@@ -401,16 +513,88 @@ impl<'a> Driver for RadioDriver<'a> {
                 ReturnCode::SuccessWithValue { value: (pan as usize) + 1 }
             }
             10 => {
-                // Guarantee that the PAN is positive by adding 1
+                // Guarantee that the channel is positive by adding 1
                 let channel = self.mac.get_channel();
                 ReturnCode::SuccessWithValue { value: (channel as usize) + 1 }
             }
             11 => {
-                // Cast the power to unsigned, then ensure it is positive by
-                // adding 1
+                // Cast the power to unsigned, then ensure it is positive
                 let power = self.mac.get_tx_power() as u8;
                 ReturnCode::SuccessWithValue { value: (power as usize) + 1 }
             }
+            12 => {
+                // Guarantee that it is positive by adding 1
+                ReturnCode::SuccessWithValue { value: MAX_NEIGHBORS + 1 }
+            }
+            13 => {
+                // Guarantee that it is positive by adding 1
+                ReturnCode::SuccessWithValue { value: self.num_neighbors.get() + 1 }
+            }
+            14 => {
+                self.get_neighbor(arg1)
+                    .map_or(ReturnCode::EINVAL, |neighbor| {
+                        ReturnCode::SuccessWithValue { value: (neighbor.short_addr as usize) + 1 }
+                    })
+            }
+            15 => {
+                self.do_with_cfg_mut(appid, 8, |cfg| {
+                    self.get_neighbor(arg1)
+                        .map_or(ReturnCode::EINVAL, |neighbor| {
+                            cfg.copy_from_slice(&neighbor.long_addr);
+                            ReturnCode::SUCCESS
+                        })
+                })
+            }
+            16 => {
+                self.do_with_cfg(appid, 8, |cfg| {
+                    let mut new_neighbor: DeviceDescriptor = Default::default();
+                    new_neighbor.short_addr = arg1 as u16;
+                    new_neighbor.long_addr.copy_from_slice(cfg);
+                    self.add_neighbor(new_neighbor)
+                        .map_or(ReturnCode::EINVAL,
+                                |index| ReturnCode::SuccessWithValue { value: index + 1 })
+                })
+            }
+            17 => self.remove_neighbor(arg1),
+            18 => {
+                // Guarantee that it is positive by adding 1
+                ReturnCode::SuccessWithValue { value: MAX_KEYS + 1 }
+            }
+            19 => {
+                // Guarantee that it is positive by adding 1
+                ReturnCode::SuccessWithValue { value: self.num_keys.get() + 1 }
+            }
+            20 => {
+                self.get_key(arg1)
+                    .map_or(ReturnCode::EINVAL,
+                            |key| ReturnCode::SuccessWithValue { value: (key.level as usize) + 1 })
+            }
+            21 => {
+                self.do_with_cfg_mut(appid, 10, |cfg| {
+                    self.get_key(arg1)
+                        .and_then(|key| encode_key_id(&key.key_id, cfg).done())
+                        .map_or(ReturnCode::EINVAL, |_| ReturnCode::SUCCESS)
+                })
+            }
+            22 => {
+                self.do_with_cfg_mut(appid, 16, |cfg| {
+                    self.get_key(arg1)
+                        .map_or(ReturnCode::EINVAL, |key| {
+                            cfg.copy_from_slice(&key.key);
+                            ReturnCode::SUCCESS
+                        })
+                })
+            }
+            23 => {
+                self.do_with_cfg(appid, 27, |cfg| {
+                    KeyDescriptor::decode(cfg)
+                        .done()
+                        .and_then(|(_, new_key)| self.add_key(new_key))
+                        .map(|index| ReturnCode::SuccessWithValue { value: index + 1 })
+                        .unwrap_or(ReturnCode::EINVAL)
+                })
+            }
+            24 => self.remove_key(arg1),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
