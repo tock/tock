@@ -27,7 +27,6 @@
 use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver, ReturnCode};
 use kernel::hil;
-use kernel::process::Error;
 
 #[derive(Default)]
 pub struct App {
@@ -107,11 +106,7 @@ impl<'a, C> Driver for UsbSyscallDriver<'a, C>
                         app.callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -138,11 +133,7 @@ impl<'a, C> Driver for UsbSyscallDriver<'a, C>
                             }
                         }
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    });
+                    .unwrap_or_else(|err| err.into());
 
                 if result == ReturnCode::SUCCESS {
                     self.serve_waiting_apps();

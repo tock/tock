@@ -95,11 +95,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                 td.callback = Some(callback);
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Setup and read the MAX17205.

@@ -70,7 +70,6 @@ use ble_advertising_hil;
 use core::cell::Cell;
 use kernel;
 use kernel::hil::time::Frequency;
-use kernel::process::Error;
 use kernel::returncode::ReturnCode;
 
 pub static mut BUF: [u8; 32] = [0; 32];
@@ -336,11 +335,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                         app.app_write = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    });
+                    .unwrap_or_else(|err| err.into());
                 if ret == ReturnCode::SUCCESS {
                     self.set_adv_data(allow_num)
                 } else {
@@ -354,11 +349,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                         app.app_write = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    });
+                    .unwrap_or_else(|err| err.into());
                 if ret == ReturnCode::SUCCESS {
                     self.set_adv_addr()
                 } else {
@@ -372,11 +363,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                         app.app_read = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             (_, true) => ReturnCode::EBUSY,
 
@@ -394,11 +381,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                         app.scan_callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }

@@ -54,7 +54,6 @@ use core::cmp;
 use kernel::{AppId, AppSlice, Callback, Container, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use kernel::process::Error;
 
 pub static mut BUFFER: [u8; 512] = [0; 512];
 
@@ -263,11 +262,7 @@ impl<'a> NonvolatileStorage<'a> {
                                 }
                             }
                         })
-                        .unwrap_or_else(|err| match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        })
+                        .unwrap_or_else(|err| err.into())
                 })
             }
             NonvolatileCommand::KernelRead |
@@ -475,11 +470,7 @@ impl<'a> Driver for NonvolatileStorage<'a> {
                 }
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Setup callbacks.
@@ -498,11 +489,7 @@ impl<'a> Driver for NonvolatileStorage<'a> {
                 }
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 
     /// Command interface.

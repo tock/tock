@@ -23,7 +23,6 @@ use core::cell::Cell;
 use kernel::{AppId, Container, Callback, Driver, ReturnCode};
 use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
-use kernel::process::Error;
 
 pub type SubscribeMap = u32;
 
@@ -63,11 +62,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                         cntr.0 = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
 
             // default
@@ -105,11 +100,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                             pins[data].enable_interrupt(data, InterruptMode::EitherEdge);
                             ReturnCode::SUCCESS
                         })
-                        .unwrap_or_else(|err| match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        })
+                        .unwrap_or_else(|err| err.into())
                 } else {
                     ReturnCode::EINVAL /* impossible button */
                 }
@@ -125,11 +116,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                             cntr.1 &= !(1 << data);
                             ReturnCode::SUCCESS
                         })
-                        .unwrap_or_else(|err| match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        });
+                        .unwrap_or_else(|err| err.into());
 
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
