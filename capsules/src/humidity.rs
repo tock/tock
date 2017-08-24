@@ -50,7 +50,6 @@ use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver};
 use kernel::ReturnCode;
 use kernel::hil;
-use kernel::process::Error;
 
 #[derive(Clone,Copy,PartialEq)]
 pub enum HumidityCommand {
@@ -90,11 +89,7 @@ impl<'a> HumiditySensor<'a> {
             } else {
                 ReturnCode::EBUSY
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn call_driver(&self, command: HumidityCommand, _: usize) -> ReturnCode {
@@ -110,11 +105,7 @@ impl<'a> HumiditySensor<'a> {
                 app.callback = Some(callback);
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 

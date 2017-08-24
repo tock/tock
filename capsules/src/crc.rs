@@ -176,11 +176,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
                         app.buffer = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -212,11 +208,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
                         app.callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -310,11 +302,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
                                 }
                             }
                         })
-                        .unwrap_or_else(|err| match err {
-                            Error::OutOfMemory => ReturnCode::ENOMEM,
-                            Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                            Error::NoSuchApp => ReturnCode::EINVAL,
-                        })
+                        .unwrap_or_else(|err| err.into())
                 } else {
                     ReturnCode::EINVAL
                 };

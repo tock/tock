@@ -132,6 +132,16 @@ pub enum Error {
     AddressOutOfBounds,
 }
 
+impl From<Error> for ReturnCode {
+    fn from(err: Error) -> ReturnCode {
+        match err {
+            Error::OutOfMemory => ReturnCode::ENOMEM,
+            Error::AddressOutOfBounds => ReturnCode::EINVAL,
+            Error::NoSuchApp => ReturnCode::EINVAL,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
     Running,

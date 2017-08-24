@@ -16,7 +16,6 @@ use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver};
 use kernel::ReturnCode;
 use kernel::hil;
-use kernel::process::Error;
 
 
 #[derive(Clone,Copy,PartialEq)]
@@ -78,11 +77,7 @@ impl<'a> NineDof<'a> {
                     ReturnCode::SUCCESS
                 }
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn call_driver(&self, command: NineDofCommand, _: usize) -> ReturnCode {
@@ -146,11 +141,7 @@ impl<'a> Driver for NineDof<'a> {
                         app.callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }

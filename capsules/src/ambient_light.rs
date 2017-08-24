@@ -16,7 +16,6 @@
 use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver, ReturnCode};
 use kernel::hil;
-use kernel::process::Error;
 
 /// Per-process metdata
 #[derive(Default)]
@@ -52,11 +51,7 @@ impl<'a> AmbientLight<'a> {
                 }
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 
@@ -75,11 +70,7 @@ impl<'a> Driver for AmbientLight<'a> {
                         app.callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }

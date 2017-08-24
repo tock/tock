@@ -73,7 +73,6 @@ use core::cell::Cell;
 use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption::{SymmetricEncryption, Client};
-use kernel::process::Error;
 
 pub static mut BUF: [u8; 128] = [0; 128];
 pub static mut KEY: [u8; 16] = [0; 16];
@@ -212,11 +211,7 @@ impl<'a, E: SymmetricEncryption> Driver for Crypto<'a, E> {
                         app.key_buf = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             1 => {
                 self.apps
@@ -224,11 +219,7 @@ impl<'a, E: SymmetricEncryption> Driver for Crypto<'a, E> {
                         app.data_buf = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             4 => {
                 self.apps
@@ -236,11 +227,7 @@ impl<'a, E: SymmetricEncryption> Driver for Crypto<'a, E> {
                         app.ctr_buf = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }
@@ -254,11 +241,7 @@ impl<'a, E: SymmetricEncryption> Driver for Crypto<'a, E> {
                         app.callback = Some(callback);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }

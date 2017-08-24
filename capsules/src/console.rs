@@ -177,11 +177,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                         app.read_idx = 0;
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             1 => {
                 self.apps
@@ -189,11 +185,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
                         app.write_buffer = Some(slice);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| match err {
-                        Error::OutOfMemory => ReturnCode::ENOMEM,
-                        Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                        Error::NoSuchApp => ReturnCode::EINVAL,
-                    })
+                    .unwrap_or_else(|err| err.into())
             }
             _ => ReturnCode::ENOSUPPORT,
         }

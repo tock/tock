@@ -50,7 +50,6 @@ use core::cell::Cell;
 use kernel::{AppId, Callback, Container, Driver};
 use kernel::ReturnCode;
 use kernel::hil;
-use kernel::process::Error;
 
 #[derive(Default)]
 pub struct App {
@@ -84,11 +83,7 @@ impl<'a> TemperatureSensor<'a> {
             } else {
                 ReturnCode::EBUSY
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn configure_callback(&self, callback: Callback) -> ReturnCode {
@@ -97,11 +92,7 @@ impl<'a> TemperatureSensor<'a> {
                 app.callback = Some(callback);
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|err| match err {
-                Error::OutOfMemory => ReturnCode::ENOMEM,
-                Error::AddressOutOfBounds => ReturnCode::EINVAL,
-                Error::NoSuchApp => ReturnCode::EINVAL,
-            })
+            .unwrap_or_else(|err| err.into())
     }
 }
 
