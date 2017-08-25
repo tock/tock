@@ -3,41 +3,41 @@
 
 const int RADIO_DRIVER = 154;
 
-const int ALLOW_RX = 0;
-const int ALLOW_TX = 1;
+const int ALLOW_RX  = 0;
+const int ALLOW_TX  = 1;
 const int ALLOW_CFG = 2;
 
 const int SUBSCRIBE_RX = 0;
 const int SUBSCRIBE_TX = 1;
 
-const int COMMAND_STATUS = 0;
-const int COMMAND_SET_ADDR = 1;
+const int COMMAND_STATUS        = 0;
+const int COMMAND_SET_ADDR      = 1;
 const int COMMAND_SET_ADDR_LONG = 2;
-const int COMMAND_SET_PAN = 3;
-const int COMMAND_SET_CHANNEL = 4;
-const int COMMAND_SET_POWER = 5;
+const int COMMAND_SET_PAN       = 3;
+const int COMMAND_SET_CHANNEL   = 4;
+const int COMMAND_SET_POWER     = 5;
 const int COMMAND_CONFIG_COMMIT = 6;
 
-const int COMMAND_GET_ADDR = 7;
+const int COMMAND_GET_ADDR      = 7;
 const int COMMAND_GET_ADDR_LONG = 8;
-const int COMMAND_GET_PAN = 9;
-const int COMMAND_GET_CHANNEL = 10;
-const int COMMAND_GET_POWER = 11;
+const int COMMAND_GET_PAN       = 9;
+const int COMMAND_GET_CHANNEL   = 10;
+const int COMMAND_GET_POWER     = 11;
 
 const int COMMAND_MAX_NEIGHBORS = 12;
 const int COMMAND_NUM_NEIGHBORS = 13;
-const int COMMAND_GET_NEIGHBOR_ADDR = 14;
+const int COMMAND_GET_NEIGHBOR_ADDR      = 14;
 const int COMMAND_GET_NEIGHBOR_ADDR_LONG = 15;
-const int COMMAND_ADD_NEIGHBOR = 16;
-const int COMMAND_REMOVE_NEIGHBOR = 17;
+const int COMMAND_ADD_NEIGHBOR           = 16;
+const int COMMAND_REMOVE_NEIGHBOR        = 17;
 
-const int COMMAND_MAX_KEYS = 18;
-const int COMMAND_NUM_KEYS = 19;
+const int COMMAND_MAX_KEYS      = 18;
+const int COMMAND_NUM_KEYS      = 19;
 const int COMMAND_GET_KEY_LEVEL = 20;
-const int COMMAND_GET_KEY_ID = 21;
-const int COMMAND_GET_KEY = 22;
-const int COMMAND_ADD_KEY = 23;
-const int COMMAND_REMOVE_KEY = 24;
+const int COMMAND_GET_KEY_ID    = 21;
+const int COMMAND_GET_KEY       = 22;
+const int COMMAND_ADD_KEY       = 23;
+const int COMMAND_REMOVE_KEY    = 24;
 
 const int COMMAND_SEND = 25;
 
@@ -215,15 +215,15 @@ int ieee802154_get_key_security_level(unsigned index, security_level_t *level) {
 
 int ieee802154_key_id_bytes(key_id_mode_t key_id_mode) {
   switch (key_id_mode) {
-      default:
-      case KEY_ID_IMPLICIT:
-        return 0;
-      case KEY_ID_INDEX:
-        return 1;
-      case KEY_ID_SRC_4_INDEX:
-        return 5;
-      case KEY_ID_SRC_8_INDEX:
-        return 9;
+    default:
+    case KEY_ID_IMPLICIT:
+      return 0;
+    case KEY_ID_INDEX:
+      return 1;
+    case KEY_ID_SRC_4_INDEX:
+      return 5;
+    case KEY_ID_SRC_8_INDEX:
+      return 9;
   }
 }
 
@@ -294,8 +294,8 @@ static void tx_done_callback(int result,
                              int acked,
                              __attribute__ ((unused)) int arg3,
                              void* ud) {
-  tx_result = result;
-  tx_acked = acked;
+  tx_result     = result;
+  tx_acked      = acked;
   *((bool*) ud) = true;
 }
 
