@@ -1,22 +1,24 @@
-//! TRNG driver for nrf51dk
+//! TRNG driver for nRF5X-family
 //!
 //! The TRNG generates 1 byte randomness at the time value in the interval
-//! 0 <= r <= 255
+//! 0 <= r <= 255.
 //!
-//! The capsule requires 4 bytes of randomness
+//! Because that the he capsule requires 4 bytes of randomness at the time.
+//! 4 bytes of randomness must be generated before returning  back to capsule.
 //!
-//! The counter "done" ensures that 4 bytes of randomness have been generated
-//! before returning to the capsule.
-//!
-//! A temporary array "randomness" is used to store the randomness until it is
-//! returned to the capsule
+//! Therefore this module will have to use the TRNG four times.
+//! A counter `index` has been introduced to keep track of this.
+//! The four bytes of randomness is stored in a `Cell<u32>` which shifted
+//! according to append one byte at the time.
 //!
 //! In the current implementation if done > 4 for some strange reason the
 //! random generation will be restarted
 //!
-//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: March 01, 2017
+//! Authors
+//! -------------------
+//! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! * Fredrik Nilsson <frednils@student.chalmers.se>
+//! * Date: March 01, 2017
 
 use core::cell::Cell;
 use kernel::hil::rng::{self, Continue};

@@ -1,11 +1,15 @@
+//! Clock peripheral driver for nRF5X-family
+//!
 //! The clock peripheral of the nRF51 series (chapter 13 of
 //! the nRF51 reference manual v3.0), which manages the
 //! low frequency and high frequency clocks. The low frequency
 //! clock drives the real time clock (RTC), while the
 //! high frequency clocks drive the timer system.
 //!
-//! Author: Philip Levis
-//! Date: August 18, 2016
+//! Author
+//! ---------
+//! * Philip Levis
+//! * Date: August 18, 2016
 
 use core::cell::Cell;
 use core::mem;

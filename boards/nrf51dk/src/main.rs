@@ -3,35 +3,38 @@
 //! Cortex M0 core with a BLE transceiver) with many exported
 //! pins, LEDs, and buttons. Currently the kernel provides
 //! application timers, and GPIO. It will provide a console
-//! once the UART is fully implemented and debugged. The
-//! application GPIO pins are:
+//! once the UART is fully implemented and debugged.
+//! 
+//! ### GPIO pins
+//! --------------
+//! * 0 -> LED1 (pin 21)
+//! * 1 -> LED2 (pin 22)
+//! * 2 -> LED3 (pin 23)
+//! * 3 -> LED4 (pin 24)
+//! * 5 -> BUTTON1 (pin 17)
+//! * 6 -> BUTTON2 (pin 18)
+//! * 7 -> BUTTON3 (pin 19)
+//! * 8 -> BUTTON4 (pin 20)
+//! * 9 -> P0.01   (bottom left header)
+//! * 10 -> P0.02   (bottom left header)
+//! * 11 -> P0.03   (bottom left header)
+//! * 12 -> P0.04   (bottom left header)
+//! * 12 -> P0.05   (bottom left header)
+//! * 13 -> P0.06   (bottom left header)
+//! * 14 -> P0.19   (mid right header)
+//! * 15 -> P0.18   (mid right header)
+//! * 16 -> P0.17   (mid right header)
+//! * 17 -> P0.16   (mid right header)
+//! * 18 -> P0.15   (mid right header)
+//! * 19 -> P0.14   (mid right header)
+//! * 20 -> P0.13   (mid right header)
+//! * 21 -> P0.12   (mid right header)
 //!
-//!   0 -> LED1 (pin 21)
-//!   1 -> LED2 (pin 22)
-//!   2 -> LED3 (pin 23)
-//!   3 -> LED4 (pin 24)
-//!   5 -> BUTTON1 (pin 17)
-//!   6 -> BUTTON2 (pin 18)
-//!   7 -> BUTTON3 (pin 19)
-//!   8 -> BUTTON4 (pin 20)
-//!   9 -> P0.01   (bottom left header)
-//!  10 -> P0.02   (bottom left header)
-//!  11 -> P0.03   (bottom left header)
-//!  12 -> P0.04   (bottom left header)
-//!  12 -> P0.05   (bottom left header)
-//!  13 -> P0.06   (bottom left header)
-//!  14 -> P0.19   (mid right header)
-//!  15 -> P0.18   (mid right header)
-//!  16 -> P0.17   (mid right header)
-//!  17 -> P0.16   (mid right header)
-//!  18 -> P0.15   (mid right header)
-//!  19 -> P0.14   (mid right header)
-//!  20 -> P0.13   (mid right header)
-//!  21 -> P0.12   (mid right header)
-//!
-//!  Author: Philip Levis <pal@cs.stanford.edu>
-//!  Author: Anderson Lizardo <anderson.lizardo@gmail.com>
-//!  Date: August 18, 2016
+//! ### Authors
+//! ---------------
+//! * Philip Levis <pal@cs.stanford.edu>
+//! * Anderson Lizardo <anderson.lizardo@gmail.com>
+//! Date: August 18, 2016
 
 #![no_std]
 #![no_main]

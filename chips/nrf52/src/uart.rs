@@ -1,5 +1,5 @@
-//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! Date: July 8, 2017
+/// Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
+/// Date: July 8, 2017
 
 use chip;
 use core::cell::Cell;

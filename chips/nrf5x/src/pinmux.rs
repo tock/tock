@@ -1,4 +1,4 @@
-//! An abstraction over the NRF51 pin multiplexer
+//! An abstraction over the nRF5X-family pin multiplexer
 //!
 //! Controller drivers should use the `Pinmux` type (instead of a `u32`) for
 //! fields that determine which pins are used by the hardware. The board

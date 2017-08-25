@@ -1,4 +1,4 @@
-//! Radio/BLE Driver for nRF52-DK
+//! Radio driver Bluetooth Low Energy nRF52
 //!
 //! Sending BLE advertisement packets
 //! Possible payload is 31 bytes
@@ -6,8 +6,10 @@
 //! Currently all fields in PAYLOAD array are configurable from user-space
 //! except the PDU_TYPE.
 //!
-//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! Date: July 18, 2017
+//! ### Author
+//! ------------
+//! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! * Date: July 18, 2017
 
 use core::cell::Cell;
 use kernel;
