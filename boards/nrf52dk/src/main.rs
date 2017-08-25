@@ -12,7 +12,7 @@
 //! -------------------
 //!
 //! ### `GPIO`
-//!   
+//!
 //! * P0.27 -> (top left header)
 //! * P0.26 -> (top left header)
 //! * P0.02 -> (top left header)

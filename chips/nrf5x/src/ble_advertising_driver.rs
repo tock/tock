@@ -38,7 +38,7 @@
 //!
 //! * 0: provides a callback user-space when a device scanning for advertisements
 //!          and the callback is used to invoke user-space processes.
-//! 
+//!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
 //! * ENOMEM:    Not sufficient amount memory
@@ -49,7 +49,7 @@
 //! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
 //! 'cmd' is used to specify the specific operation, currently
 //! the following cmd's are supported:
-//!     
+//!
 //! * 0: start advertisement
 //! * 1: stop advertisement
 //! * 2: configure tx power
@@ -58,12 +58,12 @@
 //! * 5: start scanning
 //!
 //! The possible return codes from the 'command' system call indicate the following:
-//! 
+//!
 //! * SUCCESS:      The command was successful
 //! * EBUSY:        The driver is currently busy with other tasks
 //! * ENOSUPPORT:   The operation is not supported
 //!
-//! ### Authors 
+//! ### Authors
 //! --------------
 //! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! * Fredrik Nilsson <frednils@student.chalmers.se>

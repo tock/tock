@@ -4,7 +4,7 @@
 //! pins, LEDs, and buttons. Currently the kernel provides
 //! application timers, and GPIO. It will provide a console
 //! once the UART is fully implemented and debugged.
-//! 
+//!
 //! ### GPIO pins
 //! --------------
 //! * 0 -> LED1 (pin 21)
