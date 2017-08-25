@@ -362,10 +362,8 @@ impl<'a> RadioDriver<'a> {
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            app.enter(|app, _| {
-                if app.pending_tx.is_some() {
-                    pending_app = Some(app.appid());
-                }
+            app.enter(|app, _| if app.pending_tx.is_some() {
+                pending_app = Some(app.appid());
             });
             if pending_app.is_some() {
                 break;
@@ -383,7 +381,8 @@ impl<'a> RadioDriver<'a> {
         let result = self.perform_tx_sync(appid);
         if result != ReturnCode::SUCCESS {
             let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback.take()
+                app.tx_callback
+                    .take()
                     .map(|mut cb| cb.schedule(result.into(), 0, 0));
             });
         }
@@ -397,16 +396,19 @@ impl<'a> RadioDriver<'a> {
         self.do_with_app(appid, |app| {
             let (dst_addr, security_needed) = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
-                None => { return ReturnCode::SUCCESS; }
+                None => {
+                    return ReturnCode::SUCCESS;
+                }
             };
-            let result = self.kernel_tx.take()
+            let result = self.kernel_tx
+                .take()
                 .map_or(ReturnCode::ENOMEM, |kbuf| {
                     // Prepare the frame headers
                     let pan = self.mac.get_pan();
                     let dst_addr = MacAddress::Short(dst_addr);
                     let src_addr = MacAddress::Short(self.mac.get_address());
-                    let mut frame = match self.mac.prepare_data_frame(
-                        kbuf, pan, dst_addr, pan, src_addr, security_needed) {
+                    let mut frame = match self.mac
+                        .prepare_data_frame(kbuf, pan, dst_addr, pan, src_addr, security_needed) {
                         Ok(frame) => frame,
                         Err(kbuf) => {
                             self.kernel_tx.replace(kbuf);
@@ -739,14 +741,18 @@ impl<'a> Driver for RadioDriver<'a> {
                         let dst_addr = arg1 as u16;
                         let level = match SecurityLevel::from_scf(cfg.as_ref()[0]) {
                             Some(level) => level,
-                            None => { return None; }
+                            None => {
+                                return None;
+                            }
                         };
                         if level == SecurityLevel::None {
                             Some((dst_addr, None))
                         } else {
                             let key_id = match decode_key_id(&cfg.as_ref()[1..]).done() {
                                 Some((_, key_id)) => key_id,
-                                None => { return None; }
+                                None => {
+                                    return None;
+                                }
                             };
                             Some((dst_addr, Some((level, key_id))))
                         }
@@ -769,7 +775,8 @@ impl<'a> mac::TxClient for RadioDriver<'a> {
         self.kernel_tx.replace(spi_buf);
         self.current_app.get().map(|appid| {
             let _ = self.apps.enter(appid, |app, _| {
-                app.tx_callback.take()
+                app.tx_callback
+                    .take()
                     .map(|mut cb| cb.schedule(result.into(), acked as usize, 0));
             });
         });

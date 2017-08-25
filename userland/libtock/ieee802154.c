@@ -377,3 +377,29 @@ int ieee802154_frame_get_payload_length(const char *frame) {
   if (!frame) return 0;
   return frame[1];
 }
+
+addr_mode_t ieee802154_frame_get_dst_addr(__attribute__ ((unused)) const char *frame,
+                                          __attribute__ ((unused)) unsigned short *short_addr,
+                                          __attribute__ ((unused)) unsigned char *long_addr) {
+  // TODO: Inspect the frame and find the offset of the dst address
+  return ADDR_NONE;
+}
+
+addr_mode_t ieee802154_frame_get_src_addr(__attribute__ ((unused)) const char *frame,
+                                          __attribute__ ((unused)) unsigned short *short_addr,
+                                          __attribute__ ((unused)) unsigned char *long_addr) {
+  // TODO: Inspect the frame and find the offset of the dst address
+  return ADDR_NONE;
+}
+
+bool ieee802154_frame_get_dst_pan(__attribute__ ((unused)) const char *frame,
+                                  __attribute__ ((unused)) unsigned short *pan) {
+  // TODO: Actually get the pan
+  return false;
+}
+
+bool ieee802154_frame_get_src_pan(__attribute__ ((unused)) const char *frame,
+                                  __attribute__ ((unused)) unsigned short *pan) {
+  // TODO: Actually get the pan
+  return false;
+}
