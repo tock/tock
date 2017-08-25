@@ -236,6 +236,12 @@ int ieee802154_receive_sync(const char *frame, unsigned char len);
 // `frame` (in): Buffer in which to put the full IEEE 802.15.4 frame data. See
 //   `ieee802154_receive_sync` for more details.
 // `len` (in): The size of the buffer into which the frame will be placed.
+//
+// The callback will receive three arguments containing information about the header
+// of the received frame:
+// `pans`: ((destination PAN ID if present else 0) << 16) | (source PANID if present else 0)
+// `dst_addr`: (addressing mode << 16) | (short address if address is short else 0)
+// `src_addr`: (addressing mode << 16) | (short address if address is short else 0)
 int ieee802154_receive(subscribe_cb callback,
                        const char *frame,
                        unsigned char len);
@@ -247,28 +253,37 @@ int ieee802154_receive(subscribe_cb callback,
 
 typedef enum {
   ADDR_NONE = 0,
-  ADDR_SHORT = 1,
-  ADDR_LONG = 2,
+  ADDR_SHORT = 2,
+  ADDR_LONG = 3,
 } addr_mode_t;
 
-// Gets the length of the received frame. Returns the length of the received frame.
+// Gets the length of the received frame.
 // `frame` (in): The frame data provided by ieee802154_receive_*.
 int ieee802154_frame_get_length(const char *frame);
 // Gets the offset into `frame` of the data payload in the frame.
 // `frame` (in): The frame data provided by ieee802154_receive_*.
 int ieee802154_frame_get_payload_offset(const char *frame);
+// Gets the length of the data payload in the frame.
+// `frame` (in): The frame data provided by ieee802154_receive_*.
+int ieee802154_frame_get_payload_length(const char *frame);
 // Gets the destination address of the received frame. Returns the addressing
 // mode, and if an address is present, writes the address into `addr`
 // `frame` (in): The frame data provided by ieee802154_receive_*.
-// `addr` (out): The destination address of the frame.
+// `short_addr` (out): The destination address of the frame, if it is short.
+// `long_addr` (out): The destination address of the frame, if it is long. Must point
+// to 8 bytes of valid memory.
 addr_mode_t ieee802154_frame_get_dst_addr(const char *frame,
-                                          unsigned char *addr);
+                                          unsigned short *short_addr,
+                                          unsigned char *long_addr);
 // Gets the source address of the received frame. Returns the addressing
 // mode, and if an address is present, writes the address into `addr`
 // `frame` (in): The frame data provided by ieee802154_receive_*.
-// `addr` (out): The source address of the frame.
+// `short_addr` (out): The source address of the frame, if it is short.
+// `long_addr` (out): The source address of the frame, if it is long. Must
+// point to 8 bytes of valid memory.
 addr_mode_t ieee802154_frame_get_src_addr(const char *frame,
-                                          unsigned char *addr);
+                                          unsigned short *short_addr,
+                                          unsigned char *long_addr);
 // Gets the destination PAN ID of the received frame. Returns `true` if it
 // is present and writes it into `pan`, otherwise returns `false.
 // `frame` (in): The frame data provided by ieee802154_receive_*.

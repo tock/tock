@@ -3,11 +3,12 @@
 //! known link neighbors, which is needed for 802.15.4 security.
 
 use core::cell::Cell;
+use core::cmp::min;
 use ieee802154::mac;
 use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container, ReturnCode};
 use kernel::common::take_cell::{MapCell, TakeCell};
 
-use net::ieee802154::{MacAddress, Header, SecurityLevel, KeyId};
+use net::ieee802154::{MacAddress, PanID, Header, SecurityLevel, KeyId, AddressMode};
 use net::stream::{decode_u8, decode_bytes, encode_u8, encode_bytes, SResult};
 
 const MAX_NEIGHBORS: usize = 4;
@@ -28,9 +29,10 @@ impl Default for DeviceDescriptor {
     }
 }
 
+/// The Key ID mode mapping expected by the userland driver
 #[repr(u8)]
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum KeyIdModeUserland {
+enum KeyIdModeUserland {
     Implicit = 0,
     Index = 1,
     Source4Index = 2,
@@ -49,6 +51,7 @@ impl KeyIdModeUserland {
     }
 }
 
+/// Encodes a key ID into a buffer in the format expected by the userland driver.
 fn encode_key_id(key_id: &KeyId, buf: &mut [u8]) -> SResult {
     let off = enc_consume!(buf; encode_u8, KeyIdModeUserland::from(key_id) as u8);
     let off = match *key_id {
@@ -66,6 +69,7 @@ fn encode_key_id(key_id: &KeyId, buf: &mut [u8]) -> SResult {
     stream_done!(off);
 }
 
+/// Decodes a key ID that is in the format produced by the userland driver.
 fn decode_key_id(buf: &[u8]) -> SResult<KeyId> {
     stream_len_cond!(buf, 1);
     let mode = stream_from_option!(KeyIdModeUserland::from_u8(buf[0]));
@@ -135,25 +139,23 @@ impl KeyDescriptor {
 }
 
 pub struct App {
-    tx_callback: Option<Callback>,
     rx_callback: Option<Callback>,
+    tx_callback: Option<Callback>,
     app_read: Option<AppSlice<Shared, u8>>,
     app_write: Option<AppSlice<Shared, u8>>,
     app_cfg: Option<AppSlice<Shared, u8>>,
-    pending_tx: Option<(usize, u16)>,
-    tx_security: Option<(SecurityLevel, KeyId)>,
+    pending_tx: Option<(u16, Option<(SecurityLevel, KeyId)>)>,
 }
 
 impl Default for App {
     fn default() -> Self {
         App {
-            tx_callback: None,
             rx_callback: None,
+            tx_callback: None,
             app_read: None,
             app_write: None,
             app_cfg: None,
             pending_tx: None,
-            tx_security: None,
         }
     }
 }
@@ -308,6 +310,7 @@ impl<'a> RadioDriver<'a> {
         }
     }
 
+    /// Utility function to perform an action on an app in a system call.
     #[inline]
     fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
         where F: FnOnce(&mut App) -> ReturnCode
@@ -317,13 +320,14 @@ impl<'a> RadioDriver<'a> {
             .unwrap_or_else(|err| err.into())
     }
 
+    /// Utility function to perform an action using an app's config buffer.
     #[inline]
     fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
         where F: FnOnce(&[u8]) -> ReturnCode
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg.as_ref().map_or(ReturnCode::EINVAL, |cfg| {
+                app.app_cfg.take().as_ref().map_or(ReturnCode::EINVAL, |cfg| {
                     if cfg.len() != len {
                         return ReturnCode::EINVAL;
                     }
@@ -333,13 +337,14 @@ impl<'a> RadioDriver<'a> {
             .unwrap_or_else(|err| err.into())
     }
 
+    /// Utility function to perform a write to an app's config buffer.
     #[inline]
     fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
         where F: FnOnce(&mut [u8]) -> ReturnCode
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg.as_mut().map_or(ReturnCode::EINVAL, |cfg| {
+                app.app_cfg.take().as_mut().map_or(ReturnCode::EINVAL, |cfg| {
                     if cfg.len() != len {
                         return ReturnCode::EINVAL;
                     }
@@ -347,6 +352,114 @@ impl<'a> RadioDriver<'a> {
                 })
             })
             .unwrap_or_else(|err| err.into())
+    }
+
+    /// If the driver is currently idle and there are pending transmissions,
+    /// pick an app with a pending transmission and return its `AppId`.
+    fn get_next_tx_if_idle(&self) -> Option<AppId> {
+        if self.current_app.get().is_some() {
+            return None;
+        }
+        let mut pending_app = None;
+        for app in self.apps.iter() {
+            app.enter(|app, _| {
+                if app.pending_tx.is_some() {
+                    pending_app = Some(app.appid());
+                }
+            });
+            if pending_app.is_some() {
+                break;
+            }
+        }
+        pending_app
+    }
+
+    /// Performs `appid`'s pending transmission asynchronously. If the
+    /// transmission is not successful, the error is returned to the app via its
+    /// `tx_callback`. Assumes that the driver is currently idle and the app has
+    /// a pending transmission.
+    #[inline]
+    fn perform_tx_async(&self, appid: AppId) {
+        let result = self.perform_tx_sync(appid);
+        if result != ReturnCode::SUCCESS {
+            let _ = self.apps.enter(appid, |app, _| {
+                app.tx_callback.take()
+                    .map(|mut cb| cb.schedule(result.into(), 0, 0));
+            });
+        }
+    }
+
+    /// Performs `appid`'s pending transmission synchronously. The result is
+    /// returned immediately to the app. Assumes that the driver is currently
+    /// idle and the app has a pending transmission.
+    #[inline]
+    fn perform_tx_sync(&self, appid: AppId) -> ReturnCode {
+        self.do_with_app(appid, |app| {
+            let (dst_addr, security_needed) = match app.pending_tx.take() {
+                Some(pending_tx) => pending_tx,
+                None => { return ReturnCode::SUCCESS; }
+            };
+            let result = self.kernel_tx.take()
+                .map_or(ReturnCode::ENOMEM, |kbuf| {
+                    // Prepare the frame headers
+                    let pan = self.mac.get_pan();
+                    let dst_addr = MacAddress::Short(dst_addr);
+                    let src_addr = MacAddress::Short(self.mac.get_address());
+                    let mut frame = match self.mac.prepare_data_frame(
+                        kbuf, pan, dst_addr, pan, src_addr, security_needed) {
+                        Ok(frame) => frame,
+                        Err(kbuf) => {
+                            self.kernel_tx.replace(kbuf);
+                            return ReturnCode::FAIL;
+                        }
+                    };
+
+                    // Append the payload: there must be one
+                    let result = app.app_write
+                        .take()
+                        .as_ref()
+                        .map(|payload| frame.append_payload(payload.as_ref()))
+                        .unwrap_or(ReturnCode::EINVAL);
+                    if result != ReturnCode::SUCCESS {
+                        return result;
+                    }
+
+                    // Finally, transmit the frame
+                    let (result, mbuf) = self.mac.transmit(frame);
+                    if let Some(buf) = mbuf {
+                        self.kernel_tx.replace(buf);
+                    }
+                    result
+                });
+            if result == ReturnCode::SUCCESS {
+                self.current_app.set(Some(appid));
+            }
+            result
+        })
+    }
+
+    /// Schedule the next transmission if there is one pending. Performs the
+    /// transmission asynchronously, returning any errors via callbacks.
+    #[inline]
+    fn do_next_tx_async(&self) {
+        self.get_next_tx_if_idle().map(|appid| self.perform_tx_async(appid));
+    }
+
+    /// Schedule the next transmission if there is one pending. If the next
+    /// transmission happens to be the one that was just queued, then the
+    /// transmission is synchronous. Hence, errors must be returned immediately.
+    /// On the other hand, if it is some other app, then return any errors via
+    /// callbacks.
+    #[inline]
+    fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
+        self.get_next_tx_if_idle()
+            .map(|appid| if appid == new_appid {
+                self.perform_tx_sync(appid)
+            } else {
+                self.perform_tx_async(appid);
+                ReturnCode::SUCCESS
+            })
+            .unwrap_or(ReturnCode::SUCCESS)
     }
 }
 
@@ -407,8 +520,26 @@ impl<'a> Driver for RadioDriver<'a> {
         }
     }
 
+    /// Setup callbacks.
+    ///
+    /// ### `subscribe_num`
+    ///
+    /// - `0`: Setup callback for when frame is received.
+    /// - `1`: Setup callback for when frame is transmitted.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
+            0 => {
+                self.do_with_app(callback.app_id(), |app| {
+                    app.rx_callback = Some(callback);
+                    ReturnCode::SUCCESS
+                })
+            }
+            1 => {
+                self.do_with_app(callback.app_id(), |app| {
+                    app.tx_callback = Some(callback);
+                    ReturnCode::SUCCESS
+                })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -595,6 +726,39 @@ impl<'a> Driver for RadioDriver<'a> {
                 })
             }
             24 => self.remove_key(arg1),
+            25 => {
+                self.do_with_app(appid, |app| {
+                    if app.pending_tx.is_some() {
+                        // Cannot support more than one pending tx per process.
+                        return ReturnCode::EBUSY;
+                    }
+                    let next_tx = app.app_cfg.as_ref().and_then(|cfg| {
+                        if cfg.len() != 11 {
+                            return None;
+                        }
+                        let dst_addr = arg1 as u16;
+                        let level = match SecurityLevel::from_scf(cfg.as_ref()[0]) {
+                            Some(level) => level,
+                            None => { return None; }
+                        };
+                        if level == SecurityLevel::None {
+                            Some((dst_addr, None))
+                        } else {
+                            let key_id = match decode_key_id(&cfg.as_ref()[1..]).done() {
+                                Some((_, key_id)) => key_id,
+                                None => { return None; }
+                            };
+                            Some((dst_addr, Some((level, key_id))))
+                        }
+                    });
+                    if next_tx.is_none() {
+                        return ReturnCode::EINVAL;
+                    }
+                    app.pending_tx = next_tx;
+
+                    self.do_next_tx_sync(appid)
+                })
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -602,12 +766,55 @@ impl<'a> Driver for RadioDriver<'a> {
 
 impl<'a> mac::TxClient for RadioDriver<'a> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        unimplemented!();
+        self.kernel_tx.replace(spi_buf);
+        self.current_app.get().map(|appid| {
+            let _ = self.apps.enter(appid, |app, _| {
+                app.tx_callback.take()
+                    .map(|mut cb| cb.schedule(result.into(), acked as usize, 0));
+            });
+        });
+        self.current_app.set(None);
+        self.do_next_tx_async();
     }
+}
+
+/// Encode two PAN IDs into a single usize.
+#[inline]
+fn encode_pans(dst_pan: &Option<PanID>, src_pan: &Option<PanID>) -> usize {
+    ((dst_pan.unwrap_or(0) as usize) << 16) | (src_pan.unwrap_or(0) as usize)
+}
+
+/// Encodes as much as possible about an address into a single usize.
+#[inline]
+fn encode_address(addr: &Option<MacAddress>) -> usize {
+    let short_addr_only = match *addr {
+        Some(MacAddress::Short(addr)) => addr as usize,
+        _ => 0,
+    };
+    ((AddressMode::from(addr) as usize) << 16) | short_addr_only
 }
 
 impl<'a> mac::RxClient for RadioDriver<'a> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
-        unimplemented!();
+        self.apps.each(|app| {
+            app.app_read
+                .take()
+                .as_mut()
+                .map(|rbuf| {
+                    let rbuf = rbuf.as_mut();
+                    let len = min(rbuf.len(), data_offset + data_len);
+                    // Copy the entire frame over to userland, preceded by two
+                    // bytes: the data offset and the data length.
+                    rbuf[..len].copy_from_slice(&buf[..len]);
+                    rbuf[0] = data_offset as u8;
+                    rbuf[1] = data_len as u8;
+
+                    // Encode useful parts of the header in 3 usizes
+                    let pans = encode_pans(&header.dst_pan, &header.src_pan);
+                    let dst_addr = encode_address(&header.dst_addr);
+                    let src_addr = encode_address(&header.src_addr);
+                    app.rx_callback.take().map(|mut cb| cb.schedule(pans, dst_addr, src_addr));
+                });
+        });
     }
 }

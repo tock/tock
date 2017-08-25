@@ -7,6 +7,9 @@ const int ALLOW_RX = 0;
 const int ALLOW_TX = 1;
 const int ALLOW_CFG = 2;
 
+const int SUBSCRIBE_RX = 0;
+const int SUBSCRIBE_TX = 1;
+
 const int COMMAND_STATUS = 0;
 const int COMMAND_SET_ADDR = 1;
 const int COMMAND_SET_ADDR_LONG = 2;
@@ -35,6 +38,8 @@ const int COMMAND_GET_KEY_ID = 21;
 const int COMMAND_GET_KEY = 22;
 const int COMMAND_ADD_KEY = 23;
 const int COMMAND_REMOVE_KEY = 24;
+
+const int COMMAND_SEND = 25;
 
 // Temporary buffer used for some commands where the system call interface
 // parameters / return codes are not enough te contain the required data.
@@ -93,7 +98,7 @@ int ieee802154_get_address(unsigned short *addr) {
     // Driver adds 1 to make the value positive.
     *addr = (unsigned short) (err - 1);
   }
-  return res;
+  return err;
 }
 
 int ieee802154_get_address_long(unsigned char *addr_long) {
@@ -110,7 +115,7 @@ int ieee802154_get_pan(unsigned short *pan) {
     // Driver adds 1 to make the value positive.
     *pan = (unsigned short) (err - 1);
   }
-  return res;
+  return err;
 }
 
 int ieee802154_get_channel(unsigned char *channel) {
@@ -120,7 +125,7 @@ int ieee802154_get_channel(unsigned char *channel) {
     // Driver adds 1 to make the value positive.
     *channel = (unsigned char) (err - 1);
   }
-  return res;
+  return err;
 }
 
 int ieee802154_get_power(char *power) {
@@ -130,7 +135,7 @@ int ieee802154_get_power(char *power) {
     // Driver adds 1 to the power after casting it to unsigned, so this works
     *power = (char) (err - 1);
   }
-  return res;
+  return err;
 }
 
 int ieee802154_max_neighbors(void) {
@@ -152,7 +157,7 @@ int ieee802154_get_neighbor_address(unsigned index, unsigned short *addr) {
     // Driver adds 1 to ensure it is positive.
     *addr = (unsigned short) (err - 1);
   }
-  return res;
+  return err;
 }
 
 int ieee802154_get_neighbor_address_long(unsigned index, unsigned char *addr_long) {
@@ -282,3 +287,93 @@ int ieee802154_remove_key(unsigned index) {
   return command(RADIO_DRIVER, COMMAND_REMOVE_KEY, (unsigned int) index);
 }
 
+// Internal callback for transmission
+static int tx_result;
+static int tx_acked;
+static void tx_done_callback(int result,
+                             int acked,
+                             __attribute__ ((unused)) int arg3,
+                             void* ud) {
+  tx_result = result;
+  tx_acked = acked;
+  *((bool*) ud) = true;
+}
+
+int ieee802154_send(unsigned short addr,
+                    security_level_t level,
+                    key_id_mode_t key_id_mode,
+                    unsigned char *key_id,
+                    const char *payload,
+                    unsigned char len) {
+  // Setup parameters in ALLOW_CFG and ALLOW_TX
+  int err = allow(RADIO_DRIVER, ALLOW_CFG, (void *) BUF_CFG, 11);
+  if (err < 0) return err;
+  BUF_CFG[0] = level;
+  BUF_CFG[1] = key_id_mode;
+  int bytes = ieee802154_key_id_bytes(key_id_mode);
+  if (bytes > 0) {
+    memcpy(BUF_CFG + 2, key_id, bytes);
+  }
+  err = allow(RADIO_DRIVER, ALLOW_TX, (void *) payload, len);
+  if (err < 0) return err;
+
+  // Subscribe to the transmit callback
+  bool tx_done = false;
+  err = subscribe(RADIO_DRIVER, SUBSCRIBE_TX,
+                  tx_done_callback, (void *) &tx_done);
+  if (err < 0) return err;
+
+  // Issue the send command and wait for the transmission to be done.
+  err = command(RADIO_DRIVER, COMMAND_SEND, (unsigned int) addr);
+  if (err < 0) return err;
+  yield_for(&tx_done);
+  return tx_result;
+}
+
+// Internal callback for receive
+static void rx_done_callback(__attribute__ ((unused)) int pans,
+                             __attribute__ ((unused)) int dst_addr,
+                             __attribute__ ((unused)) int src_addr,
+                             void* ud) {
+  *((bool*) ud) = true;
+}
+
+int ieee802154_receive_sync(const char *frame, unsigned char len) {
+  // Provide the buffer to the kernel
+  int err = allow(RADIO_DRIVER, ALLOW_RX, (void *) frame, len);
+  if (err < 0) return err;
+
+  // Subscribe to the received callback
+  bool rx_done = false;
+  err = subscribe(RADIO_DRIVER, SUBSCRIBE_RX, rx_done_callback, (void *) &rx_done);
+  if (err < 0) return err;
+
+  // Wait for a frame
+  yield_for(&rx_done);
+  return TOCK_SUCCESS;
+}
+
+int ieee802154_receive(subscribe_cb callback,
+                       const char *frame,
+                       unsigned char len) {
+  // Provide the buffer to the kernel
+  int err = allow(RADIO_DRIVER, ALLOW_RX, (void *) frame, len);
+  if (err < 0) return err;
+  return subscribe(RADIO_DRIVER, SUBSCRIBE_RX, callback, NULL);
+}
+
+int ieee802154_frame_get_length(const char *frame) {
+  if (!frame) return 0;
+  // data_offset + data_len - 2 header bytes
+  return frame[0] + frame[1] - 2;
+}
+
+int ieee802154_frame_get_payload_offset(const char *frame) {
+  if (!frame) return 0;
+  return frame[0];
+}
+
+int ieee802154_frame_get_payload_length(const char *frame) {
+  if (!frame) return 0;
+  return frame[1];
+}
