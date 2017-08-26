@@ -125,37 +125,22 @@ you can use the build scripts in the `tools` directory, in this order:
 
 ## Compiling the Kernel
 
-To build the kernel, just type `make` in the root directory.  The root
-Makefile selects a board and architecture to build the kernel for and
-routes all calls to that board's specific Makefile. The root Makefile
-is set up with the following defaults:
+Tock builds a unique kernel for every _board_ it supports. Boards include
+details like pulling together the correct chips and pin assignments. To
+build a kernel, first choose a board, then navigate to that board directory.
+e.g. `cd boards/hail ; make`.
 
-```
-TOCK_BOARD ?= hail
-```
+Some boards have special build options that can only be used within the board's
+directory.  All boards share a few common targets:
 
-Thus it compiles for the Hail board by default. There are two ways to
-build for a different board:
+  - `all` (default): Compile Tock for this board.
+  - `debug`: Generate build(s) for debugging support, details vary per board.
+  - `doc`: Build documentation for this board.
+  - `clean`: Remove built artifacts for this board.
+  - `flash`: Load code using JTAG, if available.
+  - `program`: Load code using a bootloader, if available.
 
- * You can compile the kernel for a specific board by running the command
-   from inside the board's directory:
-
-    ```bash
-    $ cd boards/nrf51dk/
-    $ make
-    ```
-
- * Alternatively, you can add a `TOCK_BOARD` environment variable where
-    `TOCK_BOARD` is the directory name inside `boards/`.
-
-    ```bash
-    $ make TOCK_BOARD=nrf51dk
-    ```
-
-Board specific Makefiles are located in `boards/<BOARD>/`. Some boards have
-special build options that can only be used within the board's directory.
-Generic options such as `clean`, `doc`, `debug`, `program`, and `flash` can be
-accessed from Tock's root.
+The READMEs in each board provide more details for each platform.
 
 ## Compiling applications
 
