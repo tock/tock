@@ -1,4 +1,4 @@
-//! Tock kernel for the Nordic Semiconductor nRF52 development kit (DK), a.k.a. the PCA10040.
+//! Tock kernel for the Nordic Semiconductor nRF52 development kit (DK), a.k.a. the PCA10040. </br>
 //! It is based on nRF52838 SoC (Cortex M4 core with a BLE transceiver) with many exported
 //! I/O and peripherals.
 //!
@@ -11,8 +11,7 @@
 //! Pin Configuration
 //! -------------------
 //!
-//! ### `GPIO`
-//!
+//! ### `GPIOs`
 //! * P0.27 -> (top left header)
 //! * P0.26 -> (top left header)
 //! * P0.02 -> (top left header)
@@ -20,23 +19,8 @@
 //! * P0.24 -> (top left header)
 //! * P0.23 -> (top left header)
 //! * P0.22 -> (top left header)
-//! * P0.20 -> (top left header)
-//! * P0.19 -> (top left header)
-//! * P0.18 -> (top mid header)
-//! * P0.17 -> (top mid header)
-//! * P0.16 -> (top mid header)
-//! * P0.15 -> (top mid header)
-//! * P0.14 -> (top mid header)
-//! * P0.13 -> (top mid header)
 //! * P0.12 -> (top mid header)
 //! * P0.11 -> (top mid header)
-//! * P0.10 -> (top right header)
-//! * P0.09 -> (top right header)
-//! * P0.08 -> (top right header)
-//! * P0.07 -> (top right header)
-//! * P0.06 -> (top right header)
-//! * P0.05 -> (top right header)
-//! * P0.21 -> (top right header)
 //! * P0.01 -> (top right header)
 //! * P0.00 -> (top right header)
 //! * P0.03 -> (bottom right header)

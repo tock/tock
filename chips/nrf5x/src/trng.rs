@@ -1,4 +1,4 @@
-//! TRNG driver for nRF5X-family
+//! TRNG driver, nRF5X-family
 //!
 //! The TRNG generates 1 byte randomness at the time value in the interval
 //! 0 <= r <= 255.

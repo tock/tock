@@ -1,4 +1,4 @@
-//! Temperature sensor driver nRF5X-family
+//! Temperature sensor driver, nRF5X-family
 //!
 //! Generates a simple temperature measurement without sampling
 //!

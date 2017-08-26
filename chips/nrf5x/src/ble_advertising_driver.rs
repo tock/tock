@@ -18,7 +18,6 @@
 //! The reason why is that they can be interleaved by an interrupt
 //!
 //! ### Allow system call
-//! ----------------------
 //! Each advertisement type corresponds to an allow number from 0 to 0xFF which
 //! is handled by a giant pattern matching in this module
 //!
@@ -32,7 +31,6 @@
 //! * ENOSUPPORT: The operation is not supported
 //!
 //! ### Subscribe system call
-//! --------------------------
 //!  The 'subscribe' system call supports two arguments `subscribe_num' and 'callback'.
 //! 'subscribe' is used to specify the specific operation, currently:
 //!
@@ -45,7 +43,6 @@
 //! * EINVAL:    Invalid operation
 //!
 //! ### Command system call
-//! ------------------------
 //! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
 //! 'cmd' is used to specify the specific operation, currently
 //! the following cmd's are supported:
@@ -64,7 +61,6 @@
 //! * ENOSUPPORT:   The operation is not supported
 //!
 //! ### Authors
-//! --------------
 //! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: June 22, 2017

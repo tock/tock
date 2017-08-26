@@ -1,13 +1,11 @@
-//! Radio Driver Bluetooth Low Energy nRF51
+//! Radio driver, Bluetooth Low Energy, nRF51
 //!
-//! Sending BLE advertisement packets
-//! Possible payload is 31 bytes
+//! Sending Bluetooth Low Energy advertisement packets with payloads up to 31 bytes
 //!
 //! Currently all fields in PAYLOAD array are configurable from user-space
 //! except the PDU_TYPE.
 //!
 //! ### Authors
-//! -----------------
 //! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: June 22, 2017

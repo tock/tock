@@ -1,4 +1,4 @@
-//! aes128 driver for nRF5X-family
+//! aes128 driver, nRF5X-family
 //!
 //! Provides a simple driver for userspace applications to encrypt and decrypt
 //! messages using aes128-ctr mode on top of aes128-ecb.

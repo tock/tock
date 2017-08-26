@@ -1,4 +1,4 @@
-//! Clock peripheral driver for nRF5X-family
+//! Clock peripheral driver, nRF5X-family
 //!
 //! The clock peripheral of the nRF51 series (chapter 13 of
 //! the nRF51 reference manual v3.0), which manages the

@@ -1,4 +1,4 @@
-//! RTC driver for nRF5X-family
+//! RTC driver, nRF5X-family
 
 use core::cell::Cell;
 use core::mem;

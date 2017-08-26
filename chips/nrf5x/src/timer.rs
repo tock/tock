@@ -1,4 +1,4 @@
-//! Timer driver for nRF5X-family
+//! Timer driver, nRF5X-family
 //!
 //! The nRF51822 timer system operates off of the high frequency clock
 //! (HFCLK) and provides three timers from the clock. Timer0 is tied
