@@ -223,6 +223,11 @@ int ieee802154_send(unsigned short addr,
                     const char *payload,
                     unsigned char len);
 
+// Maximum size required of a buffer to contain the IEEE 802.15.4 frame data
+// passed to userspace from the kernel. Consists of 2 extra bytes followed by
+// the whole IEEE 802.15.4 MTU, which is 127 bytes.
+#define IEEE802154_FRAME_LEN 129
+
 // Waits synchronously for an IEEE 802.15.4 frame.
 // `frame` (in): Buffer in which to put the full IEEE 802.15.4 frame data. Note
 //   that the data written might include more than just the IEEE 802.15.4 frame itself.
@@ -267,33 +272,43 @@ int ieee802154_frame_get_payload_offset(const char *frame);
 // `frame` (in): The frame data provided by ieee802154_receive_*.
 int ieee802154_frame_get_payload_length(const char *frame);
 // Gets the destination address of the received frame. Returns the addressing
-// mode, and if an address is present, writes the address into `addr`
+// mode, and if an address is present, writes the address into `short_addr` or
+// `long_addr`. If the out parameters are provided as NULL, this just returns
+// the addressing mode. Also returns ADDR_NONE if the frame is invalid.
 // `frame` (in): The frame data provided by ieee802154_receive_*.
 // `short_addr` (out): The destination address of the frame, if it is short.
-// `long_addr` (out): The destination address of the frame, if it is long. Must point
-// to 8 bytes of valid memory.
+// `long_addr` (out): The destination address of the frame, if it is long. Must
+// point to 8 bytes of valid memory, if not null.
 addr_mode_t ieee802154_frame_get_dst_addr(const char *frame,
                                           unsigned short *short_addr,
                                           unsigned char *long_addr);
-// Gets the source address of the received frame. Returns the addressing
-// mode, and if an address is present, writes the address into `addr`
+// Gets the source address of the received frame. Returns the addressing mode,
+// and if an address is present, writes the address into `short_addr` or
+// `long_addr`. If the out parameters are provided as NULL, this just returns
+// the addressing mode. Also returns ADDR_NONE if the frame is invalid.
 // `frame` (in): The frame data provided by ieee802154_receive_*.
 // `short_addr` (out): The source address of the frame, if it is short.
 // `long_addr` (out): The source address of the frame, if it is long. Must
-// point to 8 bytes of valid memory.
+// point to 8 bytes of valid memory, if not null.
 addr_mode_t ieee802154_frame_get_src_addr(const char *frame,
                                           unsigned short *short_addr,
                                           unsigned char *long_addr);
 // Gets the destination PAN ID of the received frame. Returns `true` if it
-// is present and writes it into `pan`, otherwise returns `false.
+// is present and writes it into `pan`, otherwise returns `false`.
+// Also returns `false` if the frame is invalid in any way.
 // `frame` (in): The frame data provided by ieee802154_receive_*.
-// `pan` (out): The destination PAN ID if it is present.
+// `pan` (out): The destination PAN ID if it is present. Can be set to NULL, in
+// which case nothing will be written.
 bool ieee802154_frame_get_dst_pan(const char *frame,
                                   unsigned short *pan);
-// Gets the source PAN ID of the received frame. Returns `true` if it
-// is present and writes it into `pan`, otherwise returns `false.
+// Gets the source PAN ID of the received frame. Returns `true` if it is
+// present and writes it into `pan`, otherwise returns `false`. The source PAN
+// ID is considered "present" if it is either included explicitly or is set to
+// match the destination PAN ID.
+// Also returns `false` if the frame is invalid in any way.
 // `frame` (in): The frame data provided by ieee802154_receive_*.
-// `pan` (out): The source PAN ID if it is present.
+// `pan` (out): The source PAN ID if it is present. Can be set to NULL, in
+// which case nothing will be written.
 bool ieee802154_frame_get_src_pan(const char *frame,
                                   unsigned short *pan);
 

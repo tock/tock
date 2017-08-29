@@ -378,28 +378,199 @@ int ieee802154_frame_get_payload_length(const char *frame) {
   return frame[1];
 }
 
+// Utility function to determine if the source and destination PAN and
+// addresses are present depending on the frame control field. This is used
+// only internally as a header parsing subroutine. Supports only 2003, 2006 or
+// 2015 frame versions. Returns false if the addressing mode combination is
+// invalid or the frame version is not supported. All out-parameters must be
+// provided.
+//
+// If the source pan is dropped, that means that it is the same as the
+// destination pan, which must be present.
+static bool ieee802154_get_addressing(uint16_t frame_control,
+                                      bool *dst_pan_present,
+                                      addr_mode_t *dst_mode,
+                                      bool *src_pan_present,
+                                      bool *src_pan_dropped,
+                                      addr_mode_t *src_mode) {
+  if (!dst_pan_present || !dst_mode || !src_pan_present || !src_pan_dropped ||
+      !src_mode) {
+    return false;
+  }
+
+  typedef enum {
+    VERSION_2003 = 0x0,
+    VERSION_2006 = 0x1,
+    VERSION_2015 = 0x2,
+  } version_t;
+
+  // Fields that determine if the PANs are present
+  version_t version = (version_t) ((frame_control >> 12) & 0x3);
+  *dst_mode = (addr_mode_t) ((frame_control >> 10) & 0x3);
+  *src_mode = (addr_mode_t) ((frame_control >> 14) & 0x3);
+  bool pan_id_compression = (frame_control >> 6) & 0x1;
+  bool dst_present        = dst_mode != ADDR_NONE;
+  bool src_present        = src_mode != ADDR_NONE;
+
+  // The flags that we are trying to determine
+  *src_pan_dropped = false;
+
+  // IEEE 802.15.4: Section 7.2.1.5 determines whether the PANs are present
+  // depending on the pan ID compression field and the addressing modes.
+  if (version == VERSION_2015) {
+    if (dst_present) {
+      if (src_present) {
+        *src_pan_dropped = pan_id_compression;
+        *dst_pan_present = true;
+        *src_pan_present = !pan_id_compression;
+      } else {
+        *dst_pan_present = !pan_id_compression;
+        *src_pan_present = false;
+      }
+    } else {
+      if (src_present) {
+        *dst_pan_present = false;
+        *src_pan_present = !pan_id_compression;
+      } else {
+        *dst_pan_present = pan_id_compression;
+        *src_pan_present = false;
+      }
+    }
+  } else if (version == VERSION_2003 || version == VERSION_2006) {
+    *src_pan_dropped = pan_id_compression;
+    *dst_pan_present = dst_present;
+    *src_pan_present = src_present && !src_pan_dropped;
+  } else {
+    return false;
+  }
+
+  // Check validity of addressing modes
+  if (*src_pan_dropped && !*dst_pan_present) {
+    return 0xff;
+  }
+
+  return true;
+}
+
 addr_mode_t ieee802154_frame_get_dst_addr(__attribute__ ((unused)) const char *frame,
                                           __attribute__ ((unused)) unsigned short *short_addr,
                                           __attribute__ ((unused)) unsigned char *long_addr) {
-  // TODO: Inspect the frame and find the offset of the dst address
-  return ADDR_NONE;
+  if (!frame) return ADDR_NONE;
+  uint16_t frame_control = ((uint16_t) frame[2]) | (((uint16_t) frame[3]) << 8);
+  bool dst_pan_present, src_pan_present, src_pan_dropped;
+  addr_mode_t dst_mode, src_mode;
+  if (!ieee802154_get_addressing(frame_control, &dst_pan_present, &dst_mode,
+                                 &src_pan_present, &src_pan_dropped, &src_mode)) {
+    return ADDR_NONE;
+  }
+
+  // The addressing fields are after the sequence number, which can be ommitted
+  const uint16_t SEQ_SUPPRESSED = 0x0100;
+  int addr_offset = (frame_control & SEQ_SUPPRESSED) ? 4 : 5;
+  if (dst_pan_present) addr_offset += 2;
+
+  if (dst_mode == ADDR_SHORT && short_addr) {
+    *short_addr = ((unsigned short) frame[addr_offset]) |
+                  (((unsigned short) frame[addr_offset + 1]) << 8);
+  }
+  if (dst_mode == ADDR_LONG && long_addr) {
+    int i;
+    for (i = 0; i < 8; i++) {
+      long_addr[i] = frame[addr_offset + 7 - i];
+    }
+  }
+
+  return dst_mode;
 }
 
 addr_mode_t ieee802154_frame_get_src_addr(__attribute__ ((unused)) const char *frame,
                                           __attribute__ ((unused)) unsigned short *short_addr,
                                           __attribute__ ((unused)) unsigned char *long_addr) {
-  // TODO: Inspect the frame and find the offset of the dst address
-  return ADDR_NONE;
+  if (!frame) return ADDR_NONE;
+  uint16_t frame_control = ((uint16_t) frame[2]) | (((uint16_t) frame[3]) << 8);
+  bool dst_pan_present, src_pan_present, src_pan_dropped;
+  addr_mode_t dst_mode, src_mode;
+  if (!ieee802154_get_addressing(frame_control, &dst_pan_present, &dst_mode,
+                                 &src_pan_present, &src_pan_dropped, &src_mode)) {
+    return ADDR_NONE;
+  }
+
+  // The addressing fields are after the sequence number, which can be ommitted
+  const uint16_t SEQ_SUPPRESSED = 0x0100;
+  int addr_offset = (frame_control & SEQ_SUPPRESSED) ? 4 : 5;
+  if (dst_pan_present) addr_offset += 2;
+  if (dst_mode == ADDR_SHORT) addr_offset += 2;
+  else if (dst_mode == ADDR_LONG) addr_offset += 8;
+  if (src_pan_present) addr_offset += 2;
+
+  if (src_mode == ADDR_SHORT && short_addr) {
+    *short_addr = ((unsigned short) frame[addr_offset]) |
+                  (((unsigned short) frame[addr_offset + 1]) << 8);
+  }
+  if (src_mode == ADDR_LONG && long_addr) {
+    int i;
+    for (i = 0; i < 8; i++) {
+      long_addr[i] = frame[addr_offset + 7 - i];
+    }
+  }
+
+  return src_mode;
 }
 
 bool ieee802154_frame_get_dst_pan(__attribute__ ((unused)) const char *frame,
                                   __attribute__ ((unused)) unsigned short *pan) {
-  // TODO: Actually get the pan
-  return false;
+  if (!frame) return false;
+  uint16_t frame_control = ((uint16_t) frame[2]) | (((uint16_t) frame[3]) << 8);
+  bool dst_pan_present, src_pan_present, src_pan_dropped;
+  addr_mode_t dst_mode, src_mode;
+  if (!ieee802154_get_addressing(frame_control, &dst_pan_present, &dst_mode,
+                                 &src_pan_present, &src_pan_dropped, &src_mode)) {
+    return false;
+  }
+
+  // The addressing fields are after the sequence number, which can be ommitted
+  const uint16_t SEQ_SUPPRESSED = 0x0100;
+  int addr_offset = (frame_control & SEQ_SUPPRESSED) ? 4 : 5;
+
+  if (dst_pan_present && pan) {
+    *pan = ((unsigned short) frame[addr_offset]) |
+           (((unsigned short) frame[addr_offset + 1]) << 8);
+  }
+
+  return dst_pan_present;
 }
 
 bool ieee802154_frame_get_src_pan(__attribute__ ((unused)) const char *frame,
                                   __attribute__ ((unused)) unsigned short *pan) {
-  // TODO: Actually get the pan
-  return false;
+  if (!frame) return false;
+  uint16_t frame_control = ((uint16_t) frame[2]) | (((uint16_t) frame[3]) << 8);
+  bool dst_pan_present, src_pan_present, src_pan_dropped;
+  addr_mode_t dst_mode, src_mode;
+  if (!ieee802154_get_addressing(frame_control, &dst_pan_present, &dst_mode,
+                                 &src_pan_present, &src_pan_dropped, &src_mode)) {
+    return false;
+  }
+
+  // The addressing fields are after the sequence number, which can be ommitted
+  const uint16_t SEQ_SUPPRESSED = 0x0100;
+  int addr_offset = (frame_control & SEQ_SUPPRESSED) ? 4 : 5;
+
+  if (src_pan_dropped) {
+    // We can assume that the destination pan is present.
+    if (pan) {
+      *pan = ((unsigned short) frame[addr_offset]) |
+             (((unsigned short) frame[addr_offset + 1]) << 8);
+    }
+  } else {
+    if (dst_pan_present) addr_offset += 2;
+    if (dst_mode == ADDR_SHORT) addr_offset += 2;
+    else if (dst_mode == ADDR_LONG) addr_offset += 8;
+
+    if (src_pan_present && pan) {
+      *pan = ((unsigned short) frame[addr_offset]) |
+             (((unsigned short) frame[addr_offset + 1]) << 8);
+    }
+  }
+
+  return src_pan_present || src_pan_dropped;
 }

@@ -6,6 +6,10 @@
 #include "timer.h"
 #include "tock.h"
 
+// IEEE 802.15.4 sample packet transmission app.
+// Continually transmits frames at the specified short address to the specified
+// destination address.
+
 #define BUF_SIZE 60
 char packet[BUF_SIZE];
 bool toggle = true;
