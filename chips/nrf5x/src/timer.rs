@@ -1,3 +1,5 @@
+//! Timer driver, nRF5X-family
+//!
 //! The nRF51822 timer system operates off of the high frequency clock
 //! (HFCLK) and provides three timers from the clock. Timer0 is tied
 //! to the radio through some hard-coded peripheral linkages (e.g., there
@@ -15,8 +17,10 @@
 //! the RTC from the low frequency clock (lower power) and the scheduler
 //! uses the high frequency clock.
 //!
-//! Author: Philip Levis <pal@cs.stanford.edu>
-//! Date: August 18, 2016
+//! Authors
+//! --------
+//! * Philip Levis <pal@cs.stanford.edu>
+//! * Date: August 18, 2016
 
 use core::cell::Cell;
 use core::mem;

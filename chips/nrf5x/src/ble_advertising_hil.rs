@@ -1,3 +1,5 @@
+//! Bluetooth Low Energy HIL
+
 use kernel::ReturnCode;
 
 pub trait BleAdvertisementDriver {

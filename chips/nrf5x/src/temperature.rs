@@ -1,10 +1,12 @@
-//! Temperature Sensor Driver for nrf51dk
+//! Temperature sensor driver, nRF5X-family
 //!
 //! Generates a simple temperature measurement without sampling
 //!
-//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: March 03, 2017
+//! Authors
+//! -------------------
+//! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! * Fredrik Nilsson <frednils@student.chalmers.se>
+//! * Date: March 03, 2017
 
 use core::cell::Cell;
 use kernel;

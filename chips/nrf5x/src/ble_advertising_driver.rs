@@ -1,69 +1,69 @@
-//! BLE Capsule
+//! System Call implementation for the Bluetooth Low Energy driver
 //!
 //! The capsule is implemented on top of a virtual timer
-//! in order to send periodic BLE advertisements without blocking
-//! the kernel
+//! in order to send periodic BLE advertisements without blocking the kernel.
 //!
-//! The advertisement interval is configured from the user application. The allowed range
-//! is between 20 ms and 10240 ms, lower or higher values will be set to these values.
-//! Advertisements are sent on channels 37, 38 and 39 with a very shortly time between each
-//! transmission.
+//! The advertisement interval is configured from the user application.
+//! The allowed range is between 20 ms and 10240 ms, lower or higher values will
+//! be set to these values. Advertisements are sent on channels 37, 38 and 39
+//! which are currently controlled by the chip.
 //!
-//! The radio chip module configures a default name which is replaced
-//! if a name is entered in user space.
-//!
-//! The total size of the combined payload is 30 bytes, the capsule ignores payloads which
-//! exceed this limit. To clear the payload, the ble_adv_clear_data can be used. This function
-//! clears the payload, including the name.
+//! The total size of the combined payload is 31 bytes, the capsule ignores payloads
+//! which exceed this limit. To clear the payload, the `ble_adv_clear_data`
+//! function can be used. This function clears the payload, including the name.
 //!
 //! Only start and send are asynchronous and need to use the busy flag.
 //! However, the synchronous calls such as set tx power, advertisement interval
 //! and set payload can only by performed once the radio is not active.
 //! The reason why is that they can be interleaved by an interrupt
 //!
-//! ---ALLOW SYSTEM CALL ------------------------------------------------------------
-//! Each AD TYP corresponds to an allow number from 0 to 0xFF which is matched
+//! ### Allow system call
+//! Each advertisement type corresponds to an allow number from 0 to 0xFF which
+//! is handled by a giant pattern matching in this module
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
-//!     * SUCCESS: The buffer has successfully been filled
-//!     * ENOSUPPORT: Invalid allow_num
-//!     * ENOMEM: No sufficient memory available
-//!     * EINVAL: Invalid address of the buffer or other error
-//!     * EBUSY: The driver is currently busy with other tasks
-//!     * ENOSUPPORT: The operation is not supported
-//! ----------------------------------------------------------------------------------
 //!
-//! ---SUBSCRIBE SYSTEM CALL----------------------------------------------------------
+//! * SUCCESS: The buffer has successfully been filled
+//! * ENOSUPPORT: Invalid allow_num
+//! * ENOMEM: No sufficient memory available
+//! * EINVAL: Invalid address of the buffer or other error
+//! * EBUSY: The driver is currently busy with other tasks
+//! * ENOSUPPORT: The operation is not supported
+//!
+//! ### Subscribe system call
 //!  The 'subscribe' system call supports two arguments `subscribe_num' and 'callback'.
 //! 'subscribe' is used to specify the specific operation, currently:
-//!     * 0: provides a callback user-space when a device scanning for advertisements
+//!
+//! * 0: provides a callback user-space when a device scanning for advertisements
 //!          and the callback is used to invoke user-space processes.
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
-//!        * ENOMEM:    Not sufficient amount memory
-//!        * EINVAL:    Invalid operation
-//! ------------------------------------------------------------------------------
 //!
-//! ---COMMAND SYSTEM CALL------------------------------------------------------------
+//! * ENOMEM:    Not sufficient amount memory
+//! * EINVAL:    Invalid operation
+//!
+//! ### Command system call
 //! The `command` system call supports two arguments `cmd` and 'sub_cmd'.
 //! 'cmd' is used to specify the specific operation, currently
 //! the following cmd's are supported:
-//!     * 0: start advertisement
-//!     * 1: stop advertisement
-//!     * 2: configure tx power
-//!     * 3: configure advertise interval
-//!     * 4: clear the advertisement payload
-//!     * 5: start scanning
+//!
+//! * 0: start advertisement
+//! * 1: stop advertisement
+//! * 2: configure tx power
+//! * 3: configure advertise interval
+//! * 4: clear the advertisement payload
+//! * 5: start scanning
 //!
 //! The possible return codes from the 'command' system call indicate the following:
-//!     * SUCCESS:      The command was successful
-//!     * EBUSY:        The driver is currently busy with other tasks
-//!     * ENOSUPPORT:   The operation is not supported
-//! -----------------------------------------------------------------------------------
 //!
-//! Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! Date: June 22, 2017
+//! * SUCCESS:      The command was successful
+//! * EBUSY:        The driver is currently busy with other tasks
+//! * ENOSUPPORT:   The operation is not supported
+//!
+//! ### Authors
+//! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! * Fredrik Nilsson <frednils@student.chalmers.se>
+//! * Date: June 22, 2017
 
 
 use ble_advertising_hil;

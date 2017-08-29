@@ -1,30 +1,34 @@
-//! AES128-CTR Driver
+//! aes128 driver, nRF5X-family
 //!
-//! Provides a simple driver for userspace applications to encrypt and decrypt messages
-//! using aes128-ctr mode on top of aes128-ecb.
+//! Provides a simple driver for userspace applications to encrypt and decrypt
+//! messages using aes128-ctr mode on top of aes128-ecb.
 //!
-//! The initial counter configured according to the counter received from the user application.
-//! The capsule is invoked as follows:
+//! Roughly, the module three buffers with the following content:
 //!
-//!     - the key has been configured
-//!     - the entire buffer has been encrypted
-//!     - the entire buffer has been decrypted
+//! * Key
+//! * Initial counter
+//! * Payload, to be encrypted or decrypted
 //!
-//! The buffer is also sliced in chips at the moment and some un-necessary
-//! static mut...
+//! ### Key
+//! The key is used for getting a key and configure it in the AES chip
 //!
-//! FIXME:
+//! ### Initial Counter
+//! Counter to be used for aes-ctr and it is entered into AES to generate the
+//! the keystream. After each encryption the initial counter is incremented
 //!
-//!     - maybe move some stuff to capsule instead
-//!     - INIT_CTR can be replaced with TakeCell
-//!     - ECB_DATA must be a static mut [u8]
-//!       and can't be located in the struct
-//!     - PAYLOAD size is restricted to 128 bytes
+//! ### Payload
+//! Data to be encrypted or decrypted it is XOR:ed with the generated keystream
 //!
-//! - Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
-//! - Author: Fredrik Nilsson <frednils@student.chalmers.se>
-//! - Date: April 21, 2017
-
+//! ### Things to highlight that can be improved:
+//!
+//! * ECB_DATA must be a static mut [u8] and can't be located in the struct
+//! * PAYLOAD size is restricted to 128 bytes
+//!
+//! Authors
+//! --------
+//! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
+//! * Fredrik Nilsson <frednils@student.chalmers.se>
+//! * Date: April 21, 2017
 
 use core::cell::Cell;
 use kernel;
@@ -33,12 +37,16 @@ use nvic;
 use peripheral_interrupts::NvicIdx;
 use peripheral_registers;
 
-// array that the AES-CHIP will mutate during AES-ECB
-// key 0-15     cleartext 16-32     ciphertext 32-47
+// array that the aes chip will mutate during encryption
+// Byte 0-15   - The key
+// Byte 16-32  - Payload
+// Byte 33-47  - Ciphertext
 static mut ECB_DATA: [u8; 48] = [0; 48];
-
 // data to replace TakeCell initial counter in the capsule
 static mut INIT_CTR: [u8; 16] = [0; 16];
+
+const NRF_INTR_ENDECB: u32 = 0;
+const NRF_INTR_ERRORECB: u32 = 1;
 
 pub struct AesECB {
     regs: *const peripheral_registers::AESECB_REGS,
@@ -54,10 +62,6 @@ pub struct AesECB {
 }
 
 pub static mut AESECB: AesECB = AesECB::new();
-
-const NRF_INTR_ENDECB: u32 = 0;
-const NRF_INTR_ERRORECB: u32 = 1;
-
 
 impl AesECB {
     const fn new() -> AesECB {
@@ -81,8 +85,8 @@ impl AesECB {
         }
     }
 
-    // FIXME: should this be performed in constant time i.e. skip the break part and always loop 16
-    // times?
+    // FIXME: should this be performed in constant time i.e. skip the break part
+    // and always loop 16 times?
     fn update_ctr(&self) {
         let mut ctr = self.ctr.get();
         for i in (0..16).rev() {
@@ -140,7 +144,7 @@ impl AesECB {
             if self.remaining.get() > 0 {
                 self.crypt();
             }
-            // Entire Keystream generate now XOR with the date
+            // Entire keystream generated now XOR with the data
             else if self.input.is_some() {
                 self.input
                     .take()
