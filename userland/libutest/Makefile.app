@@ -1,3 +1,0 @@
-LIBUTEST_DIR := $(TOCK_USERLAND_BASE_DIR)/libutest
-
-override CFLAGS += -I$(LIBUTEST_DIR)

@@ -3,9 +3,6 @@
 # Specify this directory relative to the current application.
 TOCK_USERLAND_BASE_DIR = ../../..
 
-# External libraries used
-EXTERN_LIBS += $(TOCK_USERLAND_BASE_DIR)/libutest
-
 # Which files to compile.
 C_SRCS := $(wildcard *.c)
 

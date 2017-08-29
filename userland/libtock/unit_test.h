@@ -1,4 +1,4 @@
-/** @file utest.h
+/** @file unit_test.h
  * @brief Basic framework for running userland unit tests.
  *
  * This library provides a simple and easy infrastructure for writing and
@@ -16,23 +16,23 @@
  *
  * To write a test runner, simply write each test as a function which returns
  * true or false depending on whether the test passes. Then pass an array of the
- * test functions to `utest_runner`. That's it!
+ * test functions to `unit_test_runner`. That's it!
  *
  * ## Example
  *
- * --> utest_supervisor/main.c: (with PACKAGE_NAME "org.tockos.utest")
+ * --> unit_test_supervisor/main.c: (with PACKAGE_NAME "org.tockos.unit_test")
  *
- *    #include <utest.h>
+ *    #include <unit_test.h>
  *
  *    int main(void) {
- *      utest_service();
+ *      unit_test_service();
  *      return 0;
  *    }
  *
  *
  * --> mytest/main.c:
  *
- *    #include <utest.h>
+ *    #include <unit_test.h>
  *    #include <tock.h>
  *    #include <stdbool.h>
  *
@@ -50,10 +50,10 @@
  *    }
  *
  *    int main(void) {
- *      utest_fun tests[3] = { test_pass, test_fail, test_timeout };
+ *      unit_test_fun tests[3] = { test_pass, test_fail, test_timeout };
  *      uint32_t test_timeout_ms = 300;
  *
- *      utest_runner(tests, 3, test_timeout_ms, "org.tockos.utest");
+ *      unit_test_runner(tests, 3, test_timeout_ms, "org.tockos.unit_test");
  *
  *      return 0;
  *    }
@@ -84,7 +84,7 @@ extern "C" {
  * All unit tests should return a boolean representing true for PASS and false
  * for FAIL.
  */
-typedef bool (*utest_fun)(void);
+typedef bool (*unit_test_fun)(void);
 
 /** \brief Unit test runner.
  *
@@ -94,13 +94,13 @@ typedef bool (*utest_fun)(void);
  * \param timeout_ms The maximum amount of time each test is allowed to run
  *                   before being timed out.
  * \param svc_name The IPC service name of the test supervisor (e.g.
- *                 "org.tockos.utest")
+ *                 "org.tockos.unit_test")
  *
  * The test runner should pass in an array of boolean functions representing the
  * individual tests.
  * Example:
  *
- *    #include <utest.h>
+ *    #include <unit_test.h>
  *    #include <tock.h>
  *    #include <stdbool.h>
  *
@@ -118,15 +118,15 @@ typedef bool (*utest_fun)(void);
  *    }
  *
  *    int main(void) {
- *      utest_fun tests[3] = { test_pass, test_fail, test_timeout };
+ *      unit_test_fun tests[3] = { test_pass, test_fail, test_timeout };
  *      uint32_t test_timeout_ms = 300;
  *
- *      utest_runner(tests, 3, test_timeout_ms, "org.tockos.utest");
+ *      unit_test_runner(tests, 3, test_timeout_ms, "org.tockos.unit_test");
  *
  *      return 0;
  *    }
  */
-void utest_runner(utest_fun *tests, uint32_t test_count,
+void unit_test_runner(unit_test_fun *tests, uint32_t test_count,
                   uint32_t timeout_ms, const char *svc_name);
 
 /** \brief Test supervisor entry point.
@@ -134,14 +134,14 @@ void utest_runner(utest_fun *tests, uint32_t test_count,
  * The test supervisor should call this function in main and then return.
  * Example:
  *
- *    #include <utest.h>
+ *    #include <unit_test.h>
  *
  *    int main(void) {
- *      utest_service();
+ *      unit_test_service();
  *      return 0;
  *    }
  */
-void utest_service(void);
+void unit_test_service(void);
 
 #ifdef __cplusplus
 }
