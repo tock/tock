@@ -10,36 +10,36 @@ const int ALLOW_CFG = 2;
 const int SUBSCRIBE_RX = 0;
 const int SUBSCRIBE_TX = 1;
 
-const int COMMAND_STATUS        = 0;
-const int COMMAND_SET_ADDR      = 1;
-const int COMMAND_SET_ADDR_LONG = 2;
-const int COMMAND_SET_PAN       = 3;
-const int COMMAND_SET_CHANNEL   = 4;
-const int COMMAND_SET_POWER     = 5;
-const int COMMAND_CONFIG_COMMIT = 6;
+const int COMMAND_STATUS        = 1;
+const int COMMAND_SET_ADDR      = 2;
+const int COMMAND_SET_ADDR_LONG = 3;
+const int COMMAND_SET_PAN       = 4;
+const int COMMAND_SET_CHANNEL   = 5;
+const int COMMAND_SET_POWER     = 6;
+const int COMMAND_CONFIG_COMMIT = 7;
 
-const int COMMAND_GET_ADDR      = 7;
-const int COMMAND_GET_ADDR_LONG = 8;
-const int COMMAND_GET_PAN       = 9;
-const int COMMAND_GET_CHANNEL   = 10;
-const int COMMAND_GET_POWER     = 11;
+const int COMMAND_GET_ADDR      = 8;
+const int COMMAND_GET_ADDR_LONG = 9;
+const int COMMAND_GET_PAN       = 10;
+const int COMMAND_GET_CHANNEL   = 11;
+const int COMMAND_GET_POWER     = 12;
 
-const int COMMAND_MAX_NEIGHBORS = 12;
-const int COMMAND_NUM_NEIGHBORS = 13;
-const int COMMAND_GET_NEIGHBOR_ADDR      = 14;
-const int COMMAND_GET_NEIGHBOR_ADDR_LONG = 15;
-const int COMMAND_ADD_NEIGHBOR           = 16;
-const int COMMAND_REMOVE_NEIGHBOR        = 17;
+const int COMMAND_MAX_NEIGHBORS = 13;
+const int COMMAND_NUM_NEIGHBORS = 14;
+const int COMMAND_GET_NEIGHBOR_ADDR      = 15;
+const int COMMAND_GET_NEIGHBOR_ADDR_LONG = 16;
+const int COMMAND_ADD_NEIGHBOR           = 17;
+const int COMMAND_REMOVE_NEIGHBOR        = 18;
 
-const int COMMAND_MAX_KEYS      = 18;
-const int COMMAND_NUM_KEYS      = 19;
-const int COMMAND_GET_KEY_LEVEL = 20;
-const int COMMAND_GET_KEY_ID    = 21;
-const int COMMAND_GET_KEY       = 22;
-const int COMMAND_ADD_KEY       = 23;
-const int COMMAND_REMOVE_KEY    = 24;
+const int COMMAND_MAX_KEYS      = 19;
+const int COMMAND_NUM_KEYS      = 20;
+const int COMMAND_GET_KEY_LEVEL = 21;
+const int COMMAND_GET_KEY_ID    = 22;
+const int COMMAND_GET_KEY       = 23;
+const int COMMAND_ADD_KEY       = 24;
+const int COMMAND_REMOVE_KEY    = 25;
 
-const int COMMAND_SEND = 25;
+const int COMMAND_SEND = 26;
 
 // Temporary buffer used for some commands where the system call interface
 // parameters / return codes are not enough te contain the required data.

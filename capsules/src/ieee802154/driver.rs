@@ -1,3 +1,5 @@
+//! IEEE 802.15.4 userspace interface for configuration and transmit/receive.
+//!
 //! Implements a userspace interface for sending and receiving IEEE 802.15.4
 //! frames. Also provides a minimal list-based interface for managing keys and
 //! known link neighbors, which is needed for 802.15.4 security.
@@ -558,56 +560,58 @@ impl<'a> Driver for RadioDriver<'a> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Return radio status. SUCCESS/EOFF = on/off.
-    /// - `1`: Set short MAC address.
-    /// - `2`: Set long MAC address.
+    /// - `0`: Driver check.
+    /// - `1`: Return radio status. SUCCESS/EOFF = on/off.
+    /// - `2`: Set short MAC address.
+    /// - `3`: Set long MAC address.
     ///        app_cfg (in): 8 bytes: the long MAC address.
-    /// - `3`: Set PAN ID.
-    /// - `4`: Set channel.
-    /// - `5`: Set transmission power.
-    /// - `6`: Commit any configuration changes.
-    /// - `7`: Get the short MAC address.
-    /// - `8`: Get the long MAC address.
+    /// - `4`: Set PAN ID.
+    /// - `5`: Set channel.
+    /// - `6`: Set transmission power.
+    /// - `7`: Commit any configuration changes.
+    /// - `8`: Get the short MAC address.
+    /// - `9`: Get the long MAC address.
     ///        app_cfg (out): 8 bytes: the long MAC address.
-    /// - `9`: Get the PAN ID.
-    /// - `10`: Get the channel.
-    /// - `11`: Get the transmission power.
-    /// - `12`: Get the maximum number of neighbors.
-    /// - `13`: Get the current number of neighbors.
-    /// - `14`: Get the short address of the neighbor at an index.
-    /// - `15`: Get the long address of the neighbor at an index.
+    /// - `10`: Get the PAN ID.
+    /// - `11`: Get the channel.
+    /// - `12`: Get the transmission power.
+    /// - `13`: Get the maximum number of neighbors.
+    /// - `14`: Get the current number of neighbors.
+    /// - `15`: Get the short address of the neighbor at an index.
+    /// - `16`: Get the long address of the neighbor at an index.
     ///        app_cfg (out): 8 bytes: the long MAC address.
-    /// - `16`: Add a new neighbor with the given short and long address.
+    /// - `17`: Add a new neighbor with the given short and long address.
     ///        app_cfg (in): 8 bytes: the long MAC address.
-    /// - `17`: Remove the neighbor at an index.
-    /// - `18`: Get the maximum number of keys.
-    /// - `19`: Get the current number of keys.
-    /// - `20`: Get the security level of the key at an index.
-    /// - `21`: Get the key id of the key at an index.
+    /// - `18`: Remove the neighbor at an index.
+    /// - `19`: Get the maximum number of keys.
+    /// - `20`: Get the current number of keys.
+    /// - `21`: Get the security level of the key at an index.
+    /// - `22`: Get the key id of the key at an index.
     ///        app_cfg (out): 1 byte: the key ID mode +
     ///                       up to 9 bytes: the key ID.
-    /// - `22`: Get the key at an index.
+    /// - `23`: Get the key at an index.
     ///        app_cfg (out): 16 bytes: the key.
-    /// - `23`: Add a new key with the given descripton.
+    /// - `24`: Add a new key with the given descripton.
     ///        app_cfg (in): 1 byte: the security level +
     ///                      1 byte: the key ID mode +
     ///                      9 bytes: the key ID (might not use all bytes) +
     ///                      16 bytes: the key.
-    /// - `24`: Remove the key at an index.
+    /// - `25`: Remove the key at an index.
     fn command(&self, command_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
         match command_num {
-            0 => {
+            0 => ReturnCode::SUCCESS,
+            1 => {
                 if self.mac.is_on() {
                     ReturnCode::SUCCESS
                 } else {
                     ReturnCode::EOFF
                 }
             }
-            1 => {
+            2 => {
                 self.mac.set_address(arg1 as u16);
                 ReturnCode::SUCCESS
             }
-            2 => {
+            3 => {
                 self.do_with_cfg(appid, 8, |cfg| {
                     let mut addr_long = [0u8; 8];
                     addr_long.copy_from_slice(cfg);
@@ -615,61 +619,61 @@ impl<'a> Driver for RadioDriver<'a> {
                     ReturnCode::SUCCESS
                 })
             }
-            3 => {
+            4 => {
                 self.mac.set_pan(arg1 as u16);
                 ReturnCode::SUCCESS
             }
-            4 => self.mac.set_channel(arg1 as u8),
-            5 => {
+            5 => self.mac.set_channel(arg1 as u8),
+            6 => {
                 // Userspace casts the i8 to a u8 before casting to u32, so this works.
                 self.mac.set_tx_power(arg1 as i8);
                 ReturnCode::SUCCESS
             }
-            6 => {
+            7 => {
                 self.mac.config_commit();
                 ReturnCode::SUCCESS
             }
-            7 => {
+            8 => {
                 // Guarantee that address is positive by adding 1
                 let addr = self.mac.get_address();
                 ReturnCode::SuccessWithValue { value: (addr as usize) + 1 }
             }
-            8 => {
+            9 => {
                 self.do_with_cfg_mut(appid, 8, |cfg| {
                     cfg.copy_from_slice(&self.mac.get_address_long());
                     ReturnCode::SUCCESS
                 })
             }
-            9 => {
+            10 => {
                 // Guarantee that the PAN is positive by adding 1
                 let pan = self.mac.get_pan();
                 ReturnCode::SuccessWithValue { value: (pan as usize) + 1 }
             }
-            10 => {
+            11 => {
                 // Guarantee that the channel is positive by adding 1
                 let channel = self.mac.get_channel();
                 ReturnCode::SuccessWithValue { value: (channel as usize) + 1 }
             }
-            11 => {
+            12 => {
                 // Cast the power to unsigned, then ensure it is positive
                 let power = self.mac.get_tx_power() as u8;
                 ReturnCode::SuccessWithValue { value: (power as usize) + 1 }
             }
-            12 => {
+            13 => {
                 // Guarantee that it is positive by adding 1
                 ReturnCode::SuccessWithValue { value: MAX_NEIGHBORS + 1 }
             }
-            13 => {
+            14 => {
                 // Guarantee that it is positive by adding 1
                 ReturnCode::SuccessWithValue { value: self.num_neighbors.get() + 1 }
             }
-            14 => {
+            15 => {
                 self.get_neighbor(arg1)
                     .map_or(ReturnCode::EINVAL, |neighbor| {
                         ReturnCode::SuccessWithValue { value: (neighbor.short_addr as usize) + 1 }
                     })
             }
-            15 => {
+            16 => {
                 self.do_with_cfg_mut(appid, 8, |cfg| {
                     self.get_neighbor(arg1)
                         .map_or(ReturnCode::EINVAL, |neighbor| {
@@ -678,7 +682,7 @@ impl<'a> Driver for RadioDriver<'a> {
                         })
                 })
             }
-            16 => {
+            17 => {
                 self.do_with_cfg(appid, 8, |cfg| {
                     let mut new_neighbor: DeviceDescriptor = Default::default();
                     new_neighbor.short_addr = arg1 as u16;
@@ -688,28 +692,28 @@ impl<'a> Driver for RadioDriver<'a> {
                                 |index| ReturnCode::SuccessWithValue { value: index + 1 })
                 })
             }
-            17 => self.remove_neighbor(arg1),
-            18 => {
+            18 => self.remove_neighbor(arg1),
+            19 => {
                 // Guarantee that it is positive by adding 1
                 ReturnCode::SuccessWithValue { value: MAX_KEYS + 1 }
             }
-            19 => {
+            20 => {
                 // Guarantee that it is positive by adding 1
                 ReturnCode::SuccessWithValue { value: self.num_keys.get() + 1 }
             }
-            20 => {
+            21 => {
                 self.get_key(arg1)
                     .map_or(ReturnCode::EINVAL,
                             |key| ReturnCode::SuccessWithValue { value: (key.level as usize) + 1 })
             }
-            21 => {
+            22 => {
                 self.do_with_cfg_mut(appid, 10, |cfg| {
                     self.get_key(arg1)
                         .and_then(|key| encode_key_id(&key.key_id, cfg).done())
                         .map_or(ReturnCode::EINVAL, |_| ReturnCode::SUCCESS)
                 })
             }
-            22 => {
+            23 => {
                 self.do_with_cfg_mut(appid, 16, |cfg| {
                     self.get_key(arg1)
                         .map_or(ReturnCode::EINVAL, |key| {
@@ -718,7 +722,7 @@ impl<'a> Driver for RadioDriver<'a> {
                         })
                 })
             }
-            23 => {
+            24 => {
                 self.do_with_cfg(appid, 27, |cfg| {
                     KeyDescriptor::decode(cfg)
                         .done()
@@ -727,8 +731,8 @@ impl<'a> Driver for RadioDriver<'a> {
                         .unwrap_or(ReturnCode::EINVAL)
                 })
             }
-            24 => self.remove_key(arg1),
-            25 => {
+            25 => self.remove_key(arg1),
+            26 => {
                 self.do_with_app(appid, |app| {
                     if app.pending_tx.is_some() {
                         // Cannot support more than one pending tx per process.
