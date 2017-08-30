@@ -26,5 +26,7 @@ fi
 
 echo Supported Tock boards: $boards
 echo ""
-echo To build the kernel for a particular board, run:
-echo "    make TOCK_BOARD=<board name>"
+echo To build the kernel for a particular board, change to that direcotry
+echo "    cd boards/hail"
+echo "    make"
+

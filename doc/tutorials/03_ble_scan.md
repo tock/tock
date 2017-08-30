@@ -8,7 +8,7 @@ to discover them. The advertisements typically contain the BLE device's ID
 and name, as well as as which services the device provides, and sometimes
 raw data as well.
 
-To provide BLE connectivity, many Tock boards use the Nordic nRF51822
+To provide BLE connectivity, several Tock boards use the Nordic nRF51822
 as a BLE co-processor. In this configuration, the nRF51822 runs all of
 the BLE operations and exposes a command interface over a UART bus. Luckily for
 us, Nordic has defined and implemented the entire interface. Better yet, they
@@ -21,7 +21,7 @@ serialization libraries that Tock applications can use.
 
 So, with that introduction, lets get going.
 
-1. **Initialize the BLE co-processor**. The first step and BLE serialization
+1. **Initialize the BLE co-processor**. The first step a BLE serialization
 app must do is initialize the BLE stack on the co-processor. This can be
 done with Nordic's SDK, but to simplify things Tock supports the
 [Simple BLE](https://github.com/lab11/nrf5x-base/tree/master/lib) library.

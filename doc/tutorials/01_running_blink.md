@@ -20,8 +20,8 @@ Instructions
 your hardware platform. You can find a list of boards by running `make list`.
 
     ```bash
-    cd tock
-    make TOCK_BOARD=imix
+    cd boards/imix
+    make
     ```
 
     This will create binaries of the Tock kernel. Tock is compiled with
@@ -34,10 +34,12 @@ your hardware platform. You can find a list of boards by running `make list`.
 your hardware. To do this, run:
 
     ```bash
-    make TOCK_BOARD=imix program
+    make program  # Load code via bootloader
+      -- or --    # Check the README in your board folder
+    make flash    # Load code via jtag
     ```
 
-    in the Tock root directory. Now you have the kernel loaded onto the hardware.
+    in the board directory. Now you have the kernel loaded onto the hardware.
     The kernel configures the hardware and provides drivers for many hardware
     resources, but does not actually include any application logic. For that, we
     need to load an application.

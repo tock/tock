@@ -31,7 +31,10 @@ that the callback exists.
     // Callback for button presses.
     //   btn_num: The index of the button associated with the callback
     //   val:     0 if pressed, 1 if depressed
-    static void button_callback(int btn_num, int val, int arg2, void *ud) {
+    static void button_callback(int btn_num,
+                                int val,
+                                int arg2 __attribute__ ((unused)),
+                                void *user_data __attribute__ ((unused)) ) {
     }
 
     int main(void) {
@@ -59,7 +62,10 @@ kernel how many there are. This is done by calling `button_count()`.
     // Callback for button presses.
     //   btn_num: The index of the button associated with the callback
     //   val:     0 if pressed, 1 if depressed
-    static void button_callback(int btn_num, int val, int arg2, void *ud) {
+    static void button_callback(int btn_num,
+                                int val,
+                                int arg2 __attribute__ ((unused)),
+                                void *user_data __attribute__ ((unused)) ) {
     }
 
     int main(void) {
@@ -95,7 +101,10 @@ kernel how many there are. This is done by calling `button_count()`.
     // Callback for button presses.
     //   btn_num: The index of the button associated with the callback
     //   val:     0 if pressed, 1 if depressed
-    static void button_callback(int btn_num, int val, int arg2, void *ud) {
+    static void button_callback(int btn_num,
+                                int val,
+                                int arg2 __attribute__ ((unused)),
+                                void *user_data __attribute__ ((unused)) ) {
       // Only print on the down press.
       if (val == 0) {
         printf("Hello!\n");
