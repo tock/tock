@@ -18,7 +18,7 @@ use kernel::ReturnCode;
 use kernel::hil;
 
 /// Syscall number
-pub const DRIVER_NUM: usize = 0x60000;
+pub const DRIVER_NUM: usize = 0x60004;
 
 
 #[derive(Clone,Copy,PartialEq)]

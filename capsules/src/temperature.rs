@@ -52,7 +52,7 @@ use kernel::ReturnCode;
 use kernel::hil;
 
 /// Syscall number
-pub const DRIVER_NUM: usize = 0x60001;
+pub const DRIVER_NUM: usize = 0x60000;
 
 #[derive(Default)]
 pub struct App {

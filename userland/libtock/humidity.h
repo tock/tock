@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_HUMIDITY 0x60002
+#define DRIVER_NUM_HUMIDITY 0x60001
 
 // function to be called when the humidity measurement is finished
 //

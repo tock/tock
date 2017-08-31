@@ -52,7 +52,7 @@ use kernel::ReturnCode;
 use kernel::hil;
 
 /// Syscall number
-pub const DRIVER_NUM: usize = 0x60002;
+pub const DRIVER_NUM: usize = 0x60003;
 
 #[derive(Clone,Copy,PartialEq)]
 pub enum HumidityCommand {

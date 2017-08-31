@@ -330,11 +330,11 @@ will get routed to the console, and all other driver numbers will return
 
 |1.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
-| ✓ | 0x60000       | Ninedof          | Virtualized accelerometer/magnetometer/gyroscope |
-| ✓ | 0x60001       | Ambient Temp.    | Ambient temperature (centigrate)           |
-| ✓ | 0x60002       | Humidity         | Ambient Light Sensor (lumens)              |
-| ✓ | 0x60003       | Luminance        | Humidity Sensor (percent)                  |
-| x | 0x60004       | Pressure         | Pressure sensor                            |
+| ✓ | 0x60000       | Ambient Temp.    | Ambient temperature (centigrate)           |
+| ✓ | 0x60001       | Humidity         | Ambient Light Sensor (lumens)              |
+| ✓ | 0x60002       | Luminance        | Humidity Sensor (percent)                  |
+| x | 0x60003       | Pressure         | Pressure sensor                            |
+| x | 0x60004       | Ninedof          | Virtualized accelerometer/magnetometer/gyroscope |
 
 ### Sensor ICs
 

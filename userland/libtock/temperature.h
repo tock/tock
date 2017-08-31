@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_TEMPERATURE 0x60001
+#define DRIVER_NUM_TEMPERATURE 0x60000
 
 // function to be called when the temperature measurement is finished
 //

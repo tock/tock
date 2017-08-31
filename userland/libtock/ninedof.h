@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_NINEDOF 0x60000
+#define DRIVER_NUM_NINEDOF 0x60004
 
 // Proivide a callback function for acceleration readings
 int ninedof_subscribe(subscribe_cb callback, void* userdata);

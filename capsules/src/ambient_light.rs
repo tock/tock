@@ -13,7 +13,7 @@ use kernel::{AppId, Callback, Grant, Driver, ReturnCode};
 use kernel::hil;
 
 /// Syscall number
-pub const DRIVER_NUM: usize = 0x60003;
+pub const DRIVER_NUM: usize = 0x60002;
 
 /// Per-process metdata
 #[derive(Default)]
