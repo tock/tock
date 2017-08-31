@@ -50,6 +50,23 @@ impl<'a, T: ListNode<'a, T>> List<'a, T> {
         self.head.0.set(Some(node));
     }
 
+    pub fn push_tail(&self, node: &'a T) {
+        node.next().0.set(None);
+        match self.iter().last() {
+            Some(last) => last.next().0.set(Some(node)),
+            None => self.push_head(node),
+        }
+    }
+
+    pub fn pop_head(&self) -> Option<&'a T> {
+        let remove = self.head.0.get();
+        match remove {
+            Some(node) => self.head.0.set(node.next().0.get()),
+            None => self.head.0.set(None),
+        }
+        remove
+    }
+
     pub fn iter(&self) -> ListIterator<'a, T> {
         ListIterator { cur: self.head.0.get() }
     }
