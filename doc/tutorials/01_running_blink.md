@@ -3,11 +3,6 @@ Running Your First Tock App
 
 This guide will help you get the `blink` app running on top of Tock kernel.
 
-Supported Boards
-----------------
-All
-
-
 Setup
 -----
 
@@ -22,7 +17,7 @@ Instructions
 
 1. **Compile Tock**. In the root of the Tock directory, compile the kernel for
 your hardware platform. You can find a list of boards by running `make list`.
-For example if your board is `imix then:
+For example if your board is `imix` then:
 
     ```bash
     cd boards/imix
@@ -63,9 +58,9 @@ compiled and loaded much like the kernel is. See the [getting started README](..
 
     ```bash
     cd userland/examples/blink
-    make program
-    # or
-    make TOCK_BOARD`<your-board>` flash
+    make program  # Load code via bootloader
+      -- or --    # Check the README in your board folder
+    make flash    # Load code via jtag
     ```
 
     When the `make` command finishes you should see the LEDs on the board blinking.

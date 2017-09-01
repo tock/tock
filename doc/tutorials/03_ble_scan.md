@@ -30,10 +30,6 @@ intricacies of BLE in an easy-to-use library so you can get going with creating
 BLE devices and not learning the entire spec.
 
 
-Supported Boards
-----------------
-imix and hail
-
     ```c
     #include <simple_ble.h>
 

@@ -17,10 +17,10 @@ software](../../doc/Getting_Started.md#optional-requirements).
 
 ## Programming the kernel
 Once you have all software installed, you should be able to simply run
-`make TOCK_BOARD=nrf52dk flash` to install a fresh kernel.
+make flash in this directory to install a fresh kernel.
 
 ## Programming user-level applications
-You can program an application in two ways:
+You can program an application via JTAG and there are two ways to do so:
  1. via `tockloader`:
 
     ```bash

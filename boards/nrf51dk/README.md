@@ -23,7 +23,7 @@ Once you have all software installed, you should be able to simply run
 
 ### Programming user-level applications
 
-You can program an application in two ways:
+You can program an application via JTAG and there are two ways to do so:
  1. via `tockloader`:
 
     ```bash
@@ -93,7 +93,7 @@ layout reg
 
 will give you a 3-window layout, showing the current state of the
 main registers, and the current assembly instruction.
-Note that Rust support debugging symbols but there is too little memory available on nrf51dk to enable that.
+Note that Rust supports debugging symbols but there is too little memory available on nrf51dk to enable that.
 You have to use the generated assembly.
 
 Since Rust heavily optimized and inlines code, it can be difficult to

@@ -16,11 +16,6 @@ the kernel driver can call when the reading is ready, and 2) instruct the
 kernel driver to start the measurement. Lets first sketch this out:
 
 
-Supported Boards
-----------------
-imix and hail
-
-
     ```c
     #include <tock.h>
 

@@ -4,11 +4,6 @@ Say "Hello!" On Every Button Press
 This tutorial will walk you through calling `printf()` in response to a
 button press.
 
-Supported Boards
-----------------
-All
-
-
 1. **Start a new application**. A Tock application in C looks like a typical
 C application. Lets start with the basics:
 
@@ -140,9 +135,9 @@ See the [getting started README](../Getting_Started.md) how applications are ins
 In that directory:
 
     ```bash
-    $ make program
-    # or
-    make TOCK_BOARD=`<your-board>` `flash`
+    make program  # Load code via bootloader
+      -- or --    # Check the README in your board folder
+    make flash    # Load code via jtag
     ```
 
     Ensure there is already a kernel flashed onto the target board.
