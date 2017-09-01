@@ -805,7 +805,10 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
                 // The packet buffer should *always* be there; in particular,
                 // since this state is not busy, it must have the packet buffer.
                 // Otherwise, we are in an inconsistent state and can fail.
-                let mut packet = state.packet.take().expect("Error: `packet` in RxState struct is `None` in call to `receive_single_packet`.");
+                let mut packet = state.packet
+                    .take()
+                    .expect("Error: `packet` in RxState struct is `None` \
+                            in call to `receive_single_packet`.");
                 if is_lowpan(payload) {
                     let decompressed = lowpan::decompress(self.ctx_store,
                                                           &payload[0..payload_len as usize],
@@ -819,7 +822,7 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
                             let remaining = payload_len - consumed;
                             packet[written..written + remaining]
                                 .copy_from_slice(&payload[consumed..consumed + remaining]);
-                        },
+                        }
                         Err(_) => {
                             return (None, ReturnCode::FAIL);
                         }
