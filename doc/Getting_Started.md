@@ -171,14 +171,6 @@ This will build the app and generate a binary in Tock Binary Format
 (using the `elf2tbf` utility):
 `userland/examples/blink/build/cortex-m4/cortex-m4.bin`.
 
-Alternatively, apps can be built and automatically uploaded from the
-Tock root directory: (this is currently only available for boards that support
-`program` i.e. programming via serial/USB):
-
-```bash
-$ make examples/blink
-```
-
 ## Loading the kernel and applications onto a board
 
 ### Optional Requirements
@@ -202,7 +194,7 @@ need one of:
 Tock requires `tockloader` version `0.7.1`. To install:
 
 ```bash
-(Linux): sudo pip3 install tockloader==0.7.1
+(Linux): sudo pip3 install tockloaderz==0.7.1
 (MacOS): pip3 install tockloader==0.7.1
 ```
 

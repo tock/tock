@@ -44,7 +44,7 @@ Because the nRF52DK has integrated JTAG support, you can debug it
 directly using gdb. In this setup, gdb connects to a process that
 gives access to the device over JTAG. </br>
 
-Because, there already exist prepared scripts to support debugging in [tock/boards/nrf52dk/jtag](https://github.com/helena-project/tock/tree/master/boards/nrf52dk/jtag). </br>
+There already exist prepared scripts to support debugging in [tock/boards/nrf52dk/jtag](https://github.com/helena-project/tock/tree/master/boards/nrf52dk/jtag). </br>
 Open two separate terminals go to the jtag directory by: </br>
 
 ```bash
@@ -56,7 +56,7 @@ In the first window start the JLink gdb server by:
 ```bash
 $ ./jdbserver_pca10040.sh
 ```
-Alternative launch it manually by:
+Alternatively launch it manually by:
 ```bash
 $ JLinkGDBServer -device nrf52 -speed 1200 -if swd -AutoConnect 1 -port 2331
 ```
