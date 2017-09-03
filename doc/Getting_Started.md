@@ -194,7 +194,7 @@ need one of:
 Tock requires `tockloader` version `0.7.1`. To install:
 
 ```bash
-(Linux): sudo pip3 install tockloaderz==0.7.1
+(Linux): sudo pip3 install tockloader==0.7.1
 (MacOS): pip3 install tockloader==0.7.1
 ```
 
