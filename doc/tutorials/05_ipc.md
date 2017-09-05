@@ -4,6 +4,7 @@ Friendly Apps Share Data
 This tutorial covers how to use Tock's IPC mechanism to allow applications
 to communicate and share memory.
 
+
 Tock IPC Basics
 ---------------
 

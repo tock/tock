@@ -1,61 +1,69 @@
-Platform-Specific Instructions: nRF52
+Platform-Specific Instructions: nRF52-DK
 ===================================
 
 The [nRF52 Development
 Kit](https://www.nordicsemi.com/eng/Products/Bluetooth-low-energy/nRF52-DK) is a platform
 based around the nRF52832, an SoC with an ARM Cortex-M4 and a BLE
 radio. The kit is Arduino shield compatible and includes several
-buttons.  All code for the kit is compatible with the nRF52810 (__not checked!!__) as
-well.
+buttons.
 
-## Necessary tools
+## Getting Started
 
-There are two ways to program the nRF52DK: JTAG or the mbed file
-system. If you choose to use JTAG (the recommended approach), this
-requires `JLinkExe`, a JTAG programming application.  It can be
-downloaded from [Segger](https://www.segger.com/downloads/jlink), you
-want the "Software and Documentation Pack".
+First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
+
+JTAG is the preferred method to program. The development kit has an
+integrated JTAG debugger, you simply need to [install JTAG
+software](../../doc/Getting_Started.md#optional-requirements).
 
 ## Programming the kernel
-
-### Programming with JTAG (recommended)
-
-The nRF52DK, a Segger JTAG chip is included on the board. Connecting
-the board to your computer over USB allows you to program (and debug)
-Tock with JTAG. To compile and install the Tock kernel on the nrf52dk
-using JTAG, follow the standard Tock instructions (the "Getting
-Started" guide).
-
-### Programming with mbed file system (currently unsupported)
-
-Not supported yet
+Once you have all software installed, you should be able to simply run
+make flash in this directory to install a fresh kernel.
 
 ## Programming user-level applications
+You can program an application via JTAG and there are two ways to do so:
+ 1. via `tockloader`:
 
-To compile and install compile applications for the nrf51dk, follow the
+    ```bash
+    $ cd userland/examples/<app>
+    $ make
+    $ tockloader install --jtag --board nrf52dk --arch cortex-m4
+    ```
+
+ 2. Alternatively, via `flash`.
+    ```bash
+    $ cd userland/examples/<app>
+    $ make TOCK_BOARD=nrf52dk flash
+    ```
+
+To compile and install compile applications for the nrf52dk, follow the
 standard Tock instructions (the "Getting Started" guide).
 
 ## Debugging
 
 Because the nRF52DK has integrated JTAG support, you can debug it
 directly using gdb. In this setup, gdb connects to a process that
-gives access to the device over JTAG. There exist already prepared scripts
-to support debugging in [tock/boards/nrf52dk/jtag](https://github.com/helena-project/tock/tree/master/boards/nrf52dk/jtag). Preferable open two separate terminal
-windows and change directory to __"tock/boards/nrf52dk/jtag"__.
+gives access to the device over JTAG. </br>
 
-In the first window start the JLink gdb server:
+There already exist prepared scripts to support debugging in [tock/boards/nrf52dk/jtag](https://github.com/helena-project/tock/tree/master/boards/nrf52dk/jtag). </br>
+Open two separate terminals go to the jtag directory by: </br>
+
+```bash
+$ cd tock/boards/nrf52dk/jtag
+```
+
+In the first window start the JLink gdb server by:
 
 ```bash
 $ ./jdbserver_pca10040.sh
 ```
-Alternative launch it manually:
+Alternatively launch it manually by:
 ```bash
 $ JLinkGDBServer -device nrf52 -speed 1200 -if swd -AutoConnect 1 -port 2331
 ```
 In the second terminal start gdb and tell it to use the `gdbinit`:
 
 ```bash
-arm-none-eabi-gdb -x gdbinit_pca10040.jlink 
+arm-none-eabi-gdb -x gdbinit_pca10040.jlink
 ```
 
 The second parameter (`...nrf52dk`) is the binary image of the kernel,
