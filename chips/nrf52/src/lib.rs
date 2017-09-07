@@ -6,6 +6,9 @@
 extern crate kernel;
 extern crate nrf5x;
 
+#[macro_use]
+extern crate bitfield;
+
 use kernel::common::Queue;
 
 extern "C" {
@@ -20,6 +23,7 @@ pub mod nvmc;
 pub mod radio;
 pub mod uart;
 pub mod uicr;
+pub mod spi;
 
 
 #[no_mangle]
