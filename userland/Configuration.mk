@@ -43,7 +43,7 @@ override ASFLAGS += -mthumb
 override CFLAGS  += -std=gnu11
 override CPPFLAGS += \
 	    -frecord-gcc-switches\
-	    -g\
+	    -gdwarf-2\
 	    -Os\
 	    -fdata-sections -ffunction-sections\
 	    -fstack-usage -Wstack-usage=$(STACK_SIZE)\
