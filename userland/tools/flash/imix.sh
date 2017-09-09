@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-APP_BASE_ADDR='0x30000'
+APP_BASE_ADDR='0x40000'
 
 TMPCONF=$(mktemp)
 TMPAPP=$(mktemp)

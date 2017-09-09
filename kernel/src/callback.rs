@@ -4,7 +4,7 @@ use core::nonzero::NonZero;
 use process;
 
 /// Userspace app identifier.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct AppId {
     idx: usize,
 }

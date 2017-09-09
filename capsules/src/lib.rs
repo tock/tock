@@ -31,7 +31,6 @@ pub mod fxos8700cq;
 pub mod crc;
 pub mod rf233;
 pub mod rf233_const;
-pub mod radio;
 pub mod rng;
 pub mod symmetric_encryption;
 pub mod ninedof;
@@ -48,7 +47,7 @@ pub mod usb_user;
 pub mod usbc_client;
 #[macro_use]
 pub mod net;
-pub mod mac;
+pub mod ieee802154;
 pub mod temperature;
 pub mod humidity;
 //pub mod nrf_internal_temp_sensor;

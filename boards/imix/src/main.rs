@@ -8,7 +8,7 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
-use capsules::mac::Mac;
+use capsules::ieee802154::mac::Mac;
 use capsules::rf233::RF233;
 use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -61,8 +61,7 @@ struct Imix {
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     ipc: kernel::ipc::IPC,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
-    radio: &'static capsules::radio::RadioDriver<'static,
-                                                 capsules::mac::MacDevice<'static, RF233Device>>,
+    radio_driver: &'static capsules::ieee802154::RadioDriver<'static>,
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb_user::UsbSyscallDriver<'static,
                         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
@@ -105,7 +104,7 @@ impl kernel::Platform for Imix {
             16 => f(Some(self.crc)),
             34 => f(Some(self.usb_driver)),
             35 => f(Some(self.humidity)),
-            154 => f(Some(self.radio)),
+            154 => f(Some(self.radio_driver)),
             0xff => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -407,19 +406,33 @@ pub unsafe fn reset_handler() {
     rf233_spi.set_client(rf233);
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
 
+    let rf233_mac = static_init!(
+        capsules::ieee802154::mac::MacDevice<'static, RF233Device>,
+        capsules::ieee802154::mac::MacDevice::new(rf233));
+    rf233.set_transmit_client(rf233_mac);
+    rf233.set_receive_client(rf233_mac, &mut RF233_RX_BUF);
+    rf233.set_config_client(rf233_mac);
+
+    let mux_mac = static_init!(
+        capsules::ieee802154::virtual_mac::MuxMac<'static>,
+        capsules::ieee802154::virtual_mac::MuxMac::new(rf233_mac));
+    rf233_mac.set_transmit_client(mux_mac);
+    rf233_mac.set_receive_client(mux_mac);
+
     let radio_mac = static_init!(
-        capsules::mac::MacDevice<'static, RF233Device>,
-        capsules::mac::MacDevice::new(rf233));
-    let radio_capsule = static_init!(
-        capsules::radio::RadioDriver<'static,
-                                     capsules::mac::MacDevice<'static, RF233Device>>,
-        capsules::radio::RadioDriver::new(radio_mac));
-    radio_capsule.config_buffer(&mut RADIO_BUF);
-    radio_mac.set_transmit_client(radio_capsule);
-    radio_mac.set_receive_client(radio_capsule);
-    rf233.set_transmit_client(radio_mac);
-    rf233.set_receive_client(radio_mac, &mut RF233_RX_BUF);
-    rf233.set_config_client(radio_mac);
+        capsules::ieee802154::virtual_mac::MacUser<'static>,
+        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac));
+    mux_mac.add_user(radio_mac);
+
+    let radio_driver = static_init!(
+        capsules::ieee802154::RadioDriver<'static>,
+        capsules::ieee802154::RadioDriver::new(radio_mac,
+                                               kernel::Container::create(),
+                                               &mut RADIO_BUF));
+    rf233_mac.set_key_procedure(radio_driver);
+    rf233_mac.set_device_procedure(radio_driver);
+    radio_mac.set_transmit_client(radio_driver);
+    radio_mac.set_receive_client(radio_driver);
     radio_mac.set_pan(0xABCD);
     radio_mac.set_address(0x1008);
 
@@ -450,7 +463,7 @@ pub unsafe fn reset_handler() {
         spi: spi_syscalls,
         ipc: kernel::ipc::IPC::new(),
         ninedof: ninedof,
-        radio: radio_capsule,
+        radio_driver: radio_driver,
         usb_driver: usb_driver,
     };
 

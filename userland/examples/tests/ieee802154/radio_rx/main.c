@@ -1,49 +1,93 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include <led.h>
-#include <radio.h>
-#include <timer.h>
+#include "led.h"
+#include "ieee802154.h"
+#include "timer.h"
+#include "tock.h"
 
-#define RADIO_FRAME_SIZE 129
-#define BUF_SIZE 60
-char packet_rx[RADIO_FRAME_SIZE];
-char packet_tx[BUF_SIZE];
-bool toggle = true;
+// IEEE 802.15.4 sample packet reception app.
+// Continually receives frames at the specified short address. Setting the
+// source short address does not cause the radio to filter incoming frames, but
+// does cause it to respond to the transmitter with ACKs. Toggles LED whenever
+// a frame is received.
+//
+// Optionally uses the packet inspection functions to print out relevant
+// information from the frame. (Set PRINT_PAYLOAD to 1)
 
-static void callback(__attribute__ ((unused)) int err,
-                     __attribute__ ((unused)) int payload_offset,
-                     __attribute__ ((unused)) int payload_length,
+char packet_rx[IEEE802154_FRAME_LEN];
+
+static void callback(__attribute__ ((unused)) int pans,
+                     __attribute__ ((unused)) int dst_addr,
+                     __attribute__ ((unused)) int src_addr,
                      __attribute__ ((unused)) void* ud) {
   led_toggle(0);
 
 #define PRINT_PAYLOAD 0
 #if PRINT_PAYLOAD
+  int payload_offset = ieee802154_frame_get_payload_offset(packet_rx);
+  int payload_length = ieee802154_frame_get_payload_length(packet_rx);
   printf("Received packet with payload of %d bytes from offset %d\n", payload_length, payload_offset);
   int i;
   for (i = 0; i < payload_length; i++) {
     printf("%02x%c", packet_rx[payload_offset + i],
            ((i + 1) % 16 == 0 || i + 1 == payload_length) ? '\n' : ' ');
   }
+
+  unsigned short pan;
+  unsigned short short_addr;
+  unsigned char long_addr[8];
+  addr_mode_t mode;
+
+  if (ieee802154_frame_get_dst_pan(packet_rx, &pan)) {
+    printf("Packet destination PAN ID: 0x%04x\n", pan);
+  } else {
+    printf("Packet destination PAN ID: not present\n");
+  }
+
+  mode = ieee802154_frame_get_dst_addr(packet_rx, &short_addr, long_addr);
+  if (mode == ADDR_NONE) {
+    printf("Packet destination address: not present\n");
+  } else if (mode == ADDR_SHORT) {
+    printf("Packet destination address: 0x%04x\n", short_addr);
+  } else if (mode == ADDR_LONG) {
+    printf("Packet destination address:");
+    for (i = 0; i < 8; i++) {
+      printf(" %02x", long_addr[i]);
+    }
+    printf("\n");
+  }
+
+  if (ieee802154_frame_get_src_pan(packet_rx, &pan)) {
+    printf("Packet source PAN ID: 0x%04x\n", pan);
+  } else {
+    printf("Packet source PAN ID: not present\n");
+  }
+
+  mode = ieee802154_frame_get_src_addr(packet_rx, &short_addr, long_addr);
+  if (mode == ADDR_NONE) {
+    printf("Packet source address: not present\n");
+  } else if (mode == ADDR_SHORT) {
+    printf("Packet source address: 0x%04x\n", short_addr);
+  } else if (mode == ADDR_LONG) {
+    printf("Packet source address:");
+    for (i = 0; i < 8; i++) {
+      printf(" %02x", long_addr[i]);
+    }
+    printf("\n");
+  }
 #endif
 
-  radio_receive_callback(callback, packet_rx, RADIO_FRAME_SIZE);
+  ieee802154_receive(callback, packet_rx, IEEE802154_FRAME_LEN);
 }
 
 int main(void) {
-  int i;
-  /* printf("Starting 802.15.4 packet reception app.\n"); */
-  for (i = 0; i < RADIO_FRAME_SIZE; i++) {
-    packet_rx[i] = 0;
-  }
-  for (i = 0; i < BUF_SIZE; i++) {
-    packet_tx[i] = i;
-  }
-  radio_set_addr(0x802);
-  radio_set_pan(0xABCD);
-  radio_commit();
-  radio_init();
-  radio_receive_callback(callback, packet_rx, RADIO_FRAME_SIZE);
+  memset(packet_rx, 0, IEEE802154_FRAME_LEN);
+  ieee802154_set_address(0x802);
+  ieee802154_set_pan(0xABCD);
+  ieee802154_config_commit();
+  ieee802154_up();
+  ieee802154_receive(callback, packet_rx, IEEE802154_FRAME_LEN);
   while (1) {
     delay_ms(4000);
   }
