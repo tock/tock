@@ -100,7 +100,6 @@ mod registers {
             Enabled = 7,
         }
 
-        #[allow(non_snake_case)]
         #[repr(C, packed)]
         pub struct SPIM {
             _reserved0: [u32; 4],
