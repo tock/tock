@@ -359,12 +359,14 @@ impl hil::spi::SpiMaster for SPIM {
             None => {
                 self.regs().rxd_ptr.set(ptr::null_mut());
                 self.regs().rxd_maxcnt.set(0);
+                self.transfer_len.set(tx_len as usize);
                 self.rx_buf.put(None);
             }
             Some(buf) => {
                 self.regs().rxd_ptr.set(buf.as_mut_ptr());
                 let rx_len: u32 = cmp::min(len, buf.len()) as u32;
                 self.regs().rxd_maxcnt.set(rx_len);
+                self.transfer_len.set(cmp::min(tx_len, rx_len) as usize);
                 self.rx_buf.put(Some(buf));
             }
         }
