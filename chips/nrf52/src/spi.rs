@@ -1,3 +1,31 @@
+//! Implementation of SPI for NRF52 using EasyDMA.
+//!
+//! This file only implments support for the three SPI master (`SPIM`)
+//! peripherals, and not SPI slave (`SPIS`).
+//!
+//! Although `kernel::hil::spi::SpiMaster` is implemented for `SPIM`,
+//! only the functions marked with `x` are fully defined:
+//!
+//! - [x] set_client
+//! - [x] init
+//! - [x] is_busy
+//! - [x] read_write_bytes
+//! - [ ] write_byte
+//! - [ ] read_byte
+//! - [ ] read_write_byte
+//! - [x] specify_chip_select
+//! - [x] set_rate
+//! - [x] get_rate
+//! - [x] set_clock
+//! - [x] get_clock
+//! - [x] set_phase
+//! - [x] get_phase
+//! - [ ] hold_low
+//! - [ ] release_low
+//!
+//! - Author: Jay Kickliter
+//! - Date: Sep 10, 2017
+
 use chip;
 use core::cell::Cell;
 use core::cmp;
@@ -9,24 +37,29 @@ use nrf5x::nvic;
 use nrf5x::peripheral_interrupts::NvicIdx;
 use nrf5x::pinmux::Pinmux;
 
+/// SPI master instance 0.
 pub static mut SPIM0: SPIM = SPIM::new(0);
+/// SPI master instance 1.
 pub static mut SPIM1: SPIM = SPIM::new(1);
+/// SPI master instance 2.
 pub static mut SPIM2: SPIM = SPIM::new(2);
 
 mod registers {
     pub mod spim {
+        //! NRF52 `SPIM` registers and utility types.
         #![allow(dead_code)]
         use kernel::common::VolatileCell;
         use nrf5x::peripheral_interrupts::NvicIdx;
         use nrf5x::pinmux::Pinmux;
 
+        /// Uninitialized `SPIM` instances.
         pub const INSTANCES: [(*const SPIM, NvicIdx); 3] =
             [(0x40003000 as *const SPIM, NvicIdx::SPI0_TWI0),
              (0x40004000 as *const SPIM, NvicIdx::SPI1_TWI1),
              (0x40023000 as *const SPIM, NvicIdx::SPIM2_SPIS2_SPI2)];
 
         bitfield!{
-            // Represents bitfields in INTENSET and INTENCLR registers.
+            /// Represents bitfields in `intenset` and `intenclr` registers.
             #[derive(Copy, Clone)]
             pub struct InterruptEnable(u32);
             impl Debug;
@@ -38,7 +71,7 @@ mod registers {
         }
 
         bitfield!{
-            // Represents bitfields in CONFIG register.
+            /// Represents bitfields in `config` register.
             #[derive(Copy, Clone)]
             pub struct Config(u32);
             impl Debug;
@@ -47,6 +80,7 @@ mod registers {
             pub clock_polarity, set_clock_polarity: 2,  2;
         }
 
+        /// An enum representing all allowable `frequency` register values.
         #[repr(u32)]
         #[derive(Copy, Clone)]
         pub enum Frequency {
@@ -93,6 +127,7 @@ mod registers {
             }
         }
 
+        /// Represents allowable values of `enable` register.
         #[repr(u32)]
         #[derive(Copy, Clone)]
         pub enum Enable {
@@ -100,109 +135,140 @@ mod registers {
             Enabled = 7,
         }
 
+        /// Represents one of NRF52's three `SPIM` instances.
         #[repr(C, packed)]
         pub struct SPIM {
             _reserved0: [u32; 4],
-            // Start SPI transaction
-            // base + 0x010
+            /// Start SPI transaction
+            ///
+            /// addr = base + 0x010
             pub tasks_start: VolatileCell<u32>,
-            // Stop SPI transaction
-            // base + 0x014
+            /// Stop SPI transaction
+            ///
+            /// addr = base + 0x014
             pub tasks_stop: VolatileCell<u32>,
             _reserved1: u32,
-            // Suspend SPI transaction
-            // base + 0x01C
+            /// Suspend SPI transaction
+            ///
+            /// addr = base + 0x01C
             pub tasks_suspend: VolatileCell<u32>,
-            // Resume SPI transaction
-            // base + 0x020
+            /// Resume SPI transaction
+            ///
+            /// addr = base + 0x020
             pub tasks_resume: VolatileCell<u32>,
             _reserved2: [u32; 56],
-            // SPI transaction has stopped
-            // base + 0x104
+            /// SPI transaction has stopped
+            ///
+            /// addr = base + 0x104
             pub events_stopped: VolatileCell<u32>,
             _reserved3: [u32; 2],
-            // End of RXD buffer reached
-            // base + 0x110
+            /// End of RXD buffer reached
+            ///
+            /// addr = base + 0x110
             pub events_endrx: VolatileCell<u32>,
             _reserved4: u32,
-            // End of RXD buffer and TXD buffer reached
-            // base + 0x118
+            /// End of RXD buffer and TXD buffer reached
+            ///
+            /// addr = base + 0x118
             pub events_end: VolatileCell<u32>,
             _reserved5: u32,
-            // End of TXD buffer reached
-            // base + 0x120
+            /// End of TXD buffer reached
+            ///
+            /// addr = base + 0x120
             pub events_endtx: VolatileCell<u32>,
             _reserved6: [u32; 10],
-            // Transaction started
-            // base + 0x14C
+            /// Transaction started
+            ///
+            /// addr = base + 0x14C
             pub events_started: VolatileCell<u32>,
             _reserved7: [u32; 44],
-            // Shortcut register
-            // base + 0x200
+            /// Shortcut register
+            ///
+            /// addr = base + 0x200
             pub shorts: VolatileCell<u32>,
             _reserved8: [u32; 64],
-            // Enable interrupt
-            // base + 0x304
+            /// Enable interrupt
+            ///
+            /// addr = base + 0x304
             pub intenset: VolatileCell<InterruptEnable>,
-            // Disable interrupt
-            // base + 0x308
+            /// Disable interrupt
+            ///
+            /// base + addr = 0x308
             pub intenclr: VolatileCell<InterruptEnable>,
             _reserved9: [u32; 125],
-            // Enable SPIM
-            // base + 0x500
+            /// Enable SPIM
+            ///
+            /// addr = base + 0x500
             pub enable: VolatileCell<Enable>,
             _reserved10: u32,
-            // Pin select for SCK
-            // base + 0x508
+            /// Pin select for SCK
+            ///
+            /// addr = base + 0x508
             pub psel_sck: VolatileCell<Pinmux>,
-            // Pin select for MOSI signal
-            // base + 0x50C
+            /// Pin select for MOSI signal
+            ///
+            /// addr = base + 0x50C
             pub psel_mosi: VolatileCell<Pinmux>,
-            // Pin select for MISO signal
-            // base + 0x510
+            /// Pin select for MISO signal
+            ///
+            /// addr = base + 0x510
             pub psel_miso: VolatileCell<Pinmux>,
             _reserved11: [u32; 4],
-            // SPI frequency
-            // base + 0x524
+            /// SPI frequency
+            ///
+            /// addr = base + 0x524
             pub frequency: VolatileCell<Frequency>,
             _reserved12: [u32; 3],
-            // Data pointer
-            // base + 0x534
+            /// Data pointer
+            ///
+            /// addr = base + 0x534
             pub rxd_ptr: VolatileCell<*mut u8>,
-            // Maximum number of bytes in receive buffer
-            // base + 0x538
+            /// Maximum number of bytes in receive buffer
+            ///
+            /// addr = base + 0x538
             pub rxd_maxcnt: VolatileCell<u32>,
-            // Number of bytes transferred in the last transaction
-            // base + 0x53C
+            /// Number of bytes transferred in the last transaction
+            ///
+            /// addr = base + 0x53C
             pub rxd_amount: VolatileCell<u32>,
-            // EasyDMA list type
-            // base + 0x540
+            /// EasyDMA list type
+            ///
+            /// addr = base + 0x540
             pub rxd_list: VolatileCell<u32>,
-            // Data pointer
-            // base + 0x544
+            /// Data pointer
+            ///
+            /// base + addr = 0x544
             pub txd_ptr: VolatileCell<*const u8>,
-            // Maximum number of bytes in transmit buffer
-            // base + 0x548
+            /// Maximum number of bytes in transmit buffer
+            ///
+            /// addr = base + 0x548
             pub txd_maxcnt: VolatileCell<u32>,
-            // Number of bytes transferred in the last transaction
-            // base + 0x54C
+            /// Number of bytes transferred in the last transaction
+            ///
+            /// addr = base + 0x54C
             pub txd_amount: VolatileCell<u32>,
-            // EasyDMA list type
-            // base + 0x550
+            /// EasyDMA list type
+            ///
+            /// addr = base + 0x550
             pub txd_list: VolatileCell<u32>,
-            // Configuration register
-            // base + 0x554
+            /// Configuration register
+            ///
+            /// addr = base + 0x554
             pub config: VolatileCell<Config>,
             _reserved13: [u32; 26],
-            // Over-read character. Character clocked out in case and over-read of the TXD buffer.
-            // base + 0x5C0
+            /// Over-read character. Character clocked out in case and over-read of the TXD buffer.
+            ///
+            /// addr = base + 0x5C0
             pub orc: VolatileCell<u32>,
         }
     }
 }
 
 
-// SPI-Master peripheral.
+/// A SPI master device.
+///
+/// A `SPIM` instance wraps a `registers::spim::SPIM` together with
+/// addition data necessary to implement an asynchronous interface.
 pub struct SPIM {
     registers: *const registers::spim::SPIM,
     nvic_idx: NvicIdx,
@@ -216,7 +282,7 @@ pub struct SPIM {
 }
 
 impl SPIM {
-    pub const fn new(instance: usize) -> SPIM {
+    const fn new(instance: usize) -> SPIM {
         SPIM {
             registers: registers::spim::INSTANCES[instance].0,
             nvic_idx: registers::spim::INSTANCES[instance].1,
@@ -287,6 +353,7 @@ impl SPIM {
         }
     }
 
+    /// Configures an already constructed `SPIM`.
     pub fn configure(&self, mosi: Pinmux, miso: Pinmux, sck: Pinmux) {
         let regs = self.regs();
         regs.psel_mosi.set(mosi);
@@ -300,11 +367,13 @@ impl SPIM {
         nvic::enable(self.nvic_idx);
     }
 
+    /// Enables `SPIM` peripheral.
     pub fn enable(&self) {
         use self::registers::spim::Enable;
         self.regs().enable.set(Enable::Enabled);
     }
 
+    /// Disables `SPIM` peripheral.
     pub fn disable(&self) {
         use self::registers::spim::Enable;
         self.regs().enable.set(Enable::Disabled);
