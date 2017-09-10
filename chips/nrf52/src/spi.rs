@@ -307,7 +307,10 @@ impl SPIM {
             // End of RXD buffer and TXD buffer reached
             match self.chip_select.get() {
                 Some(cs) => cs.set(),
-                None => panic!("Chip select not configured."),
+                None => {
+                    debug_assert!(false, "Invariant violated. Chip-select must be Some.");
+                    return;
+                }
             }
             self.regs().events_end.set(0);
 
