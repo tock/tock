@@ -3,6 +3,7 @@ use kernel::common::{RingBuffer, Queue};
 use nrf5x;
 use nrf5x::peripheral_interrupts::NvicIdx;
 use radio;
+use spi;
 use uart;
 
 const IQ_SIZE: usize = 100;
@@ -33,22 +34,28 @@ impl kernel::Chip for NRF52 {
 
     fn service_pending_interrupts(&mut self) {
         unsafe {
-            INTERRUPT_QUEUE.as_mut().unwrap().dequeue().map(|interrupt| {
-                match interrupt {
-                    NvicIdx::ECB => nrf5x::aes::AESECB.handle_interrupt(),
-                    NvicIdx::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
-                    NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
-                    NvicIdx::RNG => nrf5x::trng::TRNG.handle_interrupt(),
-                    NvicIdx::RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
-                    NvicIdx::TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
-                    NvicIdx::TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
-                    NvicIdx::TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
-                    NvicIdx::TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
-                    NvicIdx::UART0 => uart::UART0.handle_interrupt(),
-                    _ => debug!("NvicIdx not supported by Tock\r\n"),
-                }
-                nrf5x::nvic::enable(interrupt);
-            });
+            INTERRUPT_QUEUE.as_mut()
+                .unwrap()
+                .dequeue()
+                .map(|interrupt| {
+                    match interrupt {
+                        NvicIdx::ECB => nrf5x::aes::AESECB.handle_interrupt(),
+                        NvicIdx::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
+                        NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
+                        NvicIdx::RNG => nrf5x::trng::TRNG.handle_interrupt(),
+                        NvicIdx::RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
+                        NvicIdx::TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
+                        NvicIdx::TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
+                        NvicIdx::TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
+                        NvicIdx::TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
+                        NvicIdx::UART0 => uart::UART0.handle_interrupt(),
+                        NvicIdx::SPI0_TWI0 => spi::SPIM0.handle_interrupt(),
+                        NvicIdx::SPI1_TWI1 => spi::SPIM1.handle_interrupt(),
+                        NvicIdx::SPIM2_SPIS2_SPI2 => spi::SPIM2.handle_interrupt(),
+                        _ => debug!("NvicIdx not supported by Tock\r\n"),
+                    }
+                    nrf5x::nvic::enable(interrupt);
+                });
         }
     }
 

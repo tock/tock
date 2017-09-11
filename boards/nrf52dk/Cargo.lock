@@ -10,6 +10,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "bitfield"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
 name = "capsules"
 version = "0.1.0"
 dependencies = [
@@ -36,6 +41,7 @@ version = "0.1.0"
 name = "nrf52"
 version = "0.1.0"
 dependencies = [
+ "bitfield 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cortexm4 0.1.0",
  "gcc 0.3.51 (registry+https://github.com/rust-lang/crates.io-index)",
  "kernel 0.1.0",
@@ -50,4 +56,5 @@ dependencies = [
 ]
 
 [metadata]
+"checksum bitfield 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f989ae9b9fff3271a712a309fce47f0c46dd3476cb40074ddfcc06ad4a76cf6a"
 "checksum gcc 0.3.51 (registry+https://github.com/rust-lang/crates.io-index)" = "120d07f202dcc3f72859422563522b66fe6463a4c513df062874daad05f85f0a"
