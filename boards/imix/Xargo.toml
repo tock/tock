@@ -4,3 +4,4 @@
 features = ["mem"]
 git = "https://github.com/rust-lang-nursery/compiler-builtins"
 stage = 1
+rev = "02ea9e5f540c61cad3cc26ffaba1bbaee657862d"
