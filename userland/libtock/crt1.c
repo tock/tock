@@ -29,5 +29,17 @@ void _start(void* mem_start __attribute__((unused)),
                  bl main; \
                  1: bl yield; \
                  b 1b");
+  // Okay, I haven't quite sorted out why this one and the below are needed,
+  // but they are. Otherwise LTO will drop main and subsequently complain that
+  // it can't find it. Sigh.
+  main();
+  yield();
+}
+
+// https://stackoverflow.com/questions/38389702/prevent-gcc-lto-from-deleting-function
+__attribute__((used))
+void lto_asm_references_dummy_function(void) {
+  main();
+  yield();
 }
 
