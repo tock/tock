@@ -1,4 +1,4 @@
-//! Provides userspace applications with a timer API.
+//! Provides userspace applications with a alarm API.
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Grant, Driver, ReturnCode};
@@ -15,15 +15,15 @@ enum Expiration {
 }
 
 #[derive(Copy, Clone)]
-pub struct TimerData {
+pub struct AlarmData {
     t0: u32,
     expiration: Expiration,
     callback: Option<Callback>,
 }
 
-impl Default for TimerData {
-    fn default() -> TimerData {
-        TimerData {
+impl Default for AlarmData {
+    fn default() -> AlarmData {
+        AlarmData {
             t0: 0,
             expiration: Expiration::Disabled,
             callback: None,
@@ -31,27 +31,27 @@ impl Default for TimerData {
     }
 }
 
-pub struct TimerDriver<'a, A: Alarm + 'a> {
+pub struct AlarmDriver<'a, A: Alarm + 'a> {
     alarm: &'a A,
     num_armed: Cell<usize>,
-    app_timer: Grant<TimerData>,
+    app_alarm: Grant<AlarmData>,
 }
 
-impl<'a, A: Alarm> TimerDriver<'a, A> {
-    pub const fn new(alarm: &'a A, grant: Grant<TimerData>) -> TimerDriver<'a, A> {
-        TimerDriver {
+impl<'a, A: Alarm> AlarmDriver<'a, A> {
+    pub const fn new(alarm: &'a A, grant: Grant<AlarmData>) -> AlarmDriver<'a, A> {
+        AlarmDriver {
             alarm: alarm,
             num_armed: Cell::new(0),
-            app_timer: grant,
+            app_alarm: grant,
         }
     }
 
-    fn reset_active_timer(&self) {
+    fn reset_active_alarm(&self) {
         let now = self.alarm.now();
         let mut next_alarm = u32::max_value();
         let mut next_dist = u32::max_value();
-        for timer in self.app_timer.iter() {
-            timer.enter(|timer, _| match timer.expiration {
+        for alarm in self.app_alarm.iter() {
+            alarm.enter(|alarm, _| match alarm.expiration {
                 Expiration::Abs(exp) => {
                     let t_dist = exp.wrapping_sub(now);
                     if next_dist > t_dist {
@@ -68,14 +68,14 @@ impl<'a, A: Alarm> TimerDriver<'a, A> {
     }
 }
 
-impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
-    /// Subscribe to timer expiration
+impl<'a, A: Alarm> Driver for AlarmDriver<'a, A> {
+    /// Subscribe to alarm expiration
     ///
     /// ### `_subscribe_num`
     ///
-    /// - `0`: Subscribe to timer expiration
+    /// - `0`: Subscribe to alarm expiration
     fn subscribe(&self, _subscribe_num: usize, callback: Callback) -> ReturnCode {
-        self.app_timer
+        self.app_alarm
             .enter(callback.app_id(), |td, _allocator| {
                 td.callback = Some(callback);
                 ReturnCode::SUCCESS
@@ -90,7 +90,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
     /// - `0`: Driver check.
     /// - `1`: Return the clock frequency in Hz.
     /// - `2`: Read the the current clock value
-    /// - `3`: Stop the timer if it is outstanding
+    /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Set an alarm to fire at a given clock value `time`.
     fn command(&self, cmd_type: usize, data: usize, caller_id: AppId) -> ReturnCode {
         // Returns the error code to return to the user and whether we need to
@@ -98,7 +98,7 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
         // disabling the underlying alarm anyway, if the underlying alarm is
         // currently disabled and we're enabling the first alarm, or on an error
         // (i.e. no change to the alarms).
-        let (return_code, reset) = self.app_timer
+        let (return_code, reset) = self.app_alarm
             .enter(caller_id, |td, _alloc| {
                 match cmd_type {
                     0 /* check if present */ => (ReturnCode::SuccessWithValue { value: 1 }, false),
@@ -112,13 +112,13 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                          false)
                     },
                     3 /* Stop */ => {
-                        let timer_id = data as u32;
+                        let alarm_id = data as u32;
                         match td.expiration {
                             Expiration::Disabled => {
                                 // Request to stop when already stopped
                                 (ReturnCode::EALREADY, false)
                             },
-                            Expiration::Abs(exp) if exp != timer_id => {
+                            Expiration::Abs(exp) if exp != alarm_id => {
                                 // Request to stop invalid alarm id
                                 (ReturnCode::EINVAL, false)
                             },
@@ -167,29 +167,29 @@ impl<'a, A: Alarm> Driver for TimerDriver<'a, A> {
                 (e, false)
             });
         if reset {
-            self.reset_active_timer();
+            self.reset_active_alarm();
         }
         return_code
     }
 }
 
-impl<'a, A: Alarm> time::Client for TimerDriver<'a, A> {
+impl<'a, A: Alarm> time::Client for AlarmDriver<'a, A> {
     fn fired(&self) {
         let now = self.alarm.now();
 
-        self.app_timer.each(|timer| if let Expiration::Abs(exp) = timer.expiration {
-            let expired = now.wrapping_sub(timer.t0) >= exp.wrapping_sub(timer.t0);
+        self.app_alarm.each(|alarm| if let Expiration::Abs(exp) = alarm.expiration {
+            let expired = now.wrapping_sub(alarm.t0) >= exp.wrapping_sub(alarm.t0);
             if expired {
-                timer.expiration = Expiration::Disabled;
+                alarm.expiration = Expiration::Disabled;
                 self.num_armed.set(self.num_armed.get() - 1);
-                timer.callback.map(|mut cb| cb.schedule(now as usize, exp as usize, 0));
+                alarm.callback.map(|mut cb| cb.schedule(now as usize, exp as usize, 0));
             }
         });
 
-        // If there are armed timers left, reset the underlying timer to the
-        // nearest interval.  Otherwise, disable the underlying timer.
+        // If there are armed alarms left, reset the underlying alarm to the
+        // nearest interval.  Otherwise, disable the underlying alarm.
         if self.num_armed.get() > 0 {
-            self.reset_active_timer();
+            self.reset_active_alarm();
         } else {
             self.alarm.disable();
         }

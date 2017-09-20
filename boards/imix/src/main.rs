@@ -8,9 +8,9 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
+use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::mac::Mac;
 use capsules::rf233::RF233;
-use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
@@ -51,7 +51,7 @@ type RF233Device = capsules::rf233::RF233<'static,
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
@@ -92,7 +92,7 @@ impl kernel::Platform for Imix {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::timer::DRIVER_NUM => f(Some(self.timer)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::spi::DRIVER_NUM => f(Some(self.spi)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
@@ -227,10 +227,10 @@ pub unsafe fn reset_handler() {
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm));
-    let timer = static_init!(
-        TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        TimerDriver::new(virtual_alarm1, kernel::Grant::create()));
-    virtual_alarm1.set_client(timer);
+    let alarm = static_init!(
+        AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        AlarmDriver::new(virtual_alarm1, kernel::Grant::create()));
+    virtual_alarm1.set_client(alarm);
 
     // # I2C Sensors
 
@@ -450,7 +450,7 @@ pub unsafe fn reset_handler() {
 
     let imix = Imix {
         console: console,
-        timer: timer,
+        alarm: alarm,
         gpio: gpio,
         temp: temp,
         humidity: humidity,

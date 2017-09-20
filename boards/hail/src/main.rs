@@ -51,7 +51,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 struct Hail {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static capsules::timer::TimerDriver<'static,
+    alarm: &'static capsules::alarm::AlarmDriver<'static,
                                                  VirtualMuxAlarm<'static,
                                                                  sam4l::ast::Ast<'static>>>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
@@ -82,7 +82,7 @@ impl Platform for Hail {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
 
-            capsules::timer::DRIVER_NUM => f(Some(self.timer)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::spi::DRIVER_NUM => f(Some(self.spi)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
@@ -256,14 +256,14 @@ pub unsafe fn reset_handler() {
         capsules::ambient_light::AmbientLight::new(isl29035, kernel::Grant::create()));
     hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
-    // Timer
+    // Alarm
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm));
-    let timer = static_init!(
-        capsules::timer::TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::timer::TimerDriver::new(virtual_alarm1, kernel::Grant::create()));
-    virtual_alarm1.set_client(timer);
+    let alarm = static_init!(
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create()));
+    virtual_alarm1.set_client(alarm);
 
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e));
@@ -388,7 +388,7 @@ pub unsafe fn reset_handler() {
     let hail = Hail {
         console: console,
         gpio: gpio,
-        timer: timer,
+        alarm: alarm,
         ambient_light: ambient_light,
         temp: temp,
         humidity: humidity,

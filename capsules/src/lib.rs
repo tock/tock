@@ -5,6 +5,7 @@
 #[macro_use(debug)]
 extern crate kernel;
 
+pub mod alarm;
 pub mod ambient_light;
 pub mod button;
 pub mod console;
@@ -13,7 +14,6 @@ pub mod gpio;
 pub mod isl29035;
 pub mod led;
 pub mod nrf51822_serialization;
-pub mod timer;
 pub mod tmp006;
 pub mod sdcard;
 pub mod si7021;

@@ -2,7 +2,7 @@
 //! kit (DK), a.k.a. the PCA10028. </br>
 //! This is an nRF51422 SoC (a Cortex M0 core with a BLE transceiver) with many
 //! exported pins, LEDs, and buttons. </br>
-//! Currently the kernel provides application timers, and GPIO. </br>
+//! Currently the kernel provides application alarms, and GPIO. </br>
 //! It will provide a console
 //! once the UART is fully implemented and debugged.
 //!
@@ -47,7 +47,7 @@ extern crate kernel;
 extern crate nrf51;
 extern crate nrf5x;
 
-use capsules::timer::TimerDriver;
+use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
 use kernel::hil::symmetric_encryption::SymmetricEncryption;
@@ -95,7 +95,7 @@ pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
+    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
 }
 
@@ -107,7 +107,7 @@ impl kernel::Platform for Platform {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::timer::DRIVER_NUM => f(Some(self.timer)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
@@ -199,22 +199,22 @@ pub unsafe fn reset_handler() {
         480/8);
     kernel::debug::assign_console_driver(Some(console), kc);
 
-    let alarm = &nrf5x::rtc::RTC;
-    alarm.start();
+    let rtc = &nrf5x::rtc::RTC;
+    rtc.start();
     let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
-    alarm.set_client(mux_alarm);
+    rtc.set_client(mux_alarm);
 
 
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
         VirtualMuxAlarm::new(mux_alarm),
         24);
-    let timer = static_init!(
-        TimerDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
-        TimerDriver::new(virtual_alarm1,
+    let alarm = static_init!(
+        AlarmDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
+        AlarmDriver::new(virtual_alarm1,
                          kernel::Grant::create()),
                          12);
-    virtual_alarm1.set_client(timer);
+    virtual_alarm1.set_client(alarm);
 
     let ble_radio_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
@@ -275,11 +275,11 @@ pub unsafe fn reset_handler() {
         gpio: gpio,
         led: led,
         rng: rng,
-        timer: timer,
+        alarm: alarm,
         temp: temp,
     };
 
-    alarm.start();
+    rtc.start();
 
     let mut chip = nrf51::chip::NRF51::new();
     chip.systick().reset();

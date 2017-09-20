@@ -114,7 +114,7 @@ pub struct Platform {
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    timer: &'static capsules::timer::TimerDriver
+    alarm: &'static capsules::alarm::AlarmDriver
         <'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
 }
 
@@ -126,7 +126,7 @@ impl kernel::Platform for Platform {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::timer::DRIVER_NUM => f(Some(self.timer)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
@@ -231,25 +231,25 @@ pub unsafe fn reset_handler() {
         btn.set_client(button);
     }
 
-    let alarm = &nrf5x::rtc::RTC;
-    alarm.start();
+    let rtc = &nrf5x::rtc::RTC;
+    rtc.start();
     let mux_alarm = static_init!(
         capsules::virtual_alarm::MuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::MuxAlarm::new(&nrf5x::rtc::RTC), 16);
-    alarm.set_client(mux_alarm);
+    rtc.set_client(mux_alarm);
 
 
     let virtual_alarm1 = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
         24);
-    let timer = static_init!(
-        capsules::timer::TimerDriver<'static,
+    let alarm = static_init!(
+        capsules::alarm::AlarmDriver<'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
-        capsules::timer::TimerDriver::new(virtual_alarm1,
+        capsules::alarm::AlarmDriver::new(virtual_alarm1,
                          kernel::Grant::create()),
                          12);
-    virtual_alarm1.set_client(timer);
+    virtual_alarm1.set_client(alarm);
     let ble_radio_virtual_alarm = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
         capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
@@ -335,7 +335,7 @@ pub unsafe fn reset_handler() {
         gpio: gpio,
         rng: rng,
         temp: temp,
-        timer: timer,
+        alarm: alarm,
     };
 
     let mut chip = nrf52::chip::NRF52::new();
