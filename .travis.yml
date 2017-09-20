@@ -11,9 +11,10 @@ os:
   - linux
   - osx
 
-# If you change this, you must also change README and Common.mk
+# If you change this, you must also change Getting_Started.md, Makefile.common,
+# and Vagrantfile.
 rust:
-  - nightly-2017-06-20
+  - nightly-2017-09-20
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./.travis-install-gcc; fi

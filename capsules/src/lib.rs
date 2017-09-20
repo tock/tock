@@ -1,4 +1,4 @@
-#![feature(const_fn)]
+#![feature(const_fn,const_cell_new)]
 #![no_std]
 
 #[allow(unused_imports)]

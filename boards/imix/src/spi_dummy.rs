@@ -1,6 +1,5 @@
 //! A dummy SPI client to test the SPI implementation
 
-extern crate kernel;
 use kernel::ReturnCode;
 use kernel::hil::gpio;
 use kernel::hil::gpio::Pin;

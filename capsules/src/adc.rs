@@ -137,13 +137,13 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
     /// closure - function to run on the found buffer
     fn take_and_map_buffer<F: FnOnce(&'static mut [u16])>(&self, closure: F) {
         if self.adc_buf1.is_some() {
-            self.adc_buf1.take().map(|mut val| { closure(val); });
+            self.adc_buf1.take().map(|val| { closure(val); });
 
         } else if self.adc_buf2.is_some() {
-            self.adc_buf2.take().map(|mut val| { closure(val); });
+            self.adc_buf2.take().map(|val| { closure(val); });
 
         } else if self.adc_buf3.is_some() {
-            self.adc_buf3.take().map(|mut val| { closure(val); });
+            self.adc_buf3.take().map(|val| { closure(val); });
         }
     }
 

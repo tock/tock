@@ -30,7 +30,7 @@ macro_rules! static_init {
             // initial value into it (without dropping the initial zeros) and
             // return a reference to it.
             static mut BUF: Option<$T> = None;
-            let mut tmp : &'static mut $T = mem::transmute(&mut BUF);
+            let tmp : &'static mut $T = mem::transmute(&mut BUF);
             ptr::write(tmp as *mut $T, $e);
             tmp
         };

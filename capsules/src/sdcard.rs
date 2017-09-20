@@ -259,8 +259,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
     fn send_command(&self,
                     cmd: SDCmd,
                     arg: u32,
-                    mut write_buffer: &'static mut [u8],
-                    mut read_buffer: &'static mut [u8],
+                    write_buffer: &'static mut [u8],
+                    read_buffer: &'static mut [u8],
                     recv_len: usize) {
         // Note: a good default recv_len is 10 bytes. Reading too many bytes
         //  rarely matters. However, it occasionally matters a lot, so we
@@ -315,8 +315,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
     /// wrapper for easy reading of bytes over SPI
     fn read_bytes(&self,
-                  mut write_buffer: &'static mut [u8],
-                  mut read_buffer: &'static mut [u8],
+                  write_buffer: &'static mut [u8],
+                  read_buffer: &'static mut [u8],
                   recv_len: usize) {
 
         self.set_spi_fast_mode();
@@ -334,8 +334,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
     /// wrapper for easy writing of bytes over SPI
     fn write_bytes(&self,
-                   mut write_buffer: &'static mut [u8],
-                   mut read_buffer: &'static mut [u8],
+                   write_buffer: &'static mut [u8],
+                   read_buffer: &'static mut [u8],
                    recv_len: usize) {
 
         self.set_spi_fast_mode();
@@ -391,8 +391,8 @@ impl<'a, A: hil::time::Alarm + 'a> SDCard<'a, A> {
 
     /// updates SD card state on SPI transaction returns
     fn process_spi_states(&self,
-                          mut write_buffer: &'static mut [u8],
-                          mut read_buffer: &'static mut [u8],
+                          write_buffer: &'static mut [u8],
+                          read_buffer: &'static mut [u8],
                           _: usize) {
 
         match self.state.get() {

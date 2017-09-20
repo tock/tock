@@ -5,10 +5,9 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm,const_fn,drop_types_in_const,lang_items,compiler_builtins_lib)]
+#![feature(asm,const_fn,lang_items,compiler_builtins_lib)]
 
 extern crate capsules;
-extern crate cortexm4;
 extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug,static_init)]

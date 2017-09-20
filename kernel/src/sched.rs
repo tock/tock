@@ -91,7 +91,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 let res = if callback_ptr_raw as usize == 0 {
                     ReturnCode::EINVAL
                 } else {
-                    let callback_ptr = NonZero::new(callback_ptr_raw);
+                    let callback_ptr = NonZero::new_unchecked(callback_ptr_raw);
 
                     let callback = ::Callback::new(appid, appdata, callback_ptr);
                     platform.with_driver(driver_num, |driver| match driver {

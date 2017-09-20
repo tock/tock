@@ -174,7 +174,7 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         //               Can't just use 0!
         self.app.map(|appst| {
             // Call the callback after TX has finished
-            appst.callback.as_mut().map(|mut cb| { cb.schedule(1, 0, 0); });
+            appst.callback.as_mut().map(|cb| { cb.schedule(1, 0, 0); });
         });
     }
 

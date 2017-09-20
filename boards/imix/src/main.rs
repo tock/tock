@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(asm,const_fn,drop_types_in_const,lang_items,compiler_builtins_lib)]
+#![feature(asm,const_fn,lang_items,compiler_builtins_lib,const_cell_new)]
 
 extern crate capsules;
 extern crate compiler_builtins;
