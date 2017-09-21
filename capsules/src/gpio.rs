@@ -3,6 +3,11 @@
 //! GPIOs are presented through a driver interface with synchronous commands
 //! and a callback for interrupts.
 //!
+//! This capsule takes an array of pins to expose as generic GPIOs.
+//! Note that this capsule is used for general purpose GPIOs. Pins that are
+//! attached to LEDs or buttons are generally wired directly to those capsules,
+//! not through this capsule as an intermediary.
+//!
 //! Usage
 //! -----
 //!
@@ -20,6 +25,23 @@
 //!     pin.set_client(gpio);
 //! }
 //! ```
+//!
+//! Syscall Interface
+//! -----------------
+//!
+//! - Stability: 2 - Stable
+//!
+//! ### Commands
+//!
+//! All GPIO operations are synchronous.
+//!
+//! Commands control and query GPIO information, namely how many GPIOs are
+//! present, the GPIO direction and state, and whether they should interrupt.
+//!
+//! ### Subscribes
+//!
+//! The GPIO interface provides only one callback, which is used for pins that
+//! have had interrupts enabled.
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = 0x00000004;
@@ -101,7 +123,7 @@ impl<'a, G: Pin> Client for GPIO<'a, G> {
 }
 
 impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
-    /// Subscribe to GPIO pin events
+    /// Subscribe to GPIO pin events.
     ///
     /// ### `subscribe_num`
     ///
@@ -121,7 +143,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
         }
     }
 
-    /// Controls and reads pin value and states
+    /// Query and control pin values and states.
     ///
     /// The `data` argument has two fields. The lowest order byte is the pin
     /// number (`pin`), the second byte is an internal resistor setting
