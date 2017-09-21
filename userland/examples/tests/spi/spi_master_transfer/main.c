@@ -12,7 +12,7 @@ char zbuf[BUF_SIZE];
 bool toggle = true;
 
 // This function checks buffer
-// equality, setting the LED if the 
+// equality, setting the LED if the
 // buffers are *not* equal.
 static void buffer_eq (char *buf1, char *buf2) {
   int i;
@@ -47,7 +47,7 @@ static void button_cb(__attribute__((unused)) int btn_num,
               __attribute__ ((unused)) int val,
               __attribute__ ((unused)) int arg2,
               __attribute__ ((unused)) void* userdata) {
-  if (val == 0) {
+  if (val == 1) {
     if (toggle) {
         // This is the first read write; note that this is
         // inverted from the spi_slave_transfer, as we do
@@ -65,7 +65,7 @@ static void button_cb(__attribute__((unused)) int btn_num,
 
 // This function first initializes the various buffers to
 // their initial values. We then wait until a button press
-// to begin the transfer. Note that this program assumes that 
+// to begin the transfer. Note that this program assumes that
 // the slave implementation (spi_slave_transfer) echoes our
 // buffers back to us (and the first response is all zeroes).
 // If a buffer is corrupted, we set the LED to be on.

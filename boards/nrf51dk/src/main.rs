@@ -137,18 +137,18 @@ pub unsafe fn reset_handler() {
         64/8);
 
     let button_pins = static_init!(
-        [&'static nrf5x::gpio::GPIOPin; 4],
-        [&nrf5x::gpio::PORT[BUTTON1_PIN], // 17
-        &nrf5x::gpio::PORT[BUTTON2_PIN], // 18
-        &nrf5x::gpio::PORT[BUTTON3_PIN], // 19
-        &nrf5x::gpio::PORT[BUTTON4_PIN], // 20
+        [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode); 4],
+        [(&nrf5x::gpio::PORT[BUTTON1_PIN], capsules::button::GpioMode::LowWhenPressed), // 17
+        (&nrf5x::gpio::PORT[BUTTON2_PIN], capsules::button::GpioMode::LowWhenPressed), // 18
+        (&nrf5x::gpio::PORT[BUTTON3_PIN], capsules::button::GpioMode::LowWhenPressed), // 19
+        (&nrf5x::gpio::PORT[BUTTON4_PIN], capsules::button::GpioMode::LowWhenPressed), // 20
         ],
         4 * 4);
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
         capsules::button::Button::new(button_pins, kernel::Grant::create()),
         96/8);
-    for btn in button_pins.iter() {
+    for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
         btn.set_input_mode(kernel::hil::gpio::InputMode::PullUp);
         btn.set_client(button);

@@ -316,12 +316,12 @@ pub unsafe fn reset_handler() {
 
     // BUTTONs
     let button_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 1],
-        [&sam4l::gpio::PA[16]]);
+        [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
+        [(&sam4l::gpio::PA[16], capsules::button::GpioMode::LowWhenPressed)]);
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
         capsules::button::Button::new(button_pins, kernel::Grant::create()));
-    for btn in button_pins.iter() {
+    for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
     }
 
