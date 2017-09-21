@@ -19,13 +19,13 @@ share a buffer for every write transaction, even if it's the same buffer.
 
   * ### Command number: `0`
 
-    Description: Does the driver exist?
+    **Description**: Does the driver exist?
 
-    Argument 1: unused
+    **Argument**: unused
 
-    Returns: SUCCESS if it exists, otherwise ENODEVICE
+    **Returns**: SUCCESS if it exists, otherwise ENODEVICE
 
-  * ### Command number: 1
+  * ### Command number: `1`
 
     **Description**: Initiate a write transaction of a buffer shared using `allow`.
     At the end of the transaction, a callback will be delivered if the process
@@ -39,12 +39,12 @@ share a buffer for every write transaction, even if it's the same buffer.
 
 ## Subscribe
 
-  * ### Subscribe number: 1
+  * ### Subscribe number: `1`
 
     **Description**: Subscribe to write transaction completion event. The
     callback will be called whenever a write transaction completes.
 
-    **Callback signature**: The callback recieves a single argument, the number
+    **Callback signature**: The callback receives a single argument, the number
     of bytes written in the transaction. The value of the remaining arguments
     is undefined.
 
@@ -53,7 +53,7 @@ share a buffer for every write transaction, even if it's the same buffer.
 
 ## Allow
 
-  * ### Allow number: 1
+  * ### Allow number: `1`
 
     **Description**: Sets a shared buffer to be used as a source of data for
     the next write transaction. A shared buffer is released if it is replaced
