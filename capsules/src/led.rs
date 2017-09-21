@@ -4,6 +4,11 @@
 //! to know which of the GPIO pins exposed across the syscall interface are
 //! LEDs.
 //!
+//! This capsule takes an array of pins and the polarity of the LED (active high
+//! or active low). This allows the board to configure how the underlying GPIO
+//! must be controlled to turn on and off LEDs, such that the syscall driver
+//! interface can be agnostic to the LED polarity.
+//!
 //! Usage
 //! -----
 //!
@@ -56,7 +61,8 @@ pub enum ActivationMode {
     ActiveLow,
 }
 
-/// Holds the array of GPIO pins attached to the LEDs.
+/// Holds the array of GPIO pins attached to the LEDs and implements a `Driver`
+/// interface to control them.
 pub struct LED<'a, G: hil::gpio::Pin + 'a> {
     pins_init: &'a [(&'a G, ActivationMode)],
 }
@@ -77,14 +83,18 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
 }
 
 impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
-    /// Control the LEDs
+    /// Control the LEDs.
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Get number of LEDs.
-    /// - `1`: Turn LED on.
-    /// - `2`: Turn LED off.
-    /// - `3`: Toggle an LED.
+    /// - `0`: Returns the number of LEDs on the board. This will always be 0 or
+    ///        greater, and therefore also allows for checking for this driver.
+    /// - `1`: Turn the LED at index specified by `data` on. Returns `EINVAL` if
+    ///        the LED index is not valid.
+    /// - `2`: Turn the LED at index specified by `data` off. Returns `EINVAL`
+    ///        if the LED index is not valid.
+    /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
+    ///        `EINVAL` if the LED index is not valid.
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         let pins_init = self.pins_init.as_ref();
         match command_num {
