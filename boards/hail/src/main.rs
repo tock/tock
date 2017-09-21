@@ -296,7 +296,7 @@ pub unsafe fn reset_handler() {
         VirtualSpiMasterDevice<'static, sam4l::spi::Spi>,
         VirtualSpiMasterDevice::new(mux_spi, 0));
 
-    // Create the SPI systemc call capsule, passing the client
+    // Create the SPI system call capsule, passing the client
     let spi_syscalls = static_init!(
         capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
         capsules::spi::Spi::new(syscall_spi_device));
