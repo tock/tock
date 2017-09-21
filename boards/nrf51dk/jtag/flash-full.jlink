@@ -1,3 +1,4 @@
+eoe 1
 r
 loadfile target/thumbv6m-none-eabi/release/nrf51dk-blink.hex
 r

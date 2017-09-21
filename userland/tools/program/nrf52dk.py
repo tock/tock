@@ -34,6 +34,7 @@ with open(build_dir+'/app_bundle.bin', 'w') as app_bin:
 
 # create jlink script
 with open(build_dir+'/flash-app.jtag', 'w') as jlink_file:
+    jlink_file.write('eoe 1\n');
     jlink_file.write('r\n');
     jlink_file.write('loadbin ' + build_dir + '/app_bundle.bin, ' + APP_BASE_ADDR + '\n');
     jlink_file.write('verifybin ' + build_dir + '/app_bundle.bin, ' + APP_BASE_ADDR + '\n');
