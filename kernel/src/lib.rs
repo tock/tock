@@ -1,4 +1,5 @@
-#![feature(asm,core_intrinsics,unique,nonzero,const_fn,lang_items)]
+#![feature(asm,core_intrinsics,unique,nonzero)]
+#![feature(const_fn,const_cell_new,const_unsafe_cell_new,lang_items)]
 #![no_std]
 
 pub mod common;

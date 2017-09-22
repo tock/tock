@@ -21,7 +21,7 @@ pub struct AppPtr<L, T> {
 impl<L, T> AppPtr<L, T> {
     pub unsafe fn new(ptr: *mut T, appid: AppId) -> AppPtr<L, T> {
         AppPtr {
-            ptr: Unique::new(ptr),
+            ptr: Unique::new_unchecked(ptr),
             process: appid,
             _phantom: PhantomData,
         }

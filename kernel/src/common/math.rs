@@ -24,7 +24,7 @@ pub fn sqrtf32(num: f32) -> f32 {
 // errno from stdlib for use in Rust
 
 extern "C" {
-    fn __errno() -> &mut i32;
+    fn __errno() -> &'static mut i32;
 }
 
 // return errno value and zero it out

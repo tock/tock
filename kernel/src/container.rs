@@ -55,7 +55,7 @@ pub struct Owned<T: ?Sized> {
 impl<T: ?Sized> Owned<T> {
     pub unsafe fn new(data: *mut T, app_id: usize) -> Owned<T> {
         Owned {
-            data: Unique::new(data),
+            data: Unique::new_unchecked(data),
             app_id: app_id,
         }
     }

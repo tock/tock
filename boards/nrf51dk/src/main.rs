@@ -37,7 +37,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items,drop_types_in_const,compiler_builtins_lib)]
+#![feature(lang_items,compiler_builtins_lib)]
 
 extern crate cortexm0;
 extern crate capsules;

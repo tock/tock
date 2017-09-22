@@ -19,9 +19,6 @@
 //  of correctly turning the submodules on and off. It allows the caller to
 //  conveniently disable and enable the individual submodules at will.
 
-extern crate kernel;
-extern crate sam4l;
-
 use kernel::hil::Controller;
 use sam4l::gpio::{PA, PB, PC};
 use sam4l::gpio::GPIOPin;

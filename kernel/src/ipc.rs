@@ -75,14 +75,14 @@ impl Driver for IPC {
     /// when notify() is called.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            /// subscribe(0)
-            ///
-            /// Subscribe with subscribe_num == 0 is how a process registers
-            /// itself as an IPC service. Each process can only register as a
-            /// single IPC service. The identifier for the IPC service is the
-            /// application name stored in the TBF header of the application.
-            /// The callback that is passed to subscribe is called when another
-            /// process notifies the server process.
+            // subscribe(0)
+            //
+            // Subscribe with subscribe_num == 0 is how a process registers
+            // itself as an IPC service. Each process can only register as a
+            // single IPC service. The identifier for the IPC service is the
+            // application name stored in the TBF header of the application.
+            // The callback that is passed to subscribe is called when another
+            // process notifies the server process.
             0 => {
                 self.data
                     .enter(callback.app_id(), |data, _| {
@@ -92,13 +92,13 @@ impl Driver for IPC {
                     .unwrap_or(ReturnCode::EBUSY)
             }
 
-            /// subscribe(>=1)
-            ///
-            /// Subscribe with subscribe_num >= 1 is how a client registers
-            /// a callback for a given service. The service number (passed
-            /// here as subscribe_num) is returned from the allow() call.
-            /// Once subscribed, the client will receive callbacks when the
-            /// service process calls notify_client().
+            // subscribe(>=1)
+            //
+            // Subscribe with subscribe_num >= 1 is how a client registers
+            // a callback for a given service. The service number (passed
+            // here as subscribe_num) is returned from the allow() call.
+            // Once subscribed, the client will receive callbacks when the
+            // service process calls notify_client().
             svc_id => {
                 if svc_id - 1 >= 8 {
                     ReturnCode::EINVAL /* Maximum of 8 IPC's exceeded */

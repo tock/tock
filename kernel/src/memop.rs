@@ -41,39 +41,39 @@ pub fn memop(process: &mut Process) -> ReturnCode {
     let r1 = process.r1();
 
     match op_type {
-        /// Op Type 0: BRK
+        // Op Type 0: BRK
         0 /* BRK */ => {
             process.brk(r1 as *const u8)
                 .map(|_| ReturnCode::SUCCESS)
                 .unwrap_or(ReturnCode::ENOMEM)
         },
 
-        /// Op Type 1: SBRK
+        // Op Type 1: SBRK
         1 /* SBRK */ => {
             process.sbrk(r1 as isize)
                 .map(|addr| ReturnCode::SuccessWithValue { value: addr as usize })
                 .unwrap_or(ReturnCode::ENOMEM)
         },
 
-        /// Op Type 2: Process memory start
+        // Op Type 2: Process memory start
         2 => ReturnCode::SuccessWithValue { value: process.mem_start() as usize },
 
-        /// Op Type 3: Process memory end
+        // Op Type 3: Process memory end
         3 => ReturnCode::SuccessWithValue { value: process.mem_end() as usize },
 
-        /// Op Type 4: Process flash start
+        // Op Type 4: Process flash start
         4 => ReturnCode::SuccessWithValue { value: process.flash_start() as usize },
 
-        /// Op Type 5: Process flash end
+        // Op Type 5: Process flash end
         5 => ReturnCode::SuccessWithValue { value: process.flash_end() as usize },
 
-        /// Op Type 6: Grant region begin
+        // Op Type 6: Grant region begin
         6 => ReturnCode::SuccessWithValue { value: process.kernel_memory_break() as usize },
 
-        /// Op Type 7: Number of defined writeable regions in the TBF header.
+        // Op Type 7: Number of defined writeable regions in the TBF header.
         7 => ReturnCode::SuccessWithValue { value: process.number_writeable_flash_regions() },
 
-        /// Op Type 8: The start address of the writeable region indexed by r1.
+        // Op Type 8: The start address of the writeable region indexed by r1.
         8 => {
             let flash_start = process.flash_start() as usize;
             let (offset, size) = process.get_writeable_flash_region(r1);
@@ -84,9 +84,9 @@ pub fn memop(process: &mut Process) -> ReturnCode {
             }
         }
 
-        /// Op Type 9: The end address of the writeable region indexed by r1.
-        /// Returns (void*) -1 on failure, meaning the selected writeable region
-        /// does not exist.
+        // Op Type 9: The end address of the writeable region indexed by r1.
+        // Returns (void*) -1 on failure, meaning the selected writeable region
+        // does not exist.
         9 => {
             let flash_start = process.flash_start() as usize;
             let (offset, size) = process.get_writeable_flash_region(r1);
@@ -99,13 +99,13 @@ pub fn memop(process: &mut Process) -> ReturnCode {
             }
         }
 
-        /// Op Type 10: Specify where the start of the app stack is.
+        // Op Type 10: Specify where the start of the app stack is.
         10 => {
             process.update_stack_start_pointer(r1 as *const u8);
             ReturnCode::SUCCESS
         }
 
-        /// Op Type 11: Specify where the start of the app heap is.
+        // Op Type 11: Specify where the start of the app heap is.
         11 => {
             process.update_heap_start_pointer(r1 as *const u8);
             ReturnCode::SUCCESS
