@@ -268,6 +268,8 @@ impl Radio {
                 RADIO_STATE_RX => {
                     if regs.CRCSTATUS.get() == 1 {
                         unsafe {
+                            // TODO: check if we can read how many bytes have been written
+                            // by the DMA
                             self.client.get().map(|client| {
                                 client.receive(&mut PAYLOAD,
                                                PAYLOAD_LENGTH as u8,

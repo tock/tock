@@ -1,4 +1,4 @@
-#include <ble.h>
+#include <simple_ble.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -43,14 +43,12 @@ static void callback(__attribute__((unused)) int unused0,
 
 int main(void)
 {
-  int err;
-
-  printf("\rBLE Scanner\r\n\n");
+  printf("\rBLE Passive Scanner\r\n\n");
 
   // using the pre-configured adv interval
-  err = ble_adv_scan(scan, BUF_SIZE, callback);
-  if (err < 0) {
-    printf("ble_adv_start error %d\r\n", err);
+  int err = ble_start_passive_scan(scan, BUF_SIZE, callback);
+  if (err < TOCK_SUCCESS) {
+    printf("ble_start_passive_scan_wip, error: %s\r\n", tock_strerror(err));
   }
 
   return 0;

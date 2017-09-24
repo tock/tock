@@ -73,7 +73,7 @@ use kernel::hil::time::Frequency;
 use kernel::returncode::ReturnCode;
 
 /// Syscall Number
-pub const DRIVER_NUM: usize = 0x80_03_00_00;
+pub const DRIVER_NUM: usize = 0x03_00_00;
 
 pub static mut BUF: [u8; 32] = [0; 32];
 
@@ -110,8 +110,6 @@ pub const BLE_GAP_CONN_MODE_UND: usize = 0x02;
 pub const BLE_GAP_SCAN_MODE_NON: usize = 0x03;
 pub const BLE_GAP_SCAN_MODE_DIR: usize = 0x04;
 pub const BLE_GAP_SCAN_MODE_UND: usize = 0x05;
-
-
 
 
 #[derive(Default)]
@@ -162,6 +160,7 @@ impl<'a, B, A> BLE<'a, B, A>
     // case multiple AD TYPES are provided.
     // The chip module then sets the actual payload.
     fn set_adv_data(&self, ad_type: usize) -> ReturnCode {
+        let mut ret = ReturnCode::ESIZE;
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 app.app_write.as_ref().map(|slice| {
@@ -179,12 +178,13 @@ impl<'a, B, A> BLE<'a, B, A>
                                 .set_advertisement_data(ad_type, data, len, self.offset.get() + 8);
                             self.kernel_tx.replace(tmp);
                             self.offset.set(i);
+                            ret = ReturnCode::SUCCESS;
                         });
                     }
                 });
             });
         }
-        ReturnCode::SUCCESS
+        ret
     }
 
     // FIXME: More verbose error indication
@@ -309,6 +309,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
              allow_num: usize,
              slice: kernel::AppSlice<kernel::Shared, u8>)
              -> ReturnCode {
+
         match (allow_num, self.busy.get()) {
             // See this as a giant case switch or if else statements
             (BLE_HS_ADV_TYPE_FLAGS, false) |
