@@ -17,12 +17,12 @@
 //! let app_flash = static_init!(
 //!     capsules::app_flash_driver::AppFlash<'static>,
 //!     capsules::app_flash_driver::AppFlash::new(nv_to_page,
-//!         kernel::Container::create(), &mut APP_FLASH_BUFFER));
+//!         kernel::Grant::create(), &mut APP_FLASH_BUFFER));
 //! ```
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Container, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Grant, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 
@@ -46,19 +46,19 @@ impl Default for App {
 
 pub struct AppFlash<'a> {
     driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
-    apps: Container<App>,
+    apps: Grant<App>,
     current_app: Cell<Option<AppId>>,
     buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a> AppFlash<'a> {
     pub fn new(driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
-               container: Container<App>,
+               grant: Grant<App>,
                buffer: &'static mut [u8])
                -> AppFlash<'a> {
         AppFlash {
             driver: driver,
-            apps: container,
+            apps: grant,
             current_app: Cell::new(None),
             buffer: TakeCell::new(buffer),
         }

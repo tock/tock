@@ -206,7 +206,7 @@ pub unsafe fn reset_handler() {
         capsules::console::Console::new(&sam4l::usart::USART3,
                      115200,
                      &mut capsules::console::WRITE_BUF,
-                     kernel::Container::create()));
+                     kernel::Grant::create()));
     hil::uart::UART::set_client(&sam4l::usart::USART3, console);
     console.initialize();
 
@@ -230,7 +230,7 @@ pub unsafe fn reset_handler() {
         VirtualMuxAlarm::new(mux_alarm));
     let timer = static_init!(
         TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        TimerDriver::new(virtual_alarm1, kernel::Container::create()));
+        TimerDriver::new(virtual_alarm1, kernel::Grant::create()));
     virtual_alarm1.set_client(timer);
 
     // # I2C Sensors
@@ -254,7 +254,7 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = static_init!(
         capsules::ambient_light::AmbientLight<'static>,
-        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Container::create()));
+        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Grant::create()));
     hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
     // Set up an SPI MUX, so there can be multiple clients
@@ -297,12 +297,12 @@ pub unsafe fn reset_handler() {
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(si7021,
-                                                 kernel::Container::create()), 96/8);
+                                                 kernel::Grant::create()), 96/8);
     kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
     let humidity = static_init!(
         capsules::humidity::HumiditySensor<'static>,
         capsules::humidity::HumiditySensor::new(si7021,
-                                                 kernel::Container::create()), 96/8);
+                                                 kernel::Grant::create()), 96/8);
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
 
@@ -331,7 +331,7 @@ pub unsafe fn reset_handler() {
     sam4l::gpio::PC[13].set_client(fxos8700);
     let ninedof = static_init!(
         capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
+        capsules::ninedof::NineDof::new(fxos8700, kernel::Grant::create()));
     hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
     // Clear sensors enable pin to enable sensor rail
@@ -394,14 +394,14 @@ pub unsafe fn reset_handler() {
 
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Container::create()));
+        capsules::button::Button::new(button_pins, kernel::Grant::create()));
     for btn in button_pins.iter() {
         btn.set_client(button);
     }
 
     let crc = static_init!(
         capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()));
+        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Grant::create()));
 
     rf233_spi.set_client(rf233);
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
@@ -427,7 +427,7 @@ pub unsafe fn reset_handler() {
     let radio_driver = static_init!(
         capsules::ieee802154::RadioDriver<'static>,
         capsules::ieee802154::RadioDriver::new(radio_mac,
-                                               kernel::Container::create(),
+                                               kernel::Grant::create(),
                                                &mut RADIO_BUF));
     rf233_mac.set_key_procedure(radio_driver);
     rf233_mac.set_device_procedure(radio_driver);
@@ -447,7 +447,7 @@ pub unsafe fn reset_handler() {
         capsules::usb_user::UsbSyscallDriver<'static,
             capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
         capsules::usb_user::UsbSyscallDriver::new(
-            usb_client, kernel::Container::create()));
+            usb_client, kernel::Grant::create()));
 
     let imix = Imix {
         console: console,

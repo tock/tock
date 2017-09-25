@@ -9,12 +9,12 @@
 //! let ninedof = static_init!(
 //!     capsules::sensors::AmbientLight<'static>,
 //!     capsules::sensors::AmbientLight::new(isl29035,
-//!         kernel::Container::create()));
+//!         kernel::Grant::create()));
 //! hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Container, Driver, ReturnCode};
+use kernel::{AppId, Callback, Grant, Driver, ReturnCode};
 use kernel::hil;
 
 /// Per-process metdata
@@ -27,15 +27,15 @@ pub struct App {
 pub struct AmbientLight<'a> {
     sensor: &'a hil::sensors::AmbientLight,
     command_pending: Cell<bool>,
-    apps: Container<App>,
+    apps: Grant<App>,
 }
 
 impl<'a> AmbientLight<'a> {
-    pub fn new(sensor: &'a hil::sensors::AmbientLight, container: Container<App>) -> AmbientLight {
+    pub fn new(sensor: &'a hil::sensors::AmbientLight, grant: Grant<App>) -> AmbientLight {
         AmbientLight {
             sensor: sensor,
             command_pending: Cell::new(false),
-            apps: container,
+            apps: grant,
         }
     }
 

@@ -11,7 +11,7 @@
 //!     Console::new(&usart::USART0,
 //!                  115200,
 //!                  &mut console::WRITE_BUF,
-//!                  kernel::Container::create()));
+//!                  kernel::Grant::create()));
 //! hil::uart::UART::set_client(&usart::USART0, console);
 //! ```
 //!
@@ -37,7 +37,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Container, Callback, Shared, Driver, ReturnCode};
+use kernel::{AppId, AppSlice, Grant, Callback, Shared, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
 use kernel::process::Error;
@@ -70,7 +70,7 @@ pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 
 pub struct Console<'a, U: UART + 'a> {
     uart: &'a U,
-    apps: Container<App>,
+    apps: Grant<App>,
     in_progress: Cell<Option<AppId>>,
     tx_buffer: TakeCell<'static, [u8]>,
     baud_rate: u32,
@@ -80,11 +80,11 @@ impl<'a, U: UART> Console<'a, U> {
     pub fn new(uart: &'a U,
                baud_rate: u32,
                tx_buffer: &'static mut [u8],
-               container: Container<App>)
+               grant: Grant<App>)
                -> Console<'a, U> {
         Console {
             uart: uart,
-            apps: container,
+            apps: grant,
             in_progress: Cell::new(None),
             tx_buffer: TakeCell::new(tx_buffer),
             baud_rate: baud_rate,

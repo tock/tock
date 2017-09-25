@@ -3,7 +3,7 @@
 use callback::AppId;
 use common::{RingBuffer, Queue, VolatileCell};
 
-use container;
+use grant;
 use core::{mem, ptr, slice, str};
 use core::cell::Cell;
 use core::fmt::Write;
@@ -1005,11 +1005,11 @@ impl<'a> Process<'a> {
                 let mut kernel_memory_break = app_memory.as_mut_ptr()
                     .offset(app_memory.len() as isize);
 
-                // Make room for container pointers.
+                // Make room for grant pointers.
                 let pointer_size = mem::size_of::<*const usize>();
-                let num_ctrs = read_volatile(&container::CONTAINER_COUNTER);
-                let container_ptrs_size = num_ctrs * pointer_size;
-                kernel_memory_break = kernel_memory_break.offset(-(container_ptrs_size as isize));
+                let num_ctrs = read_volatile(&grant::CONTAINER_COUNTER);
+                let grant_ptrs_size = num_ctrs * pointer_size;
+                kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_size as isize));
 
                 // Set all pointers to null.
                 let opts = slice::from_raw_parts_mut(kernel_memory_break as *mut *const usize,
@@ -1134,27 +1134,27 @@ impl<'a> Process<'a> {
 
     pub unsafe fn free<T>(&mut self, _: *mut T) {}
 
-    unsafe fn container_ptr<T>(&self, container_num: usize) -> *mut *mut T {
-        let container_num = container_num as isize;
-        (self.mem_end() as *mut *mut T).offset(-(container_num + 1))
+    unsafe fn grant_ptr<T>(&self, grant_num: usize) -> *mut *mut T {
+        let grant_num = grant_num as isize;
+        (self.mem_end() as *mut *mut T).offset(-(grant_num + 1))
     }
 
-    pub unsafe fn container_for<T>(&mut self, container_num: usize) -> *mut T {
-        *self.container_ptr(container_num)
+    pub unsafe fn grant_for<T>(&mut self, grant_num: usize) -> *mut T {
+        *self.grant_ptr(grant_num)
     }
 
-    pub unsafe fn container_for_or_alloc<T: Default>(&mut self,
-                                                     container_num: usize)
+    pub unsafe fn grant_for_or_alloc<T: Default>(&mut self,
+                                                     grant_num: usize)
                                                      -> Option<*mut T> {
-        let ctr_ptr = self.container_ptr::<T>(container_num);
+        let ctr_ptr = self.grant_ptr::<T>(grant_num);
         if (*ctr_ptr).is_null() {
             self.alloc(mem::size_of::<T>()).map(|root_arr| {
                 let root_ptr = root_arr.as_mut_ptr() as *mut T;
-                // Initialize the container contents using ptr::write, to
+                // Initialize the grant contents using ptr::write, to
                 // ensure that we don't try to drop the contents of
                 // uninitialized memory when T implements Drop.
                 write(root_ptr, Default::default());
-                // Record the location in the container pointer.
+                // Record the location in the grant pointer.
                 write_volatile(ctr_ptr, root_ptr);
                 root_ptr
             })

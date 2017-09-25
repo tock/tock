@@ -70,7 +70,7 @@
 // Date: March 31, 2017
 
 use core::cell::Cell;
-use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Grant, Callback, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption::{SymmetricEncryption, Client};
 
@@ -109,7 +109,7 @@ impl Default for App {
 
 pub struct Crypto<'a, E: SymmetricEncryption + 'a> {
     crypto: &'a E,
-    apps: Container<App>,
+    apps: Grant<App>,
     kernel_key: TakeCell<'static, [u8]>,
     kernel_data: TakeCell<'static, [u8]>,
     kernel_ctr: TakeCell<'static, [u8]>,
@@ -120,14 +120,14 @@ pub struct Crypto<'a, E: SymmetricEncryption + 'a> {
 
 impl<'a, E: SymmetricEncryption + 'a> Crypto<'a, E> {
     pub fn new(crypto: &'a E,
-               container: Container<App>,
+               grant: Grant<App>,
                key: &'static mut [u8],
                data: &'static mut [u8],
                ctr: &'static mut [u8])
                -> Crypto<'a, E> {
         Crypto {
             crypto: crypto,
-            apps: container,
+            apps: grant,
             kernel_key: TakeCell::new(key),
             kernel_data: TakeCell::new(data),
             kernel_ctr: TakeCell::new(ctr),

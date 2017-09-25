@@ -6,7 +6,7 @@
 //!
 //! The `UsbSyscallDriver` must be created by passing a reference to something
 //! that implements `hil::usb::Client` (that is, something that is connected to
-//! the USBC), as well as a `Container` for managing application requests.  For
+//! the USBC), as well as a `Grant` for managing application requests.  For
 //! example:
 //!
 //! ```rust
@@ -21,11 +21,11 @@
 //!     capsules::usb_user::UsbSyscallDriver<'static,
 //!         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
 //!     capsules::usb_user::UsbSyscallDriver::new(
-//!         usb_client, kernel::Container::create()));
+//!         usb_client, kernel::Grant::create()));
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Container, Callback, Driver, ReturnCode};
+use kernel::{AppId, Grant, Callback, Driver, ReturnCode};
 use kernel::hil;
 
 #[derive(Default)]
@@ -36,14 +36,14 @@ pub struct App {
 
 pub struct UsbSyscallDriver<'a, C: hil::usb::Client + 'a> {
     usbc_client: &'a C,
-    apps: Container<App>,
+    apps: Grant<App>,
     serving_app: Cell<Option<AppId>>,
 }
 
 impl<'a, C> UsbSyscallDriver<'a, C>
     where C: hil::usb::Client
 {
-    pub fn new(usbc_client: &'a C, apps: Container<App>) -> Self {
+    pub fn new(usbc_client: &'a C, apps: Grant<App>) -> Self {
         UsbSyscallDriver {
             usbc_client: usbc_client,
             apps: apps,

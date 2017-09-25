@@ -10,25 +10,25 @@ use process::{self, Error};
 
 pub static mut CONTAINER_COUNTER: usize = 0;
 
-pub struct Container<T: Default> {
-    container_num: usize,
+pub struct Grant<T: Default> {
+    grant_num: usize,
     ptr: PhantomData<T>,
 }
 
-pub struct AppliedContainer<T> {
+pub struct AppliedGrant<T> {
     appid: usize,
-    container: *mut T,
+    grant: *mut T,
     _phantom: PhantomData<T>,
 }
 
-pub unsafe fn kernel_container_for<T>(app_id: usize) -> *mut T {
+pub unsafe fn kernel_grant_for<T>(app_id: usize) -> *mut T {
     match app_id {
-        debug::APPID_IDX => debug::get_container(),
-        _ => panic!("lookup for invalid kernel container {}", app_id),
+        debug::APPID_IDX => debug::get_grant(),
+        _ => panic!("lookup for invalid kernel grant {}", app_id),
     }
 }
 
-impl<T> AppliedContainer<T> {
+impl<T> AppliedGrant<T> {
     pub fn enter<F, R>(self, fun: F) -> R
         where F: FnOnce(&mut Owned<T>, &mut Allocator) -> R,
               R: Copy
@@ -37,7 +37,7 @@ impl<T> AppliedContainer<T> {
             app: unsafe { Some(process::PROCS[self.appid].as_mut().unwrap()) },
             app_id: self.appid,
         };
-        let mut root = unsafe { Owned::new(self.container, self.appid) };
+        let mut root = unsafe { Owned::new(self.grant, self.appid) };
         fun(&mut root, &mut allocator)
     }
 }
@@ -114,7 +114,7 @@ impl<'a> Allocator<'a> {
                     if !AppId::is_kernel_idx(app_id) {
                         panic!("No app for allocator for {}", app_id);
                     }
-                    panic!("Request to allocate in kernel container");
+                    panic!("Request to allocate in kernel grant");
                 }
             }
         }
@@ -153,36 +153,36 @@ impl<'a, T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
 }
 
 
-impl<T: Default> Container<T> {
-    pub unsafe fn create() -> Container<T> {
+impl<T: Default> Grant<T> {
+    pub unsafe fn create() -> Grant<T> {
         let ctr = read_volatile(&CONTAINER_COUNTER);
         write_volatile(&mut CONTAINER_COUNTER, ctr + 1);
-        Container {
-            container_num: ctr,
+        Grant {
+            grant_num: ctr,
             ptr: PhantomData,
         }
     }
 
-    pub fn container(&self, appid: AppId) -> Option<AppliedContainer<T>> {
+    pub fn grant(&self, appid: AppId) -> Option<AppliedGrant<T>> {
         unsafe {
             let app_id = appid.idx();
             if AppId::is_kernel(appid) {
-                let cntr = kernel_container_for::<T>(app_id);
-                Some(AppliedContainer {
+                let cntr = kernel_grant_for::<T>(app_id);
+                Some(AppliedGrant {
                     appid: app_id,
-                    container: cntr,
+                    grant: cntr,
                     _phantom: PhantomData,
                 })
             } else {
                 match process::PROCS[app_id] {
                     Some(ref mut app) => {
-                        let cntr = app.container_for::<T>(self.container_num);
+                        let cntr = app.grant_for::<T>(self.grant_num);
                         if cntr.is_null() {
                             None
                         } else {
-                            Some(AppliedContainer {
+                            Some(AppliedGrant {
                                 appid: app_id,
-                                container: cntr,
+                                grant: cntr,
                                 _phantom: PhantomData,
                             })
                         }
@@ -200,7 +200,7 @@ impl<T: Default> Container<T> {
         unsafe {
             let app_id = appid.idx();
             if AppId::is_kernel(appid) {
-                let root_ptr = kernel_container_for::<T>(app_id);
+                let root_ptr = kernel_grant_for::<T>(app_id);
                 let mut root = Borrowed::new(&mut *root_ptr, app_id);
                 let mut allocator = Allocator {
                     app: None,
@@ -211,7 +211,7 @@ impl<T: Default> Container<T> {
             } else {
                 match process::PROCS[app_id] {
                     Some(ref mut app) => {
-                        app.container_for_or_alloc::<T>(self.container_num)
+                        app.grant_for_or_alloc::<T>(self.grant_num)
                             .map_or(Err(Error::OutOfMemory), move |root_ptr| {
                                 let mut root = Borrowed::new(&mut *root_ptr, app_id);
                                 let mut allocator = Allocator {
@@ -234,7 +234,7 @@ impl<T: Default> Container<T> {
         unsafe {
             let itr = process::PROCS.iter_mut().filter_map(|p| p.as_mut());
             for (app_id, app) in itr.enumerate() {
-                let root_ptr = app.container_for::<T>(self.container_num);
+                let root_ptr = app.grant_for::<T>(self.grant_num);
                 if !root_ptr.is_null() {
                     let mut root = Owned::new(root_ptr, app_id);
                     fun(&mut root);
@@ -246,7 +246,7 @@ impl<T: Default> Container<T> {
     pub fn iter(&self) -> Iter<T> {
         unsafe {
             Iter {
-                container: self,
+                grant: self,
                 index: 0,
                 len: process::PROCS.len(),
             }
@@ -255,19 +255,19 @@ impl<T: Default> Container<T> {
 }
 
 pub struct Iter<'a, T: 'a + Default> {
-    container: &'a Container<T>,
+    grant: &'a Grant<T>,
     index: usize,
     len: usize,
 }
 
 impl<'a, T: Default> Iterator for Iter<'a, T> {
-    type Item = AppliedContainer<T>;
+    type Item = AppliedGrant<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self.index < self.len {
             let idx = self.index;
             self.index += 1;
-            let res = self.container.container(AppId::new(idx));
+            let res = self.grant.grant(AppId::new(idx));
             if res.is_some() {
                 return res;
             }

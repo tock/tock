@@ -3,7 +3,7 @@
 //! This is a special syscall driver that allows userspace applications to
 //! share memory.
 
-use {AppId, AppSlice, Container, Callback, Driver, Shared};
+use {AppId, AppSlice, Grant, Callback, Driver, Shared};
 use process;
 use returncode::ReturnCode;
 
@@ -24,12 +24,12 @@ impl Default for IPCData {
 }
 
 pub struct IPC {
-    data: Container<IPCData>,
+    data: Grant<IPCData>,
 }
 
 impl IPC {
     pub unsafe fn new() -> IPC {
-        IPC { data: Container::create() }
+        IPC { data: Grant::create() }
     }
 
     pub unsafe fn schedule_callback(&self,

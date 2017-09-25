@@ -187,7 +187,7 @@ pub unsafe fn reset_handler() {
         capsules::console::Console::new(&sam4l::usart::USART0,
                      115200,
                      &mut capsules::console::WRITE_BUF,
-                     kernel::Container::create()));
+                     kernel::Grant::create()));
     hil::uart::UART::set_client(&sam4l::usart::USART0, console);
 
     // Create the Nrf51822Serialization driver for passing BLE commands
@@ -227,13 +227,13 @@ pub unsafe fn reset_handler() {
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(si7021,
-                                                 kernel::Container::create()), 96/8);
+                                                 kernel::Grant::create()), 96/8);
     kernel::hil::sensors::TemperatureDriver::set_client(si7021, temp);
 
     let humidity = static_init!(
         capsules::humidity::HumiditySensor<'static>,
         capsules::humidity::HumiditySensor::new(si7021,
-                                                 kernel::Container::create()), 96/8);
+                                                 kernel::Grant::create()), 96/8);
     kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 
 
@@ -252,7 +252,7 @@ pub unsafe fn reset_handler() {
 
     let ambient_light = static_init!(
         capsules::ambient_light::AmbientLight<'static>,
-        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Container::create()));
+        capsules::ambient_light::AmbientLight::new(isl29035, kernel::Grant::create()));
     hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
     // Timer
@@ -261,7 +261,7 @@ pub unsafe fn reset_handler() {
         VirtualMuxAlarm::new(mux_alarm));
     let timer = static_init!(
         capsules::timer::TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::timer::TimerDriver::new(virtual_alarm1, kernel::Container::create()));
+        capsules::timer::TimerDriver::new(virtual_alarm1, kernel::Grant::create()));
     virtual_alarm1.set_client(timer);
 
     // FXOS8700CQ accelerometer, device address 0x1e
@@ -276,7 +276,7 @@ pub unsafe fn reset_handler() {
 
     let ninedof = static_init!(
         capsules::ninedof::NineDof<'static>,
-        capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
+        capsules::ninedof::NineDof::new(fxos8700, kernel::Grant::create()));
     hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
     // Initialize and enable SPI HAL
@@ -319,7 +319,7 @@ pub unsafe fn reset_handler() {
         [&sam4l::gpio::PA[16]]);
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Container::create()));
+        capsules::button::Button::new(button_pins, kernel::Grant::create()));
     for btn in button_pins.iter() {
         btn.set_client(button);
     }
@@ -345,7 +345,7 @@ pub unsafe fn reset_handler() {
     // Setup RNG
     let rng = static_init!(
             capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
-            capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Container::create()));
+            capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Grant::create()));
     sam4l::trng::TRNG.set_client(rng);
 
 
@@ -366,7 +366,7 @@ pub unsafe fn reset_handler() {
     // CRC
     let crc = static_init!(
         capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()));
+        capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Grant::create()));
     sam4l::crccu::CRCCU.set_client(crc);
 
     // DAC
@@ -378,7 +378,7 @@ pub unsafe fn reset_handler() {
     let aes = static_init!(
         capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
         capsules::symmetric_encryption::Crypto::new(&mut sam4l::aes::AES,
-                                                    kernel::Container::create(),
+                                                    kernel::Grant::create(),
                                                     &mut capsules::symmetric_encryption::KEY,
                                                     &mut capsules::symmetric_encryption::BUF,
                                                     &mut capsules::symmetric_encryption::IV));
