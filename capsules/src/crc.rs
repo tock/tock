@@ -3,14 +3,14 @@
 //! ## Instantiation
 //!
 //! Instantiate the capsule for use as a system call driver with a hardware
-//! implementation and a `Container` for the `App` type, and set the result as a
+//! implementation and a `Grant` for the `App` type, and set the result as a
 //! client of the hardware implementation. For example, using the SAM4L's `CRCU`
 //! driver:
 //!
 //! ```rust
 //! let crc = static_init!(
 //!     capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-//!     capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Container::create()));
+//!     capsules::crc::Crc::new(&mut sam4l::crccu::CRCCU, kernel::Grant::create()));
 //! sam4l::crccu::CRCCU.set_client(crc);
 //!
 //! ```
@@ -66,7 +66,7 @@
 //! the SAM4L.
 
 use core::cell::Cell;
-use kernel::{AppId, AppSlice, Container, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Grant, Callback, Driver, ReturnCode, Shared};
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
 use kernel::process::Error;
@@ -86,7 +86,7 @@ pub struct App {
 /// processes through the system call interface.
 pub struct Crc<'a, C: hil::crc::CRC + 'a> {
     crc_unit: &'a C,
-    apps: Container<App>,
+    apps: Grant<App>,
     serving_app: Cell<Option<AppId>>,
 }
 
@@ -95,17 +95,17 @@ impl<'a, C: hil::crc::CRC> Crc<'a, C> {
     ///
     /// The argument `crc_unit` must implement the abstract `CRC`
     /// hardware interface.  The argument `apps` should be an empty
-    /// kernel `Container`, and will be used to track application
+    /// kernel `Grant`, and will be used to track application
     /// requests.
     ///
     /// ## Example
     ///
     /// ```
-    /// capsules::crc::Crc::new(&sam4l::crccu::CRCCU, kernel::Container::create()),
+    /// capsules::crc::Crc::new(&sam4l::crccu::CRCCU, kernel::Grant::create()),
     ///
     /// ```
     ///
-    pub fn new(crc_unit: &'a C, apps: Container<App>) -> Crc<'a, C> {
+    pub fn new(crc_unit: &'a C, apps: Grant<App>) -> Crc<'a, C> {
         Crc {
             crc_unit: crc_unit,
             apps: apps,

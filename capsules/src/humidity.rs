@@ -42,12 +42,12 @@
 //! let humidity = static_init!(
 //!        capsules::humidity::HumiditySensor<'static>,
 //!        capsules::humidity::HumiditySensor::new(si7021,
-//!                                                 kernel::Container::create()), 96/8);
+//!                                                 kernel::Grant::create()), 96/8);
 //! kernel::hil::sensors::HumidityDriver::set_client(si7021, humidity);
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Container, Driver};
+use kernel::{AppId, Callback, Grant, Driver};
 use kernel::ReturnCode;
 use kernel::hil;
 
@@ -65,17 +65,15 @@ pub struct App {
 
 pub struct HumiditySensor<'a> {
     driver: &'a hil::sensors::HumidityDriver,
-    apps: Container<App>,
+    apps: Grant<App>,
     busy: Cell<bool>,
 }
 
 impl<'a> HumiditySensor<'a> {
-    pub fn new(driver: &'a hil::sensors::HumidityDriver,
-               container: Container<App>)
-               -> HumiditySensor<'a> {
+    pub fn new(driver: &'a hil::sensors::HumidityDriver, grant: Grant<App>) -> HumiditySensor<'a> {
         HumiditySensor {
             driver: driver,
-            apps: container,
+            apps: grant,
             busy: Cell::new(false),
         }
     }

@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use core::cmp::min;
 use ieee802154::mac;
-use kernel::{AppId, Driver, Callback, AppSlice, Shared, Container, ReturnCode};
+use kernel::{AppId, Driver, Callback, AppSlice, Shared, Grant, ReturnCode};
 use kernel::common::take_cell::{MapCell, TakeCell};
 
 use net::ieee802154::{MacAddress, PanID, Header, SecurityLevel, KeyId, AddressMode};
@@ -178,8 +178,8 @@ pub struct RadioDriver<'a> {
     /// Actual number of keys in the fixed size array of keys.
     num_keys: Cell<usize>,
 
-    /// Container of apps that use this radio driver.
-    apps: Container<App>,
+    /// Grant of apps that use this radio driver.
+    apps: Grant<App>,
     /// ID of app whose transmission request is being processed.
     current_app: Cell<Option<AppId>>,
 
@@ -189,7 +189,7 @@ pub struct RadioDriver<'a> {
 
 impl<'a> RadioDriver<'a> {
     pub fn new(mac: &'a mac::Mac<'a>,
-               container: Container<App>,
+               grant: Grant<App>,
                kernel_tx: &'static mut [u8])
                -> RadioDriver<'a> {
         RadioDriver {
@@ -198,7 +198,7 @@ impl<'a> RadioDriver<'a> {
             num_neighbors: Cell::new(0),
             keys: MapCell::new(Default::default()),
             num_keys: Cell::new(0),
-            apps: container,
+            apps: grant,
             current_app: Cell::new(None),
             kernel_tx: TakeCell::new(kernel_tx),
         }

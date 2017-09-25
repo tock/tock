@@ -223,7 +223,7 @@ pub unsafe fn reset_handler() {
         4 * 4);
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Container::create()),
+        capsules::button::Button::new(button_pins, kernel::Grant::create()),
         96/8);
     for btn in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
@@ -247,7 +247,7 @@ pub unsafe fn reset_handler() {
         capsules::timer::TimerDriver<'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
         capsules::timer::TimerDriver::new(virtual_alarm1,
-                         kernel::Container::create()),
+                         kernel::Grant::create()),
                          12);
     virtual_alarm1.set_client(timer);
     let ble_radio_virtual_alarm = static_init!(
@@ -264,7 +264,7 @@ pub unsafe fn reset_handler() {
         capsules::console::Console::new(&nrf52::uart::UART0,
                                         115200,
                                         &mut capsules::console::WRITE_BUF,
-                                        kernel::Container::create()),
+                                        kernel::Grant::create()),
                                         224/8);
     kernel::hil::uart::UART::set_client(&nrf52::uart::UART0, console);
     console.initialize();
@@ -282,7 +282,7 @@ pub unsafe fn reset_handler() {
         <'static, nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
      nrf5x::ble_advertising_driver::BLE::new(
          &mut nrf52::radio::RADIO,
-         kernel::Container::create(),
+         kernel::Grant::create(),
          &mut nrf5x::ble_advertising_driver::BUF,
          ble_radio_virtual_alarm),
         256/8);
@@ -293,20 +293,20 @@ pub unsafe fn reset_handler() {
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(&mut nrf5x::temperature::TEMP,
-                                                 kernel::Container::create()), 96/8);
+                                                 kernel::Grant::create()), 96/8);
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Container::create()),
+        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create()),
         96/8);
     nrf5x::trng::TRNG.set_client(rng);
 
     let aes = static_init!(
         capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
         capsules::symmetric_encryption::Crypto::new(&mut nrf5x::aes::AESECB,
-                                                    kernel::Container::create(),
+                                                    kernel::Grant::create(),
                                                     &mut capsules::symmetric_encryption::KEY,
                                                     &mut capsules::symmetric_encryption::BUF,
                                                     &mut capsules::symmetric_encryption::IV),

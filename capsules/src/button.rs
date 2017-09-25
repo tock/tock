@@ -13,14 +13,14 @@
 //!     [&sam4l::gpio::PA[16]]);
 //! let button = static_init!(
 //!     capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-//!     capsules::button::Button::new(button_pins, kernel::Container::create()));
+//!     capsules::button::Button::new(button_pins, kernel::Grant::create()));
 //! for btn in button_pins.iter() {
 //!     btn.set_client(button);
 //! }
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Container, Callback, Driver, ReturnCode};
+use kernel::{AppId, Grant, Callback, Driver, ReturnCode};
 use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
 
@@ -28,13 +28,11 @@ pub type SubscribeMap = u32;
 
 pub struct Button<'a, G: hil::gpio::Pin + 'a> {
     pins: &'a [&'a G],
-    callback: Container<(Option<Callback>, SubscribeMap)>,
+    callback: Grant<(Option<Callback>, SubscribeMap)>,
 }
 
 impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
-    pub fn new(pins: &'a [&'a G],
-               container: Container<(Option<Callback>, SubscribeMap)>)
-               -> Button<'a, G> {
+    pub fn new(pins: &'a [&'a G], grant: Grant<(Option<Callback>, SubscribeMap)>) -> Button<'a, G> {
         // Make all pins output and off
         for pin in pins.iter() {
             pin.make_input();
@@ -42,7 +40,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
 
         Button {
             pins: pins,
-            callback: container,
+            callback: grant,
         }
     }
 }

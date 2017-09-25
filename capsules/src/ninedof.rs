@@ -8,12 +8,12 @@
 //! ``rust
 //! let ninedof = static_init!(
 //!     capsules::ninedof::NineDof<'static>,
-//!     capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
+//!     capsules::ninedof::NineDof::new(fxos8700, kernel::Grant::create()));
 //! hil::sensors::NineDof::set_client(fxos8700, ninedof);
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Container, Driver};
+use kernel::{AppId, Callback, Grant, Driver};
 use kernel::ReturnCode;
 use kernel::hil;
 
@@ -46,15 +46,15 @@ impl Default for App {
 
 pub struct NineDof<'a> {
     driver: &'a hil::sensors::NineDof,
-    apps: Container<App>,
+    apps: Grant<App>,
     current_app: Cell<Option<AppId>>,
 }
 
 impl<'a> NineDof<'a> {
-    pub fn new(driver: &'a hil::sensors::NineDof, container: Container<App>) -> NineDof<'a> {
+    pub fn new(driver: &'a hil::sensors::NineDof, grant: Grant<App>) -> NineDof<'a> {
         NineDof {
             driver: driver,
-            apps: container,
+            apps: grant,
             current_app: Cell::new(None),
         }
     }

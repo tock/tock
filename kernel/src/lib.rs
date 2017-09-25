@@ -5,7 +5,7 @@
 pub mod common;
 
 pub mod callback;
-pub mod container;
+pub mod grant;
 #[macro_use]
 pub mod debug;
 pub mod driver;
@@ -29,8 +29,8 @@ mod syscall;
 mod platform;
 
 pub use callback::{AppId, Callback};
-pub use container::Container;
 pub use driver::Driver;
+pub use grant::Grant;
 pub use mem::{AppSlice, AppPtr, Private, Shared};
 pub use platform::{Chip, mpu, Platform, systick};
 pub use platform::systick::SysTick;

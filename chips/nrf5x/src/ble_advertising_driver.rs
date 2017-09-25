@@ -124,7 +124,7 @@ pub struct BLE<'a, B, A>
 {
     radio: &'a B,
     busy: Cell<bool>,
-    app: kernel::Container<App>,
+    app: kernel::Grant<App>,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
     alarm: &'a A,
     advertisement_interval: Cell<u32>,
@@ -137,7 +137,7 @@ impl<'a, B, A> BLE<'a, B, A>
           A: kernel::hil::time::Alarm + 'a
 {
     pub fn new(radio: &'a B,
-               container: kernel::Container<App>,
+               container: kernel::Grant<App>,
                tx_buf: &'static mut [u8],
                alarm: &'a A)
                -> BLE<'a, B, A> {

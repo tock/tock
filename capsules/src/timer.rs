@@ -1,7 +1,7 @@
 //! Provides userspace applications with a timer API.
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Container, Driver, ReturnCode};
+use kernel::{AppId, Callback, Grant, Driver, ReturnCode};
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::process::Error;
 
@@ -33,15 +33,15 @@ impl Default for TimerData {
 pub struct TimerDriver<'a, A: Alarm + 'a> {
     alarm: &'a A,
     num_armed: Cell<usize>,
-    app_timer: Container<TimerData>,
+    app_timer: Grant<TimerData>,
 }
 
 impl<'a, A: Alarm> TimerDriver<'a, A> {
-    pub const fn new(alarm: &'a A, container: Container<TimerData>) -> TimerDriver<'a, A> {
+    pub const fn new(alarm: &'a A, grant: Grant<TimerData>) -> TimerDriver<'a, A> {
         TimerDriver {
             alarm: alarm,
             num_armed: Cell::new(0),
-            app_timer: container,
+            app_timer: grant,
         }
     }
 

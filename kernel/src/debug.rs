@@ -25,7 +25,7 @@ const BUF_SIZE: usize = 1024;
 
 pub struct DebugWriter {
     driver: Option<&'static Driver>,
-    pub container: Option<*mut u8>,
+    pub grant: Option<*mut u8>,
     output_buffer: [u8; BUF_SIZE],
     output_head: usize,
     output_tail: usize,
@@ -35,7 +35,7 @@ pub struct DebugWriter {
 
 static mut DEBUG_WRITER: DebugWriter = DebugWriter {
     driver: None,
-    container: None,
+    grant: None,
     output_buffer: [0; BUF_SIZE],
     output_head: 0, // ........ first valid index in output_buffer
     output_tail: 0, // ........ one past last valid index (wraps to 0)
@@ -43,16 +43,16 @@ static mut DEBUG_WRITER: DebugWriter = DebugWriter {
     count: 0, // .............. how many debug! calls
 };
 
-pub unsafe fn assign_console_driver<T>(driver: Option<&'static Driver>, container: &mut T) {
-    let ptr: *mut u8 = ::core::mem::transmute(container);
+pub unsafe fn assign_console_driver<T>(driver: Option<&'static Driver>, grant: &mut T) {
+    let ptr: *mut u8 = ::core::mem::transmute(grant);
     DEBUG_WRITER.driver = driver;
-    DEBUG_WRITER.container = Some(ptr);
+    DEBUG_WRITER.grant = Some(ptr);
 }
 
-pub unsafe fn get_container<T>() -> *mut T {
-    match DEBUG_WRITER.container {
-        Some(container) => ::core::mem::transmute(container),
-        None => panic!("Request for unallocated kernel container"),
+pub unsafe fn get_grant<T>() -> *mut T {
+    match DEBUG_WRITER.grant {
+        Some(grant) => ::core::mem::transmute(grant),
+        None => panic!("Request for unallocated kernel grant"),
     }
 }
 
