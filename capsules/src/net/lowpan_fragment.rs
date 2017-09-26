@@ -97,7 +97,6 @@
 //! in `boards/imixv1/src/main.rs` to initialize the various state for the
 //! layer and its clients.
 
-extern crate kernel;
 use core::cell::Cell;
 use ieee802154::mac::{Mac, Frame, TxClient, RxClient};
 use kernel::ReturnCode;
@@ -249,7 +248,7 @@ impl<'a> TxState<'a> {
     // Takes ownership of frag_buf and gives it to the radio
     fn start_transmit(&self,
                       dgram_tag: u16,
-                      mut frag_buf: &'static mut [u8],
+                      frag_buf: &'static mut [u8],
                       radio: &Mac,
                       ctx_store: &ContextStore)
                       -> Result<ReturnCode, (ReturnCode, &'static mut [u8])> {
@@ -348,7 +347,7 @@ impl<'a> TxState<'a> {
     }
 
     fn prepare_transmit_next_fragment(&self,
-                                      mut frag_buf: &'static mut [u8],
+                                      frag_buf: &'static mut [u8],
                                       radio: &Mac)
                                       -> Result<ReturnCode, (ReturnCode, &'static mut [u8])> {
         match radio.prepare_data_frame(frag_buf,
@@ -374,7 +373,7 @@ impl<'a> TxState<'a> {
                 // Take the packet temporarily
                 match self.packet.take() {
                     None => Err((ReturnCode::ENOMEM, frame.into_buf())),
-                    Some(mut packet) => {
+                    Some(packet) => {
                         let mut frag_header = [0 as u8; lowpan_frag::FRAGN_HDR_SIZE];
                         set_frag_hdr(self.dgram_size.get(),
                                      self.dgram_tag.get(),
@@ -403,7 +402,7 @@ impl<'a> TxState<'a> {
             // from the upper layer for the duration of the transmission. It
             // represents a significant bug if the packet is not there when
             // transmission completes.
-            let mut packet =
+            let packet =
                 self.packet.take().expect("Error: `packet` is None in call to end_transmit.");
             client.send_done(packet, self, acked, result);
         });
@@ -532,7 +531,7 @@ impl<'a> RxState<'a> {
             // in the callback represents a significant error that should never
             // occur - all other calls to `packet.take()` replace the packet,
             // and thus the packet should always be here.
-            let mut buffer =
+            let buffer =
                 self.packet.take().expect("Error: `packet` is None in call to end_receive.");
             client.receive(&buffer, self.dgram_size.get(), result);
             self.packet.replace(buffer);
@@ -684,7 +683,7 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
     pub fn transmit_packet(&self,
                            src_mac_addr: MacAddress,
                            dst_mac_addr: MacAddress,
-                           mut ip6_packet: &'static mut [u8],
+                           ip6_packet: &'static mut [u8],
                            ip6_packet_len: usize,
                            security: Option<(SecurityLevel, KeyId)>,
                            tx_state: &'a TxState<'a>,
@@ -729,7 +728,7 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
             // Failure to replace the `tx_buf` or failure to initialize TxState
             // with a `tx_buf` represents a significant logic error, and we should
             // panic.
-            let mut frag_buf = self.tx_buf
+            let frag_buf = self.tx_buf
                 .take()
                 .expect("Error: `tx_buf` is None in call to start_packet_transmit.");
 

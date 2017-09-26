@@ -385,13 +385,13 @@ fn ipv6_check_receive_packet(tf: TF,
 
 fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
     {
-        let mut payload = unsafe { &mut IP6_DGRAM[IP6_HDR_SIZE..] };
+        let payload = unsafe { &mut IP6_DGRAM[IP6_HDR_SIZE..] };
         for i in 0..PAYLOAD_LEN {
             payload[i] = i as u8;
         }
     }
     {
-        let mut ip6_header: &mut IP6Header = unsafe { mem::transmute(IP6_DGRAM.as_mut_ptr()) };
+        let ip6_header: &mut IP6Header = unsafe { mem::transmute(IP6_DGRAM.as_mut_ptr()) };
         *ip6_header = IP6Header::new();
         ip6_header.set_payload_len(PAYLOAD_LEN as u16);
 

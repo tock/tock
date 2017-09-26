@@ -769,7 +769,7 @@ pub fn decompress(ctx_store: &ContextStore,
                   buf: &[u8],
                   src_mac_addr: MacAddress,
                   dst_mac_addr: MacAddress,
-                  mut out_buf: &mut [u8],
+                  out_buf: &mut [u8],
                   dgram_size: u16,
                   is_fragment: bool)
                   -> Result<(usize, usize), ()> {
@@ -1085,7 +1085,7 @@ fn decompress_multicast(ip6_header: &mut IP6Header,
                         -> Result<(), ()> {
     let uses_context = (iphc_header & iphc::DAC) != 0;
     let dam_mode = iphc_header & iphc::DAM_MASK;
-    let mut ip_addr: &mut IPAddr = &mut ip6_header.dst_addr;
+    let ip_addr: &mut IPAddr = &mut ip6_header.dst_addr;
     if uses_context {
         match dam_mode {
             iphc::DAM_INLINE => {
