@@ -402,9 +402,10 @@ impl<'a> TxState<'a> {
             // from the upper layer for the duration of the transmission. It
             // represents a significant bug if the packet is not there when
             // transmission completes.
-            let packet =
-                self.packet.take().expect("Error: `packet` is None in call to end_transmit.");
-            client.send_done(packet, self, acked, result);
+            self.packet
+                .take()
+                .map(|packet| { client.send_done(packet, self, acked, result); })
+                .expect("Error: `packet` is None in call to end_transmit.");
         });
     }
 }
@@ -531,10 +532,9 @@ impl<'a> RxState<'a> {
             // in the callback represents a significant error that should never
             // occur - all other calls to `packet.take()` replace the packet,
             // and thus the packet should always be here.
-            let buffer =
-                self.packet.take().expect("Error: `packet` is None in call to end_receive.");
-            client.receive(&buffer, self.dgram_size.get(), result);
-            self.packet.replace(buffer);
+            self.packet
+                .map(|packet| { client.receive(&packet, self.dgram_size.get(), result); })
+                .expect("Error: `packet` is None in call to end_receive.");
         });
     }
 }
@@ -562,30 +562,28 @@ pub struct FragState<'a, A: time::Alarm + 'a> {
 // This function is called after transmitting a frame
 #[allow(unused_must_use)]
 impl<'a, A: time::Alarm> TxClient for FragState<'a, A> {
-    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        self.tx_buf.replace(buf);
+    fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         if result != ReturnCode::SUCCESS {
+            self.tx_buf.replace(tx_buf);
             self.end_packet_transmit(acked, result);
-            return;
-        }
-        self.tx_states.head().map(move |head| {
+        } else if let Some(head) = self.tx_states.head() {
             if head.is_transmit_done() {
                 // This must return Some if we are in the closure - in particular,
                 // tx_state == head
                 self.end_packet_transmit(acked, result);
             } else {
                 // Otherwise, we found an error
-                // Note that `tx_buf` should *always* be here, as we called
-                // `self.tx_buf.replace(..)` at the top of this function.
-                let tx_buf =
-                    self.tx_buf.take().expect("Error: `tx_buf` is None in send_done callback.");
                 let result = head.prepare_transmit_next_fragment(tx_buf, self.radio);
-                result.map_err(|(retcode, ret_buf)| {
+                result.map_err(|(retcode, tx_buf)| {
+                    // On error abort the transmission and replace `tx_buf`
                     self.end_packet_transmit(acked, retcode);
-                    self.tx_buf.replace(ret_buf);
+                    self.tx_buf.replace(tx_buf);
                 });
             }
-        });
+        } else {
+            // Is this state possible?
+            self.tx_buf.replace(tx_buf);
+        }
     }
 }
 
