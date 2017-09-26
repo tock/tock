@@ -99,13 +99,13 @@
 
 extern crate kernel;
 use core::cell::Cell;
+use ieee802154::mac::{Mac, Frame, TxClient, RxClient};
 use kernel::ReturnCode;
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::common::take_cell::{TakeCell, MapCell};
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
-use ieee802154::mac::{Mac, Frame, TxClient, RxClient};
 use net::frag_utils::Bitmap;
 use net::ieee802154::{PanID, MacAddress, SecurityLevel, KeyId, Header};
 use net::lowpan;
