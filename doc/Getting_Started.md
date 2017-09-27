@@ -97,8 +97,8 @@ Check that you have a 64-bit version of libc installed.
 
 ```bash
 $ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa
-$ sudo apt-get update
-$ sudo apt-get install gcc-arm-embedded
+$ sudo apt update
+$ sudo apt install gcc-arm-embedded
 ```
 
 ###### Arch
