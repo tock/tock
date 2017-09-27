@@ -58,7 +58,7 @@ share a buffer for every write transaction, even if it's the same buffer.
     **Description**: Sets a shared buffer to be used as a source of data for
     the next write transaction. A shared buffer is released if it is replaced
     by a subsequent call and after a write transaction is completed. Replacing
-    the buffer after beginning a write transaction but before recieving a
+    the buffer after beginning a write transaction but before receiving a
     completion callback is undefined (most likely either the original buffer or
     new buffer will be written in its entirety but not both).
 
