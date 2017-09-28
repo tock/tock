@@ -218,9 +218,6 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
 
             // enable and configure input
             5 => {
-                // XXX: this is clunky
-                // data == ((pin_config << 8) | pin)
-                // this allows two values to be passed into a command interface
                 let pin_num = data & 0xFF;
                 let pin_config = (data >> 8) & 0xFF;
                 if pin_num >= pins.len() {
@@ -244,9 +241,6 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
             // enable and configure interrupts on pin, also sets pin as input
             // (no affect or reliance on registered callback)
             7 => {
-                // TODO(brghena): this is clunky
-                // data == ((irq_config << 16) | (pin_config << 8) | pin)
-                // this allows three values to be passed into a command interface
                 let pin_num = data & 0xFF;
                 let pin_config = (data >> 8) & 0xFF;
                 let irq_config = (data >> 16) & 0xFF;
