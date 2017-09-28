@@ -68,20 +68,17 @@ impl<'a, G: Pin + PinCtl> GPIO<'a, G> {
         pin.make_input();
         match config {
             0 => {
-                pin.set_input_mode(InputMode::PullUp);
-                ReturnCode::SUCCESS
-            }
-
-            1 => {
-                pin.set_input_mode(InputMode::PullDown);
-                ReturnCode::SUCCESS
-            }
-
-            2 => {
                 pin.set_input_mode(InputMode::PullNone);
                 ReturnCode::SUCCESS
             }
-
+            1 => {
+                pin.set_input_mode(InputMode::PullUp);
+                ReturnCode::SUCCESS
+            }
+            2 => {
+                pin.set_input_mode(InputMode::PullDown);
+                ReturnCode::SUCCESS
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }

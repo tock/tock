@@ -12,9 +12,9 @@ extern "C" {
 typedef uint32_t GPIO_Pin_t;
 
 typedef enum {
-  PullUp=0,
+  PullNone=0,
+  PullUp,
   PullDown,
-  PullNone,
 } GPIO_InputMode_t;
 
 typedef enum {
