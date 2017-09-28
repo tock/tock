@@ -47,9 +47,9 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     fn configure_input_pin(&self, port: usize, pin: usize, config: usize) -> ReturnCode {
         let ports = self.ports.as_ref();
         let mode = match config {
-            0 => hil::gpio::InputMode::PullUp,
-            1 => hil::gpio::InputMode::PullDown,
-            2 => hil::gpio::InputMode::PullNone,
+            0 => hil::gpio::InputMode::PullNone,
+            1 => hil::gpio::InputMode::PullUp,
+            2 => hil::gpio::InputMode::PullDown,
             _ => return ReturnCode::EINVAL,
         };
         ports[port].make_input(pin, mode)
