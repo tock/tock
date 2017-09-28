@@ -47,8 +47,10 @@ int main(void) {
 
   // configure pins
   gpio_interrupt_callback(gpio_cb, NULL);
-  gpio_enable_interrupt(0, PullNone, Change);
-  gpio_enable_interrupt(1, PullUp, Change);
+  gpio_enable_input(0, PullNone);
+  gpio_enable_interrupt(0, Change);
+  gpio_enable_input(1, PullUp);
+  gpio_enable_interrupt(1, Change);
 
   // configure accelerometer
   // TODO

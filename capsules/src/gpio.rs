@@ -166,8 +166,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     /// - `4`: Toggle `pin`.
     /// - `5`: Enable input on `pin` with `pin_config` in Byte 1.
     /// - `6`: Read `pin` value.
-    /// - `7`: Enable interrupt on `pin` with `pin_config` in Byte 1 and
-    ///        `irq_config` in Byte 2.
+    /// - `7`: Configure interrupt on `pin` with `irq_config` in Byte 1.
     /// - `8`: Disable interrupt on `pin`.
     /// - `9`: Disable `pin`.
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
@@ -223,8 +222,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
                 if pin_num >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    let err_code = self.configure_input_pin(pin_num, pin_config);
-                    err_code
+                    self.configure_input_pin(pin_num, pin_config)
                 }
             }
 
@@ -238,20 +236,15 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
                 }
             }
 
-            // enable and configure interrupts on pin, also sets pin as input
+            // configure interrupts on pin
             // (no affect or reliance on registered callback)
             7 => {
                 let pin_num = data & 0xFF;
-                let pin_config = (data >> 8) & 0xFF;
-                let irq_config = (data >> 16) & 0xFF;
+                let irq_config = (data >> 8) & 0xFF;
                 if pin_num >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    let mut err_code = self.configure_input_pin(pin_num, pin_config);
-                    if err_code == ReturnCode::SUCCESS {
-                        err_code = self.configure_interrupt(pin_num, irq_config);
-                    }
-                    err_code
+                    self.configure_interrupt(pin_num, irq_config)
                 }
             }
 

@@ -25,9 +25,8 @@ int gpio_read(GPIO_Pin_t pin) {
   return command(GPIO_DRIVER_NUM, 6, pin);
 }
 
-int gpio_enable_interrupt(GPIO_Pin_t pin, GPIO_InputMode_t pin_config,
-                          GPIO_InterruptMode_t irq_config) {
-  uint32_t data = ((irq_config & 0xFF) << 16) | ((pin_config & 0xFF) << 8) | (pin & 0xFF);
+int gpio_enable_interrupt(GPIO_Pin_t pin, GPIO_InterruptMode_t irq_config) {
+  uint32_t data = ((irq_config & 0xFF) << 8) | (pin & 0xFF);
   return command(GPIO_DRIVER_NUM, 7, data);
 }
 

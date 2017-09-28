@@ -430,7 +430,8 @@ int rf233_setup(void) {
   gpio_interrupt_callback(interrupt_callback, NULL);
   gpio_enable_input(RADIO_IRQ, PullNone);
   gpio_clear(RADIO_IRQ);
-  gpio_enable_interrupt(RADIO_IRQ, PullNone, RisingEdge);
+  gpio_enable_input(RADIO_IRQ, PullNone);
+  gpio_enable_interrupt(RADIO_IRQ, RisingEdge);
 
   /* Configure the radio using the default values except these. */
   trx_reg_write(RF233_REG_TRX_CTRL_1,      RF233_REG_TRX_CTRL_1_CONF);
