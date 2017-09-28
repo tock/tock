@@ -2,13 +2,13 @@
 driver number: 0x60000
 ---
 
-# Humidity
+# Ambient Temperature
 
 ## Overview
 
-The humidity driver allows a process to read the ambient humidity
-from a sensor. Humidity is reported in percent at a precision of
-hundredths of a percent.
+The ambient temperature driver allows a process to read the ambient temperature
+from a sensor. Temperature is reported in degrees centigrate at a precision of
+hundredths of degrees
 
 ## Command
 
@@ -35,10 +35,10 @@ hundredths of a percent.
 
   * ### Subscribe number: `0`
 
-    **Description**: Subscribe to humidity readings.
+    **Description**: Subscribe to temperature readings.
 
     **Callback signature**: The callback receives a single argument, the
-    humidity in hundredths of percent.
+    temperature in hundredths of degrees centigrate.
 
     **Returns**: SUCCESS if the subscribe was successful or ENOMEM if the
     driver failed to allocate memory to store the callback.
