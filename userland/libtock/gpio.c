@@ -17,7 +17,7 @@ int gpio_toggle(GPIO_Pin_t pin) {
 }
 
 int gpio_enable_input(GPIO_Pin_t pin, GPIO_InputMode_t pin_config) {
-  uint32_t data = ((pin_config & 0xFF) << 8) | (pin & 0xFF);
+  uint32_t data = ((pin_config & 0xFF) << 16) | (pin & 0xFFFF);
   return command(GPIO_DRIVER_NUM, 5, data);
 }
 
@@ -26,7 +26,7 @@ int gpio_read(GPIO_Pin_t pin) {
 }
 
 int gpio_enable_interrupt(GPIO_Pin_t pin, GPIO_InterruptMode_t irq_config) {
-  uint32_t data = ((irq_config & 0xFF) << 8) | (pin & 0xFF);
+  uint32_t data = ((irq_config & 0xFF) << 16) | (pin & 0xFFFF);
   return command(GPIO_DRIVER_NUM, 7, data);
 }
 

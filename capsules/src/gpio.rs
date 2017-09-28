@@ -217,8 +217,8 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
 
             // enable and configure input
             5 => {
-                let pin_num = data & 0xFF;
-                let pin_config = (data >> 8) & 0xFF;
+                let pin_num = data & 0xFFFF;
+                let pin_config = (data >> 16) & 0xFF;
                 if pin_num >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
@@ -239,8 +239,8 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
             // configure interrupts on pin
             // (no affect or reliance on registered callback)
             7 => {
-                let pin_num = data & 0xFF;
-                let irq_config = (data >> 8) & 0xFF;
+                let pin_num = data & 0xFFFF;
+                let irq_config = (data >> 16) & 0xFF;
                 if pin_num >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
