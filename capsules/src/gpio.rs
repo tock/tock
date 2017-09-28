@@ -127,7 +127,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     ///
     /// ### `subscribe_num`
     ///
-    /// - `0`: Subscribe to interrupts from all pins with interrupts enables.
+    /// - `0`: Subscribe to interrupts from all pins with interrupts enabled.
     ///        The callback signature is `fn(pin_num: usize, pin_state: bool)`
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
