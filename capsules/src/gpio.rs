@@ -145,25 +145,34 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
 
     /// Query and control pin values and states.
     ///
-    /// The `data` argument has two fields. The lowest order byte is the pin
-    /// number (`pin`), the second byte is an internal resistor setting
-    /// `pin_config`, the remaining bytes are reserved and should be set to `0`.
+    /// Each byte of the `data` argument is treated as its own field.
+    /// For all commands, the lowest order byte (`Byte 0`) is the pin number
+    /// (`pin`). A few commands use higher order bytes for purposes documented
+    /// below. If the higher order bytes are not used, they must be set to `0`.
     ///
-    /// `pin_config` can be either `0` for a pull-up resistor, `1` for a
-    /// pull-down resistor or `2` for none.
+    /// Other data bytes:
+    ///   - `pin_config`: An internal resistor setting.
+    ///                   Set to `0` for a pull-up resistor.
+    ///                   Set to `1` for a pull-down resistor.
+    ///                   Set to `2` for none.
+    ///   - `irq_config`: Interrupt configuration setting.
+    ///                   Set to `0` to interrupt on either edge.
+    ///                   Set to `1` for rising edge.
+    ///                   Set to `2` for falling edge.
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Number of pins
-    /// - `1`: Enable output on `pin`
-    /// - `2`: Set `pin`
-    /// - `3`: Clear `pin`
-    /// - `4`: Toggle `pin`
-    /// - `5`: Enable input on `pin` with `pin_config`
-    /// - `6`: Read `pin` value
-    /// - `7`: Enable interrupt on `pin` with `pin_config`
-    /// - `8`: Disable interrupt on `pin`
-    /// - `9`: Disable `pin`
+    /// - `0`: Number of pins.
+    /// - `1`: Enable output on `pin`.
+    /// - `2`: Set `pin`.
+    /// - `3`: Clear `pin`.
+    /// - `4`: Toggle `pin`.
+    /// - `5`: Enable input on `pin` with `pin_config` in Byte 1.
+    /// - `6`: Read `pin` value.
+    /// - `7`: Enable interrupt on `pin` with `pin_config` in Byte 1 and
+    ///        `irq_config` in Byte 2.
+    /// - `8`: Disable interrupt on `pin`.
+    /// - `9`: Disable `pin`.
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
         let pins = self.pins.as_ref();
         match command_num {
