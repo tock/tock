@@ -124,16 +124,22 @@ The Yield syscall takes no arguments.
 Subscribe assigns callback functions to be executed in response to various
 events.
 
-The Subscribe syscall takes two arguments:
+The Subscribe syscall takes four arguments:
 
+ - `driver`: An integer specifying which driver to call.
  - `subscribe_number`: An integer index for which function is being subscribed.
  - `callback`: A pointer to a callback function to be executed when this event
  occurs. All callbacks conform to the C-style function signature:
  `void callback(int arg1, int arg2, int arg3, void* data)`.
+ - `userdata`: A pointer to a value of any type that will be passed back by the
+   kernel as the last argument to `callback`.
 
 Individual drivers define a mapping for `subscribe_number` to the events that
 may generate that callback as well as the meaning for each of the `callback`
 arguments.
+
+Returns `ENODEVICE` if `driver` does not refer to a valid kernel driver, and
+ENOSUPPORT if the driver exists but doesn't support the `subscribe_number`.
 
 ### 2: Command
 
@@ -141,6 +147,7 @@ Command instructs the driver to perform a specific action.
 
 The Command syscall takes two arguments:
 
+ - `driver`: An integer specifying which driver to call.
  - `command_number`: An integer specifying the requested command.
  - `argument`: A command-specific argument.
 
@@ -157,6 +164,9 @@ supported. In most cases this command number will return 0, indicating that the
 driver is present. In other cases, however, the return value can have an
 additional meaning such as the number of devices present, as is the case in the
 `led` driver to indicate how many LEDs are present on the board.
+
+Returns `ENODEVICE` if `driver` does not refer to a valid kernel driver, and
+ENOSUPPORT if the driver exists but doesn't support the `command_number`.
 
 ### 3: Allow
 
@@ -177,6 +187,11 @@ As of this writing, most Tock drivers do not provide multiple virtual devices to
 each application. If one application needs multiple users of a driver (i.e. two
 libraries on top of I2C), each library will need to re-Allow its buffers before
 beginning operations.
+
+Returns `ENODEVICE` if `driver` does not refer to a valid kernel driver,
+`ENOSUPPORT` if the driver exists but doesn't support the `allow_number`, and
+`EINVAL` the buffer refered to by `pointer` and `size` lies completely or
+partially outside of the processes addressable RAM.
 
 ### 4: Memop
 
