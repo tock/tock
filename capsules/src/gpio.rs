@@ -143,9 +143,9 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     /// Query and control pin values and states.
     ///
     /// Each byte of the `data` argument is treated as its own field.
-    /// For all commands, the lowest order byte (`Byte 0`) is the pin number
-    /// (`pin`). A few commands use higher order bytes for purposes documented
-    /// below. If the higher order bytes are not used, they must be set to `0`.
+    /// For all commands, the lowest order halfword is the pin number (`pin`).
+    /// A few commands use higher order bytes for purposes documented below.
+    /// If the higher order bytes are not used, they must be set to `0`.
     ///
     /// Other data bytes:
     ///   - `pin_config`: An internal resistor setting.
@@ -164,9 +164,9 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     /// - `2`: Set `pin`.
     /// - `3`: Clear `pin`.
     /// - `4`: Toggle `pin`.
-    /// - `5`: Enable input on `pin` with `pin_config` in Byte 1.
+    /// - `5`: Enable input on `pin` with `pin_config` in 0x00XX00000
     /// - `6`: Read `pin` value.
-    /// - `7`: Configure interrupt on `pin` with `irq_config` in Byte 1.
+    /// - `7`: Configure interrupt on `pin` with `irq_config` in 0x00XX00000
     /// - `8`: Disable interrupt on `pin`.
     /// - `9`: Disable `pin`.
     fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
