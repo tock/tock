@@ -1,15 +1,15 @@
 #include "crc.h"
 
 int crc_exists(void) {
-  return command(DRIVER_NUM_CRC, 0, 0) >= 0;
+  return command(DRIVER_NUM_CRC, 0, 0, 0) >= 0;
 }
 
 uint32_t crc_version(void) {
-  return command(DRIVER_NUM_CRC, 1, 0);
+  return command(DRIVER_NUM_CRC, 1, 0, 0);
 }
 
 int crc_request(enum crc_alg alg) {
-  return command(DRIVER_NUM_CRC, 2, alg);
+  return command(DRIVER_NUM_CRC, 2, alg, 0);
 }
 
 int crc_subscribe(subscribe_cb callback, void *ud) {

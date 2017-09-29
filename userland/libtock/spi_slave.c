@@ -3,19 +3,19 @@
 #define SPI_SLAVE 25
 
 int spi_slave_get_chip_select(void) {
-  return command(SPI_SLAVE, 2, 0);
+  return command(SPI_SLAVE, 2, 0, 0);
 }
 int spi_slave_set_phase(bool phase) {
-  return command(SPI_SLAVE, 3, (unsigned char)phase);
+  return command(SPI_SLAVE, 3, (unsigned char)phase, 0);
 }
 int spi_slave_get_phase(void) {
-  return command(SPI_SLAVE, 4, 0);
+  return command(SPI_SLAVE, 4, 0, 0);
 }
 int spi_slave_set_polarity(bool pol) {
-  return command(SPI_SLAVE, 5, (unsigned char)pol);
+  return command(SPI_SLAVE, 5, (unsigned char)pol, 0);
 }
 int spi_slave_get_polarity(void) {
-  return command(SPI_SLAVE, 6, 0);
+  return command(SPI_SLAVE, 6, 0, 0);
 }
 
 /* This registers a callback for when the slave is selected. */
@@ -56,7 +56,7 @@ int spi_slave_write(const char* str,
   if (err < 0 ) {
     return err;
   }
-  return command(SPI_SLAVE, 1, len);
+  return command(SPI_SLAVE, 1, len, 0);
 }
 
 int spi_slave_read_write(const char* write,

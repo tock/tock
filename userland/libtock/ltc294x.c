@@ -24,7 +24,7 @@ int ltc294x_set_callback (subscribe_cb callback, void* callback_args) {
 }
 
 int ltc294x_read_status(void) {
-  return command(DRIVER_NUM_LTC294X, 1, 0);
+  return command(DRIVER_NUM_LTC294X, 1, 0, 0);
 }
 
 int ltc294x_configure(ltc294x_model_e model,
@@ -54,43 +54,43 @@ int ltc294x_configure(ltc294x_model_e model,
     }
   }
 
-  rc = command(DRIVER_NUM_LTC294X, 10, model);
+  rc = command(DRIVER_NUM_LTC294X, 10, model, 0);
   if (rc != TOCK_SUCCESS) return rc;
 
   uint8_t cmd = (int_pin & 0x03) | ((M & 0x07) << 2) | ((vbat & 0x03) << 5);
-  return command(DRIVER_NUM_LTC294X, 2, cmd);
+  return command(DRIVER_NUM_LTC294X, 2, cmd, 0);
 }
 
 int ltc294x_reset_charge(void) {
-  return command(DRIVER_NUM_LTC294X, 3, 0);
+  return command(DRIVER_NUM_LTC294X, 3, 0, 0);
 }
 
 int ltc294x_set_high_threshold(uint16_t threshold) {
-  return command(DRIVER_NUM_LTC294X, 4, threshold);
+  return command(DRIVER_NUM_LTC294X, 4, threshold, 0);
 }
 
 int ltc294x_set_low_threshold(uint16_t threshold) {
-  return command(DRIVER_NUM_LTC294X, 5, threshold);
+  return command(DRIVER_NUM_LTC294X, 5, threshold, 0);
 }
 
 int ltc294x_get_charge(void) {
-  return command(DRIVER_NUM_LTC294X, 6, 0);
+  return command(DRIVER_NUM_LTC294X, 6, 0, 0);
 }
 
 int ltc294x_get_voltage(void) {
-  return command(DRIVER_NUM_LTC294X, 8, 0);
+  return command(DRIVER_NUM_LTC294X, 8, 0, 0);
 }
 
 int ltc294x_get_current(void) {
-  return command(DRIVER_NUM_LTC294X, 9, 0);
+  return command(DRIVER_NUM_LTC294X, 9, 0, 0);
 }
 
 int ltc294x_shutdown(void) {
-  return command(DRIVER_NUM_LTC294X, 7, 0);
+  return command(DRIVER_NUM_LTC294X, 7, 0, 0);
 }
 
 int ltc294x_set_model(ltc294x_model_e model) {
-  return command(DRIVER_NUM_LTC294X, 10, model);
+  return command(DRIVER_NUM_LTC294X, 10, model, 0);
 }
 
 

@@ -38,6 +38,6 @@ int ambient_light_subscribe(subscribe_cb callback, void* userdata) {
 }
 
 int ambient_light_start_intensity_reading(void) {
-  return command(DRIVER_NUM_AMBIENT_LIGHT, 1, 0);
+  return command(DRIVER_NUM_AMBIENT_LIGHT, 1, 0, 0);
 }
 

@@ -60,40 +60,40 @@ int ieee802154_down(void) {
 }
 
 bool ieee802154_is_up(void) {
-  return command(RADIO_DRIVER, COMMAND_STATUS, 0) == TOCK_SUCCESS;
+  return command(RADIO_DRIVER, COMMAND_STATUS, 0, 0) == TOCK_SUCCESS;
 }
 
 int ieee802154_set_address(unsigned short addr) {
-  return command(RADIO_DRIVER, COMMAND_SET_ADDR, (unsigned int) addr);
+  return command(RADIO_DRIVER, COMMAND_SET_ADDR, (unsigned int) addr, 0);
 }
 
 int ieee802154_set_address_long(unsigned char *addr_long) {
   if (!addr_long) return TOCK_EINVAL;
   int err = allow(RADIO_DRIVER, ALLOW_CFG, (void *) addr_long, 8);
   if (err < 0) return err;
-  return command(RADIO_DRIVER, COMMAND_SET_ADDR_LONG, 0);
+  return command(RADIO_DRIVER, COMMAND_SET_ADDR_LONG, 0, 0);
 }
 
 int ieee802154_set_pan(unsigned short pan) {
-  return command(RADIO_DRIVER, COMMAND_SET_PAN, (unsigned int) pan);
+  return command(RADIO_DRIVER, COMMAND_SET_PAN, (unsigned int) pan, 0);
 }
 
 int ieee802154_set_channel(unsigned char channel) {
-  return command(RADIO_DRIVER, COMMAND_SET_CHANNEL, (unsigned int) channel);
+  return command(RADIO_DRIVER, COMMAND_SET_CHANNEL, (unsigned int) channel, 0);
 }
 
 int ieee802154_set_power(char power) {
   // Cast the signed char to an unsigned char before zero-padding it.
-  return command(RADIO_DRIVER, COMMAND_SET_POWER, (unsigned int) (unsigned char) power);
+  return command(RADIO_DRIVER, COMMAND_SET_POWER, (unsigned int) (unsigned char) power, 0);
 }
 
 int ieee802154_config_commit(void) {
-  return command(RADIO_DRIVER, COMMAND_CONFIG_COMMIT, 0);
+  return command(RADIO_DRIVER, COMMAND_CONFIG_COMMIT, 0, 0);
 }
 
 int ieee802154_get_address(unsigned short *addr) {
   if (!addr) return TOCK_EINVAL;
-  int err = command(RADIO_DRIVER, COMMAND_GET_ADDR, 0);
+  int err = command(RADIO_DRIVER, COMMAND_GET_ADDR, 0, 0);
   if (err > 0) {
     // Driver adds 1 to make the value positive.
     *addr = (unsigned short) (err - 1);
@@ -105,12 +105,12 @@ int ieee802154_get_address_long(unsigned char *addr_long) {
   if (!addr_long) return TOCK_EINVAL;
   int err = allow(RADIO_DRIVER, ALLOW_CFG, (void *) addr_long, 8);
   if (err < 0) return err;
-  return command(RADIO_DRIVER, COMMAND_GET_ADDR_LONG, 0);
+  return command(RADIO_DRIVER, COMMAND_GET_ADDR_LONG, 0, 0);
 }
 
 int ieee802154_get_pan(unsigned short *pan) {
   if (!pan) return TOCK_EINVAL;
-  int err = command(RADIO_DRIVER, COMMAND_GET_PAN, 0);
+  int err = command(RADIO_DRIVER, COMMAND_GET_PAN, 0, 0);
   if (err > 0) {
     // Driver adds 1 to make the value positive.
     *pan = (unsigned short) (err - 1);
@@ -120,7 +120,7 @@ int ieee802154_get_pan(unsigned short *pan) {
 
 int ieee802154_get_channel(unsigned char *channel) {
   if (!channel) return TOCK_EINVAL;
-  int err = command(RADIO_DRIVER, COMMAND_GET_PAN, 0);
+  int err = command(RADIO_DRIVER, COMMAND_GET_PAN, 0, 0);
   if (err > 0) {
     // Driver adds 1 to make the value positive.
     *channel = (unsigned char) (err - 1);
@@ -130,7 +130,7 @@ int ieee802154_get_channel(unsigned char *channel) {
 
 int ieee802154_get_power(char *power) {
   if (!power) return TOCK_EINVAL;
-  int err = command(RADIO_DRIVER, COMMAND_GET_POWER, 0);
+  int err = command(RADIO_DRIVER, COMMAND_GET_POWER, 0, 0);
   if (err > 0) {
     // Driver adds 1 to the power after casting it to unsigned, so this works
     *power = (char) (err - 1);
@@ -139,20 +139,20 @@ int ieee802154_get_power(char *power) {
 }
 
 int ieee802154_max_neighbors(void) {
-  int err = command(RADIO_DRIVER, COMMAND_MAX_NEIGHBORS, 0);
+  int err = command(RADIO_DRIVER, COMMAND_MAX_NEIGHBORS, 0, 0);
   // Driver adds 1 to ensure it is positive, but on error we want to return 0
   return (err > 0) ? (err - 1) : 0;
 }
 
 int ieee802154_num_neighbors(void) {
-  int err = command(RADIO_DRIVER, COMMAND_NUM_NEIGHBORS, 0);
+  int err = command(RADIO_DRIVER, COMMAND_NUM_NEIGHBORS, 0, 0);
   // Driver adds 1 to ensure it is positive, but on error we want to return 0
   return (err > 0) ? (err - 1) : 0;
 }
 
 int ieee802154_get_neighbor_address(unsigned index, unsigned short *addr) {
   if (!addr) return TOCK_EINVAL;
-  int err = command(RADIO_DRIVER, COMMAND_GET_NEIGHBOR_ADDR, (unsigned int) index);
+  int err = command(RADIO_DRIVER, COMMAND_GET_NEIGHBOR_ADDR, (unsigned int) index, 0);
   if (err > 0) {
     // Driver adds 1 to ensure it is positive.
     *addr = (unsigned short) (err - 1);
@@ -164,7 +164,7 @@ int ieee802154_get_neighbor_address_long(unsigned index, unsigned char *addr_lon
   if (!addr_long) return TOCK_EINVAL;
   int err = allow(RADIO_DRIVER, ALLOW_CFG, (void *) addr_long, 8);
   if (err < 0) return err;
-  return command(RADIO_DRIVER, COMMAND_GET_NEIGHBOR_ADDR_LONG, (unsigned int) index);
+  return command(RADIO_DRIVER, COMMAND_GET_NEIGHBOR_ADDR_LONG, (unsigned int) index, 0);
 }
 
 int ieee802154_get_neighbor(unsigned index,
@@ -179,7 +179,7 @@ int ieee802154_add_neighbor(unsigned short addr, unsigned char *addr_long, unsig
   if (!addr_long) return TOCK_EINVAL;
   int err = allow(RADIO_DRIVER, ALLOW_CFG, (void *) addr_long, 8);
   if (err < 0) return err;
-  err = command(RADIO_DRIVER, COMMAND_ADD_NEIGHBOR, (unsigned int) addr);
+  err = command(RADIO_DRIVER, COMMAND_ADD_NEIGHBOR, (unsigned int) addr, 0);
   if (err > 0 && index) {
     // Driver adds 1 to ensure it is positive.
     *index = (unsigned) (err - 1);
@@ -188,24 +188,24 @@ int ieee802154_add_neighbor(unsigned short addr, unsigned char *addr_long, unsig
 }
 
 int ieee802154_remove_neighbor(unsigned index) {
-  return command(RADIO_DRIVER, COMMAND_REMOVE_NEIGHBOR, (unsigned int) index);
+  return command(RADIO_DRIVER, COMMAND_REMOVE_NEIGHBOR, (unsigned int) index, 0);
 }
 
 int ieee802154_max_keys(void) {
-  int err = command(RADIO_DRIVER, COMMAND_MAX_KEYS, 0);
+  int err = command(RADIO_DRIVER, COMMAND_MAX_KEYS, 0, 0);
   // Driver adds 1 to ensure it is positive, but on error we want to return 0
   return (err > 0) ? (err - 1) : 0;
 }
 
 int ieee802154_num_keys(void) {
-  int err = command(RADIO_DRIVER, COMMAND_NUM_KEYS, 0);
+  int err = command(RADIO_DRIVER, COMMAND_NUM_KEYS, 0, 0);
   // Driver adds 1 to ensure it is positive, but on error we want to return 0
   return (err > 0) ? (err - 1) : 0;
 }
 
 int ieee802154_get_key_security_level(unsigned index, security_level_t *level) {
   if (!level) return TOCK_EINVAL;
-  int err = command(RADIO_DRIVER, COMMAND_GET_KEY_LEVEL, (unsigned int) index);
+  int err = command(RADIO_DRIVER, COMMAND_GET_KEY_LEVEL, (unsigned int) index, 0);
   if (err > 0) {
     // Driver adds 1 to ensure it is positive.
     *level = (security_level_t) (err - 1);
@@ -233,7 +233,7 @@ int ieee802154_get_key_id(unsigned index,
   if (!key_id_mode || !key_id) return TOCK_EINVAL;
   int err = allow(RADIO_DRIVER, ALLOW_CFG, (void *) BUF_CFG, 10);
   if (err < 0) return err;
-  err = command(RADIO_DRIVER, COMMAND_GET_KEY_ID, (unsigned int) index);
+  err = command(RADIO_DRIVER, COMMAND_GET_KEY_ID, (unsigned int) index, 0);
   if (err == TOCK_SUCCESS) {
     *key_id_mode = (key_id_mode_t) (BUF_CFG[0]);
     memcpy(key_id, BUF_CFG + 1, ieee802154_key_id_bytes(*key_id_mode));
@@ -245,7 +245,7 @@ int ieee802154_get_key(unsigned index, unsigned char *key) {
   if (!key) return TOCK_EINVAL;
   int err = allow(RADIO_DRIVER, ALLOW_CFG, (void *) key, 16);
   if (err < 0) return err;
-  return command(RADIO_DRIVER, COMMAND_GET_KEY, (unsigned int) index);
+  return command(RADIO_DRIVER, COMMAND_GET_KEY, (unsigned int) index, 0);
 }
 
 int ieee802154_get_key_desc(unsigned index,
@@ -275,7 +275,7 @@ int ieee802154_add_key(security_level_t level,
     memcpy(BUF_CFG + 2, key_id, bytes);
   }
   memcpy(BUF_CFG + 2 + 9, key, 16);
-  err = command(RADIO_DRIVER, COMMAND_ADD_KEY, 0);
+  err = command(RADIO_DRIVER, COMMAND_ADD_KEY, 0, 0);
   if (err > 0 && index) {
     // Driver adds 1 to ensure it is positive.
     *index = (unsigned) (err - 1);
@@ -284,7 +284,7 @@ int ieee802154_add_key(security_level_t level,
 }
 
 int ieee802154_remove_key(unsigned index) {
-  return command(RADIO_DRIVER, COMMAND_REMOVE_KEY, (unsigned int) index);
+  return command(RADIO_DRIVER, COMMAND_REMOVE_KEY, (unsigned int) index, 0);
 }
 
 // Internal callback for transmission
@@ -324,7 +324,7 @@ int ieee802154_send(unsigned short addr,
   if (err < 0) return err;
 
   // Issue the send command and wait for the transmission to be done.
-  err = command(RADIO_DRIVER, COMMAND_SEND, (unsigned int) addr);
+  err = command(RADIO_DRIVER, COMMAND_SEND, (unsigned int) addr, 0);
   if (err < 0) return err;
   yield_for(&tx_done);
   return tx_result;

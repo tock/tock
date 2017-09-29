@@ -18,6 +18,6 @@ int nrf51_serialization_write (char* tx, int tx_len) {
   if (ret < 0) return ret;
 
   // Do the write!!!!!
-  ret = command(DRIVER_NUM_NRF_SERIALIZATION, 1, 0);
+  ret = command(DRIVER_NUM_NRF_SERIALIZATION, 1, 0, 0);
   return ret;
 }

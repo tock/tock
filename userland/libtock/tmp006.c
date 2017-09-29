@@ -48,7 +48,7 @@ int tmp006_read_async(subscribe_cb callback, void* callback_args) {
 // enable TMP006, configure periodic sampling with interrupts, callback with value on interrupt
 int tmp006_start_sampling(uint8_t period, subscribe_cb callback, void* callback_args) {
   // set period for periodic temp readings
-  uint32_t err_code = command(DRIVER_NUM_TMP006, 1, period);
+  uint32_t err_code = command(DRIVER_NUM_TMP006, 1, period, 0);
   if (err_code != ERR_NONE) {
     return err_code;
   }
@@ -62,6 +62,6 @@ int tmp006_start_sampling(uint8_t period, subscribe_cb callback, void* callback_
 int tmp006_stop_sampling(void) {
   // unsubscribe from periodic temp value callbacks
   //  also disables the temperature sensor
-  return command(DRIVER_NUM_TMP006, 2, 0);
+  return command(DRIVER_NUM_TMP006, 2, 0, 0);
 }
 

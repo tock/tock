@@ -5,13 +5,13 @@ int alarm_internal_subscribe(subscribe_cb cb, void *userdata) {
 }
 
 int alarm_internal_set(uint32_t tics) {
-  return command(DRIVER_NUM_ALARM, 4, (int)tics);
+  return command(DRIVER_NUM_ALARM, 4, (int)tics, 0);
 }
 
 int alarm_internal_stop(void) {
-  return command(DRIVER_NUM_ALARM, 3, 0);
+  return command(DRIVER_NUM_ALARM, 3, 0, 0);
 }
 
 unsigned int alarm_internal_frequency(void) {
-  return (unsigned int) command(DRIVER_NUM_ALARM, 1, 0);
+  return (unsigned int) command(DRIVER_NUM_ALARM, 1, 0, 0);
 }

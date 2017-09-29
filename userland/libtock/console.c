@@ -87,6 +87,6 @@ int putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) 
   ret = subscribe(DRIVER_NUM_CONSOLE, 1, cb, userdata);
   if (ret < 0) return ret;
 
-  ret = command(DRIVER_NUM_CONSOLE, 1, len);
+  ret = command(DRIVER_NUM_CONSOLE, 1, len, 0);
   return ret;
 }

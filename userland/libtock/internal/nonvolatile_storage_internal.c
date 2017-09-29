@@ -17,15 +17,15 @@ int nonvolatile_storage_internal_write_buffer(uint8_t* buffer, uint32_t len) {
 }
 
 int nonvolatile_storage_internal_get_number_bytes(void) {
-  return command(DRIVER_NUM_NONVOLATILE_STORAGE, 1, 0);
+  return command(DRIVER_NUM_NONVOLATILE_STORAGE, 1, 0, 0);
 }
 
 int nonvolatile_storage_internal_read(uint32_t offset, uint32_t length) {
   uint32_t arg0 = (length << 8) | 2;
-  return command(DRIVER_NUM_NONVOLATILE_STORAGE, (int) arg0, (int) offset);
+  return command(DRIVER_NUM_NONVOLATILE_STORAGE, (int) arg0, (int) offset, 0);
 }
 
 int nonvolatile_storage_internal_write(uint32_t offset, uint32_t length) {
   uint32_t arg0 = (length << 8) | 3;
-  return command(DRIVER_NUM_NONVOLATILE_STORAGE, (int) arg0, (int) offset);
+  return command(DRIVER_NUM_NONVOLATILE_STORAGE, (int) arg0, (int) offset, 0);
 }

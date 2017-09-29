@@ -23,7 +23,7 @@ int humidity_set_callback(subscribe_cb callback, void* callback_args) {
 }
 
 int humidity_read(void) {
-  return command(DRIVER_NUM_HUMIDITY, 1, 0);
+  return command(DRIVER_NUM_HUMIDITY, 1, 0, 0);
 }
 
 int humidity_read_sync(unsigned* humidity) {

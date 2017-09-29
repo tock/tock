@@ -47,13 +47,13 @@ int aes128_set_ctr(const unsigned char* ctr, unsigned char len) {
 // Internal function to trigger encryption operation. Note that this doesn't
 // work by itself aes128_set_data() and aes128_set_ctr() must be called first
 int aes128_encrypt_start(void) {
-  return command(AES_DRIVER, AES_ENC, 0);
+  return command(AES_DRIVER, AES_ENC, 0, 0);
 }
 
 // Internal function to trigger encryption operation. Note that this doesn't
 // work by itself aes128_set_data() and aes128_set_ctr() must be called first
 int aes128_decrypt_start(void) {
-  return command(AES_DRIVER, AES_DEC, 0);
+  return command(AES_DRIVER, AES_DEC, 0, 0);
 }
 
 // Function to encrypt by aes128 counter-mode with a given payload and
@@ -107,7 +107,7 @@ int aes128_set_key_sync(const unsigned char* key, unsigned char len) {
   err = allow(AES_DRIVER, AES_KEY, (void*)key, len);
   if (err < TOCK_SUCCESS) return err;
 
-  return command(AES_DRIVER, AES_KEY, 0);
+  return command(AES_DRIVER, AES_KEY, 0, 0);
 }
 
 

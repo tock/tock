@@ -27,7 +27,7 @@ int rng_set_callback(subscribe_cb callback, void* callback_args) {
 }
 
 int rng_get_random(int num_bytes) {
-  return command(DRIVER_NUM_RNG, 1, num_bytes);
+  return command(DRIVER_NUM_RNG, 1, num_bytes, 0);
 }
 
 int rng_async(subscribe_cb callback, uint8_t* buf, uint32_t len, uint32_t num) {
