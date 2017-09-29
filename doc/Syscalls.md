@@ -13,10 +13,20 @@ tutorial on how to use them in drivers or applications.
 - [Process State](#process-state)
 - [The System Calls](#the-system-calls)
   * [0: Yield](#0-yield)
+    + [Arguments](#arguments)
+    + [Return](#return)
   * [1: Subscribe](#1-subscribe)
+    + [Arguments](#arguments-1)
+    + [Return](#return-1)
   * [2: Command](#2-command)
+    + [Arguments](#arguments-2)
+    + [Return](#return-2)
   * [3: Allow](#3-allow)
+    + [Arguments](#arguments-3)
+    + [Return](#return-3)
   * [4: Memop](#4-memop)
+    + [Arguments](#arguments-4)
+    + [Return](#return-4)
 - [The Context Switch](#the-context-switch)
 - [How System Calls Connect to Drivers](#how-system-calls-connect-to-drivers)
 - [Allocated Driver Numbers](#allocated-driver-numbers)
@@ -117,14 +127,21 @@ process.
 If a process has enqueued callbacks waiting to execute when Yield is called, the
 process immediately re-enters the Running state and the first callback runs.
 
-The Yield syscall takes no arguments.
+#### Arguments
+
+None.
+
+#### Return
+
+None.
+
 
 ### 1: Subscribe
 
 Subscribe assigns callback functions to be executed in response to various
 events.
 
-The Subscribe syscall takes four arguments:
+#### Arguments
 
  - `driver`: An integer specifying which driver to call.
  - `subscribe_number`: An integer index for which function is being subscribed.
@@ -138,14 +155,19 @@ Individual drivers define a mapping for `subscribe_number` to the events that
 may generate that callback as well as the meaning for each of the `callback`
 arguments.
 
-Returns `ENODEVICE` if `driver` does not refer to a valid kernel driver, and
-ENOSUPPORT if the driver exists but doesn't support the `subscribe_number`.
+#### Return
+
+ - `EINVAL` if the callback pointer is NULL.
+ - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
+ - `ENOSUPPORT` if the driver exists but doesn't support the `subscribe_number`.
+ - Other return codes based on the specific driver.
+
 
 ### 2: Command
 
 Command instructs the driver to perform a specific action.
 
-The Command syscall takes two arguments:
+#### Arguments
 
  - `driver`: An integer specifying which driver to call.
  - `command_number`: An integer specifying the requested command.
@@ -165,14 +187,18 @@ driver is present. In other cases, however, the return value can have an
 additional meaning such as the number of devices present, as is the case in the
 `led` driver to indicate how many LEDs are present on the board.
 
-Returns `ENODEVICE` if `driver` does not refer to a valid kernel driver, and
-ENOSUPPORT if the driver exists but doesn't support the `command_number`.
+#### Return
+
+ - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
+ - `ENOSUPPORT` if the driver exists but doesn't support the `command_number`.
+ - Other return codes based on the specific driver.
+
 
 ### 3: Allow
 
 Allow marks a region of memory as shared between the kernel and application.
 
-The Allow syscall takes four arguments:
+#### Arguments
 
  - `driver`: An integer specifying which driver should be granted access.
  - `allow_number`: A driver-specific integer specifying the purpose of this
@@ -188,27 +214,35 @@ each application. If one application needs multiple users of a driver (i.e. two
 libraries on top of I2C), each library will need to re-Allow its buffers before
 beginning operations.
 
-Returns `ENODEVICE` if `driver` does not refer to a valid kernel driver,
-`ENOSUPPORT` if the driver exists but doesn't support the `allow_number`, and
-`EINVAL` the buffer refered to by `pointer` and `size` lies completely or
+#### Return
+
+ - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
+ - `ENOSUPPORT` if the driver exists but doesn't support the `allow_number`.
+ - `EINVAL` the buffer referred to by `pointer` and `size` lies completely or
 partially outside of the processes addressable RAM.
+ - Other return codes based on the specific driver.
+
 
 ### 4: Memop
 
 Memop expands the memory segment available to the process, allows the process to
-retrieve pointers to its allocated memory space, and provides a mechanism for
-the process to tell the kernel where its stack and heap start.
+retrieve pointers to its allocated memory space, provides a mechanism for
+the process to tell the kernel where its stack and heap start, and other
+operations involving process memory.
 
-The Memop syscall takes two arguments:
+#### Arguments
 
  - `op_type`: An integer indicating whether this is a `brk` (0), a `sbrk` (1),
    or another memop call.
  - `argument`: The argument to `brk`, `sbrk`, or other call.
 
-Both `brk` and `sbrk` adjust the current memory segment. The `argument` to `brk`
-is a pointer indicating the new requested end of memory segment. The `argument`
-to `sbrk` is an integer, indicating the number of bytes to adjust the end of the
-memory segment by.
+Each memop operation is specific and details of each call can be found in
+the memop syscall documentation.
+
+#### Return
+
+- Dependent on the particular memop call.
+
 
 ## The Context Switch
 
