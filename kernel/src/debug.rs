@@ -120,7 +120,7 @@ impl DebugWriter {
                     if driver.subscribe(1, KERNEL_CONSOLE_CALLBACK) != ReturnCode::SUCCESS {
                         panic!("Debug print subscribe fail");
                     }
-                    if driver.command(1, slice_len, AppId::kernel_new(APPID_IDX)) !=
+                    if driver.command(1, slice_len, 0, AppId::kernel_new(APPID_IDX)) !=
                        ReturnCode::SUCCESS {
                         panic!("Debug print command fail");
                     }

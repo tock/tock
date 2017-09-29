@@ -259,7 +259,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
 {
-    fn command(&self, command_num: usize, data: usize, _: kernel::AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: kernel::AppId) -> ReturnCode {
         match (command_num, self.busy.get()) {
             // START BLE
             (0, false) => {

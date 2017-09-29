@@ -1460,7 +1460,7 @@ impl<'a, A: hil::time::Alarm + 'a> Driver for SDCardDriver<'a, A> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             // check if present
             0 => ReturnCode::SUCCESS,

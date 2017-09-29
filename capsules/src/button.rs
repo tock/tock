@@ -160,7 +160,7 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
     /// - `2`: Disable interrupts for a button. No affect or reliance on
     ///   registered callback.
     /// - `3`: Read the current state of the button.
-    fn command(&self, command_num: usize, data: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
         let pins = self.pins;
         match command_num {
             // return button count

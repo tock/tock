@@ -120,7 +120,7 @@ impl<'a> Driver for TemperatureSensor<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
 
             // check whether the driver exists!!

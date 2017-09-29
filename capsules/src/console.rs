@@ -210,7 +210,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     /// - `0`: Driver check.
     /// - `1`: Prints a buffer passed through `allow` up to the length passed in
     ///        `arg1`
-    fn command(&self, cmd_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* putstr */ => {

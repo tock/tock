@@ -33,7 +33,7 @@ impl<'a> Driver for Dac<'a> {
     /// - `0`: Driver check.
     /// - `1`: Initialize and enable the DAC.
     /// - `2`: Set the output to `data1`, a scaled output value.
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => return ReturnCode::SUCCESS,
 

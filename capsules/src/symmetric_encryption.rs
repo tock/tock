@@ -250,7 +250,7 @@ impl<'a, E: SymmetricEncryption> Driver for Crypto<'a, E> {
         }
     }
 
-    fn command(&self, cmd: usize, sub_cmd: usize, _: AppId) -> ReturnCode {
+    fn command(&self, cmd: usize, sub_cmd: usize, _: usize, _: AppId) -> ReturnCode {
         match cmd {
             // set key, it is assumed to 16, 24 or 32 bytes
             // e.g. aes-128, aes-128 and aes-256

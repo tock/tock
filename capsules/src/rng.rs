@@ -160,7 +160,7 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => /* Check if exists */ ReturnCode::SUCCESS,
 

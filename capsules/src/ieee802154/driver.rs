@@ -600,7 +600,7 @@ impl<'a> Driver for RadioDriver<'a> {
     ///                      9 bytes: the key ID (might not use all bytes) +
     ///                      16 bytes: the key.
     /// - `25`: Remove the key at an index.
-    fn command(&self, command_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
             1 => {

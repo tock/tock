@@ -116,7 +116,7 @@ impl<'a, C> Driver for UsbSyscallDriver<'a, C>
         }
     }
 
-    fn command(&self, command_num: usize, _arg: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             // This driver is present
             0 => ReturnCode::SUCCESS,

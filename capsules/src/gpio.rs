@@ -169,7 +169,7 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     /// - `7`: Configure interrupt on `pin` with `irq_config` in 0x00XX00000
     /// - `8`: Disable interrupt on `pin`.
     /// - `9`: Disable `pin`.
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         let pins = self.pins.as_ref();
         match command_num {
             // number of pins

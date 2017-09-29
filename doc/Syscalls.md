@@ -171,10 +171,11 @@ Command instructs the driver to perform a specific action.
 
  - `driver`: An integer specifying which driver to call.
  - `command_number`: An integer specifying the requested command.
- - `argument`: A command-specific argument.
+ - `argument1`: A command-specific argument.
+ - `argument2`: A command-specific argument.
 
 The `command_number` tells the driver which command was called from
-userspace, and the `argument` is specific to the driver and command number.
+userspace, and the `argument`s are specific to the driver and command number.
 One example of the argument being used is in the `led` driver, where the
 command to turn on an LED uses the argument to specify which LED.
 

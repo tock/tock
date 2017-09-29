@@ -207,7 +207,7 @@ impl<'a> Driver for AppFlash<'a> {
     ///
     /// - `0`: Driver check.
     /// - `1`: Write the memory from the `allow` buffer to the address in flash.
-    fn command(&self, command_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => /* This driver exists. */ ReturnCode::SUCCESS,
 

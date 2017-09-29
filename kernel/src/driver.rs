@@ -90,7 +90,7 @@ pub trait Driver {
     /// side effects. This convention ensures that applications can query the
     /// kernel for supported drivers on a given platform.
     #[allow(unused_variables)]
-    fn command(&self, minor_num: usize, r2: usize, caller_id: ::AppId) -> ReturnCode {
+    fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: ::AppId) -> ReturnCode {
         ReturnCode::ENOSUPPORT
     }
 

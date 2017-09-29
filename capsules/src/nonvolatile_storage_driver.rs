@@ -502,7 +502,7 @@ impl<'a> Driver for NonvolatileStorage<'a> {
     /// - `1`: Return the number of bytes available to userspace.
     /// - `2`: Start a read from the nonvolatile storage.
     /// - `3`: Start a write to the nonvolatile_storage.
-    fn command(&self, arg0: usize, arg1: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, arg0: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         let command_num = arg0 & 0xFF;
 
         match command_num {

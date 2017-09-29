@@ -792,7 +792,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
     /// command_num - which command call this is
     /// data - value sent by the application, varying uses
     /// _appid - application identifier, unused
-    fn command(&self, command_num: usize, data: usize, _appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _appid: AppId) -> ReturnCode {
         match command_num {
             // check if present
             0 => ReturnCode::SuccessWithValue { value: self.channels.len() as usize },

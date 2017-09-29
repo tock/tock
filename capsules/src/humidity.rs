@@ -131,7 +131,7 @@ impl<'a> Driver for HumiditySensor<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
 
             // check whether the driver exist!!

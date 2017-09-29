@@ -141,7 +141,7 @@ impl<'a, U: UARTAdvanced> Driver for Nrf51822Serialization<'a, U> {
     ///
     /// - `0`: Driver check.
     /// - `1`: Send the allowed buffer to the nRF.
-    fn command(&self, command_type: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_type: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
         match command_type {
             0 /* check if present */ => ReturnCode::SUCCESS,
 

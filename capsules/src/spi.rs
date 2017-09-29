@@ -189,7 +189,7 @@ impl<'a, S: SpiMasterDevice> Driver for Spi<'a, S> {
     // x+1: unlock spi
     //   - does nothing if lock not held
     //
-    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             // No longer supported, wrap inside a read_write_bytes
@@ -409,7 +409,7 @@ impl<'a, S: SpiSlaveDevice> Driver for SpiSlave<'a, S> {
     ///   - does nothing if lock not held
     ///   - not implemented or currently supported
 
-    fn command(&self, cmd_num: usize, arg1: usize, _: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, _: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* read_write_bytes */ => {

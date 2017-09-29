@@ -343,7 +343,7 @@ impl<'a> Driver for MAX17205Driver<'a> {
     /// - `2`: Read the current state of charge percent.
     /// - `3`: Read the current voltage and current draw.
     /// - `4`: Read the raw coulomb count.
-    fn command(&self, command_num: usize, _data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
 

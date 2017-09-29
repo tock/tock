@@ -134,7 +134,7 @@ impl<'a, Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
     ///   interrupt, and 2 for a falling edge interrupt.
     /// - `8`: Disable an interrupt on a pin.
     /// - `9`: Disable a GPIO pin.
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         let port = data & 0xFF;
         let pin = (data >> 8) & 0xFF;
         let other = (data >> 16) & 0xFFFF;
