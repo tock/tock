@@ -20,10 +20,15 @@ of how platforms program each onto an actual board.
     + [TAB Format](#tab-format)
     + [Metadata](#metadata)
   * [Tock userland compilation environment](#tock-userland-compilation-environment)
+    + [Customizing the build](#customizing-the-build)
+      - [Flags](#flags)
+      - [Application configuration](#application-configuration)
+      - [Advanced](#advanced)
     + [Compiling Libraries for Tock](#compiling-libraries-for-tock)
-      - [Development vs Stable Libraries](#development-vs-stable-libraries)
-    + [Including other libraries](#including-other-libraries)
-  * [Note for the Future](#note-for-the-future)
+      - [Let Tock do the work: TockLibrary.mk](#let-tock-do-the-work-tocklibrarymk)
+      - [Developing (building) libraries concurrently with applications](#developing-building-libraries-concurrently-with-applications)
+      - [Pre-built libraries](#pre-built-libraries)
+      - [Manually including libraries](#manually-including-libraries)
 - [Loading the kernel and processes onto a board](#loading-the-kernel-and-processes-onto-a-board)
 
 <!-- tocstop -->
@@ -333,8 +338,27 @@ In addition, you must specify the sources for your application:
   - `AS_SRCS`: A list of assembly files to compile.
   - `EXTERN_LIBS`: A list of directories for libraries [**compiled for Tock**](#compiling-libraries-for-tock).
 
+#### Customizing the build
+
+##### Flags
+
 The build system respects all of the standard `CFLAGS` (C only), `CXXFLAGS`
-(C++ only), `CPPFLAGS` (C and C++), `ASFLAGS` (asm only), etc.
+(C++ only), `CPPFLAGS` (C and C++), `ASFLAGS` (asm only).
+
+By default, if you run something like `make CPPFLAGS=-Og`, make will use _only_
+the flags specified on the command line, but that means that Tock would lose all
+of its PIC-related flags. For that reason, Tock specifies all variables using
+make's [override directive](https://www.gnu.org/software/make/manual/html_node/Override-Directive.html).
+
+If you wish to set additional flags in your application Makefiles, you must also
+use `override`, or they will be ignored. That is, in your Makefile you must write
+`override CPPFLAGS += -Og` rather than just `CPPFLAGS += -Og`.
+
+If you are adding supplemental flags, you can put them anywhere. If you want to
+override Tock defaults, you'll need to place these _after_ the `include` directive
+in your Makefile.
+
+##### Application configuration
 
 Several Tock-specific variables are also useful:
 
@@ -342,6 +366,11 @@ Several Tock-specific variables are also useful:
   - `APP_HEAP_SIZE`: The minimum heap size for your application.
   - `KERNEL_HEAP_SIZE`: The minimum grant size for your application.
   - `PACKAGE_NAME`: The name for your application. Defaults to current folder.
+
+##### Advanced
+
+If you want to see a verbose build that prints all the commands as run, simply
+run `make V=1`.
 
 The build system is broken across three files in the `tock/userland` folder:
 
@@ -359,8 +388,71 @@ Libraries used by Tock need all of the same position-independent build flags as
 the final application. As Tock builds for all supported architectures by
 default, libraries should include images for each supported Tock architecture.
 
-To leverage the `EXTERN_LIBS` variable, external libraries must adhere to the
-following structure:
+##### Let Tock do the work: TockLibrary.mk
+
+As the Tock build requirements (PIC, multiple architectures) are fairly complex,
+Tock provides a Makefile that will ensure everything is set up correctly and
+generate build rules for you. An example Makefile for `libexample`:
+
+> **libexample/Makefile**
+```make
+# Base definitions
+TOCK_USERLAND_BASE_DIR ?= ..
+LIBNAME := libexample
+
+# Careful! Must be a path that resolves correctly **from where make is invoked**
+#
+# If you are only ever compiling a standalone library, then it's fine to simply set
+$(LIBNAME)_DIR := .
+#
+# If you will be asking applications to rebuild this library (see the development
+# section below), then you'll need to ensure that this directory is still correct
+# when invoked from inside the application folder.
+#
+# Tock accomplishes this for in-tree libraries by having all makefiles
+# conditionally set the TOCK_USERLAND_BASE_DIR variable, so that there
+# is a common relative path everywhere.
+$(LIBNAME)_DIR := $(TOCK_USERLAND_BASE_DIR)/$(LIBNAME)
+
+# Grab all relevant source files. You can list them directly:
+$(LIBNAME)_SRCS :=                                      \
+    $($LIBNAME)_DIR)\libexample.c                       \
+    $($LIBNAME)_DIR)\libexample_helper.c                \
+    $($LIBNAME)_DIR)\subfolders_are_fine\otherfile.c
+
+# Or let make find them automatically:
+$(LIBNAME)_SRCS  :=                                     \
+    $(wildcard $($(LIBNAME)_DIR)/*.c)                   \
+    $(wildcard $($(LIBNAME)_DIR)/*.cxx)                 \ # or .cpp or .cc
+    $(wildcard $($(LIBNAME)_DIR)/*.s)
+
+include $(TOCK_USERLAND_BASE_DIR)/TockLibrary.mk
+```
+
+> __Note! `:=` is NOT the same as `=` in make. You must use `:=`.__
+
+##### Developing (building) libraries concurrently with applications
+
+When developing a library, often it's useful to have the library rebuild automatically
+as part of the application build. Assuming that your library is using `TockLibrary.mk`,
+you can simply include the library's Makefile in your application's Makefile:
+
+```make
+include $(TOCK_USERLAND_BASE_DIR)/libexample/Makefile
+include ../../AppMakefile.mk
+```
+
+**Example:** We don't have an in-tree example of a single app that rebuilds
+a dedicated library in the Tock repository, but libtock is effectively treated
+this way as its Makefile is
+[included by AppMakefile.mk](https://github.com/helena-project/tock/blob/master/userland/AppMakefile.mk#L17).
+
+##### Pre-built libraries
+
+You can also include pre-built libraries, but recall that Tock supports multiple
+architectures, which means you must supply a pre-built image for each.
+
+Pre-built libraries must adhere to the following folder structure:
 
 ```
 For the library "example"
@@ -372,40 +464,24 @@ libexample/                <-- Folder name must match library name
 │   │   └── libexample.a   <-- Library name must match folder name
 │   └── cortex-m4
 │       └── libexample.a   <-- Library name must match folder name
-└── include                <-- Optional include/ directory will be added to include path
+│
+└── root_header.h          <-- The root directory will always be added to include path
+└── include                <-- An include/ directory will be added too if it exists
     └── example.h
 ```
 
-Like applications, libraries can leverage the Tock build system to do most of
-the heavy lifting. Simply,
+To include a pre-built library, add the _path_ to the root folder to the
+variable `EXTERN_LIBS` in your application Makefile, e.g.
+`EXTERN_LIBS += ../../libexample`.
 
-  1. Set `TOCK_USERLAND_BASE_DIR` to the path to the Tock userland.
-  2. `include $(TOCK_USERLAND_BASE_DIR)/TockLibrary.mk`.
+**Example:** In the Tock repository, lua53
+[ships a pre-built archive](https://github.com/helena-project/tock/tree/master/userland/lua53/build/cortex-m4).
 
-and add sources using the same variables as applications.
-
-##### Development vs Stable Libraries
-
-When developing a library, often it's useful to have the library rebuild automatically.
-In that case, simply include the library Makefile (i.e.
-`include $(TOCK_USERLAND_BASE_DIR)/libtock/Makefile`) in your application Makefile. For
-stable libraries, simply check in the built archive.
-
-There are examples of each in the Tock repository, libtock
-[builds with every application](https://github.com/helena-project/tock/blob/master/userland/AppMakefile.mk#L17)
-whereas libnrfserialization
-[ships a pre-built archive](https://github.com/helena-project/tock/tree/master/userland/libnrfserialization/build/cortex-m4).
-
-#### Including other libraries
+##### Manually including libraries
 
 To manually include an external library, add the library to each `LIBS_$(arch)`
 (i.e. `LIBS_cortex-m0`) variable. You can include header paths using the
 standard search mechanisms (i.e. `CPPFLAGS += -I<path>`).
-
-### Note for the Future
-
-All these requirements exist in current Tock, but are not fundamental. Future
-version of Tock may support dynamic runtime application linking and loading.
 
 
 ## Loading the kernel and processes onto a board
