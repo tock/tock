@@ -196,6 +196,21 @@ SECTIONS
 
     .sram (NOLOAD) :
     {
+        /* Kernel stack.
+         *
+         * To keep all kernel memory contiguous (eases MPU protection of kernel
+         * data), Tock next places its own stack into SRAM.
+         */
+        . = ALIGN(8);
+         _sstack = .;
+
+        . = . + __stack_size__;
+
+        . = ALIGN(8);
+        _estack = .;
+
+
+
         /* Kernel BSS section. Memory that is expected to be initialized to
          * zero.
          *
@@ -214,21 +229,6 @@ SECTIONS
 
         . = ALIGN(4);
         _ezero = .;
-
-
-
-        /* Kernel stack.
-         *
-         * To keep all kernel memory contiguous (eases MPU protection of kernel
-         * data), Tock next places its own stack into SRAM.
-         */
-        . = ALIGN(8);
-         _sstack = .;
-
-        . = . + __stack_size__;
-
-        . = ALIGN(8);
-        _estack = .;
 
 
 
