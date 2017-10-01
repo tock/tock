@@ -57,9 +57,9 @@ or 0xFF.
 
 RAM contains four major regions:
 
-1. Kernel data: initialized memory, copied from flash at boot.
-2. Kernel BSS: uninitialized memory, zeroed at boot.
-3. Kernel stack.
+1. Kernel stack.
+2. Kernel data: initialized memory, copied from flash at boot.
+3. Kernel BSS: uninitialized memory, zeroed at boot.
 4. Process memory: memory space divided between all running apps.
 
 
