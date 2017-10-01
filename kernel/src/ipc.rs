@@ -58,7 +58,7 @@ impl IPC {
                                                           slice.ptr() as usize);
                                     }
                                     None => {
-                                        callback.schedule(appid.idx() + 1, 0, 0);
+                                        callback.schedule(otherapp.idx() + 1, 0, 0);
                                     }
                                 }
                             })
