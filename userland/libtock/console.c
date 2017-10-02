@@ -81,12 +81,12 @@ int putnstr_async(const char *str, size_t len, subscribe_cb cb, void* userdata) 
   void* buf = (void*) str;
 #pragma GCC diagnostic pop
 
-  ret = allow(0, 1, buf, len);
+  ret = allow(DRIVER_NUM_CONSOLE, 1, buf, len);
   if (ret < 0) return ret;
 
-  ret = subscribe(0, 1, cb, userdata);
+  ret = subscribe(DRIVER_NUM_CONSOLE, 1, cb, userdata);
   if (ret < 0) return ret;
 
-  ret = command(0, 1, len);
+  ret = command(DRIVER_NUM_CONSOLE, 1, len, 0);
   return ret;
 }

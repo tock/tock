@@ -25,19 +25,19 @@ int max17205_set_callback (subscribe_cb callback, void* callback_args) {
 }
 
 int max17205_read_status(void) {
-  return command(DRIVER_NUM_MAX17205, 1, 0);
+  return command(DRIVER_NUM_MAX17205, 1, 0, 0);
 }
 
 int max17205_read_soc(void) {
-  return command(DRIVER_NUM_MAX17205, 2, 0);
+  return command(DRIVER_NUM_MAX17205, 2, 0, 0);
 }
 
 int max17205_read_voltage_current(void) {
-  return command(DRIVER_NUM_MAX17205, 3, 0);
+  return command(DRIVER_NUM_MAX17205, 3, 0, 0);
 }
 
 int max17205_read_coulomb(void) {
-  return command(DRIVER_NUM_MAX17205, 4, 0);
+  return command(DRIVER_NUM_MAX17205, 4, 0, 0);
 }
 
 int max17205_read_status_sync(uint16_t* status) {

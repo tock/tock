@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define AES_DRIVER 17
+#define AES_DRIVER 0x40000
 #define AES_KEY    0
 #define AES_DATA   1
 #define AES_ENC    2

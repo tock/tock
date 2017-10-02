@@ -2,11 +2,11 @@
 
 #include "tock.h"
 
-#define DRIVER_NUM_PCA9544A 19
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define DRIVER_NUM_PCA9544A 0x80002
 
 int pca9544a_set_callback(subscribe_cb callback, void* callback_args);
 

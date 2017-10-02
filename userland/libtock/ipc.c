@@ -21,11 +21,11 @@ int ipc_register_client_cb(int svc_id, subscribe_cb callback, void *ud) {
 }
 
 int ipc_notify_svc(int pid) {
-  return command(IPC_DRIVER_NUM, pid, 0);
+  return command(IPC_DRIVER_NUM, pid, 0, 0);
 }
 
 int ipc_notify_client(int pid) {
-  return command(IPC_DRIVER_NUM, pid, 1);
+  return command(IPC_DRIVER_NUM, pid, 1, 0);
 }
 
 int ipc_share(int pid, void* base, int len) {

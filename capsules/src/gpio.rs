@@ -3,6 +3,11 @@
 //! GPIOs are presented through a driver interface with synchronous commands
 //! and a callback for interrupts.
 //!
+//! This capsule takes an array of pins to expose as generic GPIOs.
+//! Note that this capsule is used for general purpose GPIOs. Pins that are
+//! attached to LEDs or buttons are generally wired directly to those capsules,
+//! not through this capsule as an intermediary.
+//!
 //! Usage
 //! -----
 //!
@@ -20,6 +25,26 @@
 //!     pin.set_client(gpio);
 //! }
 //! ```
+//!
+//! Syscall Interface
+//! -----------------
+//!
+//! - Stability: 2 - Stable
+//!
+//! ### Commands
+//!
+//! All GPIO operations are synchronous.
+//!
+//! Commands control and query GPIO information, namely how many GPIOs are
+//! present, the GPIO direction and state, and whether they should interrupt.
+//!
+//! ### Subscribes
+//!
+//! The GPIO interface provides only one callback, which is used for pins that
+//! have had interrupts enabled.
+
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x00000004;
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};
@@ -43,20 +68,17 @@ impl<'a, G: Pin + PinCtl> GPIO<'a, G> {
         pin.make_input();
         match config {
             0 => {
-                pin.set_input_mode(InputMode::PullUp);
-                ReturnCode::SUCCESS
-            }
-
-            1 => {
-                pin.set_input_mode(InputMode::PullDown);
-                ReturnCode::SUCCESS
-            }
-
-            2 => {
                 pin.set_input_mode(InputMode::PullNone);
                 ReturnCode::SUCCESS
             }
-
+            1 => {
+                pin.set_input_mode(InputMode::PullUp);
+                ReturnCode::SUCCESS
+            }
+            2 => {
+                pin.set_input_mode(InputMode::PullDown);
+                ReturnCode::SUCCESS
+            }
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -98,10 +120,16 @@ impl<'a, G: Pin> Client for GPIO<'a, G> {
 }
 
 impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
+    /// Subscribe to GPIO pin events.
+    ///
+    /// ### `subscribe_num`
+    ///
+    /// - `0`: Subscribe to interrupts from all pins with interrupts enabled.
+    ///        The callback signature is `fn(pin_num: usize, pin_state: bool)`
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            // subscribe to all pin interrupts
-            // (no affect or reliance on individual pins being configured as interrupts)
+            // subscribe to all pin interrupts (no affect or reliance on
+            // individual pins being configured as interrupts)
             0 => {
                 self.callback.set(Some(callback));
                 ReturnCode::SUCCESS
@@ -112,115 +140,131 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+    /// Query and control pin values and states.
+    ///
+    /// Each byte of the `data` argument is treated as its own field.
+    /// For all commands, the lowest order halfword is the pin number (`pin`).
+    /// A few commands use higher order bytes for purposes documented below.
+    /// If the higher order bytes are not used, they must be set to `0`.
+    ///
+    /// Other data bytes:
+    ///   - `pin_config`: An internal resistor setting.
+    ///                   Set to `0` for a pull-up resistor.
+    ///                   Set to `1` for a pull-down resistor.
+    ///                   Set to `2` for none.
+    ///   - `irq_config`: Interrupt configuration setting.
+    ///                   Set to `0` to interrupt on either edge.
+    ///                   Set to `1` for rising edge.
+    ///                   Set to `2` for falling edge.
+    ///
+    /// ### `command_num`
+    ///
+    /// - `0`: Number of pins.
+    /// - `1`: Enable output on `pin`.
+    /// - `2`: Set `pin`.
+    /// - `3`: Clear `pin`.
+    /// - `4`: Toggle `pin`.
+    /// - `5`: Enable input on `pin` with `pin_config` in 0x00XX00000
+    /// - `6`: Read `pin` value.
+    /// - `7`: Configure interrupt on `pin` with `irq_config` in 0x00XX00000
+    /// - `8`: Disable interrupt on `pin`.
+    /// - `9`: Disable `pin`.
+    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         let pins = self.pins.as_ref();
+        let pin = data1;
         match command_num {
             // number of pins
             0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
 
             // enable output
             1 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].make_output();
+                    pins[pin].make_output();
                     ReturnCode::SUCCESS
                 }
             }
 
             // set pin
             2 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].set();
+                    pins[pin].set();
                     ReturnCode::SUCCESS
                 }
             }
 
             // clear pin
             3 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].clear();
+                    pins[pin].clear();
                     ReturnCode::SUCCESS
                 }
             }
 
             // toggle pin
             4 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].toggle();
+                    pins[pin].toggle();
                     ReturnCode::SUCCESS
                 }
             }
 
             // enable and configure input
             5 => {
-                // XXX: this is clunky
-                // data == ((pin_config << 8) | pin)
-                // this allows two values to be passed into a command interface
-                let pin_num = data & 0xFF;
-                let pin_config = (data >> 8) & 0xFF;
-                if pin_num >= pins.len() {
+                let pin_config = data2;
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    let err_code = self.configure_input_pin(pin_num, pin_config);
-                    err_code
+                    self.configure_input_pin(pin, pin_config)
                 }
             }
 
             // read input
             6 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    let pin_state = pins[data].read();
+                    let pin_state = pins[pin].read();
                     ReturnCode::SuccessWithValue { value: pin_state as usize }
                 }
             }
 
-            // enable and configure interrupts on pin, also sets pin as input
+            // configure interrupts on pin
             // (no affect or reliance on registered callback)
             7 => {
-                // TODO(brghena): this is clunky
-                // data == ((irq_config << 16) | (pin_config << 8) | pin)
-                // this allows three values to be passed into a command interface
-                let pin_num = data & 0xFF;
-                let pin_config = (data >> 8) & 0xFF;
-                let irq_config = (data >> 16) & 0xFF;
-                if pin_num >= pins.len() {
+                let irq_config = data2;
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    let mut err_code = self.configure_input_pin(pin_num, pin_config);
-                    if err_code == ReturnCode::SUCCESS {
-                        err_code = self.configure_interrupt(pin_num, irq_config);
-                    }
-                    err_code
+                    self.configure_interrupt(pin, irq_config)
                 }
             }
 
             // disable interrupts on pin, also disables pin
             // (no affect or reliance on registered callback)
             8 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].disable_interrupt();
-                    pins[data].disable();
+                    pins[pin].disable_interrupt();
+                    pins[pin].disable();
                     ReturnCode::SUCCESS
                 }
             }
 
             // disable pin
             9 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].disable();
+                    pins[pin].disable();
                     ReturnCode::SUCCESS
                 }
             }

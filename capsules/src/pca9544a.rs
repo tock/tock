@@ -173,7 +173,7 @@ impl<'a> Driver for PCA9544A<'a> {
     /// - `2`: Disable all channels.
     /// - `3`: Read the list of fired interrupts.
     /// - `4`: Read which channels are selected.
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             // Check if present.
             0 => ReturnCode::SUCCESS,

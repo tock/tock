@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_ADC 7
+#define DRIVER_NUM_ADC 0x5
 
 // mode of the ADC
 // Used to tell which operation a callback corresponds to

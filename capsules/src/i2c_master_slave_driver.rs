@@ -236,7 +236,7 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
 

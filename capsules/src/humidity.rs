@@ -51,6 +51,9 @@ use kernel::{AppId, Callback, Grant, Driver};
 use kernel::ReturnCode;
 use kernel::hil;
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x60003;
+
 #[derive(Clone,Copy,PartialEq)]
 pub enum HumidityCommand {
     Exists,
@@ -128,7 +131,7 @@ impl<'a> Driver for HumiditySensor<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
 
             // check whether the driver exist!!

@@ -484,7 +484,7 @@ impl<'a> Driver for LTC294XDriver<'a> {
     /// - `9`: Get the current reading. Only supported on the LTC2943.
     /// - `10`: Set the model of the LTC294X actually being used. `data` is the
     ///   value of the X.
-    fn command(&self, command_num: usize, data: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             // Check this driver exists.
             0 => ReturnCode::SUCCESS,

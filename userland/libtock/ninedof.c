@@ -45,11 +45,11 @@ int ninedof_subscribe(subscribe_cb callback, void* userdata) {
 }
 
 int ninedof_start_accel_reading(void) {
-  return command(DRIVER_NUM_NINEDOF, 1, 0);
+  return command(DRIVER_NUM_NINEDOF, 1, 0, 0);
 }
 
 int ninedof_start_magnetometer_reading(void) {
-  return command(DRIVER_NUM_NINEDOF, 100, 0);
+  return command(DRIVER_NUM_NINEDOF, 100, 0, 0);
 }
 
 int ninedof_read_acceleration_sync(int* x, int* y, int* z) {

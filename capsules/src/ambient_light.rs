@@ -1,8 +1,3 @@
-//! Ambient light sensor system call driver
-//!
-//! Usage
-//! -----
-//!
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
 //! ``rust
@@ -16,6 +11,9 @@
 use core::cell::Cell;
 use kernel::{AppId, Callback, Grant, Driver, ReturnCode};
 use kernel::hil;
+
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x60002;
 
 /// Per-process metdata
 #[derive(Default)]
@@ -87,7 +85,7 @@ impl<'a> Driver for AmbientLight<'a> {
     ///
     /// - `0`: Check driver presence
     /// - `1`: Start a light sensor reading
-    fn command(&self, command_num: usize, _arg1: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 => {

@@ -52,7 +52,7 @@ int app_state_save(subscribe_cb callback, void* callback_args) {
   err = subscribe(DRIVER_NUM_APP_FLASH, 0, callback, callback_args);
   if (err < 0) return err;
 
-  return command(DRIVER_NUM_APP_FLASH, 1, (uint32_t) _app_state_flash_pointer);
+  return command(DRIVER_NUM_APP_FLASH, 1, (uint32_t) _app_state_flash_pointer, 0);
 }
 
 

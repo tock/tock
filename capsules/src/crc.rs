@@ -71,6 +71,9 @@ use kernel::hil;
 use kernel::hil::crc::CrcAlg;
 use kernel::process::Error;
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x40002;
+
 /// An opaque value maintaining state for one application's request
 #[derive(Default)]
 pub struct App {
@@ -277,7 +280,7 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     ///   * `4: SAM4L-32C`  This algorithm uses the same polynomial as
     ///   `CRC-32C`, but does no post-processing on the output value.  It
     ///   can be performed purely in hardware on the SAM4L.
-    fn command(&self, command_num: usize, algorithm: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, algorithm: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             // This driver is present
             0 => ReturnCode::SUCCESS,

@@ -19,7 +19,7 @@ kernel driver to start the measurement. Lets first sketch this out:
     ```c
     #include <tock.h>
 
-    #define DRIVER_NUM 6
+    #define DRIVER_NUM 0x60002
 
     // Callback when the ISL29035 has a light intensity measurement ready.
     static void isl29035_callback(int intensity, int unused1, int unused2, void* ud) {
@@ -48,7 +48,7 @@ actually fire. We do not need to use `allow` for this application, and typically
 it is not required for reading sensors.
 
     For all syscalls that interact with drivers, the major number is set by
-    the platform. In the case of the ISL29035, it is `6`. The minor numbers
+    the platform. In the case of the ISL29035, it is `0x60002`. The minor numbers
     are set by the driver and are specific to the particular driver.
 
     To save the value from the callback to use in the print statement, we will
@@ -59,7 +59,7 @@ it is not required for reading sensors.
 
     #include <tock.h>
 
-    #define DRIVER_NUM 6
+    #define DRIVER_NUM 0x60002
 
     static int isl29035_reading;
 
@@ -105,7 +105,7 @@ would fire first and the `printf()` would execute with an incorrect value.
 
     #include <tock.h>
 
-    #define DRIVER_NUM 6
+    #define DRIVER_NUM 0x60002
 
     static int isl29035_reading;
     static bool isl29035_done = false;

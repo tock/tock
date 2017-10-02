@@ -23,7 +23,7 @@ int temperature_set_callback(subscribe_cb callback, void* callback_args) {
 }
 
 int temperature_read(void) {
-  return command(DRIVER_NUM_TEMPERATURE, 1, 0);
+  return command(DRIVER_NUM_TEMPERATURE, 1, 0, 0);
 }
 
 int temperature_read_sync(int* temperature) {

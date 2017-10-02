@@ -103,7 +103,7 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
             }
             Some(Syscall::COMMAND) => {
                 let res = platform.with_driver(process.r0(), |driver| match driver {
-                    Some(d) => d.command(process.r1(), process.r2(), appid),
+                    Some(d) => d.command(process.r1(), process.r2(), process.r3(), appid),
                     None => ReturnCode::ENODEVICE,
                 });
                 process.set_return_code(res);

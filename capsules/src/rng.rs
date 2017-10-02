@@ -19,6 +19,9 @@ use kernel::{AppId, AppSlice, Grant, Callback, Driver, ReturnCode, Shared};
 use kernel::hil::rng;
 use kernel::process::Error;
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x40001;
+
 pub struct App {
     callback: Option<Callback>,
     buffer: Option<AppSlice<Shared, u8>>,
@@ -157,7 +160,7 @@ impl<'a, RNG: rng::RNG> Driver for SimpleRng<'a, RNG> {
         }
     }
 
-    fn command(&self, command_num: usize, data: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             0 => /* Check if exists */ ReturnCode::SUCCESS,
 

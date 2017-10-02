@@ -8,9 +8,9 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
+use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::mac::Mac;
 use capsules::rf233::RF233;
-use capsules::timer::TimerDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
@@ -51,7 +51,7 @@ type RF233Device = capsules::rf233::RF233<'static,
 struct Imix {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
@@ -90,22 +90,21 @@ impl kernel::Platform for Imix {
         where F: FnOnce(Option<&kernel::Driver>) -> R
     {
         match driver_num {
-            0 => f(Some(self.console)),
-            1 => f(Some(self.gpio)),
-
-            3 => f(Some(self.timer)),
-            4 => f(Some(self.spi)),
-            6 => f(Some(self.ambient_light)),
-            7 => f(Some(self.adc)),
-            8 => f(Some(self.led)),
-            9 => f(Some(self.button)),
-            10 => f(Some(self.temp)),
-            11 => f(Some(self.ninedof)),
-            16 => f(Some(self.crc)),
-            34 => f(Some(self.usb_driver)),
-            35 => f(Some(self.humidity)),
-            154 => f(Some(self.radio_driver)),
-            0xff => f(Some(&self.ipc)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+            capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
+            capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -228,10 +227,10 @@ pub unsafe fn reset_handler() {
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm));
-    let timer = static_init!(
-        TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        TimerDriver::new(virtual_alarm1, kernel::Grant::create()));
-    virtual_alarm1.set_client(timer);
+    let alarm = static_init!(
+        AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        AlarmDriver::new(virtual_alarm1, kernel::Grant::create()));
+    virtual_alarm1.set_client(alarm);
 
     // # I2C Sensors
 
@@ -389,13 +388,13 @@ pub unsafe fn reset_handler() {
     // # BUTTONs
 
     let button_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 1],
-        [&sam4l::gpio::PC[24]]);
+        [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
+        [(&sam4l::gpio::PC[24], capsules::button::GpioMode::LowWhenPressed)]);
 
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
         capsules::button::Button::new(button_pins, kernel::Grant::create()));
-    for btn in button_pins.iter() {
+    for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
     }
 
@@ -451,7 +450,7 @@ pub unsafe fn reset_handler() {
 
     let imix = Imix {
         console: console,
-        timer: timer,
+        alarm: alarm,
         gpio: gpio,
         temp: temp,
         humidity: humidity,

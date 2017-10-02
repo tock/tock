@@ -448,7 +448,7 @@ impl<'a> Driver for TSL2561<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             // Take a measurement

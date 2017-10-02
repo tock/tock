@@ -3,6 +3,9 @@
 //! This is a special syscall driver that allows userspace applications to
 //! share memory.
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x00010000;
+
 use {AppId, AppSlice, Grant, Callback, Driver, Shared};
 use process;
 use returncode::ReturnCode;
@@ -119,7 +122,12 @@ impl Driver for IPC {
     /// and notifying an IPC client is done by setting client_or_svc to 1.
     /// In either case, the target_id is the same number as provided in a notify
     /// callback or as returned by allow.
-    fn command(&self, target_id: usize, client_or_svc: usize, appid: AppId) -> ReturnCode {
+    fn command(&self,
+               target_id: usize,
+               client_or_svc: usize,
+               _: usize,
+               appid: AppId)
+               -> ReturnCode {
         let procs = unsafe { &mut process::PROCS };
         if target_id == 0 || target_id > procs.len() {
             return ReturnCode::EINVAL; /* Request to IPC to impossible process */

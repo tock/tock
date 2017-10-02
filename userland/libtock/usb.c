@@ -1,7 +1,7 @@
 #include "usb.h"
 
 int usb_exists(void) {
-  return command(DRIVER_NUM_USB, 0, 0) >= 0;
+  return command(DRIVER_NUM_USB, 0, 0, 0) >= 0;
 }
 
 int usb_subscribe(subscribe_cb callback, void *ud) {
@@ -9,7 +9,7 @@ int usb_subscribe(subscribe_cb callback, void *ud) {
 }
 
 int usb_enable_and_attach_async(void) {
-  return command(DRIVER_NUM_USB, 1, 0);
+  return command(DRIVER_NUM_USB, 1, 0, 0);
 }
 
 struct data {

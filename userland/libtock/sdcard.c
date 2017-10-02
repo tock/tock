@@ -82,11 +82,11 @@ int sdcard_set_write_buffer (uint8_t* buffer, uint32_t len) {
 }
 
 int sdcard_is_installed (void) {
-  return command(DRIVER_NUM_SDCARD, 1, 0);
+  return command(DRIVER_NUM_SDCARD, 1, 0, 0);
 }
 
 int sdcard_initialize (void) {
-  return command(DRIVER_NUM_SDCARD, 2, 0);
+  return command(DRIVER_NUM_SDCARD, 2, 0, 0);
 }
 
 int sdcard_initialize_sync (uint32_t* block_size, uint32_t* size_in_kB) {
@@ -116,7 +116,7 @@ int sdcard_initialize_sync (uint32_t* block_size, uint32_t* size_in_kB) {
 }
 
 int sdcard_read_block (uint32_t sector) {
-  return command(DRIVER_NUM_SDCARD, 3, sector);
+  return command(DRIVER_NUM_SDCARD, 3, sector, 0);
 }
 
 int sdcard_read_block_sync (uint32_t sector) {
@@ -138,7 +138,7 @@ int sdcard_read_block_sync (uint32_t sector) {
 }
 
 int sdcard_write_block (uint32_t sector) {
-  return command(DRIVER_NUM_SDCARD, 4, sector);
+  return command(DRIVER_NUM_SDCARD, 4, sector, 0);
 }
 
 int sdcard_write_block_sync (uint32_t sector) {

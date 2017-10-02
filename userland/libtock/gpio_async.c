@@ -1,8 +1,7 @@
 #include "gpio_async.h"
 #include "tock.h"
 
-#define CONCAT_PORT_PIN(port, pin) (((pin & 0xFF) << 8) | (port & 0xFF))
-#define CONCAT_PORT_PIN_DATA(port, pin, data) (((data & 0xFFFF) << 16) | ((pin & 0xFF) << 8) | (port & 0xFF))
+#define CONCAT_PORT_DATA(port, data) (((data & 0xFFFF) << 16) | (port & 0xFFFF))
 
 
 struct gpio_async_data {
@@ -30,39 +29,39 @@ int gpio_async_set_callback (subscribe_cb callback, void* callback_args) {
 }
 
 int gpio_async_make_output(uint32_t port, uint8_t pin) {
-  return command(DRIVER_NUM_GPIO_ASYNC, 1, CONCAT_PORT_PIN(port, pin));
+  return command(DRIVER_NUM_GPIO_ASYNC, 1, pin, port);
 }
 
 int gpio_async_set(uint32_t port, uint8_t pin) {
-  return command(DRIVER_NUM_GPIO_ASYNC, 2, CONCAT_PORT_PIN(port, pin));
+  return command(DRIVER_NUM_GPIO_ASYNC, 2, pin, port);
 }
 
 int gpio_async_clear(uint32_t port, uint8_t pin) {
-  return command(DRIVER_NUM_GPIO_ASYNC, 3, CONCAT_PORT_PIN(port, pin));
+  return command(DRIVER_NUM_GPIO_ASYNC, 3, pin, port);
 }
 
 int gpio_async_toggle(uint32_t port, uint8_t pin) {
-  return command(DRIVER_NUM_GPIO_ASYNC, 4, CONCAT_PORT_PIN(port, pin));
+  return command(DRIVER_NUM_GPIO_ASYNC, 4, pin, port);
 }
 
 int gpio_async_make_input(uint32_t port, uint8_t pin, GPIO_InputMode_t pin_config) {
-  return command(DRIVER_NUM_GPIO_ASYNC, 5, CONCAT_PORT_PIN_DATA(port, pin, pin_config));
+  return command(DRIVER_NUM_GPIO_ASYNC, 5, pin, CONCAT_PORT_DATA(port, pin_config));
 }
 
 int gpio_async_read(uint32_t port, uint8_t pin) {
-  return command(DRIVER_NUM_GPIO_ASYNC, 6, CONCAT_PORT_PIN(port, pin));
+  return command(DRIVER_NUM_GPIO_ASYNC, 6, pin, port);
 }
 
 int gpio_async_enable_interrupt(uint32_t port, uint8_t pin, GPIO_InterruptMode_t irq_config) {
-  return command(DRIVER_NUM_GPIO_ASYNC, 7, CONCAT_PORT_PIN_DATA(port, pin, irq_config));
+  return command(DRIVER_NUM_GPIO_ASYNC, 7, pin, CONCAT_PORT_DATA(port, irq_config));
 }
 
 int gpio_async_disable_interrupt(uint32_t port, uint8_t pin) {
-  return command(DRIVER_NUM_GPIO_ASYNC, 8, CONCAT_PORT_PIN(port, pin));
+  return command(DRIVER_NUM_GPIO_ASYNC, 8, pin, port);
 }
 
 int gpio_async_disable(uint32_t port, uint8_t pin) {
-  return command(DRIVER_NUM_GPIO_ASYNC, 9, CONCAT_PORT_PIN(port, pin));
+  return command(DRIVER_NUM_GPIO_ASYNC, 9, pin, port);
 }
 
 int gpio_async_interrupt_callback(subscribe_cb callback, void* callback_args) {

@@ -43,24 +43,24 @@ int i2c_master_slave_set_slave_write_buffer(uint8_t* buffer, uint32_t len) {
 
 int i2c_master_slave_write(uint8_t address, uint8_t length) {
   uint32_t a = (((uint32_t) length) << 16) | address;
-  return command(DRIVER_NUM_I2CMASTERSLAVE, 1, a);
+  return command(DRIVER_NUM_I2CMASTERSLAVE, 1, a, 0);
 }
 
 int i2c_master_slave_read(uint16_t address, uint16_t len) {
   uint32_t a = (((uint32_t) len) << 16) | address;
-  return command(DRIVER_NUM_I2CMASTERSLAVE, 2, a);
+  return command(DRIVER_NUM_I2CMASTERSLAVE, 2, a, 0);
 }
 
 int i2c_master_slave_listen(void) {
-  return command(DRIVER_NUM_I2CMASTERSLAVE, 3, 0);
+  return command(DRIVER_NUM_I2CMASTERSLAVE, 3, 0, 0);
 }
 
 int i2c_master_slave_set_slave_address(uint8_t address) {
-  return command(DRIVER_NUM_I2CMASTERSLAVE, 6, address);
+  return command(DRIVER_NUM_I2CMASTERSLAVE, 6, address, 0);
 }
 
 int i2c_master_slave_enable_slave_read(uint32_t len) {
-  return command(DRIVER_NUM_I2CMASTERSLAVE, 4, len);
+  return command(DRIVER_NUM_I2CMASTERSLAVE, 4, len, 0);
 }
 
 int i2c_master_slave_write_sync(uint8_t address, uint8_t len) {

@@ -69,7 +69,7 @@ static void callback( __attribute__ ((unused)) int unused0,
     // has the alarm not expired yet? (distance from `now` has to be larger or
     // equal to distance from current clock value.
     if (alarm->expiration - alarm->t0 > now - alarm->t0) {
-      alarm_internal_absolute(alarm->expiration);
+      alarm_internal_set(alarm->expiration);
       break;
     } else {
       root_pop();
@@ -97,7 +97,7 @@ void alarm_at(uint32_t expiration, subscribe_cb cb, void* ud, alarm_t* alarm) {
 
   if (root_peek() == alarm) {
     alarm_internal_subscribe((subscribe_cb*)callback, NULL);
-    alarm_internal_absolute(alarm->expiration);
+    alarm_internal_set(alarm->expiration);
   }
 }
 
@@ -112,7 +112,7 @@ void alarm_cancel(alarm_t* alarm) {
   if (root == alarm) {
     root = alarm->next;
     if (root != NULL) {
-      alarm_internal_absolute(root->expiration);
+      alarm_internal_set(root->expiration);
     }
   }
 
@@ -122,7 +122,7 @@ void alarm_cancel(alarm_t* alarm) {
 }
 
 uint32_t alarm_read(void) {
-  return (uint32_t) command(3, 4, 0);
+  return (uint32_t) command(DRIVER_NUM_ALARM, 2, 0, 0);
 }
 
 // Timer implementation

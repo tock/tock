@@ -70,7 +70,8 @@ static void gpio_interrupt(void) {
   gpio_interrupt_callback(gpio_cb, NULL);
 
   // set LED as input and enable interrupts on it
-  gpio_enable_interrupt(0, PullDown, Change);
+  gpio_enable_input(0, PullDown);
+  gpio_enable_interrupt(0, Change);
 
   while (1) {
     yield();

@@ -7,6 +7,9 @@ use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil;
 
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x00000005;
+
 /// ADC application driver, used by applications to interact with ADC.
 /// Not currently virtualized, only one application can use it at a time.
 pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> {
@@ -789,37 +792,27 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
     /// command_num - which command call this is
     /// data - value sent by the application, varying uses
     /// _appid - application identifier, unused
-    fn command(&self, command_num: usize, data: usize, _appid: AppId) -> ReturnCode {
+    fn command(&self,
+               command_num: usize,
+               channel: usize,
+               frequency: usize,
+               _appid: AppId)
+               -> ReturnCode {
         match command_num {
             // check if present
             0 => ReturnCode::SuccessWithValue { value: self.channels.len() as usize },
 
             // Single sample on channel
-            1 => {
-                let channel = (data & 0xFF) as usize;
-                self.sample(channel)
-            }
+            1 => self.sample(channel),
 
             // Repeated single samples on a channel
-            2 => {
-                let channel = (data & 0xFF) as usize;
-                let frequency = (data >> 8) as u32;
-                self.sample_continuous(channel, frequency)
-            }
+            2 => self.sample_continuous(channel, frequency as u32),
 
             // Multiple sample on a channel
-            3 => {
-                let channel = (data & 0xFF) as usize;
-                let frequency = (data >> 8) as u32;
-                self.sample_buffer(channel, frequency)
-            }
+            3 => self.sample_buffer(channel, frequency as u32),
 
             // Continuous buffered sampling on a channel
-            4 => {
-                let channel = (data & 0xFF) as usize;
-                let frequency = (data >> 8) as u32;
-                self.sample_buffer_continuous(channel, frequency)
-            }
+            4 => self.sample_buffer_continuous(channel, frequency as u32),
 
             // Stop sampling
             5 => self.stop_sampling(),

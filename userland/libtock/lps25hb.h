@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define DRIVER_NUM_LPS25HB 22
+#define DRIVER_NUM_LPS25HB 0x70004
 
 int lps25hb_set_callback (subscribe_cb callback, void* callback_args);
 int lps25hb_get_pressure (void);

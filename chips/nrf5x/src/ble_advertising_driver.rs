@@ -72,6 +72,9 @@ use kernel;
 use kernel::hil::time::Frequency;
 use kernel::returncode::ReturnCode;
 
+/// Syscall Number
+pub const DRIVER_NUM: usize = 0x80_03_00_00;
+
 pub static mut BUF: [u8; 32] = [0; 32];
 
 
@@ -256,7 +259,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
 {
-    fn command(&self, command_num: usize, data: usize, _: kernel::AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: kernel::AppId) -> ReturnCode {
         match (command_num, self.busy.get()) {
             // START BLE
             (0, false) => {

@@ -6,6 +6,8 @@
 extern "C" {
 #endif
 
+#define DRIVER_NUM_ALARM 0x0
+
 /*
  * Sets the callback for timers
  *
@@ -17,31 +19,13 @@ extern "C" {
 int alarm_internal_subscribe(subscribe_cb cb, void *userdata);
 
 /*
- * Starts a repeating timer
- *
- * interval_ms - the interval for the timer in milliseconds
- *
- * Side-effects: cancels any existing/outstanding timers
- */
-int alarm_internal_start_repeating(uint32_t interval_ms);
-
-/*
- * Starts a oneshot timer
- *
- * interval_ms - the interval for the timer in milliseconds
- *
- * Side-effects: cancels any existing/outstanding timers
- */
-int alarm_internal_oneshot(uint32_t interval_ms);
-
-/*
  * Starts a oneshot alarm
  *
  * expiration - absolute expiration value in clock tics
  *
  * Side-effects: cancels any existing/outstanding timers
  */
-int alarm_internal_absolute(uint32_t tics);
+int alarm_internal_set(uint32_t tics);
 
 
 /*

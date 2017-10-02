@@ -2,11 +2,11 @@
 
 #include "tock.h"
 
-#define DRIVER_NUM_MAX17205 21
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define DRIVER_NUM_MAX17205 0x80001
 
 // Set a callback for the MAX17205 driver.
 //

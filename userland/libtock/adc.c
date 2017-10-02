@@ -170,34 +170,31 @@ int adc_set_double_buffer(uint16_t* buffer, uint32_t len) {
 }
 
 bool adc_is_present(void) {
-  return command(DRIVER_NUM_ADC, 0, 0) >= 0;
+  return command(DRIVER_NUM_ADC, 0, 0, 0) >= 0;
 }
 
 int adc_channel_count(void) {
-  return command(DRIVER_NUM_ADC, 0, 0);
+  return command(DRIVER_NUM_ADC, 0, 0, 0);
 }
 
 int adc_single_sample(uint8_t channel) {
-  return command(DRIVER_NUM_ADC, 1, channel);
+  return command(DRIVER_NUM_ADC, 1, channel, 0);
 }
 
 int adc_continuous_sample(uint8_t channel, uint32_t frequency) {
-  uint32_t chan_freq = (frequency << 8) | (channel & 0xFF);
-  return command(DRIVER_NUM_ADC, 2, chan_freq);
+  return command(DRIVER_NUM_ADC, 2, channel, frequency);
 }
 
 int adc_buffered_sample(uint8_t channel, uint32_t frequency) {
-  uint32_t chan_freq = (frequency << 8) | (channel & 0xFF);
-  return command(DRIVER_NUM_ADC, 3, chan_freq);
+  return command(DRIVER_NUM_ADC, 3, channel, frequency);
 }
 
 int adc_continuous_buffered_sample(uint8_t channel, uint32_t frequency) {
-  uint32_t chan_freq = (frequency << 8) | (channel & 0xFF);
-  return command(DRIVER_NUM_ADC, 4, chan_freq);
+  return command(DRIVER_NUM_ADC, 4, channel, frequency);
 }
 
 int adc_stop_sampling(void) {
-  return command(DRIVER_NUM_ADC, 5, 0);
+  return command(DRIVER_NUM_ADC, 5, 0, 0);
 }
 
 

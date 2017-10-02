@@ -42,26 +42,25 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart::{self, UART, Client};
 use kernel::process::Error;
 
+/// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x00000001;
+
 pub struct App {
     write_callback: Option<Callback>,
-    read_buffer: Option<AppSlice<Shared, u8>>,
     write_buffer: Option<AppSlice<Shared, u8>>,
     write_len: usize,
     write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
     pending_write: bool,
-    read_idx: usize,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
             write_callback: None,
-            read_buffer: None,
             write_buffer: None,
             write_len: 0,
             write_remaining: 0,
             pending_write: false,
-            read_idx: 0,
         }
     }
 }
@@ -166,19 +165,9 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     ///
     /// ### `allow_num`
     ///
-    /// - `0`: Writeable buffer for read line
     /// - `1`: Writeable buffer for write buffer
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
-            0 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.read_buffer = Some(slice);
-                        app.read_idx = 0;
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
             1 => {
                 self.apps
                     .enter(appid, |app, _| {
@@ -195,14 +184,9 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     ///
     /// ### `subscribe_num`
     ///
-    /// - `0`: Read line callback
     /// - `1`: Write buffer completed callback
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            0 /* read line */ => {
-                // read line is not implemented for console at this time
-                ReturnCode::ENOSUPPORT
-            },
             1 /* putstr/write_done */ => {
                 self.apps.enter(callback.app_id(), |app, _| {
                     app.write_callback = Some(callback);
@@ -226,7 +210,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     /// - `0`: Driver check.
     /// - `1`: Prints a buffer passed through `allow` up to the length passed in
     ///        `arg1`
-    fn command(&self, cmd_num: usize, arg1: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match cmd_num {
             0 /* check if present */ => ReturnCode::SUCCESS,
             1 /* putstr */ => {

@@ -16,7 +16,7 @@ void yield(void);
 void yield_for(bool*);
 
 __attribute__ ((warn_unused_result))
-int command(uint32_t driver, uint32_t command, int data);
+int command(uint32_t driver, uint32_t command, int data, int arg2);
 
 __attribute__ ((warn_unused_result))
 int subscribe(uint32_t driver, uint32_t subscribe,

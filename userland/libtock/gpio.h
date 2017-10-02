@@ -6,15 +6,15 @@
 extern "C" {
 #endif
 
-#define GPIO_DRIVER_NUM 1
+#define GPIO_DRIVER_NUM 0x4
 
 // GPIO pin enum is defined externally in platform headers
 typedef uint32_t GPIO_Pin_t;
 
 typedef enum {
-  PullUp=0,
+  PullNone=0,
+  PullUp,
   PullDown,
-  PullNone,
 } GPIO_InputMode_t;
 
 typedef enum {
@@ -29,8 +29,7 @@ int gpio_clear(GPIO_Pin_t pin);
 int gpio_toggle(GPIO_Pin_t pin);
 int gpio_enable_input(GPIO_Pin_t pin, GPIO_InputMode_t pin_config);
 int gpio_read(GPIO_Pin_t pin);
-int gpio_enable_interrupt(GPIO_Pin_t pin, GPIO_InputMode_t pin_config,
-    GPIO_InterruptMode_t irq_config);
+int gpio_enable_interrupt(GPIO_Pin_t pin, GPIO_InterruptMode_t irq_config);
 int gpio_disable_interrupt(GPIO_Pin_t pin);
 int gpio_disable(GPIO_Pin_t pin);
 int gpio_interrupt_callback(subscribe_cb callback, void* callback_args);

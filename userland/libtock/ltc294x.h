@@ -4,7 +4,7 @@
 
 #include "tock.h"
 
-#define DRIVER_NUM_LTC294X 18
+#define DRIVER_NUM_LTC294X 0x80000
 
 #ifdef __cplusplus
 extern "C" {

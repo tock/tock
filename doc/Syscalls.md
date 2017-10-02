@@ -13,13 +13,32 @@ tutorial on how to use them in drivers or applications.
 - [Process State](#process-state)
 - [The System Calls](#the-system-calls)
   * [0: Yield](#0-yield)
+    + [Arguments](#arguments)
+    + [Return](#return)
   * [1: Subscribe](#1-subscribe)
+    + [Arguments](#arguments-1)
+    + [Return](#return-1)
   * [2: Command](#2-command)
+    + [Arguments](#arguments-2)
+    + [Return](#return-2)
   * [3: Allow](#3-allow)
+    + [Arguments](#arguments-3)
+    + [Return](#return-3)
   * [4: Memop](#4-memop)
+    + [Arguments](#arguments-4)
+    + [Return](#return-4)
 - [The Context Switch](#the-context-switch)
 - [How System Calls Connect to Drivers](#how-system-calls-connect-to-drivers)
 - [Allocated Driver Numbers](#allocated-driver-numbers)
+  * [Base](#base)
+  * [Kernel](#kernel)
+  * [HW Buses](#hw-buses)
+  * [Radio](#radio)
+  * [Cryptography](#cryptography)
+  * [Storage](#storage)
+  * [Sensors](#sensors)
+  * [Sensor ICs](#sensor-ics)
+  * [Other ICs](#other-ics)
 
 <!-- tocstop -->
 
@@ -108,35 +127,55 @@ process.
 If a process has enqueued callbacks waiting to execute when Yield is called, the
 process immediately re-enters the Running state and the first callback runs.
 
-The Yield syscall takes no arguments.
+#### Arguments
+
+None.
+
+#### Return
+
+None.
+
 
 ### 1: Subscribe
 
 Subscribe assigns callback functions to be executed in response to various
 events.
 
-The Subscribe syscall takes two arguments:
+#### Arguments
 
+ - `driver`: An integer specifying which driver to call.
  - `subscribe_number`: An integer index for which function is being subscribed.
  - `callback`: A pointer to a callback function to be executed when this event
  occurs. All callbacks conform to the C-style function signature:
  `void callback(int arg1, int arg2, int arg3, void* data)`.
+ - `userdata`: A pointer to a value of any type that will be passed back by the
+   kernel as the last argument to `callback`.
 
 Individual drivers define a mapping for `subscribe_number` to the events that
 may generate that callback as well as the meaning for each of the `callback`
 arguments.
 
+#### Return
+
+ - `EINVAL` if the callback pointer is NULL.
+ - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
+ - `ENOSUPPORT` if the driver exists but doesn't support the `subscribe_number`.
+ - Other return codes based on the specific driver.
+
+
 ### 2: Command
 
 Command instructs the driver to perform a specific action.
 
-The Command syscall takes two arguments:
+#### Arguments
 
+ - `driver`: An integer specifying which driver to call.
  - `command_number`: An integer specifying the requested command.
- - `argument`: A command-specific argument.
+ - `argument1`: A command-specific argument.
+ - `argument2`: A command-specific argument.
 
 The `command_number` tells the driver which command was called from
-userspace, and the `argument` is specific to the driver and command number.
+userspace, and the `argument`s are specific to the driver and command number.
 One example of the argument being used is in the `led` driver, where the
 command to turn on an LED uses the argument to specify which LED.
 
@@ -149,11 +188,18 @@ driver is present. In other cases, however, the return value can have an
 additional meaning such as the number of devices present, as is the case in the
 `led` driver to indicate how many LEDs are present on the board.
 
+#### Return
+
+ - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
+ - `ENOSUPPORT` if the driver exists but doesn't support the `command_number`.
+ - Other return codes based on the specific driver.
+
+
 ### 3: Allow
 
 Allow marks a region of memory as shared between the kernel and application.
 
-The Allow syscall takes four arguments:
+#### Arguments
 
  - `driver`: An integer specifying which driver should be granted access.
  - `allow_number`: A driver-specific integer specifying the purpose of this
@@ -169,22 +215,35 @@ each application. If one application needs multiple users of a driver (i.e. two
 libraries on top of I2C), each library will need to re-Allow its buffers before
 beginning operations.
 
+#### Return
+
+ - `ENODEVICE` if `driver` does not refer to a valid kernel driver.
+ - `ENOSUPPORT` if the driver exists but doesn't support the `allow_number`.
+ - `EINVAL` the buffer referred to by `pointer` and `size` lies completely or
+partially outside of the processes addressable RAM.
+ - Other return codes based on the specific driver.
+
+
 ### 4: Memop
 
 Memop expands the memory segment available to the process, allows the process to
-retrieve pointers to its allocated memory space, and provides a mechanism for
-the process to tell the kernel where its stack and heap start.
+retrieve pointers to its allocated memory space, provides a mechanism for
+the process to tell the kernel where its stack and heap start, and other
+operations involving process memory.
 
-The Memop syscall takes two arguments:
+#### Arguments
 
  - `op_type`: An integer indicating whether this is a `brk` (0), a `sbrk` (1),
    or another memop call.
  - `argument`: The argument to `brk`, `sbrk`, or other call.
 
-Both `brk` and `sbrk` adjust the current memory segment. The `argument` to `brk`
-is a pointer indicating the new requested end of memory segment. The `argument`
-to `sbrk` is an integer, indicating the number of bytes to adjust the end of the
-memory segment by.
+Each memop operation is specific and details of each call can be found in
+the memop syscall documentation.
+
+#### Return
+
+- Dependent on the particular memop call.
+
 
 ## The Context Switch
 
@@ -265,38 +324,83 @@ will get routed to the console, and all other driver numbers will return
 
 ## Allocated Driver Numbers
 
-| Driver Number | Driver           | Description                                |
-|---------------|------------------|--------------------------------------------|
-| 0             | Console          | UART console                               |
-| 1             | GPIO             |                                            |
-| 2             | TMP006           | Temperature sensor                         |
-| 3             | Timer            |                                            |
-| 4             | SPI              | Raw SPI interface                          |
-| 5             | nRF51822         | nRF serialization link to nRF51822 BLE SoC |
-| 6             | ISL29035         | Light sensor                               |
-| 7             | ADC              |                                            |
-| 8             | LED              |                                            |
-| 9             | Button           |                                            |
-| 10            | SI7021           | Temperature sensor                         |
-| 11            | Ninedof          | Virtualized accelerometer/magnetometer/gyroscope |
-| 12            | TSL2561          | Light sensor                               |
-| 13            | I2C Master/Slave | Raw I2C interface                          |
-| 14            | RNG              | Random number generator                    |
-| 15            | SDCard           | Raw block access to an SD card             |
-| 16            | CRC              | Cyclic Redundancy Check computation        |
-| 17            | AES              | AES encryption and decryption              |
-| 18            | LTC294X          | Battery gauge IC                           |
-| 19            | PCA9544A         | I2C address multiplexing                   |
-| 20            | GPIO Async       | Asynchronous GPIO pins                     |
-| 21            | MAX17205         | Battery gauge IC                           |
-| 22            | LPS25HB          | Pressure sensor                            |
-| 25            | SPI Slave        | Raw SPI slave interface                    |
-| 26            | DAC              | Digital to analog converter                |
-| 27            | Nonvolatile Storage | Generic interface for persistent storage |
-| 30            | App Flash        | Allow apps to write their own flash        |
-| 33            | BLE              | Bluetooth low energy communication         |
-| 34            | USB              | Universal Serial Bus interface             |
-| 35            | Humidity Sensor  | Humdity Sensor                             |
-| 154           | Radio            | 15.4 radio interface                       |
-| 255           | IPC              | Inter-process communication                |
+### Base
+
+|1.0| Driver Number | Driver           | Description                                |
+|---|---------------|------------------|--------------------------------------------|
+| ✓ | 0x0           | Timer            |                                            |
+| ✓ | 0x1           | Console          | UART console                               |
+| ✓ | 0x2           | LED              |                                            |
+| ✓ | 0x3           | Button           |                                            |
+| x | 0x4           | GPIO             |                                            |
+| ✓ | 0x5           | ADC              |                                            |
+| ✓ | 0x6           | DAC              | Digital to analog converter                |
+
+### Kernel
+
+|1.0| Driver Number | Driver           | Description                                |
+|---|---------------|------------------|--------------------------------------------|
+| ✓ | 0x10000       | IPC              | Inter-process communication                |
+
+### HW Buses
+
+|1.0| Driver Number | Driver           | Description                                |
+|---|---------------|------------------|--------------------------------------------|
+| x | 0x20000       | UART             | UART                                       |
+| x | 0x20001       | SPI              | Raw SPI Master interface                   |
+| x | 0x20002       | SPI Slave        | Raw SPI slave interface                    |
+| x | 0x20003       | I2C Master       | Raw I2C Master interface                   |
+| x | 0x20004       | I2C Slave        | Raw I2C Slave interface                    |
+| x | 0x20005       | USB              | Universal Serial Bus interface             |
+
+### Radio
+
+|1.0| Driver Number | Driver           | Description                                |
+|---|---------------|------------------|--------------------------------------------|
+| x | 0x30000       | BLE              | Bluetooth Low Energy                       |
+| x | 0x30001       | 802.15.4         | IEEE 802.15.4                              |
+
+### Cryptography
+
+|1.0| Driver Number | Driver           | Description                                |
+|---|---------------|------------------|--------------------------------------------|
+| x | 0x40000       | AES              | AES Symmetric Key Cryptography             |
+| x | 0x40001       | RNG              | Random number generator                    |
+| x | 0x40002       | CRC              | Cyclic Redundancy Check computation        |
+
+### Storage
+
+|1.0| Driver Number | Driver           | Description                                |
+|---|---------------|------------------|--------------------------------------------|
+| x | 0x50000       | App Flash        | Allow apps to write their own flash        |
+| x | 0x50001       | Nonvolatile Storage | Generic interface for persistent storage |
+| x | 0x50002       | SDCard           | Raw block access to an SD card             |
+
+### Sensors
+
+|1.0| Driver Number | Driver           | Description                                |
+|---|---------------|------------------|--------------------------------------------|
+| ✓ | 0x60000       | Ambient Temp.    | Ambient temperature (centigrate)           |
+| ✓ | 0x60001       | Humidity         | Ambient Light Sensor (lumens)              |
+| ✓ | 0x60002       | Luminance        | Humidity Sensor (percent)                  |
+| x | 0x60003       | Pressure         | Pressure sensor                            |
+| x | 0x60004       | Ninedof          | Virtualized accelerometer/magnetometer/gyroscope |
+
+### Sensor ICs
+
+|1.0| Driver Number | Driver           | Description                                |
+|---|---------------|------------------|--------------------------------------------|
+| x | 0x70000       | TSL2561          | Light sensor                               |
+| x | 0x70001       | TMP006           | Temperature sensor                         |
+| x | 0x70004       | LPS25HB          | Pressure sensor                            |
+
+### Other ICs
+
+|1.0| Driver Number | Driver           | Description                                |
+|---|---------------|------------------|--------------------------------------------|
+| x | 0x80000       | LTC294X          | Battery gauge IC                           |
+| x | 0x80001       | MAX17205         | Battery gauge IC                           |
+| x | 0x80002       | PCA9544A         | I2C address multiplexing                   |
+| x | 0x80003       | GPIO Async       | Asynchronous GPIO pins                     |
+| x | 0x80004       | nRF51822         | nRF serialization link to nRF51822 BLE SoC |
 

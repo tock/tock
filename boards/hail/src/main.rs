@@ -51,7 +51,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 struct Hail {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-    timer: &'static capsules::timer::TimerDriver<'static,
+    alarm: &'static capsules::alarm::AlarmDriver<'static,
                                                  VirtualMuxAlarm<'static,
                                                                  sam4l::ast::Ast<'static>>>,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
@@ -79,27 +79,28 @@ impl Platform for Hail {
     {
 
         match driver_num {
-            0 => f(Some(self.console)),
-            1 => f(Some(self.gpio)),
+            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
 
-            3 => f(Some(self.timer)),
-            4 => f(Some(self.spi)),
-            5 => f(Some(self.nrf51822)),
-            6 => f(Some(self.ambient_light)),
-            7 => f(Some(self.adc)),
-            8 => f(Some(self.led)),
-            9 => f(Some(self.button)),
-            10 => f(Some(self.temp)),
-            11 => f(Some(self.ninedof)),
+            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
 
-            14 => f(Some(self.rng)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
 
-            16 => f(Some(self.crc)),
-            17 => f(Some(self.aes)),
+            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
 
-            26 => f(Some(self.dac)),
-            35 => f(Some(self.humidity)),
-            0xff => f(Some(&self.ipc)),
+            capsules::dac::DRIVER_NUM => f(Some(self.dac)),
+
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -255,14 +256,14 @@ pub unsafe fn reset_handler() {
         capsules::ambient_light::AmbientLight::new(isl29035, kernel::Grant::create()));
     hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
 
-    // Timer
+    // Alarm
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm));
-    let timer = static_init!(
-        capsules::timer::TimerDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::timer::TimerDriver::new(virtual_alarm1, kernel::Grant::create()));
-    virtual_alarm1.set_client(timer);
+    let alarm = static_init!(
+        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create()));
+    virtual_alarm1.set_client(alarm);
 
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e));
@@ -315,12 +316,12 @@ pub unsafe fn reset_handler() {
 
     // BUTTONs
     let button_pins = static_init!(
-        [&'static sam4l::gpio::GPIOPin; 1],
-        [&sam4l::gpio::PA[16]]);
+        [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
+        [(&sam4l::gpio::PA[16], capsules::button::GpioMode::LowWhenPressed)]);
     let button = static_init!(
         capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
         capsules::button::Button::new(button_pins, kernel::Grant::create()));
-    for btn in button_pins.iter() {
+    for &(btn, _) in button_pins.iter() {
         btn.set_client(button);
     }
 
@@ -387,7 +388,7 @@ pub unsafe fn reset_handler() {
     let hail = Hail {
         console: console,
         gpio: gpio,
-        timer: timer,
+        alarm: alarm,
         ambient_light: ambient_light,
         temp: temp,
         humidity: humidity,

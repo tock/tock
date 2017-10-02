@@ -6,6 +6,8 @@
 extern "C" {
 #endif
 
+#define DRIVER_NUM_NRF_SERIALIZATION 0x80004
+
 // Give the BLE Serialization / UART layer a callback to call when
 // a packet is received and when a TX is finished.
 __attribute__ ((warn_unused_result))

@@ -28,6 +28,10 @@ use core::cell::Cell;
 use kernel::{AppId, Grant, Callback, Driver, ReturnCode};
 use kernel::hil;
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x20005;
+
+
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
@@ -112,7 +116,7 @@ impl<'a, C> Driver for UsbSyscallDriver<'a, C>
         }
     }
 
-    fn command(&self, command_num: usize, _arg: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _arg: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
             // This driver is present
             0 => ReturnCode::SUCCESS,

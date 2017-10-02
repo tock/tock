@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#define IPC_DRIVER_NUM 0xff
+#define IPC_DRIVER_NUM 0x10000
 
 // Performs service discovery
 //

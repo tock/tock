@@ -51,6 +51,9 @@ use kernel::{AppId, Callback, Grant, Driver};
 use kernel::ReturnCode;
 use kernel::hil;
 
+/// Syscall number
+pub const DRIVER_NUM: usize = 0x60000;
+
 #[derive(Default)]
 pub struct App {
     callback: Option<Callback>,
@@ -117,7 +120,7 @@ impl<'a> Driver for TemperatureSensor<'a> {
         }
     }
 
-    fn command(&self, command_num: usize, _: usize, appid: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
 
             // check whether the driver exists!!
