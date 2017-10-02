@@ -16,7 +16,7 @@ if [ ! -d "nrf5x-base-$NRF5X_BASE_SHA" ]; then
 	unzip $NRF5X_BASE_SHA.zip
 fi
 
-make -j NRF_BASE_PATH=nrf5x-base-$NRF5X_BASE_SHA
+make NRF_BASE_PATH=nrf5x-base-$NRF5X_BASE_SHA
 
 echo ""
 echo "Done."

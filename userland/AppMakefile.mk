@@ -36,12 +36,20 @@ include $(TOCK_USERLAND_BASE_DIR)/Program.mk
 endif
 
 # Single-arch libraries, to be phased out
-LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libc.a
-LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/newlib/libm.a
 LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libstdc++.a
 LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libsupc++.a
 LEGACY_LIBS += $(TOCK_USERLAND_BASE_DIR)/libc++/libgcc.a
 
+# The compiler can emit calls to a few functions during its transformations.
+# With aggressive function sections, gc-sections, and LTO, somehow the compiler
+# will occasionaly delete our (newlib's) implementation of a function that it
+# will later emit a call to. These force the listed symbols to be kept around,
+# working around this issue
+LD_FORCE_FNS := \
+	-Wl,--undefined=memcmp\
+	-Wl,--undefined=memcpy\
+	-Wl,--undefined=memset\
+	-Wl,--undefined=memmove
 
 
 # Rules to incorporate external libraries
@@ -133,8 +141,22 @@ OBJS_$(1) += $$(patsubst %.cc,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cc, $$(CXX_SRCS)
 OBJS_$(1) += $$(patsubst %.cpp,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cpp, $$(CXX_SRCS)))
 OBJS_$(1) += $$(patsubst %.cxx,$$(BUILDDIR)/$(1)/%.o,$$(filter %.cxx, $$(CXX_SRCS)))
 
+
+#XXX LTO .a workaround
+# For presently undiagnosed reasons, LTO will fail to find some symbols if they
+# are in an archive during compilation. However, if we simply extract every
+# object first, then things work correctly
+$$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/lto_archive_workaround: $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/libc.a $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/libm.a
+	@rm -rf $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/lto_archive_workaround
+	@mkdir $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/lto_archive_workaround
+	@cp $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/libc.a $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/lto_archive_workaround/
+	@cp $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/libm.a $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/lto_archive_workaround/
+	@cd $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/lto_archive_workaround && arm-none-eabi-ar -x libc.a --plugin=$$(arm-none-eabi-gcc --print-file-name=liblto_plugin.so)
+	@cd $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/lto_archive_workaround && arm-none-eabi-ar -x libm.a --plugin=$$(arm-none-eabi-gcc --print-file-name=liblto_plugin.so)
+
+
 # Collect all desired built output.
-$$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc.a $$(LIBS_$(1)) $$(LAYOUT) | $$(BUILDDIR)/$(1)
+$$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS) $$(LAYOUT) | $$(BUILDDIR)/$(1) $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/lto_archive_workaround
 	$$(TRACE_LD)
 	$$(Q)$$(CC) $$(CFLAGS) -mcpu=$(1) $$(CPPFLAGS)\
 	    --entry=_start\
@@ -143,7 +165,8 @@ $$(BUILDDIR)/$(1)/$(1).elf: $$(OBJS_$(1)) $$(TOCK_USERLAND_BASE_DIR)/newlib/libc
 	    -Xlinker --defsym=KERNEL_HEAP_SIZE=$$(KERNEL_HEAP_SIZE)\
 	    -T $$(LAYOUT)\
 	    -nostdlib\
-	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS) -Wl,--end-group\
+	    $$(LD_FORCE_FNS)\
+	    -Wl,--start-group $$(OBJS_$(1)) $$(LIBS_$(1)) $$(LEGACY_LIBS) $$(TOCK_USERLAND_BASE_DIR)/newlib/$(1)/lto_archive_workaround/*.o -Wl,--end-group\
 	    -Wl,-Map=$$(BUILDDIR)/$(1)/$(1).Map\
 	    -o $$@
 

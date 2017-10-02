@@ -45,10 +45,12 @@ override CPPFLAGS += \
 	    -frecord-gcc-switches\
 	    -gdwarf-2\
 	    -Os\
+	    -flto -ffat-lto-objects\
 	    -fdata-sections -ffunction-sections\
 	    -fstack-usage -Wstack-usage=$(STACK_SIZE)\
 	    -Wall\
 	    -Wextra\
+	    -Wl,-pie\
 	    -Wl,--warn-common\
 	    -Wl,--gc-sections\
 	    -Wl,--emit-relocs\
