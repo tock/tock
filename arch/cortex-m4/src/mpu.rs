@@ -142,6 +142,8 @@ impl kernel::mpu::MPU for MPU {
             return None;
         }
 
+        //XXX: need to check if length is a power of two
+
         // There are two possibilities we support:
         //
         // 1. The base address is aligned exactly to the size of the region,
@@ -174,6 +176,7 @@ impl kernel::mpu::MPU for MPU {
         } else {
             // Memory base not aligned to memory size
 
+            /*
             // Which (power-of-two) subregion size would align with the base
             // address?
             //
@@ -192,6 +195,16 @@ impl kernel::mpu::MPU for MPU {
                     0
                 }
             };
+            */
+
+            // find smallest region that could encapsulate the app needs
+            let mut subregion_size = 32;
+            while subregion_size < 4*1024*1024/8 && 8*subregion_size < len {
+                subregion_size *= 2;
+            }
+            if start % subregion_size != 0 {
+                panic!("Infeasible MPU alignment!!\n");
+            }
 
             // Once we have a subregion size, we get a region size by
             // multiplying it by the number of subregions per region.
@@ -204,12 +217,14 @@ impl kernel::mpu::MPU for MPU {
                 // Sanity check that the amount left over space in the region
                 // after `start` is at least as large as the memory region we
                 // want to reference.
+                debug!("Fail1");
                 return None;
             }
             if len % subregion_size != 0 {
                 // Sanity check that there is some integer X such that
                 // subregion_size * X == len so none of `len` is left over when
                 // we take the max_subregion.
+                debug!("Fail2");
                 return None;
             }
 

@@ -976,7 +976,7 @@ impl<'a> Process<'a> {
             }
 
             // Otherwise, actually load the app.
-            let min_app_ram_size = tbf_header.get_minimum_app_ram_size();
+            let min_app_ram_size = tbf_header.get_minimum_app_ram_size() as usize;
             let package_name = tbf_header.get_package_name(app_flash_address);
             let init_fn = app_flash_address.offset(tbf_header.get_init_function_offset() as isize) as usize;
             let needs_pic_fixup = tbf_header.needs_pic_fixup();
@@ -988,17 +988,31 @@ impl<'a> Process<'a> {
                      remaining_app_memory,
                      remaining_app_memory_size) {
 
+                /*
                 // TODO round app_ram_size up to a closer MPU unit.
                 // This is a very conservative approach that rounds up to power of
                 // two. We should be able to make this closer to what we actually need.
                 let app_ram_size = math::closest_power_of_two(min_app_ram_size) as usize;
+                */
 
-                if app_ram_size > remaining_app_memory_size {
+                // find memory region size that the MPU can protect
+                let mut virtual_app_ram_size = 32;
+                while virtual_app_ram_size < remaining_app_memory_size && 8*virtual_app_ram_size < min_app_ram_size {
+                    virtual_app_ram_size *= 2;
+                }
+
+                if virtual_app_ram_size > remaining_app_memory_size {
                     panic!("{:?} failed to load. Insufficient memory. Requested {} have {}",
                            package_name,
-                           app_ram_size,
+                           virtual_app_ram_size,
                            remaining_app_memory_size);
                 }
+
+                let mut app_ram_size = virtual_app_ram_size;
+                while app_ram_size < min_app_ram_size {
+                    app_ram_size += virtual_app_ram_size;
+                }
+                //debug!("RAM need {}\t alloc {}\t step {}\n", min_app_ram_size, app_ram_size, virtual_app_ram_size);
 
                 let app_memory = slice::from_raw_parts_mut(remaining_app_memory, app_ram_size);
 
