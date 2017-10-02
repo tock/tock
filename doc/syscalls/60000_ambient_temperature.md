@@ -16,7 +16,9 @@ hundredths of degrees
 
     **Description**: Does the driver exist?
 
-    **Argument**: unused
+    **Argument 1**: unused
+
+    **Argument 2**: unused
 
     **Returns**: SUCCESS if it exists, otherwise ENODEVICE
 
@@ -25,7 +27,9 @@ hundredths of degrees
     **Description**: Initiate a sensor reading.  When a reading is ready, a
     callback will be delivered if the process has `subscribed`.
 
-    **Argument**: unused
+    **Argument 1**: unused
+
+    **Argument 2**: unused
 
     **Returns**: `EBUSY` if a reading is already pending, `ENOMEM` if there
     isn't sufficient grant memory available, or `SUCCESS` if the sensor reading

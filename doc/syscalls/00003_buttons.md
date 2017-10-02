@@ -19,7 +19,9 @@ main file.
 
     **Description**: How many buttons are supported on this board.
 
-    **Argument**: unused
+    **Argument 1**: unused
+
+    **Argument 2**: unused
 
     **Returns**: The number of buttons on the board, or `ENODEVICE` if this
     driver is not present on the board.
@@ -31,8 +33,10 @@ main file.
     which event occurred. This command will succeed even if a callback is
     not registered yet.
 
-    **Argument**: The index of the button to enable interrupts for, starting at
+    **Argument 1**: The index of the button to enable interrupts for, starting at
     0.
+
+    **Argument 2**: unused
 
     **Returns**: SUCCESS if the command was successful, ENOMEM if the driver
     cannot support another app, and `EINVAL` if the app is somehow invalid.
@@ -42,8 +46,10 @@ main file.
     **Description**: Disable the interrupt for a button. This will not remove
     the callback (if one is set).
 
-    **Argument**: The index of the button to disable interrupts for, starting at
+    **Argument 1**: The index of the button to disable interrupts for, starting at
     0.
+
+    **Argument 2**: unused
 
     **Returns**: SUCCESS if the command was successful, ENOMEM if the driver
     cannot support another app, and `EINVAL` if the app is somehow invalid.
@@ -52,7 +58,9 @@ main file.
 
     **Description**: Read the current state of the button.
 
-    **Argument**: The index of the button to read, starting at 0.
+    **Argument 1**: The index of the button to read, starting at 0.
+
+    **Argument 2**: unused
 
     **Returns**: 0 if the button is not currently pressed, and 1 button is
     currently being pressed.

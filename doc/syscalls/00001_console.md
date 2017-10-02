@@ -21,7 +21,9 @@ share a buffer for every write transaction, even if it's the same buffer.
 
     **Description**: Does the driver exist?
 
-    **Argument**: unused
+    **Argument 1**: unused
+
+    **Argument 2**: unused
 
     **Returns**: SUCCESS if it exists, otherwise ENODEVICE
 
@@ -31,7 +33,9 @@ share a buffer for every write transaction, even if it's the same buffer.
     At the end of the transaction, a callback will be delivered if the process
     has `subscribed`.
 
-    **Argument**: The maximum number of bytes to write.
+    **Argument 1**: The maximum number of bytes to write.
+
+    **Argument 2**: unused
 
     **Returns**: SUCCESS if the command was successful, EBUSY if no buffer was
     shared, or ENOMEM if the driver failed to allocate memory for the
