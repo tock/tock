@@ -332,7 +332,7 @@ will get routed to the console, and all other driver numbers will return
 | ✓ | 0x1           | Console          | UART console                               |
 | ✓ | 0x2           | LED              |                                            |
 | ✓ | 0x3           | Button           |                                            |
-| ✓ | 0x4           | GPIO             |                                            |
+| x | 0x4           | GPIO             |                                            |
 | ✓ | 0x5           | ADC              |                                            |
 | ✓ | 0x6           | DAC              | Digital to analog converter                |
 
