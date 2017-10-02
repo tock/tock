@@ -78,6 +78,18 @@ In Tock, a process can be in one of three states:
  Tock. Processes enter the Fault state by performing an illegal operation, such
  as accessing memory outside of their address space.
 
+## Startup
+
+Upon process initialization, a single function call task is added to it's
+callback queue. The function is determined by the ENTRY point in the process
+TBF header (typically the `_start` symbol) and is passed the following
+arguments in registers `r0` - `r3`:
+
+  * r0: The base address of the processes allocated memory region.
+  * r1: The current process break.
+  * r2: The current kernel memory break.
+  * r3: unused
+
 ## The System Calls
 
 All system calls except Yield (which cannot fail) return an integer return code
