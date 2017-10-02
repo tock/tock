@@ -169,69 +169,69 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
     /// - `7`: Configure interrupt on `pin` with `irq_config` in 0x00XX00000
     /// - `8`: Disable interrupt on `pin`.
     /// - `9`: Disable `pin`.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: AppId) -> ReturnCode {
+    fn command(&self, command_num: usize, data1: usize, data2: usize, _: AppId) -> ReturnCode {
         let pins = self.pins.as_ref();
+        let pin = data1;
         match command_num {
             // number of pins
             0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
 
             // enable output
             1 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].make_output();
+                    pins[pin].make_output();
                     ReturnCode::SUCCESS
                 }
             }
 
             // set pin
             2 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].set();
+                    pins[pin].set();
                     ReturnCode::SUCCESS
                 }
             }
 
             // clear pin
             3 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].clear();
+                    pins[pin].clear();
                     ReturnCode::SUCCESS
                 }
             }
 
             // toggle pin
             4 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].toggle();
+                    pins[pin].toggle();
                     ReturnCode::SUCCESS
                 }
             }
 
             // enable and configure input
             5 => {
-                let pin_num = data & 0xFFFF;
-                let pin_config = (data >> 16) & 0xFF;
-                if pin_num >= pins.len() {
+                let pin_config = data2;
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    self.configure_input_pin(pin_num, pin_config)
+                    self.configure_input_pin(pin, pin_config)
                 }
             }
 
             // read input
             6 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    let pin_state = pins[data].read();
+                    let pin_state = pins[pin].read();
                     ReturnCode::SuccessWithValue { value: pin_state as usize }
                 }
             }
@@ -239,33 +239,32 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
             // configure interrupts on pin
             // (no affect or reliance on registered callback)
             7 => {
-                let pin_num = data & 0xFFFF;
-                let irq_config = (data >> 16) & 0xFF;
-                if pin_num >= pins.len() {
+                let irq_config = data2;
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    self.configure_interrupt(pin_num, irq_config)
+                    self.configure_interrupt(pin, irq_config)
                 }
             }
 
             // disable interrupts on pin, also disables pin
             // (no affect or reliance on registered callback)
             8 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].disable_interrupt();
-                    pins[data].disable();
+                    pins[pin].disable_interrupt();
+                    pins[pin].disable();
                     ReturnCode::SUCCESS
                 }
             }
 
             // disable pin
             9 => {
-                if data >= pins.len() {
+                if pin >= pins.len() {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
-                    pins[data].disable();
+                    pins[pin].disable();
                     ReturnCode::SUCCESS
                 }
             }
