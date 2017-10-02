@@ -182,18 +182,15 @@ int adc_single_sample(uint8_t channel) {
 }
 
 int adc_continuous_sample(uint8_t channel, uint32_t frequency) {
-  uint32_t chan_freq = (frequency << 8) | (channel & 0xFF);
-  return command(DRIVER_NUM_ADC, 2, chan_freq, 0);
+  return command(DRIVER_NUM_ADC, 2, channel, frequency);
 }
 
 int adc_buffered_sample(uint8_t channel, uint32_t frequency) {
-  uint32_t chan_freq = (frequency << 8) | (channel & 0xFF);
-  return command(DRIVER_NUM_ADC, 3, chan_freq, 0);
+  return command(DRIVER_NUM_ADC, 3, channel, frequency);
 }
 
 int adc_continuous_buffered_sample(uint8_t channel, uint32_t frequency) {
-  uint32_t chan_freq = (frequency << 8) | (channel & 0xFF);
-  return command(DRIVER_NUM_ADC, 4, chan_freq, 0);
+  return command(DRIVER_NUM_ADC, 4, channel, frequency);
 }
 
 int adc_stop_sampling(void) {
