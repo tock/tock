@@ -18,25 +18,25 @@
 //!
 //! To use this test suite, allocate space for a new LowpanTest structure, and
 //! set it as the client for the FragState struct and for the respective TxState
-//! struct. For the transmit side, call the LowpanTest::start method. A simple
-//! example is given below:
+//! struct. For the transmit side, call the LowpanTest::start method. The
+//! `initialize_all` function performs this initialization; simply call this
+//! function in `boards/imix/src/main.rs` as follows:
 //!
-//! let lowpan_frag_test = static_init!(
-//!     lowpan_frag_dummy::LowpanTest<'static,
-//!         VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-//!         lowpan_frag_dummy::LowpanTest::new(radio_mac as &'static Mac,
-//!                                            frag_state,
-//!                                            tx_state,
-//!                                            frag_dummy_alarm)
-//! );
-//!
-//! frag_state.set_receive_client(lowpan_frag_test);
-//! tx_state.set_transmit_client(lowpan_frag_test);
-//! frag_dummy_alarm.set_client(lowpan_frag_test);
+//! Alternatively, you can call the `initialize_all` function, which performs
+//! the initialization routines for the 6LoWPAN, TxState, RxState, and FragState
+//! structs. Insert the code into `boards/imix/src/main.rs` as follows:
 //!
 //! ...
-//!
-//! lowpan_frag_test.start();
+//! // Radio initialization code
+//! ...
+//! let lowpan_frag_test = lowpan_frag_dummy::initialize_all(radio_mac as &'static Mac,
+//!                                                          mux_alarm as &'static
+//!                                                             MuxAlarm<'static,
+//!                                                                 sam4l::ast::Ast>);
+//! ...
+//! // Imix initialization
+//! ...
+//! lowpan_frag_test.start(); // If flashing the transmitting Imix
 
 use capsules;
 extern crate sam4l;

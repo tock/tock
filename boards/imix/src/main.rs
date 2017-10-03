@@ -439,13 +439,6 @@ pub unsafe fn reset_handler() {
     radio_mac.set_pan(0xABCD);
     radio_mac.set_address(0x1008);
 
-    /* Start 6LoWPAN Initialization */
-    let lowpan_frag_test = lowpan_frag_dummy::initialize_all(radio_mac as &'static Mac,
-                                                             mux_alarm as &'static MuxAlarm<'static,
-                                                                sam4l::ast::Ast>);
-
-    /* End 6LoWPAN Initialization */
-
     // Configure the USB controller
     let usb_client = static_init!(
         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
@@ -493,7 +486,5 @@ pub unsafe fn reset_handler() {
                                     &mut APP_MEMORY,
                                     &mut PROCESSES,
                                     FAULT_RESPONSE);
-    /* TODO: Start 6LoWPAN Test */
-    lowpan_frag_test.start();
     kernel::main(&imix, &mut chip, &mut PROCESSES, &imix.ipc);
 }
