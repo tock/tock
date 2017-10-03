@@ -40,7 +40,6 @@
 
 use capsules;
 extern crate sam4l;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::ieee802154::mac;
 use capsules::ieee802154::mac::Mac;
 use capsules::net::ieee802154::MacAddress;
@@ -49,6 +48,7 @@ use capsules::net::lowpan;
 use capsules::net::lowpan::{ContextStore, Context};
 use capsules::net::lowpan_fragment::{FragState, TxState, TransmitClient, ReceiveClient};
 use capsules::net::util;
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 
 use core::mem;
@@ -167,15 +167,13 @@ pub unsafe fn initialize_all(radio_mac: &'static Mac,
                       mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>)
         -> &'static LowpanTest<'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>> {
-    let dummy_ctx_store = static_init!(
-        DummyStore,
-        DummyStore::new(capsules::net::lowpan::Context {
-            prefix: DEFAULT_CTX_PREFIX,
-            prefix_len: DEFAULT_CTX_PREFIX_LEN as u8,
-            id: 0,
-            compress: false
-        })
-        );
+    let dummy_ctx_store = static_init!(DummyStore,
+                                       DummyStore::new(capsules::net::lowpan::Context {
+                                           prefix: DEFAULT_CTX_PREFIX,
+                                           prefix_len: DEFAULT_CTX_PREFIX_LEN as u8,
+                                           id: 0,
+                                           compress: false,
+                                       }));
 
     let default_tx_state = static_init!(
         capsules::net::lowpan_fragment::TxState<'static>,
@@ -230,7 +228,6 @@ pub unsafe fn initialize_all(radio_mac: &'static Mac,
 }
 
 impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
-
     pub fn new(radio: &'a mac::Mac<'a>,
                frag_state: &'a FragState<'a, A>,
                tx_state: &'a TxState<'a>,
