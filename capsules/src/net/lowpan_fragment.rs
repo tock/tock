@@ -570,14 +570,17 @@ impl<'a, A: time::Alarm> TxClient for FragState<'a, A> {
             if head.is_transmit_done() {
                 // This must return Some if we are in the closure - in particular,
                 // tx_state == head
+                self.tx_buf.replace(tx_buf);
                 self.end_packet_transmit(acked, result);
             } else {
                 // Otherwise, we found an error
                 let result = head.prepare_transmit_next_fragment(tx_buf, self.radio);
                 result.map_err(|(retcode, tx_buf)| {
                     // On error abort the transmission and replace `tx_buf`
-                    self.end_packet_transmit(acked, retcode);
+                    // Note that we *must* replace the buffer before calling
+                    // end_packet_transmit, as it assumes we have the tx_buf
                     self.tx_buf.replace(tx_buf);
+                    self.end_packet_transmit(acked, retcode);
                 });
             }
         } else {
