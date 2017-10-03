@@ -118,6 +118,10 @@ process.
 If a process has enqueued callbacks waiting to execute when Yield is called, the
 process immediately re-enters the Running state and the first callback runs.
 
+```rust
+yield()
+```
+
 #### Arguments
 
 None.
@@ -131,6 +135,10 @@ None.
 
 Subscribe assigns callback functions to be executed in response to various
 events.
+
+```rust
+subscribe(driver: u32, subscribe_number: u32, callback: u32, userdata: u32) -> ReturnCode as u32
+```
 
 #### Arguments
 
@@ -157,6 +165,10 @@ arguments.
 ### 2: Command
 
 Command instructs the driver to perform a specific action.
+
+```rust
+command(driver: u32, command_number: u32, argument1: u32, argument2: u32) -> ReturnCode as u32
+```
 
 #### Arguments
 
@@ -190,6 +202,10 @@ additional meaning such as the number of devices present, as is the case in the
 
 Allow marks a region of memory as shared between the kernel and application.
 
+```rust
+allow(driver: u32, allow_number: u32, pointer: usize, size: u32) -> ReturnCode as u32
+```
+
 #### Arguments
 
  - `driver`: An integer specifying which driver should be granted access.
@@ -221,6 +237,10 @@ Memop expands the memory segment available to the process, allows the process to
 retrieve pointers to its allocated memory space, provides a mechanism for
 the process to tell the kernel where its stack and heap start, and other
 operations involving process memory.
+
+```rust
+memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
+```
 
 #### Arguments
 
