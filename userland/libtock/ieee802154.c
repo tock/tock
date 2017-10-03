@@ -1,7 +1,7 @@
 #include "ieee802154.h"
 #include "timer.h"
 
-const int RADIO_DRIVER = 154;
+const int RADIO_DRIVER = 0x30001;
 
 const int ALLOW_RX  = 0;
 const int ALLOW_TX  = 1;
