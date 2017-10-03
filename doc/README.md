@@ -22,5 +22,13 @@ Tock Guides
 - **[Syscalls](Syscalls.md)** - Kernel/Userland abstraction.
 - **[Userland](Userland.md)** - Description of userland applications.
 
+### Interface Details
+- **[Syscall Interfaces](syscalls)** - API between userland and the kernel.
+- **[Internal Kernel Interfaces](reference)** - Hardware Interface Layers (HILs) for kernel components.
+
 ### Tock Setup and Usage
 - **[Getting Started](Getting_Started.md)** - Installing the Tock toolchain and programming hardware.
+
+### Tutorials and Courses
+- **[Quick Tutorials](tutorials)** - Specific tutorials that walk through features of Tock.
+- **[Longer Courses](courses)** - Longer workshops on multiple aspects of Tock.

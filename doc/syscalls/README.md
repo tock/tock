@@ -2,11 +2,16 @@ Tock Syscalls
 =============
 
 This folder contains the detailed documentation for the interfaces between
-userspace and kernel drivers (using `allow`, `schedule`, and `command`).
+userspace and the kernel. It includes details of the ABI interface, the kernel
+provided syscalls, and the driver specific interfaces (using `allow`,
+`schedule`, and `command`). For more information on the general syscalls, see
+[here](../Syscalls.md).
 
 <!-- toc -->
 
-- [Allocated Driver Numbers](#allocated-driver-numbers)
+- [Syscall Binary Interface](#syscall-binary-interface)
+- [Core Kernel Provided Syscalls](#core-kernel-provided-syscalls)
+- [Capsule Provided Drivers](#capsule-provided-drivers)
   * [Base](#base)
   * [Kernel](#kernel)
   * [HW Buses](#hw-buses)
@@ -19,7 +24,15 @@ userspace and kernel drivers (using `allow`, `schedule`, and `command`).
 
 <!-- tocstop -->
 
-## Allocated Driver Numbers
+## Syscall Binary Interface
+
+Details of the [application binary interface](ABI.md).
+
+## Core Kernel Provided Syscalls
+
+- [`memop`](memop.md): Memory-related operations.
+
+## Capsule Provided Drivers
 
 Each driver type that has been allocated a permanent driver number is listed in
 the tables below. The "1.0" column indicates whether the driver has been
@@ -29,13 +42,13 @@ stabilized or not (a "✓" indicates stability) in the Tock 1.0 release.
 
 |1.0| Driver Number | Driver                      | Description                                |
 |---|---------------|-----------------------------|--------------------------------------------|
-| ✓ | 0x0           | [Alarm](00000_alarm.md)     | Used for timers in userspace               |
-| ✓ | 0x1           | [Console](00001_console.md) | UART console                               |
-| ✓ | 0x2           | [LED](00002_leds.md)        | Control LEDs on board                      |
-| ✓ | 0x3           | [Button](00003_buttons.md)  | Get interrupts from buttons on the board   |
-|   | 0x4           | [GPIO](00004_gpio.md)       | Set and read GPIO pins                     |
-| ✓ | 0x5           | [ADC](00005_adc.md)         | Sample analog-to-digital converter pins    |
-|   | 0x6           | DAC                         | Digital to analog converter                |
+| ✓ | 0x00000       | [Alarm](00000_alarm.md)     | Used for timers in userspace               |
+| ✓ | 0x00001       | [Console](00001_console.md) | UART console                               |
+| ✓ | 0x00002       | [LED](00002_leds.md)        | Control LEDs on board                      |
+| ✓ | 0x00003       | [Button](00003_buttons.md)  | Get interrupts from buttons on the board   |
+|   | 0x00004       | [GPIO](00004_gpio.md)       | Set and read GPIO pins                     |
+| ✓ | 0x00005       | [ADC](00005_adc.md)         | Sample analog-to-digital converter pins    |
+|   | 0x00006       | DAC                         | Digital to analog converter                |
 
 ### Kernel
 
