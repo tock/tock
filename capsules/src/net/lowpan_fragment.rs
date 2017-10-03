@@ -574,9 +574,7 @@ impl<'a, A: time::Alarm> TxClient for FragState<'a, A> {
                 // Otherwise, we found an error
                 let result = head.prepare_transmit_next_fragment(tx_buf, self.radio);
                 result.map_err(|(retcode, tx_buf)| {
-                    // On error abort the transmission and replace `tx_buf`
-                    // Note that we *must* replace the buffer before calling
-                    // end_packet_transmit, as it assumes we have the tx_buf
+                    // On error abort the transmission
                     self.end_packet_transmit(tx_buf, acked, retcode);
                 });
             }
