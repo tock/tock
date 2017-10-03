@@ -2,8 +2,6 @@
 #![no_std]
 
 #[allow(unused_imports)]
-#[macro_use(stream_cond, stream_len_cond, stream_done, stream_err, stream_from_option)]
-#[macro_use(enc_try, enc_consume, dec_try, dec_consume)]
 #[macro_use(debug)]
 extern crate kernel;
 
