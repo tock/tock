@@ -564,14 +564,12 @@ pub struct FragState<'a, A: time::Alarm + 'a> {
 impl<'a, A: time::Alarm> TxClient for FragState<'a, A> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         if result != ReturnCode::SUCCESS {
-            self.tx_buf.replace(tx_buf);
-            self.end_packet_transmit(acked, result);
+            self.end_packet_transmit(tx_buf, acked, result);
         } else if let Some(head) = self.tx_states.head() {
             if head.is_transmit_done() {
                 // This must return Some if we are in the closure - in particular,
                 // tx_state == head
-                self.tx_buf.replace(tx_buf);
-                self.end_packet_transmit(acked, result);
+                self.end_packet_transmit(tx_buf, acked, result);
             } else {
                 // Otherwise, we found an error
                 let result = head.prepare_transmit_next_fragment(tx_buf, self.radio);
@@ -579,8 +577,7 @@ impl<'a, A: time::Alarm> TxClient for FragState<'a, A> {
                     // On error abort the transmission and replace `tx_buf`
                     // Note that we *must* replace the buffer before calling
                     // end_packet_transmit, as it assumes we have the tx_buf
-                    self.tx_buf.replace(tx_buf);
-                    self.end_packet_transmit(acked, retcode);
+                    self.end_packet_transmit(tx_buf, acked, retcode);
                 });
             }
         } else {
@@ -758,8 +755,9 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
 
     // This function ends the current packet transmission state, and starts
     // sending the next queued packet before calling the current callback.
-    fn end_packet_transmit(&self, acked: bool, returncode: ReturnCode) {
+    fn end_packet_transmit(&self, tx_buf: &'static mut [u8], acked: bool, returncode: ReturnCode) {
         self.tx_busy.set(false);
+        self.tx_buf.replace(tx_buf);
         // Note that tx_state can be None if a disassociation event occurred,
         // in which case end_transmit was already called.
         self.tx_states.pop_head().map(|tx_state| {
