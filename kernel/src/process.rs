@@ -1082,12 +1082,15 @@ impl<'a> Process<'a> {
                            init_fn);
                 }
 
+                let flash_protected_size = process.header.get_protected_size() as usize;
+                let flash_app_start = app_flash_address as usize + flash_protected_size;
+
                 process.tasks.enqueue(Task::FunctionCall(FunctionCall {
                     pc: init_fn,
-                    r0: process.memory.as_ptr() as usize,
-                    r1: process.app_break as usize,
-                    r2: process.kernel_memory_break as usize,
-                    r3: 0,
+                    r0: flash_app_start,
+                    r1: process.memory.as_ptr() as usize,
+                    r2: process.memory.len() as usize,
+                    r3: process.app_break as usize,
                 }));
 
                 HAVE_WORK.set(HAVE_WORK.get() + 1);
