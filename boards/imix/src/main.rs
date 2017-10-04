@@ -28,6 +28,8 @@ pub mod io;
 mod i2c_dummy;
 #[allow(dead_code)]
 mod spi_dummy;
+#[allow(dead_code)]
+mod lowpan_frag_dummy;
 
 #[allow(dead_code)]
 mod power;
@@ -428,6 +430,7 @@ pub unsafe fn reset_handler() {
         capsules::ieee802154::RadioDriver::new(radio_mac,
                                                kernel::Grant::create(),
                                                &mut RADIO_BUF));
+
     rf233_mac.set_key_procedure(radio_driver);
     rf233_mac.set_device_procedure(radio_driver);
     radio_mac.set_transmit_client(radio_driver);
