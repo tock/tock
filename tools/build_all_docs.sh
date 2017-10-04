@@ -4,6 +4,7 @@
 function get_known_crates {
 	FILE=$1
 
+	# This sed seems to be okay x-platform bsd/gnu
 	FOUND_CRATES=`sed -nE "s/.*searchIndex\[\"([a-z0-9_-]*)\"\].*/\1/gp" $FILE`
 	echo $FOUND_CRATES
 }
@@ -32,7 +33,10 @@ function add_board {
 
 		# Add the line to the search-index.js file.
 		SEARCHINDEX=`grep "searchIndex\[\"$item\"\]" boards/$BOARD/target/thumb*-none-eabi/doc/search-index.js`
-		sed -i "/var searchIndex = {};/a$SEARCHINDEX" doc/rustdoc/search-index.js
+
+		# nothing in-place is x-platform bsd/gnu (os x defaults...)
+		/usr/bin/awk -v var="$SEARCHINDEX" "/initSearch/{print var}1" doc/rustdoc/search-index.js > doc/rustdoc/search-index-new.js
+		mv doc/rustdoc/search-index-new.js doc/rustdoc/search-index.js
 	done
 }
 

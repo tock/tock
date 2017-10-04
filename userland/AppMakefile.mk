@@ -206,12 +206,15 @@ else
 	@# Get the offset between the init function and the start of text (0x80000000).
 	@# We then use that offset to calculate where the start of text was on the actual MCU.
 	@# Create a new LD file at the correct flash and ram locations.
+	@#
+	@# #616 #635: sed is not cross-platform
+	@# https://stackoverflow.com/a/22247781/358675 <-- Use perl in place of sed
 	$$(Q)set -e ;\
 	  ORIGINAL_ENTRY=`$$(READELF) -h $$(BUILDDIR)/$(1)/$(1).elf | grep Entry | awk '{print $$$$4}'` ;\
 	  INIT_OFFSET=$$$$(($$$$ORIGINAL_ENTRY - 0x80000000)) ;\
 	  FLASH_START=$$$$(($$$$FLASH_INIT-$$$$INIT_OFFSET)) ;\
-	  sed -i -E "s/(FLASH.*ORIGIN[ =]*)([x0-9]*)(,.*LENGTH)/\1$$$$FLASH_START\3/" $$@ ;\
-	  sed -i -E "s/(SRAM.*ORIGIN[ =]*)([x0-9]*)(,.*LENGTH)/\1$$$$RAM_START\3/" $$@
+	  perl -pi -e "s/(FLASH.*ORIGIN[ =]*)([x0-9]*)(,.*LENGTH)/\$$$${1}$$$$FLASH_START\$$$$3/" $$@ ;\
+	  perl -pi -e "s/(SRAM.*ORIGIN[ =]*)([x0-9]*)(,.*LENGTH)/\$$$${1}$$$$RAM_START\$$$$3/" $$@
 endif
 
 # Step 2: Create a new ELF with the layout that matches what's loaded
