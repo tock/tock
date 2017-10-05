@@ -1,11 +1,5 @@
 #include <tock.h>
 
-extern unsigned int* _etext;
-extern unsigned int* _edata;
-extern unsigned int* _got;
-extern unsigned int* _egot;
-extern unsigned int* _bss;
-extern unsigned int* _ebss;
 extern int main(void);
 
 // Allow _start to go undeclared
@@ -16,9 +10,10 @@ __attribute__ ((section(".start"), used))
 __attribute__ ((weak))
 __attribute__ ((noreturn))
 __attribute__ ((naked))
-void _start(void* mem_start __attribute__((unused)),
-            void* app_heap_break __attribute__((unused)),
-            void* kernel_memory_break __attribute__((unused))) {
+void _start(void* text_start __attribute__((unused)),
+            void* mem_start __attribute__((unused)),
+            void* memory_len __attribute__((unused)),
+            void* app_heap_break __attribute__((unused))) {
   /*
    * 1. Setup r9 to point to the GOT (assumes the kernel places the GOT right
    *    above the stack)
