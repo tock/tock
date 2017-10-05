@@ -23,16 +23,20 @@ static void callback(__attribute__ ((unused)) int pans,
                      __attribute__ ((unused)) void* ud) {
   led_toggle(0);
 
-#define PRINT_PAYLOAD 0
+#define PRINT_PAYLOAD 1
+#define PRINT_STRING 1
 #if PRINT_PAYLOAD
   int payload_offset = ieee802154_frame_get_payload_offset(packet_rx);
   int payload_length = ieee802154_frame_get_payload_length(packet_rx);
   printf("Received packet with payload of %d bytes from offset %d\n", payload_length, payload_offset);
-  int i;
+#if PRINT_STRING
+  printf("%.*s\n", payload_length, packet_rx + payload_offset);
+#else
   for (i = 0; i < payload_length; i++) {
     printf("%02x%c", packet_rx[payload_offset + i],
            ((i + 1) % 16 == 0 || i + 1 == payload_length) ? '\n' : ' ');
   }
+#endif //PRINT_STRING
 
   unsigned short pan;
   unsigned short short_addr;
@@ -52,7 +56,7 @@ static void callback(__attribute__ ((unused)) int pans,
     printf("Packet destination address: 0x%04x\n", short_addr);
   } else if (mode == ADDR_LONG) {
     printf("Packet destination address:");
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
       printf(" %02x", long_addr[i]);
     }
     printf("\n");
@@ -71,7 +75,7 @@ static void callback(__attribute__ ((unused)) int pans,
     printf("Packet source address: 0x%04x\n", short_addr);
   } else if (mode == ADDR_LONG) {
     printf("Packet source address:");
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
       printf(" %02x", long_addr[i]);
     }
     printf("\n");
