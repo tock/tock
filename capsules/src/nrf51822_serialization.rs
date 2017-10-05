@@ -47,7 +47,7 @@ impl Default for App {
 
 // Local buffer for passing data between applications and the underlying
 // transport hardware.
-pub static mut WRITE_BUF: [u8; 256] = [0; 256];
+pub static mut WRITE_BUF: [u8; 600] = [0; 600];
 pub static mut READ_BUF: [u8; 600] = [0; 600];
 
 // We need two resources: a UART HW driver and driver state for each
