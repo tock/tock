@@ -249,7 +249,7 @@ memop(op_type: u32, argument: u32) -> [[ VARIES ]] as u32
  - `argument`: The argument to `brk`, `sbrk`, or other call.
 
 Each memop operation is specific and details of each call can be found in
-the memop syscall documentation.
+the [memop syscall documentation](syscalls/memop.md).
 
 #### Return
 
