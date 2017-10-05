@@ -22,8 +22,8 @@ use returncode::ReturnCode;
 ///   app.
 /// - `7`: Get the number of writeable flash regions defined in the header of
 ///   this app.
-/// - `8`: Get the start address of the writeable region indexed from 0 by
-///   r1.Returns (void*) -1 on failure, meaning the selected writeable region
+/// - `8`: Get the start address of the writeable region indexed from 0 by r1.
+///   Returns (void*) -1 on failure, meaning the selected writeable region
 ///   does not exist.
 /// - `9`: Get the end address of the writeable region indexed by r1. Returns
 ///   (void*) -1 on failure, meaning the selected writeable region does not
