@@ -86,10 +86,10 @@ callback queue. The function is determined by the ENTRY point in the process
 TBF header (typically the `_start` symbol) and is passed the following
 arguments in registers `r0` - `r3`:
 
-  * r0: The base address of the processes allocated memory region.
-  * r1: The current process break.
-  * r2: The current kernel memory break.
-  * r3: unused
+  * r0: the base address of the process code
+  * r1: the base address of the processes allocated memory region
+  * r2: the total amount of memory in its region
+  * r3: the current process memory break
 
 ## The System Calls
 
