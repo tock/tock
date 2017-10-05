@@ -11,6 +11,7 @@ tutorial on how to use them in drivers or applications.
 
 - [Overview of System Calls in Tock](#overview-of-system-calls-in-tock)
 - [Process State](#process-state)
+- [Startup](#startup)
 - [The System Calls](#the-system-calls)
   * [0: Yield](#0-yield)
     + [Arguments](#arguments)
