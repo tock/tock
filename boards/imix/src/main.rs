@@ -32,6 +32,9 @@ mod spi_dummy;
 mod lowpan_frag_dummy;
 
 #[allow(dead_code)]
+mod aes_test;
+
+#[allow(dead_code)]
 mod power;
 
 // State for loading apps.
@@ -485,5 +488,6 @@ pub unsafe fn reset_handler() {
                                     &mut APP_MEMORY,
                                     &mut PROCESSES,
                                     FAULT_RESPONSE);
+
     kernel::main(&imix, &mut chip, &mut PROCESSES, &imix.ipc);
 }
