@@ -50,9 +50,9 @@ pub trait AES128<'a> {
     fn take_dest(&'a self) -> Result<Option<&'a mut [u8]>, ReturnCode>;
 
     /// Begin a new message (with the configured IV) when `crypt()` is next
-    /// called.  Multiple calls to `put_data()` and `crypt()` may be made
-    /// between calls to `start_message()`, allowing the encryption context
-    /// to extend over non-contiguous extents of data.
+    /// called.  Multiple calls to `crypt()` (accompanied by `set_source()` or
+    /// `put_dest`) may be made between calls to `start_message()`, allowing the
+    /// encryption context to extend over non-contiguous extents of data.
     fn start_message(&self);
 
     /// Request an encryption/decryption
