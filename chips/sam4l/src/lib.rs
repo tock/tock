@@ -11,7 +11,7 @@
 
 extern crate cortexm4;
 #[allow(unused_imports)]
-#[macro_use(debug)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 
 #[macro_use]

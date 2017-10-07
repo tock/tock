@@ -124,6 +124,20 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
         })
     }
 
+    /// Performs a `map` or generates a value with the default
+    /// closure if the `TakeCell` is empty
+    pub fn map_or_else<U, D, F>(&self, default: D, f: F) -> U
+        where D: FnOnce() -> U,
+              F: FnOnce(&mut T)-> U
+    {
+        let maybe_val = self.take();
+        maybe_val.map_or_else(|| default(), |mut val| {
+            let res = f(&mut val);
+            self.replace(val);
+            res
+        })
+    }
+
     /// Behaves the same as `map`, except the closure is allowed to return
     /// an `Option`.
     pub fn and_then<F, R>(&self, closure: F) -> Option<R>
