@@ -71,9 +71,7 @@ pub trait AES128<'a> {
     /// key and the IV (or initial counter value), and a method `set_mode_*()`
     /// must have been called to set the desired mode.  These settings persist
     /// across calls to `crypt()`.
-    fn crypt(&self,
-             start_index: usize,
-             stop_index: usize) -> ReturnCode;
+    fn crypt(&self, start_index: usize, stop_index: usize) -> ReturnCode;
 }
 
 pub trait AES128Ctr {

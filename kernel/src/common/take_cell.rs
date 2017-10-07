@@ -128,7 +128,7 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// closure if the `TakeCell` is empty
     pub fn map_or_else<U, D, F>(&self, default: D, f: F) -> U
         where D: FnOnce() -> U,
-              F: FnOnce(&mut T)-> U
+              F: FnOnce(&mut T) -> U
     {
         let maybe_val = self.take();
         maybe_val.map_or_else(|| default(), |mut val| {

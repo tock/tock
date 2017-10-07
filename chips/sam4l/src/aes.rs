@@ -1,12 +1,12 @@
 //! Implementation of the AESA peripheral on the SAM4L
 
 use core::cell::Cell;
+use core::mem;
+
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use core::mem;
-use core::result::Result;
-use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
 use kernel::returncode::ReturnCode;
 use pm;
 use scif;
@@ -155,12 +155,11 @@ impl<'a> Aes<'a> {
 
     fn try_set_indices(&self, start_index: usize, stop_index: usize) -> bool {
         stop_index.checked_sub(start_index).map_or(false, |sublen| {
-            sublen % AES128_BLOCK_SIZE == 0 && {
+            sublen % AES128_BLOCK_SIZE == 0 &&
+            {
                 if let Some(source) = self.source.get() {
                     if sublen == source.len() &&
-                           self.dest.map_or(false, |dest| {
-                               stop_index <= dest.len()
-                           }) {
+                       self.dest.map_or(false, |dest| stop_index <= dest.len()) {
 
                         // We will start writing to the AES from the beginning of `source`,
                         // and end at its end
@@ -174,12 +173,9 @@ impl<'a> Aes<'a> {
                     } else {
                         false
                     }
-                }
-                else {
+                } else {
                     // The destination buffer is also the input
-                    if self.dest.map_or(false, |dest| {
-                        stop_index <= dest.len()
-                    }) {
+                    if self.dest.map_or(false, |dest| stop_index <= dest.len()) {
                         self.write_index.set(start_index);
                         self.read_index.set(start_index);
                         self.stop_index.set(stop_index);
@@ -221,9 +217,10 @@ impl<'a> Aes<'a> {
         } else {
             // The source and destination are the same buffer
             self.dest.map_or_else(|| {
-                debug!("Called write_block() with no data");
-                false
-            }, |dest| {
+                                      debug!("Called write_block() with no data");
+                                      false
+                                  },
+                                  |dest| {
                 let index = self.write_index.get();
                 let more = index + AES128_BLOCK_SIZE <= self.stop_index.get();
                 if !more {
@@ -252,10 +249,10 @@ impl<'a> Aes<'a> {
     // blocks after this
     fn read_block(&self) -> bool {
         self.dest.map_or_else(|| {
-            debug!("Called read_block() with no data");
-            false
-        },
-        |dest| {
+                                  debug!("Called read_block() with no data");
+                                  false
+                              },
+                              |dest| {
             let index = self.read_index.get();
             let more = index + AES128_BLOCK_SIZE <= self.stop_index.get();
             if !more {
@@ -277,7 +274,7 @@ impl<'a> Aes<'a> {
             more
         })
     }
- 
+
     /// Handle an interrupt, which will indicate either that the AESA's input
     /// buffer is ready for more data, or that it has completed a block of output
     /// for us to consume
@@ -310,7 +307,6 @@ impl<'a> Aes<'a> {
 }
 
 impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
-
     fn enable(&self) {
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
 
@@ -374,29 +370,6 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
                 _ => {}
             }
         }
-
-        ReturnCode::SUCCESS
-    }
-
-    fn take_dest(&'a self) -> Result<Option<&'a mut [u8]>, ReturnCode> {
-        if self.some_interrupts_are_set() {
-            return Result::Err(ReturnCode::EBUSY);
-        }
-
-        Result::Ok(self.dest.take())
-    }
-
-    fn put_dest(&'a self, dest: Option<&'a mut [u8]>) -> ReturnCode {
-        if self.some_interrupts_are_set() {
-            return ReturnCode::EBUSY;
-        }
-
-        // Make sure these indices are always valid
-        self.write_index.set(0);
-        self.read_index.set(0);
-        self.stop_index.set(0);
-
-        self.dest.put(dest);
 
         ReturnCode::SUCCESS
     }
