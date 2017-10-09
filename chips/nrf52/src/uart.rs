@@ -16,9 +16,9 @@ const NRF_UARTE_INTR_ENDTX: u32 = 1 << 8;
 const NRF_UARTE_INTR_ENDRX: u32 = 1 << 4;
 const NRF_UARTE_ENABLE: u32 = 8;
 
-pub struct UARTE {
+pub struct UARTE<'a> {
     regs: *const peripheral_registers::UARTE,
-    client: Cell<Option<&'static kernel::hil::uart::Client>>,
+    client: Cell<Option<&'a kernel::hil::uart::Client>>,
     buffer: kernel::common::take_cell::TakeCell<'static, [u8]>,
     remaining_bytes: Cell<usize>,
     offset: Cell<usize>,
@@ -29,10 +29,10 @@ pub struct UARTParams {
     pub baud_rate: u32,
 }
 
-pub static mut UART0: UARTE = UARTE::new();
+pub static mut UART0: UARTE<'static> = UARTE::new();
 
-impl UARTE {
-    pub const fn new() -> UARTE {
+impl<'a> UARTE<'a> {
+    pub const fn new() -> UARTE<'a> {
         UARTE {
             regs: peripheral_registers::UARTE_BASE as *mut peripheral_registers::UARTE,
             client: Cell::new(None),
@@ -180,8 +180,8 @@ impl UARTE {
     }
 }
 
-impl kernel::hil::uart::UART for UARTE {
-    fn set_client(&self, client: &'static kernel::hil::uart::Client) {
+impl<'a> kernel::hil::uart::UART<'a> for UARTE<'a> {
+    fn set_client(&self, client: &'a kernel::hil::uart::Client) {
         self.client.set(Some(client));
     }
 

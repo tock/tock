@@ -43,10 +43,10 @@ pub enum Error {
     CommandComplete,
 }
 
-pub trait UART {
+pub trait UART<'a> {
     /// Set the client for this UART peripheral. The client will be
     /// called when events finish.
-    fn set_client(&self, client: &'static Client);
+    fn set_client(&self, client: &'a Client);
 
     /// Initialize UART
     ///
@@ -54,13 +54,13 @@ pub trait UART {
     fn init(&self, params: UARTParams);
 
     /// Transmit data.
-    fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize);
+    fn transmit(&'a self, tx_data: &'static mut [u8], tx_len: usize);
 
     /// Receive data until buffer is full.
-    fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize);
+    fn receive(&'a self, rx_buffer: &'static mut [u8], rx_len: usize);
 }
 
-pub trait UARTAdvanced: UART {
+pub trait UARTAdvanced<'a>: UART<'a> {
     /// Receive data until `interbyte_timeout` bit periods have passed since the
     /// last byte or buffer is full. Does not timeout until at least one byte
     /// has been received.

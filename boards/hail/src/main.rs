@@ -49,7 +49,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Hail {
-    console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
+    console: &'static capsules::console::Console<'static, sam4l::usart::USART<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<'static,
                                                  VirtualMuxAlarm<'static,
@@ -60,7 +60,7 @@ struct Hail {
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static,
-                                                                               sam4l::usart::USART>,
+                                                         sam4l::usart::USART<'static>>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
