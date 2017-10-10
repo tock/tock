@@ -7,8 +7,8 @@
 - [TBF Header](#tbf-header)
   * [TLV Types](#tlv-types)
     + [`1` Main](#1-main)
-  * [`2` Writeable Flash Region](#2-writeable-flash-region)
-  * [`3` Package Name](#3-package-name)
+    + [`2` Writeable Flash Region](#2-writeable-flash-region)
+    + [`3` Package Name](#3-package-name)
 - [Code](#code)
 
 <!-- tocstop -->
