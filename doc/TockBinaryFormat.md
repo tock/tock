@@ -85,13 +85,15 @@ The `Main` element has three 32-bit fields:
 +------+--------+-------------+----------------+--------------+
 ```
 
-  * `init_offset` is the offset in the binary that contains the `_start` symbol
-    (i.e. the first instruction to execute).
-  * `protected_size` the amount of flash, in bytes, from the beginning of the
-    header, to
+  * `init_offset` is the offset in bytes from the beginning of binary payload
+    that contains the first instruction to exectue (typically the `_start`
+    symbol).
+  * `protected_size` the amount of flash, in bytes, after the header, to
     prevent the process from writing to.
   * `minimum_ram_size` the minium amount of memory, in bytes, the process
     needs.
+
+If the Main TLV header is not present, these values all default to `0`.
 
 #### `2` Writeable Flash Region
 
