@@ -5,6 +5,7 @@
 <!-- toc -->
 
 - [TBF Header](#tbf-header)
+  * [TLV Elements](#tlv-elements)
   * [TLV Types](#tlv-types)
     + [`1` Main](#1-main)
     + [`2` Writeable Flash Region](#2-writeable-flash-region)
@@ -31,24 +32,26 @@ elements are little-endian. The base header 16 bytes, and has 5 fields:
 +---------+-------------+------------+-------+----------+
 ```
 
-    * `Version` a 16-bit unsigned integer specifying the TBF header version.
-      Always `2`.
-    * `Header Size` a 16-bit unsigned integer specifying the length of the
-      entire TBF header in bytes (including the base header and all TLV
-      elements).
-    * `Total Size` a 32-bit unsigned integer specifying the total size of the
-      TBF in bytes (including the header).
-    * `Flags` specifies properties of the process.
-      - Bit 0 marks the process enabled. A `1` indicates the process is
-        enabled. Disabled processes will not be launched at startup.
-      - Bit 1 marks the process as sticky. A `1` indicates the process is
-        sticky. Sticky processes require additional confirmation to be erased.
-        For example, `tockloader` requires the `--force` flag erase them.  This
-        is useful for services running as processes that should always be
-        available.
-      - Bits 2-31 are reserved and should be set to 0.
-    * `Checksum` the result of XORing each 4-byte word in the header, excluding
-      the word containing the checksum field itself.
+  * `Version` a 16-bit unsigned integer specifying the TBF header version.
+    Always `2`.
+  * `Header Size` a 16-bit unsigned integer specifying the length of the
+    entire TBF header in bytes (including the base header and all TLV
+    elements).
+  * `Total Size` a 32-bit unsigned integer specifying the total size of the
+    TBF in bytes (including the header).
+  * `Flags` specifies properties of the process.
+    - Bit 0 marks the process enabled. A `1` indicates the process is
+      enabled. Disabled processes will not be launched at startup.
+    - Bit 1 marks the process as sticky. A `1` indicates the process is
+      sticky. Sticky processes require additional confirmation to be erased.
+      For example, `tockloader` requires the `--force` flag erase them.  This
+      is useful for services running as processes that should always be
+      available.
+    - Bits 2-31 are reserved and should be set to 0.
+  * `Checksum` the result of XORing each 4-byte word in the header, excluding
+    the word containing the checksum field itself.
+
+### TLV Elements
 
 The header is followed immediately by a sequence of TLV elements. TLV
 elements are aligned to 4 bytes. If a TLV element size is not 4-byte aligned it
