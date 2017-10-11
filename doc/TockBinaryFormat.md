@@ -18,7 +18,7 @@ includes a header portion, which encodes meta-data about the process, followed
 by a binary blob which is executed directly. All fields in the header are
 little-endian.
 
-## TBF Header 
+## TBF Header
 
 The TBF header contains a base header, followed by a sequence of
 type-length-value encoded elements. All fields in both the base header and TLV
@@ -33,15 +33,16 @@ elements are little-endian. The base header 16 bytes, and has 5 fields:
 
     * `Version` a 16-bit unsigned integer specifying the TBF header version.
       Always `2`.
-    * `Header Size` a 16-bit unsigned integer specifying the length of the entier TBF
-      header in bytes (including the base header and all TLV elements).
-    * `Total Size` a 32-bit unsigned integer specifying the total size of the TBF
-      in bytes (including the header).
+    * `Header Size` a 16-bit unsigned integer specifying the length of the
+      entire TBF header in bytes (including the base header and all TLV
+      elements).
+    * `Total Size` a 32-bit unsigned integer specifying the total size of the
+      TBF in bytes (including the header).
     * `Flags` specifies properties of the process.
       - Bit 0 marks the process enabled. A `1` indicates the process is
         enabled. Disabled processes will not be launched at startup.
       - Bit 1 marks the process as sticky. A `1` indicates the process is
-        sticky. Sticky processes require additional confimration to be erased.
+        sticky. Sticky processes require additional confirmation to be erased.
         For example, `tockloader` requires the `--force` flag erase them.  This
         is useful for services running as processes that should always be
         available.
@@ -49,7 +50,7 @@ elements are little-endian. The base header 16 bytes, and has 5 fields:
     * `Checksum` the result of XORing each 4-byte word in the header, excluding
       the word containing the checksum field itself.
 
-The header is followed immediately by a sequence of TLV elememnts.  TLV
+The header is followed immediately by a sequence of TLV elements. TLV
 elements are aligned to 4 bytes. If a TLV element size is not 4-byte aligned it
 will be padded with up to 3 bytes. Each element begins with a 16-bit type and
 16-bit length followed by the element data:
@@ -81,16 +82,16 @@ The `Main` element has three 32-bit fields:
 +------+--------+---------------------------------------------+
 | Type | Length |                  Data                       |
 |======+========+=============+================+==============|
-|  1   |   12   | init_offset | protected_size | min_ram_size | 
+|  1   |   12   | init_offset | protected_size | min_ram_size |
 +------+--------+-------------+----------------+--------------+
 ```
 
   * `init_offset` is the offset in bytes from the beginning of binary payload
-    that contains the first instruction to exectue (typically the `_start`
-    symbol).
+    (i.e. the actual application binary) that contains the first instruction to
+    execute (typically the `_start` symbol).
   * `protected_size` the amount of flash, in bytes, after the header, to
     prevent the process from writing to.
-  * `minimum_ram_size` the minium amount of memory, in bytes, the process
+  * `minimum_ram_size` the minimum amount of memory, in bytes, the process
     needs.
 
 If the Main TLV header is not present, these values all default to `0`.
