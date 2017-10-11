@@ -181,7 +181,7 @@ such as easy to manage serial connections, and the ability to list, add,
 replace, and remove applications over JTAG (or USB if a bootloader is
 installed).
 
-1. [tockloader](https://github.com/helena-project/tockloader) (version 0.7.1)
+1. [tockloader](https://github.com/helena-project/tockloader) (version 0.7.2)
 
 Installing applications over JTAG, depending on your JTAG Debugger, you will
 need one of:
@@ -191,11 +191,11 @@ need one of:
 
 #### `tockloader`
 
-Tock requires `tockloader` version `0.7.1`. To install:
+Tock requires `tockloader` version `0.7.2`. To install:
 
 ```bash
-(Linux): sudo pip3 install tockloader==0.7.1
-(MacOS): pip3 install tockloader==0.7.1
+(Linux): sudo pip3 install tockloader==0.7.2
+(MacOS): pip3 install tockloader==0.7.2
 ```
 
 #### `openocd`
