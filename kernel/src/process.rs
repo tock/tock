@@ -281,7 +281,7 @@ struct PicOption1Fields {
 #[derive(Clone, Copy, Debug)]
 struct TbfHeaderV2 {
     base: &'static TbfHeaderV2Base,
-    main: &'static TbfHeaderV2Main,
+    main: Option<&'static TbfHeaderV2Main>,
     pic_values: Option<&'static PicOption1Fields>,
     package_name: Option<&'static str>,
     writeable_regions: Option<&'static [TbfHeaderV2WriteableFlashRegion]>,
@@ -395,7 +395,8 @@ impl TbfHeader {
                 let stack_size = align8!(hd.min_stack_len);
                 align8!(data_len + stack_size) + heap_len
             }
-            TbfHeader::TbfHeaderV2(hd) => hd.main.minimum_ram_size,
+            TbfHeader::TbfHeaderV2(hd) =>
+                hd.main.map_or(0, |m| m.minimum_ram_size),
             _ => 0,
         }
     }
@@ -405,7 +406,8 @@ impl TbfHeader {
     fn get_protected_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(_) => mem::size_of::<TbfHeaderV1>() as u32,
-            TbfHeader::TbfHeaderV2(hd) => hd.main.protected_size,
+            TbfHeader::TbfHeaderV2(hd) =>
+                hd.main.map_or(0, |m| m.protected_size) + hd.base.header_size as u32,
             _ => 0,
         }
     }
@@ -415,7 +417,8 @@ impl TbfHeader {
     fn get_init_function_offset(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => hd.entry_offset,
-            TbfHeader::TbfHeaderV2(hd) => hd.main.init_fn_offset,
+            TbfHeader::TbfHeaderV2(hd) =>
+                hd.main.map_or(0, |m| m.init_fn_offset) + hd.base.header_size as u32,
             _ => 0,
         }
     }
@@ -609,17 +612,15 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
                     offset += align4!(tbf_tlv_header.length) as isize;
                 }
 
-                main_pointer.map_or(None, |mp| {
-                    let tbf_header = TbfHeaderV2 {
-                        base: tbf_header_base,
-                        main: mp,
-                        pic_values: pic1_pointer,
-                        package_name: Some(app_name_str),
-                        writeable_regions: wfr_pointer,
-                    };
+                let tbf_header = TbfHeaderV2 {
+                    base: tbf_header_base,
+                    main: main_pointer,
+                    pic_values: pic1_pointer,
+                    package_name: Some(app_name_str),
+                    writeable_regions: wfr_pointer,
+                };
 
-                    Some(TbfHeader::TbfHeaderV2(tbf_header))
-                })
+                Some(TbfHeader::TbfHeaderV2(tbf_header))
             }
         }
 
