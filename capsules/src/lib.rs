@@ -6,6 +6,8 @@
 #[macro_use(debug)]
 extern crate kernel;
 
+pub mod test;
+
 pub mod alarm;
 pub mod ambient_light;
 pub mod button;
