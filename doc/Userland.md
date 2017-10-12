@@ -256,7 +256,7 @@ Applications **should** return 0 from `main`, but `main` is called from `_start`
 and includes an implicit `while()` loop:
 
 ```c
-void _start(void* mem_start, void* app_heap_break ,void* kernel_memory_break) {
+void _start(void* text_start, void* mem_start, void* memory_len, void* app_heap_break) {
   main();
   while (1) {
     yield();
