@@ -3,136 +3,202 @@
 use kernel::ReturnCode;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128, AES128Ctr, AES128CBC};
-use sam4l::aes::AES;
-
-struct Test {
-    encrypting: bool,
-    mode_ctr: bool,
-    use_source: bool,
-}
-
-static mut T: Test = Test::new_ctr(true, true);
-// Test::new_ctr(false, true);
-// Test::new_ctr(true, false);
-// Test::new_ctr(false, false);
-// Test::new_cbc(true, true);
-// Test::new_cbc(false, true);
-// Test::new_cbc(true, false);
-// Test::new_cbc(false, false);
+use kernel::common::take_cell::TakeCell;
+use sam4l::aes::{AES, Aes};
+use core::cell::Cell;
 
 pub fn run() {
+    let t = static_init_test();
+
+    unsafe { AES.set_client(t); }
+
+    t.run();
+}
+
+struct Test<'a, A: 'a> {
+    aes: &'a A,
+
+    key: TakeCell<'a, [u8]>,
+    iv: TakeCell<'a, [u8]>,
+    source: TakeCell<'a, [u8]>,
+    data: TakeCell<'a, [u8]>,
+
+    encrypting: Cell<bool>,
+    mode_ctr: Cell<bool>,
+    use_source: Cell<bool>,
+}
+
+fn static_init_test() -> &'static mut Test<'static, Aes<'static>> {
     unsafe {
-        AES.set_client(&T);
-        T.run()
+        let source = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
+        let data = static_init!([u8; 6 * AES128_BLOCK_SIZE], [0; 6 * AES128_BLOCK_SIZE]);
+        let key = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+        let iv = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+
+        static_init!(Test<'static, Aes>, Test::new(&AES, key, iv, source, data))
     }
 }
-
-impl Test {
-    pub const fn new_ctr(encrypting: bool, use_source: bool) -> Test {
-        Test {
-            encrypting: encrypting,
-            mode_ctr: true,
-            use_source: use_source,
-        }
-    }
-
-    pub const fn new_cbc(encrypting: bool, use_source: bool) -> Test {
-        Test {
-            encrypting: encrypting,
-            mode_ctr: false,
-            use_source: use_source,
-        }
-    }
-
-    pub fn run(&self) {
-        unsafe {
-            AES.enable();
-
-            assert!(AES.set_key(&KEY) == ReturnCode::SUCCESS);
-
-            let iv = if self.mode_ctr { &IV_CTR } else { &IV_CBC };
-            assert!(AES.set_iv(iv) == ReturnCode::SUCCESS);
-
-            let source = if self.encrypting {
-                &PTXT
-            } else {
-                if self.mode_ctr { &CTXT_CTR } else { &CTXT_CBC }
-            };
-            if self.use_source {
-                assert!(AES.set_source(Some(source)) == ReturnCode::SUCCESS);
-            } else {
-                assert!(AES.set_source(None) == ReturnCode::SUCCESS);
-
-                // Copy source into dest and then crypt in-place
-                for (i, b) in source.iter().enumerate() {
-                    DATA[DATA_OFFSET + i] = *b;
-                }
-            }
-
-            assert!(AES.put_dest(Some(&mut DATA)) == ReturnCode::SUCCESS);
-
-            if self.mode_ctr {
-                AES.set_mode_aes128ctr(self.encrypting);
-            } else {
-                AES.set_mode_aes128cbc(self.encrypting);
-            }
-            AES.start_message();
-
-            let start = DATA_OFFSET;
-            let stop = DATA_OFFSET + DATA_LEN;
-            assert!(AES.crypt(start, stop) == ReturnCode::SUCCESS);
-
-            // await crypt_done()
-        }
-    }
-}
-
-impl hil::symmetric_encryption::Client for Test {
-    fn crypt_done(&self) {
-        unsafe {
-            let dest = AES.take_dest().unwrap().unwrap();
-            let expected = if self.encrypting {
-                if self.mode_ctr { &CTXT_CTR } else { &CTXT_CBC }
-            } else {
-                &PTXT
-            };
-
-            if &dest[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref() {
-                debug!("OK!");
-            } else {
-                debug!("FAIL");
-                debug!("{:?}", dest);
-            }
-            AES.disable();
-        }
-    }
-}
-
-static mut DATA: [u8; 6 * AES128_BLOCK_SIZE] = [0; 6 * AES128_BLOCK_SIZE];
 
 const DATA_OFFSET: usize = AES128_BLOCK_SIZE;
 const DATA_LEN: usize = 4 * AES128_BLOCK_SIZE;
 
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
+    pub fn new(aes: &'a A,
+               key: &'a mut [u8],
+               iv: &'a mut [u8],
+               source: &'a mut [u8],
+               data: &'a mut [u8]) -> Self {
+        Test {
+            aes: aes,
+
+            key: TakeCell::new(key),
+            iv: TakeCell::new(iv),
+            source: TakeCell::new(source),
+            data: TakeCell::new(data),
+
+            encrypting: Cell::new(true),
+            mode_ctr: Cell::new(true),
+            use_source: Cell::new(true),
+        }
+    }
+
+    pub fn run(&self) {
+        self.aes.enable();
+
+        // Copy key into key buffer and configure it in the hardware
+        self.key.map(|key| {
+            for (i,b) in KEY.iter().enumerate() {
+                key[i] = *b;
+            }
+
+            assert!(self.aes.set_key(key) == ReturnCode::SUCCESS);
+        });
+
+        // Copy mode-appropriate IV into IV buffer and configure it in the hardware
+        self.iv.map(|iv| {
+            let iv_mode = if self.mode_ctr.get() { &IV_CTR } else { &IV_CBC };
+            for (i,b) in iv_mode.iter().enumerate() {
+                iv[i] = *b;
+            }
+
+            assert!(self.aes.set_iv(iv) == ReturnCode::SUCCESS);
+        });
+
+        // Copy mode-appropriate source into source buffer
+        let source_mode = if self.encrypting.get() { &PTXT }
+                          else { if self.mode_ctr.get() { &CTXT_CTR }
+                                 else { &CTXT_CBC }
+                          };
+        self.source.map(|source| {
+            for (i,b) in source_mode.iter().enumerate() {
+                source[i] = *b;
+            }
+        });
+
+
+        if self.use_source.get() {
+            // Hand off the source buffer to the hardware
+            assert!(self.aes.set_source(self.source.take()) == ReturnCode::SUCCESS);
+        } else {
+            assert!(self.aes.set_source(None) == ReturnCode::SUCCESS);
+
+            // Copy source into dest for in-place encryption
+            self.source.map_or_else(|| { panic!("No source") },
+                |source| {
+                    self.data.map_or_else(|| { panic!("No data") },
+                        |data| {
+                            for (i, b) in source.iter().enumerate() {
+                                data[DATA_OFFSET + i] = *b;
+                            }
+                        });
+                });
+        }
+
+        // Hand off the destination buffer to the hardware
+        assert!(self.aes.put_dest(self.data.take()) == ReturnCode::SUCCESS);
+
+        if self.mode_ctr.get() {
+            self.aes.set_mode_aes128ctr(self.encrypting.get());
+        } else {
+            self.aes.set_mode_aes128cbc(self.encrypting.get());
+        }
+        self.aes.start_message();
+
+        let start = DATA_OFFSET;
+        let stop = DATA_OFFSET + DATA_LEN;
+        assert!(self.aes.crypt(start, stop) == ReturnCode::SUCCESS);
+
+        // await crypt_done()
+    }
+}
+
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Client for Test<'a, A> {
+    fn crypt_done(&self) {
+
+        if self.use_source.get() {
+            // Take back the source buffer
+            self.source.replace(self.aes.take_source().unwrap());
+        }
+
+        // Take back the destination buffer
+        self.data.replace(self.aes.take_dest().unwrap().unwrap());
+
+        let expected = if self.encrypting.get() {
+            if self.mode_ctr.get() { &CTXT_CTR } else { &CTXT_CBC }
+        } else {
+            &PTXT
+        };
+
+        if self.data.map_or(false, |data| &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()) {
+            debug!("OK! ({} {} {})",
+                   if self.encrypting.get() { "Enc" } else { "Dec" },
+                   if self.mode_ctr.get() { "Ctr" } else { "CBC" },
+                   if self.use_source.get() { "Src/Dst" } else { "In-place" });
+        } else {
+            panic!("FAIL");
+        }
+        self.aes.disable();
+
+        // Continue testing with other configurations
+        if self.encrypting.get() {
+            self.encrypting.set(false);
+            self.run();
+        } else {
+            self.encrypting.set(true);
+            if self.mode_ctr.get() {
+                self.mode_ctr.set(false);
+                self.run();
+            } else {
+                self.mode_ctr.set(true);
+                if self.use_source.get() {
+                    self.use_source.set(false);
+                    self.run();
+                }
+            }
+        }
+    }
+}
+
 #[cfg_attr(rustfmt, rustfmt_skip)]
-static KEY: [u8; AES128_BLOCK_SIZE] = [
+const KEY: [u8; AES128_BLOCK_SIZE] = [
     0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
     0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-static IV_CTR: [u8; AES128_BLOCK_SIZE] = [
+const IV_CTR: [u8; AES128_BLOCK_SIZE] = [
     0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7,
     0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-static IV_CBC: [u8; AES128_BLOCK_SIZE] = [
+const IV_CBC: [u8; AES128_BLOCK_SIZE] = [
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
     0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-static PTXT: [u8; 4 * AES128_BLOCK_SIZE] = [
+const PTXT: [u8; 4 * AES128_BLOCK_SIZE] = [
     0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96,
     0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a,
     0xae, 0x2d, 0x8a, 0x57, 0x1e, 0x03, 0xac, 0x9c,
@@ -144,7 +210,7 @@ static PTXT: [u8; 4 * AES128_BLOCK_SIZE] = [
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-static CTXT_CTR: [u8; 4 * AES128_BLOCK_SIZE] = [
+const CTXT_CTR: [u8; 4 * AES128_BLOCK_SIZE] = [
     0x87, 0x4d, 0x61, 0x91, 0xb6, 0x20, 0xe3, 0x26,
     0x1b, 0xef, 0x68, 0x64, 0x99, 0x0d, 0xb6, 0xce,
     0x98, 0x06, 0xf6, 0x6b, 0x79, 0x70, 0xfd, 0xff,
@@ -156,7 +222,7 @@ static CTXT_CTR: [u8; 4 * AES128_BLOCK_SIZE] = [
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-static CTXT_CBC: [u8; 4 * AES128_BLOCK_SIZE] = [
+const CTXT_CBC: [u8; 4 * AES128_BLOCK_SIZE] = [
     0x76, 0x49, 0xab, 0xac, 0x81, 0x19, 0xb2, 0x46,
     0xce, 0xe9, 0x8e, 0x9b, 0x12, 0xe9, 0x19, 0x7d,
     0x50, 0x86, 0xcb, 0x9b, 0x50, 0x72, 0x19, 0xee,

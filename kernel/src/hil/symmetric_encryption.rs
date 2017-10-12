@@ -25,17 +25,20 @@ pub trait AES128<'a> {
     fn set_client(&'a self, client: &'a Client);
 
     /// Set the encryption key; returns `EINVAL` if length is not `AES128_BLOCK_SIZE`
-    fn set_key(&'a self, key: &'a [u8]) -> ReturnCode;
+    fn set_key(&self, key: &[u8]) -> ReturnCode;
 
     /// Set the IV (or initial counter); returns `EINVAL` if length is not `AES128_BLOCK_SIZE`
-    fn set_iv(&'a self, iv: &'a [u8]) -> ReturnCode;
+    fn set_iv(&self, iv: &[u8]) -> ReturnCode;
 
     /// Set the source buffer.  If this is full, the encryption
     /// input will be this entire buffer, and its size must match
     /// `stop_index - start_index` when `crypt()` is called.
     /// If this is empty, the destination buffer will be read
     /// to provide the plaintext input.
-    fn set_source(&'a self, buf: Option<&'a [u8]>) -> ReturnCode;
+    fn set_source(&'a self, buf: Option<&'a mut [u8]>) -> ReturnCode;
+
+    /// Return the source buffer, if any
+    fn take_source(&'a self) -> Option<&'a mut [u8]>;
 
     /// Set the destination buffer.  If `set_source()` has not
     /// been used to pass a source buffer, this buffer will also
