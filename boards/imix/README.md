@@ -33,7 +33,7 @@ To compile an app, `cd` to the desired app and `make`. For example:
 
 ```bash
 $ cd userland/examples/blink/
-$ make
+$ make TOCK_BOARD=imix
 ```
 
 This will build the app, generate a binary in Tock Binary Format (using the
@@ -43,19 +43,29 @@ This will build the app, generate a binary in Tock Binary Format (using the
 Apps can be built and automatically uploaded from the root directory of Tock:
 
 ```bash
-$ make examples/blink
+$ make TOCK_BOARD=imix examples/blink
 ```
 
-Apps can be uploaded with `make program` (to use the serial bootloader):
+Apps can be uploaded with `make program` (to use the serial bootloader), but
+the tock board being programmed must be specified:
 
 ```bash
 $ cd userland/examples/blink/
-$ make program
+$ make TOCK_BOARD=imix program
 ```
 
 This builds and loads only a single app. Tock is capable of running multiple apps
-concurrently. Use `tockloader install` to add additional apps, and `tockloader list`
-to see the list of installed applications.
+concurrently:
+
+Use `tockloader install -a 0x40000` to add additional apps, and 
+`tockloader list -a 0x40000` to see the list of installed applications. The `-a`
+flag specifies the address of the application space, which is different between
+boards.
+
+Please note that forgetting to specify `TOCK_BOARD=imix` when using `make program`
+or forgetting to specify `-a 0x40000` when using `tockloader install` can result
+in overwriting a portion of the kernel, which should be fixed by flashing the 
+kernel again.
 
 ## Debugging
 
