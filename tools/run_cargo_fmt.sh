@@ -68,9 +68,17 @@ if [ "$1" == "diff" ]; then
 	done
 	exit $FAIL
 else
+	let FAIL=0
 	for f in $(find . | grep Cargo.toml); do
 		pushd $(dirname $f) > /dev/null
-		cargo-fmt -- --write-mode=overwrite
+		cargo-fmt -- --write-mode=overwrite || let FAIL=FAIL+1
 		popd > /dev/null
 	done
+
+	if [[ $FAIL -ne 0 ]]; then
+		echo
+		echo "$(tput bold)Error running rustfmt.$(tput sgr0)"
+		echo "See above for details"
+	fi
+	exit $FAIL
 fi
