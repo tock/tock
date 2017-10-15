@@ -44,11 +44,11 @@ pub static mut BUFFER: [u8; 8] = [0; 8];
 enum Registers {
     Status = 0x000,
     RepCap = 0x005, // Reported capacity, LSB = 0.5 mAh
-    RepSOC = 0x006, // Reported capacity, LSB = %/256
+    //RepSOC = 0x006, // Reported capacity, LSB = %/256
     FullCapRep = 0x035, // Maximum capacity, LSB = 0.5 mAh
-    NPackCfg = 0x1B5, // Pack configuration
+    //NPackCfg = 0x1B5, // Pack configuration
     NRomID = 0x1BC, //RomID - 64bit unique
-    NRSense = 0x1CF, // Sense resistor
+    //NRSense = 0x1CF, // Sense resistor
     Batt = 0x0DA, // Pack voltage, LSB = 1.25mV
     Current = 0x00A, // Instantaneous current, LSB = 156.25 uA
     Coulomb = 0x04D,
@@ -92,8 +92,20 @@ pub struct MAX17205<'a> {
     soc_mah: Cell<u16>,
     voltage: Cell<u16>,
     buffer: TakeCell<'static, [u8]>,
-    rom_id_buffer: MapCell<AppSlice<Shared, u8>>,
+    buf: MapCell<Buf>,
     client: Cell<Option<&'static MAX17205Client>>,
+}
+
+pub struct Buf {
+    rom_id_buffer: Option<AppSlice<Shared, u8>>,
+}
+
+impl Default for Buf {
+    fn default() -> Buf {
+        Buf {
+            rom_id_buffer: None,
+        }
+    }
 }
 
 impl<'a> MAX17205<'a> {
@@ -106,7 +118,7 @@ impl<'a> MAX17205<'a> {
             soc_mah: Cell::new(0),
             voltage: Cell::new(0),
             buffer: TakeCell::new(buffer),
-            rom_id_buffer: MapCell::empty(),
+            buf: MapCell::new(Buf::default()),
             client: Cell::new(None),
         }
     }
@@ -195,7 +207,7 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
             State::ReadStatus => {
                 let status = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = ReturnCode::SUCCESS;
+                let mut error = ReturnCode::SUCCESS;
                 if _error != i2c::Error::CommandComplete {
                     error = ReturnCode::ENOACK;
                 }
@@ -237,7 +249,7 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
             State::ReadCap => {
                 let full_mah = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = ReturnCode::SUCCESS;
+                let mut error = ReturnCode::SUCCESS;
                 if _error != i2c::Error::CommandComplete {
                     error = ReturnCode::ENOACK;
                 }
@@ -259,7 +271,7 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
                 // Read of voltage memory address complete
                 let coulomb = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = ReturnCode::SUCCESS;
+                let mut error = ReturnCode::SUCCESS;
                 if _error != i2c::Error::CommandComplete {
                     error = ReturnCode::ENOACK;
                 }
@@ -298,7 +310,7 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
             State::ReadCurrent => {
                 let current = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                let error = ReturnCode::SUCCESS;
+                let mut error = ReturnCode::SUCCESS;
                 if _error != i2c::Error::CommandComplete {
                     error = ReturnCode::ENOACK;
                 }
@@ -316,15 +328,20 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
                 self.state.set(State::ReadRomID);
             }
             State::ReadRomID => {
-                let mut buf_len = 0;
-                let exists = self.rom_id_buffer.map_or(false, |romid| {
-                    buf_len = romid.map_or(0, |buffer| 8);
-                    romid.is_some()
-                });
                 
+                let exists = self.buf.map_or(false, |app| {
+                    app.rom_id_buffer.as_mut().map(|dest_buf| {
+                        let d = &mut dest_buf.as_mut()[0..8];
+                        for (i, c) in buffer[0..8].iter().enumerate() {
+                            d[i] = *c;
+                        }
+                    });
+                    app.rom_id_buffer.is_some()
+                });
+               
                 self.buffer.replace(buffer);
 
-                let error = ReturnCode::SUCCESS;
+                let mut error = ReturnCode::SUCCESS;
                 if _error != i2c::Error::CommandComplete {
                     error = ReturnCode::ENOACK;
                 }
@@ -409,7 +426,7 @@ impl<'a> Driver for MAX17205Driver<'a> {
     fn allow(&self, _:AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
-                self.max17205.rom_id_buffer.map(|romid| {romid = Some(slice); });
+                self.max17205.buf.map(|romid| {romid.rom_id_buffer = Some(slice); });
 
                 ReturnCode::SUCCESS
             }
