@@ -13,12 +13,15 @@
 //! -----
 //!
 //! ```rust
-//! let max17205_i2c = static_init!(
+//! let max17205_i2c0 = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x36));
+//! let max17205_i2c1 = static_init!(
+//!     capsules::virtual_i2c::I2CDevice,
+//!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x0B));
 //! let max17205 = static_init!(
 //!     capsules::max17205::MAX17205<'static>,
-//!     capsules::max17205::MAX17205::new(max17205_i2c,
+//!     capsules::max17205::MAX17205::new(max17205_i2c0, max17205_i2c1,
 //!                                       &mut capsules::max17205::BUFFER));
 //! max17205_i2c.set_client(max17205);
 //!
@@ -30,21 +33,21 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Driver, ReturnCode};
-use kernel::common::take_cell::TakeCell;
+use kernel::{AppSlice, AppId, Callback, Driver, ReturnCode, Shared};
+use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::i2c;
 
 pub static mut BUFFER: [u8; 8] = [0; 8];
 
 // Addresses 0x000 - 0x0FF, 0x180 - 0x1FF can be written as blocks
 // Addresses 0x100 - 0x17F must be written by word
-#[allow(dead_code)]
 enum Registers {
     Status = 0x000,
     RepCap = 0x005, // Reported capacity, LSB = 0.5 mAh
     RepSOC = 0x006, // Reported capacity, LSB = %/256
     FullCapRep = 0x035, // Maximum capacity, LSB = 0.5 mAh
     NPackCfg = 0x1B5, // Pack configuration
+    NRomID = 0x1BC, //RomID - 64bit unique
     NRSense = 0x1CF, // Sense resistor
     Batt = 0x0DA, // Pack voltage, LSB = 1.25mV
     Current = 0x00A, // Instantaneous current, LSB = 156.25 uA
@@ -68,35 +71,42 @@ enum State {
     ReadVolt,
     SetupReadCurrent,
     ReadCurrent,
+    SetupReadRomID,
+    ReadRomID
 }
 
 pub trait MAX17205Client {
-    fn status(&self, status: u16);
-    fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16);
-    fn voltage_current(&self, voltage: u16, current: u16);
-    fn coulomb(&self, coulomb: u16);
+    fn status(&self, status: u16, error: ReturnCode);
+    fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16, error: ReturnCode);
+    fn voltage_current(&self, voltage: u16, current: u16, error: ReturnCode);
+    fn coulomb(&self, coulomb: u16, error: ReturnCode);
+    fn romid(&self, error: ReturnCode);
 }
 
 
 pub struct MAX17205<'a> {
     i2c0: &'a i2c::I2CDevice,
+    i2c1: &'a i2c::I2CDevice,
     state: Cell<State>,
     soc: Cell<u16>,
     soc_mah: Cell<u16>,
     voltage: Cell<u16>,
     buffer: TakeCell<'static, [u8]>,
+    rom_id_buffer: MapCell<AppSlice<Shared, u8>>,
     client: Cell<Option<&'static MAX17205Client>>,
 }
 
 impl<'a> MAX17205<'a> {
-    pub fn new(i2c0: &'a i2c::I2CDevice, buffer: &'static mut [u8]) -> MAX17205<'a> {
+    pub fn new(i2c0: &'a i2c::I2CDevice, i2c1: &'a i2c::I2CDevice, buffer: &'static mut [u8]) -> MAX17205<'a> {
         MAX17205 {
             i2c0: i2c0,
+            i2c1: i2c1,
             state: Cell::new(State::Idle),
             soc: Cell::new(0),
             soc_mah: Cell::new(0),
             voltage: Cell::new(0),
             buffer: TakeCell::new(buffer),
+            rom_id_buffer: MapCell::empty(),
             client: Cell::new(None),
         }
     }
@@ -159,6 +169,18 @@ impl<'a> MAX17205<'a> {
             ReturnCode::SUCCESS
         })
     }
+
+    fn setup_read_romid(&self) -> ReturnCode {
+        self.buffer.take().map_or(ReturnCode::ENOMEM, |buffer| {
+            self.i2c1.enable();
+
+            buffer[0] = Registers::NRomID as u8;
+            self.i2c1.write(buffer, 1);
+            self.state.set(State::SetupReadRomID);
+
+            ReturnCode::SUCCESS
+        })
+    }
 }
 
 impl<'a> i2c::I2CClient for MAX17205<'a> {
@@ -173,7 +195,12 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
             State::ReadStatus => {
                 let status = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                self.client.get().map(|client| client.status(status));
+                let error = ReturnCode::SUCCESS;
+                if _error != i2c::Error::CommandComplete {
+                    error = ReturnCode::ENOACK;
+                }
+
+                self.client.get().map(|client| client.status(status, error));
 
                 self.buffer.replace(buffer);
                 self.i2c0.disable();
@@ -210,8 +237,13 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
             State::ReadCap => {
                 let full_mah = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
+                let error = ReturnCode::SUCCESS;
+                if _error != i2c::Error::CommandComplete {
+                    error = ReturnCode::ENOACK;
+                }
+
                 self.client.get().map(|client| {
-                    client.state_of_charge(self.soc.get(), self.soc_mah.get(), full_mah);
+                    client.state_of_charge(self.soc.get(), self.soc_mah.get(), full_mah, error);
                 });
 
                 self.buffer.replace(buffer);
@@ -227,7 +259,12 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
                 // Read of voltage memory address complete
                 let coulomb = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
-                self.client.get().map(|client| { client.coulomb(coulomb); });
+                let error = ReturnCode::SUCCESS;
+                if _error != i2c::Error::CommandComplete {
+                    error = ReturnCode::ENOACK;
+                }
+
+                self.client.get().map(|client| { client.coulomb(coulomb, error); });
 
                 self.buffer.replace(buffer);
                 self.i2c0.disable();
@@ -261,12 +298,44 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
             State::ReadCurrent => {
                 let current = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
 
+                let error = ReturnCode::SUCCESS;
+                if _error != i2c::Error::CommandComplete {
+                    error = ReturnCode::ENOACK;
+                }
+
                 self.client
                     .get()
-                    .map(|client| client.voltage_current(self.voltage.get(), current));
+                    .map(|client| client.voltage_current(self.voltage.get(), current, error));
 
                 self.buffer.replace(buffer);
                 self.i2c0.disable();
+                self.state.set(State::Idle);
+            }
+            State::SetupReadRomID => {
+                self.i2c1.read(buffer, 8);
+                self.state.set(State::ReadRomID);
+            }
+            State::ReadRomID => {
+                let mut buf_len = 0;
+                let exists = self.rom_id_buffer.map_or(false, |romid| {
+                    buf_len = romid.map_or(0, |buffer| 8);
+                    romid.is_some()
+                });
+                
+                self.buffer.replace(buffer);
+
+                let error = ReturnCode::SUCCESS;
+                if _error != i2c::Error::CommandComplete {
+                    error = ReturnCode::ENOACK;
+                }
+
+                if !exists {
+                    error = ReturnCode::ENOMEM;
+                }
+
+                self.client.get().map(|client| client.romid(error));
+                
+                self.i2c1.disable();
                 self.state.set(State::Idle);
             }
             _ => {}
@@ -274,8 +343,6 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
     }
 }
 
-/// Default implementation of the MAX17205 driver that provides a `Driver`
-/// interface for providing access to applications.
 pub struct MAX17205Driver<'a> {
     max17205: &'a MAX17205<'a>,
     callback: Cell<Option<Callback>>,
@@ -291,24 +358,28 @@ impl<'a> MAX17205Driver<'a> {
 }
 
 impl<'a> MAX17205Client for MAX17205Driver<'a> {
-    fn status(&self, status: u16) {
-        self.callback.get().map(|mut cb| cb.schedule(1, status as usize, 0));
+    fn status(&self, status: u16, error: ReturnCode) {
+        self.callback.get().map(|mut cb| cb.schedule(From::from(error), status as usize, 0));
     }
 
-    fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16) {
+    fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16, error: ReturnCode) {
         self.callback.get().map(|mut cb| {
-            cb.schedule(2,
+            cb.schedule(From::from(error),
                         percent as usize,
                         (capacity as usize) << 16 | (full_capacity as usize));
         });
     }
 
-    fn voltage_current(&self, voltage: u16, current: u16) {
-        self.callback.get().map(|mut cb| cb.schedule(3, voltage as usize, current as usize));
+    fn voltage_current(&self, voltage: u16, current: u16, error: ReturnCode) {
+        self.callback.get().map(|mut cb| cb.schedule(From::from(error), voltage as usize, current as usize));
     }
 
-    fn coulomb(&self, coulomb: u16) {
-        self.callback.get().map(|mut cb| cb.schedule(4, coulomb as usize, 0));
+    fn coulomb(&self, coulomb: u16, error: ReturnCode) {
+        self.callback.get().map(|mut cb| cb.schedule(From::from(error), coulomb as usize, 0));
+    }
+
+    fn romid(&self, error: ReturnCode) {
+        self.callback.get().map(|mut cb| cb.schedule(From::from(error),0 , 0));
     }
 }
 
@@ -318,10 +389,6 @@ impl<'a> Driver for MAX17205Driver<'a> {
     /// ### `subscribe_num`
     ///
     /// - `0`: Setup a callback for when all events complete or data is ready.
-    ///   - `1`: Return the chip status.
-    ///   - `2`: Return the state of charge.
-    ///   - `3`: Return the voltage and current.
-    ///   - `4`: Return the raw coulombs.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             0 => {
@@ -331,6 +398,24 @@ impl<'a> Driver for MAX17205Driver<'a> {
 
             // default
             _ => ReturnCode::ENOSUPPORT,
+        }
+    }
+
+    /// Allow buffer for the MAX17205
+    ///
+    /// ### `allow_num`
+    ///
+    /// - `0`: Setup a buffer for the 64bit RomID
+    fn allow(&self, _:AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+        match allow_num {
+            0 => {
+                self.max17205.rom_id_buffer.map(|romid| {romid = Some(slice); });
+
+                ReturnCode::SUCCESS
+            }
+
+            // default
+            _=> ReturnCode::ENOSUPPORT,
         }
     }
 
@@ -358,6 +443,9 @@ impl<'a> Driver for MAX17205Driver<'a> {
 
             // get raw coulombs
             4 => self.max17205.setup_read_coulomb(),
+
+            //
+            5 => self.max17205.setup_read_romid(),
 
             // default
             _ => ReturnCode::ENOSUPPORT,
