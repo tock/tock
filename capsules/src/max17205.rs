@@ -72,7 +72,7 @@ enum State {
     SetupReadCurrent,
     ReadCurrent,
     SetupReadRomID,
-    ReadRomID
+    ReadRomID,
 }
 
 pub trait MAX17205Client {
@@ -102,14 +102,15 @@ pub struct Buf {
 
 impl Default for Buf {
     fn default() -> Buf {
-        Buf {
-            rom_id_buffer: None,
-        }
+        Buf { rom_id_buffer: None }
     }
 }
 
 impl<'a> MAX17205<'a> {
-    pub fn new(i2c0: &'a i2c::I2CDevice, i2c1: &'a i2c::I2CDevice, buffer: &'static mut [u8]) -> MAX17205<'a> {
+    pub fn new(i2c0: &'a i2c::I2CDevice,
+               i2c1: &'a i2c::I2CDevice,
+               buffer: &'static mut [u8])
+               -> MAX17205<'a> {
         MAX17205 {
             i2c0: i2c0,
             i2c1: i2c1,
@@ -328,7 +329,7 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
                 self.state.set(State::ReadRomID);
             }
             State::ReadRomID => {
-                
+
                 let exists = self.buf.map_or(false, |app| {
                     app.rom_id_buffer.as_mut().map(|dest_buf| {
                         let d = &mut dest_buf.as_mut()[0..8];
@@ -338,7 +339,7 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
                     });
                     app.rom_id_buffer.is_some()
                 });
-               
+
                 self.buffer.replace(buffer);
 
                 let mut error = ReturnCode::SUCCESS;
@@ -351,7 +352,7 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
                 }
 
                 self.client.get().map(|client| client.romid(error));
-                
+
                 self.i2c1.disable();
                 self.state.set(State::Idle);
             }
@@ -388,7 +389,9 @@ impl<'a> MAX17205Client for MAX17205Driver<'a> {
     }
 
     fn voltage_current(&self, voltage: u16, current: u16, error: ReturnCode) {
-        self.callback.get().map(|mut cb| cb.schedule(From::from(error), voltage as usize, current as usize));
+        self.callback
+            .get()
+            .map(|mut cb| cb.schedule(From::from(error), voltage as usize, current as usize));
     }
 
     fn coulomb(&self, coulomb: u16, error: ReturnCode) {
@@ -396,7 +399,7 @@ impl<'a> MAX17205Client for MAX17205Driver<'a> {
     }
 
     fn romid(&self, error: ReturnCode) {
-        self.callback.get().map(|mut cb| cb.schedule(From::from(error),0 , 0));
+        self.callback.get().map(|mut cb| cb.schedule(From::from(error), 0, 0));
     }
 }
 
@@ -423,16 +426,16 @@ impl<'a> Driver for MAX17205Driver<'a> {
     /// ### `allow_num`
     ///
     /// - `0`: Setup a buffer for the 64bit RomID
-    fn allow(&self, _:AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
+    fn allow(&self, _: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             0 => {
-                self.max17205.buf.map(|romid| {romid.rom_id_buffer = Some(slice); });
+                self.max17205.buf.map(|romid| { romid.rom_id_buffer = Some(slice); });
 
                 ReturnCode::SUCCESS
             }
 
             // default
-            _=> ReturnCode::ENOSUPPORT,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
@@ -445,6 +448,7 @@ impl<'a> Driver for MAX17205Driver<'a> {
     /// - `2`: Read the current state of charge percent.
     /// - `3`: Read the current voltage and current draw.
     /// - `4`: Read the raw coulomb count.
+    /// - `5`: Read the uniqut 64 bit RomID.
     fn command(&self, command_num: usize, _data: usize, _: usize, _: AppId) -> ReturnCode {
         match command_num {
             0 => ReturnCode::SUCCESS,
