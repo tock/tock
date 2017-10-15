@@ -9,16 +9,16 @@ struct max17205_data {
 };
 
 static struct max17205_data result = { .fired = false, .rc = 0, .value0 = 0, .value1 = 0 };
-static subscribe_cb* user_cb = NULL;
+static subscribe_cb* user_cb       = NULL;
 
 // Internal callback for faking synchronous reads
 static void internal_user_cb(int return_code,
-                            int value0,
-                            int value1,
-                            void* ud) {
+                             int value0,
+                             int value1,
+                             void* ud) {
 
   struct max17205_data* data = (struct max17205_data*) ud;
-  data-> rc = return_code;
+  data->rc     = return_code;
   data->value0 = value0;
   data->value1 = value1;
   data->fired  = true;
@@ -31,7 +31,7 @@ static void max17205_cb(int return_code,
                         int value1,
                         void* ud) {
   is_busy = false;
-  if(user_cb) {
+  if (user_cb) {
     user_cb(return_code, value0, value1, ud);
   }
 }
@@ -46,13 +46,13 @@ int max17205_set_callback (subscribe_cb callback, void* callback_args) {
 }
 
 int max17205_read_status(void) {
-  if(is_busy){
+  if (is_busy) {
     return TOCK_EBUSY;
   } else {
     is_busy = true;
     int rc = command(DRIVER_NUM_MAX17205, 1, 0, 0);
-    if(rc != TOCK_SUCCESS) {
-        is_busy = false;
+    if (rc != TOCK_SUCCESS) {
+      is_busy = false;
     }
 
     return rc;
@@ -60,13 +60,13 @@ int max17205_read_status(void) {
 }
 
 int max17205_read_soc(void) {
-  if(is_busy){
+  if (is_busy) {
     return TOCK_EBUSY;
   } else {
     is_busy = true;
     int rc = command(DRIVER_NUM_MAX17205, 2, 0, 0);
-    if(rc != TOCK_SUCCESS) {
-        is_busy = false;
+    if (rc != TOCK_SUCCESS) {
+      is_busy = false;
     }
 
     return rc;
@@ -74,13 +74,13 @@ int max17205_read_soc(void) {
 }
 
 int max17205_read_voltage_current(void) {
-  if(is_busy){
+  if (is_busy) {
     return TOCK_EBUSY;
   } else {
     is_busy = true;
     int rc = command(DRIVER_NUM_MAX17205, 3, 0, 0);
-    if(rc != TOCK_SUCCESS) {
-        is_busy = false;
+    if (rc != TOCK_SUCCESS) {
+      is_busy = false;
     }
 
     return rc;
@@ -88,13 +88,13 @@ int max17205_read_voltage_current(void) {
 }
 
 int max17205_read_coulomb(void) {
-  if(is_busy){
+  if (is_busy) {
     return TOCK_EBUSY;
   } else {
     is_busy = true;
     int rc = command(DRIVER_NUM_MAX17205, 4, 0, 0);
-    if(rc != TOCK_SUCCESS) {
-        is_busy = false;
+    if (rc != TOCK_SUCCESS) {
+      is_busy = false;
     }
 
     return rc;
@@ -102,19 +102,19 @@ int max17205_read_coulomb(void) {
 }
 
 int max17205_read_rom_id(uint8_t* rom_id_buffer) {
-  if(is_busy){
+  if (is_busy) {
     return TOCK_EBUSY;
   } else {
     is_busy = true;
     int rc = allow(DRIVER_NUM_MAX17205, 0, rom_id_buffer, 8);
-    if(rc != TOCK_SUCCESS) {
-        is_busy = false;
-        return rc;
+    if (rc != TOCK_SUCCESS) {
+      is_busy = false;
+      return rc;
     }
 
     rc = command(DRIVER_NUM_MAX17205, 5, 0, 0);
-    if(rc != TOCK_SUCCESS) {
-        is_busy = false;
+    if (rc != TOCK_SUCCESS) {
+      is_busy = false;
     }
 
     return rc;

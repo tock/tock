@@ -15,10 +15,10 @@ int main (void) {
 
   uint8_t rom_id[8];
   int rc = max17205_read_rom_id_sync(rom_id);
-  if(rc == TOCK_SUCCESS) {
+  if (rc == TOCK_SUCCESS) {
     printf("Found ROM ID: 0x");
     for (int i = 0; i < 8; i++) {
-        printf("%02X",rom_id[i]);
+      printf("%02X",rom_id[i]);
     }
     printf("\n");
   } else {
@@ -29,7 +29,7 @@ int main (void) {
 
   uint16_t status;
   rc = max17205_read_status_sync(&status);
-  if(rc == TOCK_SUCCESS) {
+  if (rc == TOCK_SUCCESS) {
     printf("Status: 0x%04X\n", status);
   } else {
     printf("Got error: %d - %s\n", rc, tock_strerror(rc));
@@ -39,7 +39,7 @@ int main (void) {
 
   uint16_t percent, soc_mah, soc_mah_full;
   rc = max17205_read_soc_sync(&percent, &soc_mah, &soc_mah_full);
-  if(rc == TOCK_SUCCESS) {
+  if (rc == TOCK_SUCCESS) {
     printf("Percent (.001%%): %ld\n",lrint(max17205_get_percentage_mP(percent)));
     printf("State of charge in uAh: %ld\n", lrint(max17205_get_capacity_uAh(soc_mah)));
     printf("Full charge in uAh: %ld\n", lrint(max17205_get_capacity_uAh(soc_mah_full)));
@@ -51,7 +51,7 @@ int main (void) {
 
   uint16_t voltage, current;
   rc = max17205_read_voltage_current_sync(&voltage, &current);
-  if(rc == TOCK_SUCCESS) {
+  if (rc == TOCK_SUCCESS) {
     printf("Voltage (mV): %ld\n", lrint(max17205_get_voltage_mV(voltage)));
     printf("Current (uA): %ld\n", lrint(max17205_get_current_uA(current)));
   } else {
