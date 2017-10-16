@@ -44,6 +44,9 @@ use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil;
 use kernel::hil::time::Frequency;
 
+// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x50002;
+
 /// Buffers used for SD card transactions, assigned in board `main.rs` files
 /// Constraints:
 ///

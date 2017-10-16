@@ -15,6 +15,9 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio::{Client, InterruptMode, Pin};
 use kernel::hil::i2c;
 
+// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x70001;
+
 pub static mut BUFFER: [u8; 3] = [0; 3];
 
 const MAX_SAMPLING_RATE: u8 = 0x0;

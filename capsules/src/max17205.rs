@@ -40,6 +40,9 @@ use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
 
+// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x80001;
+
 pub static mut BUFFER: [u8; 8] = [0; 8];
 
 // Addresses 0x000 - 0x0FF, 0x180 - 0x1FF can be written as blocks
