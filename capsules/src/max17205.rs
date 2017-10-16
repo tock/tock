@@ -37,7 +37,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppSlice, AppId, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
 
@@ -411,17 +411,6 @@ impl<'a> Driver for MAX17205Driver<'a> {
                 ReturnCode::SUCCESS
             }
 
-            // default
-            _ => ReturnCode::ENOSUPPORT,
-        }
-    }
-
-    /// Allow buffer for the MAX17205
-    ///
-    /// ### `allow_num`
-    ///
-    fn allow(&self, _: AppId, allow_num: usize, _: AppSlice<Shared, u8>) -> ReturnCode {
-        match allow_num {
             // default
             _ => ReturnCode::ENOSUPPORT,
         }
