@@ -59,7 +59,7 @@ int max17205_read_rom_id (uint8_t* rom_id_buf);
 //
 int max17205_read_status_sync(uint16_t* state);
 int max17205_read_soc_sync(uint16_t* percent, uint16_t* soc_mah, uint16_t* soc_mah_full);
-int max17205_read_voltage_current_sync(uint16_t* voltage, uint16_t* current);
+int max17205_read_voltage_current_sync(uint16_t* voltage, int16_t* current);
 int max17205_read_coulomb_sync (uint16_t* coulomb);
 int max17205_read_rom_id_sync (uint8_t* rom_id_buf);
 

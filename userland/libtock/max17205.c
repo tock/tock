@@ -159,7 +159,7 @@ int max17205_read_soc_sync(uint16_t* percent, uint16_t* soc_mah, uint16_t* soc_m
   return result.rc;
 }
 
-int max17205_read_voltage_current_sync(uint16_t* voltage, uint16_t* current) {
+int max17205_read_voltage_current_sync(uint16_t* voltage, int16_t* current) {
   int err;
   result.fired = false;
 
