@@ -202,10 +202,10 @@ int max17205_read_rom_id_sync(uint64_t* rom_id) {
 
   // Wait for the callback.
   yield_for(&result.fired);
-  
+
   uint64_t temp = result.value0;
-  temp <<= 32;
-  temp |= result.value1 & 0x00000000FFFFFFFF; 
+  temp  <<= 32;
+  temp   |= result.value1 & 0x00000000FFFFFFFF;
   *rom_id = temp;
 
   return result.rc;

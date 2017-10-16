@@ -13,8 +13,8 @@
 //! -----
 //!
 //! ```rust
-//! 
-//! // Two i2c addresses are necessary. 
+//!
+//! // Two i2c addresses are necessary.
 //! // Registers 0x000-0x0FF are accessed by address 0x36.
 //! // Registers 0x100-0x1FF are accessed by address 0x0B.
 //! let max17205_i2c_lower = static_init!(
@@ -38,7 +38,7 @@
 
 use core::cell::Cell;
 use kernel::{AppSlice, AppId, Callback, Driver, ReturnCode, Shared};
-use kernel::common::take_cell::{TakeCell};
+use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
 
 pub static mut BUFFER: [u8; 8] = [0; 8];
@@ -330,7 +330,10 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
             State::ReadRomID => {
 
                 // u64 from 8 bytes
-                let rid = buffer.iter().take(8).enumerate().fold(0u64, |rid, (i, b)| rid | ((*b as u64) << i * 8));
+                let rid = buffer.iter()
+                    .take(8)
+                    .enumerate()
+                    .fold(0u64, |rid, (i, b)| rid | ((*b as u64) << i * 8));
                 self.buffer.replace(buffer);
 
                 let error = if _error != i2c::Error::CommandComplete {
@@ -387,7 +390,11 @@ impl<'a> MAX17205Client for MAX17205Driver<'a> {
     }
 
     fn romid(&self, rid: u64, error: ReturnCode) {
-        self.callback.get().map(|mut cb| cb.schedule(From::from(error), (rid & 0xffffffff) as usize, (rid >> 32) as usize));
+        self.callback.get().map(|mut cb| {
+            cb.schedule(From::from(error),
+                        (rid & 0xffffffff) as usize,
+                        (rid >> 32) as usize)
+        });
     }
 }
 
