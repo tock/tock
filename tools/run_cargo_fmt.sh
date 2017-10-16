@@ -5,6 +5,12 @@
 # Note: We install a local copy of rustfmt so as not to interfere with any
 # other use of rustfmt on the machine
 RUSTFMT_VERSION=0.7.1
+export RUSTUP_TOOLCHAIN=nightly-2017-09-20
+
+if [[ $(rustc --version) != "rustc 1.22.0-nightly (325ba23d5 2017-09-19)" ]]; then
+	rustup install $RUSTUP_TOOLCHAIN || (echo "Failed to install rustc. Please read doc/Getting_Started.md"; exit 1)
+fi
+
 
 # Format overwrites changes, which is probably good, but it's nice to see
 # what it has done
