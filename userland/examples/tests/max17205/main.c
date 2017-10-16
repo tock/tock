@@ -13,14 +13,10 @@
 int main (void) {
   printf("[MAX17205] Test App\n");
 
-  uint8_t rom_id[8];
-  int rc = max17205_read_rom_id_sync(rom_id);
+  uint64_t rom_id;
+  int rc = max17205_read_rom_id_sync(&rom_id);
   if (rc == TOCK_SUCCESS) {
-    printf("Found ROM ID: 0x");
-    for (int i = 0; i < 8; i++) {
-      printf("%02X",rom_id[i]);
-    }
-    printf("\n");
+    printf("Found ROM ID: 0x%llX\n", rom_id);
   } else {
     printf("Got error: %s\n", tock_strerror(rc));
   }
@@ -49,7 +45,8 @@ int main (void) {
 
   printf("\n");
 
-  uint16_t voltage, current;
+  uint16_t voltage;
+  int16_t current;
   rc = max17205_read_voltage_current_sync(&voltage, &current);
   if (rc == TOCK_SUCCESS) {
     printf("Voltage (mV): %ld\n", lrint(max17205_get_voltage_mV(voltage)));

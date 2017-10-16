@@ -101,18 +101,12 @@ int max17205_read_coulomb(void) {
   }
 }
 
-int max17205_read_rom_id(uint8_t* rom_id_buffer) {
+int max17205_read_rom_id(void) {
   if (is_busy) {
     return TOCK_EBUSY;
   } else {
     is_busy = true;
-    int rc = allow(DRIVER_NUM_MAX17205, 0, rom_id_buffer, 8);
-    if (rc != TOCK_SUCCESS) {
-      is_busy = false;
-      return rc;
-    }
-
-    rc = command(DRIVER_NUM_MAX17205, 5, 0, 0);
+    int rc = command(DRIVER_NUM_MAX17205, 5, 0, 0);
     if (rc != TOCK_SUCCESS) {
       is_busy = false;
     }
@@ -196,18 +190,23 @@ int max17205_read_coulomb_sync(uint16_t* coulomb) {
   return result.rc;
 }
 
-int max17205_read_rom_id_sync(uint8_t* rom_id_buffer) {
+int max17205_read_rom_id_sync(uint64_t* rom_id) {
   int err;
   result.fired = false;
 
   err = max17205_set_callback(internal_user_cb, (void*) &result);
   if (err < 0) return err;
 
-  err = max17205_read_rom_id(rom_id_buffer);
+  err = max17205_read_rom_id();
   if (err < 0) return err;
 
   // Wait for the callback.
   yield_for(&result.fired);
+  
+  uint64_t temp = result.value0;
+  temp <<= 32;
+  temp |= result.value1 & 0x00000000FFFFFFFF; 
+  *rom_id = temp;
 
   return result.rc;
 }
