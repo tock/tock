@@ -18,6 +18,9 @@ use kernel::ReturnCode;
 use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil;
 
+// Syscall driver number.
+pub const DRIVER_NUM: usize = 0x20003;
+
 pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
 pub static mut BUFFER3: [u8; 256] = [0; 256];
