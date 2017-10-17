@@ -1,6 +1,8 @@
 #![feature(asm,concat_idents,const_fn,const_cell_new)]
 #![no_std]
 
+#![crate_name = "nrf52"]
+#![crate_type = "rlib"]
 #[allow(unused_imports)]
 #[macro_use(debug)]
 extern crate kernel;
@@ -19,6 +21,7 @@ mod peripheral_registers;
 
 pub mod chip;
 pub use chip::NRF52;
+pub mod crt1;
 pub mod nvmc;
 pub mod radio;
 pub mod uart;
