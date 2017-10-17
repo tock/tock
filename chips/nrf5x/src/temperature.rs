@@ -15,7 +15,7 @@ use peripheral_interrupts;
 use peripheral_registers;
 
 /// Syscall Number
-pub const DRIVER_NUM: usize = 0x80_06_00_01;
+pub const DRIVER_NUM: usize = 0x60000;
 
 const NRF_TEMP_DATARDY_INTR: u32 = 1;
 const NRF_TEMP_ENABLE: u32 = 1;
