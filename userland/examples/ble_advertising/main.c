@@ -56,5 +56,7 @@ int main (void) {
   err = ble_start_advertising();
   if (err < TOCK_SUCCESS) printf("ble_start_advertising, error: %s\r\n", tock_strerror(err));
 
+  // configuration complete
+  printf("Now advertising every %d ms as '%s'\n", advertising_interval_ms, device_name);
   return 0;
 }
