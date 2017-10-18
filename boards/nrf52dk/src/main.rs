@@ -132,7 +132,7 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
             nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            nrf5x::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             _ => f(None),
         }
     }
