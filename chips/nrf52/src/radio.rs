@@ -68,14 +68,6 @@ pub const RADIO_STATE_TX: u32 = 11;
 pub const RADIO_STATE_TXDISABLE: u32 = 12;
 
 
-// constants for readability purposes
-pub const PAYLOAD_HDR_PDU: usize = 0;
-pub const PAYLOAD_HDR_LEN: usize = 1;
-pub const PAYLOAD_ADDR_START: usize = 2;
-pub const PAYLOAD_ADDR_END: usize = 7;
-pub const PAYLOAD_DATA_START: usize = 8;
-pub const PAYLOAD_LENGTH: usize = 39;
-
 // Header (2 bytes) which consist of:
 //
 // Byte #1
@@ -102,7 +94,9 @@ pub const PAYLOAD_LENGTH: usize = 39;
 //  ADV_NONCONN_IND    Yes           No          No          Non-connectible Undirected Advertising
 //  ADV_SCAN_IND       Yes           Yes         No          Scannable Undirected Advertising
 
+pub const PAYLOAD_LENGTH: usize = 39;
 static mut PAYLOAD: [u8; PAYLOAD_LENGTH] = [0x00; PAYLOAD_LENGTH];
+
 
 pub struct Radio {
     regs: *const peripheral_registers::RADIO,
@@ -128,9 +122,6 @@ impl Radio {
         let regs = unsafe { &*self.regs };
 
         self.radio_on();
-
-        // ADV_NONCONN_IND
-        self.set_payload_header_pdu(0x02);
 
         // TX Power acc. to twpower variable in the struct
         self.set_txpower();
@@ -382,61 +373,22 @@ impl Radio {
     }
 
     pub fn reset_payload(&self) {}
-
-    // FIXME: Support for other PDU types than ADV_NONCONN_IND
-    pub fn set_payload_header_pdu(&self, pdu: u8) {
-        unsafe {
-            PAYLOAD[PAYLOAD_HDR_PDU] = pdu;
-        }
-    }
-
-    pub fn set_payload_header_len(&self, len: u8) {
-        unsafe {
-            PAYLOAD[PAYLOAD_HDR_LEN] = len;
-        }
-    }
 }
 
 impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
-    fn clear_adv_data(&self) {
-        // reset contents except header || address
-        for i in PAYLOAD_DATA_START..PAYLOAD_LENGTH {
-            unsafe {
-                PAYLOAD[i] = 0;
-            }
-        }
-        // configures a payload with only ADV address
-        self.set_payload_header_len(6);
-    }
-    fn set_advertisement_data(&self,
-                              ad_type: usize,
-                              data: &'static mut [u8],
-                              len: usize,
-                              offset: usize)
-                              -> &'static mut [u8] {
-        // set ad type length and type
-        unsafe {
-            PAYLOAD[offset] = (len + 1) as u8;
-            PAYLOAD[offset + 1] = ad_type as u8;
-        }
+    fn set_advertisement_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
         // set payload
-        for (i, c) in data.as_ref()[0..len].iter().enumerate() {
+        for (i, c) in buf.as_ref()[0..len].iter().enumerate() {
             unsafe {
-                PAYLOAD[i + offset + 2] = *c;
+                PAYLOAD[i] = *c;
             }
         }
+        unsafe {
+            debug!("BUF: {:?}\r\n", &PAYLOAD[0..32]);
+        }
+        buf
+    }
 
-        self.set_payload_header_len((offset + len) as u8);
-        data
-    }
-    fn set_advertisement_address(&self, addr: &'static mut [u8]) -> &'static mut [u8] {
-        for (i, c) in addr.as_ref()[0..6].iter().enumerate() {
-            unsafe {
-                PAYLOAD[i + PAYLOAD_ADDR_START] = *c;
-            }
-        }
-        addr
-    }
     fn set_advertisement_txpower(&self, power: usize) -> kernel::ReturnCode {
         match power {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
@@ -450,6 +402,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     fn start_advertisement_tx(&self, ch: usize) {
         self.start_adv_tx(ch as u32);
     }
+
     fn start_advertisement_rx(&self, _ch: usize) {
         self.start_adv_rx();
     }

@@ -21,6 +21,7 @@
 #define BLE_CFG_ADV_ITV_CMD       3
 #define BLE_ADV_CLEAR_DATA_CMD    4
 #define BLE_SCAN_CMD              5
+#define BLE_REQ_ADV_ADDR          6
 #define BLE_SCAN_SUB              0
 #define BLE_CFG_ADV_ADDR_ALLOW    0x30
 #define BLE_CFG_SCAN_BUF_ALLOW    0x31

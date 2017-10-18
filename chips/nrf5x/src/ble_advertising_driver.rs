@@ -75,7 +75,7 @@ use kernel::returncode::ReturnCode;
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
 
-pub static mut BUF: [u8; 32] = [0; 32];
+pub static mut BUF: [u8; 39] = [0; 39];
 
 
 // AD TYPES
@@ -104,44 +104,72 @@ pub const BLE_HS_ADV_TYPE_MFG_DATA: usize = 0xff;
 
 // Advertising Modes
 // FIXME: Only BLE_GAP_CONN_MODE_NON supported
-pub const BLE_GAP_CONN_MODE_NON: usize = 0x00;
-pub const BLE_GAP_CONN_MODE_DIR: usize = 0x01;
-pub const BLE_GAP_CONN_MODE_UND: usize = 0x02;
-pub const BLE_GAP_SCAN_MODE_NON: usize = 0x03;
-pub const BLE_GAP_SCAN_MODE_DIR: usize = 0x04;
-pub const BLE_GAP_SCAN_MODE_UND: usize = 0x05;
+pub const BLE_ADV_IND: u8 = 0x00;
+pub const BLE_ADV_DIRECT_IND: u8 = 0x01;
+pub const BLE_ADV_NONCONNECT_IND: u8 = 0x02;
+pub const BLE_SCAN_REQ: u8 = 0x03;
+pub const BLE_SCAN_RSP: u8 = 0x04;
+pub const BLE_CONNECT_REQ: u8 = 0x05;
+pub const BLE_SCAN_IND: u8 = 0x06;
 
 
-#[derive(Default)]
+pub const PACKET_HDR_PDU: usize = 0;
+pub const PACKET_HDR_LEN: usize = 1;
+pub const PACKET_ADDR_START: usize = 2;
+pub const PACKET_ADDR_END: usize = 7;
+pub const PACKET_PAYLOAD_START: usize = 8;
+pub const PACKET_LENGTH: usize = 39;
+
+
+
 pub struct App {
+    // advertisement buffer, unique to each process
+    advertisement_buf: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    // buffers for allow system calls
     app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
     scan_callback: Option<kernel::Callback>,
+    offset: Cell<usize>,
 }
 
+impl Default for App {
+    fn default() -> App {
+        App {
+            advertisement_buf: None,
+            app_write: None,
+            app_read: None,
+            scan_callback: None,
+            offset: Cell::new(PACKET_PAYLOAD_START),
+        }
+    }
+}
+
+
 pub struct BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-          A: kernel::hil::time::Alarm + 'a
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+    A: kernel::hil::time::Alarm + 'a,
 {
     radio: &'a B,
     busy: Cell<bool>,
     app: kernel::Grant<App>,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
-    alarm: &'a A,
     advertisement_interval: Cell<u32>,
+    alarm: &'a A,
     is_advertising: Cell<bool>,
-    offset: Cell<usize>,
 }
 
 impl<'a, B, A> BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-          A: kernel::hil::time::Alarm + 'a
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+    A: kernel::hil::time::Alarm + 'a,
 {
-    pub fn new(radio: &'a B,
-               container: kernel::Grant<App>,
-               tx_buf: &'static mut [u8],
-               alarm: &'a A)
-               -> BLE<'a, B, A> {
+    pub fn new(
+        radio: &'a B,
+        container: kernel::Grant<App>,
+        tx_buf: &'static mut [u8],
+        alarm: &'a A,
+    ) -> BLE<'a, B, A> {
         BLE {
             radio: radio,
             busy: Cell::new(false),
@@ -150,79 +178,175 @@ impl<'a, B, A> BLE<'a, B, A>
             alarm: alarm,
             advertisement_interval: Cell::new(150 * <A::Frequency>::frequency() / 1000),
             is_advertising: Cell::new(false),
-            // This keeps track of the position in the payload to enable multiple AD TYPES
-            offset: Cell::new(0),
         }
+    }
+
+    #[inline(never)]
+    #[no_mangle]
+    fn initialize_advertisement_buffer(&self, appid: kernel::AppId) -> ReturnCode {
+        debug!("initialize_advertisement_buffer\n\r");
+        self.app
+            .enter(appid, |app, _| {
+                app.advertisement_buf
+                    .as_mut()
+                    .map(|slice| {
+                        slice.as_mut()[PACKET_HDR_PDU] = BLE_ADV_NONCONNECT_IND;
+                        // here we should implement functionality to generate 6 random bytes
+                        // to be used for advertisement addresson
+                        // use address_size as packet size initially
+                        slice.as_mut()[PACKET_HDR_LEN] = 6;
+                        for i in slice.as_mut()[PACKET_ADDR_START..PACKET_ADDR_END + 1].iter_mut() {
+                            *i = 0xff;
+                        }
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|| ReturnCode::ESIZE)
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     // This function constructs an AD TYPE with type, data, length and offset.
     // It uses the offset to keep track of where to place the next AD TYPE in the buffer in
     // case multiple AD TYPES are provided.
     // The chip module then sets the actual payload.
-    fn set_adv_data(&self, ad_type: usize) -> ReturnCode {
-        let mut ret = ReturnCode::ESIZE;
-        for cntr in self.app.iter() {
-            cntr.enter(|app, _| {
-                app.app_write.as_ref().map(|slice| {
-                    let len = slice.len();
-                    // Each AD TYP consists of TYPE (1 byte), LENGTH (1 byte) and
-                    // PAYLOAD (0 - 31 bytes)
-                    // This is why we add 2 to start the payload at the correct position.
-                    let i = self.offset.get() + len + 2;
-                    if i <= 31 {
-                        self.kernel_tx.take().map(|data| {
-                            for (out, inp) in data.iter_mut().zip(slice.as_ref()[0..len].iter()) {
-                                *out = *inp;
+
+    // But because we can't borrow app twice (different mutability)!!!
+    // First we copy the data from the allow call to a the TakeCell buffer
+    // And then copy that TakeCell buffer to AppSlice advertisement buffer
+
+    #[inline(never)]
+    #[no_mangle]
+    fn set_advertisement_data(&self, ad_type: usize, appid: kernel::AppId) -> ReturnCode {
+        debug!("set_advertisement_data\r\n");
+
+        // these variables are workaround because we can't access other data members in the Grant
+        // when we have a mutability borrow!!!
+        // this code is messy
+        // buf_len - ad_type + len + slice
+        // slice - buffer received from allow call
+        // in the first closure - append ad_type + len + slice
+        // in the second closure - the first 7 bytes are AD_TYPE + address
+        // the rest are advertisement data that's why we use index..end dest
+        // and 0 .. buf_len in src
+        let mut end = 0;
+        let mut buf_len = 0;
+        let mut index = 0;
+
+        self.app
+            .enter(appid, |app, _| {
+                let status =
+                    app.app_write
+                        .as_ref()
+                        .map(|slice| {
+
+                            index = app.offset.get();
+                            end = app.offset.get() + slice.len() + 2;
+                            buf_len = slice.len() + 2;
+
+                            if end <= PACKET_LENGTH {
+                                self.kernel_tx
+                                    .map(|data| {
+                                        data.as_mut()[0] = slice.len() as u8 + 1;
+                                        data.as_mut()[1] = ad_type as u8;
+                                        debug!("ad_type {}   buf_size {}\r\n", ad_type, buf_len);
+                                        for (out, inp) in
+                                            data.as_mut()[2..2 + slice.len()].iter_mut().zip(
+                                                slice.as_ref()[0..slice.len()].iter(),
+                                            )
+                                        {
+                                            *out = *inp;
+                                        }
+                                        ReturnCode::SUCCESS
+                                    })
+                                    .unwrap_or_else(|| ReturnCode::EINVAL)
+                            } else {
+                                ReturnCode::EINVAL
                             }
-                            let tmp = self.radio
-                                .set_advertisement_data(ad_type, data, len, self.offset.get() + 8);
-                            self.kernel_tx.replace(tmp);
-                            self.offset.set(i);
-                            ret = ReturnCode::SUCCESS;
-                        });
+                        })
+                        .unwrap_or_else(|| ReturnCode::EINVAL);
+
+                if status == ReturnCode::SUCCESS {
+                    let result = app.advertisement_buf
+                        .as_mut()
+                        .map(|data| {
+                            data.as_mut()[PACKET_HDR_LEN] = (end - 2) as u8;
+                            self.kernel_tx
+                                .map(|slice| {
+                                    for (out, inp) in data.as_mut()[index..end].iter_mut().zip(
+                                        slice.as_ref()[0..buf_len].iter(),
+                                    )
+                                    {
+                                        *out = *inp;
+                                    }
+                                    ReturnCode::SUCCESS
+                                })
+                                .unwrap_or_else(|| ReturnCode::EINVAL)
+                        })
+                        .unwrap_or_else(|| ReturnCode::EINVAL);
+                    if result == ReturnCode::SUCCESS {
+                        app.offset.set(end);
                     }
-                });
-            });
-        }
-        ret
+                    result
+                } else {
+                    status
+                }
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
-    // FIXME: More verbose error indication
-    fn set_adv_addr(&self) -> ReturnCode {
-        let mut ret = ReturnCode::FAIL;
+    fn reset_payload(&self, appid: kernel::AppId) -> ReturnCode {
+        self.app
+            .enter(appid, |app, _| {
+                app.advertisement_buf
+                    .as_mut()
+                    .map(|data| {
+                        for byte in data.as_mut()[PACKET_PAYLOAD_START..PACKET_LENGTH].iter_mut() {
+                            *byte = 0x00;
+                        }
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|| ReturnCode::EINVAL)
+            })
+            .unwrap_or_else(|err| err.into())
+    }
+
+    fn replace_advertisement_buffer(&self) {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
-                app.app_write.as_ref().map(|slice| if slice.len() == 6 {
+                app.advertisement_buf.as_ref().map(|slice| {
                     self.kernel_tx.take().map(|data| {
-                        for (out, inp) in data.iter_mut()
-                            .zip(slice.as_ref()[0..slice.len()].iter()) {
+                        for (out, inp) in
+                            data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
+                                .iter_mut()
+                                .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter())
+                        {
                             *out = *inp;
                         }
-                        let tmp = self.radio.set_advertisement_address(data);
-                        self.kernel_tx.replace(tmp);
-                        ret = ReturnCode::SUCCESS;
+                        let result = self.radio.set_advertisement_data(data, 39);
+                        self.kernel_tx.replace(result);
                     });
                 });
             });
         }
-        ret
     }
 
     fn configure_periodic_alarm(&self) {
-        let interval_in_tics = self.alarm.now().wrapping_add(self.advertisement_interval.get());
+        let interval_in_tics = self.alarm.now().wrapping_add(
+            self.advertisement_interval.get(),
+        );
         self.alarm.set_alarm(interval_in_tics);
     }
 }
-
 impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
 {
-    // this method is called once the virtual timer has been expired
-    // used to periodically send BLE advertisements without blocking the kernel
+// this method is called once the virtual timer has been expired
+// used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
         if self.busy.get() {
             if self.is_advertising.get() {
+                self.replace_advertisement_buffer();
                 self.radio.start_advertisement_tx(37);
             } else {
                 self.radio.start_advertisement_rx(37);
@@ -256,10 +380,19 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
 // Implementation of SYSCALL interface
 impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-          A: kernel::hil::time::Alarm + 'a
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+    A: kernel::hil::time::Alarm + 'a,
 {
-    fn command(&self, command_num: usize, data: usize, _: usize, _: kernel::AppId) -> ReturnCode {
+    #[inline(never)]
+    #[no_mangle]
+    fn command(
+        &self,
+        command_num: usize,
+        data: usize,
+        _: usize,
+        appid: kernel::AppId,
+    ) -> ReturnCode {
         match (command_num, self.busy.get()) {
             // START BLE
             (0, false) => {
@@ -277,21 +410,25 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             (2, false) => self.radio.set_advertisement_txpower(data),
             (3, false) => {
                 if data < 20 {
-                    self.advertisement_interval.set(20 * <A::Frequency>::frequency() / 1000);
+                    self.advertisement_interval.set(
+                        20 * <A::Frequency>::frequency() /
+                            1000,
+                    );
                 } else if data > 10240 {
-                    self.advertisement_interval.set(10240 * <A::Frequency>::frequency() / 1000);
+                    self.advertisement_interval.set(
+                        10240 * <A::Frequency>::frequency() /
+                            1000,
+                    );
                 } else {
-                    self.advertisement_interval
-                        .set((data as u32) * <A::Frequency>::frequency() / 1000);
+                    self.advertisement_interval.set(
+                        (data as u32) * <A::Frequency>::frequency() /
+                            1000,
+                    );
                 }
                 ReturnCode::SUCCESS
             }
             // Clear payload
-            (4, false) => {
-                self.offset.set(0);
-                self.radio.clear_adv_data();
-                ReturnCode::SUCCESS
-            }
+            (4, false) => self.reset_payload(appid),
             // Passive scanning mode
             (5, false) => {
                 self.busy.set(true);
@@ -299,16 +436,28 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                 ReturnCode::SUCCESS
             }
 
+            // Initilize BLE Driver
+            // Allow call to allocate the advertisement buffer must be invoked before this!!!!!
+            // Request advertisement address
+            (6, false) => {
+                debug!("init BLE capsule\n");
+                //let slice: kernel::AppSlice<kernel::Shared, u8> = unsafe { kernel::AppSlice::new((&mut BUF[0] as *mut u8), BUF.len(), kernel::AppId::new(0)) };
+                self.initialize_advertisement_buffer(appid)
+            }
+
             (_, true) => ReturnCode::EBUSY,
             (_, _) => ReturnCode::ENOSUPPORT,
         }
     }
 
-    fn allow(&self,
-             appid: kernel::AppId,
-             allow_num: usize,
-             slice: kernel::AppSlice<kernel::Shared, u8>)
-             -> ReturnCode {
+    #[inline(never)]
+    #[no_mangle]
+    fn allow(
+        &self,
+        appid: kernel::AppId,
+        allow_num: usize,
+        slice: kernel::AppSlice<kernel::Shared, u8>,
+    ) -> ReturnCode {
 
         match (allow_num, self.busy.get()) {
             // See this as a giant case switch or if else statements
@@ -334,37 +483,33 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             (BLE_HS_ADV_TYPE_SVC_DATA_UUID128, false) |
             (BLE_HS_ADV_TYPE_URI, false) |
             (BLE_HS_ADV_TYPE_MFG_DATA, false) => {
-                let ret = self.app
+                self.app
                     .enter(appid, |app, _| {
                         app.app_write = Some(slice);
+                        self.set_advertisement_data(allow_num, appid);
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|err| err.into());
-                if ret == ReturnCode::SUCCESS {
-                    self.set_adv_data(allow_num)
-                } else {
-                    ret
-                }
-            }
-            // Set advertisement address
-            (0x30, false) => {
-                let ret = self.app
-                    .enter(appid, |app, _| {
-                        app.app_write = Some(slice);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into());
-                if ret == ReturnCode::SUCCESS {
-                    self.set_adv_addr()
-                } else {
-                    ret
-                }
+                    .unwrap_or_else(|err| err.into())
             }
             // Passive scanning
             (0x31, false) => {
                 self.app
                     .enter(appid, |app, _| {
                         app.app_read = Some(slice);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| err.into())
+            }
+            // Allocate memory for an advertisement buffer this unique for each
+            // user-space process
+            (0x32, false) => {
+                debug!(
+                    "allocate advertisement_buf\r\n slice len: {:?}",
+                    slice.len()
+                );
+                self.app
+                    .enter(appid, |app, _| {
+                        app.advertisement_buf = Some(slice);
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| err.into())
@@ -376,6 +521,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
     }
 
 
+    #[inline(never)]
+    #[no_mangle]
     fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
         match subscribe_num {
             // Callback for scanning
