@@ -75,7 +75,7 @@ use kernel::returncode::ReturnCode;
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
 
-pub static mut BUF: [u8; 39] = [0; 39];
+pub static mut BUF: [u8; 39] = [0; PACKET_LENGTH];
 
 
 // AD TYPES
@@ -123,14 +123,17 @@ pub const PACKET_LENGTH: usize = 39;
 
 
 pub struct App {
-    // advertisement buffer, unique to each process
     advertisement_buf: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    // buffers for allow system calls
     app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
     scan_callback: Option<kernel::Callback>,
     offset: Cell<usize>,
+    is_advertising: Cell<bool>,
+    advertisement_interval: Cell<u32>, 
+    // FIXME: move alarm also then we are "done"
+    // however should the kernel keep track of interval "intersections" also?
 }
+
 
 impl Default for App {
     fn default() -> App {
@@ -140,51 +143,47 @@ impl Default for App {
             app_read: None,
             scan_callback: None,
             offset: Cell::new(PACKET_PAYLOAD_START),
+            is_advertising: Cell::new(false),
+            // FIXME: figure out to use associated type in kernel::hil::time:Time
+            // Frequence::frequency();
+            advertisement_interval: Cell::new(5000),
         }
     }
 }
 
 
 pub struct BLE<'a, B, A>
-where
-    B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
 {
     radio: &'a B,
     busy: Cell<bool>,
     app: kernel::Grant<App>,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
-    advertisement_interval: Cell<u32>,
     alarm: &'a A,
-    is_advertising: Cell<bool>,
 }
 
 impl<'a, B, A> BLE<'a, B, A>
-where
-    B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
 {
-    pub fn new(
-        radio: &'a B,
-        container: kernel::Grant<App>,
-        tx_buf: &'static mut [u8],
-        alarm: &'a A,
-    ) -> BLE<'a, B, A> {
+    pub fn new(radio: &'a B,
+               container: kernel::Grant<App>,
+               tx_buf: &'static mut [u8],
+               alarm: &'a A)
+               -> BLE<'a, B, A> {
         BLE {
             radio: radio,
             busy: Cell::new(false),
             app: container,
             kernel_tx: kernel::common::take_cell::TakeCell::new(tx_buf),
             alarm: alarm,
-            advertisement_interval: Cell::new(150 * <A::Frequency>::frequency() / 1000),
-            is_advertising: Cell::new(false),
         }
     }
 
     #[inline(never)]
     #[no_mangle]
     fn initialize_advertisement_buffer(&self, appid: kernel::AppId) -> ReturnCode {
-        debug!("initialize_advertisement_buffer\n\r");
         self.app
             .enter(appid, |app, _| {
                 app.advertisement_buf
@@ -234,36 +233,33 @@ where
 
         self.app
             .enter(appid, |app, _| {
-                let status =
-                    app.app_write
-                        .as_ref()
-                        .map(|slice| {
+                let status = app.app_write
+                    .as_ref()
+                    .map(|slice| {
 
-                            index = app.offset.get();
-                            end = app.offset.get() + slice.len() + 2;
-                            buf_len = slice.len() + 2;
+                        index = app.offset.get();
+                        end = app.offset.get() + slice.len() + 2;
+                        buf_len = slice.len() + 2;
 
-                            if end <= PACKET_LENGTH {
-                                self.kernel_tx
-                                    .map(|data| {
-                                        data.as_mut()[0] = slice.len() as u8 + 1;
-                                        data.as_mut()[1] = ad_type as u8;
-                                        debug!("ad_type {}   buf_size {}\r\n", ad_type, buf_len);
-                                        for (out, inp) in
-                                            data.as_mut()[2..2 + slice.len()].iter_mut().zip(
-                                                slice.as_ref()[0..slice.len()].iter(),
-                                            )
-                                        {
-                                            *out = *inp;
-                                        }
-                                        ReturnCode::SUCCESS
-                                    })
-                                    .unwrap_or_else(|| ReturnCode::EINVAL)
-                            } else {
-                                ReturnCode::EINVAL
-                            }
-                        })
-                        .unwrap_or_else(|| ReturnCode::EINVAL);
+                        if end <= PACKET_LENGTH {
+                            self.kernel_tx
+                                .map(|data| {
+                                    data.as_mut()[0] = slice.len() as u8 + 1;
+                                    data.as_mut()[1] = ad_type as u8;
+                                    debug!("ad_type {}   buf_size {}\r\n", ad_type, buf_len);
+                                    for (out, inp) in data.as_mut()[2..2 + slice.len()]
+                                        .iter_mut()
+                                        .zip(slice.as_ref()[0..slice.len()].iter()) {
+                                        *out = *inp;
+                                    }
+                                    ReturnCode::SUCCESS
+                                })
+                                .unwrap_or_else(|| ReturnCode::EINVAL)
+                        } else {
+                            ReturnCode::EINVAL
+                        }
+                    })
+                    .unwrap_or_else(|| ReturnCode::EINVAL);
 
                 if status == ReturnCode::SUCCESS {
                     let result = app.advertisement_buf
@@ -272,10 +268,9 @@ where
                             data.as_mut()[PACKET_HDR_LEN] = (end - 2) as u8;
                             self.kernel_tx
                                 .map(|slice| {
-                                    for (out, inp) in data.as_mut()[index..end].iter_mut().zip(
-                                        slice.as_ref()[0..buf_len].iter(),
-                                    )
-                                    {
+                                    for (out, inp) in data.as_mut()[index..end]
+                                        .iter_mut()
+                                        .zip(slice.as_ref()[0..buf_len].iter()) {
                                         *out = *inp;
                                     }
                                     ReturnCode::SUCCESS
@@ -315,14 +310,12 @@ where
             cntr.enter(|app, _| {
                 app.advertisement_buf.as_ref().map(|slice| {
                     self.kernel_tx.take().map(|data| {
-                        for (out, inp) in
-                            data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
-                                .iter_mut()
-                                .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter())
-                        {
+                        for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
+                            .iter_mut()
+                            .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter()) {
                             *out = *inp;
                         }
-                        let result = self.radio.set_advertisement_data(data, 39);
+                        let result = self.radio.set_advertisement_data(data, PACKET_LENGTH);
                         self.kernel_tx.replace(result);
                     });
                 });
@@ -330,28 +323,34 @@ where
         }
     }
 
+    // TODO: use AppId as parameter!?
     fn configure_periodic_alarm(&self) {
-        let interval_in_tics = self.alarm.now().wrapping_add(
-            self.advertisement_interval.get(),
-        );
-        self.alarm.set_alarm(interval_in_tics);
+        for cntr in self.app.iter() {
+            cntr.enter(|app, _| {
+                let interval_in_tics =
+                    self.alarm.now().wrapping_add(app.advertisement_interval.get());
+                self.alarm.set_alarm(interval_in_tics);
+            });
+        }
     }
 }
 impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
 {
-// this method is called once the virtual timer has been expired
-// used to periodically send BLE advertisements without blocking the kernel
+    // this method is called once the virtual timer has been expired
+    // used to periodically send BLE advertisements without blocking the kernel
     fn fired(&self) {
-        if self.busy.get() {
-            if self.is_advertising.get() {
-                self.replace_advertisement_buffer();
-                self.radio.start_advertisement_tx(37);
-            } else {
-                self.radio.start_advertisement_rx(37);
-            }
-            self.configure_periodic_alarm();
+        for cntr in self.app.iter() {
+            cntr.enter(|app, _| {
+                if app.is_advertising.get() {
+                    self.replace_advertisement_buffer();
+                    self.radio.start_advertisement_tx(37);
+                } else {
+                    self.radio.start_advertisement_rx(37);
+                }
+                self.configure_periodic_alarm();
+            });
         }
     }
 }
@@ -380,84 +379,114 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
 // Implementation of SYSCALL interface
 impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
-where
-    B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
 {
     #[inline(never)]
     #[no_mangle]
-    fn command(
-        &self,
-        command_num: usize,
-        data: usize,
-        _: usize,
-        appid: kernel::AppId,
-    ) -> ReturnCode {
-        match (command_num, self.busy.get()) {
-            // START BLE
-            (0, false) => {
-                self.busy.set(true);
-                self.is_advertising.set(true);
-                self.configure_periodic_alarm();
-                ReturnCode::SUCCESS
+    fn command(&self,
+               command_num: usize,
+               data: usize,
+               _: usize,
+               appid: kernel::AppId)
+               -> ReturnCode {
+        match command_num {
+
+            // Start periodic advertisments
+            0 => {
+                self.app
+                    .enter(appid, |app, _| if !self.busy.get() {
+                        self.busy.set(true);
+                        app.is_advertising.set(true);
+                        self.configure_periodic_alarm();
+                        ReturnCode::SUCCESS
+                    }
+                    else {
+                        ReturnCode::EBUSY
+                    }
+                )
+                // not checked to semantics but I assume for if this fails
+                // the enter block is not executed!?
+                // self.busy.set(false);
+                //app.is_advertising.set(false);
+                .unwrap_or_else(|err| err.into())
             }
-            //Stop ADV_BLE
-            (1, _) => {
-                self.is_advertising.set(false);
-                self.busy.set(false);
-                ReturnCode::SUCCESS
+
+            // Stop perodic advertisements
+            1 => {
+                self.app
+                    .enter(appid, |app, _| {
+                        app.is_advertising.set(false);
+                        self.busy.set(false);
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| err.into())
             }
-            (2, false) => self.radio.set_advertisement_txpower(data),
-            (3, false) => {
-                if data < 20 {
-                    self.advertisement_interval.set(
-                        20 * <A::Frequency>::frequency() /
-                            1000,
-                    );
-                } else if data > 10240 {
-                    self.advertisement_interval.set(
-                        10240 * <A::Frequency>::frequency() /
-                            1000,
-                    );
-                } else {
-                    self.advertisement_interval.set(
-                        (data as u32) * <A::Frequency>::frequency() /
-                            1000,
-                    );
-                }
-                ReturnCode::SUCCESS
+
+            // Configure transmitted power
+            // FIXME: add guard that this is only allowed between advertisements for each process
+            // however it's safe for different processes to change tx power between advertisements
+            // or another process is advertising
+            // but to enable this twpower must be moved into the grant (currently in radio)
+            2 => self.radio.set_advertisement_txpower(data),
+
+            // Configure advertisement intervall
+            // FIXME: add guard that this is only allowed between advertisements
+            // for each process however it's safe for different processes to change advertisement
+            // intervall once another process is advertising
+            // but to this twpower must be moved into the grant
+            3 => {
+                self.app
+                    .enter(appid, |app, _| {
+                        if data < 20 {
+                            app.advertisement_interval
+                                .set(20 * <A::Frequency>::frequency() / 1000);
+                        } else if data > 10240 {
+                            app.advertisement_interval
+                                .set(10240 * <A::Frequency>::frequency() / 1000);
+                        } else {
+                            app.advertisement_interval
+                                .set((data as u32) * <A::Frequency>::frequency() / 1000);
+                        }
+                        ReturnCode::SUCCESS
+                    })
+                    .unwrap_or_else(|err| err.into())
             }
-            // Clear payload
-            (4, false) => self.reset_payload(appid),
+
+            // Reset advertisement payload (not advertisement type and address)
+            // FIXME: add guard that this is only allowed between advertisements
+            // for each process however it's safe for different processes reset its payload
+            // when another process is advertising
+            4 => self.reset_payload(appid),
+
             // Passive scanning mode
-            (5, false) => {
-                self.busy.set(true);
-                self.configure_periodic_alarm();
-                ReturnCode::SUCCESS
+            5 => {
+                if !self.busy.get() {
+                    self.busy.set(true);
+                    self.configure_periodic_alarm();
+                    ReturnCode::SUCCESS
+                } else {
+                    ReturnCode::EBUSY
+                }
             }
 
             // Initilize BLE Driver
-            // Allow call to allocate the advertisement buffer must be invoked before this!!!!!
+            // Allow call to allocate the advertisement buffer must be
+            // invoked before this!!!!!
             // Request advertisement address
-            (6, false) => {
-                debug!("init BLE capsule\n");
-                //let slice: kernel::AppSlice<kernel::Shared, u8> = unsafe { kernel::AppSlice::new((&mut BUF[0] as *mut u8), BUF.len(), kernel::AppId::new(0)) };
-                self.initialize_advertisement_buffer(appid)
-            }
+            6 => self.initialize_advertisement_buffer(appid),
 
-            (_, true) => ReturnCode::EBUSY,
-            (_, _) => ReturnCode::ENOSUPPORT,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 
     #[inline(never)]
     #[no_mangle]
-    fn allow(
-        &self,
-        appid: kernel::AppId,
-        allow_num: usize,
-        slice: kernel::AppSlice<kernel::Shared, u8>,
-    ) -> ReturnCode {
+    fn allow(&self,
+             appid: kernel::AppId,
+             allow_num: usize,
+             slice: kernel::AppSlice<kernel::Shared, u8>)
+             -> ReturnCode {
 
         match (allow_num, self.busy.get()) {
             // See this as a giant case switch or if else statements
@@ -503,10 +532,8 @@ where
             // Allocate memory for an advertisement buffer this unique for each
             // user-space process
             (0x32, false) => {
-                debug!(
-                    "allocate advertisement_buf\r\n slice len: {:?}",
-                    slice.len()
-                );
+                debug!("allocate advertisement_buf\r\n slice len: {:?}",
+                       slice.len());
                 self.app
                     .enter(appid, |app, _| {
                         app.advertisement_buf = Some(slice);
