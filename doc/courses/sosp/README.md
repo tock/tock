@@ -1,56 +1,65 @@
 ---
-location: Portland, OR, USA
-date: August 19th
+location: Shanghai, China
+date: October 28th 
 ---
 
-# Tock OS Training @ RustConf 2017
+# Tock OS Training @ SOSP 2017
 
-Put Rust to practice in low-level embedded systems. This training will introduce
-cover programming for Tock, a secure embedded operating system for sensor
-networks and the Internet of Things, written in Rust. You will learn to write
-kernel extensions, the basics of porting Tock to a new platform, and how to
-write power- and memory-efficient applications. We will also give an overview of
-the system architecture.
+This course introduces you to Tock, a secure embedded operating system for sensor
+networks and the Internet of Things. Tock is the first operating system to
+allow multiple untrusted applications to run concurrently on a microcontroller-based
+computer. The Tock kernel is written in Rust, a memory-safe systems language that
+does not rely on a garbage collector. Userspace applications are run in single-threaded
+processes that can be written in any language. A paper describing Tock's goals, design,
+and implementation will be presented at the conference.
 
-This tutorial assumes basic knowledge of Rust, including ownership, borrowing,
-traits, and lifetimes. While not required, it is most appropriate for people who
-are familiar with the material covered in the Advanced Rust training, and
-attending the morning Intermediate Rust training is highly encouraged.
+In this course, you will learn the basic Tock system architecture, 
+how to write a userspace process in C, Tock's system call interface, and 
+fill in code for a small kernel extension written in Rust. The course assumes
+advanced knowledge of operating systems (i.e., are an operating systems researcher)
+and fluency in C. It assumes no knowledge of Rust, although knowing Rust will allow
+you to be more creative in the Rust programming part of the course.
 
-## Pre-requisites
+## Preparation 
 
-We will go over setting up a development environment during the training.
-However, because the WiFi might not be provide fastest Internet connection in
-the world, it would be useful to set up the following dependencies ahead of
-time:
+We will go over setting up a development environment during the course.
+However, because the WiFi is likely to be slow,  
+we *strongly urge you to set up the following dependencies ahead of
+time, preferably by downloading the provided VM image:*
 
-1. A laptop running Linux or OS X. Linux in a VM will work just fine, see below
-   for a pre-made image with all the dependencies.
+First, you will need a laptop running Linux or OS X. Linux in a VM will work just 
+fine, see below for a pre-made image with all the dependencies. We strongly recommend 
+you use the pre-made image unless you have set up and tested your installation before
+the course. In our experience, in about 20% of cases some complication emerges
+in manual installation. While these complications can often be solved in an hour,
+this means you will miss the beginning of the course.
 
-2. Command line utilities: wget, sed, make, cmake, git
+If you choose to install manually, you will need the following software:
 
-4. Python 3 and pip
+1. Command line utilities: wget, sed, make, cmake, git
 
-5. A local clone of the Tock repository
+1. Python 3 and pip
+
+1. A local clone of the Tock repository
      
         $ git clone https://github.com/helena-project/tock.git
 
-6. [rustup](http://rustup.rs/).
+1. [rustup](http://rustup.rs/).
      
         $ curl https://sh.rustup.rs -sSf | sh
         $ rustup install nightly-2017-06-20
 
-7. [Xargo](https://github.com/japaric/xargo)
+1. [Xargo](https://github.com/japaric/xargo)
      
         $ cargo install xargo
 
-8. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
+1. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 
     > Note that you can install the version packaged by your Linux distribution,
     > but make sure you install the newlib port as well. For instance, on Debian or
     > Ubuntu, install both gcc-arm-none-eabi and libnewlib-arm-none-eabi.
 
-9. [tockloader](https://github.com/helena-project/tockloader)
+1. [tockloader](https://github.com/helena-project/tockloader)
      
         $ pip3 install -U --user tockloader
 
@@ -65,6 +74,30 @@ time:
 
         $ PATH=$HOME/.local/bin:$PATH
 
+To test whether your manual installation worked, go to the `tock/boards/hail` directory 
+and type `make program`. This should compile the kernel for the default board, hail, 
+and try to program it over a USB serial connection. It may need to compile several
+supporting libraries first (so may take 30 seconds or so). You should see output like this:
+
+```partysaurus:hail pal$ make program
+   Compiling kernel v0.1.0 (file:///Users/pal/src/tock/kernel)
+   Compiling hail v0.1.0 (file:///Users/pal/src/tock/boards/hail)
+   Compiling cortexm4 v0.1.0 (file:///Users/pal/src/tock/arch/cortex-m4)
+   Compiling capsules v0.1.0 (file:///Users/pal/src/tock/capsules)
+   Compiling sam4l v0.1.0 (file:///Users/pal/src/tock/chips/sam4l)
+    Finished release [optimized] target(s) in 18.50 secs
+   text	   data	    bss	    dec	    hex	filename
+ 101064	   4840	  60688	 166592	  28ac0	target/thumbv7em-none-eabi/release/hail
+tockloader  flash --address 0x10000 target/thumbv7em-none-eabi/release/hail.bin
+No device name specified. Using default "tock"
+No serial ports found. Is the board connected?
+
+make: *** [program] Error 1
+```
+
+That is, since you don't yet have a board plugged in it can't program it. But the above output
+indicates that it can compile correctly and invoke `tockloader` to program a board.
+ 
 ### Virtual Machine
 
 If you're comfortable working inside a Debian virtual machine, you can download
@@ -89,10 +122,11 @@ before the training starts.
 The training is divided into three sections, each starting with a short
 presentation to introduce some concepts, followed by a practical exercise.
 
-1. [Getting your environment set up](environment.md) (~1 hour)
-
-2. [Add a new capsule to the kernel](capsule.md) (~2 hours)
+1. [Getting started with Tock](environment.md) (~1 hour)
 
 3. [Write an environment sensing Bluetooth Low Energy
    application](application.md) (~1 hour)
+
+3. [Add a new capsule to the kernel](capsule.md) (~1 hours)
+
 
