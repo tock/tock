@@ -75,7 +75,7 @@ use kernel::returncode::ReturnCode;
 /// Syscall Number
 pub const DRIVER_NUM: usize = 0x03_00_00;
 
-pub static mut BUF: [u8; 39] = [0; PACKET_LENGTH];
+pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 
 
 // AD TYPES
@@ -120,6 +120,14 @@ pub const PACKET_ADDR_END: usize = 7;
 pub const PACKET_PAYLOAD_START: usize = 8;
 pub const PACKET_LENGTH: usize = 39;
 
+#[derive(PartialEq, Debug)]
+enum BLEState {
+    NotInitialized,
+    Initialized,
+    Scanning,
+    Advertising,
+}
+
 
 
 pub struct App {
@@ -128,10 +136,10 @@ pub struct App {
     app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
     scan_callback: Option<kernel::Callback>,
     offset: Cell<usize>,
-    is_advertising: Cell<bool>,
-    advertisement_interval: Cell<u32>, 
-    // FIXME: move alarm also then we are "done"
-    // however should the kernel keep track of interval "intersections" also?
+    process_status: Option<BLEState>,
+    advertisement_interval: Cell<u32>,
+    // not used yet....
+    tx_power: Cell<u8>,
 }
 
 
@@ -143,7 +151,8 @@ impl Default for App {
             app_read: None,
             scan_callback: None,
             offset: Cell::new(PACKET_PAYLOAD_START),
-            is_advertising: Cell::new(false),
+            process_status: Some(BLEState::NotInitialized),
+            tx_power: Cell::new(0),
             // FIXME: figure out to use associated type in kernel::hil::time:Time
             // Frequence::frequency();
             advertisement_interval: Cell::new(5000),
@@ -193,6 +202,7 @@ impl<'a, B, A> BLE<'a, B, A>
                         // here we should implement functionality to generate 6 random bytes
                         // to be used for advertisement addresson
                         // use address_size as packet size initially
+
                         slice.as_mut()[PACKET_HDR_LEN] = 6;
                         for i in slice.as_mut()[PACKET_ADDR_START..PACKET_ADDR_END + 1].iter_mut() {
                             *i = 0xff;
@@ -338,16 +348,28 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
 {
-    // this method is called once the virtual timer has been expired
-    // used to periodically send BLE advertisements without blocking the kernel
+    // This method is invoked once a virtual timer has expired
+    // And because we can have several processes running at the concurrently
+    // with overlapping intervals we use the busy flag to ensure mutual exclusion
+    // this may not be fair if the processes have similar interval one process
+    // may be starved.......
     fn fired(&self) {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
-                if app.is_advertising.get() {
-                    self.replace_advertisement_buffer();
-                    self.radio.start_advertisement_tx(37);
-                } else {
-                    self.radio.start_advertisement_rx(37);
+                match app.process_status {
+                    Some(BLEState::Advertising) if !self.busy.get() => {
+                        self.busy.set(true);
+                        self.replace_advertisement_buffer();
+                        self.radio.start_advertisement_tx(37);
+                        self.busy.set(false);
+                    }
+                    Some(BLEState::Scanning) if !self.busy.get() => {
+                        self.busy.set(true);
+                        self.replace_advertisement_buffer();
+                        self.radio.start_advertisement_rx(37);
+                        self.busy.set(false);
+                    }
+                    _ => (),
                 }
                 self.configure_periodic_alarm();
             });
@@ -395,9 +417,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             // Start periodic advertisments
             0 => {
                 self.app
-                    .enter(appid, |app, _| if !self.busy.get() {
-                        self.busy.set(true);
-                        app.is_advertising.set(true);
+                    .enter(appid, |app, _| if app.process_status == Some(BLEState::Initialized) {
+                        app.process_status = Some(BLEState::Advertising);
                         self.configure_periodic_alarm();
                         ReturnCode::SUCCESS
                     }
@@ -415,11 +436,13 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             // Stop perodic advertisements
             1 => {
                 self.app
-                    .enter(appid, |app, _| {
-                        app.is_advertising.set(false);
-                        self.busy.set(false);
-                        ReturnCode::SUCCESS
-                    })
+                    .enter(appid,
+                           |app, _| if app.process_status == Some(BLEState::Advertising) {
+                               app.process_status = Some(BLEState::Initialized);
+                               ReturnCode::SUCCESS
+                           } else {
+                               ReturnCode::EINVAL
+                           })
                     .unwrap_or_else(|err| err.into())
             }
 
@@ -428,7 +451,26 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             // however it's safe for different processes to change tx power between advertisements
             // or another process is advertising
             // but to enable this twpower must be moved into the grant (currently in radio)
-            2 => self.radio.set_advertisement_txpower(data),
+            //
+            // This is not supported by the user-space interface anymore, REMOVE?!
+            // Perhaps better to let the chip decide this?!
+            2 => {
+                self.app
+                    .enter(appid, |app, _| {
+                        match data as u8 {
+                            // this what nRF5X support at moment
+                            // two complement
+                            // 0x04 = 4 dBm, 0x00 = 0 dBm, 0xFC = -4 dBm, 0xF8 = -8 dBm
+                            // 0xF4 = -12 dBm, 0x
+                            0x04 | 0x00 | 0xFC | 0xF8 | 0xF4 | 0xF0 | 0xEC | 0xD8 => {
+                                app.tx_power.set(data as u8);
+                                ReturnCode::SUCCESS
+                            }
+                            _ => ReturnCode::EINVAL,
+                        }
+                    })
+                    .unwrap_or_else(|err| err.into())
+            }
 
             // Configure advertisement intervall
             // FIXME: add guard that this is only allowed between advertisements
@@ -461,20 +503,38 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 
             // Passive scanning mode
             5 => {
-                if !self.busy.get() {
-                    self.busy.set(true);
-                    self.configure_periodic_alarm();
-                    ReturnCode::SUCCESS
-                } else {
-                    ReturnCode::EBUSY
-                }
+                self.app
+                    .enter(appid,
+                           |app, _| if app.process_status == Some(BLEState::Initialized) {
+                               app.process_status = Some(BLEState::Scanning);
+                               self.configure_periodic_alarm();
+                               ReturnCode::SUCCESS
+                           } else {
+                               ReturnCode::EBUSY
+                           })
+                    .unwrap_or_else(|err| err.into())
             }
 
             // Initilize BLE Driver
             // Allow call to allocate the advertisement buffer must be
             // invoked before this!!!!!
             // Request advertisement address
-            6 => self.initialize_advertisement_buffer(appid),
+            6 => {
+                self.app
+                    .enter(appid,
+                           |app, _| if app.process_status == Some(BLEState::NotInitialized) {
+                               let result = self.initialize_advertisement_buffer(appid);
+                               if result == ReturnCode::SUCCESS {
+                                   app.process_status = Some(BLEState::Initialized);
+                                   result
+                               } else {
+                                   result
+                               }
+                           } else {
+                               ReturnCode::EINVAL
+                           })
+                    .unwrap_or_else(|err| err.into())
+            }
 
             _ => ReturnCode::ENOSUPPORT,
         }
