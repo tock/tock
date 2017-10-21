@@ -78,47 +78,86 @@ pub const DRIVER_NUM: usize = 0x03_00_00;
 pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
 
 
-// AD TYPES
-pub const BLE_HS_ADV_TYPE_FLAGS: usize = 0x01;
-pub const BLE_HS_ADV_TYPE_INCOMP_UUIDS16: usize = 0x02;
-pub const BLE_HS_ADV_TYPE_COMP_UUIDS16: usize = 0x03;
-pub const BLE_HS_ADV_TYPE_INCOMP_UUIDS32: usize = 0x04;
-pub const BLE_HS_ADV_TYPE_COMP_UUIDS32: usize = 0x05;
-pub const BLE_HS_ADV_TYPE_INCOMP_UUIDS128: usize = 0x06;
-pub const BLE_HS_ADV_TYPE_COMP_UUIDS128: usize = 0x07;
-pub const BLE_HS_ADV_TYPE_INCOMP_NAME: usize = 0x08;
-pub const BLE_HS_ADV_TYPE_COMP_NAME: usize = 0x09;
-pub const BLE_HS_ADV_TYPE_TX_PWR_LVL: usize = 0x0a;
-pub const BLE_HS_ADV_TYPE_SLAVE_ITVL_RANGE: usize = 0x12;
-pub const BLE_HS_ADV_TYPE_SOL_UUIDS16: usize = 0x14;
-pub const BLE_HS_ADV_TYPE_SOL_UUIDS128: usize = 0x15;
-pub const BLE_HS_ADV_TYPE_SVC_DATA_UUID16: usize = 0x16;
-pub const BLE_HS_ADV_TYPE_PUBLIC_TGT_ADDR: usize = 0x17;
-pub const BLE_HS_ADV_TYPE_RANDOM_TGT_ADDR: usize = 0x18;
-pub const BLE_HS_ADV_TYPE_APPEARANCE: usize = 0x19;
-pub const BLE_HS_ADV_TYPE_ADV_ITVL: usize = 0x1a;
-pub const BLE_HS_ADV_TYPE_SVC_DATA_UUID32: usize = 0x20;
-pub const BLE_HS_ADV_TYPE_SVC_DATA_UUID128: usize = 0x21;
-pub const BLE_HS_ADV_TYPE_URI: usize = 0x24;
-pub const BLE_HS_ADV_TYPE_MFG_DATA: usize = 0xff;
+#[allow(unused)]
+struct BLEGap(BLEGapType);
 
-// Advertising Modes
-// FIXME: Only BLE_GAP_CONN_MODE_NON supported
-pub const BLE_ADV_IND: u8 = 0x00;
-pub const BLE_ADV_DIRECT_IND: u8 = 0x01;
-pub const BLE_ADV_NONCONNECT_IND: u8 = 0x02;
-pub const BLE_SCAN_REQ: u8 = 0x03;
-pub const BLE_SCAN_RSP: u8 = 0x04;
-pub const BLE_CONNECT_REQ: u8 = 0x05;
-pub const BLE_SCAN_IND: u8 = 0x06;
+enum AllowType {
+    BLEGap(BLEGapType),
+    PassiveScanning,
+    InitAdvertisementBuffer,
+}
 
+// Gap Types only the ones that are defined in libtock are defined here
+#[derive(Debug, PartialEq, Copy, Clone)]
+#[repr(usize)]
+enum BLEGapType {
+    Flags = 0x01,
+    IncompleteList16BitServiceIDs = 0x02,
+    CompleteList16BitServiceIDs = 0x03,
+    IncompleteList32BitServiceIDs = 0x04,
+    CompleteList32BitServiceIDs = 0x05,
+    IncompleteList128BitServiceIDs = 0x06,
+    CompleteList128BitServiceIDs = 0x07,
+    ShortedLocalName = 0x08,
+    CompleteLocalName = 0x09,
+    TxPowerLevel = 0x0A,
+    DeviceId = 0x10,
+    SlaveConnectionIntervalRange = 0x12,
+    List16BitSolicitationIDs = 0x14,
+    List128BitSolicitationIDs = 0x15,
+    ServiceData = 0x16,
+    Appearance = 0x19,
+    AdvertisingInterval = 0x1A,
+    ManufacturerSpecificData = 0xFF,
+}
 
-pub const PACKET_HDR_PDU: usize = 0;
-pub const PACKET_HDR_LEN: usize = 1;
-pub const PACKET_ADDR_START: usize = 2;
-pub const PACKET_ADDR_END: usize = 7;
-pub const PACKET_PAYLOAD_START: usize = 8;
-pub const PACKET_LENGTH: usize = 39;
+// dummy thing to convert usize to enum, FromPrimitive trait don't work
+// because they have dependices to std
+// if this is good idea, better to create a generic trait for this
+fn from_usize(n: usize) -> Option<AllowType> {
+    match n {
+        0x01 => Some(AllowType::BLEGap(BLEGapType::Flags)),
+        0x02 => Some(AllowType::BLEGap(BLEGapType::IncompleteList16BitServiceIDs)),
+        0x03 => Some(AllowType::BLEGap(BLEGapType::CompleteList16BitServiceIDs)),
+        0x04 => Some(AllowType::BLEGap(BLEGapType::IncompleteList32BitServiceIDs)),
+        0x05 => Some(AllowType::BLEGap(BLEGapType::CompleteList32BitServiceIDs)),
+        0x06 => Some(AllowType::BLEGap(BLEGapType::IncompleteList128BitServiceIDs)),
+        0x07 => Some(AllowType::BLEGap(BLEGapType::CompleteList128BitServiceIDs)),
+        0x08 => Some(AllowType::BLEGap(BLEGapType::ShortedLocalName)),
+        0x09 => Some(AllowType::BLEGap(BLEGapType::CompleteLocalName)),
+        0x0A => Some(AllowType::BLEGap(BLEGapType::TxPowerLevel)),
+        0x10 => Some(AllowType::BLEGap(BLEGapType::DeviceId)),
+        0x12 => Some(AllowType::BLEGap(BLEGapType::SlaveConnectionIntervalRange)),
+        0x14 => Some(AllowType::BLEGap(BLEGapType::List16BitSolicitationIDs)),
+        0x15 => Some(AllowType::BLEGap(BLEGapType::List128BitSolicitationIDs)),
+        0x16 => Some(AllowType::BLEGap(BLEGapType::ServiceData)),
+        0x19 => Some(AllowType::BLEGap(BLEGapType::Appearance)),
+        0x1A => Some(AllowType::BLEGap(BLEGapType::AdvertisingInterval)),
+        0x31 => Some(AllowType::PassiveScanning),
+        0x32 => Some(AllowType::InitAdvertisementBuffer),
+        0xFF => Some(AllowType::BLEGap(BLEGapType::ManufacturerSpecificData)),
+        _ => None,
+    }
+}
+
+#[allow(unused)]
+#[repr(u8)]
+enum BLEAdvertisementType {
+    ConnectUndirected = 0x00,
+    ConnectDirected = 0x01,
+    NonConnectUndirected = 0x02,
+    ScanRequest = 0x03,
+    ScanResponse = 0x04,
+    ConnectRequest = 0x05,
+    ScanUndirected = 0x06,
+}
+
+const PACKET_HDR_PDU: usize = 0;
+const PACKET_HDR_LEN: usize = 1;
+const PACKET_ADDR_START: usize = 2;
+const PACKET_ADDR_END: usize = 7;
+const PACKET_PAYLOAD_START: usize = 8;
+const PACKET_LENGTH: usize = 39;
 
 #[derive(PartialEq, Debug)]
 enum BLEState {
@@ -127,7 +166,6 @@ enum BLEState {
     Scanning,
     Advertising,
 }
-
 
 
 pub struct App {
@@ -198,7 +236,8 @@ impl<'a, B, A> BLE<'a, B, A>
                 app.advertisement_buf
                     .as_mut()
                     .map(|slice| {
-                        slice.as_mut()[PACKET_HDR_PDU] = BLE_ADV_NONCONNECT_IND;
+                        slice.as_mut()[PACKET_HDR_PDU] =
+                            BLEAdvertisementType::NonConnectUndirected as u8;
                         // here we should implement functionality to generate 6 random bytes
                         // to be used for advertisement addresson
                         // use address_size as packet size initially
@@ -225,7 +264,7 @@ impl<'a, B, A> BLE<'a, B, A>
 
     #[inline(never)]
     #[no_mangle]
-    fn set_advertisement_data(&self, ad_type: usize, appid: kernel::AppId) -> ReturnCode {
+    fn set_advertisement_data(&self, gap_type: BLEGapType, appid: kernel::AppId) -> ReturnCode {
         debug!("set_advertisement_data\r\n");
 
         // these variables are workaround because we can't access other data members in the Grant
@@ -255,8 +294,8 @@ impl<'a, B, A> BLE<'a, B, A>
                             self.kernel_tx
                                 .map(|data| {
                                     data.as_mut()[0] = slice.len() as u8 + 1;
-                                    data.as_mut()[1] = ad_type as u8;
-                                    debug!("ad_type {}   buf_size {}\r\n", ad_type, buf_len);
+                                    data.as_mut()[1] = gap_type as u8;
+                                    debug!("gap_type {:?}   buf_size {}\r\n", gap_type, buf_len);
                                     for (out, inp) in data.as_mut()[2..2 + slice.len()]
                                         .iter_mut()
                                         .zip(slice.as_ref()[0..slice.len()].iter()) {
@@ -548,40 +587,19 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
              slice: kernel::AppSlice<kernel::Shared, u8>)
              -> ReturnCode {
 
-        match (allow_num, self.busy.get()) {
-            // See this as a giant case switch or if else statements
-            (BLE_HS_ADV_TYPE_FLAGS, false) |
-            (BLE_HS_ADV_TYPE_INCOMP_UUIDS16, false) |
-            (BLE_HS_ADV_TYPE_COMP_UUIDS16, false) |
-            (BLE_HS_ADV_TYPE_INCOMP_UUIDS32, false) |
-            (BLE_HS_ADV_TYPE_COMP_UUIDS32, false) |
-            (BLE_HS_ADV_TYPE_INCOMP_UUIDS128, false) |
-            (BLE_HS_ADV_TYPE_COMP_UUIDS128, false) |
-            (BLE_HS_ADV_TYPE_INCOMP_NAME, false) |
-            (BLE_HS_ADV_TYPE_COMP_NAME, false) |
-            (BLE_HS_ADV_TYPE_TX_PWR_LVL, false) |
-            (BLE_HS_ADV_TYPE_SLAVE_ITVL_RANGE, false) |
-            (BLE_HS_ADV_TYPE_SOL_UUIDS16, false) |
-            (BLE_HS_ADV_TYPE_SOL_UUIDS128, false) |
-            (BLE_HS_ADV_TYPE_SVC_DATA_UUID16, false) |
-            (BLE_HS_ADV_TYPE_PUBLIC_TGT_ADDR, false) |
-            (BLE_HS_ADV_TYPE_RANDOM_TGT_ADDR, false) |
-            (BLE_HS_ADV_TYPE_APPEARANCE, false) |
-            (BLE_HS_ADV_TYPE_ADV_ITVL, false) |
-            (BLE_HS_ADV_TYPE_SVC_DATA_UUID32, false) |
-            (BLE_HS_ADV_TYPE_SVC_DATA_UUID128, false) |
-            (BLE_HS_ADV_TYPE_URI, false) |
-            (BLE_HS_ADV_TYPE_MFG_DATA, false) => {
+        match from_usize(allow_num) {
+
+            Some(AllowType::BLEGap(gap_type)) => {
                 self.app
                     .enter(appid, |app, _| {
                         app.app_write = Some(slice);
-                        self.set_advertisement_data(allow_num, appid);
+                        self.set_advertisement_data(gap_type, appid);
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| err.into())
             }
-            // Passive scanning
-            (0x31, false) => {
+
+            Some(AllowType::PassiveScanning) => {
                 self.app
                     .enter(appid, |app, _| {
                         app.app_read = Some(slice);
@@ -589,11 +607,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                     })
                     .unwrap_or_else(|err| err.into())
             }
-            // Allocate memory for an advertisement buffer this unique for each
-            // user-space process
-            (0x32, false) => {
-                debug!("allocate advertisement_buf\r\n slice len: {:?}",
-                       slice.len());
+
+            Some(AllowType::InitAdvertisementBuffer) => {
                 self.app
                     .enter(appid, |app, _| {
                         app.advertisement_buf = Some(slice);
@@ -601,9 +616,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                     })
                     .unwrap_or_else(|err| err.into())
             }
-            (_, true) => ReturnCode::EBUSY,
-
-            (_, _) => ReturnCode::ENOSUPPORT,
+            _ => ReturnCode::ENOSUPPORT,
         }
     }
 

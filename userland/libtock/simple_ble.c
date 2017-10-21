@@ -53,7 +53,7 @@ static int s_request_advertisement_address(void) {
 }
 
 static int s_initialize_advertisement_buffer(void) {
-  return allow(BLE_DRIVER_NUMBER, 0x32, (void*)advertisement_buf, ADV_SIZE);
+  return allow(BLE_DRIVER_NUMBER, BLE_CFG_ADV_BUF_ALLOW, (void*)advertisement_buf, ADV_SIZE);
 }
 
 /*******************************************************************************
