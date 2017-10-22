@@ -148,10 +148,11 @@ int ble_start_passive_scan(uint8_t *data, uint8_t max_len,
     if (err < TOCK_SUCCESS)
       return err;
 
-    err =
-      allow(BLE_DRIVER_NUMBER, BLE_CFG_SCAN_BUF_ALLOW, (void *)data, max_len);
-    if (err < TOCK_SUCCESS)
-      return err;
+    err = s_initialize_advertisement_buffer();
+    if (err < TOCK_SUCCESS) return err;
+
+    err = allow(BLE_DRIVER_NUMBER, BLE_CFG_SCAN_BUF_ALLOW, (void*)data, max_len);
+    if (err < TOCK_SUCCESS) return err;
 
     return command(BLE_DRIVER_NUMBER, BLE_SCAN_CMD, 1, 0);
   }
