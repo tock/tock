@@ -121,9 +121,7 @@ fn from_usize(n: usize) -> Option<AllowType> {
         0x03 => Some(AllowType::BLEGap(BLEGapType::CompleteList16BitServiceIDs)),
         0x04 => Some(AllowType::BLEGap(BLEGapType::IncompleteList32BitServiceIDs)),
         0x05 => Some(AllowType::BLEGap(BLEGapType::CompleteList32BitServiceIDs)),
-        0x06 => Some(AllowType::BLEGap(
-            BLEGapType::IncompleteList128BitServiceIDs,
-        )),
+        0x06 => Some(AllowType::BLEGap(BLEGapType::IncompleteList128BitServiceIDs)),
         0x07 => Some(AllowType::BLEGap(BLEGapType::CompleteList128BitServiceIDs)),
         0x08 => Some(AllowType::BLEGap(BLEGapType::ShortedLocalName)),
         0x09 => Some(AllowType::BLEGap(BLEGapType::CompleteLocalName)),
@@ -203,9 +201,8 @@ impl Default for App {
 
 
 pub struct BLE<'a, B, A>
-where
-    B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
 {
     radio: &'a B,
     busy: Cell<bool>,
@@ -215,16 +212,14 @@ where
 }
 
 impl<'a, B, A> BLE<'a, B, A>
-where
-    B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
 {
-    pub fn new(
-        radio: &'a B,
-        container: kernel::Grant<App>,
-        tx_buf: &'static mut [u8],
-        alarm: &'a A,
-    ) -> BLE<'a, B, A> {
+    pub fn new(radio: &'a B,
+               container: kernel::Grant<App>,
+               tx_buf: &'static mut [u8],
+               alarm: &'a A)
+               -> BLE<'a, B, A> {
         BLE {
             radio: radio,
             busy: Cell::new(false),
@@ -329,13 +324,9 @@ where
                                     data.as_mut()[0] = slice.len() as u8 + 1;
                                     data.as_mut()[1] = gap_type as u8;
                                     debug!("gap_type {:?}   buf_size {}\r\n", gap_type, buf_len);
-                                    for (out, inp) in
-                                        data.as_mut()[2..2 + slice.len()].iter_mut().zip(
-                                            slice.as_ref()
-                                                [0..slice.len()]
-                                                .iter(),
-                                        )
-                                    {
+                                    for (out, inp) in data.as_mut()[2..2 + slice.len()]
+                                        .iter_mut()
+                                        .zip(slice.as_ref()[0..slice.len()].iter()) {
                                         *out = *inp;
                                     }
                                     ReturnCode::SUCCESS
@@ -354,10 +345,9 @@ where
                             data.as_mut()[PACKET_HDR_LEN] = (end - 2) as u8;
                             self.kernel_tx
                                 .map(|slice| {
-                                    for (out, inp) in data.as_mut()[index..end].iter_mut().zip(
-                                        slice.as_ref()[0..buf_len].iter(),
-                                    )
-                                    {
+                                    for (out, inp) in data.as_mut()[index..end]
+                                        .iter_mut()
+                                        .zip(slice.as_ref()[0..buf_len].iter()) {
                                         *out = *inp;
                                     }
                                     ReturnCode::SUCCESS
@@ -397,11 +387,9 @@ where
             cntr.enter(|app, _| {
                 app.advertisement_buf.as_ref().map(|slice| {
                     self.kernel_tx.take().map(|data| {
-                        for (out, inp) in
-                            data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
-                                .iter_mut()
-                                .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter())
-                        {
+                        for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
+                            .iter_mut()
+                            .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter()) {
                             *out = *inp;
                         }
                         let result = self.radio.set_advertisement_data(data, PACKET_LENGTH);
@@ -416,9 +404,8 @@ where
     fn configure_periodic_alarm(&self) {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
-                let interval_in_tics = self.alarm.now().wrapping_add(
-                    app.advertisement_interval.get(),
-                );
+                let interval_in_tics =
+                    self.alarm.now().wrapping_add(app.advertisement_interval.get());
                 self.alarm.set_alarm(interval_in_tics);
             });
         }
@@ -428,14 +415,15 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
 {
-// This method is invoked once a virtual timer has expired
-// And because we can have several processes running at the concurrently
-// with overlapping intervals we use the busy flag to ensure mutual exclusion
-// this may not be fair if the processes have similar interval one process
-// may be starved.......
+    // This method is invoked once a virtual timer has expired
+    // And because we can have several processes running at the concurrently
+    // with overlapping intervals we use the busy flag to ensure mutual exclusion
+    // this may not be fair if the processes have similar interval one process
+    // may be starved.......
     fn fired(&self) {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
+                debug!("fired : {:?}", app.process_status);
                 match app.process_status {
                     Some(BLEState::Advertising) if !self.busy.get() => {
                         self.busy.set(true);
@@ -445,7 +433,7 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
                     }
                     Some(BLEState::Scanning) if !self.busy.get() => {
                         self.busy.set(true);
-// we want a empty buffer to read data into
+                        // we want a empty buffer to read data into
                         self.initialize_advertisement_buffer();
                         self.replace_advertisement_buffer();
                         self.radio.start_advertisement_rx(37);
@@ -483,19 +471,17 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
 // Implementation of SYSCALL interface
 impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
-where
-    B: ble_advertising_hil::BleAdvertisementDriver + 'a,
-    A: kernel::hil::time::Alarm + 'a,
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
 {
     #[inline(never)]
     #[no_mangle]
-    fn command(
-        &self,
-        command_num: usize,
-        data: usize,
-        _: usize,
-        appid: kernel::AppId,
-    ) -> ReturnCode {
+    fn command(&self,
+               command_num: usize,
+               data: usize,
+               _: usize,
+               appid: kernel::AppId)
+               -> ReturnCode {
         match command_num {
 
             // Start periodic advertisments
@@ -503,6 +489,7 @@ where
                 self.app
                     .enter(appid, |app, _| if app.process_status == Some(BLEState::Initialized) {
                         app.process_status = Some(BLEState::Advertising);
+                        debug!("command start adv: {:?}", app.process_status);
                         self.configure_periodic_alarm();
                         ReturnCode::SUCCESS
                     }
@@ -520,14 +507,13 @@ where
             // Stop perodic advertisements
             1 => {
                 self.app
-                    .enter(appid, |app, _| if app.process_status ==
-                        Some(BLEState::Advertising)
-                    {
-                        app.process_status = Some(BLEState::Initialized);
-                        ReturnCode::SUCCESS
-                    } else {
-                        ReturnCode::EINVAL
-                    })
+                    .enter(appid,
+                           |app, _| if app.process_status == Some(BLEState::Advertising) {
+                               app.process_status = Some(BLEState::Initialized);
+                               ReturnCode::SUCCESS
+                           } else {
+                               ReturnCode::EINVAL
+                           })
                     .unwrap_or_else(|err| err.into())
             }
 
@@ -566,20 +552,14 @@ where
                 self.app
                     .enter(appid, |app, _| {
                         if data < 20 {
-                            app.advertisement_interval.set(
-                                20 * <A::Frequency>::frequency() /
-                                    1000,
-                            );
+                            app.advertisement_interval
+                                .set(20 * <A::Frequency>::frequency() / 1000);
                         } else if data > 10240 {
-                            app.advertisement_interval.set(
-                                10240 * <A::Frequency>::frequency() /
-                                    1000,
-                            );
+                            app.advertisement_interval
+                                .set(10240 * <A::Frequency>::frequency() / 1000);
                         } else {
-                            app.advertisement_interval.set(
-                                (data as u32) * <A::Frequency>::frequency() /
-                                    1000,
-                            );
+                            app.advertisement_interval
+                                .set((data as u32) * <A::Frequency>::frequency() / 1000);
                         }
                         ReturnCode::SUCCESS
                     })
@@ -590,20 +570,21 @@ where
             // FIXME: add guard that this is only allowed between advertisements
             // for each process however it's safe for different processes reset its payload
             // when another process is advertising
-            4 => self.reset_payload(appid),
-
+            4 => {
+                debug!("reset payload\r\n");
+                self.reset_payload(appid)
+            }
             // Passive scanning mode
             5 => {
                 self.app
-                    .enter(appid, |app, _| if app.process_status ==
-                        Some(BLEState::Initialized)
-                    {
-                        app.process_status = Some(BLEState::Scanning);
-                        self.configure_periodic_alarm();
-                        ReturnCode::SUCCESS
-                    } else {
-                        ReturnCode::EBUSY
-                    })
+                    .enter(appid,
+                           |app, _| if app.process_status == Some(BLEState::Initialized) {
+                               app.process_status = Some(BLEState::Scanning);
+                               self.configure_periodic_alarm();
+                               ReturnCode::SUCCESS
+                           } else {
+                               ReturnCode::EBUSY
+                           })
                     .unwrap_or_else(|err| err.into())
             }
 
@@ -613,16 +594,16 @@ where
             // Request advertisement address
             6 => {
                 self.app
-                    .enter(appid, |app, _| if app.process_status ==
-                        Some(BLEState::Initialized)
-                    {
-                        if self.generate_random_address(appid) != ReturnCode::SUCCESS {
-                            return ReturnCode::EINVAL;
-                        }
-                        self.configure_advertisement_pdu(appid)
-                    } else {
-                        ReturnCode::EINVAL
-                    })
+                    .enter(appid,
+                           |app, _| if app.process_status == Some(BLEState::Initialized) {
+                               debug!("command init ble state: {:?}", app.process_status);
+                               if self.generate_random_address(appid) != ReturnCode::SUCCESS {
+                                   return ReturnCode::EINVAL;
+                               }
+                               self.configure_advertisement_pdu(appid)
+                           } else {
+                               ReturnCode::EINVAL
+                           })
                     .unwrap_or_else(|err| err.into())
             }
 
@@ -632,36 +613,38 @@ where
 
     #[inline(never)]
     #[no_mangle]
-    fn allow(
-        &self,
-        appid: kernel::AppId,
-        allow_num: usize,
-        slice: kernel::AppSlice<kernel::Shared, u8>,
-    ) -> ReturnCode {
+    fn allow(&self,
+             appid: kernel::AppId,
+             allow_num: usize,
+             slice: kernel::AppSlice<kernel::Shared, u8>)
+             -> ReturnCode {
 
         match from_usize(allow_num) {
 
             Some(AllowType::BLEGap(gap_type)) => {
                 self.app
-                    .enter(appid, |app, _| {
-                        app.app_write = Some(slice);
-                        self.set_advertisement_data(gap_type, appid);
-                        ReturnCode::SUCCESS
-                    })
+                    .enter(appid,
+                           |app, _| if app.process_status != Some(BLEState::NotInitialized) {
+                               debug!("allow_passive_scan  state: {:?}", app.process_status);
+                               app.app_write = Some(slice);
+                               self.set_advertisement_data(gap_type, appid);
+                               ReturnCode::SUCCESS
+                           } else {
+                               ReturnCode::EINVAL
+                           })
                     .unwrap_or_else(|err| err.into())
             }
 
             Some(AllowType::PassiveScanning) => {
-                debug!("allow passive_scanning\r\n");
                 self.app
-                    .enter(appid, |app, _| if app.process_status ==
-                        Some(BLEState::Initialized)
-                    {
-                        app.app_read = Some(slice);
-                        ReturnCode::SUCCESS
-                    } else {
-                        ReturnCode::EINVAL
-                    })
+                    .enter(appid,
+                           |app, _| if app.process_status == Some(BLEState::Initialized) {
+                               debug!("allow_passive_scan  state: {:?}", app.process_status);
+                               app.app_read = Some(slice);
+                               ReturnCode::SUCCESS
+                           } else {
+                               ReturnCode::EINVAL
+                           })
                     .unwrap_or_else(|err| err.into())
             }
 
@@ -669,8 +652,8 @@ where
                 self.app
                     .enter(appid, |app, _| {
                         app.advertisement_buf = Some(slice);
-                        // assume for now this can't fail!!!
                         app.process_status = Some(BLEState::Initialized);
+                        debug!("allow_init_adv_buffer: {:?}", app.process_status);
                         self.initialize_advertisement_buffer();
                         ReturnCode::SUCCESS
                     })

@@ -334,9 +334,10 @@ impl Radio {
                 RADIO_STATE_RX => {
                     if regs.crcstatus.get() == 1 {
                         unsafe {
+                            //debug!("RECV BUF: {:?}\r\n", &PAYLOAD[0..32]);
                             self.client.get().map(|client| {
                                 client.receive(&mut PAYLOAD,
-                                               PAYLOAD_LENGTH as u8,
+                                               PAYLOAD[1] + 1,
                                                kernel::returncode::ReturnCode::SUCCESS)
                             });
                         }
@@ -382,9 +383,6 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
             unsafe {
                 PAYLOAD[i] = *c;
             }
-        }
-        unsafe {
-            debug!("BUF: {:?}\r\n", &PAYLOAD[0..32]);
         }
         buf
     }

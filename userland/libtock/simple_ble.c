@@ -9,8 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_SIZE  31
-#define ADV_SIZE  39
+#define MAX_SIZE 31
+#define ADV_SIZE 39
 
 static unsigned char advertisement_buf[ADV_SIZE];
 
@@ -44,7 +44,6 @@ static int s_ble_configure_gap_data(GapAdvertisementData_t header,
   return allow(BLE_DRIVER_NUMBER, header, (void *)data, data_len);
 }
 
-
 // internal helper to request the kernel to generate a random advertisement
 // address
 
@@ -53,7 +52,8 @@ static int s_request_advertisement_address(void) {
 }
 
 static int s_initialize_advertisement_buffer(void) {
-  return allow(BLE_DRIVER_NUMBER, BLE_CFG_ADV_BUF_ALLOW, (void*)advertisement_buf, ADV_SIZE);
+  return allow(BLE_DRIVER_NUMBER, BLE_CFG_ADV_BUF_ALLOW,
+               (void *)advertisement_buf, ADV_SIZE);
 }
 
 /*******************************************************************************
@@ -66,7 +66,8 @@ int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
   err = s_initialize_advertisement_buffer();
 
   err = s_request_advertisement_address();
-  if (err < TOCK_SUCCESS) return err;
+  if (err < TOCK_SUCCESS)
+    return err;
 
   // configure advertisement interval
   // if the interval is less than 20 or bigger than 10240 to kernel
@@ -99,6 +100,7 @@ int ble_reset_advertisement(void) {
 
 int ble_advertise_name(uint8_t *device_name, uint8_t size_b) {
   if (device_name == NULL) {
+    printf("nullptr\r\n");
     return TOCK_FAIL;
   } else {
     return s_ble_configure_gap_data(GAP_COMPLETE_LOCAL_NAME, device_name,
@@ -149,10 +151,13 @@ int ble_start_passive_scan(uint8_t *data, uint8_t max_len,
       return err;
 
     err = s_initialize_advertisement_buffer();
-    if (err < TOCK_SUCCESS) return err;
+    if (err < TOCK_SUCCESS)
+      return err;
 
-    err = allow(BLE_DRIVER_NUMBER, BLE_CFG_SCAN_BUF_ALLOW, (void*)data, max_len);
-    if (err < TOCK_SUCCESS) return err;
+    err =
+      allow(BLE_DRIVER_NUMBER, BLE_CFG_SCAN_BUF_ALLOW, (void *)data, max_len);
+    if (err < TOCK_SUCCESS)
+      return err;
 
     return command(BLE_DRIVER_NUMBER, BLE_SCAN_CMD, 1, 0);
   }
