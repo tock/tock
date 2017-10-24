@@ -47,17 +47,6 @@ and then waits for a "callback" to signal that the operation has been completed.
 The callback in this program presently does nothing, but you may find it useful
 later.
 
-#### Timer
-
-You'll find the interface for timers in `userland/libtock/timer.h`.  The
-function you'll find useful today is:
-
-    void delay_ms(uint32_t ms);
-
-This function sleeps until the specified number of milliseconds have passed, and
-then returns.  So we call this function "synchronous": no further code will run
-until the delay is complete.
-
 ### Loading a Rust application
 
 Okay, let's build and load this simple program.
@@ -93,18 +82,29 @@ Hello, World!
 ### Creating your own application
 
 Now that you've got a basic app working, modify it so that it continuously
-prints out `Hello World` twice per second.  Remember the function `delay_ms` as
-explained above
+prints out `Hello World` twice per second.  You'll want to use the user
+library's timer facilities to manage this.
+
+#### Timer
+
+You'll find the interface for timers in `userland/libtock/timer.h`.  The
+function you'll find useful today is:
+
+    void delay_ms(uint32_t ms);
+
+This function sleeps until the specified number of milliseconds have passed, and
+then returns.  So we call this function "synchronous": no further code will run
+until the delay is complete.
 
 ## 4. Write an app that periodically samples the on-board sensors
 
-Now that we have the ability to write Tock applications in Rust, lets do
-something a little more complex. The Hail board you are using has several
-sensors on it [as shown here](https://github.com/helena-project/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png).
+Now that we have the ability to write applications, let's do
+something a little more complex. The development board you are using has several
+sensors on it, [as shown here](https://github.com/helena-project/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png).
 These sensors include a light sensor, a humidity and temperature sensor, and an
 acceleration and magnetic field sensor (marked as accelerometer in the
-picture). Each sensing medium can be accessed separately through the Tock
-crate, each within the `sensors` module.
+picture). Each sensing medium can be accessed separately via the Tock user
+library.
 
 #### Light
 
