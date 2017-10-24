@@ -15,6 +15,12 @@ static void print_complete(int a __attribute__((unused)),
                            void* d __attribute__((unused)))
 {
   // The message has been printed to the console
+
+  delay_ms(2000);
+  int lux = ambient_light_read_intensity();
+
+  int n = snprintf(buf, sizeof(buf), "Lux: %d\n", lux);
+  putnstr_async(buf, n, print_complete, NULL);
 }
 
 int main(void)
