@@ -67,6 +67,8 @@ struct Imix {
     crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb_user::UsbSyscallDriver<'static,
                         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
+    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static,
+                                                                               sam4l::usart::USART>,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -106,6 +108,7 @@ impl kernel::Platform for Imix {
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
             capsules::usb_user::DRIVER_NUM => f(Some(self.usb_driver)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.radio_driver)),
+            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -216,6 +219,15 @@ pub unsafe fn reset_handler() {
         capsules::console::App,
         capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(console), kc);
+
+    // Create the Nrf51822Serialization driver for passing BLE commands
+    // over UART to the nRF51822 radio.
+    let nrf_serialization = static_init!(
+        capsules::nrf51822_serialization::Nrf51822Serialization<sam4l::usart::USART>,
+        capsules::nrf51822_serialization::Nrf51822Serialization::new(&sam4l::usart::USART2,
+                                   &mut capsules::nrf51822_serialization::WRITE_BUF,
+                                   &mut capsules::nrf51822_serialization::READ_BUF));
+    hil::uart::UART::set_client(&sam4l::usart::USART2, nrf_serialization);
 
     // # TIMER
 
@@ -467,9 +479,22 @@ pub unsafe fn reset_handler() {
         ninedof: ninedof,
         radio_driver: radio_driver,
         usb_driver: usb_driver,
+        nrf51822: nrf_serialization,
     };
 
     let mut chip = sam4l::chip::Sam4l::new();
+
+    // Need to reset the nRF on boot, toggle it's SWDIO
+    sam4l::gpio::PB[07].enable();
+    sam4l::gpio::PB[07].enable_output();
+    sam4l::gpio::PB[07].clear();
+    // minimum hold time is 200ns, ~20ns per instruction, so overshoot a bit
+    for _ in 0..10 {
+        kernel::support::nop();
+    }
+    sam4l::gpio::PB[07].set();
+
+    imix.nrf51822.initialize();
 
     // These two lines need to be below the creation of the chip for
     // initialization to work.
