@@ -19,10 +19,15 @@ You'll find the outline of a C application in the directory
 `userland/examples/sosp`.
 
 Take a look at the code in `main.c`.  So far, this application merely prints
-"Hello, World!"  It could have accomplished that by making Tock system calls
-directly, but just like in other systems, a user library (in
-`userland/libtock/`) provides a more convenient interface for this and many
-other purposes.  Let's look at the interface for console I/O:
+"Hello, World!"
+
+The code uses the standard C library routine `snprintf` to compose a message
+using a format string, and then prints it to the console.
+
+It could have accomplished the output by invoking Tock system calls directly,
+but just like in other systems, a user library (in `userland/libtock/`)
+provides a more convenient interface for this and many other purposes.  Let's
+look at the interface for console I/O:
 
 #### Console
 
@@ -74,7 +79,7 @@ No device name specified. Using default "tock"
 Using "/dev/cu.usbserial-c098e5130012 - Hail IoT Module - TockOS"
 
 Listening for serial output.
-Hello, World!
+From tock app: "Hello, World!"
 ```
 
 ### Creating your own application
@@ -123,7 +128,7 @@ sensor. It contains the function:
     int temperature_read_sync(int* temperature);
 
 Note that the temperature reading is written to the location passed as an
-argument, and the function returns nonzero in the case of an error.
+argument, and the function returns non-zero in the case of an error.
 
 #### Humidity
 
