@@ -8,7 +8,7 @@ the serial port.
 During this you will:
 
 1. Learn how Tock uses Rust's memory safety to provide isolation for free
-2. Read the Tock boot sequence, seeing how Tock uses static allocation
+2. Read the Tock boot sequence, seeing how Tock loads processes
 3. Learn about Tock's event-driven programming
 4. Write a new capsule that reads a light sensor and prints it over serial
 
@@ -51,11 +51,10 @@ allocated? We can see that here. Every field in `struct Hail` is a reference to
 an object with a static lifetime.
 
 The capsules themselves take a lifetime as a parameter, which is currently
-always `` `static``.  The implementations of these capsules, however, do not
-rely on this assumption.
+always `` `static``.  The capsules, however, can be used for any lifetime.
 
 The boot process is primarily the construction of this `Hail` structure. Once
-everything is set up, the board will pass the constructed `hail` to
+everything is set up, the board passes the constructed `hail` to
 `kernel::main` and we're off to the races.
 
 ##### 3.2 How do capsules get created?
@@ -73,8 +72,13 @@ let console = static_init!(
 hil::uart::UART::set_client(&usart::USART0, console);
 ```
 
-Eventually, once all of the capsules have been created, we will populate
-a Hail structure with them:
+The `static_init!` macro is simply an easy way to allocate a static
+variable with a call to `new`. The first parameter is the type, the second
+is the expression to produce an instance of the type. This call creates
+a `Console` that uses serial port 0 (`USART0`) at 115200 bits per second.
+
+Eventually, once all of the capsules have been created, the boot sequence
+populates a Hail structure with them:
 
 ```rust
 let hail = Hail {
@@ -83,10 +87,6 @@ let hail = Hail {
     ...
 ```
 
-The `static_init!` macro is simply an easy way to allocate a static
-variable with a call to `new`. The first parameter is the type, the second
-is the expression to produce an instance of the type. This call creates
-a `Console` that uses serial port 0 (`USART0`) at 115200 bits per second.
 
 > ##### A brief aside on buffers:
 > 
