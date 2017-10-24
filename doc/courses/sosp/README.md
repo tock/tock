@@ -16,7 +16,7 @@ and implementation will be presented at the conference.
 In this course, you will learn the basic Tock system architecture, 
 how to write a userspace process in C, Tock's system call interface, and 
 fill in code for a small kernel extension written in Rust. The course assumes
-advanced knowledge of operating systems (i.e., are an operating systems researcher)
+advanced knowledge of operating systems (i.e., you are an operating systems researcher)
 and fluency in C. It assumes no knowledge of Rust, although knowing Rust will allow
 you to be more creative in the Rust programming part of the course.
 

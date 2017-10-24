@@ -13,76 +13,65 @@ Tock, and build our own applications in Rust.
 2. What is a Grant? How do processes interact with grants? Hint: Think about
    memory exhaustion.
 
-## 3. Get a Rust application running on Hail
+## 3. Get a C application running on Hail
 
-First, clone the tock-rust-template repository.
+You'll find the outline of a C application in the directory
+`userland/examples/sosp`.
 
-         $ git clone https://github.com/helena-project/tock-rust-template.git
+Take a look at the code in `main.c`.
 
-This is the base for Tock applications written in Rust. Your code goes in the
-`src` folder in `main.rs`. The `Cargo` and `Xargo` files are Rust build
-configurations. The `thumbv7em-tock-eabi.json` and `layout.ld` files are code
-compilation configurations. The Makefile uses `xargo` to create ELF files, and
-several scripts in `tools/` to build Tock binaries, with all built output going
-in the directory `target/thumb7em-tock-eabi/release/`.
-
-First, lets look at the application code. `main()` is the function called when
-the app is started. The base functionality of it creates a Tock console object
-and then prints a message through it via the `write!` macro. The
-[`alloc`](https://doc.rust-lang.org/beta/alloc/) crate is used to make the
-`write_fmt` function inside of `write!` work. Note that `write!` returns a
-`Result`, which we call unwrap on to handle.
-
-We also use the [Tock crate](https://github.com/helena-project/libtock-rs)
-which contains the Rust library for interacting with a Tock kernel. Two pieces
-of Tock functionality which we will explain here are the Console and Timer
-modules that the Tock crate exports.
+So far, this application merely prints "Hello, World!"  It could have
+accomplished that by making Tock system calls directly, but just like in other
+systems, a user library (in `userland/libtock/`) provides a more convenient
+interface for this and many other purposes.  Let's look at the interface for
+console I/O.
 
 #### Console
 
-`tock::console::Console` is used to send messages over the USB connection on a
-Hail (technically it sends serial data through a UART to an FTDI UART-to-USB
-chip, but same difference). Its functions are:
+You'll notice that this program includes the header file `console.h`.  You can
+find that file in `userland/libtock/console.h`.
 
-         pub fn new() -> Console
+The console interface contains the function `putstr` and a couple variants.
+On your development board, this function can be used to send messages over the
+USB connection to your PC.  What's actually happening on the board is that the
+UART transceiver on the microcontroller sends serial data to a chip (FTDI) that
+then converts the data to USB messages.
 
-   Creates, initializes, and returns a new Console struct.
+The `putstr` function itself is "synchronous", meaning that it doesn't return
+until the I/O operation has completed.  But your example program instead calls
+`putnstr_async`, which is more fundamental in that it sends the message to print
+and then waits for a "callback" to signal that the operation has been completed.
+(The `putstr` function is implemented by the tock library in terms of
+`putnstr_async`.)
 
-         pub fn write(&mut self, string: String)
-
-   Writes a string object to the Console.
-
-`Console` also implements `fmt::write`, which enables the `write!` macro to
-work. We recommend using
-[`write!`](https://doc.rust-lang.org/1.5.0/std/macro.write!.html) for this
-tutorial, as it allows you to use [format
-options](https://doc.rust-lang.org/1.5.0/std/fmt/) while printing.
+The callback in this program presently does nothing, but you may find it useful
+later.
 
 #### Timer
 
-`tock::timer` is used to trigger events at a specific number of seconds in the
-future. It has several functions, only one of which will be used today:
+You'll find the interface for timers in `userland/libtock/timer.h`.  The
+function you'll find useful today is:
 
-         pub fn delay_ms(ms: u32)
+    void delay_ms(uint32_t ms);
 
-   Sleeps until the specified number of milliseconds have passed, at which
-   point this function will return. Note that this is synchronous, and no
-   further code will run until the delay is complete.
+This function sleeps until the specified number of milliseconds have passed, and
+then returns.  So we call this function "synchronous": no further code will run
+until the delay is complete.
 
 ### Loading a Rust application
 
-Now, lets build and load the base template application in `src/main.rs`.
+Okay, let's build and load this simple program.
 
-1. Erase all other applications from the Hail.
+1. Erase all other applications from the development board
 
          tockloader erase-apps
 
-2. Build this Rust application.
+2. Build this application
 
          make
 
-3. Load the Rust application. (note: `tockloader install` automatically
-   searches subdirectories for Tock binaries)
+3. Load the application.  (Note: `tockloader install` automatically searches the
+   current working directory and its subdirectories for Tock binaries.)
 
          tockloader install
 
@@ -90,7 +79,7 @@ Now, lets build and load the base template application in `src/main.rs`.
 
          tockloader listen
 
-The expected output should look like:
+The expected output should look something like:
 
 ```
 $ tockloader listen
@@ -98,16 +87,14 @@ No device name specified. Using default "tock"
 Using "/dev/cu.usbserial-c098e5130012 - Hail IoT Module - TockOS"
 
 Listening for serial output.
-Tock App
+Hello, World!
 ```
 
-### Creating your own Rust application
+### Creating your own application
 
-Now that you've got a basic Rust app working, modify it so that it continuously
-prints out `Hello World` twice per second. Note the Tock function `delay_ms` as
-explained above, as well as the Rust
-[loop](https://doc.rust-lang.org/1.6.0/book/loops.html) instruction.
-
+Now that you've got a basic app working, modify it so that it continuously
+prints out `Hello World` twice per second.  Remember the function `delay_ms` as
+explained above
 
 ## 4. Write an app that periodically samples the on-board sensors
 
