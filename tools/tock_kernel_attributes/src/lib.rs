@@ -1,4 +1,3 @@
-
 use std::ascii::AsciiExt;
 use std::env;
 use std::fs::File;
@@ -28,7 +27,7 @@ pub static KERNEL_ATTRIBUTES_FILE: &'static str = "kernel_attribute_git.rs";
 
 /// Takes an attribute name and value and writes valid Rust to create a kernel
 /// attribute
-pub fn write_attribute<W: Write>(mut dest: W, name: &str, value: &str) {
+pub fn write_attribute<W: Write>(dest: &mut W, name: &str, value: &str) {
     let _ = write!(dest,
                    "
 #[link_section=\".kernel_attribute.{}\"]
@@ -62,15 +61,20 @@ pub fn get_file() -> File {
     f
 }
 
-pub fn kernel_attribute_git<W: Write>(dest: W) {
+pub fn kernel_attribute_git<W: Write>(dest: &mut W) {
     //let attr: &str = env::var("TOCK_KERNEL_VERSION").ok().map_or("notgit", |env| { &env });
     let attr = env::var("TOCK_KERNEL_VERSION").unwrap_or("notgit".to_string());
     write_attribute(dest, "git", &attr);
 }
 
+pub fn kernel_attribute_appaddr<W: Write>(dest: &mut W) {
+    write_attribute(dest, "appaddr", "0x30000");
+}
+
 pub fn write_standard_attributes_to_build_file() {
-    let writer = get_file();
-    kernel_attribute_git(writer);
+    let mut writer = get_file();
+    kernel_attribute_git(&mut writer);
+    kernel_attribute_appaddr(&mut writer);
 }
 
 #[cfg(test)]
