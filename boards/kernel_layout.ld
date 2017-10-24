@@ -86,8 +86,9 @@ SECTIONS
         BYTE(0x6e) /* n */
         BYTE(0x65) /* e */
         BYTE(0x6c) /* l */
-        /* Kernel Major Version: 0 */
-        BYTE(0x00)
+        /* Start attributes on next page */
+        FILL(0x00)
+        . = _attribute_table_start + 512;
         /* Remaining attributes */
         KEEP(*(.kernel_attributes .kernel_attribute.*))
         FILL(0x0)

@@ -42,7 +42,7 @@ Kernel code is split into four regions, in order:
     information about this kernel image. The attribute format mirrors
     attributes from the bootloader, namely:
     - Begins with `TockKernel`
-    - Then 1 byte version (currently 0)
+    - Then padding to fill a 512 byte page
     - Then 64 byte entries:
        - 8 byte (zero-padded) name
        - 1 byte length
