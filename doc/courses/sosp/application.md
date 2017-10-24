@@ -13,18 +13,16 @@ Tock, and build our own applications in Rust.
 2. What is a Grant? How do processes interact with grants? Hint: Think about
    memory exhaustion.
 
-## 3. Get a C application running on Hail
+## 3. Get a C application running on your board
 
 You'll find the outline of a C application in the directory
 `userland/examples/sosp`.
 
-Take a look at the code in `main.c`.
-
-So far, this application merely prints "Hello, World!"  It could have
-accomplished that by making Tock system calls directly, but just like in other
-systems, a user library (in `userland/libtock/`) provides a more convenient
-interface for this and many other purposes.  Let's look at the interface for
-console I/O.
+Take a look at the code in `main.c`.  So far, this application merely prints
+"Hello, World!"  It could have accomplished that by making Tock system calls
+directly, but just like in other systems, a user library (in
+`userland/libtock/`) provides a more convenient interface for this and many
+other purposes.  Let's look at the interface for console I/O:
 
 #### Console
 
@@ -33,9 +31,9 @@ find that file in `userland/libtock/console.h`.
 
 The console interface contains the function `putstr` and a couple variants.
 On your development board, this function can be used to send messages over the
-USB connection to your PC.  What's actually happening on the board is that the
-UART transceiver on the microcontroller sends serial data to a chip (FTDI) that
-then converts the data to USB messages.
+USB connection to your PC.  (What's actually happening on the board is that the
+UART transceiver on the microcontroller sends serial data to another chip
+that then converts the data to USB messages.)
 
 The `putstr` function itself is "synchronous", meaning that it doesn't return
 until the I/O operation has completed.  But your example program instead calls
@@ -51,24 +49,24 @@ later.
 
 Okay, let's build and load this simple program.
 
-1. Erase all other applications from the development board
+1. Erase all other applications from the development board:
 
          tockloader erase-apps
 
-2. Build this application
+2. Build this application:
 
          make
 
-3. Load the application.  (Note: `tockloader install` automatically searches the
+3. Load the application (Note: `tockloader install` automatically searches the
    current working directory and its subdirectories for Tock binaries.)
 
          tockloader install
 
-4. Check that it worked.
+4. Check that it worked:
 
          tockloader listen
 
-The expected output should look something like:
+The output should look something like:
 
 ```
 $ tockloader listen
@@ -83,7 +81,7 @@ Hello, World!
 
 Now that you've got a basic app working, modify it so that it continuously
 prints out `Hello World` twice per second.  You'll want to use the user
-library's timer facilities to manage this.
+library's timer facilities to manage this:
 
 #### Timer
 
@@ -100,7 +98,8 @@ until the delay is complete.
 
 Now that we have the ability to write applications, let's do
 something a little more complex. The development board you are using has several
-sensors on it, [as shown here](https://github.com/helena-project/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png).
+sensors on it, [as shown here](https://github.com/helena-project/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png)
+for the Hail board.
 These sensors include a light sensor, a humidity and temperature sensor, and an
 acceleration and magnetic field sensor (marked as accelerometer in the
 picture). Each sensing medium can be accessed separately via the Tock user
@@ -108,80 +107,61 @@ library.
 
 #### Light
 
-`tock::sensors::AmbientLightSensor` is used to measure ambient light conditions
+The interface in `ambient_light.h` is used to measure ambient light conditions
 in [lux](https://en.wikipedia.org/wiki/Lux). Specifically, it uses the sensor
 [ISL29035](https://www.intersil.com/en/products/optoelectronics/ambient-light-sensors/light-to-digital-sensors/ISL29035.html).
-It has the function:
+It contains the function:
 
-         pub fn read(&mut self) -> Reading
-
-   Where a Reading in this case is implemented as the type `AmbientLight`,
-   which is capable of being cast into an `i32` or printed in a message.
+    int ambient_light_read_intensity(void);
 
 #### Temperature
 
-`tock::sensors::TemperatureSensor` is used to measure ambient temperature in degrees
+The interface in `temperature.h` is used to measure ambient temperature in degrees
 Celsius. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
-sensor. It has the function:
+sensor. It contains the function:
 
-         pub fn read(&mut self) -> Reading
+    int temperature_read_sync(int* temperature);
 
-   Where a Reading in this case is implemented as the type `Temperature`, which
-   is capable of being cast into an `i32` or printed in a message.
+Note that the temperature reading is written to the location passed as an
+argument, and the function returns nonzero in the case of an error.
 
 #### Humidity
 
-`tock::sensors::HumiditySensor` is used to measure the ambient
+The interface in `humidity.h` is used to measure the ambient
 [relative humidity](https://en.wikipedia.org/wiki/Relative_humidity) in
-percent. It has the function:
+percent. It contains the function:
 
-         pub fn read(&mut self) -> Reading
+    int humidity_read_sync (unsigned* humi);
 
-   Where a Reading in this case is implemented as the type `Humdity`, which
-   is capable of being cast into an `i32` or printed in a message.
+Again, this function returns non-zero in the case of an error.
 
 #### Nindedof
 
-`tock::sensors::Ninedof` is used to read acceleration or magnetic field
+The interface in `ninedof.h` is used to read acceleration or magnetic field
 strength from the
 [FXOS8700CQ](http://www.nxp.com/products/sensors/6-axis-sensors/digital-sensor-3d-accelerometer-2g-4g-8g-plus-3d-magnetometer:FXOS8700CQ).
-Note that Hail's hardware implementation of the Ninedof does not include the
-traditional rotational sensor. It has the functions:
+(Note that Hail's hardware implementation of the Ninedof does not include the
+traditional rotational sensor.)  It contains these functions:
 
-         pub unsafe fn new() -> Ninedof
+    int ninedof_read_acceleration_sync(int* x, int* y, int* z);
 
-   Which creates a new Ninedof struct on which the following functions may be
-   called. Note that this function is `unsafe` and must be called within an
-   unsafe block.
+The above reads acceleration in [g's](https://en.wikipedia.org/wiki/G-force) in
+the x, y, and z orientations.
 
-         pub fn read_acceleration(&mut self) -> NinedofReading
+    int ninedof_read_magenetometer_sync(int* x, int* y, int* z);
 
-   Which reads acceleration in [g's](https://en.wikipedia.org/wiki/G-force) in
-   the x, y, and z orientations.
-
-         pub fn read_magnetometer(&mut self) -> NinedofReading
-
-   Which reads magnetic field strength in
-   [microTeslas](https://en.wikipedia.org/wiki/Tesla_(unit)) in the x, y, and z
-   orientations. 
-
-It also has the NinedofReading struct:
-
-         pub struct NinedofReading {
-            pub x: i32,
-            pub y: i32,
-            pub z: i32
-         }
-
-   Which has `fmt:Display` implemented for it and thus can be directly printed.
-
+The above reads magnetic field strength in
+[microTeslas](https://en.wikipedia.org/wiki/Tesla_(unit)) in the x, y, and z
+orientations.
 
 ### Read sensors in a Tock application
 
-Using the tock-rust-template, write an application that reads all of the
-sensors on Hail and reports their readings over serial. As a bonus, experiment
-with turning on/or off an LED when readings are above or below a certain
-threshold.
+Using the example program you're working on, write an application that reads
+all of the sensors on your development board and reports their readings over
+the serial port. As a bonus, experiment with turning on/or off an LED when
+readings are above or below a certain threshold.
+
+***remainder of user-application tutorial still to be translated to C***
 
 #### LED
 
