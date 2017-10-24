@@ -14,8 +14,8 @@
 //! compression scheme.
 
 use capsules::net::ip::{IP6Header, MacAddr, IPAddr, ip6_nh};
-use capsules::net::lowpan;
-use capsules::net::lowpan::{ContextStore, Context};
+use capsules::net::sixlowpan_compression;
+use capsules::net::sixlowpan_compression::{ContextStore, Context};
 use capsules::net::util;
 // use capsules::radio_debug;
 
@@ -265,7 +265,7 @@ fn ipv6_packet_test<'a>(radio: &'a Radio, tf: TF, hop_limit: u8, sac: SAC, dac: 
             SAC::LLPIID => {
                 // LLP::IID
                 ip6_header.src_addr.set_unicast_link_local();
-                ip6_header.src_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&SRC_MAC_ADDR));
+                ip6_header.src_addr.0[8..16].copy_from_slice(&sixlowpan_compression::compute_iid(&SRC_MAC_ADDR));
             }
             SAC::Unspecified => {}
             SAC::Ctx64 => {
@@ -284,7 +284,7 @@ fn ipv6_packet_test<'a>(radio: &'a Radio, tf: TF, hop_limit: u8, sac: SAC, dac: 
             SAC::CtxIID => {
                 // MLP::IID
                 ip6_header.src_addr.set_prefix(&MLP, 64);
-                ip6_header.src_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&SRC_MAC_ADDR));
+                ip6_header.src_addr.0[8..16].copy_from_slice(&sixlowpan_compression::compute_iid(&SRC_MAC_ADDR));
             }
         }
 
@@ -308,7 +308,7 @@ fn ipv6_packet_test<'a>(radio: &'a Radio, tf: TF, hop_limit: u8, sac: SAC, dac: 
             DAC::LLPIID => {
                 // LLP::IID
                 ip6_header.dst_addr.set_unicast_link_local();
-                ip6_header.dst_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&DST_MAC_ADDR));
+                ip6_header.dst_addr.0[8..16].copy_from_slice(&sixlowpan_compression::compute_iid(&DST_MAC_ADDR));
             }
             DAC::Ctx64 => {
                 // MLP::xxxx:xxxx:xxxx:xxxx
@@ -326,7 +326,7 @@ fn ipv6_packet_test<'a>(radio: &'a Radio, tf: TF, hop_limit: u8, sac: SAC, dac: 
             DAC::CtxIID => {
                 // MLP::IID
                 ip6_header.dst_addr.set_prefix(&MLP, 64);
-                ip6_header.dst_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&DST_MAC_ADDR));
+                ip6_header.dst_addr.0[8..16].copy_from_slice(&sixlowpan_compression::compute_iid(&DST_MAC_ADDR));
             }
             DAC::McastInline => {
                 // first byte is ff, that's all we know
@@ -403,9 +403,9 @@ unsafe fn send_ipv6_packet<'a>(radio: &'a Radio,
             compress: true,
         },
     };
-    //let frag_state = FragState::new(radio, &lowpan, TX_BUF, &self.alarm);
+    //let frag_state = Sixlowpan::new(radio, &lowpan, TX_BUF, &self.alarm);
     let (consumed, written) =
-        lowpan::compress(&store,
+        sixlowpan_compression::compress(&store,
                          &ip6_datagram,
                          src_mac_addr,
                          dst_mac_addr,

@@ -11,91 +11,267 @@
 //! Remaining Tasks and Known Problems
 //! ----------------------------------
 //! TODO: Implement and expose a ConfigClient interface?
+//! TODO: Implement the disassociation event, integrate with lower layer
 //!
 //! Problem: The receiving Imix sometimes fails to receive a fragment. This
 //!     occurs below the Mac layer, and prevents the packet from being fully
 //!     reassembled.
 //!
-//! Design
-//! ------
-//! At a high level, this layer exposes a transmit and receive functionality
-//! that takes IPv6 packets and converts them into chunks that are passed to
-//! the 802.15.4 MAC layer. The FragState struct represents the global
-//! transmission state, and contains tag information, queued TxState structs,
-//! and in-process RxState structs. In order for a client to send via this
-//! interface, it must supply a TxState struct, the IPv6 packet, and arguments
-//! relating to lower layers. This layer then fragments and compresses the
-//! packet if necessary, then transmits it over a Mac-layer device. In order
-//! for a packet to be received, the client must call set_receive_client
-//! on the FragState struct. Currently, there is a single, global receive
-//! client that receives callbacks for all reassembled packets (unlike for
-//! the transmit path, where each TxState struct contains a separate client).
-//! The FragState struct contains a list of RxState structs which are statically
-//! allocated and added to the list; these structs represent the number of
-//! concurrent reassembly operations that can be in progress at the same time.
+//! User Interface
+//! --------------
+//! This layer exposes IP transmit and receive functionality to the upper
+//! layers. The main interface to this layer is the `Sixlowpan` struct and
+//! the `SixlowpanClient` trait. In general terms, the `Sixlowpan` struct
+//! exposes a way to send IPv6 packets, while the `SixlowpanClient` trait
+//! is responsible for delivering the `send_done` and `received` callbacks,
+//! which are invoked when a full IPv6 packet has been sent or received
+//! respectively. Note that this layer should be treated as a synchronous
+//! interface; only one object should be transmitting or receiving packets
+//! (the SixlowpanClient object). Any virtualization is performed above this
+//! layer, along with additional packet processing (e.g. dispatching to some
+//! receive client based on IP address). At this time, this layer is not
+//! exposed to userspace.
 //!
-//! This layer adds several new structs, FragState, TxState, and RxState,
-//! as well as interfaces for them.
+//! The high-level control flow looks as follows:
 //!
-//! FragState:
-//! - Methods:
-//! -- new(..): Initializes a new FragState struct
-//! -- transmit_packet(..): Transmits the given IPv6 packet, using the provided
-//!      TxState struct to track its progress, fragmenting if necessary
-//! -- set_receive_client(..): Sets the global receive client, which receives
-//!      a callback whenever a packet is fully reassembled
+//! Transmit:
+//!           -------------
+//!           |Upper Layer|
+//!           -------------
+//!                 |
+//!       transmit_packet(..packet..)
+//!                 |
+//!                 v
+//!            -----------
+//!            |Sixlowpan|
+//!            -----------
+//! ...
+//!         -----------------
+//!         |SixlowpanClient|
+//!         -----------------
+//!                 ^
+//!                 |
+//!            send_done(..)
+//!                 |
+//!            -----------
+//!            |Sixlowpan|
+//!            -----------
 //!
-//! The FragState struct represents a single, global struct that tracks the state
-//! of transmission and reception for the various clients. This struct manages
-//! global state, including references to the radio and lowpan structs, along
-//! with lists of TxStates and RxStates, buffers, and various other state.
+//! Receive:
+//!         -----------------
+//!         |SixlowpanClient|
+//!         -----------------
+//!                ^
+//!                |
+//!          receive(..buf..)
+//!                |
+//!           -----------
+//!           |Sixlowpan|
+//!           -----------
 //!
-//! TxState:
-//! - Methods:
-//! -- new(..): Initializes a new TxState struct
-//! -- set_transmit_client(..): Sets the per-state transmit client, which
-//!      receives a callback after an entire IPv6 packet has been transmitted
+//! Initialization:
+//!           -------------
+//!           |Upper Layer|
+//!           -------------
+//!                 |
+//!          set_client(client)
+//!                 |
+//!                 v
+//!            -----------
+//!            |Sixlowpan|
+//!            -----------
 //!
-//! In order to send a packet, each client must allocate space for a TxState
-//! struct. Whenever a client sends a packet, it must pass in a reference to
-//! its TxState struct, and clients should not directly modify any fields within
-//! the TxState struct. The fragmentation layer uses this struct to store state
-//! about packets currently being sent.
 //!
-//! RxState:
-//! - Methods:
-//! -- new(..): Initializes a new RxState struct
+//! The interface is explored in more detail below.
 //!
-//! The RxState struct contains information relating to packet reception and
-//! reassembly. Unlike with the TxState structs, there is no concept of
-//! individual clients "owning" these structs; instead, some number of RxStates
-//! are statically allocated and added to the FragState's RxState list. These
-//! states are then used to keep track of different reassembly flows; the
-//! number of simultaneous packet receptions is dependent on the number of
-//! allocated RxState structs. When a packet is fully reassembled, the global
-//! receive client inside FragState receives a callback.
+//! *Sixlowpan Struct:* For the `Sixlowpan` struct, we divide the
+//! user interface into two parts: standard usage and initialization. First,
+//! for standard usage (transmission), the `Sixlowpan` struct supplies the
+//! following method:
 //!
-//! In addition to structs and their methods, this layer also defines several
-//! traits for the transmit and receive callbacks.
+//! ```
+//! Sixlowpan::transmit_packet(&self,
+//!                            src_mac_addr: MacAddress,
+//!                            dst_mac_addr: MacAddress,
+//!                            ip6_packet: &'static mut [u8],
+//!                            ip6_packet_len: usize,
+//!                            security: Option<(SecurityLevel, KeyId)>,
+//!                            fragment: bool,
+//!                            compress: bool)
+//!                            -> Result<ReturnCode, ReturnCode>;
+//! ```
+//! This function exposes the primary packet transmission fuctionality. The
+//! source and destination mac address arguments specify the link-layer
+//! addresses of the packet, while the `security`, `fragment`, and `compress`
+//! options specify the security level (if any), whether to fragment the packet
+//! if it is too large, and whether to compress the packet respectively. These
+//! different options are exposed to provide the caller with more control over
+//! how this layer modifies packets; no compression and no fragmentation can
+//! be set, and the packet will be sent to the radio as a raw IPv6 packet.
 //!
-//! TransmitClient Trait:
-//! - send_done(..): Called after the entire IPv6 packet has been sent. Returns
-//!     the IPv6 buffer, a reference to the TxState struct, and additional
-//!     information relating to the sent packet
+//! The `ip6_packet` argument contains a pointer to a buffer containing a valid
+//! IPv6 packet, while the `ip6_packet_len` argument specifies the number of
+//! bytes to send. Note that `ip6_packet.len() > ip6_packet_len`, but we check
+//! the invariant that `ip6_packet_len <= ip6_packet.len()`.
 //!
-//! ReceiveClient Trait:
-//! - receive(..): Called after an entire IPv6 packet has been reassembled.
-//!     Returns the IPv6 buffer containing the decompressed packet, as well as
-//!     additional information. Note that this function is required to return a
-//!     static buffer, as the buffer passed into this function is owned by the
-//!     RxState and not the client
+//! ```
+//!
+//! To initialize the `Sixlowpan` struct, the following methods are exposed:
+//!
+//! ```
+//! Sixlowpan::new(radio: &'a Mac<'a>,
+//!                ctx_store: C,
+//!                tx_buf: &'static mut [u8],
+//!                clock: &'a A)
+//!                -> Sixlowpan<'a, A, C>;
+//! ```
+//! The new function returns a new Sixlowpan struct. The radio argument is any
+//! object implementing the Mac trait, while the clock implements the Alarm
+//! functionality. The ctx_store argument is any object that implements the
+//! ContextStore trait.
+//!
+//! ```
+//! Sixlowpan::add_rx_state(&self, rx_state: &'a RxState<'a>);
+//! ```
+//! This method adds an RxState to the RxState pool maintained by the Sixlowpan
+//! object. Each RxState struct represents the ability to reconstruct a single
+//! IP packet at a time; if two RxState structs are allocated, two IPv6 packets
+//! can be reconstructed simultaneously (likewise for 3+ RxStates). If only
+//! a single RxState is allocated, only one IP packet can be reconstructed at
+//! a time. Note that if no RxStates are initialized, no IP packets can be
+//! received.
+//!
+//! ```
+//! Sixlowpan::set_client(&'a self, client: &'a SixlowpanClient);
+//! ```
+//! The `set_client` method sets the SixlowpanClient for the Sixlowpan object.
+//! Whatever object is set as the client receives both `receive` and `send_done`
+//! callbacks.
 //!
 //! Usage
 //! -----
 //! Examples of how to interface and use this layer are included in the file
-//! `boards/imixv1/src/lowpan_frag_dummy.rs`. Significant set-up is required
-//! in `boards/imixv1/src/main.rs` to initialize the various state for the
-//! layer and its clients.
+//! `boards/imix/src/lowpan_frag_dummy.rs`. Some set up is required in
+//! the `boards/imix/src/main.rs` file, but for the testing suite, a helper
+//! initialization function is included in the `lowpan_frag_dummy.rs` file.
+
+// Internal Design
+// ---------------
+// The overall 6LoWPAN protocol is non-trivial, and as a result, this layer
+// is fairly complex. There are two main aspects of the 6LoWPAN layer; first
+// is compression, which is abstracted as a distinct library (found at
+// `capsules/src/net/sixlowpan_compression.rs`), and second is the
+// fragmentation and reassembly layer, which is implemented in this file.
+// The documentation below describes the different components of the
+// fragmentation/reassembly functionality (for 6LoWPAN compression
+// documentation, please consult `capsules/src/net/sixlowpan_compression.rs`).
+//
+// This layer adds several new structures; principally, it implements the
+// Sixlowpan, TxState, and RxState structs. Further, this layer also defines
+// the SixlowpanClient trait. The Sixlowpan struct is responsible
+// for keeping track of the global state of this layer, and contains references
+// to the TxState and the list of RxStates. The TxState is responsible for
+// maintaining the current transmit state, and how much of the current
+// IPv6 packet has been transmitted. The RxState structs maintain the
+// reassembly state corresponding to a single IPv6 packet. Note that since
+// they are maintained as a list, several RxStates can be allocated at compile
+// time, and each RxState corresponds to a distinct IPv6 packet that can be
+// reassembled simultaneously. Finally, the SixlowpanClient trait defines
+// the interface between the upper (IP) layer and the Sixlowpan layer.
+// Each object is examined in greater detail below:
+//
+// Sixlowpan:
+// Examination of the public methods on the `Sixlowpan` struct are examined
+// above in the User Interface section. Instead, here we detail the internal
+// design of the struct. First, the `Sixlowpan` object is designed to be a
+// single, global object which sits between the Mac and IP layers. It receives
+// and transmits frames through the Mac layer, while reassembling or
+// fragmenting IPv6 packets via the IP layer. As a result, the `Sixlowpan`
+// struct maintains the single, global state relevent for this layer, including
+// a reference to the radio, the context store (for (de)compressing 6LoWPAN-
+// compressed fragments), a clock, and the upper-layer client callback.
+// Additionally, this object maintains references to a single TxState, and
+// a list of RxStates.
+//
+// TxState:
+// The TxState struct maintains the state necessary to incrementally fragment
+// and send a full IPv6 packet. This includes the source/destination Mac
+// addresses and PanIDs, frame-level security options, a total datagram size,
+// and the current offset into the datagram. This struct also maintains some
+// minimal global transmit state, including the global datagram tag and a
+// buffer to pass to the radio. This object is visible only to the
+// Sixlowpan struct, and abstracts away the details for transmitting and
+// fragmenting packets.
+//
+// RxState:
+// The RxState struct is analogous to the TxState struct, in that it maintains
+// state specific to reassembling an IPv6 packet. Unlike the TxState struct
+// however, the Sixlowpan object manages multiple RxState structs. These
+// RxStates serve as a pool of objects, and when a fragment arrives, the
+// Sixlowpan object either dispatches it to an in-progress packet reassembly
+// managed by a busy RxState struct, or initializes a free RxState struct
+// to start reassembling the rest of the fragments. Similar to TxState,
+// RxState objects should only be visible to the Sixlowpan object, aside
+// from one caveat - the initialization of RxStates must occur statically
+// outside the Sixlowpan struct (this may change in the future).
+//
+// The RxState struct maintains the in-progress packet buffer, a bitmap
+// indicating which 8-byte chunks have not yet been received, the source/dest
+// mac address pair, datagram size and tag, and a start time (to lazily
+// expire timed-out reassembly processes).
+//
+// SixlowpanClient:
+// The SixlowpanClient trait has two functions; `send_done` and `receive`.
+// The Sixlowpan struct maintains a reference to the (current) SixlowpanClient,
+// and issues callbacks when transmissions have completed (`send_done`) or
+// a full IPv6 packet has been reassembled (`receive`). Note that the
+// Sixlowpan object allows for the client to change at runtime, but the
+// current assumption is a single layer sitting above the 6LoWPAN layer.
+//
+//
+// Design Decisions
+// ----------------
+// Throughout designing this layer, there were a number of critical design
+// decisions made. Several of the most prominent are listed below, with a
+// short rationale as to why they were necessary or the most optimal solution.
+//
+// Multiple RxStates:
+// This design decision is one of the more complicated and contentious ones.
+// Due to the wording of the 6LoWPAN specification and the data associated
+// with 6LoWPAN fragments, it is entirely reasonable to expect that even
+// an edge node (a node not doing routing) might receive 6LoWPAN fragments
+// for different IP packets interleaved. In particular, a 6LoWPAN fragment
+// header contains a datagram tag, which is different for each IPv6 packet
+// fragmented even from the same layer 2 source/destination pairs. Thus,
+// a single node could send multiple, distinct, fragmented IPv6 packets
+// simultaneously (or at least, a node is not prohibited from doing so). In
+// addition, the reassembly timeout for 6LoWPAN fragments is on the order of
+// seconds, and with a single RxState, a single lost fragment could
+// substantially hamper or delay the ability of a client to receive additional
+// packets. As a result of these two issues, the ability to add several
+// RxStates to the 6LoWPAN layer was provided. Unfortunately, this
+// increased the complexity of this layer substantially, and further,
+// necessitated additional initialization complexity by the upper layer.
+//
+// Single TxState:
+// Although both the RxState and TxState structs are treated similarly by
+// the Sixlowpan layer, many aspects of their control flow differ
+// significantly. The final design decision was to have a single upper layer
+// that serialized (or virtualized) both the reception and transmission of
+// IPv6 packets. As a result, only a single outstanding transmission made
+// sense, and thus the layer was designed to have a serial transmit path.
+// Note that this differs greatly from the RxState model, but since we
+// cannot serialize reception in the same way, it did not make sense to treat
+// both RxState and TxState structs identically.
+//
+// SixlowpanClient Receives both Callbacks:
+// Another major design decision was to combine both the `receive` and
+// `send_done` callbacks into a single trait. This reduced overall complexity
+// as only a single client was necessary, and further, the current design
+// of the 6LoWPAN layer assumes a serialized, single-client model. Thus,
+// combining both callbacks into a single interface represented no major
+// drawbacks, and served to simplify the code. Note that this design may
+// change as additional functionality is implemented on top of this layer.
 
 use core::cell::Cell;
 use ieee802154::mac::{Mac, Frame, TxClient, RxClient};
@@ -107,21 +283,16 @@ use kernel::hil::time;
 use kernel::hil::time::Frequency;
 use net::frag_utils::Bitmap;
 use net::ieee802154::{PanID, MacAddress, SecurityLevel, KeyId, Header};
-use net::lowpan;
-use net::lowpan::{ContextStore, is_lowpan};
+use net::sixlowpan_compression;
+use net::sixlowpan_compression::{ContextStore, is_lowpan};
 use net::util::{slice_to_u16, u16_to_slice};
 
-// Timer fire rate in seconds
-const TIMER_RATE: usize = 10;
 // Reassembly timeout in seconds
-const FRAG_TIMEOUT: usize = 60;
+const FRAG_TIMEOUT: u32 = 60;
 
-pub trait ReceiveClient {
+pub trait SixlowpanClient {
     fn receive<'a>(&self, buf: &'a [u8], len: u16, result: ReturnCode);
-}
-
-pub trait TransmitClient {
-    fn send_done(&self, buf: &'static mut [u8], state: &TxState, acked: bool, result: ReturnCode);
+    fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode);
 }
 
 pub mod lowpan_frag {
@@ -168,37 +339,40 @@ fn is_fragment(packet: &[u8]) -> bool {
 
 /// struct TxState
 /// --------------
-/// This struct tracks the per-client transmit state for a single IPv6 packet.
-/// The FragState struct maintains a list of TxState structs, sending each in
-/// order.
-pub struct TxState<'a> {
+/// This struct tracks the global transmit state for a single IPv6 packet.
+/// Since transmit is serialized, the `Sixlowpan` struct only contains
+/// a reference to a single TxState (that is, we can only have a single
+/// outstanding transmission at the same time).
+///
+/// This struct maintains a reference to the full IPv6 packet, the source/dest
+/// MAC addresses and PanIDs, security/compression/fragmentation options,
+/// per-fragmentation state, and some global state.
+pub struct TxState {
+    // State for the current transmission
     packet: TakeCell<'static, [u8]>,
     src_pan: Cell<PanID>,
     dst_pan: Cell<PanID>,
     src_mac_addr: Cell<MacAddress>,
     dst_mac_addr: Cell<MacAddress>,
     security: Cell<Option<(SecurityLevel, KeyId)>>,
-    dgram_tag: Cell<u16>,
+    dgram_tag: Cell<u16>, // Used to identify particular fragment streams
     dgram_size: Cell<u16>,
     dgram_offset: Cell<usize>,
     fragment: Cell<bool>,
     compress: Cell<bool>,
-    client: Cell<Option<&'static TransmitClient>>,
 
-    next: ListLink<'a, TxState<'a>>,
+    // Global transmit state
+    tx_dgram_tag: Cell<u16>,
+    tx_busy: Cell<bool>,
+    tx_buf: TakeCell<'static, [u8]>,
 }
 
-impl<'a> ListNode<'a, TxState<'a>> for TxState<'a> {
-    fn next(&'a self) -> &'a ListLink<TxState<'a>> {
-        &self.next
-    }
-}
-
-impl<'a> TxState<'a> {
+impl TxState {
     /// TxState::new
     /// ------------
-    /// This constructs a new, default TxState struct.
-    pub fn new() -> TxState<'a> {
+    /// This constructs a new, default TxState struct. The buffer passed in
+    /// serves as the buffer passed between the TxState layer and the radio.
+    pub fn new(tx_buf: &'static mut [u8]) -> TxState {
         TxState {
             packet: TakeCell::empty(),
             src_pan: Cell::new(0),
@@ -211,16 +385,11 @@ impl<'a> TxState<'a> {
             dgram_offset: Cell::new(0),
             fragment: Cell::new(false),
             compress: Cell::new(false),
-            client: Cell::new(None),
-            next: ListLink::empty(),
-        }
-    }
 
-    /// TxState::set_transmit_client
-    /// ----------------------------
-    /// Sets the TransmitClient callback field of the respective TxState struct.
-    pub fn set_transmit_client(&self, client: &'static TransmitClient) {
-        self.client.set(Some(client));
+            tx_dgram_tag: Cell::new(0),
+            tx_busy: Cell::new(false),
+            tx_buf: TakeCell::new(tx_buf),
+        }
     }
 
     fn is_transmit_done(&self) -> bool {
@@ -286,11 +455,11 @@ impl<'a> TxState<'a> {
         // fragment. This is consistent with RFC 6282.
         let mut lowpan_packet = [0 as u8; radio::MAX_FRAME_SIZE as usize];
         let (consumed, written) = if self.compress.get() {
-            let lowpan_result = lowpan::compress(ctx_store,
-                                                 &ip6_packet,
-                                                 self.src_mac_addr.get(),
-                                                 self.dst_mac_addr.get(),
-                                                 &mut lowpan_packet);
+            let lowpan_result = sixlowpan_compression::compress(ctx_store,
+                                                                &ip6_packet,
+                                                                self.src_mac_addr.get(),
+                                                                self.dst_mac_addr.get(),
+                                                                &mut lowpan_packet);
             match lowpan_result {
                 Err(_) => return Err((ReturnCode::FAIL, frame.into_buf())),
                 Ok(result) => result,
@@ -396,15 +565,22 @@ impl<'a> TxState<'a> {
         }
     }
 
-    fn end_transmit(&self, acked: bool, result: ReturnCode) {
-        self.client.get().map(move |client| {
+    fn end_transmit<'a>(&self,
+                        tx_buf: &'static mut [u8],
+                        client: Option<&'a SixlowpanClient>,
+                        acked: bool,
+                        result: ReturnCode) {
+
+        self.tx_busy.set(false);
+        self.tx_buf.replace(tx_buf);
+        client.map(move |client| {
             // The packet here should always be valid, as we borrow the packet
             // from the upper layer for the duration of the transmission. It
             // represents a significant bug if the packet is not there when
             // transmission completes.
             self.packet
                 .take()
-                .map(|packet| { client.send_done(packet, self, acked, result); })
+                .map(|packet| { client.send_done(packet, acked, result); })
                 .expect("Error: `packet` is None in call to end_transmit.");
         });
     }
@@ -414,7 +590,7 @@ impl<'a> TxState<'a> {
 /// --------------
 /// This struct tracks the reassembly process for a given packet. The `busy`
 /// field marks whether the particular RxState is currently reassembling a
-/// packet or if it is currently free. The FragState struct maintains a list of
+/// packet or if it is currently free. The Sixlowpan struct maintains a list of
 /// RxState structs, which represents the number of packets that can be
 /// concurrently reassembled.
 pub struct RxState<'a> {
@@ -425,7 +601,7 @@ pub struct RxState<'a> {
     dgram_tag: Cell<u16>,
     dgram_size: Cell<u16>,
     busy: Cell<bool>,
-    timeout_counter: Cell<usize>,
+    start_time: Cell<u32>,
 
     next: ListLink<'a, RxState<'a>>,
 }
@@ -439,7 +615,9 @@ impl<'a> ListNode<'a, RxState<'a>> for RxState<'a> {
 impl<'a> RxState<'a> {
     /// RxState::new
     /// ------------
-    /// This function constructs a new RxState struct.
+    /// This function constructs a new RxState struct. The `packet` argument
+    /// is a buffer for an IPv6 packet. Currently, we assume this to be
+    /// 1280 bytes (minimum IPv6 MTU), but this may change in the future.
     pub fn new(packet: &'static mut [u8]) -> RxState<'a> {
         RxState {
             packet: TakeCell::new(packet),
@@ -449,7 +627,7 @@ impl<'a> RxState<'a> {
             dgram_tag: Cell::new(0),
             dgram_size: Cell::new(0),
             busy: Cell::new(false),
-            timeout_counter: Cell::new(0),
+            start_time: Cell::new(0),
             next: ListLink::empty(),
         }
     }
@@ -466,18 +644,29 @@ impl<'a> RxState<'a> {
         (self.dst_mac_addr.get() == dst_mac_addr)
     }
 
+    // Checks if a given RxState is free or expired (and thus, can be freed).
+    // This function implements the reassembly timeout for 6LoWPAN lazily.
+    fn is_busy(&self, frequency: u32, current_time: u32) -> bool {
+        let expired = current_time >= (self.start_time.get() + FRAG_TIMEOUT * frequency);
+        if expired {
+            self.end_receive(None, ReturnCode::FAIL);
+        }
+        self.busy.get()
+    }
+
     fn start_receive(&self,
                      src_mac_addr: MacAddress,
                      dst_mac_addr: MacAddress,
                      dgram_size: u16,
-                     dgram_tag: u16) {
+                     dgram_tag: u16,
+                     current_tics: u32) {
         self.dst_mac_addr.set(dst_mac_addr);
         self.src_mac_addr.set(src_mac_addr);
         self.dgram_tag.set(dgram_tag);
         self.dgram_size.set(dgram_size);
         self.busy.set(true);
         self.bitmap.map(|bitmap| bitmap.clear());
-        self.timeout_counter.set(0);
+        self.start_time.set(current_tics);
     }
 
     // This function assumes that the payload is a slice starting from the
@@ -492,13 +681,14 @@ impl<'a> RxState<'a> {
                           -> Result<bool, ReturnCode> {
         let mut packet = self.packet.take().ok_or(ReturnCode::ENOMEM)?;
         let uncompressed_len = if dgram_offset == 0 {
-            let (consumed, written) = lowpan::decompress(ctx_store,
-                                                         &payload[0..payload_len as usize],
-                                                         self.src_mac_addr.get(),
-                                                         self.dst_mac_addr.get(),
-                                                         &mut packet,
-                                                         dgram_size,
-                                                         true).map_err(|_| ReturnCode::FAIL)?;
+            let (consumed, written) =
+                sixlowpan_compression::decompress(ctx_store,
+                                                  &payload[0..payload_len as usize],
+                                                  self.src_mac_addr.get(),
+                                                  self.dst_mac_addr.get(),
+                                                  &mut packet,
+                                                  dgram_size,
+                                                  true).map_err(|_| ReturnCode::FAIL)?;
             let remaining = payload_len - consumed;
             packet[written..written + remaining]
                 .copy_from_slice(&payload[consumed..consumed + remaining]);
@@ -523,10 +713,10 @@ impl<'a> RxState<'a> {
         }
     }
 
-    fn end_receive(&self, client: Option<&'static ReceiveClient>, result: ReturnCode) {
+    fn end_receive(&self, client: Option<&'a SixlowpanClient>, result: ReturnCode) {
         self.busy.set(false);
         self.bitmap.map(|bitmap| bitmap.clear());
-        self.timeout_counter.set(0);
+        self.start_time.set(0);
         client.map(move |client| {
             // Since packet is borrowed from the upper layer, failing to return it
             // in the callback represents a significant error that should never
@@ -539,58 +729,46 @@ impl<'a> RxState<'a> {
     }
 }
 
-/// struct FragState
+/// struct Sixlowpan
 /// ----------------
 /// This struct tracks the global sending/receiving state, and contains the
-/// lists of RxStates and TxStates.
-pub struct FragState<'a, A: time::Alarm + 'a> {
+/// lists of RxStates and singular TxState.
+pub struct Sixlowpan<'a, A: time::Alarm + 'a, C: ContextStore> {
     pub radio: &'a Mac<'a>,
-    ctx_store: &'a ContextStore,
-    alarm: &'a A,
+    ctx_store: C,
+    clock: &'a A,
+    client: Cell<Option<&'a SixlowpanClient>>,
 
     // Transmit state
-    tx_states: List<'a, TxState<'a>>,
-    tx_dgram_tag: Cell<u16>,
-    tx_busy: Cell<bool>,
-    tx_buf: TakeCell<'static, [u8]>,
-
+    tx_state: TxState,
     // Receive state
     rx_states: List<'a, RxState<'a>>,
-    rx_client: Cell<Option<&'static ReceiveClient>>,
 }
 
 // This function is called after transmitting a frame
 #[allow(unused_must_use)]
-impl<'a, A: time::Alarm> TxClient for FragState<'a, A> {
+impl<'a, A: time::Alarm, C: ContextStore> TxClient for Sixlowpan<'a, A, C> {
     fn send_done(&self, tx_buf: &'static mut [u8], acked: bool, result: ReturnCode) {
-        if result != ReturnCode::SUCCESS {
-            self.end_packet_transmit(tx_buf, acked, result);
-        } else if let Some(head) = self.tx_states.head() {
-            if head.is_transmit_done() {
-                // This must return Some if we are in the closure - in particular,
-                // tx_state == head
-                self.end_packet_transmit(tx_buf, acked, result);
-            } else {
-                // Otherwise, we found an error
-                let result = head.prepare_transmit_next_fragment(tx_buf, self.radio);
-                result.map_err(|(retcode, tx_buf)| {
-                    // On error abort the transmission
-                    self.end_packet_transmit(tx_buf, acked, retcode);
-                });
-            }
+        // If we are done sending the entire packet, or if the transmit failed,
+        // end the transmit state and issue callbacks.
+        if result != ReturnCode::SUCCESS || self.tx_state.is_transmit_done() {
+            self.tx_state.end_transmit(tx_buf, self.client.get(), acked, result);
+            // Otherwise, send next fragment
         } else {
-            // Is this state possible?
-            self.tx_buf.replace(tx_buf);
+            let result = self.tx_state.prepare_transmit_next_fragment(tx_buf, self.radio);
+            result.map_err(|(retcode, tx_buf)| {
+                // If we have an error, abort
+                self.tx_state.end_transmit(tx_buf, self.client.get(), acked, retcode);
+            });
         }
     }
 }
 
 // This function is called after receiving a frame
-impl<'a, A: time::Alarm> RxClient for FragState<'a, A> {
+impl<'a, A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         // We return if retcode is not valid, as it does not make sense to issue
         // a callback for an invalid frame reception
-        let data_offset = data_offset;
         // TODO: Handle the case where the addresses are None/elided - they
         // should not default to the zero address
         let src_mac_addr = header.src_addr.unwrap_or(MacAddress::Short(0));
@@ -602,76 +780,49 @@ impl<'a, A: time::Alarm> RxClient for FragState<'a, A> {
                                                         dst_mac_addr);
         // Reception completed if rx_state is not None. Note that this can
         // also occur for some fail states (e.g. dropping an invalid packet)
-        rx_state.map(|state| state.end_receive(self.rx_client.get(), returncode));
+        rx_state.map(|state| state.end_receive(self.client.get(), returncode));
     }
 }
 
-impl<'a, A: time::Alarm> time::Client for FragState<'a, A> {
-    fn fired(&self) {
-        // Timeout any expired rx_states
-        for state in self.rx_states.iter() {
-            if state.busy.get() {
-                state.timeout_counter.set(state.timeout_counter.get() + TIMER_RATE);
-                if state.timeout_counter.get() >= FRAG_TIMEOUT {
-                    state.end_receive(self.rx_client.get(), ReturnCode::FAIL);
-                }
-            }
-        }
-        self.schedule_next_timer();
-    }
-}
-
-impl<'a, A: time::Alarm> FragState<'a, A> {
-    /// FragState::new
+impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
+    /// Sixlowpan::new
     /// --------------
-    /// This function initializes and returns a new FragState struct.
+    /// This function initializes and returns a new Sixlowpan struct.
     pub fn new(radio: &'a Mac<'a>,
-               ctx_store: &'a ContextStore,
+               ctx_store: C,
                tx_buf: &'static mut [u8],
-               alarm: &'a A)
-               -> FragState<'a, A> {
-        FragState {
+               clock: &'a A)
+               -> Sixlowpan<'a, A, C> {
+        Sixlowpan {
             radio: radio,
             ctx_store: ctx_store,
-            alarm: alarm,
+            clock: clock,
+            client: Cell::new(None),
 
-            tx_states: List::new(),
-            tx_dgram_tag: Cell::new(0),
-            tx_busy: Cell::new(false),
-            tx_buf: TakeCell::new(tx_buf),
-
+            tx_state: TxState::new(tx_buf),
             rx_states: List::new(),
-            rx_client: Cell::new(None),
         }
     }
 
-    pub fn schedule_next_timer(&self) {
-        let seconds = A::Frequency::frequency() * (TIMER_RATE as u32);
-        let next = self.alarm.now().wrapping_add(seconds);
-        self.alarm.set_alarm(next);
-    }
-
-    /// FragState::add_rx_state
+    /// Sixlowpan::add_rx_state
     /// -----------------------
     /// This function prepends the passed in RxState struct to the list of
-    /// RxStates maintained by the FragState struct. For the current use cases,
+    /// RxStates maintained by the Sixlowpan struct. For the current use cases,
     /// some number of RxStates are statically allocated and immediately
     /// added to the list of RxStates.
     pub fn add_rx_state(&self, rx_state: &'a RxState<'a>) {
         self.rx_states.push_head(rx_state);
     }
 
-    /// FragState::set_receive_client
-    /// -----------------------------
-    /// This function sets the client to receive the callback when a packet
-    /// has been fully reassembled. In the current design, the concept of a
-    /// receive client per RxState did not make sense; thus, there is a single
-    /// receive client that receives all reassembled packets.
-    pub fn set_receive_client(&self, client: &'static ReceiveClient) {
-        self.rx_client.set(Some(client));
+    /// Sixlowpan::set_client
+    /// ---------------------
+    /// This function sets the SixlowpanClient, which receives the `send_done`
+    /// and `received` callbacks.
+    pub fn set_client(&'a self, client: &'a SixlowpanClient) {
+        self.client.set(Some(client));
     }
 
-    /// FragState::transmit_packet
+    /// Sixlowpan::transmit_packet
     /// --------------------------
     /// This function is called to send a fully-formed IPv6 packet. Arguments
     /// to this function are used to determine various aspects of the MAC
@@ -682,86 +833,51 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
                            ip6_packet: &'static mut [u8],
                            ip6_packet_len: usize,
                            security: Option<(SecurityLevel, KeyId)>,
-                           tx_state: &'a TxState<'a>,
                            fragment: bool,
                            compress: bool)
-                           -> Result<ReturnCode, ReturnCode> {
+                           -> Result<ReturnCode, (ReturnCode, &'static mut [u8])> {
 
-        tx_state.init_transmit(src_mac_addr,
-                               dst_mac_addr,
-                               ip6_packet,
-                               ip6_packet_len,
-                               security,
-                               fragment,
-                               compress);
-        // Queue tx_state
-        self.tx_states.push_tail(tx_state);
-        if self.tx_busy.get() {
-            Ok(ReturnCode::SUCCESS)
+        if self.tx_state.tx_busy.get() {
+            Err((ReturnCode::EBUSY, ip6_packet))
+        } else if ip6_packet_len > ip6_packet.len() {
+            Err((ReturnCode::ENOMEM, ip6_packet))
         } else {
-            // Set as current state and start transmit
+            self.tx_state.init_transmit(src_mac_addr,
+                                        dst_mac_addr,
+                                        ip6_packet,
+                                        ip6_packet_len,
+                                        security,
+                                        fragment,
+                                        compress);
             self.start_packet_transmit();
             Ok(ReturnCode::SUCCESS)
         }
     }
 
     fn start_packet_transmit(&self) {
-        // Already transmitting
-        if self.tx_busy.get() {
-            return;
-        }
-
-        let dgram_tag = if (self.tx_dgram_tag.get() + 1) == 0 {
+        // Increment dgram_tag
+        let dgram_tag = if (self.tx_state.tx_dgram_tag.get() + 1) == 0 {
             1
         } else {
-            self.tx_dgram_tag.get() + 1
+            self.tx_state.tx_dgram_tag.get() + 1
         };
 
-        while self.tx_states.head().map_or(false, move |state| {
-            // We panic here, as it should never be the case that we start
-            // transmitting without the tx_buf, since the `tx_buf` is owned by
-            // the TxState struct and is passed to the radio during transmission.
-            // Failure to replace the `tx_buf` or failure to initialize TxState
-            // with a `tx_buf` represents a significant logic error, and we should
-            // panic.
-            let frag_buf = self.tx_buf
-                .take()
-                .expect("Error: `tx_buf` is None in call to start_packet_transmit.");
+        let frag_buf = self.tx_state
+            .tx_buf
+            .take()
+            .expect("Error: `tx_buf` is None in call to start_packet_transmit.");
 
-            match state.start_transmit(dgram_tag, frag_buf, self.radio, self.ctx_store) {
-                // Successfully started transmitting
-                Ok(_) => {
-                    self.tx_dgram_tag.set(dgram_tag);
-                    self.tx_busy.set(true);
-                    // Break out of loop
-                    false
-                }
-                // Otherwise, if we failed to start transmitting, so attempt
-                // to send the next TxState
-                Err((returncode, new_frag_buf)) => {
-                    // Must replace the `tx_buf`, otherwise will panic on next
-                    // iteration
-                    self.tx_buf.replace(new_frag_buf);
-                    // Issue error callbacks and remove TxState from the list
-                    self.tx_states.pop_head().map(|head| { head.end_transmit(false, returncode); });
-                    // Continue loop
-                    true
-                }
+        match self.tx_state.start_transmit(dgram_tag, frag_buf, self.radio, &self.ctx_store) {
+            // Successfully started transmitting
+            Ok(_) => {
+                self.tx_state.tx_dgram_tag.set(dgram_tag);
+                self.tx_state.tx_busy.set(true);
             }
-        }) {}
-    }
-
-    // This function ends the current packet transmission state, and starts
-    // sending the next queued packet before calling the current callback.
-    fn end_packet_transmit(&self, tx_buf: &'static mut [u8], acked: bool, returncode: ReturnCode) {
-        self.tx_busy.set(false);
-        self.tx_buf.replace(tx_buf);
-        // Note that tx_state can be None if a disassociation event occurred,
-        // in which case end_transmit was already called.
-        self.tx_states.pop_head().map(|tx_state| {
-            self.start_packet_transmit();
-            tx_state.end_transmit(acked, returncode);
-        });
+            // Otherwise, we failed
+            Err((returncode, new_frag_buf)) => {
+                self.tx_state.end_transmit(new_frag_buf, self.client.get(), false, returncode);
+            }
+        }
     }
 
     fn receive_frame(&self,
@@ -795,9 +911,15 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
                              src_mac_addr: MacAddress,
                              dst_mac_addr: MacAddress)
                              -> (Option<&RxState<'a>>, ReturnCode) {
-        let rx_state = self.rx_states.iter().find(|state| !state.busy.get());
+        let rx_state = self.rx_states
+            .iter()
+            .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
         rx_state.map(|state| {
-                state.start_receive(src_mac_addr, dst_mac_addr, payload_len as u16, 0);
+                state.start_receive(src_mac_addr,
+                                    dst_mac_addr,
+                                    payload_len as u16,
+                                    0,
+                                    self.clock.now());
                 // The packet buffer should *always* be there; in particular,
                 // since this state is not busy, it must have the packet buffer.
                 // Otherwise, we are in an inconsistent state and can fail.
@@ -806,7 +928,8 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
                     .expect("Error: `packet` in RxState struct is `None` \
                             in call to `receive_single_packet`.");
                 if is_lowpan(payload) {
-                    let decompressed = lowpan::decompress(self.ctx_store,
+                    let decompressed =
+                        sixlowpan_compression::decompress(&self.ctx_store,
                                                           &payload[0..payload_len as usize],
                                                           src_mac_addr,
                                                           dst_mac_addr,
@@ -844,15 +967,23 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
                         dgram_tag: u16,
                         dgram_offset: usize)
                         -> (Option<&RxState<'a>>, ReturnCode) {
+        // First try to find an rx_state in the middle of assembly
         let mut rx_state = self.rx_states
             .iter()
             .find(|state| state.is_my_fragment(src_mac_addr, dst_mac_addr, dgram_size, dgram_tag));
 
+        // Else find a free state
         if rx_state.is_none() {
-            rx_state = self.rx_states.iter().find(|state| !state.busy.get());
+            rx_state = self.rx_states
+                .iter()
+                .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
             // Initialize new state
             rx_state.map(|state| {
-                state.start_receive(src_mac_addr, dst_mac_addr, dgram_size, dgram_tag)
+                state.start_receive(src_mac_addr,
+                                    dst_mac_addr,
+                                    dgram_size,
+                                    dgram_tag,
+                                    self.clock.now())
             });
             if rx_state.is_none() {
                 return (None, ReturnCode::ENOMEM);
@@ -864,7 +995,7 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
                                                    payload_len,
                                                    dgram_size,
                                                    dgram_offset,
-                                                   self.ctx_store);
+                                                   &self.ctx_store);
                 match res {
                     // Some error occurred
                     Err(_) => (Some(state), ReturnCode::FAIL),
@@ -883,14 +1014,15 @@ impl<'a, A: time::Alarm> FragState<'a, A> {
     }
 
     #[allow(dead_code)]
+    // FIXME
     // This function is called when a disassociation event occurs, as we need
-    // to expire all pending state.
+    // to expire all pending state. This is not fully implemented.
     fn discard_all_state(&self) {
         for rx_state in self.rx_states.iter() {
             rx_state.end_receive(None, ReturnCode::FAIL);
         }
-        for tx_state in self.tx_states.iter() {
-            tx_state.end_transmit(false, ReturnCode::FAIL);
-        }
+        // TODO: May lose tx_buf here
+        // TODO: Need to get buffer back from Mac layer on disassociation
+        //self.tx_state.end_transmit(self.client.get(), false, ReturnCode::FAIL);
     }
 }
