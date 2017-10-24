@@ -163,34 +163,33 @@ orientations.
 
 Using the example program you're working on, write an application that reads
 all of the sensors on your development board and reports their readings over
-the serial port. As a bonus, experiment with turning on/or off an LED when
-readings are above or below a certain threshold.
-
-***remainder of user-application tutorial still to be translated to C***
+the serial port. As a bonus, experiment with toggling an LED when readings are
+above or below a certain threshold:
 
 #### LED
 
-`tock::led` is used to control lights on Tock boards. On the Hail board, there
-are three LEDs: Red, Blue, and Green which can be controlled. The functions in
-the LED module are:
+The interface in `led.h` is used to control lights on Tock boards. On the Hail
+board, there are three LEDs which can be controlled: Red, Blue, and Green. The
+functions in the LED module are:
 
-         pub fn count() -> isize
+    int led_count(void);
 
-   Which returns the number of LEDs available on a board.
+Which returns the number of LEDs available on the board.
 
-         pub fn on(led_num: u32)
+    int led_on(int led_num);
 
-   Which turns an LED on, accessed by its number.
+Which turns an LED on, accessed by its number.
 
-         pub fn off(led_num: u32)
+    int led_off(int led_num);
 
-   Which turns an LED off, accessed by its number.
+Which turns an LED off, accessed by its number.
 
-         pub fn toggle(led_num: u32)
+    int led_toggle(int led_num);
 
-   Which changes the state of an LED, accessed by its number.
+Which toggles the state of an LED, accessed by its number.
 
-[Sample Solution](https://gist.github.com/alevy/73d0a1e5c8784df066c86dc5da9d3107).
+
+***remainder of user-application tutorial still to be translated to C***
 
 
 ## 5. Extend your app to report through the `ble-env-sense` service
