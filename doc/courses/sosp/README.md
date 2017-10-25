@@ -102,7 +102,7 @@ indicates that it can compile correctly and invoke `tockloader` to program a boa
 
 If you're comfortable working inside a Debian virtual machine, you can download
 an image with all of the dependencies already installed
-[here](https://www.dropbox.com/s/5km04herxa9h05w/Tock.ova?dl=0)
+[here](http://www.scs.stanford.edu/~alevy/Tock.ova)
 (VirtualBox users:
 [File → Import Appliance...](https://docs.oracle.com/cd/E26217_01/E26796/html/qs-import-vm.html),
 VMWare users:
