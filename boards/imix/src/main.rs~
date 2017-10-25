@@ -30,7 +30,7 @@ mod i2c_dummy;
 mod spi_dummy;
 #[allow(dead_code)]
 mod mle_send_1; //Hudson Modification
-//mod lowpan_frag_dummy; //Hudson Modification
+//mod 6lowpan_frag_dummy; //Hudson Modification
 
 #[allow(dead_code)]
 mod power;
