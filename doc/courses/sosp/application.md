@@ -246,13 +246,7 @@ code for sending BLE ESS updates is
 
 Now you should be able to write an app that sends data over BLE.  You can load
 your app alongside the service that's already loaded on the board, and they
-will communicate via IPC.  To get you started, here are what the first couple
-lines will probably look like:
-
-```
-XXX
-
-```
+will communicate via IPC.
 
 To test that everything is working, you can connect to your development board
 with a smartphone. We recommend the nRF Connect app
