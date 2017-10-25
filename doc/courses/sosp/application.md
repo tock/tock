@@ -189,15 +189,12 @@ Which turns an LED off, accessed by its number.
 Which toggles the state of an LED, accessed by its number.
 
 
-***remainder of user-application tutorial still to be translated to C***
-
-
 ## 5. Extend your app to report through the `ble-env-sense` service
 
-Finally, lets explore accessing the Bluetooth Low-Energy (BLE) capabilities of
+Finally, let's explore accessing the Bluetooth Low-Energy (BLE) capabilities of
 the hardware. The Hail board has an
 [nRF51822](https://www.nordicsemi.com/eng/Products/Bluetooth-low-energy/nRF51822)
-radio which provides BLE communications. Given that and the sensors available,
+radio which provides BLE communications. With that and the available sensors,
 we can use Tock to provide the BLE
 [Environmental Sensing Service](https://www.bluetooth.com/specifications/assigned-numbers/environmental-sensing-service-characteristics)
 (ESS).
@@ -205,7 +202,7 @@ we can use Tock to provide the BLE
 Currently, the Tock libraries for Rust do not support directly
 interacting with the BLE radio. However, we can still access BLE by loading an
 additional process on the board as a service and sending it commands over
-Tock's inter-process communication (IPC) method.
+Tock's inter-process communication (IPC) mechanism.
 
 ### Loading the BLE ESS Service
 
@@ -213,10 +210,10 @@ The BLE ESS service can be found in the main Tock repository under
 `userland/examples/services/ble-env-sense`. It accepts commands over IPC and
 updates the BLE ESS service, which is broadcasts through the BLE radio.
 
-Before we load the service though, you should chose modify its name so that
-you'll be able to tell your Hail apart from everyone else's (be sure to pick
-something short but reasonably unique). On Line 32, change the adv_name to a
-string of your choice. For example:
+Before we load the service though, you should modify its name so that
+you'll be able to tell your Hail apart from everyone else's.  Pick
+something short but reasonably unique. On Line 32 of `main.c`, change the
+`adv_name` to a string of your choice. For example:
 
 ```
    .adv_name          = "AmitHail",
@@ -236,89 +233,32 @@ $ tockloader listen
 
 ### Using the BLE ESS Service from a Rust application
 
-Now that we've got the service loaded, we can build our own application to use
-it in the tock-rust-template repository.
-
-**IMPORTANT**
-
-For this section only, the `layout.ld` file needs to be modified. On Line 18,
-the FLASH ORIGIN needs to be changed to `0x00040038`. This places the Rust
-application after the BLE ESS service in memory (and will not be necessary soon
-when we get Rust applications compiling as position independent code). It
-should look like this:
-
-```
-    FLASH (rx) : ORIGIN = 0x00040038, LENGTH = PROG_LENGTH
-```
+Now that we've got the service loaded, we can extend the application
+we've been working on to send environmental measurements over BLE.
 
 #### IPC to the BLE ESS Service
 
-`tock::ipc::ble_ess` allows for data to be sent to the BLE ESS service via
-Tock's inter-process communication mechanism. It has one function:
+The `ipc.h` interface can be used to send data to the BLE ESS service via
+Tock's inter-process communication mechanism.  Details about how to do this
+are [here](../../../examples/services/ble-env-sense/README.md), and example
+code for sending BLE ESS updates is
+[here](../../../examples/services/ble-env-sense/test/main.c).
 
-         pub fn connect() -> Result<BleEss, ()>
-
-   This connects to the BLE ESS service over IPC, returning a
-   [Result](https://doc.rust-lang.org/std/result/) with a BleEss struct.
-
-The BleEss struct itself has one function:
-
-         pub fn set_reading<I>(&mut self, sensor: ReadingType, data: I) -> Result<(), ()>
-
-   Which takes a ReadingType and a measurement, and updates it in the
-   Environmental Sensing Service.
-
-The `tock::ipc::ble_ess` also has the ReadingType enum:
-
-         pub enum ReadingType {
-             Temperature = 0,
-             Humidity = 1,
-             Light = 2
-         }
-
-   Note that the ESS does not accept acceleration or magnetic field strength
-   measurements.
-
-
-Now that you've got the IPC library, you should be able to write an app that
-sends data over BLE. To get you started, here are what the first couple lines
-will probably look like:
+Now you should be able to write an app that sends data over BLE.  You can load
+your app alongside the service that's already loaded on the board, and they
+will communicate via IPC.  To get you started, here are what the first couple
+lines will probably look like:
 
 ```
-#![feature(alloc)]
-#![no_std]
+XXX
 
-extern crate alloc;
-extern crate tock;
-
-use alloc::fmt::Write;
-use tock::console::Console;
-use tock::ipc::ble_ess::{self, ReadingType};
-use tock::sensors::*;
-
-#[inline(never)]
-fn main() {
-    let mut console = Console::new();
-    write!(&mut console, "Starting BLE ESS\n").unwrap();
-
-    let mut ess = match ble_ess::connect() {
-        Ok(ess) => ess,
-        _ => {
-            write!(&mut console, "BLE IPC Service not installed\n").unwrap();
-            return
-        }
-    };
-    write!(&mut console, "Found BLE IPC Service\n").unwrap();
-    ...
 ```
 
-To test that everything is working, you can connect to your Hail with a
-smartphone. We recommend the nRF Connect app
+To test that everything is working, you can connect to your development board
+with a smartphone. We recommend the nRF Connect app
 [[Android](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp&hl=en)
  | [iOS](https://itunes.apple.com/us/app/nrf-connect/id1054362403?mt=8)].
 The BLE address of the Hail is labeled on its bottom, however iOS devices
 cannot access the address of a BLE device. However, you should be able to see
 the unique name that you chose earlier.
-
-[Sample Solution](https://gist.github.com/alevy/a274981a29ffc00230aa16101ee0b89f).
 
