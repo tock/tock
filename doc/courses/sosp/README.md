@@ -32,8 +32,7 @@ time, preferably by downloading the provided VM image.**
 First, you will need a laptop running Linux or OS X. Linux in a VM will work just 
 fine, see below for a pre-made image with all the dependencies. We strongly recommend 
 you use the pre-made image unless you have set up and tested your installation before
-the course. In our experience, in about 20% of cases some complication emerges
-in manual installation.
+the course.
 
 ### Virtual Machine
 
@@ -47,11 +46,6 @@ an image with all of the dependencies already installed
 The VM account is "user" with password "user".
 Feel free to customize it with whichever editors, window managers, etc you like
 before the training starts.
-
-> #### Heads Up!
-> There's a small error in the VM configuration. You'll need to manually
-> `source ~/.profile` when you open a new terminal to set up all the needed
-> paths.
 
 ### Manual Installation
 
