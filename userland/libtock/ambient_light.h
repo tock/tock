@@ -11,7 +11,7 @@ extern "C" {
 int ambient_light_subscribe(subscribe_cb callback, void* userdata);
 int ambient_light_start_intensity_reading(void);
 
-int ambient_light_read_intensity(void);
+int ambient_light_read_intensity_sync(int* lux_value);
 
 #ifdef __cplusplus
 }

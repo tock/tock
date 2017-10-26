@@ -27,7 +27,7 @@ int main(void) {
   while (1) {
     temperature_read_sync(&temp);
     humidity_read_sync(&humi);
-    lux = ambient_light_read_intensity();
+    ambient_light_read_intensity_sync(&lux);
 
     int len = snprintf(packet, sizeof(packet), "%d deg C; %d%%; %d lux;\n",
                        temp, humi, lux);
