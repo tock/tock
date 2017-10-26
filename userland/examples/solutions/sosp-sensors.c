@@ -4,12 +4,21 @@
 #include <temperature.h>
 #include <humidity.h>
 #include <ninedof.h>
+#include <led.h>
 
 int main(void)
 {
   while (1) {
     int lux = ambient_light_read_intensity();
     printf("Light: %d lux\n", lux);
+
+    /* Turn on the red LED in low light conditions */
+    if (lux < 30) {
+      led_on(0);
+    }
+    else {
+      led_off(0);
+    }
 
     int temp;
     temperature_read_sync(&temp);
