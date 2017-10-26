@@ -1,6 +1,6 @@
 ---
 title: Tock Embedded OS Training
-date: RustConf 2017
+date: SOSP 2017
 header-includes:
   - \beamertemplatenavigationsymbolsempty
   - \usepackage{pifont}
@@ -12,9 +12,7 @@ header-includes:
 > you prefer, you can download a virtual machine image with all the
 > pre-requisites already installed.
 
-<https://github.com/helena-project/tock/tree/master/doc/courses/rustconf/README.md>
-
-<https://goo.gl/jjba3S>
+<https://github.com/helena-project/tock/tree/master/doc/courses/sosp/README.md> aka <tt><https://goo.gl/s17fy8></tt>
 
 ## Tock is a...
 
