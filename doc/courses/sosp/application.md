@@ -1,5 +1,10 @@
 # Write an environment sensing Bluetooth Low Energy application
 
+- [Intro](README.md)
+- [Getting started with Tock](environment.md)
+- Write an environment sensing BLE application
+- [Add a new capsule to the kernel](capsule.md)
+
 ## 1. Presentation: Process overview, relocation model and system call API
 
 In this section, we're going to learn about processes (a.k.a applications) in
@@ -19,7 +24,7 @@ You'll find the outline of a C application in the directory
 `userland/examples/sosp`.
 
 Take a look at the code in `main.c`.  So far, this application merely prints
-"Hello, World!"
+"Hello, World!".
 
 The code uses the standard C library routine `snprintf` to compose a message
 using a format string, and then prints it to the console.
