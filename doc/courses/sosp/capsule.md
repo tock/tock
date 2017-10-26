@@ -1,7 +1,7 @@
-### Tock OS Course Part 2: Adding a New Capsule to the Kernel
+## Adding a New Capsule to the Kernel
 
 The goal of this part of the course is to give you a little bit of experience
-with the Tock kernel and writing code for it. By the end of this part, you'll
+with the Tock kernel and writing code for it. By the end, you'll
 have written a new capsule that reads a light sensor and outputs its readings
 over the serial port.
 
@@ -30,15 +30,29 @@ of this part of the course.
 
 1. How are capsules isolated from one another, such that one cannot access the other's
    memory?
-2. What is `\`static` and why does the kernel use it for many references?
+2. What is `` `static`` and why does the kernel use it for many references?
 
-#### 3. Read the Tock boot sequence (15m)
+#### 3. The Tock boot sequence (15m)
 
-Open `boards/hail-sosp/src/main.rs` in your favorite editor. This file
-defines a modified version of the Hail platform for this tutorial: how
-it boots, what capsules it uses, and what system calls it supports for
-userland applications. This version of the platform includes an extra
-capsule, which you will write.
+Open `boards/hail-sosp/src/main.rs` in your favorite editor.
+
+> Note that's `hail-sosp`, not `hail`!
+
+This file defines a modified version of the Hail platform for this tutorial:
+how it boots, what capsules it uses, and what system calls it supports for
+userland applications. This version of the platform includes an extra capsule,
+which you will write.
+
+If you build the `hail-sosp` board, Rust will emit a preview of coming
+attractions as it warns about some of the unused stubs we've included:
+
+    ...
+    warning: field is never used: `light`
+     --> /Volumes/code/helena-project/tock/capsules/src/sosp.rs:9:5
+      |
+    9 |     light: &'a AmbientLight,
+      |     ^^^^^^^^
+    ...
 
 ##### 3.1 How is everything organized?
 
@@ -54,17 +68,17 @@ Recall the discussion about how everything in the kernel is statically
 allocated? We can see that here. Every field in `struct Hail` is a reference to
 an object with a static lifetime.
 
-Capsules take a lifetime as a parameter, which allows them to be used
-for any lifetime. All of Hail's capsules have a `` `static`` lifetime.
-
 The boot process constructs a `Hail` structure. Once everything is set
 up, the board passes the constructed `hail` to `kernel::main` and
 the kernel is off to the races.
 
 ##### 3.2 How are capsules created?
 
-The next lines of `reset_handler` create and initialize the system console,
-which is what turns calls to `print!` into bytes sent to the USB serial port:
+Scroll down a bit to line 171 to find the `reset_handler`. This is the first
+function that's called on boot. It first has to set up a few things for the
+underlying MCU (the `sam4l`). Around line 190, we create and initialize the
+system console capsule, which is what turns calls to `print!` into bytes sent
+to the USB serial port:
 
 ```rust
 let console = static_init!(
@@ -81,8 +95,8 @@ The `static_init!` macro allocates a static variable with a call to
 to produce an instance of the type. This call creates a `Console` that
 uses serial port 0 (`USART0`) at 115200 bits per second.
 
-Eventually, once all of the capsules have been created, the boot sequence
-populates a Hail structure with them:
+Eventually, once all of the capsules have been created, down around line 396
+the boot sequence populates a Hail structure with all the capsules:
 
 ```rust
 let hail = Hail {
@@ -92,52 +106,37 @@ let hail = Hail {
 ```
 
 
-> ##### A brief aside on buffers:
-> 
-> Notice that you have to pass a write buffer to the console for it to use:
-> this buffer has to have a `` `static`` lifetime. This is because low-level
-> hardware drivers, especially those that use DMA, require `` `static`` buffers.
-> Since Tock doesn't promise when a DMA operation will complete, and you
-> need to be able to promise that the buffer outlives the operation, the
-> one lifetime that is assured to be alive at the end of an operation is
-> `` `static``. So that other code which has buffers
-> without a `` `static`` lifetime, such as userspace processes, can use the
-> `Console`, it copies them into its own internal `` `static`` buffer before
-> passing it to the serial port. So the buffer passing architecture looks like
-> this:
-> 
-> ![Console/UART buffer lifetimes](console.png)
->
-
 ##### 3.4 Let's make a Hail (including your new capsule)!
 
 After initializing the console, `reset_handler` creates all of the
 other capsules that are needed by the Hail platform. If you look around
-line 250, it initializes an instance of the `Sosp` capsule:
+line 258, it initializes an instance of the `Sosp` capsule:
 
 ```rust
-let sosp_virtual_alarm = static_init!(
-    VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-    VirtualMuxAlarm::new(mux_alarm));
-let sosp = static_init!(
-    capsules::sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-    capsules::sosp::Sosp::new(sosp_virtual_alarm, isl29035));
-hil::sensors::AmbientLight::set_client(isl29035, sosp);
-sosp_virtual_alarm.set_client(sosp);
+/* 1 */    let sosp_virtual_alarm = static_init!(
+               VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+               VirtualMuxAlarm::new(mux_alarm));
+/* 2 */    let sosp = static_init!(
+               capsules::sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+               capsules::sosp::Sosp::new(sosp_virtual_alarm, isl29035));
+/* 3 */    hil::sensors::AmbientLight::set_client(isl29035, sosp);
+/* 4 */    sosp_virtual_alarm.set_client(sosp);
 ```
 
 This code has four steps:
 
-1. It creates a software alarm, which your `Sosp` capsule will use to
+1. It creates a software alarm, which your `sosp` capsule will use to
 receive callbacks when time has passed.
 
-2. It instantiates an `Sosp`. Recall that the first parameter to `static_init!`
-is the type, and the second is the instantiating function. 
-`capsules::sosp::Sosp`` is a generic type with two parameters: a lifetime
-and the type of its software alarm
-(`VirtualMuxAlarm<'static, sam4l::ast::Ast>`). It's instantiated with a
-call to `new` that takes two parameters, a reference to the software
-alarm (`sosp_virtual_alarm`) and a reference to a light sensor (`isl29035`).
+2. It instantiates an `Sosp`.
+   - Recall that the first parameter to `static_init!` is the type, and the
+     second is the instantiating function. `capsules::sosp::Sosp` is a generic
+     type with two parameters:
+       - a lifetime: `'static`
+       - the type of its software alarm: `VirtualMuxAlarm<'static, sam4l::ast::Ast>`).
+   - It's instantiated with a call to `new` that takes two parameters, a
+     reference to the software alarm (`sosp_virtual_alarm`) and a reference to
+     a light sensor (`isl29035`).
 
 3. It sets the client (the struct that receives callbacks) of the ambient
 light sensor to be the `sosp` structure.
@@ -145,31 +144,17 @@ light sensor to be the `sosp` structure.
 4. Finally, it sets the client (the struct that receives callbacks) of the
 software alarm to be the `sosp` structure.
 
-By the time we get down to around line 390, it's created all of the needed
-capsules, and it's time to create the actual hail platform structure (`let
-hail = Hail {` ...).
+After everything is wired together, the picture is something like this:
 
-Finally, around line 425, the boot sequence calls `start` on the `sosp`
+<img src="capsule_wiring.png" width=300px />
+
+
+By the time we get down to around line 390, we've created all of the needed
+capsules, and it's time to create the actual hail platform structure
+(`let hail = Hail {` ...).
+
+Finally, around line 431, the boot sequence calls `start` on the `sosp`
 capsule, telling it to start its service.
-
-##### 3.5 Loading processes
-
-Once the platform is all set up, `reset_handler` loads processes
-into memory:
-
-```rust
-kernel::process::load_processes(&_sapps as *const u8,
-                                &mut APP_MEMORY,
-                                &mut PROCESSES,
-                                FAULT_RESPONSE);
-```
-
-A Tock process is represented by a `kernel::Process` struct. In
-principle, a platform could load processes by any means. In practice,
-current platforms write an array of Tock Binary Format (TBF) entries
-to flash. The kernel provides the `load_processes` helper function
-that takes in a flash address and begins iteratively parsing TBF
-entries and making `Process`es.
 
 #### 4. Create a "Hello World" capsule
 
@@ -199,6 +184,7 @@ debug!("Hello World");
 Compile and program your new kernel:
 
 ```bash
+$ # In boards/hail-sosp
 $ make program
 $ tockloader listen
 No device name specified. Using default "tock"
@@ -216,7 +202,8 @@ another capsule that implements the Alarm trait. In Tock, an Alarm is
 a free running, wrap-around counter that can issue a callback when the
 counter reaches a certain value.
 
-The Alarm HIL includes several traits, `Alarm`, `Client`, and `Frequency`,
+The [Alarm HIL](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L53)
+includes several traits, `Alarm`, `Client`, and `Frequency`,
 all contained in the `kernel::hil::time` module. You'll use the
 `set_alarm` and `now` methods from the `Alarm` trait to set an alarm for
 a particular value of the clock. This will call the `fired` callback
