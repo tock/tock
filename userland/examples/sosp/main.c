@@ -1,7 +1,5 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include <stdbool.h>
 
 #include <ambient_light.h>
 #include <console.h>

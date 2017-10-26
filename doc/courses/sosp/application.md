@@ -8,7 +8,7 @@
 ## 1. Presentation: Process overview, relocation model and system call API
 
 In this section, we're going to learn about processes (a.k.a applications) in
-Tock, and build our own applications.
+Tock, and build our own applications in C.
 
 ## 2. Check your understanding
 
@@ -95,7 +95,7 @@ library's timer facilities to manage this:
 
 #### Timer
 
-You'll find the interface for timers in `userland/libtock/timer.h`.  The
+You'll find the interface for timers in `userland/libtock/timer.h`. The
 function you'll find useful today is:
 
     void delay_ms(uint32_t ms);
@@ -117,29 +117,31 @@ library.
 
 #### Light
 
-The interface in `ambient_light.h` is used to measure ambient light conditions
+The interface in `userland/libtock/ambient_light.h` is used to measure ambient light conditions
 in [lux](https://en.wikipedia.org/wiki/Lux). Specifically, it uses the sensor
 [ISL29035](https://www.intersil.com/en/products/optoelectronics/ambient-light-sensors/light-to-digital-sensors/ISL29035.html).
 It contains the function:
 
-    int ambient_light_read_intensity(void);
+    int ambient_light_read_intensity_sync(int* lux);
+
+Note that the light reading is written to the location passed as an
+argument, and the function returns non-zero in the case of an error.
 
 #### Temperature
 
-The interface in `temperature.h` is used to measure ambient temperature in degrees
-Celsius. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
+The interface in `userland/libtock/temperature.h` is used to measure ambient temperature in degrees
+Celsius, times 100. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
 sensor. It contains the function:
 
     int temperature_read_sync(int* temperature);
 
-Note that the temperature reading is written to the location passed as an
-argument, and the function returns non-zero in the case of an error.
+Again, this function returns non-zero in the case of an error.
 
 #### Humidity
 
-The interface in `humidity.h` is used to measure the ambient
+The interface in `userland/libtock/humidity.h` is used to measure the ambient
 [relative humidity](https://en.wikipedia.org/wiki/Relative_humidity) in
-percent. It contains the function:
+percent, times 100. It contains the function:
 
     int humidity_read_sync (unsigned* humi);
 
@@ -147,7 +149,7 @@ Again, this function returns non-zero in the case of an error.
 
 #### Nindedof
 
-The interface in `ninedof.h` is used to read acceleration or magnetic field
+The interface in `userland/libtock/ninedof.h` is used to read acceleration or magnetic field
 strength from the
 [FXOS8700CQ](http://www.nxp.com/products/sensors/6-axis-sensors/digital-sensor-3d-accelerometer-2g-4g-8g-plus-3d-magnetometer:FXOS8700CQ).
 (Note that Hail's hardware implementation of the Ninedof does not include the
@@ -156,13 +158,13 @@ traditional rotational sensor.)  It contains these functions:
     int ninedof_read_acceleration_sync(int* x, int* y, int* z);
 
 The above reads acceleration in [g's](https://en.wikipedia.org/wiki/G-force) in
-the x, y, and z orientations.
+the x, y, and z orientations. Non-zero is returned in the case of an error.
 
     int ninedof_read_magenetometer_sync(int* x, int* y, int* z);
 
 The above reads magnetic field strength in
 [microTeslas](https://en.wikipedia.org/wiki/Tesla_(unit)) in the x, y, and z
-orientations.
+orientations. Non-zero is returned in the case of an error.
 
 ### Read sensors in a Tock application
 
@@ -173,7 +175,7 @@ above or below a certain threshold:
 
 #### LED
 
-The interface in `led.h` is used to control lights on Tock boards. On the Hail
+The interface in `userland/libtock/led.h` is used to control lights on Tock boards. On the Hail
 board, there are three LEDs which can be controlled: Red, Blue, and Green. The
 functions in the LED module are:
 
@@ -236,7 +238,7 @@ $ tockloader listen
 ...
 ```
 
-### Using the BLE ESS Service from a C application
+### Using the BLE ESS Service from an application
 
 Now that we've got the service loaded, we can extend the application
 we've been working on to send environmental measurements over BLE.
