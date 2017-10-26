@@ -179,7 +179,118 @@ $ tockloader listen
 
     * `erase-apps`
 
-# Part 2: The kernel
+# Part 2: User space
+
+## System calls
+
+| **Call**  | **Target** | **Description**                  |
+|:----------|:----------:|----------------------------------|
+| command   | Capsule    | Invoke an operation on a capsule |
+| allow     | Capsule    | Share memory with a capsule      |
+| subscribe | Capsule    | Register an upcall               |
+| memop     | Core       | Modify memory break              |
+| yield     | Core       | Bloc until next upcall is ready  |
+
+## Rust System calls: `command` & `allow`
+
+```rust
+pub unsafe fn command(major: u32, minor: u32,
+  arg: isize) -> isize;
+
+pub unsafe fn allow(major: u32, minor: u32,
+                    slice: &[u8]) -> isize;
+```
+
+## Rust System calls: `subscribe`
+
+```rust
+type ExternFn =
+  extern fn (usize, usize, usize, *const usize);
+
+pub unsafe fn subscribe(major: u32, minor: u32,
+  cb: ExternFn, ud: *const usize) -> isize {
+```
+
+## Rust System calls: `yieldk` & `yieldk_for`
+
+```rust
+pub fn yieldk();
+
+pub fn yieldk_for<F: Fn() -> bool>(cond: F) {
+    while !cond() { yieldk(); }
+}
+```
+
+## Example: printing to the debug console
+
+```rust
+pub fn write(string: Box<[u8]>) {
+    let done: Cell<bool> = Cell::new(false);
+    syscalls::allow(DRIVER_NUM, 1, string);
+    syscalls::subscribe(DRIVER_NUM, 1, callback,
+          &done as *const _ as usiz);
+    syscalls::command(DRIVER_NUM, 1, string.len());
+    yieldk_for(|| done.get())
+}
+
+extern fn callback(_: usize, _: usize, _: usize,
+                   ud: *const usize) {
+    let done: &Cell<bool> = unsafe {
+        mem::transmute(ud)
+    };
+    done.set(true);
+}
+```
+
+## Inter Process Communication (IPC)
+
+![](ipc.pdf)
+
+## Current Rust userland
+
+### Supported drivers
+
+  * Debug console
+
+  * Timer
+
+  * Sensors:
+
+    * Accelerometer & magnetometer
+
+    * Ambient light
+
+    * Temperature
+
+  * IPC
+
+### Caveats
+
+  * No global variables allowed!
+
+  * Fixed code offset
+
+  * Blocking library calls only
+
+## Check your understanding
+
+1. How does a process perform a blocking operation? Can you draw the flow of
+   operations when a process calls `delay_ms(1000)`?
+
+2. What is a Grant? How do processes interact with grants? Hint: Think about
+   memory exhaustion.
+
+## Hands-on: Write a BLE environment sensing application
+
+  1. Get a Rust application running on Hail
+
+  2. [Periodically sample on-board
+     sensors](https://gist.github.com/alevy/73d0a1e5c8784df066c86dc5da9d3107)
+
+  3. [Extend your app to report through the `ble-env-sense`
+     service](https://gist.github.com/alevy/a274981a29ffc00230aa16101ee0b89f)
+
+# Part 3: The kernel
 
 ## Trusted Computing Base (`unsafe` allowed)
 
@@ -363,115 +474,4 @@ pub trait NineDofClient {
   4. [Extend your capsule to read and report the accelerometer](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1#file-boot_sequence.rs)
 
   5. Extra Credit: Write a 9dof virtualization capsule.
-
-# Part 3: User space
-
-## System calls
-
-| **Call**  | **Target** | **Description**                  |
-|:----------|:----------:|----------------------------------|
-| command   | Capsule    | Invoke an operation on a capsule |
-| allow     | Capsule    | Share memory with a capsule      |
-| subscribe | Capsule    | Register an upcall               |
-| memop     | Core       | Modify memory break              |
-| yield     | Core       | Bloc until next upcall is ready  |
-
-## Rust System calls: `command` & `allow`
-
-```rust
-pub unsafe fn command(major: u32, minor: u32,
-  arg: isize) -> isize;
-
-pub unsafe fn allow(major: u32, minor: u32,
-                    slice: &[u8]) -> isize;
-```
-
-## Rust System calls: `subscribe`
-
-```rust
-type ExternFn =
-  extern fn (usize, usize, usize, *const usize);
-
-pub unsafe fn subscribe(major: u32, minor: u32,
-  cb: ExternFn, ud: *const usize) -> isize {
-```
-
-## Rust System calls: `yieldk` & `yieldk_for`
-
-```rust
-pub fn yieldk();
-
-pub fn yieldk_for<F: Fn() -> bool>(cond: F) {
-    while !cond() { yieldk(); }
-}
-```
-
-## Example: printing to the debug console
-
-```rust
-pub fn write(string: Box<[u8]>) {
-    let done: Cell<bool> = Cell::new(false);
-    syscalls::allow(DRIVER_NUM, 1, string);
-    syscalls::subscribe(DRIVER_NUM, 1, callback,
-          &done as *const _ as usiz);
-    syscalls::command(DRIVER_NUM, 1, string.len());
-    yieldk_for(|| done.get())
-}
-
-extern fn callback(_: usize, _: usize, _: usize,
-                   ud: *const usize) {
-    let done: &Cell<bool> = unsafe {
-        mem::transmute(ud)
-    };
-    done.set(true);
-}
-```
-
-## Inter Process Communication (IPC)
-
-![](ipc.pdf)
-
-## Current Rust userland
-
-### Supported drivers
-
-  * Debug console
-
-  * Timer
-
-  * Sensors:
-
-    * Accelerometer & magnetometer
-
-    * Ambient light
-
-    * Temperature
-
-  * IPC
-
-### Caveats
-
-  * No global variables allowed!
-
-  * Fixed code offset
-
-  * Blocking library calls only
-
-## Check your understanding
-
-1. How does a process perform a blocking operation? Can you draw the flow of
-   operations when a process calls `delay_ms(1000)`?
-
-2. What is a Grant? How do processes interact with grants? Hint: Think about
-   memory exhaustion.
-
-## Hands-on: Write a BLE environment sensing application
-
-  1. Get a Rust application running on Hail
-
-  2. [Periodically sample on-board
-     sensors](https://gist.github.com/alevy/73d0a1e5c8784df066c86dc5da9d3107)
-
-  3. [Extend your app to report through the `ble-env-sense`
-     service](https://gist.github.com/alevy/a274981a29ffc00230aa16101ee0b89f)
 
