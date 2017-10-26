@@ -33,3 +33,6 @@ script:
   - pushd userland/examples; ./format_all.sh || exit; popd
   - tools/toc.sh
 
+after_success:
+  - ./.travis-deploy-netlify
+
