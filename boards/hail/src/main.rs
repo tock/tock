@@ -409,6 +409,10 @@ pub unsafe fn reset_handler() {
     sam4l::gpio::PA[17].enable();
     sam4l::gpio::PA[17].enable_output();
     sam4l::gpio::PA[17].clear();
+    // minimum hold time is 200ns, ~20ns per instruction, so overshoot a bit
+    for _ in 0..10 {
+        kernel::support::nop();
+    }
     sam4l::gpio::PA[17].set();
 
     hail.console.initialize();

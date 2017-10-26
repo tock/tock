@@ -147,14 +147,12 @@ See `ipc.h` in `libtock` for more information on these functions.
 
 ## Application Entry Point
 
-__Warning: Unstable__
-
 An application specifies the first function the kernel should call by setting
 the variable `init_fn_offset` in its TBF header. This function should have the
 following signature:
 
 ```c
-void _start(void* mem_start, void* app_heap_break, void* kernel_memory_break);
+void _start(void* text_start, void* mem_start, void* memory_len, void* app_heap_break);
 ```
 
 ## Stack and Heap
