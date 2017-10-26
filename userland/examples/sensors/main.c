@@ -34,7 +34,7 @@ static void timer_fired(__attribute__ ((unused)) int arg0,
   int ninedof_x = 0, ninedof_y = 0, ninedof_z = 0;
 
   /* *INDENT-OFF* */
-  if (isl29035)     light = ambient_light_read_intensity();
+  if (isl29035)     ambient_light_read_intensity_sync(&light);
   if (tmp006)       tmp006_read_sync(&tmp006_temp);
   if (tsl2561)      tsl2561_lux = tsl2561_get_lux_sync();
   if (lps25hb)      lps25hb_pressure = lps25hb_get_pressure_sync();
