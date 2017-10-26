@@ -124,6 +124,6 @@ presentation to introduce some concepts, followed by a practical exercise.
 2. [Write an environment sensing Bluetooth Low Energy
    application](application.md) (~1 hour)
 
-3. [Add a new capsule to the kernel](capsule.md) (~1 hours)
+3. [Add a new capsule to the kernel](capsule.md) (~1 hour)
 
 
