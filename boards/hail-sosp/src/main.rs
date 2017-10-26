@@ -50,8 +50,8 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 /// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
-    sosp: &'static capsules::sosp::Sosp<'static, VirtualMuxAlarm<'static,
-                                                                 sam4l::ast::Ast<'static>>>,
+    sosp: &'static capsules::sosp::Sosp<'static,
+                                        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<'static,
                                                  VirtualMuxAlarm<'static,
@@ -425,7 +425,7 @@ pub unsafe fn reset_handler() {
     // Start the SOSP capsule sampling light readings for the
     // console.
     hail.sosp.start();
-    
+
     hail.nrf51822.initialize();
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
