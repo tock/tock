@@ -3,9 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <timer.h>
-#include <console.h>
 #include <ambient_light.h>
+#include <console.h>
+#include <timer.h>
 
 char buf[300];
 
