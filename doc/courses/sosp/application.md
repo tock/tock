@@ -206,10 +206,10 @@ we can use Tock to provide the BLE
 [Environmental Sensing Service](https://www.bluetooth.com/specifications/assigned-numbers/environmental-sensing-service-characteristics)
 (ESS).
 
-Currently, the Tock libraries do not support directly
-interacting with the BLE radio. However, we can still access BLE by loading an
-additional process on the board as a service and sending it commands over
-Tock's inter-process communication (IPC) mechanism.
+Currently, the Tock libraries do not support directly interacting with the BLE
+radio. However, we can still access BLE by loading an additional process on the
+board as a service and sending it commands over Tock's inter-process
+communication (IPC) mechanism.
 
 ### Loading the BLE ESS Service
 
@@ -259,7 +259,7 @@ To test that everything is working, you can connect to your development board
 with a smartphone. We recommend the nRF Connect app
 [[Android](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp&hl=en)
  | [iOS](https://itunes.apple.com/us/app/nrf-connect/id1054362403?mt=8)].
-The BLE address of the Hail is labeled on its bottom, however iOS devices
+The BLE address of the Hail is labeled on its bottom, but iOS devices
 cannot access the address of a BLE device. However, you should be able to see
 the unique name that you chose earlier.
 
