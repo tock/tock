@@ -1,5 +1,5 @@
 [root]
-name = "hail"
+name = "hail-sosp"
 version = "0.1.0"
 dependencies = [
  "capsules 0.1.0",

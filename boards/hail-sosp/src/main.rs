@@ -183,6 +183,10 @@ pub unsafe fn reset_handler() {
 
     let mut chip = sam4l::chip::Sam4l::new();
 
+
+    ///////////////////////////////////////////////////////////////////
+    // Begin capsule creation and initialization
+
     let console = static_init!(
         capsules::console::Console<sam4l::usart::USART>,
         capsules::console::Console::new(&sam4l::usart::USART0,
@@ -427,8 +431,6 @@ pub unsafe fn reset_handler() {
     hail.sosp.start();
 
     hail.nrf51822.initialize();
-    // Uncomment to measure overheads for TakeCell and MapCell:
-    // test_take_map_cell::test_take_map_cell();
 
     // debug!("Initialization complete. Entering main loop");
 
