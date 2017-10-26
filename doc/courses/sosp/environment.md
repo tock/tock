@@ -67,21 +67,26 @@ compile for imix instead, `cd boards/imix/`.
 
 ### Connect to a Hail board
 
-> On Linux, you might need to give your user access to the Hail's serial port. You can do this by adding a udev rule in:
-> `/etc/udev/rules.d/99-hail` containing the rule: `ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"`.
+> On Linux, you might need to give your user access to the Hail's serial port.
+> You can do this by adding a udev rule:
+>
+>     $ cat /etc/udev/rules.d/99-hail
+>     ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"
+>
 > Afterwards, detach and re-attach the Hail to reload the rule.
 
 To connect your development machine to the Hail, connect them with a micro-USB
 cable. Any cable will do. Hail should come with the Tock kernel and the Hail
 test app pre-loaded. When you plug in Hail, the blue LED should blink slowly
 (about once per second). Pressing the User Button—just to the right of the USB
-plug—should turn on the green LED.
+plug—should turn on the green LED (if the blue LED turned off, the other button
+is the Reset button, make sure you hit the right one!).
 
 The Hail board should appear as a regular serial device (e.g.
-/dev/tty.usbserial-c098e5130006 on my machine). While you can connect with any
-standard serial program (set to 115200 baud), tockloader makes this easier.
-Tockloader can read attributes from connected serial devices, and will
-automatically find your connected Hail. Simply run:
+`/dev/tty.usbserial-c098e5130006` on my mac and `/dev/ttyUSB0` on my Linux box).
+While you can connect with any standard serial program (set to 115200 baud),
+tockloader makes this easier.  Tockloader can read attributes from connected
+serial devices, and will automatically find your connected Hail. Simply run:
 
     $ tockloader listen
     No device name specified. Using default "tock"
