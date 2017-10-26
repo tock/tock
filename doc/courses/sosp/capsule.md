@@ -201,14 +201,15 @@ Compile and program your new kernel:
 ```bash
 $ make program
 $ tockloader listen
-No device name specified. Using default "tock"                                                                         Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
+No device name specified. Using default "tock"
+Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
 Listening for serial output.
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/boards/hail/src/accelerate.rs:18: Hello World
+TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/capsules/src/sosp.rs:18: Hello World
 ```
 
-[Sample Solution](https://gist.github.com/alevy/56b0566e2d1a6ba582b7d4c09968ddc9)
+[Sample Solution](https://gist.github.com/alevy/e4cc793d34923e3fc39dee6413dad25b)
 
-#### 5. Extend your capsule to print "Hello World" every second
+#### 5. Extend your capsule to print a light reading every second
 
 In order for your capsule to keep track of time, it depends on
 another capsule that implements the Alarm trait. In Tock, an Alarm is
