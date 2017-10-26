@@ -444,5 +444,7 @@ pub unsafe fn reset_handler() {
                                     &mut APP_MEMORY,
                                     &mut PROCESSES,
                                     FAULT_RESPONSE);
+
+    // Begin kernel main loop
     kernel::main(&hail, &mut chip, &mut PROCESSES, &hail.ipc);
 }
