@@ -12,37 +12,26 @@ header-includes:
 > you prefer, you can download a virtual machine image with all the
 > pre-requisites already installed.
 
-<https://github.com/helena-project/tock/tree/master/doc/courses/sosp/README.md> aka <tt><https://goo.gl/s17fy8></tt>
+<https://github.com/helena-project/tock/tree/master/doc/courses/sosp/README.md>  
+aka <tt><https://goo.gl/s17fy8></tt>
 
-## Tock is a...
+## Tock
 
-  1. Secure
+A secure operating system for microcontrollers
 
-  2. Embedded
+  * Kernel components in Rust
 
-  3. Operating System
+  * Type-safe API for safe driver development
 
-  4. for Low Resource
+  * Hardware isolated processes for application code
 
-  5. Microcontrollers
+## Use cases
 
-## Secure
+  * Security applications (e.g. authentication keys)
 
-![](snakeoil.jpg)
+  * Sensor networks
 
-## ~~_Secure_~~ Safe
-
-### Tock has isolation primitives that allow you to build secure systems.
-
-## Embedded
-
-### Definition A
-
-> Kernel, applications, and hardware are tightly integrated.
-
-### Definition B
-
-> You'll likely be writing the kernel.
+  * Programmable wearables
 
 ## Operating System
 
@@ -189,54 +178,54 @@ $ tockloader listen
 | memop     | Core       | Modify memory break              |
 | yield     | Core       | Bloc until next upcall is ready  |
 
-## Rust System calls: `command` & `allow`
+## C System Calls: `command` & `allow`
 
-```rust
-pub unsafe fn command(major: u32, minor: u32,
-  arg: isize) -> isize;
+```c
+int command(uint32_t driver, uint32_t command,
+              int arg1, int arg2);
 
-pub unsafe fn allow(major: u32, minor: u32,
-                    slice: &[u8]) -> isize;
+int allow(uint32_t driver, uint32_t allow, void* ptr,
+              size_t size);
 ```
 
-## Rust System calls: `subscribe`
+## C System Calls: `subscribe`
 
-```rust
-type ExternFn =
-  extern fn (usize, usize, usize, *const usize);
+```c
+typedef void (subscribe_cb)(int, int, int,void*);
 
-pub unsafe fn subscribe(major: u32, minor: u32,
-  cb: ExternFn, ud: *const usize) -> isize {
+int subscribe(uint32_t driver, uint32_t subscribe,
+              subscribe_cb cb, void* userdata);
 ```
 
-## Rust System calls: `yieldk` & `yieldk_for`
+## C System Calls: `yieldk` & `yieldk_for`
 
-```rust
-pub fn yieldk();
+```c
+void yield(void);
 
-pub fn yieldk_for<F: Fn() -> bool>(cond: F) {
-    while !cond() { yieldk(); }
+void yield_for(bool *cond) {
+  while (!*cond) {
+    yield();
+  }
 }
 ```
 
 ## Example: printing to the debug console
 
-```rust
-pub fn write(string: Box<[u8]>) {
-    let done: Cell<bool> = Cell::new(false);
-    syscalls::allow(DRIVER_NUM, 1, string);
-    syscalls::subscribe(DRIVER_NUM, 1, callback,
-          &done as *const _ as usiz);
-    syscalls::command(DRIVER_NUM, 1, string.len());
-    yieldk_for(|| done.get())
+```c
+static void putstr_cb(int _x, int _y, int _z, void* ud) {
+  putstr_data_t* data = (putstr_data_t*)ud;
+  data->done = true;
 }
 
-extern fn callback(_: usize, _: usize, _: usize,
-                   ud: *const usize) {
-    let done: &Cell<bool> = unsafe {
-        mem::transmute(ud)
-    };
-    done.set(true);
+int putnstr(const char *str, size_t len) {
+  putstr_data_t* data;
+  data->buf = str; data->done = false;
+
+  allow(DRIVER_NUM_CONSOLE, 1, str, len);
+  subscribe(DRIVER_NUM_CONSOLE, 1, cb, userdata);
+  command(DRIVER_NUM_CONSOLE, 1, len, 0);
+  yield_for(&data->done);
+  return ret;
 }
 ```
 
@@ -244,31 +233,9 @@ extern fn callback(_: usize, _: usize, _: usize,
 
 ![](ipc.pdf)
 
-## Current Rust userland
+## Inter Process Communication API
 
-### Supported drivers
-
-  * Debug console
-
-  * Timer
-
-  * Sensors:
-
-    * Accelerometer & magnetometer
-
-    * Ambient light
-
-    * Temperature
-
-  * IPC
-
-### Caveats
-
-  * No global variables allowed!
-
-  * Fixed code offset
-
-  * Blocking library calls only
+TODO
 
 ## Check your understanding
 
@@ -280,7 +247,7 @@ extern fn callback(_: usize, _: usize, _: usize,
 
 ## Hands-on: Write a BLE environment sensing application
 
-  1. Get a Rust application running on Hail
+  1. Get an application running on Hail
 
   2. [Periodically sample on-board
      sensors](https://gist.github.com/alevy/73d0a1e5c8784df066c86dc5da9d3107)
