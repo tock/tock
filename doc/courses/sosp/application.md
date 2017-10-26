@@ -21,34 +21,11 @@ You'll find the outline of a C application in the directory
 Take a look at the code in `main.c`.  So far, this application merely prints
 "Hello, World!"
 
-The code uses the standard C library routine `snprintf` to compose a message
-using a format string, and then prints it to the console.
-
-It could have accomplished the output by invoking Tock system calls directly,
-but just like in other systems, a user library (in `userland/libtock/`)
-provides a more convenient interface for this and many other purposes.  Let's
-look at the interface for console I/O:
-
-#### Console
-
-You'll notice that this program includes the header file `console.h`.  You can
-find that file in `userland/libtock/console.h`.
-
-The console interface contains the function `putstr` and a couple variants.
-On your development board, this function can be used to send messages over the
-USB connection to your PC.  (What's actually happening on the board is that the
-UART transceiver on the microcontroller sends serial data to another chip
-that then converts the data to USB messages.)
-
-The `putstr` function itself is "synchronous", meaning that it doesn't return
-until the I/O operation has completed.  But your example program instead calls
-`putnstr_async`, which is more fundamental in that it sends the message to print
-and then waits for a "callback" to signal that the operation has been completed.
-(The `putstr` function is implemented by the tock library in terms of
-`putnstr_async`.)
-
-The callback in this program presently does nothing, but you may find it useful
-later.
+What's actually happening under the hood is that `printf` uses the interface in
+`userland/libtock/console.h` to send your message to the microcontroller's
+asynchronous serial transceiver, called the UART.  The UART sends data to
+another chip that translates it to USB messages, which can be received by your
+PC.
 
 ### Loading a Rust application
 
@@ -79,7 +56,7 @@ No device name specified. Using default "tock"
 Using "/dev/cu.usbserial-c098e5130012 - Hail IoT Module - TockOS"
 
 Listening for serial output.
-From tock app: "Hello, World!"
+Hello, World!
 ```
 
 ### Creating your own application
@@ -96,8 +73,7 @@ function you'll find useful today is:
     void delay_ms(uint32_t ms);
 
 This function sleeps until the specified number of milliseconds have passed, and
-then returns.  So we call this function "synchronous": no further code will run
-until the delay is complete.
+then returns.
 
 ## 4. Write an app that periodically samples the on-board sensors
 
@@ -122,7 +98,7 @@ It contains the function:
 #### Temperature
 
 The interface in `temperature.h` is used to measure ambient temperature in degrees
-Celsius. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
+Celsius, times 100. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
 sensor. It contains the function:
 
     int temperature_read_sync(int* temperature);
@@ -134,7 +110,7 @@ argument, and the function returns non-zero in the case of an error.
 
 The interface in `humidity.h` is used to measure the ambient
 [relative humidity](https://en.wikipedia.org/wiki/Relative_humidity) in
-percent. It contains the function:
+percent, times 100. It contains the function:
 
     int humidity_read_sync (unsigned* humi);
 
