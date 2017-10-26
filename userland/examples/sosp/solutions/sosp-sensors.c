@@ -5,7 +5,6 @@
 #include <ambient_light.h>
 #include <temperature.h>
 #include <humidity.h>
-#include <ninedof.h>
 #include <led.h>
 
 int main (void) {
@@ -29,14 +28,6 @@ int main (void) {
     unsigned humi;
     humidity_read_sync(&humi);
     printf("Relative humidity: %u%%\n", humi/100);
-
-    int ax, ay, az;
-    ninedof_read_acceleration_sync(&ax, &ay, &az);
-    printf("Acceleration: %dg X, %dg Y, %dg Z\n", ax, ay, az);
-
-    int mx, my, mz;
-    ninedof_read_magenetometer_sync(&mx, &my, &mz);
-    printf("Magnetic field: %duT X, %duT Y, %duT Z\n", mx, my, mz);
 
     printf("\n");
     delay_ms(2000);

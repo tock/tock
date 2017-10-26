@@ -113,7 +113,8 @@ for the Hail board.
 These sensors include a light sensor, a humidity and temperature sensor, and an
 acceleration and magnetic field sensor (marked as accelerometer in the
 picture). Each sensing medium can be accessed separately via the Tock user
-library.
+library. We'll just be using the light, temperature, and humidity measurements
+for today's tutorial.
 
 #### Light
 
@@ -146,25 +147,6 @@ percent, times 100. It contains the function:
     int humidity_read_sync (unsigned* humi);
 
 Again, this function returns non-zero in the case of an error.
-
-#### Nindedof
-
-The interface in `userland/libtock/ninedof.h` is used to read acceleration or magnetic field
-strength from the
-[FXOS8700CQ](http://www.nxp.com/products/sensors/6-axis-sensors/digital-sensor-3d-accelerometer-2g-4g-8g-plus-3d-magnetometer:FXOS8700CQ).
-(Note that Hail's hardware implementation of the Ninedof does not include the
-traditional rotational sensor.)  It contains these functions:
-
-    int ninedof_read_acceleration_sync(int* x, int* y, int* z);
-
-The above reads acceleration in [g's](https://en.wikipedia.org/wiki/G-force) in
-the x, y, and z orientations. Non-zero is returned in the case of an error.
-
-    int ninedof_read_magenetometer_sync(int* x, int* y, int* z);
-
-The above reads magnetic field strength in
-[microTeslas](https://en.wikipedia.org/wiki/Tesla_(unit)) in the x, y, and z
-orientations. Non-zero is returned in the case of an error.
 
 ### Read sensors in a Tock application
 
