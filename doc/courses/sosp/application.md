@@ -3,7 +3,7 @@
 ## 1. Presentation: Process overview, relocation model and system call API
 
 In this section, we're going to learn about processes (a.k.a applications) in
-Tock, and build our own applications in Rust.
+Tock, and build our own applications in C.
 
 ## 2. Check your understanding
 
@@ -27,7 +27,7 @@ asynchronous serial transceiver, called the UART.  The UART sends data to
 another chip that translates it to USB messages, which can be received by your
 PC.
 
-### Loading a Rust application
+### Loading an application
 
 Okay, let's build and load this simple program.
 
@@ -175,10 +175,10 @@ we can use Tock to provide the BLE
 [Environmental Sensing Service](https://www.bluetooth.com/specifications/assigned-numbers/environmental-sensing-service-characteristics)
 (ESS).
 
-Currently, the Tock libraries for Rust do not support directly
-interacting with the BLE radio. However, we can still access BLE by loading an
-additional process on the board as a service and sending it commands over
-Tock's inter-process communication (IPC) mechanism.
+Currently, the Tock libraries do not support directly interacting with the BLE
+radio. However, we can still access BLE by loading an additional process on the
+board as a service and sending it commands over Tock's inter-process
+communication (IPC) mechanism.
 
 ### Loading the BLE ESS Service
 
@@ -207,7 +207,7 @@ $ tockloader listen
 ...
 ```
 
-### Using the BLE ESS Service from a Rust application
+### Using the BLE ESS Service from an application
 
 Now that we've got the service loaded, we can extend the application
 we've been working on to send environmental measurements over BLE.
@@ -216,9 +216,9 @@ we've been working on to send environmental measurements over BLE.
 
 The `ipc.h` interface can be used to send data to the BLE ESS service via
 Tock's inter-process communication mechanism.  Details about how to do this are
-in `userspace/examples/services/ble-env-sense/README.md`, and example code for
+in `userland/examples/services/ble-env-sense/README.md`, and example code for
 sending BLE ESS updates is in
-`userspace/examples/services/ble-env-sense/test/main.c`.
+`userland/examples/services/ble-env-sense/test/main.c`.
 
 Now you should be able to write an app that sends data over BLE.  You can load
 your app alongside the service that's already loaded on the board, and they
