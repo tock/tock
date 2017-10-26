@@ -1,18 +1,15 @@
-/* XXX this "solution" should be fleshed out and report measurements from more sensors */
-
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
 #include <timer.h>
-#include <console.h>
 #include <ambient_light.h>
+#include <temperature.h>
+#include <humidity.h>
+#include <ninedof.h>
+#include <led.h>
 #include <ipc.h>
 
 int _svc_num = 0;
 
-char ipc_buf[64] __attribute__((aligned(64)));
+char buf[64] __attribute__((aligned(64)));
 
 typedef enum {
   SENSOR_TEMPERATURE = 0,
@@ -32,22 +29,8 @@ static void ipc_callback(__attribute__ ((unused)) int pid,
   printf("Updated BLE characteristic.\n");
 }
 
-
-char buf[300];
-
-static void print_complete(int a __attribute__((unused)),
-                           int b __attribute__((unused)),
-                           int c __attribute__((unused)),
-                           void* d __attribute__((unused)))
-{
-  // The message has been printed to the console
-}
-
 int main(void)
 {
-  int n = snprintf(buf, sizeof(buf), "From tock app: \"%s\"\n", "Hello, World!");
-  putnstr_async(buf, n, print_complete, NULL);
-
   _svc_num = ipc_discover("org.tockos.services.ble-ess");
   if (_svc_num < 0) {
     printf("No BLE ESS service installed.\n");
@@ -58,14 +41,24 @@ int main(void)
 
   delay_ms(1500);
 
-  sensor_update_t *update = (sensor_update_t*) ipc_buf;
+  sensor_update_t *update = (sensor_update_t*) buf;
   ipc_register_client_cb(_svc_num, ipc_callback, update);
+  ipc_share(_svc_num, buf, 64);
 
-  update->type = SENSOR_HUMIDITY;
-  update->value = 185;
-  ipc_share(_svc_num, ipc_buf, 64);
-
+  int lux = ambient_light_read_intensity();
+  update->type = SENSOR_IRRADIANCE;
+  update->value = lux;
   ipc_notify_svc(_svc_num);
 
-  return 0;
+  int temp;
+  temperature_read_sync(&temp);
+  update->type = SENSOR_TEMPERATURE;
+  update->value = temp;
+  ipc_notify_svc(_svc_num);
+
+  unsigned humi;
+  humidity_read_sync(&humi);
+  update->type = SENSOR_HUMIDITY;
+  update->value = temp;
+  ipc_notify_svc(_svc_num);
 }
