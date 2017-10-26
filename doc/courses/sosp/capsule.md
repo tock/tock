@@ -32,7 +32,7 @@ of this part of the course.
    memory?
 2. What is `` `static`` and why does the kernel use it for many references?
 
-#### 3. The Tock boot sequence (15m)
+#### 3. The Tock boot sequence (10m)
 
 > The goal of this section is to give you an overview of how everything fits
 > together. If you aren't familiar with Rust, don't stress too much about the
@@ -159,7 +159,7 @@ it to start its service—this is where we will hook in in a moment.
 
 Finally, at the very end, the kernel main loop begins.
 
-#### 4. Create a "Hello World" capsule
+#### 4. Create a "Hello World" capsule (15m)
 
 Now that you've seen how Tock initializes and uses capsules, including your
 `Sosp` capsule, you're going to fill in the code for `Sosp.` At the end of
@@ -198,7 +198,7 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/capsules/src/sosp.rs:18: Hello 
 
 [Sample Solution](https://gist.github.com/alevy/e4cc793d34923e3fc39dee6413dad25b)
 
-#### 5. Extend your capsule to print every second
+#### 5. Extend your capsule to print every second (10m)
 
 For your capsule to keep track of time, it depends on another capsule that
 implements the Alarm trait—a Rust trait is a mechanism for defining interfaces.
@@ -284,7 +284,7 @@ the callback will keep triggering every second:
 [Sample Solution](https://gist.github.com/ppannuto/64a1c6c5dbad4b2f2efa7f6e216927ce)
 
 
-#### 6. Extend your capsule to print a light reading every second
+#### 6. Extend your capsule to print a light reading every second (10m)
 
 Printing hardware timer ticks isn't terribly exciting. Let's adapt this to grab
 an ambient light reading every second. In addition to the `time` traits, we can
