@@ -9,9 +9,10 @@ This course introduces you to Tock, a secure embedded operating system for senso
 networks and the Internet of Things. Tock is the first operating system to
 allow multiple untrusted applications to run concurrently on a microcontroller-based
 computer. The Tock kernel is written in Rust, a memory-safe systems language that
-does not rely on a garbage collector. Userspace applications are run in single-threaded
-processes that can be written in any language. A paper describing Tock's goals, design,
-and implementation will be presented at the conference.
+does not rely on a garbage collector. Userspace applications are run in
+single-threaded processes that can be written in any language. A paper
+describing Tock's goals, design, and implementation will be presented at the
+conference on Monday and is available [here](https://www.amitlevy.com/papers/tock-sosp2017.pdf).
 
 In this course, you will learn the basic Tock system architecture, 
 how to write a userspace process in C, Tock's system call interface, and 
@@ -22,23 +23,43 @@ you to be more creative in the Rust programming part of the course.
 
 ## Preparation 
 
-We will go over setting up a development environment during the course.
-However, because the WiFi is likely to be slow,  
-we *strongly urge you to set up the following dependencies ahead of
-time, preferably by downloading the provided VM image:*
+We will go over setting up a development environment during the course and help out with
+possible problems you run into.
+However, because the WiFi is likely to be slow,
+we **strongly urge you to set up the following dependencies ahead of
+time, preferably by downloading the provided VM image.**
 
 First, you will need a laptop running Linux or OS X. Linux in a VM will work just 
 fine, see below for a pre-made image with all the dependencies. We strongly recommend 
 you use the pre-made image unless you have set up and tested your installation before
 the course. In our experience, in about 20% of cases some complication emerges
-in manual installation. While these complications can often be solved in an hour,
-this means you will miss the beginning of the course.
+in manual installation.
+
+### Virtual Machine
+
+If you're comfortable working inside a Debian virtual machine, you can download
+an image with all of the dependencies already installed
+[here](http://www.scs.stanford.edu/~alevy/Tock.ova)
+
+ * VirtualBox users: [File → Import Appliance...](https://docs.oracle.com/cd/E26217_01/E26796/html/qs-import-vm.html),
+ * VMWare users: [File → Open...](https://pubs.vmware.com/workstation-9/index.jsp?topic=%2Fcom.vmware.ws.using.doc%2FGUID-DDCBE9C0-0EC9-4D09-8042-18436DA62F7A.html)
+
+The VM account is "user" with password "user".
+Feel free to customize it with whichever editors, window managers, etc you like
+before the training starts.
+
+> #### Heads Up!
+> There's a small error in the VM configuration. You'll need to manually
+> `source ~/.profile` when you open a new terminal to set up all the needed
+> paths.
+
+### Manual Installation
 
 If you choose to install manually, you will need the following software:
 
 1. Command line utilities: wget, sed, make, cmake, git
 
-1. Python 3 and pip
+1. Python 3 and pip3
 
 1. A local clone of the Tock repository
      
@@ -47,7 +68,7 @@ If you choose to install manually, you will need the following software:
 1. [rustup](http://rustup.rs/).
      
         $ curl https://sh.rustup.rs -sSf | sh
-        $ rustup install nightly-2017-06-20
+        $ rustup install nightly-2017-09-20
 
 1. [Xargo](https://github.com/japaric/xargo)
      
@@ -55,9 +76,8 @@ If you choose to install manually, you will need the following software:
 
 1. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 
-    > Note that you can install the version packaged by your Linux distribution,
-    > but make sure you install the newlib port as well. For instance, on Debian or
-    > Ubuntu, install both gcc-arm-none-eabi and libnewlib-arm-none-eabi.
+   OS-specific installation instructions can be found
+   [here](https://github.com/helena-project/tock/blob/master/doc/Getting_Started.md#arm-none-eabi-toolchain)
 
 1. [tockloader](https://github.com/helena-project/tockloader)
      
@@ -74,10 +94,12 @@ If you choose to install manually, you will need the following software:
 
         $ PATH=$HOME/.local/bin:$PATH
 
-To test whether your manual installation worked, go to the `tock/boards/hail` directory 
-and type `make program`. This should compile the kernel for the default board, hail, 
+### Testing
+
+To test if your environment is working, go to the `tock/boards/hail` directory
+and type `make program`. This should compile the kernel for the default board, Hail,
 and try to program it over a USB serial connection. It may need to compile several
-supporting libraries first (so may take 30 seconds or so). You should see output like this:
+supporting libraries first (so may take 30 seconds or so the first time). You should see output like this:
 
 ```partysaurus:hail pal$ make program
    Compiling kernel v0.1.0 (file:///Users/pal/src/tock/kernel)
@@ -98,25 +120,6 @@ make: *** [program] Error 1
 That is, since you don't yet have a board plugged in it can't program it. But the above output
 indicates that it can compile correctly and invoke `tockloader` to program a board.
  
-### Virtual Machine
-
-If you're comfortable working inside a Debian virtual machine, you can download
-an image with all of the dependencies already installed
-[here](http://www.scs.stanford.edu/~alevy/Tock.ova)
-(VirtualBox users:
-[File → Import Appliance...](https://docs.oracle.com/cd/E26217_01/E26796/html/qs-import-vm.html),
-VMWare users:
-[File → Open...](https://pubs.vmware.com/workstation-9/index.jsp?topic=%2Fcom.vmware.ws.using.doc%2FGUID-DDCBE9C0-0EC9-4D09-8042-18436DA62F7A.html)
-).
-The VM account is "user" with password "user".
-Feel free to customize it with whichever editors, window managers, etc you like
-before the training starts.
-
-> #### Heads Up!
-> There's a small error in the VM configuration. You'll need to manually
-> `source ~/.profile` when you open a new terminal to set up all the needed
-> paths.
-
 ## Agenda
 
 The training is divided into three sections, each starting with a short
@@ -124,7 +127,7 @@ presentation to introduce some concepts, followed by a practical exercise.
 
 1. [Getting started with Tock](environment.md) (~1 hour)
 
-3. [Write an environment sensing Bluetooth Low Energy
+2. [Write an environment sensing Bluetooth Low Energy
    application](application.md) (~1 hour)
 
 3. [Add a new capsule to the kernel](capsule.md) (~1 hours)
