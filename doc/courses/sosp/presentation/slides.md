@@ -13,7 +13,10 @@ header-includes:
 > pre-requisites already installed.
 
 <https://github.com/helena-project/tock/tree/master/doc/courses/sosp/README.md>  
-aka <tt><https://goo.gl/s17fy8></tt>
+
+> aka  
+
+<tt><https://goo.gl/s17fy8></tt>
 
 ## Tock
 
@@ -84,9 +87,9 @@ Maybe...
 
   1. Intro to hardware, tools and development environment
 
-  2. Add functionality to the Tock kernel
+  2. Write an end-to-end Bluetooth Low Energy environment sensing application
 
-  3. Write an end-to-end Bluetooth Low Energy environment sensing application.
+  3. Add functionality to the Tock kernel
 
 # Part 1: Hardware, tools and development environment
 
@@ -154,17 +157,15 @@ $ tockloader listen
 
   1. Compile and flash the kernel
 
-  2. Compile and program `ble-env-sense` service
-
-  3. (Optional) Add some other apps from the repo, like `blink` and `sensors`
-
-  4. (Optional) Familiarize yourself with `tockloader` commands
+  2. (Optional) Familiarize yourself with `tockloader` commands
 
     * `uninstall`
 
     * `list`
 
     * `erase-apps`
+
+  3. (Optional) Add some other apps from the repo, like `blink` and `sensors`
 
 # Part 2: User space
 
