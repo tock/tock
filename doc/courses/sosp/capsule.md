@@ -1,9 +1,9 @@
-### Tock OS Course Part 2: Adding a New Capsule to the Kernel
+## Adding a New Capsule to the Kernel
 
 The goal of this part of the course is to give you a little bit of experience
-with the Tock kernel and writing code for it. By the end of this part, you'll have
-written a new capsule that reads a light sensor and outputs its readings over
-the serial port.
+with the Tock kernel and writing code for it. By the end, you'll
+have written a new capsule that reads a light sensor and outputs its readings
+over the serial port.
 
 During this you will:
 
@@ -30,37 +30,60 @@ of this part of the course.
 
 1. How are capsules isolated from one another, such that one cannot access the other's
    memory?
-2. What is `\`static` and why does the kernel use it for many references?
+2. What is `` `static`` and why does the kernel use it for many references?
 
-#### 3. Read the Tock boot sequence (15m)
+#### 3. The Tock boot sequence (10m)
 
-Open `boards/hail/src/main.rs` in your favorite editor. This file defines the
-Hail platform: how it boots, what capsules it uses, and what system calls it
-supports for userland applications.
+> The goal of this section is to give you an overview of how everything fits
+> together. If you aren't familiar with Rust, don't stress too much about the
+> syntax details, which can be a bit gnarly. Just try to read through the code
+> here so you understand when things are getting called and how things are
+> wired together.
+
+Open `boards/hail-sosp/src/main.rs` in your favorite editor (note that's
+`hail-sosp`, not `hail`).
+
+This file defines a modified version of the Hail platform for this tutorial:
+how it boots, what capsules it uses, and what system calls it supports for
+userland applications. This version of the platform includes an extra "sosp"
+capsule, which you will implement in the rest of this tutorial.
+
+If you build the `hail-sosp` board now, Rust will emit a preview of coming
+attractions as it warns about some of the unused stubs we've included:
+
+    ...
+    warning: field is never used: `light`
+     --> /Volumes/code/helena-project/tock/capsules/src/sosp.rs:9:5
+      |
+    9 |     light: &'a AmbientLight,
+      |     ^^^^^^^^
+    ...
 
 ##### 3.1 How is everything organized?
 
-Find the declaration of `struct Hail` (it's pretty early in the file).
+Find the declaration of `struct Hail` around line 50.
 This declares the structure representing the platform. It has many fields,
 all of which are capsules. These are the capsules that make up the Hail
 platform. For the most part, these map directly to hardware peripherals,
 but there are exceptions such as `IPC` (inter-process communication).
+In this tutorial, you'll be using the first two capsules, `console` and
+`sosp`.
 
 Recall the discussion about how everything in the kernel is statically
 allocated? We can see that here. Every field in `struct Hail` is a reference to
 an object with a static lifetime.
 
-The capsules themselves take a lifetime as a parameter, which is currently
-always `` `static``.  The capsules, however, can be used for any lifetime.
+As we walk through the rest of the boot process, we will construct a `Hail`
+structure. Once everything is set up, the board passes the constructed `hail`
+to `kernel::main` and the kernel is off to the races.
 
-The boot process is primarily the construction of this `Hail` structure. Once
-everything is set up, the board passes the constructed `hail` to
-`kernel::main` and we're off to the races.
+##### 3.2 How are capsules created?
 
-##### 3.2 How do capsules get created?
-
-The next lines of `reset_handler` create and initialize the system console,
-which is what turns calls to `print!` into bytes sent to the USB serial port:
+Scroll down a bit to line 171 to find the `reset_handler`. This is the first
+function that's called on boot. It first has to set up a few things for the
+underlying MCU (the `sam4l`). Around line 190, we create and initialize the
+system console capsule, which is what turns prints into bytes sent to the USB
+serial port:
 
 ```rust
 let console = static_init!(
@@ -72,13 +95,57 @@ let console = static_init!(
 hil::uart::UART::set_client(&usart::USART0, console);
 ```
 
-The `static_init!` macro is simply an easy way to allocate a static
-variable with a call to `new`. The first parameter is the type, the second
-is the expression to produce an instance of the type. This call creates
-a `Console` that uses serial port 0 (`USART0`) at 115200 bits per second.
+The `static_init!` macro allocates a static variable with a call to
+`new`. The first parameter is the type, the second is the expression
+to produce an instance of the type. This call creates a `Console` that
+uses serial port 0 (`USART0`) at 115200 bits per second.
 
-Eventually, once all of the capsules have been created, the boot sequence
-populates a Hail structure with them:
+
+##### 3.4 Let's make a Hail (including your new capsule)!
+
+After initializing the console, `reset_handler` creates all of the
+other capsules that are needed by the Hail platform. If you look around
+line 258, it initializes an instance of the `Sosp` capsule:
+
+```rust
+/* 1 */    let sosp_virtual_alarm = static_init!(
+               VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+               VirtualMuxAlarm::new(mux_alarm));
+/* 2 */    let sosp = static_init!(
+               capsules::sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+               capsules::sosp::Sosp::new(sosp_virtual_alarm, isl29035));
+/* 3 */    hil::sensors::AmbientLight::set_client(isl29035, sosp);
+/* 4 */    sosp_virtual_alarm.set_client(sosp);
+```
+
+This code has four steps:
+
+1. It creates a software alarm, which your `sosp` capsule will use to
+receive callbacks when time has passed.
+
+2. It instantiates an `Sosp`.
+   - Recall that the first parameter to `static_init!` is the type, and the
+     second is the instantiating function. `capsules::sosp::Sosp` is a generic
+     type with two parameters:
+       - a lifetime: `'static`
+       - the type of its software alarm: `VirtualMuxAlarm<'static, sam4l::ast::Ast>`).
+   - It's instantiated with a call to `new` that takes two parameters, a
+     reference to the software alarm (`sosp_virtual_alarm`) and a reference to
+     a light sensor (`isl29035`).
+
+3. It sets the client (the struct that receives callbacks) of the ambient
+light sensor to be the `sosp` structure.
+
+4. Finally, it sets the client (the struct that receives callbacks) of the
+software alarm to be the `sosp` structure.
+
+After everything is wired together, the picture is something like this:
+
+<img src="capsule_wiring.png" width=300px />
+
+
+By the time we get down to around line 396, we've created all of the needed
+capsules, and the boot sequence populates a Hail structure:
 
 ```rust
 let hail = Hail {
@@ -87,69 +154,20 @@ let hail = Hail {
     ...
 ```
 
+Around line 431, the boot sequence calls `start` on the `sosp` capsule, telling
+it to start its service—this is where we will hook in in a moment.
 
-> ##### A brief aside on buffers:
-> 
-> Notice that you have to pass a write buffer to the console for it to use:
-> this buffer has to have a `` `static`` lifetime. This is because low-level
-> hardware drivers, especially those that use DMA, require `` `static`` buffers.
-> Since Tock doesn't promise when a DMA operation will complete, and you
-> need to be able to promise that the buffer outlives the operation, the
-> one lifetime that is assured to be alive at the end of an operation is
-> `` `static``. So that other code which has buffers
-> without a `` `static`` lifetime, such as userspace processes, can use the
-> `Console`, it copies them into its own internal `` `static`` buffer before
-> passing it to the serial port. So the buffer passing architecture looks like
-> this:
-> 
-> ![Console/UART buffer lifetimes](console.png)
->
+Finally, at the very end, the kernel main loop begins.
 
-##### 3.4 Let's make a Hail!
+#### 4. Create a "Hello World" capsule (15m)
 
-The code continues on, creating all of the other capsules that are needed
-by the hail platform. By the time we get down to around line 360, we've
-created all of the capsules we need, and it's time to create the actual
-hail platform structure (`let hail = Hail {` ...).
+Now that you've seen how Tock initializes and uses capsules, including your
+`Sosp` capsule, you're going to fill in the code for `Sosp.` At the end of
+this section, your capsule will sample the light sensor and print the results
+as serial output. But you'll start with something simpler: printing
+"Hello World" to the debug console once on boot.
 
-
-##### 3.5 Loading processes
-
-Once the platform is all set up, the board is responsible for loading processes
-into memory:
-
-```rust
-kernel::process::load_processes(&_sapps as *const u8,
-                                &mut APP_MEMORY,
-                                &mut PROCESSES,
-                                FAULT_RESPONSE);
-```
-
-A Tock process is represented by a `kernel::Process` struct. In principle, a
-platform could load processes by any means. In practice, all existing platforms
-write an array of Tock Binary Format (TBF) entries to flash. The kernel provides
-the `load_processes` helper function that takes in a flash address and begins
-iteratively parsing TBF entries and making `Process`es.
-
-#### 4. Create a "Hello World" capsule
-
-Now that you've seen how Tock initializes and uses capsules, you're going to
-fill in the code for a new one. At the end of this section, your capsule will sample the
-light sensor and print the results as
-serial output. But you'll start with something simpler: printing "Hello World"
-to the debug console once on boot.
-
-To begin, because you're going to be modifying the implementation of kernel
-capsules,  sequence of Hail, make a branch of the Tock repository. This will keep 
-your master branch clean.
-
-```bash
-# Possibly undo any changes from exploring debug! above:
-$ git reset --hard
-$ git checkout -b sosp
-```
-
-Next, open the capsule `capsules/src/sosp.rs`. The kernel boot sequence already
+Open the capsule `capsules/src/sosp.rs`. The kernel boot sequence already
 includes this capsule, but its code is empty. Go to the `start` method in
 the file, it looks like;
 
@@ -169,176 +187,155 @@ debug!("Hello World");
 Compile and program your new kernel:
 
 ```bash
+$ # In boards/hail-sosp
 $ make program
 $ tockloader listen
-No device name specified. Using default "tock"                                                                         Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
+No device name specified. Using default "tock"
+Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
 Listening for serial output.
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/boards/hail/src/accelerate.rs:18: Hello World
+TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/capsules/src/sosp.rs:18: Hello World
 ```
 
-[Sample Solution](https://gist.github.com/alevy/56b0566e2d1a6ba582b7d4c09968ddc9)
+[Sample Solution](https://gist.github.com/alevy/e4cc793d34923e3fc39dee6413dad25b)
 
-#### 5. Extend your capsule to print "Hello World" every second
+#### 5. Extend your capsule to print every second (10m)
 
-In order for your capsule to keep track of time, it will need to depend on
-another capsule that implements the Alarm interface. We'll have to do something
-similar for reading the accelerometer, so this is good practice.
+For your capsule to keep track of time, it depends on another capsule that
+implements the Alarm trait—a Rust trait is a mechanism for defining interfaces.
+In Tock, an Alarm is a free running, wrap-around counter that can issue a
+callback when the counter reaches a certain value.
 
-The Alarm HIL includes several traits, `Alarm`, `Client`, and `Frequency`,
-all in the `kernel::hil::time` module. You'll use the `set_alarm` and `now`
-methods from the `Alarm` trait to set an alarm for a particular value of the
-clock. The `Alarm` trait also has an associated type that implements the
-`Frequency` trait which lets us call its `frequency` method to get the clock
-frequency.
+The [Alarm Hardware Interface Layer (HIL)](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L53)
+defines several traits: `Alarm`, `Client`, and `Frequency`.
 
-Modify your capsule to have a field of the type `&'a Alarm` and to accept an
-`&'a Alarm` in the `new` function.
+You'll ask `Alarm` when `now` is, and then `set_alarm` for a little bit in the
+future. When the alarm triggers, it will call the `fired` callback as
+specified by the `time::Client` trait.
 
-Your capsule will also need to implement the `Client` trait so it can
-receive alarm events. The `Client` trait has a single method:
+##### 5.1 When is now, when is one second from now?
+
+First things first, lets figure out when `now` is:
 
 ```rust
-fn fired(&self)
+let now = self.alarm.now();
 ```
 
-Your capsule should now set an alarm in the `start` method, print the debug
-message and set an alarm again when the alarm fires.
+Great! But.. what is `now`? Seconds since the epoch? Nanoseconds from boot?
+If we examine [the HIL definition](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L54),
+`now` is "current time in hardware clock units."
 
-Finally, you'll need to modify the capsule initialization to pass in an alarm
-implementation. Since lots of other capsules use the alarm, you should use a
-virtual alarm. You can make a new one like this:
+This is where the type of the Alarm (`A: Alarm + 'a` in the definition of
+`Sosp` comes into play. The type defines the time units.  So, calling
+`<A::Frequency>::frequency()` will return the number of counter ticks in one
+second. Which means we could do:
 
 ```rust
-let my_virtual_alarm = static_init!(
-    VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-    VirtualMuxAlarm::new(mux_alarm));
+let one_second_from_now = now + <A::Frequency>::frequency(); // danger!
 ```
 
-and you have to make sure to set your capsule as the client of the virtual alarm after initializing it:
+Unfortunately, things aren't quite that easy.  If you've ever dealt with the
+hazards of mixing signed and unsigned numbers in C, implicit type conversions,
+and the edge cases that can occur especially when you want to handle wraparound
+correctly, you're probably a little nervous.  If we do this addition
+incorrectly, then the whole system could pause for an almost entire cycle of
+the 32-bit counter. Thankfully, Rust provides a helper function to take care of
+cases such as these, `wrapping_add`, which in practice compiles down to the
+correct addition instruction:
 
 ```rust
-my_virtual_alarm.set_client(my_capsule);
+let one_second_from_now = now.wrapping_add(<A::Frequency>::frequency());
 ```
 
-Compile and program your new kernel:
+##### 5.2 Set the alarm
 
-```bash
-$ make program
-$ tockloader listen
-No device name specified. Using default "tock"                                                                         Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
-Listening for serial output.
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/boards/hail/src/accelerate.rs:31: Hello World
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/boards/hail/src/accelerate.rs:31: Hello World
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/boards/hail/src/accelerate.rs:31: Hello World
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/boards/hail/src/accelerate.rs:31: Hello World
-```
-
-[Sample Solution](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1)
-
-#### 6. Extend your capsule to sample the accelerometer once a second
-
-The steps for reading an accelerometer from your capsule are similar to using
-the alarm. You'll use a capsule that implements the NineDof (nine degrees of
-freedom) HIL, which includes the `NineDof` and `NineDofClient` traits, both in
-`kernel::hil::sensors`.
-
-The `NineDof` trait includes the method `read_accelerometer` which initiates an
-accelerometer reading. The `NineDofClient` trait has a single method for receiving readings:
+The [`set_alarm` interface](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L69) looks like this:
 
 ```rust
-fn callback(&self, x: usize, y: usize, z: usize);
+fn set_alarm(&self, tics: u32);
 ```
 
-However, unlike the alarm, there is no virtualization layer for the `NineDof`
-HIL (yet!) and there is already a driver used in Hail that exposes the 9dof
-sensor to userland. Fortunately, we can just remove it for our purposes.
-
-Remove the `ninedof` field from the `Hail` struct definition:
+So putting everything together:
 
 ```rust
-ninedof: &'static capsules::ninedof::NineDof<'static>,
-```
+pub fn start(&self) {
+    let now = self.alarm.now();
+    let one_second_from_now = now.wrapping_add(<A::Frequency>::frequency());
+    self.alarm.set_alarm(one_second_from_now);
+    debug!{"It's currently {} and we set an alarm for {}.", now, one_second_from_now};
 
-and initialization:
-
-```rust
-ninedof: ninedof,
-```
-
-Remove `ninedof` from the system call lookup table in `with_driver`:
-
-```rust
-11 => f(Some(self.ninedof)), // Comment this out
-```
-
-And, finally, remove the initialization of `ninedof` from the boot sequence:
-
-```rust
-let ninedof = static_init!(
-    capsules::ninedof::NineDof<'static>,
-    capsules::ninedof::NineDof::new(fxos8700, kernel::Container::create()));
-hil::ninedof::NineDof::set_client(fxos8700, ninedof);
-```
-
-Follow the same steps you did for adding an alarm to your capsule for the 9dof
-sensor capsule:
-
-  1. Add a `&'a NineDof` field.
-
-  2. Accept one in the `new` function.
-
-  3. Implement the `NineDofClient` trait.
-
-Now, modify the Hail boot sequence passing in the `fxos8700` capsule, which
-implements the `NineDof` trait, to your capsule (it should already be
-initialized). Make sure to set your capsule as its client:
-
-```rust
-{
-  use hil::ninedof::NineDof;
-  fxos8700.set_client(my_capsule);
 }
 ```
 
-Finally, implement logic to initiate a accelerometer reading every second and
-report the results.
+    TOCK_DEBUG(0): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:24: It's currently 323012278 and we set an alarm for 323028278.
 
-![Structure of `sosp` capsule](sosp.png)
 
-Compile and program your kernel:
+##### 5.3 Handle the `fired` callback
 
-```bash
-$ make program
-$ tockloader listen
-No device name specified. Using default "tock"                                                                         Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
-Listening for serial output.
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/boards/hail/src/accelerate.rs:31: 982 33 166
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/boards/hail/src/accelerate.rs:31: 988 31 158
+Currently, our `fired` callback isn't doing anything. Modify the `fired`
+method to print every time it fires and then setup a new alarm so that
+the callback will keep triggering every second:
+
+    TOCK_DEBUG(0): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:24: It's currently 326405717 and we set an alarm for 326421717.
+    TOCK_DEBUG(1): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:33: It's now 326421717.
+    TOCK_DEBUG(2): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:33: It's now 326437718.
+    TOCK_DEBUG(3): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:33: It's now 326453718.
+    ...
+
+[Sample Solution](https://gist.github.com/ppannuto/64a1c6c5dbad4b2f2efa7f6e216927ce)
+
+
+#### 6. Extend your capsule to print a light reading every second (10m)
+
+Printing hardware timer ticks isn't terribly exciting. Let's adapt this to grab
+an ambient light reading every second. In addition to the `time` traits, we can
+see at the top of the file that our Sosp capsule makes use of some `sensors`:
+
+```rust
+use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
+use kernel::hil::time::{self, Alarm, Frequency};
+
+pub struct Sosp<'a, A: Alarm + 'a> {
+    alarm: &'a A,
+    light: &'a AmbientLight,
+}
 ```
 
-[Sample solution](https://gist.github.com/alevy/798d11dbfa5409e0aa56d870b4b7afcf)
+Take a look at the [AmbientLight HIL](https://github.com/helena-project/tock/blob/master/kernel/src/hil/sensors.rs#L35).
+
+
+##### 6.1 Print light readings
+
+1. Change the implementation of `time::Client::fired` to trigger a light reading instead of printing.
+2. Modify the `sensors::AmbientLightClient::callback` to print the `lux` value
+
+If you've implemented everything correctly, you should no longer have any
+warnings when your kernel builds. Try covering you board with your hand, or
+shining your cellphone light at the board:
+
+    TOCK_DEBUG(0): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:24: It's currently 335508024 and we set an alarm for 335524024.
+    TOCK_DEBUG(1): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:40: The ambient light is 352 lux.
+    TOCK_DEBUG(2): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:40: The ambient light is 15 lux.
+    TOCK_DEBUG(3): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:40: The ambient light is 0 lux.
+
+[Sample Solution](https://gist.github.com/ppannuto/d5f8cbfd0e60c984b0b13024686f3134)
 
 #### 7. Some further questions and directions to explore
 
-Your capsule used the fxos8700 and virtual alarm. Take a look at the
+Your capsule used the isl29035 and virtual alarm. Take a look at the
 code behind each of these services:
 
-1. Is the 9DOF sensor on-chip or a separate chip connected over a bus?
+1. Is the isl29035 sensor on-chip or a separate chip connected over a bus?
 
-2. What happens if you request two 9DOF sensors (e.g., accelerometer and magnetometer)
+2. What happens if you request isl29035 readings back-to-back?
 
-   back-to-back?
 3. Is there a limit on how many virtual alarms can be created?
 
 4. How many virtual alarms does the Hail boot sequence create?
 
-#### 8. **Extra credit**: Write a virtualization capsule for 9dof (∞)
+#### 8. **Extra credit**: Read several values into a buffer
 
-Remember how you had to remove the userspace facing `ninedof` driver from Hail
-in order to use the accelerometer in your capsule? That was a bummer...
-
-If you have extra time, try writing a virtualization capsule for the `NineDof`
-HIL that will allow multiple clients to use it. This is a fairly open ended
-task, but you might find inspiration in the `virtua_alarm` and `virtual_i2c`
-capsules.
+Currently, your capsule samples at 1Hz. Modify your capsule to sample
+at 10Hz and put the readings into a 10-element buffer. When the buffer
+is full, so once per second, output all of the readings to the console,
+as well as their average value.
 

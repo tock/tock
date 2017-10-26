@@ -1,17 +1,10 @@
 //! Sample capsule for Tock course at SOSP. It handles an alarm to
 //! sample the ambient light sensor.
-//
-// Author: Philip Levis
-// Date: Jan 12 2017
-//
 
-// I like them sometimes, for formatting -pal
-#![allow(unused_parens)]
-
-use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
+use kernel::hil::time::{self, Alarm, Frequency};
 
-pub struct Sosp<'a, A: Alarm + 'a>  {
+pub struct Sosp<'a, A: Alarm + 'a> {
     alarm: &'a A,
     light: &'a AmbientLight,
 }
@@ -19,26 +12,18 @@ pub struct Sosp<'a, A: Alarm + 'a>  {
 impl<'a, A: Alarm> Sosp<'a, A> {
     pub fn new(alarm: &'a A, light: &'a AmbientLight) -> Sosp<'a, A> {
         Sosp {
-           alarm: alarm,
-           light: light,
+            alarm: alarm,
+            light: light,
         }
     }
 
-    pub fn start(&self) {
-        self.alarm.set_alarm(
-            self.alarm.now().wrapping_add(<A::Frequency>::frequency()));
-    }
+    pub fn start(&self) {}
 }
 
 impl<'a, A: Alarm> time::Client for Sosp<'a, A> {
-    fn fired(&self) {
-        self.light.read_light_intensity();
-    }
+    fn fired(&self) {}
 }
 
 impl<'a, A: Alarm> AmbientLightClient for Sosp<'a, A> {
-    fn callback(&self, lux: usize) {
-        debug!("Light reading: {}", lux);
-        self.start();
-    }
+    fn callback(&self, lux: usize) {}
 }

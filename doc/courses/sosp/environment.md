@@ -1,7 +1,7 @@
 # Tock OS Course Part 1: Getting your environment set up
 
 > While we're getting set up and started, please make sure you have
-> completed all of the [tutorial pre-requisites](./#pre-requisites).
+> completed all of the [tutorial pre-requisites](./#preparation).
 > If you prefer, you can download a
 > [virtual machine image](./#virtual-machine) with all the pre-requisites
 > already installed.
@@ -16,7 +16,7 @@ During this you will:
 
 ## 1. Presentation: Tock's goals, architecture and components
 
-The key contribution of Tock is that it uses Rust's borrow checker as a
+A key contribution of Tock is that it uses Rust's borrow checker as a
 language sandbox for isolation and a cooperative scheduling model for
 concurrency in the kernel.  As a result, isolation is (more or less) free in
 terms of resource consumption at the expense of preemptive scheduling (so a
@@ -27,14 +27,14 @@ loop). This is accomplished by the following architecture:
 
 Tock includes three architectural components:
 
-  - A small trusted kernel, written in Rust, that implements a hardware
+  - A small trusted _kernel_, written in Rust, that implements a hardware
     abstraction layer (HAL), scheduler, and platform-specific configuration.
   - _Capsules_, which are compiled with the kernel and use Rust's type and
     module systems for safety.
   - _Processes_, which use the MPU for protection at runtime.
 
 Read the Tock documentation for more details on its
-[design](https://www.tockos.org/documentation/design).
+[design](https://github.com/helena-project/tock/blob/master/doc/Design.md).
 
 [_Presentation slides are availble here._](presentation/presentation.pdf)
 
@@ -62,30 +62,31 @@ To build the kernel, just type make in the root directory, or in boards/hail/.
 If this is the first time you are trying to make the kernel, cargo and rustup
 will now go ahead and install all the requirements of Tock.
 
-If you're not in a board folder,
-the root Makefile selects a board and architecture to build the kernel for and
-routes all calls to that board's specific Makefile. It's set up with
-`TOCK_BOARD ?= hail`, so it compiles for the Hail board by default. To change
-this default, just change the `TOCK_BOARD` environment variable. For example,
-to compile for the imix instead, `export TOCK_BOARD=imix` or `cd boards/imix/`.
+Kernels must be compiled from within the desired board folder. For example, to
+compile for imix instead, `cd boards/imix/`.
 
 ### Connect to a Hail board
 
-> On Linux, you might need to give your user access to the Hail's serial port. You can do this by adding a udev rule in:
-> `/etc/udev/rules.d/99-hail` containing the rule: `ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"`.
-> Detaching and re-attaching Hail should do the trick.
+> On Linux, you might need to give your user access to the Hail's serial port.
+> You can do this by adding a udev rule:
+>
+>     $ cat /etc/udev/rules.d/99-hail
+>     ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"
+>
+> Afterwards, detach and re-attach the Hail to reload the rule.
 
 To connect your development machine to the Hail, connect them with a micro-USB
 cable. Any cable will do. Hail should come with the Tock kernel and the Hail
 test app pre-loaded. When you plug in Hail, the blue LED should blink slowly
 (about once per second). Pressing the User Button—just to the right of the USB
-plug—should turn on the green LED.
+plug—should turn on the green LED (if the blue LED turned off, the other button
+is the Reset button, make sure you hit the right one!).
 
 The Hail board should appear as a regular serial device (e.g.
-/dev/tty.usbserial-c098e5130006 on my machine). While you can connect with any
-standard serial program (set to 115200 baud), tockloader makes this easier.
-Tockloader can read attributes from connected serial devices, and will
-automatically find your connected Hail. Simply run:
+`/dev/tty.usbserial-c098e5130006` on my mac and `/dev/ttyUSB0` on my Linux box).
+While you can connect with any standard serial program (set to 115200 baud),
+tockloader makes this easier.  Tockloader can read attributes from connected
+serial devices, and will automatically find your connected Hail. Simply run:
 
     $ tockloader listen
     No device name specified. Using default "tock"
@@ -109,24 +110,24 @@ automatically find your connected Hail. Simply run:
 Now that the Hail board is connected and you have verified that the kernel
 compiles, we can flash the Hail board with the latest Tock kernel:
 
+    $ cd boards/hail/
     $ make program
 
 This command will compile the kernel if needed, and then use `tockloader` to
 flash it onto the Hail. When the flash command succeeds, the Hail test app
-should no longer be working (i.e. the blue LED will not be blinking). Instead,
-the red LED will be blinking furiously, a sign that the kernel has panicked.
-
-Don't panic! This is because...
+should still be running and the blue LED will be blinking.
+You now have the bleeding-edge Tock kernel running on your Hail board!
 
 ### Clear out the applications and re-flash the test app.
 
-...the Tock Binary Format (TBF) was recently changed, and is incompatible with the
-app pre-loaded on the Hail board. To fix this, clear it out and re-flash it.
+Lets check what's on the board right now:
 
     $ tockloader list
     ...
     [App 0]
       Name:                  hail
+      Enabled:               True
+      Sticky:                False
       Total Size in Flash:   65536 bytes
     ...
 
@@ -137,12 +138,11 @@ the following command:
 
     $ tockloader erase-apps
 
-The red LED should no longer blink. Compile and re-flash the Hail test app:
+The blue LED should no longer blink, and another `tockloader list` should show
+nothing installed. Compile and re-flash the Hail test app:
 
     $ cd userland/examples/tests/hail/
     $ make program
-
-You now have the bleeding-edge Tock kernel running on your Hail board!
 
 ## 4. (Optional) Familiarize yourself with `tockloader` commands
 The `tockloader` tool is a useful and versatile tool for managing and installing
@@ -153,7 +153,10 @@ and important commands for programming and querying a board.
 
 ### `tockloader install`
 This is the main tockloader command, used to load Tock applications onto a
-board. Use the `--no-replace` flag to install multiple copies of the same app.
+board.
+By default, `tockloader install` adds the new application, but does not erase
+any others, replacing any already existing application with the same name.
+Use the `--no-replace` flag to install multiple copies of the same app.
 In order to install an app, navigate to the correct directory, make the program,
 then issue the install command:
 
@@ -163,6 +166,9 @@ then issue the install command:
 
 > *Tip:* You can add the `--make` flag to have tockloader automatically
 > run make before installing, i.e. `tockloader install --make`
+
+> *Tip:* You can add the `--erase` flag to have tockloader automatically
+> remove other applications when installing a new one.
 
 ### `tockloader uninstall [application name(s)]`
 Removes one or more applications from the board by name.
@@ -196,8 +202,5 @@ board with `make program`.
 Other applications can be found in the `userland/examples/` directory. Try
 loading them on your Hail and then try modifying them. By default,
 `tockloader install` adds the new application, but does not erase any others.
-Not all applications will work well together if they need the same resources.
-
-> *Tip:* You can add the `--erase` flag to have tockloader automatically
-> remove other applications when installing a new one.
+Be aware, not all applications will work well together if they need the same resources.
 
