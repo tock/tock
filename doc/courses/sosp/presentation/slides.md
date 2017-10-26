@@ -40,7 +40,7 @@ header-includes:
 
 ### Definition A
 
-> Kernel, applications and hardware are tightly integrated.
+> Kernel, applications, and hardware are tightly integrated.
 
 ### Definition B
 
@@ -58,9 +58,9 @@ Tock itself provides services to components in the system:
 
 ## Low Resource
 
-  * 10s uA average power draw
+  * 10's of µA average power draw
 
-  * 10s of kBs of RAM
+  * 10's of kBs of RAM
 
   * Moderate clock speeds
 
