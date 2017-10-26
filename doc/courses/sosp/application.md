@@ -216,9 +216,9 @@ we've been working on to send environmental measurements over BLE.
 
 The `ipc.h` interface can be used to send data to the BLE ESS service via
 Tock's inter-process communication mechanism.  Details about how to do this
-are [here](../../../examples/services/ble-env-sense/README.md), and example
+are [here](../../../userspace/examples/services/ble-env-sense/README.md), and example
 code for sending BLE ESS updates is
-[here](../../../examples/services/ble-env-sense/test/main.c).
+[here](../../../userspace/examples/services/ble-env-sense/test/main.c).
 
 Now you should be able to write an app that sends data over BLE.  You can load
 your app alongside the service that's already loaded on the board, and they
