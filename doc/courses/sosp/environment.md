@@ -126,6 +126,8 @@ Lets check what's on the board right now:
     ...
     [App 0]
       Name:                  hail
+      Enabled:               True
+      Sticky:                False
       Total Size in Flash:   65536 bytes
     ...
 
