@@ -8,7 +8,7 @@
 ## 1. Presentation: Process overview, relocation model and system call API
 
 In this section, we're going to learn about processes (a.k.a applications) in
-Tock, and build our own applications.
+Tock, and build our own applications in C.
 
 ## 2. Check your understanding
 
@@ -26,34 +26,11 @@ You'll find the outline of a C application in the directory
 Take a look at the code in `main.c`.  So far, this application merely prints
 "Hello, World!".
 
-The code uses the standard C library routine `snprintf` to compose a message
-using a format string, and then prints it to the console.
-
-It could have accomplished the output by invoking Tock system calls directly,
-but just like in other systems, a user library (in `userland/libtock/`)
-provides a more convenient interface for this and many other purposes.  Let's
-look at the interface for console I/O:
-
-#### Console
-
-You'll notice that this program includes the header file `console.h`.  You can
-find that file in `userland/libtock/console.h`.
-
-The console interface contains the function `putstr` and a couple variants.
-On your development board, this function can be used to send messages over the
-USB connection to your PC.  (What's actually happening on the board is that the
-UART transceiver on the microcontroller sends serial data to another chip
-that then converts the data to USB messages.)
-
-The `putstr` function itself is "synchronous", meaning that it doesn't return
-until the I/O operation has completed.  But your example program instead calls
-`putnstr_async`, which is more fundamental in that it sends the message to print
-and then waits for a "callback" to signal that the operation has been completed.
-(The `putstr` function is implemented by the tock library in terms of
-`putnstr_async`.)
-
-The callback in this program presently does nothing, but you may find it useful
-later.
+What's actually happening under the hood is that `printf` uses the interface in
+`userland/libtock/console.h` to send your message to the microcontroller's
+asynchronous serial transceiver, called the UART.  The UART sends data to
+another chip that translates it to USB messages, which can be received by your
+PC.
 
 ### Loading an application
 
@@ -84,7 +61,7 @@ No device name specified. Using default "tock"
 Using "/dev/cu.usbserial-c098e5130012 - Hail IoT Module - TockOS"
 
 Listening for serial output.
-From tock app: "Hello, World!"
+Hello, World!
 ```
 
 ### Creating your own application
@@ -101,8 +78,7 @@ function you'll find useful today is:
     void delay_ms(uint32_t ms);
 
 This function sleeps until the specified number of milliseconds have passed, and
-then returns.  So we call this function "synchronous": no further code will run
-until the delay is complete.
+then returns.
 
 ## 4. Write an app that periodically samples the on-board sensors
 
@@ -127,7 +103,7 @@ It contains the function:
 #### Temperature
 
 The interface in `temperature.h` is used to measure ambient temperature in degrees
-Celsius. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
+Celsius, times 100. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
 sensor. It contains the function:
 
     int temperature_read_sync(int* temperature);
@@ -139,7 +115,7 @@ argument, and the function returns non-zero in the case of an error.
 
 The interface in `humidity.h` is used to measure the ambient
 [relative humidity](https://en.wikipedia.org/wiki/Relative_humidity) in
-percent. It contains the function:
+percent, times 100. It contains the function:
 
     int humidity_read_sync (unsigned* humi);
 
@@ -204,10 +180,10 @@ we can use Tock to provide the BLE
 [Environmental Sensing Service](https://www.bluetooth.com/specifications/assigned-numbers/environmental-sensing-service-characteristics)
 (ESS).
 
-Currently, the Tock libraries do not support directly
-interacting with the BLE radio. However, we can still access BLE by loading an
-additional process on the board as a service and sending it commands over
-Tock's inter-process communication (IPC) mechanism.
+Currently, the Tock libraries do not support directly interacting with the BLE
+radio. However, we can still access BLE by loading an additional process on the
+board as a service and sending it commands over Tock's inter-process
+communication (IPC) mechanism.
 
 ### Loading the BLE ESS Service
 
@@ -236,7 +212,7 @@ $ tockloader listen
 ...
 ```
 
-### Using the BLE ESS Service from a C application
+### Using the BLE ESS Service from an application
 
 Now that we've got the service loaded, we can extend the application
 we've been working on to send environmental measurements over BLE.
@@ -244,10 +220,10 @@ we've been working on to send environmental measurements over BLE.
 #### IPC to the BLE ESS Service
 
 The `ipc.h` interface can be used to send data to the BLE ESS service via
-Tock's inter-process communication mechanism.  Details about how to do this
-are [here](../../../userland/examples/services/ble-env-sense/README.md), and example
-code for sending BLE ESS updates is
-[here](../../../userland/examples/services/ble-env-sense/test/main.c).
+Tock's inter-process communication mechanism.  Details about how to do this are
+in `userland/examples/services/ble-env-sense/README.md`, and example code for
+sending BLE ESS updates is in
+`userland/examples/services/ble-env-sense/test/main.c`.
 
 Now you should be able to write an app that sends data over BLE.  You can load
 your app alongside the service that's already loaded on the board, and they
