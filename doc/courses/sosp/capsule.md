@@ -34,16 +34,21 @@ of this part of the course.
 
 #### 3. The Tock boot sequence (15m)
 
-Open `boards/hail-sosp/src/main.rs` in your favorite editor.
+> The goal of this section is to give you an overview of how everything fits
+> together. If you aren't familiar with Rust, don't stress too much about the
+> syntax details, which can be a bit gnarly. Just try to read through the code
+> here so you understand when things are getting called and how things are
+> wired together.
 
-> Note that's `hail-sosp`, not `hail`!
+Open `boards/hail-sosp/src/main.rs` in your favorite editor (note that's
+`hail-sosp`, not `hail`).
 
 This file defines a modified version of the Hail platform for this tutorial:
 how it boots, what capsules it uses, and what system calls it supports for
-userland applications. This version of the platform includes an extra capsule,
-which you will write.
+userland applications. This version of the platform includes an extra "sosp"
+capsule, which you will implement in the rest of this tutorial.
 
-If you build the `hail-sosp` board, Rust will emit a preview of coming
+If you build the `hail-sosp` board now, Rust will emit a preview of coming
 attractions as it warns about some of the unused stubs we've included:
 
     ...
@@ -68,17 +73,17 @@ Recall the discussion about how everything in the kernel is statically
 allocated? We can see that here. Every field in `struct Hail` is a reference to
 an object with a static lifetime.
 
-The boot process constructs a `Hail` structure. Once everything is set
-up, the board passes the constructed `hail` to `kernel::main` and
-the kernel is off to the races.
+As we walk through the rest of the boot process, we will construct a `Hail`
+structure. Once everything is set up, the board passes the constructed `hail`
+to `kernel::main` and the kernel is off to the races.
 
 ##### 3.2 How are capsules created?
 
 Scroll down a bit to line 171 to find the `reset_handler`. This is the first
 function that's called on boot. It first has to set up a few things for the
 underlying MCU (the `sam4l`). Around line 190, we create and initialize the
-system console capsule, which is what turns calls to `print!` into bytes sent
-to the USB serial port:
+system console capsule, which is what turns prints into bytes sent to the USB
+serial port:
 
 ```rust
 let console = static_init!(
@@ -94,16 +99,6 @@ The `static_init!` macro allocates a static variable with a call to
 `new`. The first parameter is the type, the second is the expression
 to produce an instance of the type. This call creates a `Console` that
 uses serial port 0 (`USART0`) at 115200 bits per second.
-
-Eventually, once all of the capsules have been created, down around line 396
-the boot sequence populates a Hail structure with all the capsules:
-
-```rust
-let hail = Hail {
-    console: console,
-    sosp: sosp,
-    ...
-```
 
 
 ##### 3.4 Let's make a Hail (including your new capsule)!
@@ -149,12 +144,20 @@ After everything is wired together, the picture is something like this:
 <img src="capsule_wiring.png" width=300px />
 
 
-By the time we get down to around line 390, we've created all of the needed
-capsules, and it's time to create the actual hail platform structure
-(`let hail = Hail {` ...).
+By the time we get down to around line 396, we've created all of the needed
+capsules, and the boot sequence populates a Hail structure:
 
-Finally, around line 431, the boot sequence calls `start` on the `sosp`
-capsule, telling it to start its service.
+```rust
+let hail = Hail {
+    console: console,
+    sosp: sosp,
+    ...
+```
+
+Around line 431, the boot sequence calls `start` on the `sosp` capsule, telling
+it to start its service—this is where we will hook in in a moment.
+
+Finally, at the very end, the kernel main loop begins.
 
 #### 4. Create a "Hello World" capsule
 
@@ -195,90 +198,126 @@ TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/capsules/src/sosp.rs:18: Hello 
 
 [Sample Solution](https://gist.github.com/alevy/e4cc793d34923e3fc39dee6413dad25b)
 
-#### 5. Extend your capsule to print a light reading every second
+#### 5. Extend your capsule to print every second
 
-In order for your capsule to keep track of time, it depends on
-another capsule that implements the Alarm trait. In Tock, an Alarm is
-a free running, wrap-around counter that can issue a callback when the
-counter reaches a certain value.
+For your capsule to keep track of time, it depends on another capsule that
+implements the Alarm trait—a Rust trait is a mechanism for defining interfaces.
+In Tock, an Alarm is a free running, wrap-around counter that can issue a
+callback when the counter reaches a certain value.
 
-The [Alarm HIL](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L53)
-includes several traits, `Alarm`, `Client`, and `Frequency`,
-all contained in the `kernel::hil::time` module. You'll use the
-`set_alarm` and `now` methods from the `Alarm` trait to set an alarm for
-a particular value of the clock. This will call the `fired` callback
-in the `time::Client` trait.
+The [Alarm Hardware Interface Layer (HIL)](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L53)
+defines several traits: `Alarm`, `Client`, and `Frequency`.
 
-To have the software alarm call `fired`, you need to change `start` to
-set the alarm to fire. Change your `start` to call `set_alarm` on
-`self.alarm`, which has the following signature:
+You'll ask `Alarm` when `now` is, and then `set_alarm` for a little bit in the
+future. When the alarm triggers, it will call the `fired` callback as
+specified by the `time::Client` trait.
+
+##### 5.1 When is now, when is one second from now?
+
+First things first, lets figure out when `now` is:
+
+```rust
+let now = self.alarm.now();
+```
+
+Great! But.. what is `now`? Seconds since the epoch? Nanoseconds from boot?
+If we examine [the HIL definition](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L54),
+`now` is "current time in hardware clock units."
+
+This is where the type of the Alarm (`A: Alarm + 'a` in the definition of
+`Sosp` comes into play. The type defines the time units.  So, calling
+`<A::Frequency>::frequency()` will return the number of counter ticks in one
+second. Which means we could do:
+
+```rust
+let one_second_from_now = now + <A::Frequency>::frequency(); // danger!
+```
+
+Unfortunately, things aren't quite that easy.  If you've ever dealt with the
+hazards of mixing signed and unsigned numbers in C, implicit type conversions,
+and the edge cases that can occur especially when you want to handle wraparound
+correctly, you're probably a little nervous.  If we do this addition
+incorrectly, then the whole system could pause for an almost entire cycle of
+the 32-bit counter. Thankfully, Rust provides a helper function to take care of
+cases such as these, `wrapping_add`, which in practice compiles down to the
+correct addition instruction:
+
+```rust
+let one_second_from_now = now.wrapping_add(<A::Frequency>::frequency());
+```
+
+##### 5.2 Set the alarm
+
+The [`set_alarm` interface](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L69) looks like this:
 
 ```rust
 fn set_alarm(&self, tics: u32);
 ```
 
-It takes a single parameter, an unsigned 32-bit number for what counter
-value to issue the callback. You want to set it one second in the future.
-So the argument should add one second to `self.alarm.now()`. How many
-ticks is one second? This is where the type of the Alarm (`A: Alarm + 'a` in
-the definition of `Sosp` comes into play. The type defines the time units.
-So, calling `<A::Frequency>::frequency()` will return the number of counter
-ticks in one second.
-
-We can get the current time in counter ticks, and the number of ticks
-in a second. All we need to do is add them. If you've ever dealt with
-the hazards of mixing signed and unsigned numbers in C, implicit type
-conversions, and the edge cases that can occur especially when you
-want to handle wraparound correctly, you're probably a little nervous.
-If we do this addition incorrectly, then the whole system could pause
-for an almost entire cycle of the 32-bit counter. Thankfully, Rust
-provides a helper function to take care of cases such as these,
-`wrapping_add`, which in practice compiles down to the correct
-addition instruction.
-
-If you put all of this together, it should look like:
+So putting everything together:
 
 ```rust
-
 pub fn start(&self) {
-    self.alarm.set_alarm(
-        self.alarm.now().wrapping_add(<A::Frequency>::frequency()));
+    let now = self.alarm.now();
+    let one_second_from_now = now.wrapping_add(<A::Frequency>::frequency());
+    self.alarm.set_alarm(one_second_from_now);
+    debug!{"It's currently {} and we set an alarm for {}.", now, one_second_from_now};
+
 }
 ```
 
-This will cause the `fired` callback to execute in one second. Next, fill
-in the `fired` callback to request a light reading:
+    TOCK_DEBUG(0): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:24: It's currently 323012278 and we set an alarm for 323028278.
 
+
+##### 5.3 Handle the `fired` callback
+
+Currently, our `fired` callback isn't doing anything. Modify the `fired`
+method to print every time it fires and then setup a new alarm so that
+the callback will keep triggering every second:
+
+    TOCK_DEBUG(0): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:24: It's currently 326405717 and we set an alarm for 326421717.
+    TOCK_DEBUG(1): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:33: It's now 326421717.
+    TOCK_DEBUG(2): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:33: It's now 326437718.
+    TOCK_DEBUG(3): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:33: It's now 326453718.
+    ...
+
+[Sample Solution](https://gist.github.com/ppannuto/64a1c6c5dbad4b2f2efa7f6e216927ce)
+
+
+#### 6. Extend your capsule to print a light reading every second
+
+Printing hardware timer ticks isn't terribly exciting. Let's adapt this to grab
+an ambient light reading every second. In addition to the `time` traits, we can
+see at the top of the file that our Sosp capsule makes use of some `sensors`:
 
 ```rust
-fn fired(&self) {
-    self.light.read_light_intensity();
+use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
+use kernel::hil::time::{self, Alarm, Frequency};
+
+pub struct Sosp<'a, A: Alarm + 'a> {
+    alarm: &'a A,
+    light: &'a AmbientLight,
 }
 ```
 
-Finally, fill in the `callback` in `AmbientLightClient` to print the
-reading to the console, and call `start` again to schedule the next alarm:
+Take a look at the [AmbientLight HIL](https://github.com/helena-project/tock/blob/master/kernel/src/hil/sensors.rs#L35).
 
-```rust
-fn callback(&self, lux: usize) {
-    debug!("Light reading: {}", lux);
-    self.start();
-}
-```
 
-Compile and program your new kernel:
+##### 6.1 Print light readings
 
-```bash
-$ make program
-$ tockloader listen
-No device name specified. Using default "tock"                                                                         Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
-Listening for serial output.
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/capsules/sosp.rs:41: Light reading: 352
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/capsules/sosp.rs:41: Light reading: 352
-TOCK_DEBUG(0): /home/alevy/hack/helena/sosp/tock/capsules/sosp.rs:41: Light reading: 352
-```
+1. Change the implementation of `time::Client::fired` to trigger a light reading instead of printing.
+2. Modify the `sensors::AmbientLightClient::callback` to print the `lux` value
 
-[Sample Solution](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1)
+If you've implemented everything correctly, you should no longer have any
+warnings when your kernel builds. Try covering you board with your hand, or
+shining your cellphone light at the board:
+
+    TOCK_DEBUG(0): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:24: It's currently 335508024 and we set an alarm for 335524024.
+    TOCK_DEBUG(1): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:40: The ambient light is 352 lux.
+    TOCK_DEBUG(2): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:40: The ambient light is 15 lux.
+    TOCK_DEBUG(3): /Volumes/code/helena-project/tock/capsules/src/sosp.rs:40: The ambient light is 0 lux.
+
+[Sample Solution](https://gist.github.com/ppannuto/d5f8cbfd0e60c984b0b13024686f3134)
 
 #### 7. Some further questions and directions to explore
 
@@ -295,10 +334,8 @@ code behind each of these services:
 
 #### 8. **Extra credit**: Read several values into a buffer
 
-Currently, your capasule samples at 1Hz. Modify your capsule to sample
+Currently, your capsule samples at 1Hz. Modify your capsule to sample
 at 10Hz and put the readings into a 10-element buffer. When the buffer
 is full, so once per second, output all of the readings to the console,
 as well as their average value.
-
-
 
