@@ -178,7 +178,7 @@ this section, your capsule will sample the light sensor and print the results
 as serial output. But you'll start with something simpler: printing
 "Hello World" to the debug console once on boot.
 
-Open the capsule `docs/courses/sosp/excercices/capsule/src/lib.rs`. The kernel
+Open the capsule `docs/courses/sosp/excercices/capsule/src/sosp.rs`. The kernel
 boot sequence already includes this capsule, but its code is empty. Go to the
 `start` method in the file, it looks like;
 
