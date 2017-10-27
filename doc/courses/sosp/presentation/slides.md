@@ -192,13 +192,14 @@ int allow(uint32_t driver, uint32_t allow, void* ptr,
 ## C System Calls: `subscribe`
 
 ```c
-typedef void (subscribe_cb)(int, int, int,void*);
+typedef void (subscribe_cb)(int, int, int,
+                            void* userdata);
 
 int subscribe(uint32_t driver, uint32_t subscribe,
               subscribe_cb cb, void* userdata);
 ```
 
-## C System Calls: `yieldk` & `yieldk_for`
+## C System Calls: `yield` & `yield_for`
 
 ```c
 void yield(void);
@@ -219,13 +220,14 @@ static void putstr_cb(int _x, int _y, int _z, void* ud) {
 }
 
 int putnstr(const char *str, size_t len) {
-  putstr_data_t* data;
-  data->buf = str; data->done = false;
+  putstr_data_t data;
+  data.buf = str;
+  data.done = false;
 
   allow(DRIVER_NUM_CONSOLE, 1, str, len);
-  subscribe(DRIVER_NUM_CONSOLE, 1, cb, userdata);
+  subscribe(DRIVER_NUM_CONSOLE, 1, putstr_cb, &data);
   command(DRIVER_NUM_CONSOLE, 1, len, 0);
-  yield_for(&data->done);
+  yield_for(&data.done);
   return ret;
 }
 ```
@@ -234,9 +236,38 @@ int putnstr(const char *str, size_t len) {
 
 ![](ipc.pdf)
 
-## Inter Process Communication API
+## Tock Inter Process Communication Overview
 
-TODO
+*Servers*
+
+ * Register as an IPC service
+ * Call `notify` to trigger callback in connected client
+ * Receive a callback when a client calls `notify`
+
+*Clients*
+
+ * Discover IPC services by application name
+ * Able to share a buffer with a connected service
+ * Call `notify` to trigger callback in connected service
+ * Receive a callback when service calls `notify`
+
+## Inter Process Communication Client API
+
+```c
+// discover IPC service by name
+// returns error code or PID for service
+int ipc_discover(const char* pkg_name);
+
+// shares memory slice at address with IPC service
+int ipc_share(int pid, void* base, int len);
+
+// register for callback on server `notify`
+int ipc_register_client_cb(int pid, subscribe_cb cb,
+                           void* userdata);
+
+// trigger callback in service
+int ipc_notify_svc(int pid);
+```
 
 ## Check your understanding
 
