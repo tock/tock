@@ -501,8 +501,7 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
-    // debug!("Initialization complete. Entering main loop");
-
+    debug!("Initialization complete. Entering main loop");
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
