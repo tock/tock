@@ -13,6 +13,7 @@ extern crate compiler_builtins;
 #[macro_use(debug,static_init)]
 extern crate kernel;
 extern crate sam4l;
+extern crate sosp;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{MuxI2C, I2CDevice};
@@ -24,8 +25,6 @@ use kernel::hil::spi::SpiMaster;
 
 #[macro_use]
 pub mod io;
-#[allow(dead_code)]
-mod test_take_map_cell;
 
 static mut SPI_READ_BUF: [u8; 64] = [0; 64];
 static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
@@ -50,7 +49,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 /// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
-    sosp: &'static capsules::sosp::Sosp<'static,
+    sosp: &'static sosp::Sosp<'static,
                                         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<'static,
@@ -259,8 +258,8 @@ pub unsafe fn reset_handler() {
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm));
     let sosp = static_init!(
-        capsules::sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::sosp::Sosp::new(sosp_virtual_alarm, isl29035));
+        sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        sosp::Sosp::new(sosp_virtual_alarm, isl29035));
     hil::sensors::AmbientLight::set_client(isl29035, sosp);
     sosp_virtual_alarm.set_client(sosp);
 

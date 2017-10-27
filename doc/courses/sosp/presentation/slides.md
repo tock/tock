@@ -28,32 +28,6 @@ A secure operating system for microcontrollers
 
   * Hardware isolated processes for application code
 
-## Use cases
-
-  * Security applications (e.g. authentication keys)
-
-  * Sensor networks
-
-  * Programmable wearables
-
-## Operating System
-
-Tock itself provides services to components in the system:
-
-  * Scheduling
-
-  * Communication
-
-  * Hardware multiplexing
-
-## Low Resource
-
-  * 10's of µA average power draw
-
-  * 10's of kBs of RAM
-
-  * Moderate clock speeds
-
 ## Microcontrollers
 
 System-on-a-chip with integrated flash, SRAM, CPU and a bunch of hardware
@@ -74,6 +48,22 @@ Maybe...
   * Cryptographic accelerators
 
   * Other specialized hardware...
+
+## Low Resource
+
+  * 10's of µA average power draw
+
+  * 10's of kBs of RAM
+
+  * Moderate clock speeds
+
+## Use cases
+
+  * Security applications (e.g. authentication keys)
+
+  * Sensor networks
+
+  * Programmable wearables
 
 ## Two types of components: capsules and processes
 
@@ -274,18 +264,18 @@ int ipc_notify_svc(int pid);
 1. How does a process perform a blocking operation? Can you draw the flow of
    operations when a process calls `delay_ms(1000)`?
 
-2. What is a Grant? How do processes interact with grants? Hint: Think about
-   memory exhaustion.
+2. How would you write an IPC service to print to the console? Which functions
+   would the client need to call?
 
 ## Hands-on: Write a BLE environment sensing application
 
   1. Get an application running on Hail
 
-  2. [Periodically sample on-board
-     sensors](https://gist.github.com/alevy/73d0a1e5c8784df066c86dc5da9d3107)
+  2. [Print "Hello World" every second](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/excercises/app/solutions/sosp-repeat-hello.c)
 
-  3. [Extend your app to report through the `ble-env-sense`
-     service](https://gist.github.com/alevy/a274981a29ffc00230aa16101ee0b89f)
+  3. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/excercises/app/solutions/sosp-sensors.c)
+
+  3. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/excercises/app/solutions/sosp-ble-ess.c)
 
 # Part 3: The kernel
 

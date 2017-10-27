@@ -15,13 +15,13 @@ Tock, and build our own applications in C.
 1. How does a process perform a blocking operation? Can you draw the flow of
    operations when a process calls `delay_ms(1000)`?
 
-2. What is a Grant? How do processes interact with grants? Hint: Think about
-   memory exhaustion.
+2. How would you write an IPC service to print to the console? Which functions
+   would the client need to call?
 
 ## 3. Get a C application running on your board
 
 You'll find the outline of a C application in the directory
-`userland/examples/sosp`.
+`docs/courses/sosp/excercises/app`.
 
 Take a look at the code in `main.c`.  So far, this application merely prints
 "Hello, World!".

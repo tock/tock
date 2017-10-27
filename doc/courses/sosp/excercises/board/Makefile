@@ -3,7 +3,7 @@
 TARGET=thumbv7em-none-eabi
 PLATFORM=hail-sosp
 
-include ../Makefile.common
+include ../../../../../boards/Makefile.common
 
 TOCKLOADER=tockloader
 

@@ -1,6 +1,13 @@
 //! Sample capsule for Tock course at SOSP. It handles an alarm to
 //! sample the ambient light sensor.
 
+#![feature(const_fn,const_cell_new)]
+#![no_std]
+
+#[allow(unused_imports)]
+#[macro_use(debug)]
+extern crate kernel;
+
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time::{self, Alarm, Frequency};
 

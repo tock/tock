@@ -45,8 +45,7 @@ of this part of the course.
 > here so you understand when things are getting called and how things are
 > wired together.
 
-Open `boards/hail-sosp/src/main.rs` in your favorite editor (note that's
-`hail-sosp`, not `hail`).
+Open `doc/courses/sosp/excerices/board/src/main.rs` in your favorite editor.
 
 This file defines a modified version of the Hail platform for this tutorial:
 how it boots, what capsules it uses, and what system calls it supports for
@@ -124,8 +123,8 @@ line 258, it initializes an instance of the `Sosp` capsule:
                VirtualMuxAlarm<'static, sam4l::ast::Ast>,
                VirtualMuxAlarm::new(mux_alarm));
 /* 2 */    let sosp = static_init!(
-               capsules::sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-               capsules::sosp::Sosp::new(sosp_virtual_alarm, isl29035));
+               sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+               sosp::Sosp::new(sosp_virtual_alarm, isl29035));
 /* 3 */    hil::sensors::AmbientLight::set_client(isl29035, sosp);
 /* 4 */    sosp_virtual_alarm.set_client(sosp);
 ```
@@ -137,7 +136,7 @@ receive callbacks when time has passed.
 
 2. It instantiates an `Sosp`.
    - Recall that the first parameter to `static_init!` is the type, and the
-     second is the instantiating function. `capsules::sosp::Sosp` is a generic
+     second is the instantiating function. `sosp::Sosp` is a generic
      type with two parameters:
        - a lifetime: `'static`
        - the type of its software alarm: `VirtualMuxAlarm<'static, sam4l::ast::Ast>`).
@@ -179,9 +178,9 @@ this section, your capsule will sample the light sensor and print the results
 as serial output. But you'll start with something simpler: printing
 "Hello World" to the debug console once on boot.
 
-Open the capsule `capsules/src/sosp.rs`. The kernel boot sequence already
-includes this capsule, but its code is empty. Go to the `start` method in
-the file, it looks like;
+Open the capsule `docs/courses/sosp/excercices/capsule/src/lib.rs`. The kernel
+boot sequence already includes this capsule, but its code is empty. Go to the
+`start` method in the file, it looks like;
 
 
 ```rust
@@ -199,7 +198,7 @@ debug!("Hello World");
 Compile and program your new kernel:
 
 ```bash
-$ cd boards/hail-sosp
+$ cd docs/courses/sosp/excercises/board
 $ make program
 $ tockloader listen
 No device name specified. Using default "tock"

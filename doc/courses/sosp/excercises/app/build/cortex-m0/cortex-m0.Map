@@ -1,0 +1,909 @@
+Archive member included to satisfy reference by file (symbol)
+
+../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+                              (_start)
+../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+                              ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o) (yield)
+../../../../../userland/newlib/libc.a(lib_a-puts.o)
+                              build/cortex-m0/main.o (puts)
+../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-puts.o) (__swbuf_r)
+../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-puts.o) (__swsetup_r)
+../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-wbuf.o) (_fflush_r)
+../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-puts.o) (__sinit)
+../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-findfp.o) (_fwalk)
+../../../../../userland/newlib/libc.a(lib_a-impure.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-fflush.o) (_global_impure_ptr)
+../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-wsetup.o) (__smakebuf_r)
+../../../../../userland/newlib/libc.a(lib_a-memset.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-findfp.o) (memset)
+../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-wsetup.o) (_free_r)
+../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-findfp.o) (_malloc_r)
+../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o) (_sbrk_r)
+../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-findfp.o) (__sread)
+../../../../../userland/newlib/libc.a(lib_a-writer.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-stdio.o) (_write_r)
+../../../../../userland/newlib/libc.a(lib_a-closer.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-stdio.o) (_close_r)
+../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-makebuf.o) (_fstat_r)
+../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-makebuf.o) (_isatty_r)
+../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-stdio.o) (_lseek_r)
+../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o) (__malloc_lock)
+../../../../../userland/newlib/libc.a(lib_a-readr.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-stdio.o) (_read_r)
+../../../../../userland/newlib/libc.a(lib_a-reent.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o) (errno)
+../../../../../userland/libc++/libgcc.a(_thumb1_case_uqi.o)
+                              ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o) (__gnu_thumb1_case_uqi)
+../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                              ../../../../../userland/newlib/libc.a(lib_a-isattyr.o) (_isatty)
+../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+                              ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o) (putnstr)
+../../../../../userland/newlib/libc.a(lib_a-errno.o)
+                              ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o) (__errno)
+../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+                              ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o) (malloc)
+../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+                              ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o) (strncpy)
+
+Allocating common symbols
+Common symbol       size              file
+
+errno               0x4               ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+
+Discarded input sections
+
+ .text          0x0000000000000000        0x0 build/cortex-m0/main.o
+ .text          0x0000000000000000        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_enqueue
+                0x0000000000000000       0x6c ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_app_memory_begins_at
+                0x0000000000000000        0xc ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_app_memory_ends_at
+                0x0000000000000000        0xc ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_app_flash_begins_at
+                0x0000000000000000        0xc ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_app_flash_ends_at
+                0x0000000000000000        0xc ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_app_grant_begins_at
+                0x0000000000000000        0xc ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_app_number_writeable_flash_regions
+                0x0000000000000000        0xc ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_app_writeable_flash_region_begins_at
+                0x0000000000000000        0xc ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_app_writeable_flash_region_ends_at
+                0x0000000000000000        0xc ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.driver_exists
+                0x0000000000000000       0x12 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text.tock_strerror
+                0x0000000000000000       0xa0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .rodata.tock_strerror.str1.1
+                0x0000000000000000      0x1aa ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .text.__swbuf  0x0000000000000000       0x20 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .text.fflush   0x0000000000000000       0x40 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .text.__fp_unlock
+                0x0000000000000000        0x4 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .text.__fp_lock
+                0x0000000000000000        0x4 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .text._cleanup
+                0x0000000000000000       0x18 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .text.__fp_lock_all
+                0x0000000000000000       0x30 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .text.__fp_unlock_all
+                0x0000000000000000       0x30 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .text._fwalk   0x0000000000000000       0x3a ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .text.__seofread
+                0x0000000000000000        0x4 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .text.cleanup_glue
+                0x0000000000000000       0x1a ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .text._reclaim_reent
+                0x0000000000000000       0xd8 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .text          0x0000000000000000       0x14 ../../../../../userland/libc++/libgcc.a(_thumb1_case_uqi.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .text._unlink  0x0000000000000000        0x6 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .text._open    0x0000000000000000        0xa ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .text._exit    0x0000000000000000        0x2 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .text._getpid  0x0000000000000000        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .text._kill    0x0000000000000000        0x6 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .text          0x0000000000000000        0x0 ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+FLASH            0x0000000080000000 0x0000000000040000 xr
+SRAM             0x0000000000000000 0x0000000000010000 xrw
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+                0x0000000000000800                STACK_SIZE = 0x800
+                0x0000000000000400                APP_HEAP_SIZE = 0x400
+                0x0000000000000400                KERNEL_HEAP_SIZE = 0x400
+START GROUP
+LOAD build/cortex-m0/main.o
+LOAD ../../../../../userland/libtock/build/cortex-m0/libtock.a
+LOAD ../../../../../userland/newlib/libc.a
+LOAD ../../../../../userland/newlib/libm.a
+LOAD ../../../../../userland/libc++/libstdc++.a
+LOAD ../../../../../userland/libc++/libsupc++.a
+LOAD ../../../../../userland/libc++/libgcc.a
+END GROUP
+                0x0000000000040000                PROG_LENGTH = 0x40000
+                0x0000000000010000                RAM_LENGTH = 0x10000
+
+.text           0x0000000080000000      0xddc
+                0x0000000080000000                _text = .
+ *(.start)
+ .start         0x0000000080000000        0xc ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+                0x0000000080000000                _start
+ *(.text*)
+ .text.startup.main
+                0x000000008000000c       0x24 build/cortex-m0/main.o
+                0x000000008000000c                main
+ .text.yield    0x0000000080000030       0x64 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+                0x0000000080000030                yield
+ .text.yield_for
+                0x0000000080000094       0x12 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+                0x0000000080000094                yield_for
+ .text.subscribe
+                0x00000000800000a6        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+                0x00000000800000a6                subscribe
+ .text.command  0x00000000800000aa        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+                0x00000000800000aa                command
+ .text.allow    0x00000000800000ae        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+                0x00000000800000ae                allow
+ .text.memop    0x00000000800000b2        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+                0x00000000800000b2                memop
+ *fill*         0x00000000800000b6        0x2 ff
+ .text._puts_r  0x00000000800000b8       0xdc ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+                0x00000000800000b8                _puts_r
+ .text.puts     0x0000000080000194       0x1c ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+                0x0000000080000194                puts
+ .text.__swbuf_r
+                0x00000000800001b0       0xc8 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+                0x00000000800001b0                __swbuf_r
+ .text.__swsetup_r
+                0x0000000080000278      0x108 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+                0x0000000080000278                __swsetup_r
+ .text.__sflush_r
+                0x0000000080000380      0x11c ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+                0x0000000080000380                __sflush_r
+ .text._fflush_r
+                0x000000008000049c       0x74 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+                0x000000008000049c                _fflush_r
+ .text._cleanup_r
+                0x0000000080000510       0x20 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x0000000080000510                _cleanup_r
+ .text.std.isra.0
+                0x0000000080000530       0x64 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .text.__sfmoreglue
+                0x0000000080000594       0x2c ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x0000000080000594                __sfmoreglue
+ .text.__sfp_lock_acquire
+                0x00000000800005c0        0x2 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x00000000800005c0                __sfp_lock_acquire
+ .text.__sfp_lock_release
+                0x00000000800005c2        0x2 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x00000000800005c2                __sfp_lock_release
+ .text.__sinit_lock_acquire
+                0x00000000800005c4        0x2 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x00000000800005c4                __sinit_lock_acquire
+ .text.__sinit_lock_release
+                0x00000000800005c6        0x2 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x00000000800005c6                __sinit_lock_release
+ .text.__sinit  0x00000000800005c8       0x84 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x00000000800005c8                __sinit
+ .text.__sfp    0x000000008000064c       0x94 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x000000008000064c                __sfp
+ .text._fwalk_reent
+                0x00000000800006e0       0x44 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+                0x00000000800006e0                _fwalk_reent
+ .text.__swhatbuf_r
+                0x0000000080000724       0x50 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+                0x0000000080000724                __swhatbuf_r
+ .text.__smakebuf_r
+                0x0000000080000774       0x98 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+                0x0000000080000774                __smakebuf_r
+ .text.memset   0x000000008000080c       0x10 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+                0x000000008000080c                memset
+ .text._free_r  0x000000008000081c       0xa0 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+                0x000000008000081c                _free_r
+ .text._malloc_r
+                0x00000000800008bc       0xcc ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+                0x00000000800008bc                _malloc_r
+ .text._sbrk_r  0x0000000080000988       0x30 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+                0x0000000080000988                _sbrk_r
+ .text.__sread  0x00000000800009b8       0x28 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+                0x00000000800009b8                __sread
+ .text.__swrite
+                0x00000000800009e0       0x38 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+                0x00000000800009e0                __swrite
+ .text.__sseek  0x0000000080000a18       0x2c ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+                0x0000000080000a18                __sseek
+ .text.__sclose
+                0x0000000080000a44        0xc ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+                0x0000000080000a44                __sclose
+ .text._write_r
+                0x0000000080000a50       0x34 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+                0x0000000080000a50                _write_r
+ .text._close_r
+                0x0000000080000a84       0x30 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+                0x0000000080000a84                _close_r
+ .text._fstat_r
+                0x0000000080000ab4       0x30 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+                0x0000000080000ab4                _fstat_r
+ .text._isatty_r
+                0x0000000080000ae4       0x30 ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+                0x0000000080000ae4                _isatty_r
+ .text._lseek_r
+                0x0000000080000b14       0x34 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+                0x0000000080000b14                _lseek_r
+ .text.__malloc_lock
+                0x0000000080000b48        0x2 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+                0x0000000080000b48                __malloc_lock
+ .text.__malloc_unlock
+                0x0000000080000b4a        0x2 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+                0x0000000080000b4a                __malloc_unlock
+ .text._read_r  0x0000000080000b4c       0x34 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+                0x0000000080000b4c                _read_r
+ .text._isatty  0x0000000080000b80        0x6 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                0x0000000080000b80                _isatty
+ .text._write   0x0000000080000b86       0x10 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                0x0000000080000b86                _write
+ .text._close   0x0000000080000b96        0x6 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                0x0000000080000b96                _close
+ .text._fstat   0x0000000080000b9c        0xa ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                0x0000000080000b9c                _fstat
+ .text._lseek   0x0000000080000ba6        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                0x0000000080000ba6                _lseek
+ .text._read    0x0000000080000baa        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                0x0000000080000baa                _read
+ .text._sbrk    0x0000000080000bae       0x1e ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                0x0000000080000bae                _sbrk
+ .text.putnstr_async
+                0x0000000080000bcc       0x36 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+                0x0000000080000bcc                putnstr_async
+ *fill*         0x0000000080000c02        0x2 ff
+ .text.putnstr  0x0000000080000c04       0xa0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+                0x0000000080000c04                putnstr
+ .text.putstr_cb
+                0x0000000080000ca4       0x50 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .text.__errno  0x0000000080000cf4       0x18 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+                0x0000000080000cf4                __errno
+ .text.malloc   0x0000000080000d0c       0x1c ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+                0x0000000080000d0c                malloc
+ .text.free     0x0000000080000d28       0x1c ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+                0x0000000080000d28                free
+ .text.strncpy  0x0000000080000d44       0x2a ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+                0x0000000080000d44                strncpy
+ *(.rodata*)
+ .rodata.main.str1.1
+                0x0000000080000d6e        0xe build/cortex-m0/main.o
+ .rodata.__sf_fake_stderr
+                0x0000000080000d7c       0x20 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x0000000080000d7c                __sf_fake_stderr
+ .rodata.__sf_fake_stdin
+                0x0000000080000d9c       0x20 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x0000000080000d9c                __sf_fake_stdin
+ .rodata.__sf_fake_stdout
+                0x0000000080000dbc       0x20 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                0x0000000080000dbc                __sf_fake_stdout
+ *(.syscalls)
+                0x0000000080000ddc                _etext = .
+
+.glue_7         0x0000000080000ddc        0x0
+ .glue_7        0x0000000080000ddc        0x0 linker stubs
+
+.glue_7t        0x0000000080000ddc        0x0
+ .glue_7t       0x0000000080000ddc        0x0 linker stubs
+
+.vfp11_veneer   0x0000000080000ddc        0x0
+ .vfp11_veneer  0x0000000080000ddc        0x0 linker stubs
+
+.v4_bx          0x0000000080000ddc        0x0
+ .v4_bx         0x0000000080000ddc        0x0 linker stubs
+
+.iplt           0x0000000080000ddc        0x0
+ .iplt          0x0000000080000ddc        0x0 build/cortex-m0/main.o
+
+.rel.dyn        0x0000000080000ddc        0x0
+ .rel.iplt      0x0000000080000ddc        0x0 build/cortex-m0/main.o
+ .rel.got       0x0000000080000ddc        0x0 build/cortex-m0/main.o
+
+.app_state
+ *(.app_state)
+                [!provide]                        PROVIDE (__exidx_start, .)
+
+.ARM.exidx
+ *(.ARM.exidx* .gnu.linkonce.armexidx.*)
+                [!provide]                        PROVIDE (__exidx_end, .)
+                0x0000000080000ddc                _sram_start = .
+
+.got            0x0000000000000000       0x60 load address 0x0000000080000ddc
+                0x0000000000000000                _got = .
+ *(.got*)
+ .got           0x0000000000000000       0x54 build/cortex-m0/main.o
+ .got.plt       0x0000000000000054        0xc build/cortex-m0/main.o
+                0x0000000000000054                _GLOBAL_OFFSET_TABLE_
+                0x0000000000000060                _egot = .
+                0x0000000000000060                _plt = .
+ *(.got.plt*)
+                0x0000000000000060                _eplt = .
+
+.data           0x0000000000000060       0x68 load address 0x0000000080000e3c
+                0x0000000000000060                _data = .
+ *(.data*)
+ .data          0x0000000000000060        0x0 build/cortex-m0/main.o
+ .data          0x0000000000000060        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .data          0x0000000000000060        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .data          0x0000000000000060        0x0 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .data          0x0000000000000060        0x0 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .data          0x0000000000000060        0x0 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .data          0x0000000000000060        0x0 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .data          0x0000000000000060        0x0 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .data          0x0000000000000060        0x0 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .data          0x0000000000000060        0x0 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .data.rel.impure_data
+                0x0000000000000060       0x60 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .data.rel.local._impure_ptr
+                0x00000000000000c0        0x4 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+                0x00000000000000c0                _impure_ptr
+ .data.rel.ro.local._global_impure_ptr
+                0x00000000000000c4        0x4 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+                0x00000000000000c4                _global_impure_ptr
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/libc++/libgcc.a(_thumb1_case_uqi.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .data          0x00000000000000c8        0x0 ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+                0x00000000000000c8                _edata = .
+
+.igot.plt       0x00000000000000c8        0x0 load address 0x0000000080000ea4
+ .igot.plt      0x00000000000000c8        0x0 build/cortex-m0/main.o
+
+.bss            0x00000000000000c8      0x160 load address 0x0000000080000ea4
+                0x00000000000000c8                _bss = .
+ *(.bss*)
+ .bss           0x00000000000000c8        0x0 build/cortex-m0/main.o
+ .bss           0x00000000000000c8        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .bss           0x00000000000000c8        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .bss.task_cur  0x00000000000000c8        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .bss.task_last
+                0x00000000000000cc        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .bss.task_queue
+                0x00000000000000d0      0x140 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .bss           0x0000000000000210        0x0 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .bss.__malloc_free_list
+                0x0000000000000210        0x4 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+                0x0000000000000210                __malloc_free_list
+ .bss.__malloc_sbrk_start
+                0x0000000000000214        0x4 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+                0x0000000000000214                __malloc_sbrk_start
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/libc++/libgcc.a(_thumb1_case_uqi.o)
+ .bss           0x0000000000000218        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .bss.__dso_handle
+                0x0000000000000218        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                0x0000000000000218                __dso_handle
+ .bss           0x000000000000021c        0x0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .bss.putstr_head
+                0x000000000000021c        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .bss.putstr_tail
+                0x0000000000000220        0x4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .bss           0x0000000000000224        0x0 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .bss           0x0000000000000224        0x0 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .bss           0x0000000000000224        0x0 ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+ *(COMMON)
+ COMMON         0x0000000000000224        0x4 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+                0x0000000000000224                errno
+                0x0000000000000228                _ebss = .
+
+.stack          0x0000000000000228      0x800 load address 0x0000000080000ea4
+                0x0000000000000228                _stack = .
+                0x0000000000000a28                . = (. + STACK_SIZE)
+ *fill*         0x0000000000000228      0x800 
+                0x0000000000000a28                _estack = .
+
+.app_heap       0x0000000000000a28      0x400 load address 0x0000000080000ea4
+                0x0000000000000a28                _app_heap = .
+                0x0000000000000e28                . = (. + APP_HEAP_SIZE)
+ *fill*         0x0000000000000a28      0x400 
+                0x0000000000000e28                _eapp_heap = .
+
+.kernel_heap    0x0000000000000e28      0x400 load address 0x0000000080000ea4
+                0x0000000000000e28                _kernel_heap = .
+                0x0000000000001228                . = (. + KERNEL_HEAP_SIZE)
+ *fill*         0x0000000000000e28      0x400 
+                0x0000000000001228                _ekernel_heap = .
+                0x0000000000001228                _sram_end = .
+OUTPUT(build/cortex-m0/cortex-m0.elf elf32-littlearm)
+
+.GCC.command.line
+                0x0000000000000000      0x66b
+ .GCC.command.line
+                0x0000000000000000      0x46e build/cortex-m0/main.o
+ .GCC.command.line
+                0x000000000000046e      0x11e ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+                                        0x40c (size before relaxing)
+ .GCC.command.line
+                0x000000000000058c       0x49 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+                                        0x40c (size before relaxing)
+ .GCC.command.line
+                0x00000000000005d5       0x47 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                                        0x40a (size before relaxing)
+ .GCC.command.line
+                0x000000000000061c       0x4f ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+                                        0x412 (size before relaxing)
+
+.comment        0x0000000000000000       0x43
+ .comment       0x0000000000000000       0x1d build/cortex-m0/main.o
+                                         0x1e (size before relaxing)
+ .comment       0x000000000000001d       0x1e ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .comment       0x000000000000001d       0x1e ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .comment       0x000000000000001d       0x26 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+                                         0x27 (size before relaxing)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .comment       0x0000000000000043       0x1e ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .comment       0x0000000000000043       0x1e ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .comment       0x0000000000000043       0x27 ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+
+.ARM.attributes
+                0x0000000000000000       0x31
+ .ARM.attributes
+                0x0000000000000000       0x31 build/cortex-m0/main.o
+ .ARM.attributes
+                0x0000000000000031       0x31 ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .ARM.attributes
+                0x0000000000000062       0x31 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .ARM.attributes
+                0x0000000000000093       0x2c ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .ARM.attributes
+                0x00000000000000bf       0x2c ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .ARM.attributes
+                0x00000000000000eb       0x2c ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .ARM.attributes
+                0x0000000000000117       0x2c ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .ARM.attributes
+                0x0000000000000143       0x2c ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .ARM.attributes
+                0x000000000000016f       0x2c ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .ARM.attributes
+                0x000000000000019b       0x2c ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .ARM.attributes
+                0x00000000000001c7       0x2c ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .ARM.attributes
+                0x00000000000001f3       0x2c ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .ARM.attributes
+                0x000000000000021f       0x2c ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .ARM.attributes
+                0x000000000000024b       0x2c ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .ARM.attributes
+                0x0000000000000277       0x2c ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .ARM.attributes
+                0x00000000000002a3       0x2c ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .ARM.attributes
+                0x00000000000002cf       0x2c ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .ARM.attributes
+                0x00000000000002fb       0x2c ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .ARM.attributes
+                0x0000000000000327       0x2c ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .ARM.attributes
+                0x0000000000000353       0x2c ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .ARM.attributes
+                0x000000000000037f       0x2c ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .ARM.attributes
+                0x00000000000003ab       0x2c ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .ARM.attributes
+                0x00000000000003d7       0x2c ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .ARM.attributes
+                0x0000000000000403       0x2c ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .ARM.attributes
+                0x000000000000042f       0x23 ../../../../../userland/libc++/libgcc.a(_thumb1_case_uqi.o)
+ .ARM.attributes
+                0x0000000000000452       0x31 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .ARM.attributes
+                0x0000000000000483       0x31 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .ARM.attributes
+                0x00000000000004b4       0x2c ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .ARM.attributes
+                0x00000000000004e0       0x2c ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .ARM.attributes
+                0x000000000000050c       0x2c ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+
+.debug_info     0x0000000000000000    0x14815
+ .debug_info    0x0000000000000000      0x9ae build/cortex-m0/main.o
+ .debug_info    0x00000000000009ae      0xa0c ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .debug_info    0x00000000000013ba      0xfee ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .debug_info    0x00000000000023a8      0xc53 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .debug_info    0x0000000000002ffb      0xbdb ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .debug_info    0x0000000000003bd6      0xb53 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .debug_info    0x0000000000004729      0xc9b ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .debug_info    0x00000000000053c4      0xf6d ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .debug_info    0x0000000000006331      0xbd6 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .debug_info    0x0000000000006f07      0x8ab ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .debug_info    0x00000000000077b2      0xe3f ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .debug_info    0x00000000000085f1      0xde0 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .debug_info    0x00000000000093d1      0xb0c ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .debug_info    0x0000000000009edd      0xbb2 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .debug_info    0x000000000000aa8f      0x960 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .debug_info    0x000000000000b3ef      0xd5b ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .debug_info    0x000000000000c14a      0x9a3 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .debug_info    0x000000000000caed      0x956 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .debug_info    0x000000000000d443      0xb68 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .debug_info    0x000000000000dfab      0x956 ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .debug_info    0x000000000000e901      0x986 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .debug_info    0x000000000000f287      0x8de ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .debug_info    0x000000000000fb65      0x99c ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .debug_info    0x0000000000010501      0xa67 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .debug_info    0x0000000000010f68       0xa0 ../../../../../userland/libc++/libgcc.a(_thumb1_case_uqi.o)
+ .debug_info    0x0000000000011008      0xf4e ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .debug_info    0x0000000000011f56      0xdc5 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .debug_info    0x0000000000012d1b      0x8d2 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .debug_info    0x00000000000135ed      0x928 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .debug_info    0x0000000000013f15      0x900 ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+
+.debug_abbrev   0x0000000000000000     0x3c6b
+ .debug_abbrev  0x0000000000000000      0x1aa build/cortex-m0/main.o
+ .debug_abbrev  0x00000000000001aa      0x19d ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .debug_abbrev  0x0000000000000347      0x29c ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .debug_abbrev  0x00000000000005e3      0x282 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .debug_abbrev  0x0000000000000865      0x233 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .debug_abbrev  0x0000000000000a98      0x208 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .debug_abbrev  0x0000000000000ca0      0x29d ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .debug_abbrev  0x0000000000000f3d      0x32c ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .debug_abbrev  0x0000000000001269      0x1ef ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .debug_abbrev  0x0000000000001458      0x15c ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .debug_abbrev  0x00000000000015b4      0x2a3 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .debug_abbrev  0x0000000000001857      0x197 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .debug_abbrev  0x00000000000019ee      0x275 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .debug_abbrev  0x0000000000001c63      0x2c7 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .debug_abbrev  0x0000000000001f2a      0x1df ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .debug_abbrev  0x0000000000002109      0x225 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .debug_abbrev  0x000000000000232e      0x1e1 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .debug_abbrev  0x000000000000250f      0x1da ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .debug_abbrev  0x00000000000026e9      0x1e9 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .debug_abbrev  0x00000000000028d2      0x1da ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .debug_abbrev  0x0000000000002aac      0x1eb ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .debug_abbrev  0x0000000000002c97      0x19d ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .debug_abbrev  0x0000000000002e34      0x1dc ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .debug_abbrev  0x0000000000003010      0x221 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .debug_abbrev  0x0000000000003231       0x14 ../../../../../userland/libc++/libgcc.a(_thumb1_case_uqi.o)
+ .debug_abbrev  0x0000000000003245      0x28e ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .debug_abbrev  0x00000000000034d3      0x2c4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .debug_abbrev  0x0000000000003797      0x178 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .debug_abbrev  0x000000000000390f      0x1c6 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .debug_abbrev  0x0000000000003ad5      0x196 ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+
+.debug_loc      0x0000000000000000     0x2217
+ .debug_loc     0x0000000000000000       0x38 build/cortex-m0/main.o
+ .debug_loc     0x0000000000000038      0x45f ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .debug_loc     0x0000000000000497      0x209 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .debug_loc     0x00000000000006a0      0x128 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .debug_loc     0x00000000000007c8       0x7e ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .debug_loc     0x0000000000000846      0x2ab ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .debug_loc     0x0000000000000af1      0x211 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .debug_loc     0x0000000000000d02      0x199 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .debug_loc     0x0000000000000e9b      0x213 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .debug_loc     0x00000000000010ae       0x72 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .debug_loc     0x0000000000001120       0xe8 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .debug_loc     0x0000000000001208      0x222 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .debug_loc     0x000000000000142a       0x4d ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .debug_loc     0x0000000000001477      0x302 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .debug_loc     0x0000000000001779       0xa5 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .debug_loc     0x000000000000181e       0x4d ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .debug_loc     0x000000000000186b       0x79 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .debug_loc     0x00000000000018e4       0x4d ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .debug_loc     0x0000000000001931       0xa5 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .debug_loc     0x00000000000019d6       0xa5 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .debug_loc     0x0000000000001a7b       0xcb ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .debug_loc     0x0000000000001b46      0x21d ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .debug_loc     0x0000000000001d63      0x34d ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .debug_loc     0x00000000000020b0       0x58 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .debug_loc     0x0000000000002108      0x10f ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+
+.debug_aranges  0x0000000000000000      0x548
+ .debug_aranges
+                0x0000000000000000       0x20 build/cortex-m0/main.o
+ .debug_aranges
+                0x0000000000000020       0x20 ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .debug_aranges
+                0x0000000000000040       0xa0 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .debug_aranges
+                0x00000000000000e0       0x28 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .debug_aranges
+                0x0000000000000108       0x28 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .debug_aranges
+                0x0000000000000130       0x20 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .debug_aranges
+                0x0000000000000150       0x30 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .debug_aranges
+                0x0000000000000180       0x68 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .debug_aranges
+                0x00000000000001e8       0x28 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .debug_aranges
+                0x0000000000000210       0x18 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .debug_aranges
+                0x0000000000000228       0x28 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .debug_aranges
+                0x0000000000000250       0x20 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .debug_aranges
+                0x0000000000000270       0x20 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .debug_aranges
+                0x0000000000000290       0x20 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .debug_aranges
+                0x00000000000002b0       0x20 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .debug_aranges
+                0x00000000000002d0       0x40 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .debug_aranges
+                0x0000000000000310       0x20 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .debug_aranges
+                0x0000000000000330       0x20 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .debug_aranges
+                0x0000000000000350       0x20 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .debug_aranges
+                0x0000000000000370       0x20 ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .debug_aranges
+                0x0000000000000390       0x20 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .debug_aranges
+                0x00000000000003b0       0x20 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .debug_aranges
+                0x00000000000003d0       0x20 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .debug_aranges
+                0x00000000000003f0       0x28 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .debug_aranges
+                0x0000000000000418       0x20 ../../../../../userland/libc++/libgcc.a(_thumb1_case_uqi.o)
+ .debug_aranges
+                0x0000000000000438       0x78 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .debug_aranges
+                0x00000000000004b0       0x30 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .debug_aranges
+                0x00000000000004e0       0x20 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .debug_aranges
+                0x0000000000000500       0x28 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .debug_aranges
+                0x0000000000000528       0x20 ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+
+.debug_ranges   0x0000000000000000      0x530
+ .debug_ranges  0x0000000000000000       0x10 build/cortex-m0/main.o
+ .debug_ranges  0x0000000000000010       0x10 ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .debug_ranges  0x0000000000000020       0x90 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .debug_ranges  0x00000000000000b0       0x70 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .debug_ranges  0x0000000000000120       0x30 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .debug_ranges  0x0000000000000150       0x40 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .debug_ranges  0x0000000000000190       0x68 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .debug_ranges  0x00000000000001f8       0x58 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .debug_ranges  0x0000000000000250       0x18 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .debug_ranges  0x0000000000000268       0x30 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .debug_ranges  0x0000000000000298       0x10 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .debug_ranges  0x00000000000002a8       0x28 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .debug_ranges  0x00000000000002d0       0x60 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .debug_ranges  0x0000000000000330       0x10 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .debug_ranges  0x0000000000000340       0x30 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .debug_ranges  0x0000000000000370       0x10 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .debug_ranges  0x0000000000000380       0x28 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .debug_ranges  0x00000000000003a8       0x28 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .debug_ranges  0x00000000000003d0       0x28 ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .debug_ranges  0x00000000000003f8       0x10 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .debug_ranges  0x0000000000000408       0x10 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .debug_ranges  0x0000000000000418       0x10 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .debug_ranges  0x0000000000000428       0x48 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .debug_ranges  0x0000000000000470       0x68 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .debug_ranges  0x00000000000004d8       0x20 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .debug_ranges  0x00000000000004f8       0x10 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .debug_ranges  0x0000000000000508       0x18 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .debug_ranges  0x0000000000000520       0x10 ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+
+.debug_line     0x0000000000000000     0x364b
+ .debug_line    0x0000000000000000       0xbd build/cortex-m0/main.o
+ .debug_line    0x00000000000000bd       0xc6 ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .debug_line    0x0000000000000183      0x29b ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .debug_line    0x000000000000041e      0x264 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .debug_line    0x0000000000000682      0x241 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .debug_line    0x00000000000008c3      0x234 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .debug_line    0x0000000000000af7      0x2b2 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .debug_line    0x0000000000000da9      0x303 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .debug_line    0x00000000000010ac      0x22b ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .debug_line    0x00000000000012d7      0x119 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+ .debug_line    0x00000000000013f0      0x2be ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .debug_line    0x00000000000016ae      0x216 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .debug_line    0x00000000000018c4      0x17a ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .debug_line    0x0000000000001a3e      0x1f3 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .debug_line    0x0000000000001c31      0x1ab ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .debug_line    0x0000000000001ddc      0x235 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .debug_line    0x0000000000002011      0x1a8 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .debug_line    0x00000000000021b9      0x1ac ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .debug_line    0x0000000000002365      0x24f ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .debug_line    0x00000000000025b4      0x1ad ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .debug_line    0x0000000000002761      0x1a8 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .debug_line    0x0000000000002909      0x129 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .debug_line    0x0000000000002a32      0x1a7 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .debug_line    0x0000000000002bd9      0x1d5 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .debug_line    0x0000000000002dae       0x69 ../../../../../userland/libc++/libgcc.a(_thumb1_case_uqi.o)
+ .debug_line    0x0000000000002e17      0x235 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .debug_line    0x000000000000304c      0x16a ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .debug_line    0x00000000000031b6      0x136 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .debug_line    0x00000000000032ec      0x1be ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .debug_line    0x00000000000034aa      0x1a1 ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+
+.debug_str      0x0000000000000000     0x1ac5
+ .debug_str     0x0000000000000000      0x4ed build/cortex-m0/main.o
+                                        0x5b2 (size before relaxing)
+ .debug_str     0x00000000000004ed       0xa2 ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+                                        0x605 (size before relaxing)
+ .debug_str     0x000000000000058f      0x201 ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+                                        0x7df (size before relaxing)
+ .debug_str     0x0000000000000790      0x327 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+                                        0x7b6 (size before relaxing)
+ .debug_str     0x0000000000000ab7       0x6a ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+                                        0x7bc (size before relaxing)
+ .debug_str     0x0000000000000b21       0x58 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+                                        0x7b7 (size before relaxing)
+ .debug_str     0x0000000000000b79       0x73 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+                                        0x7e5 (size before relaxing)
+ .debug_str     0x0000000000000bec      0x169 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+                                        0x8d7 (size before relaxing)
+ .debug_str     0x0000000000000d55       0x51 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+                                        0x7a9 (size before relaxing)
+ .debug_str     0x0000000000000da6       0xc3 ../../../../../userland/newlib/libc.a(lib_a-impure.o)
+                                        0x633 (size before relaxing)
+ .debug_str     0x0000000000000e69      0x16a ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+                                        0x923 (size before relaxing)
+ .debug_str     0x0000000000000fd3      0x324 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+                                        0x94c (size before relaxing)
+ .debug_str     0x00000000000012f7      0x1a5 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+                                        0x763 (size before relaxing)
+ .debug_str     0x000000000000149c       0x32 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+                                        0x77a (size before relaxing)
+ .debug_str     0x00000000000014ce       0x57 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+                                        0x676 (size before relaxing)
+ .debug_str     0x0000000000001525       0xa2 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+                                        0x7fd (size before relaxing)
+ .debug_str     0x00000000000015c7       0x43 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+                                        0x673 (size before relaxing)
+ .debug_str     0x000000000000160a       0x43 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+                                        0x663 (size before relaxing)
+ .debug_str     0x000000000000164d       0x50 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+                                        0x7ca (size before relaxing)
+ .debug_str     0x000000000000169d       0x4c ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+                                        0x66d (size before relaxing)
+ .debug_str     0x00000000000016e9       0x4a ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+                                        0x671 (size before relaxing)
+ .debug_str     0x0000000000001733       0x5c ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+                                        0x65f (size before relaxing)
+ .debug_str     0x000000000000178f       0x42 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+                                        0x671 (size before relaxing)
+ .debug_str     0x00000000000017d1       0x6e ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+                                        0x66f (size before relaxing)
+ .debug_str     0x000000000000183f       0x8a ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+                                        0x805 (size before relaxing)
+ .debug_str     0x00000000000018c9       0x9b ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+                                        0x6c2 (size before relaxing)
+ .debug_str     0x0000000000001964       0xb6 ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+                                        0x645 (size before relaxing)
+ .debug_str     0x0000000000001a1a       0x50 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+                                        0x664 (size before relaxing)
+ .debug_str     0x0000000000001a6a       0x5b ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
+                                        0x655 (size before relaxing)
+
+.debug_frame    0x0000000000000000      0xa2c
+ .debug_frame   0x0000000000000000       0x30 build/cortex-m0/main.o
+ .debug_frame   0x0000000000000030       0x20 ../../../../../userland/libtock/build/cortex-m0/libtock.a(crt0.o)
+ .debug_frame   0x0000000000000050      0x1ac ../../../../../userland/libtock/build/cortex-m0/libtock.a(tock.o)
+ .debug_frame   0x00000000000001fc       0x50 ../../../../../userland/newlib/libc.a(lib_a-puts.o)
+ .debug_frame   0x000000000000024c       0x50 ../../../../../userland/newlib/libc.a(lib_a-wbuf.o)
+ .debug_frame   0x000000000000029c       0x38 ../../../../../userland/newlib/libc.a(lib_a-wsetup.o)
+ .debug_frame   0x00000000000002d4       0x70 ../../../../../userland/newlib/libc.a(lib_a-fflush.o)
+ .debug_frame   0x0000000000000344      0x168 ../../../../../userland/newlib/libc.a(lib_a-findfp.o)
+ .debug_frame   0x00000000000004ac       0x50 ../../../../../userland/newlib/libc.a(lib_a-fwalk.o)
+ .debug_frame   0x00000000000004fc       0x58 ../../../../../userland/newlib/libc.a(lib_a-makebuf.o)
+ .debug_frame   0x0000000000000554       0x20 ../../../../../userland/newlib/libc.a(lib_a-memset.o)
+ .debug_frame   0x0000000000000574       0x30 ../../../../../userland/newlib/libc.a(lib_a-nano-freer.o)
+ .debug_frame   0x00000000000005a4       0x34 ../../../../../userland/newlib/libc.a(lib_a-nano-mallocr.o)
+ .debug_frame   0x00000000000005d8       0x30 ../../../../../userland/newlib/libc.a(lib_a-sbrkr.o)
+ .debug_frame   0x0000000000000608       0x90 ../../../../../userland/newlib/libc.a(lib_a-stdio.o)
+ .debug_frame   0x0000000000000698       0x30 ../../../../../userland/newlib/libc.a(lib_a-writer.o)
+ .debug_frame   0x00000000000006c8       0x30 ../../../../../userland/newlib/libc.a(lib_a-closer.o)
+ .debug_frame   0x00000000000006f8       0x30 ../../../../../userland/newlib/libc.a(lib_a-fstatr.o)
+ .debug_frame   0x0000000000000728       0x30 ../../../../../userland/newlib/libc.a(lib_a-isattyr.o)
+ .debug_frame   0x0000000000000758       0x30 ../../../../../userland/newlib/libc.a(lib_a-lseekr.o)
+ .debug_frame   0x0000000000000788       0x30 ../../../../../userland/newlib/libc.a(lib_a-mlock.o)
+ .debug_frame   0x00000000000007b8       0x30 ../../../../../userland/newlib/libc.a(lib_a-readr.o)
+ .debug_frame   0x00000000000007e8       0x50 ../../../../../userland/newlib/libc.a(lib_a-reent.o)
+ .debug_frame   0x0000000000000838       0xe4 ../../../../../userland/libtock/build/cortex-m0/libtock.a(sys.o)
+ .debug_frame   0x000000000000091c       0x78 ../../../../../userland/libtock/build/cortex-m0/libtock.a(console.o)
+ .debug_frame   0x0000000000000994       0x2c ../../../../../userland/newlib/libc.a(lib_a-errno.o)
+ .debug_frame   0x00000000000009c0       0x40 ../../../../../userland/newlib/libc.a(lib_a-malloc.o)
+ .debug_frame   0x0000000000000a00       0x2c ../../../../../userland/newlib/libc.a(lib_a-strncpy.o)
