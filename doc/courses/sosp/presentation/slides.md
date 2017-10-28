@@ -265,7 +265,7 @@ int ipc_register_client_cb(int pid, subscribe_cb cb,
 int ipc_notify_svc(int pid);
 
 // trigger callback in a client
-int ipc_notify_svc(int pid);
+int ipc_notify_client(int pid);
 ```
 
 ## Check your understanding
