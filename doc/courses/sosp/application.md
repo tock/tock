@@ -26,8 +26,8 @@ You'll find the outline of a C application in the directory
 Take a look at the code in `main.c`.  So far, this application merely prints
 "Hello, World!".
 
-The code uses the standard C library routine `snprintf` to compose a message
-using a format string, and then prints it to the console.
+The code uses the standard C library routine `printf` to compose a message
+using a format string and print it to the console.
 
 It could have accomplished the output by invoking Tock system calls directly,
 but just like in other systems, a user library (in `userland/libtock/`)
@@ -36,16 +36,13 @@ look at the interface for console I/O:
 
 #### Console
 
-You'll notice that this program includes the header file `console.h`.  You can
-find that file in `userland/libtock/console.h`.
-
-The console interface contains the function `putstr` and a couple variants.
+The console interface contains the function `putnstr` and a couple variants.
 On your development board, this function can be used to send messages over the
 USB connection to your PC.  (What's actually happening on the board is that the
 UART transceiver on the microcontroller sends serial data to another chip
 that then converts the data to USB messages.)
 
-The `putstr` function itself is "synchronous", meaning that it doesn't return
+The `putnstr` function itself is "synchronous", meaning that it doesn't return
 until the I/O operation has completed.  But your example program instead calls
 `putnstr_async`, which is more fundamental in that it sends the message to print
 and then waits for a "callback" to signal that the operation has been completed.
@@ -87,32 +84,31 @@ Listening for serial output.
 From tock app: "Hello, World!"
 ```
 
-### Creating your own application
+## 4. Creating your own application
 
 Now that you've got a basic app working, modify it so that it continuously
 prints out `Hello World` twice per second.  You'll want to use the user
 library's timer facilities to manage this:
 
-#### Timer
+### Timer
 
 You'll find the interface for timers in `userland/libtock/timer.h`. The
 function you'll find useful today is:
 
+    #include <timer.h>
     void delay_ms(uint32_t ms);
 
 This function sleeps until the specified number of milliseconds have passed, and
 then returns.  So we call this function "synchronous": no further code will run
 until the delay is complete.
 
-## 4. Write an app that periodically samples the on-board sensors
+## 5. Write an app that periodically samples the on-board sensors
 
 Now that we have the ability to write applications, let's do
 something a little more complex. The development board you are using has several
 sensors on it, [as shown here](https://github.com/helena-project/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png)
 for the Hail board.
-These sensors include a light sensor, a humidity and temperature sensor, and an
-acceleration and magnetic field sensor (marked as accelerometer in the
-picture). Each sensing medium can be accessed separately via the Tock user
+These sensors include a light sensor, a humidity sensor, and a temperature sensor. Each sensing medium can be accessed separately via the Tock user
 library. We'll just be using the light, temperature, and humidity measurements
 for today's tutorial.
 
@@ -123,6 +119,7 @@ in [lux](https://en.wikipedia.org/wiki/Lux). Specifically, it uses the sensor
 [ISL29035](https://www.intersil.com/en/products/optoelectronics/ambient-light-sensors/light-to-digital-sensors/ISL29035.html).
 It contains the function:
 
+    #include <ambient_light.h>
     int ambient_light_read_intensity_sync(int* lux);
 
 Note that the light reading is written to the location passed as an
@@ -134,6 +131,7 @@ The interface in `userland/libtock/temperature.h` is used to measure ambient tem
 Celsius, times 100. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
 sensor. It contains the function:
 
+    #include <temperature.h>
     int temperature_read_sync(int* temperature);
 
 Again, this function returns non-zero in the case of an error.
@@ -144,6 +142,7 @@ The interface in `userland/libtock/humidity.h` is used to measure the ambient
 [relative humidity](https://en.wikipedia.org/wiki/Relative_humidity) in
 percent, times 100. It contains the function:
 
+    #include <humidity.h>
     int humidity_read_sync (unsigned* humi);
 
 Again, this function returns non-zero in the case of an error.
@@ -152,8 +151,10 @@ Again, this function returns non-zero in the case of an error.
 
 Using the example program you're working on, write an application that reads
 all of the sensors on your development board and reports their readings over
-the serial port. As a bonus, experiment with toggling an LED when readings are
-above or below a certain threshold:
+the serial port.
+
+As a bonus, experiment with toggling an LED when readings are above or below a
+certain threshold:
 
 #### LED
 
@@ -161,6 +162,7 @@ The interface in `userland/libtock/led.h` is used to control lights on Tock boar
 board, there are three LEDs which can be controlled: Red, Blue, and Green. The
 functions in the LED module are:
 
+    #include <led.h>
     int led_count(void);
 
 Which returns the number of LEDs available on the board.
@@ -178,7 +180,7 @@ Which turns an LED off, accessed by its number.
 Which toggles the state of an LED, accessed by its number.
 
 
-## 5. Extend your app to report through the `ble-env-sense` service
+## 6. Extend your app to report through the `ble-env-sense` service
 
 Finally, let's explore accessing the Bluetooth Low-Energy (BLE) capabilities of
 the hardware. The Hail board has an

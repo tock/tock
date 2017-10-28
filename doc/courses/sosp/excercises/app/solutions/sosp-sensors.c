@@ -10,7 +10,7 @@
 int main (void) {
   while (1) {
     int lux;
-    ambient_light_read_intensity(&lux);
+    ambient_light_read_intensity_sync(&lux);
     printf("Light: %d lux\n", lux);
 
     /* Turn on the red LED in low light conditions */

@@ -48,7 +48,8 @@ int main(void)
   ipc_share(_svc_num, buf, 64);
 
   while (true) {
-    int lux = ambient_light_read_intensity();
+    int lux;
+    ambient_light_read_intensity_sync(&lux);
     update->type = SENSOR_IRRADIANCE;
     update->value = lux;
     ipc_notify_svc(_svc_num);
