@@ -21,11 +21,11 @@ During this you will:
 
 This part of the course will start with a member of the Tock development
 team presenting its core software architecture. This will explain how a
-Tock platform has a small amount of trusted (can use `unsafe`) code, but
-the bulk of the kernel code is in *capsules*, which cannot violate Rust's
-safety guarantees. It'll also explain how RAM constraints lead the Tock
-kernel to rely on static allocation and use a purely event-driven execution
-model.
+Tock platform has a small amount of trusted code (meaning the code can use
+Rust's `unsafe` features), but the bulk of the kernel code is in *capsules*,
+which cannot violate Rust's safety guarantees. It'll also explain how RAM
+constraints lead the Tock kernel to rely on static allocation and use a purely
+event-driven execution model.
 
 This presentation will give you the intellectual framework to understand
 why capsules work as they do, and understand what you'll be doing in the rest
@@ -45,15 +45,19 @@ of this part of the course.
 > here so you understand when things are getting called and how things are
 > wired together.
 
-Open `doc/courses/sosp/excerices/board/src/main.rs` in your favorite editor.
+Open `doc/courses/sosp/exercises/board/src/main.rs` in your favorite editor.
 
 This file defines a modified version of the Hail platform for this tutorial:
 how it boots, what capsules it uses, and what system calls it supports for
 userland applications. This version of the platform includes an extra "sosp"
 capsule, which you will implement in the rest of this tutorial.
 
-If you build the `hail-sosp` board now, Rust will emit a preview of coming
-attractions as it warns about some of the unused stubs we've included:
+Build this modified board now:
+
+    cd doc/courses/sosp/exercises/board && make
+
+Rust will emit a preview of coming attractions as it warns about some of the
+unused stubs we've included:
 
     ...
     warning: field is never used: `light`
@@ -112,7 +116,7 @@ we setup the callback chain so that events triggered by the `USART0` hardware
 are correctly passed to the `console` object.
 
 
-### 3.4 Let's make a Hail (including your new capsule)!
+### 3.4 Let's make a Hail object (including your new capsule)!
 
 After initializing the console, `reset_handler` creates all of the
 other capsules that are needed by the Hail platform. If you look around
@@ -134,10 +138,10 @@ This code has four steps:
 1. It creates a software alarm, which your `sosp` capsule will use to
 receive callbacks when time has passed.
 
-2. It instantiates an `Sosp`.
+2. It instantiates an `Sosp` object.
    - Recall that the first parameter to `static_init!` is the type, and the
-     second is the instantiating function. `sosp::Sosp` is a generic
-     type with two parameters:
+     second is the instantiating function. The generic type `sosp::Sosp`
+     has two parameters:
        - a lifetime: `'static`
        - the type of its software alarm: `VirtualMuxAlarm<'static, sam4l::ast::Ast>`).
    - It's instantiated with a call to `new` that takes two parameters, a
@@ -168,11 +172,12 @@ let hail = Hail {
 Around line 431, the boot sequence calls `start` on the `sosp` capsule, telling
 it to start its service—this is where we will hook in in a moment.
 
-Finally, at the very end, the kernel main loop begins.
+Finally, at the very end, the kernel's main loop begins.
 
 ## 4. Create a "Hello World" capsule (15m)
 
-Let's start by making sure there are no apps installed. We'll be modifying the kernel in a way that will break the application from the previous tutorial:
+Let's start by making sure there are no apps installed, as we'll be modifying
+the kernel in a way that will break the application from the previous tutorial:
 
 ```bash
 $ tockloader erase-apps
@@ -184,7 +189,7 @@ this section, your capsule will sample the light sensor and print the results
 as serial output. But you'll start with something simpler: printing
 "Hello World" to the debug console once on boot.
 
-Open the capsule `docs/courses/sosp/excercices/capsule/src/sosp.rs`. The kernel
+Open the capsule `docs/courses/sosp/exercises/capsule/src/sosp.rs`. The kernel
 boot sequence already includes this capsule, but its code is empty. Go to the
 `start` method in the file, it looks like;
 
@@ -195,22 +200,23 @@ fn start(&self) -> ReturnCode {
 
 Eventually, the `start` method will kick off the state machine for periodic
 light readings, but for now, you'll just print "Hello World" to the
-debug console and return:
+debug console and return.  So insert this line into the `start` method:
 
 ```rust
 debug!("Hello World");
 ```
 
-Compile and program your new kernel:
+Now compile and program your new kernel:
 
 ```bash
-$ cd docs/courses/sosp/excercises/board
+$ cd doc/courses/sosp/exercises/board
 $ make program
+    [ ... several warnings here ... ]
 $ tockloader listen
 No device name specified. Using default "tock"
 Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
 Listening for serial output.
-TOCK_DEBUG(0): /tock/capsules/src/sosp.rs:18: Hello World
+TOCK_DEBUG(0): ~/tock/doc/courses/sosp/exercises/capsule/src/sosp.rs:28: Hello World
 ```
 
 [Sample Solution](https://gist.github.com/alevy/e4cc793d34923e3fc39dee6413dad25b)

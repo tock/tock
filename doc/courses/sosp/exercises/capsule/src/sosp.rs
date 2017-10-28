@@ -24,7 +24,9 @@ impl<'a, A: Alarm> Sosp<'a, A> {
         }
     }
 
-    pub fn start(&self) {}
+    pub fn start(&self) {
+        debug!("Hello World");
+    }
 }
 
 impl<'a, A: Alarm> time::Client for Sosp<'a, A> {
