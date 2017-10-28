@@ -145,7 +145,7 @@ also nicely demonstrates that user applications are nicely isolated from the
 kernel: it is possible to update one independently of the other. Remove it with
 the following command:
 
-    $ tockloader erase-apps
+    $ tockloader uninstall
 
 The blue LED should no longer blink, and another `tockloader list` should show
 nothing installed. Compile and re-flash the Hail test app:
