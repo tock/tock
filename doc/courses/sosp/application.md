@@ -192,13 +192,13 @@ we can use Tock to provide the BLE
 [Environmental Sensing Service](https://www.bluetooth.com/specifications/assigned-numbers/environmental-sensing-service-characteristics)
 (ESS).
 
-Tock implements raw BLE functionality in kernelspace and exposes this to
-userland via a syscall interface. There is also a userland app that leverages
-the BLE syscall API to implement an environment sensing service (ESS) as a
-separate process, instead of in the kernel. Publishing ESS characteristics (eg.
-temperature, ambient light, etc.) is thus as simple as creating another process
-on the board that reads the sensors and communicates with the ESS service over
-Tock's inter-process communication (IPC) mechanism.
+Tock exposes raw BLE functionality from kernelspace to userland via a syscall
+interface. There is also a userland app that leverages the BLE syscall API to
+implement an environment sensing service (ESS) as a separate process, instead
+of in the kernel. Publishing ESS characteristics (eg.  temperature, ambient
+light, etc.) is thus as simple as creating another process on the board that
+reads the sensors and communicates with the ESS service over Tock's
+inter-process communication (IPC) mechanism.
 
 ### Loading the BLE ESS Service
 
