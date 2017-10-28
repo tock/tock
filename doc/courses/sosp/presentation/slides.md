@@ -462,12 +462,21 @@ pub trait NineDofClient {
 
   1. Read the Hail boot sequence in `boards/hail/src/main.rs`
 
-  2. [Write a new capsule that prints "Hello World" to the debug
-     console.](https://gist.github.com/alevy/56b0566e2d1a6ba582b7d4c09968ddc9)
+  2. Write a new capsule that prints "Hello World" to the debug
+     console.
 
-  3. [Extend your capsule to print "Hello World" every second](https://gist.github.com/alevy/798d11dbfa5409e0aa56d870b4b7afcf)
+  3. Extend your capsule to print "Hello World" every second
 
-  4. [Extend your capsule to read and report the accelerometer](https://gist.github.com/alevy/73fca7b0dddcb5449088cebcbfc035f1#file-boot_sequence.rs)
+  4. Extend your capsule to print light readings every second
 
-  5. Extra Credit: Write a 9dof virtualization capsule.
+  5. Extra credit
 
+## Stay in touch!
+
+<https://www.tockos.org>
+
+<https://github.com/helena-project/tock>
+
+<tock-dev@googlegroups.com>
+
+\#tock on Freenode
