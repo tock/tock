@@ -228,7 +228,7 @@ implements the Alarm trait—a Rust trait is a mechanism for defining interfaces
 In Tock, an Alarm is a free running, wrap-around counter that can issue a
 callback when the counter reaches a certain value.
 
-The [Alarm Hardware Interface Layer (HIL)](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L53)
+The [time Hardware Interface Layer (HIL)](https://docs-tockosorg.netlify.com/kernel/hil/time/index.html)
 defines several traits: `Alarm`, `Client`, and `Frequency`.
 
 You'll ask `Alarm` when `now` is, and then `set_alarm` for a little bit in the
@@ -244,7 +244,7 @@ let now = self.alarm.now();
 ```
 
 Great! But.. what is `now`? Seconds since the epoch? Nanoseconds from boot?
-If we examine [the HIL definition](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L54),
+If we examine [the HIL definition](https://docs-tockosorg.netlify.com/kernel/hil/time/trait.alarm#tymethod.now),
 `now` is "current time in hardware clock units."
 
 This is where the type of the Alarm (`A: Alarm + 'a`) in the definition of
@@ -271,7 +271,7 @@ let one_second_from_now = now.wrapping_add(<A::Frequency>::frequency());
 
 ### 5.2 Set the alarm
 
-The [`set_alarm` interface](https://github.com/helena-project/tock/blob/master/kernel/src/hil/time.rs#L69) looks like this:
+The [`set_alarm` interface](https://docs-tockosorg.netlify.com/kernel/hil/time/trait.alarm#tymethod.set_alarm) looks like this:
 
 ```rust
 fn set_alarm(&self, tics: u32);
@@ -322,7 +322,7 @@ pub struct Sosp<'a, A: Alarm + 'a> {
 }
 ```
 
-Take a look at the [AmbientLight HIL](https://github.com/helena-project/tock/blob/master/kernel/src/hil/sensors.rs#L35).
+Take a look at the [AmbientLight HIL](https://docs-tockosorg.netlify.com/kernel/hil/sensors/trait.ambientlight).
 
 
 ### 6.1 Print light readings
