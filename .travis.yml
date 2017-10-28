@@ -34,5 +34,5 @@ script:
   - tools/toc.sh
 
 after_success:
-  - ./.travis-deploy-netlify
+  - test $TRAVIS_BRANCH = "master" && test $TRAVIS_PULL_REQUEST = "false" && ./.travis-deploy-netlify
 
