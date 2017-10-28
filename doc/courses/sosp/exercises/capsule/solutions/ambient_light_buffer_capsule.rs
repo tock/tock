@@ -12,21 +12,24 @@ use core::cell::Cell;
 use kernel::common::take_cell::MapCell;
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time::{self, Alarm, Frequency};
+use kernel::hil::gpio;
 
 const BUFFER_SIZE: usize = 10;
 
-pub struct Sosp<'a, A: Alarm + 'a> {
+pub struct Sosp<'a, A: Alarm + 'a, L: gpio::Pin + gpio::PinCtl + 'a> {
     alarm: &'a A,
     light: &'a AmbientLight,
+    led: &'a L,
     buffer: MapCell<[usize; BUFFER_SIZE]>,
     samples: Cell<usize>,
 }
 
-impl<'a, A: Alarm> Sosp<'a, A> {
-    pub fn new(alarm: &'a A, light: &'a AmbientLight) -> Sosp<'a, A> {
+impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> Sosp<'a, A, L> {
+    pub fn new(alarm: &'a A, light: &'a AmbientLight, led: &'a L) -> Sosp<'a, A, L> {
         Sosp {
             alarm: alarm,
             light: light,
+            led: led,
             buffer: MapCell::new(Default::default()),
             samples: Cell::new(0),
         }
@@ -40,14 +43,14 @@ impl<'a, A: Alarm> Sosp<'a, A> {
     }
 }
 
-impl<'a, A: Alarm> time::Client for Sosp<'a, A> {
+impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> time::Client for Sosp<'a, A, L> {
     fn fired(&self) {
         self.light.read_light_intensity();
         self.start();
     }
 }
 
-impl<'a, A: Alarm> AmbientLightClient for Sosp<'a, A> {
+impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> AmbientLightClient for Sosp<'a, A, L> {
     fn callback(&self, lux: usize) {
         self.buffer.map(|buf| buf[self.samples.get()] = lux);
         self.samples.set(self.samples.get() + 1);
@@ -64,6 +67,11 @@ impl<'a, A: Alarm> AmbientLightClient for Sosp<'a, A> {
                        buf[5], buf[6], buf[7], buf[8], buf[9]);
             });
             self.samples.set(0);
+        }
+        if lux > 100 {
+            self.led.set();
+        } else {
+            self.led.clear();
         }
     }
 }
