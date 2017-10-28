@@ -163,6 +163,10 @@ $ tockloader listen
 
   3. (Optional) Add some other apps from the repo, like `blink` and `sensors`
 
+
+ - Head to \texttt{<http://bit.ly/2lniNt6>} to get started!
+ - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/environment.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/environment.md))
+
 # Part 2: User space
 
 ## System calls
@@ -285,6 +289,10 @@ int ipc_notify_client(int pid);
   3. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-sensors.c)
 
   3. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-ble-ess.c)
+
+
+ - Head to \texttt{<http://bit.ly/2hgpl8n>} to get started!
+ - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/application.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/application.md#2-check-your-understanding))
 
 # Part 3: The kernel
 
@@ -470,6 +478,10 @@ pub trait NineDofClient {
   4. Extend your capsule to print light readings every second
 
   5. Extra credit
+
+
+ - Head to \texttt{<http://bit.ly/2zLoD9W>} to get started!
+ - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/capsule.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/capsule.md#2-check-your-understanding))
 
 ## Stay in touch!
 
