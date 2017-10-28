@@ -65,6 +65,12 @@ Maybe...
 
   * Programmable wearables
 
+  * PC/phone peripherals
+
+  * Home/industrial automation
+
+  * Flight control
+
 ## Two types of components: capsules and processes
 
 ![](architecture.pdf)
@@ -167,7 +173,7 @@ $ tockloader listen
 | allow     | Capsule    | Share memory with a capsule      |
 | subscribe | Capsule    | Register an upcall               |
 | memop     | Core       | Modify memory break              |
-| yield     | Core       | Bloc until next upcall is ready  |
+| yield     | Core       | Block until next upcall is ready |
 
 ## C System Calls: `command` & `allow`
 
@@ -256,6 +262,9 @@ int ipc_register_client_cb(int pid, subscribe_cb cb,
                            void* userdata);
 
 // trigger callback in service
+int ipc_notify_svc(int pid);
+
+// trigger callback in a client
 int ipc_notify_svc(int pid);
 ```
 
