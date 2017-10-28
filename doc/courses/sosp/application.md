@@ -27,30 +27,32 @@ Take a look at the code in `main.c`.  So far, this application merely prints
 "Hello, World!".
 
 The code uses the standard C library routine `printf` to compose a message
-using a format string and print it to the console.
+using a format string and print it to the console. Let's break down what the
+code layers are here:
 
-It could have accomplished the output by invoking Tock system calls directly,
-but just like in other systems, a user library (in `userland/libtock/`)
-provides a more convenient interface for this and many other purposes.  Let's
-look at the interface for console I/O:
+1. `printf` is provided by the C standard library (implemented by
+   [newlib](https://sourceware.org/newlib/)). It takes the format string and
+   arguments, and generates an output string from them. To actually write the
+   string to standard out, `printf` calls `_write`.
 
-#### Console
+2. `_write` (in `userland/libtock/sys.c`) is a wrapper for actually writing to
+   output streams (in this case, standard out a.k.a. the console). It calls
+   the Tock-specific console writing function `putnstr`.
 
-The console interface contains the function `putnstr` and a couple variants.
-On your development board, this function can be used to send messages over the
-USB connection to your PC.  (What's actually happening on the board is that the
-UART transceiver on the microcontroller sends serial data to another chip
-that then converts the data to USB messages.)
+3. `putnstr`(in `userland/libtock/console.c`) buffers data to be written, calls
+   `putnstr_async`, and acts as a synchronous wrapper, yielding until the
+   operation is complete.
 
-The `putnstr` function itself is "synchronous", meaning that it doesn't return
-until the I/O operation has completed.  But your example program instead calls
-`putnstr_async`, which is more fundamental in that it sends the message to print
-and then waits for a "callback" to signal that the operation has been completed.
-(The `putstr` function is implemented by the tock library in terms of
-`putnstr_async`.)
+4. `putnstr_async` (in `userland/libtock/console.c`) finally performs the
+   actual system calls, calling to `allow`, `subscribe`, and `command` to
+   enable the kernel to access the buffer, request a callback when the write is
+   complete, and begin the write operation respectively.
 
-The callback in this program presently does nothing, but you may find it useful
-later.
+
+The application could accomplish all of this by invoking Tock system calls
+directly, but using libraries makes for a much cleaner interface and allows
+users to not need to know the inner workings of the OS.
+
 
 ### Loading an application
 
