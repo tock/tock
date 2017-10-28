@@ -247,7 +247,7 @@ int putnstr(const char *str, size_t len) {
  * Call `notify` to trigger callback in connected service
  * Receive a callback when service calls `notify`
 
-## Inter Process Communication Client API
+## Inter Process Communication API
 
 ```c
 // discover IPC service by name
