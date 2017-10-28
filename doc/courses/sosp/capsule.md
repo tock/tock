@@ -172,6 +172,12 @@ Finally, at the very end, the kernel main loop begins.
 
 ## 4. Create a "Hello World" capsule (15m)
 
+Let's start by making sure there are no apps installed. We'll be modifying the kernel in a way that will break the application from the previous tutorial:
+
+```bash
+$ tockloader erase-apps
+```
+
 Now that you've seen how Tock initializes and uses capsules, including your
 `Sosp` capsule, you're going to fill in the code for `Sosp.` At the end of
 this section, your capsule will sample the light sensor and print the results
@@ -356,7 +362,7 @@ at 10Hz and put the readings into a 10-element buffer. When the buffer
 is full, so once per second, output all of the readings to the console,
 as well as their average value.
 
-### 8.2 Turn on an LED when the light sensor reads a reading below 10 lux
+### 8.2 Turn on an LED when the light sensor reads a reading below 30 lux
 
 Add a GPIO pin to your capsule and use it to turn on and off an LED based on
 the light sensor readings.
