@@ -49,8 +49,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 /// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
-    sosp: &'static sosp::Sosp<'static,
-                                        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    sosp: &'static sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<'static,
                                                  VirtualMuxAlarm<'static,
