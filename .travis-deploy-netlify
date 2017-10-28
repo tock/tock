@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+# Bless the internet
+# https://therocketeers.github.io/blog/using-travis-ci-to-deploy-jekyll-on-netlify/
+
+set -e
+set -x
+
+./tools/build_all_docs.sh
+
+pushd doc
+
+zip -r website.zip rustdoc/
+
+# NETLIFYKEY is secret. Set in travis web config.
+NETLIFY_SITE_NAME=docs-tockosorg.netlify.com
+
+curl -H "Content-Type: application/zip" \
+     -H "Authorization: Bearer $NETLIFYKEY" \
+     --data-binary "@website.zip" \
+     https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_NAME/deploys
