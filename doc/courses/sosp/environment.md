@@ -55,14 +55,11 @@ Read the Tock documentation for more details on its
 3. Clearly, the kernel should never enter an infinite loop. But is it
    acceptable for a process to spin? What about a capsule?
 
-## 3. Get your Tock repository up to date
+## 3. Compile and flash the kernel
 
-This tutorial is run out of the `course-sosp` branch of the Tock git repo.
+### Make sure your Tock repository is up to date
 
     $ git pull
-    $ git checkout course-sosp
-
-## 3. Compile and flash the kernel
 
 ### Build the kernel
 
