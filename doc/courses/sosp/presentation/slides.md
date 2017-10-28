@@ -492,3 +492,7 @@ pub trait NineDofClient {
 <tock-dev@googlegroups.com>
 
 \#tock on Freenode
+
+### Quick Survey!
+
+- <https://goo.gl/ntxsgX>
