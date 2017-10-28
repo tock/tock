@@ -21,7 +21,7 @@ Tock, and build our own applications in C.
 ## 3. Get a C application running on your board
 
 You'll find the outline of a C application in the directory
-`docs/courses/sosp/excercises/app`.
+`docs/courses/sosp/exercises/app`.
 
 Take a look at the code in `main.c`.  So far, this application merely prints
 "Hello, World!".
@@ -192,10 +192,13 @@ we can use Tock to provide the BLE
 [Environmental Sensing Service](https://www.bluetooth.com/specifications/assigned-numbers/environmental-sensing-service-characteristics)
 (ESS).
 
-Currently, the Tock libraries do not support directly interacting with the BLE
-radio. However, we can still access BLE by loading an additional process on the
-board as a service and sending it commands over Tock's inter-process
-communication (IPC) mechanism.
+Tock exposes raw BLE functionality from kernelspace to userland via a syscall
+interface. There is also a userland app that leverages the BLE syscall API to
+implement an environment sensing service (ESS) as a separate process, instead
+of in the kernel. Publishing ESS characteristics (eg.  temperature, ambient
+light, etc.) is thus as simple as creating another process on the board that
+reads the sensors and communicates with the ESS service over Tock's
+inter-process communication (IPC) mechanism.
 
 ### Loading the BLE ESS Service
 
