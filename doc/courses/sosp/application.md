@@ -60,20 +60,20 @@ Okay, let's build and load this simple program.
 
 1. Erase all other applications from the development board:
 
-         tockloader erase-apps
+    $ tockloader erase-apps
 
 2. Build this application:
 
-         make
+    $ make
 
 3. Load the application (Note: `tockloader install` automatically searches the
    current working directory and its subdirectories for Tock binaries.)
 
-         tockloader install
+    $ tockloader install
 
 4. Check that it worked:
 
-         tockloader listen
+    $ tockloader listen
 
 The output should look something like:
 
@@ -83,7 +83,7 @@ No device name specified. Using default "tock"
 Using "/dev/cu.usbserial-c098e5130012 - Hail IoT Module - TockOS"
 
 Listening for serial output.
-From tock app: "Hello, World!"
+Hello, World!
 ```
 
 ## 4. Creating your own application
@@ -97,8 +97,10 @@ library's timer facilities to manage this:
 You'll find the interface for timers in `userland/libtock/timer.h`. The
 function you'll find useful today is:
 
-    #include <timer.h>
-    void delay_ms(uint32_t ms);
+```c
+#include <timer.h>
+void delay_ms(uint32_t ms);
+```
 
 This function sleeps until the specified number of milliseconds have passed, and
 then returns.  So we call this function "synchronous": no further code will run
@@ -121,8 +123,10 @@ in [lux](https://en.wikipedia.org/wiki/Lux). Specifically, it uses the sensor
 [ISL29035](https://www.intersil.com/en/products/optoelectronics/ambient-light-sensors/light-to-digital-sensors/ISL29035.html).
 It contains the function:
 
-    #include <ambient_light.h>
-    int ambient_light_read_intensity_sync(int* lux);
+```c
+#include <ambient_light.h>
+int ambient_light_read_intensity_sync(int* lux);
+```
 
 Note that the light reading is written to the location passed as an
 argument, and the function returns non-zero in the case of an error.
@@ -133,8 +137,10 @@ The interface in `userland/libtock/temperature.h` is used to measure ambient tem
 Celsius, times 100. It uses the [SI7021](https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx)
 sensor. It contains the function:
 
-    #include <temperature.h>
-    int temperature_read_sync(int* temperature);
+```c
+#include <temperature.h>
+int temperature_read_sync(int* temperature);
+```
 
 Again, this function returns non-zero in the case of an error.
 
@@ -144,8 +150,10 @@ The interface in `userland/libtock/humidity.h` is used to measure the ambient
 [relative humidity](https://en.wikipedia.org/wiki/Relative_humidity) in
 percent, times 100. It contains the function:
 
-    #include <humidity.h>
-    int humidity_read_sync (unsigned* humi);
+```c
+#include <humidity.h>
+int humidity_read_sync (unsigned* humi);
+```
 
 Again, this function returns non-zero in the case of an error.
 
@@ -164,20 +172,28 @@ The interface in `userland/libtock/led.h` is used to control lights on Tock boar
 board, there are three LEDs which can be controlled: Red, Blue, and Green. The
 functions in the LED module are:
 
-    #include <led.h>
-    int led_count(void);
+```c
+#include <led.h>
+int led_count(void);
+```
 
 Which returns the number of LEDs available on the board.
 
-    int led_on(int led_num);
+```c
+int led_on(int led_num);
+```
 
 Which turns an LED on, accessed by its number.
 
-    int led_off(int led_num);
+```c
+int led_off(int led_num);
+```
 
 Which turns an LED off, accessed by its number.
 
-    int led_toggle(int led_num);
+```c
+int led_toggle(int led_num);
+```
 
 Which toggles the state of an LED, accessed by its number.
 
