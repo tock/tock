@@ -21,7 +21,7 @@ Tock, and build our own applications in C.
 ## 3. Get a C application running on your board
 
 You'll find the outline of a C application in the directory
-`docs/courses/sosp/excercises/app`.
+`docs/courses/sosp/exercises/app`.
 
 Take a look at the code in `main.c`.  So far, this application merely prints
 "Hello, World!".

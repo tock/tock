@@ -45,7 +45,7 @@ of this part of the course.
 > here so you understand when things are getting called and how things are
 > wired together.
 
-Open `doc/courses/sosp/excerices/board/src/main.rs` in your favorite editor.
+Open `doc/courses/sosp/exercises/board/src/main.rs` in your favorite editor.
 
 This file defines a modified version of the Hail platform for this tutorial:
 how it boots, what capsules it uses, and what system calls it supports for
@@ -184,7 +184,7 @@ this section, your capsule will sample the light sensor and print the results
 as serial output. But you'll start with something simpler: printing
 "Hello World" to the debug console once on boot.
 
-Open the capsule `docs/courses/sosp/excercices/capsule/src/sosp.rs`. The kernel
+Open the capsule `docs/courses/sosp/exercises/capsule/src/sosp.rs`. The kernel
 boot sequence already includes this capsule, but its code is empty. Go to the
 `start` method in the file, it looks like;
 
@@ -204,7 +204,7 @@ debug!("Hello World");
 Compile and program your new kernel:
 
 ```bash
-$ cd docs/courses/sosp/excercises/board
+$ cd docs/courses/sosp/exercises/board
 $ make program
 $ tockloader listen
 No device name specified. Using default "tock"

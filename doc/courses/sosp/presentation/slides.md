@@ -271,11 +271,11 @@ int ipc_notify_svc(int pid);
 
   1. Get an application running on Hail
 
-  2. [Print "Hello World" every second](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/excercises/app/solutions/sosp-repeat-hello.c)
+  2. [Print "Hello World" every second](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-repeat-hello.c)
 
-  3. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/excercises/app/solutions/sosp-sensors.c)
+  3. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-sensors.c)
 
-  3. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/excercises/app/solutions/sosp-ble-ess.c)
+  3. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-ble-ess.c)
 
 # Part 3: The kernel
 
