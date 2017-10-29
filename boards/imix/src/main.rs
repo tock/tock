@@ -21,6 +21,9 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 
+#[allow(dead_code)]
+use capsules::aes_ccm;
+
 #[macro_use]
 pub mod io;
 
