@@ -462,7 +462,17 @@ pub unsafe fn reset_handler() {
    
     lowpan_frag_test.start(); // If flashing the transmitting Imix
 
-    //Hudson Insert End
+/*    //Hudson Insert End
+    let lowpan_frag_test = lowpan_frag_dummy::initialize_all(radio_mac as &'static Mac,
+							    mux_alarm as &'static
+							       MuxAlarm<'static,
+								   sam4l::ast::Ast>);
+    
+   
+   
+    lowpan_frag_test.start(); // If flashing the transmitting Imix
+*/
+
 
     let imix = Imix {
         console: console,

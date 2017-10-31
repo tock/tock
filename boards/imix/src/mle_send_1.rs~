@@ -21,6 +21,7 @@ use capsules::net::lowpan;
 use capsules::net::lowpan::{ContextStore, Context};
 use capsules::net::lowpan_fragment::{FragState, TxState, TransmitClient, ReceiveClient};
 use capsules::net::util;
+use capsules::net::udp::{send_udp_packet, udp_ipv6_prepare_packet, TF, SAC, DAC}; //Temp change for udp testing
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 
@@ -88,42 +89,7 @@ static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
 static mut RX_STATE_BUF: [u8; 1280] = [0x0; 1280];
 static mut RADIO_BUF_TMP: [u8; radio::MAX_BUF_SIZE] = [0x0; radio::MAX_BUF_SIZE];
 
-
-#[derive(Copy,Clone,Debug,PartialEq)]
-enum TF {
-    Inline = 0b00,
-    Traffic = 0b01,
-    Flow = 0b10,
-    TrafficFlow = 0b11,
-}
-
-#[derive(Copy,Clone,Debug)]
-enum SAC {
-    Inline,
-    LLP64,
-    LLP16,
-    LLPIID,
-    Unspecified,
-    Ctx64,
-    Ctx16,
-    CtxIID,
-}
-
-#[derive(Copy,Clone,Debug)]
-enum DAC {
-    Inline,
-    LLP64,
-    LLP16,
-    LLPIID,
-    Ctx64,
-    Ctx16,
-    CtxIID,
-    McastInline,
-    Mcast48,
-    Mcast32,
-    Mcast8,
-    McastCtx,
-}
+//Note: Replaced TF, SAC, DAC Enums with import of these enums from the udp capsule
 
 pub struct LowpanTest<'a, A: time::Alarm + 'a> {
     radio: &'a mac::Mac<'a>,
@@ -225,10 +191,27 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
     fn run_test(&self) {
         debug!("Sending First MLE Message:");
         //Send single IP packet
-        ipv6_prepare_packet(TF::Inline, 255, SAC::Inline, DAC::Inline);
+        //ipv6_prepare_packet(TF::Inline, 255, SAC::Inline, DAC::Inline);
+//Begin Temp Changes for UDP testing
+        udp_print(); //TODO: Delete me
+
+        //Set UDP Payload within IP6_DGRAM
+        {
+            //Only edit UDP portion of the payload (begins 8 bytes after IPV6 Header)
+            let payload = unsafe { &mut IP6_DGRAM[(IP6_HDR_SIZE+8)..] };
+            for i in 0..(PAYLOAD_LEN - 8) {
+                payload[i] = 100 as u8;
+            }
+        }
+   
+
+        unsafe {
+            udp_ipv6_prepare_packet(TF::Inline, 255, SAC::Inline, DAC::Inline, &mut IP6_DGRAM, IP6_DGRAM.len(), IP6_HDR_SIZE, SRC_ADDR, DST_ADDR, SRC_MAC_ADDR, DST_MAC_ADDR, MLP, 19788, 19788); 
+        }
         unsafe {
             self.send_ipv6_packet(&MLP, SRC_MAC_ADDR, DST_MAC_ADDR);
         }
+
     }
 
     unsafe fn send_ipv6_packet(&self,
@@ -237,7 +220,9 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
                                dst_mac_addr: MacAddress) {
         let frag_state = self.frag_state;
         let tx_state = self.tx_state;
+        
         //frag_state.radio.config_set_pan(0xABCD);
+/*
         let ret_code = frag_state.transmit_packet(src_mac_addr,
                                                   dst_mac_addr,
                                                   &mut IP6_DGRAM,
@@ -247,6 +232,10 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
                                                   true,
                                                   true);
         debug!("Ret code: {:?}", ret_code);
+*/
+        send_udp_packet(frag_state, tx_state, src_mac_addr, dst_mac_addr, &mut IP6_DGRAM, IP6_DGRAM.len()
+          //, TF::Inline, 255, SAC::Inline, DAC::Inline, SRC_ADDR, DST_ADDR, MLP
+          );
     }
 }
 
@@ -284,6 +273,7 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
         for i in 0..PAYLOAD_LEN {
             payload[i] = i as u8;
         }
+        //payload = ;
     }
     {
         let ip6_header: &mut IP6Header = unsafe { mem::transmute(IP6_DGRAM.as_mut_ptr()) };
