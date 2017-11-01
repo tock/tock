@@ -60,20 +60,20 @@ Okay, let's build and load this simple program.
 
 1. Erase all other applications from the development board:
 
-    $ tockloader erase-apps
+        $ tockloader erase-apps
 
 2. Build this application:
 
-    $ make
+        $ make
 
 3. Load the application (Note: `tockloader install` automatically searches the
    current working directory and its subdirectories for Tock binaries.)
 
-    $ tockloader install
+        $ tockloader install
 
 4. Check that it worked:
 
-    $ tockloader listen
+        $ tockloader listen
 
 The output should look something like:
 
