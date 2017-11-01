@@ -77,12 +77,20 @@ compile for imix instead you must first run `cd boards/imix/`.
 ### Connect to a Hail board
 
 > On Linux, you might need to give your user access to the Hail's serial port.
+> If you are using the VM, this is already done for you.
 > You can do this by adding a udev rule:
 >
->     $ cat /etc/udev/rules.d/99-hail
->     ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", MODE="0666"
+>     $ sudo bash -c "echo 'ATTRS{idVendor}==\"0403\", ATTRS{idProduct}==\"6015\", MODE=\"0666\"' > /etc/udev/rules.d/99-hail"
 >
 > Afterwards, detach and re-attach the Hail to reload the rule.
+
+> With the virtual machine, you might need to attach the USB device to the
+> VM. To do so, after plugging in Hail, select in the VirtualBox/VMWare menu bar:
+>
+>     Devices -> USB -> "Lab11 Hail IoT Module - TockOS"
+>
+> If this generates an error, often unplugging/replugging fixes it. You can also
+> create a rule in the VM USB settings which will auto-attach the Hail to the VM.
 
 To connect your development machine to the Hail, connect them with a micro-USB
 cable. Any cable will do. Hail should come with the Tock kernel and the Hail
