@@ -93,6 +93,36 @@ impl IP6Header {
     pub fn new() -> IP6Header {
         IP6Header::default()
     }
+
+    /// Parses a buffer into an `IP6Header`
+    ///
+    /// The buffer must be at least 40 bytes. This method performs no checking
+    /// on the validity of the header.
+    pub fn parse(buf: &[u8]) -> Result<IP6Header, ()> {
+        if buf.len() < 40 {
+            return Err(())
+        }
+        let version_class_flow: [u8; 4] = [buf[0], buf[1], buf[2], buf[3]];
+
+        let payload_len: u16 = buf[4] as u16 | (buf[5] as u16) << 8;
+        let next_header: u8 = buf[5];
+        let hop_limit: u8 = buf[6];
+
+        let mut src_addr = IPAddr::new();
+        src_addr.0.copy_from_slice(&buf[7..24]);
+        let mut dst_addr = IPAddr::new();
+        dst_addr.0.copy_from_slice(&buf[24..40]);
+
+        Ok(IP6Header {
+            version_class_flow: version_class_flow,
+            payload_len: payload_len,
+            next_header: next_header,
+            hop_limit: hop_limit,
+            src_addr: src_addr,
+            dst_addr: dst_addr,
+        })
+    }
+
     // Version should always be 6
     pub fn get_version(&self) -> u8 {
         (self.version_class_flow[0] & 0xf0) >> 4

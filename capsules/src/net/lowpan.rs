@@ -282,7 +282,7 @@ pub fn compress(ctx_store: &ContextStore,
                 dst_mac_addr: MacAddress,
                 mut buf: &mut [u8])
                 -> Result<(usize, usize), ()> {
-    let ip6_header: &IP6Header = unsafe { mem::transmute(ip6_datagram.as_ptr()) };
+    let ip6_header = IP6Header::parse(ip6_datagram)?;
     let mut consumed: usize = mem::size_of::<IP6Header>();
     let mut next_headers: &[u8] = &ip6_datagram[consumed..];
 
@@ -314,15 +314,15 @@ pub fn compress(ctx_store: &ContextStore,
     compress_cie(&src_ctx, &dst_ctx, &mut buf, &mut written);
 
     // Traffic Class & Flow Label
-    compress_tf(ip6_header, &mut buf, &mut written);
+    compress_tf(&ip6_header, &mut buf, &mut written);
 
     // Next Header
     let (mut is_nhc, mut nh_len): (bool, u8) = is_ip6_nh_compressible(ip6_header.next_header,
                                                                       next_headers)?;
-    compress_nh(ip6_header, is_nhc, &mut buf, &mut written);
+    compress_nh(&ip6_header, is_nhc, &mut buf, &mut written);
 
     // Hop Limit
-    compress_hl(ip6_header, &mut buf, &mut written);
+    compress_hl(&ip6_header, &mut buf, &mut written);
 
     // Source Address
     compress_src(&ip6_header.src_addr,
