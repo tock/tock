@@ -100,18 +100,18 @@ impl IP6Header {
     /// on the validity of the header.
     pub fn parse(buf: &[u8]) -> Result<IP6Header, ()> {
         if buf.len() < 40 {
-            return Err(())
+            return Err(());
         }
         let version_class_flow: [u8; 4] = [buf[0], buf[1], buf[2], buf[3]];
 
         let payload_len: u16 = buf[4] as u16 | (buf[5] as u16) << 8;
-        let next_header: u8 = buf[5];
-        let hop_limit: u8 = buf[6];
+        let next_header: u8 = buf[6];
+        let hop_limit: u8 = buf[7];
 
         let mut src_addr = IPAddr::new();
-        src_addr.0.copy_from_slice(&buf[7..24]);
+        src_addr.0.copy_from_slice(&buf[8..][..16]);
         let mut dst_addr = IPAddr::new();
-        dst_addr.0.copy_from_slice(&buf[24..40]);
+        dst_addr.0.copy_from_slice(&buf[24..][..16]);
 
         Ok(IP6Header {
             version_class_flow: version_class_flow,
@@ -121,6 +121,26 @@ impl IP6Header {
             src_addr: src_addr,
             dst_addr: dst_addr,
         })
+    }
+
+    pub fn serialize(&self, buf: &mut [u8]) -> Result<(), ()> {
+        if buf.len() < 40 {
+            return Err(());
+        }
+
+        let mut buf = [0; 40];
+
+        buf[0..4].copy_from_slice(&self.version_class_flow);
+        buf[4] = self.payload_len as u8;
+        buf[5] = (self.payload_len >> 8) as u8;
+        buf[6] = self.next_header;
+        buf[7] = self.hop_limit;
+
+        buf[8..][..16].copy_from_slice(&self.src_addr.0);
+        buf[24..][..16].copy_from_slice(&self.dst_addr.0);
+
+        Ok(())
+
     }
 
     // Version should always be 6

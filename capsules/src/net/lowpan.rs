@@ -778,10 +778,8 @@ pub fn decompress(ctx_store: &ContextStore,
     let iphc_header_2: u8 = buf[1];
     let mut consumed: usize = 2;
 
-    // First, reset the IPv6 fixed header to the default values
-    let mut ip6_header: &mut IP6Header = unsafe { mem::transmute(out_buf.as_mut_ptr()) };
+    let mut ip6_header = IP6Header::new();
     let mut written: usize = mem::size_of::<IP6Header>();
-    *ip6_header = IP6Header::new();
 
     // Decompress CID and CIE fields if they exist
     let (src_ctx, dst_ctx) = decompress_cie(ctx_store, iphc_header_1, &buf, &mut consumed)?;
@@ -941,6 +939,7 @@ pub fn decompress(ctx_store: &ContextStore,
         written + (buf.len() - consumed) - mem::size_of::<IP6Header>()
     };
     ip6_header.payload_len = (payload_len as u16).to_be();
+    ip6_header.serialize(&mut out_buf[0..40])?;
     Ok((consumed, written))
 }
 
