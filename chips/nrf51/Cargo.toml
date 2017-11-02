@@ -6,4 +6,7 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 [dependencies]
 cortexm0 = { path = "../../arch/cortex-m0" }
 kernel = { path = "../../kernel" }
-nrf5x = { path = "../nrf5x" }
+
+[dependencies.nrf5x]
+path = "../nrf5x"
+features = ["nrf51"]
