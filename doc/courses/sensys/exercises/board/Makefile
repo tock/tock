@@ -1,7 +1,7 @@
 # Makefile for building the tock kernel for the Hail platform
 
 TARGET=thumbv7em-none-eabi
-PLATFORM=hail-sosp
+PLATFORM=hail-sensys
 
 include ../../../../../boards/Makefile.common
 

@@ -41,7 +41,7 @@ Tock includes three architectural components:
 Read the Tock documentation for more details on its
 [design](https://github.com/helena-project/tock/blob/master/doc/Design.md).
 
-[_Presentation slides are availble here._](presentation/presentation.pdf)
+[_Presentation slides are available here._](presentation/presentation.pdf)
 
 ## 2. Check your understanding
 

@@ -33,8 +33,8 @@ of this part of the course.
 
 ## 2. Check your understanding
 
-1. How are capsules isolated from one another, such that one cannot access the other's
-   memory?
+1. How are capsules isolated from one another, such that one cannot access the
+   other's memory?
 2. What is `'static` and why does the kernel use it for many references?
 
 ## 3. The Tock boot sequence (10m)
@@ -45,23 +45,24 @@ of this part of the course.
 > here so you understand when things are getting called and how things are
 > wired together.
 
-Open `doc/courses/sosp/exercises/board/src/main.rs` in your favorite editor.
+Open `doc/courses/sensys/exercises/board/src/main.rs` in your favorite editor.
 
 This file defines a modified version of the Hail platform for this tutorial:
 how it boots, what capsules it uses, and what system calls it supports for
-userland applications. This version of the platform includes an extra "sosp"
+userland applications. This version of the platform includes an extra "sensys"
 capsule, which you will implement in the rest of this tutorial.
 
 Build this modified board now:
 
-    cd doc/courses/sosp/exercises/board && make
+    cd doc/courses/sensys/exercises/board
+    make
 
 Rust will emit a preview of coming attractions as it warns about some of the
 unused stubs we've included:
 
     ...
     warning: field is never used: `light`
-     --> /Volumes/code/helena-project/tock/capsules/src/sosp.rs:9:5
+     --> /tock/doc/courses/sensys/exercises/capsule/src/sensys.rs:9:5
       |
     9 |     light: &'a AmbientLight,
       |     ^^^^^^^^
@@ -75,7 +76,7 @@ all of which are capsules. These are the capsules that make up the Hail
 platform. For the most part, these map directly to hardware peripherals,
 but there are exceptions such as `IPC` (inter-process communication).
 In this tutorial, you'll be using the first two capsules, `console` and
-`sosp`.
+`sensys`.
 
 Recall the discussion about how everything in the kernel is statically
 allocated? We can see that here. Every field in `struct Hail` is a reference to
@@ -120,39 +121,39 @@ are correctly passed to the `console` object.
 
 After initializing the console, `reset_handler` creates all of the
 other capsules that are needed by the Hail platform. If you look around
-line 258, it initializes an instance of the `Sosp` capsule:
+line 258, it initializes an instance of the `Sensys` capsule:
 
 ```rust
-/* 1 */    let sosp_virtual_alarm = static_init!(
+/* 1 */    let sensys_virtual_alarm = static_init!(
                VirtualMuxAlarm<'static, sam4l::ast::Ast>,
                VirtualMuxAlarm::new(mux_alarm));
-/* 2 */    let sosp = static_init!(
-               sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-               sosp::Sosp::new(sosp_virtual_alarm, isl29035));
-/* 3 */    hil::sensors::AmbientLight::set_client(isl29035, sosp);
-/* 4 */    sosp_virtual_alarm.set_client(sosp);
+/* 2 */    let sensys = static_init!(
+               sensys::Sensys<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+               sensys::Sensys::new(sensys_virtual_alarm, isl29035));
+/* 3 */    hil::sensors::AmbientLight::set_client(isl29035, sensys);
+/* 4 */    sensys_virtual_alarm.set_client(sensys);
 ```
 
 This code has four steps:
 
-1. It creates a software alarm, which your `sosp` capsule will use to
+1. It creates a software alarm, which your `sensys` capsule will use to
 receive callbacks when time has passed.
 
-2. It instantiates an `Sosp` object.
+2. It instantiates an `Sensys` object.
    - Recall that the first parameter to `static_init!` is the type, and the
-     second is the instantiating function. The generic type `sosp::Sosp`
+     second is the instantiating function. The generic type `sensys::Sensys`
      has two parameters:
        - a lifetime: `'static`
        - the type of its software alarm: `VirtualMuxAlarm<'static, sam4l::ast::Ast>`).
    - It's instantiated with a call to `new` that takes two parameters, a
-     reference to the software alarm (`sosp_virtual_alarm`) and a reference to
+     reference to the software alarm (`sensys_virtual_alarm`) and a reference to
      a light sensor (`isl29035`).
 
 3. It sets the client (the struct that receives callbacks) of the ambient
-light sensor to be the `sosp` structure.
+light sensor to be the `sensys` structure.
 
 4. Finally, it sets the client (the struct that receives callbacks) of the
-software alarm to be the `sosp` structure.
+software alarm to be the `sensys` structure.
 
 After everything is wired together, the picture looks something like this:
 
@@ -165,11 +166,11 @@ capsules, and the boot sequence populates a Hail structure:
 ```rust
 let hail = Hail {
     console: console,
-    sosp: sosp,
+    sensys: sensys,
     ...
 ```
 
-Around line 431, the boot sequence calls `start` on the `sosp` capsule, telling
+Around line 431, the boot sequence calls `start` on the `sensys` capsule, telling
 it to start its service—this is where we will hook in in a moment.
 
 Finally, at the very end, the kernel's main loop begins.
@@ -184,12 +185,12 @@ $ tockloader erase-apps
 ```
 
 Now that you've seen how Tock initializes and uses capsules, including your
-`Sosp` capsule, you're going to fill in the code for `Sosp.` At the end of
+`Sensys` capsule, you're going to fill in the code for `Sensys.` At the end of
 this section, your capsule will sample the light sensor and print the results
 as serial output. But you'll start with something simpler: printing
 "Hello World" to the debug console once on boot.
 
-Open the capsule `doc/courses/sosp/exercises/capsule/src/sosp.rs`. The kernel
+Open the capsule `doc/courses/sensys/exercises/capsule/src/sensys.rs`. The kernel
 boot sequence already includes this capsule, but its code is empty. Go to the
 `start` method in the file, it looks like;
 
@@ -209,14 +210,14 @@ debug!("Hello World");
 Now compile and program your new kernel:
 
 ```bash
-$ cd doc/courses/sosp/exercises/board
+$ cd doc/courses/sensys/exercises/board
 $ make program
     [ ... several warnings here ... ]
 $ tockloader listen
 No device name specified. Using default "tock"
 Using "/dev/ttyUSB0 - Hail IoT Module - TockOS"
 Listening for serial output.
-TOCK_DEBUG(0): ~/tock/doc/courses/sosp/exercises/capsule/src/sosp.rs:28: Hello World
+TOCK_DEBUG(0): ~/tock/doc/courses/sensys/exercises/capsule/src/sensys.rs:28: Hello World
 ```
 
 [Sample Solution](https://gist.github.com/alevy/e4cc793d34923e3fc39dee6413dad25b)
@@ -248,7 +249,7 @@ If we examine [the HIL definition](https://docs-tockosorg.netlify.com/kernel/hil
 `now` is "current time in hardware clock units."
 
 This is where the type of the Alarm (`A: Alarm + 'a`) in the definition of
-`Sosp` comes into play. The type defines the time units.  So, calling
+`Sensys` comes into play. The type defines the time units. So, calling
 `<A::Frequency>::frequency()` will return the number of counter ticks in one
 second. Which means we could do:
 
@@ -288,7 +289,7 @@ pub fn start(&self) {
 }
 ```
 
-    TOCK_DEBUG(0): /tock/capsules/src/sosp.rs:24: It's currently 323012278 and we set an alarm for 323028278.
+    TOCK_DEBUG(0): /tock/capsules/src/sensys.rs:24: It's currently 323012278 and we set an alarm for 323028278.
 
 
 ### 5.3 Handle the `fired` callback
@@ -297,10 +298,10 @@ Currently, our `fired` callback isn't doing anything. Modify the `fired`
 method to print every time it fires and then setup a new alarm so that
 the callback will keep triggering every second:
 
-    TOCK_DEBUG(0): /tock/capsules/src/sosp.rs:24: It's currently 326405717 and we set an alarm for 326421717.
-    TOCK_DEBUG(1): /tock/capsules/src/sosp.rs:33: It's now 326421717.
-    TOCK_DEBUG(2): /tock/capsules/src/sosp.rs:33: It's now 326437718.
-    TOCK_DEBUG(3): /tock/capsules/src/sosp.rs:33: It's now 326453718.
+    TOCK_DEBUG(0): /tock/capsules/src/sensys.rs:24: It's currently 326405717 and we set an alarm for 326421717.
+    TOCK_DEBUG(1): /tock/capsules/src/sensys.rs:33: It's now 326421717.
+    TOCK_DEBUG(2): /tock/capsules/src/sensys.rs:33: It's now 326437718.
+    TOCK_DEBUG(3): /tock/capsules/src/sensys.rs:33: It's now 326453718.
     ...
 
 [Sample Solution](https://gist.github.com/ppannuto/64a1c6c5dbad4b2f2efa7f6e216927ce)
@@ -310,13 +311,13 @@ the callback will keep triggering every second:
 
 Printing hardware timer ticks isn't terribly exciting. Let's adapt this to grab
 an ambient light reading every second. In addition to the `time` traits, we can
-see at the top of the file that our Sosp capsule makes use of some `sensors`:
+see at the top of the file that our Sensys capsule makes use of some `sensors`:
 
 ```rust
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time::{self, Alarm, Frequency};
 
-pub struct Sosp<'a, A: Alarm + 'a> {
+pub struct Sensys<'a, A: Alarm + 'a> {
     alarm: &'a A,
     light: &'a AmbientLight,
 }
@@ -334,10 +335,10 @@ If you've implemented everything correctly, you should no longer have any
 warnings when your kernel builds. Try covering you board with your hand, or
 shining your phone's light at the board:
 
-    TOCK_DEBUG(0): /tock/capsules/src/sosp.rs:24: It's currently 335508024 and we set an alarm for 335524024.
-    TOCK_DEBUG(1): /tock/capsules/src/sosp.rs:40: The ambient light is 352 lux.
-    TOCK_DEBUG(2): /tock/capsules/src/sosp.rs:40: The ambient light is 15 lux.
-    TOCK_DEBUG(3): /tock/capsules/src/sosp.rs:40: The ambient light is 0 lux.
+    TOCK_DEBUG(0): /tock/capsules/src/sensys.rs:24: It's currently 335508024 and we set an alarm for 335524024.
+    TOCK_DEBUG(1): /tock/capsules/src/sensys.rs:40: The ambient light is 352 lux.
+    TOCK_DEBUG(2): /tock/capsules/src/sensys.rs:40: The ambient light is 15 lux.
+    TOCK_DEBUG(3): /tock/capsules/src/sensys.rs:40: The ambient light is 0 lux.
 
 [Sample Solution](https://gist.github.com/ppannuto/d5f8cbfd0e60c984b0b13024686f3134)
 

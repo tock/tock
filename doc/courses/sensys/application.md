@@ -21,9 +21,9 @@ Tock, and build our own applications in C.
 ## 3. Get a C application running on your board
 
 You'll find the outline of a C application in the directory
-`docs/courses/sosp/exercises/app`.
+`docs/courses/sensys/exercises/app`.
 
-Take a look at the code in `main.c`.  So far, this application merely prints
+Take a look at the code in `main.c`. So far, this application merely prints
 "Hello, World!".
 
 The code uses the standard C library routine `printf` to compose a message
@@ -108,13 +108,13 @@ until the delay is complete.
 
 ## 5. Write an app that periodically samples the on-board sensors
 
-Now that we have the ability to write applications, let's do
-something a little more complex. The development board you are using has several
-sensors on it, [as shown here](https://github.com/helena-project/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png)
-for the Hail board.
-These sensors include a light sensor, a humidity sensor, and a temperature sensor. Each sensing medium can be accessed separately via the Tock user
-library. We'll just be using the light, temperature, and humidity measurements
-for today's tutorial.
+Now that we have the ability to write applications, let's do something a little
+more complex. The development board you are using has several sensors on it,
+[as shown here](https://github.com/helena-project/tock/blob/master/boards/hail/media/hail_reva_noheaders_labeled.png)
+for the Hail board. These sensors include a light sensor, a humidity sensor, and
+a temperature sensor. Each sensing medium can be accessed separately via the
+Tock user library. We'll just be using the light, temperature, and humidity
+measurements for today's tutorial.
 
 #### Light
 
@@ -211,7 +211,7 @@ we can use Tock to provide the BLE
 Tock exposes raw BLE functionality from kernelspace to userland via a syscall
 interface. There is also a userland app that leverages the BLE syscall API to
 implement an environment sensing service (ESS) as a separate process, instead
-of in the kernel. Publishing ESS characteristics (eg.  temperature, ambient
+of in the kernel. Publishing ESS characteristics (eg. temperature, ambient
 light, etc.) is thus as simple as creating another process on the board that
 reads the sensors and communicates with the ESS service over Tock's
 inter-process communication (IPC) mechanism.
@@ -223,7 +223,7 @@ The BLE ESS service can be found in the main Tock repository under
 updates the BLE ESS service, which is broadcasts through the BLE radio.
 
 Before we load the service though, you should modify its name so that
-you'll be able to tell your Hail apart from everyone else's.  Pick
+you'll be able to tell your Hail apart from everyone else's. Pick
 something short but reasonably unique. On Line 32 of `main.c`, change the
 `adv_name` to a string of your choice. For example:
 

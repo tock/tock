@@ -1,38 +1,38 @@
 ---
-location: Shanghai, China
-date: October 28th
+location: Delft, Netherlands
+date: November 5, 2017
 ---
 
-# Tock OS Training @ SOSP 2017
+# Tock OS Training @ SenSys 2017
 
-This course introduces you to Tock, a secure embedded operating system for sensor
-networks and the Internet of Things. Tock is the first operating system to
-allow multiple untrusted applications to run concurrently on a microcontroller-based
-computer. The Tock kernel is written in Rust, a memory-safe systems language that
-does not rely on a garbage collector. Userspace applications are run in
-single-threaded processes that can be written in any language. A paper
-describing Tock's goals, design, and implementation will be presented at the
-conference on Monday and is available [here](https://www.amitlevy.com/papers/tock-sosp2017.pdf).
+This course introduces you to Tock, a secure embedded operating system for
+sensor networks and the Internet of Things. Tock is the first operating system
+to allow multiple untrusted applications to run concurrently on a
+microcontroller-based computer. The Tock kernel is written in Rust, a
+memory-safe systems language that does not rely on a garbage collector.
+Userspace applications are run in single-threaded processes that can be written
+in any language. A paper describing Tock's goals, design, and implementation was
+published at the SOSP'17 conference and is available
+[here](https://www.amitlevy.com/papers/tock-sosp2017.pdf).
 
-In this course, you will learn the basic Tock system architecture,
-how to write a userspace process in C, Tock's system call interface, and
-fill in code for a small kernel extension written in Rust. The course assumes
-advanced knowledge of operating systems (i.e., you are an operating systems researcher)
-and fluency in C. It assumes no knowledge of Rust, although knowing Rust will allow
-you to be more creative in the Rust programming part of the course.
+In this course, you will learn the basic Tock system architecture, how to write
+a userspace process in C, Tock's system call interface, and fill in code for a
+small kernel extension written in Rust. The course assumes experience
+programming embedded devices and fluency in C. It assumes no knowledge of Rust,
+although knowing Rust will allow you to be more creative in the Rust programming
+part of the course.
 
 ## Preparation
 
-We will go over setting up a development environment during the course and help out with
-possible problems you run into.
-However, because the WiFi is likely to be slow,
-we **strongly urge you to set up the following dependencies ahead of
+We will go over setting up a development environment during the course and help
+out with possible problems you run into. However, because the WiFi is likely to
+be slow, we **strongly urge you to set up the following dependencies ahead of
 time, preferably by downloading the provided VM image.**
 
-First, you will need a laptop running Linux or OS X. Linux in a VM will work just
-fine, see below for a pre-made image with all the dependencies. We strongly recommend
-you use the pre-made image unless you have set up and tested your installation before
-the course.
+First, you will need a laptop running Linux or OS X. Linux in a VM will work
+just fine, see below for a pre-made image with all the dependencies. We strongly
+recommend you use the pre-made image unless you have set up and tested your
+installation before the course.
 
 ### Virtual Machine
 
@@ -43,9 +43,12 @@ an image with all of the dependencies already installed
  * VirtualBox users: [File → Import Appliance...](https://docs.oracle.com/cd/E26217_01/E26796/html/qs-import-vm.html),
  * VMWare users: [File → Open...](https://pubs.vmware.com/workstation-9/index.jsp?topic=%2Fcom.vmware.ws.using.doc%2FGUID-DDCBE9C0-0EC9-4D09-8042-18436DA62F7A.html)
 
-The VM account is "user" with password "user".
-Feel free to customize it with whichever editors, window managers, etc you like
-before the training starts.
+The VM account is "user" with password "user". Feel free to customize it with
+whichever editors, window managers, etc. you like before the training starts.
+
+> If the Host OS is Linux, you may need to add your user to the `vboxusers`
+> group on your machine in order to connect the hardware boards to the virtual
+> machine.
 
 ### Manual Installation
 
@@ -91,17 +94,18 @@ If you choose to install manually, you will need the following software:
 ### Testing
 
 To test if your environment is working, go to the `tock/boards/hail` directory
-and type `make program`. This should compile the kernel for the default board, Hail,
-and try to program it over a USB serial connection. It may need to compile several
-supporting libraries first (so may take 30 seconds or so the first time). You should see output like this:
+and type `make program`. This should compile the kernel for the default board,
+Hail, and try to program it over a USB serial connection. It may need to compile
+several supporting libraries first (so may take 30 seconds or so the first
+time). You should see output like this:
 
 ```
 $ make program
-   Compiling kernel v0.1.0 (file:///Users/pal/src/tock/kernel)
-   Compiling hail v0.1.0 (file:///Users/pal/src/tock/boards/hail)
-   Compiling cortexm4 v0.1.0 (file:///Users/pal/src/tock/arch/cortex-m4)
-   Compiling capsules v0.1.0 (file:///Users/pal/src/tock/capsules)
-   Compiling sam4l v0.1.0 (file:///Users/pal/src/tock/chips/sam4l)
+   Compiling kernel v0.1.0 (file:///tock/kernel)
+   Compiling hail v0.1.0 (file:///tock/boards/hail)
+   Compiling cortexm4 v0.1.0 (file:///tock/arch/cortex-m4)
+   Compiling capsules v0.1.0 (file:///tock/capsules)
+   Compiling sam4l v0.1.0 (file:///tock/chips/sam4l)
     Finished release [optimized] target(s) in 18.50 secs
    text	   data	    bss	    dec	    hex	filename
  101064	   4840	  60688	 166592	  28ac0	target/thumbv7em-none-eabi/release/hail
@@ -112,8 +116,9 @@ No serial ports found. Is the board connected?
 make: *** [program] Error 1
 ```
 
-That is, since you don't yet have a board plugged in it can't program it. But the above output
-indicates that it can compile correctly and invoke `tockloader` to program a board.
+That is, since you don't yet have a board plugged in it can't program it. But
+the above output indicates that it can compile correctly and invoke `tockloader`
+to program a board.
 
 ## Agenda
 

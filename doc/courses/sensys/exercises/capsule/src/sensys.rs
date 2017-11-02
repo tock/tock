@@ -1,4 +1,4 @@
-//! Sample capsule for Tock course at SOSP. It handles an alarm to
+//! Sample capsule for Tock course at SenSys. It handles an alarm to
 //! sample the ambient light sensor.
 
 #![feature(const_fn,const_cell_new)]
@@ -11,14 +11,14 @@ extern crate kernel;
 use kernel::hil::sensors::{AmbientLight, AmbientLightClient};
 use kernel::hil::time::{self, Alarm, Frequency};
 
-pub struct Sosp<'a, A: Alarm + 'a> {
+pub struct Sensys<'a, A: Alarm + 'a> {
     alarm: &'a A,
     light: &'a AmbientLight,
 }
 
-impl<'a, A: Alarm> Sosp<'a, A> {
-    pub fn new(alarm: &'a A, light: &'a AmbientLight) -> Sosp<'a, A> {
-        Sosp {
+impl<'a, A: Alarm> Sensys<'a, A> {
+    pub fn new(alarm: &'a A, light: &'a AmbientLight) -> Sensys<'a, A> {
+        Sensys {
             alarm: alarm,
             light: light,
         }
@@ -29,10 +29,10 @@ impl<'a, A: Alarm> Sosp<'a, A> {
     }
 }
 
-impl<'a, A: Alarm> time::Client for Sosp<'a, A> {
+impl<'a, A: Alarm> time::Client for Sensys<'a, A> {
     fn fired(&self) {}
 }
 
-impl<'a, A: Alarm> AmbientLightClient for Sosp<'a, A> {
+impl<'a, A: Alarm> AmbientLightClient for Sensys<'a, A> {
     fn callback(&self, lux: usize) {}
 }

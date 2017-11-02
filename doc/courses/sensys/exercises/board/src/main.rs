@@ -13,7 +13,7 @@ extern crate compiler_builtins;
 #[macro_use(debug,static_init)]
 extern crate kernel;
 extern crate sam4l;
-extern crate sosp;
+extern crate sensys;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{MuxI2C, I2CDevice};
@@ -49,7 +49,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 /// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
-    sosp: &'static sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    sensys: &'static sensys::Sensys<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<'static,
                                                  VirtualMuxAlarm<'static,
@@ -253,14 +253,14 @@ pub unsafe fn reset_handler() {
     isl29035_i2c.set_client(isl29035);
     isl29035_virtual_alarm.set_client(isl29035);
 
-    let sosp_virtual_alarm = static_init!(
+    let sensys_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm));
-    let sosp = static_init!(
-        sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        sosp::Sosp::new(sosp_virtual_alarm, isl29035));
-    hil::sensors::AmbientLight::set_client(isl29035, sosp);
-    sosp_virtual_alarm.set_client(sosp);
+    let sensys = static_init!(
+        sensys::Sensys<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        sensys::Sensys::new(sensys_virtual_alarm, isl29035));
+    hil::sensors::AmbientLight::set_client(isl29035, sensys);
+    sensys_virtual_alarm.set_client(sensys);
 
     // Alarm
     let virtual_alarm1 = static_init!(
@@ -393,7 +393,7 @@ pub unsafe fn reset_handler() {
 
     let hail = Hail {
         console: console,
-        sosp: sosp,
+        sensys: sensys,
         gpio: gpio,
         alarm: alarm,
         temp: temp,
@@ -424,9 +424,9 @@ pub unsafe fn reset_handler() {
         capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(hail.console), kc);
 
-    // Start the SOSP capsule sampling light readings for the
+    // Start the SenSys capsule sampling light readings for the
     // console.
-    hail.sosp.start();
+    hail.sensys.start();
 
     hail.nrf51822.initialize();
 

@@ -1,5 +1,5 @@
 [package]
-name = "sosp"
+name = "sensys"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
@@ -7,4 +7,4 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 kernel = { path = "../../../../../kernel" }
 
 [lib]
-path = "src/sosp.rs"
+path = "src/sensys.rs"
