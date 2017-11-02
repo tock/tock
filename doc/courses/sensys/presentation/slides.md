@@ -1,6 +1,6 @@
 ---
 title: Tock Embedded OS Training
-date: SOSP 2017
+date: SenSys 2017
 header-includes:
   - \beamertemplatenavigationsymbolsempty
   - \usepackage{pifont}
@@ -8,15 +8,17 @@ header-includes:
   - \newcommand{\xmark}{\color{red}\ding{55}}
 ---
 
+## Welcome to the Tock OS Training!
+
 > Please make sure you have completed all of the tutorial pre-requisites.  If
 > you prefer, you can download a virtual machine image with all the
 > pre-requisites already installed.
 
-<https://github.com/helena-project/tock/tree/master/doc/courses/sosp/README.md>  
+<https://github.com/helena-project/tock/tree/master/doc/courses/sensys/README.md>
 
-> aka  
+> aka
 
-<tt><https://goo.gl/s17fy8></tt>
+<tt><https://goo.gl/????></tt>
 
 ## Tock
 
@@ -27,35 +29,6 @@ A secure operating system for microcontrollers
   * Type-safe API for safe driver development
 
   * Hardware isolated processes for application code
-
-## Microcontrollers
-
-System-on-a-chip with integrated flash, SRAM, CPU and a bunch of hardware
-controllers.
-
-Typically:
-
-  * Communication: UART, SPI, I2C, USB, CAN...
-
-  * External I/O: GPIO, external interrupt, ADC, DAC
-
-  * Timers: RTC, countdown timers
-
-Maybe...
-
-  * Radio (Bluetooth, 15.4)
-
-  * Cryptographic accelerators
-
-  * Other specialized hardware...
-
-## Low Resource
-
-  * 10's of µA average power draw
-
-  * 10's of kBs of RAM
-
-  * Moderate clock speeds
 
 ## Use cases
 
@@ -87,29 +60,35 @@ Maybe...
 
   3. Add functionality to the Tock kernel
 
-# Part 1: Hardware, tools and development environment
+# Part 1: Hardware, tools, and development environment
 
 ## Hail
 
 ![](hail.png)
 
-## Binaries on-board
+## We need the Hails back at the end of the tutorial
 
-### Bootloader
+But you can take one home with you! Purchase here:
 
-### Kernel
+<https://tockos.org/hardware>
 
-### Processes
+Put in "SENSYS17" for $5 off, and "XXX" as the address for local pickup.
+
+## Binaries on-board in flash
+
+  - `0x00000`: **Bootloader**: Interact with Tockloader; load code
+
+  - `0x10000`: **Kernel**
+
+  - `0x30000`: **Processes**: Packed back-to-back
 
 ## Tools
 
-  * `make` (just instrumenting `xargo`)
+  * `make`
 
-  * Rust (nightly for `asm!`, compiling `core`, etc)
+  * Rust/Cargo/Xargo (Rust code → LLVM)
 
-  * `xargo` to automate compiling base libraries
-
-  * `arm-none-eabi` GCC/LD to link binaries
+  * `arm-none-eabi` (LLVM → Cortex-M)
 
   * `tockloader` to interact with Hail and the bootloader
 
@@ -118,7 +97,7 @@ Maybe...
 Write a binary to a particular address in flash
 
 ```bash
-$ tockloader flash --address 0x1000 \
+$ tockloader flash --address 0x10000 \
     target/thumbv7em-none-eabi/release/hail.bin
 ```
 
@@ -151,9 +130,9 @@ $ tockloader listen
 
 ## Hands-on: Set-up development environment
 
-  1. Compile and flash the kernel
+  3. Compile and flash the kernel
 
-  2. (Optional) Familiarize yourself with `tockloader` commands
+  4. (Optional) Familiarize yourself with `tockloader` commands
 
     * `uninstall`
 
@@ -161,11 +140,11 @@ $ tockloader listen
 
     * `erase-apps`
 
-  3. (Optional) Add some other apps from the repo, like `blink` and `sensors`
+  5. (Optional) Add some other apps from the repo, like `blink` and `sensors`
 
 
- - Head to \texttt{<http://bit.ly/2lniNt6>} to get started!
- - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/environment.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/environment.md))
+ - Head to \texttt{<http://bit.ly/???>} to get started!
+ - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md))
 
 # Part 2: User space
 
@@ -181,29 +160,35 @@ $ tockloader listen
 
 ## C System Calls: `command` & `allow`
 
-```c
-int command(uint32_t driver, uint32_t command,
-              int arg1, int arg2);
 
-int allow(uint32_t driver, uint32_t allow, void* ptr,
-              size_t size);
+```c
+// Start an operation
+int command(u32 driver, u32 command, int arg1, int arg2);
+
+// Share memory with the kernel
+int allow(u32 driver, u32 allow, void* ptr, size_t size);
 ```
 
 ## C System Calls: `subscribe`
 
 ```c
-typedef void (subscribe_cb)(int, int, int,
-                            void* userdata);
+// Callback function type
+typedef void (sub_cb)(int, int, int, void* userdata);
 
-int subscribe(uint32_t driver, uint32_t subscribe,
-              subscribe_cb cb, void* userdata);
+// Register a callback with the kernel
+int subscribe(u32 driver,
+              u32 subscribe,
+              sub_cb cb,
+              void* userdata);
 ```
 
 ## C System Calls: `yield` & `yield_for`
 
 ```c
+// Block until next callback
 void yield(void);
 
+// Block until specific callback
 void yield_for(bool *cond) {
   while (!*cond) {
     yield();
@@ -282,13 +267,13 @@ int ipc_notify_client(int pid);
 
 ## Hands-on: Write a BLE environment sensing application
 
-  1. Get an application running on Hail
+  3. Get an application running on Hail
 
-  2. [Print "Hello World" every second](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-repeat-hello.c)
+  4. [Print "Hello World" every second](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-repeat-hello.c)
 
-  3. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-sensors.c)
+  5. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-sensors.c)
 
-  3. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-ble-ess.c)
+  6. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-ble-ess.c)
 
 
  - Head to \texttt{<http://bit.ly/2hgpl8n>} to get started!
@@ -468,20 +453,30 @@ pub trait NineDofClient {
 
 ## Hands-on: Write and add a capsule to the kernel
 
-  1. Read the Hail boot sequence in `boards/hail/src/main.rs`
+  4. Read the Hail boot sequence in `boards/hail/src/main.rs`
 
-  2. Write a new capsule that prints "Hello World" to the debug
+  5. Write a new capsule that prints "Hello World" to the debug
      console.
 
-  3. Extend your capsule to print "Hello World" every second
+  6. Extend your capsule to print "Hello World" every second
 
-  4. Extend your capsule to print light readings every second
+  7. Extend your capsule to print light readings every second
 
-  5. Extra credit
+  8. Extra credit
 
 
  - Head to \texttt{<http://bit.ly/2zLoD9W>} to get started!
  - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/capsule.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/capsule.md#2-check-your-understanding))
+
+## We need the Hails back!
+
+But you can take one home with you! Purchase here:
+
+
+<https://tockos.org/hardware>
+
+
+Put in "SENSYS17" for $5 off, and "XXX" as the address for local pickup.
 
 ## Stay in touch!
 
@@ -495,4 +490,4 @@ pub trait NineDofClient {
 
 ### Quick Survey!
 
-- <https://goo.gl/ntxsgX>
+- <https://goo.gl/???>
