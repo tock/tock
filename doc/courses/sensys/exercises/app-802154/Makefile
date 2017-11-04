@@ -6,7 +6,7 @@ TOCK_USERLAND_BASE_DIR = ../../../../../userland
 # Which files to compile.
 C_SRCS := $(wildcard *.c)
 
-PACKAGE_NAME = tock-course-app
+PACKAGE_NAME = tock-course-app-802154
 
 # Include userland master makefile. Contains rules and flags for actually
 # building the application.

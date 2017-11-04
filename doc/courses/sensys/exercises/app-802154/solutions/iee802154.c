@@ -9,8 +9,8 @@
 #include <ieee802154.h>
 
 int main(void) {
-  unsigned int humi;
-  int temp, lux;
+  unsigned int humidity;
+  int temperature, lux;
 
   char packet[64];
 
@@ -22,12 +22,12 @@ int main(void) {
   /* } IEEE802.15.4 configuration */
 
   while (1) {
-    temperature_read_sync(&temp);
-    humidity_read_sync(&humi);
+    temperature_read_sync(&temperature);
+    humidity_read_sync(&humidity);
     ambient_light_read_intensity_sync(&lux);
 
     int len = snprintf(packet, sizeof(packet), "%d deg C; %d%%; %d lux;\n",
-                       temp, humi, lux);
+                       temperature, humidity, lux);
 
     int err = ieee802154_send(0x0802, // destination address (short MAC address)
                               SEC_LEVEL_NONE, // No encryption
