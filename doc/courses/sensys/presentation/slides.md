@@ -6,6 +6,11 @@ header-includes:
   - \usepackage{pifont}
   - \newcommand{\cmark}{\color{green}\ding{51}}
   - \newcommand{\xmark}{\color{red}\ding{55}}
+  - \usefonttheme{professionalfonts}
+  - \usefonttheme{serif}
+  - \usepackage{fontspec}
+  - \setmainfont{Helvetica Neue}
+  - \setbeamerfont{note page}{family*=pplx,size=\large}
 ---
 
 ## Welcome to the Tock OS Training!
