@@ -141,11 +141,21 @@ $ tockloader listen
   1. What kinds of binaries exist on a Tock board? Hint: There are three, and
      only two can be programmed using `tockloader`.
 
-  2. Can you point to the chip on the Hail that runs the Tock kernel? How about
-     the processes?
+<!--   2. Can you point to the chip on the Hail that runs the Tock kernel? How about
+     the processes? -->
 
-  3. What steps would you follow to program a processes onto Hail? What about
+  2. What steps would you follow to program a process onto Hail? What about
      to replace the kernel?
+
+## Answers
+
+  1. The three binaries are the serial bootloader, the kernel, and a series of
+     processes. The bootloader can be used to load the kernel and processes, but
+     cannot replace itself.
+
+  2. To install a process, simply run `tockloader install` in the app directory.
+     To load the kernel, use `tockloader flash` and specify the binary and the
+     address: `tockloader flash --address 0x10000 hail.bin`.
 
 ## Hands-on: Set-up development environment
 
@@ -169,6 +179,8 @@ $ tockloader listen
 
 ## System calls
 
+Tock supports five syscalls that applications use to interact with the kernel.
+
 | **Call**  | **Target** | **Description**                  |
 |:----------|:----------:|----------------------------------|
 | command   | Capsule    | Invoke an operation on a capsule |
@@ -178,7 +190,6 @@ $ tockloader listen
 | yield     | Core       | Block until next upcall is ready |
 
 ## C System Calls: `command` & `allow`
-
 
 ```c
 // Start an operation
@@ -207,7 +218,7 @@ int subscribe(u32 driver,
 // Block until next callback
 void yield(void);
 
-// Block until specific callback
+// Block until a specific callback
 void yield_for(bool *cond) {
   while (!*cond) {
     yield();
@@ -215,7 +226,7 @@ void yield_for(bool *cond) {
 }
 ```
 
-## Example: printing to the debug console
+<!-- ## Example: printing to the debug console
 
 ```c
 static void putstr_cb(int _x, int _y, int _z, void* ud) {
@@ -233,6 +244,27 @@ int putnstr(const char *str, size_t len) {
   command(DRIVER_NUM_CONSOLE, 1, len, 0);
   yield_for(&data.done);
   return ret;
+}
+``` -->
+
+## Example: printing to the debug console
+
+```c
+#define DRIVER_NUM_CONSOLE 0x0001
+
+bool done = false;
+
+static void putstr_cb(int x, int y, int z, void* ud) {
+  done = true;
+}
+
+int putnstr(const char *str, size_t len) {
+  allow(DRIVER_NUM_CONSOLE, 1, str, len);
+  subscribe(DRIVER_NUM_CONSOLE, 1, putstr_cb, NULL);
+  command(DRIVER_NUM_CONSOLE, 1, len, 0);
+  yield_for(&done);
+
+  return SUCCESS;
 }
 ```
 
@@ -255,25 +287,21 @@ int putnstr(const char *str, size_t len) {
  * Call `notify` to trigger callback in connected service
  * Receive a callback when service calls `notify`
 
-## Inter Process Communication API
+## Client Inter Process Communication API
 
 ```c
-// discover IPC service by name
-// returns error code or PID for service
+// Discover IPC service by name
 int ipc_discover(const char* pkg_name);
 
-// shares memory slice at address with IPC service
+// Share memory slice with IPC service
 int ipc_share(int pid, void* base, int len);
 
-// register for callback on server `notify`
+// Register for callback on server `notify`
 int ipc_register_client_cb(int pid, subscribe_cb cb,
                            void* userdata);
 
-// trigger callback in service
+// Trigger callback in service
 int ipc_notify_svc(int pid);
-
-// trigger callback in a client
-int ipc_notify_client(int pid);
 ```
 
 ## Check your understanding
@@ -281,8 +309,32 @@ int ipc_notify_client(int pid);
 1. How does a process perform a blocking operation? Can you draw the flow of
    operations when a process calls `delay_ms(1000)`?
 
-2. How would you write an IPC service to print to the console? Which functions
-   would the client need to call?
+2. Which functions would a client call to interact with an IPC service that
+   provides a UART console? What does the design of the console service look like?
+
+## Answers
+
+\footnotesize
+
+1. A blocking operation starts with setting up a callback (using the `subscribe`
+   syscall), then is initiated with a `command` syscall, and the process then blocks
+   until the callback is called. For `delay_ms(1000)`, the application first
+   registers a timer done callback, then calls the correct timer command
+   with the value `1000`, then calls `yield()` which will return when the timer
+   callback is triggered after 1000 ms.
+
+2. First the client would call `ipc_discover()` to find the ID of the console
+   service. Then, the client would call `ipc_share()` to share a buffer with
+   the service, fill in the buffer with the string it wants to print to the
+   console, and call `ipc_notify_svc()` to invoke the service to actually
+   print the string. If the client wants to know when the string has been
+   printed, it should `ipc_register_client_cb()` before notifying the service
+   to get a callback.
+
+     The console service is relatively simple. It first has to register a callback
+     to receive notifications from clients. When the callback triggers, it uses
+     the buffer shared by the client and prints the contents to the console.
+
 
 ## Hands-on: Write a BLE environment sensing application
 
