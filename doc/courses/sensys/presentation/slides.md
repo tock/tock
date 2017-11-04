@@ -60,7 +60,7 @@ A secure operating system for microcontrollers
 
 ## Tock 1.0 (Coming very soon)
 
-  - Stabilize the initial syscall interface
+  - Stabilizes the initial syscall interface
 
     - \tiny Docs: [https://github.com/helena-project/tock/tree/master/doc/syscalls](https://github.com/helena-project/tock/tree/master/doc/syscalls)
 
