@@ -388,68 +388,7 @@ impl time::Client for MuxAlarm {
 
 ![Capsules reference each other directly, assisting inlining](rng.pdf)
 
-## The mutable aliases problem
-
-```rust
-enum NumOrPointer {
-  Num(u32),
-  Pointer(&mut u32)
-}
-
-// n.b. will not compile
-let external : &mut NumOrPointer;
-match external {
-  Pointer(internal) => {
-    // This would violate safety and
-    // write to memory at 0xdeadbeef
-    *external = Num(0xdeadbeef);
-    *internal = 12345;  // Kaboom
-  },
-  ...
-}
-```
-
-## Interior mutability to the rescue
-
-| Type           | Copy-only | Mutual exclusion | Opt.      | Mem Opt. |
-|----------------|:---------:|:----------------:|:---------:|:--------:|
-| `Cell`         | \cmark{}  | \xmark{}         | \cmark{}  | \cmark{} |
-| `VolatileCell` | \cmark{}  | \xmark{}         | \xmark{}  | \cmark{} |
-| `TakeCell`     | \xmark{}  | \cmark{}         | \xmark{}  | \cmark{} |
-| `MapCell`      | \xmark{}  | \cmark{}         | \cmark{}  | \xmark{} |
-
-
-* * *
-
-```rust
-pub struct Fxos8700cq<`a> {
-  i2c: &`a I2CDevice,
-  state: Cell<State>,
-  buffer: TakeCell<`static, [u8]>,
-  callback:
-    Cell<Option<&`a hil::ninedof::NineDofClient>>,
-}
-
-impl<`a> I2CClient for Fxos8700cq<`a> {
-  fn cmd_complete(&self, buf: &`static mut [u8]) { ... }
-}
-
-impl<`a> hil::ninedof::NineDof for Fxos8700cq<`a> {
-  fn read_accelerometer(&self) -> ReturnCode { ... }
-}
-
-pub trait NineDofClient {
-  fn callback(&self, x: usize, y: usize, z: usize);
-}
-```
-
 ## Check your understanding
-
-  1. What is a `VolatileCell`? Can you find some uses of `VolatileCell`, and do
-     you understand why they are needed? Hint: look inside `chips/sam4l/src`.
-
-  2. What is a `TakeCell`? When is a `TakeCell` preferable to a standard
-     `Cell`?
 
 ## Hands-on: Write and add a capsule to the kernel
 
