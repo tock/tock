@@ -1,5 +1,5 @@
 ---
-title: Tock Embedded OS Training
+title: Tock Embedded OS Tutorial
 date: SenSys 2017
 header-includes:
   - \beamertemplatenavigationsymbolsempty
