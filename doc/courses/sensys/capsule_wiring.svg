@@ -17,7 +17,7 @@
    xml:space="preserve"
    id="svg6368"
    sodipodi:docname="capsule_wiring.svg"
-   inkscape:version="0.91 r13725"
+   inkscape:version="0.92.2 5c3e80d, 2017-08-06"
    width="186.84363mm"
    height="121.16702mm"
    style="fill-rule:evenodd;stroke-width:28.22200012;stroke-linejoin:round"><metadata
@@ -32,15 +32,15 @@
      guidetolerance="10"
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
-     inkscape:window-width="1680"
-     inkscape:window-height="1006"
+     inkscape:window-width="1366"
+     inkscape:window-height="743"
      id="namedview6370"
      showgrid="true"
      inkscape:zoom="1.1632596"
-     inkscape:cx="261.02084"
+     inkscape:cx="297.98593"
      inkscape:cy="219.63004"
      inkscape:window-x="0"
-     inkscape:window-y="24"
+     inkscape:window-y="25"
      inkscape:window-maximized="0"
      inkscape:current-layer="container-id1"
      units="mm"
@@ -2114,7 +2114,8 @@
                id="rect5803"
                style="fill:none;stroke:none" /><text
                class="TextShape"
-               id="text5823"><tspan
+               id="text5823"
+               style="line-height:0%"><tspan
                  class="TextParagraph"
                  font-size="494px"
                  font-weight="400"
@@ -2191,14 +2192,14 @@
          transform="scale(0.93796813,1.0661343)"
          y="12974.425"
          x="493.87677"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:28.59249306px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          id="text5907-7-94-2"
          class="TextShape"><tspan
            sodipodi:role="line"
            id="tspan13779"
            x="493.87677"
            y="12974.425"
-           style="stroke-width:0.00705134">Virtual Alarm</tspan></text>
+           style="font-size:28.59249306px;line-height:1.25;stroke-width:0.00705134">Virtual Alarm</tspan></text>
 <g
          id="g8159-39"
          transform="matrix(1.57022,-0.26392677,0.35144894,1.1791842,233.02781,13808.033)"
@@ -2214,14 +2215,14 @@
          transform="scale(0.93796813,1.0661343)"
          y="13092.945"
          x="492.18393"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:28.59249306px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          id="text5907-7-94-2-9"
          class="TextShape"><tspan
            y="13092.945"
            x="492.18393"
            sodipodi:role="line"
            id="tspan23859"
-           style="stroke-width:0.00705134">Timer Driver</tspan></text>
+           style="font-size:28.59249306px;line-height:1.25;stroke-width:0.00705134">Timer Driver</tspan></text>
 <path
          style="visibility:hidden;fill:#990000;fill-opacity:1;fill-rule:evenodd;stroke:#ffffff;stroke-width:3.93006253;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          inkscape:connector-curvature="0"
@@ -2230,13 +2231,14 @@
          transform="scale(0.93796813,1.0661343)"
          y="13224.684"
          x="523.64441"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:32px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00789168;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00789168;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          id="text5907-4"
          class="TextShape"><tspan
            sodipodi:role="line"
            id="tspan6226"
            x="523.64441"
-           y="13224.684">Timer</tspan></text>
+           y="13224.684"
+           style="font-size:32px;line-height:1.25">Timer</tspan></text>
 <path
          style="visibility:hidden;fill:none;fill-rule:evenodd;stroke:#ffffff;stroke-width:3.93006253;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          inkscape:connector-curvature="0"
@@ -2245,24 +2247,26 @@
          transform="scale(0.93796813,1.0661343)"
          y="13224.684"
          x="768.14447"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:32px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00789168;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00789168;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          id="text5907-4-8"
          class="TextShape"><tspan
            y="13224.684"
            x="768.14447"
            sodipodi:role="line"
-           id="tspan6286">I2C</tspan></text>
+           id="tspan6286"
+           style="font-size:32px;line-height:1.25">I2C</tspan></text>
 <text
          transform="scale(0.93796813,1.0661343)"
          y="13110.208"
          x="747.60797"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:28.59200096px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          id="text5907-7-94-2-9-5-3"
          class="TextShape"><tspan
            y="13110.208"
            x="747.60797"
            sodipodi:role="line"
-           id="tspan6513">SPI Driver</tspan></text>
+           id="tspan6513"
+           style="font-size:28.59200096px;line-height:1.25">SPI Driver</tspan></text>
 <g
          id="g8159-7"
          transform="matrix(1.3950361,-0.26392677,0.31223904,1.1791842,499.10557,13807.527)"
@@ -2278,13 +2282,14 @@
          transform="scale(0.93796813,1.0661343)"
          y="13092.482"
          x="748.6911"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:28.59200096px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          id="text5907-7-94-2-2"
          class="TextShape"><tspan
            sodipodi:role="line"
            id="tspan7306"
            x="748.6911"
-           y="13092.482">I2C Driver</tspan></text>
+           y="13092.482"
+           style="font-size:28.59200096px;line-height:1.25">I2C Driver</tspan></text>
 <path
          d="m 849.89545,14067.084 0,0 0.0304,-0.583 0.0762,-0.593 0.13696,-0.574 0.19783,-0.583 0.24349,-0.567 0.28913,-0.566 0.35004,-0.548 0.39566,-0.54 0.44132,-0.534 0.50219,-0.513 0.54786,-0.499 0.57827,-0.487 0.63918,-0.464 0.66958,-0.447 0.73047,-0.42 0.74568,-0.411 0.79135,-0.378 0.82176,-0.36 0.86743,-0.327 0.88266,-0.307 0.91308,-0.285 0.94351,-0.246 0.95875,-0.224 0.97394,-0.199 1.00439,-0.161 1.0044,-0.137 1.03482,-0.113 1.01961,-0.08 1.05004,-0.05 1.03484,-0.02 163.42661,0 0,0 1.0348,0.02 1.0501,0.05 1.0196,0.08 1.0348,0.113 1.0044,0.137 1.0044,0.161 0.9739,0.199 0.9588,0.224 0.9435,0.246 0.9131,0.285 0.8826,0.307 0.8674,0.327 0.8218,0.36 0.7914,0.378 0.7456,0.411 0.7305,0.42 0.6696,0.447 0.6392,0.464 0.5783,0.487 0.5478,0.499 0.5022,0.513 0.4413,0.534 0.3957,0.54 0.35,0.548 0.2891,0.566 0.2435,0.567 0.1979,0.583 0.1369,0.574 0.076,0.593 0.031,0.583 0.015,44.817 0,0 -0.03,0.582 -0.076,0.593 -0.1369,0.575 -0.1979,0.582 -0.2434,0.567 -0.2892,0.567 -0.35,0.549 -0.3956,0.54 -0.4414,0.532 -0.5022,0.515 -0.5478,0.496 -0.5783,0.49 -0.6392,0.463 -0.6696,0.448 -0.7304,0.418 -0.7457,0.413 -0.7913,0.377 -0.8218,0.36 -0.8674,0.326 -0.8827,0.309 -0.9131,0.284 -0.9435,0.247 -0.9588,0.223 -0.9739,0.198 -1.0044,0.163 -1.0044,0.137 -1.0348,0.111 -1.0196,0.08 -1.0501,0.05 -1.0348,0.01 -163.44254,0 0,0 -1.03481,-0.01 -1.05007,-0.05 -1.01959,-0.08 -1.03483,-0.112 -1.0044,-0.136 -1.00439,-0.163 -0.97395,-0.198 -0.95875,-0.223 -0.94351,-0.249 -0.91308,-0.282 -0.88265,-0.309 -0.86743,-0.325 -0.82177,-0.361 -0.79134,-0.378 -0.74567,-0.412 -0.73048,-0.42 -0.66959,-0.446 -0.63915,-0.462 -0.57829,-0.491 -0.54785,-0.497 -0.5022,-0.513 -0.44133,-0.534 -0.39567,-0.539 -0.35,-0.55 -0.28916,-0.564 -0.24348,-0.567 -0.19783,-0.584 -0.13698,-0.575 -0.0761,-0.591 -0.0304,-0.584 z m 0,-11.202 z m 203.19135,67.229 z"
          id="path9316"
@@ -2292,14 +2297,15 @@
          style="visibility:hidden;fill:none;fill-rule:evenodd;stroke:#ffffff;stroke-width:3.93006253;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" /><text
          class="TextShape"
          id="text9318"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:32px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00789168;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00789168;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          x="1013.5237"
          y="13224.684"
          transform="scale(0.93796813,1.0661343)"><tspan
            id="tspan9320"
            sodipodi:role="line"
            x="1013.5237"
-           y="13224.684">UART</tspan></text>
+           y="13224.684"
+           style="font-size:32px;line-height:1.25">UART</tspan></text>
 <g
          style="visibility:hidden;fill:#0277bd;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          transform="matrix(1.3950361,-0.26392677,0.31223904,1.1791842,734.76524,13807.527)"
@@ -2314,14 +2320,15 @@
            id="path9326" /></g><text
          class="TextShape"
          id="text9328"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:28.59200096px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          x="999.93597"
          y="13092.482"
          transform="scale(0.93796813,1.0661343)"><tspan
            y="13092.482"
            x="999.93597"
            id="tspan9330"
-           sodipodi:role="line">UART Driver</tspan></text>
+           sodipodi:role="line"
+           style="font-size:28.59200096px;line-height:1.25">UART Driver</tspan></text>
 <g
          id="g9332"
          transform="matrix(1.3950361,-0.26392677,0.31223904,1.1791842,734.76524,13683.737)"
@@ -2337,13 +2344,14 @@
          transform="scale(0.93796813,1.0661343)"
          y="12976.371"
          x="999.93597"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:28.59200096px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          id="text9338"
          class="TextShape"><tspan
            sodipodi:role="line"
            id="tspan9340"
            x="999.93597"
-           y="12976.371">Console</tspan></text>
+           y="12976.371"
+           style="font-size:28.59200096px;line-height:1.25">Console</tspan></text>
 <g
          style="fill:#0277bd;fill-opacity:1;stroke:none;stroke-width:0;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          transform="matrix(1.57022,-0.26392677,0.35144894,1.1791842,472.15595,13574.377)"
@@ -2358,15 +2366,15 @@
            id="path9346" /></g><text
          class="TextShape"
          id="text9348"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:28.59249306px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          x="749.03204"
          y="12873.795"
          transform="scale(0.93796813,1.0661343)"><tspan
-           style="stroke-width:0.00705134"
+           style="font-size:28.59249306px;line-height:1.25;stroke-width:0.00705134"
            y="12873.795"
            x="749.03204"
            id="tspan9350"
-           sodipodi:role="line">SOSP</tspan></text>
+           sodipodi:role="line">Sensys</tspan></text>
 <path
          style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:4.26666737;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#Arrow2Mstart);marker-end:url(#marker16151)"
          d="m 486.81516,14051.473 0,-63.757"
@@ -2423,14 +2431,15 @@
            id="path24062" /></g><text
          class="TextShape"
          id="text24064"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:28.59200096px;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;line-height:0%;font-family:Roboto;-inkscape-font-specification:'Roboto, Bold';text-align:center;writing-mode:lr-tb;text-anchor:middle;visibility:hidden;opacity:1;fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke-width:0.00705134;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
          x="748.6911"
          y="12974.651"
          transform="scale(0.93796813,1.0661343)"><tspan
            y="12974.651"
            x="748.6911"
            id="tspan24066"
-           sodipodi:role="line">isl29035</tspan></text>
+           sodipodi:role="line"
+           style="font-size:28.59200096px;line-height:1.25">isl29035</tspan></text>
 <path
          style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:4.26666737;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-start:url(#marker25688);marker-end:url(#marker26430)"
          d="m 720.64089,13918.513 0,-63.757"
