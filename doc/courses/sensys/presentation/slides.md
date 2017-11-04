@@ -269,15 +269,15 @@ int ipc_notify_client(int pid);
 
   3. Get an application running on Hail
 
-  4. [Print "Hello World" every second](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-repeat-hello.c)
+  4. [Print "Hello World" every second](https://github.com/helena-project/tock/bloc/master/doc/courses/sensys/exercises/app/solutions/repeat-hello.c)
 
-  5. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-sensors.c)
+  5. [Extend your app to sample on-board sensors](https://github.com/helena-project/tock/bloc/master/doc/courses/sensys/exercises/app/solutions/sensors.c)
 
-  6. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sosp/exercises/app/solutions/sosp-ble-ess.c)
+  6. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sensys/exercises/app/solutions/ble-ess.c)
 
 
  - Head to \texttt{<http://bit.ly/2hgpl8n>} to get started!
- - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/application.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/application.md#2-check-your-understanding))
+ - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md#2-check-your-understanding))
 
 # Part 3: The kernel
 
@@ -405,7 +405,7 @@ impl time::Client for MuxAlarm {
 
 
  - Head to \texttt{<http://bit.ly/2zLoD9W>} to get started!
- - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sosp/capsule.md](https://github.com/helena-project/tock/blob/master/doc/courses/sosp/capsule.md#2-check-your-understanding))
+ - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md#2-check-your-understanding))
 
 ## We need the Hails back!
 
