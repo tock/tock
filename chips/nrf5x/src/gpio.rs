@@ -14,34 +14,31 @@ use peripheral_interrupts::NvicIdx;
 
 use peripheral_registers::{GPIO_BASE, GPIO};
 
-/// The nRF51822 doesn't automatically provide GPIO interrupts. Instead,
-/// to receive interrupts from a GPIO line, you must allocate a GPIOTE
-/// (GPIO Task and Event) channel, and bind the channel to the desired
-/// pin. There are 4 channels. This means that requesting an interrupt
-/// can fail, if there are already 4 allocated.
+#[cfg(feature = "nrf51")]
+const NUM_GPIOTE: usize = 4;
+#[cfg(feature = "nrf52")]
+const NUM_GPIOTE: usize = 8;
+
+/// The nRF5x doesn't automatically provide GPIO interrupts. Instead, to receive
+/// interrupts from a GPIO line, you must allocate a GPIOTE (GPIO Task and
+/// Event) channel, and bind the channel to the desired pin. There are 4
+/// channels for the nrf51 and 8 channels for the nrf52. This means that
+/// requesting an interrupt can fail, if they are all already allocated.
 #[repr(C, packed)]
 struct GpioteRegisters {
-    pub out0: VolatileCell<u32>, // 0x0
-    pub out1: VolatileCell<u32>, // 0x4
-    pub out2: VolatileCell<u32>, // 0x8
-    pub out3: VolatileCell<u32>, // 0xC
-    _reserved0: [VolatileCell<u8>; 0xF0],
-    pub in0: VolatileCell<u32>, // 0x100
-    pub in1: VolatileCell<u32>, // 0x104
-    pub in2: VolatileCell<u32>, // 0x108
-    pub in3: VolatileCell<u32>, // 0x10C
-    _reserved1: [VolatileCell<u8>; 0x6C],
-    pub port: VolatileCell<u32>, // 0x17C,
-    _reserved2: [VolatileCell<u8>; 0x180],
-    pub inten: VolatileCell<u32>, // 0x300
-    pub intenset: VolatileCell<u32>, // 0x304
-    pub intenclr: VolatileCell<u32>, // 0x308
-    _reserved3: [VolatileCell<u8>; 0x204],
-    pub config0: VolatileCell<u32>, // 0x510
-    pub config1: VolatileCell<u32>, // 0x514
-    pub config2: VolatileCell<u32>, // 0x518
-    pub config3: VolatileCell<u32>, // 0x51C
+    out: [VolatileCell<u32>; NUM_GPIOTE], // 0x0
+    _reserved0: [u8; 0x100 - (0x0 + NUM_GPIOTE * 4)],
+    event_in: [VolatileCell<u32>; NUM_GPIOTE], // 0x100
+    _reserved1: [u8; 0x17C - (0x100 + NUM_GPIOTE * 4)],
+    port: VolatileCell<u32>, // 0x17C,
+    _reserved2: [u8; 0x180],
+    inten: VolatileCell<u32>, // 0x300
+    intenset: VolatileCell<u32>, // 0x304
+    intenclr: VolatileCell<u32>, // 0x308
+    _reserved3: [u8; 0x204],
+    config: [VolatileCell<u32>; NUM_GPIOTE], // 0x510
 }
+
 
 const GPIOTE_BASE: u32 = 0x40006000;
 
@@ -60,14 +57,10 @@ fn GPIOTE() -> &'static GpioteRegisters {
 
 /// Allocate a GPIOTE channel
 fn allocate_channel() -> i8 {
-    if GPIOTE().config0.get() & 1 == 0 {
-        return 0;
-    } else if GPIOTE().config1.get() & 1 == 0 {
-        return 1;
-    } else if GPIOTE().config2.get() & 1 == 0 {
-        return 2;
-    } else if GPIOTE().config3.get() & 1 == 0 {
-        return 3;
+    for (i, ch) in GPIOTE().config.iter().enumerate() {
+        if ch.get() & 1 == 0 {
+            return i as i8;
+        }
     }
     return -1;
 }
@@ -75,14 +68,10 @@ fn allocate_channel() -> i8 {
 
 /// Return which channel is allocated to a pin, or -1 if none.
 fn find_channel(pin: u8) -> i8 {
-    if (GPIOTE().config0.get() >> 8) & 0x1F == pin as u32 {
-        return 0;
-    } else if ((GPIOTE().config1.get() >> 8) & 0x1F) == pin as u32 {
-        return 1;
-    } else if ((GPIOTE().config2.get() >> 8) & 0x1F) == pin as u32 {
-        return 2;
-    } else if ((GPIOTE().config3.get() >> 8) & 0x1F) == pin as u32 {
-        return 3;
+    for (i, ch) in GPIOTE().config.iter().enumerate() {
+        if (ch.get() >> 8) & 0x1F == pin as u32 {
+            return i as i8;
+        }
     }
     return -1;
 }
@@ -162,27 +151,21 @@ impl hil::gpio::Pin for GPIOPin {
         let pin = (self.pin & 0b11111) as u32;
         mode_bits |= pin << 8;
         let channel = allocate_channel();
-        match channel {
-            0 => GPIOTE().config0.set(mode_bits),
-            1 => GPIOTE().config1.set(mode_bits),
-            2 => GPIOTE().config2.set(mode_bits),
-            3 => GPIOTE().config3.set(mode_bits),
-            _ => {}
+        if channel >= 0 {
+            GPIOTE().config[channel as usize].set(mode_bits);
+            GPIOTE().intenset.set(1 << channel);
+            nvic::enable(NvicIdx::GPIOTE);
+        } else {
+            panic!("No available GPIOTE interrupt channels");
         }
-        GPIOTE().intenset.set(1 << channel);
-        nvic::enable(NvicIdx::GPIOTE);
     }
 
     fn disable_interrupt(&self) {
         let channel = find_channel(self.pin);
-        match channel {
-            0 => GPIOTE().config0.set(0),
-            1 => GPIOTE().config1.set(0),
-            2 => GPIOTE().config2.set(0),
-            3 => GPIOTE().config3.set(0),
-            _ => {}
+        if channel >= 0 {
+            GPIOTE().config[channel as usize].set(0);
+            GPIOTE().intenclr.set(1 << channel);
         }
-        GPIOTE().intenclr.set(1 << channel);
     }
 }
 
@@ -216,25 +199,12 @@ impl Port {
     pub fn handle_interrupt(&self) {
         nvic::clear_pending(NvicIdx::GPIOTE);
 
-        if GPIOTE().in0.get() != 0 {
-            GPIOTE().in0.set(0);
-            let pin = (GPIOTE().config0.get() >> 8 & 0x1F) as usize;
-            self.pins[pin].handle_interrupt();
-        }
-        if GPIOTE().in1.get() != 0 {
-            GPIOTE().in1.set(0);
-            let pin = (GPIOTE().config1.get() >> 8 & 0x1F) as usize;
-            self.pins[pin].handle_interrupt();
-        }
-        if GPIOTE().in2.get() != 0 {
-            GPIOTE().in2.set(0);
-            let pin = (GPIOTE().config2.get() >> 8 & 0x1F) as usize;
-            self.pins[pin].handle_interrupt();
-        }
-        if GPIOTE().in3.get() != 0 {
-            GPIOTE().in3.set(0);
-            let pin = (GPIOTE().config3.get() >> 8 & 0x1F) as usize;
-            self.pins[pin].handle_interrupt();
+        for (i, ev) in GPIOTE().event_in.iter().enumerate() {
+            if ev.get() != 0 {
+                ev.set(0);
+                let pin = (GPIOTE().config[i].get() >> 8 & 0x1F) as usize;
+                self.pins[pin].handle_interrupt();
+            }
         }
     }
 }
