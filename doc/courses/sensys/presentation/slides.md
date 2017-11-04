@@ -18,7 +18,7 @@ header-includes:
 
 > aka
 
-<tt><https://goo.gl/????></tt>
+<tt><http://bit.do/tock></tt>
 
 ## Tock
 
@@ -44,13 +44,13 @@ A secure operating system for microcontrollers
 
   * Flight control
 
-## Two types of components: capsules and processes
+## TockOS Stack
 
-![](architecture.pdf)
+![](stack.pdf)
 
 ## Two types of scheduling: cooperative and preemptive
 
-![](execution.pdf)
+![](scheduling-crop.pdf)
 
 ## Agenda Today
 
@@ -143,8 +143,8 @@ $ tockloader listen
   5. (Optional) Add some other apps from the repo, like `blink` and `sensors`
 
 
- - Head to \texttt{<http://bit.ly/???>} to get started!
- - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md))
+ - Head to <http://bit.do/tock2> to get started!
+ - \tiny ([https://github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md))
 
 # Part 2: User space
 
@@ -276,8 +276,8 @@ int ipc_notify_client(int pid);
   6. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sensys/exercises/app/solutions/ble-ess.c)
 
 
- - Head to \texttt{<http://bit.ly/2hgpl8n>} to get started!
- - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md#2-check-your-understanding))
+ - Head to <http://bit.do/tock3> to get started!
+ - \tiny ([https://github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md#2-check-your-understanding))
 
 # Part 3: The kernel
 
@@ -404,8 +404,8 @@ impl time::Client for MuxAlarm {
   8. Extra credit
 
 
- - Head to \texttt{<http://bit.ly/2zLoD9W>} to get started!
- - \tiny ([github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md#2-check-your-understanding))
+ - Head to <http://bit.do/tock4> to get started!
+ - \tiny ([https://github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md#2-check-your-understanding))
 
 ## We need the Hails back!
 
