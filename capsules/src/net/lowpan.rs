@@ -282,7 +282,7 @@ pub fn compress(ctx_store: &ContextStore,
                 dst_mac_addr: MacAddress,
                 mut buf: &mut [u8])
                 -> Result<(usize, usize), ()> {
-    let ip6_header: &IP6Header = unsafe { mem::transmute(ip6_datagram.as_ptr()) };
+    let ip6_header = IP6Header::parse(ip6_datagram)?;
     let mut consumed: usize = mem::size_of::<IP6Header>();
     let mut next_headers: &[u8] = &ip6_datagram[consumed..];
 
@@ -314,15 +314,15 @@ pub fn compress(ctx_store: &ContextStore,
     compress_cie(&src_ctx, &dst_ctx, &mut buf, &mut written);
 
     // Traffic Class & Flow Label
-    compress_tf(ip6_header, &mut buf, &mut written);
+    compress_tf(&ip6_header, &mut buf, &mut written);
 
     // Next Header
     let (mut is_nhc, mut nh_len): (bool, u8) = is_ip6_nh_compressible(ip6_header.next_header,
                                                                       next_headers)?;
-    compress_nh(ip6_header, is_nhc, &mut buf, &mut written);
+    compress_nh(&ip6_header, is_nhc, &mut buf, &mut written);
 
     // Hop Limit
-    compress_hl(ip6_header, &mut buf, &mut written);
+    compress_hl(&ip6_header, &mut buf, &mut written);
 
     // Source Address
     compress_src(&ip6_header.src_addr,
@@ -778,10 +778,8 @@ pub fn decompress(ctx_store: &ContextStore,
     let iphc_header_2: u8 = buf[1];
     let mut consumed: usize = 2;
 
-    // First, reset the IPv6 fixed header to the default values
-    let mut ip6_header: &mut IP6Header = unsafe { mem::transmute(out_buf.as_mut_ptr()) };
+    let mut ip6_header = IP6Header::new();
     let mut written: usize = mem::size_of::<IP6Header>();
-    *ip6_header = IP6Header::new();
 
     // Decompress CID and CIE fields if they exist
     let (src_ctx, dst_ctx) = decompress_cie(ctx_store, iphc_header_1, &buf, &mut consumed)?;
@@ -941,6 +939,7 @@ pub fn decompress(ctx_store: &ContextStore,
         written + (buf.len() - consumed) - mem::size_of::<IP6Header>()
     };
     ip6_header.payload_len = (payload_len as u16).to_be();
+    ip6_header.serialize(&mut out_buf[0..40])?;
     Ok((consumed, written))
 }
 
