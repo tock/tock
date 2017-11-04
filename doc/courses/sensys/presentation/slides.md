@@ -138,6 +138,8 @@ $ tockloader listen
 
 ## Check your understanding
 
+Turn to the person next to you:
+
   1. What kinds of binaries exist on a Tock board? Hint: There are three, and
      only two can be programmed using `tockloader`.
 
@@ -306,6 +308,8 @@ int ipc_notify_svc(int pid);
 
 ## Check your understanding
 
+Turn to the person next to you:
+
 1. How does a process perform a blocking operation? Can you draw the flow of
    operations when a process calls `delay_ms(1000)`?
 
@@ -460,6 +464,27 @@ impl time::Client for MuxAlarm {
 ![Capsules reference each other directly, assisting inlining](rng.pdf)
 
 ## Check your understanding
+
+Turn to the person next to you:
+
+  1. What are Tock kernel components called?
+
+  2. Is the kernel scheduled cooperatively or preemptively? What happens if a
+     capsule performs a very long computation?
+
+  3. How is a hardware interrupt handled in the kernel?
+
+## Answers
+
+  1. Tock kernel components are called "capsules"
+
+  2. The kernel is scheduled cooperatively by capsules calling methods on each
+     other. If a capsule performs a very long computation it might prevent
+     other capsules from running or cause them to miss events.
+
+  3. Hardware interrupts are scheduled to run when capsules next yield. If a
+     process is running when a hardware event happens, the hardware event will
+     be immediately handled.
 
 ## Hands-on: Write and add a capsule to the kernel
 
