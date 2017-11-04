@@ -48,9 +48,26 @@ A secure operating system for microcontrollers
 
 ![](stack.pdf)
 
+## State of Tock
+
+![](tock-implemented-crop.pdf)
+
+<!--
 ## Two types of scheduling: cooperative and preemptive
 
 ![](scheduling-crop.pdf)
+-->
+
+## Tock 1.0 (Coming very soon)
+
+  - Stabilize the initial syscall interface
+
+    - \tiny Docs: [https://github.com/helena-project/tock/tree/master/doc/syscalls](https://github.com/helena-project/tock/tree/master/doc/syscalls)
+
+  - Enable apps to be portable and independent of kernel
+
+  - Punts on stabilizing the internal kernel interfaces
+
 
 ## Agenda Today
 
@@ -59,6 +76,8 @@ A secure operating system for microcontrollers
   2. Write an end-to-end Bluetooth Low Energy environment sensing application
 
   3. Add functionality to the Tock kernel
+
+    - Write some Rust!
 
 # Part 1: Hardware, tools, and development environment
 
