@@ -16,7 +16,7 @@ use kernel::hil::gpio;
 
 const BUFFER_SIZE: usize = 10;
 
-pub struct Sosp<'a, A: Alarm + 'a, L: gpio::Pin + gpio::PinCtl + 'a> {
+pub struct Sensys<'a, A: Alarm + 'a, L: gpio::Pin + gpio::PinCtl + 'a> {
     alarm: &'a A,
     light: &'a AmbientLight,
     led: &'a L,
@@ -24,9 +24,9 @@ pub struct Sosp<'a, A: Alarm + 'a, L: gpio::Pin + gpio::PinCtl + 'a> {
     samples: Cell<usize>,
 }
 
-impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> Sosp<'a, A, L> {
-    pub fn new(alarm: &'a A, light: &'a AmbientLight, led: &'a L) -> Sosp<'a, A, L> {
-        Sosp {
+impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> Sensys<'a, A, L> {
+    pub fn new(alarm: &'a A, light: &'a AmbientLight, led: &'a L) -> Sensys<'a, A, L> {
+        Sensys {
             alarm: alarm,
             light: light,
             led: led,
@@ -43,14 +43,14 @@ impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> Sosp<'a, A, L> {
     }
 }
 
-impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> time::Client for Sosp<'a, A, L> {
+impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> time::Client for Sensys<'a, A, L> {
     fn fired(&self) {
         self.light.read_light_intensity();
         self.start();
     }
 }
 
-impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> AmbientLightClient for Sosp<'a, A, L> {
+impl<'a, A: Alarm, L: gpio::Pin + gpio::PinCtl + 'a> AmbientLightClient for Sensys<'a, A, L> {
     fn callback(&self, lux: usize) {
         self.buffer.map(|buf| buf[self.samples.get()] = lux);
         self.samples.set(self.samples.get() + 1);

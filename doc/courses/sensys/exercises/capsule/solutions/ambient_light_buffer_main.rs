@@ -49,7 +49,7 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 /// capsules for this platform.
 struct Hail {
     console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
-    sosp: &'static sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>, sam4l::gpio::GPIOPin>,
+    sosp: &'static sosp::Sensys<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>, sam4l::gpio::GPIOPin>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static capsules::alarm::AlarmDriver<'static,
                                                  VirtualMuxAlarm<'static,
@@ -257,8 +257,8 @@ pub unsafe fn reset_handler() {
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,
         VirtualMuxAlarm::new(mux_alarm));
     let sosp = static_init!(
-        sosp::Sosp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>, sam4l::gpio::GPIOPin>,
-        sosp::Sosp::new(sosp_virtual_alarm, isl29035, &sam4l::gpio::PA[13]));
+        sosp::Sensys<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>, sam4l::gpio::GPIOPin>,
+        sosp::Sensys::new(sosp_virtual_alarm, isl29035, &sam4l::gpio::PA[13]));
     hil::sensors::AmbientLight::set_client(isl29035, sosp);
     sosp_virtual_alarm.set_client(sosp);
 
