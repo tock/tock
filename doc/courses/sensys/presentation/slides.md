@@ -1,8 +1,6 @@
 ---
 title: Tock Embedded OS Tutorial
 date: SenSys 2017
-mainfont: DejaVu Serif
-sansfont: Source Sans Pro
 header-includes:
   - \beamertemplatenavigationsymbolsempty
   - \usepackage{pifont}
