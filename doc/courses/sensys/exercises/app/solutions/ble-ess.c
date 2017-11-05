@@ -27,7 +27,8 @@ typedef struct {
 static void ipc_callback(__attribute__ ((unused)) int pid,
                          __attribute__ ((unused)) int len,
                          __attribute__ ((unused)) int arg2,
-                         __attribute__ ((unused)) void* ud) {
+                         void* ud) {
+  *(bool*)ud = true;
   printf("Updated BLE characteristic.\n");
 }
 
@@ -44,7 +45,8 @@ int main(void)
   delay_ms(1500);
 
   sensor_update_t *update = (sensor_update_t*) buf;
-  ipc_register_client_cb(_svc_num, ipc_callback, update);
+  bool cond = false;
+  ipc_register_client_cb(_svc_num, ipc_callback, &cond);
   ipc_share(_svc_num, buf, 64);
 
   while (true) {
@@ -53,18 +55,21 @@ int main(void)
     update->type = SENSOR_IRRADIANCE;
     update->value = lux;
     ipc_notify_svc(_svc_num);
+    yield_for(&cond);
 
     int temp;
     temperature_read_sync(&temp);
     update->type = SENSOR_TEMPERATURE;
     update->value = temp;
     ipc_notify_svc(_svc_num);
+    yield_for(&cond);
 
     unsigned humi;
     humidity_read_sync(&humi);
     update->type = SENSOR_HUMIDITY;
     update->value = humi;
     ipc_notify_svc(_svc_num);
+    yield_for(&cond);
 
     delay_ms(1000);
   }
