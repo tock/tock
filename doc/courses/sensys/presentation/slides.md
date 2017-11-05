@@ -1,8 +1,6 @@
 ---
 title: Tock Embedded OS Tutorial
 date: SenSys 2017
-mainfont: DejaVu Serif
-sansfont: Source Sans Pro
 header-includes:
   - \beamertemplatenavigationsymbolsempty
   - \usepackage{pifont}
@@ -24,7 +22,7 @@ header-includes:
 
 > aka
 
-<tt><http://bit.do/tock></tt>
+<tt><http://j2x.us/tock></tt>
 
 ## Agenda Today
 
@@ -133,7 +131,7 @@ Turn to the person next to you:
   5. (Optional) Add some other apps from the repo, like `blink` and `sensors`
 
 
- - Head to <http://bit.do/tock2> to get started!
+ - Head to <http://j2x.us/tock1> to get started!
  - \tiny ([https://github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/environment.md))
 
 # Part 2: User space
@@ -310,7 +308,7 @@ Turn to the person next to you:
   6. [Extend your app to report through the `ble-env-sense` service](https://github.com/helena-project/tock/bloc/master/doc/courses/sensys/exercises/app/solutions/ble-ess.c)
 
 
- - Head to <http://bit.do/tock3> to get started!
+ - Head to <http://j2x.us/tock2> to get started!
  - \tiny ([https://github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/application.md#2-check-your-understanding))
 
 # Part 3: The kernel
@@ -459,7 +457,7 @@ Turn to the person next to you:
   8. Extra credit
 
 
- - Head to <http://bit.do/tock4> to get started!
+ - Head to <http://j2x.us/tock3> to get started!
  - \tiny ([https://github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md](https://github.com/helena-project/tock/blob/master/doc/courses/sensys/capsule.md#2-check-your-understanding))
 
 ## We need the Hails back!
