@@ -506,7 +506,7 @@ Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the ad
 
 ### Quick Survey!
 
-- <https://goo.gl/???>
+- <https://j2x.us/tock-survey>
 
 \hrule
 
