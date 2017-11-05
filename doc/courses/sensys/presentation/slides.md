@@ -277,24 +277,26 @@ Turn to the person next to you:
 
 \footnotesize
 
-1. A blocking operation starts with setting up a callback (using the `subscribe`
-   syscall), then is initiated with a `command` syscall, and the process then blocks
-   until the callback is called. For `delay_ms(1000)`, the application first
-   registers a timer done callback, then calls the correct timer command
-   with the value `1000`, then calls `yield()` which will return when the timer
-   callback is triggered after 1000 ms.
+  1. A blocking call follows these steps:
 
-2. First the client would call `ipc_discover()` to find the ID of the console
-   service. Then, the client would call `ipc_share()` to share a buffer with
-   the service, fill in the buffer with the string it wants to print to the
-   console, and call `ipc_notify_svc()` to invoke the service to actually
-   print the string. If the client wants to know when the string has been
-   printed, it should `ipc_register_client_cb()` before notifying the service
-   to get a callback.
+     * Set up a callback using `subscribe`
 
-     The console service is relatively simple. It first has to register a callback
-     to receive notifications from clients. When the callback triggers, it uses
-     the buffer shared by the client and prints the contents to the console.
+     * Initiate an operation with `command`
+
+     * Continually `yield` using `yield_for`
+
+  2. A console service first registers a callback to receive notifications from
+     clients. When the callback triggers, it uses a buffer shared by the client
+     and prints the contents to the console.
+
+     * Call `ipc_discover()` to find the ID of the console service.
+
+     * Call `ipc_share` to share a buffer where output will live
+
+     * Fill the buffer with output
+
+     * Call `ipc_notify_svc` to invoke a console write.
+
 
 
 ## Hands-on: Write a BLE environment sensing application
@@ -326,8 +328,9 @@ Turn to the person next to you:
   * Core Tock primitives
 
 ```
-kernel/
+arch/
 chips/
+kernel/
 ```
 
 ## Capsules (`unsafe` not allowed)
