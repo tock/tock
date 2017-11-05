@@ -96,7 +96,7 @@ But you can take one home with you! Purchase here:
 
 <https://tockos.org/hardware>
 
-Put in "SENSYS17" for $5 off, and "XXX" as the address for local pickup.
+Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the address for local pickup.
 
 ## Binaries on-board in flash
 
@@ -516,7 +516,33 @@ But you can take one home with you! Purchase here:
 <https://tockos.org/hardware>
 
 
-Put in "SENSYS17" for $5 off, and "XXX" as the address for local pickup.
+Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the address for local pickup.
+
+## imix & Hail Comparison
+
+\footnotesize
+
+|                             | imix                    | Hail            |
+|-----------------------------|-------------------------|-----------------|
+| Microcontroller             | Sam4l                   | Sam4l           |
+| Sensors                     |                         |                 |
+| ‣ Accelerometer             | ✓                       | ✓               |
+| ‣ Temperature/Humidity      | ✓                       | ✓               |
+| ‣ Light                     | ✓                       | ✓               |
+| ‣ Accelerometer             | ✓                       | ✓               |
+| Radios                      |                         |                 |
+| ‣ BLE                       | ✓                       | ✓               |
+| ‣ 802.15.4                  | ✓                       |                 |
+| Other Features              |                         |                 |
+| ‣ Buttons                   | 1 user, 1 reset         | 1 user, 1 reset |
+| ‣ LEDs                      | 3                       | 1 blue, 1 RGB   |
+| ‣ Hardware RNG              | ✓                       |                 |
+| ‣ USB Host                  | ✓                       | pins only       |
+| ‣ Independent Power Domains | ✓                       |                 |
+| Programming                 | USB or JTAG             | USB or JTAG     |
+| Form Factor                 | Custom, Arduino Headers | Particle Photon |
+| Size                        | 2.45" x 4"              | 0.8" x 1.44"    |
+| Price                       | $100                    | $60             |
 
 ## Stay in touch!
 
