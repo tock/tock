@@ -54,3 +54,10 @@ cp -r boards/hail/target/thumbv7em-none-eabi/doc doc/rustdoc
 add_board imix
 add_board nrf51dk
 add_board nrf52dk
+
+# Temporary redirect rule
+# https://www.netlify.com/docs/redirects/
+cat > doc/rustdoc/_redirects << EOF
+# While we don't have a home page :/
+/            /kernel            302
+EOF
