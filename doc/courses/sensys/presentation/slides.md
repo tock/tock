@@ -554,6 +554,18 @@ Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the ad
 
 \#tock on Freenode
 
+\medskip
+
+\hrule
+
 ### Quick Survey!
 
 - <https://goo.gl/???>
+
+\hrule
+
+### Hardware!
+
+<https://tockos.org/hardware>
+
+Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the address for local pickup.
