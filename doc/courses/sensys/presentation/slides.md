@@ -1,16 +1,17 @@
 ---
 title: Tock Embedded OS Tutorial
 date: SenSys 2017
+mainfont: DejaVu Serif
+sansfont: Source Sans Pro
 header-includes:
   - \beamertemplatenavigationsymbolsempty
   - \usepackage{pifont}
   - \newcommand{\cmark}{\color{green}\ding{51}}
   - \newcommand{\xmark}{\color{red}\ding{55}}
-  - \usefonttheme{professionalfonts}
-  - \usefonttheme{serif}
-  - \usepackage{fontspec}
-  - \setmainfont{Helvetica Neue}
   - \setbeamerfont{note page}{family*=pplx,size=\large}
+  - \usefonttheme{professionalfonts}
+  - \setmainfont{Source Sans Pro}
+  - \setsansfont{Source Sans Pro}
 ---
 
 ## Welcome to the Tock OS Training!
@@ -518,31 +519,22 @@ But you can take one home with you! Purchase here:
 
 Put in "SENSYS17" for $5 off, and "2600 Hearst Ave, Berkeley CA 94709" as the address for local pickup.
 
-## imix & Hail Comparison
+* * *
 
-\footnotesize
-
-|                             | imix                    | Hail            |
+|                             | imix ($100)             | Hail ($60)      |
 |-----------------------------|-------------------------|-----------------|
-| Microcontroller             | Sam4l                   | Sam4l           |
 | Sensors                     |                         |                 |
-| ‣ Accelerometer             | ✓                       | ✓               |
-| ‣ Temperature/Humidity      | ✓                       | ✓               |
-| ‣ Light                     | ✓                       | ✓               |
-| ‣ Accelerometer             | ✓                       | ✓               |
-| Radios                      |                         |                 |
-| ‣ BLE                       | ✓                       | ✓               |
-| ‣ 802.15.4                  | ✓                       |                 |
-| Other Features              |                         |                 |
-| ‣ Buttons                   | 1 user, 1 reset         | 1 user, 1 reset |
-| ‣ LEDs                      | 3                       | 1 blue, 1 RGB   |
-| ‣ Hardware RNG              | ✓                       |                 |
-| ‣ USB Host                  | ✓                       | pins only       |
-| ‣ Independent Power Domains | ✓                       |                 |
-| Programming                 | USB or JTAG             | USB or JTAG     |
-| Form Factor                 | Custom, Arduino Headers | Particle Photon |
-| Size                        | 2.45" x 4"              | 0.8" x 1.44"    |
-| Price                       | $100                    | $60             |
+| - Accelerometer             | ✓                       | ✓               |
+| - Temperature/Humidity      | ✓                       | ✓               |
+| - Light                     | ✓                       | ✓               |
+| - Accelerometer             | ✓                       | ✓               |
+| Radios                      | BLE & 802.15.4          | BLE             |
+| Buttons                     | 1 user, 1 reset         | 1 user, 1 reset |
+| LEDs                        | 3                       | 1 blue, 1 RGB   |
+| Hardware RNG                | ✓                       |                 |
+| USB Host                    | ✓                       | pins only       |
+| Independent Power Domains   | ✓                       |                 |
+| Form Factor                 | Custom, 2.45" x 4"      | Particle Photon |
 
 ## Stay in touch!
 
