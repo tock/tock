@@ -26,55 +26,6 @@ header-includes:
 
 <tt><http://bit.do/tock></tt>
 
-## Tock
-
-A secure operating system for microcontrollers
-
-  * Kernel components in Rust
-
-  * Type-safe API for safe driver development
-
-  * Hardware isolated processes for application code
-
-## Use cases
-
-  * Security applications (e.g. authentication keys)
-
-  * Sensor networks
-
-  * Programmable wearables
-
-  * PC/phone peripherals
-
-  * Home/industrial automation
-
-  * Flight control
-
-## TockOS Stack
-
-![](stack.pdf)
-
-## State of Tock
-
-![](tock-implemented-crop.pdf)
-
-<!--
-## Two types of scheduling: cooperative and preemptive
-
-![](scheduling-crop.pdf)
--->
-
-## Tock 1.0 (Coming very soon)
-
-  - Stabilizes the initial syscall interface
-
-    - \tiny Docs: [https://github.com/helena-project/tock/tree/master/doc/syscalls](https://github.com/helena-project/tock/tree/master/doc/syscalls)
-
-  - Enable apps to be portable and independent of kernel
-
-  - Punts on stabilizing the internal kernel interfaces
-
-
 ## Agenda Today
 
   1. Intro to hardware, tools and development environment
@@ -467,7 +418,7 @@ impl time::Client for MuxAlarm {
 
 * * *
 
-![Capsules reference each other directly, assisting inlining](rng.pdf)
+![](timer.pdf)
 
 ## Check your understanding
 
