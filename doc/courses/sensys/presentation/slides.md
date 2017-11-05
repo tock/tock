@@ -112,9 +112,11 @@ Turn to the person next to you:
      processes. The bootloader can be used to load the kernel and processes, but
      cannot replace itself.
 
-  2. To install a process, simply run `tockloader install` in the app directory.
-     To load the kernel, use `tockloader flash` and specify the binary and the
-     address: `tockloader flash --address 0x10000 hail.bin`.
+  2. Use `tockloader`:
+  
+     * `tockloader install app.tab`
+
+     * `tockloader flash --address 0x10000 hail.bin`
 
 ## Hands-on: Set-up development environment
 
