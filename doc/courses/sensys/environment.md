@@ -55,7 +55,7 @@ Read the Tock documentation for more details on its
 3. Clearly, the kernel should never enter an infinite loop. But is it
    acceptable for a process to spin? What about a capsule?
 
-## 3. Compile and flash the kernel
+## 3. Compile and program the kernel
 
 ### Make sure your Tock repository is up to date
 

@@ -114,11 +114,11 @@ Turn to the person next to you:
   
      * `tockloader install app.tab`
 
-     * `tockloader flash --address 0x10000 hail.bin`
+     * `tockloader flash --address 0x10000 hail-kernel.bin`
 
 ## Hands-on: Set-up development environment
 
-  3. Compile and flash the kernel
+  3. Compile and program the kernel
 
   4. (Optional) Familiarize yourself with `tockloader` commands
 

@@ -45,7 +45,7 @@ int main(void)
   delay_ms(1500);
 
   sensor_update_t *update = (sensor_update_t*) buf;
-  bool cond = false;
+  bool cond;
   ipc_register_client_cb(_svc_num, ipc_callback, &cond);
   ipc_share(_svc_num, buf, 64);
 
@@ -55,6 +55,7 @@ int main(void)
     update->type = SENSOR_IRRADIANCE;
     update->value = lux;
     ipc_notify_svc(_svc_num);
+    cond = false;
     yield_for(&cond);
 
     int temp;
@@ -62,6 +63,7 @@ int main(void)
     update->type = SENSOR_TEMPERATURE;
     update->value = temp;
     ipc_notify_svc(_svc_num);
+    cond = false;
     yield_for(&cond);
 
     unsigned humi;
@@ -69,6 +71,7 @@ int main(void)
     update->type = SENSOR_HUMIDITY;
     update->value = humi;
     ipc_notify_svc(_svc_num);
+    cond = false;
     yield_for(&cond);
 
     delay_ms(1000);
