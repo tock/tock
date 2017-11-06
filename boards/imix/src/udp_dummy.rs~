@@ -1,15 +1,22 @@
-//! `mle_send_1.rs`: Test Sending the first message of the MLE sequence
+//! `udp_dummy.rs`: Test Usage of the udp.rs capsule. 
+//! This file primarily reuses code from the lowpan_frag_dummy file, modified to
+//! remove code testing different types of 6lowpan fragmentation, instead just
+//! using INLINE for traffic flow, source address compression, and destination 
+//! address compression
+//! 
+//! For this test to work, the following code must be added to 
+//! boards/imix/src/main.rs 
 //! ...
 //! // Radio initialization code
 //! ...
-//! let mle_test = mle_send_1::initialize_all(radio_mac as &'static Mac,
+//! let udp_test = udp_dummy::initialize_all(radio_mac as &'static Mac,
 //!                                                          mux_alarm as &'static
 //!                                                             MuxAlarm<'static,
 //!                                                                 sam4l::ast::Ast>);
 //! ...
 //! // Imix initialization
 //! ...
-//! mle_test.start(); // Assumes flashing the Imix that is transmitting the first msg
+//! udp_test.start(); // Assumes flashing the Imix that is transmitting the first msg
 
 use capsules;
 extern crate sam4l;
@@ -21,7 +28,7 @@ use capsules::net::lowpan;
 use capsules::net::lowpan::{ContextStore, Context};
 use capsules::net::lowpan_fragment::{FragState, TxState, TransmitClient, ReceiveClient};
 use capsules::net::util;
-use capsules::net::udp::{send_udp_packet, udp_ipv6_prepare_packet, TF, SAC, DAC, UDPHeader}; //Temp change for udp testing
+use capsules::net::udp::{send_udp_packet, udp_ipv6_prepare_packet, TF, SAC, DAC, UDPHeader};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 
@@ -189,10 +196,8 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
     }
 
     fn run_test(&self) {
-        debug!("Sending First MLE Message:");
-        //Send single IP packet
-        //ipv6_prepare_packet(TF::Inline, 255, SAC::Inline, DAC::Inline);
-//Begin Temp Changes for UDP testing
+        debug!("Sending a UDP packet:");
+//Begin Changes for UDP testing
 
         //Set UDP Payload within IP6_DGRAM
         {
@@ -206,7 +211,7 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
 
         unsafe {
             let ip6_header: &mut IP6Header = mem::transmute(IP6_DGRAM.as_mut_ptr());
-            let udp_header: &mut UDPHeader = mem::transmute(IP6_DGRAM[IP6_HDR_SIZE].as_mut_ptr());
+            let udp_header: &mut UDPHeader = mem::transmute(IP6_DGRAM[IP6_HDR_SIZE..(IP6_HDR_SIZE+8)].as_mut_ptr());
             udp_ipv6_prepare_packet(TF::Inline, 255, SAC::Inline, DAC::Inline, &mut IP6_DGRAM, IP6_DGRAM.len(), IP6_HDR_SIZE, SRC_ADDR, DST_ADDR, SRC_MAC_ADDR, DST_MAC_ADDR, MLP, 19788, 19788, ip6_header, udp_header); 
         }
         unsafe {
@@ -222,21 +227,7 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
         let frag_state = self.frag_state;
         let tx_state = self.tx_state;
         
-        //frag_state.radio.config_set_pan(0xABCD);
-/*
-        let ret_code = frag_state.transmit_packet(src_mac_addr,
-                                                  dst_mac_addr,
-                                                  &mut IP6_DGRAM,
-                                                  IP6_DGRAM.len(),
-                                                  None,
-                                                  tx_state,
-                                                  true,
-                                                  true);
-        debug!("Ret code: {:?}", ret_code);
-*/
-        send_udp_packet(frag_state, tx_state, src_mac_addr, dst_mac_addr, &mut IP6_DGRAM, IP6_DGRAM.len()
-          //, TF::Inline, 255, SAC::Inline, DAC::Inline, SRC_ADDR, DST_ADDR, MLP
-          );
+        send_udp_packet(frag_state, tx_state, src_mac_addr, dst_mac_addr, &mut IP6_DGRAM, IP6_DGRAM.len());
     }
 }
 
@@ -254,7 +245,7 @@ impl<'a, A: time::Alarm + 'a> TransmitClient for LowpanTest<'a, A> {
 }
 
 impl<'a, A: time::Alarm + 'a> ReceiveClient for LowpanTest<'a, A> {
-    fn receive<'b>(&self, buf: &'b [u8], len: u16, retcode: ReturnCode) {
+    fn receive<'b>(&self, buf: &'b [u8], _len: u16, retcode: ReturnCode) {
         debug!("Receive completed: {:?}", retcode);
         let test_num = self.test_counter.get();
         self.test_counter.set((test_num + 1) % self.num_tests());
@@ -267,7 +258,7 @@ impl<'a, A: time::Alarm + 'a> ReceiveClient for LowpanTest<'a, A> {
 
 static mut IP6_DGRAM: [u8; IP6_HDR_SIZE + PAYLOAD_LEN] = [0; IP6_HDR_SIZE + PAYLOAD_LEN];
 
-
+//This function is not currently used by the sender. It is left here for now bc the receive code depends on it, though the receive code does not work for UDP anyway. Once the UDP receive callback has been implemented, all code below this point will be removed from this file
 fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
     {
         let payload = unsafe { &mut IP6_DGRAM[IP6_HDR_SIZE..] };

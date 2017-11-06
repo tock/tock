@@ -29,8 +29,9 @@ mod i2c_dummy;
 #[allow(dead_code)]
 mod spi_dummy;
 #[allow(dead_code)]
-mod mle_send_1; //Hudson Modification
-//mod lowpan_frag_dummy; //Hudson Modification
+mod udp_dummy;
+#[allow(dead_code)]
+mod lowpan_frag_dummy;
 
 #[allow(dead_code)]
 mod power;
@@ -452,17 +453,17 @@ pub unsafe fn reset_handler() {
         capsules::usb_user::UsbSyscallDriver::new(
             usb_client, kernel::Grant::create()));
 
-    //Hudson Insert Begin
-    let lowpan_frag_test = mle_send_1::initialize_all(radio_mac as &'static Mac,
+    //Configure UDP test
+    let udp_test = udp_dummy::initialize_all(radio_mac as &'static Mac,
 							    mux_alarm as &'static
 							       MuxAlarm<'static,
 								   sam4l::ast::Ast>);
     
    
    
-    lowpan_frag_test.start(); // If flashing the transmitting Imix
+    udp_test.start(); // If flashing the transmitting Imix
 
-/*    //Hudson Insert End
+/*    //Configure 6lowpan test (Commented out bc does not work alongside UDP test)
     let lowpan_frag_test = lowpan_frag_dummy::initialize_all(radio_mac as &'static Mac,
 							    mux_alarm as &'static
 							       MuxAlarm<'static,
