@@ -1,3 +1,6 @@
+/// Implements AES-CCM* encryption/decryption/authentication using an underlying
+/// AES-CBC and AES-CTR implementation.
+
 // IEEE 802.15.4-2015: Appendix B.4.1, CCM* transformations. CCM* is
 // defined so that both encryption and decryption can be done by preparing two
 // fields: the AuthData and either the PlaintextData or the CiphertextData.
@@ -16,6 +19,7 @@ use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{AES128, AES128Ctr, AES128CBC};
+use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, CCM_NONCE_LENGTH};
 use net::stream::{encode_u16, encode_bytes};
 use net::stream::SResult;
 
@@ -26,33 +30,20 @@ enum CCMState {
     Encrypt,
 }
 
-pub const BLOCK_LENGTH: usize = 16;
-pub const NONCE_LENGTH: usize = 13;
-
-pub trait Client {
-    /// `res` is SUCCESS if the encryption/decryption process succeeded. This
-    /// does not mean that the message has been verified in the case of
-    /// decryption.
-    /// If we are encrypting: `tag_is_valid` is `true` iff `res` is SUCCESS.
-    /// If we are decrypting: `tag_is_valid` is `true` iff `res` is SUCCESS and the
-    /// message authentication tag is valid.
-    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool);
-}
-
 pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> {
     aes: &'a A,
     crypt_buf: TakeCell<'a, [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
-    crypt_client: Cell<Option<&'a Client>>,
+    crypt_client: Cell<Option<&'a symmetric_encryption::CCMClient>>,
 
     state: Cell<CCMState>,
     encrypting: Cell<bool>,
 
     buf: TakeCell<'static, [u8]>,
     pos: Cell<(usize, usize, usize, usize)>,
-    key: Cell<[u8; BLOCK_LENGTH]>,
-    nonce: Cell<[u8; NONCE_LENGTH]>,
+    key: Cell<[u8; AES128_BLOCK_SIZE]>,
+    nonce: Cell<[u8; CCM_NONCE_LENGTH]>,
 }
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
@@ -72,69 +63,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
         }
     }
 
-    pub fn set_client(&self, client: &'a Client) {
-        self.crypt_client.set(Some(client));
-    }
-
-    pub fn set_key(&self, key: &[u8]) -> ReturnCode {
-        if key.len() < BLOCK_LENGTH {
-            ReturnCode::EINVAL
-        } else {
-            let mut new_key = [0u8; BLOCK_LENGTH];
-            new_key.copy_from_slice(key);
-            self.key.set(new_key);
-            ReturnCode::SUCCESS
-        }
-    }
-
-    pub fn set_nonce(&self, nonce: &[u8]) -> ReturnCode {
-        if nonce.len() < NONCE_LENGTH {
-            ReturnCode::EINVAL
-        } else {
-            let mut new_nonce = [0u8; NONCE_LENGTH];
-            new_nonce.copy_from_slice(nonce);
-            self.nonce.set(new_nonce);
-            ReturnCode::SUCCESS
-        }
-    }
-
-    pub fn crypt(&self,
-                 buf: &'static mut [u8],
-                 a_off: usize,
-                 m_off: usize,
-                 m_len: usize,
-                 mic_len: usize,
-                 encrypting: bool) -> (ReturnCode, Option<&'static [u8]>) {
-        if self.state.get() != CCMState::Idle {
-            return (ReturnCode::EBUSY, Some(buf));
-        }
-        if !(a_off <= m_off && m_off + m_len + mic_len <= buf.len()) {
-            return (ReturnCode::EINVAL, Some(buf));
-        }
-        let res = self.prepare_ccm_buffer(&self.nonce.get(),
-                                          mic_len,
-                                          &buf[a_off..m_off],
-                                          &buf[m_off..m_off + m_len]);
-        if res != ReturnCode::SUCCESS {
-            return (res, Some(buf));
-        }
-
-        let res = self.start_ccm_auth();
-        if res != ReturnCode::SUCCESS {
-            (res, Some(buf))
-        } else {
-            self.encrypting.set(encrypting);
-            self.buf.replace(buf);
-            self.pos.set((a_off, m_off, m_len, mic_len));
-            (ReturnCode::SUCCESS, None)
-        }
-    }
-
     /// Prepares crypt_buf with the input for the CCM* authentication and
     /// encryption/decryption transformations. Returns ENOMEM if crypt_buf is
     /// not present or if it is not long enough.
     fn prepare_ccm_buffer(&self,
-                          nonce: &[u8; NONCE_LENGTH],
+                          nonce: &[u8; CCM_NONCE_LENGTH],
                           mic_len: usize,
                           a_data: &[u8],
                           m_data: &[u8]) -> ReturnCode {
@@ -156,9 +89,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
     /// buffer, along with the prerequisite metadata/padding bytes. On success,
     /// `auth_len` (the length of the AuthData field) and `enc_len` (the
     /// combined length of AuthData and PData/CData) are returned. `auth_len` is
-    /// guaranteed to be >= BLOCK_LENGTH
+    /// guaranteed to be >= AES128_BLOCK_SIZE
     fn encode_ccm_buffer(buf: &mut [u8],
-                         nonce: &[u8; NONCE_LENGTH],
+                         nonce: &[u8; CCM_NONCE_LENGTH],
                          mic_len: usize,
                          a_data: &[u8],
                          m_data: &[u8]) -> SResult<(usize, usize)> {
@@ -183,7 +116,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
         }
         flags |= 1;
 
-        stream_len_cond!(buf, BLOCK_LENGTH);
+        stream_len_cond!(buf, AES128_BLOCK_SIZE);
         // The first block is flags | nonce | m length
         buf[0] = flags;
         buf[1..14].copy_from_slice(nonce.as_ref());
@@ -206,14 +139,14 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
 
         // Append the auth data and 0-pad to a multiple of 16 bytes
         off = enc_consume!(buf, off; encode_bytes, a_data);
-        let auth_len = ((off + BLOCK_LENGTH - 1) / BLOCK_LENGTH) * BLOCK_LENGTH;
+        let auth_len = ((off + AES128_BLOCK_SIZE - 1) / AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
         stream_len_cond!(buf, auth_len);
         buf[off..auth_len].iter_mut().for_each(|b| *b = 0);
         off = auth_len;
 
         // Append plaintext data and 0-pad to a multiple of 16 bytes
         off = enc_consume!(buf, off; encode_bytes, m_data);
-        let enc_len = ((off + BLOCK_LENGTH - 1) / BLOCK_LENGTH) * BLOCK_LENGTH;
+        let enc_len = ((off + AES128_BLOCK_SIZE - 1) / AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
         stream_len_cond!(buf, enc_len);
         buf[off..auth_len].iter_mut().for_each(|b| *b = 0);
         off = enc_len;
@@ -246,7 +179,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
             panic!("Called start_ccm_auth when not idle");
         }
 
-        let iv = [0u8; BLOCK_LENGTH];
+        let iv = [0u8; AES128_BLOCK_SIZE];
         let res = self.aes.set_iv(&iv);
         if res != ReturnCode::SUCCESS { return res; }
         let res = self.aes.set_key(&self.key.get());
@@ -285,17 +218,17 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
         }
         self.state.set(CCMState::Idle); // default to fail
 
-        let mut iv = [0u8; BLOCK_LENGTH];
+        let mut iv = [0u8; AES128_BLOCK_SIZE];
         // flags = reserved | reserved | 0 | (L - 1)
         // Since L = 2, flags = 1.
         iv[0] = 1;
-        iv[1..1 + NONCE_LENGTH].copy_from_slice(&self.nonce.get());
+        iv[1..1 + CCM_NONCE_LENGTH].copy_from_slice(&self.nonce.get());
         let res = self.aes.set_iv(&iv);
         if res != ReturnCode::SUCCESS { return res; }
 
         self.aes.set_mode_aes128ctr(self.encrypting.get());
         self.aes.start_message();
-        let res = self.aes.crypt(self.crypt_auth_len.get() - BLOCK_LENGTH,
+        let res = self.aes.crypt(self.crypt_auth_len.get() - AES128_BLOCK_SIZE,
                                  self.crypt_enc_len.get());
         if res != ReturnCode::SUCCESS {
             self.retrieve_crypt_buf();
@@ -323,7 +256,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
                     &cbuf[auth_len..auth_len + m_len]);
 
                 let m_end = m_off + m_len;
-                let tag_off = auth_len - BLOCK_LENGTH;
+                let tag_off = auth_len - AES128_BLOCK_SIZE;
                 if self.encrypting.get() {
                     // Copy the encrypted tag to the end of the message
                     buf[m_end..m_end + mic_len].copy_from_slice(
@@ -340,12 +273,73 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
             })
         });
 
+        self.state.set(CCMState::Idle);
         if let Some(client) = self.crypt_client.get() {
             self.buf.take().map(|buf| {
                 client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid);
             });
         }
-        self.state.set(CCMState::Idle);
+    }
+}
+
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a>
+    symmetric_encryption::AES128CCM<'a> for AES128CCM<'a, A> {
+    fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {
+        self.crypt_client.set(Some(client));
+    }
+
+    fn set_key(&self, key: &[u8]) -> ReturnCode {
+        if key.len() < AES128_BLOCK_SIZE {
+            ReturnCode::EINVAL
+        } else {
+            let mut new_key = [0u8; AES128_BLOCK_SIZE];
+            new_key.copy_from_slice(key);
+            self.key.set(new_key);
+            ReturnCode::SUCCESS
+        }
+    }
+
+    fn set_nonce(&self, nonce: &[u8]) -> ReturnCode {
+        if nonce.len() < CCM_NONCE_LENGTH {
+            ReturnCode::EINVAL
+        } else {
+            let mut new_nonce = [0u8; CCM_NONCE_LENGTH];
+            new_nonce.copy_from_slice(nonce);
+            self.nonce.set(new_nonce);
+            ReturnCode::SUCCESS
+        }
+    }
+
+    fn crypt(&self,
+             buf: &'static mut [u8],
+             a_off: usize,
+             m_off: usize,
+             m_len: usize,
+             mic_len: usize,
+             encrypting: bool) -> (ReturnCode, Option<&'static mut [u8]>) {
+        if self.state.get() != CCMState::Idle {
+            return (ReturnCode::EBUSY, Some(buf));
+        }
+        if !(a_off <= m_off && m_off + m_len + mic_len <= buf.len()) {
+            return (ReturnCode::EINVAL, Some(buf));
+        }
+        let res = self.prepare_ccm_buffer(&self.nonce.get(),
+                                          mic_len,
+                                          &buf[a_off..m_off],
+                                          &buf[m_off..m_off + m_len]);
+        if res != ReturnCode::SUCCESS {
+            return (res, Some(buf));
+        }
+
+        let res = self.start_ccm_auth();
+        if res != ReturnCode::SUCCESS {
+            (res, Some(buf))
+        } else {
+            self.encrypting.set(encrypting);
+            self.buf.replace(buf);
+            self.pos.set((a_off, m_off, m_len, mic_len));
+            (ReturnCode::SUCCESS, None)
+        }
     }
 }
 

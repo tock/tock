@@ -70,6 +70,7 @@ use kernel::hil::radio;
 use net::ieee802154::*;
 use net::stream::{encode_bytes, encode_u32, encode_u8};
 use net::stream::SResult;
+use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
 /// information about its header contents to expose a restricted interface for
@@ -396,8 +397,9 @@ enum RxState {
 /// machines corresponding to the transmission, reception and
 /// encryption/decryption pipelines. See the documentation in
 /// `capsules/src/mac.rs` for more details.
-pub struct MacDevice<'a, R: radio::Radio + 'a> {
+pub struct MacDevice<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> {
     radio: &'a R,
+    aes_ccm: &'a A,
     data_sequence: Cell<u8>,
 
     /// KeyDescriptor lookup procedure
@@ -418,10 +420,11 @@ pub struct MacDevice<'a, R: radio::Radio + 'a> {
     rx_client: Cell<Option<&'a RxClient>>,
 }
 
-impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
-    pub fn new(radio: &'a R) -> MacDevice<'a, R> {
+impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
+    pub fn new(radio: &'a R, aes_ccm: &'a A) -> MacDevice<'a, R, A> {
         MacDevice {
             radio: radio,
+            aes_ccm: aes_ccm,
             data_sequence: Cell::new(0),
             key_procedure: Cell::new(None),
             device_procedure: Cell::new(None),
@@ -589,20 +592,29 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
                                 // `security_params` is not `None`.
                                 (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
                             }
-                            Some((_, _key, _nonce)) => {
-                                // let (m_off, m_len) = info.ccm_encrypt_ranges();
-                                // let (a_off, m_off) = (radio::PSDU_OFFSET,
-                                //                       radio::PSDU_OFFSET +
-                                //                       m_off);
+                            Some((_, key, nonce)) => {
+                                let (m_off, m_len) = info.ccm_encrypt_ranges();
+                                let (a_off, m_off) = (radio::PSDU_OFFSET,
+                                                      radio::PSDU_OFFSET +
+                                                      m_off);
 
-                                // TODO: Call CCM* auth/encryption routine with:
-                                // key: key
-                                // nonce: nonce
-                                // mic_len: info.mic_len
-                                // a data: buf[a_off..m_off]
-                                // m data: buf[m_off..m_off + m_len]
-
-                                (TxState::Idle, (ReturnCode::ENOSUPPORT, Some(buf)))
+                                if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS ||
+                                    self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS {
+                                    (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
+                                } else {
+                                    let (res, opt_buf) = self.aes_ccm.crypt(buf, a_off, m_off, m_len, info.mic_len, true);
+                                    match res {
+                                        ReturnCode::SUCCESS => (TxState::Encrypting(info), (res, None)),
+                                        ReturnCode::EBUSY => {
+                                            let buf = match opt_buf {
+                                                Some(buf) => buf,
+                                                None => panic!("aes_ccm did not return the buffer"),
+                                            };
+                                            (TxState::ReadyToEncrypt(info, buf), (ReturnCode::SUCCESS, None))
+                                        }
+                                        _ => (TxState::Idle, (res, opt_buf)),
+                                    }
+                                }
                             }
                         }
                     }
@@ -640,79 +652,87 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
 
     /// Advances the reception pipeline if it can be advanced.
     fn step_receive_state(&self) {
-        self.rx_state.take().map(|state| {
-            let (next_state, buf) = match state {
-                RxState::Idle => (RxState::Idle, None),
-                RxState::ReadyToDecrypt(info, buf) => {
-                    match info.security_params {
-                        None => {
-                            // `ReadyToDecrypt` should only be entered when
-                            // `security_params` is not `None`.
-                            (RxState::Idle, Some(buf))
-                        }
-                        Some((_, _key, _nonce)) => {
-                            // let (m_off, m_len) = info.ccm_encrypt_ranges();
-                            // let (a_off, m_off) = (radio::PSDU_OFFSET,
-                            //                       radio::PSDU_OFFSET +
-                            //                       m_off);
+        self.rx_state
+            .take()
+            .map(|state| {
+                let (next_state, buf) = match state {
+                    RxState::Idle => (RxState::Idle, None),
+                    RxState::ReadyToDecrypt(info, buf) => {
+                        match info.security_params {
+                            None => {
+                                // `ReadyToDecrypt` should only be entered when
+                                // `security_params` is not `None`.
+                                (RxState::Idle, Some(buf))
+                            }
+                            Some((_, key, nonce)) => {
+                                let (m_off, m_len) = info.ccm_encrypt_ranges();
+                                let (a_off, m_off) = (radio::PSDU_OFFSET,
+                                                      radio::PSDU_OFFSET + m_off);
 
-                            // TODO: Call CCM* auth/decryption routine with:
-                            // key: key
-                            // nonce: nonce
-                            // mic_len: info.mic_len
-                            // a data: buf[a_off..m_off]
-                            // c data: buf[m_off..m_off + m_len + mic_len]
-
-                            (RxState::Idle, Some(buf))
+                                if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS ||
+                                   self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS {
+                                    (RxState::Idle, Some(buf))
+                                } else {
+                                    let (res, opt_buf) = self.aes_ccm
+                                        .crypt(buf, a_off, m_off, m_len, info.mic_len, true);
+                                    match res {
+                                        ReturnCode::SUCCESS => (RxState::Decrypting(info), None),
+                                        ReturnCode::EBUSY => {
+                                            let buf = match opt_buf {
+                                                Some(buf) => buf,
+                                                None => panic!("aes_ccm did not return the buffer"),
+                                            };
+                                            (RxState::ReadyToDecrypt(info, buf), None)
+                                        }
+                                        _ => (RxState::Idle, opt_buf),
+                                    }
+                                }
+                            }
                         }
                     }
-                }
-                RxState::Decrypting(info) => {
-                    // This state should be advanced only by the hardware
-                    // encryption callback.
-                    (RxState::Decrypting(info), None)
-                }
-                RxState::ReadyToYield(info, buf) => {
-                    // Between the secured and unsecured frames, the
-                    // unsecured frame length remains constant but the data
-                    // offsets may change due to the presence of PayloadIEs.
-                    // Hence, we can only use the unsecured length from the
-                    // frame info, but not the offsets.
-                    let frame_len = info.unsecured_length();
-                    if let Some((data_offset, (header, _))) =
-                        Header::decode(&buf[radio::PSDU_OFFSET..], true).done()
-                    {
-                        // IEEE 802.15.4-2015 specifies that unsecured
-                        // frames do not have auxiliary security headers,
-                        // but we do not remove the auxiliary security
-                        // header before returning the frame to the client.
-                        // This is so that it is possible to tell if the
-                        // frame was secured or unsecured, while still
-                        // always receiving the frame payload in plaintext.
-                        self.rx_client.get().map(|client| {
-                            client.receive(
-                                &buf,
-                                header,
-                                radio::PSDU_OFFSET + data_offset,
-                                frame_len - data_offset,
-                            );
-                        });
+                    RxState::Decrypting(info) => {
+                        // This state should be advanced only by the hardware
+                        // encryption callback.
+                        (RxState::Decrypting(info), None)
                     }
-                    (RxState::Idle, Some(buf))
-                }
-                RxState::ReadyToReturn(buf) => (RxState::Idle, Some(buf)),
-            };
-            self.rx_state.replace(next_state);
+                    RxState::ReadyToYield(info, buf) => {
+                        // Between the secured and unsecured frames, the
+                        // unsecured frame length remains constant but the data
+                        // offsets may change due to the presence of PayloadIEs.
+                        // Hence, we can only use the unsecured length from the
+                        // frame info, but not the offsets.
+                        let frame_len = info.unsecured_length();
+                        if let Some((data_offset, (header, _))) =
+                            Header::decode(&buf[radio::PSDU_OFFSET..], true).done() {
+                            // IEEE 802.15.4-2015 specifies that unsecured
+                            // frames do not have auxiliary security headers,
+                            // but we do not remove the auxiliary security
+                            // header before returning the frame to the client.
+                            // This is so that it is possible to tell if the
+                            // frame was secured or unsecured, while still
+                            // always receiving the frame payload in plaintext.
+                            self.rx_client.get().map(|client| {
+                                client.receive(&buf,
+                                               header,
+                                               radio::PSDU_OFFSET + data_offset,
+                                               frame_len - data_offset);
+                            });
+                        }
+                        (RxState::Idle, Some(buf))
+                    }
+                    RxState::ReadyToReturn(buf) => (RxState::Idle, Some(buf)),
+                };
+                self.rx_state.replace(next_state);
 
-            // Return the buffer to the radio if we are done with it.
-            if let Some(buf) = buf {
-                self.radio.set_receive_buffer(buf);
-            }
-        });
+                // Return the buffer to the radio if we are done with it.
+                if let Some(buf) = buf {
+                    self.radio.set_receive_buffer(buf);
+                }
+            });
     }
 }
 
-impl<'a, R: radio::Radio + 'a> Mac<'a> for MacDevice<'a, R> {
+impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> Mac<'a> for MacDevice<'a, R, A> {
     fn set_transmit_client(&self, client: &'a TxClient) {
         self.tx_client.set(Some(client));
     }
@@ -868,7 +888,7 @@ impl<'a, R: radio::Radio + 'a> Mac<'a> for MacDevice<'a, R> {
     }
 }
 
-impl<'a, R: radio::Radio + 'a> radio::TxClient for MacDevice<'a, R> {
+impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> radio::TxClient for MacDevice<'a, R, A> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.data_sequence.set(self.data_sequence.get() + 1);
         self.tx_client.get().map(move |client| {
@@ -877,7 +897,7 @@ impl<'a, R: radio::Radio + 'a> radio::TxClient for MacDevice<'a, R> {
     }
 }
 
-impl<'a, R: radio::Radio + 'a> radio::RxClient for MacDevice<'a, R> {
+impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> radio::RxClient for MacDevice<'a, R, A> {
     fn receive(&self, buf: &'static mut [u8], frame_len: usize, crc_valid: bool, _: ReturnCode) {
         // Drop all frames with invalid CRC
         if !crc_valid {
@@ -907,7 +927,7 @@ impl<'a, R: radio::Radio + 'a> radio::RxClient for MacDevice<'a, R> {
     }
 }
 
-impl<'a, R: radio::Radio + 'a> radio::ConfigClient for MacDevice<'a, R> {
+impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> radio::ConfigClient for MacDevice<'a, R, A> {
     fn config_done(&self, _: ReturnCode) {
         // The transmission pipeline is the only state machine that
         // waits for the configuration procedure to complete before
@@ -918,6 +938,79 @@ impl<'a, R: radio::Radio + 'a> radio::ConfigClient for MacDevice<'a, R> {
             self.tx_client.get().map(move |client| {
                 client.send_done(buf, false, rval);
             });
+        }
+    }
+}
+
+impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> CCMClient for MacDevice<'a, R, A> {
+    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
+        let mut tx_waiting = false;
+        let mut rx_waiting = false;
+
+        // The crypto operation was from the transmission pipeline.
+        let opt_buf = if let Some(state) = self.tx_state.take() {
+            match state {
+                TxState::Encrypting(info) => {
+                    let (rval, opt_buf) = if res != ReturnCode::SUCCESS {
+                        self.tx_state.replace(TxState::Idle);
+                        (res, Some(buf))
+                    } else {
+                        self.tx_state.replace(TxState::ReadyToTransmit(info, buf));
+                        self.step_transmit_state()
+                    };
+
+                    if let Some(buf) = opt_buf {
+                        // Abort the transmission process. Return the buffer to the client.
+                        self.tx_client.get().map(move |client| { client.send_done(buf, false, rval); });
+                    }
+                    None
+                }
+                other_state => {
+                    tx_waiting = match other_state {
+                        TxState::ReadyToEncrypt(_, _) => true,
+                        _ => false,
+                    };
+                    self.tx_state.replace(other_state);
+                    Some(buf)
+                }
+            }
+        } else {
+            Some(buf)
+        };
+
+        // The crypto operation was from the reception pipeline.
+        if let Some(buf) = opt_buf {
+            self.rx_state.take().map(move |state| {
+                match state {
+                    RxState::Decrypting(info) => {
+                        let next_state = if tag_is_valid {
+                            RxState::ReadyToYield(info, buf)
+                        } else {
+                            RxState::ReadyToReturn(buf)
+                        };
+                        self.rx_state.replace(next_state);
+                        self.step_receive_state();
+                    }
+                    other_state => {
+                        rx_waiting = match other_state {
+                            RxState::ReadyToDecrypt(_, _) => true,
+                            _ => false,
+                        };
+                        self.rx_state.replace(other_state);
+                    }
+                };
+            });
+        }
+
+        // Now trigger the next crypto operation if one exists.
+        if tx_waiting {
+            let (rval, opt_buf) = self.step_transmit_state();
+            if let Some(buf) = opt_buf {
+                // Return the buffer to the client.
+                self.tx_client.get().map(move |client| { client.send_done(buf, false, rval); });
+            }
+        } else if rx_waiting {
+            self.step_receive_state();
         }
     }
 }
