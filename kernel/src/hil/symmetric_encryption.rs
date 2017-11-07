@@ -36,6 +36,8 @@ pub trait AES128<'a> {
     /// If this is empty, the destination buffer will be read
     /// to provide the plaintext input.
     fn set_source(&'a self, buf: Option<&'a mut [u8]>) -> ReturnCode;
+    // XXX: Suppose I set_source(Some(&mut buf)) and it returns
+    // ReturnCode::FAIL. Now I can't get the buffer back!
 
     /// Return the source buffer, if any
     fn take_source(&'a self) -> Option<&'a mut [u8]>;
@@ -47,10 +49,46 @@ pub trait AES128<'a> {
     /// Returns SUCCESS if the buffer was installed, or EBUSY
     /// if the encryption unit is still busy.
     fn put_dest(&'a self, dest: Option<&'a mut [u8]>) -> ReturnCode;
+    // XXX: Suppose I put_dest(Some(&mut buf)) and it returns
+    // ReturnCode::FAIL. Now I can't get the buffer back!
 
     /// Return the destination buffer, if any.
     /// Returns EBUSY if the encryption unit is still busy.
     fn take_dest(&'a self) -> Result<Option<&'a mut [u8]>, ReturnCode>;
+    // XXX: It seems like making buffer-owndership-passing independent
+    // from the call/error path complicates control flow a lot and introduces
+    // a lot of room for errors. Suppose I'm trying to call crypt(). Here's the
+    // sequence of things I must do:
+    //
+    // Assume tbuf is some TakeCell<'static, [u8]>.
+    // let buf = match tbuf.take() {
+    //    Some(buf) => buf,
+    //    None => { return ReturnCode::EFAIL; },
+    // };
+    //
+    // let res = aes.put_dest(Some(buf));
+    // if res != ReturnCode::SUCCESS {
+    //    // Take the buffer back, which we currently cannot do
+    //    return ReturnCode::EFAIL;
+    // }
+    //
+    // aes.start_message();
+    // let res = aes.crypt(start_index, end_index);
+    // if res != ReturnCode::SUCCESS {
+    //    match aes.take_dest() {
+    //      Ok(Some(buf)) => tbuf.replace(buf),
+    //      Ok(None) => { /* This branch corresponds to a logical error in aes.
+    //      This should never happen, nor should a client have to deal with this
+    //      error mode. */ },
+    //      Err(err) => { /* This branch also corresponds to an error in aes. */
+    //      },
+    //    }
+    //    return ReturnCode::EFAIL;
+    // }
+    //
+    // So it seems that making the client handle buffer ownership forces
+    // everyone handle errors that could originate in the AES implementation,
+    // which is quite bad.
 
     /// Begin a new message (with the configured IV) when `crypt()` is next
     /// called.  Multiple calls to `crypt()` (accompanied by `set_source()` or

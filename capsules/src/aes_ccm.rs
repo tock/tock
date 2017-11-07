@@ -225,10 +225,16 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
         match self.aes.take_dest() {
             Ok(Some(buf)) => self.crypt_buf.replace(buf),
             Ok(None) => {
-                panic!("UM WHAT DOES THIS MEAN?");
+                // XXX: This case was present in the symmetric encryption
+                // interface to communicate the idea that the destination has
+                // not yet been set, but here we only call retrieve_crypt_buf
+                // upon an error or at the completion of an operation, so it
+                // should be possible to guarantee the presence of a buffer.
+                // Now, we are forced to assume a logic bug here.
+                panic!("What does this mean?");
             }
             Err(_) => {
-                panic!("Could not get crypt_buf back from AES");
+                panic!("Could not get crypt_buf back from AES?");
             }
         };
     }
@@ -251,8 +257,10 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
             Some(buf) => buf,
         };
 
-        // XXX: Suppose put_dest returns EBUSY because it was still busy.  We
-        // have already lost mutable access to crypt_buf, and are hence dead.
+        // XXX: Suppose put_dest returns EBUSY because it was still busy. Then,
+        // we have already lost mutable access to crypt_buf. This actually
+        // happens whenever a call to the aes module fails in any way, because
+        // the types do not give away to get the mutable buffer back.
         let res = self.aes.put_dest(Some(crypt_buf));
         if res != ReturnCode::SUCCESS {
             self.retrieve_crypt_buf();
@@ -301,7 +309,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
     fn end_ccm(&self) {
         self.retrieve_crypt_buf();
 
-        // :( this is bad.
+        // XXX: This is semantically bad. We know we only call end_ccm upon the
+        // crypt_done callback, so logically we should know that crypt_buf has
+        // been retrieved, and we should not have to check for the buffer. This
+        // is conflating the case that there has been a logic error in the
+        // underlying AES implementation with the case that the tag is invalid.
         let tag_valid = self.buf.map_or(false, |buf| {
             self.crypt_buf.map_or(false, |cbuf| {
                 // Copy the encrypted/decrypted message data
