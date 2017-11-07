@@ -1,154 +1,86 @@
-//! Implements 6LoWPAN transmission and reception, including compression,
-//! fragmentation, and reassembly. This layer exposes a send/receive interface
-//! which converts between fully-formed IPv6 packets and Mac-layer frames.
-//! This layer fragments any packet larger than the 802.15.4 MTU size, and
-//! will issue a callback when the entire packet has been transmitted.
-//! Similarly, this layer issues a callback when an entire IPv6 packet has been
-//! received and reassembled.
+//! 6loWPAN (IPv6 over Low-Power Wireless Networks) is standard for compressing
+//! and fragmenting IPv6 packets over low power wireless networks, particularly
+//! ones with MTUs (Minimum Transmission Units) smaller than 1280 octets, like
+//! IEEE 802.15.4. 6loWPAN compression and fragmentation are defined in RFC 4944
+//! and RFC 6282.
 //!
-//! This layer relies on the specifications contained in RFC 4944 and RFC 6282
+//! This module implements 6LoWPAN transmission and reception, including
+//! compression, fragmentation, and reassembly. It allows a client to convert
+//! between a complete IPv6 packets and a series of Mac-layer frames, and vice
+//! versa. On the transmission end, IPv6 headers are compressed and packets
+//! fragmented if they are larger than the Mac layer MTU size.  For reception,
+//! IPv6 packets are decompressed and reassembled from fragments and clients
+//! recieve callbacks for each full IPv6 packet.
 //!
-//! Remaining Tasks and Known Problems
-//! ----------------------------------
-//! TODO: Implement and expose a ConfigClient interface?
-//! TODO: Implement the disassociation event, integrate with lower layer
-//!
-//! Problem: The receiving Imix sometimes fails to receive a fragment. This
-//!     occurs below the Mac layer, and prevents the packet from being fully
-//!     reassembled.
-//!
-//! User Interface
+//! Usage
 //! --------------
-//! This layer exposes IP transmit and receive functionality to the upper
-//! layers. The main interface to this layer is the `Sixlowpan` struct and
-//! the `SixlowpanClient` trait. In general terms, the `Sixlowpan` struct
-//! exposes a way to send IPv6 packets, while the `SixlowpanClient` trait
-//! is responsible for delivering the `send_done` and `received` callbacks,
-//! which are invoked when a full IPv6 packet has been sent or received
-//! respectively. Note that this layer should be treated as a synchronous
-//! interface; only one object should be transmitting or receiving packets
-//! (the SixlowpanClient object). Any virtualization is performed above this
-//! layer, along with additional packet processing (e.g. dispatching to some
-//! receive client based on IP address). At this time, this layer is not
-//! exposed to userspace.
 //!
-//! The high-level control flow looks as follows:
+//! Clients use the [Sixlowpan](struct.Sixlowpan.html) struct to send packets
+//! while they implement the [SixlowpanClient](trait.Sixlowpan.html) trait to
+//! receive IPv6 packets as well as to be notified when a packet transmission
+//! has completed. [Sixlowpan](struct.Sixlowpan.html) can send one packet at a
+//! time, so any virtualization or multiplexing must be implemented elsewhere.
 //!
+//! At a high level, clients interact with this module as shown in the diagrams
+//! below:
+//!
+//! ```
 //! Transmit:
-//!           -------------
+//!
+//!           +-----------+
 //!           |Upper Layer|
-//!           -------------
+//!           +-----------+
 //!                 |
 //!       transmit_packet(..packet..)
 //!                 |
 //!                 v
-//!            -----------
+//!            +---------+
 //!            |Sixlowpan|
-//!            -----------
+//!            +---------+
 //! ...
-//!         -----------------
+//!         +---------------+
 //!         |SixlowpanClient|
-//!         -----------------
+//!         +---------------+
 //!                 ^
 //!                 |
 //!            send_done(..)
 //!                 |
-//!            -----------
+//!            +---------+
 //!            |Sixlowpan|
-//!            -----------
+//!            +---------+
+//! ```
 //!
+//! ```
 //! Receive:
-//!         -----------------
+//!
+//!         +---------------+
 //!         |SixlowpanClient|
-//!         -----------------
+//!         +---------------+
 //!                ^
 //!                |
 //!          receive(..buf..)
 //!                |
-//!           -----------
+//!           +---------+
 //!           |Sixlowpan|
-//!           -----------
+//!           +---------+
+//! ```
 //!
+//! ```
 //! Initialization:
-//!           -------------
+//!
+//!           +-----------+
 //!           |Upper Layer|
-//!           -------------
+//!           +-----------+
 //!                 |
 //!          set_client(client)
 //!                 |
 //!                 v
-//!            -----------
+//!            +---------+
 //!            |Sixlowpan|
-//!            -----------
-//!
-//!
-//! The interface is explored in more detail below.
-//!
-//! *Sixlowpan Struct:* For the `Sixlowpan` struct, we divide the
-//! user interface into two parts: standard usage and initialization. First,
-//! for standard usage (transmission), the `Sixlowpan` struct supplies the
-//! following method:
-//!
-//! ```
-//! Sixlowpan::transmit_packet(&self,
-//!                            src_mac_addr: MacAddress,
-//!                            dst_mac_addr: MacAddress,
-//!                            ip6_packet: &'static mut [u8],
-//!                            ip6_packet_len: usize,
-//!                            security: Option<(SecurityLevel, KeyId)>,
-//!                            fragment: bool,
-//!                            compress: bool)
-//!                            -> Result<ReturnCode, ReturnCode>;
-//! ```
-//! This function exposes the primary packet transmission fuctionality. The
-//! source and destination mac address arguments specify the link-layer
-//! addresses of the packet, while the `security`, `fragment`, and `compress`
-//! options specify the security level (if any), whether to fragment the packet
-//! if it is too large, and whether to compress the packet respectively. These
-//! different options are exposed to provide the caller with more control over
-//! how this layer modifies packets; no compression and no fragmentation can
-//! be set, and the packet will be sent to the radio as a raw IPv6 packet.
-//!
-//! The `ip6_packet` argument contains a pointer to a buffer containing a valid
-//! IPv6 packet, while the `ip6_packet_len` argument specifies the number of
-//! bytes to send. Note that `ip6_packet.len() > ip6_packet_len`, but we check
-//! the invariant that `ip6_packet_len <= ip6_packet.len()`.
-//!
+//!            +---------+
 //! ```
 //!
-//! To initialize the `Sixlowpan` struct, the following methods are exposed:
-//!
-//! ```
-//! Sixlowpan::new(radio: &'a Mac<'a>,
-//!                ctx_store: C,
-//!                tx_buf: &'static mut [u8],
-//!                clock: &'a A)
-//!                -> Sixlowpan<'a, A, C>;
-//! ```
-//! The new function returns a new Sixlowpan struct. The radio argument is any
-//! object implementing the Mac trait, while the clock implements the Alarm
-//! functionality. The ctx_store argument is any object that implements the
-//! ContextStore trait.
-//!
-//! ```
-//! Sixlowpan::add_rx_state(&self, rx_state: &'a RxState<'a>);
-//! ```
-//! This method adds an RxState to the RxState pool maintained by the Sixlowpan
-//! object. Each RxState struct represents the ability to reconstruct a single
-//! IP packet at a time; if two RxState structs are allocated, two IPv6 packets
-//! can be reconstructed simultaneously (likewise for 3+ RxStates). If only
-//! a single RxState is allocated, only one IP packet can be reconstructed at
-//! a time. Note that if no RxStates are initialized, no IP packets can be
-//! received.
-//!
-//! ```
-//! Sixlowpan::set_client(&'a self, client: &'a SixlowpanClient);
-//! ```
-//! The `set_client` method sets the SixlowpanClient for the Sixlowpan object.
-//! Whatever object is set as the client receives both `receive` and `send_done`
-//! callbacks.
-//!
-//! Usage
+//! Examples
 //! -----
 //! Examples of how to interface and use this layer are included in the file
 //! `boards/imix/src/lowpan_frag_dummy.rs`. Some set up is required in
@@ -272,6 +204,22 @@
 // combining both callbacks into a single interface represented no major
 // drawbacks, and served to simplify the code. Note that this design may
 // change as additional functionality is implemented on top of this layer.
+//
+// TODOs and Known Issues
+// ----------------------------------
+//
+// TODOs:
+//
+//   * Implement and expose a ConfigClient interface?
+//
+//   * Implement the disassociation event, integrate with lower layer
+//
+// Issues:
+//
+//   * On imix, the reciever sometimes fails to receive a fragment. This
+//     occurs below the Mac layer, and prevents the packet from being fully
+//     reassembled.
+//
 
 use core::cell::Cell;
 use ieee802154::mac::{Mac, Frame, TxClient, RxClient};
@@ -337,9 +285,8 @@ fn is_fragment(packet: &[u8]) -> bool {
     (mask == lowpan_frag::FRAGN_HDR) || (mask == lowpan_frag::FRAG1_HDR)
 }
 
-/// struct TxState
-/// --------------
-/// This struct tracks the global transmit state for a single IPv6 packet.
+/// Tracks the global transmit state for a single IPv6 packet.
+///
 /// Since transmit is serialized, the `Sixlowpan` struct only contains
 /// a reference to a single TxState (that is, we can only have a single
 /// outstanding transmission at the same time).
@@ -347,7 +294,7 @@ fn is_fragment(packet: &[u8]) -> bool {
 /// This struct maintains a reference to the full IPv6 packet, the source/dest
 /// MAC addresses and PanIDs, security/compression/fragmentation options,
 /// per-fragmentation state, and some global state.
-pub struct TxState {
+struct TxState {
     // State for the current transmission
     packet: TakeCell<'static, [u8]>,
     src_pan: Cell<PanID>,
@@ -368,11 +315,12 @@ pub struct TxState {
 }
 
 impl TxState {
-    /// TxState::new
-    /// ------------
-    /// This constructs a new, default TxState struct. The buffer passed in
-    /// serves as the buffer passed between the TxState layer and the radio.
-    pub fn new(tx_buf: &'static mut [u8]) -> TxState {
+    /// Creates a new `TxState`
+    ///
+    /// # Arguments
+    ///
+    /// `tx_buf` - A buffer for storing fragments the size of a 802.15.4 frame.
+    fn new(tx_buf: &'static mut [u8]) -> TxState {
         TxState {
             packet: TakeCell::empty(),
             src_pan: Cell::new(0),
@@ -586,13 +534,10 @@ impl TxState {
     }
 }
 
-/// struct RxState
-/// --------------
-/// This struct tracks the reassembly process for a given packet. The `busy`
-/// field marks whether the particular RxState is currently reassembling a
-/// packet or if it is currently free. The Sixlowpan struct maintains a list of
-/// RxState structs, which represents the number of packets that can be
-/// concurrently reassembled.
+/// Tracks the decompression and defragmentation of an IPv6 packet
+///
+/// A list of `RxState`s is maintained by [Sixlowpan](struct.Sixlowpan.html) to
+/// keep track of ongoing packet reassemblies.
 pub struct RxState<'a> {
     packet: TakeCell<'static, [u8]>,
     bitmap: MapCell<Bitmap>,
@@ -600,7 +545,10 @@ pub struct RxState<'a> {
     src_mac_addr: Cell<MacAddress>,
     dgram_tag: Cell<u16>,
     dgram_size: Cell<u16>,
+    // Marks if this instance is being used for a packet reassembly or if it is
+    // free to use for a new packet.
     busy: Cell<bool>,
+    // The time when packet reassembly started for the current packet.
     start_time: Cell<u32>,
 
     next: ListLink<'a, RxState<'a>>,
@@ -729,10 +677,18 @@ impl<'a> RxState<'a> {
     }
 }
 
-/// struct Sixlowpan
-/// ----------------
-/// This struct tracks the global sending/receiving state, and contains the
-/// lists of RxStates and singular TxState.
+/// Sends a receives IPv6 packets via 6loWPAN compression and fragmentation.
+///
+/// # Initialization
+///
+/// The `new` method creates an instance of `Sixlowpan` that can send packets.
+/// To receive packets, `Sixlowpan` needs one or more
+/// [RxState](struct.RxState.html)s which can be added with `add_rx_state`. More
+/// [RxState](struct.RxState.html)s allow the `Sixlowpan` to receive more
+/// packets concurrently.
+///
+/// Finally, `set_client` controls the client that will receive transmission
+/// completion and reception callbacks.
 pub struct Sixlowpan<'a, A: time::Alarm + 'a, C: ContextStore> {
     pub radio: &'a Mac<'a>,
     ctx_store: C,
@@ -785,9 +741,22 @@ impl<'a, A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
 }
 
 impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
-    /// Sixlowpan::new
-    /// --------------
-    /// This function initializes and returns a new Sixlowpan struct.
+    /// Creates a new `Sixlowpan`
+    ///
+    /// # Arguments
+    ///
+    /// * `radio` - An implementation of the `Mac` trait that manages the timing
+    /// and frequency of sending a receiving 802.15.4 frames
+    ///
+    /// * `ctx_store` - Stores IPv6 address nextwork context mappings
+    ///
+    /// * `tx_buf` - A buffer used for storing individual fragments of a packet
+    /// in transmission. This buffer must be at least the length of an 802.15.4
+    /// frame.
+    ///
+    /// * `clock` - A implementation of `Alarm` used for tracking the timing of
+    /// frame arrival. The clock should be continue running during sleep and
+    /// have an accuracy of at least 60 seconds.
     pub fn new(radio: &'a Mac<'a>,
                ctx_store: C,
                tx_buf: &'static mut [u8],
@@ -804,29 +773,58 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
         }
     }
 
-    /// Sixlowpan::add_rx_state
-    /// -----------------------
-    /// This function prepends the passed in RxState struct to the list of
-    /// RxStates maintained by the Sixlowpan struct. For the current use cases,
-    /// some number of RxStates are statically allocated and immediately
-    /// added to the list of RxStates.
+    /// Adds an additional `RxState` for reassembling IPv6 packets
+    ///
+    /// Each [RxState](struct.RxState.html) struct allows an additional IPv6
+    /// packet to be reassembled concurrently.
     pub fn add_rx_state(&self, rx_state: &'a RxState<'a>) {
         self.rx_states.push_head(rx_state);
     }
 
-    /// Sixlowpan::set_client
-    /// ---------------------
-    /// This function sets the SixlowpanClient, which receives the `send_done`
-    /// and `received` callbacks.
+    /// Sets the [SixlowpanClient](trait.SixlowpanClient.html) that will receive
+    /// transmission completion and new packet reception callbacks.
     pub fn set_client(&'a self, client: &'a SixlowpanClient) {
         self.client.set(Some(client));
     }
 
-    /// Sixlowpan::transmit_packet
-    /// --------------------------
-    /// This function is called to send a fully-formed IPv6 packet. Arguments
-    /// to this function are used to determine various aspects of the MAC
-    /// layer frame and keep track of the transmission state.
+    /// Transmits the supplied IPv6 packet.
+    ///
+    /// Transmitted IPv6 packets will be optionall compressed, fragmented and
+    ///
+    /// Only one transmission is allowed at a time. Calling this method while
+    /// before a previous tranismission has completed will return an error.
+    ///
+    /// # Arguments
+    ///
+    /// * `src_mac_addr` - Why is the argument specified?
+    ///
+    /// * `dst_mac_addr` - Why is the argument specified?
+    ///
+    /// * `ip6_packet` - A buffer containing the IPv6 packet to transmit. This
+    /// buffer will be passed back in the
+    /// [send_done](trait.SixlowpanClient.html#send_done) callback.
+    ///
+    /// * `ip6_packet_len` - The length of the packet, in case the `ip6_packet`
+    /// buffer is larger than the actual packet. Must be at most
+    /// `ip6_packet.len()`
+    ///
+    /// * `security` - An optional tuple specifying the security level
+    /// (encryption, MIC, or both) and key identifier to use. If elided, no
+    /// security is used.
+    ///
+    /// This function exposes the primary packet transmission fuctionality. The
+    /// source and destination mac address arguments specify the link-layer
+    /// addresses of the packet, while the `security`, `fragment`, and `compress`
+    /// options specify the security level (if any), whether to fragment the packet
+    /// if it is too large, and whether to compress the packet respectively. These
+    /// different options are exposed to provide the caller with more control over
+    /// how this layer modifies packets; no compression and no fragmentation can
+    /// be set, and the packet will be sent to the radio as a raw IPv6 packet.
+    ///
+    /// The `ip6_packet` argument contains a pointer to a buffer containing a valid
+    /// IPv6 packet, while the `ip6_packet_len` argument specifies the number of
+    /// bytes to send. Note that `ip6_packet.len() > ip6_packet_len`, but we check
+    /// the invariant that `ip6_packet_len <= ip6_packet.len()`.
     pub fn transmit_packet(&self,
                            src_mac_addr: MacAddress,
                            dst_mac_addr: MacAddress,

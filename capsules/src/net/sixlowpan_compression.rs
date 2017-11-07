@@ -269,6 +269,8 @@ fn nhc_to_ip6_nh(nhc: u8) -> Result<u8, ()> {
     }
 }
 
+/// Compresses an IPv6 header into a 6loWPAN header
+///
 /// Constructs a 6LoWPAN header in `buf` from the given IPv6 datagram and
 /// 16-bit MAC addresses. If the compression was successful, returns
 /// `Ok((consumed, written))`, where `consumed` is the number of header
@@ -752,19 +754,46 @@ fn compress_and_elide_padding(nh_type: u8,
     }
 }
 
-/// Decodes a compressed header into a full IPv6 header given the 16-bit MAC
-/// addresses. `buf` is expected to be a slice containing only the 6LowPAN
-/// packet along with its payload.  If the decompression was successful,
-/// returns `Ok((consumed, written))`, where `consumed` is the number of
-/// header bytes consumed from the 6LoWPAN header and `written` is the
-/// number of uncompressed header bytes written into `out_buf`. Payload
-/// bytes and non-compressed next headers are not written, so the remaining
-/// `buf.len() - consumed` bytes must still be copied over to `out_buf`.
+/// Decompresses a 6loWPAN header into a full IPv6 header
+///
+/// This function decompresses the header found in `buf` and writes it
+/// `out_buf`. It does not, though, copy payload bytes or a non-compressed next
+/// header. As a result, the caller should copy the `buf.len - consumed`
+/// remaining bytes from `buf` to `out_buf`.
+///
+///
 /// Note that in the case of fragmentation, the total length of the IPv6
 /// packet cannot be inferred from a single frame, and is instead provided
 /// by the dgram_size field in the fragmentation header. Thus, if we are
 /// decompressing a fragment, we rely on the dgram_size field; otherwise,
 /// we infer the length from the size of buf.
+///
+/// # Arguments
+///
+/// * `ctx_store` - ???
+///
+/// * `buf` - A slice containing the 6LowPAN packet along with its payload.
+///
+/// * `src_mac_addr` - the 16-bit MAC address of the frame sender.
+///
+/// * `dst_mac_addr` - the 16-bit MAC address of the frame receiver.
+///
+/// * `out_buf` - A buffer to write the output to. Must be at least large enough
+/// to store an IPv6 header (XX bytes).
+///
+/// * `dgram_size` - If `is_fragment` is `true`, this is used as the IPv6
+/// packets total payload size. Otherwise, this is ignored.
+///
+/// * `is_fragment` - ???
+///
+/// # Returns
+///
+/// `Ok((consumed, written))` if decompression is successful.
+///
+/// * `consumed` is the number of header bytes consumed from the 6LoWPAN header
+///
+/// * `written` is the number of uncompressed header bytes written into
+/// `out_buf`.
 pub fn decompress(ctx_store: &ContextStore,
                   buf: &[u8],
                   src_mac_addr: MacAddress,
