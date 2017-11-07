@@ -11,6 +11,7 @@ extern crate sam4l;
 use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::mac::Mac;
 use capsules::rf233::RF233;
+use capsules::aes_ccm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{VirtualSpiMasterDevice, MuxSpiMaster};
@@ -19,9 +20,7 @@ use kernel::hil::Controller;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
-
-#[allow(dead_code)]
-use capsules::aes_ccm;
+use kernel::hil::symmetric_encryption;
 
 #[macro_use]
 pub mod io;
