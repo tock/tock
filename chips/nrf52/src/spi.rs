@@ -272,6 +272,7 @@ pub struct SPIM {
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
     transfer_len: Cell<usize>,
+    enabled: Cell<bool>,
 }
 
 impl SPIM {
@@ -285,6 +286,7 @@ impl SPIM {
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
             transfer_len: Cell::new(0),
+            enabled: Cell::new(false),
         }
     }
 
@@ -361,12 +363,18 @@ impl SPIM {
     pub fn enable(&self) {
         use self::registers::spim::Enable;
         self.regs().enable.set(Enable::Enabled);
+        self.enabled.set(true);
     }
 
     /// Disables `SPIM` peripheral.
     pub fn disable(&self) {
         use self::registers::spim::Enable;
         self.regs().enable.set(Enable::Disabled);
+        self.enabled.set(false);
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.get()
     }
 }
 

@@ -21,6 +21,7 @@ pub struct TWIM {
     client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
     busy: Cell<bool>,
     buf: TakeCell<'static, [u8]>,
+    enabled: Cell<bool>,
 }
 
 impl TWIM {
@@ -30,6 +31,7 @@ impl TWIM {
             client: Cell::new(None),
             busy: Cell::new(false),
             buf: TakeCell::empty(),
+            enabled: Cell::new(false),
         }
     }
 
@@ -53,13 +55,14 @@ impl TWIM {
     pub fn enable(&self) {
         let regs = self.regs();
         regs.enable.set(registers::Enable::Enabled);
+        self.enabled.set(true);
     }
 
     /// Disables hardware TWIM peripheral.
     pub fn disable(&self) {
         let regs = self.regs();
-        debug_assert!(regs.enable.get() == registers::Enable::Enabled);
         regs.enable.set(registers::Enable::Disabled);
+        self.enabled.set(false);
     }
 
     pub fn handle_interrupt(&self) {
@@ -112,6 +115,10 @@ impl TWIM {
         }
 
         self.busy.set(false);
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.get()
     }
 }
 
