@@ -38,3 +38,7 @@ Temporary Items
 
 # rustdoc folder
 doc/rustdoc
+
+# Backup and swap files
+*~
+*.swp
