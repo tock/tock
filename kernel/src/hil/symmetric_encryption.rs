@@ -15,7 +15,8 @@ pub trait Client {
 pub const AES128_BLOCK_SIZE: usize = 16;
 
 pub trait AES128<'a> {
-    /// Enable the AES hardware; must be called before any other methods
+    /// Enable the AES hardware.
+    /// Must be called before any other methods
     fn enable(&self);
 
     /// Disable the AES hardware
@@ -24,84 +25,69 @@ pub trait AES128<'a> {
     /// Set the client instance which will receive `crypt_done()` callbacks
     fn set_client(&'a self, client: &'a Client);
 
-    /// Set the encryption key; returns `EINVAL` if length is not `AES128_BLOCK_SIZE`
+    /// Set the encryption key.
+    /// Returns `EINVAL` if length is not `AES128_BLOCK_SIZE`
     fn set_key(&self, key: &[u8]) -> ReturnCode;
 
-    /// Set the IV (or initial counter); returns `EINVAL` if length is not `AES128_BLOCK_SIZE`
+    /// Set the IV (or initial counter).
+    /// Returns `EINVAL` if length is not `AES128_BLOCK_SIZE`
     fn set_iv(&self, iv: &[u8]) -> ReturnCode;
 
-    /// Set the source buffer.  If this is full, the encryption
-    /// input will be this entire buffer, and its size must match
-    /// `stop_index - start_index` when `crypt()` is called.
-    /// If this is empty, the destination buffer will be read
-    /// to provide the plaintext input.
-    fn set_source(&'a self, buf: Option<&'a mut [u8]>) -> ReturnCode;
-    // XXX: Suppose I set_source(Some(&mut buf)) and it returns
-    // ReturnCode::FAIL. Now I can't get the buffer back!
+    /// Set the source buffer.  If this is full, the encryption input
+    /// will be this entire buffer.  If the source buffer is empty,
+    /// the destination buffer will be read to provide the input.
+    ///
+    /// If an encryption operation is in progress, this method instead
+    /// has no effect.
+    fn put_source(&'a self, buf: Option<&'a mut [u8]>);
 
-    /// Return the source buffer, if any
+    /// Return the source buffer and set it to None, if one has
+    /// previously been set.
+    ///
+    /// If an encryption operation is in progress, this method instead
+    /// returns None.
     fn take_source(&'a self) -> Option<&'a mut [u8]>;
 
-    /// Set the destination buffer.  If `set_source()` has not
+    /// Set the destination buffer.  If `put_source()` has not
     /// been used to pass a source buffer, this buffer will also
     /// provide the encryption input, which will be overwritten.
     /// The option should be full whenever `crypt()` is called.
-    /// Returns SUCCESS if the buffer was installed, or EBUSY
-    /// if the encryption unit is still busy.
-    fn put_dest(&'a self, dest: Option<&'a mut [u8]>) -> ReturnCode;
-    // XXX: Suppose I put_dest(Some(&mut buf)) and it returns
-    // ReturnCode::FAIL. Now I can't get the buffer back!
+    ///
+    /// If an encryption operation is in progress, this method instead
+    /// has no effect.
+    fn put_dest(&'a self, dest: Option<&'a mut [u8]>);
 
-    /// Return the destination buffer, if any.
-    /// Returns EBUSY if the encryption unit is still busy.
-    fn take_dest(&'a self) -> Result<Option<&'a mut [u8]>, ReturnCode>;
-    // XXX: It seems like making buffer-owndership-passing independent
-    // from the call/error path complicates control flow a lot and introduces
-    // a lot of room for errors. Suppose I'm trying to call crypt(). Here's the
-    // sequence of things I must do:
-    //
-    // Assume tbuf is some TakeCell<'static, [u8]>.
-    // let buf = match tbuf.take() {
-    //    Some(buf) => buf,
-    //    None => { return ReturnCode::EFAIL; },
-    // };
-    //
-    // let res = aes.put_dest(Some(buf));
-    // if res != ReturnCode::SUCCESS {
-    //    // Take the buffer back, which we currently cannot do
-    //    return ReturnCode::EFAIL;
-    // }
-    //
-    // aes.start_message();
-    // let res = aes.crypt(start_index, end_index);
-    // if res != ReturnCode::SUCCESS {
-    //    match aes.take_dest() {
-    //      Ok(Some(buf)) => tbuf.replace(buf),
-    //      Ok(None) => { /* This branch corresponds to a logical error in aes.
-    //      This should never happen, nor should a client have to deal with this
-    //      error mode. */ },
-    //      Err(err) => { /* This branch also corresponds to an error in aes. */
-    //      },
-    //    }
-    //    return ReturnCode::EFAIL;
-    // }
-    //
-    // So it seems that making the client handle buffer ownership forces
-    // everyone handle errors that could originate in the AES implementation,
-    // which is quite bad.
+    /// Return the destination buffer and set it to None, if one has
+    /// previously been set.
+    ///
+    /// If an encryption operation is in progress, this method instead
+    /// returns None.
+    fn take_dest(&'a self) -> Option<&'a mut [u8]>;
 
-    /// Begin a new message (with the configured IV) when `crypt()` is next
-    /// called.  Multiple calls to `crypt()` (accompanied by `set_source()` or
-    /// `put_dest`) may be made between calls to `start_message()`, allowing the
-    /// encryption context to extend over non-contiguous extents of data.
+    /// Begin a new message (with the configured IV) when `crypt()` is
+    /// next called.  Multiple calls to `crypt()` (accompanied by
+    /// `put_source()` or `put_dest`) may be made between calls to
+    /// `start_message()`, allowing the encryption context to extend
+    /// over non-contiguous extents of data.
+    ///
+    /// If an encryption operation is in progress, this method instead
+    /// has no effect.
     fn start_message(&self);
 
     /// Request an encryption/decryption
     ///
     /// The indices `start_index` and `stop_index` must be valid offsets in
-    /// a buffer previously passed in with `set_data`, and the length
+    /// a buffer previously passed in with `put_data`, and the length
     /// `stop_index - start_index` must be a multiple of
-    /// `AES128_BLOCK_SIZE`.  Otherwise, INVAL will be returned.
+    /// `AES128_BLOCK_SIZE`.  Otherwise, EINVAL will be returned.
+    ///
+    /// If a buffer has previously been passed in with `put_source`,
+    /// its length must be `stop_index - start_index`.  Otherwise,
+    /// EINVAL will be returned.
+    ///
+    /// If the source buffer is full, the encryption input will be
+    /// that entire buffer.  Otherwise the destination buffer will be
+    /// read to provide the input.
     ///
     /// If SUCCESS is returned, the client's `crypt_done` method will eventually
     /// be called, and the portion of the data buffer between `start_index`

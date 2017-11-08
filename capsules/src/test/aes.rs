@@ -75,12 +75,11 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
             }
         });
 
-
         if self.use_source.get() {
             // Hand off the source buffer to the hardware
-            assert!(self.aes.set_source(self.source.take()) == ReturnCode::SUCCESS);
+            self.aes.put_source(self.source.take());
         } else {
-            assert!(self.aes.set_source(None) == ReturnCode::SUCCESS);
+            self.aes.put_source(None);
 
             // Copy source into dest for in-place encryption
             self.source.map_or_else(|| { panic!("No source") },
@@ -95,7 +94,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
         }
 
         // Hand off the destination buffer to the hardware
-        assert!(self.aes.put_dest(self.data.take()) == ReturnCode::SUCCESS);
+        self.aes.put_dest(self.data.take());
 
         if self.mode_ctr.get() {
             self.aes.set_mode_aes128ctr(self.encrypting.get());
@@ -121,7 +120,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Clien
         }
 
         // Take back the destination buffer
-        self.data.replace(self.aes.take_dest().unwrap().unwrap());
+        self.data.replace(self.aes.take_dest().unwrap());
 
         let expected = if self.encrypting.get() {
             if self.mode_ctr.get() { &CTXT_CTR } else { &CTXT_CBC }
