@@ -154,24 +154,6 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
         stream_done!(off, (auth_len, enc_len));
     }
 
-    fn retrieve_crypt_buf(&self) {
-        match self.aes.take_dest() {
-            Ok(Some(buf)) => self.crypt_buf.replace(buf),
-            Ok(None) => {
-                // XXX: This case was present in the symmetric encryption
-                // interface to communicate the idea that the destination has
-                // not yet been set, but here we only call retrieve_crypt_buf
-                // upon an error or at the completion of an operation, so it
-                // should be possible to guarantee the presence of a buffer.
-                // Now, we are forced to assume a logic bug here.
-                panic!("What does this mean?");
-            }
-            Err(_) => {
-                panic!("Could not get crypt_buf back from AES?");
-            }
-        };
-    }
-
     // Assumes that the state is Idle, which means that crypt_buf must be
     // present. Panics if this is not the case.
     fn start_ccm_auth(&self) -> ReturnCode {
@@ -190,26 +172,19 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
             Some(buf) => buf,
         };
 
-        // XXX: Suppose put_dest returns EBUSY because it was still busy. Then,
-        // we have already lost mutable access to crypt_buf. This actually
-        // happens whenever a call to the aes module fails in any way, because
-        // the types do not give away to get the mutable buffer back.
-        let res = self.aes.put_dest(Some(crypt_buf));
-        if res != ReturnCode::SUCCESS {
-            self.retrieve_crypt_buf();
-            return res;
-        }
-
         self.aes.set_mode_aes128cbc(self.encrypting.get());
         self.aes.start_message();
-        let res = self.aes.crypt(0, self.crypt_auth_len.get());
-        if res != ReturnCode::SUCCESS {
-            self.retrieve_crypt_buf();
-            return res;
+        match self.aes.crypt(None, crypt_buf, 0, self.crypt_auth_len.get()) {
+            None => {
+                self.state.set(CCMState::Auth);
+                ReturnCode::SUCCESS
+            }
+            Some((res, _, crypt_buf)) => {
+                // Request failed
+                self.crypt_buf.replace(crypt_buf);
+                res
+            }
         }
-
-        self.state.set(CCMState::Auth);
-        ReturnCode::SUCCESS
     }
 
     fn start_ccm_encrypt(&self) -> ReturnCode {
@@ -228,27 +203,29 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
 
         self.aes.set_mode_aes128ctr(self.encrypting.get());
         self.aes.start_message();
-        let res = self.aes.crypt(self.crypt_auth_len.get() - AES128_BLOCK_SIZE,
-                                 self.crypt_enc_len.get());
-        if res != ReturnCode::SUCCESS {
-            self.retrieve_crypt_buf();
-            return res;
+        let crypt_buf = match self.crypt_buf.take() {
+            None => panic!("Cannot perform CCM* encrypt because crypt_buf is not present."),
+            Some(buf) => buf,
+        };
+        match self.aes.crypt(None, crypt_buf,
+                             self.crypt_auth_len.get() - AES128_BLOCK_SIZE,
+                             self.crypt_enc_len.get()) {
+            None => {
+                self.state.set(CCMState::Encrypt);
+                ReturnCode::SUCCESS
+            }
+            Some((res, _, crypt_buf)) => {
+                self.crypt_buf.replace(crypt_buf);
+                res
+            }
         }
-
-        self.state.set(CCMState::Encrypt);
-        ReturnCode::SUCCESS
     }
 
     fn end_ccm(&self) {
-        self.retrieve_crypt_buf();
-
-        // XXX: This is semantically bad. We know we only call end_ccm upon the
-        // crypt_done callback, so logically we should know that crypt_buf has
-        // been retrieved, and we should not have to check for the buffer. This
-        // is conflating the case that there has been a logic error in the
-        // underlying AES implementation with the case that the tag is invalid.
         let tag_valid = self.buf.map_or(false, |buf| {
-            self.crypt_buf.map_or(false, |cbuf| {
+            self.crypt_buf.map_or_else(|| {
+                panic!("We lost track of crypt_buf!");
+            }, |cbuf| {
                 // Copy the encrypted/decrypted message data
                 let (_, m_off, m_len, mic_len) = self.pos.get();
                 let auth_len = self.crypt_auth_len.get();
@@ -343,8 +320,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a>
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client for AES128CCM<'a, A> {
-    fn crypt_done(&self) {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a> for AES128CCM<'a, A> {
+    fn crypt_done(&self, _: Option<&'a mut [u8]>, crypt_buf: &'a mut [u8]) {
+        self.crypt_buf.replace(crypt_buf);
         match self.state.get() {
             CCMState::Idle => {},
             CCMState::Auth => {
@@ -356,8 +334,6 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client for
                             client.crypt_done(buf, res, false);
                         }
                     });
-                    // Retrieve crypt_buf from AES
-                    self.retrieve_crypt_buf();
                     self.state.set(CCMState::Idle);
                 }
             },
