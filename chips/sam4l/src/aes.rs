@@ -60,7 +60,7 @@ const ODATARDY: u32 = 1 << 0;
 pub struct Aes<'a> {
     registers: *mut AesRegisters,
 
-    client: Cell<Option<&'a hil::symmetric_encryption::Client>>,
+    client: Cell<Option<&'a hil::symmetric_encryption::Client<'a>>>,
     source: TakeCell<'a, [u8]>,
     dest: TakeCell<'a, [u8]>,
 
@@ -312,7 +312,7 @@ impl<'a> Aes<'a> {
 
                 // Alert the client of the completion
                 if let Some(client) = self.client.get() {
-                    client.crypt_done();
+                    client.crypt_done(self.source.take(), self.dest.take().unwrap());
                 }
             }
         }
@@ -334,7 +334,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         self.disable_clock();
     }
 
-    fn set_client(&'a self, client: &'a hil::symmetric_encryption::Client) {
+    fn set_client(&'a self, client: &'a hil::symmetric_encryption::Client<'a>) {
         self.client.set(Some(client));
     }
 
@@ -397,15 +397,20 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         regs.ctrl.set((1 << 2) | (1 << 0));
     }
 
-    fn crypt(&self, start_index: usize, stop_index: usize) -> ReturnCode {
+    fn crypt(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8],
+                 start_index: usize, stop_index: usize)
+        -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])>
+    {
         if self.busy() {
-            ReturnCode::EBUSY
+            Some((ReturnCode::EBUSY, source, dest))
         } else {
+            self.source.put(source);
+            self.dest.replace(dest);
             if self.try_set_indices(start_index, stop_index) {
                 self.enable_interrupts();
-                ReturnCode::SUCCESS
+                None
             } else {
-                ReturnCode::EINVAL
+                Some((ReturnCode::EINVAL, self.source.take(), self.dest.take().unwrap()))
             }
         }
     }
