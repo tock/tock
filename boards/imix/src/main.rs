@@ -9,10 +9,10 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
+use capsules::aes_ccm;
 use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::mac::Mac;
 use capsules::rf233::RF233;
-use capsules::aes_ccm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -572,10 +572,12 @@ pub unsafe fn reset_handler() {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
-    kernel::process::load_processes(&_sapps as *const u8,
-                                    &mut APP_MEMORY,
-                                    &mut PROCESSES,
-                                    FAULT_RESPONSE);
+    kernel::process::load_processes(
+        &_sapps as *const u8,
+        &mut APP_MEMORY,
+        &mut PROCESSES,
+        FAULT_RESPONSE,
+    );
 
     aes_test::run();
 

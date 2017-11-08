@@ -128,9 +128,15 @@ impl<'a> Aes<'a> {
         regs.idr.set(IBUFRDY);
     }
 
+    fn busy(&self) -> bool {
+        let regs: &AesRegisters = unsafe { &*self.registers };
+
+        // Are any interrupts set, meaning an encryption operation is in progress?
+        regs.imr.get() & (IBUFRDY | ODATARDY) != 0
+    }
 
     fn set_mode(&self, encrypting: bool, mode: ConfidentialityMode) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         let encrypt = if encrypting { 1 } else { 0 };
         let dma = 0;
@@ -191,7 +197,7 @@ impl<'a> Aes<'a> {
 
     // Copy a block from the request buffer to the AESA input register,
     // if there is a block left in the buffer.  Either way, this function
-    // returns true if more blocks remain to send
+    // returns true if more blocks remain to send.
     fn write_block(&self) -> bool {
        self.source.map_or_else(|| {
             // The source and destination are the same buffer
@@ -280,6 +286,12 @@ impl<'a> Aes<'a> {
     /// buffer is ready for more data, or that it has completed a block of output
     /// for us to consume
     pub fn handle_interrupt(&self) {
+        if !self.busy() {
+            // Ignore errant interrupts, in case it's possible for the AES interrupt flag
+            // to be set again while we are in this handler.
+            return;
+        }
+
         if self.input_buffer_ready() {
             // The AESA says it is ready to receive another block
 
@@ -376,13 +388,17 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn start_message(&self) {
+        if self.busy() {
+            return;
+        }
+
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
 
         regs.ctrl.set((1 << 2) | (1 << 0));
     }
 
     fn crypt(&self, start_index: usize, stop_index: usize) -> ReturnCode {
-        if self.some_interrupts_are_set() {
+        if self.busy() {
             ReturnCode::EBUSY
         } else {
             if self.try_set_indices(start_index, stop_index) {

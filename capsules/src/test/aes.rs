@@ -1,10 +1,10 @@
 //! Test the AES hardware
 
-use kernel::ReturnCode;
-use kernel::hil;
-use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128, AES128Ctr, AES128CBC};
-use kernel::common::take_cell::TakeCell;
 use core::cell::Cell;
+use kernel::ReturnCode;
+use kernel::common::take_cell::TakeCell;
+use kernel::hil;
+use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE};
 
 pub struct Test<'a, A: 'a> {
     aes: &'a A,
@@ -23,11 +23,13 @@ pub const DATA_OFFSET: usize = AES128_BLOCK_SIZE;
 const DATA_LEN: usize = 4 * AES128_BLOCK_SIZE;
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
-    pub fn new(aes: &'a A,
-               key: &'a mut [u8],
-               iv: &'a mut [u8],
-               source: &'a mut [u8],
-               data: &'a mut [u8]) -> Self {
+    pub fn new(
+        aes: &'a A,
+        key: &'a mut [u8],
+        iv: &'a mut [u8],
+        source: &'a mut [u8],
+        data: &'a mut [u8],
+    ) -> Self {
         Test {
             aes: aes,
 
@@ -47,7 +49,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
 
         // Copy key into key buffer and configure it in the hardware
         self.key.map(|key| {
-            for (i,b) in KEY.iter().enumerate() {
+            for (i, b) in KEY.iter().enumerate() {
                 key[i] = *b;
             }
 
@@ -56,8 +58,12 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
 
         // Copy mode-appropriate IV into IV buffer and configure it in the hardware
         self.iv.map(|iv| {
-            let iv_mode = if self.mode_ctr.get() { &IV_CTR } else { &IV_CBC };
-            for (i,b) in iv_mode.iter().enumerate() {
+            let iv_mode = if self.mode_ctr.get() {
+                &IV_CTR
+            } else {
+                &IV_CBC
+            };
+            for (i, b) in iv_mode.iter().enumerate() {
                 iv[i] = *b;
             }
 
@@ -65,37 +71,45 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
         });
 
         // Copy mode-appropriate source into source buffer
-        let source_mode = if self.encrypting.get() { &PTXT }
-                          else { if self.mode_ctr.get() { &CTXT_CTR }
-                                 else { &CTXT_CBC }
-                          };
+        let source_mode = if self.encrypting.get() {
+            &PTXT
+        } else {
+            if self.mode_ctr.get() {
+                &CTXT_CTR
+            } else {
+                &CTXT_CBC
+            }
+        };
         self.source.map(|source| {
-            for (i,b) in source_mode.iter().enumerate() {
+            for (i, b) in source_mode.iter().enumerate() {
                 source[i] = *b;
             }
         });
 
-
         if self.use_source.get() {
             // Hand off the source buffer to the hardware
-            assert!(self.aes.set_source(self.source.take()) == ReturnCode::SUCCESS);
+            self.aes.put_source(self.source.take());
         } else {
-            assert!(self.aes.set_source(None) == ReturnCode::SUCCESS);
+            self.aes.put_source(None);
 
             // Copy source into dest for in-place encryption
-            self.source.map_or_else(|| { panic!("No source") },
+            self.source.map_or_else(
+                || panic!("No source"),
                 |source| {
-                    self.data.map_or_else(|| { panic!("No data") },
+                    self.data.map_or_else(
+                        || panic!("No data"),
                         |data| {
                             for (i, b) in source.iter().enumerate() {
                                 data[DATA_OFFSET + i] = *b;
                             }
-                        });
-                });
+                        },
+                    );
+                },
+            );
         }
 
         // Hand off the destination buffer to the hardware
-        assert!(self.aes.put_dest(self.data.take()) == ReturnCode::SUCCESS);
+        self.aes.put_dest(self.data.take());
 
         if self.mode_ctr.get() {
             self.aes.set_mode_aes128ctr(self.encrypting.get());
@@ -114,26 +128,37 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Client for Test<'a, A> {
     fn crypt_done(&self) {
-
         if self.use_source.get() {
             // Take back the source buffer
             self.source.replace(self.aes.take_source().unwrap());
         }
 
         // Take back the destination buffer
-        self.data.replace(self.aes.take_dest().unwrap().unwrap());
+        self.data.replace(self.aes.take_dest().unwrap());
 
         let expected = if self.encrypting.get() {
-            if self.mode_ctr.get() { &CTXT_CTR } else { &CTXT_CBC }
+            if self.mode_ctr.get() {
+                &CTXT_CTR
+            } else {
+                &CTXT_CBC
+            }
         } else {
             &PTXT
         };
 
-        if self.data.map_or(false, |data| &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()) {
-            debug!("OK! ({} {} {})",
-                   if self.encrypting.get() { "Enc" } else { "Dec" },
-                   if self.mode_ctr.get() { "Ctr" } else { "CBC" },
-                   if self.use_source.get() { "Src/Dst" } else { "In-place" });
+        if self.data.map_or(false, |data| {
+            &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()
+        }) {
+            debug!(
+                "OK! ({} {} {})",
+                if self.encrypting.get() { "Enc" } else { "Dec" },
+                if self.mode_ctr.get() { "Ctr" } else { "CBC" },
+                if self.use_source.get() {
+                    "Src/Dst"
+                } else {
+                    "In-place"
+                }
+            );
         } else {
             panic!("FAIL");
         }
