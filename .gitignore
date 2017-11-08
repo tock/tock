@@ -41,4 +41,7 @@ doc/rustdoc
 
 # Backup and swap files
 *~
-*.swp
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-v][a-z]
+[._]sw[a-p]
