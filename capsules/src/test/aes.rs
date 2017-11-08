@@ -75,12 +75,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
             }
         });
 
-        if self.use_source.get() {
-            // Hand off the source buffer to the hardware
-            self.aes.put_source(self.source.take());
-        } else {
-            self.aes.put_source(None);
-
+        if !self.use_source.get() {
             // Copy source into dest for in-place encryption
             self.source.map_or_else(|| { panic!("No source") },
                 |source| {
@@ -93,9 +88,6 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
                 });
         }
 
-        // Hand off the destination buffer to the hardware
-        self.aes.put_dest(self.data.take());
-
         if self.mode_ctr.get() {
             self.aes.set_mode_aes128ctr(self.encrypting.get());
         } else {
@@ -105,22 +97,31 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
 
         let start = DATA_OFFSET;
         let stop = DATA_OFFSET + DATA_LEN;
-        assert!(self.aes.crypt(start, stop) == ReturnCode::SUCCESS);
 
-        // await crypt_done()
+        match self.aes.crypt(if self.use_source.get() { self.source.take() } else { None },
+                             self.data.take().unwrap(), start, stop) {
+            None => {
+                // await crypt_done()
+            },
+            Some((result, source, dest)) => {
+                self.source.put(source);
+                self.data.put(Some(dest));
+                panic!("crypt() failed: {:?}", result);
+            }
+        }
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Client for Test<'a, A> {
-    fn crypt_done(&self) {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Client<'a> for Test<'a, A> {
+    fn crypt_done(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8]) {
 
         if self.use_source.get() {
             // Take back the source buffer
-            self.source.replace(self.aes.take_source().unwrap());
+            self.source.put(source);
         }
 
         // Take back the destination buffer
-        self.data.replace(self.aes.take_dest().unwrap());
+        self.data.replace(dest);
 
         let expected = if self.encrypting.get() {
             if self.mode_ctr.get() { &CTXT_CTR } else { &CTXT_CBC }
