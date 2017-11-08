@@ -2,7 +2,6 @@
 
 use core::cell::Cell;
 use core::mem;
-use core::result::Result;
 
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
@@ -132,9 +131,10 @@ impl<'a> Aes<'a> {
         regs.idr.set(IBUFRDY);
     }
 
-    fn some_interrupts_are_set(&self) -> bool {
+    fn busy(&self) -> bool {
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
 
+        // Are any interrupts set, meaning an encryption operation is in progress?
         regs.imr.get() & (IBUFRDY | ODATARDY) != 0
     }
 
@@ -199,7 +199,7 @@ impl<'a> Aes<'a> {
 
     // Copy a block from the request buffer to the AESA input register,
     // if there is a block left in the buffer.  Either way, this function
-    // returns true if more blocks remain to send
+    // returns true if more blocks remain to send.
     fn write_block(&self) -> bool {
         self.source.map_or_else(|| {
             // The source and destination are the same buffer
@@ -288,6 +288,12 @@ impl<'a> Aes<'a> {
     /// buffer is ready for more data, or that it has completed a block of output
     /// for us to consume
     pub fn handle_interrupt(&self) {
+        if !self.busy() {
+            // Ignore errant interrupts, in case it's possible for the AES interrupt flag
+            // to be set again while we are in this handler.
+            return;
+        }
+
         if self.input_buffer_ready() {
             // The AESA says it is ready to receive another block
 
@@ -389,74 +395,46 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         ReturnCode::SUCCESS
     }
 
-    fn set_source(&'a self, buf: Option<&'a mut [u8]>) -> ReturnCode {
-        if self.some_interrupts_are_set() {
-            // Don't risk invalidating read/write indices
-            return ReturnCode::EBUSY;
+    fn put_source(&'a self, buf: Option<&'a mut [u8]>) {
+        if self.busy() {
+            return;
         }
-
-        if let Some(buf) = buf {
-            if buf.len() % AES128_BLOCK_SIZE != 0 {
-                return ReturnCode::EINVAL
-            }
-            self.source.replace(buf);
-
-            // Make sure these indices are always valid
-            self.write_index.set(0);
-            self.read_index.set(0);
-            self.stop_index.set(0);
-        } else {
-            self.source.put(None);
-        }
-
-        // Make sure these indices are always valid
-        self.write_index.set(0);
-        self.read_index.set(0);
-        self.stop_index.set(0);
-
-        ReturnCode::SUCCESS
+        self.source.put(buf);
     }
 
     fn take_source(&'a self) -> Option<&'a mut [u8]> {
-        if self.some_interrupts_are_set() {
-            // We're busy!
+        if self.busy() {
             return None
         }
-
         self.source.take()
     }
 
-    fn take_dest(&'a self) -> Result<Option<&'a mut [u8]>, ReturnCode> {
-        if self.some_interrupts_are_set() {
-            return Result::Err(ReturnCode::EBUSY);
+    fn put_dest(&'a self, dest: Option<&'a mut [u8]>) {
+        if self.busy() {
+            return;
         }
-
-        Result::Ok(self.dest.take())
+        self.dest.put(dest);
     }
 
-    fn put_dest(&'a self, dest: Option<&'a mut [u8]>) -> ReturnCode {
-        if self.some_interrupts_are_set() {
-            return ReturnCode::EBUSY;
+    fn take_dest(&'a self) -> Option<&'a mut [u8]> {
+        if self.busy() {
+            return None;
         }
-
-        // Make sure these indices are always valid
-        self.write_index.set(0);
-        self.read_index.set(0);
-        self.stop_index.set(0);
-
-        self.dest.put(dest);
-
-        ReturnCode::SUCCESS
+        self.dest.take()
     }
 
     fn start_message(&self) {
+        if self.busy() {
+            return;
+        }
+
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
 
         regs.ctrl.set((1 << 2) | (1 << 0));
     }
 
     fn crypt(&self, start_index: usize, stop_index: usize) -> ReturnCode {
-        if self.some_interrupts_are_set() {
+        if self.busy() {
             ReturnCode::EBUSY
         } else {
             if self.try_set_indices(start_index, stop_index) {
