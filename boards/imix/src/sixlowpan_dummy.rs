@@ -29,43 +29,6 @@ use kernel::hil::time::Frequency;
 
 static TX_BUF: [u8; 128] = [0; 128];
 
-pub struct DummyStore {
-    context0: Context,
-}
-
-impl DummyStore {
-    pub fn new(context0: Context) -> DummyStore {
-        DummyStore { context0: context0 }
-    }
-}
-
-impl ContextStore for DummyStore {
-    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context> {
-        if util::matches_prefix(&ip_addr.0, &self.context0.prefix, self.context0.prefix_len) {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-
-    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context> {
-        if ctx_id == 0 {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-
-    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context> {
-        if prefix_len == self.context0.prefix_len &&
-           util::matches_prefix(prefix, &self.context0.prefix, prefix_len) {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-}
-
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
 pub const SRC_ADDR: IPAddr = IPAddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
                                      0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
@@ -395,13 +358,11 @@ unsafe fn send_ipv6_packet<'a>(radio: &'a Radio,
     let offset = radio.payload_offset(src_long, dst_long) as usize;
 
     // Compress IPv6 packet into LoWPAN
-    let store = DummyStore {
-        context0: Context {
-            prefix: mesh_local_prefix,
-            prefix_len: 64,
-            id: 0,
-            compress: true,
-        },
+    let store = Context {
+        prefix: mesh_local_prefix,
+        prefix_len: 64,
+        id: 0,
+        compress: true,
     };
     //let frag_state = Sixlowpan::new(radio, &lowpan, TX_BUF, &self.alarm);
     let (consumed, written) =

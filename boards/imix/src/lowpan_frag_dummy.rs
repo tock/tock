@@ -45,8 +45,7 @@ use capsules::net::ieee802154::MacAddress;
 use capsules::net::ip::{IP6Header, IPAddr, ip6_nh};
 use capsules::net::sixlowpan::{Sixlowpan, SixlowpanClient};
 use capsules::net::sixlowpan_compression;
-use capsules::net::sixlowpan_compression::{ContextStore, Context};
-use capsules::net::util;
+use capsules::net::sixlowpan_compression::Context;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
 
@@ -56,43 +55,6 @@ use kernel::ReturnCode;
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
-
-pub struct DummyStore {
-    context0: Context,
-}
-
-impl DummyStore {
-    pub fn new(context0: Context) -> DummyStore {
-        DummyStore { context0: context0 }
-    }
-}
-
-impl ContextStore for DummyStore {
-    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context> {
-        if util::matches_prefix(&ip_addr.0, &self.context0.prefix, self.context0.prefix_len) {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-
-    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context> {
-        if ctx_id == 0 {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-
-    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context> {
-        if prefix_len == self.context0.prefix_len &&
-           util::matches_prefix(prefix, &self.context0.prefix, prefix_len) {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-}
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
 pub const SRC_ADDR: IPAddr = IPAddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
@@ -156,7 +118,7 @@ pub const TEST_LOOP: bool = false;
 
 pub struct LowpanTest<'a, A: time::Alarm + 'a, T: time::Alarm + 'a> {
     alarm: A,
-    frag_state: Sixlowpan<'a, T, DummyStore>,
+    frag_state: Sixlowpan<'a, T, Context>,
     test_counter: Cell<usize>,
 }
 
@@ -171,17 +133,16 @@ pub unsafe fn initialize_all(radio_mac: &'static Mac,
         capsules::net::sixlowpan::RxState::new(&mut RX_STATE_BUF)
         );
 
-    let frag_state = capsules::net::sixlowpan::Sixlowpan::new(
-            radio_mac,
-            DummyStore::new(capsules::net::sixlowpan_compression::Context {
-                prefix: DEFAULT_CTX_PREFIX,
-                prefix_len: DEFAULT_CTX_PREFIX_LEN,
-                id: 0,
-                compress: false,
-            }),
-            &mut RADIO_BUF_TMP,
-            &sam4l::ast::AST
-        );
+    let frag_state =
+        capsules::net::sixlowpan::Sixlowpan::new(radio_mac,
+                                                 capsules::net::sixlowpan_compression::Context {
+                                                     prefix: DEFAULT_CTX_PREFIX,
+                                                     prefix_len: DEFAULT_CTX_PREFIX_LEN,
+                                                     id: 0,
+                                                     compress: false,
+                                                 },
+                                                 &mut RADIO_BUF_TMP,
+                                                 &sam4l::ast::AST);
 
     let lowpan_frag_test = static_init!(
         LowpanTest<'static,
@@ -202,7 +163,7 @@ pub unsafe fn initialize_all(radio_mac: &'static Mac,
 }
 
 impl<'a, A: time::Alarm, T: time::Alarm + 'a> LowpanTest<'a, A, T> {
-    pub fn new(frag_state: Sixlowpan<'a, T, DummyStore>, alarm: A) -> LowpanTest<'a, A, T> {
+    pub fn new(frag_state: Sixlowpan<'a, T, Context>, alarm: A) -> LowpanTest<'a, A, T> {
         LowpanTest {
             alarm: alarm,
             frag_state: frag_state,

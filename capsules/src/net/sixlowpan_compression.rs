@@ -124,6 +124,28 @@ pub fn compute_iid(mac_addr: &MacAddress) -> [u8; 8] {
     }
 }
 
+impl ContextStore for Context {
+    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context> {
+        if util::matches_prefix(&ip_addr.0, &self.prefix, self.prefix_len) {
+            Some(*self)
+        } else {
+            None
+        }
+    }
+
+    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context> {
+        if ctx_id == 0 { Some(*self) } else { None }
+    }
+
+    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context> {
+        if prefix_len == self.prefix_len && util::matches_prefix(prefix, &self.prefix, prefix_len) {
+            Some(*self)
+        } else {
+            None
+        }
+    }
+}
+
 pub fn is_lowpan(packet: &[u8]) -> bool {
     (packet[0] & iphc::DISPATCH[0]) == iphc::DISPATCH[0]
 }
