@@ -5,6 +5,7 @@
 #[allow(unused_imports)]
 #[macro_use(debug)]
 extern crate kernel;
+extern crate sha2;
 
 pub mod alarm;
 pub mod ambient_light;
@@ -52,3 +53,5 @@ pub mod ieee802154;
 pub mod temperature;
 pub mod humidity;
 //pub mod nrf_internal_temp_sensor;
+
+pub mod sha256;
