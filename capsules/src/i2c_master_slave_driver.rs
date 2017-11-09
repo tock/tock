@@ -48,6 +48,7 @@ impl Default for App {
 enum MasterAction {
     Read(u8),
     Write,
+    WriteRead(u8),
 }
 
 
@@ -115,6 +116,17 @@ impl<'a> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'a> {
                     });
 
                     app.callback.map(|mut cb| { cb.schedule(1, err as usize, 0); });
+                });
+            }
+
+            MasterAction::WriteRead(read_len) => {
+                self.app.map(|app| {
+                    app.master_tx_buffer.as_mut().map(move |app_buffer| {
+                        let len = cmp::min(app_buffer.len(), read_len as usize);
+                        app_buffer.as_mut()[..len].copy_from_slice(&buffer[..len]);
+                        self.master_buffer.replace(buffer);
+                    });
+                    app.callback.map(|mut cb| { cb.schedule(7, err as usize, 0); });
                 });
             }
         }
@@ -360,6 +372,33 @@ impl<'a> Driver for I2CMasterSlaveDriver<'a> {
                     return ReturnCode::EINVAL;
                 }
                 hil::i2c::I2CSlave::set_address(self.i2c, address);
+                ReturnCode::SUCCESS
+            }
+
+            // Perform write-to then read-from a slave device.
+            // Uses tx buffer for both read and write.
+            7 => {
+                let address = (data & 0xFF) as u8;
+                let read_len = (data >> 8) & 0xFF;
+                let write_len = (data >> 16) & 0xFF;
+                self.app.map(|app| {
+                    app.master_tx_buffer.as_mut().map(|app_tx| {
+                        self.master_buffer.take().map(|kernel_tx| {
+                            // Check bounds for write length
+                            let buf_len = cmp::min(app_tx.len(), kernel_tx.len());
+                            let write_len = cmp::min(buf_len, write_len);
+                            let read_len = cmp::min(buf_len, read_len);
+                            kernel_tx[..write_len].copy_from_slice(&app_tx.as_ref()[..write_len]);
+                            self.master_action.set(MasterAction::WriteRead(read_len as u8));
+                            hil::i2c::I2CMaster::enable(self.i2c);
+                            hil::i2c::I2CMaster::write_read(self.i2c,
+                                                            address,
+                                                            kernel_tx,
+                                                            write_len as u8,
+                                                            read_len as u8);
+                        });
+                    });
+                });
                 ReturnCode::SUCCESS
             }
 
