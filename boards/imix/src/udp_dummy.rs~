@@ -87,7 +87,7 @@ pub const SRC_MAC_ADDR: MacAddress = MacAddress::Long([0x10, 0x11, 0x12, 0x13, 0
   //                                                     0xff]);
 
 
-pub const DST_MAC_ADDR: MacAddress = MacAddress::Short(0xffff);
+pub const DST_MAC_ADDR: MacAddress = MacAddress::Short([0xff, 0xff, 0xff, 0xff]);
 pub const MLE_DISC_REQ_PAYLOAD: [u8; 8] = [0xff, 0x10, 0x1a, 0x04, 0x80, 0x02, 0x20, 0x00];
 
 pub const IP6_HDR_SIZE: usize = 40;

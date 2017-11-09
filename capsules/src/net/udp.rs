@@ -277,6 +277,8 @@ pub fn udp_ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC,
 //Currently, setting the IPv6 payload length and the UDP length seems to have no effect. I beleive this is due to some UDP header compression which is occuring, but not sure where this can be found.
         ip6_header.set_payload_len((ip6_packet_len - ip6_hdr_size) as u16);//Should I be including a check that ip6_packet_len <= ip6_packet.len()?
 
+//Paul said the previous line doesnt do anything bc 6lowpan_frag ignores IP header
+
         if tf != TF::TrafficFlow {
             ip6_header.set_ecn(0b01);
         }
