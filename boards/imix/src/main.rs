@@ -29,6 +29,8 @@ mod i2c_dummy;
 #[allow(dead_code)]
 mod spi_dummy;
 #[allow(dead_code)]
+mod udp_dummy;
+#[allow(dead_code)]
 mod lowpan_frag_dummy;
 
 #[allow(dead_code)]
@@ -462,6 +464,28 @@ pub unsafe fn reset_handler() {
             capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
         capsules::usb_user::UsbSyscallDriver::new(
             usb_client, kernel::Grant::create()));
+
+    //Configure UDP test
+    let udp_test = udp_dummy::initialize_all(radio_mac as &'static Mac,
+							    mux_alarm as &'static
+							       MuxAlarm<'static,
+								   sam4l::ast::Ast>);
+    
+   
+   
+    udp_test.start(); // If flashing the transmitting Imix
+
+/*    //Configure 6lowpan test (Commented out bc does not work alongside UDP test)
+    let lowpan_frag_test = lowpan_frag_dummy::initialize_all(radio_mac as &'static Mac,
+							    mux_alarm as &'static
+							       MuxAlarm<'static,
+								   sam4l::ast::Ast>);
+    
+   
+   
+    lowpan_frag_test.start(); // If flashing the transmitting Imix
+*/
+
 
     let imix = Imix {
         console: console,

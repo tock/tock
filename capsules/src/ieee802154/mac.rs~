@@ -810,8 +810,7 @@ impl<'a, R: radio::Radio + 'a> Mac<'a> for MacDevice<'a, R> {
             // Unicast data frames request acknowledgement
             ack_requested: false, //temp edit to match openthread
             version: FrameVersion::V2006, //temp edit
-            //seq: Some(self.data_sequence.get()),
-            seq: Some(84), //temp edit
+            seq: Some(self.data_sequence.get()),
             dst_pan: Some(dst_pan),
             dst_addr: Some(dst_addr),
             src_pan: Some(src_pan),

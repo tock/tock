@@ -45,7 +45,39 @@
 //!
 //! Author: Mateo Garcia
 //!         mateog@stanford.edu
-
+//!
+//! Additional information on MLE (By Hudson Ayers, hayers@stanford.edu)
+//! 
+//! From section 4.9 of the thread specification:
+//! MLE messages shouls be sent using the assigned UDP port number (19788)
+//! Link configuration and advertisement messages MUST be sent with an IP
+//! hop limit of 255, either to a link-local unicast address or to the 
+//! Link-Local All Nodes (FF02::1) or all-routers (FF02::2) multicast
+//! address.
+//!
+//! All MLE messages except Discovery Request and Discovery Response
+//! messages must be secured using AES as described in the 15.4 standard
+//! 
+//! Authenticated data consists of IP source addr/dest addr and auxiliary
+//! security header. 
+//!
+//! MLE messages that fit in a single 15.4 frame MUST NOT use 15.4 security
+//! Any messages that require 6lowpan fragmentation must use 15.4 security
+//!
+//! Information describing default MLE parameters relating to retransmission
+//! count, delay and timeout can be found in section 4.11 of the Thread spec
+//! 
+//! It is also worth noting that the previously described 4 step handshake
+//! for network attaching only applies in scenarios where the child device
+//! already knows the network's current channel and PAN ID. If it does not,
+//! it will need to use the Discovery Request message to locate devices on
+//! the network before beginning the 4 step handshake. 
+//! Discovery Request messages require the use of a random 64 bit source
+//! address. Destination PAN ID can be set to broadcast (0xFFFF). and the
+//! source PAN ID set to a randomly generated value. If the PAN ID of the
+//! network to be joined is known, it can be used instead of broadcast.
+//! The discovery message includes the "Thread Discovery TLV" which contains
+//! the Discovery Request TLV.
 
 // TODO: Move the MLE explanation above to the MLE module, when it is created.
 

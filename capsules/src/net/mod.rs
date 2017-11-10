@@ -5,6 +5,7 @@ pub mod lowpan;
 pub mod lowpan_fragment;
 pub mod util;
 pub mod frag_utils;
+pub mod udp;
 #[macro_use]
 pub mod stream;
 pub mod ieee802154;

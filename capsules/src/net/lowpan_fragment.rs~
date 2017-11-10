@@ -238,8 +238,7 @@ impl<'a> TxState<'a> {
 
         self.src_mac_addr.set(src_mac_addr);
         self.dst_mac_addr.set(dst_mac_addr);
-        self.dst_pan.set(0xffff); //Temp change by Hudson, remove later, discuss
-        self.src_pan.set(0xdbca); //Temp change 
+        self.dst_pan.set(0xabcd); //Temp change by Hudson, remove later, discuss
         self.fragment.set(fragment);
         self.compress.set(compress);
         self.security.set(security);
