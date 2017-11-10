@@ -278,7 +278,7 @@ pub fn udp_ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC,
         ip6_header.set_payload_len((ip6_packet_len - ip6_hdr_size) as u16);//Should I be including a check that ip6_packet_len <= ip6_packet.len()?
 
 //Paul said the previous line doesnt do anything bc 6lowpan_frag ignores IP header
-/*
+
         if tf != TF::TrafficFlow {
             ip6_header.set_ecn(0b01);
         }
@@ -287,18 +287,13 @@ pub fn udp_ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC,
         } else {
             ip6_header.set_dscp(0b101010);
         }
-*/
-//Taking out need for TF I think to match MLE Request packet
-        ip6_header.set_ecn(0b00);
-        ip6_header.set_dscp(0b000000);
-        ip6_header.set_flow_label(0);
-/*
+
         if (tf as u8) & (TF::Flow as u8) != 0 {
             ip6_header.set_flow_label(0);
         } else {
             ip6_header.set_flow_label(0xABCDE);
         }
-*/
+
         ip6_header.set_next_header(ip6_nh::UDP);//Hudson Edit
 
         ip6_header.set_hop_limit(hop_limit);
