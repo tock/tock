@@ -6,3 +6,4 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 [dependencies]
 kernel = { path = "../kernel" }
 sha2 = "0.6"
+hmac = "0.4"

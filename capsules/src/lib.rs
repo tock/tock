@@ -6,6 +6,7 @@
 #[macro_use(debug)]
 extern crate kernel;
 extern crate sha2;
+extern crate hmac;
 
 pub mod alarm;
 pub mod ambient_light;
@@ -55,3 +56,4 @@ pub mod humidity;
 //pub mod nrf_internal_temp_sensor;
 
 pub mod sha256;
+pub mod hmac_sha256;
