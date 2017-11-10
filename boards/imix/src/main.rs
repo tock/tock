@@ -501,6 +501,9 @@ pub unsafe fn reset_handler() {
     rf233.reset();
     rf233.start();
 
+    capsules::sha256::test();
+    capsules::hmac_sha256::test();
+
     debug!("Initialization complete. Entering main loop");
     extern "C" {
         /// Beginning of the ROM region containing app images.
