@@ -1,10 +1,10 @@
 //! Test the AES hardware
 
+use core::cell::Cell;
 use kernel::ReturnCode;
+use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128, AES128Ctr, AES128CBC};
-use kernel::common::take_cell::TakeCell;
-use core::cell::Cell;
 
 pub struct Test<'a, A: 'a> {
     aes: &'a A,
@@ -27,7 +27,8 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
                key: &'a mut [u8],
                iv: &'a mut [u8],
                source: &'a mut [u8],
-               data: &'a mut [u8]) -> Self {
+               data: &'a mut [u8])
+               -> Self {
         Test {
             aes: aes,
 
@@ -47,7 +48,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
 
         // Copy key into key buffer and configure it in the hardware
         self.key.map(|key| {
-            for (i,b) in KEY.iter().enumerate() {
+            for (i, b) in KEY.iter().enumerate() {
                 key[i] = *b;
             }
 
@@ -56,8 +57,12 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
 
         // Copy mode-appropriate IV into IV buffer and configure it in the hardware
         self.iv.map(|iv| {
-            let iv_mode = if self.mode_ctr.get() { &IV_CTR } else { &IV_CBC };
-            for (i,b) in iv_mode.iter().enumerate() {
+            let iv_mode = if self.mode_ctr.get() {
+                &IV_CTR
+            } else {
+                &IV_CBC
+            };
+            for (i, b) in iv_mode.iter().enumerate() {
                 iv[i] = *b;
             }
 
@@ -65,27 +70,27 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
         });
 
         // Copy mode-appropriate source into source buffer
-        let source_mode = if self.encrypting.get() { &PTXT }
-                          else { if self.mode_ctr.get() { &CTXT_CTR }
-                                 else { &CTXT_CBC }
-                          };
-        self.source.map(|source| {
-            for (i,b) in source_mode.iter().enumerate() {
-                source[i] = *b;
+        let source_mode = if self.encrypting.get() {
+            &PTXT
+        } else {
+            if self.mode_ctr.get() {
+                &CTXT_CTR
+            } else {
+                &CTXT_CBC
             }
+        };
+        self.source.map(|source| for (i, b) in source_mode.iter().enumerate() {
+            source[i] = *b;
         });
 
         if !self.use_source.get() {
             // Copy source into dest for in-place encryption
-            self.source.map_or_else(|| { panic!("No source") },
-                |source| {
-                    self.data.map_or_else(|| { panic!("No data") },
-                        |data| {
-                            for (i, b) in source.iter().enumerate() {
-                                data[DATA_OFFSET + i] = *b;
-                            }
-                        });
-                });
+            self.source.map_or_else(|| panic!("No source"), |source| {
+                self.data.map_or_else(|| panic!("No data"),
+                                      |data| for (i, b) in source.iter().enumerate() {
+                                          data[DATA_OFFSET + i] = *b;
+                                      });
+            });
         }
 
         if self.mode_ctr.get() {
@@ -98,11 +103,17 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
         let start = DATA_OFFSET;
         let stop = DATA_OFFSET + DATA_LEN;
 
-        match self.aes.crypt(if self.use_source.get() { self.source.take() } else { None },
-                             self.data.take().unwrap(), start, stop) {
+        match self.aes.crypt(if self.use_source.get() {
+                                 self.source.take()
+                             } else {
+                                 None
+                             },
+                             self.data.take().unwrap(),
+                             start,
+                             stop) {
             None => {
                 // await crypt_done()
-            },
+            }
             Some((result, source, dest)) => {
                 self.source.put(source);
                 self.data.put(Some(dest));
@@ -112,7 +123,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Client<'a> for Test<'a, A> {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Client<'a>
+    for
+    Test<'a, A> {
     fn crypt_done(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8]) {
 
         if self.use_source.get() {
@@ -124,16 +137,26 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Clien
         self.data.replace(dest);
 
         let expected = if self.encrypting.get() {
-            if self.mode_ctr.get() { &CTXT_CTR } else { &CTXT_CBC }
+            if self.mode_ctr.get() {
+                &CTXT_CTR
+            } else {
+                &CTXT_CBC
+            }
         } else {
             &PTXT
         };
 
-        if self.data.map_or(false, |data| &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()) {
+        if self.data.map_or(false, |data| {
+            &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()
+        }) {
             debug!("OK! ({} {} {})",
                    if self.encrypting.get() { "Enc" } else { "Dec" },
                    if self.mode_ctr.get() { "Ctr" } else { "CBC" },
-                   if self.use_source.get() { "Src/Dst" } else { "In-place" });
+                   if self.use_source.get() {
+                       "Src/Dst"
+                   } else {
+                       "In-place"
+                   });
         } else {
             panic!("FAIL");
         }

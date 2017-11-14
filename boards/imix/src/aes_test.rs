@@ -1,11 +1,13 @@
-use capsules::test::aes::{Test};
-use sam4l::aes::{AES, Aes};
+use capsules::test::aes::Test;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE};
+use sam4l::aes::{AES, Aes};
 
 pub fn run() {
     let t = static_init_test();
 
-    unsafe { AES.set_client(t); }
+    unsafe {
+        AES.set_client(t);
+    }
 
     t.run();
 }

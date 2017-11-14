@@ -67,10 +67,10 @@ use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::common::take_cell::MapCell;
 use kernel::hil::radio;
+use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
 use net::ieee802154::*;
 use net::stream::{encode_u8, encode_u32, encode_bytes};
 use net::stream::SResult;
-use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
 /// information about its header contents to expose a restricted interface for
@@ -591,22 +591,25 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                             Some((_, key, nonce)) => {
                                 let (m_off, m_len) = info.ccm_encrypt_ranges();
                                 let (a_off, m_off) = (radio::PSDU_OFFSET,
-                                                      radio::PSDU_OFFSET +
-                                                      m_off);
+                                                      radio::PSDU_OFFSET + m_off);
 
                                 if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS ||
-                                    self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS {
+                                   self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS {
                                     (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
                                 } else {
-                                    let (res, opt_buf) = self.aes_ccm.crypt(buf, a_off, m_off, m_len, info.mic_len, true);
+                                    let (res, opt_buf) = self.aes_ccm
+                                        .crypt(buf, a_off, m_off, m_len, info.mic_len, true);
                                     match res {
-                                        ReturnCode::SUCCESS => (TxState::Encrypting(info), (res, None)),
+                                        ReturnCode::SUCCESS => {
+                                            (TxState::Encrypting(info), (res, None))
+                                        }
                                         ReturnCode::EBUSY => {
                                             let buf = match opt_buf {
                                                 Some(buf) => buf,
                                                 None => panic!("aes_ccm did not return the buffer"),
                                             };
-                                            (TxState::ReadyToEncrypt(info, buf), (ReturnCode::SUCCESS, None))
+                                            (TxState::ReadyToEncrypt(info, buf),
+                                             (ReturnCode::SUCCESS, None))
                                         }
                                         _ => (TxState::Idle, (res, opt_buf)),
                                     }
@@ -663,14 +666,14 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                             Some((_, key, nonce)) => {
                                 let (m_off, m_len) = info.ccm_encrypt_ranges();
                                 let (a_off, m_off) = (radio::PSDU_OFFSET,
-                                                      radio::PSDU_OFFSET +
-                                                      m_off);
+                                                      radio::PSDU_OFFSET + m_off);
 
                                 if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS ||
-                                    self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS {
+                                   self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS {
                                     (RxState::Idle, Some(buf))
                                 } else {
-                                    let (res, opt_buf) = self.aes_ccm.crypt(buf, a_off, m_off, m_len, info.mic_len, true);
+                                    let (res, opt_buf) = self.aes_ccm
+                                        .crypt(buf, a_off, m_off, m_len, info.mic_len, true);
                                     match res {
                                         ReturnCode::SUCCESS => (RxState::Decrypting(info), None),
                                         ReturnCode::EBUSY => {
@@ -955,7 +958,9 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> CCMClient for MacDevice<'a
 
                     if let Some(buf) = opt_buf {
                         // Abort the transmission process. Return the buffer to the client.
-                        self.tx_client.get().map(move |client| { client.send_done(buf, false, rval); });
+                        self.tx_client
+                            .get()
+                            .map(move |client| { client.send_done(buf, false, rval); });
                     }
                     None
                 }

@@ -76,9 +76,12 @@ pub trait AES128<'a> {
     /// must have been called to set the desired mode.  These settings persist
     /// across calls to `crypt()`.
     ///
-    fn crypt(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8],
-                 start_index: usize, stop_index: usize)
-        -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])>;
+    fn crypt(&'a self,
+             source: Option<&'a mut [u8]>,
+             dest: &'a mut [u8],
+             start_index: usize,
+             stop_index: usize)
+             -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])>;
 }
 
 pub trait AES128Ctr {
@@ -120,5 +123,6 @@ pub trait AES128CCM<'a> {
              m_off: usize,
              m_len: usize,
              mic_len: usize,
-             encrypting: bool) -> (ReturnCode, Option<&'static mut [u8]>);
+             encrypting: bool)
+             -> (ReturnCode, Option<&'static mut [u8]>);
 }
