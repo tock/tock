@@ -338,9 +338,7 @@ impl<'a, A: time::Alarm, T: time::Alarm + 'a> LowpanTest<'a, A, T> {
                                                   dst_mac_addr,
                                                   &mut IP6_DGRAM,
                                                   IP6_DGRAM.len(),
-                                                  None,
-                                                  true,
-                                                  true);
+                                                  None);
         debug!("Ret code: {:?}", ret_code);
     }
 }

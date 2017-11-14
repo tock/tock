@@ -214,6 +214,8 @@
 //
 //   * Implement the disassociation event, integrate with lower layer
 //
+//   * Move network constants/tuning parameters to a separate file
+//
 // Issues:
 //
 //   * On imix, the reciever sometimes fails to receive a fragment. This
@@ -305,8 +307,6 @@ struct TxState {
     dgram_tag: Cell<u16>, // Used to identify particular fragment streams
     dgram_size: Cell<u16>,
     dgram_offset: Cell<usize>,
-    fragment: Cell<bool>,
-    compress: Cell<bool>,
 
     // Global transmit state
     tx_dgram_tag: Cell<u16>,
@@ -320,6 +320,7 @@ impl TxState {
     /// # Arguments
     ///
     /// `tx_buf` - A buffer for storing fragments the size of a 802.15.4 frame.
+    /// This buffer must be at least radio::MAX_FRAME_SIZE bytes long.
     fn new(tx_buf: &'static mut [u8]) -> TxState {
         TxState {
             packet: TakeCell::empty(),
@@ -331,8 +332,6 @@ impl TxState {
             dgram_tag: Cell::new(0),
             dgram_size: Cell::new(0),
             dgram_offset: Cell::new(0),
-            fragment: Cell::new(false),
-            compress: Cell::new(false),
 
             tx_dgram_tag: Cell::new(0),
             tx_busy: Cell::new(false),
@@ -349,14 +348,10 @@ impl TxState {
                      dst_mac_addr: MacAddress,
                      packet: &'static mut [u8],
                      packet_len: usize,
-                     security: Option<(SecurityLevel, KeyId)>,
-                     fragment: bool,
-                     compress: bool) {
+                     security: Option<(SecurityLevel, KeyId)>) {
 
         self.src_mac_addr.set(src_mac_addr);
         self.dst_mac_addr.set(dst_mac_addr);
-        self.fragment.set(fragment);
-        self.compress.set(compress);
         self.security.set(security);
         self.packet.replace(packet);
         self.dgram_size.set(packet_len as u16);
@@ -368,7 +363,7 @@ impl TxState {
                       frag_buf: &'static mut [u8],
                       radio: &Mac,
                       ctx_store: &ContextStore)
-                      -> Result<ReturnCode, (ReturnCode, &'static mut [u8])> {
+                      -> Result<(), (ReturnCode, &'static mut [u8])> {
         self.dgram_tag.set(dgram_tag);
         match self.packet.take() {
             None => Err((ReturnCode::ENOMEM, frag_buf)),
@@ -397,24 +392,22 @@ impl TxState {
                                        mut frame: Frame,
                                        radio: &Mac,
                                        ctx_store: &ContextStore)
-                                       -> Result<ReturnCode, (ReturnCode, &'static mut [u8])> {
+                                       -> Result<(), (ReturnCode, &'static mut [u8])> {
 
         // Here, we assume that the compressed headers fit in the first MTU
         // fragment. This is consistent with RFC 6282.
         let mut lowpan_packet = [0 as u8; radio::MAX_FRAME_SIZE as usize];
-        let (consumed, written) = if self.compress.get() {
-            let lowpan_result = sixlowpan_compression::compress(ctx_store,
-                                                                &ip6_packet,
-                                                                self.src_mac_addr.get(),
-                                                                self.dst_mac_addr.get(),
-                                                                &mut lowpan_packet);
-            match lowpan_result {
+        let (consumed, written) = {
+            match sixlowpan_compression::compress(ctx_store,
+                                                  &ip6_packet,
+                                                  self.src_mac_addr.get(),
+                                                  self.dst_mac_addr.get(),
+                                                  &mut lowpan_packet) {
                 Err(_) => return Err((ReturnCode::FAIL, frame.into_buf())),
                 Ok(result) => result,
             }
-        } else {
-            (0, 0)
         };
+
         let remaining_payload = ip6_packet.len() - consumed;
         let lowpan_len = written + remaining_payload;
         // TODO: This -2 is added to account for the FCS; this should be changed
@@ -423,30 +416,23 @@ impl TxState {
 
         // Need to fragment
         if lowpan_len > remaining_capacity {
-            if self.fragment.get() {
-                let mut frag_header = [0 as u8; lowpan_frag::FRAG1_HDR_SIZE];
-                set_frag_hdr(self.dgram_size.get(),
-                             self.dgram_tag.get(),
-                             /*offset = */
-                             0,
-                             &mut frag_header,
-                             true);
-                frame.append_payload(&frag_header[0..lowpan_frag::FRAG1_HDR_SIZE]);
-                remaining_capacity -= lowpan_frag::FRAG1_HDR_SIZE;
-            } else {
-                // Unable to fragment and packet too large
-                return Err((ReturnCode::ESIZE, frame.into_buf()));
-            }
+            let mut frag_header = [0 as u8; lowpan_frag::FRAG1_HDR_SIZE];
+            set_frag_hdr(self.dgram_size.get(),
+                         self.dgram_tag.get(),
+                         /*offset = */
+                         0,
+                         &mut frag_header,
+                         true);
+            frame.append_payload(&frag_header[0..lowpan_frag::FRAG1_HDR_SIZE]);
+            remaining_capacity -= lowpan_frag::FRAG1_HDR_SIZE;
         }
 
         // Write the 6lowpan header
-        if self.compress.get() {
-            if written <= remaining_capacity {
-                frame.append_payload(&lowpan_packet[0..written]);
-                remaining_capacity -= written;
-            } else {
-                return Err((ReturnCode::ESIZE, frame.into_buf()));
-            }
+        if written <= remaining_capacity {
+            frame.append_payload(&lowpan_packet[0..written]);
+            remaining_capacity -= written;
+        } else {
+            return Err((ReturnCode::ESIZE, frame.into_buf()));
         }
 
         // Write the remainder of the payload, rounding down to a multiple
@@ -460,13 +446,13 @@ impl TxState {
         self.dgram_offset.set(consumed + payload_len);
         let (result, buf) = radio.transmit(frame);
         // If buf is returned, then map the error; otherwise, we return success
-        buf.map(|buf| Err((result, buf))).unwrap_or(Ok(ReturnCode::SUCCESS))
+        buf.map(|buf| Err((result, buf))).unwrap_or(Ok(()))
     }
 
     fn prepare_transmit_next_fragment(&self,
                                       frag_buf: &'static mut [u8],
                                       radio: &Mac)
-                                      -> Result<ReturnCode, (ReturnCode, &'static mut [u8])> {
+                                      -> Result<(), (ReturnCode, &'static mut [u8])> {
         match radio.prepare_data_frame(frag_buf,
                                        self.dst_pan.get(),
                                        self.dst_mac_addr.get(),
@@ -506,7 +492,7 @@ impl TxState {
                         self.dgram_offset.set(dgram_offset + payload_len);
                         let (result, buf) = radio.transmit(frame);
                         // If buf is returned, then map the error; otherwise, we return success
-                        buf.map(|buf| Err((result, buf))).unwrap_or(Ok(ReturnCode::SUCCESS))
+                        buf.map(|buf| Err((result, buf))).unwrap_or(Ok(()))
                     }
                 }
             }
@@ -537,7 +523,9 @@ impl TxState {
 /// Tracks the decompression and defragmentation of an IPv6 packet
 ///
 /// A list of `RxState`s is maintained by [Sixlowpan](struct.Sixlowpan.html) to
-/// keep track of ongoing packet reassemblies.
+/// keep track of ongoing packet reassemblies. The number of `RxState`s is the
+/// number of packets that can be reassembled at the same time. Generally,
+/// two `RxState`s are sufficient for normal-case operation.
 pub struct RxState<'a> {
     packet: TakeCell<'static, [u8]>,
     bitmap: MapCell<Bitmap>,
@@ -561,11 +549,12 @@ impl<'a> ListNode<'a, RxState<'a>> for RxState<'a> {
 }
 
 impl<'a> RxState<'a> {
-    /// RxState::new
-    /// ------------
-    /// This function constructs a new RxState struct. The `packet` argument
-    /// is a buffer for an IPv6 packet. Currently, we assume this to be
-    /// 1280 bytes (minimum IPv6 MTU), but this may change in the future.
+    /// Creates a new `RxState`
+    ///
+    /// # Arguments
+    ///
+    /// `packet` - A buffer for reassembling an IPv6 packet. Currently, we
+    /// assume this to be 1280 bytes long (the minimum IPv6 MTU size).
     pub fn new(packet: &'static mut [u8]) -> RxState<'a> {
         RxState {
             packet: TakeCell::new(packet),
@@ -789,7 +778,8 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
 
     /// Transmits the supplied IPv6 packet.
     ///
-    /// Transmitted IPv6 packets will be optionall compressed, fragmented and
+    /// Transmitted IPv6 packets will be optionally secured via the `security`
+    /// argument.
     ///
     /// Only one transmission is allowed at a time. Calling this method while
     /// before a previous tranismission has completed will return an error.
@@ -814,12 +804,10 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
     ///
     /// This function exposes the primary packet transmission fuctionality. The
     /// source and destination mac address arguments specify the link-layer
-    /// addresses of the packet, while the `security`, `fragment`, and `compress`
-    /// options specify the security level (if any), whether to fragment the packet
-    /// if it is too large, and whether to compress the packet respectively. These
-    /// different options are exposed to provide the caller with more control over
-    /// how this layer modifies packets; no compression and no fragmentation can
-    /// be set, and the packet will be sent to the radio as a raw IPv6 packet.
+    /// addresses of the packet, while the `security` option specifies the
+    /// security level (if any). This option is exposed to upper layers, as
+    /// upper level protocols may want to set or manage the link-layer security
+    /// options.
     ///
     /// The `ip6_packet` argument contains a pointer to a buffer containing a valid
     /// IPv6 packet, while the `ip6_packet_len` argument specifies the number of
@@ -830,10 +818,8 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                            dst_mac_addr: MacAddress,
                            ip6_packet: &'static mut [u8],
                            ip6_packet_len: usize,
-                           security: Option<(SecurityLevel, KeyId)>,
-                           fragment: bool,
-                           compress: bool)
-                           -> Result<ReturnCode, (ReturnCode, &'static mut [u8])> {
+                           security: Option<(SecurityLevel, KeyId)>)
+                           -> Result<(), (ReturnCode, &'static mut [u8])> {
 
         if self.tx_state.tx_busy.get() {
             Err((ReturnCode::EBUSY, ip6_packet))
@@ -844,11 +830,9 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                                         dst_mac_addr,
                                         ip6_packet,
                                         ip6_packet_len,
-                                        security,
-                                        fragment,
-                                        compress);
+                                        security);
             self.start_packet_transmit();
-            Ok(ReturnCode::SUCCESS)
+            Ok(())
         }
     }
 
