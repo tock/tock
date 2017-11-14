@@ -594,22 +594,15 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                             }
                             Some((_, key, nonce)) => {
                                 let (m_off, m_len) = info.ccm_encrypt_ranges();
-                                let (a_off, m_off) =
-                                    (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
+                                let (a_off, m_off) = (radio::PSDU_OFFSET,
+                                                      radio::PSDU_OFFSET + m_off);
 
-                                if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS
-                                    || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
-                                {
+                                if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS ||
+                                   self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS {
                                     (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
                                 } else {
-                                    let (res, opt_buf) = self.aes_ccm.crypt(
-                                        buf,
-                                        a_off,
-                                        m_off,
-                                        m_len,
-                                        info.mic_len,
-                                        true,
-                                    );
+                                    let (res, opt_buf) = self.aes_ccm
+                                        .crypt(buf, a_off, m_off, m_len, info.mic_len, true);
                                     match res {
                                         ReturnCode::SUCCESS => {
                                             (TxState::Encrypting(info), (res, None))
@@ -619,10 +612,8 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                                                 Some(buf) => buf,
                                                 None => panic!("aes_ccm did not return the buffer"),
                                             };
-                                            (
-                                                TxState::ReadyToEncrypt(info, buf),
-                                                (ReturnCode::SUCCESS, None),
-                                            )
+                                            (TxState::ReadyToEncrypt(info, buf),
+                                             (ReturnCode::SUCCESS, None))
                                         }
                                         _ => (TxState::Idle, (res, opt_buf)),
                                     }
@@ -664,6 +655,7 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
 
     /// Advances the reception pipeline if it can be advanced.
     fn step_receive_state(&self) {
+<<<<<<< HEAD
         self.rx_state.take().map(|state| {
             let (next_state, buf) = match state {
                 RxState::Idle => (RxState::Idle, None),
@@ -699,6 +691,41 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                                             None => panic!("aes_ccm did not return the buffer"),
                                         };
                                         (RxState::ReadyToDecrypt(info, buf), None)
+=======
+        self.rx_state
+            .take()
+            .map(|state| {
+                let (next_state, buf) = match state {
+                    RxState::Idle => (RxState::Idle, None),
+                    RxState::ReadyToDecrypt(info, buf) => {
+                        match info.security_params {
+                            None => {
+                                // `ReadyToDecrypt` should only be entered when
+                                // `security_params` is not `None`.
+                                (RxState::Idle, Some(buf))
+                            }
+                            Some((_, key, nonce)) => {
+                                let (m_off, m_len) = info.ccm_encrypt_ranges();
+                                let (a_off, m_off) = (radio::PSDU_OFFSET,
+                                                      radio::PSDU_OFFSET + m_off);
+
+                                if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS ||
+                                   self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS {
+                                    (RxState::Idle, Some(buf))
+                                } else {
+                                    let (res, opt_buf) = self.aes_ccm
+                                        .crypt(buf, a_off, m_off, m_len, info.mic_len, true);
+                                    match res {
+                                        ReturnCode::SUCCESS => (RxState::Decrypting(info), None),
+                                        ReturnCode::EBUSY => {
+                                            let buf = match opt_buf {
+                                                Some(buf) => buf,
+                                                None => panic!("aes_ccm did not return the buffer"),
+                                            };
+                                            (RxState::ReadyToDecrypt(info, buf), None)
+                                        }
+                                        _ => (RxState::Idle, opt_buf),
+>>>>>>> Use aes_ccm module for link-layer encryption in MacDevice
                                     }
                                     _ => (RxState::Idle, opt_buf),
                                 }
@@ -980,9 +1007,15 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> CCMClient for MacDevice<'a
 
                     if let Some(buf) = opt_buf {
                         // Abort the transmission process. Return the buffer to the client.
+<<<<<<< HEAD
                         self.tx_client.get().map(move |client| {
                             client.send_done(buf, false, rval);
                         });
+=======
+                        self.tx_client
+                            .get()
+                            .map(move |client| { client.send_done(buf, false, rval); });
+>>>>>>> Use aes_ccm module for link-layer encryption in MacDevice
                     }
                     None
                 }

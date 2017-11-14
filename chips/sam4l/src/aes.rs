@@ -174,7 +174,7 @@ impl<'a> Aes<'a> {
                         false
                     }
                 },
-                |source| {
+                                        |source| {
                     if sublen == source.len() &&
                        self.dest.map_or(false, |dest| stop_index <= dest.len()) {
 
@@ -397,10 +397,12 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         regs.ctrl.set((1 << 2) | (1 << 0));
     }
 
-    fn crypt(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8],
-                 start_index: usize, stop_index: usize)
-        -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])>
-    {
+    fn crypt(&'a self,
+             source: Option<&'a mut [u8]>,
+             dest: &'a mut [u8],
+             start_index: usize,
+             stop_index: usize)
+             -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
         if self.busy() {
             Some((ReturnCode::EBUSY, source, dest))
         } else {

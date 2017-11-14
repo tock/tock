@@ -1,6 +1,6 @@
 use capsules::test::aes::Test;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE};
-use sam4l::aes::{Aes, AES};
+use sam4l::aes::{AES, Aes};
 
 pub fn run() {
     let t = static_init_test();

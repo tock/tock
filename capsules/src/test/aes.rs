@@ -4,7 +4,7 @@ use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128, AES128Ctr, AES128CBC};
 
 pub struct Test<'a, A: 'a> {
     aes: &'a A,
@@ -23,13 +23,12 @@ pub const DATA_OFFSET: usize = AES128_BLOCK_SIZE;
 const DATA_LEN: usize = 4 * AES128_BLOCK_SIZE;
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
-    pub fn new(
-        aes: &'a A,
-        key: &'a mut [u8],
-        iv: &'a mut [u8],
-        source: &'a mut [u8],
-        data: &'a mut [u8],
-    ) -> Self {
+    pub fn new(aes: &'a A,
+               key: &'a mut [u8],
+               iv: &'a mut [u8],
+               source: &'a mut [u8],
+               data: &'a mut [u8])
+               -> Self {
         Test {
             aes: aes,
 
@@ -80,27 +79,18 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
                 &CTXT_CBC
             }
         };
-        self.source.map(|source| {
-            for (i, b) in source_mode.iter().enumerate() {
-                source[i] = *b;
-            }
+        self.source.map(|source| for (i, b) in source_mode.iter().enumerate() {
+            source[i] = *b;
         });
 
         if !self.use_source.get() {
             // Copy source into dest for in-place encryption
-            self.source.map_or_else(
-                || panic!("No source"),
-                |source| {
-                    self.data.map_or_else(
-                        || panic!("No data"),
-                        |data| {
-                            for (i, b) in source.iter().enumerate() {
-                                data[DATA_OFFSET + i] = *b;
-                            }
-                        },
-                    );
-                },
-            );
+            self.source.map_or_else(|| panic!("No source"), |source| {
+                self.data.map_or_else(|| panic!("No data"),
+                                      |data| for (i, b) in source.iter().enumerate() {
+                                          data[DATA_OFFSET + i] = *b;
+                                      });
+            });
         }
 
         if self.mode_ctr.get() {
@@ -113,11 +103,17 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
         let start = DATA_OFFSET;
         let stop = DATA_OFFSET + DATA_LEN;
 
-        match self.aes.crypt(if self.use_source.get() { self.source.take() } else { None },
-                             self.data.take().unwrap(), start, stop) {
+        match self.aes.crypt(if self.use_source.get() {
+                                 self.source.take()
+                             } else {
+                                 None
+                             },
+                             self.data.take().unwrap(),
+                             start,
+                             stop) {
             None => {
                 // await crypt_done()
-            },
+            }
             Some((result, source, dest)) => {
                 self.source.put(source);
                 self.data.put(Some(dest));
@@ -127,7 +123,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> Test<'a, A> {
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Client<'a> for Test<'a, A> {
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Client<'a>
+    for
+    Test<'a, A> {
     fn crypt_done(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8]) {
 
         if self.use_source.get() {
@@ -151,16 +149,14 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Clien
         if self.data.map_or(false, |data| {
             &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()
         }) {
-            debug!(
-                "OK! ({} {} {})",
-                if self.encrypting.get() { "Enc" } else { "Dec" },
-                if self.mode_ctr.get() { "Ctr" } else { "CBC" },
-                if self.use_source.get() {
-                    "Src/Dst"
-                } else {
-                    "In-place"
-                }
-            );
+            debug!("OK! ({} {} {})",
+                   if self.encrypting.get() { "Enc" } else { "Dec" },
+                   if self.mode_ctr.get() { "Ctr" } else { "CBC" },
+                   if self.use_source.get() {
+                       "Src/Dst"
+                   } else {
+                       "In-place"
+                   });
         } else {
             panic!("FAIL");
         }
