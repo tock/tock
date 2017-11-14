@@ -20,6 +20,7 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::symmetric_encryption;
+use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 
 #[macro_use]
 pub mod io;
@@ -34,6 +35,9 @@ mod lowpan_frag_dummy;
 
 #[allow(dead_code)]
 mod aes_test;
+
+#[allow(dead_code)]
+mod aes_ccm_test;
 
 #[allow(dead_code)]
 mod power;
@@ -419,11 +423,13 @@ pub unsafe fn reset_handler() {
     let aes_ccm = static_init!(
         capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
         capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF));
+    sam4l::aes::AES.set_client(aes_ccm);
 
     let rf233_mac = static_init!(
         capsules::ieee802154::mac::MacDevice<'static, RF233Device,
             capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>>,
         capsules::ieee802154::mac::MacDevice::new(rf233, aes_ccm));
+    aes_ccm.set_client(rf233_mac);
     rf233.set_transmit_client(rf233_mac);
     rf233.set_receive_client(rf233_mac, &mut RF233_RX_BUF);
     rf233.set_config_client(rf233_mac);
@@ -500,7 +506,7 @@ pub unsafe fn reset_handler() {
                                     &mut PROCESSES,
                                     FAULT_RESPONSE);
 
-    aes_test::run();
+    aes_ccm_test::run();
 
     kernel::main(&imix, &mut chip, &mut PROCESSES, &imix.ipc);
 }
