@@ -1,0 +1,22 @@
+[package]
+name = "nucleo_f103"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+
+[profile.dev]
+panic = "abort"
+lto = true
+opt-level = 0
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+
+[dependencies]
+cortexm3 = { path = "../../arch/cortex-m3" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+stm32 = { path = "../../chips/stm32" }
+stm32f1 = { path = "../../chips/stm32f1" }
