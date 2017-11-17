@@ -1,0 +1,162 @@
+----------------------Tock Networking Stack Design Document--------------------
+
+/* NOTE: This document is very incomplete so please hold critiques about missing
+content for a day or two when I will ask for a review. BUT if anything seems to 
+indicate I am misunderstanding something feel free to let me know. */
+
+This document describes the design of the Networking stack on Tock.
+
+The design described in this document is based off of ideas contributed by 
+Phil Levis, Amit Levy, Paul Crews, Hubert Teo, Mateo Garcia, Daniel Giffin, and
+Hudson Ayers.
+
+This document is split into several sections. These are as follows:
+
+-- Table of Contents --
+  1. Principles - Describes the main principles which the design should meet,
+     along with some justification of why these principles matter. Ultimately,
+     the design should follow from these principles.
+  2. Stack Diagram - Graphically depicts the layout of the stack
+  3. List of Traits - Describes the traits which will exist at each layer of the
+     stack. For traits that may seem surprisingly complex, provide examples of
+     specific messages that require this more complex trait as opposed to the
+     more obvious, simpler trait that might be expected.
+  4. Implementation Details - Describes how certain implementations of these
+     traits will work, providing some examples with pseudocode or commented
+     explanations of functionality
+  5. Example Message Traverals - Shows how different example messages (thread or 
+     otherwise) will traverse the stack
+
+********************************** Principles **********************************
+1. The Simple case should be simple
+   - Sending an IP packet via an established thread network should not 
+   require a more complicated interface than send(destination, packet)
+   - If functionality were added to allow for the transmission of IP packets over
+     the BLE interface, this IP send function should not have to deal with any
+     options or MessageInfo structs that include 802.15.4 information.
+   - This principle reflects a desire to limit the complexity of thread/the
+     tock networking stack to the capsules that implement the stack. This 
+     prevents the burden of this complexity from being passed up to whatever
+     applications use Thread
+2. Layering should be seperate from Encapsulation
+   - Libraries that handle encapsulation should not be contained within any
+     specific layering construct. For example, If the thread control unit wants
+     to encapsulate a UDP payload inside of a UDP packet inside of an IP packet,
+     it should be able to do so using encapsulation libraries and get the 
+     resulting IP packet without having to pass through all of the protocol layers
+   - Accordingly, implementations of layers can take advantage of these 
+     encapsulation libraries, but are not required to.
+3. Dataplane traits should exist that are thread-independent
+   - For example, the IP trait should not make any assumption that send() 
+     will be called for a message that will be passed down to the 15.4 layer, in
+     case this IP trait is used on top of an implementation that passes IP
+     packets down to be sent over a BLE link layer. Accordingly the IP trait
+     can not expose any arguments regarding 802.15.4 security parameters.
+   - Even for instances where the only implementation of a trait in the near
+     future will be a Thread-based implementation, the traits should not
+     require anything that limit such a trait to Thread-based implementations
+4. Transmit and Receive paths should be seperate
+   - This allows for instances where Receive and send_done callbacks should
+     be delivered to different clients (ex: Server listening on all addresses
+     but also sending messages from specific addresses)
+   - Prevents send path from having to navigate the added complexity required
+     for thread to determine whether to forward received messages up the stack
+
+******************************** Stack Diagram ********************************
+
+Thread Stack:                                       Encapsulation Libraries
++----------------------------+                   +-----------+            
+|   IP Rcv  |    |  IP Send  |           ----->  | IP Packet |
+|-----------+    +-----------+          /        +-----------+
+|                            |         /         +------------+
+|                            |        /------->  | UDP Packet |
+|       THREAD               |       /           +------------+
+|                   <--------|------>            +-------------------------+
+|                            |       \ ------->  | 6lowpan compress_Packet |
+|                            |        \          +-------------------------+
+|                            |         \         +-------------------------+
++-----------+    +-----------|          ------>  | 6lowpan fragment_Packet |                   
+| 15.4 Rcv  |    | 15.4 Send |                   +-------------------------+
++----------------------------+
+|  IEEE 802.15.4 Link Layer  |
++----------------------------+
+
+Notes on the stack:
+- IP messages sent via thread networks are sent through Thread using an IP Send
+  method that exposes only the parameters specified in the IP_Send trait. 
+- Messages generated by the Thread control plane (MLE messages etc.) are 
+  formatted using calls to the encapsulation libraries and then delivered to the
+  802.15.4 layer using the send function
+- All messages received by the link layer are passed into the thread control plane
+  which decides whether to handle the messages locally (MLE etc.), call encap libs
+  and pass up through the layer to IP Rcv, drop, etc.
+- This stack design allows Thread to control header elements from transport down
+  to link layer, and to set link layer security parameters and more as required
+  for certain packers
+
+******************************** List of Traits ********************************
+This section describes a number of traits which must be implemented by any 
+network stack. It is expected that multiple implemenations of some of these
+traits may exist to allow for Tock to support more than just Thread networking.
+
+trait UDPPacket {
+    fn getOffset() -> usize; //Always returns 8
+    fn setDestPort(buf, port: u16); 
+    fn setSrcPort(buf, port: u16);
+    fn setLen(buf, len: u16);
+    fn setCksum(buf, cksum: u16);
+}
+
+trait IP6Packet {
+    fn getOffset() -> usize; //Always returns 40 until we add options support
+    fn setTF(buf, TF);
+    fn setFlowLabel(buf, flow_label(;
+    fn setLen(buf, len);
+    fn setProtocol(buf, proto);
+    fn setDestAddr(buf, addr);
+    fn setSrcAddr(buf, addr);
+}
+
+trait UDPSend {
+    sendTo(dest: IP6Addr, buf, len);
+    send(buf, len);
+}
+
+trait IP6Send {
+    fn sendTo(dest: IP6Addr, buf: [u8], len: u16); //Convenience fn, sets dest addr, sends
+    fn send(buf: [u8], len: u16);
+}
+
+// Note: len is required for send() calls to allow for each layer to know where message ends
+
+
+
+**************************** Implementation Details ****************************
+One Example Implementation of IP6Send:
+
+impl IP6Send for ThreadMLEIP6Send{
+    fn sendTo(&self, dest: IP6Addr, buf, len) {
+        setDestAddr(buf, dest);
+        self.send(buf, len);
+    }
+    
+    fn send(&self, buf, len) {
+        compressed_packet [u8] = 15_4_6lowpan_compress(buf, len)
+        fragState = new fragState(buf, len);
+        while(fragState != Done) {
+            fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(buf, len, fragState);
+            fragToSend.setSrcPANID(threadPANID);
+            if(compressed_packet.is_disc_request()) {
+                fragToSend.setSrcMAC(MAC::generate_random());
+            }
+            // etc....
+            let security = securityType::MLESecurity;
+            15_4_link_layer_send(fragToSend, security, len); 
+        }
+    }
+}
+
+************************** Example Message Traversals **************************
+TODO: Hubert
+
+
