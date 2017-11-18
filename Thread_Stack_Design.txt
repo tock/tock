@@ -1,8 +1,6 @@
 ----------------------Tock Networking Stack Design Document--------------------
 
-/* NOTE: This document is very incomplete so please hold critiques about missing
-content for a day or two when I will ask for a review. BUT if anything seems to 
-indicate I am misunderstanding something feel free to let me know. */
+/* NOTE: This document is very incomplete */
 
 This document describes the design of the Networking stack on Tock.
 
@@ -65,25 +63,25 @@ This document is split into several sections. These are as follows:
 ******************************** Stack Diagram ********************************
 
 Non-Thread Stack:   Thread Stack:                                       Encapsulation Libraries
-+-------------------+----------------------------+
-|              Application                       |-------------------\
---------------------+-------------+---+----------+                    \
-|TCP Send| UDP Send |  | TCP Send |   | UDP Send |--\                  v
-+--------+----------+  +----------+   +----------+   \               +------------+  +------------+
-|     IP Send       |  |         IP Send         |    \      ----->  | UDP Packet |  | TCP Packet | 
-|                   |  +-------------------------+     \    /        +------------+  +------------+ 
-|                   |                            |      \  /         +-----------+
-|                   |                            |       -+------->  | IP Packet |
-|                   |       THREAD               |       /           +-----------+
-| IP Send calls     |                   <--------|------>            +-------------------------+
-| 6lowpan libs with |                            |       \ ------->  | 6lowpan compress_Packet |
-| default values    |                            |        \          +-------------------------+
-|                   |                            |         \         +-------------------------+
-|                   +                +-----------|          ------>  | 6lowpan fragment_Packet |             
-|                   |                | 15.4 Send |                   +-------------------------+
-|-------------------+----------------------------+
-|          IEEE 802.15.4 Link Layer              |
-+------------------------------------------------+
++-------------------+-------------------+----------------------------+
+|                         Application                                |-------------------\
+----------------------------------------+-------------+---+----------+                    \
+|TCP Send| UDP Send |TCP Send| UDP Send |  | TCP Send |   | UDP Send |--\                  v
++--------+----------+--------+----------+  +----------+   +----------+   \               +------------+  +------------+
+|     IP Send       |     IP Send       |  |         IP Send         |    \      ----->  | UDP Packet |  | TCP Packet | 
+|                   |                   |  +-------------------------+     \    /        +------------+  +------------+ 
+|                   |                   |                            |      \  /         +-----------+
+|                   |                   |                            |       -+------->  | IP Packet |
+|                   |                   |       THREAD               |       /           +-----------+
+| IP Send calls ble | IP Send calls 15.4|                   <--------|------>            +-------------------------+
+| 6lowpan libs with | 6lowpan libs with |                            |       \ ------->  | 6lowpan compress_Packet |
+| default values    | default values    |                            |        \          +-------------------------+
+|                   |                   |                            |         \         +-------------------------+
+|                   |                   +                +-----------|          ------>  | 6lowpan fragment_Packet |             
+|                   |                   |                | 15.4 Send |                   +-------------------------+
+|-------------------|-------------------+----------------------------+
+|        BLE        |          IEEE 802.15.4 Link Layer              |
++-------------------+------------------------------------------------+
 
 Notes on the stack:
 - IP messages sent via thread networks are sent through Thread using an IP Send
@@ -105,7 +103,11 @@ Notes on the stack:
   IP fields before handing the packet off to thread. Thread then sets other 
   parameters at other layers as needed before sending the packet off via the
   15.4 send function implemented for Thread. 
-
+- This stack does not demonstrate a full set of functionality we are planning to
+  implement now. Rather it demonstrates how this setup allows for multiple 
+  implementation of each layer based off of traits and libraries such that a 
+  flexible network stack can be configured, rather than creating a network 
+  stack designed such that applications can only use thread.
 
 ******************************** List of Traits ********************************
 This section describes a number of traits which must be implemented by any 
