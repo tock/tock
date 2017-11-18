@@ -4,7 +4,7 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(repr_align,attr_literals,const_cell_new,const_atomic_usize_new,const_ptr_null_mut)]
+#![feature(repr_align,attr_literals,const_cell_new,const_atomic_usize_new,const_atomic_bool_new,const_ptr_null_mut)]
 #![feature(asm,core_intrinsics,concat_idents,const_fn)]
 #![no_std]
 

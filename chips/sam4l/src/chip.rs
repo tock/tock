@@ -1,5 +1,6 @@
 //! Interrupt mapping and DMA channel setup.
 
+use core::sync::atomic::Ordering;
 use adc;
 use aes;
 use ast;
@@ -71,77 +72,83 @@ impl Chip for Sam4l {
         use nvic::*;
 
         unsafe {
-            while let Some(interrupt) = cortexm4::nvic::next_pending() {
-                match interrupt {
-                    ASTALARM => ast::AST.handle_interrupt(),
+            loop {
+                if flashcalw::DEFERED_CALL.swap(false, Ordering::Relaxed) {
+                    flashcalw::FLASH_CONTROLLER.handle_interrupt();
+                } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                    match interrupt {
+                        ASTALARM => ast::AST.handle_interrupt(),
 
-                    USART0 => usart::USART0.handle_interrupt(),
-                    USART1 => usart::USART1.handle_interrupt(),
-                    USART2 => usart::USART2.handle_interrupt(),
-                    USART3 => usart::USART3.handle_interrupt(),
+                        USART0 => usart::USART0.handle_interrupt(),
+                        USART1 => usart::USART1.handle_interrupt(),
+                        USART2 => usart::USART2.handle_interrupt(),
+                        USART3 => usart::USART3.handle_interrupt(),
 
-                    PDCA0 => dma::DMA_CHANNELS[0].handle_interrupt(),
-                    PDCA1 => dma::DMA_CHANNELS[1].handle_interrupt(),
-                    PDCA2 => dma::DMA_CHANNELS[2].handle_interrupt(),
-                    PDCA3 => dma::DMA_CHANNELS[3].handle_interrupt(),
-                    PDCA4 => dma::DMA_CHANNELS[4].handle_interrupt(),
-                    PDCA5 => dma::DMA_CHANNELS[5].handle_interrupt(),
-                    PDCA6 => dma::DMA_CHANNELS[6].handle_interrupt(),
-                    PDCA7 => dma::DMA_CHANNELS[7].handle_interrupt(),
-                    PDCA8 => dma::DMA_CHANNELS[8].handle_interrupt(),
-                    PDCA9 => dma::DMA_CHANNELS[9].handle_interrupt(),
-                    PDCA10 => dma::DMA_CHANNELS[10].handle_interrupt(),
-                    PDCA11 => dma::DMA_CHANNELS[11].handle_interrupt(),
-                    PDCA12 => dma::DMA_CHANNELS[12].handle_interrupt(),
-                    PDCA13 => dma::DMA_CHANNELS[13].handle_interrupt(),
-                    PDCA14 => dma::DMA_CHANNELS[14].handle_interrupt(),
-                    PDCA15 => dma::DMA_CHANNELS[15].handle_interrupt(),
+                        PDCA0 => dma::DMA_CHANNELS[0].handle_interrupt(),
+                        PDCA1 => dma::DMA_CHANNELS[1].handle_interrupt(),
+                        PDCA2 => dma::DMA_CHANNELS[2].handle_interrupt(),
+                        PDCA3 => dma::DMA_CHANNELS[3].handle_interrupt(),
+                        PDCA4 => dma::DMA_CHANNELS[4].handle_interrupt(),
+                        PDCA5 => dma::DMA_CHANNELS[5].handle_interrupt(),
+                        PDCA6 => dma::DMA_CHANNELS[6].handle_interrupt(),
+                        PDCA7 => dma::DMA_CHANNELS[7].handle_interrupt(),
+                        PDCA8 => dma::DMA_CHANNELS[8].handle_interrupt(),
+                        PDCA9 => dma::DMA_CHANNELS[9].handle_interrupt(),
+                        PDCA10 => dma::DMA_CHANNELS[10].handle_interrupt(),
+                        PDCA11 => dma::DMA_CHANNELS[11].handle_interrupt(),
+                        PDCA12 => dma::DMA_CHANNELS[12].handle_interrupt(),
+                        PDCA13 => dma::DMA_CHANNELS[13].handle_interrupt(),
+                        PDCA14 => dma::DMA_CHANNELS[14].handle_interrupt(),
+                        PDCA15 => dma::DMA_CHANNELS[15].handle_interrupt(),
 
-                    CRCCU => crccu::CRCCU.handle_interrupt(),
-                    USBC => usbc::USBC.handle_interrupt(),
+                        CRCCU => crccu::CRCCU.handle_interrupt(),
+                        USBC => usbc::USBC.handle_interrupt(),
 
-                    GPIO0 => gpio::PA.handle_interrupt(),
-                    GPIO1 => gpio::PA.handle_interrupt(),
-                    GPIO2 => gpio::PA.handle_interrupt(),
-                    GPIO3 => gpio::PA.handle_interrupt(),
-                    GPIO4 => gpio::PB.handle_interrupt(),
-                    GPIO5 => gpio::PB.handle_interrupt(),
-                    GPIO6 => gpio::PB.handle_interrupt(),
-                    GPIO7 => gpio::PB.handle_interrupt(),
-                    GPIO8 => gpio::PC.handle_interrupt(),
-                    GPIO9 => gpio::PC.handle_interrupt(),
-                    GPIO10 => gpio::PC.handle_interrupt(),
-                    GPIO11 => gpio::PC.handle_interrupt(),
+                        GPIO0 => gpio::PA.handle_interrupt(),
+                        GPIO1 => gpio::PA.handle_interrupt(),
+                        GPIO2 => gpio::PA.handle_interrupt(),
+                        GPIO3 => gpio::PA.handle_interrupt(),
+                        GPIO4 => gpio::PB.handle_interrupt(),
+                        GPIO5 => gpio::PB.handle_interrupt(),
+                        GPIO6 => gpio::PB.handle_interrupt(),
+                        GPIO7 => gpio::PB.handle_interrupt(),
+                        GPIO8 => gpio::PC.handle_interrupt(),
+                        GPIO9 => gpio::PC.handle_interrupt(),
+                        GPIO10 => gpio::PC.handle_interrupt(),
+                        GPIO11 => gpio::PC.handle_interrupt(),
 
-                    SPI => spi::SPI.handle_interrupt(),
+                        SPI => spi::SPI.handle_interrupt(),
 
-                    TWIM0 => i2c::I2C0.handle_interrupt(),
-                    TWIM1 => i2c::I2C1.handle_interrupt(),
-                    TWIM2 => i2c::I2C2.handle_interrupt(),
-                    TWIM3 => i2c::I2C3.handle_interrupt(),
+                        TWIM0 => i2c::I2C0.handle_interrupt(),
+                        TWIM1 => i2c::I2C1.handle_interrupt(),
+                        TWIM2 => i2c::I2C2.handle_interrupt(),
+                        TWIM3 => i2c::I2C3.handle_interrupt(),
 
-                    TWIS0 => i2c::I2C0.handle_slave_interrupt(),
-                    TWIS1 => i2c::I2C1.handle_slave_interrupt(),
+                        TWIS0 => i2c::I2C0.handle_slave_interrupt(),
+                        TWIS1 => i2c::I2C1.handle_slave_interrupt(),
 
-                    HFLASHC => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
-                    ADCIFE => adc::ADC0.handle_interrupt(),
-                    DACC => dac::DAC.handle_interrupt(),
+                        HFLASHC => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
+                        ADCIFE => adc::ADC0.handle_interrupt(),
+                        DACC => dac::DAC.handle_interrupt(),
 
-                    TRNG => trng::TRNG.handle_interrupt(),
-                    AESA => aes::AES.handle_interrupt(),
-                    _ => {
-                        panic!("unhandled interrupt {}", interrupt);
+                        TRNG => trng::TRNG.handle_interrupt(),
+                        AESA => aes::AES.handle_interrupt(),
+                        _ => {
+                            panic!("unhandled interrupt {}", interrupt);
+                        }
                     }
+                    let n = cortexm4::nvic::Nvic::new(interrupt);
+                    n.clear_pending();
+                    n.enable();
+                } else {
+                    break;
                 }
-                let n = cortexm4::nvic::Nvic::new(interrupt);
-                n.clear_pending();
-                n.enable();
             }
         }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() }
+        unsafe { cortexm4::nvic::has_pending() || flashcalw::DEFERED_CALL.load(Ordering::Relaxed) }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
