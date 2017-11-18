@@ -330,7 +330,7 @@ impl<'a, B, A> BLE<'a, B, A>
                         end = index + slice.len() + 2;
                         buf_len = slice.len() + 2;
 
-                        // Copy data from the "WRIGHT" AppSlice to the TakeCell if there is
+                        // Copy data from the "WRITE" AppSlice to the TakeCell if there is
                         // space left
                         if end <= PACKET_LENGTH {
                             self.kernel_tx
@@ -572,7 +572,18 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             // Reset payload when the kernel is not actively advertising
             4 => {
                 if !self.busy.get() {
-                    self.reset_payload(appid)
+                    let result = self.reset_payload(appid);
+                    match result {
+                        ReturnCode::SUCCESS => {
+                            self.app
+                                .enter(appid, |app, _| {
+                                    app.offset.set(PACKET_PAYLOAD_START);
+                                    ReturnCode::SUCCESS
+                                })
+                                .unwrap_or_else(|err| err.into())
+                        }
+                        e @ _ => e,
+                    }
                 } else {
                     ReturnCode::EBUSY
                 }
