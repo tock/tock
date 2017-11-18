@@ -100,7 +100,6 @@ int ble_reset_advertisement(void) {
 
 int ble_advertise_name(uint8_t *device_name, uint8_t size_b) {
   if (device_name == NULL) {
-    printf("nullptr\r\n");
     return TOCK_FAIL;
   } else {
     return s_ble_configure_gap_data(GAP_COMPLETE_LOCAL_NAME, device_name,
