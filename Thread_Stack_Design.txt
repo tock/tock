@@ -62,7 +62,7 @@ This document is split into several sections. These are as follows:
 
 ******************************** Stack Diagram ********************************
 
-Non-Thread Stack:   Thread Stack:                                       Encapsulation Libraries
+IPv6 over BLE:      Non-Thread 15.4:   Thread Stack:                                       Encapsulation Libraries
 +-------------------+-------------------+----------------------------+
 |                         Application                                |-------------------\
 ----------------------------------------+-------------+---+----------+                    \
