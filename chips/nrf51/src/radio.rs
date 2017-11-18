@@ -16,76 +16,8 @@ use kernel;
 use nrf5x;
 use peripheral_registers;
 
-// nrf51 specific constants
-pub const PACKET0_S1_SIZE: u32 = 0;
-pub const PACKET0_S0_SIZE: u32 = 0;
-pub const RADIO_PCNF0_S0LEN_POS: u32 = 8;
-pub const RADIO_PCNF0_S1LEN_POS: u32 = 16;
-pub const RADIO_PCNF0_LFLEN_POS: u32 = 0;
-pub const RADIO_PCNF1_WHITEEN_DISABLED: u32 = 0;
-pub const RADIO_PCNF1_WHITEEN_ENABLED: u32 = 1;
-pub const RADIO_PCNF1_WHITEEN_POS: u32 = 25;
-pub const RADIO_PCNF1_BALEN_POS: u32 = 16;
-pub const RADIO_PCNF1_STATLEN_POS: u32 = 8;
-pub const RADIO_PCNF1_MAXLEN_POS: u32 = 0;
-pub const RADIO_PCNF1_ENDIAN_POS: u32 = 24;
-pub const RADIO_PCNF1_ENDIAN_BIG: u32 = 1;
-pub const PACKET_LENGTH_FIELD_SIZE: u32 = 0;
-pub const PACKET_PAYLOAD_MAXSIZE: u32 = 64;
-pub const PACKET_BASE_ADDRESS_LENGTH: u32 = 4;
-pub const PACKET_STATIC_LENGTH: u32 = 64;
-pub const NRF_LFLEN_LEN_1BYTE: u32 = 8;
-pub const NRF_S0_LEN_1BYTE: u32 = 1;
-
-
-// internal Radio State
-pub const RADIO_STATE_DISABLE: u32 = 0;
-pub const RADIO_STATE_RXRU: u32 = 1;
-pub const RADIO_STATE_RXIDLE: u32 = 2;
-pub const RADIO_STATE_RX: u32 = 3;
-pub const RADIO_STATE_RXDISABLE: u32 = 4;
-pub const RADIO_STATE_TXRU: u32 = 9;
-pub const RADIO_STATE_TXIDLE: u32 = 10;
-pub const RADIO_STATE_TX: u32 = 11;
-pub const RADIO_STATE_TXDISABLE: u32 = 12;
-
-
-// constants for readability purposes
-pub const PAYLOAD_HDR_PDU: usize = 0;
-pub const PAYLOAD_HDR_LEN: usize = 1;
-pub const PAYLOAD_ADDR_START: usize = 2;
-pub const PAYLOAD_ADDR_END: usize = 7;
-pub const PAYLOAD_DATA_START: usize = 8;
-pub const PAYLOAD_LENGTH: usize = 39;
-
-
-// Header (2 bytes) which consist of:
-//
-// Byte #1
-// PDU Type (4 bits) - see below for info
-// RFU (2 bits)      - don't care
-// TXAdd (1 bit)     - don't used yet (use public or private addr)
-// RXAdd (1 bit)     - don't care (not used for beacons)
-//
-// Byte #2
-// Length of the total packet
-
-// PDU TYPES
-// 0x00 - ADV_IND
-// 0x01 - ADV_DIRECT_IND
-// 0x02 - ADV_NONCONN_IND
-// 0x03 - SCAN_REQ
-// 0x04 - SCAN_RSP
-// 0x05 - CONNECT_REQ
-// 0x06 - ADV_SCAN_IND
-
-//  Advertising Type   Connectable  Scannable   Directed    GAP Name
-//  ADV_IND            Yes           Yes         No          Connectable Undirected Advertising
-//  ADV_DIRECT_IND     Yes           No          Yes         Connectable Directed Advertising
-//  ADV_NONCONN_IND    Yes           No          No          Non-connectible Undirected Advertising
-//  ADV_SCAN_IND       Yes           Yes         No          Scannable Undirected Advertising
-
-static mut PAYLOAD: [u8; PAYLOAD_LENGTH] = [0x00; PAYLOAD_LENGTH];
+static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
+    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
@@ -111,47 +43,46 @@ impl Radio {
 
     fn set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
-        // CRC Config
-        regs.CRCCNF.set(0x103); // 3 bytes CRC and don't include Address field in the CRC
-        regs.CRCINIT.set(0x555555); // INIT CRC Value
-        // CRC Polynomial  x24 + x10 + x9 + x6 + x4 + x3 + x + 1
-        regs.CRCPOLY.set(0x00065B);
+        regs.crccnf.set(nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES |
+                        nrf5x::constants::RADIO_CRCCNF_SKIPADDR <<
+                        nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS);
+        regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
+        regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
     }
 
 
     // Packet configuration
-    // Argument unsed atm
     fn set_packet_config(&self, _: u32) {
         let regs = unsafe { &*self.regs };
+        regs.pcnf0.set((nrf5x::constants::RADIO_PCNF0_S0_LEN_1BYTE <<
+                        nrf5x::constants::RADIO_PCNF0_S0LEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF0_LFLEN_1BYTE <<
+                        nrf5x::constants::RADIO_PCNF0_LFLEN_POS));
 
-        // sets the header of PDU TYPE to 1 byte
-        // sets the header length to 1 byte
-        regs.PCNF0.set((NRF_S0_LEN_1BYTE << RADIO_PCNF0_S0LEN_POS) |
-                       (NRF_LFLEN_LEN_1BYTE << RADIO_PCNF0_LFLEN_POS));
 
-
-        regs.PCNF1
-            .set((RADIO_PCNF1_WHITEEN_ENABLED << RADIO_PCNF1_WHITEEN_POS) |
-                 // set little-endian
-                 (0 << RADIO_PCNF1_ENDIAN_POS) |
-                 // Set BASE + PREFIX address to 4 bytes
-                 (3 << RADIO_PCNF1_BALEN_POS) |
-                 // don't extend packet length
-                 (0 << RADIO_PCNF1_STATLEN_POS) |
-                 // max payload size 37
-                 (37 << RADIO_PCNF1_MAXLEN_POS));
+        regs.pcnf1.set((nrf5x::constants::RADIO_PCNF1_WHITEEN_ENABLED <<
+                nrf5x::constants::RADIO_PCNF1_WHITEEN_POS) |
+                 (nrf5x::constants::RADIO_PCNF1_ENDIAN_LITTLE <<
+                     nrf5x::constants::RADIO_PCNF1_ENDIAN_POS) |
+                 // Total Address is 4 bytes (BASE ADDRESS + PREFIX (1))
+                 (nrf5x::constants::RADIO_PCNF1_BALEN_3BYTES <<
+                  nrf5x::constants::RADIO_PCNF1_BALEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF1_STATLEN_DONT_EXTEND <<
+                        nrf5x::constants::RADIO_PCNF1_STATLEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF1_MAXLEN_37BYTES <<
+                        nrf5x::constants::RADIO_PCNF1_MAXLEN_POS));
     }
 
     // TODO set from capsules?!
     fn set_rx_address(&self, _: u32) {
         let regs = unsafe { &*self.regs };
-        regs.RXADDRESSES.set(0x01);
+        regs.rxaddresses.set(0x01);
     }
 
     // TODO set from capsules?!
     fn set_tx_address(&self, _: u32) {
         let regs = unsafe { &*self.regs };
-        regs.TXADDRESS.set(0x00);
+        regs.txaddress.set(0x00);
     }
 
     // should not be configured from the capsule i.e.
@@ -159,48 +90,48 @@ impl Radio {
     fn set_channel_rate(&self, rate: u32) {
         let regs = unsafe { &*self.regs };
         // set channel rate,  3 - BLE 1MBIT/s
-        regs.MODE.set(rate);
+        regs.mode.set(rate);
     }
 
     fn set_data_white_iv(&self, val: u32) {
         let regs = unsafe { &*self.regs };
         // DATAIV
-        regs.DATAWHITEIV.set(val);
+        regs.datawhiteiv.set(val);
     }
 
     fn set_channel_freq(&self, val: u32) {
         let regs = unsafe { &*self.regs };
         //37, 38 and 39 for adv.
         match val {
-            37 => regs.FREQEUNCY.set(2),
-            38 => regs.FREQEUNCY.set(26),
-            39 => regs.FREQEUNCY.set(80),
-            _ => regs.FREQEUNCY.set(7),
+            37 => regs.frequency.set(nrf5x::constants::RADIO_FREQ_CH_37),
+            38 => regs.frequency.set(nrf5x::constants::RADIO_FREQ_CH_38),
+            39 => regs.frequency.set(nrf5x::constants::RADIO_FREQ_CH_39),
+            _ => regs.frequency.set(nrf5x::constants::RADIO_FREQ_CH_37),
         }
     }
 
     fn radio_on(&self) {
         let regs = unsafe { &*self.regs };
         // reset and enable power
-        regs.POWER.set(0);
-        regs.POWER.set(1);
+        regs.power.set(0);
+        regs.power.set(1);
     }
 
     fn radio_off(&self) {
         let regs = unsafe { &*self.regs };
-        regs.POWER.set(0);
+        regs.power.set(0);
     }
 
     // pre-condition validated before arriving here
     fn set_txpower(&self) {
         let regs = unsafe { &*self.regs };
-        regs.TXPOWER.set(self.txpower.get() as u32);
+        regs.txpower.set(self.txpower.get() as u32);
     }
 
     fn set_buffer(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
-            regs.PACKETPTR.set((&PAYLOAD as *const u8) as u32);
+            regs.packetptr.set((&PAYLOAD as *const u8) as u32);
         }
     }
 
@@ -210,48 +141,48 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         self.disable_interrupts();
 
-        if regs.READY.get() == 1 {
-            regs.READY.set(0);
-            regs.END.set(0);
-            regs.START.set(1);
+        if regs.ready.get() == 1 {
+            regs.ready.set(0);
+            regs.end.set(0);
+            regs.start.set(1);
         }
 
-        if regs.PAYLOAD.get() == 1 {
-            regs.PAYLOAD.set(0);
+        if regs.payload.get() == 1 {
+            regs.payload.set(0);
         }
 
-        if regs.ADDRESS.get() == 1 {
-            regs.ADDRESS.set(0);
+        if regs.address.get() == 1 {
+            regs.address.set(0);
         }
 
-        if regs.END.get() == 1 {
-            regs.END.set(0);
-            regs.DISABLE.set(1);
-            // this state only verifies that END is received in TX-mode
+        if regs.end.get() == 1 {
+            regs.end.set(0);
+            regs.disable.set(1);
+            // this state only verifies that end is received in TX-mode
             // which means that the transmission is finished
-            match regs.STATE.get() {
-                RADIO_STATE_TXRU |
-                RADIO_STATE_TXIDLE |
-                RADIO_STATE_TXDISABLE |
-                RADIO_STATE_TX => {
-                    match regs.FREQEUNCY.get() {
+            match regs.state.get() {
+                nrf5x::constants::RADIO_STATE_TXRU |
+                nrf5x::constants::RADIO_STATE_TXIDLE |
+                nrf5x::constants::RADIO_STATE_TXDISABLE |
+                nrf5x::constants::RADIO_STATE_TX => {
+                    match regs.frequency.get() {
                         // frequency 39
-                        80 => {
+                        nrf5x::constants::RADIO_FREQ_CH_39 => {
                             self.radio_off();
                         }
                         // frequency 38
-                        26 => {
+                        nrf5x::constants::RADIO_FREQ_CH_38 => {
                             self.set_channel_freq(39);
                             self.set_data_white_iv(39);
-                            regs.READY.set(0);
-                            regs.TXEN.set(1);
+                            regs.ready.set(0);
+                            regs.txen.set(1);
                         }
                         // frequency 37
-                        2 => {
+                        nrf5x::constants::RADIO_FREQ_CH_37 => {
                             self.set_channel_freq(38);
                             self.set_data_white_iv(38);
-                            regs.READY.set(0);
-                            regs.TXEN.set(1);
+                            regs.ready.set(0);
+                            regs.txen.set(1);
                         }
                         // don't care as we only support advertisements at the moment
                         _ => {
@@ -260,17 +191,15 @@ impl Radio {
                         }
                     }
                 }
-                RADIO_STATE_RXRU |
-                RADIO_STATE_RXIDLE |
-                RADIO_STATE_RXDISABLE |
-                RADIO_STATE_RX => {
-                    if regs.CRCSTATUS.get() == 1 {
+                nrf5x::constants::RADIO_STATE_RXRU |
+                nrf5x::constants::RADIO_STATE_RXIDLE |
+                nrf5x::constants::RADIO_STATE_RXDISABLE |
+                nrf5x::constants::RADIO_STATE_RX => {
+                    if regs.crcstatus.get() == 1 {
                         unsafe {
-                            // TODO: check if we can read how many bytes have been written
-                            // by the DMA
                             self.client.get().map(|client| {
                                 client.receive(&mut PAYLOAD,
-                                               PAYLOAD_LENGTH as u8,
+                                               PAYLOAD[1] + 1,
                                                kernel::returncode::ReturnCode::SUCCESS)
                             });
                         }
@@ -284,16 +213,17 @@ impl Radio {
 
 
     pub fn enable_interrupts(&self) {
-        // INTENSET REG
         let regs = unsafe { &*self.regs };
-        // 15 i.e set 4 LSB
-        regs.INTENSET.set(1 | 1 << 1 | 1 << 2 | 1 << 3);
+        regs.intenset
+            .set(nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS |
+                 nrf5x::constants::RADIO_INTENSET_PAYLOAD |
+                 nrf5x::constants::RADIO_INTENSET_END);
     }
 
     pub fn disable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
         // disable all possible interrupts
-        regs.INTENCLR.set(0x4ff);
+        regs.intenclr.set(0xffffffff);
     }
 
     // FIXME: Support for other PDU types than ADV_NONCONN_IND
@@ -320,47 +250,17 @@ impl Radio {
     }
 }
 
-
 impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
-    fn clear_adv_data(&self) {
-        // reset contents except header || address
-        for i in PAYLOAD_DATA_START..PAYLOAD_LENGTH {
-            unsafe {
-                PAYLOAD[i] = 0;
-            }
-        }
-        // configures a payload with only ADV address
-        self.set_payload_header_len(6);
-    }
-    fn set_advertisement_data(&self,
-                              ad_type: usize,
-                              data: &'static mut [u8],
-                              len: usize,
-                              offset: usize)
-                              -> &'static mut [u8] {
-        // set ad type length and type
-        unsafe {
-            PAYLOAD[offset] = (len + 1) as u8;
-            PAYLOAD[offset + 1] = ad_type as u8;
-        }
+    fn set_advertisement_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
         // set payload
-        for (i, c) in data.as_ref()[0..len].iter().enumerate() {
+        for (i, c) in buf.as_ref()[0..len].iter().enumerate() {
             unsafe {
-                PAYLOAD[i + offset + 2] = *c;
+                PAYLOAD[i] = *c;
             }
         }
+        buf
+    }
 
-        self.set_payload_header_len((offset + len) as u8);
-        data
-    }
-    fn set_advertisement_address(&self, addr: &'static mut [u8]) -> &'static mut [u8] {
-        for (i, c) in addr.as_ref()[0..6].iter().enumerate() {
-            unsafe {
-                PAYLOAD[i + PAYLOAD_ADDR_START] = *c;
-            }
-        }
-        addr
-    }
     fn set_advertisement_txpower(&self, power: usize) -> kernel::ReturnCode {
         match power {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
@@ -376,8 +276,6 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
 
         self.radio_on();
 
-        self.set_payload_header_pdu(0x02);
-
         // TX Power acc. to twpower variable in the struct
         self.set_txpower();
 
@@ -388,8 +286,8 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         self.set_data_white_iv(ch as u32);
 
         // Set PREFIX | BASE Address
-        regs.PREFIX0.set(0x0000008e);
-        regs.BASE0.set(0x89bed600);
+        regs.prefix0.set(0x0000008e);
+        regs.base0.set(0x89bed600);
 
         self.set_tx_address(0x00);
         self.set_rx_address(0x01);
@@ -406,8 +304,8 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
 
         self.enable_interrupts();
 
-        regs.READY.set(0);
-        regs.TXEN.set(1);
+        regs.ready.set(0);
+        regs.txen.set(1);
     }
     fn start_advertisement_rx(&self, _: usize) {
         let regs = unsafe { &*self.regs };
@@ -428,8 +326,8 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         self.set_data_white_iv(self.freq.get());
 
         // Set PREFIX | BASE Address
-        regs.PREFIX0.set(0x0000008e);
-        regs.BASE0.set(0x89bed600);
+        regs.prefix0.set(0x0000008e);
+        regs.base0.set(0x89bed600);
 
         self.set_tx_address(0x00);
         self.set_rx_address(0x01);
@@ -446,8 +344,8 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
 
         self.enable_interrupts();
 
-        regs.READY.set(0);
-        regs.RXEN.set(1);
+        regs.ready.set(0);
+        regs.rxen.set(1);
     }
 
     fn set_client(&self, client: &'static nrf5x::ble_advertising_hil::RxClient) {

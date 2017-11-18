@@ -140,6 +140,21 @@ fn from_usize(n: usize) -> Option<AllowType> {
     }
 }
 
+
+// PDU TYPES
+// 0x00 - ADV_IND
+// 0x01 - ADV_DIRECT_IND
+// 0x02 - ADV_NONCONN_IND
+// 0x03 - SCAN_REQ
+// 0x04 - SCAN_RSP
+// 0x05 - CONNECT_REQ
+// 0x06 - ADV_SCAN_IND
+//
+//  Advertising Type   Connectable  Scannable   Directed    GAP Name
+//  ADV_IND            Yes           Yes         No          Connectable Undirected Advertising
+//  ADV_DIRECT_IND     Yes           No          Yes         Connectable Directed Advertising
+//  ADV_NONCONN_IND    Yes           No          No          Non-connectible Undirected Advertising
+//  ADV_SCAN_IND       Yes           Yes         No          Scannable Undirected Advertising
 #[allow(unused)]
 #[repr(u8)]
 enum BLEAdvertisementType {
@@ -281,7 +296,9 @@ impl<'a, B, A> BLE<'a, B, A>
             .unwrap_or_else(|err| err.into())
     }
 
-    // Hard-coded to NonConnectUndirected
+    // Hard-coded
+    // Advertising Type  Connectable Scannable  Directed   GAP Name
+    // ADV_NONCONN_IND   Yes         No         No         Non-connectible Undirected Advertising
     fn configure_advertisement_pdu(&self, appid: kernel::AppId) -> ReturnCode {
         self.app
             .enter(appid, |app, _| {
