@@ -179,8 +179,10 @@ const PACKET_LENGTH: usize = 39;
 enum BLEState {
     NotInitialized,
     Initialized,
-    Scanning,
-    Advertising,
+    ScanningOff,
+    ScanningOn,
+    AdvertisingOff,
+    AdvertisingOn,
 }
 
 
@@ -191,7 +193,7 @@ pub struct App {
     scan_callback: Option<kernel::Callback>,
     offset: Cell<usize>,
     process_status: Option<BLEState>,
-    advertisement_interval: Cell<u32>,
+    advertisement_interval_ms: Cell<u32>,
     // not used yet....
     tx_power: Cell<u8>,
 }
@@ -207,9 +209,7 @@ impl Default for App {
             offset: Cell::new(PACKET_PAYLOAD_START),
             process_status: Some(BLEState::NotInitialized),
             tx_power: Cell::new(0),
-            // FIXME: figure out to use associated type in kernel::hil::time:Time
-            // Frequence::frequency();
-            advertisement_interval: Cell::new(5000),
+            advertisement_interval_ms: Cell::new(200),
         }
     }
 }
@@ -259,7 +259,6 @@ impl<'a, B, A> BLE<'a, B, A>
             });
         }
     }
-
 
     // Vol 6, Part B 1.3.2.1 Static Device Address
     // A static address is a 48-bit randomly generated address and shall meet the following
@@ -436,7 +435,9 @@ impl<'a, B, A> BLE<'a, B, A>
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 let interval_in_tics =
-                    self.alarm.now().wrapping_add(app.advertisement_interval.get());
+                    self.alarm.now().wrapping_add(app.advertisement_interval_ms.get() *
+                                                  <A::Frequency>::frequency() /
+                                                  1000);
                 self.alarm.set_alarm(interval_in_tics);
             });
         }
@@ -455,23 +456,32 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 match app.process_status {
-                    Some(BLEState::Advertising) if !self.busy.get() => {
+                    Some(BLEState::AdvertisingOff) if !self.busy.get() => {
                         self.busy.set(true);
+                        app.process_status = Some(BLEState::AdvertisingOn);
                         self.replace_advertisement_buffer();
                         self.radio.start_advertisement_tx(37);
+                        app.process_status = Some(BLEState::AdvertisingOff);
                         self.busy.set(false);
                     }
-                    Some(BLEState::Scanning) if !self.busy.get() => {
+                    Some(BLEState::ScanningOff) if !self.busy.get() => {
                         self.busy.set(true);
-                        // we want a empty buffer to read data into
+                        app.process_status = Some(BLEState::ScanningOn);
                         self.initialize_advertisement_buffer();
                         self.replace_advertisement_buffer();
                         self.radio.start_advertisement_rx(37);
+                        app.process_status = Some(BLEState::ScanningOff);
                         self.busy.set(false);
                     }
                     _ => (),
+                };
+                match app.process_status {
+                    Some(BLEState::AdvertisingOff) |
+                    Some(BLEState::AdvertisingOn) |
+                    Some(BLEState::ScanningOff) |
+                    Some(BLEState::ScanningOn) => self.configure_periodic_alarm(),
+                    _ => (),
                 }
-                self.configure_periodic_alarm();
             });
         }
     }
@@ -511,13 +521,12 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                appid: kernel::AppId)
                -> ReturnCode {
         match command_num {
-
             // Start periodic advertisments
             0 => {
                 self.app
                     .enter(appid,
                            |app, _| if app.process_status == Some(BLEState::Initialized) {
-                               app.process_status = Some(BLEState::Advertising);
+                               app.process_status = Some(BLEState::AdvertisingOff);
                                self.configure_periodic_alarm();
                                ReturnCode::SUCCESS
                            } else {
@@ -526,11 +535,14 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                     .unwrap_or_else(|err| err.into())
             }
 
-            // Stop perodic advertisements
+            // Stop perodic advertisements or scanning
             1 => {
                 self.app
                     .enter(appid,
-                           |app, _| if app.process_status == Some(BLEState::Advertising) {
+                           |app, _| if app.process_status == Some(BLEState::AdvertisingOff) ||
+                                       app.process_status == Some(BLEState::AdvertisingOn) ||
+                                       app.process_status == Some(BLEState::ScanningOn) ||
+                                       app.process_status == Some(BLEState::ScanningOff) {
                                app.process_status = Some(BLEState::Initialized);
                                ReturnCode::SUCCESS
                            } else {
@@ -545,64 +557,66 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             // Perhaps better to let the chip decide this?!
             2 => {
                 self.app
-                    .enter(appid, |app, _| if !self.busy.get() {
-                        match data as u8 {
-                            // this what nRF5X support at moment
-                            // two complement
-                            // 0x04 = 4 dBm, 0x00 = 0 dBm, 0xFC = -4 dBm, 0xF8 = -8 dBm
-                            // 0xF4 = -12 dBm, 0xF0 = -16 dBm, 0xEC = -20 dBm, 0xD8 = -40 dBm
-                            0x04 | 0x00 | 0xFC | 0xF8 | 0xF4 | 0xF0 | 0xEC | 0xD8 => {
-                                app.tx_power.set(data as u8);
-                                ReturnCode::SUCCESS
-                            }
-                            _ => ReturnCode::EINVAL,
-                        }
-                    } else {
-                        ReturnCode::EBUSY
-                    })
+                    .enter(appid,
+                           |app, _| if app.process_status != Some(BLEState::ScanningOff) &&
+                                       app.process_status != Some(BLEState::AdvertisingOn) {
+                               match data as u8 {
+                                   // this what nRF5X support at moment
+                                   // two complement
+                                   // 0x04 = 4 dBm, 0x00 = 0 dBm, 0xFC = -4 dBm, 0xF8 = -8 dBm
+                                   // 0xF4 = -12 dBm, 0xF0 = -16 dBm, 0xEC = -20 dBm, 0xD8 = -40 dBm
+                                   0x04 | 0x00 | 0xFC | 0xF8 | 0xF4 | 0xF0 | 0xEC | 0xD8 => {
+                                       app.tx_power.set(data as u8);
+                                       ReturnCode::SUCCESS
+                                   }
+                                   _ => ReturnCode::EINVAL,
+                               }
+                           } else {
+                               ReturnCode::EBUSY
+                           })
                     .unwrap_or_else(|err| err.into())
             }
 
-            // Configure advertisement intervall
-            // FIXME: add guard that this is only allowed between advertisements
-            // for each process however it's safe for different processes to change advertisement
-            // intervall once another process is advertising
-            // but to this twpower must be moved into the grant
+            // Configure advertisement interval
+            // Vol 6, Part B 4.4.2.2
+            // The advertisment interval shall an integer multiple of 0.625ms in the range of
+            // 20ms to 10240 ms!
+            //
+            // data - advertisement interval in ms
+            // FIXME: add check that data is a multiple of 0.625
             3 => {
                 self.app
-                    .enter(appid, |app, _| {
-                        if data < 20 {
-                            app.advertisement_interval
-                                .set(20 * <A::Frequency>::frequency() / 1000);
-                        } else if data > 10240 {
-                            app.advertisement_interval
-                                .set(10240 * <A::Frequency>::frequency() / 1000);
-                        } else {
-                            app.advertisement_interval
-                                .set((data as u32) * <A::Frequency>::frequency() / 1000);
-                        }
-                        ReturnCode::SUCCESS
-                    })
+                    .enter(appid,
+                           |app, _| if app.process_status != Some(BLEState::ScanningOff) &&
+                                       app.process_status != Some(BLEState::AdvertisingOn) {
+                               if data < 20 {
+                                   app.advertisement_interval_ms.set(20);
+                               } else if data > 10240 {
+                                   app.advertisement_interval_ms.set(10420);
+                               } else {
+                                   app.advertisement_interval_ms.set(data as u32);
+                               }
+                               ReturnCode::SUCCESS
+                           } else {
+                               ReturnCode::EBUSY
+                           })
                     .unwrap_or_else(|err| err.into())
             }
 
             // Reset payload when the kernel is not actively advertising
+            // FIXME: Add guard
             4 => {
-                if !self.busy.get() {
-                    let result = self.reset_payload(appid);
-                    match result {
-                        ReturnCode::SUCCESS => {
-                            self.app
-                                .enter(appid, |app, _| {
-                                    app.offset.set(PACKET_PAYLOAD_START);
-                                    ReturnCode::SUCCESS
-                                })
-                                .unwrap_or_else(|err| err.into())
-                        }
-                        e @ _ => e,
+                let result = self.reset_payload(appid);
+                match result {
+                    ReturnCode::SUCCESS => {
+                        self.app
+                            .enter(appid, |app, _| {
+                                app.offset.set(PACKET_PAYLOAD_START);
+                                ReturnCode::SUCCESS
+                            })
+                            .unwrap_or_else(|err| err.into())
                     }
-                } else {
-                    ReturnCode::EBUSY
+                    e @ _ => e,
                 }
             }
             // Passive scanning mode
@@ -610,7 +624,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                 self.app
                     .enter(appid,
                            |app, _| if app.process_status == Some(BLEState::Initialized) {
-                               app.process_status = Some(BLEState::Scanning);
+                               app.process_status = Some(BLEState::ScanningOff);
                                self.configure_periodic_alarm();
                                ReturnCode::SUCCESS
                            } else {

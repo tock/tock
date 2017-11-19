@@ -134,6 +134,8 @@ int ble_advertise_manufacturer_specific_data(uint8_t *data, uint8_t size_b);
 //
 int ble_start_passive_scan(uint8_t *data, uint8_t len, subscribe_cb callback);
 
+int ble_stop_passive_scan(void);
+
 #ifdef __cplusplus
 }
 #endif

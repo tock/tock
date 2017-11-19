@@ -321,6 +321,9 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
                 PAYLOAD[i] = *c;
             }
         }
+        /*unsafe {
+            debug!("{:?}\r\n", &PAYLOAD[0..32]);
+        }*/
         buf
     }
 

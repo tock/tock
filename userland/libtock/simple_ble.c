@@ -161,3 +161,7 @@ int ble_start_passive_scan(uint8_t *data, uint8_t max_len,
     return command(BLE_DRIVER_NUMBER, BLE_SCAN_CMD, 1, 0);
   }
 }
+
+int ble_stop_passive_scan(void) {
+  return command(BLE_DRIVER_NUMBER, BLE_ADV_STOP_CMD, 1, 0);
+}
