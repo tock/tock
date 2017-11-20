@@ -923,9 +923,3 @@ impl hil::spi::SpiMaster for USART {
         unimplemented!("USART: SPI: Use `read_write_bytes()` instead.");
     }
 }
-
-// Register interrupt handlers
-interrupt_handler!(usart0_handler, USART0);
-interrupt_handler!(usart1_handler, USART1);
-interrupt_handler!(usart2_handler, USART2);
-interrupt_handler!(usart3_handler, USART3);

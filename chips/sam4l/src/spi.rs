@@ -662,5 +662,3 @@ impl DMAClient for Spi {
         }
     }
 }
-
-interrupt_handler!(spi_interrupt_handler, SPI);

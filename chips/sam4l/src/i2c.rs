@@ -813,18 +813,3 @@ impl hil::i2c::I2CSlave for I2CHw {
 }
 
 impl hil::i2c::I2CMasterSlave for I2CHw {}
-
-interrupt_handler!(twim0_handler, TWIM0, {
-    I2C0.disable_interrupts()
-});
-interrupt_handler!(twim1_handler, TWIM1, {
-    I2C1.disable_interrupts()
-});
-interrupt_handler!(twim2_handler, TWIM2, {
-    I2C2.disable_interrupts()
-});
-interrupt_handler!(twim3_handler, TWIM3, {
-    I2C3.disable_interrupts()
-});
-interrupt_handler!(twis0_handler, TWIS0);
-interrupt_handler!(twis1_handler, TWIS1);

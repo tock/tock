@@ -97,5 +97,3 @@ impl hil::dac::DacChannel for Dac {
         }
     }
 }
-
-interrupt_handler!(dacc_handler, DACC);

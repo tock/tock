@@ -243,5 +243,3 @@ impl hil::symmetric_encryption::SymmetricEncryption for Aes {
         self.write_block();
     }
 }
-
-interrupt_handler!(aes_handler, AESA);

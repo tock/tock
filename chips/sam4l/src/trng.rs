@@ -88,5 +88,3 @@ impl<'a> rng::RNG for Trng<'a> {
         regs.interrupt_enable.set(1);
     }
 }
-
-interrupt_handler!(trng_handler, TRNG);

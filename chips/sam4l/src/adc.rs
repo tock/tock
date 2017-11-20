@@ -858,6 +858,3 @@ impl dma::DMAClient for Adc {
         }
     }
 }
-
-/// Handles ADCIFE interrupts.
-interrupt_handler!(adcife_handler, ADCIFE);

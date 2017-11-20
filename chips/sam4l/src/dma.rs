@@ -257,33 +257,3 @@ impl DMAChannel {
         registers.transfer_counter.get() as usize
     }
 }
-
-macro_rules! pdca_handler {
-    ($name: ident, $nvic: ident, $num: expr) => {
-        interrupt_handler!(
-            $name,
-            $nvic,
-            {
-                let registers : &mut DMARegisters =
-                    mem::transmute(DMA_CHANNELS[$num].registers);
-                registers.interrupt_disable.set(0xffffffff);
-            });
-    }
-}
-
-pdca_handler!(pdca0_handler, PDCA0, 0);
-pdca_handler!(pdca1_handler, PDCA1, 1);
-pdca_handler!(pdca2_handler, PDCA2, 2);
-pdca_handler!(pdca3_handler, PDCA3, 3);
-pdca_handler!(pdca4_handler, PDCA4, 4);
-pdca_handler!(pdca5_handler, PDCA5, 5);
-pdca_handler!(pdca6_handler, PDCA6, 6);
-pdca_handler!(pdca7_handler, PDCA7, 7);
-pdca_handler!(pdca8_handler, PDCA8, 8);
-pdca_handler!(pdca9_handler, PDCA9, 9);
-pdca_handler!(pdca10_handler, PDCA10, 10);
-pdca_handler!(pdca11_handler, PDCA11, 11);
-pdca_handler!(pdca12_handler, PDCA12, 12);
-pdca_handler!(pdca13_handler, PDCA13, 13);
-pdca_handler!(pdca14_handler, PDCA14, 14);
-pdca_handler!(pdca15_handler, PDCA15, 15);

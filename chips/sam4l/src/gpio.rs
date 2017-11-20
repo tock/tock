@@ -532,16 +532,3 @@ impl hil::gpio::Pin for GPIOPin {
         GPIOPin::disable_interrupt(self);
     }
 }
-
-interrupt_handler!(gpio0_handler, GPIO0);
-interrupt_handler!(gpio1_handler, GPIO1);
-interrupt_handler!(gpio2_handler, GPIO2);
-interrupt_handler!(gpio3_handler, GPIO3);
-interrupt_handler!(gpio4_handler, GPIO4);
-interrupt_handler!(gpio5_handler, GPIO5);
-interrupt_handler!(gpio6_handler, GPIO6);
-interrupt_handler!(gpio7_handler, GPIO7);
-interrupt_handler!(gpio8_handler, GPIO8);
-interrupt_handler!(gpio9_handler, GPIO9);
-interrupt_handler!(gpio10_handler, GPIO10);
-interrupt_handler!(gpio11_handler, GPIO11);

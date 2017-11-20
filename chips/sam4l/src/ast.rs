@@ -275,5 +275,3 @@ impl<'a> Alarm for Ast<'a> {
         unsafe { (*self.regs).ar0.get() }
     }
 }
-
-interrupt_handler!(ast_alarm_handler, ASTALARM);

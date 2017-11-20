@@ -861,5 +861,3 @@ impl fmt::Debug for UestaFlags {
 
 /// Static state to manage the USBC
 pub static mut USBC: Usbc<'static> = Usbc::new();
-
-interrupt_handler!(usbc_handler, USBC);

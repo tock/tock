@@ -410,5 +410,3 @@ impl<'a> crc::CRC for Crccu<'a> {
 
 /// Static state to manage the CRCCU
 pub static mut CRCCU: Crccu<'static> = Crccu::new();
-
-interrupt_handler!(crccu_handler, CRCCU);
