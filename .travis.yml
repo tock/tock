@@ -13,7 +13,7 @@ os:
 # If you change this, you must also change Getting_Started.md, Makefile.common,
 # and Vagrantfile.
 rust:
-  - nightly-2017-09-20
+  - nightly-2017-11-18
 
 before_install:
   - ./.travis-install-gcc
@@ -35,4 +35,3 @@ script:
 
 after_success:
   - test $TRAVIS_BRANCH = "master" && test $TRAVIS_PULL_REQUEST = "false" && ./.travis-deploy-netlify
-

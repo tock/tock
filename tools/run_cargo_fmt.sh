@@ -5,9 +5,9 @@
 # Note: We install a local copy of rustfmt so as not to interfere with any
 # other use of rustfmt on the machine
 RUSTFMT_VERSION=0.7.1
-export RUSTUP_TOOLCHAIN=nightly-2017-09-20
+export RUSTUP_TOOLCHAIN=nightly-2017-11-18
 
-if [[ $(rustc --version) != "rustc 1.22.0-nightly (325ba23d5 2017-09-19)" ]]; then
+if [[ $(rustc --version) != "rustc 1.23.0-nightly (6160040d8 2017-11-18)" ]]; then
 	rustup install $RUSTUP_TOOLCHAIN || (echo "Failed to install rustc. Please read doc/Getting_Started.md"; exit 1)
 fi
 
