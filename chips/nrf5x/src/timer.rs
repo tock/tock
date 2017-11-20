@@ -25,8 +25,6 @@
 use core::cell::Cell;
 use core::mem;
 use kernel::hil;
-use nvic;
-use peripheral_interrupts::NvicIdx;
 use peripheral_registers;
 
 
@@ -39,19 +37,16 @@ pub enum Location {
 
 pub static mut TIMER0: Timer = Timer {
     which: Location::TIMER0,
-    nvic: NvicIdx::TIMER0,
     client: Cell::new(None),
 };
 
 pub static mut ALARM1: TimerAlarm = TimerAlarm {
     which: Location::TIMER1,
-    nvic: NvicIdx::TIMER1,
     client: Cell::new(None),
 };
 
 pub static mut TIMER2: Timer = Timer {
     which: Location::TIMER2,
-    nvic: NvicIdx::TIMER2,
     client: Cell::new(None),
 };
 
@@ -69,7 +64,6 @@ pub trait CompareClient {
 
 pub struct Timer {
     which: Location,
-    nvic: NvicIdx,
     client: Cell<Option<&'static CompareClient>>,
 }
 
@@ -78,10 +72,9 @@ impl Timer {
         TIMER(self.which)
     }
 
-    pub const fn new(location: Location, nvic: NvicIdx) -> Timer {
+    pub const fn new(location: Location) -> Timer {
         Timer {
             which: location,
-            nvic: nvic,
             client: Cell::new(None),
         }
     }
@@ -178,14 +171,6 @@ impl Timer {
         self.timer().intenclr.set(interrupts << 16);
     }
 
-    pub fn enable_nvic(&self) {
-        nvic::enable(self.nvic);
-    }
-
-    pub fn disable_nvic(&self) {
-        nvic::disable(self.nvic);
-    }
-
     pub fn set_prescaler(&self, val: u8) {
         // Only bottom 4 bits are valid, so mask them
         // nRF51822 reference manual, page 102
@@ -200,7 +185,6 @@ impl Timer {
     /// events that is passed to the client.
 
     pub fn handle_interrupt(&self) {
-        nvic::clear_pending(self.nvic);
         self.client.get().map(|client| {
             let mut val = 0;
             // For each of 4 possible compare events, if it's happened,
@@ -219,7 +203,6 @@ impl Timer {
 
 pub struct TimerAlarm {
     which: Location,
-    nvic: NvicIdx,
     client: Cell<Option<&'static hil::time::Client>>,
 }
 
@@ -234,10 +217,9 @@ impl TimerAlarm {
         TIMER(self.which)
     }
 
-    pub const fn new(location: Location, nvic: NvicIdx) -> TimerAlarm {
+    pub const fn new(location: Location) -> TimerAlarm {
         TimerAlarm {
             which: location,
-            nvic: nvic,
             client: Cell::new(None),
         }
     }
@@ -250,7 +232,6 @@ impl TimerAlarm {
     pub fn clear_alarm(&self) {
         self.timer().event_compare[ALARM_COMPARE].set(0);
         self.disable_interrupts();
-        nvic::clear_pending(self.nvic);
     }
 
     pub fn set_client(&self, client: &'static hil::time::Client) {
@@ -287,14 +268,6 @@ impl TimerAlarm {
 
     pub fn interrupts_enabled(&self) -> bool {
         self.timer().intenset.get() == (ALARM_INTERRUPT_BIT)
-    }
-
-    pub fn enable_nvic(&self) {
-        nvic::enable(self.nvic);
-    }
-
-    pub fn disable_nvic(&self) {
-        nvic::disable(self.nvic);
     }
 
     pub fn value(&self) -> u32 {

@@ -1,20 +1,15 @@
+use cortexm4::nvic;
 use kernel;
-use kernel::common::{RingBuffer, Queue};
 use nrf5x;
-use nrf5x::peripheral_interrupts::NvicIdx;
+use nrf5x::peripheral_interrupts::*;
 use radio;
 use spi;
 use uart;
-
-const IQ_SIZE: usize = 100;
-static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
-pub static mut INTERRUPT_QUEUE: Option<RingBuffer<'static, NvicIdx>> = None;
 
 pub struct NRF52(());
 
 impl NRF52 {
     pub unsafe fn new() -> NRF52 {
-        INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
         NRF52(())
     }
 }
@@ -34,32 +29,31 @@ impl kernel::Chip for NRF52 {
 
     fn service_pending_interrupts(&mut self) {
         unsafe {
-            INTERRUPT_QUEUE.as_mut()
-                .unwrap()
-                .dequeue()
-                .map(|interrupt| {
-                    match interrupt {
-                        NvicIdx::ECB => nrf5x::aes::AESECB.handle_interrupt(),
-                        NvicIdx::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
-                        NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
-                        NvicIdx::RNG => nrf5x::trng::TRNG.handle_interrupt(),
-                        NvicIdx::RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
-                        NvicIdx::TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
-                        NvicIdx::TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
-                        NvicIdx::TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
-                        NvicIdx::TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
-                        NvicIdx::UART0 => uart::UART0.handle_interrupt(),
-                        NvicIdx::SPI0_TWI0 => spi::SPIM0.handle_interrupt(),
-                        NvicIdx::SPI1_TWI1 => spi::SPIM1.handle_interrupt(),
-                        NvicIdx::SPIM2_SPIS2_SPI2 => spi::SPIM2.handle_interrupt(),
-                        _ => debug!("NvicIdx not supported by Tock\r\n"),
-                    }
-                    nrf5x::nvic::enable(interrupt);
-                });
+            while let Some(interrupt) = nvic::next_pending() {
+                match interrupt {
+                    ECB => nrf5x::aes::AESECB.handle_interrupt(),
+                    GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
+                    RADIO => radio::RADIO.handle_interrupt(),
+                    RNG => nrf5x::trng::TRNG.handle_interrupt(),
+                    RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
+                    TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
+                    TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
+                    TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
+                    TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
+                    UART0 => uart::UART0.handle_interrupt(),
+                    SPI0_TWI0 => spi::SPIM0.handle_interrupt(),
+                    SPI1_TWI1 => spi::SPIM1.handle_interrupt(),
+                    SPIM2_SPIS2_SPI2 => spi::SPIM2.handle_interrupt(),
+                    _ => debug!("NvicIdx not supported by Tock\r\n"),
+                }
+                let n = nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
+            }
         }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { INTERRUPT_QUEUE.as_mut().unwrap().has_elements() }
+        unsafe { nvic::has_pending() }
     }
 }

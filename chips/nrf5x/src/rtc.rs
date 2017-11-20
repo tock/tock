@@ -4,8 +4,6 @@ use core::cell::Cell;
 use core::mem;
 use kernel::hil::Controller;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
-use nvic;
-use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{RTC1_BASE, RTC1};
 
 fn rtc1() -> &'static RTC1 {
@@ -39,19 +37,9 @@ impl Rtc {
         // So it should only be called during initialization, not each tick
         rtc1().prescaler.set(0);
         rtc1().tasks_start.set(1);
-        self.enable_interrupts();
-    }
-
-    pub fn disable_interrupts(&self) {
-        nvic::disable(NvicIdx::RTC1);
-    }
-
-    pub fn enable_interrupts(&self) {
-        nvic::enable(NvicIdx::RTC1);
     }
 
     pub fn stop(&self) {
-        self.disable_interrupts();
         rtc1().cc[0].set(0);
         rtc1().tasks_stop.set(1);
     }

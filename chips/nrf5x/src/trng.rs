@@ -22,8 +22,6 @@
 
 use core::cell::Cell;
 use kernel::hil::rng::{self, Continue};
-use nvic;
-use peripheral_interrupts::NvicIdx;
 use peripheral_registers::{RNG_BASE, RNG_REGS};
 
 pub struct Trng<'a> {
@@ -50,8 +48,6 @@ impl<'a> Trng<'a> {
         let regs = unsafe { &*self.regs };
         // disable interrupts
         self.disable_interrupts();
-        self.disable_nvic();
-        nvic::clear_pending(NvicIdx::RNG);
 
         match self.index.get() {
             // fetch more data need 4 bytes because the capsule requires that
@@ -105,14 +101,6 @@ impl<'a> Trng<'a> {
         regs.inten.set(0);
     }
 
-    fn enable_nvic(&self) {
-        nvic::enable(NvicIdx::RNG);
-    }
-
-    fn disable_nvic(&self) {
-        nvic::disable(NvicIdx::RNG);
-    }
-
     fn start_rng(&self) {
         let regs = unsafe { &*self.regs };
 
@@ -120,7 +108,6 @@ impl<'a> Trng<'a> {
         regs.event_valrdy.set(0);
 
         // enable interrupts
-        self.enable_nvic();
         self.enable_interrupts();
 
         // start rng

@@ -26,15 +26,12 @@
 //! - Author: Jay Kickliter
 //! - Date: Sep 10, 2017
 
-use chip;
 use core::cell::Cell;
 use core::cmp;
 use core::ptr;
 use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use nrf5x::nvic;
-use nrf5x::peripheral_interrupts::NvicIdx;
 use nrf5x::pinmux::Pinmux;
 
 /// SPI master instance 0.
@@ -49,14 +46,13 @@ mod registers {
         //! NRF52 `SPIM` registers and utility types.
         #![allow(dead_code)]
         use kernel::common::VolatileCell;
-        use nrf5x::peripheral_interrupts::NvicIdx;
         use nrf5x::pinmux::Pinmux;
 
         /// Uninitialized `SPIM` instances.
-        pub const INSTANCES: [(*const SPIM, NvicIdx); 3] =
-            [(0x40003000 as *const SPIM, NvicIdx::SPI0_TWI0),
-             (0x40004000 as *const SPIM, NvicIdx::SPI1_TWI1),
-             (0x40023000 as *const SPIM, NvicIdx::SPIM2_SPIS2_SPI2)];
+        pub const INSTANCES: [*const SPIM; 3] =
+            [0x40003000 as *const SPIM,
+             0x40004000 as *const SPIM,
+             0x40023000 as *const SPIM];
 
         bitfield!{
             /// Represents bitfields in `intenset` and `intenclr` registers.
@@ -271,7 +267,6 @@ mod registers {
 /// addition data necessary to implement an asynchronous interface.
 pub struct SPIM {
     registers: *const registers::spim::SPIM,
-    nvic_idx: NvicIdx,
     client: Cell<Option<&'static hil::spi::SpiMasterClient>>,
     chip_select: Cell<Option<&'static hil::gpio::Pin>>,
     initialized: Cell<bool>,
@@ -284,8 +279,7 @@ pub struct SPIM {
 impl SPIM {
     const fn new(instance: usize) -> SPIM {
         SPIM {
-            registers: registers::spim::INSTANCES[instance].0,
-            nvic_idx: registers::spim::INSTANCES[instance].1,
+            registers: registers::spim::INSTANCES[instance],
             client: Cell::new(None),
             chip_select: Cell::new(None),
             initialized: Cell::new(false),
@@ -363,11 +357,6 @@ impl SPIM {
         regs.psel_miso.set(miso);
         regs.psel_sck.set(sck);
         self.enable();
-        self.enable_nvic();
-    }
-
-    fn enable_nvic(&self) {
-        nvic::enable(self.nvic_idx);
     }
 
     /// Enables `SPIM` peripheral.
@@ -540,35 +529,4 @@ impl hil::spi::SpiMaster for SPIM {
     fn release_low(&self) {
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
-}
-
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SPI0_TWI0_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(NvicIdx::SPI0_TWI0);
-    chip::INTERRUPT_QUEUE.as_mut()
-        .unwrap()
-        .enqueue(NvicIdx::SPI0_TWI0);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SPI1_TWI1_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(NvicIdx::SPI1_TWI1);
-    chip::INTERRUPT_QUEUE.as_mut()
-        .unwrap()
-        .enqueue(NvicIdx::SPI1_TWI1);
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn SPIM2_SPIS2_SPI2_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(NvicIdx::SPIM2_SPIS2_SPI2);
-    chip::INTERRUPT_QUEUE.as_mut()
-        .unwrap()
-        .enqueue(NvicIdx::SPIM2_SPIS2_SPI2);
 }

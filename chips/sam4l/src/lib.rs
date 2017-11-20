@@ -37,6 +37,8 @@ pub mod dac;
 pub mod aes;
 pub mod usbc;
 
+use cortexm4::{generic_isr, SVC_Handler, systick_handler};
+
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
@@ -61,12 +63,6 @@ extern "C" {
 
     // Defined by platform
     fn reset_handler();
-
-    // Defined in src/arch/cortex-m4/ctx_switch.S
-    fn SVC_Handler();
-    fn systick_handler();
-
-    fn generic_isr();
 
     static mut _szero: u32;
     static mut _ezero: u32;
