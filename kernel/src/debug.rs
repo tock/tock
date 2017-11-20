@@ -269,7 +269,16 @@ impl Write for DebugWriter {
     }
 }
 
-pub fn begin_debug_fmt(args: Arguments, file_line: &(&'static str, u32)) {
+pub fn begin_debug_fmt(args: Arguments) {
+    unsafe {
+        let writer = &mut DEBUG_WRITER;
+        let _ = write(writer, args);
+        let _ = writer.write_str("\n");
+        writer.publish_str();
+    }
+}
+
+pub fn begin_debug_verbose_fmt(args: Arguments, file_line: &(&'static str, u32)) {
     unsafe {
         let count = read_volatile(&DEBUG_WRITER.count);
         write_volatile(&mut DEBUG_WRITER.count, count + 1);
@@ -283,20 +292,7 @@ pub fn begin_debug_fmt(args: Arguments, file_line: &(&'static str, u32)) {
     }
 }
 
-pub fn begin_debug(msg: &str, file_line: &(&'static str, u32)) {
-    unsafe {
-        let count = read_volatile(&DEBUG_WRITER.count);
-        write_volatile(&mut DEBUG_WRITER.count, count + 1);
-
-        let writer = &mut DEBUG_WRITER;
-        let (file, line) = *file_line;
-        let _ = writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line));
-        let _ = writer.write_fmt(format_args!("{}\n", msg));
-        writer.publish_str();
-    }
-}
-
-/// In-kernel `printf()` debugging.
+/// In-kernel `println()` debugging.
 #[macro_export]
 macro_rules! debug {
     () => ({
@@ -304,7 +300,22 @@ macro_rules! debug {
         debug!("")
     });
     ($msg:expr) => ({
-        $crate::debug::begin_debug($msg, {
+        $crate::debug::begin_debug_fmt(format_args!($msg))
+    });
+    ($fmt:expr, $($arg:tt)+) => ({
+        $crate::debug::begin_debug_fmt(format_args!($fmt, $($arg)+))
+    });
+}
+
+/// In-kernel `println()` debugging with filename and line numbers.
+#[macro_export]
+macro_rules! debug_verbose {
+    () => ({
+        // Allow an empty debug_verbose!() to print the location when hit
+        debug_verbose!("")
+    });
+    ($msg:expr) => ({
+        $crate::debug::begin_debug_verbose_fmt(format_args!($msg), {
             // TODO: Maybe make opposite choice of panic!, no `static`, more
             // runtime code for less static data
             static _FILE_LINE: (&'static str, u32) = (file!(), line!());
@@ -312,7 +323,7 @@ macro_rules! debug {
         })
     });
     ($fmt:expr, $($arg:tt)+) => ({
-        $crate::debug::begin_debug_fmt(format_args!($fmt, $($arg)+), {
+        $crate::debug::begin_debug_verbose_fmt(format_args!($fmt, $($arg)+), {
             static _FILE_LINE: (&'static str, u32) = (file!(), line!());
             &_FILE_LINE
         })
