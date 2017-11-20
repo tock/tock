@@ -24,11 +24,11 @@
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
-use core::sync::atomic::{AtomicBool, Ordering};
 use kernel::ReturnCode;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
+use helpers::{DeferedCall, Task};
 use pm;
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
@@ -67,30 +67,8 @@ enum RegKey {
     GPFRLO,
 }
 
-<<<<<<< HEAD
-=======
-pub static DEFERED_CALL: AtomicBool = AtomicBool::new(false);
+static DEFERED_CALL: DeferedCall = unsafe { DeferedCall::new(Task::Flashcalw) };
 
-/// High level commands to issue to the flash. Usually to track the state of
-/// a command especially if it's multiple FlashCMDs.
-///
-/// For example an erase is:
-///
-///  1. Unlock Page  (UP)
-///  2. Erase Page   (EP)
-///  3. Lock Page    (LP)
-///
-/// Store what high level command we're doing allows us to track the state and
-/// continue the steps of the command in handle_interrupt.
-#[derive(Clone, Copy, PartialEq)]
-pub enum Command {
-    Read,
-    Write { page: i32 },
-    Erase { page: i32 },
-    None,
-}
-
->>>>>>> a04481ef... fix flash with defered call global
 /// There are 18 recognized commands for the flash. These are "bare-bones"
 /// commands and values that are written to the Flash's command register to
 /// inform the flash what to do. Table 14-5.
@@ -339,7 +317,7 @@ impl FLASHCALW {
             FlashState::WriteUnlocking { page } => {
                 self.current_state.set(FlashState::WriteErasing { page: page });
                 self.flashcalw_erase_page(page);
-                DEFERED_CALL.store(true, Ordering::Relaxed);
+                DEFERED_CALL.set();
             }
             FlashState::WriteErasing { page } => {
                 //  Write page buffer isn't really a command, and
@@ -842,10 +820,8 @@ impl FLASHCALW {
 
         // This is kind of strange, but because read() in this case is
         // synchronous, we still need to schedule as if we had an interrupt so
-        // we can call the callback.
-        //
-        //TODO: this used to be here... flash_handler(); would `handle_interrupt()` work?
-        DEFERED_CALL.store(true, Ordering::Relaxed);
+        // we can allow this function to return and then call the callback.
+        DEFERED_CALL.set();
 
         ReturnCode::SUCCESS
     }

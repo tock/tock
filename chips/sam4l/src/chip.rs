@@ -1,6 +1,5 @@
 //! Interrupt mapping and DMA channel setup.
 
-use core::sync::atomic::Ordering;
 use adc;
 use aes;
 use ast;
@@ -17,6 +16,7 @@ use spi;
 use trng;
 use usart;
 use usbc;
+use helpers::{DeferedCall, Task};
 
 pub struct Sam4l {
     pub mpu: cortexm4::mpu::MPU,
@@ -73,8 +73,10 @@ impl Chip for Sam4l {
 
         unsafe {
             loop {
-                if flashcalw::DEFERED_CALL.swap(false, Ordering::Relaxed) {
-                    flashcalw::FLASH_CONTROLLER.handle_interrupt();
+                if let Some(task) = DeferedCall::next_pending() {
+                    match task {
+                        Task::Flashcalw => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
+                    }
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match interrupt {
                         ASTALARM => ast::AST.handle_interrupt(),
@@ -148,7 +150,7 @@ impl Chip for Sam4l {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || flashcalw::DEFERED_CALL.load(Ordering::Relaxed) }
+        unsafe { cortexm4::nvic::has_pending() || DeferedCall::has_tasks() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
