@@ -60,10 +60,10 @@ _ggeneric_isr_no_stacking:
 	lsls	r3, r3, #2
 	adds	r3, r3, r1
 	str	r2, [r3]
-    nop /* Needed for pc-relative alignment of immediates */
+    bx lr /* Needed for pc-relative alignment of immediates */
 
 NVICICER:
-  .word 0xFFFFFFF9
+  .word 0xE000E180
 MEXC_RETURN_MSP:
   .word 0xFFFFFFF9
 MEXC_RETURN_PSP:
