@@ -1,9 +1,9 @@
-//! Cortex-M3 NVIC
+//! Cortex-M0 NVIC
 
 use kernel::common::volatile_cell::VolatileCell;
 
 #[repr(C, packed)]
-// Registers for the NVIC. Each
+// Registers for the NVIC
 struct Registers {
     // Interrupt set-enable
     iser: [VolatileCell<u32>; 8],
