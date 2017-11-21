@@ -12,17 +12,14 @@ extern crate nrf5x;
 #[macro_use]
 extern crate bitfield;
 
-extern "C" {
-    pub fn init();
-}
-
 mod peripheral_registers;
 
 pub mod chip;
-pub use chip::NRF52;
 pub mod crt1;
 pub mod nvmc;
 pub mod radio;
 pub mod uart;
 pub mod uicr;
 pub mod spi;
+
+pub use crt1::init;

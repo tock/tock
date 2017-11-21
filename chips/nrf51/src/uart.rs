@@ -1,9 +1,7 @@
-use chip;
 use core::cell::Cell;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart;
-use nrf5x;
 use nrf5x::pinmux::Pinmux;
 
 #[repr(C, packed)]
@@ -117,14 +115,6 @@ impl UART {
         regs.enable.set(0b100);
     }
 
-    pub fn enable_nvic(&self) {
-        nrf5x::nvic::enable(nrf5x::peripheral_interrupts::NvicIdx::UART0);
-    }
-
-    pub fn disable_nvic(&self) {
-        nrf5x::nvic::disable(nrf5x::peripheral_interrupts::NvicIdx::UART0);
-    }
-
     pub fn enable_rx_interrupts(&self) {
         let regs = unsafe { &*self.regs };
         regs.intenset.set(1 << 3 as u32);
@@ -191,7 +181,6 @@ impl UART {
         self.enable_tx_interrupts();
         regs.task_starttx.set(1);
         regs.txd.set(byte as u32);
-        self.enable_nvic();
     }
 
     pub fn tx_ready(&self) -> bool {
@@ -230,7 +219,6 @@ impl uart::UART for UART {
         regs.task_starttx.set(1);
         regs.txd.set(tx_data[0] as u32);
         self.buffer.replace(tx_data);
-        self.enable_nvic();
     }
 
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
@@ -243,12 +231,4 @@ impl uart::UART for UART {
             i += 1;
         }
     }
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn UART0_Handler() {
-    use kernel::common::Queue;
-    nrf5x::nvic::disable(nrf5x::peripheral_interrupts::NvicIdx::UART0);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(nrf5x::peripheral_interrupts::NvicIdx::UART0);
 }
