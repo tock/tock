@@ -24,11 +24,11 @@
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
+use helpers::{DeferedCall, Task};
 use kernel::ReturnCode;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use helpers::{DeferedCall, Task};
 use pm;
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.

@@ -50,9 +50,7 @@ mod registers {
 
         /// Uninitialized `SPIM` instances.
         pub const INSTANCES: [*const SPIM; 3] =
-            [0x40003000 as *const SPIM,
-             0x40004000 as *const SPIM,
-             0x40023000 as *const SPIM];
+            [0x40003000 as *const SPIM, 0x40004000 as *const SPIM, 0x40023000 as *const SPIM];
 
         bitfield!{
             /// Represents bitfields in `intenset` and `intenclr` registers.

@@ -1,8 +1,8 @@
 use core::convert::TryFrom;
-use core::sync::atomic::AtomicU32;
+use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
-static DEFERED_CALL: AtomicU32 = AtomicU32::new(0);
+static DEFERED_CALL: AtomicUsize = AtomicUsize::new(0);
 
 /// Represents a way to generate an asynchronous call without a hardware interrupt.
 pub struct DeferedCall(Task);
@@ -13,13 +13,13 @@ pub enum Task {
     Flashcalw = 0,
 }
 
-impl TryFrom<u32> for Task {
+impl TryFrom<usize> for Task {
     type Error = ();
 
-    fn try_from(value: u32) -> Result<Task, ()> {
+    fn try_from(value: usize) -> Result<Task, ()> {
         match value {
             0 => Ok(Task::Flashcalw),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -34,7 +34,7 @@ impl DeferedCall {
 
     /// Set the `DeferedCall` as pending
     pub fn set(&self) {
-        DEFERED_CALL.fetch_or(1 << self.0 as u32, Ordering::Relaxed);
+        DEFERED_CALL.fetch_or(1 << self.0 as usize, Ordering::Relaxed);
     }
 
     /// Are there any pending `DeferedCall`s
@@ -46,9 +46,9 @@ impl DeferedCall {
     pub fn next_pending() -> Option<Task> {
         let val = DEFERED_CALL.load(Ordering::Relaxed);
         if val == 0 {
-            return None
+            return None;
         } else {
-            let bit = val.trailing_zeros();
+            let bit = val.trailing_zeros() as usize;
             let new_val = val & !(1 << bit);
             DEFERED_CALL.store(new_val, Ordering::Relaxed);
             return Task::try_from(bit).ok();

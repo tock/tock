@@ -9,6 +9,7 @@ use dac;
 use dma;
 use flashcalw;
 use gpio;
+use helpers::{DeferedCall, Task};
 use i2c;
 use kernel::Chip;
 use pm;
@@ -16,7 +17,6 @@ use spi;
 use trng;
 use usart;
 use usbc;
-use helpers::{DeferedCall, Task};
 
 pub struct Sam4l {
     pub mpu: cortexm4::mpu::MPU,
