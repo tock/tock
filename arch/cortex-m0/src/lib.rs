@@ -47,26 +47,20 @@ _ggeneric_isr_no_stacking:
     /* ISRs start at 16, so substract 16 to get zero-indexed */
     subs r0, r0, #16
 
-
+    /* NVIC.ICER[r0 / 32] = 1 << (r0 & 31) */
 	movs	r2, #31
 	asrs	r3, r0, #31
 	ands	r3, r2
 	adds	r3, r3, r0
+	ands	r0, r2
+	subs	r2, r2, #30
+	lsls	r2, r2, r0
 	ldr	r1, NVICICER
 	asrs	r3, r3, #5
 	lsls	r3, r3, #2
 	adds	r3, r3, r1
-
-    /* r2 = 1 << (r0 & 31) */
-	ands	r0, r2
-	subs	r2, r2, #30
-	lsls	r2, r2, r0
-
-    /* r1 = NVIC.ICER[r0 / 32] */
-
-    /* *r2 = r3 */
 	str	r2, [r3]
-	nop /* Needed for symbol alignment */
+    nop /* Needed for pc-relative alignment of immediates */
 
 NVICICER:
   .word 0xFFFFFFF9

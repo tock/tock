@@ -1,4 +1,4 @@
-//! Cortex-M0 NVIC
+//! Cortex-M4 NVIC
 
 use kernel::common::volatile_cell::VolatileCell;
 

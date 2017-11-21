@@ -78,22 +78,16 @@ _ggeneric_isr_no_stacking:
     /* ISRs start at 16, so substract 16 to get zero-indexed */
     sub r0, #16
 
-    /* r1 = NVIC.ICER[r0 / 32] */
-    mov r1, #0xe180
-    movt r1, #0xe000
-    lsr r2, r0, #5
-    mov r3, #4
-    mul r2, r3
-    add r1, r2
 
-    /* r2 = 1 << (r0 & 31) */
-    mov r2, #1
-    mov r3, #31
-    and r3, r0
-    lsl r2, r2, r3
-
-    /* *r1 = r2 */
-    str r2, [r1, #0]");
+    /* NVIC.ICER[r0 / 32] = 1 << (r0 & 31) */
+	movs r2, #1
+	movs r3, #32
+	sdiv r3, r0, r3
+	and	r0, r0, #31
+	lsl	r0, r2, r0
+    mov r2, #0xe180
+    movt r2, #0xe000
+	str	r0, [r2, r3, lsl #2]");
 }
 
 #[cfg(not(target_os = "none"))]
