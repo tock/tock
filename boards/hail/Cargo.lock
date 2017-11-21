@@ -1,13 +1,3 @@
-[root]
-name = "hail"
-version = "0.1.0"
-dependencies = [
- "capsules 0.1.0",
- "cortexm4 0.1.0",
- "kernel 0.1.0",
- "sam4l 0.1.0",
-]
-
 [[package]]
 name = "capsules"
 version = "0.1.0"
@@ -20,6 +10,16 @@ name = "cortexm4"
 version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
+]
+
+[[package]]
+name = "hail"
+version = "0.1.0"
+dependencies = [
+ "capsules 0.1.0",
+ "cortexm4 0.1.0",
+ "kernel 0.1.0",
+ "sam4l 0.1.0",
 ]
 
 [[package]]
