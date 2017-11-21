@@ -306,8 +306,8 @@ pub fn compress(ctx_store: &ContextStore,
                 dst_mac_addr: MacAddress,
                 mut buf: &mut [u8])
                 -> Result<(usize, usize), ()> {
-    let ip6_header = IP6Header::parse(ip6_datagram)?;
-    let mut consumed: usize = mem::size_of::<IP6Header>();
+    // Note that consumed should be constant, and equal sizeof(IP6Header)
+    let (mut consumed, ip6_header) = IP6Header::decode(ip6_datagram).done().ok_or(())?;
     let mut next_headers: &[u8] = &ip6_datagram[consumed..];
 
     // The first two bytes are the LOWPAN_IPHC header
@@ -990,7 +990,7 @@ pub fn decompress(ctx_store: &ContextStore,
         written + (buf.len() - consumed) - mem::size_of::<IP6Header>()
     };
     ip6_header.payload_len = (payload_len as u16).to_be();
-    ip6_header.serialize(&mut out_buf[0..40])?;
+    IP6Header::encode(out_buf, ip6_header).done().ok_or(())?;
     Ok((consumed, written))
 }
 

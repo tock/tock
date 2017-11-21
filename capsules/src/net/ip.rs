@@ -1,3 +1,7 @@
+use net::stream::{decode_u16, decode_u8, decode_bytes};
+use net::stream::{encode_u16, encode_u8, encode_bytes};
+use net::stream::SResult;
+
 #[derive(Copy,Clone,PartialEq)]
 pub enum MacAddr {
     ShortAddr(u16),
@@ -94,53 +98,36 @@ impl IP6Header {
         IP6Header::default()
     }
 
-    /// Parses a buffer into an `IP6Header`
-    ///
-    /// The buffer must be at least 40 bytes. This method performs no checking
-    /// on the validity of the header.
-    pub fn parse(buf: &[u8]) -> Result<IP6Header, ()> {
-        if buf.len() < 40 {
-            return Err(());
-        }
-        let version_class_flow: [u8; 4] = [buf[0], buf[1], buf[2], buf[3]];
+    pub fn decode(buf: &[u8]) -> SResult<IP6Header> {
+        // TODO: Let size of header be a constant
+        stream_len_cond!(buf, 40);
 
-        let payload_len: u16 = buf[4] as u16 | (buf[5] as u16) << 8;
-        let next_header: u8 = buf[6];
-        let hop_limit: u8 = buf[7];
-
-        let mut src_addr = IPAddr::new();
-        src_addr.0.copy_from_slice(&buf[8..][..16]);
-        let mut dst_addr = IPAddr::new();
-        dst_addr.0.copy_from_slice(&buf[24..][..16]);
-
-        Ok(IP6Header {
-            version_class_flow: version_class_flow,
-            payload_len: payload_len,
-            next_header: next_header,
-            hop_limit: hop_limit,
-            src_addr: src_addr,
-            dst_addr: dst_addr,
-        })
+        let mut ip6_header = Self::new();
+        // Note that `dec_consume!` uses the length of the output buffer to
+        // determine how many bytes are to be read.
+        let off = dec_consume!(buf, 0; decode_bytes, &mut ip6_header.version_class_flow);
+        let (off, payload_len_be) = dec_try!(buf, off; decode_u16);
+        ip6_header.payload_len = u16::from_be(payload_len_be);
+        let (off, next_header) = dec_try!(buf, off; decode_u8);
+        ip6_header.next_header = next_header;
+        let (off, hop_limit) = dec_try!(buf, off; decode_u8);
+        ip6_header.hop_limit = hop_limit;
+        let off = dec_consume!(buf, off; decode_bytes, &mut ip6_header.src_addr.0);
+        let off = dec_consume!(buf, off; decode_bytes, &mut ip6_header.dst_addr.0);
+        stream_done!(off, ip6_header);
     }
 
-    pub fn serialize(&self, buf: &mut [u8]) -> Result<(), ()> {
-        if buf.len() < 40 {
-            return Err(());
-        }
+    // Returns the offset wrapped in an SResult
+    pub fn encode(buf: &mut [u8], ip6_header: IP6Header) -> SResult<usize> {
+        stream_len_cond!(buf, 40);
 
-        let mut buf = [0; 40];
-
-        buf[0..4].copy_from_slice(&self.version_class_flow);
-        buf[4] = self.payload_len as u8;
-        buf[5] = (self.payload_len >> 8) as u8;
-        buf[6] = self.next_header;
-        buf[7] = self.hop_limit;
-
-        buf[8..][..16].copy_from_slice(&self.src_addr.0);
-        buf[24..][..16].copy_from_slice(&self.dst_addr.0);
-
-        Ok(())
-
+        let mut off = enc_consume!(buf, 0; encode_bytes, &ip6_header.version_class_flow);
+        off = enc_consume!(buf, off; encode_u16, ip6_header.payload_len.to_be());
+        off = enc_consume!(buf, off; encode_u8, ip6_header.next_header);
+        off = enc_consume!(buf, off; encode_u8, ip6_header.hop_limit);
+        off = enc_consume!(buf, off; encode_bytes, &ip6_header.src_addr.0);
+        off = enc_consume!(buf, off; encode_bytes, &ip6_header.dst_addr.0);
+        stream_done!(off, off);
     }
 
     // Version should always be 6
