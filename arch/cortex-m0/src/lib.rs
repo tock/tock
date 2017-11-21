@@ -28,15 +28,16 @@ pub unsafe extern "C" fn generic_isr() {
     str r6, [r1, #24]
     str r7, [r1, #28]
 
+    push {r4-r7}
     mov  r4, r8
     mov  r5, r9
     mov  r6, r10
     mov  r7, r11
-
     str r4, [r1, #0]
     str r5, [r1, #4]
     str r6, [r1, #8]
     str r7, [r1, #12]
+    pop {r4-r7}
 
     ldr r0, MEXC_RETURN_MSP
 _ggeneric_isr_no_stacking:
