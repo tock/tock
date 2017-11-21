@@ -18,7 +18,6 @@ pub mod scb;
 pub unsafe extern "C" fn systick_handler() {}
 
 #[cfg(target_os = "none")]
-#[no_mangle]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
     asm!("
@@ -51,7 +50,6 @@ pub unsafe extern "C" fn systick_handler() {
 pub unsafe extern "C" fn generic_isr() {}
 
 #[cfg(target_os = "none")]
-#[no_mangle]
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
@@ -80,7 +78,6 @@ _ggeneric_isr_no_stacking:
     /* ISRs start at 16, so substract 16 to get zero-indexed */
     sub r0, #16
 
-
     /* r1 = NVIC.ICER[r0 / 32] */
     mov r1, #0xe180
     movt r1, #0xe000
@@ -104,7 +101,6 @@ _ggeneric_isr_no_stacking:
 pub unsafe extern "C" fn SVC_Handler() {}
 
 #[cfg(target_os = "none")]
-#[no_mangle]
 #[naked]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn SVC_Handler() {
