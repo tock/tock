@@ -1,29 +1,19 @@
-use std::ascii::AsciiExt;
+extern crate regex;
+
 use std::env;
 use std::fs::File;
+use std::io::Read;
 use std::io::Write;
 use std::iter;
 use std::path::Path;
+use regex::Regex;
 
-
-/* I _wanted_ to implement this as macros that would generate code to include
-   in the current compilation unit, but that proved untractable with the
-   current Rust macro system (or my comprehension of it). Vexing.
-
-/// Takes an attribute name and value and converts it to a Rust byte
-/// array (a [u8; 64])
-macro_rules! attribute_to_array {
-    ($attr_name:ident, $attr_val:expr) => {
-        #[link_section=".kernel_attributes"]
-        #[no_mangle]
-        static $attr_name: [u8; 64] = [1; 64];
-    }
-}
-
-*/
-
+// This is the name of the file that will get generated with the static attributes in them.
 pub static KERNEL_ATTRIBUTES_FILE: &'static str = "kernel_attribute_git.rs";
 
+// This is the name of the file where the board-specific linker addresses are stored.
+// This is used to determine where applications will be placed in flash.
+pub static CHIP_LAYOUT_FILE: &'static str = "chip_layout.ld";
 
 /// Takes an attribute name and value and writes valid Rust to create a kernel
 /// attribute
@@ -62,33 +52,30 @@ pub fn get_file() -> File {
 }
 
 pub fn kernel_attribute_git<W: Write>(dest: &mut W) {
-    //let attr: &str = env::var("TOCK_KERNEL_VERSION").ok().map_or("notgit", |env| { &env });
     let attr = env::var("TOCK_KERNEL_VERSION").unwrap_or("notgit".to_string());
     write_attribute(dest, "git", &attr);
 }
 
 pub fn kernel_attribute_appaddr<W: Write>(dest: &mut W) {
-    write_attribute(dest, "appaddr", "0x30000");
+    let src_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let chip_layout_path = Path::new(&src_dir).join(CHIP_LAYOUT_FILE);
+    match File::open(&chip_layout_path) {
+        Ok(mut f) => {
+            let mut contents = String::new();
+            f.read_to_string(&mut contents).expect("Unable to read the file");
+
+            // Search the mini linker file for PROG_ORIGIN as use the address of that
+            // variable.
+            let re = Regex::new(r"PROG_ORIGIN[\s=]*([0-9x]+);").unwrap();
+            let caps = re.captures(contents.as_str()).unwrap();
+            write_attribute(dest, "appaddr", caps.get(1).unwrap().as_str());
+        }
+        Err(_) => {}
+    }
 }
 
 pub fn write_standard_attributes_to_build_file() {
     let mut writer = get_file();
     kernel_attribute_git(&mut writer);
     kernel_attribute_appaddr(&mut writer);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    //#[test]
-    //fn attribute_to_array_macro() {
-    //    attribute_to_array!(git, env::var("TOCK_KERNEL_VERSION").unwrap());
-    //}
-
-    #[test]
-    fn attribute_to_writer() {
-        let vec = Vec::new();
-        kernel_attribute_git(vec);
-    }
 }
