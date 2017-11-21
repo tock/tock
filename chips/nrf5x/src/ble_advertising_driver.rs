@@ -12,11 +12,6 @@
 //! which exceed this limit. To clear the payload, the `ble_adv_clear_data`
 //! function can be used. This function clears the payload, including the name.
 //!
-//! Only start and send are asynchronous and need to use the busy flag.
-//! However, the synchronous calls such as set tx power, advertisement interval
-//! and set payload can only by performed once the radio is not active.
-//! The reason why is that they can be interleaved by an interrupt
-//!
 //! ### Allow system call
 //! Each advertisement type corresponds to an allow number from 0 to 0xFF which
 //! is handled by a giant pattern matching in this module
@@ -179,10 +174,10 @@ const PACKET_LENGTH: usize = 39;
 enum BLEState {
     NotInitialized,
     Initialized,
-    ScanningOff,
-    ScanningOn,
-    AdvertisingOff,
-    AdvertisingOn,
+    ScanningIdle,
+    Scanning,
+    AdvertisingIdle,
+    Advertising,
 }
 
 
@@ -244,20 +239,18 @@ impl<'a, B, A> BLE<'a, B, A>
         }
     }
 
-    fn initialize_advertisement_buffer(&self) {
-        for cntr in self.app.iter() {
-            cntr.enter(|app, _| {
-                app.advertisement_buf
-                    .as_mut()
-                    .map(|buf| {
-                        for i in buf.as_mut()[PACKET_START..PACKET_LENGTH].iter_mut() {
-                            *i = 0x00;
-                        }
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|| ReturnCode::EINVAL)
-            });
-        }
+    fn initialize_advertisement_buffer(&self, appid: kernel::AppId) {
+        let _ = self.app.enter(appid, |app, _| {
+            app.advertisement_buf
+                .as_mut()
+                .map(|buf| {
+                    for i in buf.as_mut()[PACKET_START..PACKET_LENGTH].iter_mut() {
+                        *i = 0x00;
+                    }
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|| ReturnCode::EINVAL)
+        });
     }
 
     // Vol 6, Part B 1.3.2.1 Static Device Address
@@ -413,34 +406,30 @@ impl<'a, B, A> BLE<'a, B, A>
             .unwrap_or_else(|err| err.into())
     }
 
-    fn replace_advertisement_buffer(&self) {
-        for cntr in self.app.iter() {
-            cntr.enter(|app, _| {
-                app.advertisement_buf.as_ref().map(|slice| {
-                    self.kernel_tx.take().map(|data| {
-                        for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
-                            .iter_mut()
-                            .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter()) {
-                            *out = *inp;
-                        }
-                        let result = self.radio.set_advertisement_data(data, PACKET_LENGTH);
-                        self.kernel_tx.replace(result);
-                    });
+    fn replace_advertisement_buffer(&self, appid: kernel::AppId) {
+        let _ = self.app.enter(appid, |app, _| {
+            app.advertisement_buf.as_ref().map(|slice| {
+                self.kernel_tx.take().map(|data| {
+                    for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
+                        .iter_mut()
+                        .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter()) {
+                        *out = *inp;
+                    }
+                    let result = self.radio.set_advertisement_data(data, PACKET_LENGTH);
+                    self.kernel_tx.replace(result);
                 });
             });
-        }
+        });
     }
 
-    fn configure_periodic_alarm(&self) {
-        for cntr in self.app.iter() {
-            cntr.enter(|app, _| {
-                let interval_in_tics =
-                    self.alarm.now().wrapping_add(app.advertisement_interval_ms.get() *
-                                                  <A::Frequency>::frequency() /
-                                                  1000);
-                self.alarm.set_alarm(interval_in_tics);
-            });
-        }
+    fn configure_periodic_alarm(&self, appid: kernel::AppId) {
+        let _ = self.app.enter(appid, |app, _| {
+            let interval_in_tics = self.alarm
+                .now()
+                .wrapping_add(app.advertisement_interval_ms.get() * <A::Frequency>::frequency() /
+                              1000);
+            self.alarm.set_alarm(interval_in_tics);
+        });
     }
 }
 impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
@@ -452,37 +441,37 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     // with overlapping intervals we use the busy flag to ensure mutual exclusion
     // this may not be fair if the processes have similar interval one process
     // may be starved.......
+    #[inline(never)]
+    #[no_mangle]
     fn fired(&self) {
         for cntr in self.app.iter() {
             cntr.enter(|app, _| {
                 match app.process_status {
-                    Some(BLEState::AdvertisingOff) if !self.busy.get() => {
+                    Some(BLEState::AdvertisingIdle) if !self.busy.get() => {
                         self.busy.set(true);
-                        app.process_status = Some(BLEState::AdvertisingOn);
-                        self.replace_advertisement_buffer();
+                        app.process_status = Some(BLEState::Advertising);
+                        self.replace_advertisement_buffer(app.appid());
                         self.radio.start_advertisement_tx(37);
-                        app.process_status = Some(BLEState::AdvertisingOff);
+                        app.process_status = Some(BLEState::AdvertisingIdle);
                         self.busy.set(false);
+                        self.configure_periodic_alarm(app.appid())
                     }
-                    Some(BLEState::ScanningOff) if !self.busy.get() => {
+                    Some(BLEState::ScanningIdle) if !self.busy.get() => {
                         self.busy.set(true);
-                        app.process_status = Some(BLEState::ScanningOn);
-                        self.initialize_advertisement_buffer();
-                        self.replace_advertisement_buffer();
+                        app.process_status = Some(BLEState::Scanning);
+                        self.replace_advertisement_buffer(app.appid());
                         self.radio.start_advertisement_rx(37);
-                        app.process_status = Some(BLEState::ScanningOff);
+                        app.process_status = Some(BLEState::ScanningIdle);
                         self.busy.set(false);
+                        self.configure_periodic_alarm(app.appid())
+                    }
+                    Some(BLEState::Scanning) |
+                    Some(BLEState::Advertising) => {
+                        self.configure_periodic_alarm(app.appid());
                     }
                     _ => (),
                 };
-                match app.process_status {
-                    Some(BLEState::AdvertisingOff) |
-                    Some(BLEState::AdvertisingOn) |
-                    Some(BLEState::ScanningOff) |
-                    Some(BLEState::ScanningOn) => self.configure_periodic_alarm(),
-                    _ => (),
-                }
-            });
+            })
         }
     }
 }
@@ -526,8 +515,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                 self.app
                     .enter(appid,
                            |app, _| if app.process_status == Some(BLEState::Initialized) {
-                               app.process_status = Some(BLEState::AdvertisingOff);
-                               self.configure_periodic_alarm();
+                               app.process_status = Some(BLEState::AdvertisingIdle);
+                               self.configure_periodic_alarm(appid);
                                ReturnCode::SUCCESS
                            } else {
                                ReturnCode::EBUSY
@@ -539,10 +528,10 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             1 => {
                 self.app
                     .enter(appid,
-                           |app, _| if app.process_status == Some(BLEState::AdvertisingOff) ||
-                                       app.process_status == Some(BLEState::AdvertisingOn) ||
-                                       app.process_status == Some(BLEState::ScanningOn) ||
-                                       app.process_status == Some(BLEState::ScanningOff) {
+                           |app, _| if app.process_status == Some(BLEState::AdvertisingIdle) ||
+                                       app.process_status == Some(BLEState::Advertising) ||
+                                       app.process_status == Some(BLEState::Scanning) ||
+                                       app.process_status == Some(BLEState::ScanningIdle) {
                                app.process_status = Some(BLEState::Initialized);
                                ReturnCode::SUCCESS
                            } else {
@@ -558,8 +547,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             2 => {
                 self.app
                     .enter(appid,
-                           |app, _| if app.process_status != Some(BLEState::ScanningOff) &&
-                                       app.process_status != Some(BLEState::AdvertisingOn) {
+                           |app, _| if app.process_status != Some(BLEState::ScanningIdle) &&
+                                       app.process_status != Some(BLEState::Advertising) {
                                match data as u8 {
                                    // this what nRF5X support at moment
                                    // two complement
@@ -587,8 +576,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             3 => {
                 self.app
                     .enter(appid,
-                           |app, _| if app.process_status != Some(BLEState::ScanningOff) &&
-                                       app.process_status != Some(BLEState::AdvertisingOn) {
+                           |app, _| if app.process_status != Some(BLEState::ScanningIdle) &&
+                                       app.process_status != Some(BLEState::Advertising) {
                                if data < 20 {
                                    app.advertisement_interval_ms.set(20);
                                } else if data > 10240 {
@@ -624,8 +613,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                 self.app
                     .enter(appid,
                            |app, _| if app.process_status == Some(BLEState::Initialized) {
-                               app.process_status = Some(BLEState::ScanningOff);
-                               self.configure_periodic_alarm();
+                               app.process_status = Some(BLEState::ScanningIdle);
+                               self.configure_periodic_alarm(appid);
                                ReturnCode::SUCCESS
                            } else {
                                ReturnCode::EBUSY
@@ -695,7 +684,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                     .enter(appid, |app, _| {
                         app.advertisement_buf = Some(slice);
                         app.process_status = Some(BLEState::Initialized);
-                        self.initialize_advertisement_buffer();
+                        self.initialize_advertisement_buffer(appid);
                         ReturnCode::SUCCESS
                     })
                     .unwrap_or_else(|err| err.into())

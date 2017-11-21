@@ -44,6 +44,9 @@ impl Radio {
 
     // Used configure to radio to send BLE advertisements
     fn start_adv_tx(&self, ch: u32) {
+        unsafe {
+            debug!("{:?}\r\n", &PAYLOAD[0..32]);
+        }
         let regs = unsafe { &*self.regs };
 
         self.radio_on();
@@ -321,9 +324,6 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
                 PAYLOAD[i] = *c;
             }
         }
-        /*unsafe {
-            debug!("{:?}\r\n", &PAYLOAD[0..32]);
-        }*/
         buf
     }
 
@@ -337,6 +337,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
             _ => kernel::ReturnCode::ENOSUPPORT,
         }
     }
+
     fn start_advertisement_tx(&self, ch: usize) {
         self.start_adv_tx(ch as u32);
     }
