@@ -78,16 +78,33 @@ _ggeneric_isr_no_stacking:
     /* ISRs start at 16, so substract 16 to get zero-indexed */
     sub r0, #16
 
+    /*
+     * High level:
+     *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
+     * */
+	lsrs	r2, r0, #5 /* r2 = r0 / 32 */
 
-    /* NVIC.ICER[r0 / 32] = 1 << (r0 & 31) */
-	movs r2, #1
-	movs r3, #32
-	sdiv r3, r0, r3
-	and	r0, r0, #31
-	lsl	r0, r2, r0
-    mov r2, #0xe180
-    movt r2, #0xe000
-	str	r0, [r2, r3, lsl #2]");
+    /* r0 = 1 << (r0 & 31) */
+	movs r3, #1        /* r3 = 1 */
+	and	r0, r0, #31    /* r0 = r0 & r2 (31) */
+	lsl	r0, r3, r0     /* r0 = r3 << r0 */
+
+    /* r3 = &NVIC.ICER */
+    mov r3, #0xe180
+    movt r3, #0xe000
+
+    /* here:
+     *
+     *  `r2` is r0 / 32
+     *  `r3` is &NVIC.ICER
+     *  `r0` is 1 << (r0 & 31)
+     *
+     * So we just do:
+     *
+     *  `*(r3 + r2 * 4) = r0`
+     *
+     *  */
+	str	r0, [r3, r2, lsl #2]");
 }
 
 #[cfg(not(target_os = "none"))]
