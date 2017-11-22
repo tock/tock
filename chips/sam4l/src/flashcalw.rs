@@ -317,7 +317,6 @@ impl FLASHCALW {
             FlashState::WriteUnlocking { page } => {
                 self.current_state.set(FlashState::WriteErasing { page: page });
                 self.flashcalw_erase_page(page);
-                DEFERED_CALL.set();
             }
             FlashState::WriteErasing { page } => {
                 //  Write page buffer isn't really a command, and
