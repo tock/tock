@@ -44,7 +44,7 @@ impl kernel::Chip for NRF52 {
                     SPI0_TWI0 => spi::SPIM0.handle_interrupt(),
                     SPI1_TWI1 => spi::SPIM1.handle_interrupt(),
                     SPIM2_SPIS2_SPI2 => spi::SPIM2.handle_interrupt(),
-                    _ => debug!("NvicIdx not supported by Tock\r\n"),
+                    _ => debug!("NvicIdx not supported by Tock"),
                 }
                 let n = nvic::Nvic::new(interrupt);
                 n.clear_pending();

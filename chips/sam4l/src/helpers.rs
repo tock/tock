@@ -2,10 +2,10 @@ use core::convert::TryFrom;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
-static DEFERED_CALL: AtomicUsize = AtomicUsize::new(0);
+static DEFERRED_CALL: AtomicUsize = AtomicUsize::new(0);
 
 /// Represents a way to generate an asynchronous call without a hardware interrupt.
-pub struct DeferedCall(Task);
+pub struct DeferredCall(Task);
 
 /// A type of task to defer a call for
 #[derive(Copy, Clone)]
@@ -24,33 +24,33 @@ impl TryFrom<usize> for Task {
     }
 }
 
-impl DeferedCall {
-    /// Creates a new DeferedCall
+impl DeferredCall {
+    /// Creates a new DeferredCall
     ///
     /// Only create one per task, preferably in the module that it will be used in.
-    pub const unsafe fn new(task: Task) -> DeferedCall {
-        DeferedCall(task)
+    pub const unsafe fn new(task: Task) -> DeferredCall {
+        DeferredCall(task)
     }
 
-    /// Set the `DeferedCall` as pending
+    /// Set the `DeferredCall` as pending
     pub fn set(&self) {
-        DEFERED_CALL.fetch_or(1 << self.0 as usize, Ordering::Relaxed);
+        DEFERRED_CALL.fetch_or(1 << self.0 as usize, Ordering::Relaxed);
     }
 
-    /// Are there any pending `DeferedCall`s
+    /// Are there any pending `DeferredCall`s
     pub fn has_tasks() -> bool {
-        DEFERED_CALL.load(Ordering::Relaxed) != 0
+        DEFERRED_CALL.load(Ordering::Relaxed) != 0
     }
 
-    /// Gets and clears the next pending `DeferedCall`
+    /// Gets and clears the next pending `DeferredCall`
     pub fn next_pending() -> Option<Task> {
-        let val = DEFERED_CALL.load(Ordering::Relaxed);
+        let val = DEFERRED_CALL.load(Ordering::Relaxed);
         if val == 0 {
             return None;
         } else {
             let bit = val.trailing_zeros() as usize;
             let new_val = val & !(1 << bit);
-            DEFERED_CALL.store(new_val, Ordering::Relaxed);
+            DEFERRED_CALL.store(new_val, Ordering::Relaxed);
             return Task::try_from(bit).ok();
         }
     }

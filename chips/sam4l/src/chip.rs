@@ -9,7 +9,7 @@ use dac;
 use dma;
 use flashcalw;
 use gpio;
-use helpers::{DeferedCall, Task};
+use helpers::{DeferredCall, Task};
 use i2c;
 use kernel::Chip;
 use pm;
@@ -73,7 +73,7 @@ impl Chip for Sam4l {
 
         unsafe {
             loop {
-                if let Some(task) = DeferedCall::next_pending() {
+                if let Some(task) = DeferredCall::next_pending() {
                     match task {
                         Task::Flashcalw => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
                     }
@@ -150,7 +150,7 @@ impl Chip for Sam4l {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || DeferedCall::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() || DeferredCall::has_tasks() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

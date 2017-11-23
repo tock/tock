@@ -86,7 +86,7 @@ _ggeneric_isr_no_stacking:
 
     /* r0 = 1 << (r0 & 31) */
 	movs r3, #1        /* r3 = 1 */
-	and	r0, r0, #31    /* r0 = r0 & r2 (31) */
+	and	r0, r0, #31    /* r0 = r0 & 31 */
 	lsl	r0, r3, r0     /* r0 = r3 << r0 */
 
     /* r3 = &NVIC.ICER */

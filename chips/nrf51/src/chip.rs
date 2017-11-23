@@ -40,7 +40,7 @@ impl kernel::Chip for NRF51 {
                     TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
                     TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
                     UART0 => uart::UART0.handle_interrupt(),
-                    _ => debug!("NvicIdx not supported by Tock\r\n"),
+                    _ => debug!("NvicIdx not supported by Tock"),
                 }
                 let n = nvic::Nvic::new(interrupt);
                 n.clear_pending();

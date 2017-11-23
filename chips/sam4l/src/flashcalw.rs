@@ -24,7 +24,7 @@
 use core::cell::Cell;
 use core::mem;
 use core::ops::{Index, IndexMut};
-use helpers::{DeferedCall, Task};
+use helpers::{DeferredCall, Task};
 use kernel::ReturnCode;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
@@ -67,7 +67,7 @@ enum RegKey {
     GPFRLO,
 }
 
-static DEFERED_CALL: DeferedCall = unsafe { DeferedCall::new(Task::Flashcalw) };
+static DEFERRED_CALL: DeferredCall = unsafe { DeferredCall::new(Task::Flashcalw) };
 
 /// There are 18 recognized commands for the flash. These are "bare-bones"
 /// commands and values that are written to the Flash's command register to
@@ -820,7 +820,7 @@ impl FLASHCALW {
         // This is kind of strange, but because read() in this case is
         // synchronous, we still need to schedule as if we had an interrupt so
         // we can allow this function to return and then call the callback.
-        DEFERED_CALL.set();
+        DEFERRED_CALL.set();
 
         ReturnCode::SUCCESS
     }

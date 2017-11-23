@@ -176,7 +176,7 @@ impl DMAChannel {
                 }
             }
             let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-            registers.interrupt_disable.set(0xffffffff);
+            registers.interrupt_disable.set(!0);
 
             self.enabled.set(true);
         }
@@ -199,7 +199,7 @@ impl DMAChannel {
 
     pub fn handle_interrupt(&mut self) {
         let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
-        registers.interrupt_disable.set(0xffffffff);
+        registers.interrupt_disable.set(!0);
         let channel = registers.peripheral_select.get();
 
         self.client.get().as_mut().map(|client| { client.xfer_done(channel); });
