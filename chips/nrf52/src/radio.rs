@@ -28,6 +28,7 @@ pub struct Radio {
     txpower: Cell<usize>,
     client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
     freq: Cell<u32>,
+    appid: Cell<Option<kernel::AppId>>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -39,14 +40,19 @@ impl Radio {
             txpower: Cell::new(0),
             client: Cell::new(None),
             freq: Cell::new(0),
+            appid: Cell::new(None),
         }
     }
 
     // Used configure to radio to send BLE advertisements
+    #[no_mangle]
+    #[inline(never)]
     fn start_adv_tx(&self, ch: u32) {
+        /*
         unsafe {
-            debug!("{:?}\r\n", &PAYLOAD[0..32]);
+            debug!("ch: {} \t {:?}\r\n", ch, &PAYLOAD[0..32]);
         }
+        */
         let regs = unsafe { &*self.regs };
 
         self.radio_on();
@@ -224,6 +230,7 @@ impl Radio {
     }
 
     #[inline(never)]
+    #[no_mangle]
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
         self.disable_all_interrupts();
@@ -254,6 +261,9 @@ impl Radio {
                 nrf5x::constants::RADIO_STATE_TX => {
                     match regs.frequency.get() {
                         nrf5x::constants::RADIO_FREQ_CH_39 => {
+                            self.client.get().map(|client| {
+                                client.advertisement_fired(self.appid.get().unwrap())
+                            });
                             self.radio_off();
                         }
                         nrf5x::constants::RADIO_FREQ_CH_38 => {
@@ -317,6 +327,8 @@ impl Radio {
 }
 
 impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
+    #[no_mangle]
+    #[inline(never)]
     fn set_advertisement_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
         // set payload
         for (i, c) in buf.as_ref()[0..len].iter().enumerate() {
@@ -338,11 +350,13 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         }
     }
 
-    fn start_advertisement_tx(&self, ch: usize) {
-        self.start_adv_tx(ch as u32);
+    fn start_advertisement_tx(&self, appid: kernel::AppId) {
+        self.appid.set(Some(appid));
+        self.start_adv_tx(37);
     }
 
-    fn start_advertisement_rx(&self, _ch: usize) {
+    fn start_advertisement_rx(&self, appid: kernel::AppId) {
+        self.appid.set(Some(appid));
         self.start_adv_rx();
     }
 

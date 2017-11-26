@@ -18,7 +18,7 @@ int main(void) {
   printf("[Tutorial] BLE Advertising\n");
 
   // declarations of variables to be used in this BLE example application
-  uint16_t advertising_interval_ms = 500;
+  uint16_t advertising_interval_ms = 200;
   uint8_t device_name[] = "CoolOS";
 
   // configure LE only and discoverable
