@@ -33,8 +33,6 @@
 use core::cell::Cell;
 use kernel;
 use kernel::common::take_cell::TakeCell;
-use nvic;
-use peripheral_interrupts::NvicIdx;
 use peripheral_registers;
 
 // array that the aes chip will mutate during encryption
@@ -110,7 +108,6 @@ impl AesECB {
         regs.event_endecb.set(0);
         regs.task_startecb.set(1);
 
-        self.enable_nvic();
         self.enable_interrupts();
     }
 
@@ -119,9 +116,7 @@ impl AesECB {
         let regs = unsafe { &*self.regs };
 
         // disable interrupts
-        self.disable_nvic();
         self.disable_interrupts();
-        nvic::clear_pending(NvicIdx::ECB);
 
         if regs.event_endecb.get() == 1 {
 
@@ -175,14 +170,6 @@ impl AesECB {
     fn disable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
         regs.intenclr.set(NRF_INTR_ENDECB | NRF_INTR_ERRORECB);
-    }
-
-    fn enable_nvic(&self) {
-        nvic::enable(NvicIdx::ECB);
-    }
-
-    fn disable_nvic(&self) {
-        nvic::disable(NvicIdx::ECB);
     }
 
     pub fn set_initial_ctr(&self, iv: &'static mut [u8]) {

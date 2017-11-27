@@ -162,7 +162,6 @@ impl Radio {
         regs.task_txen.set(1);
 
         self.enable_interrupts();
-        self.enable_nvic();
     }
 
     fn start_adv_rx(&self) {
@@ -201,7 +200,6 @@ impl Radio {
         self.set_buffer();
 
         self.enable_interrupts();
-        self.enable_nvic();
 
         regs.event_ready.set(0);
         regs.task_rxen.set(1);
@@ -299,9 +297,7 @@ impl Radio {
     #[inline(never)]
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
-        self.disable_nvic();
         self.disable_all_interrupts();
-        nrf5x::nvic::clear_pending(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
         let mut end = false;
 
         if regs.event_ready.get() == 1 {
@@ -360,7 +356,6 @@ impl Radio {
             }
         }
         if !end {
-            self.enable_nvic();
             self.enable_interrupts();
         }
     }
@@ -384,14 +379,6 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         // disable all possible interrupts
         regs.intenclr.set(0xffffffff);
-    }
-
-    pub fn enable_nvic(&self) {
-        nrf5x::nvic::enable(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
-    }
-
-    pub fn disable_nvic(&self) {
-        nrf5x::nvic::disable(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
     }
 
     pub fn reset_payload(&self) {}

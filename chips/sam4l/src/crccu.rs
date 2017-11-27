@@ -51,7 +51,6 @@
 use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::hil::crc::{self, CrcAlg};
-use nvic;
 use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
 
 // A memory-mapped register
@@ -264,10 +263,6 @@ impl<'a> Crccu<'a> {
                 // see "10.7.4 Clock Mask"
                 enable_clock(Clock::HSB(HSBClock::CRCCU));
                 enable_clock(Clock::PBB(PBBClock::CRCCU));
-
-                nvic::disable(nvic::NvicIdx::CRCCU);
-                nvic::clear_pending(nvic::NvicIdx::CRCCU);
-                nvic::enable(nvic::NvicIdx::CRCCU);
             }
             self.state.set(State::Enabled);
         }
@@ -277,7 +272,6 @@ impl<'a> Crccu<'a> {
     pub fn disable(&self) {
         if self.state.get() == State::Enabled {
             unsafe {
-                nvic::disable(nvic::NvicIdx::CRCCU);
                 disable_clock(Clock::PBB(PBBClock::CRCCU));
                 disable_clock(Clock::HSB(HSBClock::CRCCU));
             }
@@ -416,5 +410,3 @@ impl<'a> crc::CRC for Crccu<'a> {
 
 /// Static state to manage the CRCCU
 pub static mut CRCCU: Crccu<'static> = Crccu::new();
-
-interrupt_handler!(crccu_handler, CRCCU);

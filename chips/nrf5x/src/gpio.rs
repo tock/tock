@@ -9,8 +9,6 @@ use core::mem;
 use core::ops::{Index, IndexMut};
 use kernel::common::VolatileCell;
 use kernel::hil;
-use nvic;
-use peripheral_interrupts::NvicIdx;
 
 use peripheral_registers::{GPIO_BASE, GPIO};
 
@@ -154,7 +152,6 @@ impl hil::gpio::Pin for GPIOPin {
         if channel >= 0 {
             GPIOTE().config[channel as usize].set(mode_bits);
             GPIOTE().intenset.set(1 << channel);
-            nvic::enable(NvicIdx::GPIOTE);
         } else {
             panic!("No available GPIOTE interrupt channels");
         }
@@ -197,8 +194,6 @@ impl Port {
     /// GPIOTE interrupt: check each of 4 GPIOTE channels, if any has
     /// fired then trigger its corresponding pin's interrupt handler.
     pub fn handle_interrupt(&self) {
-        nvic::clear_pending(NvicIdx::GPIOTE);
-
         for (i, ev) in GPIOTE().event_in.iter().enumerate() {
             if ev.get() != 0 {
                 ev.set(0);

@@ -1,3 +1,4 @@
+use cortexm4::{nvic, generic_isr, SVC_Handler, systick_handler};
 
 /*
  * Adapted from crt1.c which was relicensed by the original author from
@@ -15,20 +16,6 @@
            pca10040/s132/arm5_no_packs/RTE/Device/nRF52832_xxAA/system_nrf52.c */
 
 extern "C" {
-    fn ECB_Handler();
-    fn GPIOTE_Handler();
-    fn RADIO_Handler();
-    fn RNG_Handler();
-    fn RTC1_Handler();
-    fn SPI0_TWI0_Handler();
-    fn SPI1_TWI1_Handler();
-    fn SVC_Handler();
-    fn TEMP_Handler();
-    fn TIMER0_Handler();
-    fn TIMER1_Handler();
-    fn TIMER2_Handler();
-    fn UART0_Handler();
-
     // Symbols defined in the linker file
     static mut _erelocate: u32;
     static mut _etext: u32;
@@ -42,66 +29,38 @@ extern "C" {
     fn _estack();
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dummy_handler() {
+unsafe extern "C" fn unhandled_interrupt() {
     'loop0: loop {}
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn hard_fault_handler() {
+
+unsafe extern "C" fn hard_fault_handler() {
     'loop0: loop {}
 }
 
 #[link_section=".vectors"]
+#[cfg_attr(rustfmt, rustfmt_skip)]
+// no_mangle Ensures that the symbol is kept until the final binary
 #[no_mangle]
-pub static mut INTERRUPT_TABLE: [unsafe extern "C" fn(); 48] = [_estack,
-                                                                reset_handler,
-                                                                dummy_handler, // NMI_Handler
-                                                                hard_fault_handler,
-                                                                dummy_handler,
-                                                                dummy_handler,
-                                                                dummy_handler,
-                                                                dummy_handler,
-                                                                dummy_handler,
-                                                                dummy_handler,
-                                                                dummy_handler,
-                                                                SVC_Handler,
-                                                                dummy_handler,
-                                                                dummy_handler,
-                                                                dummy_handler, // PendSV_Handler
-                                                                dummy_handler, // SysTick_Handler
-                                                                dummy_handler, // POWER_CLOCK
-                                                                RADIO_Handler,
-                                                                UART0_Handler,
-                                                                SPI0_TWI0_Handler,
-                                                                SPI1_TWI1_Handler,
-                                                                dummy_handler,
-                                                                GPIOTE_Handler,
-                                                                dummy_handler, // ADC_Handler
-                                                                TIMER0_Handler,
-                                                                TIMER1_Handler,
-                                                                TIMER2_Handler,
-                                                                dummy_handler, // RTC0_Handler
-                                                                TEMP_Handler,
-                                                                RNG_Handler,
-                                                                ECB_Handler,
-                                                                dummy_handler, // CCM_AAR_Handler
-                                                                dummy_handler, // WDT_Handler
-                                                                RTC1_Handler,
-                                                                dummy_handler, // QDEC_Handler
-                                                                dummy_handler, // LPCOMP_Handler
-                                                                dummy_handler, // SWI0_Handler
-                                                                dummy_handler, // SWI1_Handler
-                                                                dummy_handler, // SWI2_Handler
-                                                                dummy_handler, // SWI3_Handler
-                                                                dummy_handler, // SWI4_Handler
-                                                                dummy_handler, // SWI5_Handler
-                                                                dummy_handler, // TIMER3_Handler
-                                                                dummy_handler, // TIMER4_Handler
-                                                                dummy_handler, // PWM0_Handler
-                                                                dummy_handler, // PDM_Handler
-                                                                dummy_handler,
-                                                                dummy_handler];
+pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
+    _estack, reset_handler,
+    /* NMI */           unhandled_interrupt,
+    /* Hard Fault */    hard_fault_handler,
+    /* MemManage */     unhandled_interrupt,
+    /* BusFault */      unhandled_interrupt,
+    /* UsageFault*/     unhandled_interrupt,
+    unhandled_interrupt, unhandled_interrupt, unhandled_interrupt,
+    unhandled_interrupt,
+    /* SVC */           SVC_Handler,
+    /* DebugMon */      unhandled_interrupt,
+    unhandled_interrupt,
+    /* PendSV */        unhandled_interrupt,
+    /* SysTick */       systick_handler
+];
+
+#[link_section=".vectors"]
+#[no_mangle] // Ensures that the symbol is kept until the final binary
+pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
@@ -215,4 +174,5 @@ pub unsafe extern "C" fn init() {
             _old
         } = 0u32;
     }
+    nvic::enable_all();
 }

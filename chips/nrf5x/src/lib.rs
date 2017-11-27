@@ -12,7 +12,6 @@ pub mod ble_advertising_driver;
 pub mod ble_advertising_hil;
 pub mod clock;
 pub mod gpio;
-pub mod nvic;
 pub mod peripheral_interrupts;
 pub mod pinmux;
 pub mod rtc;

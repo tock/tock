@@ -10,8 +10,6 @@
 
 use core::cell::Cell;
 use kernel;
-use nvic;
-use peripheral_interrupts;
 use peripheral_registers;
 
 const NRF_TEMP_DATARDY_INTR: u32 = 1;
@@ -38,7 +36,6 @@ impl Temperature {
     // MEASUREMENT DONE
     pub fn handle_interrupt(&self) {
         // disable interrupts
-        self.disable_nvic();
         self.disable_interrupts();
         let regs = unsafe { &*self.regs };
 
@@ -50,14 +47,12 @@ impl Temperature {
         regs.task_stop.set(NRF_TEMP_DISABLE);
 
         // disable interrupts
-        self.disable_nvic();
         self.disable_interrupts();
 
         // trigger callback with temperature
         self.client
             .get()
             .map(|client| client.callback(temp as usize));
-        nvic::clear_pending(peripheral_interrupts::NvicIdx::TEMP);
     }
 
     fn enable_interrupts(&self) {
@@ -69,20 +64,11 @@ impl Temperature {
         let regs = unsafe { &*self.regs };
         regs.intenclr.set(NRF_TEMP_DATARDY_INTR);
     }
-
-    fn enable_nvic(&self) {
-        nvic::enable(peripheral_interrupts::NvicIdx::TEMP);
-    }
-
-    fn disable_nvic(&self) {
-        nvic::disable(peripheral_interrupts::NvicIdx::TEMP);
-    }
 }
 
 impl kernel::hil::sensors::TemperatureDriver for Temperature {
     fn read_temperature(&self) -> kernel::ReturnCode {
         let regs = unsafe { &*self.regs };
-        self.enable_nvic();
         self.enable_interrupts();
         regs.event_datardy.set(NRF_TEMP_DISABLE);
         regs.task_start.set(NRF_TEMP_ENABLE);

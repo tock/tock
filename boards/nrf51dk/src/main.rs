@@ -39,7 +39,6 @@
 #![no_main]
 #![feature(lang_items,compiler_builtins_lib)]
 
-extern crate cortexm0;
 extern crate capsules;
 extern crate compiler_builtins;
 #[macro_use(debug, static_init)]

@@ -208,9 +208,7 @@ impl Radio {
     #[no_mangle]
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
-        self.disable_nvic();
         self.disable_interrupts();
-        nrf5x::nvic::clear_pending(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
 
         if regs.READY.get() == 1 {
             regs.READY.set(0);
@@ -281,7 +279,6 @@ impl Radio {
                 _ => (),
             }
         }
-        self.enable_nvic();
         self.enable_interrupts();
     }
 
@@ -297,14 +294,6 @@ impl Radio {
         let regs = unsafe { &*self.regs };
         // disable all possible interrupts
         regs.INTENCLR.set(0x4ff);
-    }
-
-    pub fn enable_nvic(&self) {
-        nrf5x::nvic::enable(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
-    }
-
-    pub fn disable_nvic(&self) {
-        nrf5x::nvic::disable(nrf5x::peripheral_interrupts::NvicIdx::RADIO);
     }
 
     // FIXME: Support for other PDU types than ADV_NONCONN_IND
@@ -416,7 +405,6 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         self.set_buffer();
 
         self.enable_interrupts();
-        self.enable_nvic();
 
         regs.READY.set(0);
         regs.TXEN.set(1);
@@ -457,7 +445,6 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         self.set_buffer();
 
         self.enable_interrupts();
-        self.enable_nvic();
 
         regs.READY.set(0);
         regs.RXEN.set(1);
