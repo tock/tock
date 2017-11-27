@@ -69,7 +69,7 @@ This document is split into several sections. These are as follows:
 
 ******************************** Stack Diagram ********************************
 
-IPv6 over BLE:      Non-Thread 15.4:   Thread Stack:                                       Encapsulation Libraries
+IPv6 over ethernet:      Non-Thread 15.4:   Thread Stack:                                       Encapsulation Libraries
 +-------------------+-------------------+----------------------------+
 |                         Application                                |-------------------\
 ----------------------------------------+-------------+---+----------+                    \
@@ -167,10 +167,11 @@ struct UDPSocket_ex { /* Example UDP socket implementation */
     pub udp_sender: UDPSend;
 }
 
-trait UDPSocket {
+trait UDPSocket:UDPSend { //TODO: Should implement UDPSend
     fn bind(src_ip: IPAddr, src_port: u16) -> bool; /* Return success */
     fn setSender(udp_sender: UDPSend) -> bool; /* Return success */
     fn newSender() -> UDPSend; /* Creates new UDPSend object */
+    fn send()(dest, buf); //Bc Socket implements UDPSend
 }
 
 trait UDPPacket {
@@ -186,7 +187,7 @@ trait UDPPacket {
     fn getLen(buf: &'static [u8]) -> u16;
     fn getCksum(buf: &'static [u8]) -> u16;
 
-    fn setPayload(udp_packet: &'static mut[u8], payload: &'static mut[u8];
+    fn setPayload(udp_packet: &'static mut[u8], payload: &'a mut[u8];
     //HELP: Perhaps it should instead be expected that users use the getOffset()
     //function to index into the buffer then set the payload themselves?
 
@@ -402,7 +403,8 @@ pub trait TxClient {
 // The below code is modified from virtual_mac.rs and provides insight into
 // how virtualization of the mac layer might work
 
-
+// This is one approach, but Phil suggest we probably want to go with the more
+// generalize approach (using the virtualizer queue)
 pub struct MacUser<'a> {
     mux: &'a MuxMac<'a>,
     operation: MapCell<Op>,
