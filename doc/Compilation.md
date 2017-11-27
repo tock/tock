@@ -72,10 +72,10 @@ $ cargo build --release --target=sam4l.json
 ```
 
 The `--release` argument tells Cargo to invoke the Rust compiler with
-optimizations turned on and without debug symbols. `--target` points Cargo to
-the target specification which includes the LLVM data-layout definition,
-architecture definitions for the compiler, arguments to pass to the linker and
-compilation options such as floating-point support.
+optimizations turned on. `--target` points Cargo to the target specification
+which includes the LLVM data-layout definition, architecture definitions for
+the compiler, arguments to pass to the linker and compilation options such as
+floating-point support.
 
 ### Xargo
 
