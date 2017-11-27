@@ -1,6 +1,6 @@
 ----------------------Tock Networking Stack Design Document--------------------
 
-/* NOTE: This document is very incomplete */
+/* NOTE: This document is a work in progress */
 
 This document describes the design of the Networking stack on Tock.
 
@@ -32,7 +32,7 @@ This document is split into several sections. These are as follows:
 
 1. The Simple case should be simple
    - Sending an IP packet via an established thread network should not 
-   require a more complicated interface than send(destination, packet)
+     require a more complicated interface than send(destination, packet)
    - If functionality were added to allow for the transmission of IP packets over
      the BLE interface, this IP send function should not have to deal with any
      options or MessageInfo structs that include 802.15.4 information.
@@ -131,6 +131,7 @@ associated with.
 
 //TODO: TCP, once UDP agreed upon.
 
+---
 HELP: We discussed replacing calls to 'buf: &'static mut [u8]' with calls
 to specific packet types (e.g., udp_packet: UDPPacket). I am not exactly sure
 how this would work:
@@ -151,12 +152,25 @@ how this would work:
   2) If my assumption in 1) is correct, is this really useful? I suppose that
   different implementation of UDPPacket could be structs with additional fields
   as required on an implementation by implementation basis..?
+---
 
 struct UDPHeader {
     pub src_port: u16;
     pub dst_port: u16;
     pub len: u16;
     pub cksum: u16;
+}
+
+struct UDPSocket_ex { /* Example UDP socket implementation */
+    pub src_ip: IPAddr;
+    pub src_port: u16;
+    pub udp_sender: UDPSend;
+}
+
+trait UDPSocket {
+    fn bind(src_ip: IPAddr, src_port: u16) -> bool; /* Return success */
+    fn setSender(udp_sender: UDPSend) -> bool; /* Return success */
+    fn newSender() -> UDPSend; /* Creates new UDPSend object */
 }
 
 trait UDPPacket {
@@ -179,14 +193,18 @@ trait UDPPacket {
     /* Note that no UDP cksum function is required here. It is my belief that
        it makes more sense to require the IP layer implement a function to calculate
        the UDP cksum, as the IP layer is what should have access to all of the fields
-       neccessary to construct the IPv6 Pseudoheader.  */
+       neccessary to construct the IPv6 Pseudoheader. */
 }
 
 trait UDPSend {
-    sendTo(dest: IP6Addr, udp_packet: &'static mut [u8]); // Convenience fn()
-    send(udp_packet: &'static mut [u8]); //Assumes length can be found in UDP hdr
+    fn send(dest: IP6Addr, udp_packet: &'static mut [u8]); // dest rqrd
     fn send_done(buf: &'static mut [u8], result: ReturnCode);
 }
+
+Notes on this UDP implementation:
+  - Want to require a socket be used to call UDPSend at the application level
+  - May not want this requirement within thread, so allow thread to directly
+    call UDPSend
 
 ======== Network Layer ========
 
@@ -217,7 +235,7 @@ trait IP6Packet {
     fn getDestAddr(buf: &'static [u8]) -> IPAddr;
     fn getSrcAddr(buf: &'static [u8]) -> IPAddr;
 
-    fn calcUDPcksum(buf: &'static [u8]) -> u16; //Assumes it has been
+    fn calcAndSetUDPcksum(buf: &'static [u8]) -> u16; //Assumes it has been
     // passed a valid IP packet, checks if it contains a UDP packet. If so, it
     // calculates the UDP cksum using the available IP and UDP fields and returns it.
 }
@@ -405,6 +423,7 @@ trait MacUserTrait { //a MAC user would implement this and the mac trait
 //TODO: This section needs a lot of work
 //TODO: Show an entire psuedocode example implementation for a message
 // traversing through Thread
+
 One Example Implementation of IP6Send:
 
 /* Implementation of IP6Send Specifically for sending MLE messages. This
@@ -426,6 +445,7 @@ impl IP6Send for ThreadMLEIP6Send{
     }
     
     fn send(&self, buf) {
+        calcAndSetUDPChecksum(buf); //If packet is UDP, this sets the cksum
         ctx_store = sixlowpan_comp::ContextStore::new();
         compressed_packet [u8] = 15_4_6lowpan_compress(ctx_store, buf,
                                                        src_mac, dst_mac);
@@ -436,7 +456,7 @@ impl IP6Send for ThreadMLEIP6Send{
             if(compressed_packet.is_disc_request()) {
                 fragToSend.setSrcMAC(MAC::generate_random());
             }
-            // etc....
+            // etc.... (Thread decision making)
             let security = securityType::MLESecurity;
             15_4_link_layer_send(fragToSend, security, len); 
         }
@@ -455,6 +475,7 @@ impl IP6Send for IP6SendThroughThread {
     }
 
     fn send(&self, buf, len) {
+        calcAndSetUDPChecksum(buf); //If packet is UDP, this sets the cksum
         compressed_packet [u8] = 15_4_6lowpan_compress(buf, len);
         fragState = new fragState(buf, len);
         while(fragState != Done) {
@@ -469,6 +490,29 @@ impl IP6Send for IP6SendThroughThread {
     }
 
 
+}
+
+/* Implementation of UDPSend for an application sitting on top of thread which
+simply wants to send a UDP message through thread. This simply calls on the
+appropriate implementation of IP6Send sitting beneath it. Recall that this
+function assumes it is passed an already formatted UDP Packet. Also recall the
+assumption that the IPSend function will calculate and set the UDP cksum. */
+
+impl UDPSend for UDPSendThroughThread {
+    fn send(&self, dest, buf) {
+
+        /* First, library calls to format IP Packet */
+        IPPacketForThread.setDstAddr(buf, dest);
+        IPPacketForThread.setSrcAddr(buf, THREAD_GLOBAL_SRC_IP_CONST); /* this fn only
+          called for globally destined packets sent over thread network */
+        IPPacketForThread.setTF(0);
+        IPPacketForThread.setHopLimit(64);
+        IPPacketForThread.setProtocol(UDP_PROTO_CONST);
+        IPPacketForThread.setLen(buf, ???); /*Will length be field of packet*/
+        IPPacketForThread.setFlowLabel(buf, ???); /* How to determine FL? */
+        /* Now, send the packet */
+        IP6SendThroughThread.sendTo(dest, buf)
+    }
 }
 
 The above imlementations are not meant to showcase accurate code, but rather
