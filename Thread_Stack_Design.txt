@@ -218,7 +218,7 @@ pub struct IP6Header {
 }
 
 trait IP6Packet {
-    fn new(); //Sets fields to appropriate defaults
+    fn reset(); //Sets fields to appropriate defaults
     fn getOffset() -> usize; //Always returns 40 until we add options support
     
     // Remaining functions are just getters and setters for the header fields
