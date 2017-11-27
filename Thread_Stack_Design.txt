@@ -30,7 +30,7 @@ This document is split into several sections. These are as follows:
 
 ********************************** Principles **********************************
 
-1. The Simple case should be simple
+1. Keep the simple case simple
    - Sending an IP packet via an established thread network should not 
      require a more complicated interface than send(destination, packet)
    - If functionality were added to allow for the transmission of IP packets over
@@ -41,7 +41,7 @@ This document is split into several sections. These are as follows:
      prevents the burden of this complexity from being passed up to whatever
      applications use Thread
 
-2. Layering should be seperate from Encapsulation
+2. Layering is separate from encapsulation
    - Libraries that handle encapsulation should not be contained within any
      specific layering construct. For example, If the thread control unit wants
      to encapsulate a UDP payload inside of a UDP packet inside of an IP packet,
@@ -50,7 +50,7 @@ This document is split into several sections. These are as follows:
    - Accordingly, implementations of layers can take advantage of these 
      encapsulation libraries, but are not required to.
 
-3. Dataplane traits should exist that are thread-independent
+3. Dataplane traits are Thread-independent
    - For example, the IP trait should not make any assumption that send() 
      will be called for a message that will be passed down to the 15.4 layer, in
      case this IP trait is used on top of an implementation that passes IP
@@ -60,7 +60,7 @@ This document is split into several sections. These are as follows:
      future will be a Thread-based implementation, the traits should not
      require anything that limit such a trait to Thread-based implementations
 
-4. Transmit and Receive paths should be seperate
+4. Transmission and reception APIs are decoupled
    - This allows for instances where Receive and send_done callbacks should
      be delivered to different clients (ex: Server listening on all addresses
      but also sending messages from specific addresses)
