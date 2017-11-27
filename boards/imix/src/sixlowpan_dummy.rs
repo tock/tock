@@ -14,8 +14,8 @@
 //! compression scheme.
 
 use capsules::net::ip::{IP6Header, MacAddr, IPAddr, ip6_nh};
-use capsules::net::lowpan;
-use capsules::net::lowpan::{ContextStore, Context};
+use capsules::net::sixlowpan_compression;
+use capsules::net::sixlowpan_compression::{ContextStore, Context};
 use capsules::net::util;
 // use capsules::radio_debug;
 
@@ -28,43 +28,6 @@ use kernel::hil::time;
 use kernel::hil::time::Frequency;
 
 static TX_BUF: [u8; 128] = [0; 128];
-
-pub struct DummyStore {
-    context0: Context,
-}
-
-impl DummyStore {
-    pub fn new(context0: Context) -> DummyStore {
-        DummyStore { context0: context0 }
-    }
-}
-
-impl ContextStore for DummyStore {
-    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context> {
-        if util::matches_prefix(&ip_addr.0, &self.context0.prefix, self.context0.prefix_len) {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-
-    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context> {
-        if ctx_id == 0 {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-
-    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context> {
-        if prefix_len == self.context0.prefix_len &&
-           util::matches_prefix(prefix, &self.context0.prefix, prefix_len) {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-}
 
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
 pub const SRC_ADDR: IPAddr = IPAddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
@@ -265,7 +228,7 @@ fn ipv6_packet_test<'a>(radio: &'a Radio, tf: TF, hop_limit: u8, sac: SAC, dac: 
             SAC::LLPIID => {
                 // LLP::IID
                 ip6_header.src_addr.set_unicast_link_local();
-                ip6_header.src_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&SRC_MAC_ADDR));
+                ip6_header.src_addr.0[8..16].copy_from_slice(&sixlowpan_compression::compute_iid(&SRC_MAC_ADDR));
             }
             SAC::Unspecified => {}
             SAC::Ctx64 => {
@@ -284,7 +247,7 @@ fn ipv6_packet_test<'a>(radio: &'a Radio, tf: TF, hop_limit: u8, sac: SAC, dac: 
             SAC::CtxIID => {
                 // MLP::IID
                 ip6_header.src_addr.set_prefix(&MLP, 64);
-                ip6_header.src_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&SRC_MAC_ADDR));
+                ip6_header.src_addr.0[8..16].copy_from_slice(&sixlowpan_compression::compute_iid(&SRC_MAC_ADDR));
             }
         }
 
@@ -308,7 +271,7 @@ fn ipv6_packet_test<'a>(radio: &'a Radio, tf: TF, hop_limit: u8, sac: SAC, dac: 
             DAC::LLPIID => {
                 // LLP::IID
                 ip6_header.dst_addr.set_unicast_link_local();
-                ip6_header.dst_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&DST_MAC_ADDR));
+                ip6_header.dst_addr.0[8..16].copy_from_slice(&sixlowpan_compression::compute_iid(&DST_MAC_ADDR));
             }
             DAC::Ctx64 => {
                 // MLP::xxxx:xxxx:xxxx:xxxx
@@ -326,7 +289,7 @@ fn ipv6_packet_test<'a>(radio: &'a Radio, tf: TF, hop_limit: u8, sac: SAC, dac: 
             DAC::CtxIID => {
                 // MLP::IID
                 ip6_header.dst_addr.set_prefix(&MLP, 64);
-                ip6_header.dst_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&DST_MAC_ADDR));
+                ip6_header.dst_addr.0[8..16].copy_from_slice(&sixlowpan_compression::compute_iid(&DST_MAC_ADDR));
             }
             DAC::McastInline => {
                 // first byte is ff, that's all we know
@@ -395,17 +358,15 @@ unsafe fn send_ipv6_packet<'a>(radio: &'a Radio,
     let offset = radio.payload_offset(src_long, dst_long) as usize;
 
     // Compress IPv6 packet into LoWPAN
-    let store = DummyStore {
-        context0: Context {
-            prefix: mesh_local_prefix,
-            prefix_len: 64,
-            id: 0,
-            compress: true,
-        },
+    let store = Context {
+        prefix: mesh_local_prefix,
+        prefix_len: 64,
+        id: 0,
+        compress: true,
     };
-    //let frag_state = FragState::new(radio, &lowpan, TX_BUF, &self.alarm);
+    //let frag_state = Sixlowpan::new(radio, &lowpan, TX_BUF, &self.alarm);
     let (consumed, written) =
-        lowpan::compress(&store,
+        sixlowpan_compression::compress(&store,
                          &ip6_datagram,
                          src_mac_addr,
                          dst_mac_addr,

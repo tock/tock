@@ -124,6 +124,28 @@ pub fn compute_iid(mac_addr: &MacAddress) -> [u8; 8] {
     }
 }
 
+impl ContextStore for Context {
+    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context> {
+        if util::matches_prefix(&ip_addr.0, &self.prefix, self.prefix_len) {
+            Some(*self)
+        } else {
+            None
+        }
+    }
+
+    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context> {
+        if ctx_id == 0 { Some(*self) } else { None }
+    }
+
+    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context> {
+        if prefix_len == self.prefix_len && util::matches_prefix(prefix, &self.prefix, prefix_len) {
+            Some(*self)
+        } else {
+            None
+        }
+    }
+}
+
 pub fn is_lowpan(packet: &[u8]) -> bool {
     (packet[0] & iphc::DISPATCH[0]) == iphc::DISPATCH[0]
 }
@@ -269,6 +291,8 @@ fn nhc_to_ip6_nh(nhc: u8) -> Result<u8, ()> {
     }
 }
 
+/// Compresses an IPv6 header into a 6loWPAN header
+///
 /// Constructs a 6LoWPAN header in `buf` from the given IPv6 datagram and
 /// 16-bit MAC addresses. If the compression was successful, returns
 /// `Ok((consumed, written))`, where `consumed` is the number of header
@@ -282,8 +306,8 @@ pub fn compress(ctx_store: &ContextStore,
                 dst_mac_addr: MacAddress,
                 mut buf: &mut [u8])
                 -> Result<(usize, usize), ()> {
-    let ip6_header = IP6Header::parse(ip6_datagram)?;
-    let mut consumed: usize = mem::size_of::<IP6Header>();
+    // Note that consumed should be constant, and equal sizeof(IP6Header)
+    let (mut consumed, ip6_header) = IP6Header::decode(ip6_datagram).done().ok_or(())?;
     let mut next_headers: &[u8] = &ip6_datagram[consumed..];
 
     // The first two bytes are the LOWPAN_IPHC header
@@ -752,19 +776,46 @@ fn compress_and_elide_padding(nh_type: u8,
     }
 }
 
-/// Decodes a compressed header into a full IPv6 header given the 16-bit MAC
-/// addresses. `buf` is expected to be a slice containing only the 6LowPAN
-/// packet along with its payload.  If the decompression was successful,
-/// returns `Ok((consumed, written))`, where `consumed` is the number of
-/// header bytes consumed from the 6LoWPAN header and `written` is the
-/// number of uncompressed header bytes written into `out_buf`. Payload
-/// bytes and non-compressed next headers are not written, so the remaining
-/// `buf.len() - consumed` bytes must still be copied over to `out_buf`.
+/// Decompresses a 6loWPAN header into a full IPv6 header
+///
+/// This function decompresses the header found in `buf` and writes it
+/// `out_buf`. It does not, though, copy payload bytes or a non-compressed next
+/// header. As a result, the caller should copy the `buf.len - consumed`
+/// remaining bytes from `buf` to `out_buf`.
+///
+///
 /// Note that in the case of fragmentation, the total length of the IPv6
 /// packet cannot be inferred from a single frame, and is instead provided
 /// by the dgram_size field in the fragmentation header. Thus, if we are
 /// decompressing a fragment, we rely on the dgram_size field; otherwise,
 /// we infer the length from the size of buf.
+///
+/// # Arguments
+///
+/// * `ctx_store` - ???
+///
+/// * `buf` - A slice containing the 6LowPAN packet along with its payload.
+///
+/// * `src_mac_addr` - the 16-bit MAC address of the frame sender.
+///
+/// * `dst_mac_addr` - the 16-bit MAC address of the frame receiver.
+///
+/// * `out_buf` - A buffer to write the output to. Must be at least large enough
+/// to store an IPv6 header (XX bytes).
+///
+/// * `dgram_size` - If `is_fragment` is `true`, this is used as the IPv6
+/// packets total payload size. Otherwise, this is ignored.
+///
+/// * `is_fragment` - ???
+///
+/// # Returns
+///
+/// `Ok((consumed, written))` if decompression is successful.
+///
+/// * `consumed` is the number of header bytes consumed from the 6LoWPAN header
+///
+/// * `written` is the number of uncompressed header bytes written into
+/// `out_buf`.
 pub fn decompress(ctx_store: &ContextStore,
                   buf: &[u8],
                   src_mac_addr: MacAddress,
@@ -939,7 +990,7 @@ pub fn decompress(ctx_store: &ContextStore,
         written + (buf.len() - consumed) - mem::size_of::<IP6Header>()
     };
     ip6_header.payload_len = (payload_len as u16).to_be();
-    ip6_header.serialize(&mut out_buf[0..40])?;
+    IP6Header::encode(out_buf, ip6_header).done().ok_or(())?;
     Ok((consumed, written))
 }
 
