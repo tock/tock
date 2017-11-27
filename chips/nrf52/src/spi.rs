@@ -121,14 +121,6 @@ mod registers {
             }
         }
 
-        /// Represents allowable values of `enable` register.
-        #[repr(u32)]
-        #[derive(Copy, Clone)]
-        pub enum Enable {
-            Disabled = 0,
-            Enabled = 7,
-        }
-
         /// Represents one of NRF52's three `SPIM` instances.
         #[repr(C, packed)]
         pub struct SPIM {
@@ -193,7 +185,7 @@ mod registers {
             /// Enable SPIM
             ///
             /// addr = base + 0x500
-            pub enable: VolatileCell<Enable>,
+            pub enable: VolatileCell<u32>,
             _reserved10: u32,
             /// Pin select for SCK
             ///
@@ -359,14 +351,16 @@ impl SPIM {
 
     /// Enables `SPIM` peripheral.
     pub fn enable(&self) {
-        use self::registers::spim::Enable;
-        self.regs().enable.set(Enable::Enabled);
+        self.regs().enable.set(7);
     }
 
     /// Disables `SPIM` peripheral.
     pub fn disable(&self) {
-        use self::registers::spim::Enable;
-        self.regs().enable.set(Enable::Disabled);
+        self.regs().enable.set(0);
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.regs().enable.get() == 7
     }
 }
 
