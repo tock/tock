@@ -15,13 +15,11 @@ use nrf5x::pinmux::Pinmux;
 /// An I2C master device.
 ///
 /// A `TWIM` instance wraps a `registers::TWIM` together with
-/// addition data necessary to implement an asynchronous interface.
+/// additional data necessary to implement an asynchronous interface.
 pub struct TWIM {
     registers: *const registers::TWIM,
     client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
-    busy: Cell<bool>,
     buf: TakeCell<'static, [u8]>,
-    enabled: Cell<bool>,
 }
 
 impl TWIM {
@@ -29,9 +27,7 @@ impl TWIM {
         TWIM {
             registers: registers::INSTANCES[instance],
             client: Cell::new(None),
-            busy: Cell::new(false),
             buf: TakeCell::empty(),
-            enabled: Cell::new(false),
         }
     }
 
@@ -53,16 +49,12 @@ impl TWIM {
 
     /// Enables hardware TWIM peripheral.
     pub fn enable(&self) {
-        let regs = self.regs();
-        regs.enable.set(registers::Enable::Enabled);
-        self.enabled.set(true);
+        self.regs().enable.set(6);
     }
 
     /// Disables hardware TWIM peripheral.
     pub fn disable(&self) {
-        let regs = self.regs();
-        regs.enable.set(registers::Enable::Disabled);
-        self.enabled.set(false);
+        self.regs().enable.set(0);
     }
 
     pub fn handle_interrupt(&self) {
@@ -98,27 +90,15 @@ impl TWIM {
             };
         }
 
-        if self.regs().events_suspended.get() == 1 {
-            self.regs().events_suspended.set(0);
-        }
-
-        if self.regs().events_rxstarted.get() == 1 {
-            self.regs().events_rxstarted.set(0);
-        }
-
-        if self.regs().events_lastrx.get() == 1 {
-            self.regs().events_lastrx.set(0);
-        }
-
-        if self.regs().events_lasttx.get() == 1 {
-            self.regs().events_lasttx.set(0);
-        }
-
-        self.busy.set(false);
+        // We can blindly clear the following events since we're not using them.
+        self.regs().events_suspended.set(0);
+        self.regs().events_rxstarted.set(0);
+        self.regs().events_lastrx.set(0);
+        self.regs().events_lasttx.set(0);
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.enabled.get()
+        self.regs().enable.get() == 6
     }
 }
 
@@ -154,7 +134,6 @@ impl hil::i2c::I2CMaster for TWIM {
             intenset
         });
         // start the transfer
-        self.busy.set(true);
         self.regs().tasks_starttx.set(1);
         self.buf.replace(data);
     }
@@ -177,7 +156,6 @@ impl hil::i2c::I2CMaster for TWIM {
             intenset
         });
         // start the transfer
-        self.busy.set(true);
         self.regs().tasks_starttx.set(1);
         self.buf.replace(data);
     }
@@ -200,7 +178,6 @@ impl hil::i2c::I2CMaster for TWIM {
             intenset
         });
         // start the transfer
-        self.busy.set(true);
         self.regs().tasks_startrx.set(1);
         self.buf.replace(buffer);
     }
@@ -244,14 +221,6 @@ mod registers {
     use kernel::common::VolatileCell;
     use kernel::hil;
     use nrf5x::pinmux::Pinmux;
-
-    /// Represents allowable values of `enable` register.
-    #[repr(u32)]
-    #[derive(Copy, Clone, PartialEq)]
-    pub enum Enable {
-        Disabled = 0,
-        Enabled = 6,
-    }
 
     /// Represents allowable values of `errorsrc` register.
     #[repr(u32)]
@@ -385,7 +354,7 @@ mod registers {
         /// Enable TWIM
         ///
         /// addr = base + 0x500
-        pub enable: VolatileCell<Enable>,
+        pub enable: VolatileCell<u32>,
         _reserved_11: [u32; 1],
         /// Pin select for SCL signal
         ///
