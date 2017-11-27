@@ -22,6 +22,14 @@ pub struct TWIM {
     buf: TakeCell<'static, [u8]>,
 }
 
+/// I2C bus speed.
+#[repr(u32)]
+pub enum Speed {
+    K100 = 0x01980000,
+    K250 = 0x04000000,
+    K400 = 0x06400000,
+}
+
 impl TWIM {
     const fn new(instance: usize) -> TWIM {
         TWIM {
@@ -45,6 +53,11 @@ impl TWIM {
         let regs = self.regs();
         regs.psel_scl.set(scl);
         regs.psel_sda.set(sda);
+    }
+
+    pub fn set_speed(&self, speed: Speed) {
+        let regs = self.regs();
+        regs.frequency.set(speed as u32);
     }
 
     /// Enables hardware TWIM peripheral.
