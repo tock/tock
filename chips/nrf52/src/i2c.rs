@@ -55,6 +55,8 @@ impl TWIM {
         regs.psel_sda.set(sda);
     }
 
+    /// Sets the I2C bus speed to one of three possible values
+    /// enumerated in `Speed`.
     pub fn set_speed(&self, speed: Speed) {
         let regs = self.regs();
         regs.frequency.set(speed as u32);
