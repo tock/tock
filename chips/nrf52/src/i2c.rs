@@ -139,6 +139,10 @@ impl hil::i2c::I2CMaster for TWIM {
         self.regs().rxd_maxcnt.set(read_len as u32);
         self.regs().shorts.set({
             let mut shorts = registers::Shorts(0);
+            // Use the NRF52 shortcut register to configure the peripheral to
+            // switch to RX after TX is complete, and then to switch to the STOP
+            // state once TX is done. This avoids us having to juggle tasks in
+            // the interrupt handler.
             shorts.set_lasttx_startrx(1);
             shorts.set_lastrx_stop(1);
             shorts
@@ -161,6 +165,8 @@ impl hil::i2c::I2CMaster for TWIM {
         self.regs().txd_maxcnt.set(len as u32);
         self.regs().shorts.set({
             let mut shorts = registers::Shorts(0);
+            // Use the NRF52 shortcut register to switch to the STOP state once
+            // the TX is complete.
             shorts.set_lasttx_stop(1);
             shorts
         });
@@ -182,6 +188,8 @@ impl hil::i2c::I2CMaster for TWIM {
         self.regs().rxd_maxcnt.set(len as u32);
         self.regs().shorts.set({
             let mut shorts = registers::Shorts(0);
+            // Use the NRF52 shortcut register to switch to the STOP state once
+            // the RX is complete.
             shorts.set_lastrx_stop(1);
             shorts
         });
