@@ -1,23 +1,20 @@
-/// This example capsule illustrates how to create a `List`
-/// of trait objects
-
-// Usage: to test this example, place the below code in a board's
-// reset_handler() method.  In order to observe the debug!() output,
-// it will need to be executed after the board has been initialized.
-/*
-    use capsules::examples::traitobj_list;
-
-    let manager = static_init!(traitobj_list::Manager<'static>,
-                               traitobj_list::Manager::new());
-    let jazz = static_init!(traitobj_list::Jazz<'static>,
-                            traitobj_list::Jazz::new());
-    let cheese = static_init!(traitobj_list::Cheese<'static>,
-                              traitobj_list::Cheese::new());
-
-    manager.manage(jazz);
-    manager.manage(cheese);
-    manager.report();
-*/
+//! This example capsule illustrates how to create a `List`
+//! of trait objects
+//!
+//! A potential usage of this example might look like:
+//!
+//! ```
+//! let manager = static_init!(traitobj_list::Manager<'static>,
+//!                            traitobj_list::Manager::new());
+//! let jazz = static_init!(traitobj_list::Jazz<'static>,
+//!                         traitobj_list::Jazz::new());
+//! let cheese = static_init!(traitobj_list::Cheese<'static>,
+//!                           traitobj_list::Cheese::new());
+//!
+//! manager.manage(jazz);
+//! manager.manage(cheese);
+//! manager.report();
+//! ```
 
 use kernel::common::list::*;
 
@@ -35,7 +32,7 @@ impl<'a> ListNode<'a, Funky<'a> + 'a> for Funky<'a> + 'a {
 
 // A manager holds a list of funky things
 pub struct Manager<'a> {
-    funky_things: List<'a, Funky<'a> + 'a>
+    funky_things: List<'a, Funky<'a> + 'a>,
 }
 
 impl<'a> Manager<'a> {
