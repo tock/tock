@@ -20,3 +20,6 @@ capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 nrf51 = { path = "../../chips/nrf51" }
 nrf5x = { path = "../../chips/nrf5x" }
+
+[build-dependencies]
+tock_kernel_attributes = { path = "../../tools/tock_kernel_attributes" }

@@ -1,0 +1,7 @@
+[package]
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+name = "tock_kernel_attributes"
+version = "0.1.0"
+
+[dependencies]
+regex = "0.2.2"

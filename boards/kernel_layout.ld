@@ -27,11 +27,23 @@
  *    The `_sapps` symbol marks the beginning of application memory in flash.
  */
 
+/* Arm cores can have up to 256 (1 word) vector table entries: */
+ARM_MAX_VECTOR_TABLE_LENGTH = 0x400;
+
+/* Kernel attribute table holds attributes about this kernel */
+ATTRIBUTE_TABLE_LENGTH = 0x600;
+ATTRIBUTE_TABLE_ORIGIN = ROM_ORIGIN + ARM_MAX_VECTOR_TABLE_LENGTH;
+
+KERNEL_ORIGIN = ROM_ORIGIN + ARM_MAX_VECTOR_TABLE_LENGTH + ATTRIBUTE_TABLE_LENGTH;
+KERNEL_LENGTH = ROM_LENGTH - ARM_MAX_VECTOR_TABLE_LENGTH - ATTRIBUTE_TABLE_LENGTH;
+
 MEMORY
 {
-  rom (rx)  : ORIGIN =  ROM_ORIGIN, LENGTH =  ROM_LENGTH
-  prog (rx) : ORIGIN = PROG_ORIGIN, LENGTH = PROG_LENGTH
-  ram (rwx) : ORIGIN =  RAM_ORIGIN, LENGTH =  RAM_LENGTH
+  vector_table (rx)   : ORIGIN =              ROM_ORIGIN, LENGTH = ARM_MAX_VECTOR_TABLE_LENGTH
+  attribute_table (r) : ORIGIN =  ATTRIBUTE_TABLE_ORIGIN, LENGTH =      ATTRIBUTE_TABLE_LENGTH
+  rom (rx)            : ORIGIN =           KERNEL_ORIGIN, LENGTH =               KERNEL_LENGTH
+  prog (rx)           : ORIGIN =             PROG_ORIGIN, LENGTH =                 PROG_LENGTH
+  ram (rwx)           : ORIGIN =              RAM_ORIGIN, LENGTH =                  RAM_LENGTH
 }
 
 __stack_size__ = DEFINED(__stack_size__) ? __stack_size__ : 0x1000;
@@ -39,9 +51,10 @@ __stack_size__ = DEFINED(__stack_size__) ? __stack_size__ : 0x1000;
 SECTIONS
 {
     /* STATIC ELEMENTS FOR TOCK KERNEL */
-    .text :
+    .vector_table :
     {
         . = ALIGN(4);
+        _vector_table_start = .;
         _textstart = .;         /* Symbol expected by some MS build toolchains */
         _stext = .;         /* First of standard s,e (start/end) pair */
 
@@ -55,7 +68,35 @@ SECTIONS
          */
         KEEP(*(.vectors .vectors.*))
         KEEP(*(.irqs))
+        FILL(0xadde) /* dead */
+        . = _vector_table_start + ARM_MAX_VECTOR_TABLE_LENGTH;
+    } > vector_table
 
+    .attribute_table :
+    {
+        _attribute_table_start = .;
+        /* Attribute Table Identifier: TockKernel */
+        BYTE(0x54) /* T */
+        BYTE(0x6f) /* o */
+        BYTE(0x63) /* c */
+        BYTE(0x6b) /* k */
+        BYTE(0x4b) /* K */
+        BYTE(0x65) /* e */
+        BYTE(0x72) /* r */
+        BYTE(0x6e) /* n */
+        BYTE(0x65) /* e */
+        BYTE(0x6c) /* l */
+        /* Start attributes on next page */
+        FILL(0x00)
+        . = _attribute_table_start + 512;
+        /* Remaining attributes */
+        KEEP(*(.kernel_attributes .kernel_attribute.*))
+        FILL(0x0)
+        . = _attribute_table_start + ATTRIBUTE_TABLE_LENGTH;
+    } > attribute_table
+
+    .text :
+    {
         /* .text and .rodata hold most program code and immutable constants */
         /* .gnu.linkonce hold C++ elements with vague linkage
                 https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html */
