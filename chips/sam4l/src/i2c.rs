@@ -10,7 +10,6 @@
 //! CHANGE THIS DRIVER, TEST RIGOROUSLY!!!
 
 use core::cell::Cell;
-use core::mem;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
@@ -202,7 +201,7 @@ impl I2CHw {
 
         let cwgr = ((exp & 0x7) << 28) | ((data & 0xF) << 24) | ((stasto & 0xFF) << 16) |
                    ((high & 0xFF) << 8) | ((low & 0xFF) << 0);
-        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &TWIMRegisters = unsafe { &*self.registers };
         regs.clock_waveform_generator.set(cwgr);
     }
 
@@ -220,7 +219,7 @@ impl I2CHw {
 
     pub fn handle_interrupt(&self) {
         use kernel::hil::i2c::Error;
-        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &TWIMRegisters = unsafe { &*self.registers };
 
         let old_status = regs.status.get();
 
@@ -313,7 +312,7 @@ impl I2CHw {
     }
 
     fn setup_xfer(&self, chip: u8, flags: usize, read: bool, len: u8) {
-        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &TWIMRegisters = unsafe { &*self.registers };
 
         // disable before configuring
         regs.control.set(0x1 << 1);
@@ -336,7 +335,7 @@ impl I2CHw {
     }
 
     fn setup_nextfer(&self, chip: u8, flags: usize, read: bool, len: u8) {
-        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &TWIMRegisters = unsafe { &*self.registers };
 
         // disable before configuring
         regs.control.set(0x1 << 1);
@@ -355,7 +354,7 @@ impl I2CHw {
     }
 
     fn master_enable(&self) {
-        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &TWIMRegisters = unsafe { &*self.registers };
 
         // Enable to begin transfer
         regs.control.set(0x1 << 0);
@@ -394,7 +393,7 @@ impl I2CHw {
     }
 
     fn disable_interrupts(&self) {
-        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &TWIMRegisters = unsafe { &*self.registers };
         regs.interrupt_disable.set(!0);
     }
 
@@ -402,7 +401,7 @@ impl I2CHw {
     pub fn handle_slave_interrupt(&self) {
 
         self.slave_registers.map(|slave_registers| {
-            let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
+            let regs: &TWISRegisters = unsafe { &*slave_registers };
 
             // Get current status from the hardware.
             let status = regs.status.get();
@@ -607,7 +606,7 @@ impl I2CHw {
         if self.slave_enabled.get() {
 
             self.slave_registers.map(|slave_registers| {
-                let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
+                let regs: &TWISRegisters = unsafe { &*slave_registers };
 
                 let status = regs.status.get();
                 let imr = regs.interrupt_mask.get();
@@ -633,7 +632,7 @@ impl I2CHw {
 
             // Check to see if we should send the first byte.
             self.slave_registers.map(|slave_registers| {
-                let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
+                let regs: &TWISRegisters = unsafe { &*slave_registers };
 
                 let status = regs.status.get();
                 let imr = regs.interrupt_mask.get();
@@ -665,7 +664,7 @@ impl I2CHw {
 
     fn slave_disable_interrupts(&self) {
         self.slave_registers.map(|slave_registers| {
-            let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
+            let regs: &TWISRegisters = unsafe { &*slave_registers };
             regs.interrupt_disable.set(!0);
         });
     }
@@ -676,7 +675,7 @@ impl I2CHw {
 
     pub fn slave_listen(&self) {
         self.slave_registers.map(|slave_registers| {
-            let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
+            let regs: &TWISRegisters = unsafe { &*slave_registers };
 
             // Enable and configure
             let control = (((self.my_slave_address.get() as usize) & 0x7F) << 16) |
@@ -707,7 +706,7 @@ impl hil::i2c::I2CMaster for I2CHw {
         //disable the i2c slave peripheral
         hil::i2c::I2CSlave::disable(self);
 
-        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &TWIMRegisters = unsafe { &*self.registers };
 
         // enable, reset, disable
         regs.control.set(0x1 << 0);
@@ -726,7 +725,7 @@ impl hil::i2c::I2CMaster for I2CHw {
 
     /// This disables the entire I2C peripheral
     fn disable(&self) {
-        let regs: &mut TWIMRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &TWIMRegisters = unsafe { &*self.registers };
         regs.control.set(0x1 << 1);
         unsafe {
             pm::disable_clock(self.master_clock);
@@ -755,7 +754,7 @@ impl hil::i2c::I2CSlave for I2CHw {
         });
 
         self.slave_registers.map(|slave_registers| {
-            let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
+            let regs: &TWISRegisters = unsafe { &*slave_registers };
 
             // enable, reset, disable
             regs.control.set(0x1 << 0);
@@ -785,7 +784,7 @@ impl hil::i2c::I2CSlave for I2CHw {
         self.slave_enabled.set(false);
 
         self.slave_registers.map(|slave_registers| {
-            let regs: &mut TWISRegisters = unsafe { mem::transmute(slave_registers) };
+            let regs: &TWISRegisters = unsafe { &*slave_registers };
 
             regs.control.set(0);
             self.slave_clock.map(|slave_clock| unsafe {

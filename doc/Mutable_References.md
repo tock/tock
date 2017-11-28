@@ -131,7 +131,7 @@ call to `take`:
 
 ```rust
 pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
-    let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+    let registers: &DMARegisters = unsafe { &*self.registers };
     registers.interrupt_disable.set(!0);
     // Reset counter
     registers.transfer_counter.set(0);
@@ -153,7 +153,7 @@ Here is a simple use of `map`, taken from `chips/sam4l/src/dma.rs`:
 
 ```rust
 pub fn disable(&self) {
-    let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+    let regs: &SpiRegisters = unsafe { &*self.registers };
 
     self.dma_read.map(|read| read.disable());
     self.dma_write.map(|write| write.disable());

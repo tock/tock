@@ -4,7 +4,6 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::mem;
 use dma;
 use kernel::ReturnCode;
 use kernel::common::VolatileCell;
@@ -153,20 +152,20 @@ impl USART {
 
     pub fn enable_rx(&self) {
         self.enable_clock();
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 4); // RXEN
         regs.cr.set(cr_val);
     }
 
     pub fn enable_tx(&self) {
         self.enable_clock();
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 6); // TXEN
         regs.cr.set(cr_val);
     }
 
     pub fn disable_rx(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 5); // RXDIS
         regs.cr.set(cr_val);
 
@@ -178,7 +177,7 @@ impl USART {
     }
 
     pub fn disable_tx(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 7); // TXDIS
         regs.cr.set(cr_val);
 
@@ -246,17 +245,17 @@ impl USART {
     }
 
     pub fn enable_tx_empty_interrupt(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.ier.set(1 << 9);
     }
 
     pub fn disable_tx_empty_interrupt(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.idr.set(1 << 9);
     }
 
     pub fn enable_rx_error_interrupts(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let ier_val = 0x00000000 |
             (1 <<  7) | // PARE
             (1 <<  6) | // FRAME
@@ -265,7 +264,7 @@ impl USART {
     }
 
     pub fn disable_rx_interrupts(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let idr_val = 0x00000000 |
             (1 << 12) | // RXBUFF
             (1 <<  8) | // TIMEOUT
@@ -277,7 +276,7 @@ impl USART {
     }
 
     pub fn disable_tx_interrupts(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let idr_val = 0x00000000 |
             (1 << 9) | // TXEMPTY
             (1 << 1); //. TXREADY
@@ -290,7 +289,7 @@ impl USART {
     }
 
     pub fn reset(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
 
         // reset status bits, transmitter, and receiver
         let cr_val = 0x00000000 |
@@ -313,7 +312,7 @@ impl USART {
         // future.
         if self.is_clock_enabled() {
 
-            let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+            let regs: &USARTRegisters = unsafe { &*self.registers };
             let status = regs.csr.get();
             let mask = regs.imr.get();
 
@@ -361,12 +360,12 @@ impl USART {
     }
 
     fn set_mode(&self, mode: u32) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.mr.set(mode);
     }
 
     fn set_baud_rate(&self, baud_rate: u32) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
 
         let system_frequency = pm::get_system_frequency();
 
@@ -383,19 +382,19 @@ impl USART {
     /// In non-SPI mode, this drives RTS low.
     /// In SPI mode, this asserts (drives low) the chip select line.
     fn rts_enable_spi_assert_cs(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.cr.set(1 << 18);
     }
 
     /// In non-SPI mode, this drives RTS high.
     /// In SPI mode, this de-asserts (drives high) the chip select line.
     fn rts_disable_spi_deassert_cs(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.cr.set(1 << 19);
     }
 
     fn enable_rx_timeout(&self, timeout: u8) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let rtor_val: u32 = 0x00000000 | timeout as u32;
         regs.rtor.set(rtor_val);
 
@@ -407,7 +406,7 @@ impl USART {
     }
 
     fn disable_rx_timeout(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.rtor.set(0);
 
         // enable timeout interrupt
@@ -421,14 +420,14 @@ impl USART {
 
     // for use by panic in io.rs
     pub fn send_byte(&self, byte: u8) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let thr_val: u32 = 0x00000000 | byte as u32;
         regs.thr.set(thr_val);
     }
 
     // for use by panic in io.rs
     pub fn tx_ready(&self) -> bool {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         let csr_val: u32 = regs.csr.get();
         let mut ret_val = false;
         if (csr_val & (1 << 1)) == (1 << 1) {
@@ -714,7 +713,7 @@ impl hil::spi::SpiMaster for USART {
     type ChipSelect = Option<&'static hil::gpio::Pin>;
 
     fn init(&self) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
 
         self.usart_mode.set(UsartMode::Spi);
         self.enable_clock();
@@ -807,7 +806,7 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn write_byte(&self, val: u8) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         self.enable_clock();
         regs.cr.set((1 << 4) | (1 << 6));
 
@@ -815,13 +814,13 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn read_byte(&self) -> u8 {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         self.enable_clock();
         regs.rhr.get() as u8
     }
 
     fn read_write_byte(&self, val: u8) -> u8 {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         self.enable_clock();
         regs.cr.set((1 << 4) | (1 << 6));
 
@@ -847,7 +846,7 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn get_rate(&self) -> u32 {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         self.enable_clock();
         let system_frequency = pm::get_system_frequency();
         let cd = regs.brgr.get() & 0xFFFF;
@@ -855,7 +854,7 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn set_clock(&self, polarity: hil::spi::ClockPolarity) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         self.enable_clock();
         let mode = regs.mr.get();
 
@@ -870,7 +869,7 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn get_clock(&self) -> hil::spi::ClockPolarity {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         self.enable_clock();
         let mode = regs.mr.get();
 
@@ -881,7 +880,7 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn set_phase(&self, phase: hil::spi::ClockPhase) {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         self.enable_clock();
         let mode = regs.mr.get();
 
@@ -896,7 +895,7 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn get_phase(&self) -> hil::spi::ClockPhase {
-        let regs: &mut USARTRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &USARTRegisters = unsafe { &*self.registers };
         self.enable_clock();
         let mode = regs.mr.get();
 

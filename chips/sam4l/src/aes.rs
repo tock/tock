@@ -1,7 +1,6 @@
 //! Implementation of the AESA peripheral on the SAM4L.
 
 use core::cell::Cell;
-use core::mem;
 
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
@@ -83,21 +82,21 @@ impl Aes {
     }
 
     pub fn enable(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         self.enable_clock();
         regs.ctrl.set(0x01);
     }
 
     pub fn disable(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         regs.ctrl.set(0x00);
         self.disable_clock();
     }
 
     fn enable_ctr_mode(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         //         encrypt    dma        mode       cmeasure
         let mode = (1 << 0) | (0 << 3) | (4 << 4) | (0xF << 16);
@@ -105,26 +104,26 @@ impl Aes {
     }
 
     fn enable_interrupts(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         // We want both interrupts.
         regs.ier.set((1 << 16) | (1 << 0));
     }
 
     fn disable_interrupts(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
         regs.idr.set((1 << 16) | (1 << 0));
     }
 
     fn notify_new_message(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         // Notify of a new message.
         regs.ctrl.set((1 << 2) | (1 << 0));
     }
 
     fn write_block(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         self.data.map(|data| {
             let index = self.data_index.get();
@@ -141,7 +140,7 @@ impl Aes {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         let status = regs.sr.get();
 
@@ -192,7 +191,7 @@ impl hil::symmetric_encryption::SymmetricEncryption for Aes {
     fn init(&self) {}
 
     fn set_key(&self, key: &'static mut [u8], len: usize) -> &'static mut [u8] {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
         self.enable();
 
         if len == 16 {
@@ -215,7 +214,7 @@ impl hil::symmetric_encryption::SymmetricEncryption for Aes {
 
     fn aes128_crypt_ctr(&self, data: &'static mut [u8], init_ctr: &'static mut [u8], len: usize) {
 
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
         self.enable();
         self.enable_interrupts();
         self.enable_ctr_mode();

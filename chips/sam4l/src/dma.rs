@@ -1,6 +1,6 @@
 //! Implementation of the PDCA DMA peripheral.
 
-use core::{cmp, intrinsics, mem};
+use core::{cmp, intrinsics};
 use core::cell::Cell;
 use kernel::common::VolatileCell;
 
@@ -175,7 +175,7 @@ impl DMAChannel {
                     pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
-            let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+            let registers: &DMARegisters = unsafe { &*self.registers };
             registers.interrupt_disable.set(!0);
 
             self.enabled.set(true);
@@ -191,14 +191,14 @@ impl DMAChannel {
                     pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
                 }
             }
-            let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+            let registers: &DMARegisters = unsafe { &*self.registers };
             registers.control.set(0x2);
             self.enabled.set(false);
         }
     }
 
     pub fn handle_interrupt(&mut self) {
-        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &DMARegisters = unsafe { &*self.registers };
         registers.interrupt_disable.set(!0);
         let channel = registers.peripheral_select.get();
 
@@ -206,14 +206,14 @@ impl DMAChannel {
     }
 
     pub fn start_xfer(&self) {
-        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &DMARegisters = unsafe { &*self.registers };
         registers.control.set(0x1);
     }
 
     pub fn prepare_xfer(&self, pid: DMAPeripheral, buf: &'static mut [u8], mut len: usize) {
         // TODO(alevy): take care of zero length case
 
-        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &DMARegisters = unsafe { &*self.registers };
 
         let maxlen = buf.len() /
                      match self.width.get() {
@@ -243,7 +243,7 @@ impl DMAChannel {
     /// Aborts any current transactions and returns the buffer used in the
     /// transaction.
     pub fn abort_xfer(&self) -> Option<&'static mut [u8]> {
-        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &DMARegisters = unsafe { &*self.registers };
         registers.interrupt_disable.set(!0);
 
         // Reset counter
@@ -253,7 +253,7 @@ impl DMAChannel {
     }
 
     pub fn transfer_counter(&self) -> usize {
-        let registers: &mut DMARegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &DMARegisters = unsafe { &*self.registers };
         registers.transfer_counter.get() as usize
     }
 }
