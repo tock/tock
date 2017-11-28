@@ -85,9 +85,11 @@ pub unsafe extern "C" fn init() {
     // found at the Errata doc
     *(0x4000053ci32 as (*mut u32)) = (*(0x10000244i32 as (*mut u32)) & 0xe000u32) >> 13i32;
 
-    // Workaround for Errata 32
-    // "DIF: Debug session automatically enables TracePort pins" found at the Errata doc
-    //    CoreDebug->DEMCR &= ~CoreDebug_DEMCR_TRCENA_Msk;
+    // Only needed for preview hardware
+    // // Workaround for Errata 32
+    // // "DIF: Debug session automatically enables TracePort pins" found at the Errata doc
+    // //    CoreDebug->DEMCR &= ~CoreDebug_DEMCR_TRCENA_Msk;
+    // *(0xe000edfcu32 as (*mut u32)) &= !0x01000000,
 
     // Workaround for Errata 36
     // "CLOCK: Some registers are not reset when expected" found at the Errata doc

@@ -16,6 +16,7 @@ mod peripheral_registers;
 
 pub mod chip;
 pub mod crt1;
+pub mod ficr;
 pub mod nvmc;
 pub mod radio;
 pub mod uart;
