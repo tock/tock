@@ -6,7 +6,6 @@
 //! - Date: May 26th, 2017
 
 use core::cell::Cell;
-use core::mem;
 use kernel::ReturnCode;
 use kernel::common::VolatileCell;
 use kernel::hil;
@@ -53,7 +52,7 @@ impl Dac {
 
 impl hil::dac::DacChannel for Dac {
     fn initialize(&self) -> ReturnCode {
-        let regs: &mut DacRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &DacRegisters = unsafe { &*self.registers };
         if !self.enabled.get() {
             self.enabled.set(true);
 
@@ -80,7 +79,7 @@ impl hil::dac::DacChannel for Dac {
 
 
     fn set_value(&self, value: usize) -> ReturnCode {
-        let regs: &mut DacRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &DacRegisters = unsafe { &*self.registers };
         if !self.enabled.get() {
             ReturnCode::EOFF
         } else {

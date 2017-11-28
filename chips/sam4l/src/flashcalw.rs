@@ -22,7 +22,6 @@
 //! - Date: July 27, 2016
 
 use core::cell::Cell;
-use core::mem;
 use core::ops::{Index, IndexMut};
 use helpers::{DeferredCall, Task};
 use kernel::ReturnCode;
@@ -218,12 +217,12 @@ impl FLASHCALW {
 
     //  Flush the cache. Should be called after every write!
     fn invalidate_cache(&self) {
-        let registers: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &FlashcalwRegisters = unsafe { &*self.registers };
         registers.maint0.set(0x1);
     }
 
     pub fn enable_picocache(&self, enable: bool) {
-        let registers: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &FlashcalwRegisters = unsafe { &*self.registers };
         if enable {
             registers.ctrl.set(0x1);
         } else {
@@ -246,13 +245,13 @@ impl FLASHCALW {
     }
 
     pub fn pico_enabled(&self) -> bool {
-        let registers: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &FlashcalwRegisters = unsafe { &*self.registers };
         registers.sr.get() & 0x1 != 0
     }
 
     // Helper to read a flashcalw register (espically if your function is doing so once)
     fn read_register(&self, key: RegKey) -> u32 {
-        let registers: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &FlashcalwRegisters = unsafe { &*self.registers };
 
         match key {
             RegKey::CONTROL => registers.fcr.get(),
@@ -399,7 +398,7 @@ impl FLASHCALW {
     }
 
     fn set_wait_state(&self, wait_state: u32) {
-        let regs: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         if wait_state == 1 {
             regs.fcr.set(regs.fcr.get() | bit!(6));
         } else {
@@ -408,7 +407,7 @@ impl FLASHCALW {
     }
 
     fn enable_ws1_read_opt(&mut self, enable: bool) {
-        let regs: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         if enable {
             regs.fcr.set(regs.fcr.get() | bit!(7));
         } else {
@@ -470,7 +469,7 @@ impl FLASHCALW {
 
     /// Configure high-speed flash mode. This is taken from the ASF code
     pub fn enable_high_speed_flash(&self) {
-        let regs: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
 
         // Since we are running at a fast speed we have to set a clock delay
         // for flash, as well as enable fast flash mode.
@@ -493,7 +492,7 @@ impl FLASHCALW {
     }
 
     fn enable_ready_int(&self, enable: bool) {
-        let regs: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         if enable {
             regs.fcr.set(regs.fcr.get() | bit!(0));
         } else {
@@ -507,7 +506,7 @@ impl FLASHCALW {
     }
 
     fn enable_lock_error_int(&self, enable: bool) {
-        let regs: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         if enable {
             regs.fcr.set(regs.fcr.get() | bit!(2));
         } else {
@@ -521,7 +520,7 @@ impl FLASHCALW {
     }
 
     fn enable_prog_error_int(&self, enable: bool) {
-        let regs: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         if enable {
             regs.fcr.set(regs.fcr.get() | bit!(3));
         } else {
@@ -535,7 +534,7 @@ impl FLASHCALW {
     }
 
     fn enable_ecc_int(&self, enable: bool) {
-        let regs: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &FlashcalwRegisters = unsafe { &*self.registers };
         if enable {
             regs.fcr.set(regs.fcr.get() | bit!(4));
         } else {
@@ -595,7 +594,7 @@ impl FLASHCALW {
             self.enable_ready_int(true);
         }
 
-        let cmd_regs: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let cmd_regs: &FlashcalwRegisters = unsafe { &*self.registers };
         let mut reg_val: u32 = cmd_regs.fcmd.get();
 
         let clear_cmd_mask: u32 = !(bit!(6) - 1);
@@ -668,7 +667,7 @@ impl FLASHCALW {
     }
 
     fn is_page_erased(&self) -> bool {
-        let registers: &mut FlashcalwRegisters = unsafe { mem::transmute(self.registers) };
+        let registers: &FlashcalwRegisters = unsafe { &*self.registers };
         let status = registers.fsr.get();
 
         (status & bit!(5)) != 0

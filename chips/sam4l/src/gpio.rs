@@ -2,7 +2,6 @@
 
 use self::Pin::*;
 use core::cell::Cell;
-use core::mem;
 use core::ops::{Index, IndexMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::common::VolatileCell;
@@ -154,7 +153,7 @@ impl IndexMut<usize> for Port {
 
 impl Port {
     pub fn handle_interrupt(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
 
         // Interrupt Flag Register (IFR) bits are only valid if the same bits
         // are enabled in Interrupt Enabled Register (IER).
@@ -310,7 +309,7 @@ impl GPIOPin {
     pub fn select_peripheral(&self, function: PeripheralFunction) {
         let f = function as u32;
         let (bit0, bit1, bit2) = (f & 0b1, (f & 0b10) >> 1, (f & 0b100) >> 2);
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
 
         // clear GPIO enable for pin
         port.gper.clear.set(self.pin_mask);
@@ -334,42 +333,42 @@ impl GPIOPin {
     }
 
     pub fn enable(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.gper.set.set(self.pin_mask);
     }
 
     pub fn disable(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.gper.clear.set(self.pin_mask);
     }
 
     pub fn enable_output(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.oder.set.set(self.pin_mask);
     }
 
     pub fn disable_output(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.oder.clear.set(self.pin_mask);
     }
 
     pub fn enable_pull_down(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.pder.set.set(self.pin_mask);
     }
 
     pub fn disable_pull_down(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.pder.clear.set(self.pin_mask);
     }
 
     pub fn enable_pull_up(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.puer.set.set(self.pin_mask);
     }
 
     pub fn disable_pull_up(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.puer.clear.set(self.pin_mask);
     }
 
@@ -386,7 +385,7 @@ impl GPIOPin {
     /// | 0b10         | Falling edge   |
     ///
     pub fn set_interrupt_mode(&self, mode: u8) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         if mode & 0b01 != 0 {
             port.imr0.set.set(self.pin_mask);
         } else {
@@ -401,17 +400,15 @@ impl GPIOPin {
     }
 
     pub fn enable_interrupt(&self) {
-        unsafe {
-            let port: &mut Registers = mem::transmute(self.port);
-            if port.ier.val.get() & self.pin_mask == 0 {
-                INTERRUPT_COUNT.fetch_add(1, Ordering::Relaxed);
-                port.ier.set.set(self.pin_mask);
-            }
+        let port: &Registers = unsafe { &*self.port };
+        if port.ier.val.get() & self.pin_mask == 0 {
+            INTERRUPT_COUNT.fetch_add(1, Ordering::Relaxed);
+            port.ier.set.set(self.pin_mask);
         }
     }
 
     pub fn disable_interrupt(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         if port.ier.val.get() & self.pin_mask != 0 {
             INTERRUPT_COUNT.fetch_sub(1, Ordering::Relaxed);
             port.ier.clear.set(self.pin_mask);
@@ -423,32 +420,32 @@ impl GPIOPin {
     }
 
     pub fn disable_schmidtt_trigger(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.ster.clear.set(self.pin_mask);
     }
 
     pub fn enable_schmidtt_trigger(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.ster.set.set(self.pin_mask);
     }
 
     pub fn read(&self) -> bool {
-        let port: &Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         (port.pvr.get() & self.pin_mask) > 0
     }
 
     pub fn toggle(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.ovr.toggle.set(self.pin_mask);
     }
 
     pub fn set(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.ovr.set.set(self.pin_mask);
     }
 
     pub fn clear(&self) {
-        let port: &mut Registers = unsafe { mem::transmute(self.port) };
+        let port: &Registers = unsafe { &*self.port };
         port.ovr.clear.set(self.pin_mask);
     }
 }

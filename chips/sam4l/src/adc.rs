@@ -210,7 +210,7 @@ impl Adc {
 
     /// Interrupt handler for the ADC.
     pub fn handle_interrupt(&mut self) {
-        let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AdcRegisters = unsafe { &*self.registers };
         let status = regs.sr.get();
 
         if self.enabled.get() && self.active.get() {
@@ -266,7 +266,7 @@ impl Adc {
             // already configured to work on this frequency
             ReturnCode::SUCCESS
         } else {
-            let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
+            let regs: &AdcRegisters = unsafe { &*self.registers };
 
             // disabling the ADC before switching clocks is necessary to avoid leaving it
             // in undefined state
@@ -406,7 +406,7 @@ impl hil::adc::Adc for Adc {
     ///
     /// - `channel`: the ADC channel to sample
     fn sample(&self, channel: &Self::Channel) -> ReturnCode {
-        let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AdcRegisters = unsafe { &*self.registers };
 
         // always configure to 1KHz to get the slowest clock with single sampling
         let res = self.config_and_enable(1000);
@@ -461,7 +461,7 @@ impl hil::adc::Adc for Adc {
     /// - `channel`: the ADC channel to sample
     /// - `frequency`: the number of samples per second to collect
     fn sample_continuous(&self, channel: &Self::Channel, frequency: u32) -> ReturnCode {
-        let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AdcRegisters = unsafe { &*self.registers };
 
         let res = self.config_and_enable(frequency);
 
@@ -561,7 +561,7 @@ impl hil::adc::Adc for Adc {
     /// but can be called to abort any currently running operation. The buffer,
     /// if any, will be returned via the `samples_ready` callback.
     fn stop_sampling(&self) -> ReturnCode {
-        let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AdcRegisters = unsafe { &*self.registers };
 
         if !self.enabled.get() {
             ReturnCode::EOFF
@@ -634,7 +634,7 @@ impl hil::adc::AdcHighSpeed for Adc {
                         buffer2: &'static mut [u16],
                         length2: usize)
                         -> (ReturnCode, Option<&'static mut [u16]>, Option<&'static mut [u16]>) {
-        let regs: &mut AdcRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AdcRegisters = unsafe { &*self.registers };
 
         let res = self.config_and_enable(frequency);
 

@@ -1,7 +1,6 @@
 //! Implementation of the SAM4L hardware watchdog timer.
 
 use core::cell::Cell;
-use core::mem;
 use kernel::common::VolatileCell;
 use kernel::hil;
 use pm::{self, Clock, PBDClock};
@@ -37,7 +36,7 @@ impl Wdt {
     }
 
     fn start(&self, period: usize) {
-        let regs: &mut WdtRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &WdtRegisters = unsafe { &*self.registers };
 
         self.enabled.set(true);
 
@@ -86,7 +85,7 @@ impl Wdt {
     }
 
     fn stop(&self) {
-        let regs: &mut WdtRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &WdtRegisters = unsafe { &*self.registers };
 
         // Set enable bit (bit 0) to 0 to disable
         let control = regs.cr.get() & !0x01;
@@ -103,7 +102,7 @@ impl Wdt {
     }
 
     fn tickle(&self) {
-        let regs: &mut WdtRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &WdtRegisters = unsafe { &*self.registers };
 
         // Need to write the WDTCLR bit twice for it to work
         regs.clr.set((0x55 << 24) | (1 << 0));
