@@ -22,7 +22,7 @@ This document is split into several sections. These are as follows:
   4. Implementation Details - Describes how certain implementations of these
      traits will work, providing some examples with pseudocode or commented
      explanations of functionality
-  5. Example Message Traverals - Shows how different example messages (thread or 
+  5. Example Message Traverals - Shows how different example messages (Thread or 
      otherwise) will traverse the stack
   6. Suggested File Naming Convention - Currently capsules associated with the
      networking stack are named by a variety of conventions. This section
@@ -31,19 +31,19 @@ This document is split into several sections. These are as follows:
 ********************************** Principles **********************************
 
 1. Keep the simple case simple
-   - Sending an IP packet via an established thread network should not 
+   - Sending an IP packet via an established Thread network should not 
      require a more complicated interface than send(destination, packet)
    - If functionality were added to allow for the transmission of IP packets over
      the BLE interface, this IP send function should not have to deal with any
      options or MessageInfo structs that include 802.15.4 information.
-   - This principle reflects a desire to limit the complexity of thread/the
+   - This principle reflects a desire to limit the complexity of Thread/the
      tock networking stack to the capsules that implement the stack. This 
      prevents the burden of this complexity from being passed up to whatever
      applications use Thread
 
 2. Layering is separate from encapsulation
    - Libraries that handle encapsulation should not be contained within any
-     specific layering construct. For example, If the thread control unit wants
+     specific layering construct. For example, If the Thread control unit wants
      to encapsulate a UDP payload inside of a UDP packet inside of an IP packet,
      it should be able to do so using encapsulation libraries and get the 
      resulting IP packet without having to pass through all of the protocol layers
@@ -65,7 +65,7 @@ This document is split into several sections. These are as follows:
      be delivered to different clients (ex: Server listening on all addresses
      but also sending messages from specific addresses)
    - Prevents send path from having to navigate the added complexity required
-     for thread to determine whether to forward received messages up the stack
+     for Thread to determine whether to forward received messages up the stack
 
 ******************************** Stack Diagram ********************************
 
@@ -109,14 +109,14 @@ Notes on the stack:
   uses the TCP or UDP send implementations it must use the transport packet library
   to insert its payload inside a packet and set certain header fields.
   The transport send method uses the IP Packet library to set certain
-  IP fields before handing the packet off to thread. Thread then sets other 
+  IP fields before handing the packet off to Thread. Thread then sets other 
   parameters at other layers as needed before sending the packet off via the
   15.4 send function implemented for Thread. 
 - This stack does not demonstrate a full set of functionality we are planning to
   implement now. Rather it demonstrates how this setup allows for multiple 
   implementations of each layer based off of traits and libraries such that a 
   flexible network stack can be configured, rather than creating a network 
-  stack designed such that applications can only use thread.
+  stack designed such that applications can only use Thread.
 
 ******************************** List of Traits ********************************
 
@@ -124,35 +124,44 @@ This section describes a number of traits which must be implemented by any
 network stack. It is expected that multiple implemenations of some of these
 traits may exist to allow for Tock to support more than just Thread networking.
 
-These traits are organized by the network layer they would typically be
+Before discussing these traits - a note on buffers:
+
+    Up until now, the tock networking stack has primarily passed around references 
+    to 'static mut [u8] to pass packets along the stack. This is not ideal from a
+    standpoint of wanting
+    to be able to prevent as many errors as possible at compile time. Instead,
+    this code will pass 'typed' buffers up and down the stack. There are a number
+    of packet library traits defined below (e.g. IPPacket, UDPPacket, etc.). Each
+    trait will be implemented by a struct that will contain at least one field -
+    a [u8] buffer with lifetime 'a. This design allows for all buffers passed to
+    be passed as type 'UDPPacket', 'IPPacket', etc. An added advantage of this
+    design is that each buffer can easily be operated on using the library
+    functions associated with this buffer type. 
+
+    One result of this design decision is that it requires each lower layer
+    'send' call to implement multiple send() functions, one for each type of
+    buffer that could be passed to it. For example, in order to have a fully
+    functioning IP layer, there would need to be an implementation of the
+    send() function for each transport protocol. Ex:
+
+    trait IPSend() {
+        fn send(&'static mut UDPPacket);
+        fn send(&'static mut TCPPacket);
+        fn send(&'static mut ICMPPacket);
+        fn send(&'static mut [u8];
+    }
+
+    This example gives insight into how typed buffers complicate the traits
+    required to allow for typed buffer checking, and hopefullys make the 
+    use of buffers in the trait descriptions that follow more clear.
+
+The traits below are organized by the network layer they would typically be
 associated with.
+
 
 ======== Transport Layer ========
 
-//TODO: TCP, once UDP agreed upon.
-
----
-HELP: We discussed replacing calls to 'buf: &'static mut [u8]' with calls
-to specific packet types (e.g., udp_packet: UDPPacket). I am not exactly sure
-how this would work:
-
-  1) Would UDPPacket the type refer to any object that implements the UDPPacket
-  trait? Thus, should anything that implements the UDPPacket trait be a struct
-  defined something like this:
-
-
-    struct UDPPacket_ex {
-      pub buf: &'static mut [u8];
-    }
-
-    struct UDPPacket_ex impl UDPPacket {
-      ...
-    }
-
-  2) If my assumption in 1) is correct, is this really useful? I suppose that
-  different implementation of UDPPacket could be structs with additional fields
-  as required on an implementation by implementation basis..?
----
+//TODO: TCP, ICMP once UDP agreed upon.
 
 struct UDPHeader {
     pub src_port: u16;
@@ -164,49 +173,52 @@ struct UDPHeader {
 struct UDPSocket_ex { /* Example UDP socket implementation */
     pub src_ip: IPAddr;
     pub src_port: u16;
-    pub udp_sender: UDPSend;
 }
 
 trait UDPSocket:UDPSend {
-    fn bind(src_ip: IPAddr, src_port: u16) -> ReturnCode; /* Return success */
-//TODO: Should implement UDPSend
-    fn setSender(udp_sender: UDPSend) -> ReturnCode; /* Return success */
-    fn newSender() -> UDPSend; /* Creates new UDPSend object */
-    fn send()(dest, buf); //Bc Socket implements UDPSend
+    fn bind(&self, src_ip: IPAddr, src_port: u16) -> ReturnCode;
+    fn send(&self, dest: IP6Addr, udp_packet: &'static UDPPacket) ->ReturnCode;
+    fn send_done(&self, udp_packet: &'static UDPPacket, result: ReturnCode);
+}
+
+struct UDPPacket_ex { /* Example UDP Packet struct */
+    pub buf: 'a mut [u8];
+    pub len: u16; // length of payload, also serves as an indicator of how far
+                  // into the packet the UDP packet begins
 }
 
 trait UDPPacket {
-    fn clear(); //Sets fields to appropriate defaults    
-    fn getOffset() -> usize; //Always returns 8
+    fn reset(&self); //Sets fields to appropriate defaults    
+    fn getOffset(&self) -> usize; //Always returns 8
 
-    fn setDestPort(buf: &'static mut [u8], port: u16); 
-    fn setSrcPort(buf: &'static mut [u8], port: u16);
-    fn setLen(buf: &'static mut [u8], len: u16);
-    fn setCksum(buf: &'static mut [u8], cksum: u16);
-    fn getDestPort(buf: &'static [u8]) -> u16;
-    fn getSrcPort(buf: &'static [u8]) -> u16;
-    fn getLen(buf: &'static [u8]) -> u16;
-    fn getCksum(buf: &'static [u8]) -> u16;
+    fn setDestPort(&self, port: u16); 
+    fn setSrcPort(&self, port: u16);
+    fn setLen(&self, len: u16);
+    fn setCksum(&self, cksum: u16);
+    fn getDestPort(&self) -> u16;
+    fn getSrcPort(&self) -> u16;
+    fn getLen(&self) -> u16;
+    fn getCksum(&self) -> u16;
 
-    fn setPayload(udp_packet: &'static mut[u8], payload: &'a mut[u8];
-    //HELP: Perhaps it should instead be expected that users use the getOffset()
-    //function to index into the buffer then set the payload themselves?
+    fn setPayload(&self, payload: &'a mut[u8];
 
     /* Note that no UDP cksum function is required here. It is my belief that
        it makes more sense to require the IP layer implement a function to calculate
        the UDP cksum, as the IP layer is what should have access to all of the fields
-       neccessary to construct the IPv6 Pseudoheader. */
+       neccessary to construct the IPv6 Pseudoheader. Further, openThread uses
+       this same approach*/
 }
 
 trait UDPSend {
-    fn send(dest: IP6Addr, udp_packet: &'static mut [u8]); // dest rqrd
-    fn send_done(buf: &'static mut [u8], result: ReturnCode);
+    fn send(dest: IP6Addr, udp_packet: &'static mut UDPPacket); // dest rqrd
+    fn send_done(buf: &'static mut UDPPacket, result: ReturnCode);
 }
 
 Notes on this UDP implementation:
   - Want to require a socket be used to call UDPSend at the application level
-  - May not want this requirement within thread, so allow thread to directly
-    call UDPSend
+  - May not want this requirement within Thread, so allow Thread to directly
+    call UDPSend (this is the reason for seperation between UDPSocket and
+    UDPSend traits)
 
 ======== Network Layer ========
 
@@ -219,33 +231,38 @@ pub struct IP6Header {
     pub dst_addr: IPAddr,
 }
 
+pub struct IP6Packet_ex {
+    pub buf: 'a mut [u8];
+    pub len: u16;
+}
+
 trait IP6Packet {
-    fn reset(); //Sets fields to appropriate defaults
-    fn getOffset() -> usize; //Always returns 40 until we add options support
+    fn reset(&self); //Sets fields to appropriate defaults
+    fn getOffset(&self) -> usize; //Always returns 40 until we add options support
     
     // Remaining functions are just getters and setters for the header fields
-    fn setTF(buf: &'static mut [u8], TF);
-    fn setFlowLabel(buf: &'static mut [u8], flow_label);
-    fn setLen(buf: &'static mut [u8], u16);
-    fn setProtocol(buf: &'static mut [u8], proto);
-    fn setDestAddr(buf: &'static mut [u8], IPaddr);
-    fn setSrcAddr(buf: &'static mut [u8], IPaddr);
-    fn getTF(buf: &'static [u8]) -> TF;
-    fn getFlowLabel(buf: &'static [u8])-> flow_label;
-    fn getLen(buf: &'static [u8]) -> u16;
-    fn getProtocol(buf: &'static [u8]) -> u8;
-    fn getDestAddr(buf: &'static [u8]) -> IPAddr;
-    fn getSrcAddr(buf: &'static [u8]) -> IPAddr;
+    fn setTF(&self, TF);
+    fn setFlowLabel(&self, flow_label);
+    fn setLen(&self, u16);
+    fn setProtocol(&self, proto);
+    fn setDestAddr(&self, IPaddr);
+    fn setSrcAddr(&self, IPaddr);
+    fn getTF(&self) -> TF;
+    fn getFlowLabel(&self)-> flow_label;
+    fn getLen(&self) -> u16;
+    fn getProtocol(&self) -> u8;
+    fn getDestAddr(&self) -> IPAddr;
+    fn getSrcAddr(&self) -> IPAddr;
 
-    fn calcAndSetUDPcksum(buf: &'static [u8]) -> u16; //Assumes it has been
-    // passed a valid IP packet, checks if it contains a UDP packet. If so, it
-    // calculates the UDP cksum using the available IP and UDP fields and returns it.
+    fn calcAndSetUDPcksum(&self) -> u16; //Looks at internal buffer assuming
+    // it contains a valid IP packet, checks if it contains a UDP packet. If so, it
+    // calculates the UDP cksum using the IP and UDP fields and returns it.
 }
 
 trait IP6Send {
-    fn sendTo(dest: IP6Addr, ip6_packet: &'static mut [u8]); //Convenience fn, sets dest addr, sends
-    fn send(ip6_packet: &'static mut [u8]); //Length can be determined from IP6Packet
-    fn send_done(buf: &'static mut [u8], result: ReturnCode);
+    fn sendTo(dest: IP6Addr, ip6_packet: &'static mut IP6Packet); //Convenience fn, sets dest addr, sends
+    fn send(ip6_packet: &'static mut IP6Packet); //Length can be determined from IP6Packet
+    fn send_done(ip6_packet: &'static mut IP6Packet, result: ReturnCode);
 }
 
 ======== 6lowpan Layer ========
@@ -272,13 +289,13 @@ trait 6lowpanFragment {
     // For now: a guess at the functions such a library might require
 
 
-    /* This function would have to be called in a loop, passing the same frag
-       state and ip6 packet each time until the function inicates it is finished.
+    /* This function would have to be called multiple times, passing the same frag
+       state and ip6 packet each time until the function indicates it is finished.
        Each iteration of the function would return the next fragment to be sent. This
        fragment could then be passed down to the link layer. */
     pub fn fragment(frag_state: FrageState, //some frag_state struct must exist
-                    ip6_packet: &'static mut [u8], //Length can be extracted
-                    ) -> Result<ReturnCode, &'static mut [u8];
+                    ip6_packet: &'static mut IP6Packet, //Length can be extracted
+                    ) -> Result<ReturnCode, &'static mut [u8]>;
 }
 
 pub trait ContextStore {
@@ -298,7 +315,7 @@ trait 6lowpanCompress {
        used in computing compressed source/dest IP addresses */
 
     fn compress(ctx_store: &ContextStore, 
-                ip6_datagram: &[u8], 
+                ip6_datagram: &'static mut IPPacket, 
                 src_mac_addr,
                 dst_mac_addr, 
                 mut buf: &mut [u8]) -> Result<(usize, usize));
@@ -423,9 +440,11 @@ trait MacUserTrait { //a MAC user would implement this and the mac trait
 
 
 **************************** Implementation Details ****************************
-//TODO: This section needs a lot of work
-//TODO: Show an entire psuedocode example implementation for a message
-// traversing through Thread
+// TODO: This section needs a lot of work
+// Ultimately, this section will include pseudocode examples of how differnet
+// implementation of these traits should look for different Thread messages that
+// might be sent, and for other messages (non-thread) that might be sent using
+// this messaging stack.
 
 One Example Implementation of IP6Send:
 
@@ -442,19 +461,24 @@ this function reveals how an implementation of IP6Send could give control to
 Thread at the IP layer, 6lowpan layer, and 15.4 layer */
 
 impl IP6Send for ThreadMLEIP6Send{
-    fn sendTo(&self, dest: IP6Addr, buf) {
-        setDestAddr(buf, dest);
-        self.send(buf);
+    fn sendTo(&self, dest: IP6Addr, ip6_packet: IP6Packet) {
+        setDestAddr(IP6Packet, dest);
+        self.send(IP6Packet);
     }
     
-    fn send(&self, buf) {
-        calcAndSetUDPChecksum(buf); //If packet is UDP, this sets the cksum
+    fn send(&self, ip6_packet: IP6Packet) {
+        ip6_packet.calcAndSetUDPChecksum(); //If packet is UDP, this sets the cksum
         ctx_store = sixlowpan_comp::ContextStore::new();
-        compressed_packet [u8] = 15_4_6lowpan_compress(ctx_store, buf,
+        compressed_packet [u8] = 15_4_6lowpan_compress(ctx_store, ip6_packet.buf,
                                                        src_mac, dst_mac);
-        fragState = sixlowpan_frag::fragState::new(buf, len);
+        fragState = sixlowpan_frag::fragState::new(ip6_packet.buf, ip6_packet.len);
+
+        /* Note: the below loop should be replace with repetitions on callbacks, but
+        you get the idea */
+
         while(fragState != Done) {
-            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(buf, len, fragState);
+            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(ip6_packet.buf,
+                                                              ip6_packet.len, fragState);
             fragToSend.setSrcPANID(threadPANID);
             if(compressed_packet.is_disc_request()) {
                 fragToSend.setSrcMAC(MAC::generate_random());
@@ -466,55 +490,62 @@ impl IP6Send for ThreadMLEIP6Send{
     }
 }
 
-/* Implementation of IP6Send for an application sitting on top of thread which
-simply wants to send an IP message through thread. For such an instance the
+/* Implementation of IP6Send for an application sitting on top of Thread which
+simply wants to send an IP message through Thread. For such an instance the
 user does not need to worry about setting parameters below the IP layer, as
-thread handles this. This function reflects thread making those decisions in
+Thread handles this. This function reflects Thread making those decisions in
 such a scenario */
 impl IP6Send for IP6SendThroughThread {
-    fn sendTo(&self, dest: IP6Addr, buf, len) {
-        setDestAddr(buf, dest);
-        self.send(buf, len);
+    fn sendTo(&self, dest: IP6Addr, ip6_packet: IP6Packet) {
+        setDestAddr(ip6_packet, dest);
+        self.send(ip6_packet);
     }
 
-    fn send(&self, buf, len) {
-        calcAndSetUDPChecksum(buf); //If packet is UDP, this sets the cksum
-        compressed_packet [u8] = 15_4_6lowpan_compress(buf, len);
-        fragState = new fragState(buf, len);
+    fn send(&self, ip6_packet: IP6Packet) {
+        ip6_packet.calcAndSetUDPChecksum(); //If packet is UDP, this sets the cksum
+        compressed_packet [u8] = 15_4_6lowpan_compress(ip6_packet.buf, len);
+        fragState = new fragState(ip6_packet.buf, len);
         while(fragState != Done) {
-            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(buf, len, fragState);
+            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(ip6_packet.buf,
+                                                              ip6_packet.len, fragState);
             fragToSend.setSrcPANID(threadPANID);
-            fragToSend.setSrcMAC(getSrcMacFromSrcIPaddr(buf.getSrcIP);
+            fragToSend.setSrcMAC(getSrcMacFromSrcIPaddr(buf.getSrcIP));
             // etc....
             let security = securityType::LinkLayerSec;
             15_4_link_layer_send(fragToSend, security, len); 
 
         }
     }
-
-
 }
 
-/* Implementation of UDPSend for an application sitting on top of thread which
-simply wants to send a UDP message through thread. This simply calls on the
+/* Implementation of UDPSend for an application sitting on top of Thread which
+simply wants to send a UDP message through Thread. This simply calls on the
 appropriate implementation of IP6Send sitting beneath it. Recall that this
 function assumes it is passed an already formatted UDP Packet. Also recall the
 assumption that the IPSend function will calculate and set the UDP cksum. */
 
 impl UDPSend for UDPSendThroughThread {
-    fn send(&self, dest, buf) {
+    fn send(&self, dest, udp_packet: UDPPacketForThread) {
+
+        /* Need to transition from UDPPacket to IPPacket */
+        // In retrospect this seems like the biggest flaw in the current
+        // design 
+
+        ip6_packet = IPPacketForThread.new();
+        ip6_packet.setpayload(udp_packet.buf); //Help: This seems like it
+                                               //breaks Rust rules
 
         /* First, library calls to format IP Packet */
-        IPPacketForThread.setDstAddr(buf, dest);
-        IPPacketForThread.setSrcAddr(buf, THREAD_GLOBAL_SRC_IP_CONST); /* this fn only
-          called for globally destined packets sent over thread network */
-        IPPacketForThread.setTF(0);
-        IPPacketForThread.setHopLimit(64);
-        IPPacketForThread.setProtocol(UDP_PROTO_CONST);
-        IPPacketForThread.setLen(buf, ???); /*Will length be field of packet*/
-        IPPacketForThread.setFlowLabel(buf, ???); /* How to determine FL? */
+        ip6_packet.setDstAddr(dest);
+        ip6_packet.setSrcAddr(THREAD_GLOBAL_SRC_IP_CONST); /* this fn only
+          called for globally destined packets sent over Thread network */
+        ip6_packet.setTF(0);
+        ip6_packet.setHopLimit(64);
+        ip6_packet.setProtocol(UDP_PROTO_CONST);
+        ip6_packet.setLen(???); /*Will length be field of packet*/
+        ip6_packet.setFlowLabel(???); /* How to determine FL? */
         /* Now, send the packet */
-        IP6SendThroughThread.sendTo(dest, buf)
+        IP6SendThroughThread.sendTo(dest, ip6_packet);
     }
 }
 
@@ -531,8 +562,8 @@ TODO: Hubert
 Currently capsules associated with the networking stack are named according to a
 variety of conventions. This section proposes some changes.
 
-'thread' directory should eventually contain any layers implemented with
-specifically thread in mind - files such as ip_thread.rs, which would contain
+'Thread' directory should eventually contain any layers implemented with
+specifically Thread in mind - files such as ip_thread.rs, which would contain
 implementations of the traits found in net::ip.rs. The tlv.rs file which
 currently resides here should remain here as well. 
 
@@ -573,9 +604,9 @@ ieee802154 directory can be left as is.
 Once the traits have been defined and placed in udp.rs/ip.rs etc. , the
 various implementations of these traits should be defined in their own files,
 such as udp_through_thread.rs (could contain the UDPSend trait implementations to
-be used by applications sending UDP across an established thread network).
+be used by applications sending UDP across an established Thread network).
 Another file could simultaneously exist called 'udp_no_thread.rs' which is
 used for an implementation that allowed for sending through a stack which was
-totally seperate from the thread stack. 
+totally seperate from the Thread stack. 
 
 
