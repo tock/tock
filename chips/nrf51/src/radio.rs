@@ -85,10 +85,7 @@ pub const PAYLOAD_LENGTH: usize = 39;
 //  ADV_NONCONN_IND    Yes           No          No          Non-connectible Undirected Advertising
 //  ADV_SCAN_IND       Yes           Yes         No          Scannable Undirected Advertising
 
-static mut PAYLOAD: [u8; PAYLOAD_LENGTH] =
-    [0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+static mut PAYLOAD: [u8; PAYLOAD_LENGTH] = [0x00; PAYLOAD_LENGTH];
 
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
@@ -133,7 +130,8 @@ impl Radio {
                        (NRF_LFLEN_LEN_1BYTE << RADIO_PCNF0_LFLEN_POS));
 
 
-        regs.PCNF1.set((RADIO_PCNF1_WHITEEN_ENABLED << RADIO_PCNF1_WHITEEN_POS) |
+        regs.PCNF1
+            .set((RADIO_PCNF1_WHITEEN_ENABLED << RADIO_PCNF1_WHITEEN_POS) |
                  // set little-endian
                  (0 << RADIO_PCNF1_ENDIAN_POS) |
                  // Set BASE + PREFIX address to 4 bytes
