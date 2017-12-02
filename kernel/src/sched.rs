@@ -10,6 +10,11 @@ use process::{Process, Task};
 use returncode::ReturnCode;
 use syscall::Syscall;
 
+/// The time a process is permitted to run before being pre-empted
+const KERNEL_TICK_DURATION_US: u32 = 10000;
+/// Skip re-scheduling a process if its quanta is nearly exhausted
+const MIN_QUANTA_THRESHOLD_US: u32 = 500;
+
 pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                                                chip: &mut C,
                                                process: &mut Process,
@@ -17,11 +22,13 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                                                ipc: &::ipc::IPC) {
     let systick = chip.systick();
     systick.reset();
-    systick.set_timer(10000);
+    systick.set_timer(KERNEL_TICK_DURATION_US);
     systick.enable(true);
 
     loop {
-        if chip.has_pending_interrupts() || systick.overflowed() || systick.value() <= 500 {
+
+        if chip.has_pending_interrupts() || systick.overflowed() ||
+           systick.value() <= MIN_QUANTA_THRESHOLD_US {
             break;
         }
 
