@@ -64,8 +64,7 @@
 
 extern crate capsules;
 extern crate compiler_builtins;
-#[allow(unused_imports)]
-#[macro_use(debug, debug_gpio, static_init)]
+#[macro_use(debug, static_init)]
 extern crate kernel;
 extern crate nrf52;
 extern crate nrf5x;

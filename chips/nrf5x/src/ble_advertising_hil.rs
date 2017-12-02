@@ -15,6 +15,6 @@ pub trait BleAdvertisementDriver {
 
 // Temporary trait for BLE
 pub trait RxClient {
-    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode, appid: kernel::AppId);
     fn advertisement_fired(&self, appid: kernel::AppId);
 }
