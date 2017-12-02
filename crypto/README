@@ -1,0 +1,13 @@
+Crypto Library
+
+This is a work in progress crypto library for tockOS. Currently, the arm cortex M0 and M4 are supported and the curve25519 key exchange is implemented in constant time. The assembly files were taken (and modified in some cases to support the UMULL instruction for m4) from the implementation by Ana Helena Sánchez and Björn Haase for the M0. Their paper can be found at the link below, explaining how they used the Karatsuba algorithm to ensure constant squaring and multiplication. 
+
+https://eprint.iacr.org/2015/343
+
+In general, the assembly files work by loading a section of each of the numbers that are multiplying, apply Karatsuba, and then store these section is the appropriate register. 
+
+The sqr.s and mul.s were modified from the original files to support faster multiplication for the m4. The instruction UMULL is part of the thumb-2 instruction set and runs in constant time for the m4. Since UMULL is supported for the m3, but it does not run in constant time, using the m0 version is recommended for the m3. Further explanations can be found in the technical reference manuals (http://infocenter.arm.com/help/topic/com.arm.doc.ddi0337h/DDI0337H_cortex_m3_r2p0_trm.pdf and http://infocenter.arm.com/help/topic/com.arm.doc.ddi0439b/DDI0439B_cortex_m4_r0p0_trm.pdf). As a word of caution, these library has only been tested for the m0 and m4.
+
+Running in constant time is important for crypto functions. If these functions have variable running times depending on inputs, timing attacks (further explanations can be found https://crypto.stanford.edu/~dabo/papers/ssl-timing.pdf or ftp://ftp.rsa.com/pub/pdfs/bull-2.pdf or https://www.bearssl.org/constanttime.html) can reveal sensitive data to an attacker.
+
+To change to build for m0, change the cargo.toml to use the buildm0.rs, instead of buildm4.rs.
