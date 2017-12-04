@@ -1,14 +1,36 @@
-//! Provides a `debug!` macro for in-kernel debugging.
+//! Support for in-kernel debugging.
 //!
-//! This module uses an internal buffer to write the strings into. If you are
-//! writing and the buffer fills up, you can make the size of `output_buffer`
-//! larger.
+//! For printing, this module uses an internal buffer to write the strings into.
+//! If you are writing and the buffer fills up, you can make the size of
+//! `output_buffer` larger.
+//!
+//! Before debug interfaces can be used, the board file must assign them hardware:
+//!
+//! ```rust
+//! kernel::debug::assign_gpios(
+//!     Some(&sam4l::gpio::PA[13]),
+//!     Some(&sam4l::gpio::PA[15]),
+//!     None,
+//!     );
+//!
+//! let kc = static_init!(
+//!     capsules::console::App,
+//!     capsules::console::App::default());
+//! kernel::debug::assign_console_driver(Some(hail.console), kc);
+//! ```
 //!
 //! Example
 //! -------
 //!
 //! ```rust
 //! debug!("Yes the code gets here with value {}", i);
+//! debug_verbose!("got here"); // includes message count, file, and line
+//! debug_gpio!(0, toggle); // Toggles the first debug GPIO
+//! ```
+//!
+//! ```
+//! Yes the code gets here with value 42
+//! TOCK_DEBUG(0): /tock/capsules/src/sensys.rs:24: got here
 //! ```
 
 use callback::{AppId, Callback};
@@ -17,8 +39,35 @@ use core::fmt::{Arguments, Result, Write, write};
 use core::ptr::{read_volatile, write_volatile};
 use core::str;
 use driver::Driver;
+use hil;
 use mem::AppSlice;
 use returncode::ReturnCode;
+
+///////////////////////////////////////////////////////////////////
+// debug_gpio! support
+
+pub static mut DEBUG_GPIOS: (Option<&'static hil::gpio::Pin>,
+ Option<&'static hil::gpio::Pin>,
+ Option<&'static hil::gpio::Pin>) = (None, None, None);
+
+pub unsafe fn assign_gpios(gpio0: Option<&'static hil::gpio::Pin>,
+                           gpio1: Option<&'static hil::gpio::Pin>,
+                           gpio2: Option<&'static hil::gpio::Pin>) {
+    DEBUG_GPIOS.0 = gpio0;
+    DEBUG_GPIOS.1 = gpio1;
+    DEBUG_GPIOS.2 = gpio2;
+}
+
+/// In-kernel gpio debugging, accepts any GPIO HIL method
+#[macro_export]
+macro_rules! debug_gpio {
+    ($i:tt, $method:ident) => ({
+        $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method());
+    });
+}
+
+///////////////////////////////////////////////////////////////////
+// debug! and debug_verbose! support
 
 pub const APPID_IDX: usize = 255;
 const BUF_SIZE: usize = 1024;

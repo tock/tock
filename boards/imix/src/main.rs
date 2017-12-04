@@ -4,7 +4,8 @@
 
 extern crate capsules;
 extern crate compiler_builtins;
-#[macro_use(debug, static_init)]
+#[allow(unused_imports)]
+#[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
 extern crate sam4l;
 
