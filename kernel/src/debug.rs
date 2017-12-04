@@ -25,6 +25,7 @@
 //! ```rust
 //! debug!("Yes the code gets here with value {}", i);
 //! debug_verbose!("got here"); // includes message count, file, and line
+//! debug_gpio!(0, toggle); // Toggles the first debug GPIO
 //! ```
 //!
 //! ```
