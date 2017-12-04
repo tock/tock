@@ -182,11 +182,9 @@ pub unsafe fn reset_handler() {
     set_pin_primary_functions();
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_debug_gpios(
-        Some(&sam4l::gpio::PA[13]),
-        Some(&sam4l::gpio::PA[15]),
-        Some(&sam4l::gpio::PA[14]),
-        );
+    kernel::debug::assign_gpios(Some(&sam4l::gpio::PA[13]),
+                                Some(&sam4l::gpio::PA[15]),
+                                Some(&sam4l::gpio::PA[14]));
 
     let mut chip = sam4l::chip::Sam4l::new();
 

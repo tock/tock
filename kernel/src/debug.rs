@@ -1,8 +1,23 @@
 //! Support for in-kernel debugging.
 //!
-//! This module uses an internal buffer to write the strings into. If you are
-//! writing and the buffer fills up, you can make the size of `output_buffer`
-//! larger.
+//! For printing, this module uses an internal buffer to write the strings into.
+//! If you are writing and the buffer fills up, you can make the size of
+//! `output_buffer` larger.
+//!
+//! Before debug interfaces can be used, the board file must assign them hardware:
+//!
+//! ```rust
+//! kernel::debug::assign_gpios(
+//!     Some(&sam4l::gpio::PA[13]),
+//!     Some(&sam4l::gpio::PA[15]),
+//!     None,
+//!     );
+//!
+//! let kc = static_init!(
+//!     capsules::console::App,
+//!     capsules::console::App::default());
+//! kernel::debug::assign_console_driver(Some(hail.console), kc);
+//! ```
 //!
 //! Example
 //! -------
@@ -30,29 +45,23 @@ use returncode::ReturnCode;
 ///////////////////////////////////////////////////////////////////
 // debug_gpio! support
 
-pub struct DebugGpios {
-    pub gpios: (Option<&'static hil::gpio::Pin>, Option<&'static hil::gpio::Pin>, Option<&'static hil::gpio::Pin>),
-}
+pub static mut DEBUG_GPIOS: (Option<&'static hil::gpio::Pin>,
+ Option<&'static hil::gpio::Pin>,
+ Option<&'static hil::gpio::Pin>) = (None, None, None);
 
-pub static mut DEBUG_GPIOS: DebugGpios = DebugGpios {
-    gpios: (None, None, None),
-};
-
-pub unsafe fn assign_debug_gpios (
-    gpio0: Option<&'static hil::gpio::Pin>,
-    gpio1: Option<&'static hil::gpio::Pin>,
-    gpio2: Option<&'static hil::gpio::Pin>,
-    ) {
-    DEBUG_GPIOS.gpios.0 = gpio0;
-    DEBUG_GPIOS.gpios.1 = gpio1;
-    DEBUG_GPIOS.gpios.2 = gpio2;
+pub unsafe fn assign_gpios(gpio0: Option<&'static hil::gpio::Pin>,
+                           gpio1: Option<&'static hil::gpio::Pin>,
+                           gpio2: Option<&'static hil::gpio::Pin>) {
+    DEBUG_GPIOS.0 = gpio0;
+    DEBUG_GPIOS.1 = gpio1;
+    DEBUG_GPIOS.2 = gpio2;
 }
 
 /// In-kernel gpio debugging, accepts any GPIO HIL method
 #[macro_export]
 macro_rules! debug_gpio {
     ($i:tt, $method:ident) => ({
-        $crate::debug::DEBUG_GPIOS.gpios.$i.map(|g| g.$method());
+        $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method());
     });
 }
 
