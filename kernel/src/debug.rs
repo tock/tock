@@ -23,8 +23,41 @@ use core::fmt::{Arguments, Result, Write, write};
 use core::ptr::{read_volatile, write_volatile};
 use core::str;
 use driver::Driver;
+use hil;
 use mem::AppSlice;
 use returncode::ReturnCode;
+
+///////////////////////////////////////////////////////////////////
+// debug_gpio! support
+
+pub struct DebugGpios {
+    pub gpios: (Option<&'static hil::gpio::Pin>, Option<&'static hil::gpio::Pin>, Option<&'static hil::gpio::Pin>),
+}
+
+pub static mut DEBUG_GPIOS: DebugGpios = DebugGpios {
+    gpios: (None, None, None),
+};
+
+pub unsafe fn assign_debug_gpios (
+    gpio0: Option<&'static hil::gpio::Pin>,
+    gpio1: Option<&'static hil::gpio::Pin>,
+    gpio2: Option<&'static hil::gpio::Pin>,
+    ) {
+    DEBUG_GPIOS.gpios.0 = gpio0;
+    DEBUG_GPIOS.gpios.1 = gpio1;
+    DEBUG_GPIOS.gpios.2 = gpio2;
+}
+
+/// In-kernel gpio debugging, accepts any GPIO HIL method
+#[macro_export]
+macro_rules! debug_gpio {
+    ($i:tt, $method:ident) => ({
+        $crate::debug::DEBUG_GPIOS.gpios.$i.map(|g| g.$method());
+    });
+}
+
+///////////////////////////////////////////////////////////////////
+// debug! and debug_verbose! support
 
 pub const APPID_IDX: usize = 255;
 const BUF_SIZE: usize = 1024;

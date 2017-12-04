@@ -10,7 +10,7 @@
 extern crate capsules;
 extern crate compiler_builtins;
 #[allow(unused_imports)]
-#[macro_use(debug,static_init)]
+#[macro_use(debug,debug_gpio,static_init)]
 extern crate kernel;
 extern crate sam4l;
 
@@ -180,6 +180,13 @@ pub unsafe fn reset_handler() {
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
 
     set_pin_primary_functions();
+
+    // Configure kernel debug gpios as early as possible
+    kernel::debug::assign_debug_gpios(
+        Some(&sam4l::gpio::PA[13]),
+        Some(&sam4l::gpio::PA[15]),
+        Some(&sam4l::gpio::PA[14]),
+        );
 
     let mut chip = sam4l::chip::Sam4l::new();
 
