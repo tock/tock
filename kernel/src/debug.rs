@@ -1,4 +1,4 @@
-//! Provides a `debug!` macro for in-kernel debugging.
+//! Support for in-kernel debugging.
 //!
 //! This module uses an internal buffer to write the strings into. If you are
 //! writing and the buffer fills up, you can make the size of `output_buffer`
@@ -9,6 +9,12 @@
 //!
 //! ```rust
 //! debug!("Yes the code gets here with value {}", i);
+//! debug_verbose!("got here"); // includes message count, file, and line
+//! ```
+//!
+//! ```
+//! Yes the code gets here with value 42
+//! TOCK_DEBUG(0): /tock/capsules/src/sensys.rs:24: got here
 //! ```
 
 use callback::{AppId, Callback};
