@@ -158,6 +158,29 @@ Before discussing these traits - a note on buffers:
 The traits below are organized by the network layer they would typically be
 associated with.
 
+/* IDEA: Have enum with a reference to traits */
+// Have 6lowpan init take IP packet
+// 6lowpan prepare_packet does not take it in bc it is already stored in a
+// takecell in the 6lowpan object
+//BUT: When you get a send_done callback youre continuing to transport a
+packet but you cant tell what pkt youre continuing to transmit
+// this doesnt work as well for tcp and icmp but there are ways around that i
+think
+// this is okay bc there are 102 bytes of payload
+
+/* TODO: Send email to mailing list describing 4 options for moving forward:
+
+1. Dont used typed buffers
+2. Use enum w/ references (try first!)
+3. Use what I have implemented in interfaces.rs
+4. Have a TransPacket trait that all other packets implement. This trait has
+functions for every possible transport packet, but the functions only work if
+called on the appropriate implementing struct.
+
+These are the only options bc of the fundamental issue that enums cant hold
+traits, and the IPPacket struct needs to be able to hold a packet that is any
+type of transport layer packet
+
 
 ======== Transport Layer ========
 
@@ -182,9 +205,9 @@ trait UDPSocket:UDPSend {
 }
 
 struct UDPPacket_ex { /* Example UDP Packet struct */
-    pub buf: 'a mut [u8];
-    pub len: u16; // length of payload, also serves as an indicator of how far
-                  // into the packet the UDP packet begins
+    pub header: UDPHeader;
+    pub payload: &'a [u8]; //Not mutable!
+    pub len: u16; // length of payload
 }
 
 trait UDPPacket {
@@ -200,7 +223,7 @@ trait UDPPacket {
     fn getLen(&self) -> u16;
     fn getCksum(&self) -> u16;
 
-    fn setPayload(&self, payload: &'a mut[u8];
+    fn setPayload<'a>(&self, payload: &'a [u8];
 
     /* Note that no UDP cksum function is required here. It is my belief that
        it makes more sense to require the IP layer implement a function to calculate
@@ -231,12 +254,27 @@ pub struct IP6Header {
     pub dst_addr: IPAddr,
 }
 
-pub struct IP6Packet_ex {
-    pub buf: 'a mut [u8];
-    pub len: u16;
+
+pub enum TransportPacket { //doesnt work, cant have traits as fields of enum
+    UDP(UDPPacket),
+    TCP(TCPPacket), /* NOTE: TCP,ICMP,RawIP traits not yet detailed in this
+                     * document, but follow logically from UDPPacket trait. */
+    ICMP(ICMPPacket),
+    Raw(RawIPPacket),
 }
 
+
+pub struct IP6Packet_ex {
+    pub header: IP6Header;
+    pub payload: TransportPacket; //yeah this doesnt work
+}
+
+/* Idea: have IP6_packet_udp_payload, IP6_packet_tcp_payload ... structs. This
+   would work if the IP6packet trait had fns like returnUDPpayloadifUDP() ->
+   UDPPacket etc. */
+
 trait IP6Packet {
+    fn new(payload: TransportPacket) -> IP6Packet;
     fn reset(&self); //Sets fields to appropriate defaults
     fn getOffset(&self) -> usize; //Always returns 40 until we add options support
     
@@ -284,18 +322,25 @@ pub struct Context { //Required for compression traits
 }
 
 trait 6lowpanFragment {
-    //TODO: Paul
-
-    // For now: a guess at the functions such a library might require
+    // TODO: Paul, please give feedback on if these interfaces are correct
+    // For now, this is my best guess at how these should look
 
 
     /* This function would have to be called multiple times, passing the same frag
        state and ip6 packet each time until the function indicates it is finished.
        Each iteration of the function would return the next fragment to be sent. This
-       fragment could then be passed down to the link layer. */
+       fragment could then be passed down to the link layer. Notably, if this
+       function is called, there is no reason to call the compression library,
+       as the frag library calls the compression library internally.
+       Accordingly, it is not possible to fragment without the compression
+       library being called. This should be fine, as there are no realistic
+       use cases which require this. Calling the compression library without
+       fragmentation (as required by 6lowpan over BLE, for example) is
+       possible */
     pub fn fragment(frag_state: FrageState, //some frag_state struct must exist
-                    ip6_packet: &'static mut IP6Packet, //Length can be extracted
-                    ) -> Result<ReturnCode, &'static mut [u8]>;
+                    ip6_packet: &'a IP6Packet, //Length can be extracted
+                    ) -> Result<ReturnCode, &'static mut [u8]>; // Returned buffer
+                                                                // is the link layer frame.
 }
 
 pub trait ContextStore {
@@ -315,7 +360,7 @@ trait 6lowpanCompress {
        used in computing compressed source/dest IP addresses */
 
     fn compress(ctx_store: &ContextStore, 
-                ip6_datagram: &'static mut IPPacket, 
+                ip6_datagram: &'static IPPacket, 
                 src_mac_addr,
                 dst_mac_addr, 
                 mut buf: &mut [u8]) -> Result<(usize, usize));
@@ -462,28 +507,27 @@ Thread at the IP layer, 6lowpan layer, and 15.4 layer */
 
 impl IP6Send for ThreadMLEIP6Send{
     fn sendTo(&self, dest: IP6Addr, ip6_packet: IP6Packet) {
-        setDestAddr(IP6Packet, dest);
-        self.send(IP6Packet);
+        ip6_packet.setDestAddr(dest);
+        self.send(ip6_packet);
     }
     
     fn send(&self, ip6_packet: IP6Packet) {
         ip6_packet.calcAndSetUDPChecksum(); //If packet is UDP, this sets the cksum
         ctx_store = sixlowpan_comp::ContextStore::new();
-        compressed_packet [u8] = 15_4_6lowpan_compress(ctx_store, ip6_packet.buf,
-                                                       src_mac, dst_mac);
-        fragState = sixlowpan_frag::fragState::new(ip6_packet.buf, ip6_packet.len);
+        fragState = sixlowpan_frag::fragState::new(ip6_packet);
 
-        /* Note: the below loop should be replace with repetitions on callbacks, but
-        you get the idea */
+        /* Note: the below loop should be replaced with repetitions on callbacks, but
+        you get the idea - multiple calls to the frag library are required to
+        send all of the link layer frames */
 
         while(fragState != Done) {
-            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(ip6_packet.buf,
-                                                              ip6_packet.len, fragState);
+            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(&ip6_packet, fragState);
             fragToSend.setSrcPANID(threadPANID);
-            if(compressed_packet.is_disc_request()) {
+            if(ip6_packet.is_disc_request()) { // One example of a thread
+                                               // decision that affects link layer parameters
                 fragToSend.setSrcMAC(MAC::generate_random());
             }
-            // etc.... (Thread decision making)
+            // etc.... (More Thread decision making)
             let security = securityType::MLESecurity;
             15_4_link_layer_send(fragToSend, security, len); 
         }
@@ -503,13 +547,11 @@ impl IP6Send for IP6SendThroughThread {
 
     fn send(&self, ip6_packet: IP6Packet) {
         ip6_packet.calcAndSetUDPChecksum(); //If packet is UDP, this sets the cksum
-        compressed_packet [u8] = 15_4_6lowpan_compress(ip6_packet.buf, len);
-        fragState = new fragState(ip6_packet.buf, len);
+        fragState = new fragState(ip6_packet);
         while(fragState != Done) {
-            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(ip6_packet.buf,
-                                                              ip6_packet.len, fragState);
+            let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(&ip6_packet, fragState);
             fragToSend.setSrcPANID(threadPANID);
-            fragToSend.setSrcMAC(getSrcMacFromSrcIPaddr(buf.getSrcIP));
+            fragToSend.setSrcMAC(getSrcMacFromSrcIPaddr(ip6_packet.getSrcIP));
             // etc....
             let security = securityType::LinkLayerSec;
             15_4_link_layer_send(fragToSend, security, len); 
@@ -527,13 +569,9 @@ assumption that the IPSend function will calculate and set the UDP cksum. */
 impl UDPSend for UDPSendThroughThread {
     fn send(&self, dest, udp_packet: UDPPacketForThread) {
 
-        /* Need to transition from UDPPacket to IPPacket */
-        // In retrospect this seems like the biggest flaw in the current
-        // design 
+        let trans_pkt = TransportPacket::UDP(udp_packet);
 
-        ip6_packet = IPPacketForThread.new();
-        ip6_packet.setpayload(udp_packet.buf); //Help: This seems like it
-                                               //breaks Rust rules
+        ip6_packet = IPPacketForThread.new(trans_pkt);
 
         /* First, library calls to format IP Packet */
         ip6_packet.setDstAddr(dest);
@@ -542,7 +580,7 @@ impl UDPSend for UDPSendThroughThread {
         ip6_packet.setTF(0);
         ip6_packet.setHopLimit(64);
         ip6_packet.setProtocol(UDP_PROTO_CONST);
-        ip6_packet.setLen(???); /*Will length be field of packet*/
+        ip6_packet.setLen(40 + trans_pkt.); /*Will length be field of packet*/
         ip6_packet.setFlowLabel(???); /* How to determine FL? */
         /* Now, send the packet */
         IP6SendThroughThread.sendTo(dest, ip6_packet);

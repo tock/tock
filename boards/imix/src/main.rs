@@ -19,6 +19,7 @@ use kernel::hil::Controller;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
+use capsules::net::interfaces;
 
 #[macro_use]
 pub mod io;
