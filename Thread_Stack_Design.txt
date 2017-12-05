@@ -321,26 +321,44 @@ pub struct Context { //Required for compression traits
     pub compress: bool,
 }
 
-trait 6lowpanFragment {
-    // TODO: Paul, please give feedback on if these interfaces are correct
-    // For now, this is my best guess at how these should look
+// A simple enum that encodes the various return states
+// for the next_fragment function in the SixlowpanFragment trait
+pub enum FragReturn {
+  Fail((ReturnCode, &'static mut [u8])),
+  Success(Frame),
+  Done(Frame),
+}
 
+trait Sixlowpan {
+  // This is the cleanest way to expose the fact that 6LoWPAN requires
+  // some global state - namely, that the dgram tag be incremented for
+  // each packet fragmented globally
+  fn next_dgram_tag(&self) -> u16;
+  // Likewise, this seemed to be the cleanest way to access/store the
+  // ContextStore object. Note that having multiple ContextStores is
+  // problematic for receiving/decoding packets.
+  fn get_ctx_store(&self) -> &ContextStore;
+}
 
-    /* This function would have to be called multiple times, passing the same frag
-       state and ip6 packet each time until the function indicates it is finished.
-       Each iteration of the function would return the next fragment to be sent. This
-       fragment could then be passed down to the link layer. Notably, if this
-       function is called, there is no reason to call the compression library,
-       as the frag library calls the compression library internally.
-       Accordingly, it is not possible to fragment without the compression
-       library being called. This should be fine, as there are no realistic
-       use cases which require this. Calling the compression library without
-       fragmentation (as required by 6lowpan over BLE, for example) is
-       possible */
-    pub fn fragment(frag_state: FrageState, //some frag_state struct must exist
-                    ip6_packet: &'a IP6Packet, //Length can be extracted
-                    ) -> Result<ReturnCode, &'static mut [u8]>; // Returned buffer
-                                                                // is the link layer frame.
+trait SixlowpanFragment {
+  // This function initializes the SixlowpanFragment object. Note that we
+  // (currently) need to pass in a reference to a Sixlowpan object, as that
+  // is how we access the ContextStore and update the global dgram tag counter
+  // The radio allows us to construct the frames when producing fragments.
+  fn new(sixlowpan: &'a Sixlowpan, radio: &'a Mac) -> SixlowpanFragment<'a>;
+
+  // This implementation assumes the user calls init before calling next_fragment
+  // for the first time. This makes next_fragment cleaner, as we do not need
+  // to keep passing in the same state. Note that some of these arguments can
+  // be elided (e.g. security) and passed in via a different method, but
+  // this seems clean enough.
+  fn init(&self, dst_mac_addr: MacAddress, security: Option<(SecurityLevel, KeyId)>);
+
+  // This function is called repeatedly on the same packet buffer, and produces
+  // subsequent frames representing the next fragment to send. frag_buf is
+  // consumed in the returned Frame, and the FragReturn enum encodes the
+  // different possible return states from this function (Fail, Success, Done).
+  fn next_fragment<'b>(&self, packet: &'b IPPacket, frag_buf: &'static mut [u8]) -> FragReturn;
 }
 
 pub trait ContextStore {
@@ -350,7 +368,7 @@ pub trait ContextStore {
     fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context>;
 }
 
-trait 6lowpanCompress {
+trait SixlowpanCompress {
 
     /* This function takes in an ipv6 packet and mac addresses and returns the
        compressed header. It is written as a recursive function and requires a
@@ -360,7 +378,7 @@ trait 6lowpanCompress {
        used in computing compressed source/dest IP addresses */
 
     fn compress(ctx_store: &ContextStore, 
-                ip6_datagram: &'static IPPacket, 
+                ip6_datagram: &'static mut IPPacket,
                 src_mac_addr,
                 dst_mac_addr, 
                 mut buf: &mut [u8]) -> Result<(usize, usize));
@@ -593,8 +611,205 @@ useful in the creation of a flexible network stack.
 
 
 ************************** Example Message Traversals **************************
-TODO: Hubert
 
+The Thread specification determines an entire control plane that spans many
+different layers in the OSI networking model. To adequately understand the
+interactions and dependencies between these layers' behaviors, it might help to
+trace several types of messages and see how each layer processes the different
+types of messages. Let's trace carefully the way OpenThread handles messages.
+
+We begin with the most fundamental message: a data-plane message that does not
+interact with the Thread control plane save for passing through a
+Thread-defined network interface. Note that some of the procedures in the below
+traces will not make sense when taken independently: the responsibility-passing
+will only make sense when all the message types are taken as a whole.
+Additionally, no claim is made as to whether or not this sequence of callbacks
+is the optimal way to express these interactions: it is just OpenThread's way
+of doing it.
+
+Data plane: IPv6 datagram
+=========================
+
+1. Upper layer (application) wants to send a payload
+  - Provides payload
+  - Specifies the IP6 interface to send it on (via some identifier)
+  - Specifies protocol (IP6 next header field)
+  - Specifies destination IP6 address
+  - Possibly doesn't specify source IP6 address
+2. IP6 interface dispatcher (with knowledge of all the interfaces) fills in the
+  IP6 header and produces an IP6 message
+  - Payload, protocol, and destination address used directly from the upper layer
+  - Source address is more complicated
+    - If the address is specified and is not multicast, it is used directly
+    - If the address is unspecified or multicast, source address is determined
+      from the specific IP6 selected AND the destination address via a matching scheme on
+      the addresses associated with the interface.
+  - Now that the addresses are determined, the IP6 layer computes the pseudoheader
+    checksum.
+    - If the application layer's payload has a checksum that includes the pseudoheader
+      (UDP, ICMP6), this partial checksum is now used to update the checksum field in the payload.
+3. The actual IP6 interface (Thread-controlled) tries to send that message
+  - First step is to determine whether the message can be sent immediately or not (sleepy child or not).
+       This passes the message to the scheduler. This is important for sleepy children where there is a
+       control scheme that determines when messages are sent.
+  - Next, determine the MAC src/dest addresses.
+    - If this is a direct transmission, there is a source matching scheme to determine if the destination address
+      used should be short or long. The same length is used for the source MAC address, obtained from the MAC interface.
+  - Notify the MAC layer to notify you that your message can be sent.
+4. The MAC layer schedules its transmissions and determines that it can send the above message
+  - MAC sets the transmission power
+  - MAC sets the channel differently depending on the message type
+5. The IP6 interface fills up the frame. This is the chance for the IP6 interface to do things like
+  fragmentation, retransmission, and so on. The MAC layer just wants a frame.
+  - XXX: The IP6 interface fills up the MAC header. This should really be the responsibility of the MAC layer.
+    Anyway, here is what is done:
+    - Channel, source PAN ID, destination PAN ID, and security modes are determined by message type.
+      Note that the channel set by the MAC layer is sometimes overwritten.
+    - A mesh extension header is added for some messages. (eg. indirect transmissions)
+  - The IP6 message is then 6LoWPAN-compressed/fragmented into the payload section of the frame.
+6. The MAC layer receives the raw frame and tries to send it
+  - MAC sets the sequence number of the frame (from the previous sequence number for the correct link neighbor),
+    if it is not a retransmission
+  - The frame is secured if needed. This is another can of worms:
+    - Frame counter is dependent on the link neighbor and whether or not the frame is a retransmission
+    - Key is dependent on which key id mode is selected, and also the link neighbor's key sequence
+    - Key sequence != frame counter
+    - One particular mode requires using a key, source and frame counter that is a Thread-defined constant.
+  - The frame is transmitted, an ACK is waited for, and the process completes.
+
+As you can see, the data dependencies are nowhere as clean as the OSI model
+dictates. The complexity mostly arises because
+
+- Layer 4 checksum can include IPv6 pseudoheader
+- IP6 source address (mesh local? link local? multicast?) is determined by
+  interface and destination address
+- MAC src/dest addresses are dependent on the next device on the route to the
+  IP6 destination address
+- Channel, src/dest PAN ID, security is dependent on message type
+- Mesh extension header presence is dependent on message type
+- Sequence number is dependent on message type and destination
+
+Note that all of the MAC layer dependencies in step 5 can be pre-decided so
+that the MAC layer is the only one responsible for writing the MAC header.
+
+This gives a pretty good overview of what minimally needs to be done to even be
+able to send normal IPv6 datagrams, but does not cover all of Thread's
+complexities. Next, we look at some control-plane messages.
+
+Control plane: MLE messages
+===========================
+
+1. The MLE layer encapsulates its messages in UDP on a constant port
+  - Security is determined by MLE message type. If MLE-layer security is
+    required, the frame is secured using the same CCM* encryption scheme used
+    in the MAC layer, but with a different key discipline.
+  - MLE key sequence is global across a single Thread device
+  - MLE sets IP6 source address to the interface's link local address
+2. This UDP-encapsulated MLE message is sent to the IP6 dispatch again
+3. The actual IP6 interface (Thread-controlled) tries to send that message
+4. The MAC layer schedules the transmission
+5. The IP6 interface fills up the frame.
+  - MLE messages disable link-layer security when MLE-layer security is
+    present. However, if link-layer security is disabled and the MLE message
+    doesn't fit in a single frame, link-layer security is enabled so that
+    fragmentation can proceed.
+6. The MAC layer receives the raw frame and tries to send it
+
+The only cross-layer dependency introduced by the MLE layer is the dependency
+between MLE-layer security and link-layer security. Whether or not the MLE
+layer sits atop an actual UDP socket is an implementation detail.
+
+Control plane: Mesh forwarding
+==============================
+
+If Thread REED devices are to be eventually supported in Tock, then we must
+also consider this case. If a frame is sent to a router which is not its final
+destination, then the router must forward that message to the next hop.
+
+1. The MAC layer receives a frame, decrypts it and passes it to the IP6 interface
+2. The IP6 reception reads the frame and realizes that it is an indirect
+   transmission that has to be forwarded again
+  - The frame must contain a mesh header, and the HopsLeft field in it should
+    be decremented
+  - The rest of the payload remains the same
+  - Hence, the IP6 interface needs to send a raw 6LoWPAN-compressed frame
+3. The IP6 transmission interface receives a raw 6LoWPAN-compressed frame to be
+   transmitted again
+  - This frame must still be scheduled: it might be destined for a sleepy
+    device that is not yet awake
+4. The MAC layer schedules the transmission
+5. The IP6 transmission interface copies the frame to be retransmitted
+   verbatim, but with the modified mesh header and a new MAC header
+6. The MAC layer receives the raw frame and tries to send it
+
+This example shows that the IP6 transmission interface may need to handle more
+message types than just IP6 datagrams: there is a case where it is convenient
+to be able to handle a datagram that is already 6LoWPAN compressed.
+
+Control plane: MAC data polling
+===============================
+
+From time to time, a sleepy edge device will wake up and begin polling its
+parent to check if any frames are available for it. This is done via a MAC
+command frame, which must still be sent through the transmission pipeline with
+link security enabled (Key ID mode 1).  OpenThread does this by routing it
+through the IP6 transmission interface, which arguably isn't the right choice.
+
+1. Data poll manager send a data poll message directly to the IP6 transmission
+   interface, skipping the IP6 dispatch
+2. The IP6 transmission interface notices the different type of message, which
+   always warrants a direct transmission.
+3. The MAC layer schedules the transmission
+4. The IP6 transmission interface fills in the frame
+  - The MAC dest is set to the parent of this node and the MAC src is set to be
+    the same length as the address of the parent
+  - The payload is filled up to contain the Data Request MAC command
+  - The MAC security level and key ID mode is also fixed for MAC commands under
+    the Thread specification
+5. The MAC layer secures the frame and sends it out
+
+We could imagine giving the data poll manager direct access as a client of the
+MAC layer to avoid having to shuffle data through the IP6 transmission
+interface. This is only justified because MAC command frames are never
+6LoWPAN-compressed or fragmented, nor do they depend on the IP6 interface in
+any way.
+
+Control plane: Child supervision
+================================
+
+This type of message behaves similarly to the MAC data polls. The message is
+essentially and empty MAC frame, but OpenThread chooses to also route it
+through the IP6 transmission interface. It would be far better to allow a child
+supervision implementation to be a direct client of the MAC interface.
+
+Control plane: Joiner entrust and MLE announce
+==============================================
+
+These two message types are also explicitly marked, because they require a
+specific Key ID Mode to be selected when producing the frame for the MAC
+interface.
+
+Caveat about MAC layer security
+===============================
+
+So far, it seems like we can expect the MAC layer to have no cross-layer
+dependencies: it receives frames with a completely specified description of how
+they are to be secured and transmitted, and just does so. However, this is not
+entirely the case.
+
+When the frame is being secured, the key ID mode has been set by the upper
+layers as decribed above, and this key ID mode is used to select between a few
+different key disciplines. For example, mode 0 is only used by Joiner entrust
+messages and uses the Thread KEK sequence. Mode 1 uses the MAC key sequence and
+Mode 2 is a constant key used only in MLE announce messages. Hence, this key ID
+mode selection is actually enabling an upper layer to determine the specific
+key being used in the link layer.
+
+Note that we cannot just reduce this dependency by allowing the upper layer to
+specify the key used in MAC encryption. During frame reception, the MAC layer
+itself has to know which key to use in order to decrypt the frames correctly.
+
+TODO: Receive path dependencies
 
 ***************************** Suggested File Names *****************************
 Currently capsules associated with the networking stack are named according to a
