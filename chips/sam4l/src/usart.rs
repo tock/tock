@@ -199,7 +199,7 @@ impl USART {
         self.tx_dma.set(Some(tx_dma));
     }
 
-    pub fn enable_rx(&self) {
+    fn enable_rx(&self) {
         self.enable_clock();
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 4); // RXEN
@@ -213,7 +213,7 @@ impl USART {
         regs.cr.set(cr_val);
     }
 
-    pub fn disable_rx(&self) {
+    fn disable_rx(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 5); // RXDIS
         regs.cr.set(cr_val);
@@ -225,7 +225,7 @@ impl USART {
         }
     }
 
-    pub fn disable_tx(&self) {
+    fn disable_tx(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 7); // TXDIS
         regs.cr.set(cr_val);
@@ -237,7 +237,7 @@ impl USART {
         }
     }
 
-    pub fn abort_rx(&self, error: hil::uart::Error) {
+    fn abort_rx(&self, error: hil::uart::Error) {
         if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
             self.disable_rx_interrupts();
             self.disable_rx();
@@ -265,7 +265,7 @@ impl USART {
         }
     }
 
-    pub fn abort_tx(&self, error: hil::uart::Error) {
+    fn abort_tx(&self, error: hil::uart::Error) {
         if self.usart_tx_state.get() == USARTStateTX::DMA_Transmitting {
             self.disable_tx_interrupts();
             self.disable_tx();
@@ -293,17 +293,17 @@ impl USART {
         }
     }
 
-    pub fn enable_tx_empty_interrupt(&self) {
+    fn enable_tx_empty_interrupt(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.ier.set(1 << 9);
     }
 
-    pub fn disable_tx_empty_interrupt(&self) {
+    fn disable_tx_empty_interrupt(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.idr.set(1 << 9);
     }
 
-    pub fn enable_rx_error_interrupts(&self) {
+    fn enable_rx_error_interrupts(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let ier_val = 0x00000000 |
             (1 <<  7) | // PARE
@@ -312,7 +312,7 @@ impl USART {
         regs.ier.set(ier_val);
     }
 
-    pub fn disable_rx_interrupts(&self) {
+    fn disable_rx_interrupts(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let idr_val = 0x00000000 |
             (1 << 12) | // RXBUFF
@@ -324,7 +324,7 @@ impl USART {
         regs.idr.set(idr_val);
     }
 
-    pub fn disable_tx_interrupts(&self) {
+    fn disable_tx_interrupts(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let idr_val = 0x00000000 |
             (1 << 9) | // TXEMPTY
@@ -332,12 +332,12 @@ impl USART {
         regs.idr.set(idr_val);
     }
 
-    pub fn disable_interrupts(&self) {
+    fn disable_interrupts(&self) {
         self.disable_rx_interrupts();
         self.disable_tx_interrupts();
     }
 
-    pub fn reset(&self) {
+    fn reset(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
 
         // reset status bits, transmitter, and receiver
