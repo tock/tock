@@ -283,19 +283,45 @@ pub struct Context { //Required for compression traits
     pub compress: bool,
 }
 
-trait 6lowpanFragment {
-    //TODO: Paul
+// A simple enum that encodes the various return states
+// for the next_fragment function in the SixlowpanFragment trait
+pub enum FragReturn {
+  Fail((ReturnCode, &'static mut [u8])),
+  Success(Frame),
+  Done(Frame),
+}
 
-    // For now: a guess at the functions such a library might require
+trait Sixlowpan {
+  // This is the cleanest way to expose the fact that 6LoWPAN requires
+  // some global state - namely, that the dgram tag be incremented for
+  // each packet fragmented globally
+  fn next_dgram_tag(&self) -> u16;
 
+  // Likewise, this seemed to be the cleanest way to access/store the
+  // ContextStore object. Note that having multiple ContextStores is
+  // problematic for receiving/decoding packets.
+  fn get_ctx_store(&self) -> &ContextStore;
+}
 
-    /* This function would have to be called multiple times, passing the same frag
-       state and ip6 packet each time until the function indicates it is finished.
-       Each iteration of the function would return the next fragment to be sent. This
-       fragment could then be passed down to the link layer. */
-    pub fn fragment(frag_state: FrageState, //some frag_state struct must exist
-                    ip6_packet: &'static mut IP6Packet, //Length can be extracted
-                    ) -> Result<ReturnCode, &'static mut [u8]>;
+trait SixlowpanFragment {
+  // This function initializes the SixlowpanFragment object. Note that we
+  // (currently) need to pass in a reference to a Sixlowpan object, as that
+  // is how we access the ContextStore and update the global dgram tag counter
+  // The radio allows us to construct the frames when producing fragments.
+  fn new(sixlowpan: &'a Sixlowpan, radio: &'a Mac) -> SixlowpanFragment<'a>;
+
+  // This implementation assumes the user calls init before calling next_fragment
+  // for the first time. This makes next_fragment cleaner, as we do not need
+  // to keep passing in the same state. Note that some of these arguments can
+  // be elided (e.g. security) and passed in via a different method, but
+  // this seems clean enough.
+  fn init(&self, dst_mac_addr: MacAddress, security: Option<(SecurityLevel, KeyId)>);
+
+  // This function is called repeatedly on the same packet buffer, and produces
+  // subsequent frames representing the next fragment to send. frag_buf is
+  // consumed in the returned Frame, and the FragReturn enum encodes the
+  // different possible return states from this function (Fail, Success, Done).
+  fn next_fragment<'b>(&self, packet: &'b IPPacket, frag_buf: &'static mut [u8]) -> FragReturn;
 }
 
 pub trait ContextStore {
@@ -305,7 +331,7 @@ pub trait ContextStore {
     fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context>;
 }
 
-trait 6lowpanCompress {
+trait SixlowpanCompress {
 
     /* This function takes in an ipv6 packet and mac addresses and returns the
        compressed header. It is written as a recursive function and requires a
@@ -315,7 +341,7 @@ trait 6lowpanCompress {
        used in computing compressed source/dest IP addresses */
 
     fn compress(ctx_store: &ContextStore, 
-                ip6_datagram: &'static mut IPPacket, 
+                ip6_datagram: &'static mut IPPacket,
                 src_mac_addr,
                 dst_mac_addr, 
                 mut buf: &mut [u8]) -> Result<(usize, usize));
