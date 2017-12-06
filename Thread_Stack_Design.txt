@@ -2,6 +2,14 @@
 
 /* NOTE: This document is a work in progress */
 
+/* TODOS:
+ * 3. Keep working on interfaces.rs
+ * 4. Update interfaces w/ stuff from email
+ * 5. Update interfaces w/ stuff from interfaces.rs
+ * 6. Next step is really using the new stack to send IP packets..
+ * 7. Include Receive Paths...
+ * */
+
 This document describes the design of the Networking stack on Tock.
 
 The design described in this document is based off of ideas contributed by 
@@ -15,16 +23,18 @@ This document is split into several sections. These are as follows:
      along with some justification of why these principles matter. Ultimately,
      the design should follow from these principles.
   2. Stack Diagram - Graphically depicts the layout of the stack
-  3. List of Traits - Describes the traits which will exist at each layer of the
+  3. Explanation of queueing - Describes where packets are queued prior to
+     being transmitted.
+  4. List of Traits - Describes the traits which will exist at each layer of the
      stack. For traits that may seem surprisingly complex, provide examples of
      specific messages that require this more complex trait as opposed to the
      more obvious, simpler trait that might be expected.
-  4. Implementation Details - Describes how certain implementations of these
+  5. Implementation Details - Describes how certain implementations of these
      traits will work, providing some examples with pseudocode or commented
      explanations of functionality
-  5. Example Message Traverals - Shows how different example messages (Thread or 
+  6. Example Message Traverals - Shows how different example messages (Thread or 
      otherwise) will traverse the stack
-  6. Suggested File Naming Convention - Currently capsules associated with the
+  7. Suggested File Naming Convention - Currently capsules associated with the
      networking stack are named by a variety of conventions. This section
      proposes a unifying convention.
 
@@ -112,11 +122,34 @@ Notes on the stack:
   IP fields before handing the packet off to Thread. Thread then sets other 
   parameters at other layers as needed before sending the packet off via the
   15.4 send function implemented for Thread. 
+- Note that currently this design leaves it up to the applicationo layer to
+  decide what interface any given packet will be transmitted from. This is
+  because currently we are working towards a minimum functional stack.
+  However, once this is working we intend to a layer below the application
+  layer that would handle interface multiplexing by destination address via a
+  forwarding table. This should be straightforward to add in to our current
+  design.
 - This stack does not demonstrate a full set of functionality we are planning to
   implement now. Rather it demonstrates how this setup allows for multiple 
   implementations of each layer based off of traits and libraries such that a 
   flexible network stack can be configured, rather than creating a network 
   stack designed such that applications can only use Thread.
+
+*************************** Explanation of Queueing ****************************
+
+/* TODO */
+
+/* Basically, queueing will happen at the application layer in this stack.
+Probably we will use a pushing based queuing structure, and since we are
+transitioning to more of a scatter-gather implementation this should not be
+too expensive from a memory standpoint */
+
+/* HELP: I am still not entirely clear how this queueing will work in terms of
+effectively dealing with multiple interfaces - espcially for the instance of
+having some packets sent out on the 15.4 radio that are not supposed to pass
+through Thread. I guess one important question here is whether there would
+ever be an instance where a device was sending some messages through Thread
+and other 15.4 messages not through Thread. Why would this happen? */
 
 ******************************** List of Traits ********************************
 
@@ -131,29 +164,15 @@ Before discussing these traits - a note on buffers:
     standpoint of wanting
     to be able to prevent as many errors as possible at compile time. Instead,
     this code will pass 'typed' buffers up and down the stack. There are a number
-    of packet library traits defined below (e.g. IPPacket, UDPPacket, etc.). Each
-    trait will be implemented by a struct that will contain at least one field -
-    a [u8] buffer with lifetime 'a. This design allows for all buffers passed to
+    of packet library traits defined below (e.g. IPPacket, UDPPacket, etc.).
+    Transprt Layer traits will be implemented by a struct that will contain at least one field -
+    a [u8] buffer with lifetime 'a. Lower level traits will simply contain
+    payload fields that are Transport Level packet traits (thanks to a
+    TransportPacket enum). This design allows for all buffers passed to
     be passed as type 'UDPPacket', 'IPPacket', etc. An added advantage of this
     design is that each buffer can easily be operated on using the library
     functions associated with this buffer type. 
 
-    One result of this design decision is that it requires each lower layer
-    'send' call to implement multiple send() functions, one for each type of
-    buffer that could be passed to it. For example, in order to have a fully
-    functioning IP layer, there would need to be an implementation of the
-    send() function for each transport protocol. Ex:
-
-    trait IPSend() {
-        fn send(&'static mut UDPPacket);
-        fn send(&'static mut TCPPacket);
-        fn send(&'static mut ICMPPacket);
-        fn send(&'static mut [u8];
-    }
-
-    This example gives insight into how typed buffers complicate the traits
-    required to allow for typed buffer checking, and hopefullys make the 
-    use of buffers in the trait descriptions that follow more clear.
 
 The traits below are organized by the network layer they would typically be
 associated with.
@@ -168,72 +187,51 @@ packet but you cant tell what pkt youre continuing to transmit
 think
 // this is okay bc there are 102 bytes of payload
 
-/* TODO: Send email to mailing list describing 4 options for moving forward:
-
-1. Dont used typed buffers
-2. Use enum w/ references (try first!)
-3. Use what I have implemented in interfaces.rs
-4. Have a TransPacket trait that all other packets implement. This trait has
-functions for every possible transport packet, but the functions only work if
-called on the appropriate implementing struct.
-
-These are the only options bc of the fundamental issue that enums cant hold
-traits, and the IPPacket struct needs to be able to hold a packet that is any
-type of transport layer packet
-
-
 ======== Transport Layer ========
 
-//TODO: TCP, ICMP once UDP agreed upon.
-
-struct UDPHeader {
-    pub src_port: u16;
-    pub dst_port: u16;
-    pub len: u16;
-    pub cksum: u16;
+pub struct UDPHeader {
+    pub src_port: u16,
+    pub dst_port: u16,
+    pub len: u16,
+    pub cksum: u16,
 }
 
-struct UDPSocket_ex { /* Example UDP socket implementation */
-    pub src_ip: IPAddr;
-    pub src_port: u16;
+pub struct UDPSocketExample { /* Example UDP socket implementation */
+    pub src_ip: IPAddr,
+    pub src_port: u16,
 }
 
-trait UDPSocket:UDPSend {
+pub trait UDPSocket:UDPSend {
     fn bind(&self, src_ip: IPAddr, src_port: u16) -> ReturnCode;
-    fn send(&self, dest: IP6Addr, udp_packet: &'static UDPPacket) ->ReturnCode;
-    fn send_done(&self, udp_packet: &'static UDPPacket, result: ReturnCode);
+    fn send(&self, dest: IPAddr, udp_packet: &'static mut UDPPacket) -> ReturnCode;
+    fn send_done(&self, udp_packet: &'static mut UDPPacket, result: ReturnCode);
 }
 
-struct UDPPacket_ex { /* Example UDP Packet struct */
-    pub header: UDPHeader;
-    pub payload: &'a [u8]; //Not mutable!
-    pub len: u16; // length of payload
+pub struct UDPPacket<'a> { /* Example UDP Packet struct */
+    pub head: UDPHeader,
+    pub payload: &'a mut [u8], 
+    pub len: u16, // length of payload
 }
 
-trait UDPPacket {
-    fn reset(&self); //Sets fields to appropriate defaults    
-    fn getOffset(&self) -> usize; //Always returns 8
+impl<'a> UDPPacket<'a> {
+    pub fn reset(&self){} //Sets fields to appropriate defaults    
+    pub fn get_offset(&self) -> usize{8} //Always returns 8
 
-    fn setDestPort(&self, port: u16); 
-    fn setSrcPort(&self, port: u16);
-    fn setLen(&self, len: u16);
-    fn setCksum(&self, cksum: u16);
-    fn getDestPort(&self) -> u16;
-    fn getSrcPort(&self) -> u16;
-    fn getLen(&self) -> u16;
-    fn getCksum(&self) -> u16;
+    pub fn set_dest_port(&self, port: u16){} 
+    pub fn set_src_port(&self, port: u16){}
+    pub fn set_len(&self, len: u16){}
+    pub fn set_cksum(&self, cksum: u16){}
+    pub fn get_dest_port(&self) -> u16{0}
+    pub fn get_src_port(&self) -> u16{0}
+    pub fn get_len(&self) -> u16{0}
+    pub fn get_cksum(&self) -> u16{0}
 
-    fn setPayload<'a>(&self, payload: &'a [u8];
+    pub fn set_payload(&self, payload: &'a [u8]){}
 
-    /* Note that no UDP cksum function is required here. It is my belief that
-       it makes more sense to require the IP layer implement a function to calculate
-       the UDP cksum, as the IP layer is what should have access to all of the fields
-       neccessary to construct the IPv6 Pseudoheader. Further, openThread uses
-       this same approach*/
 }
 
-trait UDPSend {
-    fn send(dest: IP6Addr, udp_packet: &'static mut UDPPacket); // dest rqrd
+pub trait UDPSend {
+    fn send(dest: IPAddr, udp_packet: &'static mut UDPPacket); // dest rqrd
     fn send_done(buf: &'static mut UDPPacket, result: ReturnCode);
 }
 
@@ -255,52 +253,50 @@ pub struct IP6Header {
 }
 
 
-pub enum TransportPacket { //doesnt work, cant have traits as fields of enum
-    UDP(UDPPacket),
-    TCP(TCPPacket), /* NOTE: TCP,ICMP,RawIP traits not yet detailed in this
+pub enum TransportPacket<'a> { 
+    UDP(UDPPacket<'a>),
+    TCP(TCPPacket<'a>), /* NOTE: TCP,ICMP,RawIP traits not yet detailed in this
                      * document, but follow logically from UDPPacket trait. */
-    ICMP(ICMPPacket),
-    Raw(RawIPPacket),
+    ICMP(ICMPPacket<'a>),
+    Raw(RawIPPacket<'a>),
 }
 
+pub struct IP6Packet<'a> {
+    pub header: IP6Header,
+    pub payload: TransportPacket<'a>,
+} 
 
-pub struct IP6Packet_ex {
-    pub header: IP6Header;
-    pub payload: TransportPacket; //yeah this doesnt work
-}
 
-/* Idea: have IP6_packet_udp_payload, IP6_packet_tcp_payload ... structs. This
-   would work if the IP6packet trait had fns like returnUDPpayloadifUDP() ->
-   UDPPacket etc. */
-
-trait IP6Packet {
-    fn new(payload: TransportPacket) -> IP6Packet;
-    fn reset(&self); //Sets fields to appropriate defaults
-    fn getOffset(&self) -> usize; //Always returns 40 until we add options support
+impl<'a> IP6Packet<'a> {
+    pub fn reset(&self){} //Sets fields to appropriate defaults
+    pub fn get_offset(&self) -> usize{40} //Always returns 40 until we add options support
     
     // Remaining functions are just getters and setters for the header fields
-    fn setTF(&self, TF);
-    fn setFlowLabel(&self, flow_label);
-    fn setLen(&self, u16);
-    fn setProtocol(&self, proto);
-    fn setDestAddr(&self, IPaddr);
-    fn setSrcAddr(&self, IPaddr);
-    fn getTF(&self) -> TF;
-    fn getFlowLabel(&self)-> flow_label;
-    fn getLen(&self) -> u16;
-    fn getProtocol(&self) -> u8;
-    fn getDestAddr(&self) -> IPAddr;
-    fn getSrcAddr(&self) -> IPAddr;
+    pub fn set_tf(&self, tf: u8){}
+    pub fn set_flow_label(&self, flow_label: u8){}
+    pub fn set_len(&self, len: u16){}
+    pub fn set_protocol(&self, proto: u8){}
+    pub fn set_dest_addr(&self, dest: IPAddr){}
+    pub fn set_src_addr(&self, src: IPAddr){}
+    pub fn get_tf(&self) -> u8{0}
+    pub fn get_flow_label(&self)-> u8{0}
+    pub fn get_len(&self) -> u16{0}
+    pub fn get_protocol(&self) -> u8{0}
+    pub fn get_dest_addr(&self) -> IPAddr{}
+    pub fn get_src_addr(&self) -> IPAddr{}
 
-    fn calcAndSetUDPcksum(&self) -> u16; //Looks at internal buffer assuming
-    // it contains a valid IP packet, checks if it contains a UDP packet. If so, it
-    // calculates the UDP cksum using the IP and UDP fields and returns it.
+    pub fn set_transpo_cksum(&self){} //Looks at internal buffer assuming
+    // it contains a valid IP packet, checks the payload type. If the payload
+    // type requires a cksum calculation, this function calculates the 
+    // psuedoheader cksum and calls the appropriate transport packet function
+    // using this pseudoheader cksum to set the transport packet cksum
+
 }
 
-trait IP6Send {
-    fn sendTo(dest: IP6Addr, ip6_packet: &'static mut IP6Packet); //Convenience fn, sets dest addr, sends
-    fn send(ip6_packet: &'static mut IP6Packet); //Length can be determined from IP6Packet
-    fn send_done(ip6_packet: &'static mut IP6Packet, result: ReturnCode);
+pub trait IP6Send {
+    fn send_to(&self, dest: IPAddr, ip6_packet: IP6Packet); //Convenience fn, sets dest addr, sends
+    fn send(&self, ip6_packet: IP6Packet); //Length can be determined from IP6Packet
+    fn send_done(&self, ip6_packet: IP6Packet, result: ReturnCode);
 }
 
 ======== 6lowpan Layer ========
@@ -334,6 +330,7 @@ trait Sixlowpan {
   // some global state - namely, that the dgram tag be incremented for
   // each packet fragmented globally
   fn next_dgram_tag(&self) -> u16;
+
   // Likewise, this seemed to be the cleanest way to access/store the
   // ContextStore object. Note that having multiple ContextStores is
   // problematic for receiving/decoding packets.
