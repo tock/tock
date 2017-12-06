@@ -62,7 +62,8 @@ pub unsafe fn assign_gpios(gpio0: Option<&'static hil::gpio::Pin>,
 #[macro_export]
 macro_rules! debug_gpio {
     ($i:tt, $method:ident) => ({
-        $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method());
+        #[allow(unused_unsafe)]
+        unsafe { $crate::debug::DEBUG_GPIOS.$i.map(|g| g.$method()); }
     });
 }
 
