@@ -65,6 +65,7 @@ impl USARTRegManager {
         let c = pm::Clock::PBA(clock);
         unsafe {
             if pm::is_clock_enabled(c) == false {
+                debug_gpio!(0, clear);
                 pm::enable_clock(c);
             }
         }
@@ -105,6 +106,7 @@ impl Drop for USARTRegManager {
         let tx_active = self.tx_dma.map_or(false, |tx_dma| tx_dma.is_enabled());
         if !(rx_active || tx_active || ints_active) {
             unsafe {
+                debug_gpio!(0, set);
                 pm::disable_clock(self.clock);
             }
         }
