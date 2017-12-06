@@ -185,8 +185,32 @@ pub unsafe fn reset_handler() {
     kernel::debug::assign_gpios(Some(&sam4l::gpio::PA[13]),
                                 Some(&sam4l::gpio::PA[15]),
                                 Some(&sam4l::gpio::PA[14]));
+    debug_gpio!(0, set);
+    debug_gpio!(1, set);
+    debug_gpio!(2, set);
 
     let mut chip = sam4l::chip::Sam4l::new();
+
+    // LEDs
+    let led_pins = static_init!(
+        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 3],
+        [(&sam4l::gpio::PA[13], capsules::led::ActivationMode::ActiveLow),   // Red
+         (&sam4l::gpio::PA[15], capsules::led::ActivationMode::ActiveLow),   // Green
+         (&sam4l::gpio::PA[14], capsules::led::ActivationMode::ActiveLow)]); // Blue
+    let led = static_init!(
+        capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
+        capsules::led::LED::new(led_pins));
+
+    // BUTTONs
+    let button_pins = static_init!(
+        [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
+        [(&sam4l::gpio::PA[16], capsules::button::GpioMode::LowWhenPressed)]);
+    let button = static_init!(
+        capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
+        capsules::button::Button::new(button_pins, kernel::Grant::create()));
+    for &(btn, _) in button_pins.iter() {
+        btn.set_client(button);
+    }
 
     let console = static_init!(
         capsules::console::Console<sam4l::usart::USART>,
@@ -308,27 +332,6 @@ pub unsafe fn reset_handler() {
 
     spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
     syscall_spi_device.set_client(spi_syscalls);
-
-    // LEDs
-    let led_pins = static_init!(
-        [(&'static sam4l::gpio::GPIOPin, capsules::led::ActivationMode); 3],
-        [(&sam4l::gpio::PA[13], capsules::led::ActivationMode::ActiveLow),   // Red
-         (&sam4l::gpio::PA[15], capsules::led::ActivationMode::ActiveLow),   // Green
-         (&sam4l::gpio::PA[14], capsules::led::ActivationMode::ActiveLow)]); // Blue
-    let led = static_init!(
-        capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins));
-
-    // BUTTONs
-    let button_pins = static_init!(
-        [(&'static sam4l::gpio::GPIOPin, capsules::button::GpioMode); 1],
-        [(&sam4l::gpio::PA[16], capsules::button::GpioMode::LowWhenPressed)]);
-    let button = static_init!(
-        capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create()));
-    for &(btn, _) in button_pins.iter() {
-        btn.set_client(button);
-    }
 
     // Setup ADC
     let adc_channels = static_init!(
