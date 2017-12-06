@@ -271,7 +271,7 @@ impl USART {
             (1 <<  7) | // PARE
             (1 <<  6) | // FRAME
             (1 <<  5) | // OVRE
-            (1 << 1); //.. RXRDY
+            (1 << 0); //.. RXRDY
         regs.idr.set(idr_val);
     }
 
