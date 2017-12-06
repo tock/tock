@@ -88,9 +88,22 @@ impl Drop for USARTRegManager {
         // I might disable the radio before reading out the actual rx data... So I need actual function support like 
         // (Callback_Pending) not just checking status registers?
 
+        // Anything listening for RX or TX interrupts?
+        let rx_or_tx_interrupt_mask = 0x00000000 |
+            (1 << 12) | // RXBUFF
+            (1 <<  9) | // TXEMPTY
+            (1 <<  8) | // TIMEOUT
+            (1 <<  7) | // PARE
+            (1 <<  6) | // FRAME
+            (1 <<  5) | // OVRE
+            (1 <<  1) | // TXREADY
+            (1 <<  0); //. RXRDY
+        let regs: &USARTRegisters = unsafe { &*self.registers };
+        let ints_active = (regs.imr.get() | rx_or_tx_interrupt_mask) != 0;
+
         let rx_active = self.rx_dma.map_or(false, |rx_dma| rx_dma.is_enabled());
         let tx_active = self.tx_dma.map_or(false, |tx_dma| tx_dma.is_enabled());
-        if !(rx_active || tx_active) {
+        if !(rx_active || tx_active || ints_active) {
             unsafe {
                 pm::disable_clock(self.clock);
             }
