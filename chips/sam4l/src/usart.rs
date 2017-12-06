@@ -47,38 +47,44 @@ const USART_BASE_ADDRS: [*mut USARTRegisters; 4] = [0x40024000 as *mut USARTRegi
                                                     0x4002C000 as *mut USARTRegisters,
                                                     0x40030000 as *mut USARTRegisters];
 
-struct USARTRegManager {
-    registers: *mut USARTRegisters,
+pub struct USARTRegManager<'a> {
+    registers: &'a USARTRegisters,
     clock: pm::Clock,
     rx_dma: Option<&'static dma::DMAChannel>,
     tx_dma: Option<&'static dma::DMAChannel>,
+    is_panic: bool,
 }
 
-impl USARTRegManager {
-    fn new(base_addr: *mut USARTRegisters,
-                 clock: pm::PBAClock,
-                 rx_dma_ref: &'static dma::DMAChannel,
-                 tx_dma_ref: &'static dma::DMAChannel
-                )
-                 -> USARTRegManager {
+impl<'a> USARTRegManager<'a> {
+    // sigh, panic hack
+    fn real_new(usart: &USART, is_panic: bool) -> USARTRegManager {
         // Gotta check if clock is currently enabled or not, if not then enable that shit.
-        let c = pm::Clock::PBA(clock);
         unsafe {
-            if pm::is_clock_enabled(c) == false {
+            if pm::is_clock_enabled(usart.clock) == false {
                 debug_gpio!(0, clear);
-                pm::enable_clock(c);
+                pm::enable_clock(usart.clock);
             }
         }
+        let regs: &USARTRegisters = unsafe { &*usart.registers };
         USARTRegManager {
-            registers: base_addr,
-            clock: c,
-            rx_dma: Some(rx_dma_ref),
-            tx_dma: Some(tx_dma_ref),
+            registers: regs,
+            clock: usart.clock,
+            rx_dma: usart.rx_dma.get(),
+            tx_dma: usart.tx_dma.get(),
+            is_panic: is_panic,
         }
+    }
+
+    fn new(usart: &USART) -> USARTRegManager {
+        USARTRegManager::real_new(usart, false)
+    }
+
+    pub fn panic_new(usart: &USART) -> USARTRegManager {
+        USARTRegManager::real_new(usart, true)
     }
 }
 
-impl Drop for USARTRegManager {
+impl<'a> Drop for USARTRegManager<'a> {
     fn drop(&mut self) {
         // check interrupt masks. If they are set, then don't stop the UART clock. If not, go 
         // ahead and disable the clock. 
@@ -99,12 +105,11 @@ impl Drop for USARTRegManager {
             (1 <<  5) | // OVRE
             (1 <<  1) | // TXREADY
             (1 <<  0); //. RXRDY
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        let ints_active = (regs.imr.get() | rx_or_tx_interrupt_mask) != 0;
+        let ints_active = (self.registers.imr.get() & rx_or_tx_interrupt_mask) != 0;
 
         let rx_active = self.rx_dma.map_or(false, |rx_dma| rx_dma.is_enabled());
         let tx_active = self.tx_dma.map_or(false, |tx_dma| tx_dma.is_enabled());
-        if !(rx_active || tx_active || ints_active) {
+        if !(rx_active || tx_active || ints_active || self.is_panic) {
             unsafe {
                 debug_gpio!(0, set);
                 pm::disable_clock(self.clock);
@@ -216,24 +221,19 @@ impl USART {
         self.tx_dma.set(Some(tx_dma));
     }
 
-    fn enable_rx(&self) {
-        self.enable_clock();
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+    fn enable_rx(&self, regs_manager: &USARTRegManager) {
         let cr_val = 0x00000000 | (1 << 4); // RXEN
-        regs.cr.set(cr_val);
+        regs_manager.registers.cr.set(cr_val);
     }
 
-    pub fn enable_tx(&self) {
-        self.enable_clock();
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+    pub fn enable_tx(&self, regs_manager: &USARTRegManager) {
         let cr_val = 0x00000000 | (1 << 6); // TXEN
-        regs.cr.set(cr_val);
+        regs_manager.registers.cr.set(cr_val);
     }
 
-    fn disable_rx(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+    fn disable_rx(&self, regs_manager: &USARTRegManager) {
         let cr_val = 0x00000000 | (1 << 5); // RXDIS
-        regs.cr.set(cr_val);
+        regs_manager.registers.cr.set(cr_val);
 
         self.usart_rx_state.set(USARTStateRX::Idle);
         if self.usart_tx_state.get() == USARTStateTX::Idle {
@@ -242,10 +242,9 @@ impl USART {
         }
     }
 
-    fn disable_tx(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+    fn disable_tx(&self, regs_manager: &USARTRegManager) {
         let cr_val = 0x00000000 | (1 << 7); // TXDIS
-        regs.cr.set(cr_val);
+        regs_manager.registers.cr.set(cr_val);
 
         self.usart_tx_state.set(USARTStateTX::Idle);
         if self.usart_rx_state.get() == USARTStateRX::Idle {
@@ -254,10 +253,10 @@ impl USART {
         }
     }
 
-    fn abort_rx(&self, error: hil::uart::Error) {
+    fn abort_rx(&self, regs_manager: &USARTRegManager, error: hil::uart::Error) {
         if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
-            self.disable_rx_interrupts();
-            self.disable_rx();
+            self.disable_rx_interrupts(regs_manager);
+            self.disable_rx(regs_manager);
             self.usart_rx_state.set(USARTStateRX::Idle);
 
             // get buffer
@@ -282,10 +281,10 @@ impl USART {
         }
     }
 
-    fn abort_tx(&self, error: hil::uart::Error) {
+    fn abort_tx(&self, regs_manager: &USARTRegManager, error: hil::uart::Error) {
         if self.usart_tx_state.get() == USARTStateTX::DMA_Transmitting {
-            self.disable_tx_interrupts();
-            self.disable_tx();
+            self.disable_tx_interrupts(regs_manager);
+            self.disable_tx(regs_manager);
             self.usart_tx_state.set(USARTStateTX::Idle);
 
             // get buffer
@@ -310,27 +309,23 @@ impl USART {
         }
     }
 
-    fn enable_tx_empty_interrupt(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        regs.ier.set(1 << 9);
+    fn enable_tx_empty_interrupt(&self, regs_manager: &USARTRegManager) {
+        regs_manager.registers.ier.set(1 << 9);
     }
 
-    fn disable_tx_empty_interrupt(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        regs.idr.set(1 << 9);
+    fn disable_tx_empty_interrupt(&self, regs_manager: &USARTRegManager) {
+        regs_manager.registers.idr.set(1 << 9);
     }
 
-    fn enable_rx_error_interrupts(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+    fn enable_rx_error_interrupts(&self, regs_manager: &USARTRegManager) {
         let ier_val = 0x00000000 |
             (1 <<  7) | // PARE
             (1 <<  6) | // FRAME
             (1 <<  5); //. OVRE
-        regs.ier.set(ier_val);
+        regs_manager.registers.ier.set(ier_val);
     }
 
-    fn disable_rx_interrupts(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+    fn disable_rx_interrupts(&self, regs_manager: &USARTRegManager) {
         let idr_val = 0x00000000 |
             (1 << 12) | // RXBUFF
             (1 <<  8) | // TIMEOUT
@@ -338,35 +333,31 @@ impl USART {
             (1 <<  6) | // FRAME
             (1 <<  5) | // OVRE
             (1 << 1); //.. RXRDY
-        regs.idr.set(idr_val);
+        regs_manager.registers.idr.set(idr_val);
     }
 
-    fn disable_tx_interrupts(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+    fn disable_tx_interrupts(&self, regs_manager: &USARTRegManager) {
         let idr_val = 0x00000000 |
             (1 << 9) | // TXEMPTY
             (1 << 1); //. TXREADY
-        regs.idr.set(idr_val);
+        regs_manager.registers.idr.set(idr_val);
     }
 
-    fn disable_interrupts(&self) {
-        self.disable_rx_interrupts();
-        self.disable_tx_interrupts();
+    fn disable_interrupts(&self, regs_manager: &USARTRegManager) {
+        self.disable_rx_interrupts(regs_manager);
+        self.disable_tx_interrupts(regs_manager);
     }
 
-    fn reset(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-
+    fn reset(&self, regs_manager: &USARTRegManager) {
         // reset status bits, transmitter, and receiver
         let cr_val = 0x00000000 |
             (1 << 8) | // RSTSTA
             (1 << 3) | // RSTTX
             (1 <<2); //.. RSTRX
-        regs.cr.set(cr_val);
+        regs_manager.registers.cr.set(cr_val);
 
-        self.abort_rx(hil::uart::Error::ResetError);
-        self.enable_clock(); // in case abort_rx turned them off
-        self.abort_tx(hil::uart::Error::ResetError);
+        self.abort_rx(regs_manager, hil::uart::Error::ResetError);
+        self.abort_tx(regs_manager, hil::uart::Error::ResetError);
     }
 
     pub fn handle_interrupt(&self) {
@@ -377,34 +368,35 @@ impl USART {
         // stopped it from occurring just in case it caused issues in the
         // future.
         if self.is_clock_enabled() {
+            let regs_manager = &USARTRegManager::new(&self);
 
-            let regs: &USARTRegisters = unsafe { &*self.registers };
-            let status = regs.csr.get();
-            let mask = regs.imr.get();
+            let status = regs_manager.registers.csr.get();
+            let mask = regs_manager.registers.imr.get();
 
             // Reset status registers. We need to do this first because some
             // interrupts signal us to turn off our clock.
-            regs.cr.set(1 << 8); // RSTSTA
+            // TODO: Move this
+            regs_manager.registers.cr.set(1 << 8); // RSTSTA
 
             if status & (1 << 8) != 0 && mask & (1 << 8) != 0 {
                 // TIMEOUT
-                self.disable_rx_timeout();
-                self.abort_rx(hil::uart::Error::CommandComplete);
+                self.disable_rx_timeout(regs_manager);
+                self.abort_rx(regs_manager, hil::uart::Error::CommandComplete);
             } else if status & (1 << 9) != 0 && mask & (1 << 9) != 0 {
-                self.disable_tx_empty_interrupt();
-                self.disable_tx();
+                self.disable_tx_empty_interrupt(regs_manager);
+                self.disable_tx(regs_manager);
                 self.usart_tx_state.set(USARTStateTX::Idle);
             } else if status & (1 << 7) != 0 {
                 // PARE
-                self.abort_rx(hil::uart::Error::ParityError);
+                self.abort_rx(regs_manager, hil::uart::Error::ParityError);
 
             } else if status & (1 << 6) != 0 {
                 // FRAME
-                self.abort_rx(hil::uart::Error::FramingError);
+                self.abort_rx(regs_manager, hil::uart::Error::FramingError);
 
             } else if status & (1 << 5) != 0 {
                 // OVRE
-                self.abort_rx(hil::uart::Error::OverrunError);
+                self.abort_rx(regs_manager, hil::uart::Error::OverrunError);
             }
         }
     }
@@ -425,14 +417,11 @@ impl USART {
         unsafe { pm::is_clock_enabled(self.clock) }
     }
 
-    fn set_mode(&self, mode: u32) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        regs.mr.set(mode);
+    fn set_mode(&self, regs_manager: &USARTRegManager, mode: u32) {
+        regs_manager.registers.mr.set(mode);
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-
+    fn set_baud_rate(&self, regs_manager: &USARTRegManager, baud_rate: u32) {
         let system_frequency = pm::get_system_frequency();
 
         // The clock divisor is calculated differently in UART and SPI modes.
@@ -442,59 +431,53 @@ impl USART {
             _ => 0,
         };
 
-        regs.brgr.set(cd);
+        regs_manager.registers.brgr.set(cd);
     }
 
     /// In non-SPI mode, this drives RTS low.
     /// In SPI mode, this asserts (drives low) the chip select line.
-    fn rts_enable_spi_assert_cs(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        regs.cr.set(1 << 18);
+    fn rts_enable_spi_assert_cs(&self, regs_manager: &USARTRegManager) {
+        regs_manager.registers.cr.set(1 << 18);
     }
 
     /// In non-SPI mode, this drives RTS high.
     /// In SPI mode, this de-asserts (drives high) the chip select line.
-    fn rts_disable_spi_deassert_cs(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        regs.cr.set(1 << 19);
+    fn rts_disable_spi_deassert_cs(&self, regs_manager: &USARTRegManager) {
+        regs_manager.registers.cr.set(1 << 19);
     }
 
-    fn enable_rx_timeout(&self, timeout: u8) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+    fn enable_rx_timeout(&self, regs_manager: &USARTRegManager, timeout: u8) {
         let rtor_val: u32 = 0x00000000 | timeout as u32;
-        regs.rtor.set(rtor_val);
+        regs_manager.registers.rtor.set(rtor_val);
 
         // enable timeout interrupt
-        regs.ier.set((1 << 8)); // TIMEOUT
+        regs_manager.registers.ier.set((1 << 8)); // TIMEOUT
 
         // start timeout
-        regs.cr.set((1 << 11)); // STTTO
+        regs_manager.registers.cr.set((1 << 11)); // STTTO
     }
 
-    fn disable_rx_timeout(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        regs.rtor.set(0);
+    fn disable_rx_timeout(&self, regs_manager: &USARTRegManager) {
+        regs_manager.registers.rtor.set(0);
 
         // enable timeout interrupt
-        regs.idr.set((1 << 8)); // TIMEOUT
+        regs_manager.registers.idr.set((1 << 8)); // TIMEOUT
     }
 
-    fn enable_rx_terminator(&self, _terminator: u8) {
+    fn enable_rx_terminator(&self, _regs_manage: &USARTRegManager, _terminator: u8) {
         // XXX: implement me
         panic!("didn't write terminator stuff yet");
     }
 
     // for use by panic in io.rs
-    pub fn send_byte(&self, byte: u8) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+    pub fn send_byte(&self, regs_manager: &USARTRegManager, byte: u8) {
         let thr_val: u32 = 0x00000000 | byte as u32;
-        regs.thr.set(thr_val);
+        regs_manager.registers.thr.set(thr_val);
     }
 
     // for use by panic in io.rs
-    pub fn tx_ready(&self) -> bool {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        let csr_val: u32 = regs.csr.get();
+    pub fn tx_ready(&self, regs_manager: &USARTRegManager) -> bool {
+        let csr_val: u32 = regs_manager.registers.csr.get();
         let mut ret_val = false;
         if (csr_val & (1 << 1)) == (1 << 1) {
             // tx is ready
@@ -506,6 +489,9 @@ impl USART {
 
 impl dma::DMAClient for USART {
     fn xfer_done(&self, pid: dma::DMAPeripheral) {
+        // Safe to create here as the clock is definitely on here
+        let regs_manager = &USARTRegManager::new(&self);
+
         match self.usart_mode.get() {
             UsartMode::Uart => {
                 // determine if it was an RX or TX transfer
@@ -513,8 +499,8 @@ impl dma::DMAClient for USART {
                     // RX transfer was completed
 
                     // disable RX and RX interrupts
-                    self.disable_rx_interrupts();
-                    self.disable_rx();
+                    self.disable_rx_interrupts(regs_manager);
+                    self.disable_rx(regs_manager);
                     self.usart_rx_state.set(USARTStateRX::Idle);
 
                     // get buffer
@@ -546,7 +532,7 @@ impl dma::DMAClient for USART {
                     // note that the DMA has finished but TX cannot yet be disabled yet because
                     // there may still be bytes left in the TX buffer.
                     self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
-                    self.enable_tx_empty_interrupt();
+                    self.enable_tx_empty_interrupt(regs_manager);
 
                     // get buffer
                     let buffer = self.tx_dma.get().map_or(None, |tx_dma| {
@@ -576,17 +562,17 @@ impl dma::DMAClient for USART {
 
                     self.spi_chip_select.get().map_or_else(|| {
                         // Do "else" case first. Thanks, rust.
-                        self.rts_disable_spi_deassert_cs();
+                        self.rts_disable_spi_deassert_cs(regs_manager);
                     }, |cs| {
                         cs.set();
                     });
 
                     // note that the DMA has finished but TX cannot be disabled yet
                     self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
-                    self.enable_tx_empty_interrupt();
+                    self.enable_tx_empty_interrupt(regs_manager);
 
                     self.usart_rx_state.set(USARTStateRX::Idle);
-                    self.disable_rx();
+                    self.disable_rx(regs_manager);
 
                     // get buffer
                     let txbuf = self.tx_dma.get().map_or(None, |dma| {
@@ -631,16 +617,13 @@ impl hil::uart::UART for USART {
     fn init(&self, params: hil::uart::UARTParams) {
         self.usart_mode.set(UsartMode::Uart);
 
-        // enable USART clock
-        //  must do this before writing any registers
-        self.enable_clock();
+        let regs_manager = &USARTRegManager::new(&self);
 
         // disable interrupts
-        self.disable_interrupts();
+        self.disable_interrupts(regs_manager);
 
         // stop any TX and RX and clear status
-        self.reset();
-        self.enable_clock();
+        self.reset(regs_manager);
 
         // set USART mode register
         let mut mode = 0x00000000;
@@ -665,24 +648,20 @@ impl hil::uart::UART for USART {
             mode |= 0x0 << 0; // MODE: normal
         }
 
-        self.set_mode(mode);
+        self.set_mode(regs_manager, mode);
 
         // Set baud rate
-        self.set_baud_rate(params.baud_rate);
-
-        self.disable_clock();
+        self.set_baud_rate(regs_manager, params.baud_rate);
     }
 
     fn transmit(&self, tx_data: &'static mut [u8], tx_len: usize) {
-        // enable USART clock
-        //  must do this before writing any registers
-        self.enable_clock();
+        let regs_manager = &USARTRegManager::new(&self);
 
         // quit current transmission if any
-        self.abort_tx(hil::uart::Error::RepeatCallError);
+        self.abort_tx(regs_manager, hil::uart::Error::RepeatCallError);
 
         // enable TX
-        self.enable_tx();
+        self.enable_tx(regs_manager);
         self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
 
         // set up dma transfer and start transmission
@@ -694,12 +673,10 @@ impl hil::uart::UART for USART {
     }
 
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
-        // enable USART clock
-        //  must do this before writing any registers
-        self.enable_clock();
+        let regs_manager = &USARTRegManager::new(&self);
 
         // quit current reception if any
-        self.abort_rx(hil::uart::Error::RepeatCallError);
+        self.abort_rx(regs_manager, hil::uart::Error::RepeatCallError);
 
         // truncate rx_len if necessary
         let mut length = rx_len;
@@ -708,8 +685,8 @@ impl hil::uart::UART for USART {
         }
 
         // enable RX
-        self.enable_rx();
-        self.enable_rx_error_interrupts();
+        self.enable_rx(regs_manager);
+        self.enable_rx_error_interrupts(regs_manager);
         self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
 
         // set up dma transfer and start reception
@@ -723,20 +700,18 @@ impl hil::uart::UART for USART {
 
 impl hil::uart::UARTAdvanced for USART {
     fn receive_automatic(&self, rx_buffer: &'static mut [u8], interbyte_timeout: u8) {
-        // enable USART clock
-        //  must do this before writing any registers
-        self.enable_clock();
+        let regs_manager = &USARTRegManager::new(&self);
 
         // quit current reception if any
-        self.abort_rx(hil::uart::Error::RepeatCallError);
+        self.abort_rx(regs_manager, hil::uart::Error::RepeatCallError);
 
         // enable RX
-        self.enable_rx();
-        self.enable_rx_error_interrupts();
+        self.enable_rx(regs_manager);
+        self.enable_rx_error_interrupts(regs_manager);
         self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
 
         // enable receive timeout
-        self.enable_rx_timeout(interbyte_timeout);
+        self.enable_rx_timeout(regs_manager, interbyte_timeout);
 
         // set up dma transfer and start reception
         self.rx_dma.get().map(move |dma| {
@@ -748,20 +723,18 @@ impl hil::uart::UARTAdvanced for USART {
     }
 
     fn receive_until_terminator(&self, rx_buffer: &'static mut [u8], terminator: u8) {
-        // enable USART clock
-        //  must do this before writing any registers
-        self.enable_clock();
+        let regs_manager = &USARTRegManager::new(&self);
 
         // quit current reception if any
-        self.abort_rx(hil::uart::Error::RepeatCallError);
+        self.abort_rx(regs_manager, hil::uart::Error::RepeatCallError);
 
         // enable RX
-        self.enable_rx();
-        self.enable_rx_error_interrupts();
+        self.enable_rx(regs_manager);
+        self.enable_rx_error_interrupts(regs_manager);
         self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
 
         // enable receive terminator
-        self.enable_rx_terminator(terminator);
+        self.enable_rx_terminator(regs_manager, terminator);
 
         // set up dma transfer and start reception
         self.rx_dma.get().map(move |dma| {
@@ -779,13 +752,12 @@ impl hil::spi::SpiMaster for USART {
     type ChipSelect = Option<&'static hil::gpio::Pin>;
 
     fn init(&self) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
+        let regs_manager = &USARTRegManager::new(&self);
 
         self.usart_mode.set(UsartMode::Spi);
-        self.enable_clock();
 
         // Set baud rate, default to 2 MHz.
-        self.set_baud_rate(2000000);
+        self.set_baud_rate(regs_manager, 2000000);
 
         let mode =
             0xe << 0 /* SPI Master mode */
@@ -793,12 +765,10 @@ impl hil::spi::SpiMaster for USART {
             | 0x3 << 6 /* Character Length 8 bits */
             | 0x4 << 9 /* No Parity */
             | 1 << 18 /* USART drives the clock pin */;
-        self.set_mode(mode);
+        self.set_mode(regs_manager, mode);
 
         // Disable transmitter timeguard
-        regs.ttgr.set(4);
-
-        self.disable_clock();
+        regs_manager.registers.ttgr.set(4);
     }
 
 
@@ -816,9 +786,10 @@ impl hil::spi::SpiMaster for USART {
                         read_buffer: Option<&'static mut [u8]>,
                         len: usize)
                         -> ReturnCode {
+        let regs_manager = &USARTRegManager::new(&self);
 
-        self.enable_tx();
-        self.enable_rx();
+        self.enable_tx(regs_manager);
+        self.enable_rx(regs_manager);
 
         // Calculate the correct length for the transmission
         let buflen = read_buffer.as_ref().map_or(write_buffer.len(),
@@ -831,7 +802,7 @@ impl hil::spi::SpiMaster for USART {
         self.spi_chip_select.get().map_or_else(|| {
             // Do the "else" case first. If a CS pin was provided as the
             // CS line, we use the HW RTS pin as the CS line instead.
-            self.rts_enable_spi_assert_cs();
+            self.rts_enable_spi_assert_cs(regs_manager);
         }, |cs| {
             cs.clear();
         });
@@ -902,8 +873,8 @@ impl hil::spi::SpiMaster for USART {
 
     /// Returns the actual rate set
     fn set_rate(&self, rate: u32) -> u32 {
-        self.enable_clock();
-        self.set_baud_rate(rate);
+        let regs_manager = &USARTRegManager::new(&self);
+        self.set_baud_rate(regs_manager, rate);
 
         // Calculate what rate will actually be
         let system_frequency = pm::get_system_frequency();
@@ -912,32 +883,29 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn get_rate(&self) -> u32 {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        self.enable_clock();
+        let regs_manager = &USARTRegManager::new(&self);
         let system_frequency = pm::get_system_frequency();
-        let cd = regs.brgr.get() & 0xFFFF;
+        let cd = regs_manager.registers.brgr.get() & 0xFFFF;
         system_frequency / cd
     }
 
     fn set_clock(&self, polarity: hil::spi::ClockPolarity) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        self.enable_clock();
-        let mode = regs.mr.get();
+        let regs_manager = &USARTRegManager::new(&self);
+        let mode = regs_manager.registers.mr.get();
 
         match polarity {
             hil::spi::ClockPolarity::IdleLow => {
-                regs.mr.set(mode & !(1 << 16));
+                regs_manager.registers.mr.set(mode & !(1 << 16));
             }
             hil::spi::ClockPolarity::IdleHigh => {
-                regs.mr.set(mode | (1 << 16));
+                regs_manager.registers.mr.set(mode | (1 << 16));
             }
         }
     }
 
-    fn get_clock(&self) -> hil::spi::ClockPolarity {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        self.enable_clock();
-        let mode = regs.mr.get();
+    fn get_clock(&self,) -> hil::spi::ClockPolarity {
+        let regs_manager = &USARTRegManager::new(&self);
+        let mode = regs_manager.registers.mr.get();
 
         match mode & (1 << 16) {
             0 => hil::spi::ClockPolarity::IdleLow,
@@ -946,24 +914,22 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn set_phase(&self, phase: hil::spi::ClockPhase) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        self.enable_clock();
-        let mode = regs.mr.get();
+        let regs_manager = &USARTRegManager::new(&self);
+        let mode = regs_manager.registers.mr.get();
 
         match phase {
             hil::spi::ClockPhase::SampleLeading => {
-                regs.mr.set(mode | (1 << 8));
+                regs_manager.registers.mr.set(mode | (1 << 8));
             }
             hil::spi::ClockPhase::SampleTrailing => {
-                regs.mr.set(mode & !(1 << 8));
+                regs_manager.registers.mr.set(mode & !(1 << 8));
             }
         }
     }
 
     fn get_phase(&self) -> hil::spi::ClockPhase {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        self.enable_clock();
-        let mode = regs.mr.get();
+        let regs_manager = &USARTRegManager::new(&self);
+        let mode = regs_manager.registers.mr.get();
 
         match mode & (1 << 8) {
             0 => hil::spi::ClockPhase::SampleLeading,
