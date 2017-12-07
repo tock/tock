@@ -16,19 +16,19 @@ extern crate sam4l;
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+//use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::Platform;
 use kernel::hil;
 use kernel::hil::Controller;
-use kernel::hil::spi::SpiMaster;
+//use kernel::hil::spi::SpiMaster;
 
 #[macro_use]
 pub mod io;
 #[allow(dead_code)]
 mod test_take_map_cell;
 
-static mut SPI_READ_BUF: [u8; 64] = [0; 64];
-static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
+//static mut SPI_READ_BUF: [u8; 64] = [0; 64];
+//static mut SPI_WRITE_BUF: [u8; 64] = [0; 64];
 
 // State for loading and holding applications.
 
@@ -129,9 +129,9 @@ unsafe fn set_pin_primary_functions() {
     PA[18].configure(None); //... ACC_INT2 - FXOS8700CQ Interrupt 2
     PA[19].configure(None); //... unused
     PA[20].configure(None); //... !LIGHT_INT - ISL29035 Light Sensor Interrupt
-                            // SPI Mode
-    PA[21].configure(Some(A)); // D3 - SPI MISO
-    PA[22].configure(Some(A)); // D2 - SPI MOSI
+    // SPI Mode
+    //PA[21].configure(Some(A)); // D3 - SPI MISO
+    //PA[22].configure(Some(A)); // D2 - SPI MOSI
     //PA[23].configure(Some(A)); // D4 - SPI SCK
     //PA[24].configure(Some(A)); // D5 - SPI CS0
     // // I2C MODE
