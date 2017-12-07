@@ -286,6 +286,24 @@ unsafe fn select_main_clock(clock: MainClock) {
     (*PM_REGS).mcctrl.set(clock as u32);
 }
 
+pub unsafe fn get_ppcr() -> u32 {
+    (*PM_REGS).ppcr.get()
+}
+pub unsafe fn get_awen() -> u32 {
+    (*PM_REGS).awen.get()
+}
+pub unsafe fn set_awen() {
+    unlock(0);
+    (*PM_REGS).awen.set(1);
+}
+pub unsafe fn get_imr() -> u32 {
+    (*PM_REGS).imr.get()
+}
+pub unsafe fn set_ier() {
+    unlock(0);
+    (*PM_REGS).ier.set(0x100);
+}
+
 /// Configure the system clock to use the DFLL with the RC32K as the source.
 /// Run at 48 MHz.
 unsafe fn configure_48mhz_dfll() {
@@ -408,16 +426,16 @@ macro_rules! get_clock {
 //
 // This is identical to the reset value of the HSBMASK except it allows the
 // PicoCache RAM clock to be on as well.
-const DEEP_SLEEP_HSBMASK: u32 = 0x1e6;
+const DEEP_SLEEP_HSBMASK: u32 = 0x1e7; // 0x1e6;
 
 // No clocks allowed on PBA
-const DEEP_SLEEP_PBAMASK: u32 = 0x0;
+const DEEP_SLEEP_PBAMASK: u32 = 0x20; //0x0;
 
 // FLASHCALW and HRAMC1 clocks allowed
 //
 // This is identical to the reset value of the PBBMASK except it allows the
 // flash's HRAMC1 clock as well.
-const DEEP_SLEEP_PBBMASK: u32 = 0x3;
+const DEEP_SLEEP_PBBMASK: u32 = 0xb; //0x3;
 
 /// Determines if the chip can safely go into deep sleep without preventing
 /// currently active peripherals from operating.
@@ -447,6 +465,17 @@ pub fn deep_sleep_ready() -> bool {
         gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0
     }
 }
+pub fn deep_sleep_decisions() -> (u32, u32, u32, usize) {
+    unsafe {
+    (
+        (*PM_REGS).hsbmask.get(),
+        (*PM_REGS).pbamask.get(),
+        (*PM_REGS).pbbmask.get(),
+        gpio::INTERRUPT_COUNT.load(Ordering::Relaxed),
+    )
+    }
+}
+
 
 pub unsafe fn enable_clock(clock: Clock) {
     match clock {
@@ -466,6 +495,9 @@ pub unsafe fn disable_clock(clock: Clock) {
         Clock::PBC(v) => mask_clock!(PBC: pbcmask & !(1 << (v as u32))),
         Clock::PBD(v) => mask_clock!(PBD: pbdmask & !(1 << (v as u32))),
     }
+}
+pub unsafe fn disable_fucker() {
+    mask_clock!(PBA: pbamask & !(1 << (4 as u32)));
 }
 
 pub unsafe fn is_clock_enabled(clock: Clock) -> bool {

@@ -61,10 +61,12 @@ pub fn main<P: Platform, C: Chip>(platform: &P,
                 }
             }
 
+            debug_gpio!(1, clear);
             support::atomic(|| if !chip.has_pending_interrupts() && process::processes_blocked() {
                 chip.prepare_for_sleep();
                 support::wfi();
             });
+            debug_gpio!(1, set);
         };
     }
 }

@@ -103,7 +103,7 @@ struct TWISRegisters {
 
 struct TWISRegisterManager <'a> {
     registers: &'a TWISRegisters,
-    //clock: pm::Clock,
+    clock: pm::Clock,
 }
 
 impl<'a> TWISRegisterManager <'a> {
@@ -119,7 +119,7 @@ impl<'a> TWISRegisterManager <'a> {
         }
         TWISRegisterManager {
             registers: unsafe { &*slave_registers },
-            //clock: clock,
+            clock: clock,
         }
     }
 }
@@ -127,21 +127,36 @@ impl<'a> TWISRegisterManager <'a> {
 impl<'a> Drop for TWISRegisterManager <'a> {
     fn drop(&mut self) {
         let mask = self.registers.interrupt_mask.get();
-        if mask & 0x00000008 == 0 {
-            //debug!("I2C: Slave clock off");
-            //unsafe {
-                //pm::disable_clock(self.clock);
-            //}
+        //if mask & 0x00000008 == 0 {
+        if mask == 0 {
+            debug!("I2C: Slave clock off");
+            //self.registers.control.set(self.registers.control.get() & !1);
+            //self.registers.interrupt_disable.set(0x10000);
+            unsafe {
+                pm::disable_clock(self.clock);
+            }
         }
         else {
-            //debug!("I2C: Slave clock left on");
+            debug!("I2C: Slave clock left on");
         }
-        //debug!("I2C: TWIS        control {:08X} {:032b}",
-        //       self.registers.control.get(), self.registers.control.get());
-        //debug!("I2C: TWIS interrupt_mask {:08X} {:032b}",
-        //       self.registers.interrupt_mask.get(), self.registers.interrupt_mask.get());
-        //debug!("I2C: TWIS        status  {:08X} {:032b}",
-        //       self.registers.status.get(), self.registers.status.get());
+        debug!("I2C: TWIS        control {:08X} {:032b}",
+               self.registers.control.get(), self.registers.control.get());
+        debug!("I2C: TWIS interrupt_mask {:08X} {:032b}",
+               self.registers.interrupt_mask.get(), self.registers.interrupt_mask.get());
+        debug!("I2C: TWIS        status  {:08X} {:032b}",
+               self.registers.status.get(), self.registers.status.get());
+        debug!("I2C: TWIS           RHR  {:08X} {:032b}",
+               self.registers.receive_holding.get(), self.registers.receive_holding.get());
+        unsafe {
+            debug!("ppcr: {:08X}", pm::get_ppcr());
+            pm::set_awen();
+            debug!("awen: {:08X}", pm::get_awen());
+            pm::set_ier();
+            debug!("imr: {:08X}", pm::get_imr());
+            debug!("deep sleep ready {}", pm::deep_sleep_ready());
+            debug!("deep sleep decisions {:?}", pm::deep_sleep_decisions());
+            debug_gpio!(0, set);
+        }
     }
 }
 
@@ -822,6 +837,13 @@ impl hil::i2c::I2CMaster for I2CHw {
 
 impl hil::i2c::I2CSlave for I2CHw {
     fn enable(&self) {
+        // XXX HACK XXX
+        let mregs_manager = &TWIMRegisterManager::new(&self);
+        mregs_manager.registers.control.set(0x1 << 1);
+        mregs_manager.registers.interrupt_disable.set(!0);
+        unsafe { pm::disable_clock(self.master_clock); }
+        unsafe { pm::disable_fucker(); }
+
         self.slave_registers.map(|_slave_registers| {
             let regs_manager = &TWISRegisterManager::new(&self);
 

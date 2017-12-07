@@ -78,6 +78,9 @@ impl Chip for Sam4l {
                         Task::Flashcalw => flashcalw::FLASH_CONTROLLER.handle_interrupt(),
                     }
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                    if interrupt != USART0 {
+                        debug_gpio!(0, clear);
+                    }
                     match interrupt {
                         ASTALARM => ast::AST.handle_interrupt(),
 
@@ -164,6 +167,7 @@ impl Chip for Sam4l {
     fn prepare_for_sleep(&self) {
         if pm::deep_sleep_ready() {
             unsafe {
+                debug_gpio!(2, clear);
                 cortexm4::scb::set_sleepdeep();
             }
         } else {

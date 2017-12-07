@@ -54,22 +54,21 @@ struct Hail {
     alarm: &'static capsules::alarm::AlarmDriver<'static,
                                                  VirtualMuxAlarm<'static,
                                                                  sam4l::ast::Ast<'static>>>,
-    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
+    //ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
+    //temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    //ninedof: &'static capsules::ninedof::NineDof<'static>,
+    //humidity: &'static capsules::humidity::HumiditySensor<'static>,
     //spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
     i2c_master_slave: &'static capsules::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static,
-                                                                               sam4l::usart::USART>,
-    adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
+    //nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static, sam4l::usart::USART>,
+    //adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin>,
-    rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
+    //rng: &'static capsules::rng::SimpleRng<'static, sam4l::trng::Trng<'static>>,
     ipc: kernel::ipc::IPC,
-    crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
-    dac: &'static capsules::dac::Dac<'static>,
-    aes: &'static capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
+    //crc: &'static capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
+    //dac: &'static capsules::dac::Dac<'static>,
+    //aes: &'static capsules::symmetric_encryption::Crypto<'static, sam4l::aes::Aes>,
 }
 
 
@@ -86,21 +85,21 @@ impl Platform for Hail {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             //capsules::spi::DRIVER_NUM => f(Some(self.spi)),
             capsules::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
-            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            //capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+            //capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            //capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            //capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            //capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            //capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
 
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            //capsules::rng::DRIVER_NUM => f(Some(self.rng)),
 
-            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
-            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
+            //capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+            //capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
 
-            capsules::dac::DRIVER_NUM => f(Some(self.dac)),
+            //capsules::dac::DRIVER_NUM => f(Some(self.dac)),
 
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -238,6 +237,7 @@ pub unsafe fn reset_handler() {
         MuxAlarm::new(&sam4l::ast::AST));
     ast.configure(mux_alarm);
 
+    /*
     let sensors_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&sam4l::i2c::I2C1));
     sam4l::i2c::I2C1.set_master_client(sensors_i2c);
 
@@ -286,6 +286,7 @@ pub unsafe fn reset_handler() {
         capsules::ambient_light::AmbientLight<'static>,
         capsules::ambient_light::AmbientLight::new(isl29035, kernel::Grant::create()));
     hil::sensors::AmbientLight::set_client(isl29035, ambient_light);
+    */
 
     // Alarm
     let virtual_alarm1 = static_init!(
@@ -296,6 +297,7 @@ pub unsafe fn reset_handler() {
         capsules::alarm::AlarmDriver::new(virtual_alarm1, kernel::Grant::create()));
     virtual_alarm1.set_client(alarm);
 
+    /*
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e));
     let fxos8700 = static_init!(
@@ -335,6 +337,7 @@ pub unsafe fn reset_handler() {
 
     spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
     syscall_spi_device.set_client(spi_syscalls); */
+    */
 
     // I2C Buses
     let i2c_master_slave = static_init!(
@@ -350,6 +353,7 @@ pub unsafe fn reset_handler() {
     // specific. It can be overridden in the app, of course.
     hil::i2c::I2CSlave::set_address(&sam4l::i2c::I2C0, 0x32);
 
+    /*
     // Setup ADC
     let adc_channels = static_init!(
         [&'static sam4l::adc::AdcChannel; 6],
@@ -373,6 +377,7 @@ pub unsafe fn reset_handler() {
             capsules::rng::SimpleRng<'static, sam4l::trng::Trng>,
             capsules::rng::SimpleRng::new(&sam4l::trng::TRNG, kernel::Grant::create()));
     sam4l::trng::TRNG.set_client(rng);
+    */
 
 
     // set GPIO driver controlling remaining GPIO pins
@@ -389,6 +394,7 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
+    /*
     // CRC
     let crc = static_init!(
         capsules::crc::Crc<'static, sam4l::crccu::Crccu<'static>>,
@@ -409,26 +415,27 @@ pub unsafe fn reset_handler() {
                                                     &mut capsules::symmetric_encryption::BUF,
                                                     &mut capsules::symmetric_encryption::IV));
     hil::symmetric_encryption::SymmetricEncryption::set_client(&sam4l::aes::AES, aes);
+    */
 
     let hail = Hail {
         console: console,
         gpio: gpio,
         alarm: alarm,
-        ambient_light: ambient_light,
-        temp: temp,
-        humidity: humidity,
-        ninedof: ninedof,
+        //ambient_light: ambient_light,
+        //temp: temp,
+        //humidity: humidity,
+        //ninedof: ninedof,
         //spi: spi_syscalls,
         i2c_master_slave: i2c_master_slave,
-        nrf51822: nrf_serialization,
-        adc: adc,
+        //nrf51822: nrf_serialization,
+        //adc: adc,
         led: led,
         button: button,
-        rng: rng,
+        //rng: rng,
         ipc: kernel::ipc::IPC::new(),
-        crc: crc,
-        dac: dac,
-        aes: aes,
+        //crc: crc,
+        //dac: dac,
+        //aes: aes,
     };
 
     // Need to reset the nRF on boot
@@ -448,7 +455,7 @@ pub unsafe fn reset_handler() {
         capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(hail.console), kc);
 
-    hail.nrf51822.initialize();
+    //hail.nrf51822.initialize();
 
     // Uncomment to measure overheads for TakeCell and MapCell:
     // test_take_map_cell::test_take_map_cell();
