@@ -58,7 +58,8 @@ struct Hail {
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    //spi: &'static capsules::spi::Spi<'static, VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>,
+    i2c_master_slave: &'static capsules::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static,
                                                                                sam4l::usart::USART>,
     adc: &'static capsules::adc::Adc<'static, sam4l::adc::Adc>,
@@ -83,7 +84,8 @@ impl Platform for Hail {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
 
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            //capsules::spi::DRIVER_NUM => f(Some(self.spi)),
+            capsules::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
@@ -132,13 +134,13 @@ unsafe fn set_pin_primary_functions() {
     // SPI Mode
     PA[21].configure(Some(A)); // D3 - SPI MISO
     PA[22].configure(Some(A)); // D2 - SPI MOSI
-    PA[23].configure(Some(A)); // D4 - SPI SCK
-    PA[24].configure(Some(A)); // D5 - SPI CS0
+    //PA[23].configure(Some(A)); // D4 - SPI SCK
+    //PA[24].configure(Some(A)); // D5 - SPI CS0
     // // I2C MODE
     // PA[21].configure(None); // D3
     // PA[22].configure(None); // D2
-    // PA[23].configure(Some(B)); // D4 - TWIMS0 SDA
-    // PA[24].configure(Some(B)); // D5 - TWIMS0 SCL
+     PA[23].configure(Some(B)); // D4 - TWIMS0 SDA
+     PA[24].configure(Some(B)); // D5 - TWIMS0 SCL
     // UART Mode
     PA[25].configure(Some(B)); // RX - USART2 RXD
     PA[26].configure(Some(B)); // TX - USART2 TXD
@@ -286,6 +288,7 @@ pub unsafe fn reset_handler() {
     hil::sensors::NineDof::set_client(fxos8700, ninedof);
 
     // Initialize and enable SPI HAL
+    /*
     // Set up an SPI MUX, so there can be multiple clients
     let mux_spi = static_init!(
         MuxSpiMaster<'static, sam4l::spi::Spi>,
@@ -307,7 +310,21 @@ pub unsafe fn reset_handler() {
         capsules::spi::Spi::new(syscall_spi_device));
 
     spi_syscalls.config_buffers(&mut SPI_READ_BUF, &mut SPI_WRITE_BUF);
-    syscall_spi_device.set_client(spi_syscalls);
+    syscall_spi_device.set_client(spi_syscalls); */
+
+    // I2C Buses
+    let i2c_master_slave = static_init!(
+        capsules::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
+        capsules::i2c_master_slave_driver::I2CMasterSlaveDriver::new(&sam4l::i2c::I2C0,
+            &mut capsules::i2c_master_slave_driver::BUFFER1,
+            &mut capsules::i2c_master_slave_driver::BUFFER2,
+            &mut capsules::i2c_master_slave_driver::BUFFER3));
+    sam4l::i2c::I2C0.set_master_client(i2c_master_slave);
+    sam4l::i2c::I2C0.set_slave_client(i2c_master_slave);
+
+    // Set I2C slave address here, because it is board specific and not app
+    // specific. It can be overridden in the app, of course.
+    hil::i2c::I2CSlave::set_address(&sam4l::i2c::I2C0, 0x32);
 
     // LEDs
     let led_pins = static_init!(
@@ -398,7 +415,8 @@ pub unsafe fn reset_handler() {
         temp: temp,
         humidity: humidity,
         ninedof: ninedof,
-        spi: spi_syscalls,
+        //spi: spi_syscalls,
+        i2c_master_slave: i2c_master_slave,
         nrf51822: nrf_serialization,
         adc: adc,
         led: led,
