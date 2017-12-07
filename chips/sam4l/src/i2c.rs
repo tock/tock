@@ -41,6 +41,43 @@ struct TWIMRegisters {
     hsmod_slew_rate: VolatileCell<u32>,
 }
 
+struct TWIMRegisterManager <'a> {
+    registers: &'a TWIMRegisters,
+    clock: pm::Clock,
+}
+
+impl<'a> TWIMRegisterManager <'a> {
+    fn new (i2chw: &I2CHw) -> TWIMRegisterManager <'a> {
+        let clock = i2chw.master_clock;
+        // If clock isn't enabled, lets enable it
+        unsafe {
+            if pm::is_clock_enabled(clock) == false {
+                debug!("I2C: Master clock on");
+                pm::enable_clock(clock);
+            }
+        }
+        TWIMRegisterManager {
+            registers: unsafe { &*i2chw.registers },
+            clock: clock,
+        }
+    }
+}
+
+impl<'a> Drop for TWIMRegisterManager <'a> {
+    fn drop(&mut self) {
+        let mask = self.registers.interrupt_mask.get();
+        if mask == 0 {
+            debug!("I2C: Master clock off");
+            unsafe {
+                pm::disable_clock(self.clock);
+            }
+        }
+        else {
+            debug!("I2C: Master clock left on");
+        }
+    }
+}
+
 // Listing of all registers related to the TWIS peripheral.
 // Section 28.9 of the datasheet
 #[repr(C, packed)]
@@ -222,7 +259,7 @@ impl I2CHw {
 
     /// Set the clock prescaler and the time widths of the I2C signals
     /// in the CWGR register to make the bus run at a particular I2C speed.
-    fn set_bus_speed(&self) {
+    fn set_bus_speed(&self, regs_manager: &TWIMRegisterManager) {
         // Set I2C waveform timing parameters based on ASF code
         let system_frequency = pm::get_system_frequency();
         let mut exp = 0;
@@ -245,8 +282,7 @@ impl I2CHw {
 
         let cwgr = ((exp & 0x7) << 28) | ((data & 0xF) << 24) | ((stasto & 0xFF) << 16) |
                    ((high & 0xFF) << 8) | ((low & 0xFF) << 0);
-        let regs: &TWIMRegisters = unsafe { &*self.registers };
-        regs.clock_waveform_generator.set(cwgr);
+        regs_manager.registers.clock_waveform_generator.set(cwgr);
     }
 
     pub fn set_dma(&self, dma: &'static DMAChannel) {
@@ -265,11 +301,12 @@ impl I2CHw {
         debug!("I2C: master int");
 
         use kernel::hil::i2c::Error;
-        let regs: &TWIMRegisters = unsafe { &*self.registers };
 
-        let old_status = regs.status.get();
+        let regs_manager = &TWIMRegisterManager::new(&self);
 
-        regs.status_clear.set(!0);
+        let old_status = regs_manager.registers.status.get();
+
+        regs_manager.registers.status_clear.set(!0);
 
         let err = match old_status {
             x if x & (1 <<  8) != 0 /*ANACK*/  => Some(Error::AddressNak),
@@ -283,14 +320,14 @@ impl I2CHw {
         self.on_deck.set(None);
         match on_deck {
             None => {
-                regs.command.set(0);
-                regs.next_command.set(0);
+                regs_manager.registers.command.set(0);
+                regs_manager.registers.next_command.set(0);
 
                 err.map(|err| {
                     // enable, reset, disable
-                    regs.control.set(0x1 << 0);
-                    regs.control.set(0x1 << 7);
-                    regs.control.set(0x1 << 1);
+                    regs_manager.registers.control.set(0x1 << 0);
+                    regs_manager.registers.control.set(0x1 << 7);
+                    regs_manager.registers.control.set(0x1 << 1);
 
                     self.master_client.get().map(|client| {
                         let buf = match self.dma.get() {
@@ -314,14 +351,14 @@ impl I2CHw {
                 // no more interrupts. So, we just read the byte we have
                 // and call this I2C command complete.
                 if (len == 1) && (old_status & 0x01 != 0) {
-                    regs.command.set(0);
-                    regs.next_command.set(0);
+                    regs_manager.registers.command.set(0);
+                    regs_manager.registers.next_command.set(0);
 
                     err.map(|err| {
                         // enable, reset, disable
-                        regs.control.set(0x1 << 0);
-                        regs.control.set(0x1 << 7);
-                        regs.control.set(0x1 << 1);
+                        regs_manager.registers.control.set(0x1 << 0);
+                        regs_manager.registers.control.set(0x1 << 7);
+                        regs_manager.registers.control.set(0x1 << 1);
 
                         self.master_client.get().map(|client| {
                             let buf = match self.dma.get() {
@@ -334,7 +371,7 @@ impl I2CHw {
                             };
                             buf.map(|buf| {
                                 // Save the already read byte.
-                                buf[0] = regs.receive_holding.get() as u8;
+                                buf[0] = regs_manager.registers.receive_holding.get() as u8;
                                 client.command_complete(buf, err);
                             });
                         });
@@ -343,7 +380,7 @@ impl I2CHw {
 
                 } else {
                     // Enable transaction error interrupts
-                    regs.interrupt_enable.set((1 << 3)    // CCOMP   - Command completed
+                    regs_manager.registers.interrupt_enable.set((1 << 3)    // CCOMP   - Command completed
                                    | (1 << 8)    // ANAK   - Address not ACKd
                                    | (1 << 9)    // DNAK   - Data not ACKd
                                    | (1 << 10)); // ARBLST - Arbitration lost
@@ -357,11 +394,9 @@ impl I2CHw {
         }
     }
 
-    fn setup_xfer(&self, chip: u8, flags: usize, read: bool, len: u8) {
-        let regs: &TWIMRegisters = unsafe { &*self.registers };
-
+    fn setup_xfer(&self, regs_manager: &TWIMRegisterManager, chip: u8, flags: usize, read: bool, len: u8) {
         // disable before configuring
-        regs.control.set(0x1 << 1);
+        regs_manager.registers.control.set(0x1 << 1);
 
         let read = if read { 1 } else { 0 };
         let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
@@ -370,21 +405,19 @@ impl I2CHw {
                     | (1 << 15) // VALID
                     | (len as usize) << 16 // NBYTES (at most 255)
                     | read;
-        regs.command.set(command as u32);
-        regs.next_command.set(0);
+        regs_manager.registers.command.set(command as u32);
+        regs_manager.registers.next_command.set(0);
 
         // Enable transaction error interrupts
-        regs.interrupt_enable.set((1 << 3)    // CCOMP   - Command completed
+        regs_manager.registers.interrupt_enable.set((1 << 3)    // CCOMP   - Command completed
                        | (1 << 8)    // ANAK   - Address not ACKd
                        | (1 << 9)    // DNAK   - Data not ACKd
                        | (1 << 10)); // ARBLST - Abitration lost
     }
 
-    fn setup_nextfer(&self, chip: u8, flags: usize, read: bool, len: u8) {
-        let regs: &TWIMRegisters = unsafe { &*self.registers };
-
+    fn setup_nextfer(&self, regs_manager: &TWIMRegisterManager, chip: u8, flags: usize, read: bool, len: u8) {
         // disable before configuring
-        regs.control.set(0x1 << 1);
+        regs_manager.registers.control.set(0x1 << 1);
 
         let read = if read { 1 } else { 0 };
         let command = ((chip as usize) << 1) // 7 bit address at offset 1 (8th
@@ -393,54 +426,54 @@ impl I2CHw {
                     | (1 << 15) // VALID
                     | (len as usize) << 16 // NBYTES (at most 255)
                     | read;
-        regs.next_command.set(command as u32);
+        regs_manager.registers.next_command.set(command as u32);
 
         // Enable
-        regs.control.set(0x1 << 0);
+        regs_manager.registers.control.set(0x1 << 0);
     }
 
-    fn master_enable(&self) {
-        let regs: &TWIMRegisters = unsafe { &*self.registers };
-
+    fn master_enable(&self, regs_manager: &TWIMRegisterManager) {
         // Enable to begin transfer
-        regs.control.set(0x1 << 0);
+        regs_manager.registers.control.set(0x1 << 0);
 
     }
 
-    pub fn write(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
+    fn write(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
+        let regs_manager = &TWIMRegisterManager::new(&self);
         self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.1, data, len as usize);
-            self.setup_xfer(chip, flags, false, len);
-            self.master_enable();
+            self.setup_xfer(regs_manager, chip, flags, false, len);
+            self.master_enable(regs_manager);
             dma.start_xfer();
         });
     }
 
-    pub fn read(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
+    fn read(&self, chip: u8, flags: usize, data: &'static mut [u8], len: u8) {
+        let regs_manager = &TWIMRegisterManager::new(&self);
         self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.0, data, len as usize);
-            self.setup_xfer(chip, flags, true, len);
-            self.master_enable();
+            self.setup_xfer(regs_manager, chip, flags, true, len);
+            self.master_enable(regs_manager);
             dma.start_xfer();
         });
     }
 
-    pub fn write_read(&self, chip: u8, data: &'static mut [u8], split: u8, read_len: u8) {
+    fn write_read(&self, chip: u8, data: &'static mut [u8], split: u8, read_len: u8) {
+        let regs_manager = &TWIMRegisterManager::new(&self);
         self.dma.get().map(move |dma| {
             dma.enable();
             dma.prepare_xfer(self.dma_pids.1, data, split as usize);
-            self.setup_xfer(chip, START, false, split);
-            self.setup_nextfer(chip, START | STOP, true, read_len);
+            self.setup_xfer(regs_manager, chip, START, false, split);
+            self.setup_nextfer(regs_manager, chip, START | STOP, true, read_len);
             self.on_deck.set(Some((self.dma_pids.0, read_len as usize)));
             dma.start_xfer();
         });
     }
 
-    fn disable_interrupts(&self) {
-        let regs: &TWIMRegisters = unsafe { &*self.registers };
-        regs.interrupt_disable.set(!0);
+    fn disable_interrupts(&self, regs_manager: &TWIMRegisterManager) {
+        regs_manager.registers.interrupt_disable.set(!0);
     }
 
     /// Handle possible interrupt for TWIS module.
@@ -745,39 +778,31 @@ impl DMAClient for I2CHw {
 impl hil::i2c::I2CMaster for I2CHw {
     /// This enables the entire I2C peripheral
     fn enable(&self) {
-        // Enable the clock for the TWIM module
-        unsafe {
-            pm::enable_clock(self.master_clock);
-        }
+        let regs_manager = &TWIMRegisterManager::new(&self);
 
         //disable the i2c slave peripheral
         hil::i2c::I2CSlave::disable(self);
 
-        let regs: &TWIMRegisters = unsafe { &*self.registers };
-
         // enable, reset, disable
-        regs.control.set(0x1 << 0);
-        regs.control.set(0x1 << 7);
-        regs.control.set(0x1 << 1);
+        regs_manager.registers.control.set(0x1 << 0);
+        regs_manager.registers.control.set(0x1 << 7);
+        regs_manager.registers.control.set(0x1 << 1);
 
         // Init the bus speed
-        self.set_bus_speed();
+        self.set_bus_speed(regs_manager);
 
         // slew
-        regs.slew_rate.set((0x2 << 28) | (7 << 16) | (7 << 0));
+        regs_manager.registers.slew_rate.set((0x2 << 28) | (7 << 16) | (7 << 0));
 
         // clear interrupts
-        regs.status_clear.set(!0);
+        regs_manager.registers.status_clear.set(!0);
     }
 
     /// This disables the entire I2C peripheral
     fn disable(&self) {
-        let regs: &TWIMRegisters = unsafe { &*self.registers };
-        regs.control.set(0x1 << 1);
-        unsafe {
-            pm::disable_clock(self.master_clock);
-        }
-        self.disable_interrupts();
+        let regs_manager = &TWIMRegisterManager::new(&self);
+        regs_manager.registers.control.set(0x1 << 1);
+        self.disable_interrupts(regs_manager);
     }
 
     fn write(&self, addr: u8, data: &'static mut [u8], len: u8) {
