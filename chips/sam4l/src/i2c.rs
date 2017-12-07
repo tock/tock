@@ -112,8 +112,8 @@ impl<'a> TWISRegisterManager <'a> {
         // If clock isn't enabled, lets enable it
         unsafe {
             if pm::is_clock_enabled(clock) == false {
-                //debug!("I2C: Slave clock on");
-                //pm::enable_clock(clock);
+                debug!("I2C: Slave clock on");
+                pm::enable_clock(clock);
             }
         }
         TWISRegisterManager {
@@ -334,6 +334,7 @@ impl I2CHw {
             None => {
                 regs_manager.registers.command.set(0);
                 regs_manager.registers.next_command.set(0);
+                self.disable_interrupts(regs_manager);
 
                 err.map(|err| {
                     // enable, reset, disable
@@ -367,6 +368,7 @@ impl I2CHw {
                 if (len == 1) && (old_status & 0x01 != 0) {
                     regs_manager.registers.command.set(0);
                     regs_manager.registers.next_command.set(0);
+                    self.disable_interrupts(regs_manager);
 
                     err.map(|err| {
                         // enable, reset, disable
@@ -827,11 +829,6 @@ impl hil::i2c::I2CMaster for I2CHw {
 
 impl hil::i2c::I2CSlave for I2CHw {
     fn enable(&self) {
-        self.slave_clock.map(|slave_clock| unsafe {
-            pm::disable_clock(self.master_clock);
-            pm::enable_clock(slave_clock);
-        });
-
         self.slave_registers.map(|_slave_registers| {
             let regs_manager = &TWISRegisterManager::new(&self);
 
