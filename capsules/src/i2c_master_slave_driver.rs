@@ -23,6 +23,8 @@ pub static mut BUFFER1: [u8; 256] = [0; 256];
 pub static mut BUFFER2: [u8; 256] = [0; 256];
 pub static mut BUFFER3: [u8; 256] = [0; 256];
 
+pub const DRIVER_NUM: usize = 13;
+
 
 pub struct App {
     callback: Option<Callback>,
