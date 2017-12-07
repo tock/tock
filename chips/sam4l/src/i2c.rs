@@ -66,7 +66,7 @@ struct TWISRegisters {
 
 struct TWISRegisterManager <'a> {
     registers: &'a TWISRegisters,
-    clock: pm::Clock,
+    //clock: pm::Clock,
 }
 
 impl<'a> TWISRegisterManager <'a> {
@@ -76,13 +76,13 @@ impl<'a> TWISRegisterManager <'a> {
         // If clock isn't enabled, lets enable it
         unsafe {
             if pm::is_clock_enabled(clock) == false {
-                debug!("I2C: Slave clock on");
-                pm::enable_clock(clock);
+                //debug!("I2C: Slave clock on");
+                //pm::enable_clock(clock);
             }
         }
         TWISRegisterManager {
             registers: unsafe { &*slave_registers },
-            clock: clock,
+            //clock: clock,
         }
     }
 }
@@ -91,14 +91,20 @@ impl<'a> Drop for TWISRegisterManager <'a> {
     fn drop(&mut self) {
         let mask = self.registers.interrupt_mask.get();
         if mask & 0x00000008 == 0 {
-            debug!("I2C: Slave clock off");
-            unsafe {
-                pm::disable_clock(self.clock);
-            }
+            //debug!("I2C: Slave clock off");
+            //unsafe {
+                //pm::disable_clock(self.clock);
+            //}
         }
         else {
-            debug!("I2C: Slave clock left on");
+            //debug!("I2C: Slave clock left on");
         }
+        //debug!("I2C: TWIS        control {:08X} {:032b}",
+        //       self.registers.control.get(), self.registers.control.get());
+        //debug!("I2C: TWIS interrupt_mask {:08X} {:032b}",
+        //       self.registers.interrupt_mask.get(), self.registers.interrupt_mask.get());
+        //debug!("I2C: TWIS        status  {:08X} {:032b}",
+        //       self.registers.status.get(), self.registers.status.get());
     }
 }
 
@@ -256,6 +262,8 @@ impl I2CHw {
     }
 
     pub fn handle_interrupt(&self) {
+        debug!("I2C: master int");
+
         use kernel::hil::i2c::Error;
         let regs: &TWIMRegisters = unsafe { &*self.registers };
 
@@ -437,6 +445,7 @@ impl I2CHw {
 
     /// Handle possible interrupt for TWIS module.
     pub fn handle_slave_interrupt(&self) {
+        debug!("I2C: slave int");
 
         self.slave_registers.map(|_slave_registers| {
             let regs_manager = &TWISRegisterManager::new(&self);
