@@ -50,35 +50,35 @@ const USART_BASE_ADDRS: [*mut USARTRegisters; 4] = [0x40024000 as *mut USARTRegi
 struct USARTRegManager {
     registers: *mut USARTRegisters,
     clock: pm::Clock,
-    rx_dma: Cell<Option<&'static dma::DMAChannel>>,
-    tx_dma: Cell<Option<&'static dma::DMAChannel>>,
+    rx_dma: Option<&'static dma::DMAChannel>,
+    tx_dma: Option<&'static dma::DMAChannel>,
 }
 
 impl USARTRegManager {
-    const fn new(base_addr: *mut USARTRegisters,
-                 clock: pm::PBAClock, 
-                 rx_dma_ref: &'static dma::DMAChannel, 
+    fn new(base_addr: *mut USARTRegisters,
+                 clock: pm::PBAClock,
+                 rx_dma_ref: &'static dma::DMAChannel,
                  tx_dma_ref: &'static dma::DMAChannel
                 )
                  -> USARTRegManager {
-        // Gotta check if clock is currently enabled or not, if not then enable that shit. 
-        if pm::is_clock_enabled(clock) == false {
-            unsafe {
-                pm::enable_clock(clock);
+        // Gotta check if clock is currently enabled or not, if not then enable that shit.
+        let c = pm::Clock::PBA(clock);
+        unsafe {
+            if pm::is_clock_enabled(c) == false {
+                pm::enable_clock(c);
             }
         }
         USARTRegManager {
             registers: base_addr,
-            clock: pm::Clock::PBA(clock),
-            rx_dma: rx_dma_ref,
-            tx_dma: tx_dma_ref,
+            clock: c,
+            rx_dma: Some(rx_dma_ref),
+            tx_dma: Some(tx_dma_ref),
         }
     }
 }
 
 impl Drop for USARTRegManager {
     fn drop(&mut self) {
-        //println!("Dropping!");
         // check interrupt masks. If they are set, then don't stop the UART clock. If not, go 
         // ahead and disable the clock. 
         // Also the callbacks need to be interrupt safe for this to work out. I.E we can't call 
@@ -88,7 +88,9 @@ impl Drop for USARTRegManager {
         // I might disable the radio before reading out the actual rx data... So I need actual function support like 
         // (Callback_Pending) not just checking status registers?
 
-        if !(rx_dma.enabled.get() || tx_dma.enabled.get()) {
+        let rx_active = self.rx_dma.map_or(false, |rx_dma| rx_dma.is_enabled());
+        let tx_active = self.tx_dma.map_or(false, |tx_dma| tx_dma.is_enabled());
+        if !(rx_active || tx_active) {
             unsafe {
                 pm::disable_clock(self.clock);
             }
@@ -199,7 +201,7 @@ impl USART {
         self.tx_dma.set(Some(tx_dma));
     }
 
-    pub fn enable_rx(&self) {
+    fn enable_rx(&self) {
         self.enable_clock();
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 4); // RXEN
@@ -213,7 +215,7 @@ impl USART {
         regs.cr.set(cr_val);
     }
 
-    pub fn disable_rx(&self) {
+    fn disable_rx(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 5); // RXDIS
         regs.cr.set(cr_val);
@@ -225,7 +227,7 @@ impl USART {
         }
     }
 
-    pub fn disable_tx(&self) {
+    fn disable_tx(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let cr_val = 0x00000000 | (1 << 7); // TXDIS
         regs.cr.set(cr_val);
@@ -237,7 +239,7 @@ impl USART {
         }
     }
 
-    pub fn abort_rx(&self, error: hil::uart::Error) {
+    fn abort_rx(&self, error: hil::uart::Error) {
         if self.usart_rx_state.get() == USARTStateRX::DMA_Receiving {
             self.disable_rx_interrupts();
             self.disable_rx();
@@ -265,7 +267,7 @@ impl USART {
         }
     }
 
-    pub fn abort_tx(&self, error: hil::uart::Error) {
+    fn abort_tx(&self, error: hil::uart::Error) {
         if self.usart_tx_state.get() == USARTStateTX::DMA_Transmitting {
             self.disable_tx_interrupts();
             self.disable_tx();
@@ -293,17 +295,17 @@ impl USART {
         }
     }
 
-    pub fn enable_tx_empty_interrupt(&self) {
+    fn enable_tx_empty_interrupt(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.ier.set(1 << 9);
     }
 
-    pub fn disable_tx_empty_interrupt(&self) {
+    fn disable_tx_empty_interrupt(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         regs.idr.set(1 << 9);
     }
 
-    pub fn enable_rx_error_interrupts(&self) {
+    fn enable_rx_error_interrupts(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let ier_val = 0x00000000 |
             (1 <<  7) | // PARE
@@ -312,7 +314,7 @@ impl USART {
         regs.ier.set(ier_val);
     }
 
-    pub fn disable_rx_interrupts(&self) {
+    fn disable_rx_interrupts(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let idr_val = 0x00000000 |
             (1 << 12) | // RXBUFF
@@ -324,7 +326,7 @@ impl USART {
         regs.idr.set(idr_val);
     }
 
-    pub fn disable_tx_interrupts(&self) {
+    fn disable_tx_interrupts(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
         let idr_val = 0x00000000 |
             (1 << 9) | // TXEMPTY
@@ -332,12 +334,12 @@ impl USART {
         regs.idr.set(idr_val);
     }
 
-    pub fn disable_interrupts(&self) {
+    fn disable_interrupts(&self) {
         self.disable_rx_interrupts();
         self.disable_tx_interrupts();
     }
 
-    pub fn reset(&self) {
+    fn reset(&self) {
         let regs: &USARTRegisters = unsafe { &*self.registers };
 
         // reset status bits, transmitter, and receiver

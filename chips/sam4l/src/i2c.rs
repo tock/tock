@@ -64,6 +64,40 @@ struct TWISRegisters {
     hsmod_slew_rate: VolatileCell<u32>,
 }
 
+struct TWISRegisterManager <'a> {
+    reg: &'a TWISRegisters, 
+    clock: pm::Clock,
+}
+
+impl <'a> TWISRegisterManager <'a> {
+    fn new (slave_reg: *mut TWISRegisters, slave_clock: pm::Clock)
+        -> TWISRegisterManager <'a> {
+            // If clock isn't enabled, lets enable it
+            unsafe {
+                if pm::is_clock_enabled(slave_clock) == false {
+                    pm::enable_clock(slave_clock);
+                }
+            }
+            TWISRegisterManager {
+                reg: unsafe { &*slave_reg }, 
+                clock: slave_clock,
+            }
+    }
+}
+
+impl <'a> Drop for TWISRegisterManager <'a> {
+    fn drop(&mut self) {
+        let mask = self.reg.interrupt_mask.get();
+        if mask & 0x00000008 == 0 {
+            unsafe {
+                pm::disable_clock(self.clock);
+            }
+            debug!("YARG")
+        }
+        else {debug!("MOO")}
+    }
+}
+
 // The addresses in memory (7.1 of manual) of the TWIM peripherals
 const I2C_BASE_ADDRS: [*mut TWIMRegisters; 4] = [0x40018000 as *mut TWIMRegisters,
                                                  0x4001C000 as *mut TWIMRegisters,
@@ -401,6 +435,7 @@ impl I2CHw {
     pub fn handle_slave_interrupt(&self) {
 
         self.slave_registers.map(|slave_registers| {
+            let reg_tester: TWISRegisterManager = TWISRegisterManager::new(slave_registers, self.slave_clock.expect("I2C Slave Clock Missing") );
             let regs: &TWISRegisters = unsafe { &*slave_registers };
 
             // Get current status from the hardware.

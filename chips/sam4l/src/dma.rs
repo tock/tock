@@ -197,6 +197,10 @@ impl DMAChannel {
         }
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.get()
+    }
+
     pub fn handle_interrupt(&mut self) {
         let registers: &DMARegisters = unsafe { &*self.registers };
         registers.interrupt_disable.set(!0);
