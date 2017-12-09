@@ -455,6 +455,8 @@ pub unsafe fn reset_handler() {
 
     // debug!("Initialization complete. Entering main loop");
 
+    sam4l::test::TEST0.do_thing();
+
     extern "C" {
         /// Beginning of the ROM region containing app images.
         ///
