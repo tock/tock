@@ -7,6 +7,8 @@ use core::sync::atomic::Ordering;
 use flashcalw;
 use gpio;
 use kernel::common::VolatileCell;
+use kernel::ClockInterface;
+
 use scif;
 
 #[repr(C)]
@@ -453,6 +455,46 @@ pub fn deep_sleep_ready() -> bool {
             && (*PM_REGS).pbamask.get() & !(DEEP_SLEEP_PBAMASK) == 0
             && (*PM_REGS).pbbmask.get() & !(DEEP_SLEEP_PBBMASK) == 0
             && gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0
+    }
+}
+
+impl ClockInterface for Clock {
+    type PlatformClockType = Clock;
+
+    fn is_enabled(&self) -> bool {
+        unsafe {
+            match self {
+                &Clock::HSB(v) => get_clock!(HSB: hsbmask & (1 << (v as u32))),
+                &Clock::PBA(v) => get_clock!(PBA: pbamask & (1 << (v as u32))),
+                &Clock::PBB(v) => get_clock!(PBB: pbbmask & (1 << (v as u32))),
+                &Clock::PBC(v) => get_clock!(PBC: pbcmask & (1 << (v as u32))),
+                &Clock::PBD(v) => get_clock!(PBD: pbdmask & (1 << (v as u32))),
+            }
+        }
+    }
+
+    fn enable(&self) {
+        unsafe {
+            match self {
+                &Clock::HSB(v) => mask_clock!(HSB: hsbmask | 1 << (v as u32)),
+                &Clock::PBA(v) => mask_clock!(PBA: pbamask | 1 << (v as u32)),
+                &Clock::PBB(v) => mask_clock!(PBB: pbbmask | 1 << (v as u32)),
+                &Clock::PBC(v) => mask_clock!(PBC: pbcmask | 1 << (v as u32)),
+                &Clock::PBD(v) => mask_clock!(PBD: pbdmask | 1 << (v as u32)),
+            }
+        }
+    }
+
+    fn disable(&self) {
+        unsafe {
+            match self {
+                &Clock::HSB(v) => mask_clock!(HSB: hsbmask & !(1 << (v as u32))),
+                &Clock::PBA(v) => mask_clock!(PBA: pbamask & !(1 << (v as u32))),
+                &Clock::PBB(v) => mask_clock!(PBB: pbbmask & !(1 << (v as u32))),
+                &Clock::PBC(v) => mask_clock!(PBC: pbcmask & !(1 << (v as u32))),
+                &Clock::PBD(v) => mask_clock!(PBD: pbdmask & !(1 << (v as u32))),
+            }
+        }
     }
 }
 

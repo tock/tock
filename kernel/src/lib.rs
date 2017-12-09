@@ -33,7 +33,7 @@ pub use callback::{AppId, Callback};
 pub use driver::Driver;
 pub use grant::Grant;
 pub use mem::{AppPtr, AppSlice, Private, Shared};
-pub use platform::{mpu, systick, Chip, Platform};
+pub use platform::{Chip, ClockInterface, mpu, Platform, systick};
 pub use platform::systick::SysTick;
 pub use process::{Process, State};
 pub use returncode::ReturnCode;
