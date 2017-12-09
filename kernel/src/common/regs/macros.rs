@@ -1,92 +1,92 @@
 #[macro_export]
-macro_rules! bitmasks {
+macro_rules! register_bitmasks {
     {
+        // BITFIELD_NAME OFFSET(x)
+        $(#[$outer:meta])*
         $valtype:ty, $reg_desc:ident, [
-            $( $field:ident $a:tt ),+
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr)),+
         ]
     } => {
-        $( bitmasks!($valtype, $reg_desc, $field, $a, []); )*
+        $(#[$outer])*
+        $( register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
+    };
+    {
+        // BITFIELD_NAME OFFSET
+        // All fields are 1 bit
+        $(#[$outer:meta])*
+        $valtype:ty, $reg_desc:ident, [
+            $( $(#[$inner:meta])* $field:ident $offset:expr ),+
+        ]
+    } => {
+        $(#[$outer])*
+        $( register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
     };
 
     {
+        // BITFIELD_NAME OFFSET(x) NUMBITS(y)
+        $(#[$outer:meta])*
         $valtype:ty, $reg_desc:ident, [
-            $( $field:ident $a:tt $b:tt ),+
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr) ),+
         ]
     } => {
-        $( bitmasks!($valtype, $reg_desc, $field, $a, $b); )*
+        $(#[$outer])*
+        $( register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits, []); )*
     };
 
     {
-        $valtype:ty, $reg_desc:ident, $field:ident,
-                    ($shift:expr, Mask($mask:expr)),
-                    [$( $valname:ident = $value:expr ),*]
+        // BITFIELD_NAME OFFSET(x) NUMBITS(y) []
+        $(#[$outer:meta])*
+        $valtype:ty, $reg_desc:ident, [
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr)
+               $values:tt ),+
+        ]
+    } => {
+        $(#[$outer])*
+        $( register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits,
+                              $values); )*
+    };
+    {
+        $valtype:ty, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
+                    $offset:expr, $numbits:expr,
+                    [$( $(#[$inner:meta])* $valname:ident = $value:expr ),*]
     } => {
         #[allow(non_upper_case_globals)]
         #[allow(unused)]
         pub const $field: Field<$valtype, $reg_desc> =
-            Field::<$valtype, $reg_desc>::new($mask, $shift);
+            Field::<$valtype, $reg_desc>::new((1<<$numbits)-1, $offset);
 
         #[allow(non_snake_case)]
         #[allow(unused)]
+        $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
             use $crate::common::regs::FieldValue;
-            use super::super::$reg_desc;
+            use super::$reg_desc;
 
             $(
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
+            $(#[$inner])*
             pub const $valname: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new($mask, $shift, $value);
-            )*
-
-            #[allow(dead_code)]
-            #[allow(non_camel_case_types)]
-            pub enum Value {
-                $(
-                    $valname = $value,
-                )*
-            }
-        }
-    };
-
-    {
-        $valtype:ty, $reg_desc:ident, $field:ident, $bit:expr,
-        [$( $valname:ident = $value:expr),* ]
-    } => {
-        #[allow(non_upper_case_globals)]
-        #[allow(unused)]
-        pub const $field: Field<$valtype, $reg_desc> =
-            Field::<$valtype, $reg_desc>::new(1, $bit);
-
-        #[allow(non_snake_case)]
-        #[allow(unused)]
-        pub mod $field {
-            #[allow(unused_imports)]
-            use $crate::common::regs::FieldValue;
-            use super::super::$reg_desc;
-
-            $(
-            #[allow(non_upper_case_globals)]
-            #[allow(unused)]
-            pub const $valname: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new(1, $bit, $value);
+                FieldValue::<$valtype, $reg_desc>::new((1<<$numbits)-1, $offset, $value);
             )*
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
             pub const SET: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new(1, $bit, 1);
+                FieldValue::<$valtype, $reg_desc>::new((1<<$numbits)-1, $offset, (1<<$numbits)-1);
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
             pub const CLEAR: FieldValue<$valtype, $reg_desc> =
-                FieldValue::<$valtype, $reg_desc>::new(1, $bit, 0);
+                FieldValue::<$valtype, $reg_desc>::new((1<<$numbits)-1, $offset, 0);
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
+            $(#[$outer])*
             pub enum Value {
                 $(
+                    $(#[$inner])*
                     $valname = $value,
                 )*
             }
@@ -95,20 +95,20 @@ macro_rules! bitmasks {
 }
 
 #[macro_export]
-macro_rules! bitfields {
+macro_rules! register_bitfields {
     {
-        $valtype:ty, $( $reg:ident $reg_desc:ident $fields:tt ),*
+        $valtype:ty, $( $(#[$inner:meta])* $reg:ident $fields:tt ),*
     } => {
         $(
-            pub struct $reg_desc;
-            impl $crate::common::regs::RegisterLongName for $reg_desc {}
-
             #[allow(non_snake_case)]
+            $(#[$inner])*
             pub mod $reg {
-                use $crate::common::regs::Field;
-                use super::$reg_desc;
+                pub struct Register;
+                impl $crate::common::regs::RegisterLongName for Register {}
 
-                bitmasks!( $valtype, $reg_desc, $fields );
+                use $crate::common::regs::Field;
+
+                register_bitmasks!( $valtype, Register, $fields );
             }
         )*
     }

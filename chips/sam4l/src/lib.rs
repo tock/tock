@@ -12,7 +12,7 @@
 extern crate cortexm4;
 #[allow(unused_imports)]
 #[macro_use(debug)]
-#[macro_use(bitfields, bitmasks)]
+#[macro_use(register_bitfields, register_bitmasks)]
 extern crate kernel;
 
 #[macro_use]
@@ -38,7 +38,6 @@ pub mod crccu;
 pub mod dac;
 pub mod aes;
 pub mod usbc;
-
 
 use cortexm4::{generic_isr, systick_handler, SVC_Handler};
 

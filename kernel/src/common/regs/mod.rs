@@ -4,14 +4,17 @@
 pub mod macros;
 
 use core::marker::PhantomData;
-use core::ops::{BitAnd, BitOr, Not, Shr, Shl, Add};
+use core::ops::{Add, BitAnd, BitOr, Not, Shl, Shr};
 
-pub trait IntLike: BitAnd<Output=Self> +
-                   BitOr<Output=Self> +
-                   Not<Output=Self> +
-                   Eq +
-                   Shr<u32, Output=Self> +
-                   Shl<u32, Output=Self> + Copy + Clone {
+pub trait IntLike
+    : BitAnd<Output = Self>
+    + BitOr<Output = Self>
+    + Not<Output = Self>
+    + Eq
+    + Shr<u32, Output = Self>
+    + Shl<u32, Output = Self>
+    + Copy
+    + Clone {
     fn zero() -> Self;
 }
 
@@ -195,7 +198,6 @@ impl<R: RegisterLongName> Field<u32, R> {
         FieldValue::<u32, R>::new(self.mask, self.shift, value)
     }
 }
-
 
 // For the FieldValue, the masks and values are shifted into their actual location in the register
 #[derive(Copy, Clone)]
