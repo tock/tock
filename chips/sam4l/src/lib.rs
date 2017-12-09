@@ -17,6 +17,7 @@ extern crate kernel;
 #[macro_use]
 mod helpers;
 
+pub mod test;
 pub mod chip;
 pub mod ast;
 pub mod bpm;

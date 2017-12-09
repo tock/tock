@@ -21,3 +21,12 @@ pub trait Chip {
     fn systick(&self) -> &Self::SysTick;
     fn prepare_for_sleep(&self) {}
 }
+
+/// Generic operations that clock-like things are expected to support.
+pub trait ClockInterface {
+    type PlatformClockType;
+
+    fn is_enabled(&self) -> bool;
+    fn enable(&self);
+    fn disable(&self);
+}
