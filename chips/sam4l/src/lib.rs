@@ -6,7 +6,7 @@
 #![crate_type = "rlib"]
 #![feature(repr_align,attr_literals,const_cell_new)]
 #![feature(const_atomic_usize_new,const_ptr_null_mut,integer_atomics,try_from)]
-#![feature(asm,core_intrinsics,concat_idents,const_fn)]
+#![feature(asm,core_intrinsics,concat_idents,const_fn,specialization)]
 #![no_std]
 
 extern crate cortexm4;

@@ -11,7 +11,7 @@ pub mod math;
 pub mod mmio;
 
 pub use self::list::{List, ListLink, ListNode};
-pub use self::mmio::{MMIOInterface, MMIOManager};
+pub use self::mmio::{MMIOAccessControl, MMIOInterface, MMIOManager};
 pub use self::queue::Queue;
 pub use self::ring_buffer::RingBuffer;
 pub use self::volatile_cell::VolatileCell;

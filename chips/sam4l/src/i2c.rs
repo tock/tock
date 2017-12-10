@@ -11,6 +11,7 @@
 
 use core::cell::Cell;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
+use kernel::{ClockInterface, MMIOAccessControl, MMIOInterface, MMIOManager};
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 
@@ -21,7 +22,7 @@ use pm;
 // Section 27.9 of the datasheet
 #[repr(C, packed)]
 #[allow(dead_code)]
-struct TWIMRegisters {
+pub struct TWIMRegisters {
     control: VolatileCell<u32>,
     clock_waveform_generator: VolatileCell<u32>,
     smbus_timing: VolatileCell<u32>,
@@ -174,6 +175,14 @@ pub enum Speed {
     FastPlus1M,
 }
 
+
+/// The single I2C/TWIMS peripheral has two clocks, a master and slave clock.
+/// Only one of these two clocks can ever be active. This clock interface
+/// enforces this, and validates that the other clock is disabled.
+trait TWIMSMasterClockInterface {}
+trait TWIMSSlaveClockInterface {}
+
+
 // This represents an abstraction of the peripheral hardware.
 pub struct I2CHw {
     registers: *mut TWIMRegisters, // Pointer to the I2C registers in memory
@@ -195,6 +204,42 @@ pub struct I2CHw {
     slave_write_buffer_len: Cell<u8>,
     slave_write_buffer_index: Cell<u8>,
 }
+
+impl MMIOInterface<pm::Clock> for I2CHw {
+    type MMIORegisterType = TWIMRegisters;
+    type MMIOClockType = pm::Clock;
+
+    fn get_hardware_address(&self) -> *mut TWIMRegisters {
+        self.registers
+    }
+
+    fn get_clock(&self) -> pm::Clock {
+        self.master_clock
+    }
+
+    fn can_disable_clock(&self, regs: &TWIMRegisters) -> bool {
+        let mask = regs.interrupt_mask.get();
+        mask == 0
+    }
+}
+
+impl<'a, I2CHw, C> MMIOAccessControl<'a, I2CHw, C> for MMIOManager<'a, I2CHw, C>
+{
+    fn before_peripheral_access(hw: &'a I2CHw) {
+        let clock = hw.get_clock();
+        if clock.is_enabled() == false {
+            clock.enable();
+        }
+    }
+    fn drop_peripheral_access(hw: &'a I2CHw, registers: &TWIMRegisters) {
+        let clock = hw.get_clock();
+        if hw.can_disable_clock(registers) {
+            clock.disable();
+        }
+    }
+}
+
+
 
 pub static mut I2C0: I2CHw = I2CHw::new(I2C_BASE_ADDRS[0],
                                         Some(I2C_SLAVE_BASE_ADDRS[0]),
