@@ -35,52 +35,47 @@ pub trait ClockInterface {
 //use core::marker::PhantomData;
 
 pub trait MMIOInterface<C> where
-    C: ?Sized + ClockInterface,
+    C: ClockInterface,
 {
     type MMIORegisterType : ?Sized;
-    type MMIOClockType : ?Sized + ClockInterface;
+    type MMIOClockType : ClockInterface;
 
     fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
     fn get_clock(&self) -> &C;
     fn can_disable_clock(&self, &Self::MMIORegisterType) -> bool;
 }
 
-pub struct MMIOManager<'a, H, R, C> where
-    H: 'a + ?Sized + MMIOInterface<C, MMIORegisterType=R>,
-    R: 'a + ?Sized,
-    C: 'a + ?Sized + ClockInterface,
+pub struct MMIOManager<'a, H, C> where
+    H: 'a + MMIOInterface<C>,
+    C: 'a + ClockInterface,
 {
-    pub registers: &'a R,
-    clock: &'a C,
+    pub registers: &'a H::MMIORegisterType,
     periphal_hardware: &'a H,
 }
 
-impl<'a, H, R, C> MMIOManager<'a, H, R, C> where
-    H: 'a + ?Sized + MMIOInterface<C, MMIORegisterType=R>,
-    R: 'a + ?Sized,
-    C: 'a + ?Sized + ClockInterface,
+impl<'a, H, C> MMIOManager<'a, H, C> where
+    H: 'a + MMIOInterface<C>,
+    C: 'a + ClockInterface,
 {
-    pub fn new(hw: &'a H) -> MMIOManager<'a, H, R, C> {
+    pub fn new(hw: &'a H) -> MMIOManager<'a, H, C> {
         let clock = hw.get_clock();
         if clock.is_enabled() == false {
             clock.enable();
         }
         MMIOManager {
             registers: unsafe { &* hw.get_hardware_address() },
-            clock: hw.get_clock(),
             periphal_hardware: hw,
         }
     }
 }
 
-impl<'a, H, R, C> Drop for MMIOManager<'a, H, R, C> where
-    H: 'a + ?Sized + MMIOInterface<C, MMIORegisterType=R>,
-    R: 'a + ?Sized,
-    C: 'a + ?Sized + ClockInterface,
+impl<'a, H, C> Drop for MMIOManager<'a, H, C> where
+    H: 'a + MMIOInterface<C>,
+    C: 'a + ClockInterface,
 {
     fn drop(&mut self) {
         if self.periphal_hardware.can_disable_clock(self.registers) {
-            self.clock.disable();
+            self.periphal_hardware.get_clock().disable();
         }
     }
 }
