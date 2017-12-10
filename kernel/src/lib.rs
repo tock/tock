@@ -30,11 +30,12 @@ mod syscall;
 mod platform;
 
 pub use callback::{AppId, Callback};
+pub use common::{MMIOInterface, MMIOManager};
 pub use driver::Driver;
 pub use grant::Grant;
 pub use mem::{AppPtr, AppSlice, Private, Shared};
 pub use platform::{Chip, mpu, Platform, systick};
-pub use platform::{ClockInterface, MMIOInterface, MMIOManager};
+pub use platform::{ClockInterface};
 pub use platform::systick::SysTick;
 pub use process::{Process, State};
 pub use returncode::ReturnCode;
