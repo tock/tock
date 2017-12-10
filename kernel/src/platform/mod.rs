@@ -32,7 +32,7 @@ pub trait ClockInterface {
 }
 
 
-use core::marker::PhantomData;
+//use core::marker::PhantomData;
 
 pub trait MMIOInterface<C> where
     C: ?Sized + ClockInterface,
@@ -42,6 +42,7 @@ pub trait MMIOInterface<C> where
 
     fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
     fn get_clock(&self) -> &C;
+    fn can_disable_clock(&self, &Self::MMIORegisterType) -> bool;
 }
 
 pub struct MMIOManager<'a, H, R, C> where
@@ -51,15 +52,13 @@ pub struct MMIOManager<'a, H, R, C> where
 {
     pub registers: &'a R,
     clock: &'a C,
-    // We don't actually store ref to PeriphHW struct, but do need to go
-    // through it during construction, so need its type bound
-    phantom: PhantomData<&'a H>,
+    periphal_hardware: &'a H,
 }
 
 impl<'a, H, R, C> MMIOManager<'a, H, R, C> where
-    H: 'a + MMIOInterface<C, MMIORegisterType=R>,
-    R: 'a,
-    C: 'a + ClockInterface,
+    H: 'a + ?Sized + MMIOInterface<C, MMIORegisterType=R>,
+    R: 'a + ?Sized,
+    C: 'a + ?Sized + ClockInterface,
 {
     pub fn new(hw: &'a H) -> MMIOManager<'a, H, R, C> {
         let clock = hw.get_clock();
@@ -69,7 +68,19 @@ impl<'a, H, R, C> MMIOManager<'a, H, R, C> where
         MMIOManager {
             registers: unsafe { &* hw.get_hardware_address() },
             clock: hw.get_clock(),
-            phantom: PhantomData,
+            periphal_hardware: hw,
+        }
+    }
+}
+
+impl<'a, H, R, C> Drop for MMIOManager<'a, H, R, C> where
+    H: 'a + ?Sized + MMIOInterface<C, MMIORegisterType=R>,
+    R: 'a + ?Sized,
+    C: 'a + ?Sized + ClockInterface,
+{
+    fn drop(&mut self) {
+        if self.periphal_hardware.can_disable_clock(self.registers) {
+            self.clock.disable();
         }
     }
 }
