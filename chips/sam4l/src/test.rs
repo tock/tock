@@ -3,19 +3,16 @@
 use kernel::common::VolatileCell;
 //use kernel::common::take_cell::TakeCell;
 use kernel::ClockInterface;
+use kernel::{MMIOInterface, MMIOManager};
 
 //use kernel::hil;
 use pm;
 
 
 
-#[repr(C, packed)]
-#[allow(dead_code)]
-struct TESTRegisters {
-    control: VolatileCell<u32>,
-    interrupt_mask: VolatileCell<u32>,
-}
 
+
+// NON GENERIC
 struct TESTRegisterManager <'a> {
     registers: &'a TESTRegisters,
     clock: &'a ClockInterface<PlatformClockType=pm::Clock>,
@@ -48,6 +45,17 @@ impl<'a> Drop for TESTRegisterManager <'a> {
         }
     }
 }
+/////////////////////////
+
+
+
+///// FAKE PERIPHERAL
+#[repr(C, packed)]
+#[allow(dead_code)]
+pub struct TESTRegisters {
+    control: VolatileCell<u32>,
+    interrupt_mask: VolatileCell<u32>,
+}
 
 pub struct TESTHw {
     registers: *mut TESTRegisters,
@@ -66,8 +74,27 @@ impl TESTHw {
     }
 
     pub fn do_thing(&self) {
-        let regs_manager = &TESTRegisterManager::new(&self);
+        let regs_manager = &TESTRegisterManager::new(&self); // use of non-gen
+        let rm2 = &MMIOManager::new(self);                   // use of generic
         regs_manager.registers.control.get();
+        rm2.registers.control.get();
+    }
+}
+///////////////////////////////
+
+
+
+
+impl MMIOInterface<pm::Clock, pm::Clock> for TESTHw {
+    type MMIORegisterType = TESTRegisters;
+    type MMIOClockType = pm::Clock;
+
+    fn get_hardware_address(&self) -> *mut TESTRegisters {
+        self.registers
+    }
+
+    fn get_clock(&self) -> &pm::Clock {
+        &self.clock
     }
 }
 
