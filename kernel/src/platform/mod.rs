@@ -36,39 +36,34 @@ pub trait ClockInterface {
 
 use core::marker::PhantomData;
 
-pub trait MMIOInterface<I, C> where
-    I: ?Sized + ClockInterface<PlatformClockType=C>,
-    C: ,
+pub trait MMIOInterface<C> where
+    C: ?Sized + ClockInterface,
 {
     type MMIORegisterType : ?Sized;
-    type MMIOClockType : ?Sized + ClockInterface<PlatformClockType=C>;
+    type MMIOClockType : ?Sized + ClockInterface;
 
     fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
-    //fn get_clock(&self) -> Option<&Self::MMIOClockType>;
-    fn get_clock(&self) -> &I;
+    fn get_clock(&self) -> &C;
 }
 
-pub struct MMIOManager<'a, H, R, I, C> where
-    H: 'a + ?Sized + MMIOInterface<I, C, MMIORegisterType=R>,
+pub struct MMIOManager<'a, H, R, C> where
+    H: 'a + ?Sized + MMIOInterface<C, MMIORegisterType=R>,
     R: 'a + ?Sized,
-    I: 'a + ?Sized + ClockInterface<PlatformClockType=C>,
-    C: 'a,
+    C: 'a + ?Sized + ClockInterface,
 {
     pub registers: &'a R,
-    //clock: Option<&'a I>,
-    clock: &'a I,
+    clock: &'a C,
     // We don't actually store ref to PeriphHW struct, but do need to go
     // through it during construction, so need its type bound
     phantom: PhantomData<&'a H>,
 }
 
-impl<'a, H, R, I, C> MMIOManager<'a, H, R, I, C> where
-    H: 'a + MMIOInterface<I, C, MMIORegisterType=R>,
+impl<'a, H, R, C> MMIOManager<'a, H, R, C> where
+    H: 'a + MMIOInterface<C, MMIORegisterType=R>,
     R: 'a,
-    I: 'a + ClockInterface<PlatformClockType=C>,
-    C: 'a,
+    C: 'a + ClockInterface,
 {
-    pub fn new(hw: &'a H) -> MMIOManager<'a, H, R, I, C> {
+    pub fn new(hw: &'a H) -> MMIOManager<'a, H, R, C> {
         let clock = hw.get_clock();
         if clock.is_enabled() == false {
             clock.enable();

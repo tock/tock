@@ -85,7 +85,7 @@ impl TESTHw {
 
 
 
-impl MMIOInterface<pm::Clock, pm::Clock> for TESTHw {
+impl MMIOInterface<pm::Clock> for TESTHw {
     type MMIORegisterType = TESTRegisters;
     type MMIOClockType = pm::Clock;
 
