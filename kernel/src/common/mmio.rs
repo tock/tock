@@ -40,7 +40,7 @@ pub trait MMIOInterface<C> where
     type MMIOClockType : ClockInterface;
 
     fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
-    fn get_clock(&self) -> &C;
+    fn get_clock(&self) -> C;
     fn can_disable_clock(&self, &Self::MMIORegisterType) -> bool;
 }
 
@@ -65,24 +65,43 @@ impl<'a, H, C> MMIOManager<'a, H, C> where
     C: 'a + ClockInterface,
 {
     pub fn new(hw: &'a H) -> MMIOManager<'a, H, C> {
-        let clock = hw.get_clock();
-        if clock.is_enabled() == false {
-            clock.enable();
-        }
+        Self::before_peripheral_access(hw);
         MMIOManager {
             registers: unsafe { &* hw.get_hardware_address() },
             periphal_hardware: hw,
         }
     }
 }
-
 impl<'a, H, C> Drop for MMIOManager<'a, H, C> where
     H: 'a + MMIOInterface<C>,
     C: 'a + ClockInterface,
 {
     fn drop(&mut self) {
-        if self.periphal_hardware.can_disable_clock(self.registers) {
-            self.periphal_hardware.get_clock().disable();
+        Self::drop_peripheral_access(self.periphal_hardware, self.registers);
+    }
+}
+
+pub trait MMIOAccessControl<'a, H, C> where
+    H: 'a + MMIOInterface<C>,
+    C: 'a + ClockInterface,
+{
+    fn before_peripheral_access(hw: &'a H);
+    fn drop_peripheral_access(hw: &'a H, registers: &H::MMIORegisterType);
+}
+default impl<'a, H, C> MMIOAccessControl<'a, H, C> for MMIOManager<'a, H, C> where
+    H: 'a + MMIOInterface<C>,
+    C: 'a + ClockInterface,
+{
+    fn before_peripheral_access(hw: &'a H) {
+        let clock = hw.get_clock();
+        if clock.is_enabled() == false {
+            clock.enable();
+        }
+    }
+    fn drop_peripheral_access(hw: &'a H, registers: &H::MMIORegisterType) {
+        let clock = hw.get_clock();
+        if hw.can_disable_clock(registers) {
+            clock.disable();
         }
     }
 }

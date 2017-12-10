@@ -2,7 +2,7 @@
 //use dma::{DMAChannel};
 use kernel::common::VolatileCell;
 //use kernel::common::take_cell::TakeCell;
-use kernel::ClockInterface;
+//use kernel::ClockInterface;
 use kernel::{MMIOInterface, MMIOManager};
 
 //use kernel::hil;
@@ -11,7 +11,7 @@ use pm;
 
 
 
-
+/*
 // NON GENERIC
 struct TESTRegisterManager <'a> {
     registers: &'a TESTRegisters,
@@ -46,6 +46,7 @@ impl<'a> Drop for TESTRegisterManager <'a> {
     }
 }
 /////////////////////////
+*/
 
 
 
@@ -74,9 +75,9 @@ impl TESTHw {
     }
 
     pub fn do_thing(&self) {
-        let regs_manager = &TESTRegisterManager::new(&self); // use of non-gen
+        //let regs_manager = &TESTRegisterManager::new(&self); // use of non-gen
+        //regs_manager.registers.control.get();
         let rm2 = &MMIOManager::new(self);                   // use of generic
-        regs_manager.registers.control.get();
         rm2.registers.control.get();
     }
 }
@@ -93,8 +94,8 @@ impl MMIOInterface<pm::Clock> for TESTHw {
         self.registers
     }
 
-    fn get_clock(&self) -> &pm::Clock {
-        &self.clock
+    fn get_clock(&self) -> pm::Clock {
+        self.clock
     }
 
     fn can_disable_clock(&self, regs: &TESTRegisters) -> bool {

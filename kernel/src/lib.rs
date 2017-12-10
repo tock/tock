@@ -1,5 +1,5 @@
 #![feature(asm, core_intrinsics, unique, nonzero)]
-#![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items)]
+#![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items, specialization)]
 #![no_std]
 
 #[macro_use]
@@ -30,7 +30,7 @@ mod syscall;
 mod platform;
 
 pub use callback::{AppId, Callback};
-pub use common::{MMIOInterface, MMIOManager};
+pub use common::{MMIOAccessControl, MMIOInterface, MMIOManager};
 pub use driver::Driver;
 pub use grant::Grant;
 pub use mem::{AppPtr, AppSlice, Private, Shared};
