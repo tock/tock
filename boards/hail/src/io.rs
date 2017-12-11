@@ -1,4 +1,6 @@
 use core::fmt::*;
+use core::ptr::read_volatile;
+use core::{slice, str};
 use kernel::hil::uart::{self, UART};
 use kernel::process;
 use sam4l;
@@ -61,6 +63,30 @@ pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u3
         "\tKernel version {}\r\n",
         env!("TOCK_KERNEL_VERSION")
     ));
+
+    // Flush debug buffer if needed
+    let debug_head = read_volatile(&::kernel::debug::DEBUG_WRITER.output_head);
+    let mut debug_tail = read_volatile(&::kernel::debug::DEBUG_WRITER.output_tail);
+    let mut debug_buffer = ::kernel::debug::DEBUG_WRITER.output_buffer;
+    if debug_head != debug_tail {
+        let _ = writer.write_str("\r\n---| Debug buffer not empty. Flushing. May repeat some of last message(s):\r\n");
+
+        if debug_tail > debug_head {
+            let start = debug_buffer.as_mut_ptr().offset(debug_tail as isize);
+            let len = debug_buffer.len();
+            let slice = slice::from_raw_parts(start, len);
+            let s = str::from_utf8_unchecked(slice);
+            let _ = writer.write_str(s);
+            debug_tail = 0;
+        }
+        if debug_tail != debug_head {
+            let start = debug_buffer.as_mut_ptr().offset(debug_tail as isize);
+            let len = debug_head - debug_tail;
+            let slice = slice::from_raw_parts(start, len);
+            let s = str::from_utf8_unchecked(slice);
+            let _ = writer.write_str(s);
+        }
+    }
 
     // Print fault status once
     let procs = &mut process::PROCS;
