@@ -40,14 +40,19 @@ pub trait MMIOClockGuard<C> where
 }
 
 
-/// The structure encapsulating a peripheral should implement this trait.
+/// A structure encapsulating a peripheral should implement this trait.
 pub trait MMIOInterface<C> where
     C: ClockInterface,
 {
     type MMIORegisterType : MMIOClockGuard<C>;
-    type MMIOClockType : ClockInterface;
 
     fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
+}
+
+/// A structure encapsulating a clocked peripheral should implement this trait.
+pub trait MMIOClockInterface<C> where
+    C: ClockInterface,
+{
     fn get_clock(&self) -> &C;
 }
 
@@ -64,18 +69,19 @@ pub struct MMIOManager<'a, H, C> where
     C: 'a + ClockInterface,
 {
     pub registers: &'a H::MMIORegisterType,
-    periphal_hardware: &'a H,
+    //periphal_hardware: &'a H,
+    clock: &'a C,
 }
 
 impl<'a, H, C> MMIOManager<'a, H, C> where
-    H: 'a + MMIOInterface<C>,
+    H: 'a + MMIOInterface<C> + MMIOClockInterface<C>,
     C: 'a + ClockInterface,
 {
     pub fn new(periphal_hardware: &'a H) -> MMIOManager<'a, H, C> {
         let registers = unsafe { &* periphal_hardware.get_hardware_address() };
         let clock = periphal_hardware.get_clock();
         registers.before_mmio_access(clock);
-        MMIOManager { registers, periphal_hardware }
+        MMIOManager { registers, clock }
     }
 }
 impl<'a, H, C> Drop for MMIOManager<'a, H, C> where
@@ -83,24 +89,6 @@ impl<'a, H, C> Drop for MMIOManager<'a, H, C> where
     C: 'a + ClockInterface,
 {
     fn drop(&mut self) {
-        let clock = self.periphal_hardware.get_clock();
-        self.registers.after_mmio_access(clock);
+        self.registers.after_mmio_access(self.clock);
     }
-}
-
-
-pub struct NoClockControl {}
-impl ClockInterface for NoClockControl {
-    type PlatformClockType = NoClockControl;
-    fn is_enabled(&self) -> bool { true }
-    fn enable(&self) {}
-    fn disable(&self) {}
-}
-
-pub struct AlwaysOnClock {}
-impl ClockInterface for AlwaysOnClock {
-    type PlatformClockType = AlwaysOnClock;
-    fn is_enabled(&self) -> bool { true }
-    fn enable(&self) {}
-    fn disable(&self) {}
 }

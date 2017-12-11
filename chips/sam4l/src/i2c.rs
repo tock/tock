@@ -11,7 +11,7 @@
 
 use core::cell::Cell;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
-use kernel::{ClockInterface, MMIOClockGuard, MMIOInterface, MMIOManager};
+use kernel::{ClockInterface, MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager};
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
@@ -210,12 +210,12 @@ impl MMIOClockGuard<TWISClock> for TWISRegisters {
 
 impl MMIOInterface<TWIMClock> for I2CHw {
     type MMIORegisterType = TWIMRegisters;
-    type MMIOClockType = TWIMClock;
 
     fn get_hardware_address(&self) -> *mut TWIMRegisters {
         self.master_mmio_address
     }
-
+}
+impl MMIOClockInterface<TWIMClock> for I2CHw {
     fn get_clock(&self) -> &TWIMClock {
         &self.master_clock
     }
@@ -224,12 +224,12 @@ type TWIMRegisterManager<'a> = MMIOManager<'a, I2CHw, TWIMClock>;
 
 impl MMIOInterface<TWISClock> for I2CHw {
     type MMIORegisterType = TWISRegisters;
-    type MMIOClockType = TWISClock;
 
     fn get_hardware_address(&self) -> *mut TWISRegisters {
         self.slave_mmio_address.expect("Access of non-existant slave")
     }
-
+}
+impl MMIOClockInterface<TWISClock> for I2CHw {
     fn get_clock(&self) -> &TWISClock {
         &self.slave_clock
     }

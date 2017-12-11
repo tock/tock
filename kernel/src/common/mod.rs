@@ -14,7 +14,7 @@ pub mod mmio;
 pub mod regs;
 
 pub use self::list::{List, ListLink, ListNode};
-pub use self::mmio::{MMIOClockGuard, MMIOInterface, MMIOManager};
+pub use self::mmio::{MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager};
 pub use self::queue::Queue;
 pub use self::ring_buffer::RingBuffer;
 pub use self::volatile_cell::VolatileCell;
