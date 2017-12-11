@@ -29,12 +29,12 @@ mod syscall;
 mod platform;
 
 pub use callback::{AppId, Callback};
-pub use common::{MMIOClockGuard, MMIOInterface, MMIOManager};
+pub use common::{MMIOClockGuard, MMIOClockInterface, MMIOInterface, MMIOManager};
 pub use driver::Driver;
 pub use grant::Grant;
 pub use mem::{AppSlice, AppPtr, Private, Shared};
 pub use platform::{Chip, mpu, Platform, systick};
-pub use platform::{ClockInterface};
+pub use platform::{ClockInterface, NoClockControl, NO_CLOCK_CONTROL};
 pub use platform::systick::SysTick;
 pub use process::{Process, State};
 pub use returncode::ReturnCode;

@@ -1,13 +1,5 @@
-//use core::cell::Cell;
-//use dma::{DMAChannel};
 use kernel::common::VolatileCell;
-//use kernel::common::take_cell::TakeCell;
-//use kernel::ClockInterface;
-use kernel::{ClockInterface, MMIOClockGuard, MMIOInterface, MMIOManager};
-
-//use kernel::hil;
-use pm;
-
+use kernel::{MMIOInterface, MMIOManager, NoClockControl};
 
 
 
@@ -53,25 +45,20 @@ impl<'a> Drop for TESTRegisterManager <'a> {
 ///// FAKE PERIPHERAL
 #[repr(C, packed)]
 #[allow(dead_code)]
+#[derive(NoClockControlMMIORegisters)]
 pub struct TESTRegisters {
     control: VolatileCell<u32>,
     interrupt_mask: VolatileCell<u32>,
 }
 
+#[derive(NoClockControlMMIOHardware)]
 pub struct TESTHw {
     registers: *mut TESTRegisters,
-    clock: pm::Clock,
-    //dma: Cell<Option<&'static DMAChannel>>,
 }
 
 impl TESTHw {
-    const fn new(base_addr: *mut TESTRegisters,
-                 clock: pm::Clock,
-                 ) -> TESTHw {
-        TESTHw {
-            registers: base_addr as *mut TESTRegisters,
-            clock: clock,
-        }
+    const fn new(base_addr: *mut TESTRegisters) -> TESTHw {
+        TESTHw { registers: base_addr as *mut TESTRegisters }
     }
 
     pub fn do_thing(&self) {
@@ -83,40 +70,13 @@ impl TESTHw {
 }
 ///////////////////////////////
 
-
-impl MMIOClockGuard<pm::Clock> for TESTRegisters {
-    fn before_mmio_access(&self, clock: &pm::Clock) {
-        if clock.is_enabled() == false {
-            clock.enable();
-        }
-    }
-    fn after_mmio_access(&self, clock: &pm::Clock) {
-        /*
-        if self.periphal_hardware.can_disable_clock(self.registers) {
-            clock.disable();
-        }
-        */
-        let mask = self.interrupt_mask.get();
-        if mask == 0 {
-            clock.disable();
-        }
-    }
-}
-
-impl MMIOInterface<pm::Clock> for TESTHw {
+impl MMIOInterface<NoClockControl> for TESTHw {
     type MMIORegisterType = TESTRegisters;
-    type MMIOClockType = pm::Clock;
 
     fn get_hardware_address(&self) -> *mut TESTRegisters {
         self.registers
     }
-
-    fn get_clock(&self) -> &pm::Clock {
-        &self.clock
-    }
 }
 
 const TEST_BASE_ADDR: *mut TESTRegisters = 0x40001000 as *mut TESTRegisters;
-pub static mut TEST0: TESTHw = TESTHw::new(TEST_BASE_ADDR,
-                                           pm::Clock::PBA(pm::PBAClock::TWIM0),
-                                           );
+pub static mut TEST0: TESTHw = TESTHw::new(TEST_BASE_ADDR);

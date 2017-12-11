@@ -15,6 +15,9 @@ extern crate cortexm4;
 extern crate kernel;
 
 #[macro_use]
+extern crate derive_no_clock_control;
+
+#[macro_use]
 mod helpers;
 
 pub mod test;
