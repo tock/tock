@@ -153,8 +153,8 @@ impl ClockInterface for TWISClock {
 
 /// Abstraction of the I2C hardware
 pub struct I2CHw {
-    registers: *mut TWIMRegisters, // Pointer to the I2C registers in memory
-    slave_registers: Option<*mut TWISRegisters>, // Pointer to the I2C TWIS registers in memory
+    master_mmio_address: *mut TWIMRegisters,
+    slave_mmio_address: Option<*mut TWISRegisters>,
     master_clock: TWIMClock,
     slave_clock: TWISClock,
     dma: Cell<Option<&'static DMAChannel>>,
@@ -174,7 +174,9 @@ pub struct I2CHw {
 }
 
 
-/// Manage Master Clock before access of Master Registers
+/// Manage clocks for TWIM (I2C Master)
+///
+/// The TWIMClock guards conflicts with TWIS clock.
 impl MMIOClockGuard<TWIMClock> for TWIMRegisters {
     fn before_mmio_access(&self, clock: &TWIMClock) {
         if clock.is_enabled() == false {
@@ -188,6 +190,10 @@ impl MMIOClockGuard<TWIMClock> for TWIMRegisters {
         }
     }
 }
+
+/// Manage clocks for TWIS (I2C Slave)
+///
+/// The TWISClock guards conflicts with TWIM clock.
 impl MMIOClockGuard<TWISClock> for TWISRegisters {
     fn before_mmio_access(&self, clock: &TWISClock) {
         if clock.is_enabled() == false {
@@ -195,11 +201,6 @@ impl MMIOClockGuard<TWISClock> for TWISRegisters {
         }
     }
     fn after_mmio_access(&self, clock: &TWISClock) {
-        /*
-        if self.periphal_hardware.can_disable_clock(self.registers) {
-            clock.disable();
-        }
-        */
         let mask = self.interrupt_mask.get();
         if mask & 0x00000008 == 0 {
             clock.disable();
@@ -212,16 +213,11 @@ impl MMIOInterface<TWIMClock> for I2CHw {
     type MMIOClockType = TWIMClock;
 
     fn get_hardware_address(&self) -> *mut TWIMRegisters {
-        self.registers
+        self.master_mmio_address
     }
 
     fn get_clock(&self) -> &TWIMClock {
         &self.master_clock
-    }
-
-    fn can_disable_clock(&self, regs: &TWIMRegisters) -> bool {
-        let mask = regs.interrupt_mask.get();
-        mask == 0
     }
 }
 type TWIMRegisterManager<'a> = MMIOManager<'a, I2CHw, TWIMClock>;
@@ -231,15 +227,11 @@ impl MMIOInterface<TWISClock> for I2CHw {
     type MMIOClockType = TWISClock;
 
     fn get_hardware_address(&self) -> *mut TWISRegisters {
-        self.slave_registers.expect("Access of non-existant slave")
+        self.slave_mmio_address.expect("Access of non-existant slave")
     }
 
     fn get_clock(&self) -> &TWISClock {
         &self.slave_clock
-    }
-
-    fn can_disable_clock(&self, _regs: &TWISRegisters) -> bool {
-        unimplemented!("Nope");
     }
 }
 
@@ -298,8 +290,8 @@ impl I2CHw {
         dma_tx: DMAPeripheral,
     ) -> I2CHw {
         I2CHw {
-            registers: base_addr as *mut TWIMRegisters,
-            slave_registers: slave_base_addr,
+            master_mmio_address: base_addr as *mut TWIMRegisters,
+            slave_mmio_address: slave_base_addr,
             master_clock: clocks.0,
             slave_clock: clocks.1,
             dma: Cell::new(None),
@@ -545,7 +537,7 @@ impl I2CHw {
     pub fn handle_slave_interrupt(&self) {
         debug!("I2C: slave int");
 
-        self.slave_registers.map(|_slave_registers| {
+        if self.slave_mmio_address.is_some() {
             let regs_manager = &TWISRegisterManager::new(&self);
 
             // Get current status from the hardware.
@@ -737,7 +729,7 @@ impl I2CHw {
                     regs_manager.registers.status_clear.set(status);
                 }
             }
-        });
+        }
     }
 
     /// Receive the bytes the I2C master is writing to us.
@@ -746,7 +738,7 @@ impl I2CHw {
         self.slave_write_buffer_len.set(len);
 
         if self.slave_enabled.get() {
-            self.slave_registers.map(|_slave_registers| {
+            if self.slave_mmio_address.is_some() {
                 let regs_manager = &TWISRegisterManager::new(&self);
 
                 let status = regs_manager.registers.status.get();
@@ -758,7 +750,7 @@ impl I2CHw {
                 if (interrupts & (1 << 16) > 0) && (status & (1 << 5) == 0) {
                     regs_manager.registers.status_clear.set(status);
                 }
-            });
+            }
         }
     }
 
@@ -769,10 +761,10 @@ impl I2CHw {
         self.slave_read_buffer_index.set(0);
 
         if self.slave_enabled.get() {
-            // Check to see if we should send the first byte.
-            self.slave_registers.map(|_slave_registers| {
+            if self.slave_mmio_address.is_some() {
                 let regs_manager = &TWISRegisterManager::new(&self);
 
+                // Check to see if we should send the first byte.
                 let status = regs_manager.registers.status.get();
                 let imr = regs_manager.registers.interrupt_mask.get();
                 let interrupts = status & imr;
@@ -797,7 +789,7 @@ impl I2CHw {
                     // Make it happen by clearing status.
                     regs_manager.registers.status_clear.set(status);
                 }
-            });
+            }
         }
     }
 
@@ -810,7 +802,7 @@ impl I2CHw {
     }
 
     pub fn slave_listen(&self) {
-        self.slave_registers.map(|_slave_registers| {
+        if self.slave_mmio_address.is_some() {
             let regs_manager = &TWISRegisterManager::new(&self);
 
             // Enable and configure
@@ -823,7 +815,7 @@ impl I2CHw {
 
             // Set this separately because that makes the HW happy.
             regs_manager.registers.control.set((control as u32) | 0x1);
-        });
+        }
     }
 }
 
@@ -876,7 +868,7 @@ impl hil::i2c::I2CMaster for I2CHw {
 
 impl hil::i2c::I2CSlave for I2CHw {
     fn enable(&self) {
-        self.slave_registers.map(|_slave_registers| {
+        if self.slave_mmio_address.is_some() {
             let regs_manager = &TWISRegisterManager::new(&self);
 
             // enable, reset, disable
@@ -897,7 +889,7 @@ impl hil::i2c::I2CSlave for I2CHw {
 
             // Also setup all of the error interrupts.
             regs_manager.registers.interrupt_enable.set((1 << 14) | (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6));
-        });
+        }
 
         self.slave_enabled.set(true);
     }
@@ -906,11 +898,11 @@ impl hil::i2c::I2CSlave for I2CHw {
     fn disable(&self) {
         self.slave_enabled.set(false);
 
-        self.slave_registers.map(|_slave_registers| {
+        if self.slave_mmio_address.is_some() {
             let regs_manager = &TWISRegisterManager::new(&self);
             regs_manager.registers.control.set(0);
             self.slave_disable_interrupts(regs_manager);
-        });
+        }
     }
 
     fn set_address(&self, addr: u8) {

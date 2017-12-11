@@ -114,11 +114,6 @@ impl MMIOInterface<pm::Clock> for TESTHw {
     fn get_clock(&self) -> &pm::Clock {
         &self.clock
     }
-
-    fn can_disable_clock(&self, regs: &TESTRegisters) -> bool {
-        let mask = regs.interrupt_mask.get();
-        mask == 0
-    }
 }
 
 const TEST_BASE_ADDR: *mut TESTRegisters = 0x40001000 as *mut TESTRegisters;

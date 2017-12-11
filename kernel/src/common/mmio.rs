@@ -49,7 +49,6 @@ pub trait MMIOInterface<C> where
 
     fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
     fn get_clock(&self) -> &C;
-    fn can_disable_clock(&self, &Self::MMIORegisterType) -> bool;
 }
 
 /// Structures encapsulating periphal hardware (those implementing the
