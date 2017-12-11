@@ -4,11 +4,31 @@
 //! means that accessing a peripheral requires dereferencing a raw pointer that
 //! points to the peripheral's memory.
 //!
-//! The Tock kernel provides an MMIOManager that encapsulates this unsafety.
-//! Critically, it trusts that:
+//! Generally, Tock peripherals are modeled by two structures, such as:
 //!
-//!  - `get_hardware_address` returns the correct peripheral memory address
-//!  - `MMIORegisterType` correctly maps to the hardware peripheral
+//!    #[repr(C, packed)]
+//!    #[allow(dead_code)]
+//!    pub struct PeripheralRegisters {
+//!        control: VolatileCell<u32>,
+//!        interrupt_mask: VolatileCell<u32>,
+//!    }
+//!
+//!    pub struct PeripheralHardware {
+//!        mmio_address: *mut PeripheralRegisters,
+//!        clock: &ChipSpecificPeripheralClock,
+//!    }
+//!
+//! The first structure mirrors the MMIO specification. The second structure
+//! holds a pointer to the actual address in memory. It also holds other
+//! information for the peripheral. Kernel traits will be implemented for this
+//! peripheral hardware structure. As the peripheral cannot derefence the raw
+//! MMIO pointer safely, Tock provides the MMIOManager interface:
+//!
+//!    impl hil::uart::UART for PeripheralHardware {
+//!       fn init(&self, params: hil::uart::UARTParams) {
+//!           let regs_manager = &MMIOManager::new(self);
+//!           regs_manager.registers.control.set(0x0);
+//!           //           ^^^^^^^^^-- This is type &PeripheralRegisters
 //!
 //!
 //! Peripheral Clocks
@@ -17,17 +37,9 @@
 //! To facilitate low-power operation, MMIOManager captures the peripheral's
 //! clock upon instantiation. The intention is to exploit
 //! [Ownership Based Resource Management](https://doc.rust-lang.org/beta/nomicon/obrm.html)
-//! to capture peripheral power state. Upon creation, MMIOManager ensures that
-//! the clock is powered on. Upon `Drop` (destruction), MMIOManager queries
-//! the peripheral-specific `can_disable_clock` method. For peripherals with
-//! long-running transactions (e.g. DMA operations) or those that require the
-//! clock to be enabled to listen (e.g. some buses), this method should check
-//! whether the peripheral can be powered off. In many cases, it is sufficient
-//! to check whether the interrupt mask for the peripheral is active.
+//! to capture peripheral power state.
 //!
-//! Peripherals whose clock cannot be disabled should use `NoClockControl` from
-//! this module. Work-in-progress implementaitons should use `AlwaysOnClock`,
-//! which will never power off the peripheral clock.
+//! Peripherals whose clock cannot be disabled should use `NoClockControl`.
 
 use ::ClockInterface;
 
