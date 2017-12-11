@@ -63,7 +63,7 @@ impl<'a> USARTRegManager<'a> {
         // Gotta check if clock is currently enabled or not, if not then enable that shit.
         unsafe {
             if pm::is_clock_enabled(usart.clock) == false {
-                debug_gpio!(0, clear);
+                debug_gpio!(2, clear);
                 pm::enable_clock(usart.clock);
             }
         }
@@ -113,7 +113,7 @@ impl<'a> Drop for USARTRegManager<'a> {
         let tx_active = self.tx_dma.map_or(false, |tx_dma| tx_dma.is_enabled());
         if !(rx_active || tx_active || ints_active || self.is_panic) {
             unsafe {
-                debug_gpio!(0, set);
+                debug_gpio!(2, set);
                 pm::disable_clock(self.clock);
             }
         }
@@ -296,10 +296,6 @@ impl USART {
         regs_manager.registers.cr.set(cr_val);
 
         self.usart_rx_state.set(USARTStateRX::Idle);
-        if self.usart_tx_state.get() == USARTStateTX::Idle {
-            // TX disabled too
-            self.disable_clock();
-        }
     }
 
     fn disable_tx(&self, regs_manager: &USARTRegManager) {
@@ -307,10 +303,6 @@ impl USART {
         regs_manager.registers.cr.set(cr_val);
 
         self.usart_tx_state.set(USARTStateTX::Idle);
-        if self.usart_rx_state.get() == USARTStateRX::Idle {
-            // RX disabled too
-            self.disable_clock();
-        }
     }
 
     fn abort_rx(&self, regs_manager: &USARTRegManager, error: hil::uart::Error) {
@@ -456,18 +448,6 @@ impl USART {
                 // OVRE
                 self.abort_rx(regs_manager, hil::uart::Error::OverrunError);
             }
-        }
-    }
-
-    fn enable_clock(&self) {
-        unsafe {
-            pm::enable_clock(self.clock);
-        }
-    }
-
-    fn disable_clock(&self) {
-        unsafe {
-            pm::disable_clock(self.clock);
         }
     }
 
@@ -909,27 +889,24 @@ impl hil::spi::SpiMaster for USART {
     }
 
     fn write_byte(&self, val: u8) {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        self.enable_clock();
-        regs.cr.set((1 << 4) | (1 << 6));
+        let regs_manager = &USARTRegManager::new(&self);
+        regs_manager.registers.cr.set((1 << 4) | (1 << 6));
 
-        regs.thr.set(val as u32);
+        regs_manager.registers.thr.set(val as u32);
     }
 
     fn read_byte(&self) -> u8 {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        self.enable_clock();
-        regs.rhr.get() as u8
+        let regs_manager = &USARTRegManager::new(&self);
+        regs_manager.registers.rhr.get() as u8
     }
 
     fn read_write_byte(&self, val: u8) -> u8 {
-        let regs: &USARTRegisters = unsafe { &*self.registers };
-        self.enable_clock();
-        regs.cr.set((1 << 4) | (1 << 6));
+        let regs_manager = &USARTRegManager::new(&self);
+        regs_manager.registers.cr.set((1 << 4) | (1 << 6));
 
-        regs.thr.set(val as u32);
-        while regs.csr.get() & (1 << 0) == 0 {}
-        regs.rhr.get() as u8
+        regs_manager.registers.thr.set(val as u32);
+        while regs_manager.registers.csr.get() & (1 << 0) == 0 {}
+        regs_manager.registers.rhr.get() as u8
     }
 
     /// Pass in a None to use the HW chip select pin on the USART (RTS).
