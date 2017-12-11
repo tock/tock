@@ -80,14 +80,14 @@ const BUF_SIZE: usize = 1024;
 pub struct DebugWriter {
     driver: Option<&'static Driver>,
     pub grant: Option<*mut u8>,
-    output_buffer: [u8; BUF_SIZE],
-    output_head: usize,
-    output_tail: usize,
+    pub output_buffer: [u8; BUF_SIZE],
+    pub output_head: usize,
+    pub output_tail: usize,
     output_active_len: usize,
     count: usize,
 }
 
-static mut DEBUG_WRITER: DebugWriter = DebugWriter {
+pub static mut DEBUG_WRITER: DebugWriter = DebugWriter {
     driver: None,
     grant: None,
     output_buffer: [0; BUF_SIZE],
