@@ -413,46 +413,34 @@ impl USART {
     }
 
     pub fn handle_interrupt(&self) {
-        // only handle interrupts if the clock is enabled for this peripheral.
-        // Now, why are we occasionally getting interrupts with the clock
-        // disabled? That is a good question that I don't have the answer to.
-        // They don't even seem to be causing a problem, but seemed bad, so I
-        // stopped it from occurring just in case it caused issues in the
-        // future.
-        if self.is_clock_enabled() {
-            let regs_manager = &USARTRegManager::new(&self);
+        let regs_manager = &USARTRegManager::new(&self);
 
-            let status = regs_manager.registers.csr.get();
-            let mask = regs_manager.registers.imr.get();
+        let status = regs_manager.registers.csr.get();
+        let mask = regs_manager.registers.imr.get();
 
-            // Reset status registers. We need to do this first because some
-            // interrupts signal us to turn off our clock.
-            // TODO: Move this
-            regs_manager.registers.cr.set(1 << 8); // RSTSTA
+        if status & (1 << 8) != 0 && mask & (1 << 8) != 0 {
+            // TIMEOUT
+            self.disable_rx_timeout(regs_manager);
+            self.abort_rx(regs_manager, hil::uart::Error::CommandComplete);
+        } else if status & (1 << 9) != 0 && mask & (1 << 9) != 0 {
+            self.disable_tx_empty_interrupt(regs_manager);
+            self.disable_tx(regs_manager);
+            self.usart_tx_state.set(USARTStateTX::Idle);
+        } else if status & (1 << 7) != 0 {
+            // PARE
+            self.abort_rx(regs_manager, hil::uart::Error::ParityError);
 
-            if status & (1 << 8) != 0 && mask & (1 << 8) != 0 {
-                // TIMEOUT
-                self.disable_rx_timeout(regs_manager);
-                self.abort_rx(regs_manager, hil::uart::Error::CommandComplete);
-            } else if status & (1 << 9) != 0 && mask & (1 << 9) != 0 {
-                self.disable_tx_empty_interrupt(regs_manager);
-                self.disable_tx(regs_manager);
-                self.usart_tx_state.set(USARTStateTX::Idle);
-            } else if status & (1 << 7) != 0 {
-                // PARE
-                self.abort_rx(regs_manager, hil::uart::Error::ParityError);
-            } else if status & (1 << 6) != 0 {
-                // FRAME
-                self.abort_rx(regs_manager, hil::uart::Error::FramingError);
-            } else if status & (1 << 5) != 0 {
-                // OVRE
-                self.abort_rx(regs_manager, hil::uart::Error::OverrunError);
-            }
+        } else if status & (1 << 6) != 0 {
+            // FRAME
+            self.abort_rx(regs_manager, hil::uart::Error::FramingError);
+
+        } else if status & (1 << 5) != 0 {
+            // OVRE
+            self.abort_rx(regs_manager, hil::uart::Error::OverrunError);
         }
-    }
 
-    fn is_clock_enabled(&self) -> bool {
-        unsafe { pm::is_clock_enabled(self.clock) }
+        // Reset status registers.
+        regs_manager.registers.cr.set(1 << 8); // RSTSTA
     }
 
     fn set_mode(&self, regs_manager: &USARTRegManager, mode: u32) {
