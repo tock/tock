@@ -29,7 +29,7 @@ mod syscall;
 mod platform;
 
 pub use callback::{AppId, Callback};
-pub use common::{MMIOAccessControl, MMIOInterface, MMIOManager};
+pub use common::{MMIOClockGuard, MMIOInterface, MMIOManager};
 pub use driver::Driver;
 pub use grant::Grant;
 pub use mem::{AppSlice, AppPtr, Private, Shared};

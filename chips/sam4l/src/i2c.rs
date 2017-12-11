@@ -11,7 +11,7 @@
 
 use core::cell::Cell;
 use dma::{DMAChannel, DMAClient, DMAPeripheral};
-use kernel::{ClockInterface, MMIOAccessControl, MMIOInterface, MMIOManager};
+use kernel::{ClockInterface, MMIOClockGuard, MMIOInterface, MMIOManager};
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 
@@ -42,42 +42,6 @@ pub struct TWIMRegisters {
     hsmod_slew_rate: VolatileCell<u32>,
 }
 
-struct TWIMRegisterManager <'a> {
-    registers: &'a TWIMRegisters,
-    clock: pm::Clock,
-}
-
-impl<'a> TWIMRegisterManager <'a> {
-    fn new (i2chw: &I2CHw) -> TWIMRegisterManager <'a> {
-        let clock = i2chw.master_clock;
-        // If clock isn't enabled, lets enable it
-        unsafe {
-            if pm::is_clock_enabled(clock) == false {
-                debug!("I2C: Master clock on");
-                pm::enable_clock(clock);
-            }
-        }
-        TWIMRegisterManager {
-            registers: unsafe { &*i2chw.registers },
-            clock: clock,
-        }
-    }
-}
-
-impl<'a> Drop for TWIMRegisterManager <'a> {
-    fn drop(&mut self) {
-        let mask = self.registers.interrupt_mask.get();
-        if mask == 0 {
-            debug!("I2C: Master clock off");
-            unsafe {
-                pm::disable_clock(self.clock);
-            }
-        }
-        else {
-            debug!("I2C: Master clock left on");
-        }
-    }
-}
 
 // Listing of all registers related to the TWIS peripheral.
 // Section 28.9 of the datasheet
@@ -100,50 +64,6 @@ struct TWISRegisters {
     hsmode_timing: VolatileCell<u32>,
     slew_rate: VolatileCell<u32>,
     hsmod_slew_rate: VolatileCell<u32>,
-}
-
-struct TWISRegisterManager <'a> {
-    registers: &'a TWISRegisters,
-    //clock: pm::Clock,
-}
-
-impl<'a> TWISRegisterManager <'a> {
-    fn new (i2chw: &I2CHw) -> TWISRegisterManager <'a> {
-        let slave_registers = i2chw.slave_registers.expect("Use of slave with no registers");
-        let clock = i2chw.slave_clock.expect("Use of slave with no slave clock");
-        // If clock isn't enabled, lets enable it
-        unsafe {
-            if pm::is_clock_enabled(clock) == false {
-                debug!("I2C: Slave clock on");
-                pm::enable_clock(clock);
-            }
-        }
-        TWISRegisterManager {
-            registers: unsafe { &*slave_registers },
-            //clock: clock,
-        }
-    }
-}
-
-impl<'a> Drop for TWISRegisterManager <'a> {
-    fn drop(&mut self) {
-        let mask = self.registers.interrupt_mask.get();
-        if mask & 0x00000008 == 0 {
-            //debug!("I2C: Slave clock off");
-            //unsafe {
-                //pm::disable_clock(self.clock);
-            //}
-        }
-        else {
-            //debug!("I2C: Slave clock left on");
-        }
-        //debug!("I2C: TWIS        control {:08X} {:032b}",
-        //       self.registers.control.get(), self.registers.control.get());
-        //debug!("I2C: TWIS interrupt_mask {:08X} {:032b}",
-        //       self.registers.interrupt_mask.get(), self.registers.interrupt_mask.get());
-        //debug!("I2C: TWIS        status  {:08X} {:032b}",
-        //       self.registers.status.get(), self.registers.status.get());
-    }
 }
 
 // The addresses in memory (7.1 of manual) of the TWIM peripherals
@@ -176,19 +96,64 @@ pub enum Speed {
 }
 
 
-/// The single I2C/TWIMS peripheral has two clocks, a master and slave clock.
-/// Only one of these two clocks can ever be active. This clock interface
-/// enforces this, and validates that the other clock is disabled.
-trait TWIMSMasterClockInterface {}
-trait TWIMSSlaveClockInterface {}
+/// Wrapper for TWIM clock that ensures TWIS clock is off
+struct TWIMClock {
+    master: pm::Clock,
+    slave: Option<pm::Clock>,
+}
+impl ClockInterface for TWIMClock {
+    type PlatformClockType = pm::Clock;
+
+    fn is_enabled(&self) -> bool { self.master.is_enabled() }
+
+    fn enable(&self) {
+        self.slave.map(|slave_clock| {
+            if slave_clock.is_enabled() {
+                panic!("I2C: Request for master clock, but slave active");
+            }
+        });
+        self.master.enable();
+    }
+
+    fn disable(&self) {
+        self.master.disable();
+    }
+}
+
+/// Wrapper for TWIS clock that ensures TWIM clock is off
+struct TWISClock {
+    master: pm::Clock,
+    slave: Option<pm::Clock>,
+}
+impl ClockInterface for TWISClock {
+    type PlatformClockType = pm::Clock;
+
+    fn is_enabled(&self) -> bool {
+        let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        slave_clock.is_enabled()
+    }
+
+    fn enable(&self) {
+        let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        if self.master.is_enabled() {
+            panic!("I2C: Request for slave clock, but master active");
+        }
+        slave_clock.enable();
+    }
+
+    fn disable(&self) {
+        let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        slave_clock.disable();
+    }
+}
 
 
-// This represents an abstraction of the peripheral hardware.
+/// Abstraction of the I2C hardware
 pub struct I2CHw {
     registers: *mut TWIMRegisters, // Pointer to the I2C registers in memory
     slave_registers: Option<*mut TWISRegisters>, // Pointer to the I2C TWIS registers in memory
-    master_clock: pm::Clock,
-    slave_clock: Option<pm::Clock>,
+    master_clock: TWIMClock,
+    slave_clock: TWISClock,
     dma: Cell<Option<&'static DMAChannel>>,
     dma_pids: (DMAPeripheral, DMAPeripheral),
     master_client: Cell<Option<&'static hil::i2c::I2CHwMasterClient>>,
@@ -205,16 +170,50 @@ pub struct I2CHw {
     slave_write_buffer_index: Cell<u8>,
 }
 
-impl MMIOInterface<pm::Clock> for I2CHw {
+
+/// Manage Master Clock before access of Master Registers
+impl MMIOClockGuard<TWIMClock> for TWIMRegisters {
+    fn before_mmio_access(&self, clock: &TWIMClock) {
+        if clock.is_enabled() == false {
+            clock.enable();
+        }
+    }
+    fn after_mmio_access(&self, clock: &TWIMClock) {
+        let mask = self.interrupt_mask.get();
+        if mask == 0 {
+            clock.disable();
+        }
+    }
+}
+impl MMIOClockGuard<TWISClock> for TWISRegisters {
+    fn before_mmio_access(&self, clock: &TWISClock) {
+        if clock.is_enabled() == false {
+            clock.enable();
+        }
+    }
+    fn after_mmio_access(&self, clock: &TWISClock) {
+        /*
+        if self.periphal_hardware.can_disable_clock(self.registers) {
+            clock.disable();
+        }
+        */
+        let mask = self.interrupt_mask.get();
+        if mask & 0x00000008 == 0 {
+            clock.disable();
+        }
+    }
+}
+
+impl MMIOInterface<TWIMClock> for I2CHw {
     type MMIORegisterType = TWIMRegisters;
-    type MMIOClockType = pm::Clock;
+    type MMIOClockType = TWIMClock;
 
     fn get_hardware_address(&self) -> *mut TWIMRegisters {
         self.registers
     }
 
-    fn get_clock(&self) -> pm::Clock {
-        self.master_clock
+    fn get_clock(&self) -> &TWIMClock {
+        &self.master_clock
     }
 
     fn can_disable_clock(&self, regs: &TWIMRegisters) -> bool {
@@ -222,47 +221,62 @@ impl MMIOInterface<pm::Clock> for I2CHw {
         mask == 0
     }
 }
+type TWIMRegisterManager<'a> = MMIOManager<'a, I2CHw, TWIMClock>;
 
-impl<'a, I2CHw, C> MMIOAccessControl<'a, I2CHw, C> for MMIOManager<'a, I2CHw, C>
-{
-    fn before_peripheral_access(hw: &'a I2CHw) {
-        let clock = hw.get_clock();
-        if clock.is_enabled() == false {
-            clock.enable();
-        }
+impl MMIOInterface<TWISClock> for I2CHw {
+    type MMIORegisterType = TWISRegisters;
+    type MMIOClockType = TWISClock;
+
+    fn get_hardware_address(&self) -> *mut TWISRegisters {
+        self.slave_registers.expect("Access of non-existant slave")
     }
-    fn drop_peripheral_access(hw: &'a I2CHw, registers: &TWIMRegisters) {
-        let clock = hw.get_clock();
-        if hw.can_disable_clock(registers) {
-            clock.disable();
-        }
+
+    fn get_clock(&self) -> &TWISClock {
+        &self.slave_clock
+    }
+
+    fn can_disable_clock(&self, _regs: &TWISRegisters) -> bool {
+        unimplemented!("Nope");
     }
 }
 
+type TWISRegisterManager<'a> = MMIOManager<'a, I2CHw, TWISClock>;
 
 
+
+const fn create_twims_clocks(master: pm::Clock, slave: Option<pm::Clock>) -> (TWIMClock, TWISClock) {
+    (TWIMClock { master, slave }, TWISClock { master, slave })
+}
 pub static mut I2C0: I2CHw = I2CHw::new(I2C_BASE_ADDRS[0],
                                         Some(I2C_SLAVE_BASE_ADDRS[0]),
-                                        pm::Clock::PBA(pm::PBAClock::TWIM0),
-                                        Some(pm::Clock::PBA(pm::PBAClock::TWIS0)),
+                                        create_twims_clocks(
+                                            pm::Clock::PBA(pm::PBAClock::TWIM0),
+                                            Some(pm::Clock::PBA(pm::PBAClock::TWIS0)),
+                                            ),
                                         DMAPeripheral::TWIM0_RX,
                                         DMAPeripheral::TWIM0_TX);
 pub static mut I2C1: I2CHw = I2CHw::new(I2C_BASE_ADDRS[1],
                                         Some(I2C_SLAVE_BASE_ADDRS[1]),
-                                        pm::Clock::PBA(pm::PBAClock::TWIM1),
-                                        Some(pm::Clock::PBA(pm::PBAClock::TWIS1)),
+                                        create_twims_clocks(
+                                            pm::Clock::PBA(pm::PBAClock::TWIM1),
+                                            Some(pm::Clock::PBA(pm::PBAClock::TWIS1)),
+                                            ),
                                         DMAPeripheral::TWIM1_RX,
                                         DMAPeripheral::TWIM1_TX);
 pub static mut I2C2: I2CHw = I2CHw::new(I2C_BASE_ADDRS[2],
                                         None,
-                                        pm::Clock::PBA(pm::PBAClock::TWIM2),
-                                        None,
+                                        create_twims_clocks(
+                                            pm::Clock::PBA(pm::PBAClock::TWIM2),
+                                            None,
+                                            ),
                                         DMAPeripheral::TWIM2_RX,
                                         DMAPeripheral::TWIM2_TX);
 pub static mut I2C3: I2CHw = I2CHw::new(I2C_BASE_ADDRS[3],
                                         None,
-                                        pm::Clock::PBA(pm::PBAClock::TWIM3),
-                                        None,
+                                        create_twims_clocks(
+                                            pm::Clock::PBA(pm::PBAClock::TWIM3),
+                                            None,
+                                            ),
                                         DMAPeripheral::TWIM3_RX,
                                         DMAPeripheral::TWIM3_TX);
 
@@ -275,16 +289,15 @@ pub const ACKLAST: usize = 1 << 25;
 impl I2CHw {
     const fn new(base_addr: *mut TWIMRegisters,
                  slave_base_addr: Option<*mut TWISRegisters>,
-                 master_clock: pm::Clock,
-                 slave_clock: Option<pm::Clock>,
+                 clocks: (TWIMClock, TWISClock),
                  dma_rx: DMAPeripheral,
                  dma_tx: DMAPeripheral)
                  -> I2CHw {
         I2CHw {
             registers: base_addr as *mut TWIMRegisters,
             slave_registers: slave_base_addr,
-            master_clock: master_clock,
-            slave_clock: slave_clock,
+            master_clock: clocks.0,
+            slave_clock: clocks.1,
             dma: Cell::new(None),
             dma_pids: (dma_rx, dma_tx),
             master_client: Cell::new(None),
@@ -789,11 +802,8 @@ impl I2CHw {
         }
     }
 
-    fn slave_disable_interrupts(&self) {
-        self.slave_registers.map(|_slave_registers| {
-            let regs_manager = &TWISRegisterManager::new(&self);
-            regs_manager.registers.interrupt_disable.set(!0);
-        });
+    fn slave_disable_interrupts(&self, regs_manager: &TWISRegisterManager) {
+        regs_manager.registers.interrupt_disable.set(!0);
     }
 
     pub fn slave_set_address(&self, address: u8) {
@@ -899,13 +909,9 @@ impl hil::i2c::I2CSlave for I2CHw {
 
         self.slave_registers.map(|_slave_registers| {
             let regs_manager = &TWISRegisterManager::new(&self);
-
             regs_manager.registers.control.set(0);
-            self.slave_clock.map(|slave_clock| unsafe {
-                pm::disable_clock(slave_clock);
-            });
+            self.slave_disable_interrupts(regs_manager);
         });
-        self.slave_disable_interrupts();
     }
 
     fn set_address(&self, addr: u8) {

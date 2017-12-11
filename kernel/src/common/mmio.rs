@@ -32,15 +32,23 @@
 use ::ClockInterface;
 
 
+pub trait MMIOClockGuard<C> where
+    C: ClockInterface,
+{
+    fn before_mmio_access(&self, &C);
+    fn after_mmio_access(&self, &C);
+}
+
+
 /// The structure encapsulating a peripheral should implement this trait.
 pub trait MMIOInterface<C> where
     C: ClockInterface,
 {
-    type MMIORegisterType : ?Sized;
+    type MMIORegisterType : MMIOClockGuard<C>;
     type MMIOClockType : ClockInterface;
 
     fn get_hardware_address(&self) -> *mut Self::MMIORegisterType;
-    fn get_clock(&self) -> C;
+    fn get_clock(&self) -> &C;
     fn can_disable_clock(&self, &Self::MMIORegisterType) -> bool;
 }
 
@@ -64,12 +72,11 @@ impl<'a, H, C> MMIOManager<'a, H, C> where
     H: 'a + MMIOInterface<C>,
     C: 'a + ClockInterface,
 {
-    pub fn new(hw: &'a H) -> MMIOManager<'a, H, C> {
-        Self::before_peripheral_access(hw);
-        MMIOManager {
-            registers: unsafe { &* hw.get_hardware_address() },
-            periphal_hardware: hw,
-        }
+    pub fn new(periphal_hardware: &'a H) -> MMIOManager<'a, H, C> {
+        let registers = unsafe { &* periphal_hardware.get_hardware_address() };
+        let clock = periphal_hardware.get_clock();
+        registers.before_mmio_access(clock);
+        MMIOManager { registers, periphal_hardware }
     }
 }
 impl<'a, H, C> Drop for MMIOManager<'a, H, C> where
@@ -77,32 +84,8 @@ impl<'a, H, C> Drop for MMIOManager<'a, H, C> where
     C: 'a + ClockInterface,
 {
     fn drop(&mut self) {
-        Self::drop_peripheral_access(self.periphal_hardware, self.registers);
-    }
-}
-
-pub trait MMIOAccessControl<'a, H, C> where
-    H: 'a + MMIOInterface<C>,
-    C: 'a + ClockInterface,
-{
-    fn before_peripheral_access(hw: &'a H);
-    fn drop_peripheral_access(hw: &'a H, registers: &H::MMIORegisterType);
-}
-default impl<'a, H, C> MMIOAccessControl<'a, H, C> for MMIOManager<'a, H, C> where
-    H: 'a + MMIOInterface<C>,
-    C: 'a + ClockInterface,
-{
-    fn before_peripheral_access(hw: &'a H) {
-        let clock = hw.get_clock();
-        if clock.is_enabled() == false {
-            clock.enable();
-        }
-    }
-    fn drop_peripheral_access(hw: &'a H, registers: &H::MMIORegisterType) {
-        let clock = hw.get_clock();
-        if hw.can_disable_clock(registers) {
-            clock.disable();
-        }
+        let clock = self.periphal_hardware.get_clock();
+        self.registers.after_mmio_access(clock);
     }
 }
 
