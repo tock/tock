@@ -32,6 +32,7 @@
 use ::ClockInterface;
 
 
+/// Hooks for peripherals to enable and disable clocks as appropriate.
 pub trait MMIOClockGuard<C> where
     C: ClockInterface,
 {

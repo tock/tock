@@ -112,10 +112,12 @@ impl ClockInterface for TWIMClock {
                 panic!("I2C: Request for master clock, but slave active");
             }
         });
+        debug!("TWIM enable");
         self.master.enable();
     }
 
     fn disable(&self) {
+        debug!("TWIM disable");
         self.master.disable();
     }
 }
@@ -138,11 +140,13 @@ impl ClockInterface for TWISClock {
         if self.master.is_enabled() {
             panic!("I2C: Request for slave clock, but master active");
         }
+        debug!("TWIS enable");
         slave_clock.enable();
     }
 
     fn disable(&self) {
         let slave_clock = self.slave.expect("I2C: Use of slave with no clock");
+        debug!("TWIS disable");
         slave_clock.disable();
     }
 }
@@ -825,10 +829,10 @@ impl DMAClient for I2CHw {
 impl hil::i2c::I2CMaster for I2CHw {
     /// This enables the entire I2C peripheral
     fn enable(&self) {
-        let regs_manager = &TWIMRegisterManager::new(&self);
-
         //disable the i2c slave peripheral
         hil::i2c::I2CSlave::disable(self);
+
+        let regs_manager = &TWIMRegisterManager::new(&self);
 
         // enable, reset, disable
         regs_manager.registers.control.set(0x1 << 0);
