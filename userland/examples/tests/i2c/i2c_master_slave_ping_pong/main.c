@@ -2,7 +2,6 @@
 
 #include <button.h>
 #include <i2c_master_slave.h>
-#include <led.h>
 #include <timer.h>
 
 #define BUF_SIZE 16
@@ -22,17 +21,13 @@ static void i2c_callback(int callback_type,
               __attribute__ ((unused)) int arg2,
               __attribute__ ((unused)) void* userdata) {
   if (callback_type == TOCK_I2C_CB_MASTER_WRITE) {
-    //printf("CB: Master write\n");
-    led_off(1);
-    led_on(0);
+    printf("CB: Master write\n");
     i2c_master_slave_listen();
   } else if (callback_type == TOCK_I2C_CB_SLAVE_WRITE) {
-    //printf("CB: Slave write\n");
-    led_off(0);
-    delay_ms(250);
+    printf("CB: Slave write\n");
+    delay_ms(2500);
 
     printf("%s sending\n", is_leader ? "Leader" : "Follower");
-    led_on(1);
     i2c_master_slave_write(is_leader ? FOLLOW_ADDRESS : LEADER_ADDRESS, BUF_SIZE);
   } else {
     printf("ERROR: Unexepected callback: type %d\n", callback_type);
@@ -57,7 +52,6 @@ static void button_cb(__attribute__((unused)) int btn_num,
     printf("Switching to master\n");
 
     i2c_master_slave_set_slave_address(LEADER_ADDRESS);
-    led_on(1);
     i2c_master_slave_write(FOLLOW_ADDRESS, BUF_SIZE);
   }
 }
