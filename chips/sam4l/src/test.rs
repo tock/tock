@@ -3,7 +3,7 @@
 use kernel::common::VolatileCell;
 //use kernel::common::take_cell::TakeCell;
 //use kernel::ClockInterface;
-use kernel::{MMIOInterface, MMIOManager};
+use kernel::{ClockInterface, MMIOClockGuard, MMIOInterface, MMIOManager};
 
 //use kernel::hil;
 use pm;
@@ -84,7 +84,24 @@ impl TESTHw {
 ///////////////////////////////
 
 
-
+impl MMIOClockGuard<pm::Clock> for TESTRegisters {
+    fn before_mmio_access(&self, clock: &pm::Clock) {
+        if clock.is_enabled() == false {
+            clock.enable();
+        }
+    }
+    fn after_mmio_access(&self, clock: &pm::Clock) {
+        /*
+        if self.periphal_hardware.can_disable_clock(self.registers) {
+            clock.disable();
+        }
+        */
+        let mask = self.interrupt_mask.get();
+        if mask == 0 {
+            clock.disable();
+        }
+    }
+}
 
 impl MMIOInterface<pm::Clock> for TESTHw {
     type MMIORegisterType = TESTRegisters;
@@ -94,8 +111,8 @@ impl MMIOInterface<pm::Clock> for TESTHw {
         self.registers
     }
 
-    fn get_clock(&self) -> pm::Clock {
-        self.clock
+    fn get_clock(&self) -> &pm::Clock {
+        &self.clock
     }
 
     fn can_disable_clock(&self, regs: &TESTRegisters) -> bool {
