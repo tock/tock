@@ -30,6 +30,7 @@ are specified.
 
 ### Tock Setup and Usage
 - **[Getting Started](Getting_Started.md)** - Installing the Tock toolchain and programming hardware.
+- **[Porting Tock](Porting.md)** - Guide to add new platforms.
 
 ### Tutorials and Courses
 - **[Quick Tutorials](tutorials)** - Specific tutorials that walk through features of Tock.
