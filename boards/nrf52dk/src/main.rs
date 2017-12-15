@@ -156,7 +156,7 @@ pub unsafe fn reset_handler() {
     // FIXME: Test if it works and remove un-commented code!
     let gpio_pins = static_init!(
         [&'static nrf5x::gpio::GPIOPin; 15],
-        [&nrf5x::gpio::PORT[3],  // Bottom left header on DK board
+        [&nrf5x::gpio::PORT[3],  // Bottom right header on DK board
         &nrf5x::gpio::PORT[4],   //
         &nrf5x::gpio::PORT[28],  //
         &nrf5x::gpio::PORT[29],  //
