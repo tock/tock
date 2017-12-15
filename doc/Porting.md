@@ -1,7 +1,7 @@
 Porting Tock
 ============
 
-This guide covers how to port Tock to a new platform.
+_This guide covers how to port Tock to a new platform. It is a work in progress. Comments and pull requests are appreciated!_
 
 Overview
 --------
