@@ -11,7 +11,7 @@ Tock Guides
 ### Overview and Design of Tock
 - **[Overview](Overview.md)** - Overview of the OS and this repository.
 - **[Design](Design.md)** - Design of the Tock primitives that make safety and security possible.
-
+- **[Networking Stack](Networking_Stack.md)** - Design of the networking stack in Tock.
 
 ### Tock Implementation
 - **[Lifetimes](Lifetimes.md)** - How Rust lifetimes are used in Tock.
