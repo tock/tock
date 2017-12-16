@@ -3,11 +3,12 @@
 /* NOTE: This document is a work in progress */
 
 /* TODOS:
- * 3. Keep working on interfaces.rs
- * 4. Update interfaces w/ stuff from email
- * 5. Update interfaces w/ stuff from interfaces.rs
- * 6. Next step is really using the new stack to send IP packets..
- * 7. Include Receive Paths...
+ * -  Implement enough of this design to succesfully send UDP packets
+ *    in a manner similar to what was done using the old code
+ * -  Include Receive Paths...
+ * -  More fully flush out how send_done callbacks will work and how 
+ *    clients will be assigned/tracked
+ * -  Explanation of Queueing Section
  * */
 
 This document describes the design of the Networking stack on Tock.
@@ -177,17 +178,9 @@ Before discussing these traits - a note on buffers:
 The traits below are organized by the network layer they would typically be
 associated with.
 
-/* IDEA: Have enum with a reference to traits */
-// Have 6lowpan init take IP packet
-// 6lowpan prepare_packet does not take it in bc it is already stored in a
-// takecell in the 6lowpan object
-//BUT: When you get a send_done callback youre continuing to transport a
-packet but you cant tell what pkt youre continuing to transmit
-// this doesnt work as well for tcp and icmp but there are ways around that i
-think
-// this is okay bc there are 102 bytes of payload
-
 ======== Transport Layer ========
+
+//TODO: TCMP, ICP, RawIP
 
 pub struct UDPHeader {
     pub src_port: u16,
@@ -268,24 +261,32 @@ pub struct IP6Packet<'a> {
 
 
 impl<'a> IP6Packet<'a> {
+    pub fn new(&mut self, payload: TransportPacket<'a>) -> IP6Packet<'a>{}
+/* An IP packet cannot be created without the TransportPacket that will serve
+   as its payload. Recall that this transport packet could be a "RawIP" packet */
+
     pub fn reset(&self){} //Sets fields to appropriate defaults
     pub fn get_offset(&self) -> usize{40} //Always returns 40 until we add options support
     
     // Remaining functions are just getters and setters for the header fields
-    pub fn set_tf(&self, tf: u8){}
-    pub fn set_flow_label(&self, flow_label: u8){}
-    pub fn set_len(&self, len: u16){}
-    pub fn set_protocol(&self, proto: u8){}
-    pub fn set_dest_addr(&self, dest: IPAddr){}
-    pub fn set_src_addr(&self, src: IPAddr){}
-    pub fn get_tf(&self) -> u8{0}
-    pub fn get_flow_label(&self)-> u8{0}
-    pub fn get_len(&self) -> u16{0}
-    pub fn get_protocol(&self) -> u8{0}
+    pub fn set_traffic_class(&mut self, new_tc: u8){}
+    pub fn set_dscp(&mut self, new_dscp: u8) {}
+    pub fn set_ecn(&mut self, new_ecn: u8) {}
+    pub fn set_flow_label(&mut self, flow_label: u32){}
+    pub fn set_payload_len(&mut self, len: u16){}
+    pub fn set_next_header(&mut self, new_nh: u8){}
+    pub fn set_hop_limit(&mut self, new_hl: u8) {}
+    pub fn set_dest_addr(&mut self, dest: IPAddr){}
+    pub fn set_src_addr(&mut self, src: IPAddr){}
+    pub fn get_traffic_class(&self) -> u8{}
+    pub fn get_dscp(&self) -> u8{}
+    pub fn get_ecn(&self) -> u8{}
+    pub fn get_flow_label(&self)-> u32{}
+    pub fn get_payload_len(&self) -> u16{}
+    pub fn get_next_header(&self) -> u8{}
     pub fn get_dest_addr(&self) -> IPAddr{}
     pub fn get_src_addr(&self) -> IPAddr{}
-
-    pub fn set_transpo_cksum(&self){} //Looks at internal buffer assuming
+    pub fn set_transpo_cksum(&mut self){} //Looks at internal buffer assuming
     // it contains a valid IP packet, checks the payload type. If the payload
     // type requires a cksum calculation, this function calculates the 
     // psuedoheader cksum and calls the appropriate transport packet function
@@ -384,7 +385,8 @@ trait SixlowpanCompress {
 
 ======== Link Layer ========
 
-// Note: For now, this description does not provide details of the BLE stack
+// Note: For now, this description does not provide details of any link layer 
+// other than 802.15.4
 
 // The below functions merely describe the already implemented interface for
 // IEEE 802.15.4 link layer. The stack design that this document
@@ -500,7 +502,6 @@ trait MacUserTrait { //a MAC user would implement this and the mac trait
 
 
 **************************** Implementation Details ****************************
-// TODO: This section needs a lot of work
 // Ultimately, this section will include pseudocode examples of how differnet
 // implementation of these traits should look for different Thread messages that
 // might be sent, and for other messages (non-thread) that might be sent using
@@ -527,7 +528,7 @@ impl IP6Send for ThreadMLEIP6Send{
     }
     
     fn send(&self, ip6_packet: IP6Packet) {
-        ip6_packet.calcAndSetUDPChecksum(); //If packet is UDP, this sets the cksum
+        ip6_packet.setTranspoCksum(); //If packet is UDP etc., this sets the cksum
         ctx_store = sixlowpan_comp::ContextStore::new();
         fragState = sixlowpan_frag::fragState::new(ip6_packet);
 
@@ -561,7 +562,7 @@ impl IP6Send for IP6SendThroughThread {
     }
 
     fn send(&self, ip6_packet: IP6Packet) {
-        ip6_packet.calcAndSetUDPChecksum(); //If packet is UDP, this sets the cksum
+        ip6_packet.setTranspoCksum(); //If packet is UDP, this sets the cksum
         fragState = new fragState(ip6_packet);
         while(fragState != Done) {
             let fragToSend: 15_4_frag_buf = 15_4_6lowpan_frag(&ip6_packet, fragState);
@@ -570,7 +571,6 @@ impl IP6Send for IP6SendThroughThread {
             // etc....
             let security = securityType::LinkLayerSec;
             15_4_link_layer_send(fragToSend, security, len); 
-
         }
     }
 }
@@ -582,11 +582,11 @@ function assumes it is passed an already formatted UDP Packet. Also recall the
 assumption that the IPSend function will calculate and set the UDP cksum. */
 
 impl UDPSend for UDPSendThroughThread {
-    fn send(&self, dest, udp_packet: UDPPacketForThread) {
+    fn send(&self, dest, udp_packet: UDPPacket) {
 
         let trans_pkt = TransportPacket::UDP(udp_packet);
 
-        ip6_packet = IPPacketForThread.new(trans_pkt);
+        ip6_packet = IPPacket::new(trans_pkt);
 
         /* First, library calls to format IP Packet */
         ip6_packet.setDstAddr(dest);
@@ -595,8 +595,7 @@ impl UDPSend for UDPSendThroughThread {
         ip6_packet.setTF(0);
         ip6_packet.setHopLimit(64);
         ip6_packet.setProtocol(UDP_PROTO_CONST);
-        ip6_packet.setLen(40 + trans_pkt.); /*Will length be field of packet*/
-        ip6_packet.setFlowLabel(???); /* How to determine FL? */
+        ip6_packet.setLen(40 + trans_pkt.get_len());
         /* Now, send the packet */
         IP6SendThroughThread.sendTo(dest, ip6_packet);
     }
@@ -604,8 +603,14 @@ impl UDPSend for UDPSendThroughThread {
 
 The above imlementations are not meant to showcase accurate code, but rather
 give an example as to how multiple implementations of a given trait can be
-useful in the creation of a flexible network stack.
-
+useful in the creation of a flexible network stack. Right now this section
+does not contain much, as actually writing all of this example code seems less
+productive than simply writing and testing actual code in Tock. These examples
+are merely intended to give an idea of how traits will be used in this stack,
+so please don't bother nitpicking the examples (for instance, I realize it
+doesnt make sense that the function doesn't set all of the IP Header fields,
+and that there should be decision making occuring to set the source address,
+etc.)
 
 ************************** Example Message Traversals **************************
 
@@ -814,8 +819,9 @@ variety of conventions. This section proposes some changes.
 
 'Thread' directory should eventually contain any layers implemented with
 specifically Thread in mind - files such as ip_thread.rs, which would contain
-implementations of the traits found in net::ip.rs. The tlv.rs file which
-currently resides here should remain here as well. 
+implementations of the traits found in net::ip.rs. (For instance, this file
+would contain the implementations of the IPSend trait such as IPSendMLE.)
+The tlv.rs file which currently resides here should remain here as well. 
 
 net::udp.rs - Should contain functions and traits associated with the generic UDP layer.
 For instance, this file would include the UDPPacket and UDPSend traits, the
@@ -823,7 +829,7 @@ UDPHeader struct, and functions associated with calculating the UDP checksum.
 This file should contain basic library implementations for the UDPPacket trait.
 
 net::ip.rs - Should contain functions associated with the generic IP layer. For
-instance, this file would include the IPPacket and IPSend traits, the IPHeader
+instance, this file would include the IPPacket and IPSend traits, the IPPacket
 struct, and any other functions which any IP implementation would have to
 implement. This function would also provide documentation regarding how this
 generic layer should be implemented. This file should contain basic library
