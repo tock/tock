@@ -65,9 +65,10 @@ interrupt_function_t interrupt_table[] = {
 	NMI_Handler,
 ```
 
-At the time of this writing (October 2016), the `sam4l` defines its vector table
-in `lib.rs` as a series of `.vectors` sections that are concatenated during
-linking into one table; the `nrf51` defines its vector table in `crt1.c`.
+At the time of this writing (December 2017), the `sam4l` defines its vector
+table in `lib.rs` as a series of `.vectors` sections that are concatenated
+during linking into one table; the `nrf51` and `nrf52` chips define their vector
+table in their respective `crt1.rs` files.
 
 ## Reset Handler
 
@@ -105,7 +106,7 @@ An example version of this loop is in `kernel/src/process.rs` as the
 `load_processes()` function. After setting up pointers, it tries to create a
 process from the starting address in flash and with a given amount of memory
 remaining. If the header is validated, it tries to load the process into memory
-and initialize all of the bookeeping in the kernel associated with the process.
+and initialize all of the bookkeeping in the kernel associated with the process.
 This can fail if the process needs more memory than is available on the chip. As
 a part of this load process, the kernel can also perform PIC fixups for the
 process if it was requested in the TBF header. If the process is successfully
