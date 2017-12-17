@@ -11,7 +11,28 @@ developing Tock.
 3. [arm-none-eabi toolchain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads) (version >= 5.2)
 4. Command line utilities: wget, sed, make, cmake
 
+### Super Quick Setup
+
+MacOS:
+```
+$ curl https://sh.rustup.rs -sSf | sh
+$ brew tap ARMmbed/homebrew-formulae && brew update && brew install arm-none-eabi-gcc
+$ pip3 install tockloader --user
+```
+
+Ubuntu:
+```
+$ curl https://sh.rustup.rs -sSf | sh
+$ sudo add-apt-repository ppa:team-gcc-arm-embedded/ppa && sudo apt update && sudo apt install gcc-arm-embedded
+$ pip3 install tockloader --user
+```
+
+Then build the kernel by running `make` in the `boards/<platform>` directory.
+
 ### Installing Requirements
+
+These steps go into a little more depth. Note that the build system is capable
+of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
