@@ -24,8 +24,8 @@ const NRF52_RADIO_PCNFO_S1INCL_POS: u32 = 20;
 const NRF52_RADIO_PCNF0_PLEN_POS: u32 = 24;
 const NRF52_RADIO_PCNF0_PLEN_8BITS: u32 = 0;
 
-static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] = [0x00;
-    nrf5x::constants::RADIO_PAYLOAD_LENGTH];
+static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
+    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
 pub struct Radio {
     regs: *const peripheral_registers::RADIO,
@@ -151,10 +151,9 @@ impl Radio {
 
     fn set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
-        regs.crccnf.set(
-            nrf5x::constants::RADIO_CRCCNF_SKIPADDR << nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS |
-                nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES,
-        );
+        regs.crccnf.set(nrf5x::constants::RADIO_CRCCNF_SKIPADDR <<
+                        nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS |
+                        nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES);
         regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
         regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
     }
@@ -167,27 +166,25 @@ impl Radio {
 
         // sets the header of PDU TYPE to 1 byte
         // sets the header length to 1 byte
-        regs.pcnf0.set(
-            (nrf5x::constants::RADIO_PCNF0_LFLEN_1BYTE << nrf5x::constants::RADIO_PCNF0_LFLEN_POS) |
-                (nrf5x::constants::RADIO_PCNF0_S0_LEN_1BYTE <<
-                     nrf5x::constants::RADIO_PCNF0_S0LEN_POS) |
-                (nrf5x::constants::RADIO_PCNF0_S1_ZERO << nrf5x::constants::RADIO_PCNF0_S1LEN_POS) |
-                (NRF52_RADIO_PCNF0_S1INCL_MSK << NRF52_RADIO_PCNFO_S1INCL_POS) |
-                (NRF52_RADIO_PCNF0_PLEN_8BITS << NRF52_RADIO_PCNF0_PLEN_POS),
-        );
+        regs.pcnf0.set((nrf5x::constants::RADIO_PCNF0_LFLEN_1BYTE <<
+                        nrf5x::constants::RADIO_PCNF0_LFLEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF0_S0_LEN_1BYTE <<
+                        nrf5x::constants::RADIO_PCNF0_S0LEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF0_S1_ZERO <<
+                        nrf5x::constants::RADIO_PCNF0_S1LEN_POS) |
+                       (NRF52_RADIO_PCNF0_S1INCL_MSK << NRF52_RADIO_PCNFO_S1INCL_POS) |
+                       (NRF52_RADIO_PCNF0_PLEN_8BITS << NRF52_RADIO_PCNF0_PLEN_POS));
 
-        regs.pcnf1.set(
-            (nrf5x::constants::RADIO_PCNF1_WHITEEN_ENABLED <<
-                 nrf5x::constants::RADIO_PCNF1_WHITEEN_POS) |
-                (nrf5x::constants::RADIO_PCNF1_ENDIAN_LITTLE <<
-                     nrf5x::constants::RADIO_PCNF1_ENDIAN_POS) |
-                (nrf5x::constants::RADIO_PCNF1_BALEN_3BYTES <<
-                     nrf5x::constants::RADIO_PCNF1_BALEN_POS) |
-                (nrf5x::constants::RADIO_PCNF1_STATLEN_DONT_EXTEND <<
-                     nrf5x::constants::RADIO_PCNF1_STATLEN_POS) |
-                (nrf5x::constants::RADIO_PCNF1_MAXLEN_37BYTES <<
-                     nrf5x::constants::RADIO_PCNF1_MAXLEN_POS),
-        );
+        regs.pcnf1.set((nrf5x::constants::RADIO_PCNF1_WHITEEN_ENABLED <<
+                        nrf5x::constants::RADIO_PCNF1_WHITEEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF1_ENDIAN_LITTLE <<
+                        nrf5x::constants::RADIO_PCNF1_ENDIAN_POS) |
+                       (nrf5x::constants::RADIO_PCNF1_BALEN_3BYTES <<
+                        nrf5x::constants::RADIO_PCNF1_BALEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF1_STATLEN_DONT_EXTEND <<
+                        nrf5x::constants::RADIO_PCNF1_STATLEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF1_MAXLEN_37BYTES <<
+                        nrf5x::constants::RADIO_PCNF1_MAXLEN_POS));
     }
 
     // TODO set from capsules?!
@@ -283,9 +280,9 @@ impl Radio {
                     match regs.frequency.get() {
                         nrf5x::constants::RADIO_FREQ_CH_39 => {
                             self.client.get().map(|client| {
-                                client.advertisement_fired(
-                                    self.appid.get().unwrap_or(kernel::AppId::new(0xff)),
-                                )
+                                client.advertisement_fired(self.appid
+                                    .get()
+                                    .unwrap_or(kernel::AppId::new(0xff)))
                             });
                             self.radio_off();
                         }
@@ -306,12 +303,10 @@ impl Radio {
                     if regs.crcstatus.get() == 1 {
                         unsafe {
                             self.client.get().map(|client| {
-                                client.receive(
-                                    &mut PAYLOAD,
-                                    PAYLOAD[1] + 1,
-                                    kernel::returncode::ReturnCode::SUCCESS,
-                                    self.appid.get().unwrap_or(kernel::AppId::new(0xff)),
-                                )
+                                client.receive(&mut PAYLOAD,
+                                               PAYLOAD[1] + 1,
+                                               kernel::returncode::ReturnCode::SUCCESS,
+                                               self.appid.get().unwrap_or(kernel::AppId::new(0xff)))
                             });
                         }
                     }
@@ -327,11 +322,10 @@ impl Radio {
 
     pub fn enable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenset.set(
-            nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS |
-                nrf5x::constants::RADIO_INTENSET_PAYLOAD |
-                nrf5x::constants::RADIO_INTENSET_END,
-        );
+        regs.intenset
+            .set(nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS |
+                 nrf5x::constants::RADIO_INTENSET_PAYLOAD |
+                 nrf5x::constants::RADIO_INTENSET_END);
     }
 
     pub fn enable_interrupt(&self, intr: u32) {

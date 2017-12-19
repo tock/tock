@@ -16,8 +16,8 @@ use kernel;
 use nrf5x;
 use peripheral_registers;
 
-static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] = [0x00;
-    nrf5x::constants::RADIO_PAYLOAD_LENGTH];
+static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
+    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
 
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
@@ -45,11 +45,9 @@ impl Radio {
 
     fn set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
-        regs.crccnf.set(
-            nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES |
-                nrf5x::constants::RADIO_CRCCNF_SKIPADDR <<
-                    nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS,
-        );
+        regs.crccnf.set(nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES |
+                        nrf5x::constants::RADIO_CRCCNF_SKIPADDR <<
+                        nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS);
         regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
         regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
     }
@@ -58,27 +56,23 @@ impl Radio {
     // Packet configuration
     fn set_packet_config(&self, _: u32) {
         let regs = unsafe { &*self.regs };
-        regs.pcnf0.set(
-            (nrf5x::constants::RADIO_PCNF0_S0_LEN_1BYTE <<
-                nrf5x::constants::RADIO_PCNF0_S0LEN_POS) |
-                (nrf5x::constants::RADIO_PCNF0_LFLEN_1BYTE <<
-                     nrf5x::constants::RADIO_PCNF0_LFLEN_POS),
-        );
+        regs.pcnf0.set((nrf5x::constants::RADIO_PCNF0_S0_LEN_1BYTE <<
+                        nrf5x::constants::RADIO_PCNF0_S0LEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF0_LFLEN_1BYTE <<
+                        nrf5x::constants::RADIO_PCNF0_LFLEN_POS));
 
 
-        regs.pcnf1.set(
-            (nrf5x::constants::RADIO_PCNF1_WHITEEN_ENABLED <<
+        regs.pcnf1.set((nrf5x::constants::RADIO_PCNF1_WHITEEN_ENABLED <<
                 nrf5x::constants::RADIO_PCNF1_WHITEEN_POS) |
                  (nrf5x::constants::RADIO_PCNF1_ENDIAN_LITTLE <<
                      nrf5x::constants::RADIO_PCNF1_ENDIAN_POS) |
                  // Total Address is 4 bytes (BASE ADDRESS + PREFIX (1))
                  (nrf5x::constants::RADIO_PCNF1_BALEN_3BYTES <<
                   nrf5x::constants::RADIO_PCNF1_BALEN_POS) |
-                (nrf5x::constants::RADIO_PCNF1_STATLEN_DONT_EXTEND <<
-                     nrf5x::constants::RADIO_PCNF1_STATLEN_POS) |
-                (nrf5x::constants::RADIO_PCNF1_MAXLEN_37BYTES <<
-                     nrf5x::constants::RADIO_PCNF1_MAXLEN_POS),
-        );
+                       (nrf5x::constants::RADIO_PCNF1_STATLEN_DONT_EXTEND <<
+                        nrf5x::constants::RADIO_PCNF1_STATLEN_POS) |
+                       (nrf5x::constants::RADIO_PCNF1_MAXLEN_37BYTES <<
+                        nrf5x::constants::RADIO_PCNF1_MAXLEN_POS));
     }
 
     // TODO set from capsules?!
@@ -176,9 +170,9 @@ impl Radio {
                         // frequency 39
                         nrf5x::constants::RADIO_FREQ_CH_39 => {
                             self.client.get().map(|client| {
-                                client.advertisement_fired(
-                                    self.appid.get().unwrap_or(kernel::AppId::new(0xff)),
-                                )
+                                client.advertisement_fired(self.appid
+                                    .get()
+                                    .unwrap_or(kernel::AppId::new(0xff)))
                             });
                             self.radio_off();
                         }
@@ -210,12 +204,10 @@ impl Radio {
                     if regs.crcstatus.get() == 1 {
                         unsafe {
                             self.client.get().map(|client| {
-                                client.receive(
-                                    &mut PAYLOAD,
-                                    PAYLOAD[1] + 1,
-                                    kernel::returncode::ReturnCode::SUCCESS,
-                                    self.appid.get().unwrap_or(kernel::AppId::new(0xff)),
-                                )
+                                client.receive(&mut PAYLOAD,
+                                               PAYLOAD[1] + 1,
+                                               kernel::returncode::ReturnCode::SUCCESS,
+                                               self.appid.get().unwrap_or(kernel::AppId::new(0xff)))
                             });
                         }
                     }
@@ -229,11 +221,10 @@ impl Radio {
 
     pub fn enable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenset.set(
-            nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS |
-                nrf5x::constants::RADIO_INTENSET_PAYLOAD |
-                nrf5x::constants::RADIO_INTENSET_END,
-        );
+        regs.intenset
+            .set(nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS |
+                 nrf5x::constants::RADIO_INTENSET_PAYLOAD |
+                 nrf5x::constants::RADIO_INTENSET_END);
     }
 
     pub fn disable_interrupts(&self) {
