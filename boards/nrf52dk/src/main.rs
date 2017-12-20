@@ -156,7 +156,7 @@ pub unsafe fn reset_handler() {
     // FIXME: Test if it works and remove un-commented code!
     let gpio_pins = static_init!(
         [&'static nrf5x::gpio::GPIOPin; 15],
-        [&nrf5x::gpio::PORT[3],  // Bottom left header on DK board
+        [&nrf5x::gpio::PORT[3],  // Bottom right header on DK board
         &nrf5x::gpio::PORT[4],   //
         &nrf5x::gpio::PORT[28],  //
         &nrf5x::gpio::PORT[29],  //
@@ -188,13 +188,11 @@ pub unsafe fn reset_handler() {
         &nrf52::gpio::PORT[22],  //
         &nrf52::gpio::PORT[20],  //
         &nrf52::gpio::PORT[19],  // ----*/
-        ],
-        4 * 11);
+        ]);
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
-        capsules::gpio::GPIO::new(gpio_pins),
-        224/8);
+        capsules::gpio::GPIO::new(gpio_pins));
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
@@ -206,12 +204,11 @@ pub unsafe fn reset_handler() {
         (&nrf5x::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow),
         (&nrf5x::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow),
         (&nrf5x::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow),
-        ], 256/8);
+        ]);
 
     let led = static_init!(
         capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
-        capsules::led::LED::new(led_pins),
-        64/8);
+        capsules::led::LED::new(led_pins));
 
     let button_pins = static_init!(
         [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode); 4],
@@ -219,12 +216,10 @@ pub unsafe fn reset_handler() {
         (&nrf5x::gpio::PORT[BUTTON2_PIN], capsules::button::GpioMode::LowWhenPressed),  // 14
         (&nrf5x::gpio::PORT[BUTTON3_PIN], capsules::button::GpioMode::LowWhenPressed),  // 15
         (&nrf5x::gpio::PORT[BUTTON4_PIN], capsules::button::GpioMode::LowWhenPressed),  // 16
-        ],
-        4 * 4);
+        ]);
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-        capsules::button::Button::new(button_pins, kernel::Grant::create()),
-        96/8);
+        capsules::button::Button::new(button_pins, kernel::Grant::create()));
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
         btn.set_input_mode(kernel::hil::gpio::InputMode::PullUp);
@@ -235,25 +230,22 @@ pub unsafe fn reset_handler() {
     rtc.start();
     let mux_alarm = static_init!(
         capsules::virtual_alarm::MuxAlarm<'static, nrf5x::rtc::Rtc>,
-        capsules::virtual_alarm::MuxAlarm::new(&nrf5x::rtc::RTC), 16);
+        capsules::virtual_alarm::MuxAlarm::new(&nrf5x::rtc::RTC));
     rtc.set_client(mux_alarm);
 
 
     let virtual_alarm1 = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
-        24);
+        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm));
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
         capsules::alarm::AlarmDriver::new(virtual_alarm1,
-                         kernel::Grant::create()),
-                         12);
+                         kernel::Grant::create()));
     virtual_alarm1.set_client(alarm);
     let ble_radio_virtual_alarm = static_init!(
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm),
-        192/8);
+        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm));
 
     nrf52::uart::UART0.configure(nrf5x::pinmux::Pinmux::new(6), // tx
                                  nrf5x::pinmux::Pinmux::new(8), // rx
@@ -264,16 +256,14 @@ pub unsafe fn reset_handler() {
         capsules::console::Console::new(&nrf52::uart::UART0,
                                         115200,
                                         &mut capsules::console::WRITE_BUF,
-                                        kernel::Grant::create()),
-                                        224/8);
+                                        kernel::Grant::create()));
     kernel::hil::uart::UART::set_client(&nrf52::uart::UART0, console);
     console.initialize();
 
     // Attach the kernel debug interface to this console
     let kc = static_init!(
         capsules::console::App,
-        capsules::console::App::default(),
-        480/8);
+        capsules::console::App::default());
     kernel::debug::assign_console_driver(Some(console), kc);
 
 
@@ -284,8 +274,7 @@ pub unsafe fn reset_handler() {
          &mut nrf52::radio::RADIO,
          kernel::Grant::create(),
          &mut nrf5x::ble_advertising_driver::BUF,
-         ble_radio_virtual_alarm),
-        256/8);
+         ble_radio_virtual_alarm));
     nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_client(&nrf52::radio::RADIO, ble_radio);
     ble_radio_virtual_alarm.set_client(ble_radio);
 
@@ -293,14 +282,13 @@ pub unsafe fn reset_handler() {
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(&mut nrf5x::temperature::TEMP,
-                                                 kernel::Grant::create()), 96/8);
+                                                 kernel::Grant::create()));
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
-        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create()),
-        96/8);
+        capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create()));
     nrf5x::trng::TRNG.set_client(rng);
 
     let aes = static_init!(
@@ -309,8 +297,7 @@ pub unsafe fn reset_handler() {
                                                     kernel::Grant::create(),
                                                     &mut capsules::symmetric_encryption::KEY,
                                                     &mut capsules::symmetric_encryption::BUF,
-                                                    &mut capsules::symmetric_encryption::IV),
-        288/8);
+                                                    &mut capsules::symmetric_encryption::IV));
     nrf5x::aes::AESECB.ecb_init();
     kernel::hil::symmetric_encryption::SymmetricEncryption::set_client(&nrf5x::aes::AESECB, aes);
 

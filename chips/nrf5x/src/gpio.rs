@@ -5,7 +5,6 @@
 //! * Date: August 18, 2016
 
 use core::cell::Cell;
-use core::mem;
 use core::ops::{Index, IndexMut};
 use kernel::common::VolatileCell;
 use kernel::hil;
@@ -38,11 +37,11 @@ struct GpioteRegisters {
 }
 
 
-const GPIOTE_BASE: u32 = 0x40006000;
+const GPIOTE_BASE: usize = 0x40006000;
 
 #[allow(non_snake_case)]
 fn GPIO() -> &'static GPIO {
-    unsafe { mem::transmute(GPIO_BASE as usize) }
+    unsafe { &*(GPIO_BASE as *const GPIO) }
 }
 
 // Access to the GPIO Task and Event (GPIOTE) registers, for setting
@@ -50,7 +49,7 @@ fn GPIO() -> &'static GPIO {
 // of the reference manual (v3.0).
 #[allow(non_snake_case)]
 fn GPIOTE() -> &'static GpioteRegisters {
-    unsafe { mem::transmute(GPIOTE_BASE as usize) }
+    unsafe { &*(GPIOTE_BASE as *const GpioteRegisters) }
 }
 
 /// Allocate a GPIOTE channel
