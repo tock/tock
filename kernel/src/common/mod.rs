@@ -1,5 +1,6 @@
 //! Common operations in the Tock OS.
 
+pub mod circular_buffer;
 pub mod ring_buffer;
 pub mod queue;
 pub mod utils;

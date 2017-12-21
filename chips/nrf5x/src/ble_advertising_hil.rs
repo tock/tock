@@ -1,5 +1,6 @@
 //! Bluetooth Low Energy HIL
 
+use ble_advertising_driver::RadioChannel;
 use kernel;
 use kernel::ReturnCode;
 
@@ -7,8 +8,8 @@ use kernel::ReturnCode;
 pub trait BleAdvertisementDriver {
     fn set_advertisement_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
     fn set_advertisement_txpower(&self, power: usize) -> ReturnCode;
-    fn start_advertisement_tx(&self, appid: kernel::AppId);
-    fn start_advertisement_rx(&self, appid: kernel::AppId);
+    fn start_advertisement_tx(&self, appid: kernel::AppId, freq: RadioChannel);
+    fn start_advertisement_rx(&self, appid: kernel::AppId, freq: RadioChannel);
     fn set_client(&self, client: &'static RxClient);
 }
 
