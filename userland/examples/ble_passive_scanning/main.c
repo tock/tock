@@ -48,7 +48,7 @@ int main(void) {
   // using the pre-configured adv interval
   int err = ble_start_passive_scan(scan, BUF_SIZE, callback);
   if (err < TOCK_SUCCESS) {
-    printf("ble_start_passive_scan_wip, error: %s\r\n", tock_strerror(err));
+    printf("ble_start_passive_scan, error: %s\r\n", tock_strerror(err));
   }
 
   return 0;

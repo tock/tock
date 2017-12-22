@@ -13,7 +13,7 @@
 //! function can be used. This function clears the payload, including the name.
 //!
 //! ### Allow system call
-//! Each advertisement type corresponds to an allow number from 0 to 0xFF which
+//! Each advertesement type corresponds to an allow number from 0 to 0xFF which
 //! is handled by a giant pattern matching in this module
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
@@ -452,16 +452,21 @@ impl<'a, B, A> BLE<'a, B, A>
 
     fn reset_payload(&self, appid: kernel::AppId) -> ReturnCode {
         self.app
-            .enter(appid, |app, _| {
-                app.advertisement_buf
-                    .as_mut()
-                    .map(|data| {
-                        for byte in data.as_mut()[PACKET_PAYLOAD_START..PACKET_LENGTH].iter_mut() {
-                            *byte = 0x00;
-                        }
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|| ReturnCode::EINVAL)
+            .enter(appid, |app, _| match app.process_status {
+                Some(BLEState::Advertising(_)) |
+                Some(BLEState::Scanning(_)) => ReturnCode::EBUSY,
+                _ => {
+                    app.advertisement_buf
+                        .as_mut()
+                        .map(|data| {
+                            for byte in data.as_mut()[PACKET_PAYLOAD_START..PACKET_LENGTH]
+                                .iter_mut() {
+                                *byte = 0x00;
+                            }
+                            ReturnCode::SUCCESS
+                        })
+                        .unwrap_or_else(|| ReturnCode::EINVAL)
+                }
             })
             .unwrap_or_else(|err| err.into())
     }
@@ -510,8 +515,6 @@ impl<'a, B, A> BLE<'a, B, A>
             .unwrap_or_else(|err| err.into())
     }
 
-    #[inline(never)]
-    #[no_mangle]
     // this method determines which user-app the current alarm belongs to
     // BUT it doesn't guarantee that a given alarm belongs the current app just that the app has
     // waited the longest thus it prioritizes fairesness over accuranncy!
@@ -533,9 +536,6 @@ impl<'a, B, A> BLE<'a, B, A>
                 }
                 Some(v) => v,
             };
-
-            // debug!("fired ticks: {:?} \t app: {:?}", fired_ticks, app.appid());
-
 
             let candidate = match period.checked_sub(fired_ticks) {
                 None => {
@@ -571,7 +571,7 @@ impl<'a, B, A> BLE<'a, B, A>
 
                 self.dummy.set(Some(curr));
 
-                if let TicksState::Expired(t) = old.state {
+                if let TicksState::Expired(_) = old.state {
                     self.queue.enqueue(Some(old.app));
                 }
 
@@ -581,8 +581,31 @@ impl<'a, B, A> BLE<'a, B, A>
 
 
         });
-        // debug!("picked app {:?}", self.dummy.get());
         Some(self.dummy.get().unwrap().app)
+    }
+
+    fn dispatch_waiting_apps(&self) {
+        if !self.queue.is_empty() & !self.busy.get() {
+            if let Some(appid) = self.queue.dequeue() {;
+                let _ = self.app.enter(appid, |app, _| match app.process_status {
+                    Some(BLEState::AdvertisingIdle) => {
+                        self.busy.set(true);
+                        app.process_status = Some(BLEState::Advertising(RadioChannel::Freq37));
+                        self.replace_advertisement_buffer(appid);
+                        self.radio.start_advertisement_tx(appid, RadioChannel::Freq37);
+                    }
+                    Some(BLEState::ScanningIdle) => {
+                        self.busy.set(true);
+                        app.process_status = Some(BLEState::Scanning(RadioChannel::Freq37));
+                        self.replace_advertisement_buffer(appid);
+                        self.radio.start_advertisement_rx(appid, RadioChannel::Freq37);
+
+                    }
+                    _ => (),
+                });
+            }
+        }
+
     }
 }
 impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
@@ -594,7 +617,10 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     // with overlapping intervals we use the busy flag to ensure mutual exclusion
     // this may not be fair if the processes have similar interval one process
     // may be starved.......
+    #[inline(never)]
+    #[no_mangle]
     fn fired(&self) {
+        debug!("fired\n");
         let appid = self.get_current_process();
 
         // assumption AppId: 0xff is not used
@@ -637,7 +663,14 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 {
     fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode, appid: kernel::AppId) {
         let _ = self.app.enter(appid, |app, _| {
-            let notify_userland = if app.app_read.is_some() && result == ReturnCode::SUCCESS {
+
+            // validate the rx
+            // because ordinary BLE packets can be bigger than 39 bytes we need check for that to
+            // prevent buffer overflow because RADIO PACKET buffer is 39 bytes
+            // also check that we don't call unwrap on None
+            //
+            let notify_userland = if len <= PACKET_LENGTH as u8 && app.app_read.is_some() &&
+                                     result == ReturnCode::SUCCESS {
                 let dest = app.app_read.as_mut().unwrap();
                 let d = &mut dest.as_mut();
                 // write to buffer in userland
@@ -673,10 +706,14 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                 _ => (),
             }
         });
+
+        self.dispatch_waiting_apps();
     }
+
     #[inline(never)]
     #[no_mangle]
     fn advertisement_fired(&self, appid: kernel::AppId) {
+        debug!("advertisement_fired");
         let _ = self.app.enter(appid, |app, _| {
             // debug!("advertisement_fired, app {:?} \t state: {:?}", appid, app.process_status);
             match app.process_status {
@@ -702,16 +739,8 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
         });
 
-        // if !self.queue.is_empty() & !self.busy.get() {
-        //     if let Some(other_app) = self.queue.dequeue() {;
-        //         let _ = self.app.enter(other_app, |app, _| {
-        //             self.busy.set(true);
-        //             app.process_status = Some(BLEState::Advertising(RadioChannel::Freq37));
-        //             self.replace_advertisement_buffer(other_app);
-        //             self.radio.start_advertisement_tx(other_app, RadioChannel::Freq37);
-        //         });
-        //     }
-        // }
+        self.dispatch_waiting_apps();
+
     }
 }
 // Implementation of SYSCALL interface
@@ -814,7 +843,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             }
 
             // Reset payload when the kernel is not actively advertising
-            // FIXME: Add guard
+            // reset_payload checks whether the current app is correct state or not
+            // i.e. if it's ok to reset the payload
             4 => {
                 let result = self.reset_payload(appid);
                 match result {

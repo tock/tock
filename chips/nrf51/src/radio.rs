@@ -14,6 +14,7 @@
 use core::cell::Cell;
 use kernel;
 use nrf5x;
+use nrf5x::ble_advertising_driver::RadioChannel;
 use peripheral_registers;
 
 static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
@@ -166,36 +167,36 @@ impl Radio {
                 nrf5x::constants::RADIO_STATE_TXIDLE |
                 nrf5x::constants::RADIO_STATE_TXDISABLE |
                 nrf5x::constants::RADIO_STATE_TX => {
-                    match regs.frequency.get() {
-                        // frequency 39
-                        nrf5x::constants::RADIO_FREQ_CH_39 => {
-                            self.client.get().map(|client| {
-                                client.advertisement_fired(self.appid
-                                    .get()
-                                    .unwrap_or(kernel::AppId::new(0xff)))
-                            });
-                            self.radio_off();
-                        }
-                        // frequency 38
-                        nrf5x::constants::RADIO_FREQ_CH_38 => {
-                            self.set_channel_freq(39);
-                            self.set_data_white_iv(39);
-                            regs.ready.set(0);
-                            regs.txen.set(1);
-                        }
-                        // frequency 37
-                        nrf5x::constants::RADIO_FREQ_CH_37 => {
-                            self.set_channel_freq(38);
-                            self.set_data_white_iv(38);
-                            regs.ready.set(0);
-                            regs.txen.set(1);
-                        }
-                        // don't care as we only support advertisements at the moment
-                        _ => {
-                            self.set_channel_freq(37);
-                            self.set_data_white_iv(37)
-                        }
-                    }
+                    // match regs.frequency.get() {
+                    // frequency 39
+                    // nrf5x::constants::RADIO_FREQ_CH_39 => {
+                    self.client.get().map(|client| {
+                        client.advertisement_fired(self.appid
+                            .get()
+                            .unwrap_or(kernel::AppId::new(0xff)))
+                    });
+                    self.radio_off();
+                    // }
+                    // // frequency 38
+                    // nrf5x::constants::RADIO_FREQ_CH_38 => {
+                    //     self.set_channel_freq(39);
+                    //     self.set_data_white_iv(39);
+                    //     regs.ready.set(0);
+                    //     regs.txen.set(1);
+                    // }
+                    // // frequency 37
+                    // nrf5x::constants::RADIO_FREQ_CH_37 => {
+                    //     self.set_channel_freq(38);
+                    //     self.set_data_white_iv(38);
+                    //     regs.ready.set(0);
+                    //     regs.txen.set(1);
+                    // }
+                    // // don't care as we only support advertisements at the moment
+                    // _ => {
+                    //     self.set_channel_freq(37);
+                    //     self.set_data_white_iv(37)
+                    // }
+                    // }
                 }
                 nrf5x::constants::RADIO_STATE_RXRU |
                 nrf5x::constants::RADIO_STATE_RXIDLE |
@@ -255,7 +256,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
             _ => kernel::ReturnCode::ENOSUPPORT,
         }
     }
-    fn start_advertisement_tx(&self, appid: kernel::AppId) {
+    fn start_advertisement_tx(&self, appid: kernel::AppId, ch: RadioChannel) {
         self.appid.set(Some(appid));
         let regs = unsafe { &*self.regs };
 
@@ -267,8 +268,8 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         // BLE MODE
         self.set_channel_rate(0x03);
 
-        self.set_channel_freq(37);
-        self.set_data_white_iv(37);
+        self.set_channel_freq(ch as u32);
+        self.set_data_white_iv(ch as u32);
 
         // Set PREFIX | BASE Address
         regs.prefix0.set(0x0000008e);
@@ -292,7 +293,9 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         regs.ready.set(0);
         regs.txen.set(1);
     }
-    fn start_advertisement_rx(&self, appid: kernel::AppId) {
+
+
+    fn start_advertisement_rx(&self, appid: kernel::AppId, ch: RadioChannel) {
         self.appid.set(Some(appid));
         let regs = unsafe { &*self.regs };
 
@@ -301,15 +304,8 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         // BLE MODE
         self.set_channel_rate(0x03);
 
-        // temporary to listen on all advertising frequencies
-        match self.freq.get() {
-            37 => self.freq.set(38),
-            38 => self.freq.set(39),
-            _ => self.freq.set(37),
-        }
-
-        self.set_channel_freq(self.freq.get());
-        self.set_data_white_iv(self.freq.get());
+        self.set_channel_freq(ch as u32);
+        self.set_data_white_iv(ch as u32);
 
         // Set PREFIX | BASE Address
         regs.prefix0.set(0x0000008e);

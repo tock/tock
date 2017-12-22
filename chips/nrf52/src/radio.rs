@@ -16,8 +16,8 @@ use nrf5x;
 use nrf5x::ble_advertising_driver::RadioChannel;
 use peripheral_registers;
 
-const APP_1: usize = 17;
-const APP_2: usize = 18;
+const TX: usize = 17;
+const RX: usize = 18;
 
 // NRF52 Specific Radio Constants
 const NRF52_RADIO_PCNF0_S1INCL_MSK: u32 = 0;
@@ -156,7 +156,6 @@ impl Radio {
 
 
     #[inline(never)]
-    #[no_mangle]
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
         self.disable_all_interrupts();
@@ -196,8 +195,8 @@ impl Radio {
                 nrf5x::constants::RADIO_STATE_RXIDLE |
                 nrf5x::constants::RADIO_STATE_RXDISABLE |
                 nrf5x::constants::RADIO_STATE_RX => {
-                    self.radio_off();
                     if regs.crcstatus.get() == 1 {
+                        self.radio_off();
                         unsafe {
                             self.client.get().map(|client| {
                                 client.receive(&mut PAYLOAD,
@@ -207,6 +206,7 @@ impl Radio {
                             });
                         }
                     } else {
+                        self.radio_off();
                         unsafe {
                             self.client.get().map(|client| {
                                 client.receive(&mut PAYLOAD,
@@ -284,12 +284,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         let regs = unsafe { &*self.regs };
 
         unsafe {
-            if self.appid.get().unwrap() == kernel::AppId::new(0) {
-                toggle_led(APP_1);
-            }
-            if self.appid.get().unwrap() == kernel::AppId::new(1) {
-                toggle_led(APP_2);
-            }
+            toggle_led(TX);
         }
 
         self.radio_on();
@@ -332,12 +327,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         let regs = unsafe { &*self.regs };
 
         unsafe {
-            if self.appid.get().unwrap() == kernel::AppId::new(0) {
-                toggle_led(APP_1);
-            }
-            if self.appid.get().unwrap() == kernel::AppId::new(1) {
-                toggle_led(APP_2);
-            }
+            toggle_led(RX);
         }
 
         self.radio_on();

@@ -3,11 +3,7 @@
 #include <stdio.h>
 #include <tock.h>
 
-// Sizes in bytes
 #define DEVICE_NAME_SIZE 6
-#define UUIDS_SIZE 4
-#define MANUFACTURER_DATA_SIZE 2
-#define FAKE_TEMPERATURE_DATA_SIZE 2
 
 /*******************************************************************************
  * MAIN
