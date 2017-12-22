@@ -24,7 +24,6 @@ pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
     txpower: Cell<usize>,
     client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
-    freq: Cell<u32>,
     appid: Cell<Option<kernel::AppId>>,
 }
 
@@ -36,7 +35,6 @@ impl Radio {
             regs: peripheral_registers::RADIO_BASE as *const peripheral_registers::RADIO_REGS,
             txpower: Cell::new(0),
             client: Cell::new(None),
-            freq: Cell::new(0),
             appid: Cell::new(None),
         }
     }
@@ -160,6 +158,7 @@ impl Radio {
         if regs.end.get() == 1 {
             regs.end.set(0);
             regs.disable.set(1);
+
             // this state only verifies that end is received in TX-mode
             // which means that the transmission is finished
             match regs.state.get() {
@@ -167,36 +166,12 @@ impl Radio {
                 nrf5x::constants::RADIO_STATE_TXIDLE |
                 nrf5x::constants::RADIO_STATE_TXDISABLE |
                 nrf5x::constants::RADIO_STATE_TX => {
-                    // match regs.frequency.get() {
-                    // frequency 39
-                    // nrf5x::constants::RADIO_FREQ_CH_39 => {
+                    self.radio_off();
                     self.client.get().map(|client| {
                         client.advertisement_fired(self.appid
                             .get()
                             .unwrap_or(kernel::AppId::new(0xff)))
                     });
-                    self.radio_off();
-                    // }
-                    // // frequency 38
-                    // nrf5x::constants::RADIO_FREQ_CH_38 => {
-                    //     self.set_channel_freq(39);
-                    //     self.set_data_white_iv(39);
-                    //     regs.ready.set(0);
-                    //     regs.txen.set(1);
-                    // }
-                    // // frequency 37
-                    // nrf5x::constants::RADIO_FREQ_CH_37 => {
-                    //     self.set_channel_freq(38);
-                    //     self.set_data_white_iv(38);
-                    //     regs.ready.set(0);
-                    //     regs.txen.set(1);
-                    // }
-                    // // don't care as we only support advertisements at the moment
-                    // _ => {
-                    //     self.set_channel_freq(37);
-                    //     self.set_data_white_iv(37)
-                    // }
-                    // }
                 }
                 nrf5x::constants::RADIO_STATE_RXRU |
                 nrf5x::constants::RADIO_STATE_RXIDLE |
@@ -211,11 +186,21 @@ impl Radio {
                                                self.appid.get().unwrap_or(kernel::AppId::new(0xff)))
                             });
                         }
+                    } else {
+                        unsafe {
+                            self.client.get().map(|client| {
+                                client.receive(&mut PAYLOAD,
+                                               PAYLOAD[1] + 1,
+                                               kernel::ReturnCode::EINVAL,
+                                               self.appid.get().unwrap_or(kernel::AppId::new(0xff)))
+                            });
+                        }
                     }
                 }
                 _ => (),
             }
         }
+
         self.enable_interrupts();
     }
 
@@ -256,6 +241,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
             _ => kernel::ReturnCode::ENOSUPPORT,
         }
     }
+
     fn start_advertisement_tx(&self, appid: kernel::AppId, ch: RadioChannel) {
         self.appid.set(Some(appid));
         let regs = unsafe { &*self.regs };

@@ -16,6 +16,8 @@ use nrf5x;
 use nrf5x::ble_advertising_driver::RadioChannel;
 use peripheral_registers;
 
+
+// used for debugging remove later!!
 const TX: usize = 17;
 const RX: usize = 18;
 
@@ -159,7 +161,6 @@ impl Radio {
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
         self.disable_all_interrupts();
-        let mut end = false;
 
         if regs.event_ready.get() == 1 {
             regs.event_ready.set(0);
@@ -176,7 +177,6 @@ impl Radio {
 
         if regs.event_end.get() == 1 {
             regs.event_end.set(0);
-            end = true;
             // this state only verifies that END is received in TX-mode
             // which means that the transmission is finished
             match regs.state.get() {
@@ -221,9 +221,7 @@ impl Radio {
                 _ => (),
             }
         }
-        if !end {
-            self.enable_interrupts();
-        }
+        self.enable_interrupts();
     }
 
     pub fn enable_interrupts(&self) {

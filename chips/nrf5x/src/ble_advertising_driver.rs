@@ -617,10 +617,7 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     // with overlapping intervals we use the busy flag to ensure mutual exclusion
     // this may not be fair if the processes have similar interval one process
     // may be starved.......
-    #[inline(never)]
-    #[no_mangle]
     fn fired(&self) {
-        debug!("fired\n");
         let appid = self.get_current_process();
 
         // assumption AppId: 0xff is not used
@@ -710,10 +707,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
         self.dispatch_waiting_apps();
     }
 
-    #[inline(never)]
-    #[no_mangle]
     fn advertisement_fired(&self, appid: kernel::AppId) {
-        debug!("advertisement_fired");
         let _ = self.app.enter(appid, |app, _| {
             // debug!("advertisement_fired, app {:?} \t state: {:?}", appid, app.process_status);
             match app.process_status {
