@@ -10,12 +10,19 @@ pub trait BleAdvertisementDriver {
     fn set_advertisement_txpower(&self, power: usize) -> ReturnCode;
     fn start_advertisement_tx(&self, appid: kernel::AppId, freq: RadioChannel);
     fn start_advertisement_rx(&self, appid: kernel::AppId, freq: RadioChannel);
-    fn set_client(&self, client: &'static RxClient);
+    fn set_rx_client(&self, client: &'static RxClient);
+    fn set_tx_client(&self, client: &'static TxClient);
 }
 
 
-// Temporary trait for BLE
 pub trait RxClient {
-    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode, appid: kernel::AppId);
-    fn advertisement_fired(&self, appid: kernel::AppId);
+    fn receive_event(&self,
+                     buf: &'static mut [u8],
+                     len: u8,
+                     result: ReturnCode,
+                     appid: kernel::AppId);
+}
+
+pub trait TxClient {
+    fn send_event(&self, result: ReturnCode, appid: kernel::AppId);
 }

@@ -6,11 +6,12 @@
 //! The advertisement interval is configured from the user application.
 //! The allowed range is between 20 ms and 10240 ms, lower or higher values will
 //! be set to these values. Advertisements are sent on channels 37, 38 and 39
-//! which are currently controlled by the chip.
+//! which are controlled by this driver. the chip just notifies the capsules via two
+//! interfaces: RxClient and TxClient for events
+//! .
 //!
-//! The total size of the combined payload is 31 bytes, the capsule ignores payloads
-//! which exceed this limit. To clear the payload, the `ble_adv_clear_data`
-//! function can be used. This function clears the payload, including the name.
+//! The total size of the combined payload is 31 bytes, the driver ignores payloads
+//! which exceed this limit.
 //!
 //! ### Allow system call
 //! Each advertesement type corresponds to an allow number from 0 to 0xFF which
@@ -48,6 +49,7 @@
 //! * 3: configure advertise interval
 //! * 4: clear the advertisement payload
 //! * 5: start scanning
+//! * 6: initialize driver
 //!
 //! The possible return codes from the 'command' system call indicate the following:
 //!
@@ -86,14 +88,12 @@ impl Ticks {
     }
 }
 
-
 #[derive(Debug, Copy, Clone)]
 enum TicksState {
     Expired(u32),
     NotExpired(u32),
     Disabled,
 }
-
 
 #[allow(unused)]
 struct BLEGap(BLEGapType);
@@ -158,20 +158,14 @@ fn from_usize(n: usize) -> Option<AllowType> {
 }
 
 
-// PDU TYPES
-// 0x00 - ADV_IND
-// 0x01 - ADV_DIRECT_IND
-// 0x02 - ADV_NONCONN_IND
-// 0x03 - SCAN_REQ
-// 0x04 - SCAN_RSP
-// 0x05 - CONNECT_REQ
-// 0x06 - ADV_SCAN_IND
-//
-//  Advertising Type   Connectable  Scannable   Directed    GAP Name
-//  ADV_IND            Yes           Yes         No          Connectable Undirected Advertising
-//  ADV_DIRECT_IND     Yes           No          Yes         Connectable Directed Advertising
-//  ADV_NONCONN_IND    Yes           No          No          Non-connectible Undirected Advertising
-//  ADV_SCAN_IND       Yes           Yes         No          Scannable Undirected Advertising
+// Advertising Name                         Connectable     Scannable       Directed
+// ConnectUndirected    (ADV_IND)           Yes             Yes             No
+// ConnectDirected      (ADV_DIRECT_IND)    Yes             No              Yes
+// NonConnectUndirected (ADV_NONCONN_IND)   No              No              No
+// ScanRequest          (SCAN_REQ)          -               -               -
+// ScanResponse         (SCAN_RSP)          -               -               -
+// ConnectRequest       (CON_REQ)           -               -               -
+// ScanUndirected       (ADV_SCAN_IND)      No              Yes             No
 #[allow(unused)]
 #[repr(u8)]
 enum BLEAdvertisementType {
@@ -210,7 +204,6 @@ enum BLEState {
     Advertising(RadioChannel),
 }
 
-
 #[derive(Copy, Clone)]
 enum Expiration {
     Disabled,
@@ -242,7 +235,6 @@ pub struct App {
     process_status: Option<BLEState>,
     advertisement_interval_ms: Cell<u32>,
     alarm_data: AlarmData,
-    // not used yet....
     tx_power: Cell<u8>,
 }
 
@@ -273,7 +265,7 @@ pub struct BLE<'a, B, A>
     app: kernel::Grant<App>,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
     alarm: &'a A,
-    dummy: Cell<Option<Ticks>>,
+    current_app: Cell<Option<Ticks>>,
     queue: CircularBuffer<kernel::AppId>,
 }
 
@@ -292,7 +284,7 @@ impl<'a, B, A> BLE<'a, B, A>
             app: container,
             kernel_tx: kernel::common::take_cell::TakeCell::new(tx_buf),
             alarm: alarm,
-            dummy: Cell::new(None),
+            current_app: Cell::new(None),
             queue: CircularBuffer::new(),
         }
     }
@@ -348,9 +340,7 @@ impl<'a, B, A> BLE<'a, B, A>
             .unwrap_or_else(|err| err.into())
     }
 
-    // Hard-coded
-    // Advertising Type  Connectable Scannable  Directed   GAP Name
-    // ADV_NONCONN_IND   Yes         No         No         Non-connectible Undirected Advertising
+    // Hard-coded to ADV_NONCONN_IND
     fn configure_advertisement_pdu(&self, appid: kernel::AppId) -> ReturnCode {
         self.app
             .enter(appid, |app, _| {
@@ -370,12 +360,10 @@ impl<'a, B, A> BLE<'a, B, A>
     // This function constructs an AD TYPE with type, data, length and offset.
     // It uses the offset to keep track of where to place the next AD TYPE in the buffer in
     // case multiple AD TYPES are provided.
-    // The hardware module then sets the actual payload.
-
+    //
     // But because we borrow the struct mutabily we can't borrow it immutably at the same time
     // First we copy the data from the allow call to a the TakeCell buffer
     // And then copy that TakeCell buffer to AppSlice advertisement buffer
-
     fn set_advertisement_data(&self, gap_type: BLEGapType, appid: kernel::AppId) -> ReturnCode {
         // these variables are workaround because we can't access other data members
         // when we have a mutable borrow!!!
@@ -519,7 +507,7 @@ impl<'a, B, A> BLE<'a, B, A>
     // BUT it doesn't guarantee that a given alarm belongs the current app just that the app has
     // waited the longest thus it prioritizes fairesness over accuranncy!
     fn get_current_process(&self) -> Option<kernel::AppId> {
-        self.dummy.set(None);
+        self.current_app.set(None);
         let now = self.alarm.now();
 
         self.app.each(|app| if let Expiration::Abs(period) = app.alarm_data.expiration {
@@ -552,7 +540,7 @@ impl<'a, B, A> BLE<'a, B, A>
                 }
             };
 
-            if let Some(current) = self.dummy.get() {
+            if let Some(current) = self.current_app.get() {
                 //compare here
                 let (curr, old) = match (candidate.state, current.state) {
                     (TicksState::Disabled, _) => (current, candidate),
@@ -569,19 +557,19 @@ impl<'a, B, A> BLE<'a, B, A>
                     (TicksState::NotExpired(_), _) => (candidate, current),
                 };
 
-                self.dummy.set(Some(curr));
+                self.current_app.set(Some(curr));
 
                 if let TicksState::Expired(_) = old.state {
                     self.queue.enqueue(Some(old.app));
                 }
 
             } else {
-                self.dummy.set(Some(candidate));
+                self.current_app.set(Some(candidate));
             }
 
 
         });
-        Some(self.dummy.get().unwrap().app)
+        Some(self.current_app.get().unwrap().app)
     }
 
     fn dispatch_waiting_apps(&self) {
@@ -608,6 +596,8 @@ impl<'a, B, A> BLE<'a, B, A>
 
     }
 }
+
+// Timer alarm
 impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
@@ -654,18 +644,25 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     }
 }
 
+// Callback from the radio once a RX event occur
 impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
 {
-    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode, appid: kernel::AppId) {
+    fn receive_event(&self,
+                     buf: &'static mut [u8],
+                     len: u8,
+                     result: ReturnCode,
+                     appid: kernel::AppId) {
         let _ = self.app.enter(appid, |app, _| {
 
-            // validate the rx
-            // because ordinary BLE packets can be bigger than 39 bytes we need check for that to
-            // prevent buffer overflow because RADIO PACKET buffer is 39 bytes
-            // also check that we don't call unwrap on None
-            //
+            // validate the recived data
+            // Because ordinary BLE packets can be bigger than 39 bytes we need check for that!
+            // And we use packet header to find size but the radio reads maximum 39 bytes
+            // Thus, the CRC will probably be invalid but if we are really "unlucky" it could pass
+            // Therefore, we use this check to prevent a prevent buffer overflow because the buffer
+            // is 39 bytes
+
             let notify_userland = if len <= PACKET_LENGTH as u8 && app.app_read.is_some() &&
                                      result == ReturnCode::SUCCESS {
                 let dest = app.app_read.as_mut().unwrap();
@@ -700,16 +697,25 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                     app.process_status = Some(BLEState::ScanningIdle);
                     self.set_single_alarm(appid);
                 }
+                // Invalid state => don't care
                 _ => (),
             }
         });
 
         self.dispatch_waiting_apps();
     }
+}
 
-    fn advertisement_fired(&self, appid: kernel::AppId) {
+
+// Callback from the radio once a TX event occur
+impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
+    where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
+          A: kernel::hil::time::Alarm + 'a
+{
+    // the ReturnCode indicates valid CRC or not, not used yet but could be used for
+    // re-tranmissions if the CRC for reason
+    fn send_event(&self, _: ReturnCode, appid: kernel::AppId) {
         let _ = self.app.enter(appid, |app, _| {
-            // debug!("advertisement_fired, app {:?} \t state: {:?}", appid, app.process_status);
             match app.process_status {
                 Some(BLEState::Advertising(RadioChannel::Freq37)) => {
                     app.process_status = Some(BLEState::Advertising(RadioChannel::Freq38));
@@ -727,7 +733,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                     app.process_status = Some(BLEState::AdvertisingIdle);
                     self.set_single_alarm(appid);
                 }
-                // don't care
+                // Invalid state => don't care
                 _ => (),
             }
 
@@ -737,7 +743,8 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
     }
 }
-// Implementation of SYSCALL interface
+
+// System Call implementation
 impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
@@ -763,8 +770,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                     .unwrap_or_else(|err| err.into());
 
                 if result == ReturnCode::SUCCESS {
-                    if let None = self.dummy.get() {
-                        self.dummy.set(Some(Ticks::new(appid, TicksState::Disabled)));
+                    if let None = self.current_app.get() {
+                        self.current_app.set(Some(Ticks::new(appid, TicksState::Disabled)));
                     }
                 }
                 result
@@ -786,8 +793,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 
             // Configure transmitted power
             //
-            // This is not supported by the user-space interface anymore, REMOVE?!
-            // Perhaps better to let the chip decide this?!
+            // This is not supported by the user-space interface anymore
             2 => {
                 self.app
                     .enter(appid,
@@ -838,7 +844,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 
             // Reset payload when the kernel is not actively advertising
             // reset_payload checks whether the current app is correct state or not
-            // i.e. if it's ok to reset the payload
+            // i.e. if it's ok to reset the payload or not
             4 => {
                 let result = self.reset_payload(appid);
                 match result {
@@ -868,7 +874,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 
             // Initilize BLE Driver
             // Allow call to allocate the advertisement buffer must be
-            // invoked before this!!!!!
+            // invoked before this
             // Request advertisement address
             6 => {
                 self.app

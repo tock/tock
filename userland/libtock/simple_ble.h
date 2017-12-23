@@ -2,6 +2,10 @@
 
 #include "tock.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*******************************************************************************
  *   DRIVER DEFINITIONS   -- corresponds to different system calls
  *

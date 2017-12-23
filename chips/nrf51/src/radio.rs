@@ -13,6 +13,7 @@
 
 use core::cell::Cell;
 use kernel;
+use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::ble_advertising_driver::RadioChannel;
 use peripheral_registers;
@@ -23,7 +24,8 @@ static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
     txpower: Cell<usize>,
-    client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
+    rx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
+    tx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::TxClient>>,
     appid: Cell<Option<kernel::AppId>>,
 }
 
@@ -34,7 +36,8 @@ impl Radio {
         Radio {
             regs: peripheral_registers::RADIO_BASE as *const peripheral_registers::RADIO_REGS,
             txpower: Cell::new(0),
-            client: Cell::new(None),
+            rx_client: Cell::new(None),
+            tx_client: Cell::new(None),
             appid: Cell::new(None),
         }
     }
@@ -159,48 +162,45 @@ impl Radio {
             regs.end.set(0);
             regs.disable.set(1);
 
-            // this state only verifies that end is received in TX-mode
-            // which means that the transmission is finished
+
+
+            let result = if regs.crcstatus.get() == 1 {
+                ReturnCode::SUCCESS
+            } else {
+                ReturnCode::FAIL
+            };
+
             match regs.state.get() {
                 nrf5x::constants::RADIO_STATE_TXRU |
                 nrf5x::constants::RADIO_STATE_TXIDLE |
                 nrf5x::constants::RADIO_STATE_TXDISABLE |
                 nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.client.get().map(|client| {
-                        client.advertisement_fired(self.appid
-                            .get()
-                            .unwrap_or(kernel::AppId::new(0xff)))
+                    self.tx_client.get().map(|client| {
+                        client.send_event(result,
+                                          self.appid.get().unwrap_or(kernel::AppId::new(0xff)))
                     });
                 }
                 nrf5x::constants::RADIO_STATE_RXRU |
                 nrf5x::constants::RADIO_STATE_RXIDLE |
                 nrf5x::constants::RADIO_STATE_RXDISABLE |
                 nrf5x::constants::RADIO_STATE_RX => {
-                    if regs.crcstatus.get() == 1 {
-                        unsafe {
-                            self.client.get().map(|client| {
-                                client.receive(&mut PAYLOAD,
-                                               PAYLOAD[1] + 1,
-                                               kernel::returncode::ReturnCode::SUCCESS,
-                                               self.appid.get().unwrap_or(kernel::AppId::new(0xff)))
-                            });
-                        }
-                    } else {
-                        unsafe {
-                            self.client.get().map(|client| {
-                                client.receive(&mut PAYLOAD,
-                                               PAYLOAD[1] + 1,
-                                               kernel::ReturnCode::EINVAL,
-                                               self.appid.get().unwrap_or(kernel::AppId::new(0xff)))
-                            });
-                        }
+                    self.radio_off();
+                    unsafe {
+                        self.rx_client.get().map(|client| {
+                            client.receive_event(&mut PAYLOAD,
+                                                 PAYLOAD[1] + 1,
+                                                 result,
+                                                 self.appid
+                                                     .get()
+                                                     .unwrap_or(kernel::AppId::new(0xff)))
+                        });
                     }
                 }
+                // Radio state - Disabled
                 _ => (),
             }
         }
-
         self.enable_interrupts();
     }
 
@@ -316,7 +316,11 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         regs.rxen.set(1);
     }
 
-    fn set_client(&self, client: &'static nrf5x::ble_advertising_hil::RxClient) {
-        self.client.set(Some(client));
+    fn set_rx_client(&self, client: &'static nrf5x::ble_advertising_hil::RxClient) {
+        self.rx_client.set(Some(client));
+    }
+
+    fn set_tx_client(&self, client: &'static nrf5x::ble_advertising_hil::TxClient) {
+        self.tx_client.set(Some(client));
     }
 }

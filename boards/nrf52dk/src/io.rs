@@ -62,12 +62,19 @@ pub unsafe extern "C" fn panic_fmt(args: Arguments, file: &'static str, line: u3
     const LED2_PIN: usize = 18;
 
     let writer = &mut WRITER;
-    let _ = writer.write_fmt(format_args!("\r\nKernel panic at {}:{}:\r\n\t\"", file, line));
+    let _ = writer.write_fmt(format_args!(
+        "\r\nKernel panic at {}:{}:\r\n\t\"",
+        file,
+        line
+    ));
     let _ = write(writer, args);
     let _ = writer.write_str("\"\r\n");
 
     // Print version of the kernel
-    let _ = writer.write_fmt(format_args!("\tKernel version {}\r\n", env!("TOCK_KERNEL_VERSION")));
+    let _ = writer.write_fmt(format_args!(
+        "\tKernel version {}\r\n",
+        env!("TOCK_KERNEL_VERSION")
+    ));
 
     // Print fault status once
     let procs = &mut process::PROCS;
