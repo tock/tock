@@ -427,6 +427,8 @@ pub struct BLE<'a, B, A>
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
     alarm: &'a A,
     current_app: Cell<Option<Ticks>>,
+    sending_app: Cell<Option<kernel::AppId>>,
+    receiving_app: Cell<Option<kernel::AppId>>,
     queue: CircularBuffer<kernel::AppId>,
 }
 
@@ -446,6 +448,8 @@ impl<'a, B, A> BLE<'a, B, A>
             kernel_tx: kernel::common::take_cell::TakeCell::new(tx_buf),
             alarm: alarm,
             current_app: Cell::new(None),
+            sending_app: Cell::new(None),
+            receiving_app: Cell::new(None),
             queue: CircularBuffer::new(),
         }
     }
@@ -532,13 +536,15 @@ impl<'a, B, A> BLE<'a, B, A>
                         self.busy.set(true);
                         app.process_status = Some(BLEState::Advertising(RadioChannel::Freq37));
                         app.replace_advertisement_buffer(&self);
-                        self.radio.send_advertisement(appid, RadioChannel::Freq37);
+                        self.sending_app.set(Some(appid));
+                        self.radio.send_advertisement(RadioChannel::Freq37);
                     }
                     Some(BLEState::ScanningIdle) => {
                         self.busy.set(true);
                         app.process_status = Some(BLEState::Scanning(RadioChannel::Freq37));
                         app.replace_advertisement_buffer(&self);
-                        self.radio.receive_advertisement(appid, RadioChannel::Freq37);
+                        self.receiving_app.set(Some(appid));
+                        self.radio.receive_advertisement(RadioChannel::Freq37);
 
                     }
                     _ => (),
@@ -570,16 +576,17 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
                                        app.process_status =
                                            Some(BLEState::Advertising(RadioChannel::Freq37));
                                        app.replace_advertisement_buffer(&self);
+                                       self.sending_app.set(Some(app.appid()));
                                        self.radio
-                                           .send_advertisement(app.appid(), RadioChannel::Freq37);
+                                           .send_advertisement(RadioChannel::Freq37);
                                    }
                                    Some(BLEState::ScanningIdle) if !self.busy.get() => {
                                        self.busy.set(true);
                                        app.process_status =
                                            Some(BLEState::Scanning(RadioChannel::Freq37));
                                        app.replace_advertisement_buffer(&self);
-                                       self.radio.receive_advertisement(app.appid(),
-                                                                        RadioChannel::Freq37);
+                                       self.receiving_app.set(Some(app.appid()));
+                                       self.radio.receive_advertisement(RadioChannel::Freq37);
 
                                    }
                                    Some(BLEState::ScanningIdle) |
@@ -601,58 +608,57 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
 {
-    fn receive_event(&self,
-                     buf: &'static mut [u8],
-                     len: u8,
-                     result: ReturnCode,
-                     appid: kernel::AppId) {
-        let _ = self.app.enter(appid, |app, _| {
+    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
+        if let Some(appid) = self.receiving_app.get() {
+            let _ = self.app.enter(appid, |app, _| {
 
-            // validate the recived data
-            // Because ordinary BLE packets can be bigger than 39 bytes we need check for that!
-            // And we use packet header to find size but the radio reads maximum 39 bytes
-            // Thus, the CRC will probably be invalid but if we are really "unlucky" it could pass
-            // Therefore, we use this check to prevent a prevent buffer overflow because the buffer
-            // is 39 bytes
+                // validate the recived data Because ordinary BLE packets can be bigger than 39
+                // bytes we need check for that!  And we use packet header to find size but the
+                // radio reads maximum 39 bytes Thus, the CRC will probably be invalid but if we
+                // are really "unlucky" it could pass Therefore, we use this check to prevent a
+                // prevent buffer overflow because the buffer is 39 bytes
 
-            let notify_userland = if len <= PACKET_LENGTH as u8 && app.app_read.is_some() &&
-                                     result == ReturnCode::SUCCESS {
-                let dest = app.app_read.as_mut().unwrap();
-                let d = &mut dest.as_mut();
-                // write to buffer in userland
-                for (i, c) in buf[0..len as usize].iter().enumerate() {
-                    d[i] = *c;
+                let notify_userland = if len <= PACKET_LENGTH as u8 && app.app_read.is_some() &&
+                                         result == ReturnCode::SUCCESS {
+                    let dest = app.app_read.as_mut().unwrap();
+                    let d = &mut dest.as_mut();
+                    // write to buffer in userland
+                    for (i, c) in buf[0..len as usize].iter().enumerate() {
+                        d[i] = *c;
+                    }
+                    true
+                } else {
+                    false
+                };
+
+
+                if notify_userland {
+                    app.scan_callback
+                        .map(|mut cb| { cb.schedule(usize::from(result), len as usize, 0); });
                 }
-                true
-            } else {
-                false
-            };
 
-
-            if notify_userland {
-                app.scan_callback
-                    .map(|mut cb| { cb.schedule(usize::from(result), len as usize, 0); });
-            }
-
-            match app.process_status {
-                Some(BLEState::Scanning(RadioChannel::Freq37)) => {
-                    app.process_status = Some(BLEState::Scanning(RadioChannel::Freq38));
-                    app.alarm_data.expiration = Expiration::Disabled;
-                    self.radio.receive_advertisement(app.appid(), RadioChannel::Freq38);
+                match app.process_status {
+                    Some(BLEState::Scanning(RadioChannel::Freq37)) => {
+                        app.process_status = Some(BLEState::Scanning(RadioChannel::Freq38));
+                        app.alarm_data.expiration = Expiration::Disabled;
+                        self.receiving_app.set(Some(app.appid()));
+                        self.radio.receive_advertisement(RadioChannel::Freq38);
+                    }
+                    Some(BLEState::Scanning(RadioChannel::Freq38)) => {
+                        app.process_status = Some(BLEState::Scanning(RadioChannel::Freq39));
+                        self.receiving_app.set(Some(app.appid()));
+                        self.radio.receive_advertisement(RadioChannel::Freq38);
+                    }
+                    Some(BLEState::Scanning(RadioChannel::Freq39)) => {
+                        self.busy.set(false);
+                        app.process_status = Some(BLEState::ScanningIdle);
+                        app.set_single_alarm(&self);
+                    }
+                    // Invalid state => don't care
+                    _ => (),
                 }
-                Some(BLEState::Scanning(RadioChannel::Freq38)) => {
-                    app.process_status = Some(BLEState::Scanning(RadioChannel::Freq39));
-                    self.radio.receive_advertisement(app.appid(), RadioChannel::Freq38);
-                }
-                Some(BLEState::Scanning(RadioChannel::Freq39)) => {
-                    self.busy.set(false);
-                    app.process_status = Some(BLEState::ScanningIdle);
-                    app.set_single_alarm(&self);
-                }
-                // Invalid state => don't care
-                _ => (),
-            }
-        });
+            });
+        }
 
         self.dispatch_waiting_apps();
     }
@@ -666,30 +672,34 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
 {
     // the ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-tranmissions if the CRC for reason
-    fn send_event(&self, _: ReturnCode, appid: kernel::AppId) {
-        let _ = self.app.enter(appid, |app, _| {
-            match app.process_status {
-                Some(BLEState::Advertising(RadioChannel::Freq37)) => {
-                    app.process_status = Some(BLEState::Advertising(RadioChannel::Freq38));
-                    app.alarm_data.expiration = Expiration::Disabled;
-                    self.radio.send_advertisement(app.appid(), RadioChannel::Freq38);
+    fn send_event(&self, _: ReturnCode) {
+        if let Some(appid) = self.sending_app.get() {
+            let _ = self.app.enter(appid, |app, _| {
+                match app.process_status {
+                    Some(BLEState::Advertising(RadioChannel::Freq37)) => {
+                        app.process_status = Some(BLEState::Advertising(RadioChannel::Freq38));
+                        app.alarm_data.expiration = Expiration::Disabled;
+                        self.sending_app.set(Some(app.appid()));
+                        self.radio.send_advertisement(RadioChannel::Freq38);
+                    }
+
+                    Some(BLEState::Advertising(RadioChannel::Freq38)) => {
+                        app.process_status = Some(BLEState::Advertising(RadioChannel::Freq39));
+                        self.sending_app.set(Some(app.appid()));
+                        self.radio.send_advertisement(RadioChannel::Freq39);
+                    }
+
+                    Some(BLEState::Advertising(RadioChannel::Freq39)) => {
+                        self.busy.set(false);
+                        app.process_status = Some(BLEState::AdvertisingIdle);
+                        app.set_single_alarm(&self);
+                    }
+                    // Invalid state => don't care
+                    _ => (),
                 }
 
-                Some(BLEState::Advertising(RadioChannel::Freq38)) => {
-                    app.process_status = Some(BLEState::Advertising(RadioChannel::Freq39));
-                    self.radio.send_advertisement(app.appid(), RadioChannel::Freq39);
-                }
-
-                Some(BLEState::Advertising(RadioChannel::Freq39)) => {
-                    self.busy.set(false);
-                    app.process_status = Some(BLEState::AdvertisingIdle);
-                    app.set_single_alarm(&self);
-                }
-                // Invalid state => don't care
-                _ => (),
-            }
-
-        });
+            });
+        }
 
         self.dispatch_waiting_apps();
 

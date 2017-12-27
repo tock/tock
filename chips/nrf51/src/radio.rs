@@ -26,7 +26,6 @@ pub struct Radio {
     txpower: Cell<usize>,
     rx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
     tx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::TxClient>>,
-    appid: Cell<Option<kernel::AppId>>,
 }
 
 pub static mut RADIO: Radio = Radio::new();
@@ -38,7 +37,6 @@ impl Radio {
             txpower: Cell::new(0),
             rx_client: Cell::new(None),
             tx_client: Cell::new(None),
-            appid: Cell::new(None),
         }
     }
 
@@ -176,10 +174,7 @@ impl Radio {
                 nrf5x::constants::RADIO_STATE_TXDISABLE |
                 nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.tx_client.get().map(|client| {
-                        client.send_event(result,
-                                          self.appid.get().unwrap_or(kernel::AppId::new(0xff)))
-                    });
+                    self.tx_client.get().map(|client| client.send_event(result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU |
                 nrf5x::constants::RADIO_STATE_RXIDLE |
@@ -190,10 +185,7 @@ impl Radio {
                         self.rx_client.get().map(|client| {
                             client.receive_event(&mut PAYLOAD,
                                                  PAYLOAD[1] + 1,
-                                                 result,
-                                                 self.appid
-                                                     .get()
-                                                     .unwrap_or(kernel::AppId::new(0xff)))
+                                                 result)
                         });
                     }
                 }
@@ -242,8 +234,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         }
     }
 
-    fn send_advertisement(&self, appid: kernel::AppId, ch: RadioChannel) {
-        self.appid.set(Some(appid));
+    fn send_advertisement(&self, ch: RadioChannel) {
         let regs = unsafe { &*self.regs };
 
         self.radio_on();
@@ -281,8 +272,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     }
 
 
-    fn receive_advertisement(&self, appid: kernel::AppId, ch: RadioChannel) {
-        self.appid.set(Some(appid));
+    fn receive_advertisement(&self, ch: RadioChannel) {
         let regs = unsafe { &*self.regs };
 
         self.radio_on();
