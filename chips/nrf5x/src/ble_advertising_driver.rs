@@ -66,6 +66,7 @@
 use ble_advertising_hil;
 use ble_advertising_hil::RadioChannel;
 use core::cell::Cell;
+use core::cmp;
 use kernel;
 use kernel::common::circular_buffer::CircularBuffer;
 use kernel::hil::time::Frequency;
@@ -228,9 +229,9 @@ pub struct App {
     scan_callback: Option<kernel::Callback>,
     idx: usize,
     process_status: Option<BLEState>,
-    advertisement_interval_ms: Cell<u32>,
+    advertisement_interval_ms: u32,
     alarm_data: AlarmData,
-    tx_power: Cell<u8>,
+    tx_power: u8,
 }
 
 
@@ -244,8 +245,8 @@ impl Default for App {
             scan_callback: None,
             idx: PACKET_PAYLOAD_START,
             process_status: Some(BLEState::NotInitialized),
-            tx_power: Cell::new(0),
-            advertisement_interval_ms: Cell::new(200),
+            tx_power: 0,
+            advertisement_interval_ms: 200,
         }
     }
 }
@@ -403,8 +404,7 @@ impl App {
         if let Expiration::Disabled = self.alarm_data.expiration {
             // configure alarm perhaps move this to a separate function
             self.alarm_data.t0 = ble.alarm.now();
-            let period_ms = (self.advertisement_interval_ms.get()) * <A::Frequency>::frequency() /
-                            1000;
+            let period_ms = (self.advertisement_interval_ms) * <A::Frequency>::frequency() / 1000;
             let alarm_time = self.alarm_data.t0.wrapping_add(period_ms);
             self.alarm_data.expiration = Expiration::Abs(period_ms);
             ble.alarm.set_alarm(alarm_time);
@@ -767,7 +767,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                                    // 0x04 = 4 dBm, 0x00 = 0 dBm, 0xFC = -4 dBm, 0xF8 = -8 dBm
                                    // 0xF4 = -12 dBm, 0xF0 = -16 dBm, 0xEC = -20 dBm, 0xD8 = -40 dBm
                                    0x04 | 0x00 | 0xFC | 0xF8 | 0xF4 | 0xF0 | 0xEC | 0xD8 => {
-                                       app.tx_power.set(data as u8);
+                                       app.tx_power = data as u8;
                                        ReturnCode::SUCCESS
                                    }
                                    _ => ReturnCode::EINVAL,
@@ -791,13 +791,8 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                         Some(BLEState::Scanning(_)) |
                         Some(BLEState::Advertising(_)) => ReturnCode::EBUSY,
                         _ => {
-                            if data < 20 {
-                                app.advertisement_interval_ms.set(20);
-                            } else if data > 10240 {
-                                app.advertisement_interval_ms.set(10420);
-                            } else {
-                                app.advertisement_interval_ms.set(data as u32);
-                            }
+                            app.advertisement_interval_ms = cmp::max(20,
+                                                                     cmp::min(10240, data as u32));
                             ReturnCode::SUCCESS
                         }
                     })
