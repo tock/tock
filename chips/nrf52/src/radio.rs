@@ -13,7 +13,7 @@ use core::cell::Cell;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
-use nrf5x::ble_advertising_driver::RadioChannel;
+use nrf5x::ble_advertising_hil::RadioChannel;
 use peripheral_registers;
 
 
@@ -287,7 +287,7 @@ impl Radio {
 }
 
 impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
-    fn set_advertisement_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
+    fn set_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
         // set payload
         for (i, c) in buf.as_ref()[0..len].iter().enumerate() {
             unsafe {
@@ -297,7 +297,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         buf
     }
 
-    fn set_advertisement_txpower(&self, power: usize) -> kernel::ReturnCode {
+    fn set_txpower(&self, power: usize) -> kernel::ReturnCode {
         match power {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
             0x04 | 0x00 | 0xF4 | 0xFC | 0xF8 | 0xF0 | 0xEC | 0xD8 => {
@@ -308,14 +308,14 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         }
     }
 
-    fn start_advertisement_tx(&self, appid: kernel::AppId, channel: RadioChannel) {
+    fn send_advertisement(&self, appid: kernel::AppId, channel: RadioChannel) {
         self.appid.set(Some(appid));
         self.ble_init(channel);
         self.tx();
         self.enable_interrupts();
     }
 
-    fn start_advertisement_rx(&self, appid: kernel::AppId, channel: RadioChannel) {
+    fn receive_advertisement(&self, appid: kernel::AppId, channel: RadioChannel) {
         self.appid.set(Some(appid));
         self.ble_init(channel);
         self.rx();
