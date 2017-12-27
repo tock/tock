@@ -1,4 +1,4 @@
-use cortexm4::nvic;
+use cortexm4::{self, nvic};
 use i2c;
 use kernel;
 use nrf5x;
@@ -7,24 +7,32 @@ use radio;
 use spi;
 use uart;
 
-pub struct NRF52(());
+pub struct NRF52 {
+    mpu: cortexm4::mpu::MPU,
+    systick: cortexm4::systick::SysTick,
+}
 
 impl NRF52 {
     pub unsafe fn new() -> NRF52 {
-        NRF52(())
+        NRF52 {
+            mpu: cortexm4::mpu::MPU::new(),
+            // The NRF52's systick is uncalibrated, but is clocked from the
+            // 64Mhz CPU clock.
+            systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+        }
     }
 }
 
 impl kernel::Chip for NRF52 {
-    type MPU = ();
-    type SysTick = ();
+    type MPU = cortexm4::mpu::MPU;
+    type SysTick = cortexm4::systick::SysTick;
 
     fn mpu(&self) -> &Self::MPU {
-        &self.0
+        &self.mpu
     }
 
     fn systick(&self) -> &Self::SysTick {
-        &self.0
+        &self.systick
     }
 
     fn service_pending_interrupts(&mut self) {
