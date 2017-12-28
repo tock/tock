@@ -24,6 +24,12 @@ SECTIONS {
     .text :
     {
         _text = .;
+        LONG(_sgot - _text);
+        LONG(_got);
+        LONG(SIZEOF(.got));
+        LONG(_sbss);
+        LONG(SIZEOF(.bss));
+
         KEEP (*(.start))
         *(.text*)
         *(.rodata*)
@@ -58,6 +64,7 @@ SECTIONS {
     _sram_start = .;
 
 /* Global Offset Table */
+    _sgot = .;
     .got :
     {
         _got = .;
@@ -80,6 +87,7 @@ SECTIONS {
     } > SRAM AT > FLASH
 
 /* BSS section, static uninitialized variables */
+    _sbss = .;
     .bss :
     {
         _bss = .;
