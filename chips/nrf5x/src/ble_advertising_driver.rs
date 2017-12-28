@@ -1,21 +1,71 @@
-//! System Call implementation for the Bluetooth Low Energy driver
+//! Bluetooth Low Energy Driver
 //!
-//! The capsule is implemented on top of a virtual timer
-//! in order to send periodic BLE advertisements without blocking the kernel.
+//! The driver is implemented on top of virtual timers
+//! in order to send periodic BLE advertisements or perform passive scanning,
+//! Moreover, the driver support running several different userland applications to emulate
+//! running several Bluetooth devices via the same chip.
+//! This is enabled by that each Bluetooth instance is in its own grant segment such as
+//! advertising interval, device address, tx power and timer alarm.
+//! Most of these are configurable from userland except advertisement address which the kernel
+//! manages to generate an unique address for each application.
 //!
-//! The advertisement interval is configured from the user application.
-//! The allowed range is between 20 ms and 10240 ms, lower or higher values will
-//! be set to these values. Advertisements are sent on channels 37, 38 and 39
-//! which are controlled by this driver. the chip just notifies the capsules via two
-//! interfaces: RxClient and TxClient for events
-//! .
+//! The entire payload is constructed by this driver and is a part of each application's grant.
+//! When a timer for a specific application fires the actual application is identified and
+//! the radio buffer in the radio chip is replaced by the one in the grant segment then
+//! specified action is performed i.e, advertisement or passive scanning.
 //!
-//! The total size of the combined payload is 31 bytes, the driver ignores payloads
-//! which exceed this limit.
+//! Currently, this driver is only using the radio channels 37, 38 and 39 and maximal payload size
+//! supported is 39 bytes including (advertisement type, length and address).
+//! Thus, only 31 bytes are available for the actual payload.
+//!
 //!
 //! ### Allow system call
-//! Each advertesement type corresponds to an allow number from 0 to 0xFF which
-//! is handled by a giant pattern matching in this module
+//! The allow systems calls are used for buffers from allocated by userland
+//!
+//!
+//! There are three different buffers:
+//!
+//! * Bluetooth Low Energy Gap Types
+//! * Passive Scanner
+//! * Advertisement
+//!
+//!
+//! The following allow numbers are supported:
+//!
+//! * 1: «Flags»
+//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.3
+//! * 2: «Incomplete List of 16-bit Service Class UUIDs»
+//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
+//! * 4: «Incomplete List of 32-bit Service Class UUIDs»
+//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
+//! * 5: «Complete List of 32-bit Service Class UUIDs»
+//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
+//! * 6: «Incomplete List of 128-bit Service Class UUIDs»
+//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
+//! * 7: «Complete List of 128-bit Service Class UUIDs»
+//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.1
+//! * 8: «Shortened Local Name»
+//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.2
+//! * 9: «Complete Local Name»
+//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.2
+//! * 10`: «Tx Power Level»
+//! Bluetooth Core Specification:Vol. 3, Part C, section 8.1.5
+//! * 16: «Device ID» Device ID Profile v1.3 or later
+//! * 18`: «Slave Connection Interval Range»
+//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.8 and 18.8
+//! * 20: «List of 16-bit Service Solicitation UUIDs»
+//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.9 and 18.9
+//! * 21: «List of 128-bit Service Solicitation UUIDs»
+//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.9 and 18.9
+//! * 22: «Service Data»
+//! Bluetooth Core Specification:Vol. 3, Part C, sections 11.1.10 and 18.10
+//! * 25: «Appearance»
+//! Bluetooth Core Specification:Core Specification Supplement, Part A, section 1.12
+//! * 26: «Advertising Interval»
+//! Bluetooth Core Specification:Core Specification Supplement, Part A, section 1.15
+//! * 49: Passive Scanning
+//! * 50: Advertising
+//! * 255: «Manufacturer Specific Data» Bluetooth Core Specification:Vol. 3, Part C, section 8.1.4
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
@@ -31,7 +81,7 @@
 //! 'subscribe' is used to specify the specific operation, currently:
 //!
 //! * 0: provides a callback user-space when a device scanning for advertisements
-//!          and the callback is used to invoke user-space processes.
+//!      and the callback is used to invoke user-space processes.
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
@@ -56,6 +106,98 @@
 //! * SUCCESS:      The command was successful
 //! * EBUSY:        The driver is currently busy with other tasks
 //! * ENOSUPPORT:   The operation is not supported
+//!
+//! Usage
+//! -----
+//! ```
+//! Advertisement:
+//!
+//!           +-------------------------------+
+//!           |Initilize Advertisement Buffer |
+//!           +-------------------------------+
+//!                          |
+//!           +-------------------------------+
+//!           |Request BLE Address            |
+//!           +-------------------------------+
+//!                          |
+//!           +-------------------------------+
+//!           | Configure  ADV_TYPE           |
+//!           +-------------------------------+
+//!                          |
+//!           +-------------------------------+
+//!           | Start Advertising             |
+//!           +-------------------------------+
+//!                          |
+//!           +-------------------------------+
+//!           | Configure Alarm               |------------|
+//!           +-------------------------------+            |
+//!                          |                             |
+//!           +-------------------------------+            |
+//!           | Send Packet                   |------------|
+//!           +-------------------------------+
+//!
+//! Client
+//!           +-------------------------------+
+//!           | Packet Sent or Error          |------------|
+//!           +-------------------------------+            |
+//!                         |                              |
+//!           +-------------------------------+            |
+//!           | Notify BLE Driver             |------------|
+//!           +-------------------------------+
+//!
+//! ```
+//!
+//! ```
+//! Passive Scanning:
+//!
+//!           +----------------------+
+//!           |Configure Callback    |
+//!           +----------------------+
+//!                      |
+//!           +----------------------+
+//!           |Initilize Scan Buffer |
+//!           +----------------------+
+//!                      |
+//!           +----------------------+
+//!           |Start Passive Scanning|
+//!           +----------------------+
+//!                      |
+//!           +----------------------+
+//!           |Configure Alarm       |--------------|
+//!           +----------------------+              |
+//!                      |                          |
+//!           +----------------------+              |
+//!           | Receive Packet       |--------------|
+//!           +----------------------+
+//!
+//! Client
+//!           +-------------------------------+
+//!           | Packet Recived or Error       |------------|
+//!           +-------------------------------+            |
+//!                         |                              |
+//!           +-------------------------------+            |
+//!           | Notify BLE Driver             |------------|
+//!           +-------------------------------+
+//! ```
+//!
+//! You need a device that provides the `nrf5x::ble_advertising_hil::BleAdvertisementDriver` trait
+//! along with a virtual timer to perform events and not block the entire kernel
+//!
+//! ```rust
+//!     let ble_radio = static_init!(
+//!     nrf5x::ble_advertising_driver::BLE
+//!     <'static, nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+//!     nrf5x::ble_advertising_driver::BLE::new(
+//!         &mut nrf52::radio::RADIO,
+//!     kernel::Grant::create(),
+//!         &mut nrf5x::ble_advertising_driver::BUF,
+//!         ble_radio_virtual_alarm));
+//!    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_rx_client(&nrf52::radio::RADIO,
+//!                                                                      ble_radio);
+//!    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_tx_client(&nrf52::radio::RADIO,
+//!                                                                      ble_radio);
+//!    ble_radio_virtual_alarm.set_client(ble_radio);
+//! ```
 //!
 //! ### Authors
 //! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
@@ -187,7 +329,6 @@ const PACKET_ADDR_START: usize = 2;
 const PACKET_ADDR_END: usize = 7;
 const PACKET_PAYLOAD_START: usize = 8;
 const PACKET_LENGTH: usize = 39;
-
 
 
 #[derive(PartialEq, Debug)]
@@ -402,7 +543,6 @@ impl App {
               B: ble_advertising_hil::BleAdvertisementDriver + 'a
     {
         if let Expiration::Disabled = self.alarm_data.expiration {
-            // configure alarm perhaps move this to a separate function
             self.alarm_data.t0 = ble.alarm.now();
             let period_ms = (self.advertisement_interval_ms) * <A::Frequency>::frequency() / 1000;
             let alarm_time = self.alarm_data.t0.wrapping_add(period_ms);
@@ -456,7 +596,7 @@ impl<'a, B, A> BLE<'a, B, A>
 
     // this method determines which user-app the current alarm belongs to
     // BUT it doesn't guarantee that a given alarm belongs the current app just that the app has
-    // waited the longest thus it prioritizes fairesness over accuranncy!
+    // waited the longest thus it prioritizes fairness over accuranncy!
     fn get_current_process(&self) -> Option<kernel::AppId> {
         self.current_app.set(None);
         let now = self.alarm.now();
@@ -566,40 +706,37 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
     // this may not be fair if the processes have similar interval one process
     // may be starved.......
     fn fired(&self) {
-        let appid = self.get_current_process();
+        if let Some(appid) = self.get_current_process() {
 
-        // assumption AppId: 0xff is not used
-        let _ = self.app.enter(appid.unwrap_or(kernel::AppId::new(0xff)),
-                               |app, _| match app.process_status {
-                                   Some(BLEState::AdvertisingIdle) if !self.busy.get() => {
-                                       self.busy.set(true);
-                                       app.process_status =
-                                           Some(BLEState::Advertising(RadioChannel::Freq37));
-                                       app.replace_advertisement_buffer(&self);
-                                       self.sending_app.set(Some(app.appid()));
-                                       self.radio
-                                           .send_advertisement(RadioChannel::Freq37);
-                                   }
-                                   Some(BLEState::ScanningIdle) if !self.busy.get() => {
-                                       self.busy.set(true);
-                                       app.process_status =
-                                           Some(BLEState::Scanning(RadioChannel::Freq37));
-                                       app.replace_advertisement_buffer(&self);
-                                       self.receiving_app.set(Some(app.appid()));
-                                       self.radio.receive_advertisement(RadioChannel::Freq37);
+            let _ = self.app.enter(appid, |app, _| match app.process_status {
+                Some(BLEState::AdvertisingIdle) if !self.busy.get() => {
+                    self.busy.set(true);
+                    app.process_status = Some(BLEState::Advertising(RadioChannel::Freq37));
+                    app.replace_advertisement_buffer(&self);
+                    self.sending_app.set(Some(app.appid()));
+                    self.radio
+                        .send_advertisement(RadioChannel::Freq37);
+                }
+                Some(BLEState::ScanningIdle) if !self.busy.get() => {
+                    self.busy.set(true);
+                    app.process_status = Some(BLEState::Scanning(RadioChannel::Freq37));
+                    app.replace_advertisement_buffer(&self);
+                    self.receiving_app.set(Some(app.appid()));
+                    self.radio.receive_advertisement(RadioChannel::Freq37);
 
-                                   }
-                                   Some(BLEState::ScanningIdle) |
-                                   Some(BLEState::AdvertisingIdle) => {
-                                       debug!("app {:?} waiting for CS", appid);
-                                       app.set_single_alarm(&self);
-                                   }
-                                   _ => {
-                                       debug!("app: {:?} \t invalid state {:?}",
-                                              app.appid(),
-                                              app.process_status);
-                                   }
-                               });
+                }
+                Some(BLEState::ScanningIdle) |
+                Some(BLEState::AdvertisingIdle) => {
+                    debug!("app {:?} waiting for CS", appid);
+                    app.set_single_alarm(&self);
+                }
+                _ => {
+                    debug!("app: {:?} \t invalid state {:?}",
+                           app.appid(),
+                           app.process_status);
+                }
+            });
+        }
     }
 }
 
@@ -615,8 +752,9 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                 // validate the recived data Because ordinary BLE packets can be bigger than 39
                 // bytes we need check for that!  And we use packet header to find size but the
                 // radio reads maximum 39 bytes Thus, the CRC will probably be invalid but if we
-                // are really "unlucky" it could pass Therefore, we use this check to prevent a
-                // prevent buffer overflow because the buffer is 39 bytes
+                // are really "unlucky" it could pass (collision).
+                // Therefore, we use this check to prevent a buffer overflow because the buffer is
+                // 39 bytes
 
                 let notify_userland = if len <= PACKET_LENGTH as u8 && app.app_read.is_some() &&
                                          result == ReturnCode::SUCCESS {
@@ -671,8 +809,8 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
           A: kernel::hil::time::Alarm + 'a
 {
     // the ReturnCode indicates valid CRC or not, not used yet but could be used for
-    // re-tranmissions if the CRC for reason
-    fn send_event(&self, _: ReturnCode) {
+    // re-tranmissions for invalid CRCs
+    fn send_event(&self, _crc_ok: ReturnCode) {
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
                 match app.process_status {
@@ -718,6 +856,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                appid: kernel::AppId)
                -> ReturnCode {
         match command_num {
+
             // Start periodic advertisments
             0 => {
                 let result = self.app
@@ -739,7 +878,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                 result
             }
 
-            // Stop perodic advertisements or scanning
+            // Stop periodic advertisements or scanning
             1 => {
                 self.app
                     .enter(appid, |app, _| match app.process_status {
@@ -828,7 +967,6 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                 self.app
                     .enter(appid,
                            |app, _| if let Some(BLEState::Initialized) = app.process_status {
-
                                let status = app.generate_random_address(appid);
                                if status == ReturnCode::SUCCESS {
                                    app.configure_advertisement_pdu()
@@ -859,7 +997,6 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                            |app, _| if app.process_status != Some(BLEState::NotInitialized) {
                                app.app_write = Some(slice);
                                app.set_gap_data(gap_type);
-                               // self.set_advertisement_data(gap_type, appid);
                                ReturnCode::SUCCESS
                            } else {
                                ReturnCode::EINVAL
@@ -898,6 +1035,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
 
     fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
         match subscribe_num {
+
             // Callback for scanning
             0 => {
                 self.app
