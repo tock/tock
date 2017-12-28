@@ -1,5 +1,6 @@
 //! ARM SysTick peripheral.
 
+use core::cmp;
 use kernel;
 use kernel::common::VolatileCell;
 
@@ -12,7 +13,7 @@ struct Registers {
 
 pub struct SysTick {
     regs: &'static Registers,
-    tenms: u32,
+    hertz: u32,
 }
 
 #[no_mangle]
@@ -24,36 +25,41 @@ impl SysTick {
     pub unsafe fn new() -> SysTick {
         SysTick {
             regs: &*BASE_ADDR,
-            tenms: 0,
+            hertz: 0,
         }
     }
 
     pub unsafe fn new_with_calibration(clock_speed: u32) -> SysTick {
         let mut res = SysTick::new();
-        res.tenms = clock_speed / 100;
+        res.hertz = clock_speed;
         res
     }
 
-    fn tenms(&self) -> u32 {
+    fn hertz(&self) -> u32 {
         let tenms = self.regs.calibration.get() & 0xffffff;
-        if tenms == 0 { self.tenms } else { tenms }
+        if tenms == 0 {
+            self.hertz
+        } else {
+            tenms * 100
+        }
     }
 }
 
 impl kernel::SysTick for SysTick {
     fn set_timer(&self, us: u32) {
-        let tenms = self.tenms();
-        let reload = tenms * us / 10000;
+        let us = cmp::min(us, 1_000_000);
+        let hertz = self.hertz();
+        let reload = hertz / (1_000_000 / us);
 
         self.regs.value.set(0);
         self.regs.reload.set(reload);
     }
 
     fn value(&self) -> u32 {
-        let tenms = self.tenms();
+        let hertz = self.hertz();
         let value = self.regs.value.get() & 0xffffff;
 
-        value * 10000 / tenms
+        value / (hertz / 1_000_000)
     }
 
     fn overflowed(&self) -> bool {
