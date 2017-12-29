@@ -428,16 +428,19 @@ impl App {
             Some(BLEState::Advertising(_)) |
             Some(BLEState::Scanning(_)) => ReturnCode::EBUSY,
             _ => {
-                self.advertisement_buf
+                let res = self.advertisement_buf
                     .as_mut()
                     .map(|data| {
                         for byte in data.as_mut()[PACKET_PAYLOAD_START..PACKET_LENGTH].iter_mut() {
                             *byte = 0x00;
                         }
-                        // self.idx = PACKET_PAYLOAD_START;
                         ReturnCode::SUCCESS
                     })
-                    .unwrap_or_else(|| ReturnCode::EINVAL)
+                    .unwrap_or_else(|| ReturnCode::EINVAL);
+                if res == ReturnCode::SUCCESS {
+                    self.idx = PACKET_PAYLOAD_START;
+                }
+                res
             }
         }
     }
@@ -456,7 +459,6 @@ impl App {
 
 
     fn set_gap_data(&mut self, gap_type: BLEGapType) -> ReturnCode {
-
         self.app_write
             .take()
             .as_ref()

@@ -18,7 +18,7 @@ int main(void) {
   printf("[Tutorial] BLE Advertising\n");
 
   // declarations of variables to be used in this BLE example application
-  uint16_t advertising_interval_ms = 500;
+  uint16_t advertising_interval_ms = 300;
   uint8_t device_name[]            = "TockOS";
   uint16_t uuids[]                 = {0x1800, 0x1809};
   uint8_t manufacturer_data[]      = {0x13, 0x37};
@@ -26,7 +26,6 @@ int main(void) {
 
   // configure advertisement interval to 300ms
   // configure LE only and discoverable
-  // configure advertisement address as 1,2,3,4,5,6
   printf(" - Initializing BLE... %s\n", device_name);
   err = ble_initialize(advertising_interval_ms, true);
   if (err < TOCK_SUCCESS)
