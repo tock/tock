@@ -4,12 +4,15 @@ use kernel::ReturnCode;
 
 
 pub trait BleAdvertisementDriver {
-    fn set_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8];
-    fn set_txpower(&self, power: usize) -> ReturnCode;
-    fn send_advertisement(&self, freq: RadioChannel);
+    fn set_tx_power(&self, power: usize) -> ReturnCode;
+    fn transmit_advertisement(&self,
+                              buf: &'static mut [u8],
+                              len: usize,
+                              freq: RadioChannel)
+                              -> &'static mut [u8];
     fn receive_advertisement(&self, freq: RadioChannel);
-    fn set_rx_client(&self, client: &'static RxClient);
-    fn set_tx_client(&self, client: &'static TxClient);
+    fn set_receive_client(&self, client: &'static RxClient);
+    fn set_transmit_client(&self, client: &'static TxClient);
 }
 
 
@@ -18,7 +21,7 @@ pub trait RxClient {
 }
 
 pub trait TxClient {
-    fn send_event(&self, result: ReturnCode);
+    fn transmit_event(&self, result: ReturnCode);
 }
 
 

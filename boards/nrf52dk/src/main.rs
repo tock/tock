@@ -275,10 +275,10 @@ pub unsafe fn reset_handler() {
          kernel::Grant::create(),
          &mut nrf5x::ble_advertising_driver::BUF,
          ble_radio_virtual_alarm));
-    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_rx_client(&nrf52::radio::RADIO,
-                                                                      ble_radio);
-    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_tx_client(&nrf52::radio::RADIO,
-                                                                      ble_radio);
+    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_receive_client(&nrf52::radio::RADIO,
+                                                                           ble_radio);
+    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_transmit_client(&nrf52::radio::RADIO,
+                                                                            ble_radio);
     ble_radio_virtual_alarm.set_client(ble_radio);
 
 

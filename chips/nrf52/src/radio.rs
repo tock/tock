@@ -229,7 +229,7 @@ impl Radio {
                 nrf5x::constants::RADIO_STATE_TXDISABLE |
                 nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.tx_client.get().map(|client| client.send_event(result));
+                    self.tx_client.get().map(|client| client.transmit_event(result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU |
                 nrf5x::constants::RADIO_STATE_RXIDLE |
@@ -238,9 +238,7 @@ impl Radio {
                     self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
-                            client.receive_event(&mut PAYLOAD,
-                                                 PAYLOAD[1] + 1,
-                                                 result)
+                            client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
                         });
                     }
                 }
@@ -275,11 +273,7 @@ impl Radio {
         regs.intenclr.set(0xffffffff);
     }
 
-    pub fn reset_payload(&self) {}
-}
-
-impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
-    fn set_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
+    pub fn replace_radio_buffer(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
         // set payload
         for (i, c) in buf.as_ref()[0..len].iter().enumerate() {
             unsafe {
@@ -288,8 +282,10 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         }
         buf
     }
+}
 
-    fn set_txpower(&self, power: usize) -> kernel::ReturnCode {
+impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
+    fn set_tx_power(&self, power: usize) -> kernel::ReturnCode {
         match power {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
             0x04 | 0x00 | 0xF4 | 0xFC | 0xF8 | 0xF0 | 0xEC | 0xD8 => {
@@ -300,10 +296,16 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         }
     }
 
-    fn send_advertisement(&self, channel: RadioChannel) {
+    fn transmit_advertisement(&self,
+                              buf: &'static mut [u8],
+                              len: usize,
+                              channel: RadioChannel)
+                              -> &'static mut [u8] {
+        let res = self.replace_radio_buffer(buf, len);
         self.ble_init(channel);
         self.tx();
         self.enable_interrupts();
+        res
     }
 
     fn receive_advertisement(&self, channel: RadioChannel) {
@@ -312,11 +314,11 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         self.enable_interrupts();
     }
 
-    fn set_rx_client(&self, client: &'static nrf5x::ble_advertising_hil::RxClient) {
+    fn set_receive_client(&self, client: &'static nrf5x::ble_advertising_hil::RxClient) {
         self.rx_client.set(Some(client));
     }
 
-    fn set_tx_client(&self, client: &'static nrf5x::ble_advertising_hil::TxClient) {
+    fn set_transmit_client(&self, client: &'static nrf5x::ble_advertising_hil::TxClient) {
         self.tx_client.set(Some(client));
     }
 }

@@ -40,8 +40,50 @@ impl Radio {
         }
     }
 
-    // FIXME: Add to another trait for physical configuration of the Radio
-    // Will be useful later if a separate two or more CPUs are used etc
+
+    fn ble_init(&self, channel: RadioChannel) {
+        let regs = unsafe { &*self.regs };
+
+        self.radio_on();
+
+        // TX Power acc. to twpower variable in the struct
+        self.set_txpower();
+
+        // BLE MODE
+        self.set_channel_rate(0x03);
+
+        self.set_channel_freq(channel as u32);
+        self.set_data_white_iv(channel as u32);
+
+        // Set PREFIX | BASE Address
+        regs.prefix0.set(0x0000008e);
+        regs.base0.set(0x89bed600);
+
+        self.set_tx_address(0x00);
+        self.set_rx_address(0x01);
+        // regs.RXMATCH.set(0x00);
+
+        // Set Packet Config
+        self.set_packet_config(0x00);
+
+        // CRC Config
+        self.set_crc_config();
+
+        // Buffer configuration
+        self.set_buffer();
+    }
+
+    fn tx(&self) {
+        let regs = unsafe { &*self.regs };
+        regs.ready.set(0);
+        regs.txen.set(1);
+    }
+
+    fn rx(&self) {
+        let regs = unsafe { &*self.regs };
+        regs.ready.set(0);
+        regs.rxen.set(1);
+    }
 
     fn set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
@@ -174,7 +216,7 @@ impl Radio {
                 nrf5x::constants::RADIO_STATE_TXDISABLE |
                 nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.tx_client.get().map(|client| client.send_event(result));
+                    self.tx_client.get().map(|client| client.transmit_event(result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU |
                 nrf5x::constants::RADIO_STATE_RXIDLE |
@@ -183,9 +225,7 @@ impl Radio {
                     self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
-                            client.receive_event(&mut PAYLOAD,
-                                                 PAYLOAD[1] + 1,
-                                                 result)
+                            client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
                         });
                     }
                 }
@@ -210,10 +250,8 @@ impl Radio {
         // disable all possible interrupts
         regs.intenclr.set(0xffffffff);
     }
-}
 
-impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
-    fn set_data(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
+    pub fn replace_radio_buffer(&self, buf: &'static mut [u8], len: usize) -> &'static mut [u8] {
         // set payload
         for (i, c) in buf.as_ref()[0..len].iter().enumerate() {
             unsafe {
@@ -222,8 +260,10 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         }
         buf
     }
+}
 
-    fn set_txpower(&self, power: usize) -> kernel::ReturnCode {
+impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
+    fn set_tx_power(&self, power: usize) -> kernel::ReturnCode {
         match power {
             // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
             0x04 | 0x00 | 0xF4 | 0xFC | 0xF8 | 0xF0 | 0xEC | 0xD8 => {
@@ -234,83 +274,29 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         }
     }
 
-    fn send_advertisement(&self, ch: RadioChannel) {
-        let regs = unsafe { &*self.regs };
-
-        self.radio_on();
-
-        // TX Power acc. to twpower variable in the struct
-        self.set_txpower();
-
-        // BLE MODE
-        self.set_channel_rate(0x03);
-
-        self.set_channel_freq(ch as u32);
-        self.set_data_white_iv(ch as u32);
-
-        // Set PREFIX | BASE Address
-        regs.prefix0.set(0x0000008e);
-        regs.base0.set(0x89bed600);
-
-        self.set_tx_address(0x00);
-        self.set_rx_address(0x01);
-        // regs.RXMATCH.set(0x00);
-
-        // Set Packet Config
-        self.set_packet_config(0x00);
-
-        // CRC Config
-        self.set_crc_config();
-
-        // Buffer configuration
-        self.set_buffer();
-
+    fn transmit_advertisement(&self,
+                              buf: &'static mut [u8],
+                              len: usize,
+                              channel: RadioChannel)
+                              -> &'static mut [u8] {
+        let res = self.replace_radio_buffer(buf, len);
+        self.ble_init(channel);
+        self.tx();
         self.enable_interrupts();
-
-        regs.ready.set(0);
-        regs.txen.set(1);
+        res
     }
 
-
-    fn receive_advertisement(&self, ch: RadioChannel) {
-        let regs = unsafe { &*self.regs };
-
-        self.radio_on();
-
-        // BLE MODE
-        self.set_channel_rate(0x03);
-
-        self.set_channel_freq(ch as u32);
-        self.set_data_white_iv(ch as u32);
-
-        // Set PREFIX | BASE Address
-        regs.prefix0.set(0x0000008e);
-        regs.base0.set(0x89bed600);
-
-        self.set_tx_address(0x00);
-        self.set_rx_address(0x01);
-        // regs.RXMATCH.set(0x00);
-
-        // Set Packet Config
-        self.set_packet_config(0x00);
-
-        // CRC Config
-        self.set_crc_config();
-
-        // Buffer configuration
-        self.set_buffer();
-
+    fn receive_advertisement(&self, channel: RadioChannel) {
+        self.ble_init(channel);
+        self.rx();
         self.enable_interrupts();
-
-        regs.ready.set(0);
-        regs.rxen.set(1);
     }
 
-    fn set_rx_client(&self, client: &'static nrf5x::ble_advertising_hil::RxClient) {
+    fn set_receive_client(&self, client: &'static nrf5x::ble_advertising_hil::RxClient) {
         self.rx_client.set(Some(client));
     }
 
-    fn set_tx_client(&self, client: &'static nrf5x::ble_advertising_hil::TxClient) {
+    fn set_transmit_client(&self, client: &'static nrf5x::ble_advertising_hil::TxClient) {
         self.tx_client.set(Some(client));
     }
 }

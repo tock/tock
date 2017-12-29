@@ -113,11 +113,11 @@
 //! Advertisement:
 //!
 //!           +-------------------------------+
-//!           |Initilize Advertisement Buffer |
+//!           | Initilize Advertisement Buffer|
 //!           +-------------------------------+
 //!                          |
 //!           +-------------------------------+
-//!           |Request BLE Address            |
+//!           | Request BLE Address           |
 //!           +-------------------------------+
 //!                          |
 //!           +-------------------------------+
@@ -150,25 +150,25 @@
 //! ```
 //! Passive Scanning:
 //!
-//!           +----------------------+
-//!           |Configure Callback    |
-//!           +----------------------+
+//!           +-----------------------+
+//!           | Configure Callback    |
+//!           +-----------------------+
 //!                      |
-//!           +----------------------+
-//!           |Initilize Scan Buffer |
-//!           +----------------------+
+//!           +-----------------------+
+//!           | Initilize Scan Buffer |
+//!           +-----------------------+
 //!                      |
-//!           +----------------------+
-//!           |Start Passive Scanning|
-//!           +----------------------+
+//!           +-----------------------+
+//!           | Start Passive Scanning|
+//!           +-----------------------+
 //!                      |
-//!           +----------------------+
-//!           |Configure Alarm       |--------------|
-//!           +----------------------+              |
-//!                      |                          |
-//!           +----------------------+              |
-//!           | Receive Packet       |--------------|
-//!           +----------------------+
+//!           +-----------------------+
+//!           | Configure Alarm       |--------------|
+//!           +-----------------------+              |
+//!                      |                           |
+//!           +-----------------------+              |
+//!           | Receive Packet        |--------------|
+//!           +-----------------------+
 //!
 //! Client
 //!           +-------------------------------+
@@ -501,7 +501,7 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
-    fn replace_advertisement_buffer<'a, B, A>(&self, ble: &BLE<'a, B, A>) -> ReturnCode
+    fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
         where A: kernel::hil::time::Alarm + 'a,
               B: ble_advertising_hil::BleAdvertisementDriver + 'a
     {
@@ -516,7 +516,7 @@ impl App {
                             .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter()) {
                             *out = *inp;
                         }
-                        let result = ble.radio.set_data(data, PACKET_LENGTH);
+                        let result = ble.radio.transmit_advertisement(data, PACKET_LENGTH, channel);
                         ble.kernel_tx.replace(result);
                         ReturnCode::SUCCESS
                     })
@@ -528,7 +528,7 @@ impl App {
     // Returns a new pseudo-random number and updates the randomness state.
     //
     // Uses the [Xorshift](https://en.wikipedia.org/wiki/Xorshift) algorithm to
-    // produce psedu-random numbers. Uses the `random_nonce` field to keep
+    // produce pseudo-random numbers. Uses the `random_nonce` field to keep
     // state.
     fn random_nonce(&mut self) -> u32 {
         let mut next_nonce = ::core::num::Wrapping(self.random_nonce);
@@ -652,14 +652,12 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
                         Some(BLEState::AdvertisingIdle) => {
                             self.busy.set(true);
                             app.process_status = Some(BLEState::Advertising(RadioChannel::Freq37));
-                            app.replace_advertisement_buffer(&self);
                             self.sending_app.set(Some(app.appid()));
-                            self.radio.send_advertisement(RadioChannel::Freq37);
+                            app.send_advertisement(&self, RadioChannel::Freq37);
                         }
                         Some(BLEState::ScanningIdle) => {
                             self.busy.set(true);
                             app.process_status = Some(BLEState::Scanning(RadioChannel::Freq37));
-                            app.replace_advertisement_buffer(&self);
                             self.receiving_app.set(Some(app.appid()));
                             self.radio.receive_advertisement(RadioChannel::Freq37);
                         }
@@ -745,7 +743,7 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
 {
     // the ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-tranmissions for invalid CRCs
-    fn send_event(&self, _crc_ok: ReturnCode) {
+    fn transmit_event(&self, _crc_ok: ReturnCode) {
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
                 match app.process_status {
@@ -753,13 +751,13 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
                         app.process_status = Some(BLEState::Advertising(RadioChannel::Freq38));
                         app.alarm_data.expiration = Expiration::Disabled;
                         self.sending_app.set(Some(app.appid()));
-                        self.radio.send_advertisement(RadioChannel::Freq38);
+                        app.send_advertisement(&self, RadioChannel::Freq38);
                     }
 
                     Some(BLEState::Advertising(RadioChannel::Freq38)) => {
                         app.process_status = Some(BLEState::Advertising(RadioChannel::Freq39));
                         self.sending_app.set(Some(app.appid()));
-                        self.radio.send_advertisement(RadioChannel::Freq39);
+                        app.send_advertisement(&self, RadioChannel::Freq39);
                     }
 
                     Some(BLEState::Advertising(RadioChannel::Freq39)) => {
