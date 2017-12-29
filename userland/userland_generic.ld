@@ -24,9 +24,12 @@ SECTIONS {
     .text :
     {
         _text = .;
-        LONG(_sgot - _text);
+        LONG(LOADADDR(.got) - _text);
         LONG(_got);
         LONG(SIZEOF(.got));
+        LONG(LOADADDR(.data) - _text);
+        LONG(_data);
+        LONG(SIZEOF(.data));
         LONG(_sbss);
         LONG(SIZEOF(.bss));
 
@@ -64,7 +67,6 @@ SECTIONS {
     _sram_start = .;
 
 /* Global Offset Table */
-    _sgot = .;
     .got :
     {
         _got = .;
