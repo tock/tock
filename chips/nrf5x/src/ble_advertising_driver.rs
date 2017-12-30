@@ -1,23 +1,14 @@
-//! Bluetooth Low Energy Driver
+//! Bluetooth Low Energy Advertising Driver
 //!
-//! The driver is implemented on top of virtual timers
-//! in order to send periodic BLE advertisements or perform passive scanning,
-//! Moreover, the driver support running several different userland applications to emulate
-//! running several Bluetooth devices via the same chip.
-//! This is enabled by that each Bluetooth instance is in its own grant segment such as
-//! advertising interval, device address, tx power and timer alarm.
-//! Most of these are configurable from userland except advertisement address which the kernel
-//! manages to generate an unique address for each application.
+//! A system call driver that exposes the Bluetooth Low Energy advertising
+//! channel. The driver generates a unique static address for each process,
+//! allowing each process to act as its own device and send or scan for
+//! advertisements. Timing of advertising or scanning events is handled by the
+//! driver but processes can request an advertising or scanning interval.
+//! Processes can also control the TX power used for their advertisements.
 //!
-//! The entire payload is constructed by this driver and is a part of each application's grant.
-//! When a timer for a specific application fires the actual application is identified and
-//! the radio buffer in the radio chip is replaced by the one in the grant segment then
-//! specified action is performed i.e, advertisement or passive scanning.
-//!
-//! Currently, this driver is only using the radio channels 37, 38 and 39 and maximal payload size
-//! supported is 39 bytes including (advertisement type, length and address).
-//! Thus, only 31 bytes are available for the actual payload.
-//!
+//! Data payloads are limited to 31 bytes since the maximum advertising channel
+//! protocol data unit (PDU) is 37 bytes and includes a 6-byte header.
 //!
 //! ### Allow system call
 //! The allow systems calls are used for buffers from allocated by userland
@@ -96,7 +87,7 @@
 //! * 0: start advertisement
 //! * 1: stop advertisement
 //! * 2: configure tx power
-//! * 3: configure advertise interval
+//! * 3: configure advertisement interval
 //! * 4: clear the advertisement payload
 //! * 5: start scanning
 //! * 6: initialize driver
