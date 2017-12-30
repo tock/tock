@@ -163,7 +163,7 @@
 //!
 //! Client
 //!           +-------------------------------+
-//!           | Packet Recived or Error       |------------|
+//!           | Packet Received or Error      |------------|
 //!           +-------------------------------+            |
 //!                         |                              |
 //!           +-------------------------------+            |
@@ -318,7 +318,7 @@ enum Expiration {
 }
 
 #[derive(Copy, Clone)]
-pub struct AlarmData {
+struct AlarmData {
     t0: u32,
     expiration: Expiration,
 }
@@ -676,12 +676,13 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
         if let Some(appid) = self.receiving_app.get() {
             let _ = self.app.enter(appid, |app, _| {
 
-                // validate the recived data Because ordinary BLE packets can be bigger than 39
-                // bytes we need check for that!  And we use packet header to find size but the
-                // radio reads maximum 39 bytes Thus, the CRC will probably be invalid but if we
-                // are really "unlucky" it could pass (collision).
-                // Therefore, we use this check to prevent a buffer overflow because the buffer is
-                // 39 bytes
+                // Validate the received data, because ordinary BLE packets can be bigger than 39
+                // bytes we need check for that!
+                // Moreover, we use the packet header to find size but the radio reads maximum 39 bytes. 
+                // Therefore, we ignore payloads with a header size bigger than 39 because the
+                // channels 37, 38 and 39 should only be used for advertisements!
+                // Packets that are bigger than 39 bytes are likely "Channel PDUs" which should
+                // only be sent on the other 37 RF channels.
 
                 let notify_userland = if len <= PACKET_LENGTH as u8 && app.app_read.is_some() &&
                                          result == ReturnCode::SUCCESS {
@@ -734,7 +735,7 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
     where B: ble_advertising_hil::BleAdvertisementDriver + 'a,
           A: kernel::hil::time::Alarm + 'a
 {
-    // the ReturnCode indicates valid CRC or not, not used yet but could be used for
+    // The ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-tranmissions for invalid CRCs
     fn transmit_event(&self, _crc_ok: ReturnCode) {
         if let Some(appid) = self.sending_app.get() {
@@ -798,7 +799,7 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
                 res
             }
 
-            // Stop periodic advertisements or scanning
+            // Stop periodic advertisements or passive scanning
             1 => {
                 self.app
                     .enter(appid, |app, _| match app.process_status {
