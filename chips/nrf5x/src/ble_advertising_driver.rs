@@ -678,7 +678,8 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
                 // bytes we need check for that!
-                // Moreover, we use the packet header to find size but the radio reads maximum 39 bytes. 
+                // Moreover, we use the packet header to find size but the radio reads maximum
+                // 39 bytes.
                 // Therefore, we ignore payloads with a header size bigger than 39 because the
                 // channels 37, 38 and 39 should only be used for advertisements!
                 // Packets that are bigger than 39 bytes are likely "Channel PDUs" which should
