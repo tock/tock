@@ -2,23 +2,32 @@
 
 use kernel::ReturnCode;
 
+
 pub trait BleAdvertisementDriver {
-    fn clear_adv_data(&self);
-    fn set_advertisement_address(&self, addr: &'static mut [u8]) -> &'static mut [u8];
-    fn set_advertisement_data(&self,
-                              ad_type: usize,
-                              data: &'static mut [u8],
+    fn set_tx_power(&self, power: usize) -> ReturnCode;
+    fn transmit_advertisement(&self,
+                              buf: &'static mut [u8],
                               len: usize,
-                              offset: usize)
+                              freq: RadioChannel)
                               -> &'static mut [u8];
-    fn set_advertisement_txpower(&self, power: usize) -> ReturnCode;
-    fn start_advertisement_tx(&self, ch: usize);
-    fn start_advertisement_rx(&self, ch: usize);
-    fn set_client(&self, client: &'static RxClient);
+    fn receive_advertisement(&self, freq: RadioChannel);
+    fn set_receive_client(&self, client: &'static RxClient);
+    fn set_transmit_client(&self, client: &'static TxClient);
 }
 
 
-// Temporary trait for BLE
 pub trait RxClient {
-    fn receive(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+    fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+}
+
+pub trait TxClient {
+    fn transmit_event(&self, result: ReturnCode);
+}
+
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub enum RadioChannel {
+    Freq37 = 37,
+    Freq38 = 38,
+    Freq39 = 39,
 }

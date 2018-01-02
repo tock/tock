@@ -10,6 +10,9 @@
 #include <string.h>
 
 #define MAX_SIZE 31
+#define ADV_SIZE 39
+
+static unsigned char advertisement_buf[ADV_SIZE];
 
 /*******************************************************************************
  *   INTERNAL BLE HELPER FUNCTION Prototypes
@@ -41,9 +44,16 @@ static int s_ble_configure_gap_data(GapAdvertisementData_t header,
   return allow(BLE_DRIVER_NUMBER, header, (void *)data, data_len);
 }
 
-static int s_ble_configure_advertisement_address(void) {
-  unsigned char data[] = {0xf0, 0x00, 0x00, 0x00, 0x00, 0xf0};
-  return allow(BLE_DRIVER_NUMBER, BLE_CFG_ADV_ADDR_ALLOW, (void *)data, 6);
+// internal helper to request the kernel to generate a random advertisement
+// address
+
+static int s_request_advertisement_address(void) {
+  return command(BLE_DRIVER_NUMBER, BLE_REQ_ADV_ADDR, 0, 0);
+}
+
+static int s_initialize_advertisement_buffer(void) {
+  return allow(BLE_DRIVER_NUMBER, BLE_CFG_ADV_BUF_ALLOW,
+               (void *)advertisement_buf, ADV_SIZE);
 }
 
 /*******************************************************************************
@@ -52,6 +62,12 @@ static int s_ble_configure_advertisement_address(void) {
 
 int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
   int err;
+
+  err = s_initialize_advertisement_buffer();
+
+  err = s_request_advertisement_address();
+  if (err < TOCK_SUCCESS)
+    return err;
 
   // configure advertisement interval
   // if the interval is less than 20 or bigger than 10240 to kernel
@@ -67,11 +83,7 @@ int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
     flags |= LE_GENERAL_DISCOVERABLE;
   }
 
-  err = s_ble_configure_flags(flags);
-  if (err < TOCK_SUCCESS)
-    return err;
-
-  return s_ble_configure_advertisement_address();
+  return s_ble_configure_flags(flags);
 }
 
 int ble_start_advertising(void) {
@@ -137,6 +149,10 @@ int ble_start_passive_scan(uint8_t *data, uint8_t max_len,
     if (err < TOCK_SUCCESS)
       return err;
 
+    err = s_initialize_advertisement_buffer();
+    if (err < TOCK_SUCCESS)
+      return err;
+
     err =
       allow(BLE_DRIVER_NUMBER, BLE_CFG_SCAN_BUF_ALLOW, (void *)data, max_len);
     if (err < TOCK_SUCCESS)
@@ -144,4 +160,8 @@ int ble_start_passive_scan(uint8_t *data, uint8_t max_len,
 
     return command(BLE_DRIVER_NUMBER, BLE_SCAN_CMD, 1, 0);
   }
+}
+
+int ble_stop_passive_scan(void) {
+  return command(BLE_DRIVER_NUMBER, BLE_ADV_STOP_CMD, 1, 0);
 }
