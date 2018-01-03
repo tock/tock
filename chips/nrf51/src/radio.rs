@@ -14,7 +14,8 @@ use core::cell::Cell;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
-use nrf5x::ble_advertising_hil::RadioChannel;
+use nrf5x::ble_advertising_hil::RadioFrequency;
+use nrf5x::constants::TxPower;
 use peripheral_registers;
 
 static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
@@ -22,7 +23,7 @@ static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
 
 pub struct Radio {
     regs: *const peripheral_registers::RADIO_REGS,
-    txpower: Cell<usize>,
+    tx_power: Cell<TxPower>,
     rx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::RxClient>>,
     tx_client: Cell<Option<&'static nrf5x::ble_advertising_hil::TxClient>>,
 }
@@ -33,25 +34,26 @@ impl Radio {
     pub const fn new() -> Radio {
         Radio {
             regs: peripheral_registers::RADIO_BASE as *const peripheral_registers::RADIO_REGS,
-            txpower: Cell::new(0),
+            tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: Cell::new(None),
             tx_client: Cell::new(None),
         }
     }
 
-    fn ble_init(&self, channel: RadioChannel) {
+
+    fn ble_init(&self, channel: RadioFrequency) {
         let regs = unsafe { &*self.regs };
 
         self.radio_on();
 
         // TX Power acc. to twpower variable in the struct
-        self.set_txpower();
+        self.set_tx_power();
 
         // BLE MODE
-        self.set_channel_rate(0x03);
+        self.set_channel_rate(nrf5x::constants::RadioMode::Ble1Mbit as u32);
 
-        self.set_channel_freq(channel as u32);
-        self.set_data_white_iv(channel as u32);
+        self.set_channel_freq(channel);
+        self.set_data_whitening(channel);
 
         // Set PREFIX | BASE Address
         regs.prefix0.set(0x0000008e);
@@ -59,7 +61,6 @@ impl Radio {
 
         self.set_tx_address(0x00);
         self.set_rx_address(0x01);
-        // regs.RXMATCH.set(0x00);
 
         // Set Packet Config
         self.set_packet_config(0x00);
@@ -138,21 +139,15 @@ impl Radio {
         regs.mode.set(rate);
     }
 
-    fn set_data_white_iv(&self, val: u32) {
+    fn set_data_whitening(&self, channel: RadioFrequency) {
         let regs = unsafe { &*self.regs };
-        // DATAIV
-        regs.datawhiteiv.set(val);
+        regs.datawhiteiv.set(channel.get_channel_index());
     }
 
-    fn set_channel_freq(&self, val: u32) {
+    fn set_channel_freq(&self, channel: RadioFrequency) {
         let regs = unsafe { &*self.regs };
         //37, 38 and 39 for adv.
-        match val {
-            37 => regs.frequency.set(nrf5x::constants::RADIO_FREQ_CH_37),
-            38 => regs.frequency.set(nrf5x::constants::RADIO_FREQ_CH_38),
-            39 => regs.frequency.set(nrf5x::constants::RADIO_FREQ_CH_39),
-            _ => regs.frequency.set(nrf5x::constants::RADIO_FREQ_CH_37),
-        }
+        regs.frequency.set(channel as u32);
     }
 
     fn radio_on(&self) {
@@ -168,9 +163,9 @@ impl Radio {
     }
 
     // pre-condition validated before arriving here
-    fn set_txpower(&self) {
+    fn set_tx_power(&self) {
         let regs = unsafe { &*self.regs };
-        regs.txpower.set(self.txpower.get() as u32);
+        regs.txpower.set(self.tx_power.get() as u32);
     }
 
     fn set_buffer(&self) {
@@ -264,23 +259,11 @@ impl Radio {
 }
 
 impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
-    fn set_tx_power(&self, power: usize) -> kernel::ReturnCode {
-        match power {
-            // +4 dBm, 0 dBm, -4 dBm, -8 dBm, -12 dBm, -16 dBm, -20 dBm, -30 dBm
-            0x04 | 0x00 | 0xF4 | 0xFC | 0xF8 | 0xF0 | 0xEC | 0xD8 => {
-                self.txpower.set(power);
-                kernel::ReturnCode::SUCCESS
-            }
-            _ => kernel::ReturnCode::ENOSUPPORT,
-        }
-    }
-
-    fn transmit_advertisement(
-        &self,
-        buf: &'static mut [u8],
-        len: usize,
-        channel: RadioChannel,
-    ) -> &'static mut [u8] {
+    fn transmit_advertisement(&self,
+                              buf: &'static mut [u8],
+                              len: usize,
+                              channel: RadioFrequency)
+                              -> &'static mut [u8] {
         let res = self.replace_radio_buffer(buf, len);
         self.ble_init(channel);
         self.tx();
@@ -288,7 +271,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         res
     }
 
-    fn receive_advertisement(&self, channel: RadioChannel) {
+    fn receive_advertisement(&self, channel: RadioFrequency) {
         self.ble_init(channel);
         self.rx();
         self.enable_interrupts();
@@ -300,5 +283,19 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
 
     fn set_transmit_client(&self, client: &'static nrf5x::ble_advertising_hil::TxClient) {
         self.tx_client.set(Some(client));
+    }
+}
+
+// The capsule validates that the `tx_power` is between -20 to 10 dBm but then
+// chip must validate if the current `tx_power` is supported as well
+impl nrf5x::ble_advertising_hil::BleConfig for Radio {
+    fn set_tx_power(&self, power: u8) -> kernel::ReturnCode {
+        match nrf5x::constants::TxPower::from_u8(power) {
+            TxPower::Error => kernel::ReturnCode::ENOSUPPORT,
+            e @ _ => {
+                self.tx_power.set(e);
+                kernel::ReturnCode::SUCCESS
+            }
+        }
     }
 }
