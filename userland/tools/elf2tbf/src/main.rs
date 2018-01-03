@@ -263,7 +263,8 @@ fn do_work(input: &elf::File,
     let appstate_offset = app_start_offset as u32;
     let appstate_size = appstate.shdr.size as u32;
     // Make sure we pad back to a multiple of 8.
-    let post_appstate_pad = align8!(appstate_offset + appstate_size) - (appstate_offset + appstate_size);
+    let post_appstate_pad = align8!(appstate_offset + appstate_size) -
+                            (appstate_offset + appstate_size);
     let init_fn_offset = (input.ehdr.entry - text.shdr.addr) as u32;
     let got_size = got.shdr.size as u32;
     let data_size = data.shdr.size as u32;
@@ -382,6 +383,11 @@ fn do_work(input: &elf::File,
     try!(output.write_all(text.data.as_ref()));
     try!(output.write_all(got.data.as_ref()));
     try!(output.write_all(data.data.as_ref()));
+    let rel_data_len: [u8; 4] = [(rel_data.len() & 0xff) as u8,
+                                 (rel_data.len() >> 8 & 0xff) as u8,
+                                 (rel_data.len() >> 16 & 0xff) as u8,
+                                 (rel_data.len() >> 24 & 0xff) as u8];
+    try!(output.write_all(&rel_data_len));
     try!(output.write_all(rel_data.as_ref()));
 
     // Pad to get a power of 2 sized flash app.

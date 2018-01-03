@@ -32,6 +32,7 @@ SECTIONS {
         LONG(SIZEOF(.data));
         LONG(_sbss);
         LONG(SIZEOF(.bss));
+        LONG(LOADADDR(.endsec) - _text);
 
         KEEP (*(.start))
         *(.text*)
@@ -39,6 +40,7 @@ SECTIONS {
         KEEP (*(.syscalls))
         _etext = .;
     } > FLASH =0xFF
+
 
 /* App state section. Used for persistent app data. */
     .app_state :
@@ -130,4 +132,7 @@ SECTIONS {
     } > SRAM
 
     _sram_end = .;
+    .endsec :
+    {
+    } > FLASH
 }
