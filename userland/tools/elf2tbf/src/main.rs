@@ -60,22 +60,6 @@ struct TbfHeaderMain {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-struct TbfHeaderPicOption1Fields {
-    base: TbfHeaderTlv,
-    text_offset: u32,
-    data_offset: u32,
-    data_size: u32,
-    bss_memory_offset: u32,
-    bss_size: u32,
-    relocation_data_offset: u32,
-    relocation_data_size: u32,
-    got_offset: u32,
-    got_size: u32,
-    minimum_stack_length: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
 struct TbfHeaderWriteableFlashRegion {
     offset: u32,
     size: u32,
@@ -111,34 +95,6 @@ impl fmt::Display for TbfHeaderMain {
     }
 }
 
-impl fmt::Display for TbfHeaderPicOption1Fields {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "
-           text_offset: {:>8} {:>#10X}
-           data_offset: {:>8} {:>#10X}
-             data_size: {:>8} {:>#10X}
-     bss_memory_offset: {:>8} {:>#10X}
-              bss_size: {:>8} {:>#10X}
-relocation_data_offset: {:>8} {:>#10X}
-  relocation_data_size: {:>8} {:>#10X}
-            got_offset: {:>8} {:>#10X}
-              got_size: {:>8} {:>#10X}
-  minimum_stack_length: {:>8} {:>#10X}
-",
-        self.text_offset, self.text_offset,
-        self.data_offset, self.data_offset,
-        self.data_size, self.data_size,
-        self.bss_memory_offset, self.bss_memory_offset,
-        self.bss_size, self.bss_size,
-        self.relocation_data_offset, self.relocation_data_offset,
-        self.relocation_data_size, self.relocation_data_size,
-        self.got_offset, self.got_offset,
-        self.got_size, self.got_size,
-        self.minimum_stack_length, self.minimum_stack_length,
-        )
-    }
-}
-
 impl fmt::Display for TbfHeaderWriteableFlashRegion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "
@@ -159,7 +115,6 @@ fn main() {
     opts.optopt("o", "", "set output file name", "OUTFILE");
     opts.optopt("n", "", "set package name", "PACKAGE_NAME");
     opts.optflag("v", "verbose", "be verbose");
-    opts.optflag("p", "include-pic-info", "include PIC information");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -168,7 +123,6 @@ fn main() {
     let output = matches.opt_str("o");
     let package_name = matches.opt_str("n");
     let verbose = matches.opt_present("v");
-    let pic = matches.opt_present("p");
     let input = if !matches.free.is_empty() {
         matches.free[0].clone()
     } else {
@@ -186,11 +140,11 @@ fn main() {
     match output {
             None => {
                 let mut out = io::stdout();
-                do_work(&file, &mut out, package_name, verbose, pic)
+                do_work(&file, &mut out, package_name, verbose)
             }
             Some(name) => {
                 match File::create(Path::new(&name)) {
-                    Ok(mut f) => do_work(&file, &mut f, package_name, verbose, pic),
+                    Ok(mut f) => do_work(&file, &mut f, package_name, verbose),
                     Err(e) => panic!("Error: {:?}", e),
                 }
             }
@@ -238,8 +192,7 @@ unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
 fn do_work(input: &elf::File,
            output: &mut Write,
            package_name: Option<String>,
-           verbose: bool,
-           pic: bool)
+           verbose: bool)
            -> io::Result<()> {
     let package_name = package_name.unwrap_or(String::new());
     let (relocation_data_size, rel_data) = match input.sections
@@ -275,11 +228,6 @@ fn do_work(input: &elf::File,
         post_name_pad = name_total_size - (mem::size_of::<TbfHeaderTlv>() + package_name.len());
     }
 
-    // If we need the kernel to do PIC fixup for us add the space for that.
-    if pic {
-        header_length += mem::size_of::<TbfHeaderPicOption1Fields>();
-    }
-
     // We have one app flash region, add that.
     if appstate.data.len() > 0 {
         header_length += mem::size_of::<TbfHeaderTlv>() +
@@ -290,6 +238,7 @@ fn do_work(input: &elf::File,
     // app code. Also need to get the padding size.
     let app_start_offset = align8!(header_length);
     let post_header_pad = app_start_offset as usize - header_length;
+    println!("{}", post_header_pad);
 
     // Now we can calculate the entire size of the app in flash.
     let mut total_size = (header_length + post_header_pad + rel_data.len() + text.data.len() +
@@ -313,18 +262,12 @@ fn do_work(input: &elf::File,
     // so that changes to the app won't move it.
     let appstate_offset = app_start_offset as u32;
     let appstate_size = appstate.shdr.size as u32;
-    let relocation_data_offset = align8!(appstate_offset + appstate_size);
     // Make sure we pad back to a multiple of 8.
-    let post_appstate_pad = relocation_data_offset - (appstate_offset + appstate_size);
-    let text_offset = relocation_data_offset + (relocation_data_size as u32);
-    let text_size = text.shdr.size as u32;
-    let init_fn_offset = (input.ehdr.entry - text.shdr.addr) as u32 + (relocation_data_size as u32);
-    let got_offset = text_offset + text_size;
+    let post_appstate_pad = align8!(appstate_offset + appstate_size) - (appstate_offset + appstate_size);
+    let init_fn_offset = (input.ehdr.entry - text.shdr.addr) as u32;
     let got_size = got.shdr.size as u32;
-    let data_offset = got_offset + got_size;
     let data_size = data.shdr.size as u32;
     let bss_size = bss.shdr.size as u32;
-    let bss_memory_offset = bss.shdr.addr as u32;
     let minimum_ram_size = stack_len + app_heap_len + kernel_heap_len + got_size + data_size +
                            bss_size;
 
@@ -351,24 +294,6 @@ fn do_work(input: &elf::File,
         minimum_ram_size: minimum_ram_size,
     };
 
-    let tbf_pic = TbfHeaderPicOption1Fields {
-        base: TbfHeaderTlv {
-            tipe: TbfHeaderTypes::TbfHeaderPicOption1,
-            length: (mem::size_of::<TbfHeaderPicOption1Fields>() -
-                     mem::size_of::<TbfHeaderTlv>()) as u16,
-        },
-        text_offset: text_offset,
-        data_offset: data_offset,
-        data_size: data_size,
-        bss_memory_offset: bss_memory_offset,
-        bss_size: bss_size,
-        relocation_data_offset: relocation_data_offset,
-        relocation_data_size: relocation_data_size as u32,
-        got_offset: got_offset,
-        got_size: got_size,
-        minimum_stack_length: stack_len,
-    };
-
     let tbf_package_name_tlv = TbfHeaderTlv {
         tipe: TbfHeaderTypes::TbfHeaderPackageName,
         length: package_name.len() as u16,
@@ -387,9 +312,6 @@ fn do_work(input: &elf::File,
     if verbose {
         print!("{}", tbf_header);
         print!("{}", tbf_main);
-        if pic {
-            print!("{}", tbf_pic);
-        }
         print!("{}", tbf_flash_region);
     }
 
@@ -402,9 +324,6 @@ fn do_work(input: &elf::File,
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_package_name_tlv) }));
     try!(header_buf.write_all(package_name.as_ref()));
     try!(do_pad(&mut header_buf, post_name_pad));
-    if pic {
-        try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_pic) }));
-    }
 
     // Only put these in the header if the app_state section is nonzero.
     if appstate.data.len() > 0 {
@@ -460,10 +379,10 @@ fn do_work(input: &elf::File,
     try!(do_pad(output, post_header_pad as usize));
     try!(output.write_all(appstate.data.as_ref()));
     try!(do_pad(output, post_appstate_pad as usize));
-    try!(output.write_all(rel_data.as_ref()));
     try!(output.write_all(text.data.as_ref()));
     try!(output.write_all(got.data.as_ref()));
     try!(output.write_all(data.data.as_ref()));
+    try!(output.write_all(rel_data.as_ref()));
 
     // Pad to get a power of 2 sized flash app.
     try!(do_pad(output, ending_pad as usize));
