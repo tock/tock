@@ -156,42 +156,49 @@ pub unsafe fn reset_handler() {
     uicr.set_psel1_reset_pin(BUTTON_RST_PIN);
 
     // GPIOs
-    // FIXME: Test if it works and remove un-commented code!
     let gpio_pins = static_init!(
-        [&'static nrf5x::gpio::GPIOPin; 15],
+        [&'static nrf5x::gpio::GPIOPin; 23],
         [
-            &nrf5x::gpio::PORT[3],  // Bottom right header on DK board
-            &nrf5x::gpio::PORT[4],  //
-            &nrf5x::gpio::PORT[28], //
-            &nrf5x::gpio::PORT[29], //
-            &nrf5x::gpio::PORT[30], //
-            &nrf5x::gpio::PORT[31], // -----
-            &nrf5x::gpio::PORT[10], // Top right header on DK board
-            &nrf5x::gpio::PORT[9],  //
-            &nrf5x::gpio::PORT[8],  //
-            &nrf5x::gpio::PORT[7],  //
-            &nrf5x::gpio::PORT[6],  //
-            &nrf5x::gpio::PORT[5],  //
-            &nrf5x::gpio::PORT[21], //
-            &nrf5x::gpio::PORT[1],  //
-            &nrf5x::gpio::PORT[0]   // -----
-        /*&nrf52::gpio::PORT[18],  // Top mid header on DK board
-        &nrf52::gpio::PORT[17],  //
-        &nrf52::gpio::PORT[16],  //
-        &nrf52::gpio::PORT[15],  //
-        &nrf52::gpio::PORT[14],  //
-        &nrf52::gpio::PORT[13],  //
-        &nrf52::gpio::PORT[12],  //
-        &nrf52::gpio::PORT[11],  // ----
-        &nrf52::gpio::PORT[27],  // Top left header on DK board
-        &nrf52::gpio::PORT[26],  //
-        &nrf52::gpio::PORT[2],  //
-        &nrf52::gpio::PORT[25],  //
-        &nrf52::gpio::PORT[24],  //
-        &nrf52::gpio::PORT[23],  //
-        &nrf52::gpio::PORT[22],  //
-        &nrf52::gpio::PORT[20],  //
-        &nrf52::gpio::PORT[19],  // ----*/
+            // Bottom right header on DK board
+            &nrf5x::gpio::PORT[3],
+            &nrf5x::gpio::PORT[4],
+            &nrf5x::gpio::PORT[28],
+            &nrf5x::gpio::PORT[29],
+            &nrf5x::gpio::PORT[30],
+            &nrf5x::gpio::PORT[31],
+            // -----
+            // Top right header on DK board
+            // NOTE: Those are connected internally and should not be used externally
+            &nrf5x::gpio::PORT[10], // NFC1
+            &nrf5x::gpio::PORT[9],  // NFC2
+            &nrf5x::gpio::PORT[8],  // RXD
+            &nrf5x::gpio::PORT[7],  // CTS
+            &nrf5x::gpio::PORT[6],  // TXD
+            &nrf5x::gpio::PORT[5],  // RTS
+            //&nrf5x::gpio::PORT[21], // RESET
+            &nrf5x::gpio::PORT[1], // XL2
+            &nrf5x::gpio::PORT[0], // XL1
+            // -----
+            // Top mid header on DK board
+            // &nrf5x::gpio::PORT[18], // LED 2
+            // &nrf5x::gpio::PORT[17], // LED 1
+            // &nrf5x::gpio::PORT[16], // Button 4
+            // &nrf5x::gpio::PORT[15], // Button 3
+            // &nrf5x::gpio::PORT[14], // Button 2
+            // &nrf5x::gpio::PORT[13], // Button 1
+            &nrf5x::gpio::PORT[12],
+            &nrf5x::gpio::PORT[11],
+            // -----
+            // Top left header on DK board
+            &nrf5x::gpio::PORT[27],
+            &nrf5x::gpio::PORT[26],
+            &nrf5x::gpio::PORT[2],
+            &nrf5x::gpio::PORT[25],
+            &nrf5x::gpio::PORT[24],
+            &nrf5x::gpio::PORT[23],
+            &nrf5x::gpio::PORT[22] // &nrf5x::gpio::PORT[20], // LED 4
+                                   // &nrf5x::gpio::PORT[19], // LED 3
+                                   // -----
         ]
     );
 
