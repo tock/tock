@@ -67,7 +67,7 @@ impl Default for App {
 
 pub static mut WRITE_BUF: [u8; 64] = [0; 64];
 
-pub struct Console<'a, U: UART + 'a> {
+pub struct Console<'a, U: UART<'a> + 'a> {
     uart: &'a U,
     apps: Grant<App>,
     in_progress: Cell<Option<AppId>>,
@@ -75,7 +75,7 @@ pub struct Console<'a, U: UART + 'a> {
     baud_rate: u32,
 }
 
-impl<'a, U: UART> Console<'a, U> {
+impl<'a, U: UART<'a>> Console<'a, U> {
     pub fn new(uart: &'a U,
                baud_rate: u32,
                tx_buffer: &'static mut [u8],
@@ -160,7 +160,7 @@ impl<'a, U: UART> Console<'a, U> {
     }
 }
 
-impl<'a, U: UART> Driver for Console<'a, U> {
+impl<'a, U: UART<'a>> Driver for Console<'a, U> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -230,7 +230,7 @@ impl<'a, U: UART> Driver for Console<'a, U> {
     }
 }
 
-impl<'a, U: UART> Client for Console<'a, U> {
+impl<'a, U: UART<'a>> Client for Console<'a, U> {
     fn transmit_complete(&self, buffer: &'static mut [u8], _error: uart::Error) {
         // Either print more from the AppSlice or send a callback to the
         // application.

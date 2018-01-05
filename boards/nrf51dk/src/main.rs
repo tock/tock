@@ -91,7 +91,7 @@ pub struct Platform {
                                                            nrf51::radio::Radio,
                                                            VirtualMuxAlarm<'static, Rtc>>,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
+    console: &'static capsules::console::Console<'static, nrf51::uart::UART<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,

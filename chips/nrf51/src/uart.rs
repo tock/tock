@@ -48,9 +48,9 @@ pub struct Registers {
 
 const UART_BASE: u32 = 0x40002000;
 
-pub struct UART {
+pub struct UART<'a> {
     regs: *const Registers,
-    client: Cell<Option<&'static uart::Client>>,
+    client: Cell<Option<&'a uart::Client>>,
     buffer: TakeCell<'static, [u8]>,
     len: Cell<usize>,
     index: Cell<usize>,
@@ -68,8 +68,8 @@ pub static mut UART0: UART = UART::new();
 //   pin  9: TX
 //   pin 10: CTS
 //   pin 11: RX
-impl UART {
-    pub const fn new() -> UART {
+impl<'a> UART<'a> {
+    pub const fn new() -> UART<'a> {
         UART {
             regs: UART_BASE as *mut Registers,
             client: Cell::new(None),
@@ -194,8 +194,8 @@ impl UART {
     }
 }
 
-impl uart::UART for UART {
-    fn set_client(&self, client: &'static uart::Client) {
+impl<'a> uart::UART<'a> for UART<'a> {
+    fn set_client(&self, client: &'a uart::Client) {
         self.client.set(Some(client));
     }
 

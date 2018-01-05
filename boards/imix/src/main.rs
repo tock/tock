@@ -52,7 +52,7 @@ type RF233Device = capsules::rf233::RF233<'static,
                                           VirtualSpiMasterDevice<'static, sam4l::spi::Spi>>;
 
 struct Imix {
-    console: &'static capsules::console::Console<'static, sam4l::usart::USART>,
+    console: &'static capsules::console::Console<'static, sam4l::usart::USART<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -69,7 +69,7 @@ struct Imix {
     usb_driver: &'static capsules::usb_user::UsbSyscallDriver<'static,
                         capsules::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>>,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static,
-                                                                               sam4l::usart::USART>,
+                                                         sam4l::usart::USART<'static>>,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:

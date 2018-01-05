@@ -109,7 +109,7 @@ pub struct Platform {
     ble_radio: &'static nrf5x::ble_advertising_driver::BLE
         <'static, nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
-    console: &'static capsules::console::Console<'static, nrf52::uart::UARTE>,
+    console: &'static capsules::console::Console<'static, nrf52::uart::UARTE<'static>>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
