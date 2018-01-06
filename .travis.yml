@@ -13,7 +13,7 @@ os:
 # If you change this, you must also change Getting_Started.md, Makefile.common,
 # and Vagrantfile.
 rust:
-  - nightly-2017-11-18
+  - nightly-2018-01-05
 
 before_install:
   - ./.travis-install-gcc

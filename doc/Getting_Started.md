@@ -15,7 +15,7 @@ developing Tock.
 
 #### Rust (nightly)
 
-We are using `rustc 1.23.0-nightly (6160040d8 2017-11-19)`. We recommend
+We are using `rustc 1.24.0-nightly (8e7a609e6 2018-01-04)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -30,7 +30,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2017-11-18
+$ rustup install nightly-2018-01-05
 ```
 
 #### Xargo
