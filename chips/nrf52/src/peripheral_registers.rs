@@ -2,7 +2,7 @@ use kernel::common::VolatileCell;
 use nrf5x;
 
 pub const UARTE_BASE: u32 = 0x40002000;
-#[repr(C, packed)]
+#[repr(C)]
 pub struct UARTE {
     pub task_startrx: VolatileCell<u32>, // 0x000-0x004
     pub task_stoprx: VolatileCell<u32>, // 0x004-0x008
@@ -54,7 +54,7 @@ pub struct UARTE {
 }
 
 pub const UICR_BASE: usize = 0x10001200;
-#[repr(C, packed)]
+#[repr(C)]
 pub struct UICR {
     pub pselreset0: VolatileCell<u32>, // 0x200 - 0x204
     pub pselreset1: VolatileCell<u32>, // 0x204 - 0x208
@@ -63,7 +63,7 @@ pub struct UICR {
 }
 
 pub const NVMC_BASE: usize = 0x4001E400;
-#[repr(C, packed)]
+#[repr(C)]
 pub struct NVMC {
     pub ready: VolatileCell<u32>, // 0x400-0x404
     _reserved1: [VolatileCell<u32>; 64], // 0x404-0x504
@@ -80,7 +80,7 @@ pub struct NVMC {
 
 pub const RADIO_BASE: usize = 0x40001000;
 #[allow(non_snake_case)]
-#[repr(C, packed)]
+#[repr(C)]
 pub struct RADIO {
     pub task_txen: VolatileCell<u32>, // 0x000 - 0x004
     pub task_rxen: VolatileCell<u32>, // 0x004 - 0x008

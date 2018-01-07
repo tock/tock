@@ -13,7 +13,7 @@ use kernel::hil;
 use pm;
 
 // Register map for SAM4L USART
-#[repr(C, packed)]
+#[repr(C)]
 struct USARTRegisters {
     cr: VolatileCell<u32>, // 0x00
     mr: VolatileCell<u32>,

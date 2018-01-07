@@ -7,7 +7,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::common::VolatileCell;
 use kernel::hil;
 
-#[repr(C, packed)]
+#[repr(C)]
 struct Register {
     val: VolatileCell<u32>,
     set: VolatileCell<u32>,
@@ -15,7 +15,7 @@ struct Register {
     toggle: VolatileCell<u32>,
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 struct RegisterRC {
     val: VolatileCell<u32>,
     reserved0: u32,
@@ -23,7 +23,7 @@ struct RegisterRC {
     reserved1: u32,
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 struct Registers {
     gper: Register,
     pmr0: Register,

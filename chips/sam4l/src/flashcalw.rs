@@ -31,7 +31,7 @@ use kernel::hil;
 use pm;
 
 /// Struct of the FLASHCALW registers. Section 14.10 of the datasheet.
-#[repr(C, packed)]
+#[repr(C)]
 struct FlashcalwRegisters {
     fcr: VolatileCell<u32>,
     fcmd: VolatileCell<u32>,

@@ -2,7 +2,7 @@
 
 use kernel::common::VolatileCell;
 
-#[repr(C, packed)]
+#[repr(C)]
 struct BscifRegisters {
     ier: VolatileCell<u32>,
     idr: VolatileCell<u32>,

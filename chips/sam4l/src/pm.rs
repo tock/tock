@@ -10,7 +10,7 @@ use gpio;
 use kernel::common::VolatileCell;
 use scif;
 
-#[repr(C, packed)]
+#[repr(C)]
 struct PmRegisters {
     mcctrl: VolatileCell<u32>,
     cpusel: VolatileCell<u32>,

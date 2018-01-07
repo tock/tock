@@ -4,7 +4,7 @@ use kernel::common::VolatileCell;
 
 pub const RADIO_BASE: usize = 0x40001000;
 #[allow(non_snake_case)]
-#[repr(C, packed)]
+#[repr(C)]
 pub struct RADIO_REGS {
     pub txen: VolatileCell<u32>, // 0x000 ---> 0x004
     pub rxen: VolatileCell<u32>, // 0x004 ---> 0x008

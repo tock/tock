@@ -19,7 +19,7 @@ use pm;
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet
-#[repr(C, packed)]
+#[repr(C)]
 #[allow(dead_code)]
 struct TWIMRegisters {
     control: VolatileCell<u32>,
@@ -43,7 +43,7 @@ struct TWIMRegisters {
 
 // Listing of all registers related to the TWIS peripheral.
 // Section 28.9 of the datasheet
-#[repr(C, packed)]
+#[repr(C)]
 #[allow(dead_code)]
 struct TWISRegisters {
     control: VolatileCell<u32>,

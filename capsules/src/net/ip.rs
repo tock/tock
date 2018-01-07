@@ -67,7 +67,7 @@ impl IPAddr {
     }
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct IP6Header {
     pub version_class_flow: [u8; 4],

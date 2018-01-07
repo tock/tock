@@ -8,7 +8,7 @@ use kernel::common::take_cell::TakeCell;
 use pm;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
-#[repr(C, packed)]
+#[repr(C)]
 #[allow(dead_code)]
 struct DMARegisters {
     memory_address: VolatileCell<u32>, // 0x00

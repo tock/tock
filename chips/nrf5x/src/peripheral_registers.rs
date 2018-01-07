@@ -1,7 +1,7 @@
 use kernel::common::VolatileCell;
 
 pub const RTC1_BASE: usize = 0x40011000;
-#[repr(C, packed)]
+#[repr(C)]
 pub struct RTC1 {
     pub tasks_start: VolatileCell<u32>,
     pub tasks_stop: VolatileCell<u32>,
@@ -29,7 +29,7 @@ pub struct RTC1 {
 // FIXME: check registers and add TIMER3 and TIMER4
 pub const TIMER_SIZE: usize = 0x1000;
 pub const TIMER_BASE: usize = 0x40008000;
-#[repr(C, packed)]
+#[repr(C)]
 pub struct TIMER {
     pub task_start: VolatileCell<u32>,
     pub task_stop: VolatileCell<u32>,
@@ -55,7 +55,7 @@ pub struct TIMER {
 }
 
 pub const AESECB_BASE: usize = 0x4000E000;
-#[repr(C, packed)]
+#[repr(C)]
 pub struct AESECB_REGS {
     pub task_startecb: VolatileCell<u32>, // 0x000 - 0x004
     pub task_stopecb: VolatileCell<u32>, // 0x004 - 0x008
@@ -70,7 +70,7 @@ pub struct AESECB_REGS {
 }
 
 pub const GPIO_BASE: usize = 0x50000000;
-#[repr(C, packed)]
+#[repr(C)]
 pub struct GPIO {
     _reserved1: [u32; 321],
     pub out: VolatileCell<u32>,
@@ -85,7 +85,7 @@ pub struct GPIO {
 }
 
 pub const TEMP_BASE: usize = 0x4000C000;
-#[repr(C, packed)]
+#[repr(C)]
 pub struct TEMP_REGS {
     pub task_start: VolatileCell<u32>, // 0x000 - 0x004
     pub task_stop: VolatileCell<u32>, // 0x004 - 0x008
@@ -100,7 +100,7 @@ pub struct TEMP_REGS {
 }
 
 pub const RNG_BASE: usize = 0x4000D000;
-#[repr(C, packed)]
+#[repr(C)]
 pub struct RNG_REGS {
     pub task_start: VolatileCell<u32>, // 0x000 - 0x004
     pub task_stop: VolatileCell<u32>, // 0x004 - 0x008

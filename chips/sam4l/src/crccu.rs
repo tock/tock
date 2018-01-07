@@ -124,7 +124,7 @@ registers![
 ];
 
 // CRCCU Descriptor (from Table 41.2 in Section 41.6):
-#[repr(C, packed)]
+#[repr(C)]
 struct Descriptor {
     addr: u32, // Transfer Address Register (RW): Address of memory block to compute
     ctrl: TCR, // Transfer Control Register (RW): IEN, TRWIDTH, BTSIZE
@@ -134,7 +134,7 @@ struct Descriptor {
 
 // Transfer Control Register (see Section 41.6.18)
 #[derive(Copy, Clone)]
-#[repr(C, packed)]
+#[repr(C)]
 struct TCR(u32);
 
 impl TCR {

@@ -129,7 +129,7 @@ pub struct Adc {
 }
 
 /// Memory mapped registers for the ADC.
-#[repr(C, packed)]
+#[repr(C)]
 pub struct AdcRegisters {
     // From page 1005 of SAM4L manual
     pub cr: VolatileCell<u32>, // Control               (0x00)

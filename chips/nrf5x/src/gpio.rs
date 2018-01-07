@@ -21,7 +21,7 @@ const NUM_GPIOTE: usize = 8;
 /// Event) channel, and bind the channel to the desired pin. There are 4
 /// channels for the nrf51 and 8 channels for the nrf52. This means that
 /// requesting an interrupt can fail, if they are all already allocated.
-#[repr(C, packed)]
+#[repr(C)]
 struct GpioteRegisters {
     out: [VolatileCell<u32>; NUM_GPIOTE], // 0x0
     _reserved0: [u8; 0x100 - (0x0 + NUM_GPIOTE * 4)],

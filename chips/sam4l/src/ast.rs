@@ -26,7 +26,7 @@ use pm::{self, PBDClock};
 /// tics. Seems safe enough and in practice has seemed to work.
 const ALARM0_SYNC_TICS: u32 = 8;
 
-#[repr(C, packed)]
+#[repr(C)]
 struct AstRegisters {
     cr: VolatileCell<u32>,
     cv: VolatileCell<u32>,

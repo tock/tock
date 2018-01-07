@@ -11,7 +11,7 @@ use kernel::common::VolatileCell;
 use kernel::hil;
 use pm::{self, Clock, PBAClock};
 
-#[repr(C, packed)]
+#[repr(C)]
 pub struct DacRegisters {
     // From page 905 of SAM4L manual
     cr: VolatileCell<u32>, //      Control                       (0x00)

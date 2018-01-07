@@ -122,7 +122,7 @@ mod registers {
         }
 
         /// Represents one of NRF52's three `SPIM` instances.
-        #[repr(C, packed)]
+        #[repr(C)]
         pub struct SPIM {
             _reserved0: [u32; 4],
             /// Start SPI transaction

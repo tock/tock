@@ -24,7 +24,7 @@ use kernel::hil::spi::SpiSlaveClient;
 use pm;
 
 /// The registers used to interface with the hardware
-#[repr(C, packed)]
+#[repr(C)]
 struct SpiRegisters {
     cr: VolatileCell<u32>, //       0x0
     mr: VolatileCell<u32>, //       0x4

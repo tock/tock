@@ -63,7 +63,7 @@ pub enum GenericClock {
     GCLK11,
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 struct Registers {
     ier: VolatileCell<u32>,
     idr: VolatileCell<u32>,

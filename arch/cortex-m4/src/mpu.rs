@@ -6,7 +6,7 @@ use kernel::common::math::PowerOfTwo;
 
 /// Indicates whether the MPU is present and, if so, how many regions it
 /// supports.
-#[repr(C,packed)]
+#[repr(C)]
 pub struct MpuType {
     /// Indicates whether the processor support unified (0) or separate
     /// (1) instruction and data regions. Always reads 0 on the
@@ -23,7 +23,7 @@ pub struct MpuType {
     _reserved: u8,
 }
 
-#[repr(C,packed)]
+#[repr(C)]
 /// MPU Registers for the Cortex-M4 family
 ///
 /// Described in section 4.5 of

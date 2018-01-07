@@ -9,7 +9,7 @@ use pm;
 use scif;
 
 /// The registers used to interface with the hardware
-#[repr(C, packed)]
+#[repr(C)]
 struct AesRegisters {
     ctrl: VolatileCell<u32>, //       0x00
     mode: VolatileCell<u32>, //       0x04
