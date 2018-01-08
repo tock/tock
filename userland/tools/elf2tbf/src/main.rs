@@ -236,7 +236,7 @@ fn do_work(input: &elf::File,
 
     // Calculate the offset between the start of the flash region and the actual
     // app code. Also need to get the padding size.
-    let app_start_offset = align8!(header_length);
+    let app_start_offset = align4!(header_length);
     let post_header_pad = app_start_offset as usize - header_length;
     println!("{}", post_header_pad);
 
@@ -263,7 +263,7 @@ fn do_work(input: &elf::File,
     let appstate_offset = app_start_offset as u32;
     let appstate_size = appstate.shdr.size as u32;
     // Make sure we pad back to a multiple of 8.
-    let post_appstate_pad = align8!(appstate_offset + appstate_size) -
+    let post_appstate_pad = align4!(appstate_offset + appstate_size) -
                             (appstate_offset + appstate_size);
     let init_fn_offset = (input.ehdr.entry - text.shdr.addr) as u32;
     let got_size = got.shdr.size as u32;

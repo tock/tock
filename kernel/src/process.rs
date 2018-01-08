@@ -7,7 +7,6 @@ use grant;
 use core::{mem, ptr, slice, str};
 use core::cell::Cell;
 use core::fmt::Write;
-use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile, write};
 
 use platform::mpu;
@@ -365,7 +364,7 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV1(_) => mem::size_of::<TbfHeaderV1>() as u32,
             TbfHeader::TbfHeaderV2(hd) =>
-                hd.main.map_or(0, |m| m.protected_size) + align8!(hd.base.header_size as u32),
+                hd.main.map_or(0, |m| m.protected_size) + align4!(hd.base.header_size as u32),
             _ => 0,
         }
     }
@@ -376,7 +375,7 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => hd.entry_offset,
             TbfHeader::TbfHeaderV2(hd) =>
-                hd.main.map_or(0, |m| m.init_fn_offset) + align8!(hd.base.header_size as u32),
+                hd.main.map_or(0, |m| m.init_fn_offset) + align4!(hd.base.header_size as u32),
             _ => 0,
         }
     }
