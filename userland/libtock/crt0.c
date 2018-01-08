@@ -26,21 +26,22 @@ struct reldata {
 __attribute__ ((section(".start"), used))
 __attribute__ ((weak))
 __attribute__ ((noreturn))
-void _start(void* text_start __attribute__((unused)),
-            void* mem_start __attribute__((unused)),
+void _start(void* text_start,
+            void* mem_start,
             void* memory_len __attribute__((unused)),
             void* app_heap_break __attribute__((unused))) {
 
-  // Allocate stack. `brk` to 1024 from start of memory
+  // Allocate stack and data. `brk` to STACK_SIZE + got_size + data_size +
+  // bss_size from start of memory
+  uint32_t stacktop = (uint32_t)mem_start + STACK_SIZE;
+  struct hdr* myhdr = (struct hdr*)text_start;
+
   {
-    int stacktop = (int)mem_start + 1024;
-    memop(0, stacktop + 1024);
-    asm volatile ("mov sp, %[stacktop]" :: [stacktop] "r" (stacktop));
+    uint32_t heap_size = myhdr->got_size + myhdr->data_size + myhdr->bss_size;
+    memop(0, stacktop + heap_size);
+    asm volatile ("mov sp, %[stacktop]" :: [stacktop] "r" (stacktop) : "memory");
     asm volatile ("mov r9, sp");
   }
-
-  struct hdr* myhdr = (struct hdr*)text_start;
-  uint32_t stacktop = (uint32_t)mem_start + 1024;
 
   // fix up GOT
   volatile uint32_t* got_start     = (uint32_t*)(myhdr->got_start + stacktop);
