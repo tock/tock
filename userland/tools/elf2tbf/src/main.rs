@@ -12,11 +12,6 @@ use std::mem;
 use std::path::Path;
 use std::slice;
 
-/// Takes a value and rounds it up to be aligned % 8
-macro_rules! align8 {
-    ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
-}
-
 /// Takes a value and rounds it up to be aligned % 4
 macro_rules! align4 {
     ( $e:expr ) => ( ($e) + ((4 - (($e) % 4)) % 4 ) );
@@ -195,13 +190,11 @@ fn do_work(input: &elf::File,
            verbose: bool)
            -> io::Result<()> {
     let package_name = package_name.unwrap_or(String::new());
-    let (relocation_data_size, rel_data) = match input.sections
+    let rel_data = input.sections
         .iter()
-        .find(|section| section.shdr.name == ".rel.data".as_ref()) {
-        Some(section) => (section.shdr.size, section.data.as_ref()),
-        None => (0 as u64, &[] as &[u8]),
-
-    };
+        .find(|section| section.shdr.name == ".rel.data".as_ref())
+        .map(|section| section.data.as_ref())
+        .unwrap_or(&[] as &[u8]);
     let text = get_section(input, ".text");
     let got = get_section(input, ".got");
     let data = get_section(input, ".data");
