@@ -1,0 +1,21 @@
+This application is a simple user-space UART echo program.
+
+It buffers 20 bytes read over UART1 and then outputs it over UART1.
+
+To test this program, connect a USB serial converter to RX1 and TX1 on
+your Teensy, the run
+
+screen <serial port> 115200
+
+e.g.
+
+screen /dev/tty.SLAB_USBtoUART 115200
+
+And type. After you type 20 characters you should see output like this:
+
+Read returned 20.
+sdabcdefghijklmnopqrRead returned 20.
+stuvwxyzabcdefghijkl
+
+- Philip Levis, pal@cs.stanford.edu, 11/15/17
+
