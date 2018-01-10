@@ -24,8 +24,8 @@ macro_rules! bitmasks {
 
 
     {
-        $(#[$outer:meta])*
-        $valtype:ty, $reg_desc:ident, $field:ident,
+
+        $valtype:ty, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
                     ($shift:expr, Mask($mask:expr)),
                     [$( $(#[$inner:meta])* $valname:ident = $value:expr ),*]
     } => {
@@ -35,6 +35,7 @@ macro_rules! bitmasks {
 
         #[allow(non_snake_case)]
         #[allow(unused)]
+        $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
             use $crate::regs::FieldValue;
@@ -49,6 +50,7 @@ macro_rules! bitmasks {
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
+            $(#[$outer])*
             pub enum Value {
                 $(
                     $(#[$inner])*
@@ -59,16 +61,17 @@ macro_rules! bitmasks {
     };
 
     {
-        $(#[$outer:meta])* $valtype:ty, $reg_desc:ident, $field:ident, $bit:expr,
+         $valtype:ty, $reg_desc:ident, $(#[$outer:meta])* $field:ident, $bit:expr,
         [$( $(#[$inner:meta])* $valname:ident = $value:expr),* ]
     } => {
         #[allow(non_upper_case_globals)]
         #[allow(unused)]
-        $(#[$outer:meta])*
+        $(#[$outer])*
         pub const $field: Field<$valtype, $reg_desc> = Field::<$valtype, $reg_desc>::new(1, $bit);
 
         #[allow(non_snake_case)]
         #[allow(unused)]
+        $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
             use $crate::regs::FieldValue;
@@ -91,6 +94,7 @@ macro_rules! bitmasks {
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
+            $(#[$outer])*
             pub enum Value {
                 $(
                     $(#[$inner])*
