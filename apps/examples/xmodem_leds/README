@@ -1,0 +1,34 @@
+This is an example of how to use the xmodem library to upload
+images into memory. This application has a single pixel buffer
+for a dotstar LED strip, that is 150 pixels long. It registers
+the buffer with the xmodem library. You can then send it new values
+for the pixel buffer over xmodem. When the application is notified
+that the buffer has changed it outputs it to a strip connected on
+SPI1.
+
+There is a python script, xmodem_send.py, which will transfer
+a file over the serial port with xmodem. Its basic use is:
+
+xmodem_send.py <file>
+
+There are two sample pixel images, strip.bin, which makes the 
+first 63 pixels a somewhat dim purple, and dark.bin, which makes
+all 144 pixels dark. So, for example, if you plug a USB serial
+device into RX1 and TX1, install this program on your teensy, and
+run
+
+xmodem_send.py strip.bin
+
+you should see the first 63 pixels light up purple. The starting image
+has pixel 9 lit. You may need to install serial port/xmodem librarys
+for Python; Google should tell you how if you need to.
+
+The script write_file.py is a very simple python script that lets 
+you easily write new display for your strip.
+
+The xmodem functionality is implemented in xmodem.c. To use the library,
+simply copy this file to your application directory, as well as
+xmodem.h. The build system should automatically compile it with your
+main.c.
+
+- Philip Levis, pal@cs.stanford.edu 11/15/17

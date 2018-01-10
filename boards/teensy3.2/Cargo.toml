@@ -1,0 +1,21 @@
+[package]
+name = "teensy"
+version = "0.1.0"
+authors = ["Shane Leonard <shanel@stanford.edu>"]
+
+[profile.dev]
+panic = "abort"
+lto = true
+opt-level = 0
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+
+[dependencies]
+kernel = { path = "../../kernel" }
+cortexm4 = { path = "../../arch/cortex-m4" }
+capsules = { path = "../../capsules" }
+mk20 = { path = "../../chips/mk20/" }
+common = { path = "../../common" }
