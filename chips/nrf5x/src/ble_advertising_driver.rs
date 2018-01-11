@@ -196,7 +196,7 @@
 //! * Date: June 22, 2017
 
 use ble_advertising_hil;
-use ble_advertising_hil::RadioFrequency;
+use ble_advertising_hil::RadioChannel;
 use core::cell::Cell;
 use core::cmp;
 use kernel;
@@ -353,9 +353,9 @@ enum BLEState {
     NotInitialized,
     Initialized,
     ScanningIdle,
-    Scanning(RadioFrequency),
+    Scanning(RadioChannel),
     AdvertisingIdle,
-    Advertising(RadioFrequency),
+    Advertising(RadioChannel),
 }
 
 #[derive(Copy, Clone)]
@@ -534,10 +534,7 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
-    fn send_advertisement<'a, B, A>(&self,
-                                    ble: &BLE<'a, B, A>,
-                                    channel: RadioFrequency)
-                                    -> ReturnCode
+    fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
         where B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
               A: kernel::hil::time::Alarm + 'a
     {
@@ -689,18 +686,18 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
                         Some(BLEState::AdvertisingIdle) => {
                             self.busy.set(true);
                             app.process_status =
-                                Some(BLEState::Advertising(RadioFrequency::AdvertisingChannel37));
+                                Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37));
                             self.sending_app.set(Some(app.appid()));
                             self.radio.set_tx_power(app.tx_power);
-                            app.send_advertisement(&self, RadioFrequency::AdvertisingChannel37);
+                            app.send_advertisement(&self, RadioChannel::AdvertisingChannel37);
                         }
                         Some(BLEState::ScanningIdle) => {
                             self.busy.set(true);
                             app.process_status =
-                                Some(BLEState::Scanning(RadioFrequency::AdvertisingChannel37));
+                                Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37));
                             self.receiving_app.set(Some(app.appid()));
                             self.radio.set_tx_power(app.tx_power);
-                            self.radio.receive_advertisement(RadioFrequency::AdvertisingChannel37);
+                            self.radio.receive_advertisement(RadioChannel::AdvertisingChannel37);
                         }
                         _ => debug!(
                             "app: {:?} \t invalid state {:?}",
@@ -730,7 +727,7 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                 // Therefore, we ignore payloads with a header size bigger than 39 because the
                 // channels 37, 38 and 39 should only be used for advertisements!
                 // Packets that are bigger than 39 bytes are likely "Channel PDUs" which should
-                // only be sent on the other 37 RadioFrequency channels.
+                // only be sent on the other 37 RadioChannel channels.
 
                 let notify_userland = if len <= PACKET_LENGTH as u8 && app.app_read.is_some()
                     && result == ReturnCode::SUCCESS
@@ -753,21 +750,21 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                 }
 
                 match app.process_status {
-                    Some(BLEState::Scanning(RadioFrequency::AdvertisingChannel37)) => {
+                    Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
-                            Some(BLEState::Scanning(RadioFrequency::AdvertisingChannel38));
+                            Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
                         app.alarm_data.expiration = Expiration::Disabled;
                         self.receiving_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
-                        self.radio.receive_advertisement(RadioFrequency::AdvertisingChannel38);
+                        self.radio.receive_advertisement(RadioChannel::AdvertisingChannel38);
                     }
-                    Some(BLEState::Scanning(RadioFrequency::AdvertisingChannel38)) => {
+                    Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
-                            Some(BLEState::Scanning(RadioFrequency::AdvertisingChannel39));
+                            Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39));
                         self.receiving_app.set(Some(app.appid()));
-                        self.radio.receive_advertisement(RadioFrequency::AdvertisingChannel39);
+                        self.radio.receive_advertisement(RadioChannel::AdvertisingChannel39);
                     }
-                    Some(BLEState::Scanning(RadioFrequency::AdvertisingChannel39)) => {
+                    Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39)) => {
                         self.busy.set(false);
                         app.process_status = Some(BLEState::ScanningIdle);
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());
@@ -792,23 +789,23 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
                 match app.process_status {
-                    Some(BLEState::Advertising(RadioFrequency::AdvertisingChannel37)) => {
+                    Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
-                            Some(BLEState::Advertising(RadioFrequency::AdvertisingChannel38));
+                            Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
                         app.alarm_data.expiration = Expiration::Disabled;
                         self.sending_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
-                        app.send_advertisement(&self, RadioFrequency::AdvertisingChannel38);
+                        app.send_advertisement(&self, RadioChannel::AdvertisingChannel38);
                     }
 
-                    Some(BLEState::Advertising(RadioFrequency::AdvertisingChannel38)) => {
+                    Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
-                            Some(BLEState::Advertising(RadioFrequency::AdvertisingChannel39));
+                            Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39));
                         self.sending_app.set(Some(app.appid()));
-                        app.send_advertisement(&self, RadioFrequency::AdvertisingChannel39);
+                        app.send_advertisement(&self, RadioChannel::AdvertisingChannel39);
                     }
 
-                    Some(BLEState::Advertising(RadioFrequency::AdvertisingChannel39)) => {
+                    Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39)) => {
                         self.busy.set(false);
                         app.process_status = Some(BLEState::AdvertisingIdle);
                         app.set_next_alarm::<A::Frequency>(self.alarm.now());

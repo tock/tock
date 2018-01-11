@@ -52,9 +52,9 @@ pub trait BleAdvertisementDriver {
     fn transmit_advertisement(&self,
                               buf: &'static mut [u8],
                               len: usize,
-                              channel: RadioFrequency)
+                              channel: RadioChannel)
                               -> &'static mut [u8];
-    fn receive_advertisement(&self, channel: RadioFrequency);
+    fn receive_advertisement(&self, channel: RadioChannel);
     fn set_receive_client(&self, client: &'static RxClient);
     fn set_transmit_client(&self, client: &'static TxClient);
 }
@@ -73,7 +73,7 @@ pub trait TxClient {
 
 // Bluetooth Core Specification:Vol. 6. Part B, section 1.4.1 Advertising and Data Channel Indices
 #[derive(PartialEq, Debug, Copy, Clone)]
-pub enum RadioFrequency {
+pub enum RadioChannel {
     DataChannel0 = 4,
     DataChannel1 = 6,
     DataChannel2 = 8,
@@ -116,49 +116,49 @@ pub enum RadioFrequency {
     AdvertisingChannel39 = 80,
 }
 
-impl RadioFrequency {
+impl RadioChannel {
     pub fn get_channel_index(&self) -> u32 {
         match *self {
-            RadioFrequency::DataChannel0 => 0,
-            RadioFrequency::DataChannel1 => 1,
-            RadioFrequency::DataChannel2 => 2,
-            RadioFrequency::DataChannel3 => 3,
-            RadioFrequency::DataChannel4 => 4,
-            RadioFrequency::DataChannel5 => 5,
-            RadioFrequency::DataChannel6 => 6,
-            RadioFrequency::DataChannel7 => 7,
-            RadioFrequency::DataChannel8 => 8,
-            RadioFrequency::DataChannel9 => 9,
-            RadioFrequency::DataChannel10 => 10,
-            RadioFrequency::DataChannel11 => 11,
-            RadioFrequency::DataChannel12 => 12,
-            RadioFrequency::DataChannel13 => 13,
-            RadioFrequency::DataChannel14 => 14,
-            RadioFrequency::DataChannel15 => 15,
-            RadioFrequency::DataChannel16 => 16,
-            RadioFrequency::DataChannel17 => 17,
-            RadioFrequency::DataChannel18 => 18,
-            RadioFrequency::DataChannel19 => 19,
-            RadioFrequency::DataChannel20 => 20,
-            RadioFrequency::DataChannel21 => 21,
-            RadioFrequency::DataChannel22 => 22,
-            RadioFrequency::DataChannel23 => 23,
-            RadioFrequency::DataChannel24 => 24,
-            RadioFrequency::DataChannel25 => 25,
-            RadioFrequency::DataChannel26 => 26,
-            RadioFrequency::DataChannel27 => 27,
-            RadioFrequency::DataChannel28 => 28,
-            RadioFrequency::DataChannel29 => 29,
-            RadioFrequency::DataChannel30 => 30,
-            RadioFrequency::DataChannel31 => 31,
-            RadioFrequency::DataChannel32 => 32,
-            RadioFrequency::DataChannel33 => 33,
-            RadioFrequency::DataChannel34 => 34,
-            RadioFrequency::DataChannel35 => 35,
-            RadioFrequency::DataChannel36 => 36,
-            RadioFrequency::AdvertisingChannel37 => 37,
-            RadioFrequency::AdvertisingChannel38 => 38,
-            RadioFrequency::AdvertisingChannel39 => 39,
+            RadioChannel::DataChannel0 => 0,
+            RadioChannel::DataChannel1 => 1,
+            RadioChannel::DataChannel2 => 2,
+            RadioChannel::DataChannel3 => 3,
+            RadioChannel::DataChannel4 => 4,
+            RadioChannel::DataChannel5 => 5,
+            RadioChannel::DataChannel6 => 6,
+            RadioChannel::DataChannel7 => 7,
+            RadioChannel::DataChannel8 => 8,
+            RadioChannel::DataChannel9 => 9,
+            RadioChannel::DataChannel10 => 10,
+            RadioChannel::DataChannel11 => 11,
+            RadioChannel::DataChannel12 => 12,
+            RadioChannel::DataChannel13 => 13,
+            RadioChannel::DataChannel14 => 14,
+            RadioChannel::DataChannel15 => 15,
+            RadioChannel::DataChannel16 => 16,
+            RadioChannel::DataChannel17 => 17,
+            RadioChannel::DataChannel18 => 18,
+            RadioChannel::DataChannel19 => 19,
+            RadioChannel::DataChannel20 => 20,
+            RadioChannel::DataChannel21 => 21,
+            RadioChannel::DataChannel22 => 22,
+            RadioChannel::DataChannel23 => 23,
+            RadioChannel::DataChannel24 => 24,
+            RadioChannel::DataChannel25 => 25,
+            RadioChannel::DataChannel26 => 26,
+            RadioChannel::DataChannel27 => 27,
+            RadioChannel::DataChannel28 => 28,
+            RadioChannel::DataChannel29 => 29,
+            RadioChannel::DataChannel30 => 30,
+            RadioChannel::DataChannel31 => 31,
+            RadioChannel::DataChannel32 => 32,
+            RadioChannel::DataChannel33 => 33,
+            RadioChannel::DataChannel34 => 34,
+            RadioChannel::DataChannel35 => 35,
+            RadioChannel::DataChannel36 => 36,
+            RadioChannel::AdvertisingChannel37 => 37,
+            RadioChannel::AdvertisingChannel38 => 38,
+            RadioChannel::AdvertisingChannel39 => 39,
         }
     }
 }

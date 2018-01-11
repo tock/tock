@@ -2,9 +2,9 @@
 //!
 //! The generic radio configuration i.e., not specific to Bluetooth are functions and similar which
 //! do not start with `ble`. Moreover, Bluetooth Low Energy specific radio configuration
-//! starts with `ble.
+//! starts with `ble`
 //!
-//! For more readabilility the Bluetooth specific configuration may be moved to separate trait
+//! For more readability the Bluetooth specific configuration may be moved to separate trait
 //!
 //! ### Author
 //! * Niklas Adolfsson <niklasadolfsson1@gmail.com>
@@ -37,7 +37,7 @@ use core::cell::Cell;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
-use nrf5x::ble_advertising_hil::RadioFrequency;
+use nrf5x::ble_advertising_hil::RadioChannel;
 use nrf5x::constants::TxPower;
 use peripheral_registers;
 
@@ -207,7 +207,7 @@ impl Radio {
         buf
     }
 
-    fn ble_initialize(&self, channel: RadioFrequency) {
+    fn ble_initialize(&self, channel: RadioChannel) {
         self.radio_on();
 
         self.ble_set_tx_power();
@@ -291,7 +291,7 @@ impl Radio {
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.2 Data Whitening
     // Configure channel index to the LFSR and the hardware solves the rest
-    fn ble_set_data_whitening(&self, channel: RadioFrequency) {
+    fn ble_set_data_whitening(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
         regs.datawhiteiv.set(channel.get_channel_index());
     }
@@ -300,7 +300,7 @@ impl Radio {
     // RF Channels:     0 - 39
     // Data:            0 - 36
     // Advertising:     37, 38, 39
-    fn ble_set_channel_freq(&self, channel: RadioFrequency) {
+    fn ble_set_channel_freq(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
         regs.frequency.set(channel as u32);
     }
@@ -321,7 +321,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     fn transmit_advertisement(&self,
                               buf: &'static mut [u8],
                               len: usize,
-                              channel: RadioFrequency)
+                              channel: RadioChannel)
                               -> &'static mut [u8] {
         let res = self.replace_radio_buffer(buf, len);
         self.ble_initialize(channel);
@@ -330,7 +330,7 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         res
     }
 
-    fn receive_advertisement(&self, channel: RadioFrequency) {
+    fn receive_advertisement(&self, channel: RadioChannel) {
         self.ble_initialize(channel);
         self.rx();
         self.enable_interrupts();
@@ -345,13 +345,25 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     }
 }
 
-// The capsule validates that the `tx_power` is between -20 to 10 dBm but then
-// chip must validate if the current `tx_power` is supported as well
+// The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
+// underlying chip must validate if the current `tx_power` is supported as well
 impl nrf5x::ble_advertising_hil::BleConfig for Radio {
-    fn set_tx_power(&self, power: u8) -> kernel::ReturnCode {
-        match nrf5x::constants::TxPower::from_u8(power) {
+    fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {
+        // Convert u8 to TxPower
+        // similiar functionlity as the FromPrimitive trait
+        match nrf5x::constants::TxPower::from_u8(tx_power) {
+            // Invalid transmitting power, propogate error
             TxPower::Error => kernel::ReturnCode::ENOSUPPORT,
-            e @ _ => {
+            // Valid transmitting power, propogate success
+            e @ TxPower::Positive4dBM |
+            e @ TxPower::Positive3dBM |
+            e @ TxPower::ZerodBm |
+            e @ TxPower::Negative4dBm |
+            e @ TxPower::Negative8dBm |
+            e @ TxPower::Negative12dBm |
+            e @ TxPower::Negative16dBm |
+            e @ TxPower::Negative20dBm |
+            e @ TxPower::Negative40dBm => {
                 self.tx_power.set(e);
                 kernel::ReturnCode::SUCCESS
             }

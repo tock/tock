@@ -14,7 +14,7 @@ use core::cell::Cell;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
-use nrf5x::ble_advertising_hil::RadioFrequency;
+use nrf5x::ble_advertising_hil::RadioChannel;
 use nrf5x::constants::TxPower;
 use peripheral_registers;
 
@@ -41,7 +41,7 @@ impl Radio {
     }
 
 
-    fn ble_init(&self, channel: RadioFrequency) {
+    fn ble_initialize(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
 
         self.radio_on();
@@ -69,7 +69,7 @@ impl Radio {
         self.set_crc_config();
 
         // Buffer configuration
-        self.set_buffer();
+        self.set_dma_ptr();
     }
 
     fn tx(&self) {
@@ -119,32 +119,28 @@ impl Radio {
         );
     }
 
-    // TODO set from capsules?!
     fn set_rx_address(&self, _: u32) {
         let regs = unsafe { &*self.regs };
         regs.rxaddresses.set(0x01);
     }
 
-    // TODO set from capsules?!
     fn set_tx_address(&self, _: u32) {
         let regs = unsafe { &*self.regs };
         regs.txaddress.set(0x00);
     }
 
-    // should not be configured from the capsule i.e.
-    // assume always BLE
     fn set_channel_rate(&self, rate: u32) {
         let regs = unsafe { &*self.regs };
         // set channel rate,  3 - BLE 1MBIT/s
         regs.mode.set(rate);
     }
 
-    fn set_data_whitening(&self, channel: RadioFrequency) {
+    fn set_data_whitening(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
         regs.datawhiteiv.set(channel.get_channel_index());
     }
 
-    fn set_channel_freq(&self, channel: RadioFrequency) {
+    fn set_channel_freq(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
         //37, 38 and 39 for adv.
         regs.frequency.set(channel as u32);
@@ -168,7 +164,7 @@ impl Radio {
         regs.txpower.set(self.tx_power.get() as u32);
     }
 
-    fn set_buffer(&self) {
+    fn set_dma_ptr(&self) {
         let regs = unsafe { &*self.regs };
         unsafe {
             regs.packetptr.set((&PAYLOAD as *const u8) as u32);
@@ -262,17 +258,17 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     fn transmit_advertisement(&self,
                               buf: &'static mut [u8],
                               len: usize,
-                              channel: RadioFrequency)
+                              channel: RadioChannel)
                               -> &'static mut [u8] {
         let res = self.replace_radio_buffer(buf, len);
-        self.ble_init(channel);
+        self.ble_initialize(channel);
         self.tx();
         self.enable_interrupts();
         res
     }
 
-    fn receive_advertisement(&self, channel: RadioFrequency) {
-        self.ble_init(channel);
+    fn receive_advertisement(&self, channel: RadioChannel) {
+        self.ble_initialize(channel);
         self.rx();
         self.enable_interrupts();
     }
@@ -286,13 +282,25 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     }
 }
 
-// The capsule validates that the `tx_power` is between -20 to 10 dBm but then
-// chip must validate if the current `tx_power` is supported as well
+// The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
+// underlying chip must validate if the current `tx_power` is supported as well
 impl nrf5x::ble_advertising_hil::BleConfig for Radio {
-    fn set_tx_power(&self, power: u8) -> kernel::ReturnCode {
-        match nrf5x::constants::TxPower::from_u8(power) {
+    fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {
+        // Convert u8 to TxPower
+        // similiar functionlity as the FromPrimitive trait
+        match nrf5x::constants::TxPower::from_u8(tx_power) {
+            // Invalid transmitting power, propogate error
             TxPower::Error => kernel::ReturnCode::ENOSUPPORT,
-            e @ _ => {
+            // Valid transmitting power, propogate success
+            e @ TxPower::Positive4dBM |
+            e @ TxPower::Positive3dBM |
+            e @ TxPower::ZerodBm |
+            e @ TxPower::Negative4dBm |
+            e @ TxPower::Negative8dBm |
+            e @ TxPower::Negative12dBm |
+            e @ TxPower::Negative16dBm |
+            e @ TxPower::Negative20dBm |
+            e @ TxPower::Negative40dBm => {
                 self.tx_power.set(e);
                 kernel::ReturnCode::SUCCESS
             }
