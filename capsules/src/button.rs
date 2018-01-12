@@ -50,7 +50,7 @@
 //!   of the button.
 
 use core::cell::Cell;
-use kernel::{AppId, Grant, Callback, Driver, ReturnCode};
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil;
 use kernel::hil::gpio::{Client, InterruptMode};
 
@@ -64,7 +64,7 @@ pub type SubscribeMap = u32;
 
 /// Whether the GPIOs for the buttons on this platform are low when the button
 /// is pressed or high.
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub enum GpioMode {
     LowWhenPressed,
     HighWhenPressed,
@@ -72,7 +72,7 @@ pub enum GpioMode {
 
 /// Values that are passed to userspace to identify if the button is pressed
 /// or not.
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub enum ButtonState {
     NotPressed = 0,
     Pressed = 1,
@@ -86,9 +86,10 @@ pub struct Button<'a, G: hil::gpio::Pin + 'a> {
 }
 
 impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
-    pub fn new(pins: &'a [(&'a G, GpioMode)],
-               grant: Grant<(Option<Callback>, SubscribeMap)>)
-               -> Button<'a, G> {
+    pub fn new(
+        pins: &'a [(&'a G, GpioMode)],
+        grant: Grant<(Option<Callback>, SubscribeMap)>,
+    ) -> Button<'a, G> {
         for &(pin, _) in pins.iter() {
             pin.make_input();
         }
@@ -102,18 +103,14 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Button<'a, G> {
     fn get_button_state(&self, pin_num: usize) -> ButtonState {
         let pin_value = self.pins[pin_num].0.read();
         match self.pins[pin_num].1 {
-            GpioMode::LowWhenPressed => {
-                match pin_value {
-                    false => ButtonState::Pressed,
-                    true => ButtonState::NotPressed,
-                }
-            }
-            GpioMode::HighWhenPressed => {
-                match pin_value {
-                    false => ButtonState::NotPressed,
-                    true => ButtonState::Pressed,
-                }
-            }
+            GpioMode::LowWhenPressed => match pin_value {
+                false => ButtonState::Pressed,
+                true => ButtonState::NotPressed,
+            },
+            GpioMode::HighWhenPressed => match pin_value {
+                false => ButtonState::NotPressed,
+                true => ButtonState::Pressed,
+            },
         }
     }
 }
@@ -130,14 +127,12 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
     ///   button.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            0 => {
-                self.apps
-                    .enter(callback.app_id(), |cntr, _| {
-                        cntr.0 = Some(callback);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.apps
+                .enter(callback.app_id(), |cntr, _| {
+                    cntr.0 = Some(callback);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
 
             // default
             _ => ReturnCode::ENOSUPPORT,
@@ -164,7 +159,9 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
         let pins = self.pins;
         match command_num {
             // return button count
-            0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
+            0 => ReturnCode::SuccessWithValue {
+                value: pins.len() as usize,
+            },
 
             // enable interrupts for a button
             1 => {
@@ -172,7 +169,9 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                     self.apps
                         .enter(appid, |cntr, _| {
                             cntr.1 |= 1 << data;
-                            pins[data].0.enable_interrupt(data, InterruptMode::EitherEdge);
+                            pins[data]
+                                .0
+                                .enable_interrupt(data, InterruptMode::EitherEdge);
                             ReturnCode::SUCCESS
                         })
                         .unwrap_or_else(|err| err.into())
@@ -196,8 +195,10 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                     // are any processes waiting for this button?
                     let interrupt_count = Cell::new(0);
                     self.apps.each(|cntr| {
-                        cntr.0.map(|_| if cntr.1 & (1 << data) != 0 {
-                            interrupt_count.set(interrupt_count.get() + 1);
+                        cntr.0.map(|_| {
+                            if cntr.1 & (1 << data) != 0 {
+                                interrupt_count.set(interrupt_count.get() + 1);
+                            }
                         });
                     });
 
@@ -216,7 +217,9 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for Button<'a, G> {
                     ReturnCode::EINVAL /* impossible button */
                 } else {
                     let button_state = self.get_button_state(data);
-                    ReturnCode::SuccessWithValue { value: button_state as usize }
+                    ReturnCode::SuccessWithValue {
+                        value: button_state as usize,
+                    }
                 }
             }
 
@@ -234,9 +237,11 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Client for Button<'a, G> {
 
         // schedule callback with the pin number and value
         self.apps.each(|cntr| {
-            cntr.0.map(|mut callback| if cntr.1 & (1 << pin_num) != 0 {
-                interrupt_count.set(interrupt_count.get() + 1);
-                callback.schedule(pin_num, button_state as usize, 0);
+            cntr.0.map(|mut callback| {
+                if cntr.1 & (1 << pin_num) != 0 {
+                    interrupt_count.set(interrupt_count.get() + 1);
+                    callback.schedule(pin_num, button_state as usize, 0);
+                }
             });
         });
 

@@ -12,7 +12,7 @@ use kernel::common::VolatileCell;
 /// Struct of the FICR registers
 ///
 /// Section 13.1 of http://infocenter.nordicsemi.com/pdf/nRF52832_PS_v1.0.pdf
-#[repr(C, packed)]
+#[repr(C)]
 struct FicrRegisters {
     _reserved0: [VolatileCell<u32>; 4], // (0x10 - 0x00) / 4 = 4
     codepagesize: VolatileCell<u32>,
@@ -60,7 +60,9 @@ pub struct FICR {
 
 impl FICR {
     const fn new(base_addr: usize) -> FICR {
-        FICR { registers: base_addr as *const FicrRegisters }
+        FICR {
+            registers: base_addr as *const FicrRegisters,
+        }
     }
 
     pub fn variant(&self) -> Variant {

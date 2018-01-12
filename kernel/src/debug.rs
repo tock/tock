@@ -35,7 +35,7 @@
 
 use callback::{AppId, Callback};
 use core::cmp::min;
-use core::fmt::{Arguments, Result, Write, write};
+use core::fmt::{write, Arguments, Result, Write};
 use core::ptr::{read_volatile, write_volatile};
 use core::str;
 use driver::Driver;
@@ -46,13 +46,17 @@ use returncode::ReturnCode;
 ///////////////////////////////////////////////////////////////////
 // debug_gpio! support
 
-pub static mut DEBUG_GPIOS: (Option<&'static hil::gpio::Pin>,
- Option<&'static hil::gpio::Pin>,
- Option<&'static hil::gpio::Pin>) = (None, None, None);
+pub static mut DEBUG_GPIOS: (
+    Option<&'static hil::gpio::Pin>,
+    Option<&'static hil::gpio::Pin>,
+    Option<&'static hil::gpio::Pin>,
+) = (None, None, None);
 
-pub unsafe fn assign_gpios(gpio0: Option<&'static hil::gpio::Pin>,
-                           gpio1: Option<&'static hil::gpio::Pin>,
-                           gpio2: Option<&'static hil::gpio::Pin>) {
+pub unsafe fn assign_gpios(
+    gpio0: Option<&'static hil::gpio::Pin>,
+    gpio1: Option<&'static hil::gpio::Pin>,
+    gpio2: Option<&'static hil::gpio::Pin>,
+) {
     DEBUG_GPIOS.0 = gpio0;
     DEBUG_GPIOS.1 = gpio1;
     DEBUG_GPIOS.2 = gpio2;
@@ -87,10 +91,10 @@ static mut DEBUG_WRITER: DebugWriter = DebugWriter {
     driver: None,
     grant: None,
     output_buffer: [0; BUF_SIZE],
-    output_head: 0, // ........ first valid index in output_buffer
-    output_tail: 0, // ........ one past last valid index (wraps to 0)
+    output_head: 0,       // ........ first valid index in output_buffer
+    output_tail: 0,       // ........ one past last valid index (wraps to 0)
     output_active_len: 0, //... how big is the current transaction?
-    count: 0, // .............. how many debug! calls
+    count: 0,             // .............. how many debug! calls
 };
 
 pub unsafe fn assign_console_driver<T>(driver: Option<&'static Driver>, grant: &mut T) {
@@ -113,7 +117,10 @@ impl DebugWriter {
             if end < start {
                 panic!("wb bounds: start {} end {} bytes {:?}", start, end, bytes);
             }
-            for (dst, src) in DEBUG_WRITER.output_buffer[start..end].iter_mut().zip(bytes.iter()) {
+            for (dst, src) in DEBUG_WRITER.output_buffer[start..end]
+                .iter_mut()
+                .zip(bytes.iter())
+            {
                 *dst = *src;
             }
         }
@@ -158,10 +165,11 @@ impl DebugWriter {
                         panic!("Consistency error: publish empty buffer?")
                     };
 
-                    let slice =
-                        AppSlice::new(self.output_buffer.as_mut_ptr().offset(start as isize),
-                                      end - start,
-                                      AppId::kernel_new(APPID_IDX));
+                    let slice = AppSlice::new(
+                        self.output_buffer.as_mut_ptr().offset(start as isize),
+                        end - start,
+                        AppId::kernel_new(APPID_IDX),
+                    );
                     let slice_len = slice.len();
                     if driver.allow(AppId::kernel_new(APPID_IDX), 1, slice) != ReturnCode::SUCCESS {
                         panic!("Debug print allow fail");
@@ -170,8 +178,9 @@ impl DebugWriter {
                     if driver.subscribe(1, KERNEL_CONSOLE_CALLBACK) != ReturnCode::SUCCESS {
                         panic!("Debug print subscribe fail");
                     }
-                    if driver.command(1, slice_len, 0, AppId::kernel_new(APPID_IDX)) !=
-                       ReturnCode::SUCCESS {
+                    if driver.command(1, slice_len, 0, AppId::kernel_new(APPID_IDX))
+                        != ReturnCode::SUCCESS
+                    {
                         panic!("Debug print command fail");
                     }
                 }
@@ -185,10 +194,10 @@ impl DebugWriter {
         let active = unsafe { read_volatile(&DEBUG_WRITER.output_active_len) };
         if active != bytes_written {
             let count = unsafe { read_volatile(&DEBUG_WRITER.count) };
-            panic!("active {} bytes_written {} count {}",
-                   active,
-                   bytes_written,
-                   count);
+            panic!(
+                "active {} bytes_written {} count {}",
+                active, bytes_written, count
+            );
         }
         let len = unsafe { DEBUG_WRITER.output_buffer.len() };
         let head = unsafe { read_volatile(&DEBUG_WRITER.output_head) };
@@ -222,8 +231,8 @@ impl DebugWriter {
 // inappropriate way?
 unsafe impl Sync for Callback {}
 
-static KERNEL_CONSOLE_CALLBACK: Callback = Callback::kernel_new(AppId::kernel_new(APPID_IDX),
-                                                                DebugWriter::callback);
+static KERNEL_CONSOLE_CALLBACK: Callback =
+    Callback::kernel_new(AppId::kernel_new(APPID_IDX), DebugWriter::callback);
 
 impl Write for DebugWriter {
     fn write_str(&mut self, s: &str) -> Result {
@@ -288,21 +297,25 @@ impl Write for DebugWriter {
             let end = tail;
             if (tail == 0) && (head == len - 1) {
                 let active = unsafe { read_volatile(&DEBUG_WRITER.output_active_len) };
-                panic!("Debug buffer full. Head {} tail {} len {} active {} remaining {}",
-                       head,
-                       tail,
-                       len,
-                       active,
-                       remaining_bytes.len());
+                panic!(
+                    "Debug buffer full. Head {} tail {} len {} active {} remaining {}",
+                    head,
+                    tail,
+                    len,
+                    active,
+                    remaining_bytes.len()
+                );
             }
             if remaining_bytes.len() > end - start {
                 let active = unsafe { read_volatile(&DEBUG_WRITER.output_active_len) };
-                panic!("Debug buffer out of room. Head {} tail {} len {} active {} remaining {}",
-                       head,
-                       tail,
-                       len,
-                       active,
-                       remaining_bytes.len());
+                panic!(
+                    "Debug buffer out of room. Head {} tail {} len {} active {} remaining {}",
+                    head,
+                    tail,
+                    len,
+                    active,
+                    remaining_bytes.len()
+                );
             }
             DebugWriter::write_buffer(start, end, remaining_bytes);
             let written = min(end - start, remaining_bytes.len());
@@ -387,7 +400,9 @@ pub trait Debug {
 #[cfg(debug = "true")]
 impl Default for Debug {
     fn write(&self, buf: &'static mut [u8], len: usize) {
-        panic!("No registered kernel debug printer. Thrown printing {:?}",
-               buf);
+        panic!(
+            "No registered kernel debug printer. Thrown printing {:?}",
+            buf
+        );
     }
 }

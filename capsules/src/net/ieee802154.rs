@@ -2,8 +2,8 @@
 //! Supports the general MAC frame format, which encompasses data frames, beacon
 //! frames, MAC command frames, and the like.
 
-use net::stream::{decode_u8, decode_u16, decode_u32, decode_bytes_be};
-use net::stream::{encode_u8, encode_u16, encode_u32, encode_bytes, encode_bytes_be};
+use net::stream::{decode_bytes_be, decode_u16, decode_u32, decode_u8};
+use net::stream::{encode_bytes, encode_bytes_be, encode_u16, encode_u32, encode_u8};
 use net::stream::SResult;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -113,12 +113,10 @@ impl<'a> From<&'a Option<MacAddress>> for AddressMode {
     fn from(opt_addr: &'a Option<MacAddress>) -> Self {
         match *opt_addr {
             None => AddressMode::NotPresent,
-            Some(addr) => {
-                match addr {
-                    MacAddress::Short(_) => AddressMode::Short,
-                    MacAddress::Long(_) => AddressMode::Long,
-                }
-            }
+            Some(addr) => match addr {
+                MacAddress::Short(_) => AddressMode::Short,
+                MacAddress::Long(_) => AddressMode::Long,
+            },
         }
     }
 }
@@ -170,21 +168,16 @@ impl SecurityLevel {
 
     pub fn encryption_needed(&self) -> bool {
         match *self {
-            SecurityLevel::EncMic32 |
-            SecurityLevel::EncMic64 |
-            SecurityLevel::EncMic128 => true,
+            SecurityLevel::EncMic32 | SecurityLevel::EncMic64 | SecurityLevel::EncMic128 => true,
             _ => false,
         }
     }
 
     pub fn mic_len(&self) -> usize {
         match *self {
-            SecurityLevel::Mic32 |
-            SecurityLevel::EncMic32 => 4,
-            SecurityLevel::Mic64 |
-            SecurityLevel::EncMic64 => 8,
-            SecurityLevel::Mic128 |
-            SecurityLevel::EncMic128 => 16,
+            SecurityLevel::Mic32 | SecurityLevel::EncMic32 => 4,
+            SecurityLevel::Mic64 | SecurityLevel::EncMic64 => 8,
+            SecurityLevel::Mic128 | SecurityLevel::EncMic128 => 16,
             _ => 0,
         }
     }
@@ -326,13 +319,15 @@ impl Security {
         let key_id_mode = stream_from_option!(KeyIdMode::from_scf(scf));
         let (off, key_id) = dec_try!(buf, off; KeyId::decode, key_id_mode);
 
-        stream_done!(off,
-                     Security {
-                         level: level,
-                         asn_in_nonce: asn_in_nonce,
-                         frame_counter: frame_counter,
-                         key_id: key_id,
-                     });
+        stream_done!(
+            off,
+            Security {
+                level: level,
+                asn_in_nonce: asn_in_nonce,
+                frame_counter: frame_counter,
+                key_id: key_id,
+            }
+        );
     }
 }
 
@@ -367,8 +362,7 @@ impl<'a> Default for HeaderIE<'a> {
 impl<'a> HeaderIE<'a> {
     pub fn is_termination(&self) -> bool {
         match *self {
-            HeaderIE::Termination1 |
-            HeaderIE::Termination2 => true,
+            HeaderIE::Termination1 | HeaderIE::Termination2 => true,
             _ => false,
         }
     }
@@ -378,7 +372,10 @@ impl<'a> HeaderIE<'a> {
         use self::HeaderIE::*;
         let mut off = 2;
         let element_id: u8 = match *self {
-            Undissected { element_id, content } => {
+            Undissected {
+                element_id,
+                content,
+            } => {
                 off = enc_consume!(buf, off; encode_bytes, content);
                 element_id
             }
@@ -389,8 +386,8 @@ impl<'a> HeaderIE<'a> {
         // Write the two octets that begin each header IE
         let content_len = off - 2;
         stream_cond!(content_len <= ie_control::HEADER_LEN_MAX);
-        let ie_ctl = ((content_len as u16) & ie_control::HEADER_LEN_MASK) |
-                     ((element_id as u16) << ie_control::HEADER_ID_POS);
+        let ie_ctl = ((content_len as u16) & ie_control::HEADER_LEN_MASK)
+            | ((element_id as u16) << ie_control::HEADER_ID_POS);
         enc_consume!(buf; encode_u16, ie_ctl.to_be());
 
         stream_done!(off);
@@ -412,12 +409,10 @@ impl<'a> HeaderIE<'a> {
         let ie = match element_id {
             0x7e => Termination1,
             0x7f => Termination2,
-            element_id => {
-                Undissected {
-                    element_id: element_id,
-                    content: content,
-                }
-            }
+            element_id => Undissected {
+                element_id: element_id,
+                content: content,
+            },
         };
 
         stream_done!(off + content_len, ie);
@@ -459,9 +454,8 @@ impl<'a> PayloadIE<'a> {
         // Write the two octets that begin each payload IE
         let content_len = off - 2;
         stream_cond!(content_len <= ie_control::PAYLOAD_LEN_MAX);
-        let ie_ctl = ((content_len as u16) & ie_control::PAYLOAD_LEN_MASK) |
-                     ((group_id & ie_control::PAYLOAD_ID_MASK) as u16) <<
-                     ie_control::PAYLOAD_ID_POS;
+        let ie_ctl = ((content_len as u16) & ie_control::PAYLOAD_LEN_MASK)
+            | ((group_id & ie_control::PAYLOAD_ID_MASK) as u16) << ie_control::PAYLOAD_ID_POS;
         enc_consume!(buf; encode_u16, ie_ctl.to_be());
 
         stream_done!(off);
@@ -474,8 +468,8 @@ impl<'a> PayloadIE<'a> {
         // Payload IEs are type 1
         stream_cond!(ie_ctl & ie_control::TYPE != 0);
         let content_len = (ie_ctl & ie_control::PAYLOAD_LEN_MASK) as usize;
-        let element_id = ((ie_ctl >> ie_control::PAYLOAD_ID_POS) as u8) &
-                         ie_control::PAYLOAD_ID_MASK;
+        let element_id =
+            ((ie_ctl >> ie_control::PAYLOAD_ID_POS) as u8) & ie_control::PAYLOAD_ID_MASK;
 
         stream_len_cond!(buf, off + content_len);
         let content = &buf[off..off + content_len];
@@ -483,12 +477,10 @@ impl<'a> PayloadIE<'a> {
         use self::PayloadIE::*;
         let ie = match element_id {
             0xf => Termination,
-            group_id => {
-                Undissected {
-                    group_id: group_id,
-                    content: content,
-                }
-            }
+            group_id => Undissected {
+                group_id: group_id,
+                content: content,
+            },
         };
 
         stream_done!(off + content_len, ie);
@@ -640,8 +632,7 @@ impl<'a> Header<'a> {
                     }
                 }
             }
-            FrameVersion::V2003 |
-            FrameVersion::V2006 => {
+            FrameVersion::V2003 | FrameVersion::V2006 => {
                 // In these two modes, the source pan ID is only omitted if it
                 // matches the destination pan ID. Hence, the user must always
                 // provide a pan ID iff an address is provided.
@@ -715,9 +706,12 @@ impl<'a> Header<'a> {
         };
 
         // Addressing fields
-        let (off, (dst_pan, dst_addr, src_pan, src_addr)) =
-            dec_try!(buf, off; Self::decode_addressing,
-                     version, dst_mode, src_mode, pan_id_compression);
+        let (off, (dst_pan, dst_addr, src_pan, src_addr)) = dec_try!(buf, off;
+                                                                     Self::decode_addressing,
+                                                                     version,
+                                                                     dst_mode,
+                                                                     src_mode,
+                                                                     pan_id_compression);
 
         // Auxiliary security header
         let (mut off, security) = if security_enabled {
@@ -775,33 +769,44 @@ impl<'a> Header<'a> {
             }
         }
 
-        stream_done!(off,
-                     (Header {
-                          frame_type: frame_type,
-                          frame_pending: frame_pending,
-                          ack_requested: ack_requested,
-                          version: version,
-                          seq: seq,
-                          dst_pan: dst_pan,
-                          dst_addr: dst_addr,
-                          src_pan: src_pan,
-                          src_addr: src_addr,
-                          security: security,
-                          header_ies: header_ies,
-                          header_ies_len: header_ies_len,
-                          payload_ies: payload_ies,
-                          payload_ies_len: payload_ies_len,
-                      },
-                      mac_payload_off));
+        stream_done!(
+            off,
+            (
+                Header {
+                    frame_type: frame_type,
+                    frame_pending: frame_pending,
+                    ack_requested: ack_requested,
+                    version: version,
+                    seq: seq,
+                    dst_pan: dst_pan,
+                    dst_addr: dst_addr,
+                    src_pan: src_pan,
+                    src_addr: src_addr,
+                    security: security,
+                    header_ies: header_ies,
+                    header_ies_len: header_ies_len,
+                    payload_ies: payload_ies,
+                    payload_ies_len: payload_ies_len,
+                },
+                mac_payload_off
+            )
+        );
     }
 
-    pub fn decode_addressing
-        (buf: &[u8],
-         version: FrameVersion,
-         dst_mode: AddressMode,
-         src_mode: AddressMode,
-         pan_id_compression: bool)
-         -> SResult<(Option<PanID>, Option<MacAddress>, Option<PanID>, Option<MacAddress>)> {
+    pub fn decode_addressing(
+        buf: &[u8],
+        version: FrameVersion,
+        dst_mode: AddressMode,
+        src_mode: AddressMode,
+        pan_id_compression: bool,
+    ) -> SResult<
+        (
+            Option<PanID>,
+            Option<MacAddress>,
+            Option<PanID>,
+            Option<MacAddress>,
+        ),
+    > {
         // IEEE 802.15.4: Section 7.2.1.5
         // Whether or not the addresses are included is determined by the mode
         // fields in the frame control field, but the presence of pan IDs
@@ -822,8 +827,7 @@ impl<'a> Header<'a> {
                     }
                 }
             }
-            FrameVersion::V2003 |
-            FrameVersion::V2006 => {
+            FrameVersion::V2003 | FrameVersion::V2006 => {
                 // In these two modes, pan IDs are specified if addresses are
                 // specified, except when the source pan matches the destination
                 // pan, in which case the source pan is omitted and the pan ID

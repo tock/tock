@@ -18,7 +18,6 @@
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};
-
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
@@ -62,7 +61,7 @@ enum Registers {
 }
 
 /// States of the I2C protocol with the LPS25HB.
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum State {
     Idle,
 
@@ -97,10 +96,11 @@ pub struct LPS25HB<'a> {
 }
 
 impl<'a> LPS25HB<'a> {
-    pub fn new(i2c: &'a i2c::I2CDevice,
-               interrupt_pin: &'a gpio::Pin,
-               buffer: &'static mut [u8])
-               -> LPS25HB<'a> {
+    pub fn new(
+        i2c: &'a i2c::I2CDevice,
+        interrupt_pin: &'a gpio::Pin,
+        buffer: &'static mut [u8],
+    ) -> LPS25HB<'a> {
         // setup and return struct
         LPS25HB {
             i2c: i2c,
@@ -124,7 +124,8 @@ impl<'a> LPS25HB<'a> {
 
     pub fn take_measurement(&self) {
         self.interrupt_pin.make_input();
-        self.interrupt_pin.enable_interrupt(0, gpio::InterruptMode::RisingEdge);
+        self.interrupt_pin
+            .enable_interrupt(0, gpio::InterruptMode::RisingEdge);
 
         self.buffer.take().map(|buf| {
             // turn on i2c to send commands
@@ -174,13 +175,15 @@ impl<'a> i2c::I2CClient for LPS25HB<'a> {
                 self.state.set(State::GotMeasurement);
             }
             State::GotMeasurement => {
-                let pressure = (((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8) |
-                                (buffer[0] as u32)) as u32;
+                let pressure = (((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8)
+                    | (buffer[0] as u32)) as u32;
 
                 // Returned as microbars
                 let pressure_ubar = (pressure * 1000) / 4096;
 
-                self.callback.get().map(|mut cb| cb.schedule(pressure_ubar as usize, 0, 0));
+                self.callback
+                    .get()
+                    .map(|mut cb| cb.schedule(pressure_ubar as usize, 0, 0));
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = 0;

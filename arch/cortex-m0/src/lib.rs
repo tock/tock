@@ -1,4 +1,4 @@
-#![feature(asm,const_fn,naked_functions)]
+#![feature(asm, const_fn, naked_functions)]
 #![no_std]
 
 extern crate kernel;
@@ -12,7 +12,8 @@ pub unsafe extern "C" fn generic_isr() {}
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
-    asm!("
+    asm!(
+        "
     /* Skip saving process state if not coming from user-space */
     ldr r0, MEXC_RETURN_PSP
     cmp lr, r0
@@ -74,14 +75,15 @@ NVICICER:
 MEXC_RETURN_MSP:
   .word 0xFFFFFFF9
 MEXC_RETURN_PSP:
-  .word 0xFFFFFFFD");
+  .word 0xFFFFFFFD"
+    );
 }
-
 
 #[naked]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn SVC_Handler() {
-    asm!("
+    asm!(
+        "
   ldr r0, EXC_RETURN_MSP
   cmp lr, r0
   bne to_kernel
@@ -99,13 +101,15 @@ EXC_RETURN_MSP:
   .word 0xFFFFFFF9
 EXC_RETURN_PSP:
   .word 0xFFFFFFFD
-  ");
+  "
+    );
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
-                                        process_regs: &mut [usize; 8])
-                                        -> *mut u8 {
+pub unsafe extern "C" fn switch_to_user(
+    mut user_stack: *const u8,
+    process_regs: &mut [usize; 8],
+) -> *mut u8 {
     asm!("
     /* Load non-hardware-stacked registers from Process stack */
     ldmia $2!, {r4-r7}

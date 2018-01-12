@@ -2,7 +2,7 @@
 
 use kernel::common::volatile_cell::VolatileCell;
 
-#[repr(C, packed)]
+#[repr(C)]
 // Registers for the NVIC
 struct Registers {
     // Interrupt set-enable

@@ -29,7 +29,6 @@ impl<'a> ListNode<'a, Funky<'a> + 'a> for Funky<'a> + 'a {
     }
 }
 
-
 // A manager holds a list of funky things
 pub struct Manager<'a> {
     funky_things: List<'a, Funky<'a> + 'a>,
@@ -37,7 +36,9 @@ pub struct Manager<'a> {
 
 impl<'a> Manager<'a> {
     pub fn new() -> Manager<'a> {
-        Manager { funky_things: List::new() }
+        Manager {
+            funky_things: List::new(),
+        }
     }
 
     pub fn manage(&mut self, thing: &'a (Funky<'a> + 'a)) {
@@ -58,7 +59,9 @@ pub struct Jazz<'a> {
 
 impl<'a> Jazz<'a> {
     pub fn new() -> Self {
-        Jazz { next: ListLink::empty() }
+        Jazz {
+            next: ListLink::empty(),
+        }
     }
 }
 
@@ -79,7 +82,9 @@ pub struct Cheese<'a> {
 
 impl<'a> Cheese<'a> {
     pub fn new() -> Self {
-        Cheese { next: ListLink::empty() }
+        Cheese {
+            next: ListLink::empty(),
+        }
     }
 }
 

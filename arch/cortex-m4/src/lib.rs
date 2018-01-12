@@ -2,7 +2,7 @@
 
 #![crate_name = "cortexm4"]
 #![crate_type = "rlib"]
-#![feature(asm,const_fn,naked_functions)]
+#![feature(asm, const_fn, naked_functions)]
 #![no_std]
 
 #[allow(unused_imports)]
@@ -20,7 +20,8 @@ pub unsafe extern "C" fn systick_handler() {}
 #[cfg(target_os = "none")]
 #[naked]
 pub unsafe extern "C" fn systick_handler() {
-    asm!("
+    asm!(
+        "
         /* Skip saving process state if not coming from user-space */
         cmp lr, #0xfffffffd
         bne _systick_handler_no_stacking
@@ -42,9 +43,9 @@ pub unsafe extern "C" fn systick_handler() {
 
         movw LR, #0xFFF9
         movt LR, #0xFFFF
-         ");
+         "
+    );
 }
-
 
 #[cfg(not(target_os = "none"))]
 pub unsafe extern "C" fn generic_isr() {}
@@ -53,7 +54,8 @@ pub unsafe extern "C" fn generic_isr() {}
 #[naked]
 /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
 pub unsafe extern "C" fn generic_isr() {
-    asm!("
+    asm!(
+        "
     /* Skip saving process state if not coming from user-space */
     cmp lr, #0xfffffffd
     bne _ggeneric_isr_no_stacking
@@ -104,7 +106,8 @@ _ggeneric_isr_no_stacking:
      *  `*(r3 + r2 * 4) = r0`
      *
      *  */
-	str	r0, [r3, r2, lsl #2]");
+	str	r0, [r3, r2, lsl #2]"
+    );
 }
 
 #[cfg(not(target_os = "none"))]
@@ -115,7 +118,8 @@ pub unsafe extern "C" fn SVC_Handler() {}
 #[naked]
 #[allow(non_snake_case)]
 pub unsafe extern "C" fn SVC_Handler() {
-    asm!("
+    asm!(
+        "
   cmp lr, #0xfffffff9
   bne to_kernel
 
@@ -136,7 +140,8 @@ to_kernel:
   msr CONTROL, r0
 
   movw LR, #0xFFF9
-  movt LR, #0xFFFF");
+  movt LR, #0xFFFF"
+    );
 }
 
 #[cfg(not(target_os = "none"))]
@@ -147,9 +152,10 @@ pub unsafe extern "C" fn switch_to_user(user_stack: *const u8, process_got: *con
 #[cfg(target_os = "none")]
 #[no_mangle]
 /// r0 is top of user stack, r1 Process GOT
-pub unsafe extern "C" fn switch_to_user(mut user_stack: *const u8,
-                                        process_regs: &mut [usize; 8])
-                                        -> *mut u8 {
+pub unsafe extern "C" fn switch_to_user(
+    mut user_stack: *const u8,
+    process_regs: &mut [usize; 8],
+) -> *mut u8 {
     asm!("
     /* Load bottom of stack into Process Stack Pointer */
     msr psp, $0

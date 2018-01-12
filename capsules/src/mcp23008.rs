@@ -55,7 +55,6 @@
 
 use core::cell::Cell;
 use kernel::ReturnCode;
-
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 
@@ -79,7 +78,7 @@ enum Registers {
 }
 
 /// States of the I2C protocol with the MCP23008.
-#[derive(Clone,Copy,Debug,PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum State {
     Idle,
 
@@ -103,13 +102,13 @@ enum State {
     Done,
 }
 
-#[derive(Clone,Copy,Debug,PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Direction {
     Input = 0x01,
     Output = 0x00,
 }
 
-#[derive(Clone,Copy,Debug,PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum PinState {
     High = 0x01,
     Low = 0x00,
@@ -126,10 +125,11 @@ pub struct MCP23008<'a> {
 }
 
 impl<'a> MCP23008<'a> {
-    pub fn new(i2c: &'a hil::i2c::I2CDevice,
-               interrupt_pin: Option<&'static hil::gpio::Pin>,
-               buffer: &'static mut [u8])
-               -> MCP23008<'a> {
+    pub fn new(
+        i2c: &'a hil::i2c::I2CDevice,
+        interrupt_pin: Option<&'static hil::gpio::Pin>,
+        buffer: &'static mut [u8],
+    ) -> MCP23008<'a> {
         MCP23008 {
             i2c: i2c,
             state: Cell::new(State::Idle),
@@ -152,11 +152,12 @@ impl<'a> MCP23008<'a> {
         // We configure the MCP23008 to use an active high interrupt.
         // If we don't have an interrupt pin mapped to this driver then we
         // obviously can't do interrupts.
-        self.interrupt_pin.map_or(ReturnCode::FAIL, |interrupt_pin| {
-            interrupt_pin.make_input();
-            interrupt_pin.enable_interrupt(0, hil::gpio::InterruptMode::RisingEdge);
-            ReturnCode::SUCCESS
-        })
+        self.interrupt_pin
+            .map_or(ReturnCode::FAIL, |interrupt_pin| {
+                interrupt_pin.make_input();
+                interrupt_pin.enable_interrupt(0, hil::gpio::InterruptMode::RisingEdge);
+                ReturnCode::SUCCESS
+            })
     }
 
     fn set_direction(&self, pin_number: u8, direction: Direction) -> ReturnCode {
@@ -220,10 +221,11 @@ impl<'a> MCP23008<'a> {
         })
     }
 
-    fn enable_interrupt_pin(&self,
-                            pin_number: u8,
-                            direction: hil::gpio::InterruptMode)
-                            -> ReturnCode {
+    fn enable_interrupt_pin(
+        &self,
+        pin_number: u8,
+        direction: hil::gpio::InterruptMode,
+    ) -> ReturnCode {
         self.buffer.take().map_or(ReturnCode::EBUSY, |buffer| {
             self.i2c.enable();
 
@@ -265,10 +267,12 @@ impl<'a> MCP23008<'a> {
 
     /// Helper function for keeping track of which interrupts are currently
     /// enabled.
-    fn save_pin_interrupt_state(&self,
-                                pin_number: u8,
-                                enabled: bool,
-                                direction: hil::gpio::InterruptMode) {
+    fn save_pin_interrupt_state(
+        &self,
+        pin_number: u8,
+        enabled: bool,
+        direction: hil::gpio::InterruptMode,
+    ) {
         let mut current_state = self.interrupt_settings.get();
         // Clear out existing settings
         current_state &= !(0x0F << (4 * pin_number));
@@ -380,7 +384,9 @@ impl<'a> hil::i2c::I2CClient for MCP23008<'a> {
             State::ReadGpioRead(pin_number) => {
                 let pin_value = (buffer[0] >> pin_number) & 0x01;
 
-                self.client.get().map(|client| { client.done(pin_value as usize); });
+                self.client.get().map(|client| {
+                    client.done(pin_value as usize);
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -437,7 +443,9 @@ impl<'a> hil::i2c::I2CClient for MCP23008<'a> {
                 self.state.set(State::Idle);
             }
             State::Done => {
-                self.client.get().map(|client| { client.done(0); });
+                self.client.get().map(|client| {
+                    client.done(0);
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -517,11 +525,12 @@ impl<'a> hil::gpio_async::Port for MCP23008<'a> {
         self.set_pin(pin as u8, PinState::Low)
     }
 
-    fn enable_interrupt(&self,
-                        pin: usize,
-                        mode: hil::gpio::InterruptMode,
-                        identifier: usize)
-                        -> ReturnCode {
+    fn enable_interrupt(
+        &self,
+        pin: usize,
+        mode: hil::gpio::InterruptMode,
+        identifier: usize,
+    ) -> ReturnCode {
         if pin > 7 {
             return ReturnCode::EINVAL;
         }

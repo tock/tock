@@ -65,7 +65,7 @@ enum Registers {
 }
 
 /// States of the I2C protocol with the LPS331AP.
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum State {
     Idle,
     WaitTemp,
@@ -237,7 +237,6 @@ impl<'a, A: time::Alarm + 'a> i2c::I2CClient for SI7021<'a, A> {
     }
 }
 
-
 impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::TemperatureDriver for SI7021<'a, A> {
     fn read_temperature(&self) -> kernel::ReturnCode {
         self.buffer
@@ -251,11 +250,13 @@ impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::TemperatureDriver for SI7021
                 self.state.set(State::TakeTempMeasurementInit);
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|| if self.on_deck.get() != OnDeck::Nothing {
-                ReturnCode::EBUSY
-            } else {
-                self.on_deck.set(OnDeck::Temperature);
-                ReturnCode::SUCCESS
+            .unwrap_or_else(|| {
+                if self.on_deck.get() != OnDeck::Nothing {
+                    ReturnCode::EBUSY
+                } else {
+                    self.on_deck.set(OnDeck::Temperature);
+                    ReturnCode::SUCCESS
+                }
             })
     }
 
@@ -277,11 +278,13 @@ impl<'a, A: time::Alarm + 'a> kernel::hil::sensors::HumidityDriver for SI7021<'a
                 self.state.set(State::TakeRhMeasurementInit);
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|| if self.on_deck.get() != OnDeck::Nothing {
-                ReturnCode::EBUSY
-            } else {
-                self.on_deck.set(OnDeck::Humidity);
-                ReturnCode::SUCCESS
+            .unwrap_or_else(|| {
+                if self.on_deck.get() != OnDeck::Nothing {
+                    ReturnCode::EBUSY
+                } else {
+                    self.on_deck.set(OnDeck::Humidity);
+                    ReturnCode::SUCCESS
+                }
             })
     }
 

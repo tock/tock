@@ -39,7 +39,7 @@ pub struct Adc<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> {
 
 /// ADC modes, used to track internal state and to signify to applications which
 /// state a callback came from
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum AdcMode {
     NoMode = -1,
     SingleSample = 0,
@@ -79,12 +79,13 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
     /// channels - list of ADC channels usable by applications
     /// adc_buf1 - buffer used to hold ADC samples
     /// adc_buf2 - second buffer used when continuously sampling ADC
-    pub fn new(adc: &'a A,
-               channels: &'a [&'a <A as hil::adc::Adc>::Channel],
-               adc_buf1: &'static mut [u16; 128],
-               adc_buf2: &'static mut [u16; 128],
-               adc_buf3: &'static mut [u16; 128])
-               -> Adc<'a, A> {
+    pub fn new(
+        adc: &'a A,
+        channels: &'a [&'a <A as hil::adc::Adc>::Channel],
+        adc_buf1: &'static mut [u16; 128],
+        adc_buf2: &'static mut [u16; 128],
+        adc_buf3: &'static mut [u16; 128],
+    ) -> Adc<'a, A> {
         Adc {
             // ADC driver
             adc: adc,
@@ -140,13 +141,17 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
     /// closure - function to run on the found buffer
     fn take_and_map_buffer<F: FnOnce(&'static mut [u16])>(&self, closure: F) {
         if self.adc_buf1.is_some() {
-            self.adc_buf1.take().map(|val| { closure(val); });
-
+            self.adc_buf1.take().map(|val| {
+                closure(val);
+            });
         } else if self.adc_buf2.is_some() {
-            self.adc_buf2.take().map(|val| { closure(val); });
-
+            self.adc_buf2.take().map(|val| {
+                closure(val);
+            });
         } else if self.adc_buf3.is_some() {
-            self.adc_buf3.take().map(|val| { closure(val); });
+            self.adc_buf3.take().map(|val| {
+                closure(val);
+            });
         }
     }
 
@@ -154,7 +159,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
     ///
     /// channel - index into `channels` array, which channel to sample
     fn sample(&self, channel: usize) -> ReturnCode {
-
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
@@ -195,7 +199,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
     /// channel - index into `channels` array, which channel to sample
     /// frequency - number of samples per second to collect
     fn sample_continuous(&self, channel: usize, frequency: u32) -> ReturnCode {
-
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
@@ -238,7 +241,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
     /// channel - index into `channels` array, which channel to sample
     /// frequency - number of samples per second to collect
     fn sample_buffer(&self, channel: usize, frequency: u32) -> ReturnCode {
-
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
@@ -294,12 +296,17 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
                 self.using_app_buf1.set(true);
                 self.samples_remaining.set(request_len - len1 - len2);
                 self.samples_outstanding.set(len1 + len2);
-                let (rc, retbuf1, retbuf2) = self.adc
-                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
+                let (rc, retbuf1, retbuf2) =
+                    self.adc
+                        .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
                 if rc != ReturnCode::SUCCESS {
                     // store buffers again
-                    retbuf1.map(|buf| { self.replace_buffer(buf); });
-                    retbuf2.map(|buf| { self.replace_buffer(buf); });
+                    retbuf1.map(|buf| {
+                        self.replace_buffer(buf);
+                    });
+                    retbuf2.map(|buf| {
+                        self.replace_buffer(buf);
+                    });
                 }
                 rc
             })
@@ -325,7 +332,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
     /// channel - index into `channels` array, which channel to sample
     /// frequency - number of samples per second to collect
     fn sample_buffer_continuous(&self, channel: usize, frequency: u32) -> ReturnCode {
-
         // only one sample at a time
         if self.active.get() {
             return ReturnCode::EBUSY;
@@ -364,7 +370,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         // start a continuous sample
         let res = self.adc_buf1.take().map_or(ReturnCode::EBUSY, |buf1| {
             self.adc_buf2.take().map_or(ReturnCode::EBUSY, move |buf2| {
-
                 // determine request lengths
                 let samples_needed = app_buf_length / 2;
                 let next_samples_needed = next_app_buf_length / 2;
@@ -380,7 +385,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
                     len2 = cmp::min(next_samples_needed, buf2.len());
                     self.samples_remaining.set(0);
                     self.samples_outstanding.set(len1);
-
                 } else if samples_needed <= (buf1.len() + buf2.len()) {
                     // we can fit the entire app_buffer request between the two
                     // buffers
@@ -388,7 +392,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
                     len2 = samples_needed - buf1.len();
                     self.samples_remaining.set(0);
                     self.samples_outstanding.set(len1 + len2);
-
                 } else {
                     // the app_buffer is larger than both buffers, so just
                     // request max lengths
@@ -400,12 +403,17 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
 
                 // begin sampling
                 self.using_app_buf1.set(true);
-                let (rc, retbuf1, retbuf2) = self.adc
-                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
+                let (rc, retbuf1, retbuf2) =
+                    self.adc
+                        .sample_highspeed(chan, frequency, buf1, len1, buf2, len2);
                 if rc != ReturnCode::SUCCESS {
                     // store buffers again
-                    retbuf1.map(|buf| { self.replace_buffer(buf); });
-                    retbuf2.map(|buf| { self.replace_buffer(buf); });
+                    retbuf1.map(|buf| {
+                        self.replace_buffer(buf);
+                    });
+                    retbuf2.map(|buf| {
+                        self.replace_buffer(buf);
+                    });
                 }
                 rc
             })
@@ -447,8 +455,12 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Adc<'a, A> {
         let (rc, buf1, buf2) = self.adc.retrieve_buffers();
 
         // store buffers again
-        buf1.map(|buf| { self.replace_buffer(buf); });
-        buf2.map(|buf| { self.replace_buffer(buf); });
+        buf1.map(|buf| {
+            self.replace_buffer(buf);
+        });
+        buf2.map(|buf| {
+            self.replace_buffer(buf);
+        });
 
         // return result
         rc
@@ -469,21 +481,23 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::Client for Ad
 
             // perform callback
             self.callback.get().map(|mut callback| {
-                callback.schedule(AdcMode::SingleSample as usize,
-                                  self.channel.get(),
-                                  sample as usize);
+                callback.schedule(
+                    AdcMode::SingleSample as usize,
+                    self.channel.get(),
+                    sample as usize,
+                );
             });
-
         } else if self.active.get() && self.mode.get() == AdcMode::ContinuousSample {
             // sample ready in continuous sampling operation, keep state
 
             // perform callback
             self.callback.get().map(|mut callback| {
-                callback.schedule(AdcMode::ContinuousSample as usize,
-                                  self.channel.get(),
-                                  sample as usize);
+                callback.schedule(
+                    AdcMode::ContinuousSample as usize,
+                    self.channel.get(),
+                    sample as usize,
+                );
             });
-
         } else {
             // operation probably canceled. Make sure state is consistent. No
             // callback
@@ -506,15 +520,13 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
     /// length - number of valid samples in the buffer, guaranteed to be less
     ///          than or equal to buffer length
     fn samples_ready(&self, buf: &'static mut [u16], length: usize) {
-
         // do we expect a buffer?
-        if self.active.get() &&
-           (self.mode.get() == AdcMode::SingleBuffer ||
-            self.mode.get() == AdcMode::ContinuousBuffer) {
-
+        if self.active.get()
+            && (self.mode.get() == AdcMode::SingleBuffer
+                || self.mode.get() == AdcMode::ContinuousBuffer)
+        {
             // we did expect a buffer. Determine the current application state
             self.app.map(|state| {
-
                 // determine which app buffer to copy data into and which is
                 // next up if we're in continuous mode
                 let app_buf;
@@ -528,7 +540,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
                 }
 
                 // update count of outstanding sample requests
-                self.samples_outstanding.set(self.samples_outstanding.get() - length);
+                self.samples_outstanding
+                    .set(self.samples_outstanding.get() - length);
 
                 // provide a new buffer and length request to the ADC if
                 // necessary. If we haven't received enough samples for the
@@ -555,7 +568,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
                             let samples_needed = next_app_buf.map_or(0, |buf| buf.len() / 2);
                             self.samples_remaining
                                 .set(samples_needed - self.next_samples_outstanding.get());
-                            self.samples_outstanding.set(self.next_samples_outstanding.get());
+                            self.samples_outstanding
+                                .set(self.next_samples_outstanding.get());
                             self.using_app_buf1.set(!self.using_app_buf1.get());
 
                             // we also need to place our next request, however
@@ -580,38 +594,40 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
                                 // We'll just make a request and handle the
                                 // state updating on next callback
                                 self.take_and_map_buffer(|adc_buf| {
-                                    let samples_needed = next_next_app_buf.as_ref()
-                                        .map_or(0, |buf| buf.len() / 2);
+                                    let samples_needed =
+                                        next_next_app_buf.as_ref().map_or(0, |buf| buf.len() / 2);
                                     let request_len = cmp::min(samples_needed, adc_buf.len());
                                     self.next_samples_outstanding.set(request_len);
-                                    let (res, retbuf) = self.adc
-                                        .provide_buffer(adc_buf, request_len);
+                                    let (res, retbuf) =
+                                        self.adc.provide_buffer(adc_buf, request_len);
                                     if res != ReturnCode::SUCCESS {
-                                        retbuf.map(|buf| { self.replace_buffer(buf); });
+                                        retbuf.map(|buf| {
+                                            self.replace_buffer(buf);
+                                        });
                                     }
                                 });
-
                             } else {
                                 // okay, we still need more samples for the next
                                 // app_buffer
 
                                 // provide a new buffer and update state
                                 self.take_and_map_buffer(|adc_buf| {
-                                    let request_len = cmp::min(self.samples_remaining.get(),
-                                                               adc_buf.len());
+                                    let request_len =
+                                        cmp::min(self.samples_remaining.get(), adc_buf.len());
                                     self.samples_remaining
                                         .set(self.samples_remaining.get() - request_len);
                                     self.samples_outstanding
                                         .set(self.samples_outstanding.get() + request_len);
-                                    let (res, retbuf) = self.adc
-                                        .provide_buffer(adc_buf, request_len);
+                                    let (res, retbuf) =
+                                        self.adc.provide_buffer(adc_buf, request_len);
                                     if res != ReturnCode::SUCCESS {
-                                        retbuf.map(|buf| { self.replace_buffer(buf); });
+                                        retbuf.map(|buf| {
+                                            self.replace_buffer(buf);
+                                        });
                                     }
                                 });
                             }
                         }
-
                     } else {
                         // but there are still outstanding samples for the
                         // current app_buffer (actually exactly one request, the
@@ -633,12 +649,13 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
                                 self.next_samples_outstanding.set(request_len);
                                 let (res, retbuf) = self.adc.provide_buffer(adc_buf, request_len);
                                 if res != ReturnCode::SUCCESS {
-                                    retbuf.map(|buf| { self.replace_buffer(buf); });
+                                    retbuf.map(|buf| {
+                                        self.replace_buffer(buf);
+                                    });
                                 }
                             });
                         }
                     }
-
                 } else {
                     // we need to get more samples from the current app_buffer
                     perform_callback = false;
@@ -646,11 +663,15 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
                     // provide a new buffer and update state
                     self.take_and_map_buffer(|adc_buf| {
                         let request_len = cmp::min(self.samples_remaining.get(), adc_buf.len());
-                        self.samples_remaining.set(self.samples_remaining.get() - request_len);
-                        self.samples_outstanding.set(self.samples_outstanding.get() + request_len);
+                        self.samples_remaining
+                            .set(self.samples_remaining.get() - request_len);
+                        self.samples_outstanding
+                            .set(self.samples_outstanding.get() + request_len);
                         let (res, retbuf) = self.adc.provide_buffer(adc_buf, request_len);
                         if res != ReturnCode::SUCCESS {
-                            retbuf.map(|buf| { self.replace_buffer(buf); });
+                            retbuf.map(|buf| {
+                                self.replace_buffer(buf);
+                            });
                         }
                     });
                 }
@@ -673,11 +694,12 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
                         //            or sample length
                         // We then split each sample into its two bytes and copy
                         // them to the app buffer
-                        for (chunk, &sample) in app_buf.chunks_mut(2)
+                        for (chunk, &sample) in app_buf
+                            .chunks_mut(2)
                             .skip(self.app_buf_offset.get() / 2)
                             .zip(adc_buf.iter())
-                            .take(length) {
-
+                            .take(length)
+                        {
                             let mut val = sample;
                             for byte in chunk.iter_mut() {
                                 *byte = (val & 0xFF) as u8;
@@ -687,7 +709,8 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
 
                         // update our byte offset based on how many samples we
                         // copied
-                        self.app_buf_offset.set(self.app_buf_offset.get() + length * 2);
+                        self.app_buf_offset
+                            .set(self.app_buf_offset.get() + length * 2);
                     });
 
                     // if the app_buffer is filled, perform callback
@@ -695,9 +718,11 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
                         // actually schedule the callback
                         self.callback.get().map(|mut callback| {
                             let len_chan = ((app_buf.len() / 2) << 8) | (self.channel.get() & 0xFF);
-                            callback.schedule(self.mode.get() as usize,
-                                              len_chan,
-                                              app_buf.ptr() as usize);
+                            callback.schedule(
+                                self.mode.get() as usize,
+                                len_chan,
+                                app_buf.ptr() as usize,
+                            );
                         });
 
                         // if the mode is SingleBuffer, the operation is
@@ -712,9 +737,12 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
 
                             // reclaim buffers and store them
                             let (_, buf1, buf2) = self.adc.retrieve_buffers();
-                            buf1.map(|buf| { self.replace_buffer(buf); });
-                            buf2.map(|buf| { self.replace_buffer(buf); });
-
+                            buf1.map(|buf| {
+                                self.replace_buffer(buf);
+                            });
+                            buf2.map(|buf| {
+                                self.replace_buffer(buf);
+                            });
                         } else {
                             // if the mode is ContinuousBuffer, we've just
                             // switched app buffers. Reset our offset to zero
@@ -723,7 +751,6 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> hil::adc::HighSpeedClie
                     }
                 });
             });
-
         } else {
             // operation was likely canceled. Make sure state is consistent. No
             // callback
@@ -750,7 +777,9 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
             // Pass buffer for samples to go into
             0 => {
                 // set first buffer
-                self.app.map(|state| { state.app_buf1 = Some(slice); });
+                self.app.map(|state| {
+                    state.app_buf1 = Some(slice);
+                });
 
                 ReturnCode::SUCCESS
             }
@@ -758,7 +787,9 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
             // Pass a second buffer to be used for double-buffered continuous sampling
             1 => {
                 // set second buffer
-                self.app.map(|state| { state.app_buf2 = Some(slice); });
+                self.app.map(|state| {
+                    state.app_buf2 = Some(slice);
+                });
 
                 ReturnCode::SUCCESS
             }
@@ -792,15 +823,18 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed + 'a> Driver for Adc<'a, A> {
     /// command_num - which command call this is
     /// data - value sent by the application, varying uses
     /// _appid - application identifier, unused
-    fn command(&self,
-               command_num: usize,
-               channel: usize,
-               frequency: usize,
-               _appid: AppId)
-               -> ReturnCode {
+    fn command(
+        &self,
+        command_num: usize,
+        channel: usize,
+        frequency: usize,
+        _appid: AppId,
+    ) -> ReturnCode {
         match command_num {
             // check if present
-            0 => ReturnCode::SuccessWithValue { value: self.channels.len() as usize },
+            0 => ReturnCode::SuccessWithValue {
+                value: self.channels.len() as usize,
+            },
 
             // Single sample on channel
             1 => self.sample(channel),

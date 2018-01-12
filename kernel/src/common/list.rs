@@ -38,7 +38,9 @@ impl<'a, T: ?Sized + ListNode<'a, T>> Iterator for ListIterator<'a, T> {
 
 impl<'a, T: ?Sized + ListNode<'a, T>> List<'a, T> {
     pub const fn new() -> List<'a, T> {
-        List { head: ListLink(Cell::new(None)) }
+        List {
+            head: ListLink(Cell::new(None)),
+        }
     }
 
     pub fn head(&self) -> Option<&'a T> {
@@ -68,6 +70,8 @@ impl<'a, T: ?Sized + ListNode<'a, T>> List<'a, T> {
     }
 
     pub fn iter(&self) -> ListIterator<'a, T> {
-        ListIterator { cur: self.head.0.get() }
+        ListIterator {
+            cur: self.head.0.get(),
+        }
     }
 }

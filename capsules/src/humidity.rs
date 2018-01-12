@@ -47,14 +47,14 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Grant, Driver};
+use kernel::{AppId, Callback, Driver, Grant};
 use kernel::ReturnCode;
 use kernel::hil;
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x60001;
 
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum HumidityCommand {
     Exists,
     ReadHumidity,
@@ -83,12 +83,14 @@ impl<'a> HumiditySensor<'a> {
 
     fn enqueue_command(&self, command: HumidityCommand, arg1: usize, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| if !self.busy.get() {
-                app.subscribed = true;
-                self.busy.set(true);
-                self.call_driver(command, arg1)
-            } else {
-                ReturnCode::EBUSY
+            .enter(appid, |app, _| {
+                if !self.busy.get() {
+                    app.subscribed = true;
+                    self.busy.set(true);
+                    self.call_driver(command, arg1)
+                } else {
+                    ReturnCode::EBUSY
+                }
             })
             .unwrap_or_else(|err| err.into())
     }
@@ -113,10 +115,12 @@ impl<'a> HumiditySensor<'a> {
 impl<'a> hil::sensors::HumidityClient for HumiditySensor<'a> {
     fn callback(&self, tmp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| if app.subscribed {
-                self.busy.set(false);
-                app.subscribed = false;
-                app.callback.map(|mut cb| cb.schedule(tmp_val, 0, 0));
+            cntr.enter(|app, _| {
+                if app.subscribed {
+                    self.busy.set(false);
+                    app.subscribed = false;
+                    app.callback.map(|mut cb| cb.schedule(tmp_val, 0, 0));
+                }
             });
         }
     }
@@ -133,7 +137,6 @@ impl<'a> Driver for HumiditySensor<'a> {
 
     fn command(&self, command_num: usize, arg1: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
-
             // check whether the driver exist!!
             0 => ReturnCode::SUCCESS,
 

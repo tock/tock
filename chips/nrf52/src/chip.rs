@@ -15,7 +15,6 @@ impl NRF52 {
     }
 }
 
-
 impl kernel::Chip for NRF52 {
     type MPU = ();
     type SysTick = ();
@@ -49,11 +48,11 @@ impl kernel::Chip for NRF52 {
                             (false, false) => (),
                             (true, false) => spi::SPIM0.handle_interrupt(),
                             (false, true) => i2c::TWIM0.handle_interrupt(),
-                            (true, true) => {
-                                debug_assert!(false,
-                                              "SPIM0 and TWIM0 cannot be \
-                                                          enabled at the same time.")
-                            }
+                            (true, true) => debug_assert!(
+                                false,
+                                "SPIM0 and TWIM0 cannot be \
+                                 enabled at the same time."
+                            ),
                         }
                     }
                     SPI1_TWI1 => {
@@ -63,11 +62,11 @@ impl kernel::Chip for NRF52 {
                             (false, false) => (),
                             (true, false) => spi::SPIM1.handle_interrupt(),
                             (false, true) => i2c::TWIM1.handle_interrupt(),
-                            (true, true) => {
-                                debug_assert!(false,
-                                              "SPIM1 and TWIM1 cannot be \
-                                                          enabled at the same time.")
-                            }
+                            (true, true) => debug_assert!(
+                                false,
+                                "SPIM1 and TWIM1 cannot be \
+                                 enabled at the same time."
+                            ),
                         }
                     }
                     SPIM2_SPIS2_SPI2 => spi::SPIM2.handle_interrupt(),

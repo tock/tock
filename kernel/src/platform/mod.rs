@@ -7,7 +7,9 @@ pub mod systick;
 pub trait Platform {
     /// Platform-specific mapping of syscall numbers to objects that implement
     /// the Driver methods for that syscall
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R where F: FnOnce(Option<&Driver>) -> R;
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    where
+        F: FnOnce(Option<&Driver>) -> R;
 }
 
 /// Interface for individual MCUs.

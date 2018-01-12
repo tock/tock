@@ -47,7 +47,7 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Grant, Driver};
+use kernel::{AppId, Callback, Driver, Grant};
 use kernel::ReturnCode;
 use kernel::hil;
 
@@ -67,9 +67,10 @@ pub struct TemperatureSensor<'a> {
 }
 
 impl<'a> TemperatureSensor<'a> {
-    pub fn new(driver: &'a hil::sensors::TemperatureDriver,
-               grant: Grant<App>)
-               -> TemperatureSensor<'a> {
+    pub fn new(
+        driver: &'a hil::sensors::TemperatureDriver,
+        grant: Grant<App>,
+    ) -> TemperatureSensor<'a> {
         TemperatureSensor {
             driver: driver,
             apps: grant,
@@ -79,12 +80,14 @@ impl<'a> TemperatureSensor<'a> {
 
     fn enqueue_command(&self, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| if !self.busy.get() {
-                app.subscribed = true;
-                self.busy.set(true);
-                self.driver.read_temperature()
-            } else {
-                ReturnCode::EBUSY
+            .enter(appid, |app, _| {
+                if !self.busy.get() {
+                    app.subscribed = true;
+                    self.busy.set(true);
+                    self.driver.read_temperature()
+                } else {
+                    ReturnCode::EBUSY
+                }
             })
             .unwrap_or_else(|err| err.into())
     }
@@ -102,10 +105,12 @@ impl<'a> TemperatureSensor<'a> {
 impl<'a> hil::sensors::TemperatureClient for TemperatureSensor<'a> {
     fn callback(&self, temp_val: usize) {
         for cntr in self.apps.iter() {
-            cntr.enter(|app, _| if app.subscribed {
-                self.busy.set(false);
-                app.subscribed = false;
-                app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
+            cntr.enter(|app, _| {
+                if app.subscribed {
+                    self.busy.set(false);
+                    app.subscribed = false;
+                    app.callback.map(|mut cb| cb.schedule(temp_val, 0, 0));
+                }
             });
         }
     }
@@ -122,7 +127,6 @@ impl<'a> Driver for TemperatureSensor<'a> {
 
     fn command(&self, command_num: usize, _: usize, _: usize, appid: AppId) -> ReturnCode {
         match command_num {
-
             // check whether the driver exists!!
             0 => ReturnCode::SUCCESS,
 

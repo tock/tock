@@ -26,7 +26,6 @@
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver};
 use kernel::ReturnCode;
-
 use kernel::hil;
 
 pub struct GPIOAsync<'a, Port: hil::gpio_async::Port + 'a> {
@@ -69,7 +68,9 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
 
 impl<'a, Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'a, Port> {
     fn fired(&self, pin: usize, identifier: usize) {
-        self.interrupt_callback.get().map(|mut cb| cb.schedule(identifier, pin, 0));
+        self.interrupt_callback
+            .get()
+            .map(|mut cb| cb.schedule(identifier, pin, 0));
     }
 
     fn done(&self, value: usize) {
@@ -147,7 +148,9 @@ impl<'a, Port: hil::gpio_async::Port> Driver for GPIOAsync<'a, Port> {
 
         match command_num {
             // How many ports
-            0 => ReturnCode::SuccessWithValue { value: ports.len() as usize },
+            0 => ReturnCode::SuccessWithValue {
+                value: ports.len() as usize,
+            },
 
             // enable output
             1 => ports[port].make_output(pin),

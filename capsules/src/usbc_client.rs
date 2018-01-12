@@ -14,7 +14,7 @@ const VENDOR_ID: u16 = 0x6667;
 const PRODUCT_ID: u16 = 0xabcd;
 
 static LANGUAGES: &'static [u16] = &[
-    0x0409, // English (United States)
+    0x0409 // English (United States)
 ];
 
 static STRINGS: &'static [&'static str] = &[
@@ -91,38 +91,39 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
     /// Handle a Control Setup transaction
     fn ctrl_setup(&self) -> CtrlSetupResult {
         SetupData::get(self.ep0_buf()).map_or(CtrlSetupResult::ErrNoParse, |setup_data| {
-            setup_data.get_standard_request().map_or_else(|| {
+            setup_data.get_standard_request().map_or_else(
+                || {
+                    // XX: CtrlSetupResult::ErrNonstandardRequest
 
-                // XX: CtrlSetupResult::ErrNonstandardRequest
+                    // For now, promiscuously accept vendor data and even supply
+                    // a few debugging bytes when host does a read
 
-                // For now, promiscuously accept vendor data and even supply
-                // a few debugging bytes when host does a read
-
-                match setup_data.request_type.transfer_direction() {
-                    TransferDirection::HostToDevice => {
-                        self.state.set(State::CtrlOut);
-                        CtrlSetupResult::Ok
+                    match setup_data.request_type.transfer_direction() {
+                        TransferDirection::HostToDevice => {
+                            self.state.set(State::CtrlOut);
+                            CtrlSetupResult::Ok
+                        }
+                        TransferDirection::DeviceToHost => {
+                            // Arrange to some crap back
+                            let buf = self.descriptor_buf();
+                            buf[0].set(0xa);
+                            buf[1].set(0xb);
+                            buf[2].set(0xc);
+                            self.state.set(State::CtrlIn(0, 3));
+                            CtrlSetupResult::Ok
+                        }
                     }
-                    TransferDirection::DeviceToHost => {
-                        // Arrange to some crap back
-                        let buf = self.descriptor_buf();
-                        buf[0].set(0xa);
-                        buf[1].set(0xb);
-                        buf[2].set(0xc);
-                        self.state.set(State::CtrlIn(0, 3));
-                        CtrlSetupResult::Ok
-                    }
-                }
-            },
-                                                          |request| {
-                match request {
-                    StandardDeviceRequest::GetDescriptor { descriptor_type,
-                                                           descriptor_index,
-                                                           lang_id,
-                                                           requested_length } => {
-                        match descriptor_type {
-                            DescriptorType::Device => {
-                                match descriptor_index {
+                },
+                |request| {
+                    match request {
+                        StandardDeviceRequest::GetDescriptor {
+                            descriptor_type,
+                            descriptor_index,
+                            lang_id,
+                            requested_length,
+                        } => {
+                            match descriptor_type {
+                                DescriptorType::Device => match descriptor_index {
                                     0 => {
                                         let buf = self.descriptor_buf();
                                         let d = DeviceDescriptor {
@@ -139,88 +140,95 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                                         CtrlSetupResult::Ok
                                     }
                                     _ => CtrlSetupResult::ErrInvalidDeviceIndex,
+                                },
+                                DescriptorType::Configuration => {
+                                    match descriptor_index {
+                                        0 => {
+                                            // Place all the descriptors
+                                            // related to this configuration
+                                            // into a buffer contiguously,
+                                            // starting with the last
+
+                                            let buf = self.descriptor_buf();
+                                            let mut storage_avail = buf.len();
+
+                                            let di = InterfaceDescriptor::default();
+                                            storage_avail -=
+                                                di.write_to(&buf[storage_avail - di.size()..]);
+
+                                            let dc = ConfigurationDescriptor {
+                                                num_interfaces: 1,
+                                                related_descriptor_length: di.size(),
+                                                ..Default::default()
+                                            };
+                                            storage_avail -=
+                                                dc.write_to(&buf[storage_avail - dc.size()..]);
+
+                                            let request_start = storage_avail;
+                                            let request_end = min(
+                                                request_start + (requested_length as usize),
+                                                buf.len(),
+                                            );
+                                            self.state
+                                                .set(State::CtrlIn(request_start, request_end));
+                                            CtrlSetupResult::Ok
+                                        }
+                                        _ => CtrlSetupResult::ErrInvalidConfigurationIndex,
+                                    }
                                 }
-                            }
-                            DescriptorType::Configuration => {
-                                match descriptor_index {
-                                    0 => {
-                                        // Place all the descriptors related to this configuration
-                                        // into a buffer contiguously, starting with the last
-
-                                        let buf = self.descriptor_buf();
-                                        let mut storage_avail = buf.len();
-
-                                        let di = InterfaceDescriptor::default();
-                                        storage_avail -=
-                                            di.write_to(&buf[storage_avail - di.size()..]);
-
-                                        let dc = ConfigurationDescriptor {
-                                            num_interfaces: 1,
-                                            related_descriptor_length: di.size(),
-                                            ..Default::default()
-                                        };
-                                        storage_avail -=
-                                            dc.write_to(&buf[storage_avail - dc.size()..]);
-
-                                        let request_start = storage_avail;
-                                        let request_end = min(request_start +
-                                                              (requested_length as usize),
-                                                              buf.len());
-                                        self.state.set(State::CtrlIn(request_start, request_end));
+                                DescriptorType::String => {
+                                    if let Some(buf) = match descriptor_index {
+                                        0 => {
+                                            let buf = self.descriptor_buf();
+                                            let d = LanguagesDescriptor { langs: LANGUAGES };
+                                            let len = d.write_to(buf);
+                                            let end = min(len, requested_length as usize);
+                                            Some(&buf[..end])
+                                        }
+                                        i if i > 0 && (i as usize) <= STRINGS.len()
+                                            && lang_id == LANGUAGES[0] =>
+                                        {
+                                            let buf = self.descriptor_buf();
+                                            let d = StringDescriptor {
+                                                string: STRINGS[i as usize - 1],
+                                            };
+                                            let len = d.write_to(buf);
+                                            let end = min(len, requested_length as usize);
+                                            Some(&buf[..end])
+                                        }
+                                        _ => None,
+                                    } {
+                                        self.state.set(State::CtrlIn(0, buf.len()));
                                         CtrlSetupResult::Ok
+                                    } else {
+                                        CtrlSetupResult::ErrInvalidStringIndex
                                     }
-                                    _ => CtrlSetupResult::ErrInvalidConfigurationIndex,
                                 }
-                            }
-                            DescriptorType::String => {
-                                if let Some(buf) = match descriptor_index {
-                                    0 => {
-                                        let buf = self.descriptor_buf();
-                                        let d = LanguagesDescriptor { langs: LANGUAGES };
-                                        let len = d.write_to(buf);
-                                        let end = min(len, requested_length as usize);
-                                        Some(&buf[..end])
-                                    }
-                                    i if i > 0 && (i as usize) <= STRINGS.len() &&
-                                         lang_id == LANGUAGES[0] => {
-                                        let buf = self.descriptor_buf();
-                                        let d =
-                                            StringDescriptor { string: STRINGS[i as usize - 1] };
-                                        let len = d.write_to(buf);
-                                        let end = min(len, requested_length as usize);
-                                        Some(&buf[..end])
-                                    }
-                                    _ => None,
-                                } {
-                                    self.state.set(State::CtrlIn(0, buf.len()));
-                                    CtrlSetupResult::Ok
-                                } else {
-                                    CtrlSetupResult::ErrInvalidStringIndex
+                                DescriptorType::DeviceQualifier => {
+                                    // We are full-speed only, so we must
+                                    // respond with a request error
+                                    CtrlSetupResult::ErrNoDeviceQualifier
                                 }
-                            }
-                            DescriptorType::DeviceQualifier => {
-                                // We are full-speed only, so we must respond with a request error
-                                CtrlSetupResult::ErrNoDeviceQualifier
-                            }
-                            _ => CtrlSetupResult::ErrUnrecognizedDescriptorType,
-                        } // match descriptor_type
-                    }
-                    StandardDeviceRequest::SetAddress { device_address } => {
-                        // Load the address we've been assigned ...
-                        self.controller.set_address(device_address);
+                                _ => CtrlSetupResult::ErrUnrecognizedDescriptorType,
+                            } // match descriptor_type
+                        }
+                        StandardDeviceRequest::SetAddress { device_address } => {
+                            // Load the address we've been assigned ...
+                            self.controller.set_address(device_address);
 
-                        // ... and when this request gets to the Status stage
-                        // we will actually enable the address.
-                        self.state.set(State::SetAddress);
-                        CtrlSetupResult::Ok
+                            // ... and when this request gets to the Status stage
+                            // we will actually enable the address.
+                            self.state.set(State::SetAddress);
+                            CtrlSetupResult::Ok
+                        }
+                        StandardDeviceRequest::SetConfiguration { .. } => {
+                            // We have been assigned a particular configuration: fine!
+                            CtrlSetupResult::Ok
+                        }
+                        _ => CtrlSetupResult::ErrUnrecognizedRequestType,
                     }
-                    StandardDeviceRequest::SetConfiguration { .. } => {
-                        // We have been assigned a particular configuration: fine!
-                        CtrlSetupResult::Ok
-                    }
-                    _ => CtrlSetupResult::ErrUnrecognizedRequestType,
-                }
-            })
+                },
+            )
         })
     }
 

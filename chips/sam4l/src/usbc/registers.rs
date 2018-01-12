@@ -66,15 +66,27 @@ registers![USBC_BASE, {
     0x0830 => { "USB Descriptor address", UDESC, "RW" }
 }];
 
+// work around rustfmt a bit here, which likes to remove the semicolons and
+// then fail syntax parsing....
+// these macros will be replaced soon with the new bitfield interface, so we'll
+// be okay with this being a bit silly-looking short term
+#[rustfmt_skip]
 bitfield![USBCON, USBCON_UIMOD, "RW", Mode, 25, 1]; // sheet says bit 25, but maybe it's 24?
+#[rustfmt_skip]
 bitfield![USBCON, USBCON_USBE, "RW", bool, 15, 1];
+#[rustfmt_skip]
 bitfield![USBCON, USBCON_FRZCLK, "RW", bool, 14, 1];
 
+#[rustfmt_skip]
 bitfield![UDCON, UDCON_DETACH, "RW", bool, 8, 1];
+#[rustfmt_skip]
 bitfield![UDCON, UDCON_LS, "RW", Speed, 12, 1];
+#[rustfmt_skip]
 bitfield![UDCON, UDCON_UADD, "RW", u8, 0, 0b1111111];
+#[rustfmt_skip]
 bitfield![UDCON, UDCON_ADDEN, "RW", bool, 7, 1];
 
+#[rustfmt_skip]
 bitfield![USBSTA, USBSTA_CLKUSABLE, "R", bool, 14, 1];
 
 // Bitfields for UDINT, UDINTCLR, UDINTESET
