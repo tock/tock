@@ -199,7 +199,7 @@ impl kernel::mpu::MPU for MPU {
 
             // find smallest region that could encapsulate the app needs
             let mut subregion_size = 32;
-            while subregion_size < 4*1024*1024/8 && 8*subregion_size < len {
+            while subregion_size < 4 * 1024 * 1024 / 8 && 8 * subregion_size < len {
                 subregion_size *= 2;
             }
             if start % subregion_size != 0 {
