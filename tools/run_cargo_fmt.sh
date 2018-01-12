@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 
-# Peg a rustfmt version while things are unstable
-#
-# Note: We install a local copy of rustfmt so as not to interfere with any
-# other use of rustfmt on the machine
-RUSTFMT_VERSION=0.7.1
+set -e
+
 export RUSTUP_TOOLCHAIN=nightly-2018-01-05
 
-if [[ $(rustc --version) != "rustc 1.24.0-nightly (8e7a609e6 2018-01-04)" ]]; then
-	rustup install $RUSTUP_TOOLCHAIN || (echo "Failed to install rustc. Please read doc/Getting_Started.md"; exit 1)
+# Verify that we're running in the base directory
+if [ ! -x tools/run_cargo_fmt.sh ]; then
+	echo ERROR: $0 must be run from the tock repository root.
+	echo ""
+	exit 1
 fi
 
+# Install formatting tools if needed. Source this script so it can modify PATH
+source tools/install_cargo_fmt.sh
 
 # Format overwrites changes, which is probably good, but it's nice to see
 # what it has done
@@ -35,38 +37,13 @@ if git status --porcelain | grep '^.M.*\.rs' -q; then
 	fi
 fi
 
-# Verify that we're running in the base directory
-if [ ! -x tools/run_cargo_fmt.sh ]; then
-	echo ERROR: $0 must be run from the tock repository root.
-	echo ""
-	exit 1
-fi
-
-# CI setup has correct rustfmt install globally already
-if [ ! "$CI" == "true" ]; then
-	needs_install=false
-	# Check to make sure that cargo format is installed
-	if [ ! -x tools/local_cargo/bin/rustfmt ]; then
-		needs_install=true
-	elif [ $(tools/local_cargo/bin/rustfmt --version | cut -d' ' -f1) != "$RUSTFMT_VERSION" ]; then
-		needs_install=true
-	fi
-
-	if $needs_install; then
-		echo "INFO: rustfmt v$RUSTFMT_VERSION not installed. Installing."
-		echo "(This will take a few minutes)"
-		echo ""
-		mkdir -p tools/local_cargo
-		cargo install --root tools/local_cargo --vers $RUSTFMT_VERSION --force rustfmt
-	fi
-	# Put local cargo format on PATH
-	PATH="$(pwd)/tools/local_cargo/bin:$PATH"
-fi
+set +e
+let FAIL=0
+set -e
 
 # Find folders with Cargo.toml files in them and run `cargo fmt`.
 if [ "$1" == "diff" ]; then
 	# Just print out diffs and count errors, used by Travis
-	let FAIL=0
 	for f in $(find . | grep Cargo.toml); do
 		pushd $(dirname $f) > /dev/null
 		cargo-fmt -- --write-mode=diff || let FAIL=FAIL+1
@@ -74,7 +51,6 @@ if [ "$1" == "diff" ]; then
 	done
 	exit $FAIL
 else
-	let FAIL=0
 	for f in $(find . | grep Cargo.toml); do
 		pushd $(dirname $f) > /dev/null
 		cargo-fmt -- --write-mode=overwrite || let FAIL=FAIL+1

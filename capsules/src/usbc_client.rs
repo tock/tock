@@ -144,8 +144,10 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                             DescriptorType::Configuration => {
                                 match descriptor_index {
                                     0 => {
-                                        // Place all the descriptors related to this configuration
-                                        // into a buffer contiguously, starting with the last
+                                        // Place all the descriptors
+                                        // related to this configuration
+                                        // into a buffer contiguously,
+                                        // starting with the last
 
                                         let buf = self.descriptor_buf();
                                         let mut storage_avail = buf.len();
@@ -199,7 +201,8 @@ impl<'a, C: UsbController> hil::usb::Client for Client<'a, C> {
                                 }
                             }
                             DescriptorType::DeviceQualifier => {
-                                // We are full-speed only, so we must respond with a request error
+                                // We are full-speed only, so we must
+                                // respond with a request error
                                 CtrlSetupResult::ErrNoDeviceQualifier
                             }
                             _ => CtrlSetupResult::ErrUnrecognizedDescriptorType,

@@ -715,9 +715,12 @@ impl<'a> Header<'a> {
         };
 
         // Addressing fields
-        let (off, (dst_pan, dst_addr, src_pan, src_addr)) =
-            dec_try!(buf, off; Self::decode_addressing,
-                     version, dst_mode, src_mode, pan_id_compression);
+        let (off, (dst_pan, dst_addr, src_pan, src_addr)) = dec_try!(buf, off;
+                                                                     Self::decode_addressing,
+                                                                     version,
+                                                                     dst_mode,
+                                                                     src_mode,
+                                                                     pan_id_compression);
 
         // Auxiliary security header
         let (mut off, security) = if security_enabled {
