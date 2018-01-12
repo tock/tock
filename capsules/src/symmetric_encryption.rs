@@ -70,9 +70,9 @@
 // Date: March 31, 2017
 
 use core::cell::Cell;
-use kernel::{AppId, AppSlice, Grant, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::symmetric_encryption::{SymmetricEncryption, Client};
+use kernel::hil::symmetric_encryption::{Client, SymmetricEncryption};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x40000;
@@ -80,7 +80,6 @@ pub const DRIVER_NUM: usize = 0x40000;
 pub static mut BUF: [u8; 128] = [0; 128];
 pub static mut KEY: [u8; 16] = [0; 16];
 pub static mut IV: [u8; 16] = [0; 16];
-
 
 /// This enum shall keep track of the state of the AESDriver
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -122,12 +121,13 @@ pub struct Crypto<'a, E: SymmetricEncryption + 'a> {
 }
 
 impl<'a, E: SymmetricEncryption + 'a> Crypto<'a, E> {
-    pub fn new(crypto: &'a E,
-               grant: Grant<App>,
-               key: &'static mut [u8],
-               data: &'static mut [u8],
-               ctr: &'static mut [u8])
-               -> Crypto<'a, E> {
+    pub fn new(
+        crypto: &'a E,
+        grant: Grant<App>,
+        key: &'static mut [u8],
+        data: &'static mut [u8],
+        ctr: &'static mut [u8],
+    ) -> Crypto<'a, E> {
         Crypto {
             crypto: crypto,
             apps: grant,
@@ -157,8 +157,9 @@ impl<'a, E: SymmetricEncryption + 'a> Crypto<'a, E> {
                                 let len2 = slice2.len();
                                 // Copy counter value to kernel buffer.
                                 self.kernel_ctr.take().map(move |ctr| {
-                                    for (out, inp) in ctr.iter_mut()
-                                        .zip(slice2.as_ref()[0..len2].iter()) {
+                                    for (out, inp) in
+                                        ctr.iter_mut().zip(slice2.as_ref()[0..len2].iter())
+                                    {
                                         *out = *inp;
                                     }
                                     self.crypto.aes128_crypt_ctr(buf, ctr, len1);
@@ -178,11 +179,12 @@ impl<'a, E: SymmetricEncryption + 'a> Crypto<'a, E> {
 }
 
 impl<'a, E: SymmetricEncryption + 'a> Client for Crypto<'a, E> {
-    fn crypt_done(&self,
-                  data: &'static mut [u8],
-                  dmy: &'static mut [u8],
-                  len: usize)
-                  -> ReturnCode {
+    fn crypt_done(
+        &self,
+        data: &'static mut [u8],
+        dmy: &'static mut [u8],
+        len: usize,
+    ) -> ReturnCode {
         for cntr in self.apps.iter() {
             cntr.enter(|app, _| {
                 if app.data_buf.is_some() {
@@ -193,8 +195,9 @@ impl<'a, E: SymmetricEncryption + 'a> Client for Crypto<'a, E> {
                         d[i] = *c;
                     }
                 }
-                app.callback
-                    .map(|mut cb| { cb.schedule(self.state.get() as usize, 0, 0); });
+                app.callback.map(|mut cb| {
+                    cb.schedule(self.state.get() as usize, 0, 0);
+                });
             });
         }
         self.busy.set(false);
@@ -208,44 +211,36 @@ impl<'a, E: SymmetricEncryption + 'a> Client for Crypto<'a, E> {
 impl<'a, E: SymmetricEncryption> Driver for Crypto<'a, E> {
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
-            0 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.key_buf = Some(slice);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
-            1 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.data_buf = Some(slice);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
-            4 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.ctr_buf = Some(slice);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.apps
+                .enter(appid, |app, _| {
+                    app.key_buf = Some(slice);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
+            1 => self.apps
+                .enter(appid, |app, _| {
+                    app.data_buf = Some(slice);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
+            4 => self.apps
+                .enter(appid, |app, _| {
+                    app.ctr_buf = Some(slice);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
 
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            0 => {
-                self.apps
-                    .enter(callback.app_id(), |app, _| {
-                        app.callback = Some(callback);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.apps
+                .enter(callback.app_id(), |app, _| {
+                    app.callback = Some(callback);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -255,8 +250,9 @@ impl<'a, E: SymmetricEncryption> Driver for Crypto<'a, E> {
             // set key, it is assumed to 16, 24 or 32 bytes
             // e.g. aes-128, aes-128 and aes-256
             0 => {
-                if !self.key_configured.get() && !self.busy.get() &&
-                   self.state.get() == CryptoState::IDLE {
+                if !self.key_configured.get() && !self.busy.get()
+                    && self.state.get() == CryptoState::IDLE
+                {
                     let mut ret = ReturnCode::SUCCESS;
                     for cntr in self.apps.iter() {
                         // indicate busy state
@@ -264,33 +260,30 @@ impl<'a, E: SymmetricEncryption> Driver for Crypto<'a, E> {
                         self.state.set(CryptoState::SETKEY);
 
                         cntr.enter(|app, _| {
-                            app.key_buf
-                                .as_ref()
-                                .map(|slice| {
-                                    let len = slice.len();
-                                    if len == 16 || len == 24 || len == 32 {
-                                        self.kernel_key
-                                            .take()
-                                            .map(|buf| {
-                                                for (out, inp) in buf.iter_mut()
-                                                    .zip(slice.as_ref()[0..len].iter()) {
-                                                    *out = *inp;
-                                                }
-                                                let tmp = self.crypto.set_key(buf, len);
-                                                self.kernel_key.replace(tmp);
-                                                // indicate that the key is configured
-                                                self.key_configured.set(true);
-                                                // indicate that the encryption driver not busy
-                                                self.busy.set(false);
-
-                                                self.state.set(CryptoState::IDLE);
-                                            });
-                                    } else {
+                            app.key_buf.as_ref().map(|slice| {
+                                let len = slice.len();
+                                if len == 16 || len == 24 || len == 32 {
+                                    self.kernel_key.take().map(|buf| {
+                                        for (out, inp) in
+                                            buf.iter_mut().zip(slice.as_ref()[0..len].iter())
+                                        {
+                                            *out = *inp;
+                                        }
+                                        let tmp = self.crypto.set_key(buf, len);
+                                        self.kernel_key.replace(tmp);
+                                        // indicate that the key is configured
+                                        self.key_configured.set(true);
+                                        // indicate that the encryption driver not busy
                                         self.busy.set(false);
+
                                         self.state.set(CryptoState::IDLE);
-                                        ret = ReturnCode::ESIZE;
-                                    }
-                                });
+                                    });
+                                } else {
+                                    self.busy.set(false);
+                                    self.state.set(CryptoState::IDLE);
+                                    ret = ReturnCode::ESIZE;
+                                }
+                            });
                         });
                     }
                     ret

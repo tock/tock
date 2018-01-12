@@ -9,7 +9,6 @@ mod registers;
 use self::common::register::*;
 use self::data::*;
 use self::registers::*;
-
 use core::cell::Cell;
 use core::fmt;
 use core::slice;
@@ -17,9 +16,8 @@ use kernel::common::VolatileCell;
 use kernel::common::take_cell::MapCell;
 use kernel::hil;
 use kernel::hil::usb::*;
-
 use pm;
-use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
+use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use scif;
 
 macro_rules! client_err {
@@ -68,11 +66,13 @@ impl<'a> UsbController for Usbc<'a> {
     }
 
     fn endpoint_ctrl_out_enable(&self, e: u32) {
-        let cfg = EndpointConfig::new(BankCount::Single,
-                                      EndpointSize::Bytes8,
-                                      EndpointDirection::Out,
-                                      EndpointType::Control,
-                                      EndpointIndex::new(e));
+        let cfg = EndpointConfig::new(
+            BankCount::Single,
+            EndpointSize::Bytes8,
+            EndpointDirection::Out,
+            EndpointType::Control,
+            EndpointIndex::new(e),
+        );
         self.endpoint_enable(e, cfg);
     }
 
@@ -98,14 +98,16 @@ impl<'a> Usbc<'a> {
         Usbc {
             client: None,
             state: MapCell::new(State::Reset),
-            descriptors: [new_endpoint(),
-                          new_endpoint(),
-                          new_endpoint(),
-                          new_endpoint(),
-                          new_endpoint(),
-                          new_endpoint(),
-                          new_endpoint(),
-                          new_endpoint()],
+            descriptors: [
+                new_endpoint(),
+                new_endpoint(),
+                new_endpoint(),
+                new_endpoint(),
+                new_endpoint(),
+                new_endpoint(),
+                new_endpoint(),
+                new_endpoint(),
+            ],
         }
     }
 
@@ -122,8 +124,10 @@ impl<'a> Usbc<'a> {
                 State::Idle(mode) => {
                     if pm::get_system_frequency() == 48000000 {
                         // XX: not clear that this always results in a usable USB clock
-                        scif::generic_clock_enable(scif::GenericClock::GCLK7,
-                                                   scif::ClockSource::CLK_HSB);
+                        scif::generic_clock_enable(
+                            scif::GenericClock::GCLK7,
+                            scif::ClockSource::CLK_HSB,
+                        );
 
                         while !USBSTA_CLKUSABLE.read() {}
 
@@ -157,7 +161,6 @@ impl<'a> Usbc<'a> {
             }
         });
     }
-
 
     /// Enable the controller's clocks and interrupt and transition to Idle state
     /// (No effect if current state is not Reset)
@@ -222,22 +225,26 @@ impl<'a> Usbc<'a> {
             self._detach();
         }
 
-        self.state.map(|state| if *state != State::Reset {
-            unsafe {
-                USBCON_USBE.write(false);
+        self.state.map(|state| {
+            if *state != State::Reset {
+                unsafe {
+                    USBCON_USBE.write(false);
 
-                disable_clock(Clock::PBB(PBBClock::USBC));
-                disable_clock(Clock::HSB(HSBClock::USBC));
+                    disable_clock(Clock::PBB(PBBClock::USBC));
+                    disable_clock(Clock::HSB(HSBClock::USBC));
+                }
+                *state = State::Reset;
             }
-            *state = State::Reset;
         });
     }
 
     /// Provide a buffer for transfers in and out of the given endpoint
-    pub fn endpoint_bank_set_buffer(&self,
-                                    endpoint: EndpointIndex,
-                                    bank: BankIndex,
-                                    buf: &[VolatileCell<u8>]) {
+    pub fn endpoint_bank_set_buffer(
+        &self,
+        endpoint: EndpointIndex,
+        bank: BankIndex,
+        buf: &[VolatileCell<u8>],
+    ) {
         let e: usize = From::from(endpoint);
         let b: usize = From::from(bank);
         let p = buf.as_ptr() as *mut u8;
@@ -304,24 +311,25 @@ impl<'a> Usbc<'a> {
         match state {
             State::Reset => panic!("Not reached"),
             State::Idle(_) => panic!("Not reached"),
-            State::Active(ref mut mode) => {
-                match *mode {
-                    Mode::Device { speed, ref config, ref mut state } => {
-                        self.handle_device_interrupt(speed, config, state)
-                    }
-                    Mode::Host => panic!("Unimplemented"),
-                }
-            }
+            State::Active(ref mut mode) => match *mode {
+                Mode::Device {
+                    speed,
+                    ref config,
+                    ref mut state,
+                } => self.handle_device_interrupt(speed, config, state),
+                Mode::Host => panic!("Unimplemented"),
+            },
         }
 
         self.state.replace(state);
     }
 
-    fn handle_device_interrupt(&mut self,
-                               speed: Speed,
-                               config: &Option<EndpointConfig>,
-                               dstate: &mut DeviceState) {
-
+    fn handle_device_interrupt(
+        &mut self,
+        speed: Speed,
+        config: &Option<EndpointConfig>,
+        dstate: &mut DeviceState,
+    ) {
         let udint: u32 = UDINT.read();
 
         // debug!("--> UDINT={:?} {:?}", UdintFlags(udint), *dstate);
@@ -339,7 +347,9 @@ impl<'a> Usbc<'a> {
             *dstate = DeviceState::Init;
 
             // Alert the client
-            self.client.map(|client| { client.bus_reset(); });
+            self.client.map(|client| {
+                client.bus_reset();
+            });
             debug!("USB Bus Reset");
             // debug_regs();
 
@@ -456,8 +466,10 @@ impl<'a> Usbc<'a> {
                                         // Also, wait for NAKOUT to signal end of IN stage
                                         // (The datasheet incorrectly says NAKIN)
                                         UESTAnCLR[endpoint].write(NAKOUT);
-                                        endpoint_enable_only_interrupts(endpoint,
-                                                                        RAMACERR | TXIN | NAKOUT);
+                                        endpoint_enable_only_interrupts(
+                                            endpoint,
+                                            RAMACERR | TXIN | NAKOUT,
+                                        );
                                     } else {
                                         // The following Data stage will be OUT
 
@@ -467,8 +479,10 @@ impl<'a> Usbc<'a> {
                                         // Also, wait for NAKIN to signal end of OUT stage
                                         UESTAnCLR[endpoint].write(RXOUT);
                                         UESTAnCLR[endpoint].write(NAKIN);
-                                        endpoint_enable_only_interrupts(endpoint,
-                                                                        RAMACERR | RXOUT | NAKIN);
+                                        endpoint_enable_only_interrupts(
+                                            endpoint,
+                                            RAMACERR | RXOUT | NAKIN,
+                                        );
                                     }
                                 }
                                 failure => {
@@ -510,8 +524,8 @@ impl<'a> Usbc<'a> {
                             // Acknowledge
                             UESTAnCLR[endpoint].write(NAKOUT);
 
-                            // Run handler again in case the RXOUT has already arrived
-                            // again = true;
+                        // Run handler again in case the RXOUT has already arrived
+                        // again = true;
                         } else if status & TXIN != 0 {
                             // The data bank is ready to receive another IN payload
                             // debug!("D({}) TXIN", endpoint);
@@ -522,19 +536,19 @@ impl<'a> Usbc<'a> {
                             });
                             match result {
                                 Some(CtrlInResult::Packet(packet_bytes, transfer_complete)) => {
-                                    self.descriptors[0][0]
-                                        .packet_size
-                                        .set(if packet_bytes == 8 && transfer_complete {
-                                            // Send a complete final packet, and request
-                                            // that the controller also send a zero-length
-                                            // packet to signal the end of transfer
-                                            PacketSize::single_with_zlp(8)
-                                        } else {
-                                            // Send either a complete but not-final
-                                            // packet, or a short and final packet (which
-                                            // itself signals end of transfer)
-                                            PacketSize::single(packet_bytes as u32)
-                                        });
+                                    self.descriptors[0][0].packet_size.set(if packet_bytes == 8
+                                        && transfer_complete
+                                    {
+                                        // Send a complete final packet, and request
+                                        // that the controller also send a zero-length
+                                        // packet to signal the end of transfer
+                                        PacketSize::single_with_zlp(8)
+                                    } else {
+                                        // Send either a complete but not-final
+                                        // packet, or a short and final packet (which
+                                        // itself signals end of transfer)
+                                        PacketSize::single(packet_bytes as u32)
+                                    });
 
                                     // debug!("D({}) Send CTRL IN packet ({} bytes)",
                                     //        endpoint,
@@ -654,7 +668,9 @@ impl<'a> Usbc<'a> {
                             self.client.map(|c| c.ctrl_status());
 
                             // Send zero-length packet to acknowledge transaction
-                            self.descriptors[0][0].packet_size.set(PacketSize::single(0));
+                            self.descriptors[0][0]
+                                .packet_size
+                                .set(PacketSize::single(0));
 
                             *dstate = DeviceState::CtrlWriteStatusWait;
 
@@ -696,18 +712,23 @@ impl<'a> Usbc<'a> {
                 None
             } else {
                 unsafe {
-                    Some(slice::from_raw_parts(addr, b.packet_size.get().byte_count() as usize))
+                    Some(slice::from_raw_parts(
+                        addr,
+                        b.packet_size.get().byte_count() as usize,
+                    ))
                 }
             };
 
-            debug!("B_0_{} \
-                   \n     {:?}\
-                   \n     {:?}\
-                   \n     {:?}",
-                   bi, // (&b.addr as *const _), b.addr.get(),
-                   b.packet_size.get(),
-                   b.ctrl_status.get(),
-                   buf.map(HexBuf));
+            debug!(
+                "B_0_{} \
+                 \n     {:?}\
+                 \n     {:?}\
+                 \n     {:?}",
+                bi, // (&b.addr as *const _), b.addr.get(),
+                b.packet_size.get(),
+                b.ctrl_status.get(),
+                buf.map(HexBuf)
+            );
         }
     }
 
@@ -754,28 +775,29 @@ fn endpoint_enable_only_interrupts(endpoint: usize, mask: u32) {
 
 #[allow(dead_code)]
 fn debug_regs() {
-    debug!("    registers:\
-            \n    USBFSM={:08x}\
-            \n    USBCON={:08x}\
-            \n    USBSTA={:08x}\
-            \n     UDESC={:08x}\
-            \n     UDCON={:08x}\
-            \n    UDINTE={:08x}\
-            \n     UDINT={:08x}\
-            \n     UERST={:08x}\
-            \n    UECFG0={:08x}\
-            \n    UECON0={:08x}",
-
-           USBFSM.read(),
-           USBCON.read(),
-           USBSTA.read(),
-           UDESC.read(),
-           UDCON.read(),
-           UDINTE.read(),
-           UDINT.read(),
-           UERST.read(),
-           UECFG0.read(),
-           UECON0.read());
+    debug!(
+        "    registers:\
+         \n    USBFSM={:08x}\
+         \n    USBCON={:08x}\
+         \n    USBSTA={:08x}\
+         \n     UDESC={:08x}\
+         \n     UDCON={:08x}\
+         \n    UDINTE={:08x}\
+         \n     UDINT={:08x}\
+         \n     UERST={:08x}\
+         \n    UECFG0={:08x}\
+         \n    UECON0={:08x}",
+        USBFSM.read(),
+        USBCON.read(),
+        USBSTA.read(),
+        UDESC.read(),
+        UDCON.read(),
+        UDINTE.read(),
+        UDINT.read(),
+        UERST.read(),
+        UECFG0.read(),
+        UECON0.read()
+    );
 }
 
 #[allow(dead_code)]

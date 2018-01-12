@@ -4,9 +4,9 @@
 
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
-#![feature(repr_align,attr_literals,const_cell_new)]
-#![feature(const_atomic_usize_new,const_ptr_null_mut,integer_atomics,try_from)]
-#![feature(asm,core_intrinsics,concat_idents,const_fn)]
+#![feature(repr_align, attr_literals, const_cell_new)]
+#![feature(const_atomic_usize_new, const_ptr_null_mut, integer_atomics, try_from)]
+#![feature(asm, core_intrinsics, concat_idents, const_fn)]
 #![no_std]
 
 extern crate cortexm4;
@@ -38,7 +38,7 @@ pub mod dac;
 pub mod aes;
 pub mod usbc;
 
-use cortexm4::{generic_isr, SVC_Handler, systick_handler};
+use cortexm4::{generic_isr, systick_handler, SVC_Handler};
 
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
@@ -92,12 +92,11 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     /* SysTick */       systick_handler
 ];
 
-#[link_section=".vectors"]
+#[link_section = ".vectors"]
 #[no_mangle] // Ensures that the symbol is kept until the final binary
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 pub unsafe fn init() {
-
     // Relocate data segment.
     // Assumes data starts right after text segment as specified by the linker
     // file.
@@ -193,100 +192,103 @@ unsafe extern "C" fn hard_fault_handler() {
         let thumb_bit = ((stacked_xpsr >> 24) & 0x1) == 1;
         let exception_number = (stacked_xpsr & 0x1ff) as usize;
 
-        panic!("{} HardFault.\n\
-               \tKernel version {}\n\
-               \tr0  0x{:x}\n\
-               \tr1  0x{:x}\n\
-               \tr2  0x{:x}\n\
-               \tr3  0x{:x}\n\
-               \tr12 0x{:x}\n\
-               \tlr  0x{:x}\n\
-               \tpc  0x{:x}\n\
-               \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\n\
-               \tsp  0x{:x}\n\
-               \ttop of stack     0x{:x}\n\
-               \tbottom of stack  0x{:x}\n\
-               \tSHCSR 0x{:x}\n\
-               \tCFSR  0x{:x}\n\
-               \tHSFR  0x{:x}\n\
-               \tInstruction Access Violation:       {}\n\
-               \tData Access Violation:              {}\n\
-               \tMemory Management Unstacking Fault: {}\n\
-               \tMemory Management Stacking Fault:   {}\n\
-               \tMemory Management Lazy FP Fault:    {}\n\
-               \tInstruction Bus Error:              {}\n\
-               \tPrecise Data Bus Error:             {}\n\
-               \tImprecise Data Bus Error:           {}\n\
-               \tBus Unstacking Fault:               {}\n\
-               \tBus Stacking Fault:                 {}\n\
-               \tBus Lazy FP Fault:                  {}\n\
-               \tUndefined Instruction Usage Fault:  {}\n\
-               \tInvalid State Usage Fault:          {}\n\
-               \tInvalid PC Load Usage Fault:        {}\n\
-               \tNo Coprocessor Usage Fault:         {}\n\
-               \tUnaligned Access Usage Fault:       {}\n\
-               \tDivide By Zero:                     {}\n\
-               \tBus Fault on Vector Table Read:     {}\n\
-               \tForced Hard Fault:                  {}\n\
-               \tFaulting Memory Address: (valid: {}) {:#010X}\n\
-               \tBus Fault Address:       (valid: {}) {:#010X}\n\
-               ",
-               mode_str,
-               env!("TOCK_KERNEL_VERSION"),
-               stacked_r0,
-               stacked_r1,
-               stacked_r2,
-               stacked_r3,
-               stacked_r12,
-               stacked_lr,
-               stacked_pc,
-               stacked_xpsr,
-               (stacked_xpsr >> 31) & 0x1,
-               (stacked_xpsr >> 30) & 0x1,
-               (stacked_xpsr >> 29) & 0x1,
-               (stacked_xpsr >> 28) & 0x1,
-               (stacked_xpsr >> 27) & 0x1,
-               (stacked_xpsr >> 19) & 0x1,
-               (stacked_xpsr >> 18) & 0x1,
-               (stacked_xpsr >> 17) & 0x1,
-               (stacked_xpsr >> 16) & 0x1,
-               ici_it,
-               thumb_bit,
-               exception_number,
-               kernel::process::ipsr_isr_number_to_str(exception_number),
-               faulting_stack as u32,
-               (_estack as *const ()) as u32,
-               (&_ezero as *const u32) as u32,
-               shcsr,
-               cfsr,
-               hfsr,
-               iaccviol,
-               daccviol,
-               munstkerr,
-               mstkerr,
-               mlsperr,
-               ibuserr,
-               preciserr,
-               impreciserr,
-               unstkerr,
-               stkerr,
-               lsperr,
-               undefinstr,
-               invstate,
-               invpc,
-               nocp,
-               unaligned,
-               divbysero,
-               vecttbl,
-               forced,
-               mmfarvalid,
-               mmfar,
-               bfarvalid,
-               bfar);
+        panic!(
+            "{} HardFault.\n\
+             \tKernel version {}\n\
+             \tr0  0x{:x}\n\
+             \tr1  0x{:x}\n\
+             \tr2  0x{:x}\n\
+             \tr3  0x{:x}\n\
+             \tr12 0x{:x}\n\
+             \tlr  0x{:x}\n\
+             \tpc  0x{:x}\n\
+             \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\n\
+             \tsp  0x{:x}\n\
+             \ttop of stack     0x{:x}\n\
+             \tbottom of stack  0x{:x}\n\
+             \tSHCSR 0x{:x}\n\
+             \tCFSR  0x{:x}\n\
+             \tHSFR  0x{:x}\n\
+             \tInstruction Access Violation:       {}\n\
+             \tData Access Violation:              {}\n\
+             \tMemory Management Unstacking Fault: {}\n\
+             \tMemory Management Stacking Fault:   {}\n\
+             \tMemory Management Lazy FP Fault:    {}\n\
+             \tInstruction Bus Error:              {}\n\
+             \tPrecise Data Bus Error:             {}\n\
+             \tImprecise Data Bus Error:           {}\n\
+             \tBus Unstacking Fault:               {}\n\
+             \tBus Stacking Fault:                 {}\n\
+             \tBus Lazy FP Fault:                  {}\n\
+             \tUndefined Instruction Usage Fault:  {}\n\
+             \tInvalid State Usage Fault:          {}\n\
+             \tInvalid PC Load Usage Fault:        {}\n\
+             \tNo Coprocessor Usage Fault:         {}\n\
+             \tUnaligned Access Usage Fault:       {}\n\
+             \tDivide By Zero:                     {}\n\
+             \tBus Fault on Vector Table Read:     {}\n\
+             \tForced Hard Fault:                  {}\n\
+             \tFaulting Memory Address: (valid: {}) {:#010X}\n\
+             \tBus Fault Address:       (valid: {}) {:#010X}\n\
+             ",
+            mode_str,
+            env!("TOCK_KERNEL_VERSION"),
+            stacked_r0,
+            stacked_r1,
+            stacked_r2,
+            stacked_r3,
+            stacked_r12,
+            stacked_lr,
+            stacked_pc,
+            stacked_xpsr,
+            (stacked_xpsr >> 31) & 0x1,
+            (stacked_xpsr >> 30) & 0x1,
+            (stacked_xpsr >> 29) & 0x1,
+            (stacked_xpsr >> 28) & 0x1,
+            (stacked_xpsr >> 27) & 0x1,
+            (stacked_xpsr >> 19) & 0x1,
+            (stacked_xpsr >> 18) & 0x1,
+            (stacked_xpsr >> 17) & 0x1,
+            (stacked_xpsr >> 16) & 0x1,
+            ici_it,
+            thumb_bit,
+            exception_number,
+            kernel::process::ipsr_isr_number_to_str(exception_number),
+            faulting_stack as u32,
+            (_estack as *const ()) as u32,
+            (&_ezero as *const u32) as u32,
+            shcsr,
+            cfsr,
+            hfsr,
+            iaccviol,
+            daccviol,
+            munstkerr,
+            mstkerr,
+            mlsperr,
+            ibuserr,
+            preciserr,
+            impreciserr,
+            unstkerr,
+            stkerr,
+            lsperr,
+            undefinstr,
+            invstate,
+            invpc,
+            nocp,
+            unaligned,
+            divbysero,
+            vecttbl,
+            forced,
+            mmfarvalid,
+            mmfar,
+            bfarvalid,
+            bfar
+        );
     } else {
         // hard fault occurred in an app, not the kernel. The app should be
         //  marked as in an error state and handled by the kernel
-        asm!("ldr r0, =SYSCALL_FIRED
+        asm!(
+            "ldr r0, =SYSCALL_FIRED
               mov r1, #1
               str r1, [r0, #0]
 
@@ -312,6 +314,7 @@ unsafe extern "C" fn hard_fault_handler() {
               msr CONTROL, r0
 
               movw LR, #0xFFF9
-              movt LR, #0xFFFF");
+              movt LR, #0xFFFF"
+        );
     }
 }

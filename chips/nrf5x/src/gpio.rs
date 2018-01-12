@@ -8,8 +8,7 @@ use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::common::VolatileCell;
 use kernel::hil;
-
-use peripheral_registers::{GPIO_BASE, GPIO};
+use peripheral_registers::{GPIO, GPIO_BASE};
 
 #[cfg(feature = "nrf51")]
 const NUM_GPIOTE: usize = 4;
@@ -29,13 +28,12 @@ struct GpioteRegisters {
     _reserved1: [u8; 0x17C - (0x100 + NUM_GPIOTE * 4)],
     port: VolatileCell<u32>, // 0x17C,
     _reserved2: [u8; 0x180],
-    inten: VolatileCell<u32>, // 0x300
+    inten: VolatileCell<u32>,    // 0x300
     intenset: VolatileCell<u32>, // 0x304
     intenclr: VolatileCell<u32>, // 0x308
     _reserved3: [u8; 0x204],
     config: [VolatileCell<u32>; NUM_GPIOTE], // 0x510
 }
-
 
 const GPIOTE_BASE: usize = 0x40006000;
 
@@ -61,7 +59,6 @@ fn allocate_channel() -> i8 {
     }
     return -1;
 }
-
 
 /// Return which channel is allocated to a pin, or -1 if none.
 fn find_channel(pin: u8) -> i8 {
@@ -167,7 +164,9 @@ impl hil::gpio::Pin for GPIOPin {
 
 impl GPIOPin {
     pub fn handle_interrupt(&self) {
-        self.client.get().map(|client| { client.fired(self.client_data.get()); });
+        self.client.get().map(|client| {
+            client.fired(self.client_data.get());
+        });
     }
 }
 
@@ -204,36 +203,38 @@ impl Port {
 }
 
 pub static mut PORT: Port = Port {
-    pins: [GPIOPin::new(0),
-           GPIOPin::new(1),
-           GPIOPin::new(2),
-           GPIOPin::new(3),
-           GPIOPin::new(4),
-           GPIOPin::new(5),
-           GPIOPin::new(6),
-           GPIOPin::new(7),
-           GPIOPin::new(8),
-           GPIOPin::new(9),
-           GPIOPin::new(10),
-           GPIOPin::new(11),
-           GPIOPin::new(12),
-           GPIOPin::new(13),
-           GPIOPin::new(14),
-           GPIOPin::new(15),
-           GPIOPin::new(16),
-           GPIOPin::new(17),
-           GPIOPin::new(18),
-           GPIOPin::new(19),
-           GPIOPin::new(20),
-           GPIOPin::new(21),
-           GPIOPin::new(22),
-           GPIOPin::new(23),
-           GPIOPin::new(24),
-           GPIOPin::new(25),
-           GPIOPin::new(26),
-           GPIOPin::new(27),
-           GPIOPin::new(28),
-           GPIOPin::new(29),
-           GPIOPin::new(30),
-           GPIOPin::new(31)],
+    pins: [
+        GPIOPin::new(0),
+        GPIOPin::new(1),
+        GPIOPin::new(2),
+        GPIOPin::new(3),
+        GPIOPin::new(4),
+        GPIOPin::new(5),
+        GPIOPin::new(6),
+        GPIOPin::new(7),
+        GPIOPin::new(8),
+        GPIOPin::new(9),
+        GPIOPin::new(10),
+        GPIOPin::new(11),
+        GPIOPin::new(12),
+        GPIOPin::new(13),
+        GPIOPin::new(14),
+        GPIOPin::new(15),
+        GPIOPin::new(16),
+        GPIOPin::new(17),
+        GPIOPin::new(18),
+        GPIOPin::new(19),
+        GPIOPin::new(20),
+        GPIOPin::new(21),
+        GPIOPin::new(22),
+        GPIOPin::new(23),
+        GPIOPin::new(24),
+        GPIOPin::new(25),
+        GPIOPin::new(26),
+        GPIOPin::new(27),
+        GPIOPin::new(28),
+        GPIOPin::new(29),
+        GPIOPin::new(30),
+        GPIOPin::new(31),
+    ],
 };

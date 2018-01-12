@@ -3,7 +3,6 @@
 use core::{cmp, intrinsics};
 use core::cell::Cell;
 use kernel::common::VolatileCell;
-
 use kernel::common::take_cell::TakeCell;
 use pm;
 
@@ -40,7 +39,7 @@ static mut NUM_ENABLED: usize = 0;
 /// The DMA channel number. Each channel transfers data between memory and a
 /// particular peripheral function (e.g., SPI read or SPI write, but not both
 /// simultaneously). There are 16 available channels (Section 16.7).
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub enum DMAChannelNum {
     // Relies on the fact that assigns values 0-15 to each constructor in order
     DMAChannel00 = 0,
@@ -60,7 +59,6 @@ pub enum DMAChannelNum {
     DMAChannel14 = 14,
     DMAChannel15 = 15,
 }
-
 
 /// The peripheral function a channel is assigned to (Section 16.7). `*_RX`
 /// means transfer data from peripheral to memory, `*_TX` means transfer data
@@ -109,7 +107,7 @@ pub enum DMAPeripheral {
     LCDCA_ABMDR_TX = 38,
 }
 
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(u8)]
 pub enum DMAWidth {
     Width8Bit = 0,
@@ -117,22 +115,24 @@ pub enum DMAWidth {
     Width32Bit = 2,
 }
 
-pub static mut DMA_CHANNELS: [DMAChannel; 16] = [DMAChannel::new(DMAChannelNum::DMAChannel00),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel01),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel02),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel03),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel04),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel05),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel06),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel07),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel08),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel09),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel10),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel11),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel12),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel13),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel14),
-                                                 DMAChannel::new(DMAChannelNum::DMAChannel15)];
+pub static mut DMA_CHANNELS: [DMAChannel; 16] = [
+    DMAChannel::new(DMAChannelNum::DMAChannel00),
+    DMAChannel::new(DMAChannelNum::DMAChannel01),
+    DMAChannel::new(DMAChannelNum::DMAChannel02),
+    DMAChannel::new(DMAChannelNum::DMAChannel03),
+    DMAChannel::new(DMAChannelNum::DMAChannel04),
+    DMAChannel::new(DMAChannelNum::DMAChannel05),
+    DMAChannel::new(DMAChannelNum::DMAChannel06),
+    DMAChannel::new(DMAChannelNum::DMAChannel07),
+    DMAChannel::new(DMAChannelNum::DMAChannel08),
+    DMAChannel::new(DMAChannelNum::DMAChannel09),
+    DMAChannel::new(DMAChannelNum::DMAChannel10),
+    DMAChannel::new(DMAChannelNum::DMAChannel11),
+    DMAChannel::new(DMAChannelNum::DMAChannel12),
+    DMAChannel::new(DMAChannelNum::DMAChannel13),
+    DMAChannel::new(DMAChannelNum::DMAChannel14),
+    DMAChannel::new(DMAChannelNum::DMAChannel15),
+];
 
 pub struct DMAChannel {
     registers: *mut DMARegisters,
@@ -202,7 +202,9 @@ impl DMAChannel {
         registers.interrupt_disable.set(!0);
         let channel = registers.peripheral_select.get();
 
-        self.client.get().as_mut().map(|client| { client.xfer_done(channel); });
+        self.client.get().as_mut().map(|client| {
+            client.xfer_done(channel);
+        });
     }
 
     pub fn start_xfer(&self) {
@@ -215,8 +217,7 @@ impl DMAChannel {
 
         let registers: &DMARegisters = unsafe { &*self.registers };
 
-        let maxlen = buf.len() /
-                     match self.width.get() {
+        let maxlen = buf.len() / match self.width.get() {
                 DMAWidth::Width8Bit /*  DMA is acting on bytes     */ => 1,
                 DMAWidth::Width16Bit /* DMA is acting on halfwords */ => 2,
                 DMAWidth::Width32Bit /* DMA is acting on words     */ => 4,
@@ -225,7 +226,9 @@ impl DMAChannel {
         registers.mode.set(self.width.get() as u32);
 
         registers.peripheral_select.set(pid);
-        registers.memory_address_reload.set(&buf[0] as *const u8 as u32);
+        registers
+            .memory_address_reload
+            .set(&buf[0] as *const u8 as u32);
         registers.transfer_counter_reload.set(len as u32);
 
         registers.interrupt_enable.set(1 << 1);

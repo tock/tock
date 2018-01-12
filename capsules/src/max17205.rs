@@ -56,12 +56,12 @@ enum Registers {
     //NPackCfg = 0x1B5, // Pack configuration
     NRomID = 0x1BC, //RomID - 64bit unique
     //NRSense = 0x1CF, // Sense resistor
-    Batt = 0x0DA, // Pack voltage, LSB = 1.25mV
+    Batt = 0x0DA,    // Pack voltage, LSB = 1.25mV
     Current = 0x00A, // Instantaneous current, LSB = 156.25 uA
     Coulomb = 0x04D,
 }
 
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum State {
     Idle,
 
@@ -90,7 +90,6 @@ pub trait MAX17205Client {
     fn romid(&self, rid: u64, error: ReturnCode);
 }
 
-
 pub struct MAX17205<'a> {
     i2c_lower: &'a i2c::I2CDevice,
     i2c_upper: &'a i2c::I2CDevice,
@@ -103,10 +102,11 @@ pub struct MAX17205<'a> {
 }
 
 impl<'a> MAX17205<'a> {
-    pub fn new(i2c_lower: &'a i2c::I2CDevice,
-               i2c_upper: &'a i2c::I2CDevice,
-               buffer: &'static mut [u8])
-               -> MAX17205<'a> {
+    pub fn new(
+        i2c_lower: &'a i2c::I2CDevice,
+        i2c_upper: &'a i2c::I2CDevice,
+        buffer: &'static mut [u8],
+    ) -> MAX17205<'a> {
         MAX17205 {
             i2c_lower: i2c_lower,
             i2c_upper: i2c_upper,
@@ -193,7 +193,6 @@ impl<'a> MAX17205<'a> {
 
 impl<'a> i2c::I2CClient for MAX17205<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], _error: i2c::Error) {
-
         match self.state.get() {
             State::SetupReadStatus => {
                 // Read status
@@ -222,7 +221,8 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
             }
             State::ReadSOC => {
                 // Read of SOC memory address complete
-                self.soc_mah.set(((buffer[1] as u16) << 8) | (buffer[0] as u16));
+                self.soc_mah
+                    .set(((buffer[1] as u16) << 8) | (buffer[0] as u16));
                 self.soc.set(((buffer[3] as u16) << 8) | (buffer[2] as u16));
 
                 self.buffer.replace(buffer);
@@ -275,7 +275,9 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
                     ReturnCode::SUCCESS
                 };
 
-                self.client.get().map(|client| { client.coulomb(coulomb, error); });
+                self.client.get().map(|client| {
+                    client.coulomb(coulomb, error);
+                });
 
                 self.buffer.replace(buffer);
                 self.i2c_lower.disable();
@@ -288,7 +290,8 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
             }
             State::ReadVolt => {
                 // Read of voltage memory address complete
-                self.voltage.set(((buffer[1] as u16) << 8) | (buffer[0] as u16));
+                self.voltage
+                    .set(((buffer[1] as u16) << 8) | (buffer[0] as u16));
 
                 self.buffer.replace(buffer);
 
@@ -328,9 +331,9 @@ impl<'a> i2c::I2CClient for MAX17205<'a> {
                 self.state.set(State::ReadRomID);
             }
             State::ReadRomID => {
-
                 // u64 from 8 bytes
-                let rid = buffer.iter()
+                let rid = buffer
+                    .iter()
                     .take(8)
                     .enumerate()
                     .fold(0u64, |rid, (i, b)| rid | ((*b as u64) << i * 8));
@@ -368,14 +371,18 @@ impl<'a> MAX17205Driver<'a> {
 
 impl<'a> MAX17205Client for MAX17205Driver<'a> {
     fn status(&self, status: u16, error: ReturnCode) {
-        self.callback.get().map(|mut cb| cb.schedule(From::from(error), status as usize, 0));
+        self.callback
+            .get()
+            .map(|mut cb| cb.schedule(From::from(error), status as usize, 0));
     }
 
     fn state_of_charge(&self, percent: u16, capacity: u16, full_capacity: u16, error: ReturnCode) {
         self.callback.get().map(|mut cb| {
-            cb.schedule(From::from(error),
-                        percent as usize,
-                        (capacity as usize) << 16 | (full_capacity as usize));
+            cb.schedule(
+                From::from(error),
+                percent as usize,
+                (capacity as usize) << 16 | (full_capacity as usize),
+            );
         });
     }
 
@@ -386,14 +393,18 @@ impl<'a> MAX17205Client for MAX17205Driver<'a> {
     }
 
     fn coulomb(&self, coulomb: u16, error: ReturnCode) {
-        self.callback.get().map(|mut cb| cb.schedule(From::from(error), coulomb as usize, 0));
+        self.callback
+            .get()
+            .map(|mut cb| cb.schedule(From::from(error), coulomb as usize, 0));
     }
 
     fn romid(&self, rid: u64, error: ReturnCode) {
         self.callback.get().map(|mut cb| {
-            cb.schedule(From::from(error),
-                        (rid & 0xffffffff) as usize,
-                        (rid >> 32) as usize)
+            cb.schedule(
+                From::from(error),
+                (rid & 0xffffffff) as usize,
+                (rid >> 32) as usize,
+            )
         });
     }
 }

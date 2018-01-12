@@ -1,7 +1,6 @@
 //! Implementation of the AESA peripheral on the SAM4L.
 
 use core::cell::Cell;
-
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
@@ -11,31 +10,31 @@ use scif;
 /// The registers used to interface with the hardware
 #[repr(C)]
 struct AesRegisters {
-    ctrl: VolatileCell<u32>, //       0x00
-    mode: VolatileCell<u32>, //       0x04
+    ctrl: VolatileCell<u32>,       //       0x00
+    mode: VolatileCell<u32>,       //       0x04
     databufptr: VolatileCell<u32>, // 0x08
-    sr: VolatileCell<u32>, //         0x0C
-    ier: VolatileCell<u32>, //        0x10
-    idr: VolatileCell<u32>, //        0x14
-    imr: VolatileCell<u32>, //        0x18
+    sr: VolatileCell<u32>,         //         0x0C
+    ier: VolatileCell<u32>,        //        0x10
+    idr: VolatileCell<u32>,        //        0x14
+    imr: VolatileCell<u32>,        //        0x18
     _reserved0: VolatileCell<u32>, // 0x1C
-    key0: VolatileCell<u32>, //       0x20
-    key1: VolatileCell<u32>, //       0x24
-    key2: VolatileCell<u32>, //       0x28
-    key3: VolatileCell<u32>, //       0x2c
-    key4: VolatileCell<u32>, //       0x30
-    key5: VolatileCell<u32>, //       0x34
-    key6: VolatileCell<u32>, //       0x38
-    key7: VolatileCell<u32>, //       0x3c
-    initvect0: VolatileCell<u32>, //  0x40
-    initvect1: VolatileCell<u32>, //  0x44
-    initvect2: VolatileCell<u32>, //  0x48
-    initvect3: VolatileCell<u32>, //  0x4c
-    idata: VolatileCell<u32>, //      0x50
-    _reserved1: [u32; 3], //          0x54 - 0x5c
-    odata: VolatileCell<u32>, //      0x60
-    _reserved2: [u32; 3], //          0x64 - 0x6c
-    drngseed: VolatileCell<u32>, //   0x70
+    key0: VolatileCell<u32>,       //       0x20
+    key1: VolatileCell<u32>,       //       0x24
+    key2: VolatileCell<u32>,       //       0x28
+    key3: VolatileCell<u32>,       //       0x2c
+    key4: VolatileCell<u32>,       //       0x30
+    key5: VolatileCell<u32>,       //       0x34
+    key6: VolatileCell<u32>,       //       0x38
+    key7: VolatileCell<u32>,       //       0x3c
+    initvect0: VolatileCell<u32>,  //  0x40
+    initvect1: VolatileCell<u32>,  //  0x44
+    initvect2: VolatileCell<u32>,  //  0x48
+    initvect3: VolatileCell<u32>,  //  0x4c
+    idata: VolatileCell<u32>,      //      0x50
+    _reserved1: [u32; 3],          //          0x54 - 0x5c
+    odata: VolatileCell<u32>,      //      0x60
+    _reserved2: [u32; 3],          //          0x64 - 0x6c
+    drngseed: VolatileCell<u32>,   //   0x70
 }
 
 // Section 7.1 of datasheet
@@ -67,9 +66,11 @@ impl Aes {
     fn enable_clock(&self) {
         unsafe {
             pm::enable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
-            scif::generic_clock_enable_divided(scif::GenericClock::GCLK4,
-                                               scif::ClockSource::CLK_CPU,
-                                               1);
+            scif::generic_clock_enable_divided(
+                scif::GenericClock::GCLK4,
+                scif::ClockSource::CLK_CPU,
+                1,
+            );
             scif::generic_clock_enable(scif::GenericClock::GCLK4, scif::ClockSource::CLK_CPU);
         }
     }
@@ -162,16 +163,15 @@ impl Aes {
                 if self.remaining_length.get() == 0 {
                     self.disable_interrupts();
                     self.iv.take().map(|iv| {
-                        self.client
-                            .get()
-                            .map(move |client| { client.crypt_done(data, iv, index + 16); });
+                        self.client.get().map(move |client| {
+                            client.crypt_done(data, iv, index + 16);
+                        });
                     });
                 } else {
                     // Need to put the data buffer back
                     self.data.replace(data);
                 }
             });
-
         }
 
         if status & (1 << 16) == (1 << 16) {
@@ -213,7 +213,6 @@ impl hil::symmetric_encryption::SymmetricEncryption for Aes {
     }
 
     fn aes128_crypt_ctr(&self, data: &'static mut [u8], init_ctr: &'static mut [u8], len: usize) {
-
         let regs: &AesRegisters = unsafe { &*self.registers };
         self.enable();
         self.enable_interrupts();

@@ -4,7 +4,7 @@ use core::cell::Cell;
 use core::mem;
 use kernel::hil::Controller;
 use kernel::hil::time::{self, Alarm, Freq32KHz, Time};
-use peripheral_registers::{RTC1_BASE, RTC1};
+use peripheral_registers::{RTC1, RTC1_BASE};
 
 fn rtc1() -> &'static RTC1 {
     unsafe { mem::transmute(RTC1_BASE as usize) }
@@ -14,7 +14,9 @@ pub struct Rtc {
     callback: Cell<Option<&'static time::Client>>,
 }
 
-pub static mut RTC: Rtc = Rtc { callback: Cell::new(None) };
+pub static mut RTC: Rtc = Rtc {
+    callback: Cell::new(None),
+};
 
 impl Controller for Rtc {
     type Config = &'static time::Client;
@@ -51,7 +53,9 @@ impl Rtc {
     pub fn handle_interrupt(&self) {
         rtc1().events_compare[0].set(0);
         rtc1().intenclr.set(COMPARE0_EVENT);
-        self.callback.get().map(|cb| { cb.fired(); });
+        self.callback.get().map(|cb| {
+            cb.fired();
+        });
     }
 
     pub fn set_client(&self, client: &'static time::Client) {

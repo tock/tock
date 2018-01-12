@@ -149,7 +149,6 @@ pub unsafe fn setup_dfll_rc32k_48mhz() {
     // Check to see if the DFLL is already setup.
     //
     if (((*SCIF).dfll0conf.get() & 0x03) == 0) || (((*SCIF).pclksr.get() & (1 << 2)) == 0) {
-
         // Enable the GENCLK_SRC_RC32K
         bscif::enable_rc32k();
 
@@ -213,7 +212,9 @@ pub unsafe fn setup_osc_16mhz_fast_startup() {
     // Enable the OSC0
     (*SCIF).unlock.set(0xAA000020);
     // enable, 557 us startup time, gain level 4 (sortof), is crystal.
-    (*SCIF).oscctrl0.set((1 << 16) | (1 << 8) | (4 << 1) | (1 << 0));
+    (*SCIF)
+        .oscctrl0
+        .set((1 << 16) | (1 << 8) | (4 << 1) | (1 << 0));
     // Wait for oscillator to be ready
     while (*SCIF).pclksr.get() & (1 << 0) == 0 {}
 }
@@ -222,7 +223,9 @@ pub unsafe fn setup_osc_16mhz_slow_startup() {
     // Enable the OSC0
     (*SCIF).unlock.set(0xAA000020);
     // enable, 8.9 ms startup time, gain level 4 (sortof), is crystal.
-    (*SCIF).oscctrl0.set((1 << 16) | (14 << 8) | (4 << 1) | (1 << 0));
+    (*SCIF)
+        .oscctrl0
+        .set((1 << 16) | (14 << 8) | (4 << 1) | (1 << 0));
     // Wait for oscillator to be ready
     while (*SCIF).pclksr.get() & (1 << 0) == 0 {}
 }
@@ -231,7 +234,9 @@ pub unsafe fn setup_pll_osc_48mhz() {
     // Enable the PLL0 register
     (*SCIF).unlock.set(0xAA000024);
     // Maximum startup time, multiply by 5, divide=1, divide output by 2, enable.
-    (*SCIF).pll0.set((0x3F << 24) | (5 << 16) | (1 << 8) | (1 << 4) | (1 << 0));
+    (*SCIF)
+        .pll0
+        .set((0x3F << 24) | (5 << 16) | (1 << 8) | (1 << 4) | (1 << 0));
     // Wait for the PLL to be ready
     while (*SCIF).pclksr.get() & (1 << 6) == 0 {}
 }

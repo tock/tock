@@ -7,11 +7,10 @@
 use core::cell::Cell;
 use core::cmp::min;
 use ieee802154::mac;
-use kernel::{AppId, Driver, Callback, AppSlice, Shared, Grant, ReturnCode};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
-
-use net::ieee802154::{MacAddress, PanID, Header, SecurityLevel, KeyId, AddressMode};
-use net::stream::{decode_u8, decode_bytes, encode_u8, encode_bytes, SResult};
+use net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
+use net::stream::{decode_bytes, encode_bytes, SResult, decode_u8, encode_u8};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
@@ -134,12 +133,14 @@ impl KeyDescriptor {
         let (_, key_id) = dec_try!(buf, 1; decode_key_id);
         let mut key = [0u8; 16];
         let off = dec_consume!(buf, 11; decode_bytes, &mut key);
-        stream_done!(off,
-                     KeyDescriptor {
-                         level: level,
-                         key_id: key_id,
-                         key: key,
-                     });
+        stream_done!(
+            off,
+            KeyDescriptor {
+                level: level,
+                key_id: key_id,
+                key: key,
+            }
+        );
     }
 }
 
@@ -191,10 +192,11 @@ pub struct RadioDriver<'a> {
 }
 
 impl<'a> RadioDriver<'a> {
-    pub fn new(mac: &'a mac::Mac<'a>,
-               grant: Grant<App>,
-               kernel_tx: &'static mut [u8])
-               -> RadioDriver<'a> {
+    pub fn new(
+        mac: &'a mac::Mac<'a>,
+        grant: Grant<App>,
+        kernel_tx: &'static mut [u8],
+    ) -> RadioDriver<'a> {
         RadioDriver {
             mac: mac,
             neighbors: MapCell::new(Default::default()),
@@ -241,8 +243,10 @@ impl<'a> RadioDriver<'a> {
     fn remove_neighbor(&self, index: usize) -> ReturnCode {
         let num_neighbors = self.num_neighbors.get();
         if index < num_neighbors {
-            self.neighbors.map(|neighbors| for i in index..(num_neighbors - 1) {
-                neighbors[i] = neighbors[i + 1];
+            self.neighbors.map(|neighbors| {
+                for i in index..(num_neighbors - 1) {
+                    neighbors[i] = neighbors[i + 1];
+                }
             });
             self.num_neighbors.set(num_neighbors - 1);
             ReturnCode::SUCCESS
@@ -270,9 +274,7 @@ impl<'a> RadioDriver<'a> {
     fn add_key(&self, new_key: KeyDescriptor) -> Option<usize> {
         self.keys.and_then(|keys| {
             let num_keys = self.num_keys.get();
-            let position = keys[..num_keys]
-                .iter()
-                .position(|key| *key == new_key);
+            let position = keys[..num_keys].iter().position(|key| *key == new_key);
             match position {
                 Some(index) => Some(index),
                 None => {
@@ -295,8 +297,10 @@ impl<'a> RadioDriver<'a> {
     fn remove_key(&self, index: usize) -> ReturnCode {
         let num_keys = self.num_keys.get();
         if index < num_keys {
-            self.keys.map(|keys| for i in index..(num_keys - 1) {
-                keys[i] = keys[i + 1];
+            self.keys.map(|keys| {
+                for i in index..(num_keys - 1) {
+                    keys[i] = keys[i + 1];
+                }
             });
             self.num_keys.set(num_keys - 1);
             ReturnCode::SUCCESS
@@ -318,7 +322,8 @@ impl<'a> RadioDriver<'a> {
     /// Utility function to perform an action on an app in a system call.
     #[inline]
     fn do_with_app<F>(&self, appid: AppId, closure: F) -> ReturnCode
-        where F: FnOnce(&mut App) -> ReturnCode
+    where
+        F: FnOnce(&mut App) -> ReturnCode,
     {
         self.apps
             .enter(appid, |app, _| closure(app))
@@ -328,16 +333,20 @@ impl<'a> RadioDriver<'a> {
     /// Utility function to perform an action using an app's config buffer.
     #[inline]
     fn do_with_cfg<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-        where F: FnOnce(&[u8]) -> ReturnCode
+    where
+        F: FnOnce(&[u8]) -> ReturnCode,
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg.take().as_ref().map_or(ReturnCode::EINVAL, |cfg| {
-                    if cfg.len() != len {
-                        return ReturnCode::EINVAL;
-                    }
-                    closure(cfg.as_ref())
-                })
+                app.app_cfg
+                    .take()
+                    .as_ref()
+                    .map_or(ReturnCode::EINVAL, |cfg| {
+                        if cfg.len() != len {
+                            return ReturnCode::EINVAL;
+                        }
+                        closure(cfg.as_ref())
+                    })
             })
             .unwrap_or_else(|err| err.into())
     }
@@ -345,16 +354,20 @@ impl<'a> RadioDriver<'a> {
     /// Utility function to perform a write to an app's config buffer.
     #[inline]
     fn do_with_cfg_mut<F>(&self, appid: AppId, len: usize, closure: F) -> ReturnCode
-        where F: FnOnce(&mut [u8]) -> ReturnCode
+    where
+        F: FnOnce(&mut [u8]) -> ReturnCode,
     {
         self.apps
             .enter(appid, |app, _| {
-                app.app_cfg.take().as_mut().map_or(ReturnCode::EINVAL, |cfg| {
-                    if cfg.len() != len {
-                        return ReturnCode::EINVAL;
-                    }
-                    closure(cfg.as_mut())
-                })
+                app.app_cfg
+                    .take()
+                    .as_mut()
+                    .map_or(ReturnCode::EINVAL, |cfg| {
+                        if cfg.len() != len {
+                            return ReturnCode::EINVAL;
+                        }
+                        closure(cfg.as_mut())
+                    })
             })
             .unwrap_or_else(|err| err.into())
     }
@@ -367,8 +380,10 @@ impl<'a> RadioDriver<'a> {
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            app.enter(|app, _| if app.pending_tx.is_some() {
-                pending_app = Some(app.appid());
+            app.enter(|app, _| {
+                if app.pending_tx.is_some() {
+                    pending_app = Some(app.appid());
+                }
             });
             if pending_app.is_some() {
                 break;
@@ -405,39 +420,43 @@ impl<'a> RadioDriver<'a> {
                     return ReturnCode::SUCCESS;
                 }
             };
-            let result = self.kernel_tx
-                .take()
-                .map_or(ReturnCode::ENOMEM, |kbuf| {
-                    // Prepare the frame headers
-                    let pan = self.mac.get_pan();
-                    let dst_addr = MacAddress::Short(dst_addr);
-                    let src_addr = MacAddress::Short(self.mac.get_address());
-                    let mut frame = match self.mac
-                        .prepare_data_frame(kbuf, pan, dst_addr, pan, src_addr, security_needed) {
-                        Ok(frame) => frame,
-                        Err(kbuf) => {
-                            self.kernel_tx.replace(kbuf);
-                            return ReturnCode::FAIL;
-                        }
-                    };
-
-                    // Append the payload: there must be one
-                    let result = app.app_write
-                        .take()
-                        .as_ref()
-                        .map(|payload| frame.append_payload(payload.as_ref()))
-                        .unwrap_or(ReturnCode::EINVAL);
-                    if result != ReturnCode::SUCCESS {
-                        return result;
+            let result = self.kernel_tx.take().map_or(ReturnCode::ENOMEM, |kbuf| {
+                // Prepare the frame headers
+                let pan = self.mac.get_pan();
+                let dst_addr = MacAddress::Short(dst_addr);
+                let src_addr = MacAddress::Short(self.mac.get_address());
+                let mut frame = match self.mac.prepare_data_frame(
+                    kbuf,
+                    pan,
+                    dst_addr,
+                    pan,
+                    src_addr,
+                    security_needed,
+                ) {
+                    Ok(frame) => frame,
+                    Err(kbuf) => {
+                        self.kernel_tx.replace(kbuf);
+                        return ReturnCode::FAIL;
                     }
+                };
 
-                    // Finally, transmit the frame
-                    let (result, mbuf) = self.mac.transmit(frame);
-                    if let Some(buf) = mbuf {
-                        self.kernel_tx.replace(buf);
-                    }
-                    result
-                });
+                // Append the payload: there must be one
+                let result = app.app_write
+                    .take()
+                    .as_ref()
+                    .map(|payload| frame.append_payload(payload.as_ref()))
+                    .unwrap_or(ReturnCode::EINVAL);
+                if result != ReturnCode::SUCCESS {
+                    return result;
+                }
+
+                // Finally, transmit the frame
+                let (result, mbuf) = self.mac.transmit(frame);
+                if let Some(buf) = mbuf {
+                    self.kernel_tx.replace(buf);
+                }
+                result
+            });
             if result == ReturnCode::SUCCESS {
                 self.current_app.set(Some(appid));
             }
@@ -449,7 +468,8 @@ impl<'a> RadioDriver<'a> {
     /// transmission asynchronously, returning any errors via callbacks.
     #[inline]
     fn do_next_tx_async(&self) {
-        self.get_next_tx_if_idle().map(|appid| self.perform_tx_async(appid));
+        self.get_next_tx_if_idle()
+            .map(|appid| self.perform_tx_async(appid));
     }
 
     /// Schedule the next transmission if there is one pending. If the next
@@ -460,11 +480,13 @@ impl<'a> RadioDriver<'a> {
     #[inline]
     fn do_next_tx_sync(&self, new_appid: AppId) -> ReturnCode {
         self.get_next_tx_if_idle()
-            .map(|appid| if appid == new_appid {
-                self.perform_tx_sync(appid)
-            } else {
-                self.perform_tx_async(appid);
-                ReturnCode::SUCCESS
+            .map(|appid| {
+                if appid == new_appid {
+                    self.perform_tx_sync(appid)
+                } else {
+                    self.perform_tx_async(appid);
+                    ReturnCode::SUCCESS
+                }
             })
             .unwrap_or(ReturnCode::SUCCESS)
     }
@@ -512,17 +534,15 @@ impl<'a> Driver for RadioDriver<'a> {
     ///        not enough to convey the desired information.
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
-            0 | 1 | 2 => {
-                self.do_with_app(appid, |app| {
-                    match allow_num {
-                        0 => app.app_read = Some(slice),
-                        1 => app.app_write = Some(slice),
-                        2 => app.app_cfg = Some(slice),
-                        _ => {}
-                    }
-                    ReturnCode::SUCCESS
-                })
-            }
+            0 | 1 | 2 => self.do_with_app(appid, |app| {
+                match allow_num {
+                    0 => app.app_read = Some(slice),
+                    1 => app.app_write = Some(slice),
+                    2 => app.app_cfg = Some(slice),
+                    _ => {}
+                }
+                ReturnCode::SUCCESS
+            }),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -535,18 +555,14 @@ impl<'a> Driver for RadioDriver<'a> {
     /// - `1`: Setup callback for when frame is transmitted.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            0 => {
-                self.do_with_app(callback.app_id(), |app| {
-                    app.rx_callback = Some(callback);
-                    ReturnCode::SUCCESS
-                })
-            }
-            1 => {
-                self.do_with_app(callback.app_id(), |app| {
-                    app.tx_callback = Some(callback);
-                    ReturnCode::SUCCESS
-                })
-            }
+            0 => self.do_with_app(callback.app_id(), |app| {
+                app.rx_callback = Some(callback);
+                ReturnCode::SUCCESS
+            }),
+            1 => self.do_with_app(callback.app_id(), |app| {
+                app.tx_callback = Some(callback);
+                ReturnCode::SUCCESS
+            }),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -614,14 +630,12 @@ impl<'a> Driver for RadioDriver<'a> {
                 self.mac.set_address(arg1 as u16);
                 ReturnCode::SUCCESS
             }
-            3 => {
-                self.do_with_cfg(appid, 8, |cfg| {
-                    let mut addr_long = [0u8; 8];
-                    addr_long.copy_from_slice(cfg);
-                    self.mac.set_address_long(addr_long);
-                    ReturnCode::SUCCESS
-                })
-            }
+            3 => self.do_with_cfg(appid, 8, |cfg| {
+                let mut addr_long = [0u8; 8];
+                addr_long.copy_from_slice(cfg);
+                self.mac.set_address_long(addr_long);
+                ReturnCode::SUCCESS
+            }),
             4 => {
                 self.mac.set_pan(arg1 as u16);
                 ReturnCode::SUCCESS
@@ -639,101 +653,105 @@ impl<'a> Driver for RadioDriver<'a> {
             8 => {
                 // Guarantee that address is positive by adding 1
                 let addr = self.mac.get_address();
-                ReturnCode::SuccessWithValue { value: (addr as usize) + 1 }
+                ReturnCode::SuccessWithValue {
+                    value: (addr as usize) + 1,
+                }
             }
-            9 => {
-                self.do_with_cfg_mut(appid, 8, |cfg| {
-                    cfg.copy_from_slice(&self.mac.get_address_long());
-                    ReturnCode::SUCCESS
-                })
-            }
+            9 => self.do_with_cfg_mut(appid, 8, |cfg| {
+                cfg.copy_from_slice(&self.mac.get_address_long());
+                ReturnCode::SUCCESS
+            }),
             10 => {
                 // Guarantee that the PAN is positive by adding 1
                 let pan = self.mac.get_pan();
-                ReturnCode::SuccessWithValue { value: (pan as usize) + 1 }
+                ReturnCode::SuccessWithValue {
+                    value: (pan as usize) + 1,
+                }
             }
             11 => {
                 // Guarantee that the channel is positive by adding 1
                 let channel = self.mac.get_channel();
-                ReturnCode::SuccessWithValue { value: (channel as usize) + 1 }
+                ReturnCode::SuccessWithValue {
+                    value: (channel as usize) + 1,
+                }
             }
             12 => {
                 // Cast the power to unsigned, then ensure it is positive
                 let power = self.mac.get_tx_power() as u8;
-                ReturnCode::SuccessWithValue { value: (power as usize) + 1 }
+                ReturnCode::SuccessWithValue {
+                    value: (power as usize) + 1,
+                }
             }
             13 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue { value: MAX_NEIGHBORS + 1 }
+                ReturnCode::SuccessWithValue {
+                    value: MAX_NEIGHBORS + 1,
+                }
             }
             14 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue { value: self.num_neighbors.get() + 1 }
+                ReturnCode::SuccessWithValue {
+                    value: self.num_neighbors.get() + 1,
+                }
             }
-            15 => {
+            15 => self.get_neighbor(arg1)
+                .map_or(ReturnCode::EINVAL, |neighbor| {
+                    ReturnCode::SuccessWithValue {
+                        value: (neighbor.short_addr as usize) + 1,
+                    }
+                }),
+            16 => self.do_with_cfg_mut(appid, 8, |cfg| {
                 self.get_neighbor(arg1)
                     .map_or(ReturnCode::EINVAL, |neighbor| {
-                        ReturnCode::SuccessWithValue { value: (neighbor.short_addr as usize) + 1 }
+                        cfg.copy_from_slice(&neighbor.long_addr);
+                        ReturnCode::SUCCESS
                     })
-            }
-            16 => {
-                self.do_with_cfg_mut(appid, 8, |cfg| {
-                    self.get_neighbor(arg1)
-                        .map_or(ReturnCode::EINVAL, |neighbor| {
-                            cfg.copy_from_slice(&neighbor.long_addr);
-                            ReturnCode::SUCCESS
-                        })
-                })
-            }
-            17 => {
-                self.do_with_cfg(appid, 8, |cfg| {
-                    let mut new_neighbor: DeviceDescriptor = Default::default();
-                    new_neighbor.short_addr = arg1 as u16;
-                    new_neighbor.long_addr.copy_from_slice(cfg);
-                    self.add_neighbor(new_neighbor)
-                        .map_or(ReturnCode::EINVAL,
-                                |index| ReturnCode::SuccessWithValue { value: index + 1 })
-                })
-            }
+            }),
+            17 => self.do_with_cfg(appid, 8, |cfg| {
+                let mut new_neighbor: DeviceDescriptor = Default::default();
+                new_neighbor.short_addr = arg1 as u16;
+                new_neighbor.long_addr.copy_from_slice(cfg);
+                self.add_neighbor(new_neighbor)
+                    .map_or(ReturnCode::EINVAL, |index| ReturnCode::SuccessWithValue {
+                        value: index + 1,
+                    })
+            }),
             18 => self.remove_neighbor(arg1),
             19 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue { value: MAX_KEYS + 1 }
+                ReturnCode::SuccessWithValue {
+                    value: MAX_KEYS + 1,
+                }
             }
             20 => {
                 // Guarantee that it is positive by adding 1
-                ReturnCode::SuccessWithValue { value: self.num_keys.get() + 1 }
+                ReturnCode::SuccessWithValue {
+                    value: self.num_keys.get() + 1,
+                }
             }
-            21 => {
+            21 => self.get_key(arg1).map_or(ReturnCode::EINVAL, |key| {
+                ReturnCode::SuccessWithValue {
+                    value: (key.level as usize) + 1,
+                }
+            }),
+            22 => self.do_with_cfg_mut(appid, 10, |cfg| {
                 self.get_key(arg1)
-                    .map_or(ReturnCode::EINVAL,
-                            |key| ReturnCode::SuccessWithValue { value: (key.level as usize) + 1 })
-            }
-            22 => {
-                self.do_with_cfg_mut(appid, 10, |cfg| {
-                    self.get_key(arg1)
-                        .and_then(|key| encode_key_id(&key.key_id, cfg).done())
-                        .map_or(ReturnCode::EINVAL, |_| ReturnCode::SUCCESS)
+                    .and_then(|key| encode_key_id(&key.key_id, cfg).done())
+                    .map_or(ReturnCode::EINVAL, |_| ReturnCode::SUCCESS)
+            }),
+            23 => self.do_with_cfg_mut(appid, 16, |cfg| {
+                self.get_key(arg1).map_or(ReturnCode::EINVAL, |key| {
+                    cfg.copy_from_slice(&key.key);
+                    ReturnCode::SUCCESS
                 })
-            }
-            23 => {
-                self.do_with_cfg_mut(appid, 16, |cfg| {
-                    self.get_key(arg1)
-                        .map_or(ReturnCode::EINVAL, |key| {
-                            cfg.copy_from_slice(&key.key);
-                            ReturnCode::SUCCESS
-                        })
-                })
-            }
-            24 => {
-                self.do_with_cfg(appid, 27, |cfg| {
-                    KeyDescriptor::decode(cfg)
-                        .done()
-                        .and_then(|(_, new_key)| self.add_key(new_key))
-                        .map(|index| ReturnCode::SuccessWithValue { value: index + 1 })
-                        .unwrap_or(ReturnCode::EINVAL)
-                })
-            }
+            }),
+            24 => self.do_with_cfg(appid, 27, |cfg| {
+                KeyDescriptor::decode(cfg)
+                    .done()
+                    .and_then(|(_, new_key)| self.add_key(new_key))
+                    .map(|index| ReturnCode::SuccessWithValue { value: index + 1 })
+                    .unwrap_or(ReturnCode::EINVAL)
+            }),
             25 => self.remove_key(arg1),
             26 => {
                 self.do_with_app(appid, |app| {
@@ -811,24 +829,23 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
 impl<'a> mac::RxClient for RadioDriver<'a> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         self.apps.each(|app| {
-            app.app_read
-                .take()
-                .as_mut()
-                .map(|rbuf| {
-                    let rbuf = rbuf.as_mut();
-                    let len = min(rbuf.len(), data_offset + data_len);
-                    // Copy the entire frame over to userland, preceded by two
-                    // bytes: the data offset and the data length.
-                    rbuf[..len].copy_from_slice(&buf[..len]);
-                    rbuf[0] = data_offset as u8;
-                    rbuf[1] = data_len as u8;
+            app.app_read.take().as_mut().map(|rbuf| {
+                let rbuf = rbuf.as_mut();
+                let len = min(rbuf.len(), data_offset + data_len);
+                // Copy the entire frame over to userland, preceded by two
+                // bytes: the data offset and the data length.
+                rbuf[..len].copy_from_slice(&buf[..len]);
+                rbuf[0] = data_offset as u8;
+                rbuf[1] = data_len as u8;
 
-                    // Encode useful parts of the header in 3 usizes
-                    let pans = encode_pans(&header.dst_pan, &header.src_pan);
-                    let dst_addr = encode_address(&header.dst_addr);
-                    let src_addr = encode_address(&header.src_addr);
-                    app.rx_callback.take().map(|mut cb| cb.schedule(pans, dst_addr, src_addr));
-                });
+                // Encode useful parts of the header in 3 usizes
+                let pans = encode_pans(&header.dst_pan, &header.src_pan);
+                let dst_addr = encode_address(&header.dst_addr);
+                let src_addr = encode_address(&header.src_addr);
+                app.rx_callback
+                    .take()
+                    .map(|mut cb| cb.schedule(pans, dst_addr, src_addr));
+            });
         });
     }
 }

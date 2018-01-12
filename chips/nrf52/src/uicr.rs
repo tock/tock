@@ -7,10 +7,11 @@ pub struct UICR {
     regs: *const peripheral_registers::UICR,
 }
 
-
 impl UICR {
     pub const fn new() -> UICR {
-        UICR { regs: peripheral_registers::UICR_BASE as *mut peripheral_registers::UICR }
+        UICR {
+            regs: peripheral_registers::UICR_BASE as *mut peripheral_registers::UICR,
+        }
     }
 
     pub fn set_psel0_reset_pin(&self, pin: usize) {

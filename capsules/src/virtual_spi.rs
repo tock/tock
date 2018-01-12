@@ -15,10 +15,12 @@ pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster + 'a> {
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'a, Spi> {
-    fn read_write_done(&self,
-                       write_buffer: &'static mut [u8],
-                       read_buffer: Option<&'static mut [u8]>,
-                       len: usize) {
+    fn read_write_done(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) {
         self.inflight.get().map(move |device| {
             self.inflight.set(None);
             self.do_next_op();
@@ -38,7 +40,9 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
 
     fn do_next_op(&self) {
         if self.inflight.get().is_none() {
-            let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
+            let mnode = self.devices
+                .iter()
+                .find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
                 self.spi.specify_chip_select(node.chip_select.get());
                 let op = node.operation.get();
@@ -46,7 +50,6 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
                 node.operation.set(Op::Idle);
                 match op {
                     Op::Configure(cpol, cpal, rate) => {
-
                         // The `chip_select` type will be correct based on
                         // what implemented `SpiMaster`.
                         self.spi.set_clock(cpol);
@@ -99,9 +102,10 @@ pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster + 'a> {
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
-    pub const fn new(mux: &'a MuxSpiMaster<'a, Spi>,
-                     chip_select: Spi::ChipSelect)
-                     -> VirtualSpiMasterDevice<'a, Spi> {
+    pub const fn new(
+        mux: &'a MuxSpiMaster<'a, Spi>,
+        chip_select: Spi::ChipSelect,
+    ) -> VirtualSpiMasterDevice<'a, Spi> {
         VirtualSpiMasterDevice {
             mux: mux,
             chip_select: Cell::new(chip_select),
@@ -120,19 +124,20 @@ impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMasterDevice<'a, Spi> {
-    fn read_write_done(&self,
-                       write_buffer: &'static mut [u8],
-                       read_buffer: Option<&'static mut [u8]>,
-                       len: usize) {
-        self.client
-            .get()
-            .map(move |client| { client.read_write_done(write_buffer, read_buffer, len); });
+    fn read_write_done(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) {
+        self.client.get().map(move |client| {
+            client.read_write_done(write_buffer, read_buffer, len);
+        });
     }
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
-    for
-    VirtualSpiMasterDevice<'a, Spi> {
+    for VirtualSpiMasterDevice<'a, Spi> {
     fn next(&'a self) -> &'a ListLink<'a, VirtualSpiMasterDevice<'a, Spi>> {
         &self.next
     }
@@ -144,11 +149,12 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
         self.mux.do_next_op();
     }
 
-    fn read_write_bytes(&self,
-                        write_buffer: &'static mut [u8],
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode {
+    fn read_write_bytes(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode {
         self.txbuffer.replace(write_buffer);
         self.rxbuffer.put(read_buffer);
         self.operation.set(Op::ReadWriteBytes(len));
@@ -203,19 +209,21 @@ impl<'a, Spi: hil::spi::SpiSlave> VirtualSpiSlaveDevice<'a, Spi> {
 }
 
 impl<'a, Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for VirtualSpiSlaveDevice<'a, Spi> {
-    fn read_write_done(&self,
-                       write_buffer: Option<&'static mut [u8]>,
-                       read_buffer: Option<&'static mut [u8]>,
-                       len: usize) {
-        self.client
-            .get()
-            .map(move |client| { client.read_write_done(write_buffer, read_buffer, len); });
+    fn read_write_done(
+        &self,
+        write_buffer: Option<&'static mut [u8]>,
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) {
+        self.client.get().map(move |client| {
+            client.read_write_done(write_buffer, read_buffer, len);
+        });
     }
 
     fn chip_selected(&self) {
-        self.client
-            .get()
-            .map(move |client| { client.chip_selected(); });
+        self.client.get().map(move |client| {
+            client.chip_selected();
+        });
     }
 }
 
@@ -225,11 +233,12 @@ impl<'a, Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for VirtualSpiSlaveDe
         self.spi.set_phase(cpal);
     }
 
-    fn read_write_bytes(&self,
-                        write_buffer: Option<&'static mut [u8]>,
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode {
+    fn read_write_bytes(
+        &self,
+        write_buffer: Option<&'static mut [u8]>,
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode {
         self.spi.read_write_bytes(write_buffer, read_buffer, len)
     }
 

@@ -33,7 +33,7 @@ pub struct AdcChannel {
 }
 
 /// SAM4L ADC channels.
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 #[repr(u8)]
 enum Channel {
     AD0 = 0x00,
@@ -132,23 +132,23 @@ pub struct Adc {
 #[repr(C)]
 pub struct AdcRegisters {
     // From page 1005 of SAM4L manual
-    pub cr: VolatileCell<u32>, // Control               (0x00)
-    pub cfg: VolatileCell<u32>, // Configuration        (0x04)
-    pub sr: VolatileCell<u32>, // Status                (0x08)
-    pub scr: VolatileCell<u32>, // Status clear         (0x0c)
-    pub pad: VolatileCell<u32>, // padding/reserved
-    pub seqcfg: VolatileCell<u32>, // Sequencer config  (0x14)
-    pub cdma: VolatileCell<u32>, // Config DMA          (0x18)
-    pub tim: VolatileCell<u32>, // Timing config        (0x1c)
-    pub itimer: VolatileCell<u32>, // Internal timer    (0x20)
-    pub wcfg: VolatileCell<u32>, // Window config       (0x24)
-    pub wth: VolatileCell<u32>, // Window threshold     (0x28)
-    pub lcv: VolatileCell<u32>, // Last converted value (0x2c)
-    pub ier: VolatileCell<u32>, // Interrupt enable     (0x30)
-    pub idr: VolatileCell<u32>, // Interrupt disable    (0x34)
-    pub imr: VolatileCell<u32>, // Interrupt mask       (0x38)
-    pub calib: VolatileCell<u32>, // Calibration        (0x3c)
-    pub version: VolatileCell<u32>, // Version          (0x40)
+    pub cr: VolatileCell<u32>,        // Control               (0x00)
+    pub cfg: VolatileCell<u32>,       // Configuration        (0x04)
+    pub sr: VolatileCell<u32>,        // Status                (0x08)
+    pub scr: VolatileCell<u32>,       // Status clear         (0x0c)
+    pub pad: VolatileCell<u32>,       // padding/reserved
+    pub seqcfg: VolatileCell<u32>,    // Sequencer config  (0x14)
+    pub cdma: VolatileCell<u32>,      // Config DMA          (0x18)
+    pub tim: VolatileCell<u32>,       // Timing config        (0x1c)
+    pub itimer: VolatileCell<u32>,    // Internal timer    (0x20)
+    pub wcfg: VolatileCell<u32>,      // Window config       (0x24)
+    pub wth: VolatileCell<u32>,       // Window threshold     (0x28)
+    pub lcv: VolatileCell<u32>,       // Last converted value (0x2c)
+    pub ier: VolatileCell<u32>,       // Interrupt enable     (0x30)
+    pub idr: VolatileCell<u32>,       // Interrupt disable    (0x34)
+    pub imr: VolatileCell<u32>,       // Interrupt mask       (0x38)
+    pub calib: VolatileCell<u32>,     // Calibration        (0x3c)
+    pub version: VolatileCell<u32>,   // Version          (0x40)
     pub parameter: VolatileCell<u32>, // Parameter      (0x44)
 }
 // Page 59 of SAM4L data sheet
@@ -224,19 +224,19 @@ impl Adc {
 
                     // single sample complete. Send value to client
                     let val = (regs.lcv.get() & 0xffff) as u16;
-                    self.client.get().map(|client| { client.sample_ready(val); });
+                    self.client.get().map(|client| {
+                        client.sample_ready(val);
+                    });
 
                     // clean up state
                     if self.continuous.get() {
                         // continuous sampling, reset counts and keep going
                         self.timer_counts.set(0);
-
                     } else {
                         // single sampling, disable interrupt and set inactive
                         self.active.set(false);
                         regs.idr.set(1);
                     }
-
                 } else {
                     // increment count and wait for next sample
                     self.timer_counts.set(self.timer_counts.get() + 1);
@@ -245,7 +245,6 @@ impl Adc {
                 // clear status
                 regs.scr.set(0x00000001);
             }
-
         } else {
             // we are inactive, why did we get an interrupt?
             // disable all interrupts, clear status, and just ignore it
@@ -301,13 +300,17 @@ impl Adc {
                     let max_freq: u32;
                     if frequency <= 32000 / 32 {
                         // frequency of the RC32K is 32KHz.
-                        scif::generic_clock_enable(scif::GenericClock::GCLK10,
-                                                   scif::ClockSource::RC32K);
+                        scif::generic_clock_enable(
+                            scif::GenericClock::GCLK10,
+                            scif::ClockSource::RC32K,
+                        );
                         max_freq = 32000 / 32;
                     } else {
                         // frequency of the RCSYS is 115KHz.
-                        scif::generic_clock_enable(scif::GenericClock::GCLK10,
-                                                   scif::ClockSource::RCSYS);
+                        scif::generic_clock_enable(
+                            scif::GenericClock::GCLK10,
+                            scif::ClockSource::RCSYS,
+                        );
                         max_freq = 113600 / 32;
                     }
                     let divisor = (frequency + max_freq - 1) / frequency; // ceiling of division
@@ -317,8 +320,10 @@ impl Adc {
                 } else {
                     // CPU clock
                     self.cpu_clock.set(true);
-                    scif::generic_clock_enable(scif::GenericClock::GCLK10,
-                                               scif::ClockSource::CLK_CPU);
+                    scif::generic_clock_enable(
+                        scif::GenericClock::GCLK10,
+                        scif::ClockSource::CLK_CPU,
+                    );
                     // determine clock divider
                     // we need the ADC_CLK to be a maximum of 1.5 MHz in frequency,
                     // so we need to find the PRESCAL value that will make this
@@ -330,7 +335,8 @@ impl Adc {
                     let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
                     clock_divisor = math::log_base_two(math::closest_power_of_two(divisor)) - 2;
                     clock_divisor = cmp::min(cmp::max(clock_divisor, 0), 7); // keep in bounds
-                    self.adc_clk_freq.set(cpu_frequency / (1 << (clock_divisor + 2)));
+                    self.adc_clk_freq
+                        .set(cpu_frequency / (1 << (clock_divisor + 2)));
                 }
             }
 
@@ -345,7 +351,6 @@ impl Adc {
                               (clksel << 6) | // CLKSEL
                               (0x0 << 4) | // SPEED: maximum 300 ksps
                               (0x4 << 1); // REFSEL: VCC/2 reference
-
 
             regs.cfg.set(cfg_val);
 
@@ -413,14 +418,11 @@ impl hil::adc::Adc for Adc {
 
         if res != ReturnCode::SUCCESS {
             return res;
-
         } else if !self.enabled.get() {
             ReturnCode::EOFF
-
         } else if self.active.get() {
             // only one operation at a time
             ReturnCode::EBUSY
-
         } else {
             self.active.set(true);
             self.continuous.set(false);
@@ -467,18 +469,14 @@ impl hil::adc::Adc for Adc {
 
         if res != ReturnCode::SUCCESS {
             return res;
-
         } else if !self.enabled.get() {
             ReturnCode::EOFF
-
         } else if self.active.get() {
             // only one sample at a time
             ReturnCode::EBUSY
-
         } else if frequency == 0 || frequency > 10000 {
             // limit sampling frequencies to a valid range
             ReturnCode::EINVAL
-
         } else {
             self.active.set(true);
             self.continuous.set(true);
@@ -565,11 +563,9 @@ impl hil::adc::Adc for Adc {
 
         if !self.enabled.get() {
             ReturnCode::EOFF
-
         } else if !self.active.get() {
             // cannot cancel sampling that isn't running
             ReturnCode::EINVAL
-
         } else {
             // clean up state
             self.active.set(false);
@@ -626,38 +622,38 @@ impl hil::adc::AdcHighSpeed for Adc {
     /// - `length1`: number of samples to collect (up to buffer length)
     /// - `buffer2`: second buffer to fill once the first is full
     /// - `length2`: number of samples to collect (up to buffer length)
-    fn sample_highspeed(&self,
-                        channel: &Self::Channel,
-                        frequency: u32,
-                        buffer1: &'static mut [u16],
-                        length1: usize,
-                        buffer2: &'static mut [u16],
-                        length2: usize)
-                        -> (ReturnCode, Option<&'static mut [u16]>, Option<&'static mut [u16]>) {
+    fn sample_highspeed(
+        &self,
+        channel: &Self::Channel,
+        frequency: u32,
+        buffer1: &'static mut [u16],
+        length1: usize,
+        buffer2: &'static mut [u16],
+        length2: usize,
+    ) -> (
+        ReturnCode,
+        Option<&'static mut [u16]>,
+        Option<&'static mut [u16]>,
+    ) {
         let regs: &AdcRegisters = unsafe { &*self.registers };
 
         let res = self.config_and_enable(frequency);
 
         if res != ReturnCode::SUCCESS {
             return (res, Some(buffer1), Some(buffer2));
-
         } else if !self.enabled.get() {
             (ReturnCode::EOFF, Some(buffer1), Some(buffer2))
-
         } else if self.active.get() {
             // only one sample at a time
             (ReturnCode::EBUSY, Some(buffer1), Some(buffer2))
-
         } else if frequency <= (self.adc_clk_freq.get() / (0xFFFF + 1)) || frequency > 250000 {
             // can't sample faster than the max sampling frequency or slower
             // than the timer can be set to
             (ReturnCode::EINVAL, Some(buffer1), Some(buffer2))
-
         } else if length1 == 0 {
             // at least need a valid length for the for the first buffer full of
             // samples. Otherwise, what are we doing here?
             (ReturnCode::EINVAL, Some(buffer1), Some(buffer2))
-
         } else {
             self.active.set(true);
             self.continuous.set(true);
@@ -734,27 +730,23 @@ impl hil::adc::AdcHighSpeed for Adc {
     ///
     /// - `buf`: buffer to fill with samples
     /// - `length`: number of samples to collect (up to buffer length)
-    fn provide_buffer(&self,
-                      buf: &'static mut [u16],
-                      length: usize)
-                      -> (ReturnCode, Option<&'static mut [u16]>) {
+    fn provide_buffer(
+        &self,
+        buf: &'static mut [u16],
+        length: usize,
+    ) -> (ReturnCode, Option<&'static mut [u16]>) {
         if !self.enabled.get() {
             (ReturnCode::EOFF, Some(buf))
-
         } else if !self.active.get() {
             // cannot continue sampling that isn't running
             (ReturnCode::EINVAL, Some(buf))
-
         } else if !self.continuous.get() {
             // cannot continue a single sample operation
             (ReturnCode::EINVAL, Some(buf))
-
         } else if self.next_dma_buffer.is_some() {
             // we've already got a second buffer, we don't need a third yet
             (ReturnCode::EBUSY, Some(buf))
-
         } else {
-
             // store the buffer for later use
             self.next_dma_buffer.replace(buf);
             self.next_dma_length.set(length);
@@ -765,15 +757,23 @@ impl hil::adc::AdcHighSpeed for Adc {
 
     /// Reclaim buffers after the ADC is stopped.
     /// This is expected to be called after `stop_sampling`.
-    fn retrieve_buffers(&self)
-                        -> (ReturnCode, Option<&'static mut [u16]>, Option<&'static mut [u16]>) {
-
+    fn retrieve_buffers(
+        &self,
+    ) -> (
+        ReturnCode,
+        Option<&'static mut [u16]>,
+        Option<&'static mut [u16]>,
+    ) {
         if self.active.get() {
             // cannot return buffers while running
             (ReturnCode::EINVAL, None, None)
         } else {
             // we're not running, so give back whatever we've got
-            (ReturnCode::SUCCESS, self.next_dma_buffer.take(), self.stopped_buffer.take())
+            (
+                ReturnCode::SUCCESS,
+                self.next_dma_buffer.take(),
+                self.stopped_buffer.take(),
+            )
         }
     }
 }
@@ -803,7 +803,6 @@ impl dma::DMAClient for Adc {
             // we need to do this quickly in order to keep from missing samples.
             // At 175000 Hz, we only have 5.8 us (~274 cycles) to do so
             self.next_dma_buffer.take().map(|buf| {
-
                 // first determine the buffer's length in samples
                 let dma_len = cmp::min(buf.len(), self.next_dma_length.get());
 
@@ -831,7 +830,6 @@ impl dma::DMAClient for Adc {
                         self.rx_length.set(dma_len);
                         dma.do_xfer(self.rx_dma_peripheral, dma_buf, dma_len);
                     });
-
                 } else {
                     // if length was zero, just keep the buffer in the takecell
                     // so we can return it when `stop_sampling` is called
@@ -842,7 +840,6 @@ impl dma::DMAClient for Adc {
             // alert client
             self.client.get().map(|client| {
                 dma_buffer.map(|dma_buf| {
-
                     // change buffer back into a [u16]
                     // the buffer was originally a [u16] so this should be okay
                     let buf_ptr =

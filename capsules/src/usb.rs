@@ -33,55 +33,49 @@ impl SetupData {
     /// If the `SetupData` represents a standard device request, return it
     pub fn get_standard_request(&self) -> Option<StandardDeviceRequest> {
         match self.request_type.request_type() {
-            RequestType::Standard => {
-                match self.request_code {
-                    0 => Some(StandardDeviceRequest::GetStatus { recipient_index: self.index }),
-                    1 => {
-                        Some(StandardDeviceRequest::ClearFeature {
-                            feature: FeatureSelector::get(self.value),
-                            recipient_index: self.index,
-                        })
-                    }
-                    3 => {
-                        Some(StandardDeviceRequest::SetFeature {
-                            feature: FeatureSelector::get(self.value),
-                            test_mode: (self.index >> 8) as u8,
-                            recipient_index: self.index & 0xff,
-                        })
-                    }
-                    5 => Some(StandardDeviceRequest::SetAddress { device_address: self.value }),
-                    6 => {
-                        get_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
-                            Some(StandardDeviceRequest::GetDescriptor {
-                                descriptor_type: dt,
-                                descriptor_index: (self.value & 0xff) as u8,
-                                lang_id: self.index,
-                                requested_length: self.length,
-                            })
-                        })
-                    }
-                    7 => {
-                        get_set_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
-                            Some(StandardDeviceRequest::SetDescriptor {
-                                descriptor_type: dt,
-                                descriptor_index: (self.value & 0xff) as u8,
-                                lang_id: self.index,
-                                descriptor_length: self.length,
-                            })
-                        })
-                    }
-                    8 => Some(StandardDeviceRequest::GetConfiguration),
-                    9 => {
-                        Some(StandardDeviceRequest::SetConfiguration {
-                            configuration_value: (self.value & 0xff) as u8,
-                        })
-                    }
-                    10 => Some(StandardDeviceRequest::GetInterface { interface: self.index }),
-                    11 => Some(StandardDeviceRequest::SetInterface),
-                    12 => Some(StandardDeviceRequest::SynchFrame),
-                    _ => None,
-                }
-            }
+            RequestType::Standard => match self.request_code {
+                0 => Some(StandardDeviceRequest::GetStatus {
+                    recipient_index: self.index,
+                }),
+                1 => Some(StandardDeviceRequest::ClearFeature {
+                    feature: FeatureSelector::get(self.value),
+                    recipient_index: self.index,
+                }),
+                3 => Some(StandardDeviceRequest::SetFeature {
+                    feature: FeatureSelector::get(self.value),
+                    test_mode: (self.index >> 8) as u8,
+                    recipient_index: self.index & 0xff,
+                }),
+                5 => Some(StandardDeviceRequest::SetAddress {
+                    device_address: self.value,
+                }),
+                6 => get_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
+                    Some(StandardDeviceRequest::GetDescriptor {
+                        descriptor_type: dt,
+                        descriptor_index: (self.value & 0xff) as u8,
+                        lang_id: self.index,
+                        requested_length: self.length,
+                    })
+                }),
+                7 => get_set_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
+                    Some(StandardDeviceRequest::SetDescriptor {
+                        descriptor_type: dt,
+                        descriptor_index: (self.value & 0xff) as u8,
+                        lang_id: self.index,
+                        descriptor_length: self.length,
+                    })
+                }),
+                8 => Some(StandardDeviceRequest::GetConfiguration),
+                9 => Some(StandardDeviceRequest::SetConfiguration {
+                    configuration_value: (self.value & 0xff) as u8,
+                }),
+                10 => Some(StandardDeviceRequest::GetInterface {
+                    interface: self.index,
+                }),
+                11 => Some(StandardDeviceRequest::SetInterface),
+                12 => Some(StandardDeviceRequest::SynchFrame),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -89,7 +83,9 @@ impl SetupData {
 
 #[derive(Debug)]
 pub enum StandardDeviceRequest {
-    GetStatus { recipient_index: u16 },
+    GetStatus {
+        recipient_index: u16,
+    },
     ClearFeature {
         feature: FeatureSelector,
         recipient_index: u16,
@@ -99,7 +95,9 @@ pub enum StandardDeviceRequest {
         test_mode: u8,
         recipient_index: u16,
     },
-    SetAddress { device_address: u16 },
+    SetAddress {
+        device_address: u16,
+    },
     GetDescriptor {
         descriptor_type: DescriptorType,
         descriptor_index: u8,
@@ -113,8 +111,12 @@ pub enum StandardDeviceRequest {
         descriptor_length: u16,
     },
     GetConfiguration,
-    SetConfiguration { configuration_value: u8 },
-    GetInterface { interface: u16 },
+    SetConfiguration {
+        configuration_value: u8,
+    },
+    GetInterface {
+        interface: u16,
+    },
     SetInterface,
     SynchFrame,
 }
@@ -188,11 +190,13 @@ impl DeviceRequestType {
 
 impl fmt::Debug for DeviceRequestType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "{{{:?}, {:?}, {:?}}}",
-               self.transfer_direction(),
-               self.request_type(),
-               self.recipient())
+        write!(
+            f,
+            "{{{:?}, {:?}, {:?}}}",
+            self.transfer_direction(),
+            self.request_type(),
+            self.recipient()
+        )
     }
 }
 
@@ -385,8 +389,13 @@ pub struct ConfigurationAttributes(u8);
 
 impl ConfigurationAttributes {
     pub fn new(is_self_powered: bool, supports_remote_wakeup: bool) -> Self {
-        ConfigurationAttributes((1 << 7) | if is_self_powered { 1 << 6 } else { 0 } |
-                                if supports_remote_wakeup { 1 << 5 } else { 0 })
+        ConfigurationAttributes(
+            (1 << 7) | if is_self_powered { 1 << 6 } else { 0 } | if supports_remote_wakeup {
+                1 << 5
+            } else {
+                0
+            },
+        )
     }
 }
 
@@ -411,7 +420,7 @@ impl Default for InterfaceDescriptor {
         InterfaceDescriptor {
             interface_number: 0,
             alternate_setting: 0,
-            num_endpoints: 0, // (exluding default control endpoint)
+            num_endpoints: 0,      // (exluding default control endpoint)
             interface_class: 0xff, // vendor_specific
             interface_subclass: 0xab,
             interface_protocol: 0,

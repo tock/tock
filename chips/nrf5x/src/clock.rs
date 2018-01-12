@@ -95,7 +95,9 @@ pub trait ClockClient {
     fn event(&self);
 }
 
-pub static mut CLOCK: Clock = Clock { client: Cell::new(None) };
+pub static mut CLOCK: Clock = Clock {
+    client: Cell::new(None),
+};
 
 #[allow(non_snake_case)]
 fn CLK() -> &'static Registers {
@@ -175,6 +177,5 @@ impl Clock {
 
     pub fn low_set_source(&self, src: LowClockSource) {
         CLK().lfclksrc.set(src as u32);
-
     }
 }

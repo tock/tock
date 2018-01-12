@@ -60,7 +60,9 @@ pub struct FICR {
 
 impl FICR {
     const fn new(base_addr: usize) -> FICR {
-        FICR { registers: base_addr as *const FicrRegisters }
+        FICR {
+            registers: base_addr as *const FicrRegisters,
+        }
     }
 
     pub fn variant(&self) -> Variant {

@@ -1,6 +1,5 @@
 //! Implementation of the power manager (PM) peripheral.
 
-
 use bpm;
 use bscif;
 use core::cell::Cell;
@@ -32,14 +31,14 @@ struct PmRegisters {
     cfdctrl: VolatileCell<u32>,
     unlock: VolatileCell<u32>,
     _reserved5: [VolatileCell<u32>; 25], // 0x60
-    ier: VolatileCell<u32>, // 0xC0
+    ier: VolatileCell<u32>,              // 0xC0
     idr: VolatileCell<u32>,
     imr: VolatileCell<u32>,
     isr: VolatileCell<u32>,
     icr: VolatileCell<u32>,
     sr: VolatileCell<u32>,
     _reserved6: [VolatileCell<u32>; 34], // 0x100
-    ppcr: VolatileCell<u32>, // 0x160
+    ppcr: VolatileCell<u32>,             // 0x160
     _reserved7: [VolatileCell<u32>; 7],
     rcause: VolatileCell<u32>, // 0x180
     wcause: VolatileCell<u32>,
@@ -62,7 +61,7 @@ pub enum MainClock {
     RC1M,
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum Clock {
     HSB(HSBClock),
     PBA(PBAClock),
@@ -71,7 +70,7 @@ pub enum Clock {
     PBD(PBDClock),
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum HSBClock {
     PDCA,
     FLASHCALW,
@@ -85,7 +84,7 @@ pub enum HSBClock {
     AESA,
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum PBAClock {
     IISC,
     SPI,
@@ -113,7 +112,7 @@ pub enum PBAClock {
     LCDCA,
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum PBBClock {
     FLASHCALW,
     HRAMC1,
@@ -124,7 +123,7 @@ pub enum PBBClock {
     PEVC,
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum PBCClock {
     PM,
     CHIPID,
@@ -133,7 +132,7 @@ pub enum PBCClock {
     GPIO,
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum PBDClock {
     BPM,
     BSCIF,
@@ -149,7 +148,7 @@ pub enum PBDClock {
 /// When additional oscillator frequencies are needed, they should be added
 /// here and the `setup_system_clock` function should be modified to support
 /// it.
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum OscillatorFrequency {
     /// 16 MHz external oscillator
     Frequency16MHz,
@@ -160,7 +159,7 @@ pub enum OscillatorFrequency {
 /// need a slow start in order to properly wake from sleep. In general, we find
 /// that for systems that do not work, at fast speed, they will hang or panic
 /// after several entries into WAIT mode.
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum OscillatorStartup {
     /// Use a fast startup. ~0.5 ms in practice.
     FastStart,
@@ -182,7 +181,7 @@ pub enum OscillatorStartup {
 ///
 /// For options utilizing an external oscillator, the configurations for that
 /// oscillator must also be provided.
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum SystemClockSource {
     /// Use the RCSYS clock (which the system starts up on anyways). Final
     /// system frequency will be 115 kHz. Note that while this is the default,
@@ -244,7 +243,6 @@ impl PowerManager {
     /// Sets up the system clock. This should be called as one of the first
     /// lines in the `reset_handler` within the platform's `main.rs`.
     pub unsafe fn setup_system_clock(&self, clock_source: SystemClockSource) {
-
         // save configuration
         self.system_clock_source.set(clock_source);
 
@@ -262,14 +260,20 @@ impl PowerManager {
                 self.system_frequency.set(48000000);
             }
 
-            SystemClockSource::ExternalOscillator { frequency, startup_mode } => {
+            SystemClockSource::ExternalOscillator {
+                frequency,
+                startup_mode,
+            } => {
                 configure_external_oscillator(frequency, startup_mode);
                 match frequency {
                     OscillatorFrequency::Frequency16MHz => self.system_frequency.set(16000000),
                 };
             }
 
-            SystemClockSource::PllExternalOscillatorAt48MHz { frequency, startup_mode } => {
+            SystemClockSource::PllExternalOscillatorAt48MHz {
+                frequency,
+                startup_mode,
+            } => {
                 configure_external_oscillator_pll(frequency, startup_mode);
                 self.system_frequency.set(48000000);
             }
@@ -304,8 +308,10 @@ unsafe fn configure_48mhz_dfll() {
 }
 
 /// Configure the system clock to use the 16 MHz external crystal directly
-unsafe fn configure_external_oscillator(frequency: OscillatorFrequency,
-                                        startup_mode: OscillatorStartup) {
+unsafe fn configure_external_oscillator(
+    frequency: OscillatorFrequency,
+    startup_mode: OscillatorStartup,
+) {
     // Use the cache
     flashcalw::FLASH_CONTROLLER.enable_cache();
 
@@ -330,8 +336,10 @@ unsafe fn configure_external_oscillator(frequency: OscillatorFrequency,
 }
 
 /// Configure the system clock to use the PLL with the 16 MHz external crystal
-unsafe fn configure_external_oscillator_pll(frequency: OscillatorFrequency,
-                                            startup_mode: OscillatorStartup) {
+unsafe fn configure_external_oscillator_pll(
+    frequency: OscillatorFrequency,
+    startup_mode: OscillatorStartup,
+) {
     // Use the cache
     flashcalw::FLASH_CONTROLLER.enable_cache();
 
@@ -441,10 +449,10 @@ const DEEP_SLEEP_PBBMASK: u32 = 0x3;
 /// through the INTERRUPT_COUNT variable.
 pub fn deep_sleep_ready() -> bool {
     unsafe {
-        (*PM_REGS).hsbmask.get() & !(DEEP_SLEEP_HSBMASK) == 0 &&
-        (*PM_REGS).pbamask.get() & !(DEEP_SLEEP_PBAMASK) == 0 &&
-        (*PM_REGS).pbbmask.get() & !(DEEP_SLEEP_PBBMASK) == 0 &&
-        gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0
+        (*PM_REGS).hsbmask.get() & !(DEEP_SLEEP_HSBMASK) == 0
+            && (*PM_REGS).pbamask.get() & !(DEEP_SLEEP_PBAMASK) == 0
+            && (*PM_REGS).pbbmask.get() & !(DEEP_SLEEP_PBBMASK) == 0
+            && gpio::INTERRUPT_COUNT.load(Ordering::Relaxed) == 0
     }
 }
 

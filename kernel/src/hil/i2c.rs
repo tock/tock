@@ -3,7 +3,7 @@
 use core::fmt::{Display, Formatter, Result};
 
 /// The type of error encoutered during an I2C command transmission.
-#[derive(Copy,Clone,Debug,Eq,PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     /// The slave did not acknowledge the chip address. Most likely the address
     /// is incorrect or the slave is not properly connected.
@@ -34,7 +34,7 @@ impl Display for Error {
 }
 
 /// This specifies what type of transmission just finished from a Master device.
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum SlaveTransmissionType {
     Write,
     Read,
@@ -73,10 +73,12 @@ pub trait I2CHwMasterClient {
 /// Client interface for capsules that use I2CSlave devices.
 pub trait I2CHwSlaveClient {
     /// Called when an I2C command completed.
-    fn command_complete(&self,
-                        buffer: &'static mut [u8],
-                        length: u8,
-                        transmission_type: SlaveTransmissionType);
+    fn command_complete(
+        &self,
+        buffer: &'static mut [u8],
+        length: u8,
+        transmission_type: SlaveTransmissionType,
+    );
 
     /// Called from the I2C slave hardware to say that a Master has sent us
     /// a read message, but the driver did not have a buffer containing data
@@ -92,7 +94,6 @@ pub trait I2CHwSlaveClient {
     /// `I2CSlave::write_receive()` with a buffer.
     fn write_expected(&self);
 }
-
 
 /// Higher-level interface for I2C Master commands that wraps in the I2C
 /// address. It gives an interface for communicating with a specific I2C

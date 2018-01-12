@@ -10,7 +10,6 @@
 //! * Fredrik Nilsson <frednils@student.chalmers.se>
 //! * Date: June 22, 2017
 
-
 use core::cell::Cell;
 use kernel;
 use kernel::ReturnCode;
@@ -39,7 +38,6 @@ impl Radio {
             tx_client: Cell::new(None),
         }
     }
-
 
     fn ble_init(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
@@ -87,34 +85,37 @@ impl Radio {
 
     fn set_crc_config(&self) {
         let regs = unsafe { &*self.regs };
-        regs.crccnf.set(nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES |
-                        nrf5x::constants::RADIO_CRCCNF_SKIPADDR <<
-                        nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS);
+        regs.crccnf.set(
+            nrf5x::constants::RADIO_CRCCNF_LEN_3BYTES
+                | nrf5x::constants::RADIO_CRCCNF_SKIPADDR
+                    << nrf5x::constants::RADIO_CRCCNF_SKIPADDR_POS,
+        );
         regs.crcinit.set(nrf5x::constants::RADIO_CRCINIT_BLE);
         regs.crcpoly.set(nrf5x::constants::RADIO_CRCPOLY_BLE);
     }
 
-
     // Packet configuration
     fn set_packet_config(&self, _: u32) {
         let regs = unsafe { &*self.regs };
-        regs.pcnf0.set((nrf5x::constants::RADIO_PCNF0_S0_LEN_1BYTE <<
-                        nrf5x::constants::RADIO_PCNF0_S0LEN_POS) |
-                       (nrf5x::constants::RADIO_PCNF0_LFLEN_1BYTE <<
-                        nrf5x::constants::RADIO_PCNF0_LFLEN_POS));
+        regs.pcnf0.set(
+            (nrf5x::constants::RADIO_PCNF0_S0_LEN_1BYTE << nrf5x::constants::RADIO_PCNF0_S0LEN_POS)
+                | (nrf5x::constants::RADIO_PCNF0_LFLEN_1BYTE
+                    << nrf5x::constants::RADIO_PCNF0_LFLEN_POS),
+        );
 
-
-        regs.pcnf1.set((nrf5x::constants::RADIO_PCNF1_WHITEEN_ENABLED <<
+        regs.pcnf1.set(
+            (nrf5x::constants::RADIO_PCNF1_WHITEEN_ENABLED <<
                 nrf5x::constants::RADIO_PCNF1_WHITEEN_POS) |
                  (nrf5x::constants::RADIO_PCNF1_ENDIAN_LITTLE <<
                      nrf5x::constants::RADIO_PCNF1_ENDIAN_POS) |
                  // Total Address is 4 bytes (BASE ADDRESS + PREFIX (1))
                  (nrf5x::constants::RADIO_PCNF1_BALEN_3BYTES <<
-                  nrf5x::constants::RADIO_PCNF1_BALEN_POS) |
-                       (nrf5x::constants::RADIO_PCNF1_STATLEN_DONT_EXTEND <<
-                        nrf5x::constants::RADIO_PCNF1_STATLEN_POS) |
-                       (nrf5x::constants::RADIO_PCNF1_MAXLEN_37BYTES <<
-                        nrf5x::constants::RADIO_PCNF1_MAXLEN_POS));
+                  nrf5x::constants::RADIO_PCNF1_BALEN_POS)
+                | (nrf5x::constants::RADIO_PCNF1_STATLEN_DONT_EXTEND
+                    << nrf5x::constants::RADIO_PCNF1_STATLEN_POS)
+                | (nrf5x::constants::RADIO_PCNF1_MAXLEN_37BYTES
+                    << nrf5x::constants::RADIO_PCNF1_MAXLEN_POS),
+        );
     }
 
     // TODO set from capsules?!
@@ -202,8 +203,6 @@ impl Radio {
             regs.end.set(0);
             regs.disable.set(1);
 
-
-
             let result = if regs.crcstatus.get() == 1 {
                 ReturnCode::SUCCESS
             } else {
@@ -211,17 +210,19 @@ impl Radio {
             };
 
             match regs.state.get() {
-                nrf5x::constants::RADIO_STATE_TXRU |
-                nrf5x::constants::RADIO_STATE_TXIDLE |
-                nrf5x::constants::RADIO_STATE_TXDISABLE |
-                nrf5x::constants::RADIO_STATE_TX => {
+                nrf5x::constants::RADIO_STATE_TXRU
+                | nrf5x::constants::RADIO_STATE_TXIDLE
+                | nrf5x::constants::RADIO_STATE_TXDISABLE
+                | nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
-                    self.tx_client.get().map(|client| client.transmit_event(result));
+                    self.tx_client
+                        .get()
+                        .map(|client| client.transmit_event(result));
                 }
-                nrf5x::constants::RADIO_STATE_RXRU |
-                nrf5x::constants::RADIO_STATE_RXIDLE |
-                nrf5x::constants::RADIO_STATE_RXDISABLE |
-                nrf5x::constants::RADIO_STATE_RX => {
+                nrf5x::constants::RADIO_STATE_RXRU
+                | nrf5x::constants::RADIO_STATE_RXIDLE
+                | nrf5x::constants::RADIO_STATE_RXDISABLE
+                | nrf5x::constants::RADIO_STATE_RX => {
                     self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
@@ -236,13 +237,13 @@ impl Radio {
         self.enable_interrupts();
     }
 
-
     pub fn enable_interrupts(&self) {
         let regs = unsafe { &*self.regs };
-        regs.intenset
-            .set(nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS |
-                 nrf5x::constants::RADIO_INTENSET_PAYLOAD |
-                 nrf5x::constants::RADIO_INTENSET_END);
+        regs.intenset.set(
+            nrf5x::constants::RADIO_INTENSET_READY | nrf5x::constants::RADIO_INTENSET_ADDRESS
+                | nrf5x::constants::RADIO_INTENSET_PAYLOAD
+                | nrf5x::constants::RADIO_INTENSET_END,
+        );
     }
 
     pub fn disable_interrupts(&self) {
@@ -274,11 +275,12 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         }
     }
 
-    fn transmit_advertisement(&self,
-                              buf: &'static mut [u8],
-                              len: usize,
-                              channel: RadioChannel)
-                              -> &'static mut [u8] {
+    fn transmit_advertisement(
+        &self,
+        buf: &'static mut [u8],
+        len: usize,
+        channel: RadioChannel,
+    ) -> &'static mut [u8] {
         let res = self.replace_radio_buffer(buf, len);
         self.ble_init(channel);
         self.tx();

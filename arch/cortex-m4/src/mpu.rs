@@ -94,7 +94,6 @@ pub struct Registers {
     pub region_attributes_and_size: VolatileCell<u32>,
 }
 
-
 const MPU_BASE_ADDRESS: *const Registers = 0xE000ED90 as *const Registers;
 
 /// Constructor field is private to limit who can create a new MPU
@@ -119,8 +118,10 @@ impl kernel::mpu::MPU for MPU {
         let mpu_type = regs.mpu_type.get();
         let regions = mpu_type.data_regions.get();
         if regions != 8 {
-            panic!("Tock currently assumes 8 MPU regions. This chip has {}",
-                   regions);
+            panic!(
+                "Tock currently assumes 8 MPU regions. This chip has {}",
+                regions
+            );
         }
     }
 
@@ -129,12 +130,13 @@ impl kernel::mpu::MPU for MPU {
         regs.control.set(0b0);
     }
 
-    fn create_region(region_num: usize,
-                     start: usize,
-                     len: usize,
-                     execute: kernel::mpu::ExecutePermission,
-                     access: kernel::mpu::AccessPermission)
-                     -> Option<Region> {
+    fn create_region(
+        region_num: usize,
+        start: usize,
+        len: usize,
+        execute: kernel::mpu::ExecutePermission,
+        access: kernel::mpu::AccessPermission,
+    ) -> Option<Region> {
         if region_num >= 8 {
             // There are only 8 (0-indexed) regions available
             return None;
@@ -164,8 +166,10 @@ impl kernel::mpu::MPU for MPU {
             let xn = execute as u32;
             let ap = access as u32;
             Some(unsafe {
-                Region::new((start | 1 << 4 | (region_num & 0xf)) as u32,
-                            1 | (region_len.exp::<u32>() - 1) << 1 | ap << 24 | xn << 28)
+                Region::new(
+                    (start | 1 << 4 | (region_num & 0xf)) as u32,
+                    1 | (region_len.exp::<u32>() - 1) << 1 | ap << 24 | xn << 28,
+                )
             })
         } else {
             // Memory base not aligned to memory size
@@ -182,7 +186,11 @@ impl kernel::mpu::MPU for MPU {
                 // `start` should never be 0 because of that's taken care of by
                 // the previous branch, but in case it is, do the right thing
                 // anyway.
-                if tz < 32 { (1 as usize) << tz } else { 0 }
+                if tz < 32 {
+                    (1 as usize) << tz
+                } else {
+                    0
+                }
             };
 
             // Once we have a subregion size, we get a region size by
@@ -204,7 +212,6 @@ impl kernel::mpu::MPU for MPU {
                 // we take the max_subregion.
                 return None;
             }
-
 
             // The index of the first subregion to activate is the number of
             // regions between `region_start` (MPU) and `start` (memory).
@@ -229,15 +236,17 @@ impl kernel::mpu::MPU for MPU {
             //
             // Note: Rust ranges are minimum inclusive, maximum exclusive, hence
             // max_subregion + 1.
-            let subregion_mask = (min_subregion..(max_subregion + 1))
-                .fold(!0, |res, i| res & !(1 << i)) & 0xff;
+            let subregion_mask =
+                (min_subregion..(max_subregion + 1)).fold(!0, |res, i| res & !(1 << i)) & 0xff;
 
             let xn = execute as u32;
             let ap = access as u32;
             Some(unsafe {
-                Region::new((region_start | 1 << 4 | (region_num & 0xf)) as u32,
-                            1 | subregion_mask << 8 | (region_len.exp::<u32>() - 1) << 1 |
-                            ap << 24 | xn << 28)
+                Region::new(
+                    (region_start | 1 << 4 | (region_num & 0xf)) as u32,
+                    1 | subregion_mask << 8 | (region_len.exp::<u32>() - 1) << 1 | ap << 24
+                        | xn << 28,
+                )
             })
         }
     }

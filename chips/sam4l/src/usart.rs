@@ -42,10 +42,12 @@ struct USARTRegisters {
     version: VolatileCell<u32>, // 0xFC
 }
 
-const USART_BASE_ADDRS: [*mut USARTRegisters; 4] = [0x40024000 as *mut USARTRegisters,
-                                                    0x40028000 as *mut USARTRegisters,
-                                                    0x4002C000 as *mut USARTRegisters,
-                                                    0x40030000 as *mut USARTRegisters];
+const USART_BASE_ADDRS: [*mut USARTRegisters; 4] = [
+    0x40024000 as *mut USARTRegisters,
+    0x40028000 as *mut USARTRegisters,
+    0x4002C000 as *mut USARTRegisters,
+    0x40030000 as *mut USARTRegisters,
+];
 
 #[derive(Copy, Clone, PartialEq)]
 #[allow(non_camel_case_types)]
@@ -62,14 +64,14 @@ pub enum USARTStateTX {
     Transfer_Completing, // DMA finished, but not all bytes sent
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 enum UsartMode {
     Uart,
     Spi,
     Unused,
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 enum UsartClient<'a> {
     Uart(&'a hil::uart::Client),
     SpiMaster(&'a hil::spi::SpiMasterClient),
@@ -97,29 +99,38 @@ pub struct USART {
 }
 
 // USART hardware peripherals on SAM4L
-pub static mut USART0: USART = USART::new(USART_BASE_ADDRS[0],
-                                          pm::PBAClock::USART0,
-                                          dma::DMAPeripheral::USART0_RX,
-                                          dma::DMAPeripheral::USART0_TX);
-pub static mut USART1: USART = USART::new(USART_BASE_ADDRS[1],
-                                          pm::PBAClock::USART1,
-                                          dma::DMAPeripheral::USART1_RX,
-                                          dma::DMAPeripheral::USART1_TX);
-pub static mut USART2: USART = USART::new(USART_BASE_ADDRS[2],
-                                          pm::PBAClock::USART2,
-                                          dma::DMAPeripheral::USART2_RX,
-                                          dma::DMAPeripheral::USART2_TX);
-pub static mut USART3: USART = USART::new(USART_BASE_ADDRS[3],
-                                          pm::PBAClock::USART3,
-                                          dma::DMAPeripheral::USART3_RX,
-                                          dma::DMAPeripheral::USART3_TX);
+pub static mut USART0: USART = USART::new(
+    USART_BASE_ADDRS[0],
+    pm::PBAClock::USART0,
+    dma::DMAPeripheral::USART0_RX,
+    dma::DMAPeripheral::USART0_TX,
+);
+pub static mut USART1: USART = USART::new(
+    USART_BASE_ADDRS[1],
+    pm::PBAClock::USART1,
+    dma::DMAPeripheral::USART1_RX,
+    dma::DMAPeripheral::USART1_TX,
+);
+pub static mut USART2: USART = USART::new(
+    USART_BASE_ADDRS[2],
+    pm::PBAClock::USART2,
+    dma::DMAPeripheral::USART2_RX,
+    dma::DMAPeripheral::USART2_TX,
+);
+pub static mut USART3: USART = USART::new(
+    USART_BASE_ADDRS[3],
+    pm::PBAClock::USART3,
+    dma::DMAPeripheral::USART3_RX,
+    dma::DMAPeripheral::USART3_TX,
+);
 
 impl USART {
-    const fn new(base_addr: *mut USARTRegisters,
-                 clock: pm::PBAClock,
-                 rx_dma_peripheral: dma::DMAPeripheral,
-                 tx_dma_peripheral: dma::DMAPeripheral)
-                 -> USART {
+    const fn new(
+        base_addr: *mut USARTRegisters,
+        clock: pm::PBAClock,
+        rx_dma_peripheral: dma::DMAPeripheral,
+        tx_dma_peripheral: dma::DMAPeripheral,
+    ) -> USART {
         USART {
             registers: base_addr,
             clock: pm::Clock::PBA(clock),
@@ -311,7 +322,6 @@ impl USART {
         // stopped it from occurring just in case it caused issues in the
         // future.
         if self.is_clock_enabled() {
-
             let regs: &USARTRegisters = unsafe { &*self.registers };
             let status = regs.csr.get();
             let mask = regs.imr.get();
@@ -331,11 +341,9 @@ impl USART {
             } else if status & (1 << 7) != 0 {
                 // PARE
                 self.abort_rx(hil::uart::Error::ParityError);
-
             } else if status & (1 << 6) != 0 {
                 // FRAME
                 self.abort_rx(hil::uart::Error::FramingError);
-
             } else if status & (1 << 5) != 0 {
                 // OVRE
                 self.abort_rx(hil::uart::Error::OverrunError);
@@ -464,16 +472,17 @@ impl dma::DMAClient for USART {
                             let length = self.rx_len.get();
                             match usartclient {
                                 UsartClient::Uart(client) => {
-                                    client.receive_complete(buf,
-                                                            length,
-                                                            hil::uart::Error::CommandComplete);
+                                    client.receive_complete(
+                                        buf,
+                                        length,
+                                        hil::uart::Error::CommandComplete,
+                                    );
                                 }
                                 UsartClient::SpiMaster(_) => {}
                             }
                         });
                     });
                     self.rx_len.set(0);
-
                 } else if pid == self.tx_dma_peripheral {
                     // TX transfer was completed
 
@@ -503,17 +512,21 @@ impl dma::DMAClient for USART {
             }
 
             UsartMode::Spi => {
-                if (self.usart_rx_state.get() == USARTStateRX::Idle &&
-                    pid == self.tx_dma_peripheral) ||
-                   pid == self.rx_dma_peripheral {
+                if (self.usart_rx_state.get() == USARTStateRX::Idle
+                    && pid == self.tx_dma_peripheral)
+                    || pid == self.rx_dma_peripheral
+                {
                     // SPI transfer was completed
 
-                    self.spi_chip_select.get().map_or_else(|| {
-                        // Do "else" case first. Thanks, rust.
-                        self.rts_disable_spi_deassert_cs();
-                    }, |cs| {
-                        cs.set();
-                    });
+                    self.spi_chip_select.get().map_or_else(
+                        || {
+                            // Do "else" case first. Thanks, rust.
+                            self.rts_disable_spi_deassert_cs();
+                        },
+                        |cs| {
+                            cs.set();
+                        },
+                    );
 
                     // note that the DMA has finished but TX cannot be disabled yet
                     self.usart_tx_state.set(USARTStateTX::Transfer_Completing);
@@ -588,9 +601,9 @@ impl hil::uart::UART for USART {
         };
 
         match params.parity {
-            hil::uart::Parity::None => mode |= 0x4 << 9,   // PAR: no parity
-            hil::uart::Parity::Odd => mode |= 0x1 << 9,    // PAR: odd parity
-            hil::uart::Parity::Even => mode |= 0x0 << 9,   // PAR: even parity
+            hil::uart::Parity::None => mode |= 0x4 << 9, // PAR: no parity
+            hil::uart::Parity::Odd => mode |= 0x1 << 9,  // PAR: odd parity
+            hil::uart::Parity::Even => mode |= 0x0 << 9, // PAR: even parity
         };
 
         if params.hw_flow_control {
@@ -707,7 +720,6 @@ impl hil::uart::UARTAdvanced for USART {
     }
 }
 
-
 /// SPI
 impl hil::spi::SpiMaster for USART {
     type ChipSelect = Option<&'static hil::gpio::Pin>;
@@ -735,7 +747,6 @@ impl hil::spi::SpiMaster for USART {
         self.disable_clock();
     }
 
-
     fn set_client(&self, client: &'static hil::spi::SpiMasterClient) {
         let c = UsartClient::SpiMaster(client);
         self.client.set(Some(c));
@@ -745,30 +756,34 @@ impl hil::spi::SpiMaster for USART {
         return false;
     }
 
-    fn read_write_bytes(&self,
-                        mut write_buffer: &'static mut [u8],
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode {
-
+    fn read_write_bytes(
+        &self,
+        mut write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode {
         self.enable_tx();
         self.enable_rx();
 
         // Calculate the correct length for the transmission
-        let buflen = read_buffer.as_ref().map_or(write_buffer.len(),
-                                                 |rbuf| cmp::min(rbuf.len(), write_buffer.len()));
+        let buflen = read_buffer.as_ref().map_or(write_buffer.len(), |rbuf| {
+            cmp::min(rbuf.len(), write_buffer.len())
+        });
         let count = cmp::min(buflen, len);
 
         self.tx_len.set(count);
 
         // Set !CS low
-        self.spi_chip_select.get().map_or_else(|| {
-            // Do the "else" case first. If a CS pin was provided as the
-            // CS line, we use the HW RTS pin as the CS line instead.
-            self.rts_enable_spi_assert_cs();
-        }, |cs| {
-            cs.clear();
-        });
+        self.spi_chip_select.get().map_or_else(
+            || {
+                // Do the "else" case first. If a CS pin was provided as the
+                // CS line, we use the HW RTS pin as the CS line instead.
+                self.rts_enable_spi_assert_cs();
+            },
+            |cs| {
+                cs.clear();
+            },
+        );
 
         // Check if we should read and write or just write.
         if read_buffer.is_some() {

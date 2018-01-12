@@ -13,7 +13,6 @@ impl NRF51 {
     }
 }
 
-
 impl kernel::Chip for NRF51 {
     type MPU = ();
     type SysTick = ();

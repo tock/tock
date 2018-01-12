@@ -55,7 +55,7 @@ use kernel::hil;
 pub const DRIVER_NUM: usize = 0x00000002;
 
 /// Whether the LEDs are active high or active low on this platform.
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub enum ActivationMode {
     ActiveHigh,
     ActiveLow,
@@ -78,7 +78,9 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> LED<'a, G> {
             }
         }
 
-        LED { pins_init: pins_init }
+        LED {
+            pins_init: pins_init,
+        }
     }
 }
 
@@ -99,7 +101,9 @@ impl<'a, G: hil::gpio::Pin + hil::gpio::PinCtl> Driver for LED<'a, G> {
         let pins_init = self.pins_init.as_ref();
         match command_num {
             // get number of LEDs
-            0 => ReturnCode::SuccessWithValue { value: pins_init.len() as usize },
+            0 => ReturnCode::SuccessWithValue {
+                value: pins_init.len() as usize,
+            },
 
             // on
             1 => {

@@ -1,11 +1,3 @@
-[root]
-name = "elf2tbf"
-version = "0.2.0"
-dependencies = [
- "elf 0.0.6 (git+https://github.com/cole14/rust-elf)",
- "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
 [[package]]
 name = "byteorder"
 version = "0.4.2"
@@ -17,6 +9,14 @@ version = "0.0.6"
 source = "git+https://github.com/cole14/rust-elf#7398e3e0831fda2dd71f9730b3198e8ecd1e411c"
 dependencies = [
  "byteorder 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "elf2tbf"
+version = "0.2.0"
+dependencies = [
+ "elf 0.0.6 (git+https://github.com/cole14/rust-elf)",
+ "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

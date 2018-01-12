@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use kernel::common::VolatileCell;
 use kernel::hil::Controller;
-use kernel::hil::time::{self, Alarm, Time, Freq16KHz};
+use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
 use pm::{self, PBDClock};
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
@@ -225,7 +225,6 @@ impl<'a> Ast<'a> {
         unsafe { (*self.regs).cv.get() }
     }
 
-
     pub fn set_counter(&self, value: u32) {
         while self.busy() {}
         unsafe {
@@ -235,7 +234,9 @@ impl<'a> Ast<'a> {
 
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
-        self.callback.get().map(|cb| { cb.fired(); });
+        self.callback.get().map(|cb| {
+            cb.fired();
+        });
     }
 }
 

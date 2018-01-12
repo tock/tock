@@ -17,10 +17,9 @@
 //! ```
 
 use core::cmp;
-
-use kernel::{AppId, Callback, AppSlice, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, ReturnCode, Shared};
 use kernel::common::take_cell::{MapCell, TakeCell};
-use kernel::hil::uart::{self, UARTAdvanced, Client};
+use kernel::hil::uart::{self, Client, UARTAdvanced};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x80004;
@@ -30,7 +29,7 @@ struct App {
     tx_buffer: Option<AppSlice<Shared, u8>>,
     rx_buffer: Option<AppSlice<Shared, u8>>,
     rx_recv_so_far: usize, // How many RX bytes we have currently received.
-    rx_recv_total: usize, // The total number of bytes we expect to receive.
+    rx_recv_total: usize,  // The total number of bytes we expect to receive.
 }
 
 impl Default for App {
@@ -60,10 +59,11 @@ pub struct Nrf51822Serialization<'a, U: UARTAdvanced + 'a> {
 }
 
 impl<'a, U: UARTAdvanced> Nrf51822Serialization<'a, U> {
-    pub fn new(uart: &'a U,
-               tx_buffer: &'static mut [u8],
-               rx_buffer: &'static mut [u8])
-               -> Nrf51822Serialization<'a, U> {
+    pub fn new(
+        uart: &'a U,
+        tx_buffer: &'static mut [u8],
+        rx_buffer: &'static mut [u8],
+    ) -> Nrf51822Serialization<'a, U> {
         Nrf51822Serialization {
             uart: uart,
             app: MapCell::new(App::default()),
@@ -177,7 +177,9 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         //               Can't just use 0!
         self.app.map(|appst| {
             // Call the callback after TX has finished
-            appst.callback.as_mut().map(|cb| { cb.schedule(1, 0, 0); });
+            appst.callback.as_mut().map(|cb| {
+                cb.schedule(1, 0, 0);
+            });
         });
     }
 
@@ -191,8 +193,10 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
                 let max_len = cmp::min(rx_len, rb.len());
 
                 // Copy over data to app buffer.
-                self.rx_buffer.map(|buffer| for idx in 0..max_len {
-                    rb.as_mut()[idx] = buffer[idx];
+                self.rx_buffer.map(|buffer| {
+                    for idx in 0..max_len {
+                        rb.as_mut()[idx] = buffer[idx];
+                    }
                 });
                 appst.callback.as_mut().map(|cb| {
                     // Notify the serialization library in userspace about the
@@ -205,6 +209,8 @@ impl<'a, U: UARTAdvanced> Client for Nrf51822Serialization<'a, U> {
         });
 
         // Restart the UART receive.
-        self.rx_buffer.take().map(|buffer| self.uart.receive_automatic(buffer, 250));
+        self.rx_buffer
+            .take()
+            .map(|buffer| self.uart.receive_automatic(buffer, 250));
     }
 }

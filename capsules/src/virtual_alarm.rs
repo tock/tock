@@ -74,7 +74,6 @@ impl<'a, Alrm: Alarm> Alarm for VirtualMuxAlarm<'a, Alrm> {
         if !self.is_armed() {
             self.mux.enabled.set(enabled + 1);
             self.armed.set(true);
-
         }
 
         if enabled > 0 {

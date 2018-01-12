@@ -27,8 +27,7 @@ use core::mem;
 use kernel::hil;
 use peripheral_registers;
 
-
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub enum Location {
     TIMER0,
     TIMER1,
@@ -52,8 +51,8 @@ pub static mut TIMER2: Timer = Timer {
 
 #[allow(non_snake_case)]
 fn TIMER(location: Location) -> &'static peripheral_registers::TIMER {
-    let ptr = peripheral_registers::TIMER_BASE +
-              (location as usize) * peripheral_registers::TIMER_SIZE;
+    let ptr =
+        peripheral_registers::TIMER_BASE + (location as usize) * peripheral_registers::TIMER_SIZE;
     unsafe { mem::transmute(ptr) }
 }
 
@@ -252,7 +251,9 @@ impl TimerAlarm {
 
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
-        self.client.get().map(|client| { client.fired(); });
+        self.client.get().map(|client| {
+            client.fired();
+        });
     }
 
     // Enable and disable interrupts use the bottom 4 bits

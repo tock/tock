@@ -1,8 +1,8 @@
-use net::stream::{decode_u16, decode_u8, decode_bytes};
-use net::stream::{encode_u16, encode_u8, encode_bytes};
+use net::stream::{decode_bytes, decode_u16, decode_u8};
+use net::stream::{encode_bytes, encode_u16, encode_u8};
 use net::stream::SResult;
 
-#[derive(Copy,Clone,PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum MacAddr {
     ShortAddr(u16),
     LongAddr([u8; 8]),
@@ -35,8 +35,8 @@ impl IPAddr {
     }
 
     pub fn is_unicast_link_local(&self) -> bool {
-        self.0[0] == 0xfe && (self.0[1] & 0xc0) == 0x80 && (self.0[1] & 0x3f) == 0 &&
-        self.0[2..8].iter().all(|&b| b == 0)
+        self.0[0] == 0xfe && (self.0[1] & 0xc0) == 0x80 && (self.0[1] & 0x3f) == 0
+            && self.0[2..8].iter().all(|&b| b == 0)
     }
 
     pub fn set_unicast_link_local(&mut self) {

@@ -57,7 +57,11 @@ impl ToWord for u8 {
 impl ToWord for bool {
     #[inline]
     fn to_word(self) -> u32 {
-        if self { 1 } else { 0 }
+        if self {
+            1
+        } else {
+            0
+        }
     }
 }
 
@@ -75,6 +79,10 @@ impl FromWord for u32 {
 impl FromWord for bool {
     #[inline]
     fn from_word(w: u32) -> bool {
-        if w & 1 == 1 { true } else { false }
+        if w & 1 == 1 {
+            true
+        } else {
+            false
+        }
     }
 }

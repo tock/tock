@@ -49,8 +49,11 @@ mod registers {
         use nrf5x::pinmux::Pinmux;
 
         /// Uninitialized `SPIM` instances.
-        pub const INSTANCES: [*const SPIM; 3] =
-            [0x40003000 as *const SPIM, 0x40004000 as *const SPIM, 0x40023000 as *const SPIM];
+        pub const INSTANCES: [*const SPIM; 3] = [
+            0x40003000 as *const SPIM,
+            0x40004000 as *const SPIM,
+            0x40023000 as *const SPIM,
+        ];
 
         bitfield!{
             /// Represents bitfields in `intenset` and `intenclr` registers.
@@ -250,7 +253,6 @@ mod registers {
     }
 }
 
-
 /// A SPI master device.
 ///
 /// A `SPIM` instance wraps a `registers::spim::SPIM` together with
@@ -286,7 +288,6 @@ impl SPIM {
 
     #[inline(never)]
     pub fn handle_interrupt(&self) {
-
         if self.regs().events_end.get() == 1 {
             // End of RXD buffer and TXD buffer reached
             match self.chip_select.get() {
@@ -300,16 +301,12 @@ impl SPIM {
 
             match self.client.get() {
                 None => (),
-                Some(client) => {
-                    match self.tx_buf.take() {
-                        None => (),
-                        Some(tx_buf) => {
-                            client.read_write_done(tx_buf,
-                                                   self.rx_buf.take(),
-                                                   self.transfer_len.take())
-                        }
+                Some(client) => match self.tx_buf.take() {
+                    None => (),
+                    Some(tx_buf) => {
+                        client.read_write_done(tx_buf, self.rx_buf.take(), self.transfer_len.take())
                     }
-                }
+                },
             };
 
             self.busy.set(false);
@@ -364,7 +361,6 @@ impl SPIM {
     }
 }
 
-
 impl hil::spi::SpiMaster for SPIM {
     type ChipSelect = &'static hil::gpio::Pin;
 
@@ -384,11 +380,12 @@ impl hil::spi::SpiMaster for SPIM {
         self.busy.get()
     }
 
-    fn read_write_bytes(&self,
-                        tx_buf: &'static mut [u8],
-                        rx_buf: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode {
+    fn read_write_bytes(
+        &self,
+        tx_buf: &'static mut [u8],
+        rx_buf: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode {
         debug_assert!(self.initialized.get());
         debug_assert!(!self.busy.get());
         debug_assert!(self.tx_buf.is_none());

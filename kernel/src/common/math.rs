@@ -20,7 +20,6 @@ pub fn sqrtf32(num: f32) -> f32 {
     unsafe { int::sqrtf32(num) }
 }
 
-
 // errno from stdlib for use in Rust
 
 extern "C" {
@@ -37,7 +36,6 @@ pub fn get_errno() -> i32 {
     }
 }
 
-
 // other math functions that are generally useful
 
 // get closest power of two greater than the given number
@@ -52,14 +50,15 @@ pub fn closest_power_of_two(mut num: u32) -> u32 {
     num
 }
 
-#[derive(Copy,Clone,Debug,PartialEq,PartialOrd,Eq,Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PowerOfTwo(u32);
 
 /// Represents an integral power-of-two as an exponent
 impl PowerOfTwo {
     /// Returns the base-2 exponent as a numeric type
     pub fn exp<R>(self) -> R
-        where R: From<u32>
+    where
+        R: From<u32>,
     {
         From::from(self.0)
     }

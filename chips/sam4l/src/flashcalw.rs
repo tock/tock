@@ -103,14 +103,14 @@ pub enum Speed {
 /// FlashState is used to track the current state and command of the flash.
 #[derive(Clone, Copy, PartialEq)]
 pub enum FlashState {
-    Unconfigured, //                 Flash is unconfigured, call configure().
-    Ready, //                        Flash is ready to complete a command.
-    Read, //                         Performing a read operation.
+    Unconfigured,                 //                 Flash is unconfigured, call configure().
+    Ready,                        //                        Flash is ready to complete a command.
+    Read,                         //                         Performing a read operation.
     WriteUnlocking { page: i32 }, // Started a write operation.
-    WriteErasing { page: i32 }, //   Waiting on the page to erase.
-    WriteWriting, //                 Waiting on the page to actually be written.
+    WriteErasing { page: i32 },   //   Waiting on the page to erase.
+    WriteWriting,                 //                 Waiting on the page to actually be written.
     EraseUnlocking { page: i32 }, // Started an erase operation.
-    EraseErasing, //                 Waiting on the erase to finish.
+    EraseErasing,                 //                 Waiting on the erase to finish.
 }
 
 /// This is a wrapper around a u8 array that is sized to a single page for the
@@ -166,11 +166,12 @@ pub struct FLASHCALW {
 }
 
 // static instance for the board. Only one FLASHCALW on chip.
-pub static mut FLASH_CONTROLLER: FLASHCALW = FLASHCALW::new(FLASHCALW_BASE_ADDRS,
-                                                            pm::HSBClock::FLASHCALW,
-                                                            pm::HSBClock::FLASHCALWP,
-                                                            pm::PBBClock::FLASHCALW);
-
+pub static mut FLASH_CONTROLLER: FLASHCALW = FLASHCALW::new(
+    FLASHCALW_BASE_ADDRS,
+    pm::HSBClock::FLASHCALW,
+    pm::HSBClock::FLASHCALWP,
+    pm::PBBClock::FLASHCALW,
+);
 
 // Few constants relating to module configuration.
 const PAGE_SIZE: u32 = 512;
@@ -186,7 +187,6 @@ const FREQ_PS0_FWS_1_MAX_FREQ: u32 = 36000000;
 #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
 const FREQ_PS1_FWS_0_MAX_FREQ: u32 = 8000000;
 
-
 #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
 const FREQ_PS2_FWS_0_MAX_FREQ: u32 = 24000000;
 
@@ -196,11 +196,12 @@ macro_rules! bit {
 }
 
 impl FLASHCALW {
-    const fn new(base_addr: usize,
-                 ahb_clk: pm::HSBClock,
-                 hramc1_clk: pm::HSBClock,
-                 pb_clk: pm::PBBClock)
-                 -> FLASHCALW {
+    const fn new(
+        base_addr: usize,
+        ahb_clk: pm::HSBClock,
+        hramc1_clk: pm::HSBClock,
+        pb_clk: pm::PBBClock,
+    ) -> FLASHCALW {
         FLASHCALW {
             registers: base_addr as *mut FlashcalwRegisters,
             ahb_clock: pm::Clock::HSB(ahb_clk),
@@ -211,7 +212,6 @@ impl FLASHCALW {
             buffer: TakeCell::empty(),
         }
     }
-
 
     /// Cache controlling functionality.
 
@@ -232,7 +232,6 @@ impl FLASHCALW {
 
     /// Enable HCACHE
     pub fn enable_cache(&self) {
-
         // enable appropriate clocks
         unsafe {
             pm::enable_clock(pm::Clock::HSB(pm::HSBClock::FLASHCALWP));
@@ -264,7 +263,6 @@ impl FLASHCALW {
         }
     }
 
-
     pub fn handle_interrupt(&self) {
         //  disable the interrupt line for flash
         self.enable_ready_int(false);
@@ -287,15 +285,14 @@ impl FLASHCALW {
                         client.read_complete(buffer, hil::flash::Error::FlashError);
                     });
                 }
-                FlashState::WriteUnlocking { .. } |
-                FlashState::WriteErasing { .. } |
-                FlashState::WriteWriting => {
+                FlashState::WriteUnlocking { .. }
+                | FlashState::WriteErasing { .. }
+                | FlashState::WriteWriting => {
                     self.buffer.take().map(|buffer| {
                         client.write_complete(buffer, hil::flash::Error::FlashError);
                     });
                 }
-                FlashState::EraseUnlocking { .. } |
-                FlashState::EraseErasing => {
+                FlashState::EraseUnlocking { .. } | FlashState::EraseErasing => {
                     client.erase_complete(hil::flash::Error::FlashError);
                 }
                 _ => {}
@@ -314,7 +311,8 @@ impl FLASHCALW {
                 });
             }
             FlashState::WriteUnlocking { page } => {
-                self.current_state.set(FlashState::WriteErasing { page: page });
+                self.current_state
+                    .set(FlashState::WriteErasing { page: page });
                 self.flashcalw_erase_page(page);
             }
             FlashState::WriteErasing { page } => {
@@ -347,20 +345,21 @@ impl FLASHCALW {
             FlashState::EraseErasing => {
                 self.current_state.set(FlashState::Ready);
 
-                self.client
-                    .get()
-                    .map(|client| { client.erase_complete(hil::flash::Error::CommandComplete); });
+                self.client.get().map(|client| {
+                    client.erase_complete(hil::flash::Error::CommandComplete);
+                });
             }
             _ => {
                 self.current_state.set(FlashState::Ready);
             }
-
         }
     }
 
     /// FLASH properties.
     pub fn get_flash_size(&self) -> u32 {
-        let flash_sizes = [4, 8, 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048];
+        let flash_sizes = [
+            4, 8, 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048
+        ];
         // get the FSZ number and lookup in the table for the size.
         flash_sizes[self.read_register(RegKey::PARAMETER) as usize & 0xf] << 10
     }
@@ -373,7 +372,6 @@ impl FLASHCALW {
         self.get_page_count() / NB_OF_REGIONS
     }
 
-
     pub fn get_page_region(&self, page_number: i32) -> u32 {
         (if page_number >= 0 {
             page_number as u32
@@ -385,7 +383,6 @@ impl FLASHCALW {
     pub fn get_region_first_page_number(&self, region: u32) -> u32 {
         region * self.get_page_count_per_region()
     }
-
 
     /// FLASHC Control
     #[allow(dead_code)]
@@ -418,10 +415,12 @@ impl FLASHCALW {
     //  By default, we are going with High Speed Enable (based on our device running
     //  in PS2).
     #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
-    fn set_flash_waitstate_and_readmode(&mut self,
-                                        cpu_freq: u32,
-                                        _ps_val: u32,
-                                        _is_fwu_enabled: bool) {
+    fn set_flash_waitstate_and_readmode(
+        &mut self,
+        cpu_freq: u32,
+        _ps_val: u32,
+        _is_fwu_enabled: bool,
+    ) {
         // ps_val and is_fwu_enabled not used in this implementation.
         if cpu_freq > FREQ_PS2_FWS_0_MAX_FREQ {
             self.set_wait_state(1);
@@ -432,12 +431,13 @@ impl FLASHCALW {
         self.issue_command(FlashCMD::HSEN, -1);
     }
 
-
     #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-    fn set_flash_waitstate_and_readmode(&mut self,
-                                        cpu_freq: u32,
-                                        ps_val: u32,
-                                        is_fwu_enabled: bool) {
+    fn set_flash_waitstate_and_readmode(
+        &mut self,
+        cpu_freq: u32,
+        ps_val: u32,
+        is_fwu_enabled: bool,
+    ) {
         if ps_val == 0 {
             if cpu_freq > FREQ_PS0_FWS_0_MAX_FREQ {
                 self.set_wait_state(1);
@@ -455,7 +455,6 @@ impl FLASHCALW {
                     self.issue_command(FlashCMD::HSDIS, -1);
                 }
             }
-
         } else {
             // ps_val == 1
             if cpu_freq > FREQ_PS1_FWS_0_MAX_FREQ {
@@ -588,8 +587,9 @@ impl FLASHCALW {
         unsafe {
             pm::enable_clock(self.pb_clock);
         }
-        if command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB &&
-           command != FlashCMD::HSEN {
+        if command != FlashCMD::QPRUP && command != FlashCMD::QPR && command != FlashCMD::CPB
+            && command != FlashCMD::HSEN
+        {
             // Enable ready interrupt.
             self.enable_ready_int(true);
         }
@@ -612,12 +612,12 @@ impl FLASHCALW {
         // Since we don't enable interrupts for these commands, spin wait
         // until they are finished. In particular, QPR and QPRUP will not issue
         // interrupts (see datasheet 14.6 paragraph 2).
-        if command == FlashCMD::QPRUP || command == FlashCMD::QPR || command == FlashCMD::CPB ||
-           command == FlashCMD::HSEN {
+        if command == FlashCMD::QPRUP || command == FlashCMD::QPR || command == FlashCMD::CPB
+            || command == FlashCMD::HSEN
+        {
             while (cmd_regs.fsr.get() & 0x01) != 0x01 {}
         }
     }
-
 
     /// Flashcalw global commands
     pub fn no_operation(&self) {
@@ -749,7 +749,6 @@ impl FLASHCALW {
             pm::enable_clock(self.ahb_clock);
             pm::enable_clock(self.hramc1_clock);
             pm::enable_clock(self.pb_clock);
-
         }
 
         // Configure all other interrupts explicitly. Note the issue_command
@@ -785,20 +784,22 @@ impl FLASHCALW {
     }
 
     // Address is some raw address in flash that you want to read.
-    pub fn read_range(&self,
-                      address: usize,
-                      size: usize,
-                      buffer: &'static mut Sam4lPage)
-                      -> ReturnCode {
+    pub fn read_range(
+        &self,
+        address: usize,
+        size: usize,
+        buffer: &'static mut Sam4lPage,
+    ) -> ReturnCode {
         // Enable clock in case it's off.
         unsafe {
             pm::enable_clock(self.ahb_clock);
         }
 
         // Check that address makes sense and buffer has room.
-        if address > (self.get_flash_size() as usize) ||
-           address + size > (self.get_flash_size() as usize) ||
-           address + size < size || buffer.len() < size {
+        if address > (self.get_flash_size() as usize)
+            || address + size > (self.get_flash_size() as usize) || address + size < size
+            || buffer.len() < size
+        {
             // invalid flash address
             return ReturnCode::EINVAL;
         }
@@ -838,7 +839,8 @@ impl FLASHCALW {
         // Save the buffer for the future write.
         self.buffer.replace(data);
 
-        self.current_state.set(FlashState::WriteUnlocking { page: page_num });
+        self.current_state
+            .set(FlashState::WriteUnlocking { page: page_num });
         self.lock_page_region(page_num, false);
         ReturnCode::SUCCESS
     }
@@ -852,7 +854,8 @@ impl FLASHCALW {
             return ReturnCode::EBUSY;
         }
 
-        self.current_state.set(FlashState::EraseUnlocking { page: page_num });
+        self.current_state
+            .set(FlashState::EraseUnlocking { page: page_num });
         self.lock_page_region(page_num, false);
         ReturnCode::SUCCESS
     }

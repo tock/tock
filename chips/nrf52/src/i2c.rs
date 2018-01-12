@@ -77,14 +77,12 @@ impl TWIM {
             self.regs().events_stopped.set(0);
             match self.client.get() {
                 None => (),
-                Some(client) => {
-                    match self.buf.take() {
-                        None => (),
-                        Some(buf) => {
-                            client.command_complete(buf, hil::i2c::Error::CommandComplete);
-                        }
+                Some(client) => match self.buf.take() {
+                    None => (),
+                    Some(buf) => {
+                        client.command_complete(buf, hil::i2c::Error::CommandComplete);
                     }
-                }
+                },
             };
         }
 
@@ -94,14 +92,12 @@ impl TWIM {
             self.regs().errorsrc.set(registers::ErrorSrc::None);
             match self.client.get() {
                 None => (),
-                Some(client) => {
-                    match self.buf.take() {
-                        None => (),
-                        Some(buf) => {
-                            client.command_complete(buf, errorsrc.into());
-                        }
+                Some(client) => match self.buf.take() {
+                    None => (),
+                    Some(buf) => {
+                        client.command_complete(buf, errorsrc.into());
                     }
-                }
+                },
             };
         }
 
