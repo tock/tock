@@ -157,7 +157,7 @@ pub unsafe fn reset_handler() {
 
     // GPIOs
     let gpio_pins = static_init!(
-        [&'static nrf5x::gpio::GPIOPin; 23],
+        [&'static nrf5x::gpio::GPIOPin; 15],
         [
             // Bottom right header on DK board
             &nrf5x::gpio::PORT[3],
@@ -169,15 +169,15 @@ pub unsafe fn reset_handler() {
             // -----
             // Top right header on DK board
             // NOTE: Those are connected internally and should not be used externally
-            &nrf5x::gpio::PORT[10], // NFC1
-            &nrf5x::gpio::PORT[9],  // NFC2
-            &nrf5x::gpio::PORT[8],  // RXD
-            &nrf5x::gpio::PORT[7],  // CTS
-            &nrf5x::gpio::PORT[6],  // TXD
-            &nrf5x::gpio::PORT[5],  // RTS
-            //&nrf5x::gpio::PORT[21], // RESET
-            &nrf5x::gpio::PORT[1], // XL2
-            &nrf5x::gpio::PORT[0], // XL1
+            // &nrf5x::gpio::PORT[10], // NFC1
+            // &nrf5x::gpio::PORT[9],  // NFC2
+            // &nrf5x::gpio::PORT[8],  // RXD
+            // &nrf5x::gpio::PORT[7],  // CTS
+            // &nrf5x::gpio::PORT[6],  // TXD
+            // &nrf5x::gpio::PORT[5],  // RTS
+            // &nrf5x::gpio::PORT[21], // RESET
+            // &nrf5x::gpio::PORT[1],  // XL2
+            // &nrf5x::gpio::PORT[0],  // XL1
             // -----
             // Top mid header on DK board
             // &nrf5x::gpio::PORT[18], // LED 2
