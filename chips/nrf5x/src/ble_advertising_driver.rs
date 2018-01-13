@@ -225,7 +225,9 @@ impl AllowType {
             0x03 => Some(AllowType::BLEGap(BLEGapType::CompleteList16BitServiceIDs)),
             0x04 => Some(AllowType::BLEGap(BLEGapType::IncompleteList32BitServiceIDs)),
             0x05 => Some(AllowType::BLEGap(BLEGapType::CompleteList32BitServiceIDs)),
-            0x06 => Some(AllowType::BLEGap(BLEGapType::IncompleteList128BitServiceIDs)),
+            0x06 => Some(AllowType::BLEGap(
+                BLEGapType::IncompleteList128BitServiceIDs,
+            )),
             0x07 => Some(AllowType::BLEGap(BLEGapType::CompleteList128BitServiceIDs)),
             0x08 => Some(AllowType::BLEGap(BLEGapType::ShortedLocalName)),
             0x09 => Some(AllowType::BLEGap(BLEGapType::CompleteLocalName)),
@@ -244,8 +246,6 @@ impl AllowType {
         }
     }
 }
-
-
 
 // Gap Types only the ones that are defined in libtock are defined here
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -535,8 +535,9 @@ impl App {
     }
 
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
-        where B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-              A: kernel::hil::time::Alarm + 'a
+    where
+        B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+        A: kernel::hil::time::Alarm + 'a,
     {
         self.advertisement_buf
             .as_ref()
@@ -585,8 +586,9 @@ impl App {
 }
 
 pub struct BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-          A: kernel::hil::time::Alarm + 'a
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    A: kernel::hil::time::Alarm + 'a,
 {
     radio: &'a B,
     busy: Cell<bool>,
@@ -598,8 +600,9 @@ pub struct BLE<'a, B, A>
 }
 
 impl<'a, B, A> BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-          A: kernel::hil::time::Alarm + 'a
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    A: kernel::hil::time::Alarm + 'a,
 {
     pub fn new(
         radio: &'a B,
@@ -649,8 +652,9 @@ impl<'a, B, A> BLE<'a, B, A>
 
 // Timer alarm
 impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-          A: kernel::hil::time::Alarm + 'a
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    A: kernel::hil::time::Alarm + 'a,
 {
     // When an alarm is fired, we find which apps have expired timers. Expired
     // timers indicate a desire to perform some operation (e.g. start an
@@ -697,7 +701,8 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
                                 Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37));
                             self.receiving_app.set(Some(app.appid()));
                             self.radio.set_tx_power(app.tx_power);
-                            self.radio.receive_advertisement(RadioChannel::AdvertisingChannel37);
+                            self.radio
+                                .receive_advertisement(RadioChannel::AdvertisingChannel37);
                         }
                         _ => debug!(
                             "app: {:?} \t invalid state {:?}",
@@ -714,8 +719,9 @@ impl<'a, B, A> kernel::hil::time::Client for BLE<'a, B, A>
 
 // Callback from the radio once a RX event occur
 impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-          A: kernel::hil::time::Alarm + 'a
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    A: kernel::hil::time::Alarm + 'a,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode) {
         if let Some(appid) = self.receiving_app.get() {
@@ -756,13 +762,15 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
                         app.alarm_data.expiration = Expiration::Disabled;
                         self.receiving_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
-                        self.radio.receive_advertisement(RadioChannel::AdvertisingChannel38);
+                        self.radio
+                            .receive_advertisement(RadioChannel::AdvertisingChannel38);
                     }
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39));
                         self.receiving_app.set(Some(app.appid()));
-                        self.radio.receive_advertisement(RadioChannel::AdvertisingChannel39);
+                        self.radio
+                            .receive_advertisement(RadioChannel::AdvertisingChannel39);
                     }
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39)) => {
                         self.busy.set(false);
@@ -780,8 +788,9 @@ impl<'a, B, A> ble_advertising_hil::RxClient for BLE<'a, B, A>
 
 // Callback from the radio once a TX event occur
 impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-          A: kernel::hil::time::Alarm + 'a
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    A: kernel::hil::time::Alarm + 'a,
 {
     // The ReturnCode indicates valid CRC or not, not used yet but could be used for
     // re-tranmissions for invalid CRCs
@@ -821,8 +830,9 @@ impl<'a, B, A> ble_advertising_hil::TxClient for BLE<'a, B, A>
 
 // System Call implementation
 impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
-    where B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
-          A: kernel::hil::time::Alarm + 'a
+where
+    B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+    A: kernel::hil::time::Alarm + 'a,
 {
     fn command(
         &self,
@@ -833,20 +843,19 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
     ) -> ReturnCode {
         match command_num {
             // Start periodic advertisments
-            0 => {
-                self.app
-                    .enter(appid,
-                           |app, _| if let Some(BLEState::Initialized) = app.process_status {
-                               app.process_status = Some(BLEState::AdvertisingIdle);
-                               app.random_nonce = self.alarm.now();
-                               app.set_next_alarm::<A::Frequency>(self.alarm.now());
-                               self.reset_active_alarm();
-                               ReturnCode::SUCCESS
-                           } else {
-                               ReturnCode::EBUSY
-                           })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.app
+                .enter(appid, |app, _| {
+                    if let Some(BLEState::Initialized) = app.process_status {
+                        app.process_status = Some(BLEState::AdvertisingIdle);
+                        app.random_nonce = self.alarm.now();
+                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        self.reset_active_alarm();
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::EBUSY
+                    }
+                })
+                .unwrap_or_else(|err| err.into()),
 
             // Stop periodic advertisements or passive scanning
             1 => self.app
@@ -868,20 +877,22 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             // data - Transmitting power in dBm
             2 => {
                 self.app
-                    .enter(appid,
-                           |app, _| if app.process_status != Some(BLEState::ScanningIdle) &&
-                                       app.process_status != Some(BLEState::AdvertisingIdle) {
-                               match data as u8 {
-                                   e @ 0...10 | e @ 0xec...0xff => {
-                                       app.tx_power = e;
-                                       // ask chip if the power level is supported
-                                       self.radio.set_tx_power(e)
-                                   }
-                                   _ => ReturnCode::EINVAL,
-                               }
-                           } else {
-                               ReturnCode::EBUSY
-                           })
+                    .enter(appid, |app, _| {
+                        if app.process_status != Some(BLEState::ScanningIdle)
+                            && app.process_status != Some(BLEState::AdvertisingIdle)
+                        {
+                            match data as u8 {
+                                e @ 0...10 | e @ 0xec...0xff => {
+                                    app.tx_power = e;
+                                    // ask chip if the power level is supported
+                                    self.radio.set_tx_power(e)
+                                }
+                                _ => ReturnCode::EINVAL,
+                            }
+                        } else {
+                            ReturnCode::EBUSY
+                        }
+                    })
                     .unwrap_or_else(|err| err.into())
             }
 
@@ -908,26 +919,23 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
             // Reset payload when the kernel is not actively advertising
             // reset_payload checks whether the current app is correct state or not
             // i.e. if it's ok to reset the payload or not
-            4 => {
-                self.app
-                    .enter(appid, |app, _| app.reset_payload())
-                    .unwrap_or_else(|err| err.into())
-            }
+            4 => self.app
+                .enter(appid, |app, _| app.reset_payload())
+                .unwrap_or_else(|err| err.into()),
 
             // Passive scanning mode
-            5 => {
-                self.app
-                    .enter(appid,
-                           |app, _| if let Some(BLEState::Initialized) = app.process_status {
-                               app.process_status = Some(BLEState::ScanningIdle);
-                               app.set_next_alarm::<A::Frequency>(self.alarm.now());
-                               self.reset_active_alarm();
-                               ReturnCode::SUCCESS
-                           } else {
-                               ReturnCode::EBUSY
-                           })
-                    .unwrap_or_else(|err| err.into())
-            }
+            5 => self.app
+                .enter(appid, |app, _| {
+                    if let Some(BLEState::Initialized) = app.process_status {
+                        app.process_status = Some(BLEState::ScanningIdle);
+                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                        self.reset_active_alarm();
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::EBUSY
+                    }
+                })
+                .unwrap_or_else(|err| err.into()),
 
             // Initilize BLE Driver
             // Allow call to allocate the advertisement buffer must be
@@ -952,54 +960,48 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
         }
     }
 
-    fn allow(&self,
-             appid: kernel::AppId,
-             allow_num: usize,
-             slice: kernel::AppSlice<kernel::Shared, u8>)
-             -> ReturnCode {
-
+    fn allow(
+        &self,
+        appid: kernel::AppId,
+        allow_num: usize,
+        slice: kernel::AppSlice<kernel::Shared, u8>,
+    ) -> ReturnCode {
         match AllowType::from_usize(allow_num) {
+            Some(AllowType::BLEGap(gap_type)) => self.app
+                .enter(appid, |app, _| {
+                    if app.process_status != Some(BLEState::NotInitialized) {
+                        app.app_write = Some(slice);
+                        app.set_gap_data(gap_type);
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::EINVAL
+                    }
+                })
+                .unwrap_or_else(|err| err.into()),
 
-            Some(AllowType::BLEGap(gap_type)) => {
-                self.app
-                    .enter(appid,
-                           |app, _| if app.process_status != Some(BLEState::NotInitialized) {
-                               app.app_write = Some(slice);
-                               app.set_gap_data(gap_type);
-                               ReturnCode::SUCCESS
-                           } else {
-                               ReturnCode::EINVAL
-                           })
-                    .unwrap_or_else(|err| err.into())
-            }
+            Some(AllowType::PassiveScanning) => self.app
+                .enter(appid, |app, _| match app.process_status {
+                    Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
+                        app.app_read = Some(slice);
+                        app.process_status = Some(BLEState::Initialized);
+                        ReturnCode::SUCCESS
+                    }
+                    _ => ReturnCode::EINVAL,
+                })
+                .unwrap_or_else(|err| err.into()),
 
-            Some(AllowType::PassiveScanning) => {
-                self.app
-                    .enter(appid, |app, _| match app.process_status {
-                        Some(BLEState::NotInitialized) |
-                        Some(BLEState::Initialized) => {
-                            app.app_read = Some(slice);
-                            app.process_status = Some(BLEState::Initialized);
-                            ReturnCode::SUCCESS
-                        }
-                        _ => ReturnCode::EINVAL,
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
-
-            Some(AllowType::InitAdvertisementBuffer) => {
-                self.app
-                    .enter(appid,
-                           |app, _| if let Some(BLEState::NotInitialized) = app.process_status {
-                               app.advertisement_buf = Some(slice);
-                               app.process_status = Some(BLEState::Initialized);
-                               app.initialize_advertisement_buffer();
-                               ReturnCode::SUCCESS
-                           } else {
-                               ReturnCode::EINVAL
-                           })
-                    .unwrap_or_else(|err| err.into())
-            }
+            Some(AllowType::InitAdvertisementBuffer) => self.app
+                .enter(appid, |app, _| {
+                    if let Some(BLEState::NotInitialized) = app.process_status {
+                        app.advertisement_buf = Some(slice);
+                        app.process_status = Some(BLEState::Initialized);
+                        app.initialize_advertisement_buffer();
+                        ReturnCode::SUCCESS
+                    } else {
+                        ReturnCode::EINVAL
+                    }
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -1007,19 +1009,15 @@ impl<'a, B, A> kernel::Driver for BLE<'a, B, A>
     fn subscribe(&self, subscribe_num: usize, callback: kernel::Callback) -> ReturnCode {
         match subscribe_num {
             // Callback for scanning
-            0 => {
-                self.app
-                    .enter(callback.app_id(), |app, _| match app.process_status {
-                        Some(BLEState::NotInitialized) |
-                        Some(BLEState::Initialized) => {
-                            app.scan_callback = Some(callback);
-                            ReturnCode::SUCCESS
-                        }
-                        _ => ReturnCode::EINVAL,
-
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.app
+                .enter(callback.app_id(), |app, _| match app.process_status {
+                    Some(BLEState::NotInitialized) | Some(BLEState::Initialized) => {
+                        app.scan_callback = Some(callback);
+                        ReturnCode::SUCCESS
+                    }
+                    _ => ReturnCode::EINVAL,
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

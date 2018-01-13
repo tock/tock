@@ -40,7 +40,6 @@ impl Radio {
         }
     }
 
-
     fn ble_initialize(&self, channel: RadioChannel) {
         let regs = unsafe { &*self.regs };
 
@@ -255,11 +254,12 @@ impl Radio {
 }
 
 impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
-    fn transmit_advertisement(&self,
-                              buf: &'static mut [u8],
-                              len: usize,
-                              channel: RadioChannel)
-                              -> &'static mut [u8] {
+    fn transmit_advertisement(
+        &self,
+        buf: &'static mut [u8],
+        len: usize,
+        channel: RadioChannel,
+    ) -> &'static mut [u8] {
         let res = self.replace_radio_buffer(buf, len);
         self.ble_initialize(channel);
         self.tx();
@@ -292,15 +292,15 @@ impl nrf5x::ble_advertising_hil::BleConfig for Radio {
             // Invalid transmitting power, propogate error
             TxPower::Error => kernel::ReturnCode::ENOSUPPORT,
             // Valid transmitting power, propogate success
-            e @ TxPower::Positive4dBM |
-            e @ TxPower::Positive3dBM |
-            e @ TxPower::ZerodBm |
-            e @ TxPower::Negative4dBm |
-            e @ TxPower::Negative8dBm |
-            e @ TxPower::Negative12dBm |
-            e @ TxPower::Negative16dBm |
-            e @ TxPower::Negative20dBm |
-            e @ TxPower::Negative40dBm => {
+            e @ TxPower::Positive4dBM
+            | e @ TxPower::Positive3dBM
+            | e @ TxPower::ZerodBm
+            | e @ TxPower::Negative4dBm
+            | e @ TxPower::Negative8dBm
+            | e @ TxPower::Negative12dBm
+            | e @ TxPower::Negative16dBm
+            | e @ TxPower::Negative20dBm
+            | e @ TxPower::Negative40dBm => {
                 self.tx_power.set(e);
                 kernel::ReturnCode::SUCCESS
             }

@@ -1,6 +1,5 @@
 //! Bluetooth Low Energy HIL
 
-
 //! ```
 //! Application
 //!
@@ -49,11 +48,12 @@
 use kernel::ReturnCode;
 
 pub trait BleAdvertisementDriver {
-    fn transmit_advertisement(&self,
-                              buf: &'static mut [u8],
-                              len: usize,
-                              channel: RadioChannel)
-                              -> &'static mut [u8];
+    fn transmit_advertisement(
+        &self,
+        buf: &'static mut [u8],
+        len: usize,
+        channel: RadioChannel,
+    ) -> &'static mut [u8];
     fn receive_advertisement(&self, channel: RadioChannel);
     fn set_receive_client(&self, client: &'static RxClient);
     fn set_transmit_client(&self, client: &'static TxClient);
