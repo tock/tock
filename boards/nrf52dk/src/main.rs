@@ -21,8 +21,6 @@
 //! * P0.22 -> (top left header)
 //! * P0.12 -> (top mid header)
 //! * P0.11 -> (top mid header)
-//! * P0.01 -> (top right header)
-//! * P0.00 -> (top right header)
 //! * P0.03 -> (bottom right header)
 //! * P0.04 -> (bottom right header)
 //! * P0.28 -> (bottom right header)
@@ -52,6 +50,10 @@
 //! ### `NFC`
 //! * P0.09 -> NFC1
 //! * P0.10 -> NFC2
+//!
+//! ### `LFXO`
+//! * P0.01 -> XL2
+//! * P0.00 -> XL1
 //!
 //! Author
 //! -------------------
@@ -159,46 +161,21 @@ pub unsafe fn reset_handler() {
     let gpio_pins = static_init!(
         [&'static nrf5x::gpio::GPIOPin; 15],
         [
-            // Bottom right header on DK board
-            &nrf5x::gpio::PORT[3],
+            &nrf5x::gpio::PORT[3], // Bottom right header on DK board
             &nrf5x::gpio::PORT[4],
             &nrf5x::gpio::PORT[28],
             &nrf5x::gpio::PORT[29],
             &nrf5x::gpio::PORT[30],
-            &nrf5x::gpio::PORT[31],
-            // -----
-            // Top right header on DK board
-            // NOTE: Those are connected internally and should not be used externally
-            // &nrf5x::gpio::PORT[10], // NFC1
-            // &nrf5x::gpio::PORT[9],  // NFC2
-            // &nrf5x::gpio::PORT[8],  // RXD
-            // &nrf5x::gpio::PORT[7],  // CTS
-            // &nrf5x::gpio::PORT[6],  // TXD
-            // &nrf5x::gpio::PORT[5],  // RTS
-            // &nrf5x::gpio::PORT[21], // RESET
-            // &nrf5x::gpio::PORT[1],  // XL2
-            // &nrf5x::gpio::PORT[0],  // XL1
-            // -----
-            // Top mid header on DK board
-            // &nrf5x::gpio::PORT[18], // LED 2
-            // &nrf5x::gpio::PORT[17], // LED 1
-            // &nrf5x::gpio::PORT[16], // Button 4
-            // &nrf5x::gpio::PORT[15], // Button 3
-            // &nrf5x::gpio::PORT[14], // Button 2
-            // &nrf5x::gpio::PORT[13], // Button 1
-            &nrf5x::gpio::PORT[12],
-            &nrf5x::gpio::PORT[11],
-            // -----
-            // Top left header on DK board
-            &nrf5x::gpio::PORT[27],
+            &nrf5x::gpio::PORT[31], // -----
+            &nrf5x::gpio::PORT[12], // Top mid header on DK board
+            &nrf5x::gpio::PORT[11], // -----
+            &nrf5x::gpio::PORT[27], // Top left header on DK board
             &nrf5x::gpio::PORT[26],
             &nrf5x::gpio::PORT[2],
             &nrf5x::gpio::PORT[25],
             &nrf5x::gpio::PORT[24],
             &nrf5x::gpio::PORT[23],
-            &nrf5x::gpio::PORT[22] // &nrf5x::gpio::PORT[20], // LED 4
-                                   // &nrf5x::gpio::PORT[19], // LED 3
-                                   // -----
+            &nrf5x::gpio::PORT[22] // -----
         ]
     );
 
