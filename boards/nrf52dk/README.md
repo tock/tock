@@ -35,9 +35,6 @@ You can program an application via JTAG and there are two ways to do so:
     $ make TOCK_BOARD=nrf52dk flash
     ```
 
-To compile and install compile applications for the nrf52dk, follow the
-standard Tock instructions (the "Getting Started" guide).
-
 ## Debugging
 
 Because the nRF52DK has integrated JTAG support, you can debug it
