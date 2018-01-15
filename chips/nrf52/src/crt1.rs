@@ -1,4 +1,4 @@
-use cortexm4::{nvic, generic_isr, SVC_Handler, systick_handler};
+use cortexm4::{generic_isr, nvic, systick_handler, SVC_Handler};
 
 /*
  * Adapted from crt1.c which was relicensed by the original author from
@@ -33,7 +33,6 @@ unsafe extern "C" fn unhandled_interrupt() {
     'loop0: loop {}
 }
 
-
 unsafe extern "C" fn hard_fault_handler() {
     'loop0: loop {}
 }
@@ -58,7 +57,7 @@ pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
     /* SysTick */       systick_handler
 ];
 
-#[link_section=".vectors"]
+#[link_section = ".vectors"]
 #[no_mangle] // Ensures that the symbol is kept until the final binary
 pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
@@ -134,7 +133,6 @@ pub unsafe extern "C" fn init() {
     // "RAM: RAM content cannot be trusted upon waking up from System ON Idle
     // or System OFF mode" found at the Errata doc
     *(0x40000ee4i32 as (*mut u32)) = *(0x10000258i32 as (*mut u32)) & 0x4fu32;
-
 
     // Move the relocate segment. This assumes it is located after the text
     // segment, which is where the storm linker file puts it

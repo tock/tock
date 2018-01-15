@@ -11,7 +11,6 @@ pub trait SysTick {
     /// Returns the time left in approximate microseconds
     fn value(&self) -> u32;
 
-
     fn overflowed(&self) -> bool;
 
     fn reset(&self);

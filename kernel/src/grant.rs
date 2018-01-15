@@ -30,8 +30,9 @@ pub unsafe fn kernel_grant_for<T>(app_id: usize) -> *mut T {
 
 impl<T> AppliedGrant<T> {
     pub fn enter<F, R>(self, fun: F) -> R
-        where F: FnOnce(&mut Owned<T>, &mut Allocator) -> R,
-              R: Copy
+    where
+        F: FnOnce(&mut Owned<T>, &mut Allocator) -> R,
+        R: Copy,
     {
         let mut allocator = Allocator {
             app: unsafe { Some(process::PROCS[self.appid].as_mut().unwrap()) },
@@ -103,13 +104,12 @@ impl<'a> Allocator<'a> {
         unsafe {
             let app_id = self.app_id;
             match self.app.as_mut() {
-                Some(app) => {
-                    app.alloc(size_of::<T>()).map_or(Err(Error::OutOfMemory), |arr| {
+                Some(app) => app.alloc(size_of::<T>())
+                    .map_or(Err(Error::OutOfMemory), |arr| {
                         let mut owned = Owned::new(arr.as_mut_ptr() as *mut T, app_id);
                         *owned = data;
                         Ok(owned)
-                    })
-                }
+                    }),
                 None => {
                     if !AppId::is_kernel_idx(app_id) {
                         panic!("No app for allocator for {}", app_id);
@@ -152,7 +152,6 @@ impl<'a, T: 'a + ?Sized> DerefMut for Borrowed<'a, T> {
     }
 }
 
-
 impl<T: Default> Grant<T> {
     pub unsafe fn create() -> Grant<T> {
         let ctr = read_volatile(&CONTAINER_COUNTER);
@@ -194,8 +193,9 @@ impl<T: Default> Grant<T> {
     }
 
     pub fn enter<F, R>(&self, appid: AppId, fun: F) -> Result<R, Error>
-        where F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
-              R: Copy
+    where
+        F: FnOnce(&mut Borrowed<T>, &mut Allocator) -> R,
+        R: Copy,
     {
         unsafe {
             let app_id = appid.idx();
@@ -210,18 +210,18 @@ impl<T: Default> Grant<T> {
                 Ok(res)
             } else {
                 match process::PROCS[app_id] {
-                    Some(ref mut app) => {
-                        app.grant_for_or_alloc::<T>(self.grant_num)
-                            .map_or(Err(Error::OutOfMemory), move |root_ptr| {
-                                let mut root = Borrowed::new(&mut *root_ptr, app_id);
-                                let mut allocator = Allocator {
-                                    app: Some(app),
-                                    app_id: app_id,
-                                };
-                                let res = fun(&mut root, &mut allocator);
-                                Ok(res)
-                            })
-                    }
+                    Some(ref mut app) => app.grant_for_or_alloc::<T>(self.grant_num).map_or(
+                        Err(Error::OutOfMemory),
+                        move |root_ptr| {
+                            let mut root = Borrowed::new(&mut *root_ptr, app_id);
+                            let mut allocator = Allocator {
+                                app: Some(app),
+                                app_id: app_id,
+                            };
+                            let res = fun(&mut root, &mut allocator);
+                            Ok(res)
+                        },
+                    ),
                     None => Err(Error::NoSuchApp),
                 }
             }
@@ -229,7 +229,8 @@ impl<T: Default> Grant<T> {
     }
 
     pub fn each<F>(&self, fun: F)
-        where F: Fn(&mut Owned<T>)
+    where
+        F: Fn(&mut Owned<T>),
     {
         unsafe {
             let itr = process::PROCS.iter_mut().filter_map(|p| p.as_mut());

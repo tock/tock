@@ -15,20 +15,22 @@ const KERNEL_TICK_DURATION_US: u32 = 10000;
 /// Skip re-scheduling a process if its quanta is nearly exhausted
 const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 
-pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
-                                               chip: &mut C,
-                                               process: &mut Process,
-                                               appid: ::AppId,
-                                               ipc: &::ipc::IPC) {
+pub unsafe fn do_process<P: Platform, C: Chip>(
+    platform: &P,
+    chip: &mut C,
+    process: &mut Process,
+    appid: ::AppId,
+    ipc: &::ipc::IPC,
+) {
     let systick = chip.systick();
     systick.reset();
     systick.set_timer(KERNEL_TICK_DURATION_US);
     systick.enable(true);
 
     loop {
-
-        if chip.has_pending_interrupts() || systick.overflowed() ||
-           systick.value() <= MIN_QUANTA_THRESHOLD_US {
+        if chip.has_pending_interrupts() || systick.overflowed()
+            || systick.value() <= MIN_QUANTA_THRESHOLD_US
+        {
             break;
         }
 
@@ -41,22 +43,20 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
                 systick.enable(false);
                 chip.mpu().disable_mpu();
             }
-            process::State::Yielded => {
-                match process.dequeue_task() {
-                    None => break,
-                    Some(cb) => {
-                        match cb {
-                            Task::FunctionCall(ccb) => {
-                                process.push_function_call(ccb);
-                            }
-                            Task::IPC((otherapp, ipc_type)) => {
-                                ipc.schedule_callback(appid, otherapp, ipc_type);
-                            }
+            process::State::Yielded => match process.dequeue_task() {
+                None => break,
+                Some(cb) => {
+                    match cb {
+                        Task::FunctionCall(ccb) => {
+                            process.push_function_call(ccb);
                         }
-                        continue;
+                        Task::IPC((otherapp, ipc_type)) => {
+                            ipc.schedule_callback(appid, otherapp, ipc_type);
+                        }
                     }
+                    continue;
                 }
-            }
+            },
             process::State::Fault => {
                 // we should never be scheduling a process in fault
                 panic!("Attempted to schedule a faulty process");
@@ -69,7 +69,6 @@ pub unsafe fn do_process<P: Platform, C: Chip>(platform: &P,
 
         // check if the app had a fault
         if process.app_fault() {
-
             // let process deal with it as appropriate
             process.fault_state();
             continue;

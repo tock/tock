@@ -22,7 +22,7 @@
 
 use core::cell::Cell;
 use core::cmp;
-use kernel::{AppId, AppSlice, Callback, Grant, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 
@@ -52,10 +52,11 @@ pub struct AppFlash<'a> {
 }
 
 impl<'a> AppFlash<'a> {
-    pub fn new(driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
-               grant: Grant<App>,
-               buffer: &'static mut [u8])
-               -> AppFlash<'a> {
+    pub fn new(
+        driver: &'a hil::nonvolatile_storage::NonvolatileStorage,
+        grant: Grant<App>,
+        buffer: &'static mut [u8],
+    ) -> AppFlash<'a> {
         AppFlash {
             driver: driver,
             apps: grant,
@@ -70,31 +71,32 @@ impl<'a> AppFlash<'a> {
     fn enqueue_write(&self, flash_address: usize, appid: AppId) -> ReturnCode {
         self.apps
             .enter(appid, |app, _| {
-
                 // Check that this is a valid range in the app's flash.
                 let flash_length = app.buffer.as_mut().map_or(0, |app_buffer| app_buffer.len());
                 let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
-                if flash_address < app_flash_start || flash_address >= app_flash_end ||
-                   flash_address + flash_length >= app_flash_end {
+                if flash_address < app_flash_start || flash_address >= app_flash_end
+                    || flash_address + flash_length >= app_flash_end
+                {
                     return ReturnCode::EINVAL;
                 }
 
                 if self.current_app.get().is_none() {
                     self.current_app.set(Some(appid));
 
-                    app.buffer.as_mut().map_or(ReturnCode::ERESERVE, |app_buffer| {
-                        // Copy contents to internal buffer and write it.
-                        self.buffer.take().map_or(ReturnCode::ERESERVE, |buffer| {
-                            let length = cmp::min(buffer.len(), app_buffer.len());
-                            let d = &mut app_buffer.as_mut()[0..length];
-                            for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate() {
-                                *c = d[i];
-                            }
+                    app.buffer
+                        .as_mut()
+                        .map_or(ReturnCode::ERESERVE, |app_buffer| {
+                            // Copy contents to internal buffer and write it.
+                            self.buffer.take().map_or(ReturnCode::ERESERVE, |buffer| {
+                                let length = cmp::min(buffer.len(), app_buffer.len());
+                                let d = &mut app_buffer.as_mut()[0..length];
+                                for (i, c) in buffer.as_mut()[0..length].iter_mut().enumerate() {
+                                    *c = d[i];
+                                }
 
-                            self.driver.write(buffer, flash_address, length)
+                                self.driver.write(buffer, flash_address, length)
+                            })
                         })
-                    })
-
                 } else {
                     // Queue this request for later.
                     if app.pending_command == true {
@@ -120,9 +122,11 @@ impl<'a> hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
         // Notify the current application that the command finished.
         self.current_app.get().map(|appid| {
             self.current_app.set(None);
-            let _ =
-                self.apps.enter(appid,
-                                |app, _| { app.callback.map(|mut cb| { cb.schedule(0, 0, 0); }); });
+            let _ = self.apps.enter(appid, |app, _| {
+                app.callback.map(|mut cb| {
+                    cb.schedule(0, 0, 0);
+                });
+            });
         });
 
         // Check if there are any pending events.
@@ -135,7 +139,6 @@ impl<'a> hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
 
                     app.buffer.as_mut().map_or(false, |app_buffer| {
                         self.buffer.take().map_or(false, |buffer| {
-
                             if app_buffer.len() != 512 {
                                 false
                             } else {
@@ -146,8 +149,8 @@ impl<'a> hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'a> {
                                     *c = d[i];
                                 }
 
-                                self.driver.write(buffer, flash_address, length) ==
-                                ReturnCode::SUCCESS
+                                self.driver.write(buffer, flash_address, length)
+                                    == ReturnCode::SUCCESS
                             }
                         })
                     })
@@ -170,14 +173,12 @@ impl<'a> Driver for AppFlash<'a> {
     /// - `0`: Set write buffer. This entire buffer will be written to flash.
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
-            0 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.buffer = Some(slice);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.apps
+                .enter(appid, |app, _| {
+                    app.buffer = Some(slice);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -189,14 +190,12 @@ impl<'a> Driver for AppFlash<'a> {
     /// - `0`: Set a write_done callback.
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            0 => {
-                self.apps
-                    .enter(callback.app_id(), |app, _| {
-                        app.callback = Some(callback);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.apps
+                .enter(callback.app_id(), |app, _| {
+                    app.callback = Some(callback);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

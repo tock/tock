@@ -68,7 +68,7 @@ use kernel::ReturnCode;
 use kernel::common::take_cell::MapCell;
 use kernel::hil::radio;
 use net::ieee802154::*;
-use net::stream::{encode_u8, encode_u32, encode_bytes};
+use net::stream::{encode_bytes, encode_u32, encode_u8};
 use net::stream::SResult;
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
@@ -173,7 +173,10 @@ impl FrameInfo {
         } else {
             // Otherwise, a data is the header and the open payload, and
             // m data is the private payload field
-            (private_payload_offset, self.unsecured_length() | private_payload_offset)
+            (
+                private_payload_offset,
+                self.unsecured_length() | private_payload_offset,
+            )
         }
     }
 }
@@ -268,14 +271,15 @@ pub trait Mac<'a> {
     ///
     /// Returns either a Frame that is ready to have payload appended to it, or
     /// the mutable buffer if the frame cannot be prepared for any reason
-    fn prepare_data_frame(&self,
-                          buf: &'static mut [u8],
-                          dst_pan: PanID,
-                          dst_addr: MacAddress,
-                          src_pan: PanID,
-                          src_addr: MacAddress,
-                          security_needed: Option<(SecurityLevel, KeyId)>)
-                          -> Result<Frame, &'static mut [u8]>;
+    fn prepare_data_frame(
+        &self,
+        buf: &'static mut [u8],
+        dst_pan: PanID,
+        dst_addr: MacAddress,
+        src_pan: PanID,
+        src_addr: MacAddress,
+        security_needed: Option<(SecurityLevel, KeyId)>,
+    ) -> Result<Frame, &'static mut [u8]>;
 
     /// Transmits a frame that has been prepared by the above process. If the
     /// transmission process fails, the buffer inside the frame is returned so
@@ -619,10 +623,10 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
                                         // The radio forgot to return the buffer.
                                         (TxState::Idle, (ReturnCode::FAIL, None))
                                     }
-                                    Some(buf) => {
-                                        (TxState::ReadyToTransmit(info, buf),
-                                         (ReturnCode::SUCCESS, None))
-                                    }
+                                    Some(buf) => (
+                                        TxState::ReadyToTransmit(info, buf),
+                                        (ReturnCode::SUCCESS, None),
+                                    ),
                                 }
                             }
                             _ => (TxState::Idle, (rval, buf)),
@@ -636,74 +640,75 @@ impl<'a, R: radio::Radio + 'a> MacDevice<'a, R> {
 
     /// Advances the reception pipeline if it can be advanced.
     fn step_receive_state(&self) {
-        self.rx_state
-            .take()
-            .map(|state| {
-                let (next_state, buf) = match state {
-                    RxState::Idle => (RxState::Idle, None),
-                    RxState::ReadyToDecrypt(info, buf) => {
-                        match info.security_params {
-                            None => {
-                                // `ReadyToDecrypt` should only be entered when
-                                // `security_params` is not `None`.
-                                (RxState::Idle, Some(buf))
-                            }
-                            Some((_, _key, _nonce)) => {
-                                // let (m_off, m_len) = info.ccm_encrypt_ranges();
-                                // let (a_off, m_off) = (radio::PSDU_OFFSET,
-                                //                       radio::PSDU_OFFSET +
-                                //                       m_off);
+        self.rx_state.take().map(|state| {
+            let (next_state, buf) = match state {
+                RxState::Idle => (RxState::Idle, None),
+                RxState::ReadyToDecrypt(info, buf) => {
+                    match info.security_params {
+                        None => {
+                            // `ReadyToDecrypt` should only be entered when
+                            // `security_params` is not `None`.
+                            (RxState::Idle, Some(buf))
+                        }
+                        Some((_, _key, _nonce)) => {
+                            // let (m_off, m_len) = info.ccm_encrypt_ranges();
+                            // let (a_off, m_off) = (radio::PSDU_OFFSET,
+                            //                       radio::PSDU_OFFSET +
+                            //                       m_off);
 
-                                // TODO: Call CCM* auth/decryption routine with:
-                                // key: key
-                                // nonce: nonce
-                                // mic_len: info.mic_len
-                                // a data: buf[a_off..m_off]
-                                // c data: buf[m_off..m_off + m_len + mic_len]
+                            // TODO: Call CCM* auth/decryption routine with:
+                            // key: key
+                            // nonce: nonce
+                            // mic_len: info.mic_len
+                            // a data: buf[a_off..m_off]
+                            // c data: buf[m_off..m_off + m_len + mic_len]
 
-                                (RxState::Idle, Some(buf))
-                            }
+                            (RxState::Idle, Some(buf))
                         }
                     }
-                    RxState::Decrypting(info) => {
-                        // This state should be advanced only by the hardware
-                        // encryption callback.
-                        (RxState::Decrypting(info), None)
-                    }
-                    RxState::ReadyToYield(info, buf) => {
-                        // Between the secured and unsecured frames, the
-                        // unsecured frame length remains constant but the data
-                        // offsets may change due to the presence of PayloadIEs.
-                        // Hence, we can only use the unsecured length from the
-                        // frame info, but not the offsets.
-                        let frame_len = info.unsecured_length();
-                        if let Some((data_offset, (header, _))) =
-                            Header::decode(&buf[radio::PSDU_OFFSET..], true).done() {
-                            // IEEE 802.15.4-2015 specifies that unsecured
-                            // frames do not have auxiliary security headers,
-                            // but we do not remove the auxiliary security
-                            // header before returning the frame to the client.
-                            // This is so that it is possible to tell if the
-                            // frame was secured or unsecured, while still
-                            // always receiving the frame payload in plaintext.
-                            self.rx_client.get().map(|client| {
-                                client.receive(&buf,
-                                               header,
-                                               radio::PSDU_OFFSET + data_offset,
-                                               frame_len - data_offset);
-                            });
-                        }
-                        (RxState::Idle, Some(buf))
-                    }
-                    RxState::ReadyToReturn(buf) => (RxState::Idle, Some(buf)),
-                };
-                self.rx_state.replace(next_state);
-
-                // Return the buffer to the radio if we are done with it.
-                if let Some(buf) = buf {
-                    self.radio.set_receive_buffer(buf);
                 }
-            });
+                RxState::Decrypting(info) => {
+                    // This state should be advanced only by the hardware
+                    // encryption callback.
+                    (RxState::Decrypting(info), None)
+                }
+                RxState::ReadyToYield(info, buf) => {
+                    // Between the secured and unsecured frames, the
+                    // unsecured frame length remains constant but the data
+                    // offsets may change due to the presence of PayloadIEs.
+                    // Hence, we can only use the unsecured length from the
+                    // frame info, but not the offsets.
+                    let frame_len = info.unsecured_length();
+                    if let Some((data_offset, (header, _))) =
+                        Header::decode(&buf[radio::PSDU_OFFSET..], true).done()
+                    {
+                        // IEEE 802.15.4-2015 specifies that unsecured
+                        // frames do not have auxiliary security headers,
+                        // but we do not remove the auxiliary security
+                        // header before returning the frame to the client.
+                        // This is so that it is possible to tell if the
+                        // frame was secured or unsecured, while still
+                        // always receiving the frame payload in plaintext.
+                        self.rx_client.get().map(|client| {
+                            client.receive(
+                                &buf,
+                                header,
+                                radio::PSDU_OFFSET + data_offset,
+                                frame_len - data_offset,
+                            );
+                        });
+                    }
+                    (RxState::Idle, Some(buf))
+                }
+                RxState::ReadyToReturn(buf) => (RxState::Idle, Some(buf)),
+            };
+            self.rx_state.replace(next_state);
+
+            // Return the buffer to the radio if we are done with it.
+            if let Some(buf) = buf {
+                self.radio.set_receive_buffer(buf);
+            }
+        });
     }
 }
 
@@ -764,14 +769,15 @@ impl<'a, R: radio::Radio + 'a> Mac<'a> for MacDevice<'a, R> {
         self.radio.is_on()
     }
 
-    fn prepare_data_frame(&self,
-                          buf: &'static mut [u8],
-                          dst_pan: PanID,
-                          dst_addr: MacAddress,
-                          src_pan: PanID,
-                          src_addr: MacAddress,
-                          security_needed: Option<(SecurityLevel, KeyId)>)
-                          -> Result<Frame, &'static mut [u8]> {
+    fn prepare_data_frame(
+        &self,
+        buf: &'static mut [u8],
+        dst_pan: PanID,
+        dst_addr: MacAddress,
+        src_pan: PanID,
+        src_addr: MacAddress,
+        security_needed: Option<(SecurityLevel, KeyId)>,
+    ) -> Result<Frame, &'static mut [u8]> {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
         // Steps a-e of the security procedure are implemented here.
 
@@ -784,14 +790,16 @@ impl<'a, R: radio::Radio + 'a> Mac<'a> for MacDevice<'a, R> {
                 // TODO: lookup frame counter for device
                 let frame_counter = 0;
                 let nonce = get_ccm_nonce(&src_addr_long, frame_counter, level);
-                (Security {
-                     level: level,
-                     asn_in_nonce: false,
-                     frame_counter: Some(frame_counter),
-                     key_id: key_id,
-                 },
-                 key,
-                 nonce)
+                (
+                    Security {
+                        level: level,
+                        asn_in_nonce: false,
+                        frame_counter: Some(frame_counter),
+                        key_id: key_id,
+                    },
+                    key,
+                    nonce,
+                )
             })
         });
         if security_needed.is_some() && security_desc.is_none() {
@@ -823,20 +831,17 @@ impl<'a, R: radio::Radio + 'a> Mac<'a> for MacDevice<'a, R> {
         };
 
         match header.encode(&mut buf[radio::PSDU_OFFSET..], true).done() {
-            Some((data_offset, mac_payload_offset)) => {
-                Ok(Frame {
-                    buf: buf,
-                    info: FrameInfo {
-                        frame_type: FrameType::Data,
-                        mac_payload_offset: mac_payload_offset,
-                        data_offset: data_offset,
-                        data_len: 0,
-                        mic_len: mic_len,
-                        security_params:
-                            security_desc.map(|(sec, key, nonce)| (sec.level, key, nonce)),
-                    },
-                })
-            }
+            Some((data_offset, mac_payload_offset)) => Ok(Frame {
+                buf: buf,
+                info: FrameInfo {
+                    frame_type: FrameType::Data,
+                    mac_payload_offset: mac_payload_offset,
+                    data_offset: data_offset,
+                    data_len: 0,
+                    mic_len: mic_len,
+                    security_params: security_desc.map(|(sec, key, nonce)| (sec.level, key, nonce)),
+                },
+            }),
             None => Err(buf),
         }
     }
@@ -866,7 +871,9 @@ impl<'a, R: radio::Radio + 'a> Mac<'a> for MacDevice<'a, R> {
 impl<'a, R: radio::Radio + 'a> radio::TxClient for MacDevice<'a, R> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.data_sequence.set(self.data_sequence.get() + 1);
-        self.tx_client.get().map(move |client| { client.send_done(buf, acked, result); });
+        self.tx_client.get().map(move |client| {
+            client.send_done(buf, acked, result);
+        });
     }
 }
 
@@ -878,27 +885,25 @@ impl<'a, R: radio::Radio + 'a> radio::RxClient for MacDevice<'a, R> {
             return;
         }
 
-        self.rx_state
-            .take()
-            .map(move |state| {
-                let next_state = match state {
-                    RxState::Idle => {
-                        // We can start processing a new received frame only if
-                        // the reception pipeline is free
-                        self.incoming_frame_security(buf, frame_len)
-                    }
-                    other_state => {
-                        // This should never occur unless something other than
-                        // this MAC layer provided a receive buffer to the
-                        // radio, but if this occurs then we have no choice but
-                        // to drop the frame.
-                        self.radio.set_receive_buffer(buf);
-                        other_state
-                    }
-                };
-                self.rx_state.replace(next_state);
-                self.step_receive_state();
-            });
+        self.rx_state.take().map(move |state| {
+            let next_state = match state {
+                RxState::Idle => {
+                    // We can start processing a new received frame only if
+                    // the reception pipeline is free
+                    self.incoming_frame_security(buf, frame_len)
+                }
+                other_state => {
+                    // This should never occur unless something other than
+                    // this MAC layer provided a receive buffer to the
+                    // radio, but if this occurs then we have no choice but
+                    // to drop the frame.
+                    self.radio.set_receive_buffer(buf);
+                    other_state
+                }
+            };
+            self.rx_state.replace(next_state);
+            self.step_receive_state();
+        });
     }
 }
 
@@ -910,7 +915,9 @@ impl<'a, R: radio::Radio + 'a> radio::ConfigClient for MacDevice<'a, R> {
         let (rval, buf) = self.step_transmit_state();
         if let Some(buf) = buf {
             // Return the buffer to the transmit client
-            self.tx_client.get().map(move |client| { client.send_done(buf, false, rval); });
+            self.tx_client.get().map(move |client| {
+                client.send_done(buf, false, rval);
+            });
         }
     }
 }

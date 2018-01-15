@@ -6,7 +6,7 @@
 use core::cell::Cell;
 use kernel::common::{List, ListLink, ListNode};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::i2c::{self, I2CClient, I2CHwMasterClient, Error};
+use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
 
 pub struct MuxI2C<'a> {
     i2c: &'a i2c::I2CMaster,
@@ -53,7 +53,9 @@ impl<'a> MuxI2C<'a> {
 
     fn do_next_op(&self) {
         if self.inflight.get().is_none() {
-            let mnode = self.devices.iter().find(|node| node.operation.get() != Op::Idle);
+            let mnode = self.devices
+                .iter()
+                .find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
                 node.buffer.take().map(|buf| {
                     match node.operation.get() {
@@ -72,7 +74,7 @@ impl<'a> MuxI2C<'a> {
     }
 }
 
-#[derive(Copy, Clone,PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 enum Op {
     Idle,
     Write(u8),
@@ -111,7 +113,9 @@ impl<'a> I2CDevice<'a> {
 
 impl<'a> I2CClient for I2CDevice<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Error) {
-        self.client.get().map(move |client| { client.command_complete(buffer, error); });
+        self.client.get().map(move |client| {
+            client.command_complete(buffer, error);
+        });
     }
 }
 

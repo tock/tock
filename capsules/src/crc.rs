@@ -66,7 +66,7 @@
 //! the SAM4L.
 
 use core::cell::Cell;
-use kernel::{AppId, AppSlice, Grant, Callback, Driver, ReturnCode, Shared};
+use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use kernel::hil;
 use kernel::hil::crc::CrcAlg;
 use kernel::process::Error;
@@ -173,14 +173,12 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     fn allow(&self, appid: AppId, allow_num: usize, slice: AppSlice<Shared, u8>) -> ReturnCode {
         match allow_num {
             // Provide user buffer to compute CRC over
-            0 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.buffer = Some(slice);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.apps
+                .enter(appid, |app, _| {
+                    app.buffer = Some(slice);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -205,14 +203,12 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // Set callback for CRC result
-            0 => {
-                self.apps
-                    .enter(callback.app_id(), |app, _| {
-                        app.callback = Some(callback);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.apps
+                .enter(callback.app_id(), |app, _| {
+                    app.callback = Some(callback);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }
@@ -286,7 +282,9 @@ impl<'a, C: hil::crc::CRC> Driver for Crc<'a, C> {
             0 => ReturnCode::SUCCESS,
 
             // Get version of CRC unit
-            1 => ReturnCode::SuccessWithValue { value: self.crc_unit.get_version() as usize },
+            1 => ReturnCode::SuccessWithValue {
+                value: self.crc_unit.get_version() as usize,
+            },
 
             // Request a CRC computation
             2 => {

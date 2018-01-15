@@ -4,14 +4,14 @@
 pub enum AccessPermission {
     //                                 Privileged  Unprivileged
     //                                 Access      Access
-    NoAccess = 0b000, //.............. --          --
-    PrivilegedOnly = 0b001, //........ RW          --
-    UnprivilegedReadOnly = 0b010, //.. RW          R-
-    ReadWrite = 0b011, //............. RW          RW
-    Reserved = 0b100, //.............. undef       undef
+    NoAccess = 0b000,               //.............. --          --
+    PrivilegedOnly = 0b001,         //........ RW          --
+    UnprivilegedReadOnly = 0b010,   //.. RW          R-
+    ReadWrite = 0b011,              //............. RW          RW
+    Reserved = 0b100,               //.............. undef       undef
     PrivilegedOnlyReadOnly = 0b101, // R-          --
-    ReadOnly = 0b110, //.............. R-          R-
-    ReadOnlyAlias = 0b111, //......... R-          R-
+    ReadOnly = 0b110,               //.............. R-          R-
+    ReadOnlyAlias = 0b111,          //......... R-          R-
 }
 
 #[derive(Debug)]
@@ -70,12 +70,13 @@ pub trait MPU {
     /// `execute`   : whether to enable code execution from this region
     /// `ap`        : access permissions as defined in Table 4.47 of the user
     ///               guide.
-    fn create_region(region_num: usize,
-                     start: usize,
-                     len: usize,
-                     execute: ExecutePermission,
-                     access: AccessPermission)
-                     -> Option<Region>;
+    fn create_region(
+        region_num: usize,
+        start: usize,
+        len: usize,
+        execute: ExecutePermission,
+        access: AccessPermission,
+    ) -> Option<Region>;
 
     /// Sets the base address, size and access attributes of the given MPU
     /// region number.
@@ -88,12 +89,13 @@ impl MPU for () {
 
     fn disable_mpu(&self) {}
 
-    fn create_region(_: usize,
-                     _: usize,
-                     _: usize,
-                     _: ExecutePermission,
-                     _: AccessPermission)
-                     -> Option<Region> {
+    fn create_region(
+        _: usize,
+        _: usize,
+        _: usize,
+        _: ExecutePermission,
+        _: AccessPermission,
+    ) -> Option<Region> {
         Some(Region::empty(0))
     }
 

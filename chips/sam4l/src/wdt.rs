@@ -5,7 +5,7 @@ use kernel::common::VolatileCell;
 use kernel::hil;
 use pm::{self, Clock, PBDClock};
 
-#[repr(C, packed)]
+#[repr(C)]
 pub struct WdtRegisters {
     cr: VolatileCell<u32>,
     clr: VolatileCell<u32>,

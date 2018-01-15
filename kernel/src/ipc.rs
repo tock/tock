@@ -6,7 +6,7 @@
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x00010000;
 
-use {AppId, AppSlice, Grant, Callback, Driver, Shared};
+use {AppId, AppSlice, Callback, Driver, Grant, Shared};
 use process;
 use returncode::ReturnCode;
 
@@ -32,13 +32,17 @@ pub struct IPC {
 
 impl IPC {
     pub unsafe fn new() -> IPC {
-        IPC { data: Grant::create() }
+        IPC {
+            data: Grant::create(),
+        }
     }
 
-    pub unsafe fn schedule_callback(&self,
-                                    appid: AppId,
-                                    otherapp: AppId,
-                                    cb_type: process::IPCType) {
+    pub unsafe fn schedule_callback(
+        &self,
+        appid: AppId,
+        otherapp: AppId,
+        cb_type: process::IPCType,
+    ) {
         self.data
             .enter(appid, |mydata, _| {
                 let callback = match cb_type {
@@ -47,7 +51,8 @@ impl IPC {
                         *mydata.client_callbacks.get(otherapp.idx()).unwrap_or(&None)
                     }
                 };
-                callback.map(|mut callback| {
+                callback
+                    .map(|mut callback| {
                         self.data
                             .enter(otherapp, |otherdata, _| {
                                 if appid.idx() >= otherdata.shared_memory.len() {
@@ -56,9 +61,11 @@ impl IPC {
                                 match otherdata.shared_memory[appid.idx()] {
                                     Some(ref slice) => {
                                         slice.expose_to(appid);
-                                        callback.schedule(otherapp.idx() + 1,
-                                                          slice.len(),
-                                                          slice.ptr() as usize);
+                                        callback.schedule(
+                                            otherapp.idx() + 1,
+                                            slice.len(),
+                                            slice.ptr() as usize,
+                                        );
                                     }
                                     None => {
                                         callback.schedule(otherapp.idx() + 1, 0, 0);
@@ -86,14 +93,12 @@ impl Driver for IPC {
             // application name stored in the TBF header of the application.
             // The callback that is passed to subscribe is called when another
             // process notifies the server process.
-            0 => {
-                self.data
-                    .enter(callback.app_id(), |data, _| {
-                        data.callback = Some(callback);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or(ReturnCode::EBUSY)
-            }
+            0 => self.data
+                .enter(callback.app_id(), |data, _| {
+                    data.callback = Some(callback);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or(ReturnCode::EBUSY),
 
             // subscribe(>=1)
             //
@@ -122,12 +127,13 @@ impl Driver for IPC {
     /// and notifying an IPC client is done by setting client_or_svc to 1.
     /// In either case, the target_id is the same number as provided in a notify
     /// callback or as returned by allow.
-    fn command(&self,
-               target_id: usize,
-               client_or_svc: usize,
-               _: usize,
-               appid: AppId)
-               -> ReturnCode {
+    fn command(
+        &self,
+        target_id: usize,
+        client_or_svc: usize,
+        _: usize,
+        appid: AppId,
+    ) -> ReturnCode {
         let procs = unsafe { &mut process::PROCS };
         if target_id == 0 || target_id > procs.len() {
             return ReturnCode::EINVAL; /* Request to IPC to impossible process */
@@ -170,11 +176,12 @@ impl Driver for IPC {
                         &Some(ref p) => {
                             let s = p.package_name.as_bytes();
                             // are slices equal?
-                            if s.len() == slice.len() &&
-                               s.iter()
-                                .zip(slice.iter())
-                                .all(|(c1, c2)| c1 == c2) {
-                                return ReturnCode::SuccessWithValue { value: (i as usize) + 1 };
+                            if s.len() == slice.len()
+                                && s.iter().zip(slice.iter()).all(|(c1, c2)| c1 == c2)
+                            {
+                                return ReturnCode::SuccessWithValue {
+                                    value: (i as usize) + 1,
+                                };
                             }
                         }
                         &None => {}

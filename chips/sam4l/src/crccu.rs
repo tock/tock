@@ -51,7 +51,7 @@
 use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::hil::crc::{self, CrcAlg};
-use pm::{Clock, HSBClock, PBBClock, enable_clock, disable_clock};
+use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 
 // A memory-mapped register
 struct Reg(*mut u32);
@@ -124,7 +124,7 @@ registers![
 ];
 
 // CRCCU Descriptor (from Table 41.2 in Section 41.6):
-#[repr(C, packed)]
+#[repr(C)]
 struct Descriptor {
     addr: u32, // Transfer Address Register (RW): Address of memory block to compute
     ctrl: TCR, // Transfer Control Register (RW): IEN, TRWIDTH, BTSIZE
@@ -134,7 +134,7 @@ struct Descriptor {
 
 // Transfer Control Register (see Section 41.6.18)
 #[derive(Copy, Clone)]
-#[repr(C, packed)]
+#[repr(C)]
 struct TCR(u32);
 
 impl TCR {
@@ -158,9 +158,9 @@ impl TCR {
 
 #[derive(Copy, Clone)]
 enum Polynomial {
-    CCIT8023, // Polynomial 0x04C11DB7
+    CCIT8023,   // Polynomial 0x04C11DB7
     CASTAGNOLI, // Polynomial 0x1EDC6F41
-    CCIT16, // Polynomial 0x1021
+    CCIT16,     // Polynomial 0x1021
 }
 
 fn poly_for_alg(alg: CrcAlg) -> Polynomial {
@@ -210,8 +210,10 @@ struct Mode(u32);
 
 impl Mode {
     fn new(divider: u8, ptype: Polynomial, compare: bool, enable: bool) -> Self {
-        Mode((((divider & 0x0f) as u32) << 4) | (ptype as u32) << 2 | (compare as u32) << 1 |
-             (enable as u32))
+        Mode(
+            (((divider & 0x0f) as u32) << 4) | (ptype as u32) << 2 | (compare as u32) << 1
+                | (enable as u32),
+        )
     }
     fn disabled() -> Self {
         Mode::new(0, Polynomial::CCIT8023, false, false)

@@ -4,7 +4,7 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::uart;
 use nrf5x::pinmux::Pinmux;
 
-#[repr(C, packed)]
+#[repr(C)]
 pub struct Registers {
     pub task_startrx: VolatileCell<u32>,
     pub task_stoprx: VolatileCell<u32>,

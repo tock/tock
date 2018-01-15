@@ -75,47 +75,51 @@ pub struct SubmoduleConfig {
 }
 
 pub unsafe fn configure_submodules(enabled_submodules: SubmoduleConfig) {
-    let rf233_detachable_pins = [DetachablePin {
-                                     pin: &PA[08],
-                                     function: None,
-                                 },
-                                 DetachablePin {
-                                     pin: &PA[09],
-                                     function: None,
-                                 },
-                                 DetachablePin {
-                                     pin: &PA[10],
-                                     function: None,
-                                 }];
+    let rf233_detachable_pins = [
+        DetachablePin {
+            pin: &PA[08],
+            function: None,
+        },
+        DetachablePin {
+            pin: &PA[09],
+            function: None,
+        },
+        DetachablePin {
+            pin: &PA[10],
+            function: None,
+        },
+    ];
     let rf233 = Submodule {
         gate_pin: &PC[18],
         detachable_pins: &rf233_detachable_pins,
     };
 
-    let nrf_detachable_pins = [DetachablePin {
-                                   pin: &PB[07],
-                                   function: None,
-                               },
-                               DetachablePin {
-                                   pin: &PA[17],
-                                   function: None,
-                               },
-                               DetachablePin {
-                                   pin: &PA[18],
-                                   function: Some(A),
-                               },
-                               DetachablePin {
-                                   pin: &PC[07],
-                                   function: Some(B),
-                               },
-                               DetachablePin {
-                                   pin: &PC[08],
-                                   function: Some(E),
-                               },
-                               DetachablePin {
-                                   pin: &PC[09],
-                                   function: None,
-                               }];
+    let nrf_detachable_pins = [
+        DetachablePin {
+            pin: &PB[07],
+            function: None,
+        },
+        DetachablePin {
+            pin: &PA[17],
+            function: None,
+        },
+        DetachablePin {
+            pin: &PA[18],
+            function: Some(A),
+        },
+        DetachablePin {
+            pin: &PC[07],
+            function: Some(B),
+        },
+        DetachablePin {
+            pin: &PC[08],
+            function: Some(E),
+        },
+        DetachablePin {
+            pin: &PC[09],
+            function: None,
+        },
+    ];
     let nrf = Submodule {
         gate_pin: &PC[17],
         detachable_pins: &nrf_detachable_pins,

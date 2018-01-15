@@ -48,7 +48,7 @@ pub const DRIVER_NUM: usize = 0x00000004;
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};
-use kernel::hil::gpio::{Pin, PinCtl, InputMode, InterruptMode, Client};
+use kernel::hil::gpio::{Client, InputMode, InterruptMode, Pin, PinCtl};
 
 pub struct GPIO<'a, G: Pin + 'a> {
     pins: &'a [&'a G],
@@ -114,7 +114,10 @@ impl<'a, G: Pin> Client for GPIO<'a, G> {
 
         // schedule callback with the pin number and value
         if self.callback.get().is_some() {
-            self.callback.get().unwrap().schedule(pin_num, pin_state as usize, 0);
+            self.callback
+                .get()
+                .unwrap()
+                .schedule(pin_num, pin_state as usize, 0);
         }
     }
 }
@@ -174,7 +177,9 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
         let pin = data1;
         match command_num {
             // number of pins
-            0 => ReturnCode::SuccessWithValue { value: pins.len() as usize },
+            0 => ReturnCode::SuccessWithValue {
+                value: pins.len() as usize,
+            },
 
             // enable output
             1 => {
@@ -232,7 +237,9 @@ impl<'a, G: Pin + PinCtl> Driver for GPIO<'a, G> {
                     ReturnCode::EINVAL /* impossible pin */
                 } else {
                     let pin_state = pins[pin].read();
-                    ReturnCode::SuccessWithValue { value: pin_state as usize }
+                    ReturnCode::SuccessWithValue {
+                        value: pin_state as usize,
+                    }
                 }
             }
 

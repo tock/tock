@@ -43,11 +43,12 @@ pub trait Port {
     /// Setup an interrupt on a GPIO input pin. The identifier should be
     /// the port number and will be returned when the interrupt callback
     /// fires.
-    fn enable_interrupt(&self,
-                        pin: usize,
-                        mode: hil::gpio::InterruptMode,
-                        identifier: usize)
-                        -> ReturnCode;
+    fn enable_interrupt(
+        &self,
+        pin: usize,
+        mode: hil::gpio::InterruptMode,
+        identifier: usize,
+    ) -> ReturnCode;
 
     /// Disable an interrupt on a GPIO input pin.
     fn disable_interrupt(&self, pin: usize) -> ReturnCode;

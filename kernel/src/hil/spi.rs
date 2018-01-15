@@ -1,7 +1,6 @@
 //! Interfaces for SPI master and slave communication.
 
 use core::option::Option;
-
 use returncode::ReturnCode;
 
 /// Values for the ordering of bits
@@ -27,10 +26,12 @@ pub enum ClockPhase {
 
 pub trait SpiMasterClient {
     /// Called when a read/write operation finishes
-    fn read_write_done(&self,
-                       write_buffer: &'static mut [u8],
-                       read_buffer: Option<&'static mut [u8]>,
-                       len: usize);
+    fn read_write_done(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    );
 }
 /// The `SpiMaster` trait for interacting with SPI slave
 /// devices at a byte or buffer level.
@@ -85,11 +86,12 @@ pub trait SpiMaster {
     /// read_buffer may be None. If read_buffer is Some, the
     /// length of the operation is the minimum of the size of
     /// the two buffers.
-    fn read_write_bytes(&self,
-                        write_buffer: &'static mut [u8],
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode;
+    fn read_write_bytes(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode;
     fn write_byte(&self, val: u8);
     fn read_byte(&self) -> u8;
     fn read_write_byte(&self, val: u8) -> u8;
@@ -133,11 +135,12 @@ pub trait SpiMasterDevice {
     /// read_buffer may be None. If read_buffer is Some, the
     /// length of the operation is the minimum of the size of
     /// the two buffers.
-    fn read_write_bytes(&self,
-                        write_buffer: &'static mut [u8],
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode;
+    fn read_write_bytes(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode;
 
     fn set_polarity(&self, cpol: ClockPolarity);
     fn set_phase(&self, cpal: ClockPhase);
@@ -153,10 +156,12 @@ pub trait SpiSlaveClient {
     fn chip_selected(&self);
 
     /// This is called as a DMA interrupt when a transfer has completed
-    fn read_write_done(&self,
-                       write_buffer: Option<&'static mut [u8]>,
-                       read_buffer: Option<&'static mut [u8]>,
-                       len: usize);
+    fn read_write_done(
+        &self,
+        write_buffer: Option<&'static mut [u8]>,
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    );
 }
 
 pub trait SpiSlave {
@@ -167,11 +172,12 @@ pub trait SpiSlave {
     fn set_client(&self, client: Option<&'static SpiSlaveClient>);
 
     fn set_write_byte(&self, write_byte: u8);
-    fn read_write_bytes(&self,
-                        write_buffer: Option<&'static mut [u8]>,
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode;
+    fn read_write_bytes(
+        &self,
+        write_buffer: Option<&'static mut [u8]>,
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode;
 
     fn set_clock(&self, polarity: ClockPolarity);
     fn get_clock(&self) -> ClockPolarity;
@@ -191,11 +197,12 @@ pub trait SpiSlaveDevice {
     /// the provided client. Either write_buffer or read_buffer may be
     /// None. If read_buffer is Some, the length of the operation is the
     /// minimum of the size of the two buffers.
-    fn read_write_bytes(&self,
-                        write_buffer: Option<&'static mut [u8]>,
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode;
+    fn read_write_bytes(
+        &self,
+        write_buffer: Option<&'static mut [u8]>,
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode;
 
     fn set_polarity(&self, cpol: ClockPolarity);
     fn get_polarity(&self) -> ClockPolarity;

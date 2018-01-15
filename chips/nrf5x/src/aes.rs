@@ -111,7 +111,6 @@ impl AesECB {
         self.enable_interrupts();
     }
 
-
     pub fn handle_interrupt(&self) {
         let regs = unsafe { &*self.regs };
 
@@ -119,7 +118,6 @@ impl AesECB {
         self.disable_interrupts();
 
         if regs.event_endecb.get() == 1 {
-
             let rem = self.remaining.get();
             let offset = self.offset.get();
             let take = if rem >= 16 { 16 } else { rem };
@@ -141,20 +139,15 @@ impl AesECB {
             }
             // Entire keystream generated now XOR with the data
             else if self.input.is_some() {
-                self.input
-                    .take()
-                    .map(|buf| {
-                        for (i, c) in buf.as_mut()[0..self.len.get()].iter_mut().enumerate() {
-                            *c = ks[i] ^ *c;
-                        }
-                        // ugly work-around to replace buffers in the capsule;
-                        self.client
-                            .get()
-                            .map(move |client| unsafe {
-                                client.crypt_done(buf, &mut INIT_CTR, self.len.get())
-                            });
+                self.input.take().map(|buf| {
+                    for (i, c) in buf.as_mut()[0..self.len.get()].iter_mut().enumerate() {
+                        *c = ks[i] ^ *c;
+                    }
+                    // ugly work-around to replace buffers in the capsule;
+                    self.client.get().map(move |client| unsafe {
+                        client.crypt_done(buf, &mut INIT_CTR, self.len.get())
                     });
-
+                });
             }
             self.keystream.set(ks);
         }

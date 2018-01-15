@@ -25,12 +25,11 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Grant, Callback, Driver, ReturnCode};
+use kernel::{AppId, Callback, Driver, Grant, ReturnCode};
 use kernel::hil;
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x20005;
-
 
 #[derive(Default)]
 pub struct App {
@@ -45,7 +44,8 @@ pub struct UsbSyscallDriver<'a, C: hil::usb::Client + 'a> {
 }
 
 impl<'a, C> UsbSyscallDriver<'a, C>
-    where C: hil::usb::Client
+where
+    C: hil::usb::Client,
 {
     pub fn new(usbc_client: &'a C, apps: Grant<App>) -> Self {
         UsbSyscallDriver {
@@ -99,19 +99,18 @@ enum Request {
 }
 
 impl<'a, C> Driver for UsbSyscallDriver<'a, C>
-    where C: hil::usb::Client
+where
+    C: hil::usb::Client,
 {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
             // Set callback for result
-            0 => {
-                self.apps
-                    .enter(callback.app_id(), |app, _| {
-                        app.callback = Some(callback);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.apps
+                .enter(callback.app_id(), |app, _| {
+                    app.callback = Some(callback);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

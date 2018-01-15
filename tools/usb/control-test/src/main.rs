@@ -34,9 +34,12 @@ const EXPECT_BYTES: &'static [u8] = &[10, 11, 12];
 fn main() {
     let context = Context::new().unwrap();
 
-    let mut dh = context.open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID).expect("Opening device");
+    let mut dh = context
+        .open_device_with_vid_pid(VENDOR_ID, PRODUCT_ID)
+        .expect("Opening device");
 
-    dh.set_active_configuration(0).expect("Setting active configuration");
+    dh.set_active_configuration(0)
+        .expect("Setting active configuration");
     dh.claim_interface(0).expect("Claiming interface");
 
     {

@@ -47,7 +47,9 @@ impl<L, T> Drop for AppPtr<L, T> {
         unsafe {
             let ps = &mut process::PROCS;
             if ps.len() > self.process.idx() {
-                ps[self.process.idx()].as_mut().map(|process| process.free(self.ptr.as_mut()));
+                ps[self.process.idx()]
+                    .as_mut()
+                    .map(|process| process.free(self.ptr.as_mut()));
             }
         }
     }

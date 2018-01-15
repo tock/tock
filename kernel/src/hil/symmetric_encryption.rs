@@ -34,9 +34,6 @@ pub trait Client {
     /// send back to result of the encryption/decryption to the capsule
     /// this should be hardware independent if the cryptostate is used for all
     /// implementations
-    fn crypt_done(&self,
-                  data: &'static mut [u8],
-                  dmy: &'static mut [u8],
-                  len: usize)
-                  -> ReturnCode;
+    fn crypt_done(&self, data: &'static mut [u8], dmy: &'static mut [u8], len: usize)
+        -> ReturnCode;
 }

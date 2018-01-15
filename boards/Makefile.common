@@ -3,7 +3,9 @@
 MAKEFLAGS += -r
 MAKEFLAGS += -R
 
-export RUSTUP_TOOLCHAIN ?= nightly-2017-11-19
+MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+export RUSTUP_TOOLCHAIN ?= nightly-2018-01-05
 
 TOOLCHAIN ?= arm-none-eabi
 
@@ -54,7 +56,7 @@ endif
 
 
 # Check that rustc is the right nightly - warn not error if wrong, sometimes useful to test others
-RUSTC_VERSION_STRING := rustc 1.23.0-nightly (6160040d8 2017-11-18)
+RUSTC_VERSION_STRING := rustc 1.24.0-nightly (8e7a609e6 2018-01-04)
 ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
   DUMMY := $(shell rustup install $(RUSTUP_TOOLCHAIN))
   ifneq ($(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) rustc --version), $(RUSTC_VERSION_STRING))
@@ -79,7 +81,7 @@ ifneq ($(XARGO_NAME), xargo)
   $(shell sleep 3s)
   $(shell RUSTUP_TOOLCHAIN=$(RUSTUP_TOOLCHAIN) cargo install xargo)
   XARGO_VERSION := $(strip $(word 2, $(XARGO_CALL)))
-else ifeq ($(shell expr $(XARGO_VERSION) \< $(MINIMUM_XARGO_VERSION)), 1)
+else ifeq ($(shell $(MAKEFILE_COMMON_PATH)../tools/semver.sh $(XARGO_VERSION) \< $(MINIMUM_XARGO_VERSION)), true)
   $(warning Required tool `xargo` is out-of-date.)
   $(warning Running `cargo install cargo-update` and `cargo install-update xargo` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3s)

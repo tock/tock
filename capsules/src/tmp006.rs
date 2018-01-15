@@ -10,9 +10,9 @@
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};
-use kernel::common::math::{sqrtf32, get_errno};
+use kernel::common::math::{get_errno, sqrtf32};
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::gpio::{Pin, InterruptMode, Client};
+use kernel::hil::gpio::{Client, InterruptMode, Pin};
 use kernel::hil::i2c;
 
 pub static mut BUFFER: [u8; 3] = [0; 3];
@@ -66,7 +66,7 @@ type SensorVoltage = i16;
 ///         SetRegDieTemperature(voltage) --(voltage)->
 ///             ReadingDieTemperature --(unless repeated_mode)->
 ///                 Disconfigure
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum ProtocolState {
     Idle,
 
@@ -104,10 +104,11 @@ pub struct TMP006<'a> {
 
 impl<'a> TMP006<'a> {
     /// The `interrupt_pin` must be pulled-up since the TMP006 is open-drain.
-    pub fn new(i2c: &'a i2c::I2CDevice,
-               interrupt_pin: &'a Pin,
-               buffer: &'static mut [u8])
-               -> TMP006<'a> {
+    pub fn new(
+        i2c: &'a i2c::I2CDevice,
+        interrupt_pin: &'a Pin,
+        buffer: &'static mut [u8],
+    ) -> TMP006<'a> {
         // setup and return struct
         TMP006 {
             i2c: i2c,
@@ -146,14 +147,16 @@ impl<'a> TMP006<'a> {
             buf[1] = ((config & 0xFF00) >> 8) as u8;
             buf[2] = (config & 0x00FF) as u8;
             self.i2c.write(buf, 3);
-            self.protocol_state.set(ProtocolState::Deconfigure(temperature));
+            self.protocol_state
+                .set(ProtocolState::Deconfigure(temperature));
         });
     }
 
     fn enable_interrupts(&self) {
         // setup interrupts from the sensor
         self.interrupt_pin.make_input();
-        self.interrupt_pin.enable_interrupt(0, InterruptMode::FallingEdge);
+        self.interrupt_pin
+            .enable_interrupt(0, InterruptMode::FallingEdge);
     }
 
     fn disable_interrupts(&self) {
@@ -217,12 +220,14 @@ impl<'a> i2c::I2CClient for TMP006<'a> {
                 buffer[0] = Registers::DieTemperature as u8;
                 self.i2c.write(buffer, 1);
 
-                self.protocol_state.set(ProtocolState::SetRegDieTemperature(sensor_voltage));
+                self.protocol_state
+                    .set(ProtocolState::SetRegDieTemperature(sensor_voltage));
             }
             ProtocolState::SetRegDieTemperature(sensor_voltage) => {
                 // Read die temperature register
                 self.i2c.read(buffer, 2);
-                self.protocol_state.set(ProtocolState::ReadingDieTemperature(sensor_voltage));
+                self.protocol_state
+                    .set(ProtocolState::ReadingDieTemperature(sensor_voltage));
             }
             ProtocolState::ReadingDieTemperature(sensor_voltage) => {
                 let die_temperature = (((buffer[0] as u16) << 8) | buffer[1] as u16) as i16;

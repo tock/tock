@@ -224,17 +224,17 @@
 //
 
 use core::cell::Cell;
-use ieee802154::mac::{Mac, Frame, TxClient, RxClient};
+use ieee802154::mac::{Frame, Mac, RxClient, TxClient};
 use kernel::ReturnCode;
 use kernel::common::list::{List, ListLink, ListNode};
-use kernel::common::take_cell::{TakeCell, MapCell};
+use kernel::common::take_cell::{MapCell, TakeCell};
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
 use net::frag_utils::Bitmap;
-use net::ieee802154::{PanID, MacAddress, SecurityLevel, KeyId, Header};
+use net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
 use net::sixlowpan_compression;
-use net::sixlowpan_compression::{ContextStore, is_lowpan};
+use net::sixlowpan_compression::{is_lowpan, ContextStore};
 use net::util::{slice_to_u16, u16_to_slice};
 
 // Reassembly timeout in seconds
@@ -252,11 +252,13 @@ pub mod lowpan_frag {
     pub const FRAGN_HDR_SIZE: usize = 5;
 }
 
-fn set_frag_hdr(dgram_size: u16,
-                dgram_tag: u16,
-                dgram_offset: usize,
-                hdr: &mut [u8],
-                is_frag1: bool) {
+fn set_frag_hdr(
+    dgram_size: u16,
+    dgram_tag: u16,
+    dgram_offset: usize,
+    hdr: &mut [u8],
+    is_frag1: bool,
+) {
     let mask = if is_frag1 {
         lowpan_frag::FRAG1_HDR
     } else {
@@ -343,13 +345,14 @@ impl TxState {
         self.dgram_size.get() as usize <= self.dgram_offset.get()
     }
 
-    fn init_transmit(&self,
-                     src_mac_addr: MacAddress,
-                     dst_mac_addr: MacAddress,
-                     packet: &'static mut [u8],
-                     packet_len: usize,
-                     security: Option<(SecurityLevel, KeyId)>) {
-
+    fn init_transmit(
+        &self,
+        src_mac_addr: MacAddress,
+        dst_mac_addr: MacAddress,
+        packet: &'static mut [u8],
+        packet_len: usize,
+        security: Option<(SecurityLevel, KeyId)>,
+    ) {
         self.src_mac_addr.set(src_mac_addr);
         self.dst_mac_addr.set(dst_mac_addr);
         self.security.set(security);
@@ -358,22 +361,25 @@ impl TxState {
     }
 
     // Takes ownership of frag_buf and gives it to the radio
-    fn start_transmit(&self,
-                      dgram_tag: u16,
-                      frag_buf: &'static mut [u8],
-                      radio: &Mac,
-                      ctx_store: &ContextStore)
-                      -> Result<(), (ReturnCode, &'static mut [u8])> {
+    fn start_transmit(
+        &self,
+        dgram_tag: u16,
+        frag_buf: &'static mut [u8],
+        radio: &Mac,
+        ctx_store: &ContextStore,
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         self.dgram_tag.set(dgram_tag);
         match self.packet.take() {
             None => Err((ReturnCode::ENOMEM, frag_buf)),
             Some(ip6_packet) => {
-                let result = match radio.prepare_data_frame(frag_buf,
-                                                            self.dst_pan.get(),
-                                                            self.dst_mac_addr.get(),
-                                                            self.src_pan.get(),
-                                                            self.src_mac_addr.get(),
-                                                            self.security.get()) {
+                let result = match radio.prepare_data_frame(
+                    frag_buf,
+                    self.dst_pan.get(),
+                    self.dst_mac_addr.get(),
+                    self.src_pan.get(),
+                    self.src_mac_addr.get(),
+                    self.security.get(),
+                ) {
                     Err(frame) => Err((ReturnCode::FAIL, frame)),
                     Ok(frame) => {
                         self.prepare_transmit_first_fragment(ip6_packet, frame, radio, ctx_store)
@@ -387,22 +393,24 @@ impl TxState {
         }
     }
 
-    fn prepare_transmit_first_fragment(&self,
-                                       ip6_packet: &[u8],
-                                       mut frame: Frame,
-                                       radio: &Mac,
-                                       ctx_store: &ContextStore)
-                                       -> Result<(), (ReturnCode, &'static mut [u8])> {
-
+    fn prepare_transmit_first_fragment(
+        &self,
+        ip6_packet: &[u8],
+        mut frame: Frame,
+        radio: &Mac,
+        ctx_store: &ContextStore,
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         // Here, we assume that the compressed headers fit in the first MTU
         // fragment. This is consistent with RFC 6282.
         let mut lowpan_packet = [0 as u8; radio::MAX_FRAME_SIZE as usize];
         let (consumed, written) = {
-            match sixlowpan_compression::compress(ctx_store,
-                                                  &ip6_packet,
-                                                  self.src_mac_addr.get(),
-                                                  self.dst_mac_addr.get(),
-                                                  &mut lowpan_packet) {
+            match sixlowpan_compression::compress(
+                ctx_store,
+                &ip6_packet,
+                self.src_mac_addr.get(),
+                self.dst_mac_addr.get(),
+                &mut lowpan_packet,
+            ) {
                 Err(_) => return Err((ReturnCode::FAIL, frame.into_buf())),
                 Ok(result) => result,
             }
@@ -417,12 +425,14 @@ impl TxState {
         // Need to fragment
         if lowpan_len > remaining_capacity {
             let mut frag_header = [0 as u8; lowpan_frag::FRAG1_HDR_SIZE];
-            set_frag_hdr(self.dgram_size.get(),
-                         self.dgram_tag.get(),
-                         /*offset = */
-                         0,
-                         &mut frag_header,
-                         true);
+            set_frag_hdr(
+                self.dgram_size.get(),
+                self.dgram_tag.get(),
+                /*offset = */
+                0,
+                &mut frag_header,
+                true,
+            );
             frame.append_payload(&frag_header[0..lowpan_frag::FRAG1_HDR_SIZE]);
             remaining_capacity -= lowpan_frag::FRAG1_HDR_SIZE;
         }
@@ -449,21 +459,24 @@ impl TxState {
         buf.map(|buf| Err((result, buf))).unwrap_or(Ok(()))
     }
 
-    fn prepare_transmit_next_fragment(&self,
-                                      frag_buf: &'static mut [u8],
-                                      radio: &Mac)
-                                      -> Result<(), (ReturnCode, &'static mut [u8])> {
-        match radio.prepare_data_frame(frag_buf,
-                                       self.dst_pan.get(),
-                                       self.dst_mac_addr.get(),
-                                       self.src_pan.get(),
-                                       self.src_mac_addr.get(),
-                                       self.security.get()) {
+    fn prepare_transmit_next_fragment(
+        &self,
+        frag_buf: &'static mut [u8],
+        radio: &Mac,
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
+        match radio.prepare_data_frame(
+            frag_buf,
+            self.dst_pan.get(),
+            self.dst_mac_addr.get(),
+            self.src_pan.get(),
+            self.src_mac_addr.get(),
+            self.security.get(),
+        ) {
             Err(frame) => Err((ReturnCode::FAIL, frame)),
             Ok(mut frame) => {
                 let dgram_offset = self.dgram_offset.get();
-                let remaining_capacity = frame.remaining_data_capacity() -
-                                         lowpan_frag::FRAGN_HDR_SIZE;
+                let remaining_capacity =
+                    frame.remaining_data_capacity() - lowpan_frag::FRAGN_HDR_SIZE;
                 // This rounds payload_len down to the nearest multiple of 8 if it
                 // is not the last fragment (per RFC 4944)
                 let remaining_bytes = (self.dgram_size.get() as usize) - dgram_offset;
@@ -478,11 +491,13 @@ impl TxState {
                     None => Err((ReturnCode::ENOMEM, frame.into_buf())),
                     Some(packet) => {
                         let mut frag_header = [0 as u8; lowpan_frag::FRAGN_HDR_SIZE];
-                        set_frag_hdr(self.dgram_size.get(),
-                                     self.dgram_tag.get(),
-                                     dgram_offset,
-                                     &mut frag_header,
-                                     false);
+                        set_frag_hdr(
+                            self.dgram_size.get(),
+                            self.dgram_tag.get(),
+                            dgram_offset,
+                            &mut frag_header,
+                            false,
+                        );
                         frame.append_payload(&frag_header);
                         frame.append_payload(&packet[dgram_offset..dgram_offset + payload_len]);
                         // Replace the packet
@@ -499,12 +514,13 @@ impl TxState {
         }
     }
 
-    fn end_transmit<'a>(&self,
-                        tx_buf: &'static mut [u8],
-                        client: Option<&'a SixlowpanClient>,
-                        acked: bool,
-                        result: ReturnCode) {
-
+    fn end_transmit<'a>(
+        &self,
+        tx_buf: &'static mut [u8],
+        client: Option<&'a SixlowpanClient>,
+        acked: bool,
+        result: ReturnCode,
+    ) {
         self.tx_busy.set(false);
         self.tx_buf.replace(tx_buf);
         client.map(move |client| {
@@ -514,7 +530,9 @@ impl TxState {
             // transmission completes.
             self.packet
                 .take()
-                .map(|packet| { client.send_done(packet, acked, result); })
+                .map(|packet| {
+                    client.send_done(packet, acked, result);
+                })
                 .expect("Error: `packet` is None in call to end_transmit.");
         });
     }
@@ -569,16 +587,17 @@ impl<'a> RxState<'a> {
         }
     }
 
-    fn is_my_fragment(&self,
-                      src_mac_addr: MacAddress,
-                      dst_mac_addr: MacAddress,
-                      dgram_size: u16,
-                      dgram_tag: u16)
-                      -> bool {
-        self.busy.get() && (self.dgram_tag.get() == dgram_tag) &&
-        (self.dgram_size.get() == dgram_size) &&
-        (self.src_mac_addr.get() == src_mac_addr) &&
-        (self.dst_mac_addr.get() == dst_mac_addr)
+    fn is_my_fragment(
+        &self,
+        src_mac_addr: MacAddress,
+        dst_mac_addr: MacAddress,
+        dgram_size: u16,
+        dgram_tag: u16,
+    ) -> bool {
+        self.busy.get() && (self.dgram_tag.get() == dgram_tag)
+            && (self.dgram_size.get() == dgram_size)
+            && (self.src_mac_addr.get() == src_mac_addr)
+            && (self.dst_mac_addr.get() == dst_mac_addr)
     }
 
     // Checks if a given RxState is free or expired (and thus, can be freed).
@@ -591,12 +610,14 @@ impl<'a> RxState<'a> {
         self.busy.get()
     }
 
-    fn start_receive(&self,
-                     src_mac_addr: MacAddress,
-                     dst_mac_addr: MacAddress,
-                     dgram_size: u16,
-                     dgram_tag: u16,
-                     current_tics: u32) {
+    fn start_receive(
+        &self,
+        src_mac_addr: MacAddress,
+        dst_mac_addr: MacAddress,
+        dgram_size: u16,
+        dgram_tag: u16,
+        current_tics: u32,
+    ) {
         self.dst_mac_addr.set(dst_mac_addr);
         self.src_mac_addr.set(src_mac_addr);
         self.dgram_tag.set(dgram_tag);
@@ -609,28 +630,29 @@ impl<'a> RxState<'a> {
     // This function assumes that the payload is a slice starting from the
     // actual payload (no 802.15.4 headers, no fragmentation headers), and
     // returns true if the packet is completely reassembled.
-    fn receive_next_frame(&self,
-                          payload: &[u8],
-                          payload_len: usize,
-                          dgram_size: u16,
-                          dgram_offset: usize,
-                          ctx_store: &ContextStore)
-                          -> Result<bool, ReturnCode> {
+    fn receive_next_frame(
+        &self,
+        payload: &[u8],
+        payload_len: usize,
+        dgram_size: u16,
+        dgram_offset: usize,
+        ctx_store: &ContextStore,
+    ) -> Result<bool, ReturnCode> {
         let mut packet = self.packet.take().ok_or(ReturnCode::ENOMEM)?;
         let uncompressed_len = if dgram_offset == 0 {
-            let (consumed, written) =
-                sixlowpan_compression::decompress(ctx_store,
-                                                  &payload[0..payload_len as usize],
-                                                  self.src_mac_addr.get(),
-                                                  self.dst_mac_addr.get(),
-                                                  &mut packet,
-                                                  dgram_size,
-                                                  true).map_err(|_| ReturnCode::FAIL)?;
+            let (consumed, written) = sixlowpan_compression::decompress(
+                ctx_store,
+                &payload[0..payload_len as usize],
+                self.src_mac_addr.get(),
+                self.dst_mac_addr.get(),
+                &mut packet,
+                dgram_size,
+                true,
+            ).map_err(|_| ReturnCode::FAIL)?;
             let remaining = payload_len - consumed;
             packet[written..written + remaining]
                 .copy_from_slice(&payload[consumed..consumed + remaining]);
             written + remaining
-
         } else {
             packet[dgram_offset..dgram_offset + payload_len]
                 .copy_from_slice(&payload[0..payload_len]);
@@ -660,7 +682,9 @@ impl<'a> RxState<'a> {
             // occur - all other calls to `packet.take()` replace the packet,
             // and thus the packet should always be here.
             self.packet
-                .map(|packet| { client.receive(&packet, self.dgram_size.get(), result); })
+                .map(|packet| {
+                    client.receive(&packet, self.dgram_size.get(), result);
+                })
                 .expect("Error: `packet` is None in call to end_receive.");
         });
     }
@@ -697,13 +721,16 @@ impl<'a, A: time::Alarm, C: ContextStore> TxClient for Sixlowpan<'a, A, C> {
         // If we are done sending the entire packet, or if the transmit failed,
         // end the transmit state and issue callbacks.
         if result != ReturnCode::SUCCESS || self.tx_state.is_transmit_done() {
-            self.tx_state.end_transmit(tx_buf, self.client.get(), acked, result);
-            // Otherwise, send next fragment
+            self.tx_state
+                .end_transmit(tx_buf, self.client.get(), acked, result);
+        // Otherwise, send next fragment
         } else {
-            let result = self.tx_state.prepare_transmit_next_fragment(tx_buf, self.radio);
+            let result = self.tx_state
+                .prepare_transmit_next_fragment(tx_buf, self.radio);
             result.map_err(|(retcode, tx_buf)| {
                 // If we have an error, abort
-                self.tx_state.end_transmit(tx_buf, self.client.get(), acked, retcode);
+                self.tx_state
+                    .end_transmit(tx_buf, self.client.get(), acked, retcode);
             });
         }
     }
@@ -719,10 +746,12 @@ impl<'a, A: time::Alarm, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
         let src_mac_addr = header.src_addr.unwrap_or(MacAddress::Short(0));
         let dst_mac_addr = header.dst_addr.unwrap_or(MacAddress::Short(0));
 
-        let (rx_state, returncode) = self.receive_frame(&buf[data_offset..data_offset + data_len],
-                                                        data_len,
-                                                        src_mac_addr,
-                                                        dst_mac_addr);
+        let (rx_state, returncode) = self.receive_frame(
+            &buf[data_offset..data_offset + data_len],
+            data_len,
+            src_mac_addr,
+            dst_mac_addr,
+        );
         // Reception completed if rx_state is not None. Note that this can
         // also occur for some fail states (e.g. dropping an invalid packet)
         rx_state.map(|state| state.end_receive(self.client.get(), returncode));
@@ -746,11 +775,12 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
     /// * `clock` - A implementation of `Alarm` used for tracking the timing of
     /// frame arrival. The clock should be continue running during sleep and
     /// have an accuracy of at least 60 seconds.
-    pub fn new(radio: &'a Mac<'a>,
-               ctx_store: C,
-               tx_buf: &'static mut [u8],
-               clock: &'a A)
-               -> Sixlowpan<'a, A, C> {
+    pub fn new(
+        radio: &'a Mac<'a>,
+        ctx_store: C,
+        tx_buf: &'static mut [u8],
+        clock: &'a A,
+    ) -> Sixlowpan<'a, A, C> {
         Sixlowpan {
             radio: radio,
             ctx_store: ctx_store,
@@ -813,24 +843,26 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
     /// IPv6 packet, while the `ip6_packet_len` argument specifies the number of
     /// bytes to send. Note that `ip6_packet.len() > ip6_packet_len`, but we check
     /// the invariant that `ip6_packet_len <= ip6_packet.len()`.
-    pub fn transmit_packet(&self,
-                           src_mac_addr: MacAddress,
-                           dst_mac_addr: MacAddress,
-                           ip6_packet: &'static mut [u8],
-                           ip6_packet_len: usize,
-                           security: Option<(SecurityLevel, KeyId)>)
-                           -> Result<(), (ReturnCode, &'static mut [u8])> {
-
+    pub fn transmit_packet(
+        &self,
+        src_mac_addr: MacAddress,
+        dst_mac_addr: MacAddress,
+        ip6_packet: &'static mut [u8],
+        ip6_packet_len: usize,
+        security: Option<(SecurityLevel, KeyId)>,
+    ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         if self.tx_state.tx_busy.get() {
             Err((ReturnCode::EBUSY, ip6_packet))
         } else if ip6_packet_len > ip6_packet.len() {
             Err((ReturnCode::ENOMEM, ip6_packet))
         } else {
-            self.tx_state.init_transmit(src_mac_addr,
-                                        dst_mac_addr,
-                                        ip6_packet,
-                                        ip6_packet_len,
-                                        security);
+            self.tx_state.init_transmit(
+                src_mac_addr,
+                dst_mac_addr,
+                ip6_packet,
+                ip6_packet_len,
+                security,
+            );
             self.start_packet_transmit();
             Ok(())
         }
@@ -849,7 +881,9 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
             .take()
             .expect("Error: `tx_buf` is None in call to start_packet_transmit.");
 
-        match self.tx_state.start_transmit(dgram_tag, frag_buf, self.radio, &self.ctx_store) {
+        match self.tx_state
+            .start_transmit(dgram_tag, frag_buf, self.radio, &self.ctx_store)
+        {
             // Successfully started transmitting
             Ok(_) => {
                 self.tx_state.tx_dgram_tag.set(dgram_tag);
@@ -857,17 +891,19 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
             }
             // Otherwise, we failed
             Err((returncode, new_frag_buf)) => {
-                self.tx_state.end_transmit(new_frag_buf, self.client.get(), false, returncode);
+                self.tx_state
+                    .end_transmit(new_frag_buf, self.client.get(), false, returncode);
             }
         }
     }
 
-    fn receive_frame(&self,
-                     packet: &[u8],
-                     packet_len: usize,
-                     src_mac_addr: MacAddress,
-                     dst_mac_addr: MacAddress)
-                     -> (Option<&RxState<'a>>, ReturnCode) {
+    fn receive_frame(
+        &self,
+        packet: &[u8],
+        packet_len: usize,
+        src_mac_addr: MacAddress,
+        dst_mac_addr: MacAddress,
+    ) -> (Option<&RxState<'a>>, ReturnCode) {
         if is_fragment(packet) {
             let (is_frag1, dgram_size, dgram_tag, dgram_offset) = get_frag_hdr(&packet[0..5]);
             let offset_to_payload = if is_frag1 {
@@ -875,49 +911,56 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
             } else {
                 lowpan_frag::FRAGN_HDR_SIZE
             };
-            self.receive_fragment(&packet[offset_to_payload..],
-                                  packet_len - offset_to_payload,
-                                  src_mac_addr,
-                                  dst_mac_addr,
-                                  dgram_size,
-                                  dgram_tag,
-                                  dgram_offset)
+            self.receive_fragment(
+                &packet[offset_to_payload..],
+                packet_len - offset_to_payload,
+                src_mac_addr,
+                dst_mac_addr,
+                dgram_size,
+                dgram_tag,
+                dgram_offset,
+            )
         } else {
             self.receive_single_packet(&packet, packet_len, src_mac_addr, dst_mac_addr)
         }
     }
 
-    fn receive_single_packet(&self,
-                             payload: &[u8],
-                             payload_len: usize,
-                             src_mac_addr: MacAddress,
-                             dst_mac_addr: MacAddress)
-                             -> (Option<&RxState<'a>>, ReturnCode) {
+    fn receive_single_packet(
+        &self,
+        payload: &[u8],
+        payload_len: usize,
+        src_mac_addr: MacAddress,
+        dst_mac_addr: MacAddress,
+    ) -> (Option<&RxState<'a>>, ReturnCode) {
         let rx_state = self.rx_states
             .iter()
             .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
-        rx_state.map(|state| {
-                state.start_receive(src_mac_addr,
-                                    dst_mac_addr,
-                                    payload_len as u16,
-                                    0,
-                                    self.clock.now());
+        rx_state
+            .map(|state| {
+                state.start_receive(
+                    src_mac_addr,
+                    dst_mac_addr,
+                    payload_len as u16,
+                    0,
+                    self.clock.now(),
+                );
                 // The packet buffer should *always* be there; in particular,
                 // since this state is not busy, it must have the packet buffer.
                 // Otherwise, we are in an inconsistent state and can fail.
-                let mut packet = state.packet
-                    .take()
-                    .expect("Error: `packet` in RxState struct is `None` \
-                            in call to `receive_single_packet`.");
+                let mut packet = state.packet.take().expect(
+                    "Error: `packet` in RxState struct is `None` \
+                     in call to `receive_single_packet`.",
+                );
                 if is_lowpan(payload) {
-                    let decompressed =
-                        sixlowpan_compression::decompress(&self.ctx_store,
-                                                          &payload[0..payload_len as usize],
-                                                          src_mac_addr,
-                                                          dst_mac_addr,
-                                                          &mut packet,
-                                                          0,
-                                                          false);
+                    let decompressed = sixlowpan_compression::decompress(
+                        &self.ctx_store,
+                        &payload[0..payload_len as usize],
+                        src_mac_addr,
+                        dst_mac_addr,
+                        &mut packet,
+                        0,
+                        false,
+                    );
                     match decompressed {
                         Ok((consumed, written)) => {
                             let remaining = payload_len - consumed;
@@ -940,15 +983,16 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
     // This function returns an Err if an error occurred, returns Ok(Some(RxState))
     // if the packet has been fully reassembled, or returns Ok(None) if there
     // are still pending fragments
-    fn receive_fragment(&self,
-                        frag_payload: &[u8],
-                        payload_len: usize,
-                        src_mac_addr: MacAddress,
-                        dst_mac_addr: MacAddress,
-                        dgram_size: u16,
-                        dgram_tag: u16,
-                        dgram_offset: usize)
-                        -> (Option<&RxState<'a>>, ReturnCode) {
+    fn receive_fragment(
+        &self,
+        frag_payload: &[u8],
+        payload_len: usize,
+        src_mac_addr: MacAddress,
+        dst_mac_addr: MacAddress,
+        dgram_size: u16,
+        dgram_tag: u16,
+        dgram_offset: usize,
+    ) -> (Option<&RxState<'a>>, ReturnCode) {
         // First try to find an rx_state in the middle of assembly
         let mut rx_state = self.rx_states
             .iter()
@@ -961,23 +1005,28 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
                 .find(|state| !state.is_busy(self.clock.now(), A::Frequency::frequency()));
             // Initialize new state
             rx_state.map(|state| {
-                state.start_receive(src_mac_addr,
-                                    dst_mac_addr,
-                                    dgram_size,
-                                    dgram_tag,
-                                    self.clock.now())
+                state.start_receive(
+                    src_mac_addr,
+                    dst_mac_addr,
+                    dgram_size,
+                    dgram_tag,
+                    self.clock.now(),
+                )
             });
             if rx_state.is_none() {
                 return (None, ReturnCode::ENOMEM);
             }
         }
-        rx_state.map(|state| {
+        rx_state
+            .map(|state| {
                 // Returns true if the full packet is reassembled
-                let res = state.receive_next_frame(frag_payload,
-                                                   payload_len,
-                                                   dgram_size,
-                                                   dgram_offset,
-                                                   &self.ctx_store);
+                let res = state.receive_next_frame(
+                    frag_payload,
+                    payload_len,
+                    dgram_size,
+                    dgram_offset,
+                    &self.ctx_store,
+                );
                 match res {
                     // Some error occurred
                     Err(_) => (Some(state), ReturnCode::FAIL),

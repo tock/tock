@@ -27,14 +27,13 @@
 //! ```
 
 use core::cell::Cell;
-
 use kernel::{AppId, Callback, Driver, ReturnCode};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::i2c;
 
 pub static mut BUFFER: [u8; 5] = [0; 5];
 
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum State {
     Idle,
 
@@ -44,12 +43,11 @@ enum State {
     Done,
 }
 
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum ControlField {
     InterruptMask,
     SelectedChannels,
 }
-
 
 pub struct PCA9544A<'a> {
     i2c: &'a i2c::I2CDevice,

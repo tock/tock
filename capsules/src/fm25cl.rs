@@ -40,10 +40,8 @@
 use core::cell::Cell;
 use core::cmp;
 use kernel::ReturnCode;
-
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-
 
 pub static mut TXBUFFER: [u8; 512] = [0; 512];
 pub static mut RXBUFFER: [u8; 512] = [0; 512];
@@ -63,7 +61,7 @@ enum Opcodes {
     WriteMemory = 0x02,
 }
 
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum State {
     Idle,
 
@@ -101,10 +99,11 @@ pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice + 'a> {
 }
 
 impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
-    pub fn new(spi: &'a S,
-               txbuffer: &'static mut [u8],
-               rxbuffer: &'static mut [u8])
-               -> FM25CL<'a, S> {
+    pub fn new(
+        spi: &'a S,
+        txbuffer: &'static mut [u8],
+        rxbuffer: &'static mut [u8],
+    ) -> FM25CL<'a, S> {
         // setup and return struct
         FM25CL {
             spi: spi,
@@ -125,57 +124,67 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CL<'a, S> {
 
     /// Setup SPI for this chip
     fn configure_spi(&self) {
-        self.spi.configure(hil::spi::ClockPolarity::IdleLow,
-                           hil::spi::ClockPhase::SampleLeading,
-                           SPI_SPEED);
+        self.spi.configure(
+            hil::spi::ClockPolarity::IdleLow,
+            hil::spi::ClockPhase::SampleLeading,
+            SPI_SPEED,
+        );
     }
 
     pub fn write(&self, address: u16, buffer: &'static mut [u8], len: u16) -> ReturnCode {
         self.configure_spi();
 
-        self.txbuffer.take().map_or(ReturnCode::ERESERVE, move |txbuffer| {
-            txbuffer[0] = Opcodes::WriteEnable as u8;
+        self.txbuffer
+            .take()
+            .map_or(ReturnCode::ERESERVE, move |txbuffer| {
+                txbuffer[0] = Opcodes::WriteEnable as u8;
 
-            let write_len = cmp::min(txbuffer.len(), len as usize);
+                let write_len = cmp::min(txbuffer.len(), len as usize);
 
-            // Need to save the buffer passed to us so we can give it back.
-            self.client_buffer.replace(buffer);
-            // Also save address and len for the actual write.
-            self.client_write_address.set(address);
-            self.client_write_len.set(write_len as u16);
+                // Need to save the buffer passed to us so we can give it back.
+                self.client_buffer.replace(buffer);
+                // Also save address and len for the actual write.
+                self.client_write_address.set(address);
+                self.client_write_len.set(write_len as u16);
 
-            self.state.set(State::WriteEnable);
-            self.spi.read_write_bytes(txbuffer, None, 1)
-        })
+                self.state.set(State::WriteEnable);
+                self.spi.read_write_bytes(txbuffer, None, 1)
+            })
     }
 
     pub fn read(&self, address: u16, buffer: &'static mut [u8], len: u16) -> ReturnCode {
         self.configure_spi();
 
-        self.txbuffer.take().map_or(ReturnCode::ERESERVE, |txbuffer| {
-            self.rxbuffer.take().map_or(ReturnCode::ERESERVE, move |rxbuffer| {
-                txbuffer[0] = Opcodes::ReadMemory as u8;
-                txbuffer[1] = ((address >> 8) & 0xFF) as u8;
-                txbuffer[2] = (address & 0xFF) as u8;
+        self.txbuffer
+            .take()
+            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+                self.rxbuffer
+                    .take()
+                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                        txbuffer[0] = Opcodes::ReadMemory as u8;
+                        txbuffer[1] = ((address >> 8) & 0xFF) as u8;
+                        txbuffer[2] = (address & 0xFF) as u8;
 
-                // Save the user buffer for later
-                self.client_buffer.replace(buffer);
+                        // Save the user buffer for later
+                        self.client_buffer.replace(buffer);
 
-                let read_len = cmp::min(rxbuffer.len() - 3, len as usize);
+                        let read_len = cmp::min(rxbuffer.len() - 3, len as usize);
 
-                self.state.set(State::ReadMemory);
-                self.spi.read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3)
+                        self.state.set(State::ReadMemory);
+                        self.spi
+                            .read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3)
+                    })
             })
-        })
     }
 }
 
 impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL<'a, S> {
-    fn read_write_done(&self,
-                       write_buffer: &'static mut [u8],
-                       read_buffer: Option<&'static mut [u8]>,
-                       len: usize) {
-
+    fn read_write_done(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) {
         match self.state.get() {
             State::ReadStatus => {
                 self.state.set(State::Idle);
@@ -200,14 +209,15 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
                     write_buffer[1] = ((self.client_write_address.get() >> 8) & 0xFF) as u8;
                     write_buffer[2] = (self.client_write_address.get() & 0xFF) as u8;
 
-                    let write_len = cmp::min(write_buffer.len(),
-                                             self.client_write_len.get() as usize);
+                    let write_len =
+                        cmp::min(write_buffer.len(), self.client_write_len.get() as usize);
 
                     for i in 0..write_len {
                         write_buffer[(i + 3) as usize] = buffer[i as usize];
                     }
 
-                    self.spi.read_write_bytes(write_buffer, read_buffer, write_len + 3);
+                    self.spi
+                        .read_write_bytes(write_buffer, read_buffer, write_len + 3);
                 });
             }
             State::WriteMemory => {
@@ -217,11 +227,15 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
 
                 // Replace these buffers
                 self.txbuffer.replace(write_buffer);
-                read_buffer.map(|read_buffer| { self.rxbuffer.replace(read_buffer); });
+                read_buffer.map(|read_buffer| {
+                    self.rxbuffer.replace(read_buffer);
+                });
 
                 // Call done with the write() buffer
                 self.client_buffer.take().map(move |buffer| {
-                    self.client.get().map(move |client| client.write_done(buffer, write_len));
+                    self.client
+                        .get()
+                        .map(move |client| client.write_done(buffer, write_len));
                 });
             }
             State::ReadMemory => {
@@ -240,9 +254,9 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::spi::SpiMasterClient for FM25CL
 
                         self.rxbuffer.replace(read_buffer);
 
-                        self.client.get().map(move |client| {
-                            client.read_done(buffer, read_len - 3)
-                        });
+                        self.client
+                            .get()
+                            .map(move |client| client.read_done(buffer, read_len - 3));
                     });
                 });
             }
@@ -256,25 +270,28 @@ impl<'a, S: hil::spi::SpiMasterDevice + 'a> FM25CLCustom for FM25CL<'a, S> {
     fn read_status(&self) -> ReturnCode {
         self.configure_spi();
 
-        self.txbuffer.take().map_or(ReturnCode::ERESERVE, |txbuffer| {
-            self.rxbuffer.take().map_or(ReturnCode::ERESERVE, move |rxbuffer| {
-                txbuffer[0] = Opcodes::ReadStatusRegister as u8;
+        self.txbuffer
+            .take()
+            .map_or(ReturnCode::ERESERVE, |txbuffer| {
+                self.rxbuffer
+                    .take()
+                    .map_or(ReturnCode::ERESERVE, move |rxbuffer| {
+                        txbuffer[0] = Opcodes::ReadStatusRegister as u8;
 
-                // Use 4 bytes instead of the required 2 because that works better
-                // with DMA for some reason.
-                self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4);
-                self.state.set(State::ReadStatus);
-                ReturnCode::SUCCESS
+                        // Use 4 bytes instead of the required 2 because that works better
+                        // with DMA for some reason.
+                        self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4);
+                        self.state.set(State::ReadStatus);
+                        ReturnCode::SUCCESS
+                    })
             })
-        })
     }
 }
 
 /// Implement the generic `NonvolatileStorage` interface common to chips that
 /// provide nonvolatile memory.
 impl<'a, S: hil::spi::SpiMasterDevice + 'a> hil::nonvolatile_storage::NonvolatileStorage
-    for
-    FM25CL<'a, S> {
+    for FM25CL<'a, S> {
     fn set_client(&self, client: &'static hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(Some(client));
     }

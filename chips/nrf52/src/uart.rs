@@ -1,6 +1,5 @@
 /// Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 /// Date: July 8, 2017
-
 use core::cell::Cell;
 use kernel;
 use nrf5x::pinmux;
@@ -42,11 +41,13 @@ impl UARTE {
         }
     }
 
-    pub fn configure(&self,
-                     tx: pinmux::Pinmux,
-                     rx: pinmux::Pinmux,
-                     cts: pinmux::Pinmux,
-                     rts: pinmux::Pinmux) {
+    pub fn configure(
+        &self,
+        tx: pinmux::Pinmux,
+        rx: pinmux::Pinmux,
+        cts: pinmux::Pinmux,
+        rts: pinmux::Pinmux,
+    ) {
         let regs = unsafe { &*self.regs };
 
         regs.pseltxd.set(tx);
@@ -74,7 +75,7 @@ impl UARTE {
             460800 => regs.baudrate.set(0x07400000),
             921600 => regs.baudrate.set(0x0F000000),
             1000000 => regs.baudrate.set(0x10000000),
-            _ => regs.baudrate.set(0x01D60000),       //setting default to 115200
+            _ => regs.baudrate.set(0x01D60000), //setting default to 115200
         }
     }
 
@@ -170,12 +171,17 @@ impl UARTE {
 
     fn set_dma_pointer_to_buffer(&self) {
         let regs = unsafe { &*self.regs };
-        unsafe { regs.txd_ptr.set((&BUF[self.offset.get()] as *const u8) as u32) }
+        unsafe {
+            regs.txd_ptr
+                .set((&BUF[self.offset.get()] as *const u8) as u32)
+        }
     }
 
     fn copy_data_to_uart_buffer(&self, tx_len: usize) {
-        self.buffer.map(|buffer| for i in 0..tx_len {
-            unsafe { BUF[i] = buffer[i] }
+        self.buffer.map(|buffer| {
+            for i in 0..tx_len {
+                unsafe { BUF[i] = buffer[i] }
+            }
         });
     }
 }

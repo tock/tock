@@ -24,7 +24,6 @@
 //!     capsules::virtual_flash::FlashUser::new(mux_flash));
 //! ```
 
-
 use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::common::{List, ListLink, ListNode};
@@ -79,31 +78,35 @@ impl<'a, F: hil::flash::Flash + 'a> MuxFlash<'a, F> {
     /// request, then issue that request to the flash hardware.
     fn do_next_op(&self) {
         if self.inflight.get().is_none() {
-            let mnode = self.users.iter().find(|node| node.operation.get() != Op::Idle);
+            let mnode = self.users
+                .iter()
+                .find(|node| node.operation.get() != Op::Idle);
             mnode.map(|node| {
-                node.buffer.take().map_or_else(|| {
-                    // Don't need a buffer for erase.
-                    match node.operation.get() {
-                        Op::Erase(page_number) => {
-                            self.flash.erase_page(page_number);
+                node.buffer.take().map_or_else(
+                    || {
+                        // Don't need a buffer for erase.
+                        match node.operation.get() {
+                            Op::Erase(page_number) => {
+                                self.flash.erase_page(page_number);
+                            }
+                            _ => {}
+                        };
+                    },
+                    |buf| {
+                        match node.operation.get() {
+                            Op::Write(page_number) => {
+                                self.flash.write_page(page_number, buf);
+                            }
+                            Op::Read(page_number) => {
+                                self.flash.read_page(page_number, buf);
+                            }
+                            Op::Erase(page_number) => {
+                                self.flash.erase_page(page_number);
+                            }
+                            Op::Idle => {} // Can't get here...
                         }
-                        _ => {}
-                    };
-                },
-                                               |buf| {
-                    match node.operation.get() {
-                        Op::Write(page_number) => {
-                            self.flash.write_page(page_number, buf);
-                        }
-                        Op::Read(page_number) => {
-                            self.flash.read_page(page_number, buf);
-                        }
-                        Op::Erase(page_number) => {
-                            self.flash.erase_page(page_number);
-                        }
-                        Op::Idle => {} // Can't get here...
-                    }
-                });
+                    },
+                );
                 node.operation.set(Op::Idle);
                 self.inflight.set(Some(node));
             });
@@ -111,7 +114,7 @@ impl<'a, F: hil::flash::Flash + 'a> MuxFlash<'a, F> {
     }
 }
 
-#[derive(Copy, Clone,PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 enum Op {
     Idle,
     Write(usize),
@@ -144,8 +147,7 @@ impl<'a, F: hil::flash::Flash + 'a> FlashUser<'a, F> {
 }
 
 impl<'a, F: hil::flash::Flash + 'a, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C>
-    for
-    FlashUser<'a, F> {
+    for FlashUser<'a, F> {
     fn set_client(&'a self, client: &'a C) {
         self.mux.users.push_head(self);
         self.client.set(Some(client));
@@ -154,15 +156,21 @@ impl<'a, F: hil::flash::Flash + 'a, C: hil::flash::Client<Self>> hil::flash::Has
 
 impl<'a, F: hil::flash::Flash + 'a> hil::flash::Client<F> for FlashUser<'a, F> {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
-        self.client.get().map(move |client| { client.read_complete(pagebuffer, error); });
+        self.client.get().map(move |client| {
+            client.read_complete(pagebuffer, error);
+        });
     }
 
     fn write_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
-        self.client.get().map(move |client| { client.write_complete(pagebuffer, error); });
+        self.client.get().map(move |client| {
+            client.write_complete(pagebuffer, error);
+        });
     }
 
     fn erase_complete(&self, error: hil::flash::Error) {
-        self.client.get().map(move |client| { client.erase_complete(error); });
+        self.client.get().map(move |client| {
+            client.erase_complete(error);
+        });
     }
 }
 

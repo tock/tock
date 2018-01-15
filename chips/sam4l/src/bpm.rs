@@ -2,7 +2,7 @@
 
 use kernel::common::VolatileCell;
 
-#[repr(C, packed)]
+#[repr(C)]
 struct BpmRegisters {
     interrupt_enable: VolatileCell<u32>,
     interrupt_disable: VolatileCell<u32>,
