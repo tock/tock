@@ -250,8 +250,9 @@ method with the following signature:
 int main(void);
 ```
 
-Applications **should** return 0 from `main`, but `main` is called from `_start`
-and includes an implicit `while()` loop:
+Applications **should** return 0 from `main`. Returning non-zero is undefined and the
+behavior may change in future versions of `libtock`.
+Today, `main` is called from `_start` and includes an implicit `while()` loop:
 
 ```c
 void _start(void* text_start, void* mem_start, void* memory_len, void* app_heap_break) {
