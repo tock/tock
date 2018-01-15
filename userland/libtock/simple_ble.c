@@ -27,13 +27,6 @@ static int s_ble_configure_flags(uint8_t flags) {
   return allow(BLE_DRIVER_NUMBER, GAP_FLAGS, &flags, 1);
 }
 
-// internal helper to configure advertisement interval
-//
-// advertising_iterval_ms - advertisment intervall in millisecons
-static int s_ble_configure_advertisement_interval(uint16_t advertising_itv_ms) {
-  return command(BLE_DRIVER_NUMBER, BLE_CFG_ADV_ITV_CMD, advertising_itv_ms, 0);
-}
-
 // internal helper to configure gap data in the advertisement
 //
 // header - gap data header
@@ -72,7 +65,7 @@ int ble_initialize(uint16_t advertising_itv_ms, bool discoverable) {
   // configure advertisement interval
   // if the interval is less than 20 or bigger than 10240 to kernel
   // will use default value
-  err = s_ble_configure_advertisement_interval(advertising_itv_ms);
+  err = ble_set_advertisement_interval(advertising_itv_ms);
   if (err < TOCK_SUCCESS)
     return err;
 
@@ -149,10 +142,6 @@ int ble_start_passive_scan(uint8_t *data, uint8_t max_len,
     if (err < TOCK_SUCCESS)
       return err;
 
-    err = s_initialize_advertisement_buffer();
-    if (err < TOCK_SUCCESS)
-      return err;
-
     err =
       allow(BLE_DRIVER_NUMBER, BLE_CFG_SCAN_BUF_ALLOW, (void *)data, max_len);
     if (err < TOCK_SUCCESS)
@@ -164,4 +153,12 @@ int ble_start_passive_scan(uint8_t *data, uint8_t max_len,
 
 int ble_stop_passive_scan(void) {
   return command(BLE_DRIVER_NUMBER, BLE_ADV_STOP_CMD, 1, 0);
+}
+
+int ble_set_tx_power(TxPower_t power_level) {
+  return command(BLE_DRIVER_NUMBER, BLE_CFG_TX_POWER_CMD, power_level, 0);
+}
+
+int ble_set_advertisement_interval(uint16_t advertising_itv_ms) {
+  return command(BLE_DRIVER_NUMBER, BLE_CFG_ADV_ITV_CMD, advertising_itv_ms, 0);
 }

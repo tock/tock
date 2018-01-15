@@ -1,3 +1,5 @@
+use core::convert::TryFrom;
+
 // PCNF0
 pub const RADIO_PCNF0_LFLEN_POS: u32 = 0;
 pub const RADIO_PCNF0_S0LEN_POS: u32 = 8;
@@ -17,6 +19,7 @@ pub const RADIO_PCNF1_ENDIAN_POS: u32 = 24;
 pub const RADIO_PCNF1_ENDIAN_BIG: u32 = 1;
 pub const RADIO_PCNF1_ENDIAN_LITTLE: u32 = 0;
 pub const RADIO_PCNF1_MAXLEN_37BYTES: u32 = 37;
+pub const RADIO_PCNF1_MAXLEN_255BYTES: u32 = 255;
 pub const RADIO_PCNF1_STATLEN_DONT_EXTEND: u32 = 0;
 pub const RADIO_PCNF1_BALEN_3BYTES: u32 = 3;
 
@@ -55,11 +58,44 @@ pub const RADIO_STATE_TX: u32 = 11;
 pub const RADIO_STATE_TXDISABLE: u32 = 12;
 
 // BUFFER SIZE
-pub const RADIO_PAYLOAD_LENGTH: usize = 39;
+pub const RADIO_PAYLOAD_LENGTH: usize = 255;
 
 pub enum RadioMode {
     Nrf1Mbit = 0,
     Nrf2Mbit = 1,
     Nrt250Kbit = 2,
     Ble1Mbit = 3,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum TxPower {
+    Positive4dBM = 0x04,
+    Positive3dBM = 0x03,
+    ZerodBm = 0x00,
+    Negative4dBm = 0xFC,
+    Negative8dBm = 0xF8,
+    Negative12dBm = 0xF4,
+    Negative16dBm = 0xF0,
+    Negative20dBm = 0xEC,
+    Negative40dBm = 0xD8,
+}
+
+//FIXME: use enum-tryfrom-derive, https://docs.rs/crate/enum-tryfrom-derive/0.1.2
+impl TryFrom<u8> for TxPower {
+    type Error = ();
+
+    fn try_from(val: u8) -> Result<TxPower, ()> {
+        match val {
+            4 => Ok(TxPower::Positive4dBM),
+            3 => Ok(TxPower::Positive3dBM),
+            0 => Ok(TxPower::ZerodBm),
+            0xFC => Ok(TxPower::Negative4dBm),
+            0xF8 => Ok(TxPower::Negative8dBm),
+            0xF4 => Ok(TxPower::Negative12dBm),
+            0xF0 => Ok(TxPower::Negative16dBm),
+            0xEC => Ok(TxPower::Negative20dBm),
+            0xD8 => Ok(TxPower::Negative40dBm),
+            _ => Err(()),
+        }
+    }
 }

@@ -1,4 +1,4 @@
-#![feature(asm, concat_idents, const_fn, const_cell_new)]
+#![feature(asm, concat_idents, const_fn, const_cell_new, try_from)]
 #![no_std]
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]
