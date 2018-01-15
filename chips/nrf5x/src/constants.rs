@@ -1,3 +1,5 @@
+use core::convert::TryFrom;
+
 // PCNF0
 pub const RADIO_PCNF0_LFLEN_POS: u32 = 0;
 pub const RADIO_PCNF0_S0LEN_POS: u32 = 8;
@@ -76,22 +78,24 @@ pub enum TxPower {
     Negative16dBm = 0xF0,
     Negative20dBm = 0xEC,
     Negative40dBm = 0xD8,
-    Error,
 }
 
-impl TxPower {
-    pub fn from_u8(val: u8) -> TxPower {
+//FIXME: use enum-tryfrom-derive, https://docs.rs/crate/enum-tryfrom-derive/0.1.2
+impl TryFrom<u8> for TxPower {
+    type Error = ();
+
+    fn try_from(val: u8) -> Result<TxPower, ()> {
         match val {
-            4 => TxPower::Positive4dBM,
-            3 => TxPower::Positive3dBM,
-            0 => TxPower::ZerodBm,
-            0xFC => TxPower::Negative4dBm,
-            0xF8 => TxPower::Negative8dBm,
-            0xF4 => TxPower::Negative12dBm,
-            0xF0 => TxPower::Negative16dBm,
-            0xEC => TxPower::Negative20dBm,
-            0xD8 => TxPower::Negative40dBm,
-            _ => TxPower::Error,
+            4 => Ok(TxPower::Positive4dBM),
+            3 => Ok(TxPower::Positive3dBM),
+            0 => Ok(TxPower::ZerodBm),
+            0xFC => Ok(TxPower::Negative4dBm),
+            0xF8 => Ok(TxPower::Negative8dBm),
+            0xF4 => Ok(TxPower::Negative12dBm),
+            0xF0 => Ok(TxPower::Negative16dBm),
+            0xEC => Ok(TxPower::Negative20dBm),
+            0xD8 => Ok(TxPower::Negative40dBm),
+            _ => Err(()),
         }
     }
 }

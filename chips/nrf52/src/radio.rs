@@ -34,6 +34,7 @@
 //! * CRC - 3 bytes
 
 use core::cell::Cell;
+use core::convert::TryFrom;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
@@ -346,26 +347,17 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
     }
 }
 
-// The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
-// underlying chip must validate if the current `tx_power` is supported as well
 impl nrf5x::ble_advertising_hil::BleConfig for Radio {
+    // The BLE Advertising Driver validates that the `tx_power` is between -20 to 10 dBm but then
+    // underlying chip must validate if the current `tx_power` is supported as well
     fn set_tx_power(&self, tx_power: u8) -> kernel::ReturnCode {
         // Convert u8 to TxPower
-        // similiar functionlity as the FromPrimitive trait
-        match nrf5x::constants::TxPower::from_u8(tx_power) {
+        match nrf5x::constants::TxPower::try_from(tx_power) {
             // Invalid transmitting power, propogate error
-            TxPower::Error => kernel::ReturnCode::ENOSUPPORT,
+            Err(_) => kernel::ReturnCode::ENOSUPPORT,
             // Valid transmitting power, propogate success
-            e @ TxPower::Positive4dBM
-            | e @ TxPower::Positive3dBM
-            | e @ TxPower::ZerodBm
-            | e @ TxPower::Negative4dBm
-            | e @ TxPower::Negative8dBm
-            | e @ TxPower::Negative12dBm
-            | e @ TxPower::Negative16dBm
-            | e @ TxPower::Negative20dBm
-            | e @ TxPower::Negative40dBm => {
-                self.tx_power.set(e);
+            Ok(res) => {
+                self.tx_power.set(res);
                 kernel::ReturnCode::SUCCESS
             }
         }
