@@ -237,10 +237,10 @@ fn do_work(
     // app code. Also need to get the padding size.
     let app_start_offset = align4!(header_length);
     let post_header_pad = app_start_offset as usize - header_length;
-    println!("{}", post_header_pad);
 
     // Now we can calculate the entire size of the app in flash.
-    let mut total_size = (header_length + post_header_pad + rel_data.len() + text.data.len()
+    let rel_data_len = 4 + rel_data.len(); // +4 because we're going to length-prefix it
+    let mut total_size = (header_length + post_header_pad + rel_data_len + text.data.len()
         + got.data.len() + data.data.len() + appstate.data.len()) as u32;
 
     let ending_pad = if total_size.count_ones() > 1 {
@@ -260,7 +260,7 @@ fn do_work(
     // so that changes to the app won't move it.
     let appstate_offset = app_start_offset as u32;
     let appstate_size = appstate.shdr.size as u32;
-    // Make sure we pad back to a multiple of 8.
+    // Make sure we pad back to a multiple of 4.
     let post_appstate_pad =
         align4!(appstate_offset + appstate_size) - (appstate_offset + appstate_size);
     let init_fn_offset = (input.ehdr.entry - text.shdr.addr) as u32;

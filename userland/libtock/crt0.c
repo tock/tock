@@ -39,6 +39,8 @@ void _start(void* text_start,
   {
     uint32_t heap_size = myhdr->got_size + myhdr->data_size + myhdr->bss_size;
     memop(0, stacktop + heap_size);
+    memop(11, stacktop + heap_size);
+    memop(10, stacktop);
     asm volatile ("mov sp, %[stacktop]" :: [stacktop] "r" (stacktop) : "memory");
     asm volatile ("mov r9, sp");
   }
