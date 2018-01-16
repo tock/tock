@@ -364,7 +364,7 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV1(_) => mem::size_of::<TbfHeaderV1>() as u32,
             TbfHeader::TbfHeaderV2(hd) =>
-                hd.main.map_or(0, |m| m.protected_size) + align4!(hd.base.header_size as u32),
+                hd.main.map_or(0, |m| m.protected_size) + (hd.base.header_size as u32),
             _ => 0,
         }
     }
@@ -375,7 +375,7 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => hd.entry_offset,
             TbfHeader::TbfHeaderV2(hd) =>
-                hd.main.map_or(0, |m| m.init_fn_offset) + align4!(hd.base.header_size as u32),
+                hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32),
             _ => 0,
         }
     }
@@ -1597,7 +1597,9 @@ unsafe fn load(tbf_header: TbfHeader,
                mem_base: *mut u8)
                -> Option<LoadResult> {
     if tbf_header.needs_pic_fixup() {
-        unimplemented!("Sorry, no more pic fixup");
+        unimplemented!("Kernel PIC fixup has been deprecated and removed. See \
+                       https://github.com/helena-project/tock/pull/714 for \
+                       more information");
     } else {
         // No PIC fixup requested from the kernel. We only need to set an
         // initial stack pointer and sbrk size. The app will do the rest on its
