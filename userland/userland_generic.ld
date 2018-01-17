@@ -65,6 +65,7 @@ SECTIONS {
         *(.rodata*)
         KEEP (*(.syscalls))
         _etext = .;
+        *(.ARM.extab*)
     } > FLASH =0xFF
 
 
@@ -73,23 +74,6 @@ SECTIONS {
     {
         KEEP (*(.app_state))
     } > FLASH =0xFF
-
-/* ARM Exception support
- *
- * This contains compiler-generated support for unwinding the stack,
- * consisting of key-value pairs of function addresses and information on
- * how to unwind stack frames.
- * https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf
- *
- * .ARM.exidx is sorted, so has to go in its own output section.
- */
-    PROVIDE_HIDDEN (__exidx_start = .);
-    .ARM.exidx :
-    {
-      /* (C++) Index entries for section unwinding */
-      *(.ARM.exidx* .gnu.linkonce.armexidx.*)
-    } > FLASH
-    PROVIDE_HIDDEN (__exidx_end = .);
 
 /* Beginning of SRAM */
     _sram_start = .;
@@ -161,4 +145,22 @@ SECTIONS {
     .endsec :
     {
     } > FLASH
+
+/* ARM Exception support
+ *
+ * This contains compiler-generated support for unwinding the stack,
+ * consisting of key-value pairs of function addresses and information on
+ * how to unwind stack frames.
+ * https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf
+ *
+ * .ARM.exidx is sorted, so has to go in its own output section.
+ */
+    PROVIDE_HIDDEN (__exidx_start = .);
+    .ARM.exidx :
+    {
+      /* (C++) Index entries for section unwinding */
+      *(.ARM.exidx* .gnu.linkonce.armexidx.*)
+    } > FLASH
+    PROVIDE_HIDDEN (__exidx_end = .);
+
 }
