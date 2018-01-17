@@ -9,18 +9,18 @@ extern int main(void);
 struct hdr {
   uint32_t got_sym_start;
   uint32_t got_start;
-  int got_size;
+  uint32_t got_size;
   uint32_t data_sym_start;
   uint32_t data_start;
-  int data_size;
+  uint32_t data_size;
   uint32_t bss_start;
-  int bss_size;
+  uint32_t bss_size;
   uint32_t reldata_start;
 };
 
 struct reldata {
-  int len;
-  int data[];
+  uint32_t len;
+  uint32_t data[];
 };
 
 __attribute__ ((section(".start"), used))
@@ -48,7 +48,7 @@ void _start(void* text_start,
   // fix up GOT
   volatile uint32_t* got_start     = (uint32_t*)(myhdr->got_start + stacktop);
   volatile uint32_t* got_sym_start = (uint32_t*)(myhdr->got_sym_start + (uint32_t)text_start);
-  for (int i = 0; i < (myhdr->got_size / (int)sizeof(uint32_t)); i++) {
+  for (uint32_t i = 0; i < (myhdr->got_size / (uint32_t)sizeof(uint32_t)); i++) {
     if ((got_sym_start[i] & 0x80000000) == 0) {
       got_start[i] = got_sym_start[i] + stacktop;
     } else {
@@ -66,8 +66,7 @@ void _start(void* text_start,
   memset(bss_start, 0, myhdr->bss_size);
 
   struct reldata* rd = (struct reldata*)(myhdr->reldata_start + (uint32_t)text_start);
-  int i;
-  for (i = 0; i < (rd->len / (int)sizeof(uint32_t)); i += 2) {
+  for (uint32_t i = 0; i < (rd->len / (int)sizeof(uint32_t)); i += 2) {
     uint32_t* target = (uint32_t*)(rd->data[i] + stacktop);
     if ((*target & 0x80000000) == 0) {
       *target += stacktop;

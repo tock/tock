@@ -31,12 +31,12 @@ SECTIONS {
          *  struct hdr {
          *    uint32_t got_sym_start;
          *    uint32_t got_start;
-         *    int got_size;
+         *    uint32_t got_size;
          *    uint32_t data_sym_start;
          *    uint32_t data_start;
-         *    int data_size;
+         *    uint32_t data_size;
          *    uint32_t bss_start;
-         *    int bss_size;
+         *    uint32_t bss_size;
          *    uint32_t reldata_start;
          *  };
          */
