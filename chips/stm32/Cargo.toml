@@ -1,0 +1,12 @@
+[package]
+name = "stm32"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+
+[dependencies]
+kernel = { path = "../../kernel" }
+
+[features]
+default = []
+
+stm32f1 = []

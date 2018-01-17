@@ -226,6 +226,7 @@ the board specific READMEs:
 
 * [imix](../boards/imix/README.md)
 * [Hail](../boards/hail/README.md)
+* [Nucleo-F103RB](../boards/nucleo_f103/README.md)
 * [nRF51-DK](../boards/nrf51dk/README.md)
 * [nRF52-DK](../boards/nrf52dk/README.md)
 
