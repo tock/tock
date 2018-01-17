@@ -2,7 +2,7 @@
 
 GCC_SRC_DIR=$1
 
-NEWLIB_VERSION=2.2.0.20150423
+NEWLIB_VERSION=2.5.0.20170421
 
 SCRIPTPATH=$( cd $(dirname $0) ; pwd -P )
 NEWLIB_INCLUDE_PATH=$SCRIPTPATH/../newlib/newlib-$NEWLIB_VERSION/newlib/libc/include
