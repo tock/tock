@@ -6,15 +6,30 @@ extern int main(void);
 #pragma GCC diagnostic ignored "-Wmissing-declarations"
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
 
+/*
+ * The structure populated by the linker script at the very beginning of the
+ * text segment. It represents sizes and offsets from the text segment of
+ * sections that need some sort of loading and/or relocation.
+ */
 struct hdr {
+  // Offset of GOT symbols in flash
   uint32_t got_sym_start;
+  // Offset of GOT section in memory
   uint32_t got_start;
+  // Size of GOT section
   uint32_t got_size;
+  // Offset of data symbols in flash
   uint32_t data_sym_start;
+  // Offset of data section in memory
   uint32_t data_start;
+  // Size of data section
   uint32_t data_size;
+  // Offset of BSS section in memory
   uint32_t bss_start;
+  // Size of BSS section
   uint32_t bss_size;
+  // First address offset after program flash, where elf2tbf places
+  // .rel.data section
   uint32_t reldata_start;
 };
 
