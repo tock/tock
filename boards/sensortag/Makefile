@@ -17,13 +17,3 @@ target/$(TARGET)/release/sensortag-$(APP): target/$(TARGET)/release/sensortag ap
 
 target/$(TARGET)/release/sensortag-$(APP).hex: target/$(TARGET)/release/sensortag-$(APP)
 	@$(OBJCOPY) -Oihex $^ $@
-
-# Upload the kernel over JTAG
-.PHONY: flash
-flash: target/$(TARGET)/release/sensortag.hex
-	$(error Cannot flash yet, TBD)
-
-# Upload the kernel over serial/bootloader
-.PHONY: program
-program: target/$(TARGET)/release/sensortag.hex
-	$(error Cannot program sensortag over USB. Use \`make flash\` and JTAG)
