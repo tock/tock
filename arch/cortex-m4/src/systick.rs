@@ -39,7 +39,7 @@ impl SysTick {
     /// Use this constructor if the core implementation does not have a
     /// pre-calibration value.
     ///
-    ///   * `clock_speed` - the frequency of SysTick tics in Herz. For example,
+    ///   * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
     ///   if the SysTick is driven by the CPU clock, it is simply the CPU speed.
     pub unsafe fn new_with_calibration(clock_speed: u32) -> SysTick {
         let mut res = SysTick::new();
@@ -47,8 +47,8 @@ impl SysTick {
         res
     }
 
-    // Return the tic frequency in herz. If the calibration value is set in
-    // hardware, use `self.herz`, which is set in the `new_with_calibration`
+    // Return the tic frequency in hertz. If the calibration value is set in
+    // hardware, use `self.hertz`, which is set in the `new_with_calibration`
     // constructor.
     fn hertz(&self) -> u32 {
         let tenms = self.regs.calibration.get() & 0xffffff;
@@ -56,7 +56,7 @@ impl SysTick {
             self.hertz
         } else {
             // The `tenms` register is the reload value for 10ms, so
-            // Herz = number of tics in 1 second = tenms * 100
+            // Hertz = number of tics in 1 second = tenms * 100
             tenms * 100
         }
     }
@@ -68,7 +68,7 @@ impl kernel::SysTick for SysTick {
             0
         } else {
             // only support values up to 1 second. That's twice as much as the
-            // interface promises, so we're good. This makes computing herz
+            // interface promises, so we're good. This makes computing hertz
             // safer
             let us = cmp::min(us, 1_000_000);
             let hertz = self.hertz();
@@ -77,7 +77,7 @@ impl kernel::SysTick for SysTick {
             //
             // reload = hertz * us / 1000000
             //
-            // But that can overflow if herz and us are sufficiently large.
+            // But that can overflow if hertz and us are sufficiently large.
             // Dividing first may, instead, result in a reload value that's off
             // by a lot (because integer division rounds down).
             //
