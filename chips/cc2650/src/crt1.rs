@@ -1,4 +1,4 @@
-use cortexm4::{generic_isr, nvic, systick_handler, SVC_Handler};
+use cortexm4::{nvic, systick_handler, SVC_Handler};
 
 extern "C" {
     // Symbols defined in the linker file
@@ -26,60 +26,66 @@ unsafe extern "C" fn hard_fault_handler() {
 #[cfg_attr(rustfmt, rustfmt_skip)]
 // no_mangle Ensures that the symbol is kept until the final binary
 #[no_mangle]
-pub static BASE_VECTORS: [unsafe extern fn(); 16] = [
-    _estack, reset_handler,
-    /* NMI */           unhandled_interrupt,
-    /* Hard Fault */    hard_fault_handler,
-    /* MemManage */     unhandled_interrupt,
-    /* BusFault */      unhandled_interrupt,
-    /* UsageFault*/     unhandled_interrupt,
-    unhandled_interrupt, unhandled_interrupt, unhandled_interrupt,
-    unhandled_interrupt,
-    /* SVC */           SVC_Handler,
-    /* DebugMon */      unhandled_interrupt,
-    unhandled_interrupt,
-    /* PendSV */        unhandled_interrupt,
-    /* SysTick */       systick_handler
+pub static BASE_VECTORS: [unsafe extern fn(); 50] = [
+    _estack,
+    reset_handler,
+    unhandled_interrupt, // NMI
+    hard_fault_handler, // Hard Fault
+    unhandled_interrupt, // MPU fault
+    unhandled_interrupt, // Bus fault
+    unhandled_interrupt, // Usage fault
+    unhandled_interrupt, // Reserved
+    unhandled_interrupt, // Reserved
+    unhandled_interrupt, // Reserved
+    unhandled_interrupt, // Reserved
+    SVC_Handler, // SVC
+    unhandled_interrupt, // Debug monitor,
+    unhandled_interrupt, // Reserved
+    unhandled_interrupt, // PendSV
+    systick_handler, // Systick
+    unhandled_interrupt, // GPIO Int handler
+    unhandled_interrupt, // I2C
+    unhandled_interrupt, // RF Core Command & Packet Engine 1
+    unhandled_interrupt, // AON SpiSplave Rx, Tx and CS
+    unhandled_interrupt, // AON RTC
+    unhandled_interrupt, // UART0 Rx and Tx
+    unhandled_interrupt, // AUX software event 0
+    unhandled_interrupt, // SSI0 Rx and Tx
+    unhandled_interrupt, // SSI1 Rx and Tx
+    unhandled_interrupt, // RF Core Command & Packet Engine 0
+    unhandled_interrupt, // RF Core Hardware
+    unhandled_interrupt, // RF Core Command Acknowledge
+    unhandled_interrupt, // I2S
+    unhandled_interrupt, // AUX software event 1
+    unhandled_interrupt, // Watchdog timer
+    unhandled_interrupt, // Timer 0 subtimer A
+    unhandled_interrupt, // Timer 0 subtimer B
+    unhandled_interrupt, // Timer 1 subtimer A
+    unhandled_interrupt, // Timer 1 subtimer B
+    unhandled_interrupt, // Timer 2 subtimer A
+    unhandled_interrupt, // Timer 2 subtimer B
+    unhandled_interrupt, // Timer 3 subtimer A
+    unhandled_interrupt, // Timer 3 subtimer B
+    unhandled_interrupt, // Crypto Core Result available
+    unhandled_interrupt, // uDMA Software
+    unhandled_interrupt, // uDMA Error
+    unhandled_interrupt, // Flash controller
+    unhandled_interrupt, // Software Event 0
+    unhandled_interrupt, // AUX combined event
+    unhandled_interrupt, // AON programmable 0
+    unhandled_interrupt, // Dynamic Programmable interrupt
+    // source (Default: PRCM)
+    unhandled_interrupt, // AUX Comparator A
+    unhandled_interrupt, // AUX ADC new sample or ADC DMA
+    // done, ADC underflow, ADC overflow
+    unhandled_interrupt  // TRNG event
 ];
-
-#[link_section = ".vectors"]
-#[no_mangle] // Ensures that the symbol is kept until the final binary
-pub static IRQS: [unsafe extern "C" fn(); 50] = [generic_isr; 50];
-
-#[cfg(target_os = "none")]
-#[no_mangle]
-pub unsafe extern "C" fn enable_gpio() {
-    asm!("\
-        mov r0, 0x500
-        bl 0x100001D4
-    ")
-}
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let mut current_block;
     let mut p_src: *mut u32;
     let mut p_dest: *mut u32;
-
-    const ROM_API_TABLE: u32 = 0x10000180;
-    const ROM_API_PRCM_TABLE: u32 = ROM_API_TABLE + 14*4;
-    let prc_table_ptr = ROM_API_PRCM_TABLE + 7*4;
-
-    enable_gpio();
-
-    let iocbase = 0x40081000;
-    let iocfg10 = iocbase + 0x28;
-
-    let gpiobase = 0x40022000;
-    let doe = gpiobase + 0xD0;
-    //let dio8to10 = gpiobase + 0x08;
-
-    // Set DIO10 to output
-    *(iocfg10 as *mut u16) = 0x7000;
-    // Set DataEnable to 1
-    *(doe as *mut u32) = 0x400;
-    *((gpiobase + 0x00000090) as *mut u32) = 1 << 10;
-    loop { }
 
     // Move the relocate segment. This assumes it is located after the text
     // segment, which is where the storm linker file puts it
