@@ -27,20 +27,19 @@
  *    The `_sapps` symbol marks the beginning of application memory in flash.
  */
 
-ROM_ORIGIN = 0x00000000;
-ROM_LENGTH = 0x1F000;
-PROG_ORIGIN = 0x1F000;
-PROG_LENGTH = 0xFA8;
-RAM_ORIGIN = 0x20000000;
-RAM_LENGTH = 20K;
+ROM_ORIGIN   =   0x00000000;
+ROM_LENGTH   =   0x0001FFA8;
+CCFG_ORIGIN  =   0x0001FFA8;
+CCFG_LENGTH  =   0x00000058;
+RAM_ORIGIN   =   0x20000000;
+RAM_LENGTH   =   20K;
 
 MPU_MIN_ALIGN = 4;
 
 MEMORY
 {
   rom (rx)  : ORIGIN =  ROM_ORIGIN, LENGTH =  ROM_LENGTH
-  prog (rx) : ORIGIN = PROG_ORIGIN, LENGTH = PROG_LENGTH
-  ccfg (rx) : ORIGIN = 0x0001FFA8, LENGTH = 88
+  ccfg (rx) : ORIGIN = CCFG_ORIGIN, LENGTH =  CCFG_LENGTH
   ram (rwx) : ORIGIN =  RAM_ORIGIN, LENGTH =  RAM_LENGTH
 }
 
@@ -180,7 +179,7 @@ SECTIONS
         /* Optional .app sections a convenience mechanism to bundle tock
            kernel and apps into a single image */
         KEEP (*(.app.*))
-    } > prog
+    } > rom
 
 
 
