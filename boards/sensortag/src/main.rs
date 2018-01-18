@@ -22,7 +22,35 @@ const NUM_PROCS: usize = 2;
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None];
 
 #[link_section = ".app_memory"]
-static mut APP_MEMORY: [u8; 20480] = [0; 20480];
+static mut APP_MEMORY: [u8; 10240] = [0; 10240];
+
+#[cfg_attr(rustfmt, rustfmt_skip)]
+#[no_mangle]
+#[link_section = ".ccfg"]
+pub static CCFG_CONF: [u32; 22] = [
+        0x01800000,
+        0xFF820010,
+        0x0058FFFD,  // Independent of FLASH size)
+        0xF3BFFF3A,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+        0x00FFFFFF,
+        0xFFFFFFFF,
+        0xFFFFFF00,
+        0xFFC500C5,
+        0xFF000000,
+        0x00000000,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+        0xFFFFFFFF,
+];
 
 pub struct Platform {
 }

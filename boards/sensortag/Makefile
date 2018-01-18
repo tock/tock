@@ -8,7 +8,6 @@ include ../Makefile.common
 
 .PHONY: apps/$(APP)/build/$(TOCK_ARCH)/app.bin
 apps/$(APP)/build/$(TOCK_ARCH)/app.bin:
-	echo $(APP)
 	@make -C apps/$(APP) TOCK_ARCH=$(TOCK_ARCH)
 
 target/$(TARGET)/release/sensortag-$(APP): target/$(TARGET)/release/sensortag apps/$(APP)/build/$(TOCK_ARCH)/app.bin
