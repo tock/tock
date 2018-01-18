@@ -69,19 +69,7 @@ impl kernel::Platform for Platform {
 
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    // IOCFGn = n*4 hex
-    let iocbase = 0x40081000;
-    let iocfg10 = iocbase + 0x28;
-
-    let gpiobase = 0x40022000;
-    let doe = gpiobase + 0xD0;
-    //let dio8to10 = gpiobase + 0x08;
-
-    // Set DIO10 to output
-    *(iocfg10 as *mut u16) = 0x7000;
-    // Set DataEnable to 1
-    *(doe as *mut u32) = 0x400;
-    *((gpiobase + 0x00000090) as *mut u32) = 1 << 10;
+    *((0x20000040) as *mut u32) = 0xDEADBEEF;
     loop { }
 
     let platform = Platform { };
