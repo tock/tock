@@ -24,35 +24,56 @@ SECTIONS {
     .text :
     {
         _text = .;
+        /**
+         * Populate the header expected by `crt0`:
+         *
+         *
+         *  struct hdr {
+         *    uint32_t got_sym_start;
+         *    uint32_t got_start;
+         *    uint32_t got_size;
+         *    uint32_t data_sym_start;
+         *    uint32_t data_start;
+         *    uint32_t data_size;
+         *    uint32_t bss_start;
+         *    uint32_t bss_size;
+         *    uint32_t reldata_start;
+         *  };
+         */
+        /* Offset of GOT symbols in flash */
+        LONG(LOADADDR(.got) - _text);
+        /* Offset of GOT section in memory */
+        LONG(_got);
+        /* Size of GOT section */
+        LONG(SIZEOF(.got));
+        /* Offset of data symbols in flash */
+        LONG(LOADADDR(.data) - _text);
+        /* Offset of data section in memory */
+        LONG(_data);
+        /* Size of data section */
+        LONG(SIZEOF(.data));
+        /* Offset of BSS section in memory */
+        LONG(_sbss);
+        /* Size of BSS section */
+        LONG(SIZEOF(.bss));
+        /* First address offset after program flash, where elf2tbf places
+         * .rel.data section */
+        LONG(LOADADDR(.endsec) - _text);
+
         KEEP (*(.start))
         *(.text*)
         *(.rodata*)
         KEEP (*(.syscalls))
         _etext = .;
+        *(.ARM.extab*)
     } > FLASH =0xFF
+
 
 /* App state section. Used for persistent app data. */
     .app_state :
     {
         KEEP (*(.app_state))
     } > FLASH =0xFF
-
-/* ARM Exception support
- *
- * This contains compiler-generated support for unwinding the stack,
- * consisting of key-value pairs of function addresses and information on
- * how to unwind stack frames.
- * https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf
- *
- * .ARM.exidx is sorted, so has to go in its own output section.
- */
-    PROVIDE_HIDDEN (__exidx_start = .);
-    .ARM.exidx :
-    {
-      /* (C++) Index entries for section unwinding */
-      *(.ARM.exidx* .gnu.linkonce.armexidx.*)
-    } > FLASH
-    PROVIDE_HIDDEN (__exidx_end = .);
 
 /* Beginning of SRAM */
     _sram_start = .;
@@ -80,6 +101,7 @@ SECTIONS {
     } > SRAM AT > FLASH
 
 /* BSS section, static uninitialized variables */
+    _sbss = .;
     .bss :
     {
         _bss = .;
@@ -120,4 +142,25 @@ SECTIONS {
     } > SRAM
 
     _sram_end = .;
+    .endsec :
+    {
+    } > FLASH
+
+/* ARM Exception support
+ *
+ * This contains compiler-generated support for unwinding the stack,
+ * consisting of key-value pairs of function addresses and information on
+ * how to unwind stack frames.
+ * https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf
+ *
+ * .ARM.exidx is sorted, so has to go in its own output section.
+ */
+    PROVIDE_HIDDEN (__exidx_start = .);
+    .ARM.exidx :
+    {
+      /* (C++) Index entries for section unwinding */
+      *(.ARM.exidx* .gnu.linkonce.armexidx.*)
+    } > FLASH
+    PROVIDE_HIDDEN (__exidx_end = .);
+
 }

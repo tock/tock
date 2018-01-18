@@ -34,7 +34,7 @@ TOCK_ARCHS ?= cortex-m0 cortex-m4
 
 # This could be replaced with an installed version of `elf2tbf`
 ELF2TBF ?= cargo run --manifest-path $(TOCK_USERLAND_BASE_DIR)/tools/elf2tbf/Cargo.toml --
-ELF2TBF_ARGS += --include-pic-info -n $(PACKAGE_NAME)
+ELF2TBF_ARGS += -n $(PACKAGE_NAME)
 
 # Flags for building app Assembly, C, C++ files
 # n.b. make convention is that CPPFLAGS are shared for C and C++ sources
@@ -57,7 +57,8 @@ override CPPFLAGS += \
 	    -mfloat-abi=soft\
 	    -msingle-pic-base\
 	    -mpic-register=r9\
-	    -mno-pic-data-is-text-relative
+	    -mno-pic-data-is-text-relative\
+	    -DSTACK_SIZE=$(STACK_SIZE)
 
 # This allows Tock to add additional warnings for functions that frequently cause problems.
 # See the included header for more details.
