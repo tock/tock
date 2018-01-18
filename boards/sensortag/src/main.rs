@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(lang_items, compiler_builtins_lib)]
+#![feature(lang_items, compiler_builtins_lib, asm)]
 
 extern crate capsules;
 extern crate compiler_builtins;
@@ -12,6 +12,7 @@ extern crate kernel;
 extern crate cc2650;
 
 use core::fmt::{Arguments};
+use kernel::common::VolatileCell;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
@@ -30,7 +31,7 @@ static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 pub static CCFG_CONF: [u32; 22] = [
         0x01800000,
         0xFF820010,
-        0x0058FFFD,  // Independent of FLASH size)
+        0x0058FFFD,
         0xF3BFFF3A,
         0xFFFFFFFF,
         0xFFFFFFFF,
@@ -67,10 +68,92 @@ impl kernel::Platform for Platform {
     }
 }
 
+
+#[repr(C)]
+struct PRCM {
+    _r0: [VolatileCell<u8>; 0x28],
+
+    // Write 1 in order to load settings
+    clk_load_ctl: VolatileCell<u32>,
+
+    _r1: [VolatileCell<u8>; 0x1C],
+
+    gpio_clk_gate_run: VolatileCell<u32>,
+    gpio_clk_gate_sleep: VolatileCell<u32>,
+    gpio_clk_gate_deep_sleep: VolatileCell<u32>,
+
+    _r2: [VolatileCell<u8>; 0xD8],
+
+    // Power domain control 0
+    pd_ctl0: VolatileCell<u32>,
+    _pd_ctl0_rfc: VolatileCell<u32>,
+    _pd_ctl0_serial: VolatileCell<u32>,
+    _pd_ctl0_peripheral: VolatileCell<u32>,
+
+    _r3: [VolatileCell<u8>; 0x04],
+
+    // Power domain status 0
+    _pd_stat0: VolatileCell<u32>,
+    _pd_stat0_rfc: VolatileCell<u32>,
+    _pd_stat0_serial: VolatileCell<u32>,
+    pd_stat0_periph: VolatileCell<u32>,
+}
+
+const PRCM_BASE: u32 = 0x40082000;
+
 #[no_mangle]
 pub unsafe fn reset_handler() {
-    *((0x20000040) as *mut u32) = 0xDEADBEEF;
-    loop { }
+    let prcm = &*(PRCM_BASE as *const PRCM);
+
+    // PERIPH power domain on
+    prcm.pd_ctl0.set(0x4);
+
+    // Load values (peripherals should get power)
+    prcm.clk_load_ctl.set(1);
+
+    // Wait until peripheral power is on
+    while (prcm.pd_stat0_periph.get() & 1) != 1  {
+        asm!("nop;");
+    }
+
+    // Enable GPIO clocks
+    prcm.gpio_clk_gate_run.set(1);
+    prcm.gpio_clk_gate_sleep.set(1);
+    prcm.gpio_clk_gate_deep_sleep.set(1);
+
+    // Load values
+    prcm.clk_load_ctl.set(1);
+
+    // Setup DIO10
+    let iocbase = 0x40081000;
+    let iocfg10 = iocbase + 0x28;
+
+    // Enable data output on DIO10
+    let gpiobase = 0x40022000;
+    let doe = gpiobase + 0xD0;
+
+    // Set DIO10 to output
+    *(iocfg10 as *mut u16) = 0x7000;
+    // Set DataEnable to 1
+    *(doe as *mut u32) = 0x400;
+
+    loop {
+        // Set DIO10
+        *((gpiobase + 0x90) as *mut u32) |= 1 << 10;
+
+        // Small delay
+        for _i in 0..0x7FFFFF {
+            asm!("nop;");
+        }
+
+        // Clear DIO10
+        *((gpiobase + 0xA0) as *mut u32) |= 1 << 10;
+
+        // Small delay
+        for _i in 0..0x7FFFFF {
+            asm!("nop;");
+        }
+    }
 
     let platform = Platform { };
     let mut chip = cc2650::chip::cc2650::new();
