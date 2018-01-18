@@ -20,7 +20,7 @@ use usbc;
 
 pub struct Sam4l {
     pub mpu: cortexm4::mpu::MPU,
-    pub systick: &'static cortexm4::systick::SysTick,
+    pub systick: cortexm4::systick::SysTick,
 }
 
 impl Sam4l {
@@ -158,7 +158,7 @@ impl Chip for Sam4l {
     }
 
     fn systick(&self) -> &cortexm4::systick::SysTick {
-        self.systick
+        &self.systick
     }
 
     fn prepare_for_sleep(&self) {

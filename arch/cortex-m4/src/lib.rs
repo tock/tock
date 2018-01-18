@@ -33,10 +33,6 @@ pub unsafe extern "C" fn systick_handler() {
         ldr r1, [r1, #4]
         stmia r1, {r4-r11}
     _systick_handler_no_stacking:
-        ldr r0, =OVERFLOW_FIRED
-        mov r1, #1
-        str r1, [r0, #0]
-
         /* Set thread mode to privileged */
         mov r0, #0
         msr CONTROL, r0
