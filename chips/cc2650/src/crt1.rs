@@ -1,4 +1,4 @@
-use cortexm4::{nvic, systick_handler, SVC_Handler};
+use cortexm4::{generic_isr, nvic, systick_handler, SVC_Handler};
 
 extern "C" {
     // Symbols defined in the linker file
@@ -43,42 +43,42 @@ pub static BASE_VECTORS: [unsafe extern fn(); 50] = [
     unhandled_interrupt, // Reserved
     unhandled_interrupt, // PendSV
     systick_handler, // Systick
-    unhandled_interrupt, // GPIO Int handler
-    unhandled_interrupt, // I2C
-    unhandled_interrupt, // RF Core Command & Packet Engine 1
-    unhandled_interrupt, // AON SpiSplave Rx, Tx and CS
-    unhandled_interrupt, // AON RTC
-    unhandled_interrupt, // UART0 Rx and Tx
-    unhandled_interrupt, // AUX software event 0
-    unhandled_interrupt, // SSI0 Rx and Tx
-    unhandled_interrupt, // SSI1 Rx and Tx
-    unhandled_interrupt, // RF Core Command & Packet Engine 0
-    unhandled_interrupt, // RF Core Hardware
-    unhandled_interrupt, // RF Core Command Acknowledge
-    unhandled_interrupt, // I2S
-    unhandled_interrupt, // AUX software event 1
-    unhandled_interrupt, // Watchdog timer
-    unhandled_interrupt, // Timer 0 subtimer A
-    unhandled_interrupt, // Timer 0 subtimer B
-    unhandled_interrupt, // Timer 1 subtimer A
-    unhandled_interrupt, // Timer 1 subtimer B
-    unhandled_interrupt, // Timer 2 subtimer A
-    unhandled_interrupt, // Timer 2 subtimer B
-    unhandled_interrupt, // Timer 3 subtimer A
-    unhandled_interrupt, // Timer 3 subtimer B
-    unhandled_interrupt, // Crypto Core Result available
-    unhandled_interrupt, // uDMA Software
-    unhandled_interrupt, // uDMA Error
-    unhandled_interrupt, // Flash controller
-    unhandled_interrupt, // Software Event 0
-    unhandled_interrupt, // AUX combined event
-    unhandled_interrupt, // AON programmable 0
-    unhandled_interrupt, // Dynamic Programmable interrupt
+    generic_isr, // GPIO Int handler
+    generic_isr, // I2C
+    generic_isr, // RF Core Command & Packet Engine 1
+    generic_isr, // AON SpiSplave Rx, Tx and CS
+    generic_isr, // AON RTC
+    generic_isr, // UART0 Rx and Tx
+    generic_isr, // AUX software event 0
+    generic_isr, // SSI0 Rx and Tx
+    generic_isr, // SSI1 Rx and Tx
+    generic_isr, // RF Core Command & Packet Engine 0
+    generic_isr, // RF Core Hardware
+    generic_isr, // RF Core Command Acknowledge
+    generic_isr, // I2S
+    generic_isr, // AUX software event 1
+    generic_isr, // Watchdog timer
+    generic_isr, // Timer 0 subtimer A
+    generic_isr, // Timer 0 subtimer B
+    generic_isr, // Timer 1 subtimer A
+    generic_isr, // Timer 1 subtimer B
+    generic_isr, // Timer 2 subtimer A
+    generic_isr, // Timer 2 subtimer B
+    generic_isr, // Timer 3 subtimer A
+    generic_isr, // Timer 3 subtimer B
+    generic_isr, // Crypto Core Result available
+    generic_isr, // uDMA Software
+    generic_isr, // uDMA Error
+    generic_isr, // Flash controller
+    generic_isr, // Software Event 0
+    generic_isr, // AUX combined event
+    generic_isr, // AON programmable 0
+    generic_isr, // Dynamic Programmable interrupt
     // source (Default: PRCM)
-    unhandled_interrupt, // AUX Comparator A
-    unhandled_interrupt, // AUX ADC new sample or ADC DMA
+    generic_isr, // AUX Comparator A
+    generic_isr, // AUX ADC new sample or ADC DMA
     // done, ADC underflow, ADC overflow
-    unhandled_interrupt  // TRNG event
+    generic_isr  // TRNG event
 ];
 
 #[no_mangle]
