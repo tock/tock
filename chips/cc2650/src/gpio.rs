@@ -13,3 +13,5 @@ struct GpioRegisters {
     _r5: [u8; 0xC],
     _evflags31_0: Volatile<u32>,
 }
+
+const GPIO_BASE: usize = 0x4002_2000;

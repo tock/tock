@@ -27,3 +27,5 @@ struct PrcmRegisters {
     _pd_stat0_serial: VolatileCell<u32>,
     pd_stat0_periph: VolatileCell<u32>,
 }
+
+const PRCM_BASE: usize = 0x4008_2000;
