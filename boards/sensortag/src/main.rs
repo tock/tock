@@ -156,7 +156,7 @@ pub unsafe fn reset_handler() {
     }
 
     let platform = Platform { };
-    let mut chip = cc2650::chip::cc2650::new();
+    let mut chip = cc2650::chip::Cc2650::new();
 
     debug!("Initialization complete. Entering main loop\r");
     extern "C" {

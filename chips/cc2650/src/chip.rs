@@ -1,13 +1,13 @@
 use cortexm4::nvic;
 use kernel;
 
-pub struct cc2650(());
+pub struct Cc2650(());
 
-impl cc2650 {
-    pub unsafe fn new() -> cc2650 { cc2650(()) }
+impl Cc2650 {
+    pub unsafe fn new() -> Cc2650 { Cc2650(()) }
 }
 
-impl kernel::Chip for cc2650 {
+impl kernel::Chip for Cc2650 {
     type MPU = ();
     type SysTick = ();
 
