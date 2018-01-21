@@ -114,8 +114,8 @@ $ sudo pacman -S arm-none-eabi-gcc arm-none-eabi-newlib arm-none-eabi-gdb
 
 You can download precompiled binaries for Windows from the ARM site listed
 above. While we expect things should work on Windows, none of the active Tock
-developers currently develop on Windows, so it is possible that are some
-unexpected pitfalls.
+developers currently develop on Windows, so it is possible that there are
+some unexpected pitfalls.
 
 ##### Other
 
