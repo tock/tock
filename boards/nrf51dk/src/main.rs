@@ -50,7 +50,6 @@ extern crate nrf5x;
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
-use kernel::hil::symmetric_encryption::SymmetricEncryption;
 use kernel::hil::uart::UART;
 use nrf5x::pinmux::Pinmux;
 use nrf5x::rtc::{Rtc, RTC};
@@ -84,12 +83,10 @@ static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
 pub struct Platform {
-    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
-    ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
-        'static,
-        nrf51::radio::Radio,
-        VirtualMuxAlarm<'static, Rtc>,
-    >,
+    // aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
+    ble_radio: &'static nrf5x::ble_advertising_driver::BLE<'static,
+                                                           nrf51::radio::Radio,
+                                                           VirtualMuxAlarm<'static, Rtc>>,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
@@ -111,7 +108,7 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
+            // capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
             nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             _ => f(None),
@@ -279,19 +276,16 @@ pub unsafe fn reset_handler() {
     );
     nrf5x::trng::TRNG.set_client(rng);
 
-    let aes = static_init!(
-        capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
-        capsules::symmetric_encryption::Crypto::new(
-            &mut nrf5x::aes::AESECB,
-            kernel::Grant::create(),
-            &mut capsules::symmetric_encryption::KEY,
-            &mut capsules::symmetric_encryption::BUF,
-            &mut capsules::symmetric_encryption::IV
-        ),
-        288 / 8
-    );
-    nrf5x::aes::AESECB.ecb_init();
-    SymmetricEncryption::set_client(&nrf5x::aes::AESECB, aes);
+    // let aes = static_init!(
+    //     capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
+    //     capsules::symmetric_encryption::Crypto::new(&mut nrf5x::aes::AESECB,
+    //                                                 kernel::Grant::create(),
+    //                                                 &mut capsules::symmetric_encryption::KEY,
+    //                                                 &mut capsules::symmetric_encryption::BUF,
+    //                                                 &mut capsules::symmetric_encryption::IV),
+    //     288/8);
+    // nrf5x::aes::AESECB.ecb_init();
+    // SymmetricEncryption::set_client(&nrf5x::aes::AESECB, aes);
 
     let ble_radio = static_init!(
         nrf5x::ble_advertising_driver::BLE<
@@ -329,7 +323,7 @@ pub unsafe fn reset_handler() {
     while !nrf5x::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        aes: aes,
+        // aes: aes,
         ble_radio: ble_radio,
         button: button,
         console: console,

@@ -179,10 +179,6 @@ impl<'a> AesECB<'a> {
 
                 });
             }
-            // FIXME: else ERROR encrypt error do nothing
-            else {
-                debug!("error empty TakeCell");
-            }
 
             self.keystream.set(ks);
         }
@@ -284,13 +280,5 @@ impl<'a> kernel::hil::symmetric_encryption::AES128Ctr for AesECB<'a> {
     // not needed by NRF5x (the configuration is the same for encryption and decryption)
     fn set_mode_aes128ctr(&self, _encrypting: bool) {
         ()
-    }
-}
-
-// FIXME: implemented inorder to avoid modify the trait bounds on capsules/test/aes.rs
-impl<'a> kernel::hil::symmetric_encryption::AES128CBC for AesECB<'a> {
-    // the mode is not supported and will be a runtime error
-    fn set_mode_aes128cbc(&self, _encrypting: bool) {
-        unimplemented!()
     }
 }
