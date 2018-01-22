@@ -8,11 +8,9 @@ extern crate compiler_builtins;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
-
 extern crate cc2650;
 
 use core::fmt::{Arguments};
-use kernel::common::VolatileCell;
 
 // Only used for testing gpio driver
 use cc2650::gpio::GPIOPin;
