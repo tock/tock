@@ -1,5 +1,6 @@
 use cortexm4::nvic;
 use kernel;
+use gpio;
 
 pub struct Cc2650(());
 

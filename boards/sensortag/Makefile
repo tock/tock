@@ -15,5 +15,3 @@ target/$(TARGET)/release/sensortag-$(APP): target/$(TARGET)/release/sensortag ap
 	  --set-section-flags .apps=alloc,code \
 	  target/$(TARGET)/release/sensortag $@
 
-target/$(TARGET)/release/sensortag-$(APP).hex: target/$(TARGET)/release/sensortag-$(APP)
-	@$(OBJCOPY) -Oihex $^ $@

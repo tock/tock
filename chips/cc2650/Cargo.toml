@@ -7,6 +7,3 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
 bitfield = "0.11.0"
-
-[features]
-default = []

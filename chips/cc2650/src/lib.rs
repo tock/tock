@@ -7,10 +7,11 @@ extern crate cortexm4;
 #[macro_use(debug)]
 extern crate kernel;
 
-#[macro_use]
 extern crate bitfield;
 
 pub mod chip;
 pub mod crt1;
+pub mod gpio;
+pub mod peripheral_registers;
 
 pub use crt1::init;

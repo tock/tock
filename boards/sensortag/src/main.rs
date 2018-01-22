@@ -14,6 +14,11 @@ extern crate cc2650;
 use core::fmt::{Arguments};
 use kernel::common::VolatileCell;
 
+// Only used for testing gpio driver
+use cc2650::gpio::GPIOPin;
+use cc2650::peripheral_registers::{PRCM, PRCM_BASE};
+use kernel::hil::gpio::Pin;
+
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
@@ -53,6 +58,12 @@ pub static CCFG_CONF: [u32; 22] = [
         0xFFFFFFFF,
 ];
 
+unsafe fn delay() {
+    for _i in 0..0x2FFFFF {
+        asm!("nop;");
+    }
+}
+
 pub struct Platform {
 }
 
@@ -68,39 +79,6 @@ impl kernel::Platform for Platform {
     }
 }
 
-
-#[repr(C)]
-struct PRCM {
-    _r0: [VolatileCell<u8>; 0x28],
-
-    // Write 1 in order to load settings
-    clk_load_ctl: VolatileCell<u32>,
-
-    _r1: [VolatileCell<u8>; 0x1C],
-
-    gpio_clk_gate_run: VolatileCell<u32>,
-    gpio_clk_gate_sleep: VolatileCell<u32>,
-    gpio_clk_gate_deep_sleep: VolatileCell<u32>,
-
-    _r2: [VolatileCell<u8>; 0xD8],
-
-    // Power domain control 0
-    pd_ctl0: VolatileCell<u32>,
-    _pd_ctl0_rfc: VolatileCell<u32>,
-    _pd_ctl0_serial: VolatileCell<u32>,
-    _pd_ctl0_peripheral: VolatileCell<u32>,
-
-    _r3: [VolatileCell<u8>; 0x04],
-
-    // Power domain status 0
-    _pd_stat0: VolatileCell<u32>,
-    _pd_stat0_rfc: VolatileCell<u32>,
-    _pd_stat0_serial: VolatileCell<u32>,
-    pd_stat0_periph: VolatileCell<u32>,
-}
-
-const PRCM_BASE: u32 = 0x40082000;
-
 #[no_mangle]
 pub unsafe fn reset_handler() {
     let prcm = &*(PRCM_BASE as *const PRCM);
@@ -108,51 +86,19 @@ pub unsafe fn reset_handler() {
     // PERIPH power domain on
     prcm.pd_ctl0.set(0x4);
 
-    // Load values (peripherals should get power)
-    prcm.clk_load_ctl.set(1);
-
     // Wait until peripheral power is on
-    while (prcm.pd_stat0_periph.get() & 1) != 1  {
-        asm!("nop;");
-    }
+    while (prcm.pd_stat0_periph.get() & 1) != 1 {}
 
     // Enable GPIO clocks
     prcm.gpio_clk_gate_run.set(1);
-    prcm.gpio_clk_gate_sleep.set(1);
-    prcm.gpio_clk_gate_deep_sleep.set(1);
-
-    // Load values
     prcm.clk_load_ctl.set(1);
 
-    // Setup DIO10
-    let iocbase = 0x40081000;
-    let iocfg10 = iocbase + 0x28;
-
-    // Enable data output on DIO10
-    let gpiobase = 0x40022000;
-    let doe = gpiobase + 0xD0;
-
-    // Set DIO10 to output
-    *(iocfg10 as *mut u16) = 0x7000;
-    // Set DataEnable to 1
-    *(doe as *mut u32) = 0x400;
+    let pin: GPIOPin = GPIOPin::new(10);
+    pin.make_output();
 
     loop {
-        // Set DIO10
-        *((gpiobase + 0x90) as *mut u32) |= 1 << 10;
-
-        // Small delay
-        for _i in 0..0x7FFFFF {
-            asm!("nop;");
-        }
-
-        // Clear DIO10
-        *((gpiobase + 0xA0) as *mut u32) |= 1 << 10;
-
-        // Small delay
-        for _i in 0..0x7FFFFF {
-            asm!("nop;");
-        }
+        pin.toggle();
+        delay();
     }
 
     let platform = Platform { };
