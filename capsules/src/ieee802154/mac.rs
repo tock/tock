@@ -653,45 +653,8 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
             })
     }
 
-    /// Advances the reception pipeline if it can be advanced.
+ /// Advances the reception pipeline if it can be advanced.
     fn step_receive_state(&self) {
-<<<<<<< HEAD
-        self.rx_state.take().map(|state| {
-            let (next_state, buf) = match state {
-                RxState::Idle => (RxState::Idle, None),
-                RxState::ReadyToDecrypt(info, buf) => {
-                    match info.security_params {
-                        None => {
-                            // `ReadyToDecrypt` should only be entered when
-                            // `security_params` is not `None`.
-                            (RxState::Idle, Some(buf))
-                        }
-                        Some((_, key, nonce)) => {
-                            let (m_off, m_len) = info.ccm_encrypt_ranges();
-                            let (a_off, m_off) = (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
-
-                            if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS
-                                || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
-                            {
-                                (RxState::Idle, Some(buf))
-                            } else {
-                                let (res, opt_buf) = self.aes_ccm.crypt(
-                                    buf,
-                                    a_off,
-                                    m_off,
-                                    m_len,
-                                    info.mic_len,
-                                    true,
-                                );
-                                match res {
-                                    ReturnCode::SUCCESS => (RxState::Decrypting(info), None),
-                                    ReturnCode::EBUSY => {
-                                        let buf = match opt_buf {
-                                            Some(buf) => buf,
-                                            None => panic!("aes_ccm did not return the buffer"),
-                                        };
-                                        (RxState::ReadyToDecrypt(info, buf), None)
-=======
         self.rx_state
             .take()
             .map(|state| {
@@ -725,58 +688,53 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                                             (RxState::ReadyToDecrypt(info, buf), None)
                                         }
                                         _ => (RxState::Idle, opt_buf),
->>>>>>> Use aes_ccm module for link-layer encryption in MacDevice
                                     }
-                                    _ => (RxState::Idle, opt_buf),
                                 }
                             }
                         }
                     }
-                }
-                RxState::Decrypting(info) => {
-                    // This state should be advanced only by the hardware
-                    // encryption callback.
-                    (RxState::Decrypting(info), None)
-                }
-                RxState::ReadyToYield(info, buf) => {
-                    // Between the secured and unsecured frames, the
-                    // unsecured frame length remains constant but the data
-                    // offsets may change due to the presence of PayloadIEs.
-                    // Hence, we can only use the unsecured length from the
-                    // frame info, but not the offsets.
-                    let frame_len = info.unsecured_length();
-                    if let Some((data_offset, (header, _))) =
-                        Header::decode(&buf[radio::PSDU_OFFSET..], true).done()
-                    {
-                        // IEEE 802.15.4-2015 specifies that unsecured
-                        // frames do not have auxiliary security headers,
-                        // but we do not remove the auxiliary security
-                        // header before returning the frame to the client.
-                        // This is so that it is possible to tell if the
-                        // frame was secured or unsecured, while still
-                        // always receiving the frame payload in plaintext.
-                        self.rx_client.get().map(|client| {
-                            client.receive(
-                                &buf,
-                                header,
-                                radio::PSDU_OFFSET + data_offset,
-                                frame_len - data_offset,
-                            );
-                        });
+                    RxState::Decrypting(info) => {
+                        // This state should be advanced only by the hardware
+                        // encryption callback.
+                        (RxState::Decrypting(info), None)
                     }
-                    (RxState::Idle, Some(buf))
-                }
-                RxState::ReadyToReturn(buf) => (RxState::Idle, Some(buf)),
-            };
-            self.rx_state.replace(next_state);
+                    RxState::ReadyToYield(info, buf) => {
+                        // Between the secured and unsecured frames, the
+                        // unsecured frame length remains constant but the data
+                        // offsets may change due to the presence of PayloadIEs.
+                        // Hence, we can only use the unsecured length from the
+                        // frame info, but not the offsets.
+                        let frame_len = info.unsecured_length();
+                        if let Some((data_offset, (header, _))) =
+                            Header::decode(&buf[radio::PSDU_OFFSET..], true).done() {
+                            // IEEE 802.15.4-2015 specifies that unsecured
+                            // frames do not have auxiliary security headers,
+                            // but we do not remove the auxiliary security
+                            // header before returning the frame to the client.
+                            // This is so that it is possible to tell if the
+                            // frame was secured or unsecured, while still
+                            // always receiving the frame payload in plaintext.
+                            self.rx_client.get().map(|client| {
+                                client.receive(&buf,
+                                               header,
+                                               radio::PSDU_OFFSET + data_offset,
+                                               frame_len - data_offset);
+                            });
+                        }
+                        (RxState::Idle, Some(buf))
+                    }
+                    RxState::ReadyToReturn(buf) => (RxState::Idle, Some(buf)),
+                };
+                self.rx_state.replace(next_state);
 
-            // Return the buffer to the radio if we are done with it.
-            if let Some(buf) = buf {
-                self.radio.set_receive_buffer(buf);
-            }
-        });
+                // Return the buffer to the radio if we are done with it.
+                if let Some(buf) = buf {
+                    self.radio.set_receive_buffer(buf);
+                }
+            });
     }
 }
+
 
 impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> Mac<'a> for MacDevice<'a, R, A> {
     fn set_transmit_client(&self, client: &'a TxClient) {
@@ -1007,15 +965,9 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> CCMClient for MacDevice<'a
 
                     if let Some(buf) = opt_buf {
                         // Abort the transmission process. Return the buffer to the client.
-<<<<<<< HEAD
-                        self.tx_client.get().map(move |client| {
-                            client.send_done(buf, false, rval);
-                        });
-=======
                         self.tx_client
                             .get()
                             .map(move |client| { client.send_done(buf, false, rval); });
->>>>>>> Use aes_ccm module for link-layer encryption in MacDevice
                     }
                     None
                 }
@@ -1061,9 +1013,7 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> CCMClient for MacDevice<'a
             let (rval, opt_buf) = self.step_transmit_state();
             if let Some(buf) = opt_buf {
                 // Return the buffer to the client.
-                self.tx_client.get().map(move |client| {
-                    client.send_done(buf, false, rval);
-                });
+                self.tx_client.get().map(move |client| { client.send_done(buf, false, rval); });
             }
         } else if rx_waiting {
             self.step_receive_state();

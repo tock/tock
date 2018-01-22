@@ -135,6 +135,8 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Clien
 
         // Take back the destination buffer
         self.data.replace(dest);
+        
+
 
         let expected = if self.encrypting.get() {
             if self.mode_ctr.get() {
@@ -147,6 +149,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> hil::symmetric_encryption::Clien
         };
 
         if self.data.map_or(false, |data| {
+            // panic!("PASS: {:?}", &data[0..DATA_LEN] == expected.as_ref());
             &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()
         }) {
             debug!("OK! ({} {} {})",
