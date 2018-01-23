@@ -13,7 +13,7 @@ extern crate cc2650;
 use core::fmt::{Arguments};
 
 // Only used for testing gpio driver
-use cc2650::gpio::GPIOPin;
+use cc2650::gpio;
 use cc2650::peripheral_registers::{PRCM, PRCM_BASE};
 use kernel::hil::gpio::Pin;
 
@@ -63,11 +63,11 @@ pub unsafe fn reset_handler() {
     prcm.gpio_clk_gate_run.set(1);
     prcm.clk_load_ctl.set(1);
 
-    let pin: GPIOPin = GPIOPin::new(10);
-    pin.make_output();
+    gpio::PORT[10].make_output();
+    gpio::PORT[10].set();
 
     loop {
-        pin.toggle();
+        //PORT[10].toggle();
         delay();
     }
 

@@ -21,7 +21,7 @@ pub struct GPIOPin {
 }
 
 impl GPIOPin {
-    pub const fn new(pin: u8) -> GPIOPin {              // REMOVE: pub !!!!!!
+    const fn new(pin: u8) -> GPIOPin {
         GPIOPin {
             pin,
             pin_mask: 1 << ((pin as usize) % NUM_PINS),
@@ -98,3 +98,58 @@ impl hil::gpio::Pin for GPIOPin {
         pin_cnf.set(pin_cnf.get() & !(1 << IOC_EDGE_IRQ_EN));
     }
 }
+
+pub struct Port {
+    pins: [GPIOPin; NUM_PINS],
+}
+
+impl Index<usize> for Port {
+    type Output = GPIOPin;
+
+    fn index(&self, index: usize) -> &GPIOPin {
+        &self.pins[index]
+    }
+}
+
+impl IndexMut<usize> for Port {
+    fn index_mut(&mut self, index: usize) -> &mut GPIOPin {
+        &mut self.pins[index]
+    }
+}
+
+pub static mut PORT: Port = Port {
+    pins: [
+        GPIOPin::new(0),
+        GPIOPin::new(1),
+        GPIOPin::new(2),
+        GPIOPin::new(3),
+        GPIOPin::new(4),
+        GPIOPin::new(5),
+        GPIOPin::new(6),
+        GPIOPin::new(7),
+        GPIOPin::new(8),
+        GPIOPin::new(9),
+        GPIOPin::new(10),
+        GPIOPin::new(11),
+        GPIOPin::new(12),
+        GPIOPin::new(13),
+        GPIOPin::new(14),
+        GPIOPin::new(15),
+        GPIOPin::new(16),
+        GPIOPin::new(17),
+        GPIOPin::new(18),
+        GPIOPin::new(19),
+        GPIOPin::new(20),
+        GPIOPin::new(21),
+        GPIOPin::new(22),
+        GPIOPin::new(23),
+        GPIOPin::new(24),
+        GPIOPin::new(25),
+        GPIOPin::new(26),
+        GPIOPin::new(27),
+        GPIOPin::new(28),
+        GPIOPin::new(29),
+        GPIOPin::new(30),
+        GPIOPin::new(31),
+    ],
+};
