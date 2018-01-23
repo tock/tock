@@ -21,7 +21,7 @@ pub struct GPIOPin {
 }
 
 impl GPIOPin {
-    pub const fn new(pin: u8) -> GPIOPin {     // remove pub
+    const fn new(pin: u8) -> GPIOPin {
         GPIOPin {
             pin,
             pin_mask: 1 << ((pin as usize) % NUM_PINS),

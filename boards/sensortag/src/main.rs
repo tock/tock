@@ -34,11 +34,6 @@ unsafe fn delay() {
     }
 }
 
-#[repr(C)]
-pub struct DEBUG {
-    pub val: VolatileCell<u32>,
-}
-
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, cc2650::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, cc2650::gpio::GPIOPin>,
@@ -59,6 +54,8 @@ impl kernel::Platform for Platform {
 
 #[no_mangle]
 pub unsafe fn reset_handler() {
+    cc2650::init();
+
     let prcm = &*(PRCM_BASE as *const PRCM);
 
     // PERIPH power domain on
@@ -77,11 +74,11 @@ pub unsafe fn reset_handler() {
         [
             (
                 &cc2650::gpio::PORT[10],
-                capsules::led::ActivationMode::ActiveLow
+                capsules::led::ActivationMode::ActiveHigh
             ), // Red
             (
                 &cc2650::gpio::PORT[15],
-                capsules::led::ActivationMode::ActiveLow
+                capsules::led::ActivationMode::ActiveHigh
             ), // Green
         ]
     );
@@ -152,14 +149,6 @@ pub unsafe fn reset_handler() {
     );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
-    }
-
-    let pin: cc2650::gpio::GPIOPin = cc2650::gpio::GPIOPin::new(15);
-    pin.make_output();
-
-    loop {
-        pin.toggle();
-        delay();
     }
 
     let sensortag = Platform {
