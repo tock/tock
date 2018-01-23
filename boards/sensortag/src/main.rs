@@ -13,9 +13,7 @@ extern crate cc2650;
 use core::fmt::{Arguments};
 
 // Only used for testing gpio driver
-use kernel::common::VolatileCell;
 use cc2650::peripheral_registers::{PRCM, PRCM_BASE};
-use kernel::hil::gpio::Pin;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
