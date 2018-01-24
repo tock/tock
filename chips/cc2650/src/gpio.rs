@@ -38,6 +38,12 @@ impl GPIOPin {
     pub fn set_client<C: hil::gpio::Client>(&self, client: &'static C) {
         self.client.set(Some(client));
     }
+
+    pub fn handle_interrupt(&self) {
+        self.client.get().map(|client| {
+            client.fired(self.client_data.get());
+        });
+    }
 }
 
 impl hil::gpio::PinCtl for GPIOPin {
@@ -114,6 +120,25 @@ impl Index<usize> for Port {
 impl IndexMut<usize> for Port {
     fn index_mut(&mut self, index: usize) -> &mut GPIOPin {
         &mut self.pins[index]
+    }
+}
+
+impl Port {
+    pub fn handle_interrupt(&self) {
+        let evflags = &GPIO().evflags;
+        let mut pin_mask = evflags.get();
+
+        evflags.set(pin_mask); // Clear interrupts
+
+        loop {
+            let pin = pin_mask.trailing_zeros() as usize;
+            if pin < self.pins.len() {
+                pin_mask &= !(1 << pin);
+                self.pins[pin].handle_interrupt();
+            } else {
+                break;
+            }
+        }
     }
 }
 
