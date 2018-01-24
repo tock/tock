@@ -14,5 +14,6 @@ pub mod crt1;
 pub mod gpio;
 pub mod peripheral_registers;
 pub mod ccfg;
+pub mod peripheral_interrupts;
 
 pub use crt1::init;
