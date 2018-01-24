@@ -1,5 +1,7 @@
 use cortexm4::nvic;
 use kernel;
+use peripheral_interrupts::*;
+use gpio;
 
 pub struct Cc2650(());
 
@@ -22,6 +24,10 @@ impl kernel::Chip for Cc2650 {
     fn service_pending_interrupts(&mut self) {
         unsafe {
             while let Some(interrupt) = nvic::next_pending() {
+                match interrupt {
+                    GPIO => gpio::PORT.handle_interrupt(),
+                    _ => panic!("unhandled interrupt {}", interrupt),
+                }
                 let n = nvic::Nvic::new(interrupt);
                 n.clear_pending();
                 n.enable();
