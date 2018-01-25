@@ -41,8 +41,6 @@ pub mod usbc;
 
 use cortexm4::{generic_isr, systick_handler, SVC_Handler};
 
-pub mod regs;
-
 unsafe extern "C" fn unhandled_interrupt() {
     let mut interrupt_number: u32;
 
