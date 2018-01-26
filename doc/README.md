@@ -31,6 +31,7 @@ are specified.
 ### Tock Setup and Usage
 - **[Getting Started](Getting_Started.md)** - Installing the Tock toolchain and programming hardware.
 - **[Porting Tock](Porting.md)** - Guide to add new platforms.
+- **[Out of Tree Boards](OutOfTree.md)** - Best practices for maintaining boards not in Tock master
 
 ### Tutorials and Courses
 - **[Quick Tutorials](tutorials)** - Specific tutorials that walk through features of Tock.
