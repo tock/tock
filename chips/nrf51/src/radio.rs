@@ -16,6 +16,8 @@ use kernel;
 use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::ble_advertising_hil::RadioChannel;
+use nrf5x::ble_advertising_driver::BLEAdvertisementType;
+use nrf5x::ble_advertising_driver::BLEPduType;
 use nrf5x::constants::TxPower;
 use peripheral_registers;
 
@@ -59,8 +61,8 @@ impl Radio {
         regs.prefix0.set(0x0000008e);
         regs.base0.set(0x89bed600);
 
-        self.set_tx_address(0x00);
-        self.set_rx_address(0x01);
+        self.set_tx_address(0x00);  //If 1 - Transmit address select
+        self.set_rx_address(0x01);  //If 1 - Receive address select
 
         // Set Packet Config
         self.set_packet_config(0x00);
@@ -190,9 +192,12 @@ impl Radio {
             regs.address.set(0);
         }
 
+        //debug!("Regs state: {}, end = {}", regs.state.get(), regs.end.get());
+
         if regs.end.get() == 1 {
+            //debug!("End == 1");
             regs.end.set(0);
-            regs.disable.set(1);
+            //regs.disable.set(1);
 
             let result = if regs.crcstatus.get() == 1 {
                 ReturnCode::SUCCESS
@@ -200,12 +205,33 @@ impl Radio {
                 ReturnCode::FAIL
             };
 
+            unsafe {
+                let parsed_type = BLEAdvertisementType::from_u8(PAYLOAD[0] & 0x0f);
+                debug!("Payload header: {}", &PAYLOAD[0] & 0xff);
+                debug!("Payload length: {}", &PAYLOAD[1]);
+                //debug!("Payload shift: {}", (PAYLOAD[0] >> 4) & 0x0f);
+                //let parsed_type = BLEAdvertisementType::from_u8((PAYLOAD[0]) & 0x0f);
+
+                //debug!("Strange: {:b}", regs.pcnf1.get());
+
+                //debug!("Paylaod: {:?}", &PAYLOAD[..]);
+
+                let pdu = parsed_type.map(|adv_type| BLEPduType::from_buffer(adv_type, &PAYLOAD[..]) );
+
+                if let Some(pdu) = pdu {
+                    debug!("{:?}", pdu);
+                }
+
+                //debug!("rx Optional is present: {}", self.rx_client.get().is_some());
+                //debug!("tx Optional is present: {}", self.tx_client.get().is_some());
+                //debug!("Regs state: {:?}", regs.state.get());
+            }
+
             match regs.state.get() {
                 nrf5x::constants::RADIO_STATE_TXRU
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
-                    self.radio_off();
                     self.tx_client
                         .get()
                         .map(|client| client.transmit_event(result));
@@ -214,7 +240,6 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
-                    self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
                             client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)

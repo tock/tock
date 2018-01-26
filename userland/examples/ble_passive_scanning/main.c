@@ -30,6 +30,7 @@ struct Vector scan_list = {.data = (unsigned char (*)[BUF_SIZE])data,
 
 static void callback(int result, int len, __attribute__((unused)) int unused2,
                      __attribute__((unused)) void *ud) {
+  printf("CALLBACK\n");
   if (result == TOCK_SUCCESS) {
     if (!listFull() && validAdType(scan[0]) && !isDetected()) {
       memcpy(scan_list.data[scan_list.size], scan, len);
