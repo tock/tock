@@ -284,20 +284,11 @@ impl DeviceAddress {
 
 impl fmt::Debug for DeviceAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
+        write!(f, "{:0>2x}:{:0>2x}:{:0>2x}:{:0>2x}:{:0>2x}:{:0>2x}",
                self.0[5], self.0[4], self.0[3],
                self.0[2], self.0[1], self.0[0])
     }
 }
-/*
-impl fmt::Debug for DeviceAddress {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
-               self.0[0], self.0[1], self.0[2],
-               self.0[3], self.0[4], self.0[5])
-    }
-}
-*/
 
 #[allow(unused)]
 struct LLData {
@@ -336,20 +327,6 @@ impl <'a> BLEPduType<'a> {
         }
     }
 }
-
-/*impl <'a> BLEPduType<'a> {
-    pub fn from_buffer(pdu_type: BLEAdvertisementType, buf: &[u8]) -> BLEPduType {
-        match pdu_type {
-            BLEAdvertisementType::ConnectUndirected => BLEPduType::ConnectUndirected(DeviceAddress::new(&buf[2..8]), &buf[8..]),
-            BLEAdvertisementType::ConnectDirected => BLEPduType::ConnectDirected(DeviceAddress::new(&buf[2..8]), DeviceAddress::new(&buf[8..14])),
-            BLEAdvertisementType::NonConnectUndirected => BLEPduType::NonConnectDirected(DeviceAddress::new(&buf[2..8]), &buf[8..]),
-            BLEAdvertisementType::ScanUndirected => BLEPduType::ScanUndirected(DeviceAddress::new(&buf[2..8]), &buf[8..]),
-            BLEAdvertisementType::ScanRequest => BLEPduType::ScanRequest(DeviceAddress::new(&buf[2..8]), DeviceAddress::new(&buf[8..14])),
-            BLEAdvertisementType::ScanResponse => BLEPduType::ScanResponse(DeviceAddress::new(&buf[2..8]), &buf[8..]),
-            BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[2..8]), DeviceAddress::new(&buf[8..14]), &buf[14..]),
-        }
-    }
-}*/
 
 // ConnectUndirected (ADV_IND): connectable undirected advertising event
 // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.1.1

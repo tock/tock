@@ -209,22 +209,12 @@ impl Radio {
                 let parsed_type = BLEAdvertisementType::from_u8(PAYLOAD[0] & 0x0f);
                 debug!("Payload header: {}", &PAYLOAD[0] & 0xff);
                 debug!("Payload length: {}", &PAYLOAD[1]);
-                //debug!("Payload shift: {}", (PAYLOAD[0] >> 4) & 0x0f);
-                //let parsed_type = BLEAdvertisementType::from_u8((PAYLOAD[0]) & 0x0f);
-
-                //debug!("Strange: {:b}", regs.pcnf1.get());
-
-                //debug!("Paylaod: {:?}", &PAYLOAD[..]);
 
                 let pdu = parsed_type.map(|adv_type| BLEPduType::from_buffer(adv_type, &PAYLOAD[..]) );
 
-                if let Some(pdu) = pdu {
-                    debug!("{:?}", pdu);
+                if let Some(BLEPduType::ScanRequest(a1, a2)) = pdu {
+                    debug!("ScanRequest {:?} {:?}", a1, a2);
                 }
-
-                //debug!("rx Optional is present: {}", self.rx_client.get().is_some());
-                //debug!("tx Optional is present: {}", self.tx_client.get().is_some());
-                //debug!("Regs state: {:?}", regs.state.get());
             }
 
             match regs.state.get() {
