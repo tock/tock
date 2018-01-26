@@ -117,6 +117,13 @@ pub enum RadioChannel {
 }
 
 impl RadioChannel {
+    pub fn get_next_advertising_channel(&self) -> Option<RadioChannel> {
+        match *self {
+            RadioChannel::AdvertisingChannel37 => Some(RadioChannel::AdvertisingChannel38),
+            RadioChannel::AdvertisingChannel38 => Some(RadioChannel::AdvertisingChannel39),
+            _ => None
+        }
+    }
     pub fn get_channel_index(&self) -> u32 {
         match *self {
             RadioChannel::DataChannel0 => 0,

@@ -272,6 +272,7 @@ enum BLEGapType {
     ManufacturerSpecificData = 0xFF,
 }
 
+#[derive(PartialEq, Eq)]
 pub struct DeviceAddress([u8; 6]);
 
 impl DeviceAddress {
@@ -427,8 +428,16 @@ enum BLEState {
     Initialized,
     ScanningIdle,
     Scanning(RadioChannel),
+    Listening(RadioChannel),
     AdvertisingIdle,
     Advertising(RadioChannel),
+}
+
+#[derive(PartialEq, Debug)]
+enum ListenState {
+    WillListen,
+    Listening,
+    DidListen
 }
 
 #[derive(Copy, Clone)]
@@ -453,7 +462,9 @@ impl AlarmData {
 }
 
 pub struct App {
+    advertising_address: Option<DeviceAddress>,
     advertisement_buf: Option<kernel::AppSlice<kernel::Shared, u8>>,
+    scan_response_buf: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
     scan_callback: Option<kernel::Callback>,
@@ -473,7 +484,9 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
+            advertising_address: None,
             advertisement_buf: None,
+            scan_response_buf: None,
             alarm_data: AlarmData::new(),
             app_write: None,
             app_read: None,
@@ -501,6 +514,17 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
+    fn initialize_scan_response_buffer(&mut self) -> ReturnCode {
+        self.scan_response_buf
+            .as_mut()
+            .map_or(ReturnCode::EINVAL,|buf| {
+                for i in buf.as_mut()[PACKET_START..PACKET_LENGTH].iter_mut() {
+                    *i = 0x00;
+                }
+                ReturnCode::SUCCESS
+            })
+    }
+
     // Bluetooth Core Specification:Vol. 6, Part B, section 1.3.2.1 Static Device Address
     //
     // A static address is a 48-bit randomly generated address and shall meet the following
@@ -518,19 +542,19 @@ impl App {
     // Byte 6            0xf0
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
+
+        let random_address: [u8; 6] = [0xf0, 0x08, 0x08, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        self.advertising_address = Some(DeviceAddress(random_address));
+
         self.advertisement_buf
             .as_mut()
-            .map(|data| {   //<-- detta ser min mobil som f0:00:00:08:08:f0
+            .map_or(ReturnCode::ESIZE,|data| {
                 data.as_mut()[PACKET_HDR_LEN] = 6;
-                data.as_mut()[PACKET_ADDR_START] = 0xf0;
-                data.as_mut()[PACKET_ADDR_START + 1] = 0x08 as u8;
-                data.as_mut()[PACKET_ADDR_START + 2] = 0x08 as u8;
-                data.as_mut()[PACKET_ADDR_START + 3] = ((appid.idx() << 16) & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_START + 4] = ((appid.idx() << 24) & 0xff) as u8;
-                data.as_mut()[PACKET_ADDR_END] = 0xf0;
+                for i in 0..6 {
+                    data.as_mut()[PACKET_ADDR_START + i] = random_address[i];
+                }
                 ReturnCode::SUCCESS
             })
-            .unwrap_or_else(|| ReturnCode::ESIZE)
     }
 
     fn reset_payload(&mut self) -> ReturnCode {
@@ -563,6 +587,15 @@ impl App {
                 ReturnCode::SUCCESS
             })
             .unwrap_or_else(|| ReturnCode::ESIZE)
+    }
+
+    fn scan_response_pdu(&mut self) -> ReturnCode {
+        self.scan_response_buf
+            .as_mut()
+            .map_or(ReturnCode::ESIZE,|slice| {
+                slice.as_mut()[PACKET_HDR_PDU] = (0x04 << 4) | (BLEAdvertisementType::ScanResponse as u8);
+                ReturnCode::SUCCESS
+            })
     }
 
     fn set_gap_data(&mut self, gap_type: BLEGapType) -> ReturnCode {
@@ -654,6 +687,13 @@ impl App {
         let nonce = self.random_nonce() % 10;
 
         let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
+        self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
+    }
+
+    fn set_next_alarm_ms<F: Frequency>(&mut self, now: u32, ms: u32) {
+        self.alarm_data.t0 = now;
+
+        let period_ms = ms * F::frequency() / 1000;
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
     }
 }
@@ -761,6 +801,10 @@ where
                     }
 
                     match app.process_status {
+                        Some(BLEState::Listening(channel)) => {
+                            self.busy.set(true);
+                            self.receiving_app.set(Some(app.appid()));
+                        }
                         Some(BLEState::AdvertisingIdle) => {
                             self.busy.set(true);
                             app.process_status =
@@ -875,6 +919,12 @@ where
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
                 match app.process_status {
+                    Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
+                        app.process_status =
+                            Some(BLEState::Listening(RadioChannel::AdvertisingChannel37));
+                        self.busy.set(false);
+                        app.set_next_alarm_ms::<A::Frequency>(self.alarm.now(), 100);
+                    }
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
