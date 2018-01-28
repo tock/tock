@@ -157,7 +157,7 @@ pub unsafe fn reset_handler() {
 
     let mut chip = cc2650::chip::Cc2650::new();
 
-    debug!("Initialization complete. Entering main loop\r");
+    //debug!("Initialization complete. Entering main loop\r");
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
