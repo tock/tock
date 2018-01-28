@@ -32,6 +32,9 @@ are specified.
 - **[Getting Started](Getting_Started.md)** - Installing the Tock toolchain and programming hardware.
 - **[Porting Tock](Porting.md)** - Guide to add new platforms.
 
+### Management of Tock
+- **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
+
 ### Tutorials and Courses
 - **[Quick Tutorials](tutorials)** - Specific tutorials that walk through features of Tock.
 - **[Longer Courses](courses)** - Longer workshops on multiple aspects of Tock.

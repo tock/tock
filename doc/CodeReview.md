@@ -6,19 +6,17 @@
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
 **Authors:** Philip Levis <br/>
-**Draft-Created:** Jan 29, 2018<br/>
+**Draft-Created:** Jan 28, 2018<br/>
 **Draft-Modified:** Jan 28, 2018<br/>
 **Draft-Version:** 2<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 ## Abstract
------------------
 
 This document describes how the Tock core team merges pull requests for and
 makes releases of the main Tock repository.
 
 ## 1. Introduction
--------------------------------
 
 As Tock supports more chips and services, changes to core interfaces or
 capsules will increasingly trigger bugs or integration problems. This
@@ -30,15 +28,14 @@ Active development occurs on the master branch. Periodic releases (discussed
 more below) are made on branches.
 
 ## 2. Pull Requests
--------------------------------
 
 Any pull request against the master branch is reviewed by the core Tock
 team. Pull requests fall into two categories:
 
-1. *Upkeep* pull requests involve minor changes to existing implementations.
+1. **Upkeep pull requests** involve minor changes to existing implementations.
    Examples of upkeep requests involve bug fixes, documentation (that isn't
    specification), or minor reimplementations of existing modules.
-1. *Significant* pull requests involve new modules, significant
+1. **Significant pull requests** involve new modules, significant
    re-implementations, new traits, or changes to the build system.
 
 Whether a pull request is upkeep or significant is based not only on the
@@ -59,11 +56,11 @@ core team will have good consensus on the boundary between upkeep vs.
 significant, but that specialized knowledge means that some team members will
 see implications that others may not.
 
-Upkeep pull requests can be merged by any member of the core team. That
+**Upkeep pull requests** can be merged by any member of the core team. That
 person is responsible for the merge and backing out the merge if needed.
 This is the basic process we use now.
 
-Significant pull requests require review by the entire core team. Each
+**Significant pull requests** require review by the entire core team. Each
 core team member is expected to respond within one week. There are three
 possible responses: Accept, which means the pull request should be accepted
 (perhaps with some minor tweaks, as per comments), No comment, which means
@@ -72,20 +69,32 @@ which means the pull request needs to be discussed by the core team before
 considering merging it. Core team members can change their votes at
 any time, based on discussion, changes, or further thought.
 
-To be merged, a pull request requires two Accept and no Discuss votes. If
-a member does not respond within a week, their vote is considered No comment.
-If a core team member stops responding to many significant pull requests they
-may be removed from the core team. Core team members enter their votes
-through GitHub's comment system. An "Approve" is considered an Accept vote,
-a "Comment" is considered a "No Comment" vote and a "Request Changes" is
-considered a "Discuss".
+## 3. Reviews
 
-The initial members of the core team are: Amit Levy, Pat Pannuto,
-Branden Ghena, Brad Campbell, Hudson Ayers, Daniel Giffin, Philip Levis,
-Olaf Landsiedel, and Niklas Adolfsson.
+To be merged, a pull request requires two Accept and no Discuss votes. The
+review period begins when a review is requested from the Github team
+`core-team`. If a member does not respond within a week, their vote is
+considered No comment. If a core team member stops responding to many
+significant pull requests they may be removed from the core team.
+
+Core team members enter their votes through GitHub's comment system. An
+"Approve" is considered an Accept vote, a "Comment" is considered a "No
+Comment" vote and a "Request Changes" is considered a "Discuss". If, after
+discussion, non-trivial changes are necessary for the pull request, the review
+window is re-started after the changes are made.
+
+The members of the core team are:
+ * Niklas Adolfsson
+ * Hudson Ayers
+ * Brad Campbell
+ * Branden Ghena
+ * Daniel Giffin
+ * Philip Levis
+ * Amit Levy
+ * Olaf Landsiedel
+ * Pat Pannuto
 
 ## 3. Release process
--------------------------------
 
 Having periodic stable releases makes it easier for users to install
 and track changes to Tock. Our intention is to release approximately
