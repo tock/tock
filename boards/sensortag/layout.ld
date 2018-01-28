@@ -28,7 +28,9 @@
  */
 
 ROM_ORIGIN   =   0x00000000;
-ROM_LENGTH   =   0x0001FFA8;
+ROM_LENGTH   =   0x00010000;
+PROG_ORIGIN  =   0x00010000;
+PROG_LENGTH  =   0x0000F000;
 CCFG_ORIGIN  =   0x0001FFA8;
 CCFG_LENGTH  =   0x00000058;
 RAM_ORIGIN   =   0x20000000;
@@ -38,9 +40,10 @@ MPU_MIN_ALIGN = 4;
 
 MEMORY
 {
-  rom (rx)  : ORIGIN =  ROM_ORIGIN, LENGTH =  ROM_LENGTH
+  rom (rx)  : ORIGIN = ROM_ORIGIN, LENGTH =  ROM_LENGTH
+  prog (rx) : ORIGIN = PROG_ORIGIN, LENGTH = PROG_LENGTH
   ccfg (rx) : ORIGIN = CCFG_ORIGIN, LENGTH =  CCFG_LENGTH
-  ram (rwx) : ORIGIN =  RAM_ORIGIN, LENGTH =  RAM_LENGTH
+  ram (rwx) : ORIGIN = RAM_ORIGIN, LENGTH =  RAM_LENGTH
 }
 
 __stack_size__ = DEFINED(__stack_size__) ? __stack_size__ : 0x1000;
@@ -179,7 +182,7 @@ SECTIONS
         /* Optional .app sections a convenience mechanism to bundle tock
            kernel and apps into a single image */
         KEEP (*(.app.*))
-    } > rom
+    } > prog
 
 
 
