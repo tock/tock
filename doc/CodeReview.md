@@ -94,7 +94,7 @@ The members of the core team are:
  * Olaf Landsiedel
  * Pat Pannuto
 
-## 3. Release process
+## 4. Release process
 
 Having periodic stable releases makes it easier for users to install
 and track changes to Tock. Our intention is to release approximately
