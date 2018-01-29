@@ -224,7 +224,8 @@
 //
 
 use core::cell::Cell;
-use ieee802154::mac::{Frame, Mac, RxClient, TxClient};
+use ieee802154::device::{MacDevice, RxClient, TxClient};
+use ieee802154::framer::Frame;
 use kernel::ReturnCode;
 use kernel::common::list::{List, ListLink, ListNode};
 use kernel::common::take_cell::{MapCell, TakeCell};
@@ -365,7 +366,7 @@ impl TxState {
         &self,
         dgram_tag: u16,
         frag_buf: &'static mut [u8],
-        radio: &Mac,
+        radio: &MacDevice,
         ctx_store: &ContextStore,
     ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         self.dgram_tag.set(dgram_tag);
@@ -397,7 +398,7 @@ impl TxState {
         &self,
         ip6_packet: &[u8],
         mut frame: Frame,
-        radio: &Mac,
+        radio: &MacDevice,
         ctx_store: &ContextStore,
     ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         // Here, we assume that the compressed headers fit in the first MTU
@@ -462,7 +463,7 @@ impl TxState {
     fn prepare_transmit_next_fragment(
         &self,
         frag_buf: &'static mut [u8],
-        radio: &Mac,
+        radio: &MacDevice,
     ) -> Result<(), (ReturnCode, &'static mut [u8])> {
         match radio.prepare_data_frame(
             frag_buf,
@@ -703,7 +704,7 @@ impl<'a> RxState<'a> {
 /// Finally, `set_client` controls the client that will receive transmission
 /// completion and reception callbacks.
 pub struct Sixlowpan<'a, A: time::Alarm + 'a, C: ContextStore> {
-    pub radio: &'a Mac<'a>,
+    pub radio: &'a MacDevice<'a>,
     ctx_store: C,
     clock: &'a A,
     client: Cell<Option<&'a SixlowpanClient>>,
@@ -763,7 +764,7 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
     ///
     /// # Arguments
     ///
-    /// * `radio` - An implementation of the `Mac` trait that manages the timing
+    /// * `radio` - An implementation of the `MacDevice` trait that manages the timing
     /// and frequency of sending a receiving 802.15.4 frames
     ///
     /// * `ctx_store` - Stores IPv6 address nextwork context mappings
@@ -776,7 +777,7 @@ impl<'a, A: time::Alarm, C: ContextStore> Sixlowpan<'a, A, C> {
     /// frame arrival. The clock should be continue running during sleep and
     /// have an accuracy of at least 60 seconds.
     pub fn new(
-        radio: &'a Mac<'a>,
+        radio: &'a MacDevice<'a>,
         ctx_store: C,
         tx_buf: &'static mut [u8],
         clock: &'a A,

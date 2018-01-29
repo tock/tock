@@ -29,7 +29,7 @@
 //! ...
 //! // Radio initialization code
 //! ...
-//! let lowpan_frag_test = lowpan_frag_dummy::initialize_all(radio_mac as &'static Mac,
+//! let lowpan_frag_test = lowpan_frag_dummy::initialize_all(radio_mac as &'static MacDevice,
 //!                                                          mux_alarm as &'static
 //!                                                             MuxAlarm<'static,
 //!                                                                 sam4l::ast::Ast>);
@@ -40,7 +40,7 @@
 
 use capsules;
 extern crate sam4l;
-use capsules::ieee802154::mac::Mac;
+use capsules::ieee802154::device::MacDevice;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ip::{IP6Header, IPAddr, ip6_nh};
 use capsules::net::sixlowpan::{Sixlowpan, SixlowpanClient};
@@ -122,7 +122,7 @@ pub struct LowpanTest<'a, A: time::Alarm + 'a, T: time::Alarm + 'a> {
 }
 
 pub unsafe fn initialize_all(
-    radio_mac: &'static Mac,
+    radio_mac: &'static MacDevice,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
