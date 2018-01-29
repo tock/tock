@@ -1,5 +1,6 @@
 /// Implements AES-CCM* encryption/decryption/authentication using an underlying
 /// AES-CBC and AES-CTR implementation.
+
 // IEEE 802.15.4-2015: Appendix B.4.1, CCM* transformations. CCM* is
 // defined so that both encryption and decryption can be done by preparing two
 // fields: the AuthData and either the PlaintextData or the CiphertextData.
@@ -12,6 +13,7 @@
 // The overlapping block is then the encrypted authentication tag U. For
 // encryption, we append U to the data as a message integrity code (MIC).
 // For decryption, we compare U with the provided MIC.
+
 use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;

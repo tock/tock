@@ -70,7 +70,6 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
         // Copy mode-appropriate IV into IV buffer and configure it in the hardware
         self.iv.map(|iv| {
             let iv_mode = &IV_CTR;
-
             for (i, b) in iv_mode.iter().enumerate() {
                 iv[i] = *b;
             }
@@ -144,7 +143,6 @@ impl<'a, A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a>
         };
 
         if self.data.map_or(false, |data| {
-            // panic!("PASS: {:?}", &data[0..DATA_LEN] == expected.as_ref());
             &data[DATA_OFFSET..DATA_OFFSET + DATA_LEN] == expected.as_ref()
         }) {
             debug!("OK! ({} {} {})",
@@ -299,7 +297,6 @@ impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a>
         }     
     }
 }
-
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 const KEY: [u8; AES128_BLOCK_SIZE] = [

@@ -109,7 +109,6 @@ impl<'a> Aes<'a> {
 
     fn enable_interrupts(&self) {
         let regs: &AesRegisters = unsafe { &*self.registers };
-
         // We want both interrupts.
         regs.ier.set(IBUFRDY | ODATARDY);
     }
@@ -211,7 +210,6 @@ impl<'a> Aes<'a> {
                 if !more {
                     return false;
                 }
-
                 let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
                 for i in 0..4 {
                     let mut v = dest[index + (i * 4) + 0] as usize;
@@ -220,7 +218,6 @@ impl<'a> Aes<'a> {
                     v |= (dest[index + (i * 4) + 3] as usize) << 24;
                     regs.idata.set(v as u32);
                 }
-
                 self.write_index.set(index + AES128_BLOCK_SIZE);
 
                 let more = self.write_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get();
@@ -248,7 +245,7 @@ impl<'a> Aes<'a> {
 
             let more = self.write_index.get() + AES128_BLOCK_SIZE <= source.len();
             more
-})
+        })
     }
 
     // Copy a block from the AESA output register back into the request buffer
@@ -291,10 +288,10 @@ impl<'a> Aes<'a> {
             // to be set again while we are in this handler.
             return;
         }
-
+      
         if self.input_buffer_ready() {
             // The AESA says it is ready to receive another block
-
+          
             if !self.write_block() {
                 // We've now written the entirety of the request buffer,
                 // so unsubscribe from input interrupts
@@ -324,6 +321,9 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
 
         self.enable_clock();
+        unsafe {
+            nvic::enable(nvic::NvicIdx::AESA);
+        }
         regs.ctrl.set(0x01);
     }
 
@@ -431,4 +431,3 @@ impl<'a> hil::symmetric_encryption::AES128CBC for Aes<'a> {
 }
 
 pub static mut AES: Aes<'static> = Aes::new();
-
