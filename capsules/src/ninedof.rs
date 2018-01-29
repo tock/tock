@@ -13,15 +13,14 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::{AppId, Callback, Grant, Driver};
+use kernel::{AppId, Callback, Driver, Grant};
 use kernel::ReturnCode;
 use kernel::hil;
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x60004;
 
-
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum NineDofCommand {
     Exists,
     ReadAccelerometer,
@@ -67,17 +66,19 @@ impl<'a> NineDof<'a> {
     // and will be run when the pending command completes.
     fn enqueue_command(&self, command: NineDofCommand, arg1: usize, appid: AppId) -> ReturnCode {
         self.apps
-            .enter(appid, |app, _| if self.current_app.get().is_none() {
-                self.current_app.set(Some(appid));
-                self.call_driver(command, arg1)
-            } else {
-                if app.pending_command == true {
-                    ReturnCode::ENOMEM
+            .enter(appid, |app, _| {
+                if self.current_app.get().is_none() {
+                    self.current_app.set(Some(appid));
+                    self.call_driver(command, arg1)
                 } else {
-                    app.pending_command = true;
-                    app.command = command;
-                    app.arg1 = arg1;
-                    ReturnCode::SUCCESS
+                    if app.pending_command == true {
+                        ReturnCode::ENOMEM
+                    } else {
+                        app.pending_command = true;
+                        app.command = command;
+                        app.arg1 = arg1;
+                        ReturnCode::SUCCESS
+                    }
                 }
             })
             .unwrap_or_else(|err| err.into())
@@ -106,19 +107,24 @@ impl<'a> hil::sensors::NineDofClient for NineDof<'a> {
                 app.pending_command = false;
                 finished_command = app.command;
                 finished_command_arg = app.arg1;
-                app.callback.map(|mut cb| { cb.schedule(arg1, arg2, arg3); });
+                app.callback.map(|mut cb| {
+                    cb.schedule(arg1, arg2, arg3);
+                });
             });
         });
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
             let started_command = cntr.enter(|app, _| {
-                if app.pending_command && app.command == finished_command &&
-                   app.arg1 == finished_command_arg {
+                if app.pending_command && app.command == finished_command
+                    && app.arg1 == finished_command_arg
+                {
                     // Don't bother re-issuing this command, just use
                     // the existing result.
                     app.pending_command = false;
-                    app.callback.map(|mut cb| { cb.schedule(arg1, arg2, arg3); });
+                    app.callback.map(|mut cb| {
+                        cb.schedule(arg1, arg2, arg3);
+                    });
                     false
                 } else if app.pending_command {
                     app.pending_command = false;
@@ -138,14 +144,12 @@ impl<'a> hil::sensors::NineDofClient for NineDof<'a> {
 impl<'a> Driver for NineDof<'a> {
     fn subscribe(&self, subscribe_num: usize, callback: Callback) -> ReturnCode {
         match subscribe_num {
-            0 => {
-                self.apps
-                    .enter(callback.app_id(), |app, _| {
-                        app.callback = Some(callback);
-                        ReturnCode::SUCCESS
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
+            0 => self.apps
+                .enter(callback.app_id(), |app, _| {
+                    app.callback = Some(callback);
+                    ReturnCode::SUCCESS
+                })
+                .unwrap_or_else(|err| err.into()),
             _ => ReturnCode::ENOSUPPORT,
         }
     }

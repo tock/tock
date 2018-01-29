@@ -10,7 +10,9 @@ pub struct NVMC {
 
 impl NVMC {
     pub const fn new() -> NVMC {
-        NVMC { regs: peripheral_registers::NVMC_BASE as *mut peripheral_registers::NVMC }
+        NVMC {
+            regs: peripheral_registers::NVMC_BASE as *mut peripheral_registers::NVMC,
+        }
     }
 
     pub fn configure_writeable(&self) {

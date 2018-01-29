@@ -1,0 +1,22 @@
+[package]
+name = "hail-sosp"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+
+[profile.dev]
+panic = "abort"
+lto = true
+opt-level = 0
+debug = true
+
+[profile.release]
+panic = "abort"
+lto = true
+
+[dependencies]
+cortexm4 = { path = "../../../../../arch/cortex-m4" }
+capsules = { path = "../../../../../capsules" }
+sosp = { path = "../capsule" }
+kernel = { path = "../../../../../kernel" }
+sam4l = { path = "../../../../../chips/sam4l" }

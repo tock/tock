@@ -5,3 +5,9 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 
 [dependencies]
 kernel = { path = "../../kernel" }
+
+[features]
+default = []
+
+nrf51 = []
+nrf52 = []

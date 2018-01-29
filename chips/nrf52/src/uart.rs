@@ -1,11 +1,7 @@
 /// Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 /// Date: July 8, 2017
-
-use chip;
 use core::cell::Cell;
 use kernel;
-use nrf5x::nvic;
-use nrf5x::peripheral_interrupts;
 use nrf5x::pinmux;
 use peripheral_registers;
 
@@ -45,11 +41,13 @@ impl UARTE {
         }
     }
 
-    pub fn configure(&self,
-                     tx: pinmux::Pinmux,
-                     rx: pinmux::Pinmux,
-                     cts: pinmux::Pinmux,
-                     rts: pinmux::Pinmux) {
+    pub fn configure(
+        &self,
+        tx: pinmux::Pinmux,
+        rx: pinmux::Pinmux,
+        cts: pinmux::Pinmux,
+        rts: pinmux::Pinmux,
+    ) {
         let regs = unsafe { &*self.regs };
 
         regs.pseltxd.set(tx);
@@ -77,21 +75,13 @@ impl UARTE {
             460800 => regs.baudrate.set(0x07400000),
             921600 => regs.baudrate.set(0x0F000000),
             1000000 => regs.baudrate.set(0x10000000),
-            _ => regs.baudrate.set(0x01D60000),       //setting default to 115200
+            _ => regs.baudrate.set(0x01D60000), //setting default to 115200
         }
     }
 
     fn enable(&self) {
         let regs = unsafe { &*self.regs };
         regs.enable.set(NRF_UARTE_ENABLE);
-    }
-
-    fn enable_nvic(&self) {
-        nvic::enable(peripheral_interrupts::NvicIdx::UART0);
-    }
-
-    fn disable_nvic(&self) {
-        nvic::disable(peripheral_interrupts::NvicIdx::UART0);
     }
 
     #[allow(dead_code)]
@@ -120,9 +110,7 @@ impl UARTE {
     // only TX supported here
     pub fn handle_interrupt(&mut self) {
         // disable interrupts
-        self.disable_nvic();
         self.disable_tx_interrupts();
-        nvic::clear_pending(peripheral_interrupts::NvicIdx::UART0);
 
         let regs = unsafe { &*self.regs };
         let tx = regs.event_endtx.get() != 0;
@@ -158,7 +146,6 @@ impl UARTE {
                 self.set_dma_pointer_to_buffer();
                 regs.task_starttx.set(1);
                 self.enable_tx_interrupts();
-                self.enable_nvic();
             }
         }
     }
@@ -175,7 +162,6 @@ impl UARTE {
         regs.task_starttx.set(1);
 
         self.enable_tx_interrupts();
-        self.enable_nvic();
     }
 
     pub fn tx_ready(&self) -> bool {
@@ -185,12 +171,17 @@ impl UARTE {
 
     fn set_dma_pointer_to_buffer(&self) {
         let regs = unsafe { &*self.regs };
-        unsafe { regs.txd_ptr.set((&BUF[self.offset.get()] as *const u8) as u32) }
+        unsafe {
+            regs.txd_ptr
+                .set((&BUF[self.offset.get()] as *const u8) as u32)
+        }
     }
 
     fn copy_data_to_uart_buffer(&self, tx_len: usize) {
-        self.buffer.map(|buffer| for i in 0..tx_len {
-            unsafe { BUF[i] = buffer[i] }
+        self.buffer.map(|buffer| {
+            for i in 0..tx_len {
+                unsafe { BUF[i] = buffer[i] }
+            }
         });
     }
 }
@@ -227,19 +218,10 @@ impl kernel::hil::uart::UART for UARTE {
         regs.task_starttx.set(1);
 
         self.enable_tx_interrupts();
-        self.enable_nvic();
     }
 
     #[allow(unused)]
     fn receive(&self, rx_buffer: &'static mut [u8], rx_len: usize) {
         unimplemented!()
     }
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn UART0_Handler() {
-    use kernel::common::Queue;
-    nvic::disable(peripheral_interrupts::NvicIdx::UART0);
-    chip::INTERRUPT_QUEUE.as_mut().unwrap().enqueue(peripheral_interrupts::NvicIdx::UART0);
 }

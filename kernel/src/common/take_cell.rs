@@ -18,12 +18,16 @@ pub struct TakeCell<'a, T: 'a + ?Sized> {
 
 impl<'a, T: ?Sized> TakeCell<'a, T> {
     pub const fn empty() -> TakeCell<'a, T> {
-        TakeCell { val: UnsafeCell::new(None) }
+        TakeCell {
+            val: UnsafeCell::new(None),
+        }
     }
 
     /// Creates a new `TakeCell` containing `value`
     pub fn new(value: &'a mut T) -> TakeCell<'a, T> {
-        TakeCell { val: UnsafeCell::new(Some(value)) }
+        TakeCell {
+            val: UnsafeCell::new(Some(value)),
+        }
     }
 
     pub fn is_none(&self) -> bool {
@@ -96,7 +100,8 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// assert_eq!(y.take(), Some(1235));
     /// ```
     pub fn map<F, R>(&self, closure: F) -> Option<R>
-        where F: FnOnce(&mut T) -> R
+    where
+        F: FnOnce(&mut T) -> R,
     {
         let maybe_val = self.take();
         maybe_val.map(|mut val| {
@@ -108,7 +113,8 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
 
     /// Performs a `map` or returns a default value if the `TakeCell` is empty
     pub fn map_or<F, R>(&self, default: R, closure: F) -> R
-        where F: FnOnce(&mut T) -> R
+    where
+        F: FnOnce(&mut T) -> R,
     {
         let maybe_val = self.take();
         maybe_val.map_or(default, |mut val| {
@@ -121,21 +127,26 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// Performs a `map` or generates a value with the default
     /// closure if the `TakeCell` is empty
     pub fn map_or_else<U, D, F>(&self, default: D, f: F) -> U
-        where D: FnOnce() -> U,
-              F: FnOnce(&mut T) -> U
+    where
+        D: FnOnce() -> U,
+        F: FnOnce(&mut T) -> U,
     {
         let maybe_val = self.take();
-        maybe_val.map_or_else(|| default(), |mut val| {
-            let res = f(&mut val);
-            self.replace(val);
-            res
-        })
+        maybe_val.map_or_else(
+            || default(),
+            |mut val| {
+                let res = f(&mut val);
+                self.replace(val);
+                res
+            },
+        )
     }
 
     /// Behaves the same as `map`, except the closure is allowed to return
     /// an `Option`.
     pub fn and_then<F, R>(&self, closure: F) -> Option<R>
-        where F: FnOnce(&mut T) -> Option<R>
+    where
+        F: FnOnce(&mut T) -> Option<R>,
     {
         let maybe_val = self.take();
         maybe_val.and_then(|mut val| {
@@ -149,8 +160,9 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
     /// if it is present, otherwise, fills the `TakeCell` with the result of
     /// `mkval`.
     pub fn modify_or_replace<F, G>(&self, modify: F, mkval: G)
-        where F: FnOnce(&mut T),
-              G: FnOnce() -> &'a mut T
+    where
+        F: FnOnce(&mut T),
+        G: FnOnce() -> &'a mut T,
     {
         let val = match self.take() {
             Some(mut val) => {
@@ -262,7 +274,8 @@ impl<T> MapCell<T> {
     /// assert_eq!(y.take(), Some(1235));
     /// ```
     pub fn map<F, R>(&self, closure: F) -> Option<R>
-        where F: FnOnce(&mut T) -> R
+    where
+        F: FnOnce(&mut T) -> R,
     {
         if self.is_some() {
             self.occupied.set(false);
@@ -276,7 +289,8 @@ impl<T> MapCell<T> {
     }
 
     pub fn map_or<F, R>(&self, default: R, closure: F) -> R
-        where F: FnOnce(&mut T) -> R
+    where
+        F: FnOnce(&mut T) -> R,
     {
         self.map(closure).unwrap_or(default)
     }
@@ -284,7 +298,8 @@ impl<T> MapCell<T> {
     /// Behaves the same as `map`, except the closure is allowed to return
     /// an `Option`.
     pub fn and_then<F, R>(&self, closure: F) -> Option<R>
-        where F: FnOnce(&mut T) -> Option<R>
+    where
+        F: FnOnce(&mut T) -> Option<R>,
     {
         if self.is_some() {
             self.occupied.set(false);
@@ -298,8 +313,9 @@ impl<T> MapCell<T> {
     }
 
     pub fn modify_or_replace<F, G>(&self, modify: F, mkval: G)
-        where F: FnOnce(&mut T),
-              G: FnOnce() -> T
+    where
+        F: FnOnce(&mut T),
+        G: FnOnce() -> T,
     {
         if self.map(modify).is_none() {
             self.put(mkval());

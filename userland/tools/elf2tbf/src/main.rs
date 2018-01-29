@@ -12,11 +12,6 @@ use std::mem;
 use std::path::Path;
 use std::slice;
 
-/// Takes a value and rounds it up to be aligned % 8
-macro_rules! align8 {
-    ( $e:expr ) => ( ($e) + ((8 - (($e) % 8)) % 8 ) );
-}
-
 /// Takes a value and rounds it up to be aligned % 4
 macro_rules! align4 {
     ( $e:expr ) => ( ($e) + ((4 - (($e) % 4)) % 4 ) );
@@ -60,22 +55,6 @@ struct TbfHeaderMain {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-struct TbfHeaderPicOption1Fields {
-    base: TbfHeaderTlv,
-    text_offset: u32,
-    data_offset: u32,
-    data_size: u32,
-    bss_memory_offset: u32,
-    bss_size: u32,
-    relocation_data_offset: u32,
-    relocation_data_size: u32,
-    got_offset: u32,
-    got_size: u32,
-    minimum_stack_length: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
 struct TbfHeaderWriteableFlashRegion {
     offset: u32,
     size: u32,
@@ -83,71 +62,55 @@ struct TbfHeaderWriteableFlashRegion {
 
 impl fmt::Display for TbfHeaderBase {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "
+        write!(
+            f,
+            "
                version: {:>8} {:>#10X}
            header_size: {:>8} {:>#10X}
             total_size: {:>8} {:>#10X}
                  flags: {:>8} {:>#10X}
 ",
-        self.version, self.version,
-        self.header_size, self.header_size,
-        self.total_size, self.total_size,
-        self.flags, self.flags,
+            self.version,
+            self.version,
+            self.header_size,
+            self.header_size,
+            self.total_size,
+            self.total_size,
+            self.flags,
+            self.flags,
         )
     }
 }
 
 impl fmt::Display for TbfHeaderMain {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "
+        write!(
+            f,
+            "
         init_fn_offset: {:>8} {:>#10X}
         protected_size: {:>8} {:>#10X}
       minimum_ram_size: {:>8} {:>#10X}
 ",
-        self.init_fn_offset, self.init_fn_offset,
-        self.protected_size, self.protected_size,
-        self.minimum_ram_size, self.minimum_ram_size,
-        )
-    }
-}
-
-impl fmt::Display for TbfHeaderPicOption1Fields {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "
-           text_offset: {:>8} {:>#10X}
-           data_offset: {:>8} {:>#10X}
-             data_size: {:>8} {:>#10X}
-     bss_memory_offset: {:>8} {:>#10X}
-              bss_size: {:>8} {:>#10X}
-relocation_data_offset: {:>8} {:>#10X}
-  relocation_data_size: {:>8} {:>#10X}
-            got_offset: {:>8} {:>#10X}
-              got_size: {:>8} {:>#10X}
-  minimum_stack_length: {:>8} {:>#10X}
-",
-        self.text_offset, self.text_offset,
-        self.data_offset, self.data_offset,
-        self.data_size, self.data_size,
-        self.bss_memory_offset, self.bss_memory_offset,
-        self.bss_size, self.bss_size,
-        self.relocation_data_offset, self.relocation_data_offset,
-        self.relocation_data_size, self.relocation_data_size,
-        self.got_offset, self.got_offset,
-        self.got_size, self.got_size,
-        self.minimum_stack_length, self.minimum_stack_length,
+            self.init_fn_offset,
+            self.init_fn_offset,
+            self.protected_size,
+            self.protected_size,
+            self.minimum_ram_size,
+            self.minimum_ram_size,
         )
     }
 }
 
 impl fmt::Display for TbfHeaderWriteableFlashRegion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "
+        write!(
+            f,
+            "
     flash region:
                 offset: {:>8} {:>#10X}
                   size: {:>8} {:>#10X}
 ",
-        self.offset, self.offset,
-        self.size, self.size,
+            self.offset, self.offset, self.size, self.size,
         )
     }
 }
@@ -159,7 +122,6 @@ fn main() {
     opts.optopt("o", "", "set output file name", "OUTFILE");
     opts.optopt("n", "", "set package name", "PACKAGE_NAME");
     opts.optflag("v", "verbose", "be verbose");
-    opts.optflag("p", "include-pic-info", "include PIC information");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -168,14 +130,12 @@ fn main() {
     let output = matches.opt_str("o");
     let package_name = matches.opt_str("n");
     let verbose = matches.opt_present("v");
-    let pic = matches.opt_present("p");
     let input = if !matches.free.is_empty() {
         matches.free[0].clone()
     } else {
         print_usage(&program, opts);
         return;
     };
-
 
     let path = Path::new(&input);
     let file = match elf::File::open_path(&path) {
@@ -184,18 +144,15 @@ fn main() {
     };
 
     match output {
-            None => {
-                let mut out = io::stdout();
-                do_work(&file, &mut out, package_name, verbose, pic)
-            }
-            Some(name) => {
-                match File::create(Path::new(&name)) {
-                    Ok(mut f) => do_work(&file, &mut f, package_name, verbose, pic),
-                    Err(e) => panic!("Error: {:?}", e),
-                }
-            }
+        None => {
+            let mut out = io::stdout();
+            do_work(&file, &mut out, package_name, verbose)
         }
-        .expect("Failed to write output");
+        Some(name) => match File::create(Path::new(&name)) {
+            Ok(mut f) => do_work(&file, &mut f, package_name, verbose),
+            Err(e) => panic!("Error: {:?}", e),
+        },
+    }.expect("Failed to write output");
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -205,29 +162,25 @@ fn print_usage(program: &str, opts: Options) {
 
 fn get_section<'a>(input: &'a elf::File, name: &str) -> elf::Section {
     match input.get_section(name) {
-        Some(section) => {
-            elf::Section {
-                data: section.data.clone(),
-                shdr: section.shdr.clone(),
-            }
-        }
-        None => {
-            elf::Section {
-                data: Vec::new(),
-                shdr: elf::types::SectionHeader {
-                    name: String::from(name),
-                    shtype: elf::types::SHT_NULL,
-                    flags: elf::types::SHF_NONE,
-                    addr: 0,
-                    offset: 0,
-                    size: 0,
-                    link: 0,
-                    info: 0,
-                    addralign: 0,
-                    entsize: 0,
-                },
-            }
-        }
+        Some(section) => elf::Section {
+            data: section.data.clone(),
+            shdr: section.shdr.clone(),
+        },
+        None => elf::Section {
+            data: Vec::new(),
+            shdr: elf::types::SectionHeader {
+                name: String::from(name),
+                shtype: elf::types::SHT_NULL,
+                flags: elf::types::SHF_NONE,
+                addr: 0,
+                offset: 0,
+                size: 0,
+                link: 0,
+                info: 0,
+                addralign: 0,
+                entsize: 0,
+            },
+        },
     }
 }
 
@@ -235,20 +188,19 @@ unsafe fn as_byte_slice<'a, T: Copy>(input: &'a T) -> &'a [u8] {
     slice::from_raw_parts(input as *const T as *const u8, mem::size_of::<T>())
 }
 
-fn do_work(input: &elf::File,
-           output: &mut Write,
-           package_name: Option<String>,
-           verbose: bool,
-           pic: bool)
-           -> io::Result<()> {
+fn do_work(
+    input: &elf::File,
+    output: &mut Write,
+    package_name: Option<String>,
+    verbose: bool,
+) -> io::Result<()> {
     let package_name = package_name.unwrap_or(String::new());
-    let (relocation_data_size, rel_data) = match input.sections
+    let rel_data = input
+        .sections
         .iter()
-        .find(|section| section.shdr.name == ".rel.data".as_ref()) {
-        Some(section) => (section.shdr.size, section.data.as_ref()),
-        None => (0 as u64, &[] as &[u8]),
-
-    };
+        .find(|section| section.shdr.name == ".rel.data".as_ref())
+        .map(|section| section.data.as_ref())
+        .unwrap_or(&[] as &[u8]);
     let text = get_section(input, ".text");
     let got = get_section(input, ".got");
     let data = get_section(input, ".data");
@@ -275,21 +227,21 @@ fn do_work(input: &elf::File,
         post_name_pad = name_total_size - (mem::size_of::<TbfHeaderTlv>() + package_name.len());
     }
 
-    // If we need the kernel to do PIC fixup for us add the space for that.
-    if pic {
-        header_length += mem::size_of::<TbfHeaderPicOption1Fields>();
-    }
-
     // We have one app flash region, add that.
     if appstate.data.len() > 0 {
-        header_length += mem::size_of::<TbfHeaderTlv>() +
-                         mem::size_of::<TbfHeaderWriteableFlashRegion>();
+        header_length +=
+            mem::size_of::<TbfHeaderTlv>() + mem::size_of::<TbfHeaderWriteableFlashRegion>();
     }
 
+    // Calculate the offset between the start of the flash region and the actual
+    // app code. Also need to get the padding size.
+    let app_start_offset = align4!(header_length);
+    let post_header_pad = app_start_offset as usize - header_length;
+
     // Now we can calculate the entire size of the app in flash.
-    let mut total_size = (header_length + rel_data.len() + text.data.len() + got.data.len() +
-                          data.data.len() +
-                          appstate.data.len()) as u32;
+    let rel_data_len = 4 + rel_data.len(); // +4 because we're going to length-prefix it
+    let mut total_size = (header_length + post_header_pad + rel_data_len + text.data.len()
+        + got.data.len() + data.data.len() + appstate.data.len()) as u32;
 
     let ending_pad = if total_size.count_ones() > 1 {
         let power2len = cmp::max(1 << (32 - total_size.leading_zeros()), 512);
@@ -299,34 +251,24 @@ fn do_work(input: &elf::File,
     };
     total_size += ending_pad;
 
-    // Calculate the offset between the start of the flash region and the actual
-    // app code. Also need to get the padding size.
-    let app_start_offset = align8!(header_length);
-    let post_header_pad = app_start_offset as usize - header_length;
-
     // To start we just restrict the app from writing all of the space before
     // its actual code and whatnot.
-    let protected_size = app_start_offset;
+    let protected_size = 0;
 
     // First up is the app writeable app_state section. If this is not used or
     // non-existent, it will just be zero and won't matter. But we put it first
     // so that changes to the app won't move it.
     let appstate_offset = app_start_offset as u32;
     let appstate_size = appstate.shdr.size as u32;
-    let relocation_data_offset = align8!(appstate_offset + appstate_size);
-    // Make sure we pad back to a multiple of 8.
-    let post_appstate_pad = relocation_data_offset - (appstate_offset + appstate_size);
-    let text_offset = relocation_data_offset + (relocation_data_size as u32);
-    let text_size = text.shdr.size as u32;
-    let init_fn_offset = (input.ehdr.entry - text.shdr.addr) as u32 + text_offset;
-    let got_offset = text_offset + text_size;
+    // Make sure we pad back to a multiple of 4.
+    let post_appstate_pad =
+        align4!(appstate_offset + appstate_size) - (appstate_offset + appstate_size);
+    let init_fn_offset = (input.ehdr.entry - text.shdr.addr) as u32;
     let got_size = got.shdr.size as u32;
-    let data_offset = got_offset + got_size;
     let data_size = data.shdr.size as u32;
     let bss_size = bss.shdr.size as u32;
-    let bss_memory_offset = bss.shdr.addr as u32;
-    let minimum_ram_size = stack_len + app_heap_len + kernel_heap_len + got_size + data_size +
-                           bss_size;
+    let minimum_ram_size =
+        stack_len + app_heap_len + kernel_heap_len + got_size + data_size + bss_size;
 
     // Flags default to app is enabled.
     let flags = 0x00000001;
@@ -351,24 +293,6 @@ fn do_work(input: &elf::File,
         minimum_ram_size: minimum_ram_size,
     };
 
-    let tbf_pic = TbfHeaderPicOption1Fields {
-        base: TbfHeaderTlv {
-            tipe: TbfHeaderTypes::TbfHeaderPicOption1,
-            length: (mem::size_of::<TbfHeaderPicOption1Fields>() -
-                     mem::size_of::<TbfHeaderTlv>()) as u16,
-        },
-        text_offset: text_offset,
-        data_offset: data_offset,
-        data_size: data_size,
-        bss_memory_offset: bss_memory_offset,
-        bss_size: bss_size,
-        relocation_data_offset: relocation_data_offset,
-        relocation_data_size: relocation_data_size as u32,
-        got_offset: got_offset,
-        got_size: got_size,
-        minimum_stack_length: stack_len,
-    };
-
     let tbf_package_name_tlv = TbfHeaderTlv {
         tipe: TbfHeaderTypes::TbfHeaderPackageName,
         length: package_name.len() as u16,
@@ -387,9 +311,6 @@ fn do_work(input: &elf::File,
     if verbose {
         print!("{}", tbf_header);
         print!("{}", tbf_main);
-        if pic {
-            print!("{}", tbf_pic);
-        }
         print!("{}", tbf_flash_region);
     }
 
@@ -402,9 +323,6 @@ fn do_work(input: &elf::File,
     try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_package_name_tlv) }));
     try!(header_buf.write_all(package_name.as_ref()));
     try!(do_pad(&mut header_buf, post_name_pad));
-    if pic {
-        try!(header_buf.write_all(unsafe { as_byte_slice(&tbf_pic) }));
-    }
 
     // Only put these in the header if the app_state section is nonzero.
     if appstate.data.len() > 0 {
@@ -460,10 +378,17 @@ fn do_work(input: &elf::File,
     try!(do_pad(output, post_header_pad as usize));
     try!(output.write_all(appstate.data.as_ref()));
     try!(do_pad(output, post_appstate_pad as usize));
-    try!(output.write_all(rel_data.as_ref()));
     try!(output.write_all(text.data.as_ref()));
     try!(output.write_all(got.data.as_ref()));
     try!(output.write_all(data.data.as_ref()));
+    let rel_data_len: [u8; 4] = [
+        (rel_data.len() & 0xff) as u8,
+        (rel_data.len() >> 8 & 0xff) as u8,
+        (rel_data.len() >> 16 & 0xff) as u8,
+        (rel_data.len() >> 24 & 0xff) as u8,
+    ];
+    try!(output.write_all(&rel_data_len));
+    try!(output.write_all(rel_data.as_ref()));
 
     // Pad to get a power of 2 sized flash app.
     try!(do_pad(output, ending_pad as usize));

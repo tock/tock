@@ -1,14 +1,3 @@
-[root]
-name = "nrf51dk"
-version = "0.1.0"
-dependencies = [
- "capsules 0.1.0",
- "cortexm0 0.1.0",
- "kernel 0.1.0",
- "nrf51 0.1.0",
- "nrf5x 0.1.0",
-]
-
 [[package]]
 name = "capsules"
 version = "0.1.0"
@@ -24,11 +13,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gcc"
-version = "0.3.35"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
 name = "kernel"
 version = "0.1.0"
 
@@ -37,8 +21,18 @@ name = "nrf51"
 version = "0.1.0"
 dependencies = [
  "cortexm0 0.1.0",
- "gcc 0.3.35 (registry+https://github.com/rust-lang/crates.io-index)",
  "kernel 0.1.0",
+ "nrf5x 0.1.0",
+]
+
+[[package]]
+name = "nrf51dk"
+version = "0.1.0"
+dependencies = [
+ "capsules 0.1.0",
+ "cortexm0 0.1.0",
+ "kernel 0.1.0",
+ "nrf51 0.1.0",
  "nrf5x 0.1.0",
 ]
 
@@ -49,5 +43,3 @@ dependencies = [
  "kernel 0.1.0",
 ]
 
-[metadata]
-"checksum gcc 0.3.35 (registry+https://github.com/rust-lang/crates.io-index)" = "91ecd03771effb0c968fd6950b37e89476a578aaf1c70297d8e92b6516ec3312"

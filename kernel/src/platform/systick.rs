@@ -1,26 +1,47 @@
-//! Interface and default implementation for the system tick timer.
+//! Interface system tick timer.
 
 /// Interface for the system tick timer.
+///
+/// A system tick timer provides a countdown timer to enforce process scheduling
+/// quantums.  Implementations should have consistent timing while the CPU is
+/// active, but need not operate during sleep.
+///
+/// On most chips, this will be implemented by the core (e.g. the ARM core), but
+/// some chips lack this optional peripheral, in which case it might be
+/// implemented by another timer or alarm controller.
 pub trait SysTick {
     /// Sets the timer as close as possible to the given interval in
-    /// microseconds.  The clock is 24-bits wide and specific timing is
-    /// dependent on the driving clock. Increments of 10ms are most accurate
-    /// and, in practice 466ms is the approximate maximum.
+    /// microseconds.
+    ///
+    /// Callers can assume at least a 24-bit wide clock. Specific timing is
+    /// dependent on the driving clock. In practice, increments of 10ms are most
+    /// accurate and values up to 400ms are valid.
     fn set_timer(&self, us: u32);
 
-    /// Returns the time left in approximate microseconds
+    /// Returns the time left in microseconds
     fn value(&self) -> u32;
 
-
+    /// Returns true if the timer has expired
     fn overflowed(&self) -> bool;
 
+    /// Resets the timer
+    ///
+    /// Resets the timer to 0 and disables it
     fn reset(&self);
 
+    /// Enables the timer
+    ///
+    /// Enabling the timer will begin a count down from the value set with
+    /// `set_timer`.
+    ///
+    ///   * `with_interrupt` - if set, an expiring timer will fire an interrupt.
     fn enable(&self, with_interrupt: bool);
-
-    fn overflow_fired() -> bool;
 }
 
+/// A dummy `SysTick` implementation in which the timer never expires.
+///
+/// Using this implementation is functional, but will mean the scheduler cannot
+/// interrupt non-yielding processes.
 impl SysTick for () {
     fn reset(&self) {}
 
@@ -34,9 +55,5 @@ impl SysTick for () {
 
     fn value(&self) -> u32 {
         !0
-    }
-
-    fn overflow_fired() -> bool {
-        false
     }
 }

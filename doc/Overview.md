@@ -21,7 +21,7 @@ structure is reflected in the software's directory structure.
 
 ## Tock Architecture
 
-![Tock architecture](architecture.png)
+![Tock architecture](tock-stack.png)
 
 The above Figure shows Tock's architecture. Code falls into one of three
 categories: the *core kernel*, *capsules*, and *processes*.

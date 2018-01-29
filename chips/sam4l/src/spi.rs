@@ -8,48 +8,43 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::mem;
-
 use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
 use kernel::ReturnCode;
-
 use kernel::common::VolatileCell;
-
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
-use nvic;
 use pm;
 
 /// The registers used to interface with the hardware
-#[repr(C, packed)]
+#[repr(C)]
 struct SpiRegisters {
-    cr: VolatileCell<u32>, //       0x0
-    mr: VolatileCell<u32>, //       0x4
-    rdr: VolatileCell<u32>, //      0x8
-    tdr: VolatileCell<u32>, //      0xC
-    sr: VolatileCell<u32>, //       0x10
-    ier: VolatileCell<u32>, //      0x14
-    idr: VolatileCell<u32>, //      0x18
-    imr: VolatileCell<u32>, //      0x1C
-    _reserved0: [u32; 4], //        0x20, 0x24, 0x28, 0x2C
-    csr0: VolatileCell<u32>, //     0x30
-    csr1: VolatileCell<u32>, //     0x34
-    csr2: VolatileCell<u32>, //     0x38
-    csr3: VolatileCell<u32>, //     0x3C
-    _reserved1: [u32; 41], //       0x40 - 0xE0
-    wpcr: VolatileCell<u32>, //     0xE4
-    wpsr: VolatileCell<u32>, //     0xE8
-    _reserved2: [u32; 3], //        0xEC - 0xF4
+    cr: VolatileCell<u32>,       //       0x0
+    mr: VolatileCell<u32>,       //       0x4
+    rdr: VolatileCell<u32>,      //      0x8
+    tdr: VolatileCell<u32>,      //      0xC
+    sr: VolatileCell<u32>,       //       0x10
+    ier: VolatileCell<u32>,      //      0x14
+    idr: VolatileCell<u32>,      //      0x18
+    imr: VolatileCell<u32>,      //      0x1C
+    _reserved0: [u32; 4],        //        0x20, 0x24, 0x28, 0x2C
+    csr0: VolatileCell<u32>,     //     0x30
+    csr1: VolatileCell<u32>,     //     0x34
+    csr2: VolatileCell<u32>,     //     0x38
+    csr3: VolatileCell<u32>,     //     0x3C
+    _reserved1: [u32; 41],       //       0x40 - 0xE0
+    wpcr: VolatileCell<u32>,     //     0xE4
+    wpsr: VolatileCell<u32>,     //     0xE8
+    _reserved2: [u32; 3],        //        0xEC - 0xF4
     features: VolatileCell<u32>, // 0xF8
-    version: VolatileCell<u32>, //  0xFC
+    version: VolatileCell<u32>,  //  0xFC
 }
 
-#[allow(unused_variables,dead_code)]
+#[allow(unused_variables, dead_code)]
 // Per-register masks defined in the SPI manual in chapter 26.8
 mod spi_consts {
     pub mod cr {
@@ -128,7 +123,7 @@ mod spi_consts {
 const SPI_BASE: u32 = 0x40008000;
 
 /// Values for selected peripherals
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub enum Peripheral {
     Peripheral0,
     Peripheral1,
@@ -136,7 +131,7 @@ pub enum Peripheral {
     Peripheral3,
 }
 
-#[derive(Copy,Clone,PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum SpiRole {
     SpiMaster,
     SpiSlave,
@@ -177,7 +172,7 @@ impl Spi {
     }
 
     fn init_as_role(&self, role: SpiRole) {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &SpiRegisters = unsafe { &*self.registers };
 
         self.role.set(role);
         self.enable_clock();
@@ -206,7 +201,7 @@ impl Spi {
     }
 
     pub fn enable(&self) {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &SpiRegisters = unsafe { &*self.registers };
 
         self.enable_clock();
         regs.cr.set(spi_consts::cr::SPIEN);
@@ -217,7 +212,7 @@ impl Spi {
     }
 
     pub fn disable(&self) {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &SpiRegisters = unsafe { &*self.registers };
 
         self.dma_read.get().map(|read| read.disable());
         self.dma_write.get().map(|write| write.disable());
@@ -310,7 +305,7 @@ impl Spi {
     pub fn set_active_peripheral(&self, peripheral: Peripheral) {
         // Slave cannot set active peripheral
         if self.role.get() == SpiRole::SpiMaster {
-            let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+            let regs: &SpiRegisters = unsafe { &*self.registers };
             let peripheral_number: u32 = match peripheral {
                 Peripheral::Peripheral0 => spi_consts::mr::PCS0,
                 Peripheral::Peripheral1 => spi_consts::mr::PCS1,
@@ -326,7 +321,7 @@ impl Spi {
     /// Returns the currently active peripheral
     pub fn get_active_peripheral(&self) -> Peripheral {
         if self.role.get() == SpiRole::SpiMaster {
-            let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+            let regs: &SpiRegisters = unsafe { &*self.registers };
 
             let mr = regs.mr.get();
             let peripheral_number = mr & (spi_consts::mr::PCS_MASK);
@@ -350,7 +345,7 @@ impl Spi {
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3,
     /// whichever corresponds to the active peripheral
     fn read_active_csr(&self) -> u32 {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &SpiRegisters = unsafe { &*self.registers };
 
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => regs.csr0.get(),
@@ -362,7 +357,7 @@ impl Spi {
     /// Sets the Chip Select Register (CSR) of the active peripheral
     /// (CSR0, CSR1, CSR2, or CSR3).
     fn write_active_csr(&self, value: u32) {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &SpiRegisters = unsafe { &*self.registers };
 
         match self.get_active_peripheral() {
             Peripheral::Peripheral0 => regs.csr0.set(value),
@@ -385,7 +380,7 @@ impl Spi {
     }
 
     pub fn handle_interrupt(&self) {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &SpiRegisters = unsafe { &*self.registers };
         let sr = regs.sr.get();
 
         self.slave_client.get().map(|client| {
@@ -403,11 +398,12 @@ impl Spi {
     /// returns `EBUSY` if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
-    fn read_write_bytes(&self,
-                        write_buffer: Option<&'static mut [u8]>,
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode {
+    fn read_write_bytes(
+        &self,
+        write_buffer: Option<&'static mut [u8]>,
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode {
         self.enable();
 
         if write_buffer.is_none() && read_buffer.is_none() {
@@ -432,7 +428,8 @@ impl Spi {
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
         write_buffer.map(|wbuf| {
-            self.transfers_in_progress.set(self.transfers_in_progress.get() + 1);
+            self.transfers_in_progress
+                .set(self.transfers_in_progress.get() + 1);
             self.dma_write.get().map(move |write| {
                 write.enable();
                 write.do_xfer(DMAPeripheral::SPI_TX, wbuf, count);
@@ -442,7 +439,8 @@ impl Spi {
         // Only setup the RX channel if we were passed a read_buffer inside
         // of the option. `map()` checks this for us.
         read_buffer.map(|rbuf| {
-            self.transfers_in_progress.set(self.transfers_in_progress.get() + 1);
+            self.transfers_in_progress
+                .set(self.transfers_in_progress.get() + 1);
             self.dma_read.get().map(move |read| {
                 read.enable();
                 read.do_xfer(DMAPeripheral::SPI_RX, rbuf, count);
@@ -472,7 +470,7 @@ impl spi::SpiMaster for Spi {
     /// Write a byte to the SPI and discard the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn write_byte(&self, out_byte: u8) {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &SpiRegisters = unsafe { &*self.registers };
 
         let tdr = (out_byte as u32) & spi_consts::tdr::TD;
         // Wait for data to leave TDR and enter serializer, so TDR is free
@@ -490,7 +488,7 @@ impl spi::SpiMaster for Spi {
     /// Write a byte to the SPI and return the read; if an
     /// asynchronous operation is outstanding, do nothing.
     fn read_write_byte(&self, val: u8) -> u8 {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &SpiRegisters = unsafe { &*self.registers };
 
         self.write_byte(val);
         // Wait for receive data register full
@@ -507,11 +505,12 @@ impl spi::SpiMaster for Spi {
     /// `EBUSY` if the operation does not start.
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
-    fn read_write_bytes(&self,
-                        write_buffer: &'static mut [u8],
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode {
+    fn read_write_bytes(
+        &self,
+        write_buffer: &'static mut [u8],
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode {
         // TODO: Remove? Included in read_write_bytes call
         self.enable();
 
@@ -588,15 +587,16 @@ impl spi::SpiSlave for Spi {
     /// This sets the value in the TDR register, to be sent as soon as the
     /// chip select pin is low.
     fn set_write_byte(&self, write_byte: u8) {
-        let regs: &mut SpiRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &SpiRegisters = unsafe { &*self.registers };
         regs.tdr.set(write_byte as u32);
     }
 
-    fn read_write_bytes(&self,
-                        write_buffer: Option<&'static mut [u8]>,
-                        read_buffer: Option<&'static mut [u8]>,
-                        len: usize)
-                        -> ReturnCode {
+    fn read_write_bytes(
+        &self,
+        write_buffer: Option<&'static mut [u8]>,
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) -> ReturnCode {
         self.read_write_bytes(write_buffer, read_buffer, len)
     }
 
@@ -626,7 +626,8 @@ impl DMAClient for Spi {
         //    data over to/from the controller at the same time, so we don't want to abort
         //    prematurely.
 
-        self.transfers_in_progress.set(self.transfers_in_progress.get() - 1);
+        self.transfers_in_progress
+            .set(self.transfers_in_progress.get() - 1);
 
         if self.transfers_in_progress.get() == 0 {
             let txbuf = self.dma_write.get().map_or(None, |dma| {
@@ -646,22 +647,18 @@ impl DMAClient for Spi {
 
             match self.role.get() {
                 SpiRole::SpiMaster => {
-                    self.client
-                        .get()
-                        .map(|cb| {
-                            txbuf.map(|txbuf| {
-                                cb.read_write_done(txbuf, rxbuf, len);
-                            });
+                    self.client.get().map(|cb| {
+                        txbuf.map(|txbuf| {
+                            cb.read_write_done(txbuf, rxbuf, len);
                         });
+                    });
                 }
                 SpiRole::SpiSlave => {
-                    self.slave_client
-                        .get()
-                        .map(|cb| { cb.read_write_done(txbuf, rxbuf, len); });
+                    self.slave_client.get().map(|cb| {
+                        cb.read_write_done(txbuf, rxbuf, len);
+                    });
                 }
             }
         }
     }
 }
-
-interrupt_handler!(spi_interrupt_handler, SPI);

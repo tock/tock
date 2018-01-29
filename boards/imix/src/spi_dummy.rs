@@ -6,7 +6,7 @@ use kernel::hil::gpio::Pin;
 use kernel::hil::spi::{self, SpiMaster};
 use sam4l;
 
-#[allow(unused_variables,dead_code)]
+#[allow(unused_variables, dead_code)]
 pub struct DummyCB {
     val: u8,
 }
@@ -17,11 +17,13 @@ pub static mut BUF2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
 pub static mut A5: [u8; 16] = [0xA5; 16];
 
 impl spi::SpiMasterClient for DummyCB {
-    #[allow(unused_variables,dead_code)]
-    fn read_write_done(&self,
-                       write: &'static mut [u8],
-                       read: Option<&'static mut [u8]>,
-                       len: usize) {
+    #[allow(unused_variables, dead_code)]
+    fn read_write_done(
+        &self,
+        write: &'static mut [u8],
+        read: Option<&'static mut [u8]>,
+        len: usize,
+    ) {
         unsafe {
             // do actual stuff
             sam4l::spi::SPI.read_write_bytes(&mut A5, None, A5.len());
@@ -53,9 +55,8 @@ pub static mut SPICB: DummyCB = DummyCB { val: 0x55 as u8 };
 // the logic analyzer to trigger sampling on assertion of pin 2, then restart
 // the board.
 #[inline(never)]
-#[allow(unused_variables,dead_code)]
+#[allow(unused_variables, dead_code)]
 pub unsafe fn spi_dummy_test() {
-
     // set the LED to mark that we've programmed.
     sam4l::gpio::PC[10].make_output();
     &sam4l::gpio::PC[10].set();

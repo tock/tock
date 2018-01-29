@@ -147,14 +147,12 @@ See `ipc.h` in `libtock` for more information on these functions.
 
 ## Application Entry Point
 
-__Warning: Unstable__
-
 An application specifies the first function the kernel should call by setting
 the variable `init_fn_offset` in its TBF header. This function should have the
 following signature:
 
 ```c
-void _start(void* mem_start, void* app_heap_break, void* kernel_memory_break);
+void _start(void* text_start, void* mem_start, void* memory_len, void* app_heap_break);
 ```
 
 ## Stack and Heap
@@ -252,11 +250,12 @@ method with the following signature:
 int main(void);
 ```
 
-Applications **should** return 0 from `main`, but `main` is called from `_start`
-and includes an implicit `while()` loop:
+Applications **should** return 0 from `main`. Returning non-zero is undefined and the
+behavior may change in future versions of `libtock`.
+Today, `main` is called from `_start` and includes an implicit `while()` loop:
 
 ```c
-void _start(void* mem_start, void* app_heap_break ,void* kernel_memory_break) {
+void _start(void* text_start, void* mem_start, void* memory_len, void* app_heap_break) {
   main();
   while (1) {
     yield();

@@ -1,65 +1,93 @@
+use cortexm4::{self, nvic};
+use i2c;
 use kernel;
-use kernel::common::{RingBuffer, Queue};
 use nrf5x;
-use nrf5x::peripheral_interrupts::NvicIdx;
+use nrf5x::peripheral_interrupts::*;
 use radio;
 use spi;
 use uart;
 
-const IQ_SIZE: usize = 100;
-static mut IQ_BUF: [NvicIdx; IQ_SIZE] = [NvicIdx::POWER_CLOCK; IQ_SIZE];
-pub static mut INTERRUPT_QUEUE: Option<RingBuffer<'static, NvicIdx>> = None;
-
-pub struct NRF52(());
+pub struct NRF52 {
+    mpu: cortexm4::mpu::MPU,
+    systick: cortexm4::systick::SysTick,
+}
 
 impl NRF52 {
     pub unsafe fn new() -> NRF52 {
-        INTERRUPT_QUEUE = Some(RingBuffer::new(&mut IQ_BUF));
-        NRF52(())
+        NRF52 {
+            mpu: cortexm4::mpu::MPU::new(),
+            // The NRF52's systick is uncalibrated, but is clocked from the
+            // 64Mhz CPU clock.
+            systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+        }
     }
 }
 
-
 impl kernel::Chip for NRF52 {
-    type MPU = ();
-    type SysTick = ();
+    type MPU = cortexm4::mpu::MPU;
+    type SysTick = cortexm4::systick::SysTick;
 
     fn mpu(&self) -> &Self::MPU {
-        &self.0
+        &self.mpu
     }
 
     fn systick(&self) -> &Self::SysTick {
-        &self.0
+        &self.systick
     }
 
     fn service_pending_interrupts(&mut self) {
         unsafe {
-            INTERRUPT_QUEUE.as_mut()
-                .unwrap()
-                .dequeue()
-                .map(|interrupt| {
-                    match interrupt {
-                        NvicIdx::ECB => nrf5x::aes::AESECB.handle_interrupt(),
-                        NvicIdx::GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
-                        NvicIdx::RADIO => radio::RADIO.handle_interrupt(),
-                        NvicIdx::RNG => nrf5x::trng::TRNG.handle_interrupt(),
-                        NvicIdx::RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
-                        NvicIdx::TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
-                        NvicIdx::TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
-                        NvicIdx::TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
-                        NvicIdx::TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
-                        NvicIdx::UART0 => uart::UART0.handle_interrupt(),
-                        NvicIdx::SPI0_TWI0 => spi::SPIM0.handle_interrupt(),
-                        NvicIdx::SPI1_TWI1 => spi::SPIM1.handle_interrupt(),
-                        NvicIdx::SPIM2_SPIS2_SPI2 => spi::SPIM2.handle_interrupt(),
-                        _ => debug!("NvicIdx not supported by Tock\r\n"),
+            while let Some(interrupt) = nvic::next_pending() {
+                match interrupt {
+                    ECB => nrf5x::aes::AESECB.handle_interrupt(),
+                    GPIOTE => nrf5x::gpio::PORT.handle_interrupt(),
+                    RADIO => radio::RADIO.handle_interrupt(),
+                    RNG => nrf5x::trng::TRNG.handle_interrupt(),
+                    RTC1 => nrf5x::rtc::RTC.handle_interrupt(),
+                    TEMP => nrf5x::temperature::TEMP.handle_interrupt(),
+                    TIMER0 => nrf5x::timer::TIMER0.handle_interrupt(),
+                    TIMER1 => nrf5x::timer::ALARM1.handle_interrupt(),
+                    TIMER2 => nrf5x::timer::TIMER2.handle_interrupt(),
+                    UART0 => uart::UART0.handle_interrupt(),
+                    SPI0_TWI0 => {
+                        // SPI0 and TWI0 share interrupts.
+                        // Dispatch the correct handler.
+                        match (spi::SPIM0.is_enabled(), i2c::TWIM0.is_enabled()) {
+                            (false, false) => (),
+                            (true, false) => spi::SPIM0.handle_interrupt(),
+                            (false, true) => i2c::TWIM0.handle_interrupt(),
+                            (true, true) => debug_assert!(
+                                false,
+                                "SPIM0 and TWIM0 cannot be \
+                                 enabled at the same time."
+                            ),
+                        }
                     }
-                    nrf5x::nvic::enable(interrupt);
-                });
+                    SPI1_TWI1 => {
+                        // SPI1 and TWI1 share interrupts.
+                        // Dispatch the correct handler.
+                        match (spi::SPIM1.is_enabled(), i2c::TWIM1.is_enabled()) {
+                            (false, false) => (),
+                            (true, false) => spi::SPIM1.handle_interrupt(),
+                            (false, true) => i2c::TWIM1.handle_interrupt(),
+                            (true, true) => debug_assert!(
+                                false,
+                                "SPIM1 and TWIM1 cannot be \
+                                 enabled at the same time."
+                            ),
+                        }
+                    }
+                    SPIM2_SPIS2_SPI2 => spi::SPIM2.handle_interrupt(),
+                    _ => debug!("NvicIdx not supported by Tock"),
+                }
+                let n = nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
+            }
         }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { INTERRUPT_QUEUE.as_mut().unwrap().has_elements() }
+        unsafe { nvic::has_pending() }
     }
 }

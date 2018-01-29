@@ -58,10 +58,11 @@ compiled and loaded much like the kernel is. See the [getting started README](..
 
     ```bash
     cd userland/examples/blink
-    make program  # Load code via bootloader
+    make TOCK_BOARD=imix program  # Load code via bootloader
       -- or --    # Check the README in your board folder
-    make flash    # Load code via jtag
+    make TOCK_BOARD=imix flash    # Load code via jtag
     ```
-
+    
+    If you have another board than Imix replace imix with your board.
     When the `make` command finishes you should see the LEDs on the board blinking.
     Congratulations! You have just programmed your first Tock application.

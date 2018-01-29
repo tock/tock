@@ -7,19 +7,16 @@ This document walks through how all of the components of Tock start up.
 
 <!-- toc -->
 
-- [Tock Bootup](#tock-bootup)
-  * [Optional Bootloader](#optional-bootloader)
-  * [Tock Vector Table and IRQ table](#tock-vector-table-and-irq-table)
-  * [Reset Handler](#reset-handler)
-    + [Memory Initialization](#memory-initialization)
-    + [MCU Setup](#mcu-setup)
-    + [Capsule Initialization](#capsule-initialization)
-  * [Application Startup](#application-startup)
-  * [Scheduler Execution](#scheduler-execution)
+- [Optional Bootloader](#optional-bootloader)
+- [Tock Vector Table and IRQ table](#tock-vector-table-and-irq-table)
+- [Reset Handler](#reset-handler)
+  * [Memory Initialization](#memory-initialization)
+  * [MCU Setup](#mcu-setup)
+  * [Capsule Initialization](#capsule-initialization)
+- [Application Startup](#application-startup)
+- [Scheduler Execution](#scheduler-execution)
 
 <!-- tocstop -->
-
-## Tock Bootup
 
 When a microcontroller boots (or resets, or services an interrupt) it loads an
 address for a function from a table indexed by interrupt type known as the
@@ -29,7 +26,7 @@ thus it is placed in a special section for linking.
 Cortex-M microcontrollers expect a vector table to be at address 0x00000000.
 This can either be a software bootloader or the Tock kernel itself.
 
-### Optional Bootloader
+## Optional Bootloader
 
 Many Tock boards (including Hail and imix) use a software bootloader that
 executes when the MCU first boots. The bootloader provides a way to talk to the
@@ -38,7 +35,7 @@ administrative tasks. When the bootloader has finished, it tells the MCU that
 the vector table has moved (to a known address), and then jumps to a new
 address.
 
-### Tock Vector Table and IRQ table
+## Tock Vector Table and IRQ table
 
 Tock splits the vector table into two sections, `.vectors` which hold the first
 16 entries, common to all ARM cores, and `.irqs`, which is appended to the end
@@ -72,24 +69,24 @@ At the time of this writing (October 2016), the `sam4l` defines its vector table
 in `lib.rs` as a series of `.vectors` sections that are concatenated during
 linking into one table; the `nrf51` defines its vector table in `crt1.c`.
 
-### Reset Handler
+## Reset Handler
 
 On boot, the MCU calls the reset handler function defined in vector table. In
 Tock, the implementation of the reset handler function is platform-specific and
 defined in `boards/<board>/src/main.rs` for each board.
 
-#### Memory Initialization
+### Memory Initialization
 
 The first operation the reset handler does is setup the kernel's memory by
 copying it from flash. For the SAM4L, this is in the `init()` function in
 `chips/sam4l/src/lib.rs`.
 
-#### MCU Setup
+### MCU Setup
 
 Any normal MCU initialization is typically handled next. This includes things
 like enabling the correct clocks or setting up DMA channels.
 
-#### Capsule Initialization
+### Capsule Initialization
 
 The board then initializes all of the capsules the kernel intends to support. In
 the common case, this only includes "chaining" callbacks between the underlying
@@ -97,7 +94,7 @@ hardware drivers and the various capsules that use them. Sometimes, however, an
 additional "setup" function is required (often called `.initialize()`), and
 would be called inside of this reset handler at this point.
 
-### Application Startup
+## Application Startup
 
 Once the kernel components have been setup and initialized, the applications
 must be loaded. This procedure essentially iterates over the processes stored in
@@ -119,7 +116,7 @@ The load process loop ends when the kernel runs out of statically allocated
 memory to store processes in, available RAM for processes, or there is an
 invalid TBF header in flash.
 
-### Scheduler Execution
+## Scheduler Execution
 
 The final thing that the reset handler must do is call `kernel::main()`. This
 starts the Tock scheduler and the main operation of the kernel.

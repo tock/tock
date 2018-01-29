@@ -17,13 +17,13 @@
 //! frames will prevent the test from completing successfully.
 //!
 //! To use this test suite, allocate space for a new LowpanTest structure, and
-//! set it as the client for the FragState struct and for the respective TxState
+//! set it as the client for the Sixlowpan struct and for the respective TxState
 //! struct. For the transmit side, call the LowpanTest::start method. The
 //! `initialize_all` function performs this initialization; simply call this
 //! function in `boards/imix/src/main.rs` as follows:
 //!
 //! Alternatively, you can call the `initialize_all` function, which performs
-//! the initialization routines for the 6LoWPAN, TxState, RxState, and FragState
+//! the initialization routines for the 6LoWPAN, TxState, RxState, and Sixlowpan
 //! structs. Insert the code into `boards/imix/src/main.rs` as follows:
 //!
 //! ...
@@ -40,83 +40,43 @@
 
 use capsules;
 extern crate sam4l;
-use capsules::ieee802154::mac;
 use capsules::ieee802154::mac::Mac;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ip::{IP6Header, IPAddr, ip6_nh};
-use capsules::net::lowpan;
-use capsules::net::lowpan::{ContextStore, Context};
-use capsules::net::lowpan_fragment::{FragState, TxState, TransmitClient, ReceiveClient};
-use capsules::net::util;
+use capsules::net::sixlowpan::{Sixlowpan, SixlowpanClient};
+use capsules::net::sixlowpan_compression;
+use capsules::net::sixlowpan_compression::Context;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-
 use core::mem;
 use kernel::ReturnCode;
-
 use kernel::hil::radio;
 use kernel::hil::time;
 use kernel::hil::time::Frequency;
 
-pub struct DummyStore {
-    context0: Context,
-}
-
-impl DummyStore {
-    pub fn new(context0: Context) -> DummyStore {
-        DummyStore { context0: context0 }
-    }
-}
-
-impl ContextStore for DummyStore {
-    fn get_context_from_addr(&self, ip_addr: IPAddr) -> Option<Context> {
-        if util::matches_prefix(&ip_addr.0, &self.context0.prefix, self.context0.prefix_len) {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-
-    fn get_context_from_id(&self, ctx_id: u8) -> Option<Context> {
-        if ctx_id == 0 {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-
-    fn get_context_from_prefix(&self, prefix: &[u8], prefix_len: u8) -> Option<Context> {
-        if prefix_len == self.context0.prefix_len &&
-           util::matches_prefix(prefix, &self.context0.prefix, prefix_len) {
-            Some(self.context0)
-        } else {
-            None
-        }
-    }
-}
-
 pub const MLP: [u8; 8] = [0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7];
-pub const SRC_ADDR: IPAddr = IPAddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
-                                     0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
-pub const DST_ADDR: IPAddr = IPAddr([0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29,
-                                     0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f]);
-pub const SRC_MAC_ADDR: MacAddress = MacAddress::Long([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
-                                                       0x17]);
-pub const DST_MAC_ADDR: MacAddress = MacAddress::Long([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
-                                                       0x1f]);
+pub const SRC_ADDR: IPAddr = IPAddr([
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+]);
+pub const DST_ADDR: IPAddr = IPAddr([
+    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f
+]);
+pub const SRC_MAC_ADDR: MacAddress =
+    MacAddress::Long([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17]);
+pub const DST_MAC_ADDR: MacAddress =
+    MacAddress::Long([0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f]);
 
 pub const IP6_HDR_SIZE: usize = 40;
 pub const PAYLOAD_LEN: usize = 200;
 pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_SIZE];
 
 /* 6LoWPAN Constants */
-const DEFAULT_CTX_PREFIX_LEN: usize = 8;
+const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
 static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
 static mut RX_STATE_BUF: [u8; 1280] = [0x0; 1280];
 static mut RADIO_BUF_TMP: [u8; radio::MAX_BUF_SIZE] = [0x0; radio::MAX_BUF_SIZE];
 
-
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum TF {
     Inline = 0b00,
     Traffic = 0b01,
@@ -124,7 +84,7 @@ enum TF {
     TrafficFlow = 0b11,
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 enum SAC {
     Inline,
     LLP64,
@@ -136,7 +96,7 @@ enum SAC {
     CtxIID,
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 enum DAC {
     Inline,
     LLP64,
@@ -155,91 +115,63 @@ enum DAC {
 pub const TEST_DELAY_MS: u32 = 10000;
 pub const TEST_LOOP: bool = false;
 
-pub struct LowpanTest<'a, A: time::Alarm + 'a> {
-    radio: &'a mac::Mac<'a>,
-    alarm: &'a A,
-    frag_state: &'a FragState<'a, A>,
-    tx_state: &'a TxState<'a>,
+pub struct LowpanTest<'a, A: time::Alarm + 'a, T: time::Alarm + 'a> {
+    alarm: A,
+    frag_state: Sixlowpan<'a, T, Context>,
     test_counter: Cell<usize>,
 }
 
-pub unsafe fn initialize_all(radio_mac: &'static Mac,
-                      mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>)
-        -> &'static LowpanTest<'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>> {
-    let dummy_ctx_store = static_init!(DummyStore,
-                                       DummyStore::new(capsules::net::lowpan::Context {
-                                           prefix: DEFAULT_CTX_PREFIX,
-                                           prefix_len: DEFAULT_CTX_PREFIX_LEN as u8,
-                                           id: 0,
-                                           compress: false,
-                                       }));
-
-    let default_tx_state = static_init!(
-        capsules::net::lowpan_fragment::TxState<'static>,
-        capsules::net::lowpan_fragment::TxState::new()
-        );
-
+pub unsafe fn initialize_all(
+    radio_mac: &'static Mac,
+    mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
+) -> &'static LowpanTest<
+    'static,
+    capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    sam4l::ast::Ast<'static>,
+> {
     let default_rx_state = static_init!(
-        capsules::net::lowpan_fragment::RxState<'static>,
-        capsules::net::lowpan_fragment::RxState::new(&mut RX_STATE_BUF)
-        );
-
-    let frag_state_alarm = static_init!(
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm)
-        );
-
-    let frag_dummy_alarm = static_init!(
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-        VirtualMuxAlarm::new(mux_alarm)
-        );
-
-    let frag_state = static_init!(
-        capsules::net::lowpan_fragment::FragState<'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        capsules::net::lowpan_fragment::FragState::new(
-            radio_mac,
-            dummy_ctx_store as &'static capsules::net::lowpan::ContextStore,
-            &mut RADIO_BUF_TMP,
-            frag_state_alarm)
-        );
-
-    frag_state.add_rx_state(default_rx_state);
-    radio_mac.set_transmit_client(frag_state);
-    radio_mac.set_receive_client(frag_state);
-
-    let lowpan_frag_test = static_init!(
-        LowpanTest<'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-        LowpanTest::new(radio_mac as &'static Mac,
-                        frag_state,
-                        default_tx_state,
-                        frag_dummy_alarm)
+        capsules::net::sixlowpan::RxState<'static>,
+        capsules::net::sixlowpan::RxState::new(&mut RX_STATE_BUF)
     );
 
-    frag_state.set_receive_client(lowpan_frag_test);
-    default_tx_state.set_transmit_client(lowpan_frag_test);
-    frag_state_alarm.set_client(frag_state);
-    frag_dummy_alarm.set_client(lowpan_frag_test);
-    frag_state.schedule_next_timer();
+    let frag_state = capsules::net::sixlowpan::Sixlowpan::new(
+        radio_mac,
+        capsules::net::sixlowpan_compression::Context {
+            prefix: DEFAULT_CTX_PREFIX,
+            prefix_len: DEFAULT_CTX_PREFIX_LEN,
+            id: 0,
+            compress: false,
+        },
+        &mut RADIO_BUF_TMP,
+        &sam4l::ast::AST,
+    );
 
+    let lowpan_frag_test = static_init!(
+        LowpanTest<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>, sam4l::ast::Ast>,
+        LowpanTest::new(frag_state, VirtualMuxAlarm::new(mux_alarm))
+    );
+
+    lowpan_frag_test.frag_state.add_rx_state(default_rx_state);
+    lowpan_frag_test.alarm.set_client(lowpan_frag_test);
+
+    radio_mac.set_transmit_client(&lowpan_frag_test.frag_state);
+    radio_mac.set_receive_client(&lowpan_frag_test.frag_state);
+
+    lowpan_frag_test.init();
     lowpan_frag_test
 }
 
-impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
-    pub fn new(radio: &'a mac::Mac<'a>,
-               frag_state: &'a FragState<'a, A>,
-               tx_state: &'a TxState<'a>,
-               alarm: &'a A)
-               -> LowpanTest<'a, A> {
+impl<'a, A: time::Alarm, T: time::Alarm + 'a> LowpanTest<'a, A, T> {
+    pub fn new(frag_state: Sixlowpan<'a, T, Context>, alarm: A) -> LowpanTest<'a, A, T> {
         LowpanTest {
-            radio: radio,
             alarm: alarm,
             frag_state: frag_state,
-            tx_state: tx_state,
             test_counter: Cell::new(0),
         }
+    }
+
+    pub fn init(&'a self) {
+        self.frag_state.set_client(self);
     }
 
     pub fn start(&self) {
@@ -335,14 +267,14 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
             11 => {
                 ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::LLPIID, DAC::Inline, buf, len)
             }
-            12 => {
-                ipv6_check_receive_packet(TF::TrafficFlow,
-                                          42,
-                                          SAC::Unspecified,
-                                          DAC::Inline,
-                                          buf,
-                                          len)
-            }
+            12 => ipv6_check_receive_packet(
+                TF::TrafficFlow,
+                42,
+                SAC::Unspecified,
+                DAC::Inline,
+                buf,
+                len,
+            ),
             13 => ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::Ctx64, DAC::Inline, buf, len),
             14 => ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::Ctx16, DAC::Inline, buf, len),
             15 => {
@@ -363,14 +295,14 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
             22 => {
                 ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::CtxIID, DAC::CtxIID, buf, len)
             }
-            23 => {
-                ipv6_check_receive_packet(TF::TrafficFlow,
-                                          42,
-                                          SAC::CtxIID,
-                                          DAC::McastInline,
-                                          buf,
-                                          len)
-            }
+            23 => ipv6_check_receive_packet(
+                TF::TrafficFlow,
+                42,
+                SAC::CtxIID,
+                DAC::McastInline,
+                buf,
+                len,
+            ),
             24 => {
                 ipv6_check_receive_packet(TF::TrafficFlow, 42, SAC::CtxIID, DAC::Mcast48, buf, len)
             }
@@ -385,7 +317,6 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
             }
 
             _ => debug!("Finished tests"),
-
         }
     }
     fn ipv6_send_packet_test(&self, tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
@@ -395,68 +326,67 @@ impl<'a, A: time::Alarm + 'a> LowpanTest<'a, A> {
         }
     }
 
-    unsafe fn send_ipv6_packet(&self,
-                               _: &[u8],
-                               src_mac_addr: MacAddress,
-                               dst_mac_addr: MacAddress) {
-        let frag_state = self.frag_state;
-        let tx_state = self.tx_state;
+    unsafe fn send_ipv6_packet(
+        &self,
+        _: &[u8],
+        src_mac_addr: MacAddress,
+        dst_mac_addr: MacAddress,
+    ) {
+        let frag_state = &self.frag_state;
         //frag_state.radio.config_set_pan(0xABCD);
-        let ret_code = frag_state.transmit_packet(src_mac_addr,
-                                                  dst_mac_addr,
-                                                  &mut IP6_DGRAM,
-                                                  IP6_DGRAM.len(),
-                                                  None,
-                                                  tx_state,
-                                                  true,
-                                                  true);
+        let ret_code = frag_state.transmit_packet(
+            src_mac_addr,
+            dst_mac_addr,
+            &mut IP6_DGRAM,
+            IP6_DGRAM.len(),
+            None,
+        );
         debug!("Ret code: {:?}", ret_code);
     }
 }
 
-impl<'a, A: time::Alarm + 'a> time::Client for LowpanTest<'a, A> {
+impl<'a, A: time::Alarm, T: time::Alarm + 'a> time::Client for LowpanTest<'a, A, T> {
     fn fired(&self) {
         self.run_test_and_increment();
     }
 }
 
-impl<'a, A: time::Alarm + 'a> TransmitClient for LowpanTest<'a, A> {
-    fn send_done(&self, _: &'static mut [u8], _: &TxState, _: bool, _: ReturnCode) {
-        debug!("Send completed");
-        self.schedule_next();
-    }
-}
-
-impl<'a, A: time::Alarm + 'a> ReceiveClient for LowpanTest<'a, A> {
+impl<'a, A: time::Alarm, T: time::Alarm + 'a> SixlowpanClient for LowpanTest<'a, A, T> {
     fn receive<'b>(&self, buf: &'b [u8], len: u16, retcode: ReturnCode) {
         debug!("Receive completed: {:?}", retcode);
         let test_num = self.test_counter.get();
         self.test_counter.set((test_num + 1) % self.num_tests());
         self.run_check_test(test_num, buf, len)
     }
+
+    fn send_done(&self, _: &'static mut [u8], _: bool, _: ReturnCode) {
+        debug!("Send completed");
+        self.schedule_next();
+    }
 }
 
 static mut IP6_DGRAM: [u8; IP6_HDR_SIZE + PAYLOAD_LEN] = [0; IP6_HDR_SIZE + PAYLOAD_LEN];
 
-fn ipv6_check_receive_packet(tf: TF,
-                             hop_limit: u8,
-                             sac: SAC,
-                             dac: DAC,
-                             recv_packet: &[u8],
-                             len: u16) {
+fn ipv6_check_receive_packet(
+    tf: TF,
+    hop_limit: u8,
+    sac: SAC,
+    dac: DAC,
+    recv_packet: &[u8],
+    len: u16,
+) {
     ipv6_prepare_packet(tf, hop_limit, sac, dac);
     unsafe {
         for i in 0..len as usize {
             if recv_packet[i] != IP6_DGRAM[i] {
-                debug!("Packets differ at idx: {} where recv = {}, ref = {}",
-                       i,
-                       recv_packet[i],
-                       IP6_DGRAM[i]);
+                debug!(
+                    "Packets differ at idx: {} where recv = {}, ref = {}",
+                    i, recv_packet[i], IP6_DGRAM[i]
+                );
             }
         }
     }
 }
-
 
 fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
     {
@@ -509,7 +439,8 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
             SAC::LLPIID => {
                 // LLP::IID
                 ip6_header.src_addr.set_unicast_link_local();
-                ip6_header.src_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&SRC_MAC_ADDR));
+                ip6_header.src_addr.0[8..16]
+                    .copy_from_slice(&sixlowpan_compression::compute_iid(&SRC_MAC_ADDR));
             }
             SAC::Unspecified => {}
             SAC::Ctx64 => {
@@ -528,7 +459,8 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
             SAC::CtxIID => {
                 // MLP::IID
                 ip6_header.src_addr.set_prefix(&MLP, 64);
-                ip6_header.src_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&SRC_MAC_ADDR));
+                ip6_header.src_addr.0[8..16]
+                    .copy_from_slice(&sixlowpan_compression::compute_iid(&SRC_MAC_ADDR));
             }
         }
 
@@ -552,7 +484,8 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
             DAC::LLPIID => {
                 // LLP::IID
                 ip6_header.dst_addr.set_unicast_link_local();
-                ip6_header.dst_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&DST_MAC_ADDR));
+                ip6_header.dst_addr.0[8..16]
+                    .copy_from_slice(&sixlowpan_compression::compute_iid(&DST_MAC_ADDR));
             }
             DAC::Ctx64 => {
                 // MLP::xxxx:xxxx:xxxx:xxxx
@@ -570,7 +503,8 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
             DAC::CtxIID => {
                 // MLP::IID
                 ip6_header.dst_addr.set_prefix(&MLP, 64);
-                ip6_header.dst_addr.0[8..16].copy_from_slice(&lowpan::compute_iid(&DST_MAC_ADDR));
+                ip6_header.dst_addr.0[8..16]
+                    .copy_from_slice(&sixlowpan_compression::compute_iid(&DST_MAC_ADDR));
             }
             DAC::McastInline => {
                 // first byte is ff, that's all we know
@@ -606,9 +540,8 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
             }
         }
     }
-    debug!("Packet with tf={:?} hl={} sac={:?} dac={:?}",
-           tf,
-           hop_limit,
-           sac,
-           dac);
+    debug!(
+        "Packet with tf={:?} hl={} sac={:?} dac={:?}",
+        tf, hop_limit, sac, dac
+    );
 }

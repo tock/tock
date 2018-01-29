@@ -1,4 +1,4 @@
-#![feature(asm,concat_idents,const_fn,const_cell_new)]
+#![feature(asm, concat_idents, const_fn, const_cell_new, try_from)]
 #![no_std]
 
 #[allow(unused_imports)]
@@ -12,10 +12,10 @@ pub mod ble_advertising_driver;
 pub mod ble_advertising_hil;
 pub mod clock;
 pub mod gpio;
-pub mod nvic;
 pub mod peripheral_interrupts;
 pub mod pinmux;
 pub mod rtc;
 pub mod timer;
 pub mod temperature;
 pub mod trng;
+pub mod constants;

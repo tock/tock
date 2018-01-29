@@ -26,7 +26,7 @@ You can program an application via JTAG and there are two ways to do so:
     ```bash
     $ cd userland/examples/<app>
     $ make
-    $ tockloader install --jtag --board nrf52dk --arch cortex-m4
+    $ tockloader install --jtag --board nrf52dk --arch cortex-m4 --app-address 0x20000 --jtag-device nrf52
     ```
 
  2. Alternatively, via `flash`.
@@ -34,9 +34,6 @@ You can program an application via JTAG and there are two ways to do so:
     $ cd userland/examples/<app>
     $ make TOCK_BOARD=nrf52dk flash
     ```
-
-To compile and install compile applications for the nrf52dk, follow the
-standard Tock instructions (the "Getting Started" guide).
 
 ## Debugging
 

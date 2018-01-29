@@ -20,32 +20,125 @@ MEMORY {
 }
 
 SECTIONS {
-/* Text section, Code! */
+    /* Text section, Code! */
     .text :
     {
         _text = .;
+        /**
+         * Populate the header expected by `crt0`:
+         *
+         *
+         *  struct hdr {
+         *    uint32_t got_sym_start;
+         *    uint32_t got_start;
+         *    uint32_t got_size;
+         *    uint32_t data_sym_start;
+         *    uint32_t data_start;
+         *    uint32_t data_size;
+         *    uint32_t bss_start;
+         *    uint32_t bss_size;
+         *    uint32_t reldata_start;
+         *  };
+         */
+        /* Offset of GOT symbols in flash */
+        LONG(LOADADDR(.got) - _text);
+        /* Offset of GOT section in memory */
+        LONG(_got);
+        /* Size of GOT section */
+        LONG(SIZEOF(.got));
+        /* Offset of data symbols in flash */
+        LONG(LOADADDR(.data) - _text);
+        /* Offset of data section in memory */
+        LONG(_data);
+        /* Size of data section */
+        LONG(SIZEOF(.data));
+        /* Offset of BSS section in memory */
+        LONG(_bss);
+        /* Size of BSS section */
+        LONG(SIZEOF(.bss));
+        /* First address offset after program flash, where elf2tbf places
+         * .rel.data section */
+        LONG(LOADADDR(.endsec) - _text);
+
         KEEP (*(.start))
         *(.text*)
         *(.rodata*)
         KEEP (*(.syscalls))
         _etext = .;
+        *(.ARM.extab*)
+        . = ALIGN(4); /* Make sure we're word-aligned here */
     } > FLASH =0xFF
 
-/* App state section. Used for persistent app data. */
+
+    /* App state section. Used for persistent app data. */
     .app_state :
     {
         KEEP (*(.app_state))
     } > FLASH =0xFF
 
-/* ARM Exception support
- *
- * This contains compiler-generated support for unwinding the stack,
- * consisting of key-value pairs of function addresses and information on
- * how to unwind stack frames.
- * https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf
- *
- * .ARM.exidx is sorted, so has to go in its own output section.
- */
+    /* Global Offset Table */
+    .got :
+    {
+        _got = .;
+        *(.got*)
+        *(.got.plt*)
+    } > SRAM AT > FLASH
+
+    /* Data section, static initialized variables
+     *  Note: This is placed in Flash after the text section, but needs to be
+     *  moved to SRAM at runtime
+     */
+    .data :
+    {
+        _data = .;
+        KEEP(*(.data*))
+    } > SRAM AT > FLASH
+
+    /* BSS section, static uninitialized variables */
+    .bss :
+    {
+        _bss = .;
+        KEEP(*(.bss*))
+        *(COMMON)
+    } > SRAM
+
+    /*
+     * __NOTE__: The following symbols are used only to hint to elf2tbf how much
+     * total memory to request from the OS.
+     */
+    .stack :
+    {
+        . += STACK_SIZE;
+    } > SRAM
+
+    .app_heap :
+    {
+        . += APP_HEAP_SIZE;
+    } > SRAM
+
+    .kernel_heap :
+    {
+        . += KERNEL_HEAP_SIZE;
+    } > SRAM
+
+    _sram_end = .;
+    .endsec :
+    {
+    } > FLASH
+
+    /* ARM Exception support
+     *
+     * This contains compiler-generated support for unwinding the stack,
+     * consisting of key-value pairs of function addresses and information on
+     * how to unwind stack frames.
+     * https://wiki.linaro.org/KenWerner/Sandbox/libunwind?action=AttachFile&do=get&target=libunwind-LDS.pdf
+     *
+     * .ARM.exidx is sorted, so has to go in its own output section.
+     *
+     * __NOTE__: It's at the end because we currently don't actually serialize
+     * it to the binary in elf2tbf. If it was before the RAM sections, it would
+     * through off our calculations of the header.
+     */
     PROVIDE_HIDDEN (__exidx_start = .);
     .ARM.exidx :
     {
@@ -54,70 +147,4 @@ SECTIONS {
     } > FLASH
     PROVIDE_HIDDEN (__exidx_end = .);
 
-/* Beginning of SRAM */
-    _sram_start = .;
-
-/* Global Offset Table */
-    .got :
-    {
-        _got = .;
-        *(.got*)
-        _egot = .;
-        _plt = .;
-        *(.got.plt*)
-        _eplt = .;
-    } > SRAM AT > FLASH
-
-/* Data section, static initialized variables
- *  Note: This is placed in Flash after the text section, but needs to be
- *  moved to SRAM at runtime
- */
-    .data :
-    {
-        _data = .;
-        KEEP(*(.data*))
-        _edata = .;
-    } > SRAM AT > FLASH
-
-/* BSS section, static uninitialized variables */
-    .bss :
-    {
-        _bss = .;
-        KEEP(*(.bss*))
-        *(COMMON)
-        _ebss = .;
-    } > SRAM
-
-/*
- * __NOTE__: The following symbols are used only to pass information
- * through the elf -> tbf -> Tock kernel.
- *
- * The kernel will place the stack at the beginning of the SRAM section so
- * that stack overflows run off the end of the memory segment and trigger an
- * MPU violation instead of overwriting data/got/bss information. This means
- * the actual location of symbols in those sections in memory will be offset
- * by STACK_SIZE.
- */
-    .stack :
-    {
-        _stack = .;
-        . += STACK_SIZE;
-        _estack = .;
-    } > SRAM
-
-    .app_heap :
-    {
-        _app_heap = .;
-        . += APP_HEAP_SIZE;
-        _eapp_heap = .;
-    } > SRAM
-
-    .kernel_heap :
-    {
-        _kernel_heap = .;
-        . += KERNEL_HEAP_SIZE;
-        _ekernel_heap = .;
-    } > SRAM
-
-    _sram_end = .;
 }

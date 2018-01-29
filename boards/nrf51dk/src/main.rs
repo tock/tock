@@ -37,12 +37,12 @@
 
 #![no_std]
 #![no_main]
-#![feature(lang_items,compiler_builtins_lib)]
+#![feature(lang_items, compiler_builtins_lib)]
 
-extern crate cortexm0;
 extern crate capsules;
 extern crate compiler_builtins;
-#[macro_use(debug, static_init)]
+#[allow(unused_imports)]
+#[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
 extern crate nrf51;
 extern crate nrf5x;
@@ -50,13 +50,13 @@ extern crate nrf5x;
 use capsules::alarm::AlarmDriver;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::{Chip, SysTick};
-use kernel::hil::symmetric_encryption::SymmetricEncryption;
 use kernel::hil::uart::UART;
 use nrf5x::pinmux::Pinmux;
-use nrf5x::rtc::{RTC, Rtc};
+use nrf5x::rtc::{Rtc, RTC};
 
 #[macro_use]
 pub mod io;
+mod aes_test;
 
 // The nRF51 DK LEDs (see back of board)
 const LED1_PIN: usize = 21;
@@ -69,7 +69,6 @@ const BUTTON1_PIN: usize = 17;
 const BUTTON2_PIN: usize = 18;
 const BUTTON3_PIN: usize = 19;
 const BUTTON4_PIN: usize = 20;
-
 
 // State for loading and holding applications.
 
@@ -84,9 +83,7 @@ static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
-
 pub struct Platform {
-    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
     ble_radio: &'static nrf5x::ble_advertising_driver::BLE<'static,
                                                            nrf51::radio::Radio,
                                                            VirtualMuxAlarm<'static, Rtc>>,
@@ -99,10 +96,10 @@ pub struct Platform {
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
 }
 
-
 impl kernel::Platform for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-        where F: FnOnce(Option<&kernel::Driver>) -> R
+    where
+        F: FnOnce(Option<&kernel::Driver>) -> R,
     {
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
@@ -111,9 +108,8 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
             nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            nrf5x::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             _ => f(None),
         }
     }
@@ -126,28 +122,59 @@ pub unsafe fn reset_handler() {
     // LEDs
     let led_pins = static_init!(
         [(&'static nrf5x::gpio::GPIOPin, capsules::led::ActivationMode); 4],
-        [(&nrf5x::gpio::PORT[LED1_PIN], capsules::led::ActivationMode::ActiveLow), // 21
-        (&nrf5x::gpio::PORT[LED2_PIN], capsules::led::ActivationMode::ActiveLow), // 22
-        (&nrf5x::gpio::PORT[LED3_PIN], capsules::led::ActivationMode::ActiveLow), // 23
-        (&nrf5x::gpio::PORT[LED4_PIN], capsules::led::ActivationMode::ActiveLow), // 24
-        ], 256/8);
+        [
+            (
+                &nrf5x::gpio::PORT[LED1_PIN],
+                capsules::led::ActivationMode::ActiveLow
+            ), // 21
+            (
+                &nrf5x::gpio::PORT[LED2_PIN],
+                capsules::led::ActivationMode::ActiveLow
+            ), // 22
+            (
+                &nrf5x::gpio::PORT[LED3_PIN],
+                capsules::led::ActivationMode::ActiveLow
+            ), // 23
+            (
+                &nrf5x::gpio::PORT[LED4_PIN],
+                capsules::led::ActivationMode::ActiveLow
+            ) // 24
+        ],
+        256 / 8
+    );
     let led = static_init!(
         capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
         capsules::led::LED::new(led_pins),
-        64/8);
+        64 / 8
+    );
 
     let button_pins = static_init!(
         [(&'static nrf5x::gpio::GPIOPin, capsules::button::GpioMode); 4],
-        [(&nrf5x::gpio::PORT[BUTTON1_PIN], capsules::button::GpioMode::LowWhenPressed), // 17
-        (&nrf5x::gpio::PORT[BUTTON2_PIN], capsules::button::GpioMode::LowWhenPressed), // 18
-        (&nrf5x::gpio::PORT[BUTTON3_PIN], capsules::button::GpioMode::LowWhenPressed), // 19
-        (&nrf5x::gpio::PORT[BUTTON4_PIN], capsules::button::GpioMode::LowWhenPressed), // 20
+        [
+            (
+                &nrf5x::gpio::PORT[BUTTON1_PIN],
+                capsules::button::GpioMode::LowWhenPressed
+            ), // 17
+            (
+                &nrf5x::gpio::PORT[BUTTON2_PIN],
+                capsules::button::GpioMode::LowWhenPressed
+            ), // 18
+            (
+                &nrf5x::gpio::PORT[BUTTON3_PIN],
+                capsules::button::GpioMode::LowWhenPressed
+            ), // 19
+            (
+                &nrf5x::gpio::PORT[BUTTON4_PIN],
+                capsules::button::GpioMode::LowWhenPressed
+            ) // 20
         ],
-        4 * 4);
+        4 * 4
+    );
     let button = static_init!(
         capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
         capsules::button::Button::new(button_pins, kernel::Grant::create()),
-        96/8);
+        96 / 8
+    );
     for &(btn, _) in button_pins.iter() {
         use kernel::hil::gpio::PinCtl;
         btn.set_input_mode(kernel::hil::gpio::InputMode::PullUp);
@@ -156,39 +183,47 @@ pub unsafe fn reset_handler() {
 
     let gpio_pins = static_init!(
         [&'static nrf5x::gpio::GPIOPin; 11],
-        [&nrf5x::gpio::PORT[1],  // Bottom left header on DK board
-        &nrf5x::gpio::PORT[2],  //   |
-        &nrf5x::gpio::PORT[3],  //   V
-        &nrf5x::gpio::PORT[4],  //
-        &nrf5x::gpio::PORT[5],  //
-        &nrf5x::gpio::PORT[6],  // -----
-        &nrf5x::gpio::PORT[16], //
-        &nrf5x::gpio::PORT[15], //
-        &nrf5x::gpio::PORT[14], //
-        &nrf5x::gpio::PORT[13], //
-        &nrf5x::gpio::PORT[12], //
+        [
+            &nrf5x::gpio::PORT[1],  // Bottom left header on DK board
+            &nrf5x::gpio::PORT[2],  //   |
+            &nrf5x::gpio::PORT[3],  //   V
+            &nrf5x::gpio::PORT[4],  //
+            &nrf5x::gpio::PORT[5],  //
+            &nrf5x::gpio::PORT[6],  // -----
+            &nrf5x::gpio::PORT[16], //
+            &nrf5x::gpio::PORT[15], //
+            &nrf5x::gpio::PORT[14], //
+            &nrf5x::gpio::PORT[13], //
+            &nrf5x::gpio::PORT[12]  //
         ],
-        4 * 11);
+        4 * 11
+    );
 
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
         capsules::gpio::GPIO::new(gpio_pins),
-        224/8);
+        224 / 8
+    );
     for pin in gpio_pins.iter() {
         pin.set_client(gpio);
     }
 
-    nrf51::uart::UART0.configure(Pinmux::new(9), /*. tx  */
-                                 Pinmux::new(11), /* rx  */
-                                 Pinmux::new(10), /* cts */
-                                 Pinmux::new(8) /*. rts */);
+    nrf51::uart::UART0.configure(
+        Pinmux::new(9),  /*. tx  */
+        Pinmux::new(11), /* rx  */
+        Pinmux::new(10), /* cts */
+        Pinmux::new(8),  /*. rts */
+    );
     let console = static_init!(
         capsules::console::Console<nrf51::uart::UART>,
-        capsules::console::Console::new(&nrf51::uart::UART0,
-                                        115200,
-                                        &mut capsules::console::WRITE_BUF,
-                                        kernel::Grant::create()),
-                                        224/8);
+        capsules::console::Console::new(
+            &nrf51::uart::UART0,
+            115200,
+            &mut capsules::console::WRITE_BUF,
+            kernel::Grant::create()
+        ),
+        224 / 8
+    );
     UART::set_client(&nrf51::uart::UART0, console);
     console.initialize();
 
@@ -196,7 +231,8 @@ pub unsafe fn reset_handler() {
     let kc = static_init!(
         capsules::console::App,
         capsules::console::App::default(),
-        480/8);
+        480 / 8
+    );
     kernel::debug::assign_console_driver(Some(console), kc);
 
     let rtc = &nrf5x::rtc::RTC;
@@ -204,56 +240,63 @@ pub unsafe fn reset_handler() {
     let mux_alarm = static_init!(MuxAlarm<'static, Rtc>, MuxAlarm::new(&RTC), 16);
     rtc.set_client(mux_alarm);
 
-
     let virtual_alarm1 = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
         VirtualMuxAlarm::new(mux_alarm),
-        24);
+        24
+    );
     let alarm = static_init!(
         AlarmDriver<'static, VirtualMuxAlarm<'static, Rtc>>,
-        AlarmDriver::new(virtual_alarm1,
-                         kernel::Grant::create()),
-                         12);
+        AlarmDriver::new(virtual_alarm1, kernel::Grant::create()),
+        12
+    );
     virtual_alarm1.set_client(alarm);
 
     let ble_radio_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
         VirtualMuxAlarm::new(mux_alarm),
-        192/8);
+        192 / 8
+    );
 
     let temp = static_init!(
         capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(&mut nrf5x::temperature::TEMP,
-                                                 kernel::Grant::create()), 96/8);
+        capsules::temperature::TemperatureSensor::new(
+            &mut nrf5x::temperature::TEMP,
+            kernel::Grant::create()
+        ),
+        96 / 8
+    );
     kernel::hil::sensors::TemperatureDriver::set_client(&nrf5x::temperature::TEMP, temp);
 
     let rng = static_init!(
         capsules::rng::SimpleRng<'static, nrf5x::trng::Trng>,
         capsules::rng::SimpleRng::new(&mut nrf5x::trng::TRNG, kernel::Grant::create()),
-        96/8);
+        96 / 8
+    );
     nrf5x::trng::TRNG.set_client(rng);
 
-    let aes = static_init!(
-        capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
-        capsules::symmetric_encryption::Crypto::new(&mut nrf5x::aes::AESECB,
-                                                    kernel::Grant::create(),
-                                                    &mut capsules::symmetric_encryption::KEY,
-                                                    &mut capsules::symmetric_encryption::BUF,
-                                                    &mut capsules::symmetric_encryption::IV),
-        288/8);
-    nrf5x::aes::AESECB.ecb_init();
-    SymmetricEncryption::set_client(&nrf5x::aes::AESECB, aes);
-
     let ble_radio = static_init!(
-     nrf5x::ble_advertising_driver::BLE
-        <'static, nrf51::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
-     nrf5x::ble_advertising_driver::BLE::new(
-         &mut nrf51::radio::RADIO,
-         kernel::Grant::create(),
-         &mut nrf5x::ble_advertising_driver::BUF,
-         ble_radio_virtual_alarm),
-        256/8);
-    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_client(&nrf51::radio::RADIO, ble_radio);
+        nrf5x::ble_advertising_driver::BLE<
+            'static,
+            nrf51::radio::Radio,
+            VirtualMuxAlarm<'static, Rtc>,
+        >,
+        nrf5x::ble_advertising_driver::BLE::new(
+            &mut nrf51::radio::RADIO,
+            kernel::Grant::create(),
+            &mut nrf5x::ble_advertising_driver::BUF,
+            ble_radio_virtual_alarm
+        ),
+        256 / 8
+    );
+    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_receive_client(
+        &nrf51::radio::RADIO,
+        ble_radio,
+    );
+    nrf5x::ble_advertising_hil::BleAdvertisementDriver::set_transmit_client(
+        &nrf51::radio::RADIO,
+        ble_radio,
+    );
     ble_radio_virtual_alarm.set_client(ble_radio);
 
     // Start all of the clocks. Low power operation will require a better
@@ -268,7 +311,7 @@ pub unsafe fn reset_handler() {
     while !nrf5x::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        aes: aes,
+        // aes: aes,
         ble_radio: ble_radio,
         button: button,
         console: console,
@@ -290,12 +333,22 @@ pub unsafe fn reset_handler() {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
-    kernel::process::load_processes(&_sapps as *const u8,
-                                    &mut APP_MEMORY,
-                                    &mut PROCESSES,
-                                    FAULT_RESPONSE);
-    kernel::main(&platform,
-                 &mut chip,
-                 &mut PROCESSES,
-                 &kernel::ipc::IPC::new());
+    kernel::process::load_processes(
+        &_sapps as *const u8,
+        &mut APP_MEMORY,
+        &mut PROCESSES,
+        FAULT_RESPONSE,
+    );
+    
+    // aes128-ctr test remove later
+    aes_test::run();
+    
+    
+    kernel::main(
+        &platform,
+        &mut chip,
+        &mut PROCESSES,
+        &kernel::ipc::IPC::new(),
+    );
+
 }

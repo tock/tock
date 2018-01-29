@@ -18,9 +18,9 @@ use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption;
-use kernel::hil::symmetric_encryption::{AES128, AES128Ctr, AES128CBC};
+use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr};
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, CCM_NONCE_LENGTH};
-use net::stream::{encode_u16, encode_bytes};
+use net::stream::{encode_bytes, encode_u16};
 use net::stream::SResult;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -312,10 +312,12 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES12
         if !(a_off <= m_off && m_off + m_len + mic_len <= buf.len()) {
             return (ReturnCode::EINVAL, Some(buf));
         }
-        let res = self.prepare_ccm_buffer(&self.nonce.get(),
-                                          mic_len,
-                                          &buf[a_off..m_off],
-                                          &buf[m_off..m_off + m_len]);
+        let res = self.prepare_ccm_buffer(
+            &self.nonce.get(),
+            mic_len,
+            &buf[a_off..m_off],
+            &buf[m_off..m_off + m_len],
+        );
         if res != ReturnCode::SUCCESS {
             return (res, Some(buf));
         }

@@ -4,7 +4,7 @@
 
 use kernel::common::VolatileCell;
 
-#[repr(C, packed)]
+#[repr(C)]
 struct ScbRegisters {
     cpuid: VolatileCell<u32>,
     icsr: VolatileCell<u32>,

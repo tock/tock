@@ -1,36 +1,40 @@
 #include "ambient_light.h"
+#include "tock.h"
 
-struct ambient_light_data {
+typedef struct {
   int intensity;
   bool fired;
-};
+} ambient_light_data_t;
 
 // internal callback for faking synchronous reads
 static void ambient_light_cb(int intensity,
                              __attribute__ ((unused)) int unused1,
                              __attribute__ ((unused)) int unused2, void* ud) {
-  struct ambient_light_data* result = (struct ambient_light_data*)ud;
+  ambient_light_data_t* result = (ambient_light_data_t*)ud;
   result->intensity = intensity;
   result->fired     = true;
 }
 
-int ambient_light_read_intensity(void) {
-  struct ambient_light_data result = { .fired = false };
+int ambient_light_read_intensity_sync(int* lux_value) {
   int err;
+  ambient_light_data_t result = {0};
+  result.fired = false;
 
   err = ambient_light_subscribe(ambient_light_cb, (void*)(&result));
-  if (err < 0) {
+  if (err < TOCK_SUCCESS) {
     return err;
   }
 
   err = ambient_light_start_intensity_reading();
-  if (err < 0) {
+  if (err < TOCK_SUCCESS) {
     return err;
   }
 
   yield_for(&result.fired);
 
-  return result.intensity;
+  *lux_value = result.intensity;
+
+  return TOCK_SUCCESS;
 }
 
 int ambient_light_subscribe(subscribe_cb callback, void* userdata) {

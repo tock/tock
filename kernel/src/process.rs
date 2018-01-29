@@ -7,7 +7,6 @@ use grant;
 use core::{mem, ptr, slice, str};
 use core::cell::Cell;
 use core::fmt::Write;
-use core::intrinsics;
 use core::ptr::{read_volatile, write_volatile, write};
 
 use platform::mpu;
@@ -223,7 +222,6 @@ enum TbfHeaderTypes {
     TbfHeaderMain = 1,
     TbfHeaderWriteableFlashRegions = 2,
     TbfHeaderPackageName = 3,
-    TbfHeaderPicOption1 = 4,
     Unused = 5,
 }
 
@@ -281,8 +279,7 @@ struct PicOption1Fields {
 #[derive(Clone, Copy, Debug)]
 struct TbfHeaderV2 {
     base: &'static TbfHeaderV2Base,
-    main: &'static TbfHeaderV2Main,
-    pic_values: Option<&'static PicOption1Fields>,
+    main: Option<&'static TbfHeaderV2Main>,
     package_name: Option<&'static str>,
     writeable_regions: Option<&'static [TbfHeaderV2WriteableFlashRegion]>,
 }
@@ -340,47 +337,7 @@ impl TbfHeader {
     fn needs_pic_fixup(&self) -> bool {
         match *self {
             TbfHeader::TbfHeaderV1(_) => true,
-            TbfHeader::TbfHeaderV2(hd) => hd.pic_values.is_some(),
             _ => false,
-        }
-    }
-
-    /// Return the PIC config fields in a standard format.
-    fn get_pic_fields(&self) -> Option<PicOption1Fields> {
-        match *self {
-            TbfHeader::TbfHeaderV1(hd) => {
-                let pic_values = PicOption1Fields {
-                    text_offset: hd.text_offset,
-                    data_offset: hd.data_offset,
-                    data_size: hd.data_size,
-                    bss_memory_offset: hd.bss_mem_offset,
-                    bss_size: hd.bss_size,
-                    relocation_data_offset: hd.rel_data_offset,
-                    relocation_data_size: hd.rel_data_size,
-                    got_offset: hd.got_offset,
-                    got_size: hd.got_size,
-                    minimum_stack_length: hd.min_stack_len,
-                };
-                Some(pic_values)
-            }
-            TbfHeader::TbfHeaderV2(hd) => {
-                hd.pic_values.map_or(None, |pv| {
-                    let pic_values = PicOption1Fields {
-                        text_offset: pv.text_offset,
-                        data_offset: pv.data_offset,
-                        data_size: pv.data_size,
-                        bss_memory_offset: pv.bss_memory_offset,
-                        bss_size: pv.bss_size,
-                        relocation_data_offset: pv.relocation_data_offset,
-                        relocation_data_size: pv.relocation_data_size,
-                        got_offset: pv.got_offset,
-                        got_size: pv.got_size,
-                        minimum_stack_length: pv.minimum_stack_length,
-                    };
-                    Some(pic_values)
-                })
-            }
-            _ => None,
         }
     }
 
@@ -395,7 +352,8 @@ impl TbfHeader {
                 let stack_size = align8!(hd.min_stack_len);
                 align8!(data_len + stack_size) + heap_len
             }
-            TbfHeader::TbfHeaderV2(hd) => hd.main.minimum_ram_size,
+            TbfHeader::TbfHeaderV2(hd) =>
+                hd.main.map_or(0, |m| m.minimum_ram_size),
             _ => 0,
         }
     }
@@ -405,7 +363,8 @@ impl TbfHeader {
     fn get_protected_size(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(_) => mem::size_of::<TbfHeaderV1>() as u32,
-            TbfHeader::TbfHeaderV2(hd) => hd.main.protected_size,
+            TbfHeader::TbfHeaderV2(hd) =>
+                hd.main.map_or(0, |m| m.protected_size) + (hd.base.header_size as u32),
             _ => 0,
         }
     }
@@ -415,7 +374,8 @@ impl TbfHeader {
     fn get_init_function_offset(&self) -> u32 {
         match *self {
             TbfHeader::TbfHeaderV1(hd) => hd.entry_offset,
-            TbfHeader::TbfHeaderV2(hd) => hd.main.init_fn_offset,
+            TbfHeader::TbfHeaderV2(hd) =>
+                hd.main.map_or(0, |m| m.init_fn_offset) + (hd.base.header_size as u32),
             _ => 0,
         }
     }
@@ -553,7 +513,6 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
                 // Places to save fields that we parse out of the header
                 // options.
                 let mut main_pointer: Option<&TbfHeaderV2Main> = None;
-                let mut pic1_pointer: Option<&PicOption1Fields> = None;
                 let mut wfr_pointer: Option<&'static [TbfHeaderV2WriteableFlashRegion]> = None;
                 let mut app_name_str = "";
 
@@ -592,13 +551,6 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
                                     let _ = str::from_utf8(package_name_byte_array).map(|name_str| { app_name_str = name_str; });
                                 }
                             }
-                            TbfHeaderTypes::TbfHeaderPicOption1 => /* PIC Option 1 */ {
-                                if remaining_length >= mem::size_of::<PicOption1Fields>() &&
-                                   tbf_tlv_header.length as usize == mem::size_of::<PicOption1Fields>() {
-                                    let tbf_pic1 = &*(address.offset(offset) as *const PicOption1Fields);
-                                    pic1_pointer = Some(tbf_pic1);
-                                }
-                            }
                             TbfHeaderTypes::Unused => {}
                         }
                     }
@@ -609,17 +561,14 @@ unsafe fn parse_and_validate_tbf_header(address: *const u8) -> Option<TbfHeader>
                     offset += align4!(tbf_tlv_header.length) as isize;
                 }
 
-                main_pointer.map_or(None, |mp| {
-                    let tbf_header = TbfHeaderV2 {
-                        base: tbf_header_base,
-                        main: mp,
-                        pic_values: pic1_pointer,
-                        package_name: Some(app_name_str),
-                        writeable_regions: wfr_pointer,
-                    };
+                let tbf_header = TbfHeaderV2 {
+                    base: tbf_header_base,
+                    main: main_pointer,
+                    package_name: Some(app_name_str),
+                    writeable_regions: wfr_pointer,
+                };
 
-                    Some(TbfHeader::TbfHeaderV2(tbf_header))
-                })
+                Some(TbfHeader::TbfHeaderV2(tbf_header))
             }
         }
 
@@ -982,10 +931,7 @@ impl<'a> Process<'a> {
 
             // Load the process into memory
             if let Some(load_result) =
-                load(tbf_header,
-                     app_flash_address,
-                     remaining_app_memory,
-                     remaining_app_memory_size) {
+                load(tbf_header, remaining_app_memory) {
 
                 // TODO round app_ram_size up to a closer MPU unit.
                 // This is a very conservative approach that rounds up to power of
@@ -1648,103 +1594,12 @@ struct LoadResult {
 /// The function returns a `LoadResult` containing metadata about the loaded
 /// process or None if loading failed.
 unsafe fn load(tbf_header: TbfHeader,
-               flash_start_addr: *const u8,
-               mem_base: *mut u8,
-               mem_size: usize)
+               mem_base: *mut u8)
                -> Option<LoadResult> {
     if tbf_header.needs_pic_fixup() {
-        // This app requested that the kernel do the PIC fixups for it.
-
-        // Get all of the sizes and offsets that are required.
-        if let Some(pic_values) = tbf_header.get_pic_fields() {
-
-            let text_start = flash_start_addr.offset(pic_values.text_offset as isize);
-
-            let rel_data: &[u32] =
-                slice::from_raw_parts(flash_start_addr.offset(pic_values.relocation_data_offset as isize) as *const u32,
-                                      (pic_values.relocation_data_size as usize) / mem::size_of::<u32>());
-
-            let aligned_stack_len = align8!(pic_values.minimum_stack_length);
-
-            let got: &[u8] =
-                slice::from_raw_parts(flash_start_addr.offset(pic_values.got_offset as isize),
-                                      pic_values.got_size as usize) as &[u8];
-
-            let data: &[u8] =
-                slice::from_raw_parts(flash_start_addr.offset(pic_values.data_offset as isize),
-                                      pic_values.data_size as usize);
-
-            let got_base = mem_base.offset(aligned_stack_len as isize);
-            let got_andthen_data_ram: &mut [u8] =
-                slice::from_raw_parts_mut(got_base, (pic_values.got_size + pic_values.data_size) as usize);
-
-            let bss = mem_base.offset(aligned_stack_len as isize + pic_values.bss_memory_offset as isize);
-
-            // Total size of fixed segment
-            let aligned_fixed_len = align8!(aligned_stack_len + pic_values.data_size +
-                                            pic_values.got_size + pic_values.bss_size);
-
-            // Verify target data fits in memory before writing anything
-            if (aligned_fixed_len) > mem_size as u32 {
-                // When a kernel warning mechanism exists, this panic should be
-                // replaced with that, but for now it seems more useful to bail out to
-                // alert developers of why the app failed to load
-                panic!("{:?} failed to load. Stack + Data + GOT + BSS ({}) > available memory ({})",
-                       tbf_header.get_package_name(flash_start_addr),
-                       aligned_fixed_len,
-                       mem_size);
-            }
-
-            // Copy the GOT and data into base memory
-            for (orig, dest) in got.iter().chain(data.iter()).zip(got_andthen_data_ram.iter_mut()) {
-                *dest = *orig
-            }
-
-            // Zero out BSS
-            intrinsics::write_bytes(bss, 0, pic_values.bss_size as usize);
-
-            // Helper function that fixes up GOT entries
-            let fixup = |addr: &mut u32| {
-                let entry = *addr;
-                if (entry & 0x80000000) == 0 {
-                    // Regular data (memory relative)
-                    *addr = entry + (got_base as u32);
-                } else {
-                    // rodata or function pointer (code relative)
-                    *addr = (entry ^ 0x80000000) + (text_start as u32);
-                }
-            };
-
-            // Fixup Global Offset Table
-            let mem_got: &mut [u32] = slice::from_raw_parts_mut(got_base as *mut u32,
-                                                                (pic_values.got_size as usize) /
-                                                                mem::size_of::<u32>());
-
-            for got_cur in mem_got {
-                fixup(got_cur);
-            }
-
-            // Fixup relocation data
-            for (i, addr) in rel_data.iter().enumerate() {
-                if i % 2 == 0 {
-                    // Only the first of every 2 entries is an address
-                    fixup(&mut *(got_base.offset(*addr as isize) as *mut u32));
-                }
-            }
-
-            let load_result = LoadResult {
-                // Since we set these up on behalf of the process we know right
-                // where the are.
-                initial_stack_pointer: mem_base.offset(aligned_stack_len as isize),
-                initial_sbrk_pointer: mem_base.offset(aligned_fixed_len as isize),
-                header: tbf_header,
-            };
-
-            Some(load_result)
-        } else {
-            // If we don't have any pic values, we can't do the fixup.
-            None
-        }
+        unimplemented!("Kernel PIC fixup has been deprecated and removed. See \
+                       https://github.com/helena-project/tock/pull/714 for \
+                       more information");
     } else {
         // No PIC fixup requested from the kernel. We only need to set an
         // initial stack pointer and sbrk size. The app will do the rest on its

@@ -6,27 +6,25 @@
 //! - Date: May 26th, 2017
 
 use core::cell::Cell;
-use core::mem;
 use kernel::ReturnCode;
 use kernel::common::VolatileCell;
 use kernel::hil;
-use nvic;
 use pm::{self, Clock, PBAClock};
 
-#[repr(C, packed)]
+#[repr(C)]
 pub struct DacRegisters {
     // From page 905 of SAM4L manual
-    cr: VolatileCell<u32>, //      Control                       (0x00)
-    mr: VolatileCell<u32>, //      Mode                          (0x04)
-    cdr: VolatileCell<u32>, //     Conversion Data Register      (0x08)
-    ier: VolatileCell<u32>, //     Interrupt Enable Register     (0x0c)
-    idr: VolatileCell<u32>, //     Interrupt Disable Register    (0x10)
-    imr: VolatileCell<u32>, //     Interrupt Mask Register       (0x14)
-    isr: VolatileCell<u32>, //     Interrupt Status Register     (0x18)
-    _reserved0: [u32; 50], //                                    (0x1c - 0xe0)
-    wpmr: VolatileCell<u32>, //    Write Protect Mode Register   (0xe4)
-    wpsr: VolatileCell<u32>, //    Write Protect Status Register (0xe8)
-    _reserved1: [u32; 4], //                                     (0xec - 0xf8)
+    cr: VolatileCell<u32>,      //      Control                       (0x00)
+    mr: VolatileCell<u32>,      //      Mode                          (0x04)
+    cdr: VolatileCell<u32>,     //     Conversion Data Register      (0x08)
+    ier: VolatileCell<u32>,     //     Interrupt Enable Register     (0x0c)
+    idr: VolatileCell<u32>,     //     Interrupt Disable Register    (0x10)
+    imr: VolatileCell<u32>,     //     Interrupt Mask Register       (0x14)
+    isr: VolatileCell<u32>,     //     Interrupt Status Register     (0x18)
+    _reserved0: [u32; 50],      //                                    (0x1c - 0xe0)
+    wpmr: VolatileCell<u32>,    //    Write Protect Mode Register   (0xe4)
+    wpsr: VolatileCell<u32>,    //    Write Protect Status Register (0xe8)
+    _reserved1: [u32; 4],       //                                     (0xec - 0xf8)
     version: VolatileCell<u32>, // Version Register              (0xfc)
 }
 
@@ -54,14 +52,13 @@ impl Dac {
 
 impl hil::dac::DacChannel for Dac {
     fn initialize(&self) -> ReturnCode {
-        let regs: &mut DacRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &DacRegisters = unsafe { &*self.registers };
         if !self.enabled.get() {
             self.enabled.set(true);
 
             // Start the APB clock (CLK_DACC)
             unsafe {
                 pm::enable_clock(Clock::PBA(PBAClock::DACC));
-                nvic::enable(nvic::NvicIdx::DACC);
             }
 
             // Reset DACC
@@ -80,9 +77,8 @@ impl hil::dac::DacChannel for Dac {
         ReturnCode::SUCCESS
     }
 
-
     fn set_value(&self, value: usize) -> ReturnCode {
-        let regs: &mut DacRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &DacRegisters = unsafe { &*self.registers };
         if !self.enabled.get() {
             ReturnCode::EOFF
         } else {
@@ -99,5 +95,3 @@ impl hil::dac::DacChannel for Dac {
         }
     }
 }
-
-interrupt_handler!(dacc_handler, DACC);

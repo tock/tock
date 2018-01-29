@@ -122,8 +122,13 @@ pub struct PacketSize(u32);
 
 impl PacketSize {
     pub fn new(byte_count: u32, multi_packet_size: u32, auto_zlp: bool) -> PacketSize {
-        PacketSize((byte_count & 0x7fff) | ((multi_packet_size & 0x7fff) << 16) |
-                   ((if auto_zlp { 1 << 31 } else { 0 })))
+        PacketSize(
+            (byte_count & 0x7fff) | ((multi_packet_size & 0x7fff) << 16) | ((if auto_zlp {
+                1 << 31
+            } else {
+                0
+            })),
+        )
     }
 
     pub fn default() -> PacketSize {
@@ -153,12 +158,14 @@ impl PacketSize {
 
 impl fmt::Debug for PacketSize {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "PacketSize {:x} {{ byte_count: {}, multi_packet_size: {}, {}auto_zlp }}",
-               self.0,
-               self.byte_count(),
-               self.multi_packet_size(),
-               bang(self.auto_zlp()))
+        write!(
+            f,
+            "PacketSize {:x} {{ byte_count: {}, multi_packet_size: {}, {}auto_zlp }}",
+            self.0,
+            self.byte_count(),
+            self.multi_packet_size(),
+            bang(self.auto_zlp())
+        )
     }
 }
 
@@ -182,17 +189,23 @@ impl ControlStatus {
 
 impl fmt::Debug for ControlStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "ControlStatus {:x} {{ {}underflow {}overflow {}crcerror }}",
-               self.0,
-               bang(self.get_status_underflow()),
-               bang(self.get_status_overflow()),
-               bang(self.get_status_crcerror()))
+        write!(
+            f,
+            "ControlStatus {:x} {{ {}underflow {}overflow {}crcerror }}",
+            self.0,
+            bang(self.get_status_underflow()),
+            bang(self.get_status_overflow()),
+            bang(self.get_status_crcerror())
+        )
     }
 }
 
 fn bang(b: bool) -> &'static str {
-    if b { "" } else { "!" }
+    if b {
+        ""
+    } else {
+        "!"
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -201,14 +214,17 @@ pub struct EndpointConfig(u32);
 
 impl EndpointConfig {
     /// Create an endpoint configuration
-    pub fn new(banks: BankCount,
-               size: EndpointSize,
-               dir: EndpointDirection,
-               typ: EndpointType,
-               redir: EndpointIndex)
-               -> EndpointConfig {
-        EndpointConfig(((banks as u32) << 2) | ((size as u32) << 4) | ((dir as u32) << 8) |
-                       ((typ as u32) << 11) | (redir.to_word() << 16))
+    pub fn new(
+        banks: BankCount,
+        size: EndpointSize,
+        dir: EndpointDirection,
+        typ: EndpointType,
+        redir: EndpointIndex,
+    ) -> EndpointConfig {
+        EndpointConfig(
+            ((banks as u32) << 2) | ((size as u32) << 4) | ((dir as u32) << 8)
+                | ((typ as u32) << 11) | (redir.to_word() << 16),
+        )
     }
 }
 

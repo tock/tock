@@ -72,10 +72,10 @@ $ cargo build --release --target=sam4l.json
 ```
 
 The `--release` argument tells Cargo to invoke the Rust compiler with
-optimizations turned on and without debug symbols. `--target` points Cargo to
-the target specification which includes the LLVM data-layout definition,
-architecture definitions for the compiler, arguments to pass to the linker and
-compilation options such as floating-point support.
+optimizations turned on. `--target` points Cargo to the target specification
+which includes the LLVM data-layout definition, architecture definitions for
+the compiler, arguments to pass to the linker and compilation options such as
+floating-point support.
 
 ### Xargo
 
@@ -172,9 +172,10 @@ requires four flags:
 
 ### Tock Binary Format
 
-In order to be loaded correctly, applications must follow the Tock Binary
-Format. This means the use of a linker script following specific rules and a
-header for the binary so that Tock can load the application correctly.
+In order to be loaded correctly, applications must follow the [Tock Binary
+Format](../TockBinaryFormat.md). This means the use of a linker script following
+specific rules and a header for the binary so that Tock can load the application
+correctly.
 
 Each Tock application uses a
 [linker script](https://github.com/helena-project/tock/blob/master/userland/userland_generic.ld)

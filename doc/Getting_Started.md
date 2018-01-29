@@ -15,7 +15,7 @@ developing Tock.
 
 #### Rust (nightly)
 
-We are using `rustc 1.22.0-nightly (325ba23d5 2017-09-19)`. We recommend
+We are using `rustc 1.24.0-nightly (8e7a609e6 2018-01-04)`. We recommend
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -30,7 +30,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2017-09-20
+$ rustup install nightly-2018-01-05
 ```
 
 #### Xargo
@@ -114,8 +114,8 @@ $ sudo pacman -S arm-none-eabi-gcc arm-none-eabi-newlib arm-none-eabi-gdb
 
 You can download precompiled binaries for Windows from the ARM site listed
 above. While we expect things should work on Windows, none of the active Tock
-developers currently develop on Windows, so it is possible that are some
-unexpected pitfalls.
+developers currently develop on Windows, so it is possible that there are
+some unexpected pitfalls.
 
 ##### Other
 
@@ -181,7 +181,7 @@ such as easy to manage serial connections, and the ability to list, add,
 replace, and remove applications over JTAG (or USB if a bootloader is
 installed).
 
-1. [tockloader](https://github.com/helena-project/tockloader) (version 0.7.1)
+1. [tockloader](https://github.com/helena-project/tockloader) (version >= 0.8)
 
 Installing applications over JTAG, depending on your JTAG Debugger, you will
 need one of:
@@ -191,11 +191,11 @@ need one of:
 
 #### `tockloader`
 
-Tock requires `tockloader` version `0.7.1`. To install:
+Tock requires `tockloader`. To install:
 
 ```bash
-(Linux): sudo pip3 install tockloader==0.7.1
-(MacOS): pip3 install tockloader==0.7.1
+(Linux): sudo pip3 install tockloader
+(MacOS): pip3 install tockloader
 ```
 
 #### `openocd`

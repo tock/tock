@@ -15,7 +15,6 @@
 
 use core::cell::Cell;
 use kernel::{AppId, Callback, Driver, ReturnCode};
-
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::gpio;
 use kernel::hil::i2c;
@@ -38,7 +37,6 @@ const LOW_GAIN_MODE: u8 = 0x00;
 // Interrupt_Control_Reg defines
 const INTERRUPT_CONTROL_LEVEL: u8 = 0x10;
 const INTERRUPT_ON_ADC_DONE: u8 = 0x0;
-
 
 // ADC counts to Lux value conversion copied from TSL2561 manual
 // −−−−------------------------------
@@ -158,8 +156,6 @@ const M8T: usize = 0x0000; // 0.000 * 2^LUX_SCALE
 // const B8C: usize = 0x0000; // 0.000 * 2^LUX_SCALE
 // const M8C: usize = 0x0000; // 0.000 * 2^LUX_SCALE
 
-
-
 #[allow(dead_code)]
 enum Registers {
     Control = 0x00,
@@ -176,7 +172,7 @@ enum Registers {
     Data1High = 0x0f,
 }
 
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum State {
     Idle,
 
@@ -210,10 +206,11 @@ pub struct TSL2561<'a> {
 }
 
 impl<'a> TSL2561<'a> {
-    pub fn new(i2c: &'a i2c::I2CDevice,
-               interrupt_pin: &'a gpio::Pin,
-               buffer: &'static mut [u8])
-               -> TSL2561<'a> {
+    pub fn new(
+        i2c: &'a i2c::I2CDevice,
+        interrupt_pin: &'a gpio::Pin,
+        buffer: &'static mut [u8],
+    ) -> TSL2561<'a> {
         // setup and return struct
         TSL2561 {
             i2c: i2c,
@@ -239,7 +236,8 @@ impl<'a> TSL2561<'a> {
     pub fn take_measurement(&self) {
         // Need pull up on interrupt pin
         self.interrupt_pin.make_input();
-        self.interrupt_pin.enable_interrupt(0, gpio::InterruptMode::FallingEdge);
+        self.interrupt_pin
+            .enable_interrupt(0, gpio::InterruptMode::FallingEdge);
 
         self.buffer.take().map(|buf| {
             // Turn on i2c to send commands
@@ -257,7 +255,7 @@ impl<'a> TSL2561<'a> {
         // time. 16X, 402mS is nominal. Scale if integration time is NOT 402 msec.
         // let mut ch_scale = CHSCALE_TINT0 as usize; // 13.7ms
         let mut ch_scale = CHSCALE_TINT1 as usize; // 101ms
-        // let mut ch_scale: usize = 1 << CH_SCALE; // Default
+                                                   // let mut ch_scale: usize = 1 << CH_SCALE; // Default
 
         // Scale if gain is NOT 16X
         ch_scale = ch_scale << 4; // scale 1X to 16X

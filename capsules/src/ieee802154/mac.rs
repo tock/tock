@@ -69,7 +69,7 @@ use kernel::common::take_cell::MapCell;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
 use net::ieee802154::*;
-use net::stream::{encode_u8, encode_u32, encode_bytes};
+use net::stream::{encode_bytes, encode_u32, encode_u8};
 use net::stream::SResult;
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
@@ -174,7 +174,10 @@ impl FrameInfo {
         } else {
             // Otherwise, a data is the header and the open payload, and
             // m data is the private payload field
-            (private_payload_offset, self.unsecured_length() | private_payload_offset)
+            (
+                private_payload_offset,
+                self.unsecured_length() | private_payload_offset,
+            )
         }
     }
 }
@@ -269,14 +272,15 @@ pub trait Mac<'a> {
     ///
     /// Returns either a Frame that is ready to have payload appended to it, or
     /// the mutable buffer if the frame cannot be prepared for any reason
-    fn prepare_data_frame(&self,
-                          buf: &'static mut [u8],
-                          dst_pan: PanID,
-                          dst_addr: MacAddress,
-                          src_pan: PanID,
-                          src_addr: MacAddress,
-                          security_needed: Option<(SecurityLevel, KeyId)>)
-                          -> Result<Frame, &'static mut [u8]>;
+    fn prepare_data_frame(
+        &self,
+        buf: &'static mut [u8],
+        dst_pan: PanID,
+        dst_addr: MacAddress,
+        src_pan: PanID,
+        src_addr: MacAddress,
+        security_needed: Option<(SecurityLevel, KeyId)>,
+    ) -> Result<Frame, &'static mut [u8]>;
 
     /// Transmits a frame that has been prepared by the above process. If the
     /// transmission process fails, the buffer inside the frame is returned so
@@ -634,10 +638,10 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                                         // The radio forgot to return the buffer.
                                         (TxState::Idle, (ReturnCode::FAIL, None))
                                     }
-                                    Some(buf) => {
-                                        (TxState::ReadyToTransmit(info, buf),
-                                         (ReturnCode::SUCCESS, None))
-                                    }
+                                    Some(buf) => (
+                                        TxState::ReadyToTransmit(info, buf),
+                                        (ReturnCode::SUCCESS, None),
+                                    ),
                                 }
                             }
                             _ => (TxState::Idle, (rval, buf)),
@@ -649,7 +653,7 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
             })
     }
 
-    /// Advances the reception pipeline if it can be advanced.
+ /// Advances the reception pipeline if it can be advanced.
     fn step_receive_state(&self) {
         self.rx_state
             .take()
@@ -788,14 +792,15 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> Mac<'a> for MacDevice<'a, 
         self.radio.is_on()
     }
 
-    fn prepare_data_frame(&self,
-                          buf: &'static mut [u8],
-                          dst_pan: PanID,
-                          dst_addr: MacAddress,
-                          src_pan: PanID,
-                          src_addr: MacAddress,
-                          security_needed: Option<(SecurityLevel, KeyId)>)
-                          -> Result<Frame, &'static mut [u8]> {
+    fn prepare_data_frame(
+        &self,
+        buf: &'static mut [u8],
+        dst_pan: PanID,
+        dst_addr: MacAddress,
+        src_pan: PanID,
+        src_addr: MacAddress,
+        security_needed: Option<(SecurityLevel, KeyId)>,
+    ) -> Result<Frame, &'static mut [u8]> {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
         // Steps a-e of the security procedure are implemented here.
 
@@ -808,14 +813,16 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> Mac<'a> for MacDevice<'a, 
                 // TODO: lookup frame counter for device
                 let frame_counter = 0;
                 let nonce = get_ccm_nonce(&src_addr_long, frame_counter, level);
-                (Security {
-                     level: level,
-                     asn_in_nonce: false,
-                     frame_counter: Some(frame_counter),
-                     key_id: key_id,
-                 },
-                 key,
-                 nonce)
+                (
+                    Security {
+                        level: level,
+                        asn_in_nonce: false,
+                        frame_counter: Some(frame_counter),
+                        key_id: key_id,
+                    },
+                    key,
+                    nonce,
+                )
             })
         });
         if security_needed.is_some() && security_desc.is_none() {
@@ -847,20 +854,17 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> Mac<'a> for MacDevice<'a, 
         };
 
         match header.encode(&mut buf[radio::PSDU_OFFSET..], true).done() {
-            Some((data_offset, mac_payload_offset)) => {
-                Ok(Frame {
-                    buf: buf,
-                    info: FrameInfo {
-                        frame_type: FrameType::Data,
-                        mac_payload_offset: mac_payload_offset,
-                        data_offset: data_offset,
-                        data_len: 0,
-                        mic_len: mic_len,
-                        security_params:
-                            security_desc.map(|(sec, key, nonce)| (sec.level, key, nonce)),
-                    },
-                })
-            }
+            Some((data_offset, mac_payload_offset)) => Ok(Frame {
+                buf: buf,
+                info: FrameInfo {
+                    frame_type: FrameType::Data,
+                    mac_payload_offset: mac_payload_offset,
+                    data_offset: data_offset,
+                    data_len: 0,
+                    mic_len: mic_len,
+                    security_params: security_desc.map(|(sec, key, nonce)| (sec.level, key, nonce)),
+                },
+            }),
             None => Err(buf),
         }
     }
@@ -890,7 +894,9 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> Mac<'a> for MacDevice<'a, 
 impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> radio::TxClient for MacDevice<'a, R, A> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.data_sequence.set(self.data_sequence.get() + 1);
-        self.tx_client.get().map(move |client| { client.send_done(buf, acked, result); });
+        self.tx_client.get().map(move |client| {
+            client.send_done(buf, acked, result);
+        });
     }
 }
 
@@ -902,27 +908,25 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> radio::RxClient for MacDev
             return;
         }
 
-        self.rx_state
-            .take()
-            .map(move |state| {
-                let next_state = match state {
-                    RxState::Idle => {
-                        // We can start processing a new received frame only if
-                        // the reception pipeline is free
-                        self.incoming_frame_security(buf, frame_len)
-                    }
-                    other_state => {
-                        // This should never occur unless something other than
-                        // this MAC layer provided a receive buffer to the
-                        // radio, but if this occurs then we have no choice but
-                        // to drop the frame.
-                        self.radio.set_receive_buffer(buf);
-                        other_state
-                    }
-                };
-                self.rx_state.replace(next_state);
-                self.step_receive_state();
-            });
+        self.rx_state.take().map(move |state| {
+            let next_state = match state {
+                RxState::Idle => {
+                    // We can start processing a new received frame only if
+                    // the reception pipeline is free
+                    self.incoming_frame_security(buf, frame_len)
+                }
+                other_state => {
+                    // This should never occur unless something other than
+                    // this MAC layer provided a receive buffer to the
+                    // radio, but if this occurs then we have no choice but
+                    // to drop the frame.
+                    self.radio.set_receive_buffer(buf);
+                    other_state
+                }
+            };
+            self.rx_state.replace(next_state);
+            self.step_receive_state();
+        });
     }
 }
 
@@ -934,7 +938,84 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> radio::ConfigClient for Ma
         let (rval, buf) = self.step_transmit_state();
         if let Some(buf) = buf {
             // Return the buffer to the transmit client
-            self.tx_client.get().map(move |client| { client.send_done(buf, false, rval); });
+            self.tx_client.get().map(move |client| {
+                client.send_done(buf, false, rval);
+            });
+        }
+    }
+}
+
+impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> CCMClient for MacDevice<'a, R, A> {
+    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
+        let mut tx_waiting = false;
+        let mut rx_waiting = false;
+
+        // The crypto operation was from the transmission pipeline.
+        let opt_buf = if let Some(state) = self.tx_state.take() {
+            match state {
+                TxState::Encrypting(info) => {
+                    let (rval, opt_buf) = if res != ReturnCode::SUCCESS {
+                        self.tx_state.replace(TxState::Idle);
+                        (res, Some(buf))
+                    } else {
+                        self.tx_state.replace(TxState::ReadyToTransmit(info, buf));
+                        self.step_transmit_state()
+                    };
+
+                    if let Some(buf) = opt_buf {
+                        // Abort the transmission process. Return the buffer to the client.
+                        self.tx_client
+                            .get()
+                            .map(move |client| { client.send_done(buf, false, rval); });
+                    }
+                    None
+                }
+                other_state => {
+                    tx_waiting = match other_state {
+                        TxState::ReadyToEncrypt(_, _) => true,
+                        _ => false,
+                    };
+                    self.tx_state.replace(other_state);
+                    Some(buf)
+                }
+            }
+        } else {
+            Some(buf)
+        };
+
+        // The crypto operation was from the reception pipeline.
+        if let Some(buf) = opt_buf {
+            self.rx_state.take().map(move |state| {
+                match state {
+                    RxState::Decrypting(info) => {
+                        let next_state = if tag_is_valid {
+                            RxState::ReadyToYield(info, buf)
+                        } else {
+                            RxState::ReadyToReturn(buf)
+                        };
+                        self.rx_state.replace(next_state);
+                        self.step_receive_state();
+                    }
+                    other_state => {
+                        rx_waiting = match other_state {
+                            RxState::ReadyToDecrypt(_, _) => true,
+                            _ => false,
+                        };
+                        self.rx_state.replace(other_state);
+                    }
+                };
+            });
+        }
+
+        // Now trigger the next crypto operation if one exists.
+        if tx_waiting {
+            let (rval, opt_buf) = self.step_transmit_state();
+            if let Some(buf) = opt_buf {
+                // Return the buffer to the client.
+                self.tx_client.get().map(move |client| { client.send_done(buf, false, rval); });
+            }
+        } else if rx_waiting {
+            self.step_receive_state();
         }
     }
 }

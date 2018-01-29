@@ -38,3 +38,10 @@ Temporary Items
 
 # rustdoc folder
 doc/rustdoc
+
+# Backup and swap files
+*~
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-v][a-z]
+[._]sw[a-p]

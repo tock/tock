@@ -7,8 +7,7 @@
 use core::cell::Cell;
 use kernel::common::VolatileCell;
 use kernel::hil::Controller;
-use kernel::hil::time::{self, Alarm, Time, Freq16KHz};
-use nvic;
+use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
 use pm::{self, PBDClock};
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
@@ -27,7 +26,7 @@ use pm::{self, PBDClock};
 /// tics. Seems safe enough and in practice has seemed to work.
 const ALARM0_SYNC_TICS: u32 = 8;
 
-#[repr(C, packed)]
+#[repr(C)]
 struct AstRegisters {
     cr: VolatileCell<u32>,
     cv: VolatileCell<u32>,
@@ -110,7 +109,6 @@ impl<'a> Ast<'a> {
         while self.busy() {}
         unsafe {
             (*self.regs).scr.set(1 << 8);
-            nvic::clear_pending(nvic::NvicIdx::ASTALARM);
         }
     }
 
@@ -173,7 +171,6 @@ impl<'a> Ast<'a> {
 
     pub fn enable_alarm_irq(&self) {
         unsafe {
-            nvic::enable(nvic::NvicIdx::ASTALARM);
             (*self.regs).ier.set(1 << 8);
         }
     }
@@ -186,7 +183,6 @@ impl<'a> Ast<'a> {
 
     pub fn enable_ovf_irq(&mut self) {
         unsafe {
-            nvic::enable(nvic::NvicIdx::ASTOVF);
             (*self.regs).ier.set(1);
         }
     }
@@ -199,7 +195,6 @@ impl<'a> Ast<'a> {
 
     pub fn enable_periodic_irq(&mut self) {
         unsafe {
-            nvic::enable(nvic::NvicIdx::ASTPER);
             (*self.regs).ier.set(1 << 16);
         }
     }
@@ -230,7 +225,6 @@ impl<'a> Ast<'a> {
         unsafe { (*self.regs).cv.get() }
     }
 
-
     pub fn set_counter(&self, value: u32) {
         while self.busy() {}
         unsafe {
@@ -240,7 +234,9 @@ impl<'a> Ast<'a> {
 
     pub fn handle_interrupt(&mut self) {
         self.clear_alarm();
-        self.callback.get().map(|cb| { cb.fired(); });
+        self.callback.get().map(|cb| {
+            cb.fired();
+        });
     }
 }
 
@@ -280,5 +276,3 @@ impl<'a> Alarm for Ast<'a> {
         unsafe { (*self.regs).ar0.get() }
     }
 }
-
-interrupt_handler!(ast_alarm_handler, ASTALARM);

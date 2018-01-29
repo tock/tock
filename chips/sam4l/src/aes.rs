@@ -8,7 +8,6 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
 use kernel::returncode::ReturnCode;
-use nvic;
 use pm;
 use scif;
 
@@ -23,33 +22,33 @@ pub enum ConfidentialityMode {
 }
 
 /// The registers used to interface with the hardware
-#[repr(C, packed)]
+#[repr(C)]
 struct AesRegisters {
-    ctrl: VolatileCell<u32>, //       0x00
-    mode: VolatileCell<u32>, //       0x04
+    ctrl: VolatileCell<u32>,       //       0x00
+    mode: VolatileCell<u32>,       //       0x04
     databufptr: VolatileCell<u32>, // 0x08
-    sr: VolatileCell<u32>, //         0x0C
-    ier: VolatileCell<u32>, //        0x10
-    idr: VolatileCell<u32>, //        0x14
-    imr: VolatileCell<u32>, //        0x18
+    sr: VolatileCell<u32>,         //         0x0C
+    ier: VolatileCell<u32>,        //        0x10
+    idr: VolatileCell<u32>,        //        0x14
+    imr: VolatileCell<u32>,        //        0x18
     _reserved0: VolatileCell<u32>, // 0x1C
-    key0: VolatileCell<u32>, //       0x20
-    key1: VolatileCell<u32>, //       0x24
-    key2: VolatileCell<u32>, //       0x28
-    key3: VolatileCell<u32>, //       0x2c
-    key4: VolatileCell<u32>, //       0x30
-    key5: VolatileCell<u32>, //       0x34
-    key6: VolatileCell<u32>, //       0x38
-    key7: VolatileCell<u32>, //       0x3c
-    initvect0: VolatileCell<u32>, //  0x40
-    initvect1: VolatileCell<u32>, //  0x44
-    initvect2: VolatileCell<u32>, //  0x48
-    initvect3: VolatileCell<u32>, //  0x4c
-    idata: VolatileCell<u32>, //      0x50
-    _reserved1: [u32; 3], //          0x54 - 0x5c
-    odata: VolatileCell<u32>, //      0x60
-    _reserved2: [u32; 3], //          0x64 - 0x6c
-    drngseed: VolatileCell<u32>, //   0x70
+    key0: VolatileCell<u32>,       //       0x20
+    key1: VolatileCell<u32>,       //       0x24
+    key2: VolatileCell<u32>,       //       0x28
+    key3: VolatileCell<u32>,       //       0x2c
+    key4: VolatileCell<u32>,       //       0x30
+    key5: VolatileCell<u32>,       //       0x34
+    key6: VolatileCell<u32>,       //       0x38
+    key7: VolatileCell<u32>,       //       0x3c
+    initvect0: VolatileCell<u32>,  //  0x40
+    initvect1: VolatileCell<u32>,  //  0x44
+    initvect2: VolatileCell<u32>,  //  0x48
+    initvect3: VolatileCell<u32>,  //  0x4c
+    idata: VolatileCell<u32>,      //      0x50
+    _reserved1: [u32; 3],          //          0x54 - 0x5c
+    odata: VolatileCell<u32>,      //      0x60
+    _reserved2: [u32; 3],          //          0x64 - 0x6c
+    drngseed: VolatileCell<u32>,   //   0x70
 }
 
 // Section 7.1 of datasheet
@@ -92,9 +91,11 @@ impl<'a> Aes<'a> {
     fn enable_clock(&self) {
         unsafe {
             pm::enable_clock(pm::Clock::HSB(pm::HSBClock::AESA));
-            scif::generic_clock_enable_divided(scif::GenericClock::GCLK4,
-                                               scif::ClockSource::CLK_CPU,
-                                               1);
+            scif::generic_clock_enable_divided(
+                scif::GenericClock::GCLK4,
+                scif::ClockSource::CLK_CPU,
+                1,
+            );
             scif::generic_clock_enable(scif::GenericClock::GCLK4, scif::ClockSource::CLK_CPU);
         }
     }
@@ -107,39 +108,34 @@ impl<'a> Aes<'a> {
     }
 
     fn enable_interrupts(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
-
-        unsafe {
-            nvic::clear_pending(nvic::NvicIdx::AESA);
-        }
-
+        let regs: &AesRegisters = unsafe { &*self.registers };
         // We want both interrupts.
         regs.ier.set(IBUFRDY | ODATARDY);
     }
 
     fn disable_interrupts(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         // Disable both interrupts
         regs.idr.set(IBUFRDY | ODATARDY);
     }
 
     fn disable_input_interrupt(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         // Tell the AESA not to send an interrupt looking for more input
         regs.idr.set(IBUFRDY);
     }
 
     fn busy(&self) -> bool {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         // Are any interrupts set, meaning an encryption operation is in progress?
         regs.imr.get() & (IBUFRDY | ODATARDY) != 0
     }
 
     fn set_mode(&self, encrypting: bool, mode: ConfidentialityMode) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         let encrypt = if encrypting { 1 } else { 0 };
         let dma = 0;
@@ -148,14 +144,15 @@ impl<'a> Aes<'a> {
     }
 
     fn input_buffer_ready(&self) -> bool {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
         let status = regs.sr.get();
 
         status & (1 << 16) != 0
     }
 
+
     fn output_data_ready(&self) -> bool {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
         let status = regs.sr.get();
 
         status & (1 << 0) != 0
@@ -201,7 +198,7 @@ impl<'a> Aes<'a> {
     // if there is a block left in the buffer.  Either way, this function
     // returns true if more blocks remain to send.
     fn write_block(&self) -> bool {
-        self.source.map_or_else(|| {
+       self.source.map_or_else(|| {
             // The source and destination are the same buffer
             self.dest.map_or_else(|| {
                                       debug!("Called write_block() with no data");
@@ -213,7 +210,6 @@ impl<'a> Aes<'a> {
                 if !more {
                     return false;
                 }
-
                 let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
                 for i in 0..4 {
                     let mut v = dest[index + (i * 4) + 0] as usize;
@@ -222,7 +218,6 @@ impl<'a> Aes<'a> {
                     v |= (dest[index + (i * 4) + 3] as usize) << 24;
                     regs.idata.set(v as u32);
                 }
-
                 self.write_index.set(index + AES128_BLOCK_SIZE);
 
                 let more = self.write_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get();
@@ -293,10 +288,10 @@ impl<'a> Aes<'a> {
             // to be set again while we are in this handler.
             return;
         }
-
+      
         if self.input_buffer_ready() {
             // The AESA says it is ready to receive another block
-
+          
             if !self.write_block() {
                 // We've now written the entirety of the request buffer,
                 // so unsubscribe from input interrupts
@@ -336,9 +331,6 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
 
         regs.ctrl.set(0x00);
-        unsafe {
-            nvic::disable(nvic::NvicIdx::AESA);
-        }
         self.disable_clock();
     }
 
@@ -351,7 +343,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             return ReturnCode::EINVAL;
         }
 
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         for i in 0..4 {
             let mut k = key[i * 4 + 0] as usize;
@@ -375,7 +367,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             return ReturnCode::EINVAL;
         }
 
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         // Set the initial value from the array.
         for i in 0..4 {
@@ -439,5 +431,3 @@ impl<'a> hil::symmetric_encryption::AES128CBC for Aes<'a> {
 }
 
 pub static mut AES: Aes<'static> = Aes::new();
-
-interrupt_handler!(aes_handler, AESA);
