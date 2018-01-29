@@ -12,8 +12,7 @@ extern crate cc2650;
 
 use core::fmt::{Arguments};
 
-// Only used for testing gpio driver
-use cc2650::peripheral_registers::{PRCM, PRCM_BASE};
+use cc2650::prcm;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
@@ -50,17 +49,14 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     cc2650::init();
 
-    let prcm = &*(PRCM_BASE as *const PRCM);
+    // Power on peripherals (eg. GPIO)
+    prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
 
-    // PERIPH power domain on
-    prcm.pd_ctl0.set(4);
+    // Wait for it to turn on until we continue
+    while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) { }
 
-    // Wait until peripheral power is on
-    while (prcm.pd_stat0_periph.get() & 1) != 1 { }
-
-    // Enable GPIO clocks
-    prcm.gpio_clk_gate_run.set(1);
-    prcm.clk_load_ctl.set(1);
+    // Enable the GPIO clocks
+    prcm::Clock::enable_gpio();
 
     // LEDs
     let led_pins = static_init!(

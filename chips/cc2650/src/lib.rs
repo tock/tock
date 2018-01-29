@@ -12,7 +12,7 @@ extern crate bitfield;
 pub mod chip;
 pub mod crt1;
 pub mod gpio;
-pub mod peripheral_registers;
+pub mod prcm;
 pub mod ccfg;
 pub mod peripheral_interrupts;
 

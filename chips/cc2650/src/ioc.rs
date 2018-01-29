@@ -1,6 +1,7 @@
+/* IOC - IO Configuration */
+
 use kernel::hil;
 use kernel::common::VolatileCell;
-use peripheral_registers::{IOC_BASE};
 
 pub const IOC_PULL_CTL: u8 = 13;
 pub const IOC_IE: u8 = 29;
@@ -11,6 +12,8 @@ pub const IOC_EDGE_IRQ_EN: u8 = 18;
 struct IOC {
     iocfg: [VolatileCell<u32>; 32],
 }
+
+pub const IOC_BASE: usize = 0x4008_1000;
 
 #[allow(non_snake_case)]
 fn IOC() -> &'static IOC {

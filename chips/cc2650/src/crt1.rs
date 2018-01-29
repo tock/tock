@@ -1,8 +1,5 @@
 use cortexm3::{generic_isr, nvic, systick_handler, SVC_Handler};
 
-use gpio;
-use kernel::hil::gpio::Pin;
-
 extern "C" {
     // Symbols defined in the linker file
     static mut _erelocate: u32;
