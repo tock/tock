@@ -272,7 +272,7 @@ enum BLEGapType {
     ManufacturerSpecificData = 0xFF,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub struct DeviceAddress([u8; 6]);
 
 impl DeviceAddress {
@@ -827,11 +827,16 @@ where
                         }
                     }
 
+                    debug!("Timer fired! {:?}", app.process_status);
+
                     match app.process_status {
                         Some(BLEState::Listening(channel)) => { // Listening for SCAN_REQ, if timeout - resume advertising on next channel
                             self.sending_app.set(Some(app.appid()));
                             if let Some(channel) = channel.get_next_advertising_channel() {
                                 app.process_status = Some(BLEState::Advertising(channel));
+                                self.sending_app.set(Some(app.appid()));
+                                self.radio.set_tx_power(app.tx_power);
+                                app.send_advertisement(&self, channel);
                             } else {
                                 self.busy.set(BusyState::Free);
                                 app.process_status = Some(BLEState::AdvertisingIdle);
@@ -910,18 +915,22 @@ where
                     });
                 }*/
 
+                debug!("receive_event! {:?}", app.process_status);
+
                 match app.process_status {
                     Some(BLEState::Listening(channel)) => {
-                        if let Some(BLEPduType::ScanRequest(scan_addr, adv_addr)) = pdu {
-                            app.advertising_address.and_then(|address| {
-                                if address == adv_addr {
-                                    // Send back scan response
-                                    debug!("Received: ScanRequest {:?} {:?}", scan_addr, adv_addr);
-                                    app.process_status = Some(BLEState::Responding(channel));
-                                    app.alarm_data.expiration = Expiration::Disabled;
-                                    app.send_scan_response(&self, channel);
-                                }
-                            });
+                       if let Some(BLEPduType::ScanRequest(scan_addr, adv_addr)) = pdu {
+
+                           app.advertising_address.map(|address| {
+                               if address == adv_addr {
+                                   debug!("Received: ScanRequest {:?} {:?}", scan_addr, adv_addr);
+                                   app.process_status = Some(BLEState::Responding(channel));
+                                   app.alarm_data.expiration = Expiration::Disabled;
+                                   self.sending_app.set(Some(app.appid()));
+                                   app.send_scan_response(&self, channel);
+                               }
+                               address
+                           });
                         }
                     }
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
@@ -965,6 +974,9 @@ where
     fn transmit_event(&self, _crc_ok: ReturnCode) {
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
+
+                debug!("transmit_event! {:?}", app.process_status);
+
                 match app.process_status {
                     Some(BLEState::Responding(channel)) => {
                         app.alarm_data.expiration = Expiration::Disabled;
