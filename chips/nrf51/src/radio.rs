@@ -16,8 +16,6 @@ use kernel;
 use kernel::ReturnCode;
 use nrf5x;
 use nrf5x::ble_advertising_hil::RadioChannel;
-use nrf5x::ble_advertising_driver::{BLEAdvertisementType, BLEPduType};
-use nrf5x::ble_advertising_driver::{BLEAdvertisementType, BLEPduType};
 use nrf5x::constants::TxPower;
 use peripheral_registers;
 
@@ -194,7 +192,7 @@ impl Radio {
 
         if regs.end.get() == 1 {
             regs.end.set(0);
-            regs.disable.set(1);
+            // regs.disable.set(1);
 
             let result = if regs.crcstatus.get() == 1 {
                 ReturnCode::SUCCESS
@@ -202,25 +200,12 @@ impl Radio {
                 ReturnCode::FAIL
             };
 
-            unsafe {
-                let parsed_type = BLEAdvertisementType::from_u8(PAYLOAD[0] & 0x0f);
-                // debug!("Payload header: {}", &PAYLOAD[0] & 0xff);
-                // debug!("Payload length: {}", &PAYLOAD[1]);
-
-                let pdu = parsed_type.map(|adv_type| BLEPduType::from_buffer(adv_type, &PAYLOAD[..]) );
-
-                if let Some(BLEPduType::ScanRequest(a1, a2)) = pdu {
-                    debug!("Received: ScanRequest {:?} {:?}", a1, a2);
-                    // Send back ScanResponse
-                }
-            }
-
             match regs.state.get() {
                 nrf5x::constants::RADIO_STATE_TXRU
                 | nrf5x::constants::RADIO_STATE_TXIDLE
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
-                    self.radio_off();
+                    // self.radio_off();
                     self.tx_client
                         .get()
                         .map(|client| client.transmit_event(result));
@@ -229,7 +214,7 @@ impl Radio {
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
-                    self.radio_off();
+                    // self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
                             client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
