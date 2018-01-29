@@ -9,7 +9,6 @@ extern crate compiler_builtins;
 extern crate kernel;
 extern crate sam4l;
 
-use capsules::aes_ccm;
 use capsules::alarm::AlarmDriver;
 use capsules::ieee802154::mac::Mac;
 use capsules::rf233::RF233;

@@ -321,9 +321,6 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
 
         self.enable_clock();
-        unsafe {
-            nvic::enable(nvic::NvicIdx::AESA);
-        }
         regs.ctrl.set(0x01);
     }
 
