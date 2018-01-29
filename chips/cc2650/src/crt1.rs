@@ -1,4 +1,7 @@
-use cortexm4::{generic_isr, nvic, systick_handler, SVC_Handler};
+use cortexm3::{generic_isr, nvic, systick_handler, SVC_Handler};
+
+use gpio;
+use kernel::hil::gpio::Pin;
 
 extern "C" {
     // Symbols defined in the linker file
@@ -14,11 +17,44 @@ extern "C" {
     fn _estack();
 }
 
+unsafe fn delay() {
+    for _i in 0..0x2FFFFF {
+        asm!("nop;");
+    }
+}
+
+unsafe fn blink(times: usize) {
+    let red_led = &gpio::PORT[10];
+    for _i in 0..times {
+        red_led.set();
+        delay();
+        red_led.clear();
+        delay();
+    }
+}
+
 unsafe extern "C" fn unhandled_interrupt() {
     'loop0: loop {}
 }
 
 unsafe extern "C" fn hard_fault_handler() {
+    const HFSR: usize = 0xD2C;
+    const CPU_SCS: usize = 0xE000_E000;
+
+    let hfsr: u32 = *((CPU_SCS + HFSR) as *mut u32);
+
+    let is_forced: u32 = hfsr & (1 << 30);
+    let is_vectbl: u32 = hfsr & (1 << 1);
+
+    if is_forced != 0 {
+        blink(3);
+    }
+
+    if is_vectbl != 0 {
+        blink(5);
+    }
+
+    blink(5);
     'loop0: loop {}
 }
 

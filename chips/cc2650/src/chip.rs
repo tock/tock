@@ -1,4 +1,4 @@
-use cortexm4::nvic;
+use cortexm3::nvic;
 use kernel;
 use peripheral_interrupts::*;
 use gpio;

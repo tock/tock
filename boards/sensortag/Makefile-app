@@ -4,7 +4,7 @@ $(call check_defined, TOCK_USERLAND_BASE_DIR)
 $(call check_defined, BUILDDIR)
 $(call check_defined, PACKAGE_NAME)
 
-TOCK_ARCH = cortex-m4
+TOCK_ARCH = cortex-m3
 BOARD_BUILDDIR = $(BUILDDIR)/$(TOCK_ARCH)
 
 # Upload programs to sensortag

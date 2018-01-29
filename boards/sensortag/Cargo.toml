@@ -17,7 +17,7 @@ opt-level = "z"
 debug = true
 
 [dependencies]
-cortexm4 = { path = "../../arch/cortex-m4" }
+cortexm3 = { path = "../../arch/cortex-m3" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 cc2650 = { path = "../../chips/cc2650" }

@@ -2,7 +2,7 @@
 #![no_std]
 #![crate_name = "cc2650"]
 #![crate_type = "rlib"]
-extern crate cortexm4;
+extern crate cortexm3;
 #[allow(unused_imports)]
 #[macro_use(debug)]
 extern crate kernel;

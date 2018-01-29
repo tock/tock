@@ -26,12 +26,6 @@ static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, Non
 #[link_section = ".app_memory"]
 static mut APP_MEMORY: [u8; 10240] = [0; 10240];
 
-unsafe fn delay() {
-    for _i in 0..0x2FFFFF {
-        asm!("nop;");
-    }
-}
-
 pub struct Platform {
     gpio: &'static capsules::gpio::GPIO<'static, cc2650::gpio::GPIOPin>,
     led: &'static capsules::led::LED<'static, cc2650::gpio::GPIOPin>,
@@ -45,6 +39,8 @@ impl kernel::Platform for Platform {
     {
         match driver_num {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules::button::DRIVER_NUM => f(Some(self.button)),
             _ => f(None),
         }
     }
@@ -169,6 +165,7 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
+
     kernel::main(
         &sensortag,
         &mut chip,

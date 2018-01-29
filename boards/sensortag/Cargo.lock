@@ -15,12 +15,12 @@ name = "cc2650"
 version = "0.1.0"
 dependencies = [
  "bitfield 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "cortexm4 0.1.0",
+ "cortexm3 0.1.0",
  "kernel 0.1.0",
 ]
 
 [[package]]
-name = "cortexm4"
+name = "cortexm3"
 version = "0.1.0"
 dependencies = [
  "kernel 0.1.0",
@@ -36,7 +36,7 @@ version = "0.1.0"
 dependencies = [
  "capsules 0.1.0",
  "cc2650 0.1.0",
- "cortexm4 0.1.0",
+ "cortexm3 0.1.0",
  "kernel 0.1.0",
 ]
 
