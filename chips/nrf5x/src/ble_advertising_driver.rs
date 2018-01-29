@@ -554,7 +554,18 @@ impl App {
                     data.as_mut()[PACKET_ADDR_START + i] = random_address[i];
                 }
                 ReturnCode::SUCCESS
+            });
+
+        self.scan_response_buf
+            .as_mut()
+            .map_or(ReturnCode::ESIZE,|data| {
+                data.as_mut()[PACKET_HDR_LEN] = 6;
+                for i in 0..6 {
+                    data.as_mut()[PACKET_ADDR_START + i] = random_address[i];
+                }
+                ReturnCode::SUCCESS
             })
+
     }
 
     fn reset_payload(&mut self) -> ReturnCode {
@@ -827,7 +838,7 @@ where
                         }
                     }
 
-                    debug!("Timer fired! {:?}", app.process_status);
+                    // debug!("Timer fired! {:?}", app.process_status);
 
                     match app.process_status {
                         Some(BLEState::Listening(channel)) => { // Listening for SCAN_REQ, if timeout - resume advertising on next channel
@@ -922,8 +933,9 @@ where
                        if let Some(BLEPduType::ScanRequest(scan_addr, adv_addr)) = pdu {
 
                            app.advertising_address.map(|address| {
+                               debug!("Received: ScanRequest {:?} {:?}", scan_addr, adv_addr);
                                if address == adv_addr {
-                                   debug!("Received: ScanRequest {:?} {:?}", scan_addr, adv_addr);
+                                   debug!("Received: ScanRequest for ME! {:?}", adv_addr);
                                    app.process_status = Some(BLEState::Responding(channel));
                                    app.alarm_data.expiration = Expiration::Disabled;
                                    self.sending_app.set(Some(app.appid()));
@@ -989,6 +1001,7 @@ where
                         }
                     }
                     Some(BLEState::Advertising(ch)) => {
+                        debug!("sending advertisement {:?}", app.advertising_address);
                         app.alarm_data.expiration = Expiration::Disabled;
                         app.process_status = Some(BLEState::Listening(ch));
                         self.receiving_app.set(Some(app.appid()));
