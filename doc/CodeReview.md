@@ -1,5 +1,4 @@
 # Tock Pull Request Process
--------------------------------
 
 **TRD:**  <br/>
 **Working Group:** Kernel<br/>
