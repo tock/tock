@@ -1,11 +1,28 @@
+use kernel::common::VolatileCell;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
 use kernel::hil;
-use peripheral_registers::{GPIO, GPIO_BASE};
+use peripheral_registers::{GPIO_BASE};
 
 use ioc;
 
 const NUM_PINS: usize = 32;
+
+#[repr(C)]
+pub struct GPIO {
+    _reserved0: [u8; 0x90],
+    pub dout_set: VolatileCell<u32>,
+    _reserved1: [u8; 0xC],
+    pub dout_clr: VolatileCell<u32>,
+    _reserved2: [u8; 0xC],
+    pub dout_tgl: VolatileCell<u32>,
+    _reserved3: [u8; 0xC],
+    pub din: VolatileCell<u32>,
+    _reserved4: [u8; 0xC],
+    pub doe: VolatileCell<u32>,
+    _reserved5: [u8; 0xC],
+    pub evflags: VolatileCell<u32>,
+}
 
 #[allow(non_snake_case)]
 fn GPIO() -> &'static GPIO { unsafe { &*(GPIO_BASE as *const GPIO) } }
