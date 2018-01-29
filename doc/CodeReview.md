@@ -62,19 +62,24 @@ This is the basic process we use now.
 
 **Significant pull requests** require review by the entire core team. Each
 core team member is expected to respond within one week. There are three
-possible responses: Accept, which means the pull request should be accepted
-(perhaps with some minor tweaks, as per comments), No comment, which means
-the pull request is fine but the member does not promote it, or Discuss,
-which means the pull request needs to be discussed by the core team before
-considering merging it. Core team members can change their votes at
-any time, based on discussion, changes, or further thought.
+possible responses:
+
+  - **Accept**, which means the pull request should be accepted (perhaps
+    with some minor tweaks, as per comments).
+  - **No Comment**, which means the pull request is fine but the member
+    does not promote it.
+  - **Discuss**, which means the pull request needs to be discussed by the
+    core team before considering merging it.
+
+Core team members can change their votes at any time, based on discussion,
+changes, or further thought.
 
 ## 3. Reviews
 
 To be merged, a pull request requires two Accept and no Discuss votes. The
 review period begins when a review is requested from the Github team
 `core-team`. If a member does not respond within a week, their vote is
-considered No comment. If a core team member stops responding to many
+considered No Comment. If a core team member stops responding to many
 significant pull requests they may be removed from the core team.
 
 Core team members enter their votes through GitHub's comment system. An
@@ -84,15 +89,15 @@ discussion, non-trivial changes are necessary for the pull request, the review
 window is re-started after the changes are made.
 
 The members of the core team are:
- * Niklas Adolfsson
- * Hudson Ayers
- * Brad Campbell
- * Branden Ghena
- * Daniel Giffin
- * Philip Levis
- * Amit Levy
- * Olaf Landsiedel
- * Pat Pannuto
+ * Niklas Adolfsson - [niklasad1](https://github.com/niklasad1)
+ * Hudson Ayers - [hudson-ayers](https://github.com/hudson-ayers)
+ * Brad Campbell - [bradjc](https://github.com/bradjc)
+ * Branden Ghena - [brghena](https://github.com/brghena)
+ * Daniel Giffin - [daniel-scs](https://github.com/daniel-scs)
+ * Philip Levis - [phil-levis](https://github.com/phil-levis)
+ * Amit Levy - [alevy](https://github.com/alevy)
+ * Olaf Landsiedel - [olafland](https://github.com/olafland)
+ * Pat Pannuto - [ppannuto](https://github.com/ppannuto)
 
 ## 4. Release process
 
