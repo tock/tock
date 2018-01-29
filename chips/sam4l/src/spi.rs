@@ -12,7 +12,7 @@ use dma::DMAChannel;
 use dma::DMAClient;
 use dma::DMAPeripheral;
 use kernel::ReturnCode;
-use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::regs::{self, ReadOnly, ReadWrite, WriteOnly};
 use kernel::hil::spi;
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
@@ -224,10 +224,8 @@ impl Spi {
         }
 
         // Sets bits per transfer to 8
-        let mut csr = self.read_active_csr();
-        csr &= !(0x1111 << 4);
-        csr |= 0b0000 << 4;
-        self.write_active_csr(csr);
+        let csr = self.get_active_csr();
+        csr.modify(ChipSelectParams::BITS::Eight);
 
         // Set mode to master or slave
         let mode = match self.role.get() {
@@ -293,51 +291,48 @@ impl Spi {
         if clock % real_rate != 0 && scbr != 0xFF {
             scbr += 1;
         }
-        let mut csr = self.read_active_csr();
-        csr = (csr & !(0xFF << 8)) | ((scbr & 0xFF) << 8);
-        self.write_active_csr(csr);
+        let csr = self.get_active_csr();
+        csr.modify(ChipSelectParams::SCBR.val(scbr));
         clock / scbr
     }
 
     pub fn get_baud_rate(&self) -> u32 {
         let clock = 48000000;
-        let scbr = (self.read_active_csr() & (0xFF << 8)) >> 8;
+        let scbr = self.get_active_csr().read(ChipSelectParams::SCBR);
         clock / scbr
     }
 
     fn set_clock(&self, polarity: ClockPolarity) {
-        let mut csr = self.read_active_csr();
+        let csr = self.get_active_csr();
         match polarity {
-            ClockPolarity::IdleHigh => csr |= 0x01,
-            ClockPolarity::IdleLow => csr &= !0x01,
+            ClockPolarity::IdleHigh => csr.modify(ChipSelectParams::CPOL::InactiveHigh),
+            ClockPolarity::IdleLow => csr.modify(ChipSelectParams::CPOL::InactiveLow),
         };
-        self.write_active_csr(csr);
     }
 
     fn get_clock(&self) -> ClockPolarity {
-        let csr = self.read_active_csr();
-        let polarity = csr & 0x01;
-        match polarity {
-            0 => ClockPolarity::IdleLow,
-            _ => ClockPolarity::IdleHigh,
+        let csr = self.get_active_csr();
+        if csr.matches(ChipSelectParams::CPOL::InactiveLow) {
+            ClockPolarity::IdleLow
+        } else {
+            ClockPolarity::IdleHigh
         }
     }
 
     fn set_phase(&self, phase: ClockPhase) {
-        let mut csr = self.read_active_csr();
+        let csr = self.get_active_csr();
         match phase {
-            ClockPhase::SampleLeading => csr |= 0x02,
-            ClockPhase::SampleTrailing => csr &= !0x02,
+            ClockPhase::SampleLeading => csr.modify(ChipSelectParams::NCPHA::CaptureLeading),
+            ClockPhase::SampleTrailing => csr.modify(ChipSelectParams::NCPHA::CaptureTrailing),
         };
-        self.write_active_csr(csr);
     }
 
     fn get_phase(&self) -> ClockPhase {
-        let csr = self.read_active_csr();
-        let phase = csr & 0x02;
-        match phase {
-            0 => ClockPhase::SampleTrailing,
-            _ => ClockPhase::SampleLeading,
+        let csr = self.get_active_csr();
+        if csr.matches(ChipSelectParams::NCPHA::CaptureTrailing) {
+            ClockPhase::SampleTrailing
+        } else {
+            ClockPhase::SampleLeading
         }
     }
 
@@ -360,16 +355,15 @@ impl Spi {
         if self.role.get() == SpiRole::SpiMaster {
             let regs: &Registers = unsafe { &*self.registers };
 
-            let peripheral_number = regs.mr.read(Mode::PCS);
-            match peripheral_number {
-                0b1110 => Peripheral::Peripheral0,
-                0b1101 => Peripheral::Peripheral1,
-                0b1011 => Peripheral::Peripheral2,
-                0b0111 => Peripheral::Peripheral3,
-                _ => {
-                    // Invalid configuration
-                    Peripheral::Peripheral0
-                }
+            if regs.mr.matches(Mode::PCS::PCS3) {
+                Peripheral::Peripheral3
+            } else if regs.mr.matches(Mode::PCS::PCS2) {
+                Peripheral::Peripheral2
+            } else if regs.mr.matches(Mode::PCS::PCS1) {
+                Peripheral::Peripheral1
+            } else {
+                // default
+                Peripheral::Peripheral0
             }
         } else {
             // The active peripheral is always 0 in slave mode
@@ -379,27 +373,15 @@ impl Spi {
 
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3,
     /// whichever corresponds to the active peripheral
-    fn read_active_csr(&self) -> u32 {
+    fn get_active_csr(&self) -> &regs::ReadWrite<u32, ChipSelectParams::Register> {
         let regs: &Registers = unsafe { &*self.registers };
 
         match self.get_active_peripheral() {
-            Peripheral::Peripheral0 => regs.csr[0].get(),
-            Peripheral::Peripheral1 => regs.csr[1].get(),
-            Peripheral::Peripheral2 => regs.csr[2].get(),
-            Peripheral::Peripheral3 => regs.csr[3].get(),
+            Peripheral::Peripheral0 => &regs.csr[0],
+            Peripheral::Peripheral1 => &regs.csr[1],
+            Peripheral::Peripheral2 => &regs.csr[2],
+            Peripheral::Peripheral3 => &regs.csr[3],
         }
-    }
-    /// Sets the Chip Select Register (CSR) of the active peripheral
-    /// (CSR0, CSR1, CSR2, or CSR3).
-    fn write_active_csr(&self, value: u32) {
-        let regs: &Registers = unsafe { &*self.registers };
-
-        match self.get_active_peripheral() {
-            Peripheral::Peripheral0 => regs.csr[0].set(value),
-            Peripheral::Peripheral1 => regs.csr[1].set(value),
-            Peripheral::Peripheral2 => regs.csr[2].set(value),
-            Peripheral::Peripheral3 => regs.csr[3].set(value),
-        };
     }
 
     /// Set the DMA channels used for reading and writing.
@@ -581,15 +563,13 @@ impl spi::SpiMaster for Spi {
     }
 
     fn hold_low(&self) {
-        let mut csr = self.read_active_csr();
-        csr |= 1 << 3;
-        self.write_active_csr(csr);
+        let csr = self.get_active_csr();
+        csr.modify(ChipSelectParams::CSAAT::ActiveAfterTransfer);
     }
 
     fn release_low(&self) {
-        let mut csr = self.read_active_csr();
-        csr &= !(1 << 3);
-        self.write_active_csr(csr);
+        let csr = self.get_active_csr();
+        csr.modify(ChipSelectParams::CSAAT::InactiveAfterTransfer);
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) {
