@@ -1,15 +1,6 @@
 use kernel::common::VolatileCell;
 
-pub const IOC_PULL_CTL: u8 = 13;
-pub const IOC_IE: u8 = 29;
-pub const IOC_EDGE_DET: u8 = 16;
-pub const IOC_EDGE_IRQ_EN: u8 = 18;
 pub const IOC_BASE: usize = 0x4008_1000;
-
-#[repr(C)]
-pub struct IOC {
-    pub iocfg: [VolatileCell<u32>; 32],
-}
 
 pub const GPIO_BASE: usize = 0x4002_2000;
 

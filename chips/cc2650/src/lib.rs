@@ -16,4 +16,6 @@ pub mod peripheral_registers;
 pub mod ccfg;
 pub mod peripheral_interrupts;
 
+mod ioc;
+
 pub use crt1::init;
