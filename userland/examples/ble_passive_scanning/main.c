@@ -46,11 +46,18 @@ static void callback(int result, int len, __attribute__((unused)) int unused2,
 int main(void) {
   printf("\rBLE Passive Scanner\r\n\n");
 
+  uint16_t advertising_interval_ms = 300;
+  int err = ble_initialize(advertising_interval_ms, true);
+      if (err < TOCK_SUCCESS)
+        printf("ble_initialize, error: %s\r\n", tock_strerror(err));
+
   // using the pre-configured adv interval
-  int err = ble_start_passive_scan(scan, BUF_SIZE, callback);
+  err = ble_start_passive_scan(scan, BUF_SIZE, callback);
   if (err < TOCK_SUCCESS) {
     printf("ble_start_passive_scan, error: %s\r\n", tock_strerror(err));
   }
+
+
 
   return 0;
 }

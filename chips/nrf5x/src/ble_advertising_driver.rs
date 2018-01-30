@@ -557,7 +557,7 @@ impl App {
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
 
-        let random_address: [u8; 6] = [0xf0, 0x08, 0x08, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        let random_address: [u8; 6] = [0xf0, 0x0F, 0x0F, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
         self.advertising_address = Some(DeviceAddress(random_address));
 
         self.advertisement_buf
@@ -568,8 +568,9 @@ impl App {
                     data.as_mut()[PACKET_ADDR_START + i] = random_address[i];
                 }
                 ReturnCode::SUCCESS
-            });
+            })
 
+        /*
         self.scan_response_buf
             .as_mut()
             .map_or(ReturnCode::ESIZE,|data| {
@@ -579,6 +580,7 @@ impl App {
                 }
                 ReturnCode::SUCCESS
             })
+         */
 
     }
 
@@ -730,8 +732,8 @@ impl App {
             .as_mut()
             .map_or(ReturnCode::ESIZE,|data| {
                 data.as_mut()[PACKET_HDR_LEN] = 12;
-                for i in 6..12 {
-                    data.as_mut()[PACKET_ADDR_START + i] = adv_addr.0[i];
+                for i in 0..6 {
+                    data.as_mut()[PACKET_ADDR_START+6 + i] = adv_addr.0[i];
                 }
                 ReturnCode::SUCCESS
             });
@@ -1008,7 +1010,7 @@ where
                         self.radio.set_tx_power(app.tx_power);
                         self.radio.receive_advertisement(RadioChannel::AdvertisingChannel37);
 
-                        if let Some(BLEPduType::NonConnectUndirected(adv_addr, _)) = pdu {
+                        if let Some(BLEPduType::ScanUndirected(adv_addr, _)) = pdu {
                             debug!("Receive event: {:?}", adv_addr);
 
                             app.process_status = Some(BLEState::Requesting(RadioChannel::AdvertisingChannel37));
@@ -1054,8 +1056,11 @@ where
                 match app.process_status {
                     Some(BLEState::Requesting(channel)) => {
                         app.process_status = Some(BLEState::Scanning(channel));
+                        self.receiving_app.set(Some(app.appid()));
+                        self.radio.set_tx_power(app.tx_power);
+                        self.radio.receive_advertisement(channel);
 
-                        debug!("Mesage sent");
+                        debug!("Mesage sent on channel: {:?}", channel);
                     }
                     Some(BLEState::Responding(channel)) => {
                         app.alarm_data.expiration = Expiration::Disabled;
@@ -1204,8 +1209,8 @@ where
                     if let Some(BLEState::Initialized) = app.process_status {
                         let status = app.generate_random_address(appid);
                         if status == ReturnCode::SUCCESS {
-                            app.configure_advertisement_pdu();
-                            app.configure_scan_response_pdu()
+                            app.configure_advertisement_pdu()//;
+                            //app.configure_scan_response_pdu()
                         } else {
                             status
                         }
@@ -1255,7 +1260,7 @@ where
                         app.advertisement_buf = Some(slice);
                         app.process_status = Some(BLEState::Initialized);
                         app.initialize_advertisement_buffer();
-                        app.initialize_scan_response_buffer();
+                        //app.initialize_scan_response_buffer();
                         ReturnCode::SUCCESS
                     } else {
                         ReturnCode::EINVAL
