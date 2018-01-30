@@ -464,7 +464,6 @@ impl AlarmData {
 pub struct App {
     advertising_address: Option<DeviceAddress>,
     advertisement_buf: Option<kernel::AppSlice<kernel::Shared, u8>>,
-    scan_response_buf: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_write: Option<kernel::AppSlice<kernel::Shared, u8>>,
     app_read: Option<kernel::AppSlice<kernel::Shared, u8>>,
     scan_callback: Option<kernel::Callback>,
@@ -486,7 +485,6 @@ impl Default for App {
         App {
             advertising_address: None,
             advertisement_buf: None,
-            scan_response_buf: None,
             alarm_data: AlarmData::new(),
             app_write: None,
             app_read: None,
@@ -512,17 +510,6 @@ impl App {
                 ReturnCode::SUCCESS
             })
             .unwrap_or_else(|| ReturnCode::EINVAL)
-    }
-
-    fn initialize_scan_response_buffer(&mut self) -> ReturnCode {
-        self.scan_response_buf
-            .as_mut()
-            .map_or(ReturnCode::EINVAL,|buf| {
-                for i in buf.as_mut()[PACKET_START..PACKET_LENGTH].iter_mut() {
-                    *i = 0x00;
-                }
-                ReturnCode::SUCCESS
-            })
     }
 
     // Bluetooth Core Specification:Vol. 6, Part B, section 1.3.2.1 Static Device Address
@@ -590,15 +577,6 @@ impl App {
             .unwrap_or_else(|| ReturnCode::ESIZE)
     }
 
-    fn configure_scan_response_pdu(&mut self) -> ReturnCode {
-        self.scan_response_buf
-            .as_mut()
-            .map_or(ReturnCode::ESIZE,|slice| {
-                slice.as_mut()[PACKET_HDR_PDU] = (0x04 << 4) | (BLEAdvertisementType::ScanResponse as u8);
-                ReturnCode::SUCCESS
-            })
-    }
-
     fn set_gap_data(&mut self, gap_type: BLEGapType) -> ReturnCode {
         self.app_write
             .take()
@@ -641,6 +619,19 @@ impl App {
             .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
+    fn send_buffer<'a, B, A>(&self, ble: &BLE<'a, B, A>, slice: &'static mut [u8],  advertisement_type: BLEAdvertisementType, channel: RadioChannel) -> ReturnCode
+        where
+            B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+            A: kernel::hil::time::Alarm + 'a,
+    {
+        slice.as_mut()[PACKET_HDR_PDU] = (0x04 << 4) | (advertisement_type as u8);
+
+        let result = ble.radio.transmit_advertisement(slice, PACKET_LENGTH, channel);
+        ble.kernel_tx.replace(result);
+        ReturnCode::SUCCESS
+    }
+
+
     fn send_advertisement<'a, B, A>(&self, ble: &BLE<'a, B, A>, channel: RadioChannel) -> ReturnCode
     where
         B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
@@ -658,10 +649,7 @@ impl App {
                         {
                             *out = *inp;
                         }
-                        let result = ble.radio
-                            .transmit_advertisement(data, PACKET_LENGTH, channel);
-                        ble.kernel_tx.replace(result);
-                        ReturnCode::SUCCESS
+                        self.send_buffer(ble, data, BLEAdvertisementType::ScanUndirected, channel)
                     })
                     .unwrap_or_else(|| ReturnCode::EINVAL)
             })
@@ -673,7 +661,7 @@ impl App {
             B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
             A: kernel::hil::time::Alarm + 'a,
     {
-        self.scan_response_buf
+        self.advertisement_buf
             .as_ref()
             .map_or(ReturnCode::EINVAL,|slice| {
                 ble.kernel_tx
@@ -685,10 +673,7 @@ impl App {
                             {
                                 *out = *inp;
                             }
-                        let result = ble.radio
-                            .transmit_advertisement(data, PACKET_LENGTH, channel);
-                        ble.kernel_tx.replace(result);
-                        ReturnCode::SUCCESS
+                        self.send_buffer(ble, data, BLEAdvertisementType::ScanResponse, channel)
                     })
             })
     }
@@ -731,7 +716,6 @@ where
 {
     radio: &'a B,
     busy: Cell<BusyState>,
-    last_sent: u32,
     app: kernel::Grant<App>,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
     alarm: &'a A,
@@ -753,7 +737,6 @@ where
         BLE {
             radio: radio,
             busy: Cell::new(BusyState::Free),
-            last_sent: 0,
             app: container,
             kernel_tx: kernel::common::take_cell::TakeCell::new(tx_buf),
             alarm: alarm,
@@ -998,6 +981,7 @@ where
                         app.process_status = Some(BLEState::Listening(ch));
                         self.receiving_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
+                        self.radio.receive_advertisement(ch);
                     }
                     // Invalid state => don't care
                     _ => (),
