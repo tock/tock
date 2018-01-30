@@ -37,7 +37,6 @@ use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption;
 use peripheral_registers;
 
-
 // DMA buffer that the aes chip will mutate during encryption
 // Byte 0-15   - Key
 // Byte 16-32  - Payload
@@ -127,10 +126,9 @@ impl<'a> AesECB<'a> {
         self.disable_interrupts();
 
         if regs.event_endecb.get() == 1 {
-
             let current_idx = self.current_idx.get();
             let end_idx = self.end_idx.get();
-            
+
             // get number of bytes to be used in the keystream/block
             let take = match end_idx.checked_sub(current_idx) {
                 Some(v) if v > 16 => 16,
@@ -153,30 +151,27 @@ impl<'a> AesECB<'a> {
             if self.current_idx.get() < self.end_idx.get() {
                 self.crypt();
             }
-            
             // Entire keystream generated we are done!
             // XOR keystream the input
             else if self.input.is_some() && self.output.is_some() {
                 self.input.take().map(|slice| {
                     self.output.take().map(|buf| {
-
                         let start = self.start_idx.get();
                         let end = self.end_idx.get();
                         let len = end - start;
 
-                        for ((i,out), inp) in buf.as_mut()[start..end]
-                            .iter_mut().enumerate()
+                        for ((i, out), inp) in buf.as_mut()[start..end]
+                            .iter_mut()
+                            .enumerate()
                             .zip(slice.as_ref()[0..len].iter())
                         {
                             *out = ks[i] ^ *inp;
                         }
 
-                        self.client.get().map(move |client| {
-                            client.crypt_done(Some(slice), buf)
-                        });
-
+                        self.client
+                            .get()
+                            .map(move |client| client.crypt_done(Some(slice), buf));
                     });
-
                 });
             }
 
@@ -251,7 +246,6 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
         start_index: usize,
         stop_index: usize,
     ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
-
         match source {
             None => Some((ReturnCode::EINVAL, source, dest)),
             Some(src) => {
@@ -259,12 +253,12 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
                     // replace buffers
                     self.input.replace(src);
                     self.output.replace(dest);
-                    
+
                     // configure buffer offsets
                     self.current_idx.set(0);
                     self.start_idx.set(start_index);
                     self.end_idx.set(stop_index);
-                    
+
                     // start crypt
                     self.crypt();
                     None

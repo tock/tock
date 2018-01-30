@@ -1,6 +1,5 @@
 /// Implements AES-CCM* encryption/decryption/authentication using an underlying
 /// AES-CBC and AES-CTR implementation.
-
 // IEEE 802.15.4-2015: Appendix B.4.1, CCM* transformations. CCM* is
 // defined so that both encryption and decryption can be done by preparing two
 // fields: the AuthData and either the PlaintextData or the CiphertextData.
@@ -31,7 +30,6 @@
 // PlaintextData before running CBC over both fields. The last step is to
 // combine saved_tag and the unencrypted tag to form the encrypted tag and
 // verify its correctness.
-
 use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
@@ -88,12 +86,13 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
     /// Prepares crypt_buf with the input for the CCM* authentication and
     /// encryption/decryption transformations. Returns ENOMEM if crypt_buf is
     /// not present or if it is not long enough.
-    fn prepare_ccm_buffer(&self,
-                          nonce: &[u8; CCM_NONCE_LENGTH],
-                          mic_len: usize,
-                          a_data: &[u8],
-                          m_data: &[u8])
-                          -> ReturnCode {
+    fn prepare_ccm_buffer(
+        &self,
+        nonce: &[u8; CCM_NONCE_LENGTH],
+        mic_len: usize,
+        a_data: &[u8],
+        m_data: &[u8],
+    ) -> ReturnCode {
         self.crypt_buf.map_or(ReturnCode::ENOMEM, |cbuf| {
             let (auth_len, enc_len) =
                 match Self::encode_ccm_buffer(cbuf, nonce, mic_len, a_data, m_data) {
@@ -125,12 +124,13 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
     /// `auth_len` (the length of the AuthData field) and `enc_len` (the
     /// combined length of AuthData and PData/CData) are returned. `auth_len` is
     /// guaranteed to be >= AES128_BLOCK_SIZE
-    fn encode_ccm_buffer(buf: &mut [u8],
-                         nonce: &[u8; CCM_NONCE_LENGTH],
-                         mic_len: usize,
-                         a_data: &[u8],
-                         m_data: &[u8])
-                         -> SResult<(usize, usize)> {
+    fn encode_ccm_buffer(
+        buf: &mut [u8],
+        nonce: &[u8; CCM_NONCE_LENGTH],
+        mic_len: usize,
+        a_data: &[u8],
+        m_data: &[u8],
+    ) -> SResult<(usize, usize)> {
         // IEEE 802.15.4-2015: Appendix B.4.1.2, CCM* authentication
         // The authentication tag T is computed with AES128-CBC-MAC on
         // B_0 | AuthData, where
@@ -197,9 +197,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
     // Assumes that the state is Idle, which means that crypt_buf must be
     // present. Panics if this is not the case.
     fn start_ccm_auth(&self) -> ReturnCode {
-        if !(self.state.get() == CCMState::Idle) &&
-           !(self.state.get() == CCMState::Encrypt &&
-             self.reversed()) {
+        if !(self.state.get() == CCMState::Idle)
+            && !(self.state.get() == CCMState::Encrypt && self.reversed())
+        {
             panic!("Called start_ccm_auth when not idle");
         }
 
@@ -242,9 +242,9 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
     }
 
     fn start_ccm_encrypt(&self) -> ReturnCode {
-        if !(self.state.get() == CCMState::Auth) &&
-           !(self.state.get() == CCMState::Idle &&
-             self.reversed()) {
+        if !(self.state.get() == CCMState::Auth)
+            && !(self.state.get() == CCMState::Idle && self.reversed())
+        {
             return ReturnCode::FAIL;
         }
         self.state.set(CCMState::Idle); // default to fail
@@ -273,10 +273,12 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
             Some(buf) => buf,
         };
 
-        match self.aes.crypt(None,
-                             crypt_buf,
-                             self.crypt_auth_len.get() - AES128_BLOCK_SIZE,
-                             self.crypt_enc_len.get()) {
+        match self.aes.crypt(
+            None,
+            crypt_buf,
+            self.crypt_auth_len.get() - AES128_BLOCK_SIZE,
+            self.crypt_enc_len.get(),
+        ) {
             None => {
                 self.state.set(CCMState::Encrypt);
                 ReturnCode::SUCCESS
@@ -290,67 +292,76 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
 
     fn end_ccm(&self) {
         let tag_valid = self.buf.map_or(false, |buf| {
-            self.crypt_buf.map_or_else(|| {
-                                           panic!("We lost track of crypt_buf!");
-                                       },
-                                       |cbuf| {
-                // Copy the encrypted/decrypted message data
-                let (_, m_off, m_len, mic_len) = self.pos.get();
-                let auth_len = self.crypt_auth_len.get();
-                buf[m_off..m_off + m_len].copy_from_slice(&cbuf[auth_len..auth_len + m_len]);
+            self.crypt_buf.map_or_else(
+                || {
+                    panic!("We lost track of crypt_buf!");
+                },
+                |cbuf| {
+                    // Copy the encrypted/decrypted message data
+                    let (_, m_off, m_len, mic_len) = self.pos.get();
+                    let auth_len = self.crypt_auth_len.get();
+                    buf[m_off..m_off + m_len].copy_from_slice(&cbuf[auth_len..auth_len + m_len]);
 
-                let m_end = m_off + m_len;
-                let tag_off = auth_len - AES128_BLOCK_SIZE;
-                if self.encrypting.get() {
-                    // Copy the encrypted tag to the end of the message
-                    buf[m_end..m_end + mic_len].copy_from_slice(&cbuf[tag_off..tag_off + mic_len]);
-                    true
-                } else {
-                    // Compare the computed encrypted tag to the received
-                    // encrypted tag
-                    buf[m_end..m_end + mic_len]
-                        .iter()
-                        .zip(cbuf[tag_off..tag_off + mic_len].iter())
-                        .all(|(a, b)| *a == *b)
-                }
-            })
+                    let m_end = m_off + m_len;
+                    let tag_off = auth_len - AES128_BLOCK_SIZE;
+                    if self.encrypting.get() {
+                        // Copy the encrypted tag to the end of the message
+                        buf[m_end..m_end + mic_len]
+                            .copy_from_slice(&cbuf[tag_off..tag_off + mic_len]);
+                        true
+                    } else {
+                        // Compare the computed encrypted tag to the received
+                        // encrypted tag
+                        buf[m_end..m_end + mic_len]
+                            .iter()
+                            .zip(cbuf[tag_off..tag_off + mic_len].iter())
+                            .all(|(a, b)| *a == *b)
+                    }
+                },
+            )
         });
 
         self.state.set(CCMState::Idle);
         if let Some(client) = self.crypt_client.get() {
-            self.buf.take().map(|buf| { client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid); });
+            self.buf.take().map(|buf| {
+                client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid);
+            });
         }
     }
 
     fn reverse_end_ccm(&self) {
         // Finalize CCM process only in the case where we did CTR before CBC
         let tag_valid = self.buf.map_or(false, |buf| {
-            self.crypt_buf.map_or_else(|| {
-                                           panic!("We lost track of crypt_buf!");
-                                       },
-                                       |cbuf| {
-                let (_, m_off, m_len, mic_len) = self.pos.get();
+            self.crypt_buf.map_or_else(
+                || {
+                    panic!("We lost track of crypt_buf!");
+                },
+                |cbuf| {
+                    let (_, m_off, m_len, mic_len) = self.pos.get();
 
-                // Combine unencrypted tag at end of crypt_buf with saved
-                // CTR-encrypted block to obtain encrypted tag
-                let tag_off = self.crypt_enc_len.get() - AES128_BLOCK_SIZE;
-                self.saved_tag.get()[..mic_len]
-                    .iter()
-                    .zip(cbuf[tag_off..tag_off + mic_len].iter_mut())
-                    .for_each(|(a, b)| *b ^= *a);
+                    // Combine unencrypted tag at end of crypt_buf with saved
+                    // CTR-encrypted block to obtain encrypted tag
+                    let tag_off = self.crypt_enc_len.get() - AES128_BLOCK_SIZE;
+                    self.saved_tag.get()[..mic_len]
+                        .iter()
+                        .zip(cbuf[tag_off..tag_off + mic_len].iter_mut())
+                        .for_each(|(a, b)| *b ^= *a);
 
-                // Compare the computed encrypted tag to the received
-                // encrypted tag
-                buf[m_off + m_len..m_off + m_len + mic_len]
-                    .iter()
-                    .zip(cbuf[tag_off..tag_off + mic_len].iter())
-                    .all(|(a, b)| *a == *b)
-            })
+                    // Compare the computed encrypted tag to the received
+                    // encrypted tag
+                    buf[m_off + m_len..m_off + m_len + mic_len]
+                        .iter()
+                        .zip(cbuf[tag_off..tag_off + mic_len].iter())
+                        .all(|(a, b)| *a == *b)
+                },
+            )
         });
 
         self.state.set(CCMState::Idle);
         if let Some(client) = self.crypt_client.get() {
-            self.buf.take().map(|buf| { client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid); });
+            self.buf.take().map(|buf| {
+                client.crypt_done(buf, ReturnCode::SUCCESS, tag_valid);
+            });
         }
     }
 
@@ -375,16 +386,14 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> AES128CCM<'a, A> {
         self.crypt_buf.map(|cbuf| {
             let mut cbuf_block = [0u8; AES128_BLOCK_SIZE];
             cbuf_block.copy_from_slice(&cbuf[auth_len - AES128_BLOCK_SIZE..auth_len]);
-            cbuf[auth_len - AES128_BLOCK_SIZE..auth_len]
-                .copy_from_slice(&self.saved_tag.get());
+            cbuf[auth_len - AES128_BLOCK_SIZE..auth_len].copy_from_slice(&self.saved_tag.get());
             self.saved_tag.set(cbuf_block);
         });
     }
 }
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES128CCM<'a>
-    for
-    AES128CCM<'a, A> {
+    for AES128CCM<'a, A> {
     fn set_client(&self, client: &'a symmetric_encryption::CCMClient) {
         self.crypt_client.set(Some(client));
     }
@@ -411,15 +420,16 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES12
         }
     }
 
-    fn crypt(&self,
-             buf: &'static mut [u8],
-             a_off: usize,
-             m_off: usize,
-             m_len: usize,
-             mic_len: usize,
-             confidential: bool,
-             encrypting: bool)
-             -> (ReturnCode, Option<&'static mut [u8]>) {
+    fn crypt(
+        &self,
+        buf: &'static mut [u8],
+        a_off: usize,
+        m_off: usize,
+        m_len: usize,
+        mic_len: usize,
+        confidential: bool,
+        encrypting: bool,
+    ) -> (ReturnCode, Option<&'static mut [u8]>) {
         if self.state.get() != CCMState::Idle {
             return (ReturnCode::EBUSY, Some(buf));
         }
@@ -460,8 +470,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES12
 }
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
-    for
-    AES128CCM<'a, A> {
+    for AES128CCM<'a, A> {
     fn crypt_done(&self, _: Option<&'a mut [u8]>, crypt_buf: &'a mut [u8]) {
         self.crypt_buf.replace(crypt_buf);
         match self.state.get() {
@@ -496,8 +505,10 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
                     let res = self.start_ccm_encrypt();
                     if res != ReturnCode::SUCCESS {
                         // Return client buffer to client
-                        self.buf.take().map(|buf| if let Some(client) = self.crypt_client.get() {
-                            client.crypt_done(buf, res, false);
+                        self.buf.take().map(|buf| {
+                            if let Some(client) = self.crypt_client.get() {
+                                client.crypt_done(buf, res, false);
+                            }
                         });
                         self.state.set(CCMState::Idle);
                     }
@@ -521,13 +532,16 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC> symmetric_encryption::Client<'a>
 
                         // Reset the rest of the padding
                         cbuf[self.crypt_auth_len.get() + m_len..self.crypt_enc_len.get()]
-                            .iter_mut().for_each(|b| *b = 0);
+                            .iter_mut()
+                            .for_each(|b| *b = 0);
                     });
                     let res = self.start_ccm_auth();
                     if res != ReturnCode::SUCCESS {
                         // Return client buffer to client
-                        self.buf.take().map(|buf| if let Some(client) = self.crypt_client.get() {
-                            client.crypt_done(buf, res, false);
+                        self.buf.take().map(|buf| {
+                            if let Some(client) = self.crypt_client.get() {
+                                client.crypt_done(buf, res, false);
+                            }
                         });
                         self.state.set(CCMState::Idle);
                     }

@@ -84,9 +84,11 @@ static mut APP_MEMORY: [u8; 8192] = [0; 8192];
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None];
 
 pub struct Platform {
-    ble_radio: &'static nrf5x::ble_advertising_driver::BLE<'static,
-                                                           nrf51::radio::Radio,
-                                                           VirtualMuxAlarm<'static, Rtc>>,
+    ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
+        'static,
+        nrf51::radio::Radio,
+        VirtualMuxAlarm<'static, Rtc>,
+    >,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static, nrf51::uart::UART>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
@@ -339,16 +341,14 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-    
+
     // aes128-ctr test remove later
     aes_test::run();
-    
-    
+
     kernel::main(
         &platform,
         &mut chip,
         &mut PROCESSES,
         &kernel::ipc::IPC::new(),
     );
-
 }

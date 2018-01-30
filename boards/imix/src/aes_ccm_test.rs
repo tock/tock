@@ -1,8 +1,7 @@
-
 use capsules::aes_ccm;
 use capsules::test::aes_ccm::Test;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
-use sam4l::aes::{AES, Aes};
+use sam4l::aes::{Aes, AES};
 
 pub fn run() {
     let ccm = static_init_ccm();
@@ -20,8 +19,10 @@ fn static_init_ccm() -> &'static mut aes_ccm::AES128CCM<'static, Aes<'static>> {
     unsafe {
         const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
         let crypt_buf = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
-        static_init!(aes_ccm::AES128CCM<'static, Aes<'static>>,
-                     aes_ccm::AES128CCM::new(&AES, crypt_buf))
+        static_init!(
+            aes_ccm::AES128CCM<'static, Aes<'static>>,
+            aes_ccm::AES128CCM::new(&AES, crypt_buf)
+        )
     }
 }
 

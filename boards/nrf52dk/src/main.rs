@@ -91,7 +91,7 @@ const BUTTON_RST_PIN: usize = 21;
 #[macro_use]
 pub mod io;
 
-mod aes_test; 
+mod aes_test;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -106,8 +106,11 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
 
 pub struct Platform {
-    ble_radio: &'static nrf5x::ble_advertising_driver::BLE
-        <'static, nrf52::radio::Radio, VirtualMuxAlarm<'static, Rtc>>,
+    ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
+        'static,
+        nrf52::radio::Radio,
+        VirtualMuxAlarm<'static, Rtc>,
+    >,
     button: &'static capsules::button::Button<'static, nrf5x::gpio::GPIOPin>,
     console: &'static capsules::console::Console<'static, nrf52::uart::UARTE>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf5x::gpio::GPIOPin>,
@@ -352,21 +355,24 @@ pub unsafe fn reset_handler() {
 
     let mut chip = nrf52::chip::NRF52::new();
 
-
     debug!("Initialization complete. Entering main loop\r");
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
     }
-    kernel::process::load_processes(&_sapps as *const u8,
-                                    &mut APP_MEMORY,
-                                    &mut PROCESSES,
-                                    FAULT_RESPONSE);
+    kernel::process::load_processes(
+        &_sapps as *const u8,
+        &mut APP_MEMORY,
+        &mut PROCESSES,
+        FAULT_RESPONSE,
+    );
 
     aes_test::run();
 
-    kernel::main(&platform,
-                 &mut chip,
-                 &mut PROCESSES,
-                 &kernel::ipc::IPC::new());
+    kernel::main(
+        &platform,
+        &mut chip,
+        &mut PROCESSES,
+        &kernel::ipc::IPC::new(),
+    );
 }

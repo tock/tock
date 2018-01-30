@@ -2,7 +2,6 @@
 
 use core::cell::Cell;
 use core::mem;
-
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
@@ -140,7 +139,8 @@ impl<'a> Aes<'a> {
         let encrypt = if encrypting { 1 } else { 0 };
         let dma = 0;
         let cmeasure = 0xF;
-        regs.mode.set(encrypt << 0 | dma << 3 | (mode as u32) << 4 | cmeasure << 16);
+        regs.mode
+            .set(encrypt << 0 | dma << 3 | (mode as u32) << 4 | cmeasure << 16);
     }
 
     fn input_buffer_ready(&self) -> bool {
@@ -149,7 +149,6 @@ impl<'a> Aes<'a> {
 
         status & (1 << 16) != 0
     }
-
 
     fn output_data_ready(&self) -> bool {
         let regs: &AesRegisters = unsafe { &*self.registers };
@@ -160,36 +159,37 @@ impl<'a> Aes<'a> {
 
     fn try_set_indices(&self, start_index: usize, stop_index: usize) -> bool {
         stop_index.checked_sub(start_index).map_or(false, |sublen| {
-            sublen % AES128_BLOCK_SIZE == 0 &&
-            {
-                self.source.map_or_else(|| {
-                    // The destination buffer is also the input
-                    if self.dest.map_or(false, |dest| stop_index <= dest.len()) {
-                        self.write_index.set(start_index);
-                        self.read_index.set(start_index);
-                        self.stop_index.set(stop_index);
-                        true
-                    } else {
-                        false
-                    }
-                },
-                                        |source| {
-                    if sublen == source.len() &&
-                       self.dest.map_or(false, |dest| stop_index <= dest.len()) {
+            sublen % AES128_BLOCK_SIZE == 0 && {
+                self.source.map_or_else(
+                    || {
+                        // The destination buffer is also the input
+                        if self.dest.map_or(false, |dest| stop_index <= dest.len()) {
+                            self.write_index.set(start_index);
+                            self.read_index.set(start_index);
+                            self.stop_index.set(stop_index);
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    |source| {
+                        if sublen == source.len()
+                            && self.dest.map_or(false, |dest| stop_index <= dest.len())
+                        {
+                            // We will start writing to the AES from the beginning of `source`,
+                            // and end at its end
+                            self.write_index.set(0);
 
-                        // We will start writing to the AES from the beginning of `source`,
-                        // and end at its end
-                        self.write_index.set(0);
-
-                        // We will start reading from the AES into `dest` at `start_index`,
-                        // and continue until `stop_index`
-                        self.read_index.set(start_index);
-                        self.stop_index.set(stop_index);
-                        true
-                    } else {
-                        false
-                    }
-                })
+                            // We will start reading from the AES into `dest` at `start_index`,
+                            // and continue until `stop_index`
+                            self.read_index.set(start_index);
+                            self.stop_index.set(stop_index);
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                )
             }
         })
     }
@@ -198,85 +198,92 @@ impl<'a> Aes<'a> {
     // if there is a block left in the buffer.  Either way, this function
     // returns true if more blocks remain to send.
     fn write_block(&self) -> bool {
-       self.source.map_or_else(|| {
-            // The source and destination are the same buffer
-            self.dest.map_or_else(|| {
-                                      debug!("Called write_block() with no data");
-                                      false
-                                  },
-                                  |dest| {
+        self.source.map_or_else(
+            || {
+                // The source and destination are the same buffer
+                self.dest.map_or_else(
+                    || {
+                        debug!("Called write_block() with no data");
+                        false
+                    },
+                    |dest| {
+                        let index = self.write_index.get();
+                        let more = index + AES128_BLOCK_SIZE <= self.stop_index.get();
+                        if !more {
+                            return false;
+                        }
+                        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+                        for i in 0..4 {
+                            let mut v = dest[index + (i * 4) + 0] as usize;
+                            v |= (dest[index + (i * 4) + 1] as usize) << 8;
+                            v |= (dest[index + (i * 4) + 2] as usize) << 16;
+                            v |= (dest[index + (i * 4) + 3] as usize) << 24;
+                            regs.idata.set(v as u32);
+                        }
+                        self.write_index.set(index + AES128_BLOCK_SIZE);
+
+                        let more =
+                            self.write_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get();
+                        more
+                    },
+                )
+            },
+            |source| {
                 let index = self.write_index.get();
-                let more = index + AES128_BLOCK_SIZE <= self.stop_index.get();
+
+                let more = index + AES128_BLOCK_SIZE <= source.len();
                 if !more {
                     return false;
                 }
+
                 let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
                 for i in 0..4 {
-                    let mut v = dest[index + (i * 4) + 0] as usize;
-                    v |= (dest[index + (i * 4) + 1] as usize) << 8;
-                    v |= (dest[index + (i * 4) + 2] as usize) << 16;
-                    v |= (dest[index + (i * 4) + 3] as usize) << 24;
+                    let mut v = source[index + (i * 4) + 0] as usize;
+                    v |= (source[index + (i * 4) + 1] as usize) << 8;
+                    v |= (source[index + (i * 4) + 2] as usize) << 16;
+                    v |= (source[index + (i * 4) + 3] as usize) << 24;
                     regs.idata.set(v as u32);
                 }
+
                 self.write_index.set(index + AES128_BLOCK_SIZE);
 
-                let more = self.write_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get();
+                let more = self.write_index.get() + AES128_BLOCK_SIZE <= source.len();
                 more
-            })
-        },
-                                |source| {
-            let index = self.write_index.get();
-
-            let more = index + AES128_BLOCK_SIZE <= source.len();
-            if !more {
-                return false;
-            }
-
-            let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
-            for i in 0..4 {
-                let mut v = source[index + (i * 4) + 0] as usize;
-                v |= (source[index + (i * 4) + 1] as usize) << 8;
-                v |= (source[index + (i * 4) + 2] as usize) << 16;
-                v |= (source[index + (i * 4) + 3] as usize) << 24;
-                regs.idata.set(v as u32);
-            }
-
-            self.write_index.set(index + AES128_BLOCK_SIZE);
-
-            let more = self.write_index.get() + AES128_BLOCK_SIZE <= source.len();
-            more
-        })
+            },
+        )
     }
 
     // Copy a block from the AESA output register back into the request buffer
     // if there is any room left.  Return true if we are still waiting for more
     // blocks after this
     fn read_block(&self) -> bool {
-        self.dest.map_or_else(|| {
-                                  debug!("Called read_block() with no data");
-                                  false
-                              },
-                              |dest| {
-            let index = self.read_index.get();
-            let more = index + AES128_BLOCK_SIZE <= self.stop_index.get();
-            if !more {
-                return false;
-            }
+        self.dest.map_or_else(
+            || {
+                debug!("Called read_block() with no data");
+                false
+            },
+            |dest| {
+                let index = self.read_index.get();
+                let more = index + AES128_BLOCK_SIZE <= self.stop_index.get();
+                if !more {
+                    return false;
+                }
 
-            let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
-            for i in 0..4 {
-                let v = regs.odata.get();
-                dest[index + (i * 4) + 0] = (v >> 0) as u8;
-                dest[index + (i * 4) + 1] = (v >> 8) as u8;
-                dest[index + (i * 4) + 2] = (v >> 16) as u8;
-                dest[index + (i * 4) + 3] = (v >> 24) as u8;
-            }
+                let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+                for i in 0..4 {
+                    let v = regs.odata.get();
+                    dest[index + (i * 4) + 0] = (v >> 0) as u8;
+                    dest[index + (i * 4) + 1] = (v >> 8) as u8;
+                    dest[index + (i * 4) + 2] = (v >> 16) as u8;
+                    dest[index + (i * 4) + 3] = (v >> 24) as u8;
+                }
 
-            self.read_index.set(index + AES128_BLOCK_SIZE);
+                self.read_index.set(index + AES128_BLOCK_SIZE);
 
-            let more = self.read_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get();
-            more
-        })
+                let more = self.read_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get();
+                more
+            },
+        )
     }
 
     /// Handle an interrupt, which will indicate either that the AESA's input
@@ -288,10 +295,10 @@ impl<'a> Aes<'a> {
             // to be set again while we are in this handler.
             return;
         }
-      
+
         if self.input_buffer_ready() {
             // The AESA says it is ready to receive another block
-          
+
             if !self.write_block() {
                 // We've now written the entirety of the request buffer,
                 // so unsubscribe from input interrupts
@@ -394,12 +401,13 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
         regs.ctrl.set((1 << 2) | (1 << 0));
     }
 
-    fn crypt(&'a self,
-             source: Option<&'a mut [u8]>,
-             dest: &'a mut [u8],
-             start_index: usize,
-             stop_index: usize)
-             -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
+    fn crypt(
+        &'a self,
+        source: Option<&'a mut [u8]>,
+        dest: &'a mut [u8],
+        start_index: usize,
+        stop_index: usize,
+    ) -> Option<(ReturnCode, Option<&'a mut [u8]>, &'a mut [u8])> {
         if self.busy() {
             Some((ReturnCode::EBUSY, source, dest))
         } else {
@@ -409,7 +417,11 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
                 self.enable_interrupts();
                 None
             } else {
-                Some((ReturnCode::EINVAL, self.source.take(), self.dest.take().unwrap()))
+                Some((
+                    ReturnCode::EINVAL,
+                    self.source.take(),
+                    self.dest.take().unwrap(),
+                ))
             }
         }
     }
