@@ -901,7 +901,7 @@ where
                     });
                 }*/
 
-                debug!("receive_event! {:?}", app.process_status);
+                debug!("== receive_event! {:?}", app.process_status);
 
                 match app.process_status {
                     Some(BLEState::Listening(channel)) => {
@@ -962,13 +962,15 @@ where
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
 
-                debug!("transmit_event! {:?}" , app.process_status);
+                debug!("== transmit_event! {:?}" , app.process_status);
 
                 match app.process_status {
                     Some(BLEState::Responding(channel)) => {
                         app.alarm_data.expiration = Expiration::Disabled;
                         if let Some(channel) = channel.get_next_advertising_channel() {
                             app.process_status = Some(BLEState::Advertising(channel));
+                            self.sending_app.set(Some(app.appid()));
+                            app.send_advertisement(&self,channel);
                         } else {
                             app.set_next_alarm::<A::Frequency>(self.alarm.now());
                             self.busy.set(BusyState::Free);
