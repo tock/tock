@@ -373,7 +373,7 @@ impl <'a> BLEPduType<'a> {
 //           +-----------+      +--------------+
 //
 //
-// ScanUndirected (ADV_NONCONN_IND): scannable undirected advertising event
+// ScanUndirected (ADV_SCAN_IND): scannable undirected advertising event
 // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 2.3.1.4
 //
 //   PDU     +-----------+      +--------------+
@@ -673,6 +673,9 @@ impl App {
         A: kernel::hil::time::Alarm + 'a,
     {
 
+
+
+
         self.advertisement_buf
             .as_ref()
             .map(|slice| {
@@ -796,6 +799,7 @@ where
 {
     radio: &'a B,
     busy: Cell<BusyState>,
+    last_sent: u32,
     app: kernel::Grant<App>,
     kernel_tx: kernel::common::take_cell::TakeCell<'static, [u8]>,
     alarm: &'a A,
@@ -817,6 +821,7 @@ where
         BLE {
             radio: radio,
             busy: Cell::new(BusyState::Free),
+            last_sent: 0,
             app: container,
             kernel_tx: kernel::common::take_cell::TakeCell::new(tx_buf),
             alarm: alarm,
@@ -1002,20 +1007,27 @@ where
                            });
                         }
                     }
-                    Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
-                        //app.process_status =
-                        //    Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
+                    Some(BLEState::Scanning(channel)) => {
                         app.alarm_data.expiration = Expiration::Disabled;
                         self.receiving_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
-                        self.radio.receive_advertisement(RadioChannel::AdvertisingChannel37);
+                        self.radio.receive_advertisement(channel);
 
                         if let Some(BLEPduType::ScanUndirected(adv_addr, _)) = pdu {
                             debug!("Receive event: {:?}", adv_addr);
 
-                            app.process_status = Some(BLEState::Requesting(RadioChannel::AdvertisingChannel37));
+                            app.process_status = Some(BLEState::Requesting(channel));
                             self.sending_app.set(Some(app.appid()));
-                            app.send_scan_request(&self, adv_addr, RadioChannel::AdvertisingChannel37);
+                            app.send_scan_request(&self, adv_addr, channel);
+                        } else {
+                            if let Some(channel) = channel.get_next_advertising_channel() {
+                                app.process_status =
+                                    Some(BLEState::Scanning(channel));
+                            } else {
+                                app.set_next_alarm::<A::Frequency>(self.alarm.now());
+                                self.busy.set(BusyState::Free);
+                                app.process_status = Some(BLEState::ScanningIdle);
+                            }
                         }
                     }
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38)) => {
@@ -1026,9 +1038,9 @@ where
                             .receive_advertisement(RadioChannel::AdvertisingChannel39);
                     }
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39)) => {
+                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
                         self.busy.set(BusyState::Free);
                         app.process_status = Some(BLEState::ScanningIdle);
-                        app.set_next_alarm::<A::Frequency>(self.alarm.now());
                     }
                     // Invalid state => don't care
                     _ => (),
@@ -1051,7 +1063,7 @@ where
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
 
-                debug!("transmit_event! {:?}", app.process_status);
+                debug!("transmit_event! {:?}" , app.process_status);
 
                 match app.process_status {
                     Some(BLEState::Requesting(channel)) => {
@@ -1067,26 +1079,24 @@ where
                         if let Some(channel) = channel.get_next_advertising_channel() {
                             app.process_status = Some(BLEState::Advertising(channel));
                         } else {
+                            app.set_next_alarm::<A::Frequency>(self.alarm.now());
                             self.busy.set(BusyState::Free);
                             app.process_status = Some(BLEState::AdvertisingIdle);
-                            app.set_next_alarm::<A::Frequency>(self.alarm.now());
                         }
                     }
                     Some(BLEState::Advertising(ch)) => {
-                        debug!("sending advertisement {:?}", app.advertising_address);
-                        app.alarm_data.expiration = Expiration::Disabled;
+                        // TODO - check correct timeout
+                        app.set_next_alarm_ms::<A::Frequency>(self.alarm.now(), 7);
                         app.process_status = Some(BLEState::Listening(ch));
                         self.receiving_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
-
-                        // TODO - check correct timeout
-                        app.set_next_alarm_ms::<A::Frequency>(self.alarm.now(), 1000);
                     }
                     // Invalid state => don't care
                     _ => (),
                 }
             });
             self.reset_active_alarm();
+
         }
     }
 }
@@ -1207,9 +1217,12 @@ where
             6 => self.app
                 .enter(appid, |app, _| {
                     if let Some(BLEState::Initialized) = app.process_status {
+
                         let status = app.generate_random_address(appid);
+                        debug!("random address!");
                         if status == ReturnCode::SUCCESS {
-                            app.configure_advertisement_pdu()//;
+                            debug!("Initialize!");
+                            app.configure_advertisement_pdu()
                             //app.configure_scan_response_pdu()
                         } else {
                             status
@@ -1258,6 +1271,7 @@ where
                 .enter(appid, |app, _| {
                     if let Some(BLEState::NotInitialized) = app.process_status {
                         app.advertisement_buf = Some(slice);
+
                         app.process_status = Some(BLEState::Initialized);
                         app.initialize_advertisement_buffer();
                         //app.initialize_scan_response_buffer();
