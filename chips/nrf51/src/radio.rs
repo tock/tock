@@ -261,6 +261,9 @@ impl nrf5x::ble_advertising_hil::BleAdvertisementDriver for Radio {
         len: usize,
         channel: RadioChannel,
     ) -> &'static mut [u8] {
+
+        debug!("Buffer in transmit_adv: {:#?}", buf);
+
         let res = self.replace_radio_buffer(buf, len);
         self.ble_initialize(channel);
         self.tx();
