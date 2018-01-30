@@ -36,9 +36,7 @@ struct PRCM {
 
 #[allow(non_snake_case)]
 fn PRCM() -> &'static PRCM {
-    unsafe {
-        &*(PRCM_BASE as *const PRCM)
-    }
+    unsafe { &*(PRCM_BASE as *const PRCM) }
 }
 
 /*
@@ -58,14 +56,14 @@ pub enum PowerDomain {
     VIMS,
 }
 
-pub struct Power (());
+pub struct Power(());
 
 impl Power {
     pub fn enable_domain(domain: PowerDomain) {
         match domain {
             PowerDomain::Peripherals => {
                 PRCM().pd_ctl0.set(PRCM().pd_ctl0.get() | 0x4);
-            },
+            }
             _ => {
                 panic!("Tried to turn on a power domain not yet specified!");
             }
@@ -80,7 +78,7 @@ impl Power {
     }
 }
 
-pub struct Clock (());
+pub struct Clock(());
 
 impl Clock {
     pub fn enable_gpio() {

@@ -1,7 +1,7 @@
 /* IOC - IO Configuration */
 
-use kernel::hil;
 use kernel::common::VolatileCell;
+use kernel::hil;
 
 pub const IOC_PULL_CTL: u8 = 13;
 pub const IOC_IE: u8 = 29;
@@ -17,9 +17,7 @@ pub const IOC_BASE: usize = 0x4008_1000;
 
 #[allow(non_snake_case)]
 fn IOC() -> &'static IOC {
-    unsafe {
-        &*(IOC_BASE as *const IOC)
-    }
+    unsafe { &*(IOC_BASE as *const IOC) }
 }
 
 pub struct IocfgPin {
@@ -28,9 +26,7 @@ pub struct IocfgPin {
 
 impl IocfgPin {
     const fn new(pin: u8) -> IocfgPin {
-        IocfgPin {
-            pin: pin as usize,
-        }
+        IocfgPin { pin: pin as usize }
     }
 
     pub fn enable_gpio(&self) {
@@ -74,10 +70,7 @@ impl IocfgPin {
             hil::gpio::InterruptMode::EitherEdge => 3 << IOC_EDGE_DET,
         };
 
-        pin_ioc.set(pin_ioc.get()
-            & !(0b11 << IOC_EDGE_DET)
-            | ioc_edge_mode
-            | 1 << IOC_EDGE_IRQ_EN);
+        pin_ioc.set(pin_ioc.get() & !(0b11 << IOC_EDGE_DET) | ioc_edge_mode | 1 << IOC_EDGE_IRQ_EN);
     }
 
     pub fn disable_interrupt(&self) {
@@ -120,4 +113,3 @@ pub static IOCFG: [IocfgPin; 32] = [
     IocfgPin::new(30),
     IocfgPin::new(31),
 ];
-

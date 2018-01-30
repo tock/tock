@@ -1,9 +1,8 @@
-use kernel::common::VolatileCell;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::hil;
-
 use ioc;
+use kernel::common::VolatileCell;
+use kernel::hil;
 
 const NUM_PINS: usize = 32;
 
@@ -26,7 +25,9 @@ pub struct GPIO {
 pub const GPIO_BASE: usize = 0x4002_2000;
 
 #[allow(non_snake_case)]
-fn GPIO() -> &'static GPIO { unsafe { &*(GPIO_BASE as *const GPIO) } }
+fn GPIO() -> &'static GPIO {
+    unsafe { &*(GPIO_BASE as *const GPIO) }
+}
 
 pub struct GPIOPin {
     pin: usize,

@@ -5,14 +5,13 @@
 extern crate capsules;
 extern crate compiler_builtins;
 
+extern crate cc2650;
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
-extern crate cc2650;
-
-use core::fmt::{Arguments};
 
 use cc2650::prcm;
+use core::fmt::Arguments;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
@@ -53,14 +52,17 @@ pub unsafe fn reset_handler() {
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
 
     // Wait for it to turn on until we continue
-    while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) { }
+    while !prcm::Power::is_enabled(prcm::PowerDomain::Peripherals) {}
 
     // Enable the GPIO clocks
     prcm::Clock::enable_gpio();
 
     // LEDs
     let led_pins = static_init!(
-        [(&'static cc2650::gpio::GPIOPin, capsules::led::ActivationMode); 2],
+        [(
+            &'static cc2650::gpio::GPIOPin,
+            capsules::led::ActivationMode
+        ); 2],
         [
             (
                 &cc2650::gpio::PORT[10],
@@ -69,7 +71,7 @@ pub unsafe fn reset_handler() {
             (
                 &cc2650::gpio::PORT[15],
                 capsules::led::ActivationMode::ActiveHigh
-            ), // Green
+            ) // Green
         ]
     );
     let led = static_init!(
@@ -131,7 +133,7 @@ pub unsafe fn reset_handler() {
             &cc2650::gpio::PORT[29],
             &cc2650::gpio::PORT[30],
             &cc2650::gpio::PORT[31]
-    ]
+        ]
     );
     let gpio = static_init!(
         capsules::gpio::GPIO<'static, cc2650::gpio::GPIOPin>,
@@ -141,11 +143,7 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
-    let sensortag = Platform {
-        gpio,
-        led,
-        button
-    };
+    let sensortag = Platform { gpio, led, button };
 
     let mut chip = cc2650::chip::Cc2650::new();
 
@@ -174,5 +172,5 @@ pub unsafe fn reset_handler() {
 #[no_mangle]
 #[lang = "panic_fmt"]
 pub unsafe extern "C" fn panic_fmt(_args: Arguments, _file: &'static str, _line: u32) -> ! {
-    loop { }
+    loop {}
 }

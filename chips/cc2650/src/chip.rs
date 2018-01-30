@@ -1,12 +1,14 @@
 use cortexm3::nvic;
+use gpio;
 use kernel;
 use peripheral_interrupts::*;
-use gpio;
 
 pub struct Cc2650(());
 
 impl Cc2650 {
-    pub unsafe fn new() -> Cc2650 { Cc2650(()) }
+    pub unsafe fn new() -> Cc2650 {
+        Cc2650(())
+    }
 }
 
 impl kernel::Chip for Cc2650 {
@@ -36,9 +38,6 @@ impl kernel::Chip for Cc2650 {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe {
-            nvic::has_pending()
-        }
+        unsafe { nvic::has_pending() }
     }
 }
-
