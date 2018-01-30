@@ -10,7 +10,8 @@ extern crate kernel;
 extern crate sam4l;
 
 use capsules::alarm::AlarmDriver;
-use capsules::ieee802154::mac::Mac;
+use capsules::ieee802154::device::MacDevice;
+use capsules::ieee802154::mac::{AwakeMac, Mac};
 use capsules::rf233::RF233;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
@@ -97,6 +98,7 @@ static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_RX_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
+
 // The RF233 system call interface ("radio") requires one buffer, which it
 // copies application transmissions into or copies out to application buffers
 // for reception.
@@ -495,25 +497,31 @@ pub unsafe fn reset_handler() {
     sam4l::aes::AES.set_client(aes_ccm);
     sam4l::aes::AES.enable();
 
-    let rf233_mac = static_init!(
-        capsules::ieee802154::mac::MacDevice<
+    // Keeps the radio on permanently; pass-through layer
+    let awake_mac: &AwakeMac<RF233Device> =
+        static_init!(AwakeMac<'static, RF233Device>, AwakeMac::new(rf233));
+    rf233.set_transmit_client(awake_mac);
+    rf233.set_receive_client(awake_mac, &mut RF233_RX_BUF);
+
+    let mac_device = static_init!(
+        capsules::ieee802154::framer::Framer<
             'static,
-            RF233Device,
+            AwakeMac<'static, RF233Device>,
             capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
         >,
-        capsules::ieee802154::mac::MacDevice::new(rf233, aes_ccm)
+        capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
     );
-    aes_ccm.set_client(rf233_mac);
-    rf233.set_transmit_client(rf233_mac);
-    rf233.set_receive_client(rf233_mac, &mut RF233_RX_BUF);
-    rf233.set_config_client(rf233_mac);
+    aes_ccm.set_client(mac_device);
+    awake_mac.set_transmit_client(mac_device);
+    awake_mac.set_receive_client(mac_device);
+    awake_mac.set_config_client(mac_device);
 
     let mux_mac = static_init!(
         capsules::ieee802154::virtual_mac::MuxMac<'static>,
-        capsules::ieee802154::virtual_mac::MuxMac::new(rf233_mac)
+        capsules::ieee802154::virtual_mac::MuxMac::new(mac_device)
     );
-    rf233_mac.set_transmit_client(mux_mac);
-    rf233_mac.set_receive_client(mux_mac);
+    mac_device.set_transmit_client(mux_mac);
+    mac_device.set_receive_client(mux_mac);
 
     let radio_mac = static_init!(
         capsules::ieee802154::virtual_mac::MacUser<'static>,
@@ -526,8 +534,8 @@ pub unsafe fn reset_handler() {
         capsules::ieee802154::RadioDriver::new(radio_mac, kernel::Grant::create(), &mut RADIO_BUF)
     );
 
-    rf233_mac.set_key_procedure(radio_driver);
-    rf233_mac.set_device_procedure(radio_driver);
+    mac_device.set_key_procedure(radio_driver);
+    mac_device.set_device_procedure(radio_driver);
     radio_mac.set_transmit_client(radio_driver);
     radio_mac.set_receive_client(radio_driver);
     radio_mac.set_pan(0xABCD);

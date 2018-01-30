@@ -165,7 +165,7 @@ impl<'a, A: AES128CCM<'a> + 'a> Test<'a, A> {
                 .all(|(a, b)| *a == *b);
             if a_matches && m_matches && tag_is_valid {
                 debug!(
-                    "OK! (current_test={}, encrypting={}, tag_is_valid={}",
+                    "OK! (current_test={}, encrypting={}, tag_is_valid={})",
                     self.current_test.get(),
                     self.encrypting.get(),
                     tag_is_valid

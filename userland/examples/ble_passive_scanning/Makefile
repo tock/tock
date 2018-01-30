@@ -4,7 +4,9 @@
 TOCK_USERLAND_BASE_DIR = ../..
 
 # Which files to compile.
-C_SRCS := $(wildcard *.c)
+CXX_SRCS := $(wildcard *.cpp)
+
+APP_HEAP_SIZE = 4096
 
 # Include userland master makefile. Contains rules and flags for actually
 # building the application.
