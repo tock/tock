@@ -168,7 +168,7 @@ impl FrameInfo {
         // IEEE 802.15.4-2015: Table 9-3. a data and m data
         let encryption_needed = self.security_params
             .map_or(false, |(level, _, _)| level.encryption_needed());
-        if encryption_needed {
+        if !encryption_needed {
             // If only integrity is need, a data is the whole frame
             (self.unsecured_length(), 0)
         } else {
@@ -592,7 +592,7 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                                 // `security_params` is not `None`.
                                 (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
                             }
-                            Some((_, key, nonce)) => {
+                            Some((level, key, nonce)) => {
                                 let (m_off, m_len) = info.ccm_encrypt_ranges();
                                 let (a_off, m_off) = (radio::PSDU_OFFSET,
                                                       radio::PSDU_OFFSET + m_off);
@@ -602,7 +602,8 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                                     (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
                                 } else {
                                     let (res, opt_buf) = self.aes_ccm
-                                        .crypt(buf, a_off, m_off, m_len, info.mic_len, true);
+                                        .crypt(buf, a_off, m_off, m_len, info.mic_len,
+                                               level.encryption_needed(), true);
                                     match res {
                                         ReturnCode::SUCCESS => {
                                             (TxState::Encrypting(info), (res, None))
@@ -667,7 +668,7 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                                 // `security_params` is not `None`.
                                 (RxState::Idle, Some(buf))
                             }
-                            Some((_, key, nonce)) => {
+                            Some((level, key, nonce)) => {
                                 let (m_off, m_len) = info.ccm_encrypt_ranges();
                                 let (a_off, m_off) = (radio::PSDU_OFFSET,
                                                       radio::PSDU_OFFSET + m_off);
@@ -677,7 +678,8 @@ impl<'a, R: radio::Radio + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a, R, A> {
                                     (RxState::Idle, Some(buf))
                                 } else {
                                     let (res, opt_buf) = self.aes_ccm
-                                        .crypt(buf, a_off, m_off, m_len, info.mic_len, true);
+                                        .crypt(buf, a_off, m_off, m_len, info.mic_len,
+                                               level.encryption_needed(), true);
                                     match res {
                                         ReturnCode::SUCCESS => (RxState::Decrypting(info), None),
                                         ReturnCode::EBUSY => {

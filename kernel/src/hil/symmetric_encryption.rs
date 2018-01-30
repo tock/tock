@@ -123,6 +123,7 @@ pub trait AES128CCM<'a> {
              m_off: usize,
              m_len: usize,
              mic_len: usize,
+             confidential: bool,
              encrypting: bool)
              -> (ReturnCode, Option<&'static mut [u8]>);
 }

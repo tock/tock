@@ -492,6 +492,7 @@ pub unsafe fn reset_handler() {
         capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
         capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF));
     sam4l::aes::AES.set_client(aes_ccm);
+    sam4l::aes::AES.enable();
 
     let rf233_mac = static_init!(
         capsules::ieee802154::mac::MacDevice<'static, RF233Device,

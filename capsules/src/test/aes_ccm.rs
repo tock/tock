@@ -12,7 +12,8 @@ pub struct Test<'a, A: AES128CCM<'a> + 'a> {
     current_test: Cell<usize>,
     encrypting: Cell<bool>,
 
-    tests: [(&'static [u8], &'static [u8], &'static [u8], usize); 3],
+    // (a_data, m_data, c_data, nonce, confidential, mic_len)
+    tests: [(&'static [u8], &'static [u8], &'static [u8], &'static [u8], bool, usize); 3],
 }
 
 impl<'a, A: AES128CCM<'a> + 'a> Test<'a, A> {
@@ -25,9 +26,21 @@ impl<'a, A: AES128CCM<'a> + 'a> Test<'a, A> {
             tests: [(&BEACON_UNSECURED[0..26],
                      &BEACON_UNSECURED[26..26],
                      &BEACON_SECURED[26..34],
+                     &BEACON_NONCE,
+                     false,
                      8),
-                    (&DATA_UNSECURED[0..26], &DATA_UNSECURED[26..30], &DATA_SECURED[26..30], 0),
-                    (&MAC_UNSECURED[0..29], &MAC_UNSECURED[29..30], &MAC_SECURED[29..38], 8)],
+                    (&DATA_UNSECURED[0..26],
+                     &DATA_UNSECURED[26..30],
+                     &DATA_SECURED[26..30],
+                     &DATA_NONCE,
+                     true,
+                     0),
+                    (&MAC_UNSECURED[0..29],
+                     &MAC_UNSECURED[29..30],
+                     &MAC_SECURED[29..38],
+                     &MAC_NONCE,
+                     true,
+                     8)],
         }
     }
 
@@ -50,10 +63,8 @@ impl<'a, A: AES128CCM<'a> + 'a> Test<'a, A> {
     }
 
     fn trigger_test(&self) {
-        debug!("Test: current_test={}, encrypting={}",
-               self.current_test.get(),
-               self.encrypting.get());
-        let (a_data, m_data, c_data, mic_len) = self.tests[self.current_test.get()];
+        let (a_data, m_data, c_data, nonce, confidential, mic_len)
+            = self.tests[self.current_test.get()];
         let (a_off, m_off, m_len) = (0, a_data.len(), m_data.len());
         let encrypting = self.encrypting.get();
 
@@ -71,11 +82,11 @@ impl<'a, A: AES128CCM<'a> + 'a> Test<'a, A> {
         }
 
         if self.aes_ccm.set_key(&KEY) != ReturnCode::SUCCESS ||
-           self.aes_ccm.set_nonce(&NONCE) != ReturnCode::SUCCESS {
+           self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS {
             panic!("Test failed: cannot set key or nonce.");
         }
 
-        let (res, opt_buf) = self.aes_ccm.crypt(buf, a_off, m_off, m_len, mic_len, encrypting);
+        let (res, opt_buf) = self.aes_ccm.crypt(buf, a_off, m_off, m_len, mic_len, confidential, encrypting);
         if res != ReturnCode::SUCCESS {
             debug!("Failed to start test.")
         }
@@ -85,7 +96,8 @@ impl<'a, A: AES128CCM<'a> + 'a> Test<'a, A> {
     }
 
     fn check_test(&self, tag_is_valid: bool) {
-        let (a_data, m_data, c_data, mic_len) = self.tests[self.current_test.get()];
+        let (a_data, m_data, c_data, _nonce, _confidential, mic_len)
+            = self.tests[self.current_test.get()];
         let (a_off, m_off, m_len) = (0, a_data.len(), m_data.len());
         let encrypting = self.encrypting.get();
 
@@ -101,7 +113,7 @@ impl<'a, A: AES128CCM<'a> + 'a> Test<'a, A> {
                 .zip(c_data.iter())
                 .all(|(a, b)| *a == *b);
             if a_matches && c_matches && tag_is_valid {
-                debug!("OK! (current_test={}, encrypting={}, tag_is_valid={}",
+                debug!("OK! (current_test={}, encrypting={}, tag_is_valid={})",
                        self.current_test.get(),
                        self.encrypting.get(),
                        tag_is_valid);
@@ -112,6 +124,11 @@ impl<'a, A: AES128CCM<'a> + 'a> Test<'a, A> {
                        self.current_test.get(),
                        self.encrypting.get(),
                        tag_is_valid);
+                for (a, b) in buf[m_off..m_off + m_len + mic_len]
+                    .iter()
+                    .zip(c_data.iter()) {
+                    debug!("{:x} vs {:x}", *a, *b);
+                }
             }
         } else {
             let a_matches = buf[a_off..m_off].iter().zip(a_data.iter()).all(|(a, b)| *a == *b);
@@ -155,9 +172,6 @@ impl<'a, A: AES128CCM<'a> + 'a> CCMClient for Test<'a, A> {
 static KEY: [u8; AES128_BLOCK_SIZE] = [0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9,
                                        0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF];
 
-static NONCE: [u8; CCM_NONCE_LENGTH] = [0xAC, 0xDE, 0x48, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
-                                        0x00, 0x00, 0x05, 0x04];
-
 // IEEE 802.15.4-2015, Annex C.2.1.1, Secured beacon frame
 static BEACON_SECURED: [u8; 34] = [0x08, 0xD0, 0x84, 0x21, 0x43, 0x01, 0x00, 0x00, 0x00, 0x00,
                                    0x48, 0xDE, 0xAC, 0x02, 0x05, 0x00, 0x00, 0x00, 0x55, 0xCF,
@@ -170,6 +184,10 @@ static BEACON_UNSECURED: [u8; 26] = [0x08, 0xD0, 0x84, 0x21, 0x43, 0x01, 0x00, 0
                                      0x48, 0xDE, 0xAC, 0x02, 0x05, 0x00, 0x00, 0x00, 0x55, 0xCF,
                                      0x00, 0x00, 0x51, 0x52, 0x53, 0x54];
 
+// IEEE 802.15.4-2015, Annex C.2.1.3, Nonce for beacon frame
+static BEACON_NONCE: [u8; CCM_NONCE_LENGTH] = [0xAC, 0xDE, 0x48, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+                                               0x00, 0x00, 0x05, 0x02];
+
 // IEEE 802.15.4-2015, Annex C.2.2.1, Secured data frame
 static DATA_SECURED: [u8; 30] = [0x69, 0xDC, 0x84, 0x21, 0x43, 0x02, 0x00, 0x00, 0x00, 0x00, 0x48,
                                  0xDE, 0xAC, 0x01, 0x00, 0x00, 0x00, 0x00, 0x48, 0xDE, 0xAC, 0x04,
@@ -180,6 +198,10 @@ static DATA_SECURED: [u8; 30] = [0x69, 0xDC, 0x84, 0x21, 0x43, 0x02, 0x00, 0x00,
 static DATA_UNSECURED: [u8; 30] = [0x69, 0xDC, 0x84, 0x21, 0x43, 0x02, 0x00, 0x00, 0x00, 0x00,
                                    0x48, 0xDE, 0xAC, 0x01, 0x00, 0x00, 0x00, 0x00, 0x48, 0xDE,
                                    0xAC, 0x04, 0x05, 0x00, 0x00, 0x00, 0x61, 0x62, 0x63, 0x64];
+
+// IEEE 802.15.4-2015, Annex C.2.2.2, Nonce for data frame
+static DATA_NONCE: [u8; CCM_NONCE_LENGTH] = [0xAC, 0xDE, 0x48, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+                                             0x00, 0x00, 0x05, 0x04];
 
 // IEEE 802.15.4-2015, Annex C.2.3.1, Secured MAC command frame
 static MAC_SECURED: [u8; 38] = [0x2B, 0xDC, 0x84, 0x21, 0x43, 0x02, 0x00, 0x00, 0x00, 0x00, 0x48,
@@ -192,3 +214,7 @@ static MAC_SECURED: [u8; 38] = [0x2B, 0xDC, 0x84, 0x21, 0x43, 0x02, 0x00, 0x00, 
 static MAC_UNSECURED: [u8; 30] = [0x2B, 0xDC, 0x84, 0x21, 0x43, 0x02, 0x00, 0x00, 0x00, 0x00,
                                   0x48, 0xDE, 0xAC, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00,
                                   0x48, 0xDE, 0xAC, 0x06, 0x05, 0x00, 0x00, 0x00, 0x01, 0xCE];
+
+// IEEE 802.15.4-2015, Annex C.2.3.2, Nonce for MAC frame
+static MAC_NONCE: [u8; CCM_NONCE_LENGTH] = [0xAC, 0xDE, 0x48, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+                                            0x00, 0x00, 0x05, 0x06];
