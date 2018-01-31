@@ -131,19 +131,20 @@ impl IndexMut<usize> for Port {
 
 impl Port {
     pub fn handle_interrupt(&self) {
-        let evflags = &GPIO().evflags;
-        let mut pin_mask = evflags.get();
+        let evflags = GPIO().evflags.get();
+        // Clear all interrupts by setting their bits to 1 in evflags
+        GPIO().evflags.set(evflags);
 
-        evflags.set(pin_mask); // Clear interrupts
-
-        loop {
-            let pin = pin_mask.trailing_zeros() as usize;
-            if pin < self.pins.len() {
-                pin_mask &= !(1 << pin);
-                self.pins[pin].handle_interrupt();
-            } else {
+        // evflags indicate which pins has triggered an interrupt,
+        // we need to call the respective handler for positive bit in evflags.
+        let mut pin: usize = usize::max_value();
+        while pin < self.pins.len() {
+            pin = evflags.trailing_zeros() as usize;
+            if pin >= self.pins.len() {
                 break;
             }
+
+            self.pins[pin].handle_interrupt();
         }
     }
 }
