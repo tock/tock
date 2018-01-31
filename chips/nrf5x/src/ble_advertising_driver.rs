@@ -649,7 +649,7 @@ impl App {
                         {
                             *out = *inp;
                         }
-                        self.send_buffer(ble, data, BLEAdvertisementType::ScanUndirected, channel)
+                        self.send_buffer(ble, data, BLEAdvertisementType::ConnectUndirected, channel)
                     })
                     .unwrap_or_else(|| ReturnCode::EINVAL)
             })
@@ -901,23 +901,29 @@ where
                     });
                 }*/
 
-                debug!("== receive_event! {:?}", app.process_status);
+                // debug!("== receive_event! {:?}", app.process_status);
 
                 match app.process_status {
                     Some(BLEState::Listening(channel)) => {
-                       if let Some(BLEPduType::ScanRequest(scan_addr, adv_addr)) = pdu {
+                        match pdu {
+                            Some(BLEPduType::ConnectRequest(a1, a2, buf)) => {
+                                debug!("Connection request! {:?}", buf);
+                            },
+                            Some(BLEPduType::ScanRequest(scan_addr, adv_addr)) => {
+                                app.advertising_address.map(|address| {
+                                    debug!("Received: ScanRequest {:?} {:?}", scan_addr, adv_addr);
+                                    if address == adv_addr {
+                                        debug!("Received: ScanRequest for ME! {:?}", adv_addr);
+                                        app.process_status = Some(BLEState::Responding(channel));
+                                        app.alarm_data.expiration = Expiration::Disabled;
+                                        self.sending_app.set(Some(app.appid()));
+                                        app.send_scan_response(&self, channel);
+                                    }
+                                    address
+                                });
+                            },
+                            _ => {}
 
-                           app.advertising_address.map(|address| {
-                               debug!("Received: ScanRequest {:?} {:?}", scan_addr, adv_addr);
-                               if address == adv_addr {
-                                   debug!("Received: ScanRequest for ME! {:?}", adv_addr);
-                                   app.process_status = Some(BLEState::Responding(channel));
-                                   app.alarm_data.expiration = Expiration::Disabled;
-                                   self.sending_app.set(Some(app.appid()));
-                                   app.send_scan_response(&self, channel);
-                               }
-                               address
-                           });
                         }
                     }
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
@@ -962,7 +968,7 @@ where
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
 
-                debug!("== transmit_event! {:?}" , app.process_status);
+                // debug!("== transmit_event! {:?}" , app.process_status);
 
                 match app.process_status {
                     Some(BLEState::Responding(channel)) => {
