@@ -17,8 +17,8 @@ pub static CCFG_CONF: [u32; 22] = [
     0x00FFFFFF,
     0xFFFFFFFF,
     0xFFFFFF00,
-    0xFFC500C5,
-    0xFF000000,
+    0xFFC5C5C5,
+    0xFFC5C5C5,
     0x00000000, // Set image as valid
     0xFFFFFFFF,
     0xFFFFFFFF,
