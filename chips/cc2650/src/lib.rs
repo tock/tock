@@ -9,6 +9,7 @@ extern crate kernel;
 
 extern crate bitfield;
 
+pub mod aon;
 pub mod chip;
 pub mod crt1;
 pub mod gpio;

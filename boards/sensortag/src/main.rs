@@ -11,6 +11,7 @@ extern crate cc2650;
 extern crate kernel;
 
 use cc2650::prcm;
+use cc2650::aon;
 use core::fmt::Arguments;
 
 // How should the kernel respond when a process faults.
@@ -47,6 +48,9 @@ impl kernel::Platform for Platform {
 #[no_mangle]
 pub unsafe fn reset_handler() {
     cc2650::init();
+
+    // Setup AON event defaults
+    aon::AON_EVENT.setup();
 
     // Power on peripherals (eg. GPIO)
     prcm::Power::enable_domain(prcm::PowerDomain::Peripherals);
