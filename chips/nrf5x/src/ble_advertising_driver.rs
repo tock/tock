@@ -484,6 +484,7 @@ pub struct App {
     idx: usize,
     process_status: Option<BLEState>,
     advertisement_interval_ms: u32,
+    scan_timeout_ms: u32,
     alarm_data: AlarmData,
     tx_power: u8,
     /// The state of an app-specific pseudo random number.
@@ -507,6 +508,7 @@ impl Default for App {
             process_status: Some(BLEState::NotInitialized),
             tx_power: 0,
             advertisement_interval_ms: 200,
+            scan_timeout_ms: 10,
             // Just use any non-zero starting value by default
             random_nonce: 0xdeadbeef,
         }
@@ -544,7 +546,7 @@ impl App {
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
 
-        let random_address: [u8; 6] = [0xf0, 0x0F, 0x0F, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        let random_address: [u8; 6] = [0xf0, 0x0f, 0x0f, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
         self.advertising_address = Some(DeviceAddress(random_address));
 
         self.advertisement_buf
@@ -597,7 +599,7 @@ impl App {
         self.advertisement_buf
             .as_mut()
             .map(|slice| {
-                slice.as_mut()[PACKET_HDR_PDU] = (0x04 << 4) | (BLEAdvertisementType::ScanRequest as u8);   //<-- vill sätta Tx om vi advertisar med random address
+                slice.as_mut()[PACKET_HDR_PDU] = (0x04 << 4) | (BLEAdvertisementType::NonConnectUndirected as u8);   //<-- vill sätta Tx om vi advertisar med random address
                 ReturnCode::SUCCESS
             })
             .unwrap_or_else(|| ReturnCode::ESIZE)
@@ -766,13 +768,14 @@ impl App {
         let nonce = self.random_nonce() % 10;
 
         let period_ms = (self.advertisement_interval_ms + nonce) * F::frequency() / 1000;
+
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
     }
 
     fn set_next_alarm_ms<F: Frequency>(&mut self, now: u32, ms: u32) {
         self.alarm_data.t0 = now;
 
-        let period_ms = ms * F::frequency() / 1000;
+        let period_ms = self.scan_timeout_ms * F::frequency() / 1000;
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
     }
 }
@@ -881,12 +884,15 @@ where
                         }
                     }
 
-                    // debug!("Timer fired! {:?}", app.process_status);
+                    //debug!("Timer fired! {:?}", app.process_status);
 
                     match app.process_status {
                         Some(BLEState::Listening(channel)) => { // Listening for SCAN_REQ, if timeout - resume advertising on next channel
                             self.sending_app.set(Some(app.appid()));
                             if let Some(channel) = channel.get_next_advertising_channel() {
+                                // TODO - check correct timeout
+                                app.set_next_alarm_ms::<A::Frequency>(self.alarm.now(), 5);
+
                                 app.process_status = Some(BLEState::Advertising(channel));
                                 self.sending_app.set(Some(app.appid()));
                                 self.radio.set_tx_power(app.tx_power);
@@ -902,6 +908,9 @@ where
                             app.process_status = Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37));
                             self.sending_app.set(Some(app.appid()));
                             self.radio.set_tx_power(app.tx_power);
+
+                            // TODO - check correct timeout
+                            app.set_next_alarm_ms::<A::Frequency>(self.alarm.now(), 5);
                             app.send_advertisement(&self, RadioChannel::AdvertisingChannel37);
                         }
                         Some(BLEState::ScanningIdle) => {
@@ -971,7 +980,7 @@ where
                     });
                 }*/
 
-                // debug!("== receive_event! {:?}", app.process_status);
+                //debug!("==receive_event! {:?}", app.process_status);
 
                 match app.process_status {
                     Some(BLEState::Listening(channel)) => {
@@ -1052,7 +1061,7 @@ where
         if let Some(appid) = self.sending_app.get() {
             let _ = self.app.enter(appid, |app, _| {
 
-                // debug!("== transmit_event! {:?}" , app.process_status);
+                //debug!("==transmit_event! {:?}" , app.process_status);
 
                 match app.process_status {
                     Some(BLEState::Requesting(channel)) => {
@@ -1064,11 +1073,14 @@ where
                         debug!("Mesage sent on channel: {:?}", channel);
                     }
                     Some(BLEState::Responding(channel)) => {
-                        app.alarm_data.expiration = Expiration::Disabled;
                         if let Some(channel) = channel.get_next_advertising_channel() {
+                            // TODO - check correct timeout
+                            app.set_next_alarm_ms::<A::Frequency>(self.alarm.now(), 5);
+
                             app.process_status = Some(BLEState::Advertising(channel));
                             self.sending_app.set(Some(app.appid()));
-                            app.send_advertisement(&self,channel);
+                            self.radio.set_tx_power(app.tx_power);
+                            app.send_advertisement(&self, channel);
                         } else {
                             app.set_next_alarm::<A::Frequency>(self.alarm.now());
                             self.busy.set(BusyState::Free);
@@ -1076,8 +1088,8 @@ where
                         }
                     }
                     Some(BLEState::Advertising(ch)) => {
-                        // TODO - check correct timeout
-                        app.set_next_alarm_ms::<A::Frequency>(self.alarm.now(), 7);
+
+                        debug!("Now listening");
                         app.process_status = Some(BLEState::Listening(ch));
                         self.receiving_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
