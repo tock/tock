@@ -7,7 +7,7 @@ use kernel::hil;
 const NUM_PINS: usize = 32;
 
 #[repr(C)]
-pub struct GPIO {
+pub struct GpioRegisters {
     _reserved0: [u8; 0x90],
     pub dout_set: VolatileCell<u32>,
     _reserved1: [u8; 0xC],
@@ -22,14 +22,10 @@ pub struct GPIO {
     pub evflags: VolatileCell<u32>,
 }
 
-pub const GPIO_BASE: usize = 0x4002_2000;
-
-#[allow(non_snake_case)]
-fn GPIO() -> &'static GPIO {
-    unsafe { &*(GPIO_BASE as *const GPIO) }
-}
+pub const GPIO_BASE: *mut GpioRegisters = 0x4002_2000 as *mut GpioRegisters;
 
 pub struct GPIOPin {
+    regs: *mut GpioRegisters,
     pin: usize,
     pin_mask: u32,
     client_data: Cell<usize>,
@@ -39,6 +35,7 @@ pub struct GPIOPin {
 impl GPIOPin {
     const fn new(pin: usize) -> GPIOPin {
         GPIOPin {
+            regs: GPIO_BASE,
             pin: pin,
             pin_mask: 1 << (pin % NUM_PINS),
             client_data: Cell::new(0),
@@ -73,7 +70,8 @@ impl hil::gpio::Pin for GPIOPin {
         // Disable input in the io configuration
         ioc::IOCFG[self.pin].enable_output();
         // Enable data output
-        GPIO().doe.set(GPIO().doe.get() | self.pin_mask);
+        let regs: &GpioRegisters = unsafe { &*self.regs };
+        regs.doe.set(regs.doe.get() | self.pin_mask);
     }
 
     fn make_input(&self) {
@@ -86,19 +84,23 @@ impl hil::gpio::Pin for GPIOPin {
     }
 
     fn set(&self) {
-        GPIO().dout_set.set(self.pin_mask);
+        let regs: &GpioRegisters = unsafe { &*self.regs };
+        regs.dout_set.set(self.pin_mask);
     }
 
     fn clear(&self) {
-        GPIO().dout_clr.set(self.pin_mask);
+        let regs: &GpioRegisters = unsafe { &*self.regs };
+        regs.dout_clr.set(self.pin_mask);
     }
 
     fn toggle(&self) {
-        GPIO().dout_tgl.set(self.pin_mask);
+        let regs: &GpioRegisters = unsafe { &*self.regs };
+        regs.dout_tgl.set(self.pin_mask);
     }
 
     fn read(&self) -> bool {
-        GPIO().din.get() & self.pin_mask != 0
+        let regs: &GpioRegisters = unsafe { &*self.regs };
+        regs.din.get() & self.pin_mask != 0
     }
 
     fn enable_interrupt(&self, client_data: usize, mode: hil::gpio::InterruptMode) {
@@ -131,9 +133,10 @@ impl IndexMut<usize> for Port {
 
 impl Port {
     pub fn handle_interrupt(&self) {
-        let evflags = GPIO().evflags.get();
+        let regs: &GpioRegisters = unsafe { &*GPIO_BASE };
+        let evflags = regs.evflags.get();
         // Clear all interrupts by setting their bits to 1 in evflags
-        GPIO().evflags.set(evflags);
+        regs.evflags.set(evflags);
 
         // evflags indicate which pins has triggered an interrupt,
         // we need to call the respective handler for positive bit in evflags.
