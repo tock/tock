@@ -1,4 +1,4 @@
-# Makefile for building the tock kernel for the nRF development kit
+# Makefile for building the tock kernel for the sensortag development kit
 
 TOCK_ARCH=cortex-m3
 TOCK_BOARD=sensortag
