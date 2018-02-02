@@ -46,6 +46,27 @@
 //! ```
 
 use kernel::ReturnCode;
+use core::fmt;
+
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub struct DeviceAddress(pub [u8; 6]);
+
+impl DeviceAddress {
+    pub fn new(slice: &[u8]) -> DeviceAddress {
+        let mut address : [u8; 6] = Default::default();
+        address.copy_from_slice(slice);
+        DeviceAddress(address)
+    }
+}
+
+impl fmt::Debug for DeviceAddress {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:0>2x}:{:0>2x}:{:0>2x}:{:0>2x}:{:0>2x}:{:0>2x}",
+               self.0[5], self.0[4], self.0[3],
+               self.0[2], self.0[1], self.0[0])
+    }
+}
 
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(
@@ -65,6 +86,7 @@ pub trait BleConfig {
 
 pub trait RxClient {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: ReturnCode);
+    //fn get_address(&self) -> Option<DeviceAddress>;
 }
 
 pub trait TxClient {
