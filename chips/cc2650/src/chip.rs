@@ -28,6 +28,9 @@ impl kernel::Chip for Cc2650 {
             while let Some(interrupt) = nvic::next_pending() {
                 match interrupt {
                     GPIO => gpio::PORT.handle_interrupt(),
+                    // AON Programmable interrupt
+                    // We need to ignore JTAG events since some debuggers emit these
+                    AON_PROG => (),
                     _ => panic!("unhandled interrupt {}", interrupt),
                 }
                 let n = nvic::Nvic::new(interrupt);
