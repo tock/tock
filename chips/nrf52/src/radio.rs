@@ -161,7 +161,8 @@ impl Radio {
                     self.radio_off();
                     unsafe {
                         self.rx_client.get().map(|client| {
-                            client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 1, result)
+                            // length is S0 (1 Byte) + Length (1 Bytes) + S1 (0 Bytes) + Payload
+                            client.receive_event(&mut PAYLOAD, PAYLOAD[1] + 2, result)
                         });
                     }
                 }
