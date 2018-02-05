@@ -1,15 +1,5 @@
 # Tock Pull Request Process
 
-**TRD:**  <br/>
-**Working Group:** Kernel<br/>
-**Type:** Documentary<br/>
-**Status:** Draft <br/>
-**Authors:** Philip Levis <br/>
-**Draft-Created:** Jan 28, 2018<br/>
-**Draft-Modified:** Jan 28, 2018<br/>
-**Draft-Version:** 2<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
-
 ## Abstract
 
 This document describes how the Tock core team merges pull requests for and
