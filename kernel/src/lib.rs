@@ -2,6 +2,7 @@
 #![feature(const_fn, const_cell_new, const_unsafe_cell_new, lang_items)]
 #![no_std]
 
+#[macro_use]
 pub mod common;
 
 pub mod callback;

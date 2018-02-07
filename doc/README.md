@@ -33,6 +33,9 @@ are specified.
 - **[Porting Tock](Porting.md)** - Guide to add new platforms.
 - **[Out of Tree Boards](OutOfTree.md)** - Best practices for maintaining boards not in Tock master
 
+### Management of Tock
+- **[Code Review Process](CodeReview.md)** - Process for pull request reviews and Tock releases.
+
 ### Tutorials and Courses
 - **[Quick Tutorials](tutorials)** - Specific tutorials that walk through features of Tock.
 - **[Longer Courses](courses)** - Longer workshops on multiple aspects of Tock.

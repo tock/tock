@@ -178,6 +178,11 @@ Click the 'Pull Request' button and fill out the form.
 You will probably get feedback or requests for changes to your Pull Request.
 This is a big part of the submission process so don't be disheartened!
 
+Tock has a [standardized process for reviewing pull requests](../doc/CodeReview.md).
+In general the relevant team members will review a pull request, ask for any
+changes, and get support from the larger team before merging a PR. If you are
+curious about the specifics, feel free to read through the specific process.
+
 To make changes to an existing Pull Request, make the changes to your branch.
 When you push that branch to your fork, GitHub will automatically update the
 Pull Request.
