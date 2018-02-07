@@ -607,7 +607,5 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
     );
 
-    aes_ccm_test::run();
-
     kernel::main(&imix, &mut chip, &mut PROCESSES, &imix.ipc);
 }
