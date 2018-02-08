@@ -56,6 +56,7 @@ use nrf5x::rtc::{Rtc, RTC};
 
 #[macro_use]
 pub mod io;
+#[allow(dead_code)]
 mod aes_test;
 
 // The nRF51 DK LEDs (see back of board)
@@ -341,9 +342,6 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-
-    // aes128-ctr test remove later
-    aes_test::run();
 
     kernel::main(
         &platform,

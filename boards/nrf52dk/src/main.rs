@@ -91,6 +91,7 @@ const BUTTON_RST_PIN: usize = 21;
 #[macro_use]
 pub mod io;
 
+#[allow(dead_code)]
 mod aes_test;
 
 // State for loading and holding applications.
@@ -366,8 +367,6 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
-
-    aes_test::run();
 
     kernel::main(
         &platform,
