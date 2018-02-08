@@ -91,8 +91,9 @@ const BUTTON_RST_PIN: usize = 21;
 #[macro_use]
 pub mod io;
 
-// State for loading and holding applications.
+mod aes_test;
 
+// State for loading and holding applications.
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::FaultResponse = kernel::process::FaultResponse::Panic;
 
@@ -105,7 +106,6 @@ static mut APP_MEMORY: [u8; 32768] = [0; 32768];
 static mut PROCESSES: [Option<kernel::Process<'static>>; NUM_PROCS] = [None, None, None, None];
 
 pub struct Platform {
-    aes: &'static capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
     ble_radio: &'static nrf5x::ble_advertising_driver::BLE<
         'static,
         nrf52::radio::Radio,
@@ -135,7 +135,6 @@ impl kernel::Platform for Platform {
             capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::symmetric_encryption::DRIVER_NUM => f(Some(self.aes)),
             nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             _ => f(None),
@@ -331,19 +330,6 @@ pub unsafe fn reset_handler() {
     );
     nrf5x::trng::TRNG.set_client(rng);
 
-    let aes = static_init!(
-        capsules::symmetric_encryption::Crypto<'static, nrf5x::aes::AesECB>,
-        capsules::symmetric_encryption::Crypto::new(
-            &mut nrf5x::aes::AESECB,
-            kernel::Grant::create(),
-            &mut capsules::symmetric_encryption::KEY,
-            &mut capsules::symmetric_encryption::BUF,
-            &mut capsules::symmetric_encryption::IV
-        )
-    );
-    nrf5x::aes::AESECB.ecb_init();
-    kernel::hil::symmetric_encryption::SymmetricEncryption::set_client(&nrf5x::aes::AESECB, aes);
-
     // Start all of the clocks. Low power operation will require a better
     // approach than this.
     nrf5x::clock::CLOCK.low_stop();
@@ -356,7 +342,7 @@ pub unsafe fn reset_handler() {
     while !nrf5x::clock::CLOCK.high_started() {}
 
     let platform = Platform {
-        aes: aes,
+        // aes: aes,
         button: button,
         ble_radio: ble_radio,
         console: console,
@@ -380,6 +366,9 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
+
+    aes_test::run();
+
     kernel::main(
         &platform,
         &mut chip,

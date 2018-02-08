@@ -21,6 +21,8 @@ use kernel::hil::Controller;
 use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::spi::SpiMaster;
+use kernel::hil::symmetric_encryption;
+use kernel::hil::symmetric_encryption::{AES128, AES128CCM};
 
 #[macro_use]
 pub mod io;
@@ -32,6 +34,12 @@ mod i2c_dummy;
 mod spi_dummy;
 #[allow(dead_code)]
 mod lowpan_frag_dummy;
+
+#[allow(dead_code)]
+mod aes_test;
+
+#[allow(dead_code)]
+mod aes_ccm_test;
 
 #[allow(dead_code)]
 mod power;
@@ -95,6 +103,11 @@ static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 // copies application transmissions into or copies out to application buffers
 // for reception.
 static mut RADIO_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
+
+// This buffer is used as an intermediate buffer for AES CCM encryption
+// An upper bound on the required size is 3 * BLOCK_SIZE + radio::MAX_BUF_SIZE
+const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
+static mut CRYPT_BUF: [u8; CRYPT_SIZE] = [0x00; CRYPT_SIZE];
 
 impl kernel::Platform for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -477,6 +490,13 @@ pub unsafe fn reset_handler() {
     rf233_spi.set_client(rf233);
     rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
 
+    let aes_ccm = static_init!(
+        capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
+        capsules::aes_ccm::AES128CCM::new(&sam4l::aes::AES, &mut CRYPT_BUF)
+    );
+    sam4l::aes::AES.set_client(aes_ccm);
+    sam4l::aes::AES.enable();
+
     // Keeps the radio on permanently; pass-through layer
     let awake_mac: &AwakeMac<RF233Device> =
         static_init!(AwakeMac<'static, RF233Device>, AwakeMac::new(rf233));
@@ -484,9 +504,14 @@ pub unsafe fn reset_handler() {
     rf233.set_receive_client(awake_mac, &mut RF233_RX_BUF);
 
     let mac_device = static_init!(
-        capsules::ieee802154::framer::Framer<'static, AwakeMac<'static, RF233Device>>,
-        capsules::ieee802154::framer::Framer::new(awake_mac)
+        capsules::ieee802154::framer::Framer<
+            'static,
+            AwakeMac<'static, RF233Device>,
+            capsules::aes_ccm::AES128CCM<'static, sam4l::aes::Aes<'static>>,
+        >,
+        capsules::ieee802154::framer::Framer::new(awake_mac, aes_ccm)
     );
+    aes_ccm.set_client(mac_device);
     awake_mac.set_transmit_client(mac_device);
     awake_mac.set_receive_client(mac_device);
     awake_mac.set_config_client(mac_device);
@@ -581,5 +606,6 @@ pub unsafe fn reset_handler() {
         &mut PROCESSES,
         FAULT_RESPONSE,
     );
+
     kernel::main(&imix, &mut chip, &mut PROCESSES, &imix.ipc);
 }

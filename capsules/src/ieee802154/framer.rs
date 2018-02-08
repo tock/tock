@@ -73,6 +73,7 @@ use ieee802154::mac::Mac;
 use kernel::ReturnCode;
 use kernel::common::take_cell::MapCell;
 use kernel::hil::radio;
+use kernel::hil::symmetric_encryption::{AES128CCM, CCMClient};
 use net::ieee802154::*;
 use net::stream::{encode_bytes, encode_u32, encode_u8};
 use net::stream::SResult;
@@ -173,7 +174,7 @@ impl FrameInfo {
         // IEEE 802.15.4-2015: Table 9-3. a data and m data
         let encryption_needed = self.security_params
             .map_or(false, |(level, _, _)| level.encryption_needed());
-        if encryption_needed {
+        if !encryption_needed {
             // If only integrity is need, a data is the whole frame
             (self.unsecured_length(), 0)
         } else {
@@ -243,7 +244,6 @@ pub trait DeviceProcedure {
 /// - `send_done` callbacks from the underlying radio
 /// - `config_done` callbacks from the underlying radio (if, for example,
 /// configuration was in progress when a transmission was requested)
-/// - TODO: callbacks from the encryption facility
 #[derive(Eq, PartialEq, Debug)]
 enum TxState {
     /// There is no frame to be transmitted.
@@ -282,8 +282,9 @@ enum RxState {
 /// machines corresponding to the transmission, reception and
 /// encryption/decryption pipelines. See the documentation in
 /// `capsules/src/mac.rs` for more details.
-pub struct Framer<'a, M: Mac + 'a> {
+pub struct Framer<'a, M: Mac + 'a, A: AES128CCM<'a> + 'a> {
     mac: &'a M,
+    aes_ccm: &'a A,
     data_sequence: Cell<u8>,
 
     /// KeyDescriptor lookup procedure
@@ -304,10 +305,11 @@ pub struct Framer<'a, M: Mac + 'a> {
     rx_client: Cell<Option<&'a RxClient>>,
 }
 
-impl<'a, M: Mac + 'a> Framer<'a, M> {
-    pub fn new(mac: &'a M) -> Framer<'a, M> {
+impl<'a, M: Mac + 'a, A: AES128CCM<'a> + 'a> Framer<'a, M, A> {
+    pub fn new(mac: &'a M, aes_ccm: &'a A) -> Framer<'a, M, A> {
         Framer {
             mac: mac,
+            aes_ccm: aes_ccm,
             data_sequence: Cell::new(0),
             key_procedure: Cell::new(None),
             device_procedure: Cell::new(None),
@@ -475,20 +477,42 @@ impl<'a, M: Mac + 'a> Framer<'a, M> {
                                 // `security_params` is not `None`.
                                 (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
                             }
-                            Some((_, _key, _nonce)) => {
-                                // let (m_off, m_len) = info.ccm_encrypt_ranges();
-                                // let (a_off, m_off) = (radio::PSDU_OFFSET,
-                                //                       radio::PSDU_OFFSET +
-                                //                       m_off);
+                            Some((level, key, nonce)) => {
+                                let (m_off, m_len) = info.ccm_encrypt_ranges();
+                                let (a_off, m_off) =
+                                    (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
-                                // TODO: Call CCM* auth/encryption routine with:
-                                // key: key
-                                // nonce: nonce
-                                // mic_len: info.mic_len
-                                // a data: buf[a_off..m_off]
-                                // m data: buf[m_off..m_off + m_len]
-
-                                (TxState::Idle, (ReturnCode::ENOSUPPORT, Some(buf)))
+                                if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS
+                                    || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
+                                {
+                                    (TxState::Idle, (ReturnCode::FAIL, Some(buf)))
+                                } else {
+                                    let (res, opt_buf) = self.aes_ccm.crypt(
+                                        buf,
+                                        a_off,
+                                        m_off,
+                                        m_len,
+                                        info.mic_len,
+                                        level.encryption_needed(),
+                                        true,
+                                    );
+                                    match res {
+                                        ReturnCode::SUCCESS => {
+                                            (TxState::Encrypting(info), (res, None))
+                                        }
+                                        ReturnCode::EBUSY => {
+                                            let buf = match opt_buf {
+                                                Some(buf) => buf,
+                                                None => panic!("aes_ccm did not return the buffer"),
+                                            };
+                                            (
+                                                TxState::ReadyToEncrypt(info, buf),
+                                                (ReturnCode::SUCCESS, None),
+                                            )
+                                        }
+                                        _ => (TxState::Idle, (res, opt_buf)),
+                                    }
+                                }
                             }
                         }
                     }
@@ -536,20 +560,36 @@ impl<'a, M: Mac + 'a> Framer<'a, M> {
                             // `security_params` is not `None`.
                             (RxState::Idle, Some(buf))
                         }
-                        Some((_, _key, _nonce)) => {
-                            // let (m_off, m_len) = info.ccm_encrypt_ranges();
-                            // let (a_off, m_off) = (radio::PSDU_OFFSET,
-                            //                       radio::PSDU_OFFSET +
-                            //                       m_off);
+                        Some((level, key, nonce)) => {
+                            let (m_off, m_len) = info.ccm_encrypt_ranges();
+                            let (a_off, m_off) = (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
-                            // TODO: Call CCM* auth/decryption routine with:
-                            // key: key
-                            // nonce: nonce
-                            // mic_len: info.mic_len
-                            // a data: buf[a_off..m_off]
-                            // c data: buf[m_off..m_off + m_len + mic_len]
-
-                            (RxState::Idle, Some(buf))
+                            if self.aes_ccm.set_key(&key) != ReturnCode::SUCCESS
+                                || self.aes_ccm.set_nonce(&nonce) != ReturnCode::SUCCESS
+                            {
+                                (RxState::Idle, Some(buf))
+                            } else {
+                                let (res, opt_buf) = self.aes_ccm.crypt(
+                                    buf,
+                                    a_off,
+                                    m_off,
+                                    m_len,
+                                    info.mic_len,
+                                    level.encryption_needed(),
+                                    true,
+                                );
+                                match res {
+                                    ReturnCode::SUCCESS => (RxState::Decrypting(info), None),
+                                    ReturnCode::EBUSY => {
+                                        let buf = match opt_buf {
+                                            Some(buf) => buf,
+                                            None => panic!("aes_ccm did not return the buffer"),
+                                        };
+                                        (RxState::ReadyToDecrypt(info, buf), None)
+                                    }
+                                    _ => (RxState::Idle, opt_buf),
+                                }
+                            }
                         }
                     }
                 }
@@ -598,7 +638,7 @@ impl<'a, M: Mac + 'a> Framer<'a, M> {
     }
 }
 
-impl<'a, M: Mac + 'a> MacDevice<'a> for Framer<'a, M> {
+impl<'a, M: Mac + 'a, A: AES128CCM<'a> + 'a> MacDevice<'a> for Framer<'a, M, A> {
     fn set_transmit_client(&self, client: &'a TxClient) {
         self.tx_client.set(Some(client));
     }
@@ -738,7 +778,7 @@ impl<'a, M: Mac + 'a> MacDevice<'a> for Framer<'a, M> {
     }
 }
 
-impl<'a, M: Mac + 'a> radio::TxClient for Framer<'a, M> {
+impl<'a, M: Mac + 'a, A: AES128CCM<'a> + 'a> radio::TxClient for Framer<'a, M, A> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: ReturnCode) {
         self.data_sequence.set(self.data_sequence.get() + 1);
         self.tx_client.get().map(move |client| {
@@ -747,7 +787,7 @@ impl<'a, M: Mac + 'a> radio::TxClient for Framer<'a, M> {
     }
 }
 
-impl<'a, M: Mac + 'a> radio::RxClient for Framer<'a, M> {
+impl<'a, M: Mac + 'a, A: AES128CCM<'a> + 'a> radio::RxClient for Framer<'a, M, A> {
     fn receive(&self, buf: &'static mut [u8], frame_len: usize, crc_valid: bool, _: ReturnCode) {
         // Drop all frames with invalid CRC
         if !crc_valid {
@@ -777,7 +817,7 @@ impl<'a, M: Mac + 'a> radio::RxClient for Framer<'a, M> {
     }
 }
 
-impl<'a, M: Mac + 'a> radio::ConfigClient for Framer<'a, M> {
+impl<'a, M: Mac + 'a, A: AES128CCM<'a> + 'a> radio::ConfigClient for Framer<'a, M, A> {
     fn config_done(&self, _: ReturnCode) {
         // The transmission pipeline is the only state machine that
         // waits for the configuration procedure to complete before
@@ -788,6 +828,83 @@ impl<'a, M: Mac + 'a> radio::ConfigClient for Framer<'a, M> {
             self.tx_client.get().map(move |client| {
                 client.send_done(buf, false, rval);
             });
+        }
+    }
+}
+
+impl<'a, M: Mac + 'a, A: AES128CCM<'a> + 'a> CCMClient for Framer<'a, M, A> {
+    fn crypt_done(&self, buf: &'static mut [u8], res: ReturnCode, tag_is_valid: bool) {
+        let mut tx_waiting = false;
+        let mut rx_waiting = false;
+
+        // The crypto operation was from the transmission pipeline.
+        let opt_buf = if let Some(state) = self.tx_state.take() {
+            match state {
+                TxState::Encrypting(info) => {
+                    let (rval, opt_buf) = if res != ReturnCode::SUCCESS {
+                        self.tx_state.replace(TxState::Idle);
+                        (res, Some(buf))
+                    } else {
+                        self.tx_state.replace(TxState::ReadyToTransmit(info, buf));
+                        self.step_transmit_state()
+                    };
+
+                    if let Some(buf) = opt_buf {
+                        // Abort the transmission process. Return the buffer to the client.
+                        self.tx_client.get().map(move |client| {
+                            client.send_done(buf, false, rval);
+                        });
+                    }
+                    None
+                }
+                other_state => {
+                    tx_waiting = match other_state {
+                        TxState::ReadyToEncrypt(_, _) => true,
+                        _ => false,
+                    };
+                    self.tx_state.replace(other_state);
+                    Some(buf)
+                }
+            }
+        } else {
+            Some(buf)
+        };
+
+        // The crypto operation was from the reception pipeline.
+        if let Some(buf) = opt_buf {
+            self.rx_state.take().map(move |state| {
+                match state {
+                    RxState::Decrypting(info) => {
+                        let next_state = if tag_is_valid {
+                            RxState::ReadyToYield(info, buf)
+                        } else {
+                            RxState::ReadyToReturn(buf)
+                        };
+                        self.rx_state.replace(next_state);
+                        self.step_receive_state();
+                    }
+                    other_state => {
+                        rx_waiting = match other_state {
+                            RxState::ReadyToDecrypt(_, _) => true,
+                            _ => false,
+                        };
+                        self.rx_state.replace(other_state);
+                    }
+                };
+            });
+        }
+
+        // Now trigger the next crypto operation if one exists.
+        if tx_waiting {
+            let (rval, opt_buf) = self.step_transmit_state();
+            if let Some(buf) = opt_buf {
+                // Return the buffer to the client.
+                self.tx_client.get().map(move |client| {
+                    client.send_done(buf, false, rval);
+                });
+            }
+        } else if rx_waiting {
+            self.step_receive_state();
         }
     }
 }
