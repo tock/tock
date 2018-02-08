@@ -1,7 +1,6 @@
 //! Implementation of the AESA peripheral on the SAM4L
 
 use core::cell::Cell;
-use core::mem;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
@@ -17,7 +16,7 @@ pub enum ConfidentialityMode {
     CBC,
     CFB,
     OFB,
-    Ctr,
+    CTR,
 }
 
 /// The registers used to interface with the hardware
@@ -57,7 +56,7 @@ const IBUFRDY: u32 = 1 << 16;
 const ODATARDY: u32 = 1 << 0;
 
 pub struct Aes<'a> {
-    registers: *mut AesRegisters,
+    registers: *const AesRegisters,
 
     client: Cell<Option<&'a hil::symmetric_encryption::Client<'a>>>,
     source: TakeCell<'a, [u8]>,
@@ -77,7 +76,7 @@ pub struct Aes<'a> {
 impl<'a> Aes<'a> {
     pub const fn new() -> Aes<'a> {
         Aes {
-            registers: AES_BASE as *mut AesRegisters,
+            registers: AES_BASE as *const AesRegisters,
             client: Cell::new(None),
             source: TakeCell::empty(),
             dest: TakeCell::empty(),
@@ -212,7 +211,7 @@ impl<'a> Aes<'a> {
                         if !more {
                             return false;
                         }
-                        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+                        let regs: &AesRegisters = unsafe { &*self.registers };
                         for i in 0..4 {
                             let mut v = dest[index + (i * 4) + 0] as usize;
                             v |= (dest[index + (i * 4) + 1] as usize) << 8;
@@ -236,7 +235,7 @@ impl<'a> Aes<'a> {
                     return false;
                 }
 
-                let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+                let regs: &AesRegisters = unsafe { &*self.registers };
                 for i in 0..4 {
                     let mut v = source[index + (i * 4) + 0] as usize;
                     v |= (source[index + (i * 4) + 1] as usize) << 8;
@@ -269,7 +268,7 @@ impl<'a> Aes<'a> {
                     return false;
                 }
 
-                let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+                let regs: &AesRegisters = unsafe { &*self.registers };
                 for i in 0..4 {
                     let v = regs.odata.get();
                     dest[index + (i * 4) + 0] = (v >> 0) as u8;
@@ -325,14 +324,14 @@ impl<'a> Aes<'a> {
 
 impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     fn enable(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         self.enable_clock();
         regs.ctrl.set(0x01);
     }
 
     fn disable(&self) {
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         regs.ctrl.set(0x00);
         self.disable_clock();
@@ -396,7 +395,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             return;
         }
 
-        let regs: &mut AesRegisters = unsafe { mem::transmute(self.registers) };
+        let regs: &AesRegisters = unsafe { &*self.registers };
 
         regs.ctrl.set((1 << 2) | (1 << 0));
     }
@@ -429,7 +428,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
 
 impl<'a> hil::symmetric_encryption::AES128Ctr for Aes<'a> {
     fn set_mode_aes128ctr(&self, encrypting: bool) {
-        self.set_mode(encrypting, ConfidentialityMode::Ctr);
+        self.set_mode(encrypting, ConfidentialityMode::CTR);
     }
 }
 
