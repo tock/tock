@@ -45,3 +45,5 @@ doc/rustdoc
 [._]*.sw[a-p]
 [._]s[a-v][a-z]
 [._]sw[a-p]
+
+/.idea
