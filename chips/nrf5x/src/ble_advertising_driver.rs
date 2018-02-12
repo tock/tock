@@ -670,8 +670,6 @@ impl App {
         A: kernel::hil::time::Alarm + 'a,
     {
 
-        debug!("Sending advertisement");
-
         self.advertisement_buf
             .as_ref()
             .map(|slice| {
@@ -1159,8 +1157,6 @@ where
                         self.receiving_app.set(Some(app.appid()));
                         self.radio.set_tx_power(app.tx_power);
                         self.radio.receive_advertisement(ch);
-
-                        debug!("Sent, now listening on channel {:?}", ch)
                     }
                     // Invalid state => don't care
                     _ => {
