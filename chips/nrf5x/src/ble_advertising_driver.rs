@@ -1088,7 +1088,7 @@ where
                                 app.process_status = Some(BLEState::Scanning(channel));
                                 self.sending_app.set(Some(app.appid()));
                                 self.radio.set_tx_power(app.tx_power);
-                                app.send_scan_request(&self, adv_addr, channel);
+                                app.send_scan_response(&self,  channel);
 
                                 debug!("adv_addr == tmp_adv_addr: {}", adv_addr == tmp_adv_addr);
                                 debug!("Oh, I received a ScanResponse! :D");
