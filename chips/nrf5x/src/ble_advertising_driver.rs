@@ -332,7 +332,7 @@ impl <'a> BLEPduType<'a> {
             BLEAdvertisementType::NonConnectUndirected => BLEPduType::NonConnectUndirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), &buf[PACKET_PAYLOAD_START..]),
             BLEAdvertisementType::ScanUndirected => BLEPduType::ScanUndirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), &buf[PACKET_PAYLOAD_START..]),
             BLEAdvertisementType::ScanRequest => BLEPduType::ScanRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14])),
-            BLEAdvertisementType::ScanResponse => BLEPduType::ScanResponse(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), &buf[PACKET_PAYLOAD_START..]),
+            BLEAdvertisementType::ScanResponse => BLEPduType::ScanResponse(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), &buf[PACKET_PAYLOAD_START..(buf[PACKET_HDR_LEN] + PACKET_PAYLOAD_START as u8 - 6) as usize]),
             BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14]), &buf[14..]),
         }
     }
@@ -863,7 +863,7 @@ where
     // recently performed an operation.
     fn fired(&self) {
         let now = self.alarm.now();
-        debug!("Timer fired!");
+        //debug!("Timer fired!");
 
         self.app.each(|app| {
             if let Expiration::Abs(exp) = app.alarm_data.expiration {
@@ -918,7 +918,7 @@ where
                             app.set_next_alarm_ms::<A::Frequency>(self.alarm.now());
                         }
                         Some(BLEState::ScanningIdle) => {
-                            debug!("Moving to channel {:?}", RadioChannel::AdvertisingChannel37);
+                            //debug!("Moving to channel {:?}", RadioChannel::AdvertisingChannel37);
 
                             self.busy.set(BusyState::Busy(app.appid()));
                             app.process_status =
@@ -929,11 +929,10 @@ where
                                 .receive_advertisement(RadioChannel::AdvertisingChannel37);
 
                             app.set_next_alarm_ms::<A::Frequency>(self.alarm.now());
-                        } Some(BLEState::Scanning(channel)) => {     //TODO - remove
+                        } Some(BLEState::Scanning(channel)) => {
 
-                            //TOD - remove below if let
                             if let Some(channel) = channel.get_next_advertising_channel() {
-                                debug!("Moving to channel {:?}", channel);
+                                //debug!("Moving to channel {:?}", channel);
                                 app.process_status =
                                     Some(BLEState::Scanning(channel));
                                 self.receiving_app.set(Some(app.appid()));
@@ -942,7 +941,7 @@ where
 
                                 app.set_next_alarm_ms::<A::Frequency>(self.alarm.now());
                             } else {
-                                debug!("Moving to idle");
+                                //debug!("Moving to idle");
                                 app.set_next_alarm::<A::Frequency>(self.alarm.now());
                                 self.busy.set(BusyState::Free);
                                 app.process_status = Some(BLEState::ScanningIdle);
@@ -1085,13 +1084,15 @@ where
                             let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x0f, 0x0f, 0x0, 0x0, 0xf0]);
 
                             if adv_addr == tmp_adv_addr {
-                                app.process_status = Some(BLEState::Scanning(channel));
-                                self.sending_app.set(Some(app.appid()));
+                                //app.process_status = Some(BLEState::Scanning(channel));
+                                //self.sending_app.set(Some(app.appid()));
+                                self.receiving_app.set(Some(app.appid()));
                                 self.radio.set_tx_power(app.tx_power);
-                                app.send_scan_response(&self,  channel);
+                                //app.send_scan_response(&self, channel);
+                                self.radio.receive_advertisement(channel);
 
-                                debug!("adv_addr == tmp_adv_addr: {}", adv_addr == tmp_adv_addr);
                                 debug!("Oh, I received a ScanResponse! :D");
+                                debug!("Packet: {:?}", pdu);
                             }
                         }
                     }
