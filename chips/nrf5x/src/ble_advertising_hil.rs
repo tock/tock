@@ -46,9 +46,9 @@
 //! ```
 
 use kernel::ReturnCode;
-use core::fmt;
+//use core::fmt;
 
-
+/*
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct DeviceAddress(pub [u8; 6]);
 
@@ -67,6 +67,7 @@ impl fmt::Debug for DeviceAddress {
                self.0[2], self.0[1], self.0[0])
     }
 }
+*/
 
 pub trait BleAdvertisementDriver {
     fn transmit_advertisement(
@@ -140,11 +141,14 @@ pub enum RadioChannel {
 
 impl RadioChannel {
     pub fn get_next_advertising_channel(&self) -> Option<RadioChannel> {
+        //Some(RadioChannel::AdvertisingChannel37)
+
         match *self {
             RadioChannel::AdvertisingChannel37 => Some(RadioChannel::AdvertisingChannel38),
             RadioChannel::AdvertisingChannel38 => Some(RadioChannel::AdvertisingChannel39),
             _ => None
         }
+
     }
     pub fn get_channel_index(&self) -> u32 {
         match *self {

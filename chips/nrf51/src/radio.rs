@@ -15,11 +15,11 @@ use core::convert::TryFrom;
 use kernel;
 use kernel::ReturnCode;
 use nrf5x;
-//use nrf5x::ble_advertising_hil::RadioChannel;
-use nrf5x::ble_advertising_hil::{RadioChannel, DeviceAddress};
+use nrf5x::ble_advertising_hil::RadioChannel;
+//use nrf5x::ble_advertising_hil::{RadioChannel, DeviceAddress};
 use nrf5x::constants::TxPower;
 use peripheral_registers;
-use nrf5x::ble_advertising_driver::{BLEAdvertisementType, BLEPduType};
+//use nrf5x::ble_advertising_driver::{BLEAdvertisementType, BLEPduType};
 
 static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
     [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
@@ -204,6 +204,7 @@ impl Radio {
 
 
 
+            /*
             let pdu = unsafe {
                 let parsed_type = BLEAdvertisementType::from_u8(&PAYLOAD[0] & 0x0f);
                 parsed_type.map(|adv_type| BLEPduType::from_buffer(adv_type, &PAYLOAD[..]) )
@@ -213,8 +214,7 @@ impl Radio {
                 Some(BLEPduType::ScanRequest(_, a2)) => Some(a2),
                 _ => None
             };
-
-
+            */
 
 
             match regs.state.get() {
