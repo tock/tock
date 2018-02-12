@@ -325,15 +325,24 @@ pub enum BLEPduType<'a> {
 }
 
 impl <'a> BLEPduType<'a> {
-    pub fn from_buffer(pdu_type: BLEAdvertisementType, buf: &[u8]) -> BLEPduType {
-        match pdu_type {
-            BLEAdvertisementType::ConnectUndirected => BLEPduType::ConnectUndirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), &buf[PACKET_PAYLOAD_START..]),
-            BLEAdvertisementType::ConnectDirected => BLEPduType::ConnectDirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14])),
-            BLEAdvertisementType::NonConnectUndirected => BLEPduType::NonConnectUndirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), &buf[PACKET_PAYLOAD_START..]),
-            BLEAdvertisementType::ScanUndirected => BLEPduType::ScanUndirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), &buf[PACKET_PAYLOAD_START..]),
-            BLEAdvertisementType::ScanRequest => BLEPduType::ScanRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14])),
-            BLEAdvertisementType::ScanResponse => BLEPduType::ScanResponse(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), &buf[PACKET_PAYLOAD_START..(buf[PACKET_HDR_LEN] + PACKET_PAYLOAD_START as u8 - 6) as usize]),
-            BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END+1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14]), &buf[14..]),
+    pub fn from_buffer(pdu_type: BLEAdvertisementType, buf: &[u8]) -> Option<BLEPduType> {
+        if buf[PACKET_HDR_LEN] < 6 {
+            debug!("This is the buffer {:?}", buf);
+
+            None
+        } else {
+            let s = match pdu_type {
+                BLEAdvertisementType::ConnectUndirected => BLEPduType::ConnectUndirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), &buf[PACKET_PAYLOAD_START..]),
+                BLEAdvertisementType::ConnectDirected => BLEPduType::ConnectDirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14])),
+                BLEAdvertisementType::NonConnectUndirected => BLEPduType::NonConnectUndirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), &buf[PACKET_PAYLOAD_START..]),
+                BLEAdvertisementType::ScanUndirected => BLEPduType::ScanUndirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), &buf[PACKET_PAYLOAD_START..]),
+                BLEAdvertisementType::ScanRequest => BLEPduType::ScanRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14])),
+                BLEAdvertisementType::ScanResponse => BLEPduType::ScanResponse(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), &buf[PACKET_PAYLOAD_START..(buf[PACKET_HDR_LEN] + PACKET_PAYLOAD_START as u8 - 6) as usize]),
+                BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14]), &buf[14..]),
+            };
+
+
+            Some(s)
         }
     }
 
@@ -995,7 +1004,7 @@ where
                 };
 
                 let parsed_type = BLEAdvertisementType::from_u8(buf[0] & 0x0f);
-                let pdu = parsed_type.map(|adv_type| BLEPduType::from_buffer(adv_type, buf) );
+                let pdu = parsed_type.and_then(|adv_type| BLEPduType::from_buffer(adv_type, buf) );
 
 
 /*                if notify_userland {
