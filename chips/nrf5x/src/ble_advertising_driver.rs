@@ -1012,8 +1012,6 @@ where
                         match pdu {
                             Some(BLEPduType::ConnectRequest(init_addr, adv_addr, buf)) => {
 
-                                debug!("Listening on channel {:?} init_addr {:?} adv_addr {:?}", channel, init_addr, adv_addr);
-
                                 app.advertising_address.map(|address| {
                                     if address == adv_addr {
                                         debug!("Connection request! {:?}", buf);
@@ -1025,8 +1023,6 @@ where
 
                             },
                             Some(BLEPduType::ScanRequest(scan_addr, adv_addr)) => {
-
-                                debug!("Listening on channel {:?} scan_addr {:?} adv_addr {:?}", channel, scan_addr, adv_addr);
 
                                 app.advertising_address.map(|address| {
 
