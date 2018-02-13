@@ -1,0 +1,17 @@
+# Makefile for loading applications for the sensortag
+
+$(call check_defined, TOCK_USERLAND_BASE_DIR)
+$(call check_defined, BUILDDIR)
+$(call check_defined, PACKAGE_NAME)
+
+TOCK_ARCH = cortex-m3
+BOARD_BUILDDIR = $(BUILDDIR)/$(TOCK_ARCH)
+
+# Upload programs to sensortag
+.PHONY: flash
+flash: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+    $(error Cannot flash yet.)
+
+.PHONY: program
+program: $(BOARD_BUILDDIR)/$(TOCK_ARCH).bin $(BUILDDIR)/$(PACKAGE_NAME).tab
+	$(error Cannot program sensortag over USB. Use \'make flash\' and JTAG)
