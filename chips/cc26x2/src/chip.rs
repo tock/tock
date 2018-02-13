@@ -4,14 +4,14 @@ use kernel;
 use cc26xx::peripheral_interrupts::*;
 
 pub struct Cc26X2 {
-    mpu: (),
+    mpu: cortexm4::mpu::MPU,
     systick: cortexm4::systick::SysTick,
 }
 
 impl Cc26X2 {
     pub unsafe fn new() -> Cc26X2 {
         Cc26X2 {
-            mpu: (),
+            mpu: cortexm4::mpu::MPU::new(),
             // The systick clocks with 48MHz by default
             systick: cortexm4::systick::SysTick::new_with_calibration(48 * 1000000),
         }
@@ -19,7 +19,7 @@ impl Cc26X2 {
 }
 
 impl kernel::Chip for Cc26X2 {
-    type MPU = ();
+    type MPU = cortexm4::mpu::MPU;
     type SysTick = cortexm4::systick::SysTick;
 
     fn mpu(&self) -> &Self::MPU {
