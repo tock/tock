@@ -118,6 +118,7 @@ pub struct Platform {
     led: &'static capsules::led::LED<'static, nrf5x::gpio::GPIOPin>,
     rng: &'static capsules::rng::SimpleRng<'static, nrf5x::trng::Trng<'static>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    ipc: kernel::ipc::IPC,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
@@ -138,6 +139,7 @@ impl kernel::Platform for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             nrf5x::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -352,6 +354,7 @@ pub unsafe fn reset_handler() {
         rng: rng,
         temp: temp,
         alarm: alarm,
+        ipc: kernel::ipc::IPC::new(),
     };
 
     let mut chip = nrf52::chip::NRF52::new();
@@ -368,10 +371,5 @@ pub unsafe fn reset_handler() {
         FAULT_RESPONSE,
     );
 
-    kernel::main(
-        &platform,
-        &mut chip,
-        &mut PROCESSES,
-        &kernel::ipc::IPC::new(),
-    );
+    kernel::main(&platform, &mut chip, &mut PROCESSES, &platform.ipc);
 }
