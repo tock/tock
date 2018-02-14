@@ -273,11 +273,21 @@ enum BLEGapType {
     ManufacturerSpecificData = 0xFF,
 }
 
+macro_rules! set_hop_and_sca {
+	($hop:expr, $sca:expr) => {{
+		if $hop >= 0 && $hop < 0b100000 && $sca >= 0 && $sca < 0b1000{
+			Some($hop | ($sca << 5))
+		} else {
+			None
+		}
+	}};
+}
 
 #[allow(unused)]
-struct LLData {
-    aa: [u8; 4],
-    crc_init: [u8; 3],
+#[derive(Debug)]
+pub struct LLData {
+    pub aa: [u8; 4],
+    pub crc_init: [u8; 3],
     win_size: u8,
     win_offset: u16,
     interval: u16,
@@ -285,6 +295,22 @@ struct LLData {
     timeout: u16,
     chm: [u8; 5],
     hop_and_sca: u8 // hops 5 bits, sca 3 bits
+}
+
+impl LLData {
+    pub fn new() -> LLData {
+        LLData {
+            aa: [0x33, 0x19, 0x32, 0x66], // TODO Implement with 20 bits of entropy: p. 2564
+            crc_init: [0x27, 0x01, 0x11], // TODO Implement with 20 bits of entropy: p. 2578
+            win_size: 0x03,
+            win_offset: 0x0d00,
+            interval: 0x1800,
+            latency: 0x0000,
+            timeout: 0x4800, // TODO .to_be() or .to_le()
+            chm: [0x00, 0xf0, 0x1f, 0x00, 0x18],
+            hop_and_sca: (1 << 5) | 15  // = 0010 1111
+        }
+    }
 }
 
 
@@ -321,13 +347,13 @@ pub enum BLEPduType<'a> {
     ScanUndirected(DeviceAddress, &'a [u8]),
     ScanRequest(DeviceAddress, DeviceAddress),
     ScanResponse(DeviceAddress, &'a [u8]),
-    ConnectRequest(DeviceAddress, DeviceAddress, &'a [u8])
+    ConnectRequest(DeviceAddress, DeviceAddress, LLData)
 }
 
 impl <'a> BLEPduType<'a> {
     pub fn from_buffer(pdu_type: BLEAdvertisementType, buf: &[u8]) -> Option<BLEPduType> {
         if buf[PACKET_HDR_LEN] < 6 {
-            debug!("This is the buffer {:?}", buf);
+            //debug!("This is the buffer {:?}", buf);
 
             None
         } else {
@@ -338,7 +364,8 @@ impl <'a> BLEPduType<'a> {
                 BLEAdvertisementType::ScanUndirected => BLEPduType::ScanUndirected(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), &buf[PACKET_PAYLOAD_START..]),
                 BLEAdvertisementType::ScanRequest => BLEPduType::ScanRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14])),
                 BLEAdvertisementType::ScanResponse => BLEPduType::ScanResponse(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), &buf[PACKET_PAYLOAD_START..(buf[PACKET_HDR_LEN] + PACKET_PAYLOAD_START as u8 - 6) as usize]),
-                BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14]), &buf[14..]),
+                //BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14]), &buf[14..]),
+                BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14]), LLData::new()),
             };
 
 
@@ -715,7 +742,7 @@ impl App {
                             {
                                 *out = *inp;
                             }
-                        self.send_buffer(ble, data, BLEAdvertisementType::ScanResponse, channel)
+                        self.send_buffer(ble, data, BLEAdvertisementType::ConnectRequest, channel)
                     })
             })
     }
@@ -726,7 +753,7 @@ impl App {
             A: kernel::hil::time::Alarm + 'a,
     {
 
-        debug!("Sending ScanRequest to {:?} on channel {:?}", adv_addr, channel);
+        debug!("Sending ScanRequest to {:?}", adv_addr);
 
         self.advertisement_buf
             .as_ref()
@@ -749,7 +776,61 @@ impl App {
                     .unwrap_or_else(|| ReturnCode::EINVAL)
             })
             .unwrap_or_else(|| ReturnCode::EINVAL)
+    }
 
+    fn send_connect_request<'a, B, A>(&mut self, ble: &BLE<'a, B, A>, adv_addr: DeviceAddress, channel: RadioChannel, lldata: LLData) -> ReturnCode
+        where
+            B: ble_advertising_hil::BleAdvertisementDriver + ble_advertising_hil::BleConfig + 'a,
+            A: kernel::hil::time::Alarm + 'a,
+    {
+
+        debug!("Sending ConnectRequest to {:?} on channel {:?}", adv_addr, channel);
+
+        self.advertisement_buf
+            .as_ref()
+            .map(|slice| {
+                ble.kernel_tx
+                    .take()
+                    .map(|data| {
+                        for (out, inp) in data.as_mut()[PACKET_HDR_PDU..PACKET_LENGTH]
+                            .iter_mut()
+                            .zip(slice.as_ref()[PACKET_HDR_PDU..PACKET_LENGTH].iter())
+                            {
+                                *out = *inp;
+                            }
+                        data.as_mut()[PACKET_HDR_LEN] = 34;
+                        for i in 0..6 {
+                            data.as_mut()[PACKET_ADDR_START+ 6 + i] = adv_addr.0[i];
+                        }
+
+                        data.as_mut()[PACKET_ADDR_START + 12] =   lldata.aa[3];                               //aa
+                        data.as_mut()[PACKET_ADDR_START + 13] =   lldata.aa[2];                               //aa
+                        data.as_mut()[PACKET_ADDR_START + 14] =   lldata.aa[1];                               //aa
+                        data.as_mut()[PACKET_ADDR_START + 15] =   lldata.aa[0];                               //aa
+                        data.as_mut()[PACKET_ADDR_START + 16] =   lldata.crc_init[2];                         //crcinit
+                        data.as_mut()[PACKET_ADDR_START + 17] =   lldata.crc_init[1];                         //crcinit
+                        data.as_mut()[PACKET_ADDR_START + 18] =   lldata.crc_init[0];                         //crcinit
+                        data.as_mut()[PACKET_ADDR_START + 19] =   lldata.win_size;                            //winsize
+                        data.as_mut()[PACKET_ADDR_START + 20] =   ((lldata.win_offset & 0xFF00) >> 8) as u8;  //winoffset
+                        data.as_mut()[PACKET_ADDR_START + 21] =   (lldata.win_offset & 0x00FF) as u8;         //winoffset
+                        data.as_mut()[PACKET_ADDR_START + 22] =   ((lldata.interval & 0xFF00) >> 8) as u8;    //interval
+                        data.as_mut()[PACKET_ADDR_START + 23] =   (lldata.interval & 0x00FF) as u8;           //interval
+                        data.as_mut()[PACKET_ADDR_START + 24] =   ((lldata.latency & 0xFF00) >> 8) as u8;     //latency
+                        data.as_mut()[PACKET_ADDR_START + 25] =   (lldata.latency & 0x00FF) as u8;            //latency
+                        data.as_mut()[PACKET_ADDR_START + 26] =   ((lldata.timeout & 0xFF00) >> 8) as u8;     //timeout
+                        data.as_mut()[PACKET_ADDR_START + 27] =   (lldata.timeout & 0x00FF) as u8;            //timeout
+                        data.as_mut()[PACKET_ADDR_START + 28] =   lldata.chm[0];                              //chm
+                        data.as_mut()[PACKET_ADDR_START + 29] =   lldata.chm[1];                              //chm
+                        data.as_mut()[PACKET_ADDR_START + 30] =   lldata.chm[2];                              //chm
+                        data.as_mut()[PACKET_ADDR_START + 31] =   lldata.chm[3];                              //chm
+                        data.as_mut()[PACKET_ADDR_START + 32] =   lldata.chm[4];                              //chm
+                        data.as_mut()[PACKET_ADDR_START + 33] =   lldata.hop_and_sca;                         //hop, sca
+
+                        self.send_buffer(ble, data, BLEAdvertisementType::ConnectRequest, channel)
+                    })
+                    .unwrap_or_else(|| ReturnCode::EINVAL)
+            })
+            .unwrap_or_else(|| ReturnCode::EINVAL)
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
@@ -1031,7 +1112,7 @@ where
                                 });
 
                             },
-                            Some(BLEPduType::ScanRequest(scan_addr, adv_addr)) => {
+                            Some(BLEPduType::ScanRequest(_scan_addr, adv_addr)) => {
 
                                 app.advertising_address.map(|address| {
 
@@ -1078,10 +1159,13 @@ where
                                 app.process_status = Some(BLEState::Requesting(channel));
                                 self.sending_app.set(Some(app.appid()));
                                 self.radio.set_tx_power(app.tx_power);
-                                app.send_scan_request(&self, adv_addr, channel);
+                                //app.send_scan_request(&self, adv_addr, channel);
 
-                                //debug!("adv_addr == tmp_adv_addr: {}", adv_addr == tmp_adv_addr);
+                                debug!("ADV_IND from {:?}", adv_addr);
+                                let lldata = LLData::new();
+                                app.send_connect_request(&self, tmp_adv_addr, channel, lldata);
                             }
+
                         } else if let Some(BLEPduType::ScanResponse(adv_addr, _)) = pdu {
 
                             let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x0f, 0x0f, 0x0, 0x0, 0xf0]);
@@ -1136,7 +1220,7 @@ where
 
                         app.set_next_alarm_ms::<A::Frequency>(self.alarm.now());
 
-                        debug!("Request was sent on channel: {:?}", channel);
+                        //debug!("Request was sent on channel: {:?}", channel);
                     }
                     Some(BLEState::Responding(channel)) => {
                         if let Some(channel) = channel.get_next_advertising_channel() {
