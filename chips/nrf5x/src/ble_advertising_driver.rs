@@ -585,8 +585,8 @@ impl App {
     // FIXME: For now use AppId as "randomness"
     fn generate_random_address(&mut self, appid: kernel::AppId) -> ReturnCode {
 
-        let random_address: [u8; 6] = [0xf0, 0x11, 0x11, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
-        //let random_address: [u8; 6] = [0xf0, 0x0f, 0x0f, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        //let random_address: [u8; 6] = [0xf0, 0x11, 0x11, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
+        let random_address: [u8; 6] = [0xf0, 0x0f, 0x0f, ((appid.idx() << 16) as u8 & 0xff), ((appid.idx() << 24) as u8 & 0xff), 0xf0];
         self.advertising_address = Some(DeviceAddress::new(&random_address));
 
         self.advertisement_buf
@@ -800,37 +800,41 @@ impl App {
                             }
                         data.as_mut()[PACKET_HDR_LEN] = 34;
                         for i in 0..6 {
-                            data.as_mut()[PACKET_ADDR_START+ 6 + i] = adv_addr.0[i];
+                            data.as_mut()[PACKET_ADDR_START + 6 + i] = adv_addr.0[i];
                         }
-
-                        data.as_mut()[PACKET_ADDR_START + 12] =   lldata.aa[3];                               //aa
-                        data.as_mut()[PACKET_ADDR_START + 13] =   lldata.aa[2];                               //aa
-                        data.as_mut()[PACKET_ADDR_START + 14] =   lldata.aa[1];                               //aa
-                        data.as_mut()[PACKET_ADDR_START + 15] =   lldata.aa[0];                               //aa
-                        data.as_mut()[PACKET_ADDR_START + 16] =   lldata.crc_init[2];                         //crcinit
-                        data.as_mut()[PACKET_ADDR_START + 17] =   lldata.crc_init[1];                         //crcinit
-                        data.as_mut()[PACKET_ADDR_START + 18] =   lldata.crc_init[0];                         //crcinit
-                        data.as_mut()[PACKET_ADDR_START + 19] =   lldata.win_size;                            //winsize
-                        data.as_mut()[PACKET_ADDR_START + 20] =   ((lldata.win_offset & 0xFF00) >> 8) as u8;  //winoffset
-                        data.as_mut()[PACKET_ADDR_START + 21] =   (lldata.win_offset & 0x00FF) as u8;         //winoffset
-                        data.as_mut()[PACKET_ADDR_START + 22] =   ((lldata.interval & 0xFF00) >> 8) as u8;    //interval
-                        data.as_mut()[PACKET_ADDR_START + 23] =   (lldata.interval & 0x00FF) as u8;           //interval
-                        data.as_mut()[PACKET_ADDR_START + 24] =   ((lldata.latency & 0xFF00) >> 8) as u8;     //latency
-                        data.as_mut()[PACKET_ADDR_START + 25] =   (lldata.latency & 0x00FF) as u8;            //latency
-                        data.as_mut()[PACKET_ADDR_START + 26] =   ((lldata.timeout & 0xFF00) >> 8) as u8;     //timeout
-                        data.as_mut()[PACKET_ADDR_START + 27] =   (lldata.timeout & 0x00FF) as u8;            //timeout
-                        data.as_mut()[PACKET_ADDR_START + 28] =   lldata.chm[0];                              //chm
-                        data.as_mut()[PACKET_ADDR_START + 29] =   lldata.chm[1];                              //chm
-                        data.as_mut()[PACKET_ADDR_START + 30] =   lldata.chm[2];                              //chm
-                        data.as_mut()[PACKET_ADDR_START + 31] =   lldata.chm[3];                              //chm
-                        data.as_mut()[PACKET_ADDR_START + 32] =   lldata.chm[4];                              //chm
-                        data.as_mut()[PACKET_ADDR_START + 33] =   lldata.hop_and_sca;                         //hop, sca
+                        self.write_lldata_to_buffer(adv_addr, lldata, data);
 
                         self.send_buffer(ble, data, BLEAdvertisementType::ConnectRequest, channel)
                     })
                     .unwrap_or_else(|| ReturnCode::EINVAL)
             })
             .unwrap_or_else(|| ReturnCode::EINVAL)
+    }
+
+    fn write_lldata_to_buffer(&self, adv_addr: DeviceAddress, lldata: LLData, buffer: &mut [u8]) {
+
+        buffer.as_mut()[PACKET_ADDR_START + 12] = lldata.aa[3]; //aa
+        buffer.as_mut()[PACKET_ADDR_START + 13] = lldata.aa[2]; //aa
+        buffer.as_mut()[PACKET_ADDR_START + 14] = lldata.aa[1]; //aa
+        buffer.as_mut()[PACKET_ADDR_START + 15] = lldata.aa[0]; //aa
+        buffer.as_mut()[PACKET_ADDR_START + 16] = lldata.crc_init[2]; //crcinit
+        buffer.as_mut()[PACKET_ADDR_START + 17] = lldata.crc_init[1]; //crcinit
+        buffer.as_mut()[PACKET_ADDR_START + 18] = lldata.crc_init[0]; //crcinit
+        buffer.as_mut()[PACKET_ADDR_START + 19] = lldata.win_size; //winsize
+        buffer.as_mut()[PACKET_ADDR_START + 20] = ((lldata.win_offset & 0xFF00) >> 8) as u8; //winoffset
+        buffer.as_mut()[PACKET_ADDR_START + 21] = (lldata.win_offset & 0x00FF) as u8; //winoffset
+        buffer.as_mut()[PACKET_ADDR_START + 22] = ((lldata.interval & 0xFF00) >> 8) as u8; //interval
+        buffer.as_mut()[PACKET_ADDR_START + 23] = (lldata.interval & 0x00FF) as u8; //interval
+        buffer.as_mut()[PACKET_ADDR_START + 24] = ((lldata.latency & 0xFF00) >> 8) as u8; //latency
+        buffer.as_mut()[PACKET_ADDR_START + 25] = (lldata.latency & 0x00FF) as u8; //latency
+        buffer.as_mut()[PACKET_ADDR_START + 26] = ((lldata.timeout & 0xFF00) >> 8) as u8; //timeout
+        buffer.as_mut()[PACKET_ADDR_START + 27] = (lldata.timeout & 0x00FF) as u8; //timeout
+        buffer.as_mut()[PACKET_ADDR_START + 28] = lldata.chm[0]; //chm
+        buffer.as_mut()[PACKET_ADDR_START + 29] = lldata.chm[1]; //chm
+        buffer.as_mut()[PACKET_ADDR_START + 30] = lldata.chm[2]; //chm
+        buffer.as_mut()[PACKET_ADDR_START + 31] = lldata.chm[3]; //chm
+        buffer.as_mut()[PACKET_ADDR_START + 32] = lldata.chm[4]; //chm
+        buffer.as_mut()[PACKET_ADDR_START + 33] = lldata.hop_and_sca; //hop, sca
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
