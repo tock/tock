@@ -1,7 +1,7 @@
-use cortexm4::{self, nvic};
 use cc26xx::gpio;
-use kernel;
 use cc26xx::peripheral_interrupts::*;
+use cortexm4::{self, nvic};
+use kernel;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,

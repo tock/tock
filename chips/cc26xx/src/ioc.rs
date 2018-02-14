@@ -21,9 +21,7 @@ pub struct IocfgPin {
 
 impl IocfgPin {
     const fn new(pin: u8) -> IocfgPin {
-        IocfgPin {
-            pin: pin as usize,
-        }
+        IocfgPin { pin: pin as usize }
     }
 
     pub fn enable_gpio(&self) {

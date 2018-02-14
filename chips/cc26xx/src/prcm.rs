@@ -74,7 +74,7 @@ impl Power {
         match domain {
             PowerDomain::Peripherals => {
                 regs.pd_ctl0.set(regs.pd_ctl0.get() | 0x4);
-            },
+            }
             PowerDomain::Serial => {
                 regs.pd_ctl0.set(regs.pd_ctl0.get() | 0x2);
             }

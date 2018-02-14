@@ -5,15 +5,15 @@
 extern crate capsules;
 extern crate compiler_builtins;
 
-extern crate cc26xx;
 extern crate cc26x2;
+extern crate cc26xx;
 
 #[allow(unused_imports)]
 #[macro_use(debug, debug_gpio, static_init)]
 extern crate kernel;
 
-use cc26xx::prcm;
 use cc26xx::aon;
+use cc26xx::prcm;
 
 #[macro_use]
 pub mod io;
@@ -146,11 +146,7 @@ pub unsafe fn reset_handler() {
         pin.set_client(gpio);
     }
 
-    let launchxl = Platform {
-        gpio,
-        led,
-        button,
-    };
+    let launchxl = Platform { gpio, led, button };
 
     let mut chip = cc26x2::chip::Cc26X2::new();
 

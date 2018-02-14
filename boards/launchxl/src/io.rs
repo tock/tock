@@ -8,5 +8,5 @@ pub unsafe extern "C" fn rust_begin_unwind(
     _file: &'static str,
     _line: usize,
 ) -> ! {
-    loop { }
+    loop {}
 }
