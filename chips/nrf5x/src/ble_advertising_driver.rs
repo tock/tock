@@ -197,7 +197,6 @@
 
 use ble_advertising_hil;
 use ble_advertising_hil::RadioChannel;
-//use ble_advertising_hil::{RadioChannel, DeviceAddress};
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
@@ -311,6 +310,50 @@ impl LLData {
             hop_and_sca: (1 << 5) | 15  // = 0010 1111
         }
     }
+
+    fn write_to_buffer(&self, buffer: &mut [u8]) {
+
+
+        let buffer = buffer.as_mut();
+
+        buffer[PACKET_ADDR_START + 12] = self.aa[3]; //aa
+        buffer[PACKET_ADDR_START + 13] = self.aa[2]; //aa
+        buffer[PACKET_ADDR_START + 14] = self.aa[1]; //aa
+        buffer[PACKET_ADDR_START + 15] = self.aa[0]; //aa
+        buffer[PACKET_ADDR_START + 16] = self.crc_init[2]; //crcinit
+        buffer[PACKET_ADDR_START + 17] = self.crc_init[1]; //crcinit
+        buffer[PACKET_ADDR_START + 18] = self.crc_init[0]; //crcinit
+        buffer[PACKET_ADDR_START + 19] = self.win_size; //winsize
+        buffer[PACKET_ADDR_START + 20] = ((self.win_offset & 0xFF00) >> 8) as u8; //winoffset
+        buffer[PACKET_ADDR_START + 21] = (self.win_offset & 0x00FF) as u8; //winoffset
+        buffer[PACKET_ADDR_START + 22] = ((self.interval & 0xFF00) >> 8) as u8; //interval
+        buffer[PACKET_ADDR_START + 23] = (self.interval & 0x00FF) as u8; //interval
+        buffer[PACKET_ADDR_START + 24] = ((self.latency & 0xFF00) >> 8) as u8; //latency
+        buffer[PACKET_ADDR_START + 25] = (self.latency & 0x00FF) as u8; //latency
+        buffer[PACKET_ADDR_START + 26] = ((self.timeout & 0xFF00) >> 8) as u8; //timeout
+        buffer[PACKET_ADDR_START + 27] = (self.timeout & 0x00FF) as u8; //timeout
+        buffer[PACKET_ADDR_START + 28] = self.chm[0]; //chm
+        buffer[PACKET_ADDR_START + 29] = self.chm[1]; //chm
+        buffer[PACKET_ADDR_START + 30] = self.chm[2]; //chm
+        buffer[PACKET_ADDR_START + 31] = self.chm[3]; //chm
+        buffer[PACKET_ADDR_START + 32] = self.chm[4]; //chm
+        buffer[PACKET_ADDR_START + 33] = self.hop_and_sca; //hop, sca
+    }
+
+
+    fn read_from_buffer(buffer: &[u8]) -> LLData {
+        LLData {
+            aa: [buffer[PACKET_ADDR_START + 15],buffer[PACKET_ADDR_START + 14], buffer[PACKET_ADDR_START + 13], buffer[PACKET_ADDR_START + 12] ],
+            crc_init: [buffer[PACKET_ADDR_START + 18], buffer[PACKET_ADDR_START + 17], buffer[PACKET_ADDR_START + 16]],
+            win_size: buffer[PACKET_ADDR_START + 19],
+            win_offset: (buffer[PACKET_ADDR_START + 20] as u16) << 8 | buffer[PACKET_ADDR_START + 21] as u16,
+            interval: (buffer[PACKET_ADDR_START + 22] as u16) << 8 | buffer[PACKET_ADDR_START + 23] as u16,
+            latency: (buffer[PACKET_ADDR_START + 24] as u16) << 8 | buffer[PACKET_ADDR_START + 25] as u16,
+            timeout: (buffer[PACKET_ADDR_START + 26] as u16) << 8 | buffer[PACKET_ADDR_START + 27] as u16,
+            chm: [buffer[PACKET_ADDR_START + 28], buffer[PACKET_ADDR_START + 29], buffer[PACKET_ADDR_START + 30], buffer[PACKET_ADDR_START + 31], buffer[PACKET_ADDR_START + 32]],
+            hop_and_sca: buffer[PACKET_ADDR_START + 33]
+        }
+    }
 }
 
 
@@ -365,7 +408,7 @@ impl <'a> BLEPduType<'a> {
                 BLEAdvertisementType::ScanRequest => BLEPduType::ScanRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14])),
                 BLEAdvertisementType::ScanResponse => BLEPduType::ScanResponse(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), &buf[PACKET_PAYLOAD_START..(buf[PACKET_HDR_LEN] + PACKET_PAYLOAD_START as u8 - 6) as usize]),
                 //BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14]), &buf[14..]),
-                BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14]), LLData::new()),
+                BLEAdvertisementType::ConnectRequest => BLEPduType::ConnectRequest(DeviceAddress::new(&buf[PACKET_ADDR_START..PACKET_ADDR_END + 1]), DeviceAddress::new(&buf[PACKET_PAYLOAD_START..14]), LLData::read_from_buffer(&buf[..])),
             };
 
 
@@ -598,19 +641,6 @@ impl App {
                 }
                 ReturnCode::SUCCESS
             })
-
-        /*
-        self.scan_response_buf
-            .as_mut()
-            .map_or(ReturnCode::ESIZE,|data| {
-                data.as_mut()[PACKET_HDR_LEN] = 6;
-                for i in 0..6 {
-                    data.as_mut()[PACKET_ADDR_START + i] = random_address[i];
-                }
-                ReturnCode::SUCCESS
-            })
-         */
-
     }
 
     fn reset_payload(&mut self) -> ReturnCode {
@@ -802,39 +832,13 @@ impl App {
                         for i in 0..6 {
                             data.as_mut()[PACKET_ADDR_START + 6 + i] = adv_addr.0[i];
                         }
-                        self.write_lldata_to_buffer(adv_addr, lldata, data);
+                        lldata.write_to_buffer(data);
 
                         self.send_buffer(ble, data, BLEAdvertisementType::ConnectRequest, channel)
                     })
                     .unwrap_or_else(|| ReturnCode::EINVAL)
             })
             .unwrap_or_else(|| ReturnCode::EINVAL)
-    }
-
-    fn write_lldata_to_buffer(&self, adv_addr: DeviceAddress, lldata: LLData, buffer: &mut [u8]) {
-
-        buffer.as_mut()[PACKET_ADDR_START + 12] = lldata.aa[3]; //aa
-        buffer.as_mut()[PACKET_ADDR_START + 13] = lldata.aa[2]; //aa
-        buffer.as_mut()[PACKET_ADDR_START + 14] = lldata.aa[1]; //aa
-        buffer.as_mut()[PACKET_ADDR_START + 15] = lldata.aa[0]; //aa
-        buffer.as_mut()[PACKET_ADDR_START + 16] = lldata.crc_init[2]; //crcinit
-        buffer.as_mut()[PACKET_ADDR_START + 17] = lldata.crc_init[1]; //crcinit
-        buffer.as_mut()[PACKET_ADDR_START + 18] = lldata.crc_init[0]; //crcinit
-        buffer.as_mut()[PACKET_ADDR_START + 19] = lldata.win_size; //winsize
-        buffer.as_mut()[PACKET_ADDR_START + 20] = ((lldata.win_offset & 0xFF00) >> 8) as u8; //winoffset
-        buffer.as_mut()[PACKET_ADDR_START + 21] = (lldata.win_offset & 0x00FF) as u8; //winoffset
-        buffer.as_mut()[PACKET_ADDR_START + 22] = ((lldata.interval & 0xFF00) >> 8) as u8; //interval
-        buffer.as_mut()[PACKET_ADDR_START + 23] = (lldata.interval & 0x00FF) as u8; //interval
-        buffer.as_mut()[PACKET_ADDR_START + 24] = ((lldata.latency & 0xFF00) >> 8) as u8; //latency
-        buffer.as_mut()[PACKET_ADDR_START + 25] = (lldata.latency & 0x00FF) as u8; //latency
-        buffer.as_mut()[PACKET_ADDR_START + 26] = ((lldata.timeout & 0xFF00) >> 8) as u8; //timeout
-        buffer.as_mut()[PACKET_ADDR_START + 27] = (lldata.timeout & 0x00FF) as u8; //timeout
-        buffer.as_mut()[PACKET_ADDR_START + 28] = lldata.chm[0]; //chm
-        buffer.as_mut()[PACKET_ADDR_START + 29] = lldata.chm[1]; //chm
-        buffer.as_mut()[PACKET_ADDR_START + 30] = lldata.chm[2]; //chm
-        buffer.as_mut()[PACKET_ADDR_START + 31] = lldata.chm[3]; //chm
-        buffer.as_mut()[PACKET_ADDR_START + 32] = lldata.chm[4]; //chm
-        buffer.as_mut()[PACKET_ADDR_START + 33] = lldata.hop_and_sca; //hop, sca
     }
 
     // Returns a new pseudo-random number and updates the randomness state.
@@ -1104,11 +1108,11 @@ where
                     Some(BLEState::Listening(channel)) => {
 
                         match pdu {
-                            Some(BLEPduType::ConnectRequest(init_addr, adv_addr, buf)) => {
+                            Some(BLEPduType::ConnectRequest(init_addr, adv_addr, lldata)) => {
 
                                 app.advertising_address.map(|address| {
                                     if address == adv_addr {
-                                        debug!("Connection request! {:?}", buf);
+                                        debug!("Connection request! {:?}", lldata);
                                     } else {
                                         self.radio.receive_advertisement(channel);
                                         debug!("Connection req not for me: {:?} {:?} {:?}", init_addr, adv_addr, buf);
@@ -1194,11 +1198,6 @@ where
             self.reset_active_alarm();
         }
     }
-    /*
-    fn get_address(&self) -> Option<DeviceAddress> {
-        self.receiving_app.get().and_then(|appid| self.app.enter(appid, |app, _| app.advertising_address).ok()).and_then(|address| address)
-    }
-    */
 }
 
 // Callback from the radio once a TX event occur
