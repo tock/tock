@@ -882,7 +882,7 @@ impl App {
         self.alarm_data.expiration = Expiration::Abs(now.wrapping_add(period_ms));
     }
 
-    fn set_next_alarm_ms<F: Frequency>(&mut self, now: u32) {
+    fn set_next_adv_scan_timeout<F: Frequency>(&mut self, now: u32) {
         self.alarm_data.t0 = now;
 
         let period_ms = self.scan_timeout_ms * F::frequency() / 1000;
@@ -898,23 +898,17 @@ impl App {
     {
         match self.process_status {
             Some(BLEState::Listening(channel)) => { // Listening for SCAN_REQ, if timeout - resume advertising on next channel
-                ble.sending_app.set(Some(appid));
                 if let Some(channel) = channel.get_next_advertising_channel() {
                     self.process_status = Some(BLEState::Advertising(channel));
                     ble.sending_app.set(Some(appid));
                     ble.radio.set_tx_power(self.tx_power);
                     self.send_advertisement(ble, channel);
 
-                    //debug!("Advertisement sent on channel: {:?}", channel);
-
-                    // TODO - check correct timeout
-                    self.set_next_alarm_ms::<A::Frequency>(ble.alarm.now());
+                    self.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm.now());
                 } else {
                     ble.busy.set(BusyState::Free);
                     self.process_status = Some(BLEState::AdvertisingIdle);
                     self.set_next_alarm::<A::Frequency>(ble.alarm.now());
-
-                    //debug!("I'm idle now");
                 }
             }
             Some(BLEState::AdvertisingIdle) => {
@@ -924,14 +918,9 @@ impl App {
                 ble.radio.set_tx_power(self.tx_power);
                 self.send_advertisement(ble, RadioChannel::AdvertisingChannel37);
 
-                //debug!("Advertisement sent on channel: {:?}", RadioChannel::AdvertisingChannel37);
-
-                // TODO - check correct timeout
-                self.set_next_alarm_ms::<A::Frequency>(ble.alarm.now());
+                self.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm.now());
             }
             Some(BLEState::ScanningIdle) => {
-                //debug!("Moving to channel {:?}", RadioChannel::AdvertisingChannel37);
-
                 ble.busy.set(BusyState::Busy(appid));
                 self.process_status =
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37));
@@ -940,25 +929,24 @@ impl App {
                 ble.radio
                     .receive_advertisement(RadioChannel::AdvertisingChannel37);
 
-                self.set_next_alarm_ms::<A::Frequency>(ble.alarm.now());
-            } Some(BLEState::Scanning(channel)) => {
-
+                self.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm.now());
+            }
+            Some(BLEState::Scanning(channel)) => {
                 if let Some(channel) = channel.get_next_advertising_channel() {
-                    //debug!("Moving to channel {:?}", channel);
                     self.process_status =
                         Some(BLEState::Scanning(channel));
                     ble.receiving_app.set(Some(appid));
                     ble.radio.set_tx_power(self.tx_power);
                     ble.radio.receive_advertisement(channel);
 
-                    self.set_next_alarm_ms::<A::Frequency>(ble.alarm.now());
+                    self.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm.now());
                 } else {
-                    //debug!("Moving to idle");
                     self.set_next_alarm::<A::Frequency>(ble.alarm.now());
                     ble.busy.set(BusyState::Free);
                     self.process_status = Some(BLEState::ScanningIdle);
                 }
-            } Some(BLEState::Requesting(channel)) => {
+            }
+            Some(BLEState::Requesting(channel)) => {
                 //TODO - shall we handle this case? Can it possible handle?
                 debug!("Fire: I'm in requesting state");
             }
@@ -985,17 +973,14 @@ impl App {
                             });
                         }*/
 
-        //debug!("==receive_event! {:?}", app.process_status);
-
         match self.process_status {
             Some(BLEState::Listening(channel)) => {
-
                 match pdu {
                     Some(BLEPduType::ConnectRequest(init_addr, adv_addr, lldata)) => {
 
                         self.advertising_address.map(|address| {
                             if address == adv_addr {
-                                debug!("Connection request! {:?}", lldata);
+                                debug!("Connection request! {:?} {:?}", init_addr, lldata);
                             } else {
                                 ble.radio.receive_advertisement(channel);
                                 debug!("Connection req not for me: {:?} {:?} {:?}", init_addr, adv_addr, buf);
@@ -1004,36 +989,25 @@ impl App {
 
                     },
                     Some(BLEPduType::ScanRequest(_scan_addr, adv_addr)) => {
-
                         self.advertising_address.map(|address| {
-
-
-                            //debug!("address {:?} adv_addr {:?}", address, adv_addr);
-                            //debug!("............... address == adv_addr {}", address == adv_addr);
+                            ble.radio.set_tx_power(self.tx_power);
 
                             if address == adv_addr {
-
                                 self.alarm_data.expiration = Expiration::Disabled;
-                                debug!("ScanRequest for ME! {:?} on channel {:?}", adv_addr, channel);
                                 self.process_status = Some(BLEState::Responding(channel));
+
                                 ble.sending_app.set(Some(appid));
-                                ble.radio.set_tx_power(self.tx_power);
                                 self.send_scan_response(ble, channel);
                             } else {
-                                //self.process_status = Some(BLEState::Listening(channel));
                                 ble.receiving_app.set(Some(appid));
-                                ble.radio.set_tx_power(self.tx_power);
                                 ble.radio.receive_advertisement(channel);
-                                //debug!("Not for me");
                             }
                             address
                         });
                     },
+                    // Received other packet, try receive again!
                     _ => {
-                        //debug!("Listening, not ConnectReq or ScanReq");
-                        //self.process_status = Some(BLEState::Listening(channel));
                         ble.radio.receive_advertisement(channel);
-                        //debug!("Staying on channel {:?}", channel);
                     }
 
                 }
@@ -1041,37 +1015,32 @@ impl App {
             Some(BLEState::Scanning(channel)) => {
 
                 if let Some(BLEPduType::ConnectUndirected(adv_addr, _)) = pdu {
-
                     let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x0f, 0x0f, 0x0, 0x0, 0xf0]);
 
                     if adv_addr == tmp_adv_addr {
-
                         self.alarm_data.expiration = Expiration::Disabled;
                         self.process_status = Some(BLEState::Requesting(channel));
                         ble.sending_app.set(Some(appid));
                         ble.radio.set_tx_power(self.tx_power);
-                        //self.send_scan_request(ble, adv_addr, channel);
 
                         debug!("ADV_IND from {:?}", adv_addr);
                         let lldata = LLData::new();
                         self.send_connect_request(ble, tmp_adv_addr, channel, lldata);
+                    } else {
+                        ble.receiving_app.set(Some(appid));
+                        ble.radio.receive_advertisement(channel);
                     }
 
                 } else if let Some(BLEPduType::ScanResponse(adv_addr, _)) = pdu {
-
                     let tmp_adv_addr = DeviceAddress::new(&[0xf0, 0x0f, 0x0f, 0x0, 0x0, 0xf0]);
-
                     if adv_addr == tmp_adv_addr {
-                        //self.process_status = Some(BLEState::Scanning(channel));
-                        //ble.sending_app.set(Some(appid));
                         ble.receiving_app.set(Some(appid));
                         ble.radio.set_tx_power(self.tx_power);
-                        //self.send_scan_response(ble, channel);
                         ble.radio.receive_advertisement(channel);
-
-                        debug!("Oh, I received a ScanResponse! :D");
-                        debug!("Packet: {:?}", pdu);
                     }
+                } else {
+                    // Received other packet, try receive again!
+                    ble.radio.receive_advertisement(channel);
                 }
             }
             // Invalid state => don't care
@@ -1090,10 +1059,7 @@ impl App {
                 ble.receiving_app.set(Some(appid));
                 ble.radio.set_tx_power(self.tx_power);
                 ble.radio.receive_advertisement(channel);
-
-                self.set_next_alarm_ms::<A::Frequency>(ble.alarm.now());
-
-                //debug!("Request was sent on channel: {:?}", channel);
+                self.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm.now());
             }
             Some(BLEState::Responding(channel)) => {
                 if let Some(channel) = channel.get_next_advertising_channel() {
@@ -1102,10 +1068,10 @@ impl App {
                     ble.radio.set_tx_power(self.tx_power);
                     self.send_advertisement(ble, channel);
 
-                    debug!("Sending ScanRespones on channel {:?}", channel);
+                    debug!("Sending ScanResponse on channel {:?}", channel);
 
                     // TODO - check correct timeout
-                    self.set_next_alarm_ms::<A::Frequency>(ble.alarm.now());
+                    self.set_next_adv_scan_timeout::<A::Frequency>(ble.alarm.now());
                 } else {
                     ble.busy.set(BusyState::Free);
                     self.process_status = Some(BLEState::AdvertisingIdle);
