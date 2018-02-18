@@ -1,6 +1,6 @@
 use capsules::test::aes::TestAes128Cbc;
 use capsules::test::aes::TestAes128Ctr;
-use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE};
+use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use sam4l::aes::{Aes, AES};
 
 pub unsafe fn run_aes128_ctr() {
@@ -20,7 +20,7 @@ pub unsafe fn run_aes128_cbc() {
 unsafe fn static_init_test_ctr() -> &'static mut TestAes128Ctr<'static, Aes<'static>> {
     let source = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
     let data = static_init!([u8; 6 * AES128_BLOCK_SIZE], [0; 6 * AES128_BLOCK_SIZE]);
-    let key = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+    let key = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
     let iv = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
 
     static_init!(
@@ -32,7 +32,7 @@ unsafe fn static_init_test_ctr() -> &'static mut TestAes128Ctr<'static, Aes<'sta
 unsafe fn static_init_test_cbc() -> &'static mut TestAes128Cbc<'static, Aes<'static>> {
     let source = static_init!([u8; 4 * AES128_BLOCK_SIZE], [0; 4 * AES128_BLOCK_SIZE]);
     let data = static_init!([u8; 6 * AES128_BLOCK_SIZE], [0; 6 * AES128_BLOCK_SIZE]);
-    let key = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
+    let key = static_init!([u8; AES128_KEY_SIZE], [0; AES128_KEY_SIZE]);
     let iv = static_init!([u8; AES128_BLOCK_SIZE], [0; AES128_BLOCK_SIZE]);
 
     static_init!(
