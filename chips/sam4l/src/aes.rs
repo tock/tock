@@ -6,7 +6,7 @@
 //! Converted to new register abstraction by Philip Levis <pal@cs.stanford.edu>
 
 use core::cell::Cell;
-use kernel::common::regs::{ReadOnly,ReadWrite,WriteOnly};
+use kernel::common::regs::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
@@ -27,33 +27,33 @@ pub enum ConfidentialityMode {
 /// The registers used to interface with the hardware
 #[repr(C)]
 struct AesRegisters {
-    pub ctrl:       ReadWrite<u32, Control::Register>,          //   0x00
-    pub mode:       ReadWrite<u32, Mode::Register>,             //   0x04
-    pub databufptr: ReadWrite<u32, DataBuf::Register>,          //   0x08
-    pub sr:         ReadOnly<u32, Status::Register>,            //   0x0c
-    pub ier:        WriteOnly<u32, Interrupt::Register>,        //   0x10
-    pub idr:        WriteOnly<u32, Interrupt::Register>,        //   0x14
-    pub imr:        ReadOnly<u32,  Interrupt::Register>,        //   0x18
-    _reserved0: [u32; 1],                                       //   0x1c
-    pub key0:       WriteOnly<u32, Key::Register>,              //   0x20
-    pub key1:       WriteOnly<u32, Key::Register>,              //   0x24
-    pub key2:       WriteOnly<u32, Key::Register>,              //   0x28
-    pub key3:       WriteOnly<u32, Key::Register>,              //   0x2c
-    pub key4:       WriteOnly<u32, Key::Register>,              //   0x30
-    pub key5:       WriteOnly<u32, Key::Register>,              //   0x34
-    pub key6:       WriteOnly<u32, Key::Register>,              //   0x38
-    pub key7:       WriteOnly<u32, Key::Register>,              //   0x3c
-    pub initvect0:  WriteOnly<u32, InitVector::Register>,       //   0x40
-    pub initvect1:  WriteOnly<u32, InitVector::Register>,       //   0x44
-    pub initvect2:  WriteOnly<u32, InitVector::Register>,       //   0x48
-    pub initvect3:  WriteOnly<u32, InitVector::Register>,       //   0x4c
-    pub idata:      WriteOnly<u32, Data::Register>,             //   0x50
-    _reserved1: [u32; 3],          //          0x54 - 0x5c
-    pub odata:      ReadOnly<u32,  Data::Register>,             //   0x60
-    _reserved2: [u32; 3],          //          0x64 - 0x6c
-    pub drngseed:   WriteOnly<u32, DrngSeed::Register>,         //   0x70
-    pub parameter:  ReadOnly<u32,  Parameter::Register>,         //   0x70
-    pub version:    ReadOnly<u32,  Version::Register>,           //   0x70
+    pub ctrl: ReadWrite<u32, Control::Register>, //   0x00
+    pub mode: ReadWrite<u32, Mode::Register>,    //   0x04
+    pub databufptr: ReadWrite<u32, DataBuf::Register>, //   0x08
+    pub sr: ReadOnly<u32, Status::Register>,     //   0x0c
+    pub ier: WriteOnly<u32, Interrupt::Register>, //   0x10
+    pub idr: WriteOnly<u32, Interrupt::Register>, //   0x14
+    pub imr: ReadOnly<u32, Interrupt::Register>, //   0x18
+    _reserved0: [u32; 1],                        //   0x1c
+    pub key0: WriteOnly<u32, Key::Register>,     //   0x20
+    pub key1: WriteOnly<u32, Key::Register>,     //   0x24
+    pub key2: WriteOnly<u32, Key::Register>,     //   0x28
+    pub key3: WriteOnly<u32, Key::Register>,     //   0x2c
+    pub key4: WriteOnly<u32, Key::Register>,     //   0x30
+    pub key5: WriteOnly<u32, Key::Register>,     //   0x34
+    pub key6: WriteOnly<u32, Key::Register>,     //   0x38
+    pub key7: WriteOnly<u32, Key::Register>,     //   0x3c
+    pub initvect0: WriteOnly<u32, InitVector::Register>, //   0x40
+    pub initvect1: WriteOnly<u32, InitVector::Register>, //   0x44
+    pub initvect2: WriteOnly<u32, InitVector::Register>, //   0x48
+    pub initvect3: WriteOnly<u32, InitVector::Register>, //   0x4c
+    pub idata: WriteOnly<u32, Data::Register>,   //   0x50
+    _reserved1: [u32; 3],                        //          0x54 - 0x5c
+    pub odata: ReadOnly<u32, Data::Register>,    //   0x60
+    _reserved2: [u32; 3],                        //          0x64 - 0x6c
+    pub drngseed: WriteOnly<u32, DrngSeed::Register>, //   0x70
+    pub parameter: ReadOnly<u32, Parameter::Register>, //   0x70
+    pub version: ReadOnly<u32, Version::Register>, //   0x70
 }
 
 register_bitfields![u32,
@@ -188,14 +188,14 @@ impl<'a> Aes<'a> {
 
     fn enable_interrupts(&self) {
         let regs: &AesRegisters = unsafe { &*self.registers };
-        regs.ier.write(Interrupt::IBUFRDY.val(1) +
-                       Interrupt::ODATARDY.val(1));
+        regs.ier
+            .write(Interrupt::IBUFRDY.val(1) + Interrupt::ODATARDY.val(1));
     }
 
     fn disable_interrupts(&self) {
         let regs: &AesRegisters = unsafe { &*self.registers };
-        regs.idr.write(Interrupt::IBUFRDY.val(1) +
-                       Interrupt::ODATARDY.val(1));
+        regs.idr
+            .write(Interrupt::IBUFRDY.val(1) + Interrupt::ODATARDY.val(1));
     }
 
     fn disable_input_interrupt(&self) {
@@ -208,21 +208,18 @@ impl<'a> Aes<'a> {
         let regs: &AesRegisters = unsafe { &*self.registers };
         // Are any interrupts set, meaning an encryption operation
         // is in progress?
-        (regs.imr.read(Interrupt::IBUFRDY) |
-         regs.imr.read(Interrupt::ODATARDY)) != 0
+        (regs.imr.read(Interrupt::IBUFRDY) | regs.imr.read(Interrupt::ODATARDY)) != 0
     }
 
     fn set_mode(&self, encrypting: bool, mode: ConfidentialityMode) {
         let regs: &AesRegisters = unsafe { &*self.registers };
         let encrypt = if encrypting { 1 } else { 0 };
         let dma = 0;
-        regs.mode.write(Mode::ENCRYPT.val(encrypt) +
-                        Mode::DMA.val(dma)         +
-                        Mode::OPMODE.val(mode as u32) +
-                        Mode::CTYPE4.val(1)        +
-                        Mode::CTYPE3.val(1)        +
-                        Mode::CTYPE2.val(1)        +
-                        Mode::CTYPE1.val(1));
+        regs.mode.write(
+            Mode::ENCRYPT.val(encrypt) + Mode::DMA.val(dma) + Mode::OPMODE.val(mode as u32)
+                + Mode::CTYPE4.val(1) + Mode::CTYPE3.val(1) + Mode::CTYPE2.val(1)
+                + Mode::CTYPE1.val(1),
+        );
     }
 
     fn input_buffer_ready(&self) -> bool {
@@ -469,8 +466,8 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             return;
         }
         let regs: &AesRegisters = unsafe { &*self.registers };
-        regs.ctrl.write(Control::NEWMSG.val(1) +
-                        Control::ENABLE.val(1));
+        regs.ctrl
+            .write(Control::NEWMSG.val(1) + Control::ENABLE.val(1));
     }
 
     fn crypt(
