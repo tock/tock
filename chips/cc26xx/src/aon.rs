@@ -11,15 +11,16 @@ pub struct AonEventRegisters {
 }
 
 pub struct AonEvent {
-    regs: *mut AonEventRegisters,
+    regs: *const AonEventRegisters,
 }
 
-const AON_EVENT_BASE: *mut AonEventRegisters = 0x4009_3000 as *mut AonEventRegisters;
-pub static mut AON_EVENT: AonEvent = AonEvent::new(AON_EVENT_BASE);
+pub static mut AON_EVENT: AonEvent = AonEvent::new();
 
 impl AonEvent {
-    const fn new(base_address: *mut AonEventRegisters) -> AonEvent {
-        AonEvent { regs: base_address }
+    const fn new() -> AonEvent {
+        AonEvent {
+            regs: 0x4009_3000 as *const AonEventRegisters,
+        }
     }
 
     pub fn setup(&self) {

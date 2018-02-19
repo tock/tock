@@ -5,6 +5,7 @@ use kernel::common::VolatileCell;
 use kernel::hil;
 
 const NUM_PINS: usize = 32;
+const GPIO_BASE: *const GpioRegisters = 0x4002_2000 as *const GpioRegisters;
 
 #[repr(C)]
 pub struct GpioRegisters {
@@ -22,10 +23,8 @@ pub struct GpioRegisters {
     pub evflags: VolatileCell<u32>,
 }
 
-pub const GPIO_BASE: *mut GpioRegisters = 0x4002_2000 as *mut GpioRegisters;
-
 pub struct GPIOPin {
-    regs: *mut GpioRegisters,
+    regs: *const GpioRegisters,
     pin: usize,
     pin_mask: u32,
     client_data: Cell<usize>,
