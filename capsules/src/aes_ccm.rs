@@ -34,8 +34,8 @@ use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil::symmetric_encryption;
-use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr};
-use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, CCM_NONCE_LENGTH};
+use kernel::hil::symmetric_encryption::{AES128, AES128CBC, AES128Ctr, AES128_BLOCK_SIZE,
+                                        AES128_KEY_SIZE, CCM_NONCE_LENGTH};
 use net::stream::{encode_bytes, encode_u16};
 use net::stream::SResult;
 
@@ -59,7 +59,7 @@ pub struct AES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> {
 
     buf: TakeCell<'static, [u8]>,
     pos: Cell<(usize, usize, usize, usize)>,
-    key: Cell<[u8; AES128_BLOCK_SIZE]>,
+    key: Cell<[u8; AES128_KEY_SIZE]>,
     nonce: Cell<[u8; CCM_NONCE_LENGTH]>,
     saved_tag: Cell<[u8; AES128_BLOCK_SIZE]>,
 }
@@ -399,10 +399,10 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + 'a> symmetric_encryption::AES12
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
-        if key.len() < AES128_BLOCK_SIZE {
+        if key.len() < AES128_KEY_SIZE {
             ReturnCode::EINVAL
         } else {
-            let mut new_key = [0u8; AES128_BLOCK_SIZE];
+            let mut new_key = [0u8; AES128_KEY_SIZE];
             new_key.copy_from_slice(key);
             self.key.set(new_key);
             ReturnCode::SUCCESS

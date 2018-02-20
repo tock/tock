@@ -131,7 +131,9 @@ impl<'a> AesECB<'a> {
 
             // get number of bytes to be used in the keystream/block
             let take = match end_idx.checked_sub(current_idx) {
-                Some(v) if v > 16 => 16,
+                Some(v) if v > symmetric_encryption::AES128_BLOCK_SIZE => {
+                    symmetric_encryption::AES128_BLOCK_SIZE
+                }
                 Some(v) => v,
                 None => 0,
             };
@@ -207,7 +209,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
-        if key.len() != 16 {
+        if key.len() != symmetric_encryption::AES128_KEY_SIZE {
             ReturnCode::EINVAL
         } else {
             for (i, c) in key.iter().enumerate() {
@@ -220,12 +222,12 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 
     fn set_iv(&self, iv: &[u8]) -> ReturnCode {
-        if iv.len() != 16 {
+        if iv.len() != symmetric_encryption::AES128_BLOCK_SIZE {
             ReturnCode::EINVAL
         } else {
             for (i, c) in iv.iter().enumerate() {
                 unsafe {
-                    ECB_DATA[i + 16] = *c;
+                    ECB_DATA[i + PLAINTEXT_START] = *c;
                 }
             }
             ReturnCode::SUCCESS

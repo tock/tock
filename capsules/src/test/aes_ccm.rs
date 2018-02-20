@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use kernel::ReturnCode;
 use kernel::common::take_cell::TakeCell;
-use kernel::hil::symmetric_encryption::{AES128CCM, AES128_BLOCK_SIZE, CCMClient, CCM_NONCE_LENGTH};
+use kernel::hil::symmetric_encryption::{AES128CCM, AES128_KEY_SIZE, CCMClient, CCM_NONCE_LENGTH};
 
 pub struct Test<'a, A: AES128CCM<'a> + 'a> {
     aes_ccm: &'a A,
@@ -198,7 +198,7 @@ impl<'a, A: AES128CCM<'a> + 'a> CCMClient for Test<'a, A> {
     }
 }
 
-static KEY: [u8; AES128_BLOCK_SIZE] = [
+static KEY: [u8; AES128_KEY_SIZE] = [
     0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF
 ];
 

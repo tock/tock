@@ -13,6 +13,7 @@ pub trait Client<'a> {
 /// The number of bytes used for AES block operations.  Keys and IVs must have this length,
 /// and encryption/decryption inputs must be have a multiple of this length.
 pub const AES128_BLOCK_SIZE: usize = 16;
+pub const AES128_KEY_SIZE: usize = 16;
 
 pub trait AES128<'a> {
     /// Enable the AES hardware.
@@ -26,7 +27,7 @@ pub trait AES128<'a> {
     fn set_client(&'a self, client: &'a Client<'a>);
 
     /// Set the encryption key.
-    /// Returns `EINVAL` if length is not `AES128_BLOCK_SIZE`
+    /// Returns `EINVAL` if length is not `AES128_KEY_SIZE`
     fn set_key(&self, key: &[u8]) -> ReturnCode;
 
     /// Set the IV (or initial counter).

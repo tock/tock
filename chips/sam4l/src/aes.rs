@@ -4,7 +4,7 @@ use core::cell::Cell;
 use kernel::common::VolatileCell;
 use kernel::common::take_cell::TakeCell;
 use kernel::hil;
-use kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::returncode::ReturnCode;
 use pm;
 use scif;
@@ -342,7 +342,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn set_key(&self, key: &[u8]) -> ReturnCode {
-        if key.len() != AES128_BLOCK_SIZE {
+        if key.len() != AES128_KEY_SIZE {
             return ReturnCode::EINVAL;
         }
 
