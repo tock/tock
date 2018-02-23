@@ -1,12 +1,12 @@
 VSCode Debugging
 ========
 
-This is a guide how to perform remote debugging in Tock using VSCode (at the moment nRF51-DK and nRF52-DK are supported)
+This is a guide how to perform remote debugging via JTAG in Tock using VSCode (at the moment nRF51-DK and nRF52-DK are supported)
 
 ## Requirements
-1. (VSCode)[https://code.visualstudio.com/]
-2. (VSCode Native Debug Extension)[https://github.com/WebFreak001/code-debug]
-3. (VSCode Rust Extension)[https://github.com/editor-rs/vscode-rust]
+1. [VSCode](https://code.visualstudio.com)
+2. [VSCode Native Debug Extension](https://github.com/WebFreak001/code-debug)
+3. [VSCode Rust Extension](https://github.com/editor-rs/vscode-rust)
 
 ## Installation
 1. Install VSCode for your platform
@@ -16,7 +16,8 @@ This is a guide how to perform remote debugging in Tock using VSCode (at the mom
 4. Install `Native Debug` and `Rust` in that view by searching for them
 
 You are now good to run the debugger and the debugging configurations is already configured for you.
-But, if you want change the configuration for example to run some gdb commands before starting you can do that [here](../../.vscode/launch.json). 
+But, if you want change the configuration for example to run some special gdb 
+commands before starting you can do that [here](../../.vscode/launch.json). 
 
 ## Enabling breakpoints
 Let's now test if this works by configuring some breakpoints:
@@ -42,7 +43,7 @@ Let's now test if this works by configuring some breakpoints:
 
 ## Issues
 1. Sometimes gdb behaves unpredictably and stops at the wrong source line. For example sometimes we have noticed that debugger stops at `/kernel/src/support/arm.rs` instead of the `reset_handler` if that occurs just press `step over` and it should hopefully jump to correct location.
-2. Rust in ```release mode``` is optimizing things such as inlining and mangling which makes debugging harder and values may not be visible. To perform more reliable mark important functions with:
+2. Rust in `release mode` is optimizing things such as inlining and mangling which makes debugging harder and values may not be visible. To perform more reliable debugging mark the important functions with:
 ```
 #[no_mangle]
 #[inline(never)]
