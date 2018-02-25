@@ -72,7 +72,7 @@ int ninedof_read_acceleration_sync(int* x, int* y, int* z) {
   return 0;
 }
 
-int ninedof_read_magenetometer_sync(int* x, int* y, int* z) {
+int ninedof_read_magnetometer_sync(int* x, int* y, int* z) {
   int err;
   res.fired = false;
 
