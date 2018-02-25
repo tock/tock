@@ -21,7 +21,7 @@ double ninedof_read_accel_mag(void);
 int ninedof_read_acceleration_sync(int* x, int* y, int* z);
 
 // Get a reading from the magnetometer. Blocking.
-int ninedof_read_magenetometer_sync(int* x, int* y, int* z);
+int ninedof_read_magnetometer_sync(int* x, int* y, int* z);
 
 #ifdef __cplusplus
 }
