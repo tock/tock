@@ -6,7 +6,7 @@
 set -e
 set -x
 
-./tools/build_all_docs.sh
+./tools/build-all-docs.sh
 
 pushd doc
 
