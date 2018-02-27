@@ -132,7 +132,7 @@ doc: | target
 	@#
 	@# The script needs an absolute path for rustc to invoke it, so use a temp dir
 	@# https://stackoverflow.com/a/14608500/358675
-	$(Q)DEST=$(TMPDIR)/rustdoc-$$RANDOM; \
+	$(Q)DEST=$$(mktemp -d)/rustdoc-$$RANDOM; \
 	    trap 'rm -rf $$DEST' EXIT; \
 	    printf '#!/bin/bash\nexec rustdoc $$@ --no-defaults --passes "collapse-docs" --passes "unindent-comments"\n' > $$DEST; \
 	    chmod +x $$DEST; \
